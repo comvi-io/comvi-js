@@ -45,9 +45,10 @@ function writeJson(file, value) {
  * A whole workspace in miniature. `@comvi/core` at 0.4.0 is what every next
  * version is derived from; `@comvi/react` carries the caret peer range the
  * script rewrites next to a framework peer it must not touch; `@comvi/plugin-x`
- * carries the `workspace:` range that is exempt; `@comvi/locale-routing` sits
- * outside the fixed group with no `@comvi/*` peer at all, exactly as it does in
- * the real repo, and must come out byte-identical.
+ * carries the `workspace:` range that is exempt; `@comvi/internal` is a
+ * workspace-private package outside the fixed group with no `@comvi/*` peer at
+ * all — the shape the repo's inlined-only packages have — and must come out
+ * byte-identical.
  */
 function makeFixtureRepo(
   t,
@@ -85,9 +86,10 @@ function makeFixtureRepo(
     version: "0.1.0",
     peerDependencies: { "@comvi/core": "workspace:*" },
   });
-  writeJson(path.join(root, "packages/locale-routing/package.json"), {
-    name: "@comvi/locale-routing",
+  writeJson(path.join(root, "packages/internal/package.json"), {
+    name: "@comvi/internal",
     version: "0.0.0",
+    private: true,
   });
   // A directory under packages/ with no manifest at all — the script skips it.
   fs.mkdirSync(path.join(root, "packages/not-a-package"), { recursive: true });
@@ -159,7 +161,7 @@ test("with no changesets there is no next version and no next range", (t) => {
 
 test("syncPeerRanges pins @comvi peers to the next minor and leaves everything else alone", (t) => {
   const root = makeFixtureRepo(t);
-  const localeRoutingBefore = readRaw(root, "locale-routing");
+  const internalBefore = readRaw(root, "internal");
   const pluginXBefore = readRaw(root, "plugin-x");
 
   const result = runInFixture(root, "  syncPeerRanges();\n  out(null);");
@@ -172,20 +174,20 @@ test("syncPeerRanges pins @comvi peers to the next minor and leaves everything e
   });
   // `workspace:` ranges are resolved by pnpm at publish time, so they are exempt.
   assert.equal(readRaw(root, "plugin-x"), pluginXBefore);
-  // Outside the fixed group and with no @comvi peer: never rewritten.
-  assert.equal(readRaw(root, "locale-routing"), localeRoutingBefore);
+  // Workspace-private and with no @comvi peer: never rewritten.
+  assert.equal(readRaw(root, "internal"), internalBefore);
   assert.match(result.stdout, /sync-peer-ranges: @comvi\/react -> @comvi\/\* peer \^0\.5\.0/);
 });
 
 test("syncPeerRanges with no changesets writes nothing", (t) => {
   const root = makeFixtureRepo(t, { changesets: {} });
-  const before = ["core", "react", "plugin-x", "locale-routing"].map((dir) => readRaw(root, dir));
+  const before = ["core", "react", "plugin-x", "internal"].map((dir) => readRaw(root, dir));
 
   const result = runInFixture(root, "  syncPeerRanges();\n  out(null);");
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 
   assert.deepEqual(
-    ["core", "react", "plugin-x", "locale-routing"].map((dir) => readRaw(root, dir)),
+    ["core", "react", "plugin-x", "internal"].map((dir) => readRaw(root, dir)),
     before,
   );
   assert.match(result.stdout, /sync-peer-ranges: no changesets, nothing to do/);

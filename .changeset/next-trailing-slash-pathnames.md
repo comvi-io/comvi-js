@@ -1,5 +1,4 @@
 ---
-"@comvi/locale-routing": patch
 "@comvi/next": patch
 ---
 

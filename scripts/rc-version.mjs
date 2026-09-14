@@ -6,8 +6,9 @@
  *     `<next fixed version>-rc.<N>`, where the next version comes from
  *     sync-peer-ranges' `nextReleaseVersion()` (the same rule the real cut uses);
  *   - every other publishable workspace package that at least one changeset
- *     names (e.g. @comvi/locale-routing) to `<its own next version>-rc.<N>`,
- *     bumped by the max type its changesets declare;
+ *     names, to `<its own next version>-rc.<N>`, bumped by the max type its
+ *     changesets declare. No package is in this bucket today: the publishable
+ *     set IS the fixed group;
  *   - every non-`workspace:` `@comvi/*` peer range to the EXACT rc version of
  *     that peer, because `^0.5.0` does not satisfy `0.5.0-rc.0` under semver
  *     prerelease rules and the RC soak installs from the registry. `workspace:*`

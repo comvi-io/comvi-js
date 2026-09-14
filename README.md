@@ -376,6 +376,17 @@ These plugins require the [Comvi Platform](https://comvi.io) and don't work stan
 | [`@comvi/vite-plugin`](packages/vite-plugin) | Generate types from local JSON files at dev/build time |
 | [`@comvi/cli`](packages/cli)                 | Generate types from the Comvi TMS, sync translations   |
 
+### Internal (not published)
+
+Two workspace packages exist so shared code has one copy in the repo. They are
+`"private": true`, publish no npm package, and are inlined into the packages
+above at build time — nothing you install ever names them.
+
+| Package                                     | Inlined into                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------- |
+| [`locale-routing`](packages/locale-routing) | `@comvi/next` (bundled); `@comvi/nuxt` (vendored into its runtime)  |
+| [`typegen`](packages/typegen)               | `@comvi/cli`, `@comvi/vite-plugin` (bundled, declarations included) |
+
 ## Comvi Platform
 
 Comvi i18n is the open-source library, and it is usable on its own. [**Comvi**](https://comvi.io) is the optional translation management platform that pairs with it:
@@ -390,12 +401,13 @@ Adopt the platform when you're ready. The library never depends on it.
 ## Repository
 
 ```
-packages/        — published npm packages (13 total)
+packages/        — 14 workspace packages: 12 published to npm, plus
+                   locale-routing and typegen (private, inlined into consumers)
 tooling/         — shared internal Vite/Vitest config
 test-apps/       — runnable demo apps for every framework
 ```
 
-[pnpm](https://pnpm.io/) + [Turborepo](https://turbo.build/) monorepo. Every package builds independently and is published to npm under the `@comvi/*` scope.
+[pnpm](https://pnpm.io/) + [Turborepo](https://turbo.build/) monorepo. Every package builds independently; the 12 publishable ones ship to npm under the `@comvi/*` scope as one release train.
 
 ## Development
 

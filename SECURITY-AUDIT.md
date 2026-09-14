@@ -52,9 +52,12 @@ of from a diff of 186 commits.
   in dev/test tooling as far as the manifests show. The July counts — 84
   workspace findings, 37 in the production graph — are therefore stale and must
   be re-measured, not carried forward.
-- **One new publishable package:** `@comvi/locale-routing`. It is not in the
-  "clean" list above and must be added to the release-blocking rule in
-  "How to re-check".
+- **No new publishable package.** The two packages 0.5 extracted for shared
+  code (`packages/locale-routing`, `packages/typegen`) are workspace-private:
+  they publish no tarball, and their code reaches npm only inside the consumers
+  that inline it. The publishable set is unchanged at 12 names, so the
+  release-blocking rule in "How to re-check" needs no new entry — but the audit
+  of those 12 now has to cover the inlined code as part of its host package.
 
 ### Code paths the owner must read
 

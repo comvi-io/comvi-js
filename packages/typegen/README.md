@@ -5,122 +5,63 @@
   </picture>
 </p>
 
-<h1 align="center">@comvi/typegen</h1>
+<h1 align="center">typegen (internal)</h1>
 
-<p align="center">The declaration emitter behind <code>@comvi/cli</code> and <code>@comvi/vite-plugin</code>.</p>
-
-<p align="center">
-  <a href="https://www.npmjs.com/package/@comvi/typegen"><img src="https://img.shields.io/npm/v/@comvi/typegen?color=blue" alt="npm"></a>
-  <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-</p>
+<p align="center">The one copy of the <code>TranslationKeys</code> declaration format. A private workspace package — it is never published.</p>
 
 ---
 
-`@comvi/typegen` turns a translation schema into the `TranslationKeys` declaration that types every `t()` call in a project. It is the one copy of that format. `@comvi/cli` generates from the Comvi TMS schema and `@comvi/vite-plugin` generates from local JSON files, but both call this package, so a project that runs the CLI in CI and the plugin in dev cannot see the two disagree.
+> **Workspace-private.** `"private": true` in `package.json`, and in the `ignore`
+> list of `.changeset/config.json`. There is no npm package and nothing to
+> install. This directory exists so the CLI and the Vite plugin emit byte-identical
+> declarations without keeping two copies of the emitter.
 
-**You probably want a tool, not this package.** Reach for [`@comvi/cli`](https://www.npmjs.com/package/@comvi/cli) or [`@comvi/vite-plugin`](https://www.npmjs.com/package/@comvi/vite-plugin) instead. Install this one only if you are writing your own generator: a schema from a source neither tool reads, or your own check step.
+## Who uses it, and how
 
-## About Comvi i18n
+| Consumer             | Mechanism                                                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `@comvi/cli`         | **Inlined at build time.** Absent from the rolldown `external` list; the declarations are bundled by `vite-plugin-dts` |
+| `@comvi/vite-plugin` | **Inlined at build time**, the same way                                                                                |
 
-Comvi i18n is a framework-agnostic internationalization library. You get ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)**, with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Both builds pass `bundledPackages: ["@comvi/typegen"]` to `vite-plugin-dts`, so
+the rolled-up `dist/index.d.ts` carries `SchemaParam`, `KeySchema` and
+`ProjectSchema` as its own declarations instead of importing them from a package
+nobody can install. That is the gate: nothing published may name this package.
 
-- **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **ICU `plural`, `selectordinal` & `select`:** locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
-- **Type-safe translation keys** via TypeScript declaration merging, for autocomplete and parameter validation everywhere.
-- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins.
+## What consumers use instead
 
-See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
+`comvi typegen` (the CLI command) generates from the Comvi TMS schema;
+`comviTypes()` from `@comvi/vite-plugin` generates from local JSON files;
+`TypeEmitter` from `@comvi/cli` is the published programmatic emitter. The
+schema types are re-exported under the same names from both `@comvi/cli` and
+`@comvi/vite-plugin`.
 
-### Why @comvi/typegen?
+## What it guarantees
 
-- **One format, two tools.** The CLI and the Vite plugin emit byte-identical declarations, so switching between them never rewrites the file.
-- **Nothing but strings.** No dependencies and no `node:` imports. You read the schema and write the file; this package only formats.
-- **Stable output.** No timestamp is stamped, so regenerating an unchanged schema produces the same bytes and leaves your working tree clean.
+- **One format, two tools.** The CLI and the Vite plugin emit byte-identical
+  declarations, so switching between them never rewrites the file.
+- **Nothing but strings.** No dependencies and no `node:` imports — a caller
+  reads the schema and writes the file; this package only formats.
+- **Stable output.** No timestamp is stamped, so regenerating an unchanged
+  schema produces the same bytes and leaves the working tree clean.
 
-## Install
+## The three functions
 
-```bash
-npm install -D @comvi/typegen
-# Node 22 or newer, ESM only
-```
-
-## Quick start
-
-```ts
-import { emitDeclarations } from "@comvi/typegen";
-import { writeFile } from "node:fs/promises";
-
-const declarations = emitDeclarations(
-  {
-    keys: {
-      "default:greeting": { params: [{ name: "name", type: "string" }] },
-      "admin:dashboard": { params: [] },
-    },
-  },
-  { generatedBy: "DO NOT EDIT — generated by my-typegen" },
-);
-
-await writeFile("src/types/i18n.d.ts", declarations, "utf-8");
-```
-
-`src/types/i18n.d.ts`, verbatim:
-
-```text
-/**
- * Auto-generated translation keys
- * DO NOT EDIT — generated by my-typegen
- */
-
-// Import to ensure module is resolved before augmentation
-import '@comvi/core';
-
-declare module '@comvi/core' {
-  interface TranslationKeys {
-    "admin:dashboard": never;
-    "greeting": { "name": string };
-  }
-}
-
-export {};
-```
-
-## The three exports
-
-### `emitDeclarations(schema, options?)`
-
-Returns the whole declaration file as a string. Keys are emitted in code-unit order, and every key and param name goes through `JSON.stringify`, so an apostrophe or a hyphen in either is safe.
-
-| option         | default                                                             | what it does                                                                        |
-| -------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `strictParams` | `true`                                                              | `false` makes every param optional (`"name"?: string`)                              |
-| `defaultNs`    | `"default"`                                                         | keys in this namespace lose their prefix, so `default:greeting` types as `greeting` |
-| `generatedBy`  | `DO NOT EDIT — this file is generated from your translation schema` | header line 3, verbatim; how each tool signs its own output                         |
-
-It throws for a schema it cannot express: a param whose `type` is neither `"string"` nor `"number"`, and two keys that collide once `defaultNs` is stripped (`default:title` and `title`). Both would otherwise produce a file the project has to debug at the call site.
-
-### `countKeyLines(content)`
-
-Counts the declaration lines already in a generated file. Both quote styles count, so a file left by an older generator is measured correctly. Used for the "current N keys, expected M" line of a check report.
-
-### `normalizeGenerated(content)`
-
-Drops what a regeneration is allowed to change (today, only the `Generated at:` header line that `@comvi/cli` 0.4 stamped) and trims. Compare two normalized strings to decide whether a file on disk is up to date; a file written by 0.4 still compares equal to current output.
-
-```ts
-import { readFile } from "node:fs/promises";
-import type { ProjectSchema } from "@comvi/typegen";
-import { countKeyLines, emitDeclarations, normalizeGenerated } from "@comvi/typegen";
-
-const schema: ProjectSchema = { keys: { "default:greeting": { params: [] } } };
-const generatedBy = "DO NOT EDIT — generated by my-typegen";
-const outputPath = "src/types/i18n.d.ts";
-
-const expected = emitDeclarations(schema, { generatedBy });
-const current = await readFile(outputPath, "utf-8");
-
-const upToDate = normalizeGenerated(current) === normalizeGenerated(expected);
-const currentKeys = countKeyLines(current);
-```
+- **`emitDeclarations(schema, options?)`** — the whole declaration file as a
+  string. Keys are emitted in code-unit order, and every key and param name goes
+  through `JSON.stringify`, so an apostrophe or a hyphen in either is safe.
+  Options: `strictParams` (default `true`; `false` makes every param optional),
+  `defaultNs` (default `"default"`; keys in that namespace lose their prefix)
+  and `generatedBy` (header line 3, verbatim — how each tool signs its output).
+  It throws for a schema it cannot express: a param whose `type` is neither
+  `"string"` nor `"number"`, and two keys that collide once `defaultNs` is
+  stripped (`default:title` and `title`).
+- **`countKeyLines(content)`** — how many declaration lines a generated file
+  already carries. Both quote styles count, so a file left by an older generator
+  is measured correctly. Used for the "current N keys, expected M" check line.
+- **`normalizeGenerated(content)`** — drops what a regeneration is allowed to
+  change (today only the `Generated at:` header line `@comvi/cli` 0.4 stamped)
+  and trims, so two normalized strings decide whether a file is up to date.
 
 ## The schema
 
@@ -137,7 +78,12 @@ interface ProjectSchema {
 }
 ```
 
-Keys are flat and namespaced with a colon, as in `"common:greeting"`. Param order is declaration order and is preserved in the emitted type.
+Keys are flat and namespaced with a colon, as in `"common:greeting"`. Param
+order is declaration order and is preserved in the emitted type.
+
+`pnpm --filter @comvi/typegen test` pins the output format; the cli's
+`tests/typegen-contract.test.ts` and the vite plugin's `tests/emit.test.ts` pin
+the two seams over it.
 
 ## License
 

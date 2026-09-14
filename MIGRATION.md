@@ -763,14 +763,14 @@ Scoping is now two installers: `.use(nextPlugin(plugin, { runtime, environment }
 statically provable call; a runtime-decided `lazy`, a spread in the options, or a
 shadowed `createNextI18n` is reported for you to move by hand.
 
-**Locale routing** moved onto the shared `@comvi/locale-routing` package. It is
-published, but it is a dependency of `@comvi/next` and `@comvi/nuxt` rather than
-something you add: nothing in an app installs or imports it directly. Two URL
-behaviours changed with the move: a trailing slash survives locale-prefix
-stripping (`/de/about/` → `/about/`, and the middleware no longer redirects to
-normalize it), and interior duplicate slashes are no longer collapsed (`/de//x` →
-`//x`). Prefix modes, the pathnames slug map and root-path handling are
-unchanged.
+**Locale routing** moved onto one shared implementation behind `@comvi/next` and
+`@comvi/nuxt`. It is not a package you install and **neither package gained a
+runtime dependency**: the shared code is workspace-private and arrives inside
+each package's own build. Two URL behaviours changed with the move: a trailing
+slash survives locale-prefix stripping (`/de/about/` → `/about/`, and the
+middleware no longer redirects to normalize it), and interior duplicate slashes
+are no longer collapsed (`/de//x` → `//x`). Prefix modes, the pathnames slug map
+and root-path handling are unchanged.
 
 ## 7. `@comvi/nuxt`
 
@@ -1006,11 +1006,13 @@ compilers.
 
 ## 9. Tooling: one emitter behind `@comvi/cli` and `@comvi/vite-plugin`
 
-Both tools now generate declarations through the new `@comvi/typegen` package, so
-a project that runs the CLI in CI and the Vite plugin in dev cannot see the two
-disagree. Nothing to change in a project: generated files look the same, and the
-file no longer carries a `Generated at:` line, so regenerating an unchanged
-schema stops producing a diff.
+Both tools now generate declarations through one shared emitter, so a project
+that runs the CLI in CI and the Vite plugin in dev cannot see the two disagree.
+The emitter is workspace-private and is inlined into both builds, so neither
+package gained a dependency and there is nothing extra to install. Nothing to
+change in a project either: generated files look the same, and the file no longer
+carries a `Generated at:` line, so regenerating an unchanged schema stops
+producing a diff.
 
 One thing to do once, though: 0.5 quotes keys and parameter names with
 `JSON.stringify` where 0.4 emitted single quotes and bare names. `--check` drops
@@ -1019,9 +1021,13 @@ the missing header line before comparing but not the quoting, so the first
 in every repository. Run `comvi typegen` and commit the re-quoted file in the
 upgrade commit.
 
-`@comvi/cli`'s `TypeEmitter` class is **deprecated**: it still ships and behaves
-identically, but call `emitDeclarations(schema, { defaultNs })` from
-`@comvi/typegen` where you used `new TypeEmitter().generate(schema, { defaultNsName })`.
+`@comvi/cli`'s `TypeEmitter` class is **not** deprecated after all. A 0.5
+pre-release note pointed programmatic callers at a standalone `@comvi/typegen`
+package; that package stayed workspace-private, so `new TypeEmitter().generate(schema,
+{ defaultNsName })` and the `comvi typegen` command remain the two supported
+entry points and behave exactly as before. The schema types (`SchemaParam`,
+`KeySchema`, `ProjectSchema`) are still exported from `@comvi/cli` and
+`@comvi/vite-plugin` under the same names.
 
 ---
 

@@ -40,11 +40,13 @@ const sorted = [...published].sort((a, b) => {
 
 // The tag comes from the release train: the `fixed` group of
 // .changeset/config.json, whose members always share one version. Anything
-// published outside that group is versioned independently (today
-// @comvi/locale-routing; scripts/root-changelog.mjs calls the same set
-// INDEPENDENT_PACKAGES and filters it out of coordinatedVersion()). The config
-// is the single place that decision is recorded, so read it instead of keeping
-// a second hard-coded list here. Independent packages keep their own version in
+// published outside that group is versioned independently; today NOTHING is —
+// every publishable package is a member, and the two packages that are not
+// (locale-routing, typegen) are workspace-private and publish nothing at all.
+// The code path stays because the config can grow one back, and the config is
+// the single place that decision is recorded, so read it instead of keeping a
+// second hard-coded list here (scripts/root-changelog.mjs reads the same set
+// through `fixedGroupNames`). Independent packages keep their own version in
 // the release notes, in manifest.json and in the archive.
 const changesetConfig = JSON.parse(readFileSync(".changeset/config.json", "utf8"));
 const fixedGroup = new Set((changesetConfig.fixed ?? []).flat());

@@ -18,7 +18,9 @@ function writeJson(file, value) {
 /**
  * A workspace with one pending changeset, a root CHANGELOG that already has a
  * release heading to insert above, and two publishable packages sharing one
- * version so `coordinatedVersion` resolves.
+ * version so `coordinatedVersion` resolves. Both are in the `fixed` group of the
+ * fixture's own `.changeset/config.json`: that file is what `main` reads to know
+ * which packages the release train covers.
  */
 function makeFixtureRepo(t, { changesets = { "a.md": '"@comvi/core": minor' } } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "version-release-"));
@@ -26,6 +28,10 @@ function makeFixtureRepo(t, { changesets = { "a.md": '"@comvi/core": minor' } } 
 
   fs.mkdirSync(path.join(root, ".changeset"), { recursive: true });
   fs.writeFileSync(path.join(root, ".changeset/README.md"), "# Changesets\n");
+  writeJson(path.join(root, ".changeset/config.json"), {
+    fixed: [["@comvi/core", "@comvi/react"]],
+    ignore: [],
+  });
   for (const [file, frontmatter] of Object.entries(changesets)) {
     fs.writeFileSync(
       path.join(root, ".changeset", file),
@@ -195,12 +201,16 @@ test("a failure that is not the coordinated-version check keeps its own identity
 
 test("the changesets are read before `changeset version` deletes them", (t) => {
   const root = makeFixtureRepo(t);
-  // A runner that empties .changeset the way `changeset version` does. The
-  // CHANGELOG entry must still be written from what was collected first.
+  // A runner that consumes the pending changesets the way `changeset version`
+  // does — it deletes the `*.md` entries and leaves `README.md` and
+  // `config.json` in place. The CHANGELOG entry must still be written from what
+  // was collected first.
   const run = (command) => {
     if (command === process.execPath) return;
     for (const file of fs.readdirSync(path.join(root, ".changeset"))) {
-      if (file !== "README.md") fs.rmSync(path.join(root, ".changeset", file));
+      if (file.endsWith(".md") && file !== "README.md") {
+        fs.rmSync(path.join(root, ".changeset", file));
+      }
     }
   };
 

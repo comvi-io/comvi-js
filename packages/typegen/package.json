@@ -2,6 +2,7 @@
   "name": "@comvi/typegen",
   "version": "0.4.0",
   "type": "module",
+  "private": true,
   "description": "The declaration emitter shared by @comvi/cli and @comvi/vite-plugin — one output format for generated Comvi translation key types",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
@@ -14,25 +15,10 @@
   "bugs": {
     "url": "https://github.com/comvi-io/comvi-js/issues"
   },
-  "keywords": [
-    "i18n",
-    "internationalization",
-    "typescript",
-    "typegen",
-    "codegen",
-    "declarations",
-    "comvi"
-  ],
-  "files": [
-    "dist"
-  ],
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "engines": {
     "node": ">=22"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "exports": {
     ".": {

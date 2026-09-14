@@ -16,7 +16,12 @@ import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(new URL("./create-combined-release.mjs", import.meta.url));
 
-const FIXED_GROUP = ["@comvi/core", "@comvi/typegen", "@comvi/next"];
+// A synthetic train. The names are real published packages so the fixture reads
+// like a release, but the group is the fixture's own: the script reads whatever
+// `fixed` the config it runs against declares. `@comvi/standalone` below is
+// deliberately NOT a real package name — nothing in this repo is versioned
+// independently any more, and the code path that handles one still needs a test.
+const FIXED_GROUP = ["@comvi/core", "@comvi/react", "@comvi/next"];
 
 function changelog(name, entries) {
   return [
@@ -97,16 +102,16 @@ const MIXED_PACKAGES = [
     ],
   },
   {
-    dir: "typegen",
-    name: "@comvi/typegen",
+    dir: "react",
+    name: "@comvi/react",
     version: "0.5.0",
-    changelog: [["0.5.0", "typegen train entry"]],
+    changelog: [["0.5.0", "react train entry"]],
   },
   {
-    dir: "locale-routing",
-    name: "@comvi/locale-routing",
+    dir: "standalone",
+    name: "@comvi/standalone",
     version: "0.1.0",
-    changelog: [["0.1.0", "locale-routing initial release"]],
+    changelog: [["0.1.0", "standalone initial release"]],
   },
 ];
 
@@ -117,8 +122,8 @@ test("a mixed published set tags the fixed-group version and keeps every package
     archiveDir,
     published: [
       { name: "@comvi/core", version: "0.5.0" },
-      { name: "@comvi/locale-routing", version: "0.1.0" },
-      { name: "@comvi/typegen", version: "0.5.0" },
+      { name: "@comvi/react", version: "0.5.0" },
+      { name: "@comvi/standalone", version: "0.1.0" },
     ],
   });
 
@@ -128,11 +133,11 @@ test("a mixed published set tags the fixed-group version and keeps every package
 
   const body = result.stdout.split("---BODY---")[1].split("---END BODY---")[0];
   assert.match(body, /Released `0\.5\.0` across the coordinated `@comvi\/\*` release train\./);
-  assert.match(body, /Independently versioned in this release: `@comvi\/locale-routing@0\.1\.0`\./);
+  assert.match(body, /Independently versioned in this release: `@comvi\/standalone@0\.1\.0`\./);
   // Each section carries the section of the changelog for that package's OWN version.
   assert.match(body, /### `@comvi\/core`[\s\S]*core train entry/);
-  assert.match(body, /### `@comvi\/typegen`[\s\S]*typegen train entry/);
-  assert.match(body, /### `@comvi\/locale-routing`[\s\S]*locale-routing initial release/);
+  assert.match(body, /### `@comvi\/react`[\s\S]*react train entry/);
+  assert.match(body, /### `@comvi\/standalone`[\s\S]*standalone initial release/);
   assert.doesNotMatch(body, /older core entry/);
 
   const archiveRoot = extractArchive(t, archiveDir, "comvi-v0.5.0");
@@ -142,16 +147,16 @@ test("a mixed published set tags the fixed-group version and keeps every package
     manifest.packages.map((pkg) => [pkg.name, pkg.version]),
     [
       ["@comvi/core", "0.5.0"],
-      ["@comvi/locale-routing", "0.1.0"],
-      ["@comvi/typegen", "0.5.0"],
+      ["@comvi/react", "0.5.0"],
+      ["@comvi/standalone", "0.1.0"],
     ],
   );
   assert.deepEqual(
     manifest.packages.map((pkg) => pkg.file),
     [
       "packages/comvi-core-0.5.0.tgz",
-      "packages/comvi-locale-routing-0.1.0.tgz",
-      "packages/comvi-typegen-0.5.0.tgz",
+      "packages/comvi-react-0.5.0.tgz",
+      "packages/comvi-standalone-0.1.0.tgz",
     ],
   );
 
@@ -178,7 +183,7 @@ test("a fixed-group disagreement still refuses", (t) => {
     published: [
       { name: "@comvi/core", version: "0.5.0" },
       { name: "@comvi/next", version: "0.4.1" },
-      { name: "@comvi/locale-routing", version: "0.1.0" },
+      { name: "@comvi/standalone", version: "0.1.0" },
     ],
   });
 
@@ -189,7 +194,7 @@ test("a fixed-group disagreement still refuses", (t) => {
   );
   assert.match(result.stderr, /- @comvi\/next@0\.4\.1/);
   // The independent package is not part of the disagreement report.
-  assert.doesNotMatch(result.stderr, /locale-routing/);
+  assert.doesNotMatch(result.stderr, /standalone/);
   assert.equal(fs.existsSync(archiveDir), false);
 });
 
@@ -198,7 +203,7 @@ test("a release with no fixed-group package refuses: there is no train version t
   const result = runScript({
     root,
     archiveDir,
-    published: [{ name: "@comvi/locale-routing", version: "0.1.0" }],
+    published: [{ name: "@comvi/standalone", version: "0.1.0" }],
   });
 
   assert.equal(result.status, 1, result.stdout);
@@ -206,7 +211,7 @@ test("a release with no fixed-group package refuses: there is no train version t
     result.stderr,
     /no published package belongs to the `fixed` group in \.changeset\/config\.json/,
   );
-  assert.match(result.stderr, /- @comvi\/locale-routing@0\.1\.0/);
+  assert.match(result.stderr, /- @comvi\/standalone@0\.1\.0/);
   assert.equal(fs.existsSync(archiveDir), false);
 });
 
