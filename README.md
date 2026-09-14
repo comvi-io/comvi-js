@@ -58,7 +58,8 @@ npm install @comvi/next      # Peers: next ^14 || ^15, react ^18 || ^19
 npm install @comvi/nuxt      # Peer: nuxt ^3 || ^4
 ```
 
-Node 20 or newer. Loading translations from the Comvi platform adds the loader plugin beside the
+Node 20 or newer for the runtime packages above; `@comvi/cli` and `@comvi/vite-plugin` need Node 22.
+Loading translations from the Comvi platform adds the loader plugin beside the
 framework package:
 
 ```bash
