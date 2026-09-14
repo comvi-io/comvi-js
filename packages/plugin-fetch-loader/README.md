@@ -184,6 +184,10 @@ back a promise nobody awaits. Register it with `registerPlugin`, where `required
 `onError` and cleanup apply to it. The full reasoning is in
 [docs/design/composition.md](../../docs/design/composition.md#installer-or-plugin-swapping-the-slots-is-loud-both-ways).
 
+The `CDN_BASE_URL` export is **deprecated and removed in 0.6**: `cdnUrl` is required, there is no
+environment override for it, and nothing in this package reads the constant — the hosted default
+lives on `comviPreset` instead.
+
 ## Where to go next
 
 - **Your framework's two-step quickstart:** [react](../react) · [vue](../vue) · [solid](../solid) ·

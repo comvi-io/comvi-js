@@ -108,8 +108,11 @@ inline for the server render, or load on the client and gate with `fallback`.
 
 1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
    default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
-   (`{count, plural, …}`) throws `E_ICU_SYNTAX` in development the moment the catalog is loaded,
-   before anything renders; in production it renders the message text literally and reports the
+   (`{count, plural, …}`) fails in development at ingestion, before anything renders. Inline, it
+   throws `E_ICU_SYNTAX` at the call that carries the catalog; over a loader it fails that
+   namespace's load instead — `E_ICU_SYNTAX` reaches `onLoadError`, the namespace stays empty, and
+   `init()` rejects with `[i18n] Failed to load all namespaces …`, not with `E_ICU_SYNTAX`, when
+   that was the only namespace. In production it renders the message text literally and reports the
    error through `onError` (`console.error` when no handler is set).
 2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, which
    fetches the catalog at runtime instead of bundling it.

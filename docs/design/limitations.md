@@ -95,8 +95,11 @@ isolation.
 
 Four members on `useI18n()` are declared as optional `never` in react, solid, svelte and vue, so
 `if (bag.reloadTranslations)` compiles and is always false. Acquire them from `useI18nLoader()` /
-`useI18nPlugins()` instead. Those declarations, `<T raw>`, `allowedTags?: never` on svelte's `<T>`, and
-`ssrInitialLocale` on `@comvi/react` are all **removed in 0.6**.
+`useI18nPlugins()` instead. Those declarations, `<T raw>`, `allowedTags?: never` on svelte's `<T>`,
+`ssrInitialLocale` on `@comvi/react` and `CDN_BASE_URL` on `@comvi/plugin-fetch-loader` are all
+**removed in 0.6**. `CDN_BASE_URL` is the one that was never read: `cdnUrl` is a required option
+with no default and no environment override, so the constant answers a question the loader does not
+ask. The hosted CDN default stays readable as `comviPreset.cdnBaseUrl`.
 
 ## Environment
 

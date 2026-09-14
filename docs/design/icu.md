@@ -29,8 +29,13 @@ that renders correctly under that host renders literally under every other.
 - **`plural`, `selectordinal` and `select`, each with a choice list, are the whole of what the
   compiler implements.** The `number`, `date` and `time` argument types and the plural `offset:`
   form are not implemented and not on the roadmap.
-- **Unimplemented syntax fails loudly, never plausibly.** Development throws `E_ICU_SYNTAX` at
-  ingestion; production renders the braced segment literally and reports `E_ICU_SYNTAX`.
+- **Unimplemented syntax fails loudly, never plausibly.** An ICU message (`{count, plural, …}`)
+  fails in development at ingestion, before anything renders. Inline, it throws `E_ICU_SYNTAX` at
+  the call that carries the catalog; over a loader it fails that namespace's load instead —
+  `E_ICU_SYNTAX` reaches `onLoadError`, the namespace stays empty, and `init()` rejects with
+  `[i18n] Failed to load all namespaces …`, not with `E_ICU_SYNTAX`, when that was the only
+  namespace. In production it renders the message text literally and reports the error through
+  `onError` (`console.error` when no handler is set).
 - **`E_ICU_SYNTAX` owns exactly two fields**, `code` and `argumentType`. Key, namespace and locale
   arrive through the report context; catalog source stays the app's own telemetry.
 

@@ -225,7 +225,13 @@ export const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_COMVI_API_URL) ||
   comviPreset.apiBaseUrl;
 
-/** Production CDN base URL; the env overrides exist for local development. */
+/**
+ * Production CDN base URL; the env overrides exist for local development.
+ *
+ * @deprecated Unused since 0.5: `cdnUrl` is required and there is no
+ * environment override for it, so nothing in the loader reads this constant.
+ * Removed in 0.6. The hosted default lives on {@link comviPreset}.
+ */
 export const CDN_BASE_URL =
   // @ts-expect-error - import.meta.env is Vite-specific
   import.meta.env?.VITE_CDN_BASE_URL ||
