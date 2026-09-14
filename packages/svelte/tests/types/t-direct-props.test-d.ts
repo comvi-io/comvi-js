@@ -34,3 +34,20 @@ export const _deprecatedRaw: TProps = {
   i18nKey: "greeting",
   raw: true,
 };
+
+// `allowedTags` is a 0.4 prop with no 0.5 equivalent: `<T>` renders
+// structurally, so there is no HTML-string sink left to allowlist tags for.
+// `TBaseProps.allowedTags?: never` makes it a tombstone rather than a widened
+// interpolation param — this must NOT compile.
+export const _tombstonedAllowedTags: TProps = {
+  i18nKey: "greeting",
+  // @ts-expect-error Removed in 0.5: `<T>` renders structurally; allowedTags is gone.
+  allowedTags: ["b"],
+};
+
+// The widening for genuine interpolation params must survive the tombstone:
+// an unrelated undeclared key still compiles (mirrors `_directParam` above).
+export const _directParamStillWidens: TProps = {
+  i18nKey: "greeting",
+  count: 1,
+};

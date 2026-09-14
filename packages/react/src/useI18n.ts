@@ -215,12 +215,20 @@ export interface UseI18nReturn<
   // the object `useI18n()` returns never carries these keys, in any build.
   /** @deprecated Moved in 0.5. Acquire it: `const { addActiveNamespace } = useI18nLoader()`. */
   addActiveNamespace?: never;
+  // Declared optional, so `if (bag.addActiveNamespace)` compiles and is
+  // always false — acquire it from `useI18nLoader()` instead.
   /** @deprecated Moved in 0.5. Acquire it: `const { reloadTranslations } = useI18nLoader()`. */
   reloadTranslations?: never;
+  // Declared optional, so `if (bag.reloadTranslations)` compiles and is
+  // always false — acquire it from `useI18nLoader()` instead.
   /** @deprecated Moved in 0.5. Acquire it: `const { onLoadError } = useI18nLoader()`. */
   onLoadError?: never;
+  // Declared optional, so `if (bag.onLoadError)` compiles and is always
+  // false — acquire it from `useI18nLoader()` instead.
   /** @deprecated Moved in 0.5. Acquire it: `const { onMissingKey } = useI18nPlugins()`. */
   onMissingKey?: never;
+  // Declared optional, so `if (bag.onMissingKey)` compiles and is always
+  // false — acquire it from `useI18nPlugins()` instead.
 }
 
 /**

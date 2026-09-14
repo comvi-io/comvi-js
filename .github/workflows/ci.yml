@@ -196,7 +196,7 @@ jobs:
       - name: Types exports
         run: pnpm check:types-exports
 
-      # Bundles the 15 gated fixtures through the published exports map and
+      # Bundles every gated fixture in scripts/size-budgets.json through the published exports map and
       # asserts min+gz against scripts/size-budgets.json.
       - name: Size gate (min+gz budgets)
         run: pnpm size

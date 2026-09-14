@@ -161,7 +161,7 @@ export function I18nProvider({
     // module scope and is shared by every concurrent request in the server
     // process, so writing its locale during a server render leaks one
     // request's locale into another's tree. The request locale reaches the
-    // tree through `ssrInitialLocale` below.
+    // tree through `ssrLocale` below.
     if (validateLocale(i18n, locale, routing) && typeof window !== "undefined") {
       applyLocale(i18n, locale);
     }
@@ -199,7 +199,7 @@ export function I18nProvider({
     <ReactI18nProvider
       i18n={i18n}
       autoInit={autoInit}
-      ssrInitialLocale={locale}
+      ssrLocale={locale}
       ssrInitialIsLoading={false}
       ssrInitialIsInitializing={false}
       {...props}

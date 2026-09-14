@@ -30,3 +30,9 @@
  * `dev-warn.dev.ts`, which does use it.
  */
 export function warnDeprecatedRawProp(_host: object): void {}
+
+/**
+ * No-op counterpart of the `<T allowedTags>` tombstone warning. Same
+ * signature contract as {@link warnDeprecatedRawProp}.
+ */
+export function warnDeprecatedAllowedTagsProp(_host: object): void {}

@@ -6,7 +6,7 @@
   // unsubstituted and is false in every consumer, development included. Only
   // the `imports` map can route this import through the `development`
   // condition — see `src/dev-warn.ts` for the whole argument.
-  import { warnDeprecatedRawProp } from '#dev-warn';
+  import { warnDeprecatedRawProp, warnDeprecatedAllowedTagsProp } from '#dev-warn';
 
   // The PURE rich-text seam, NOT '@comvi/core/tags': importing the tags entry
   // would register tag syntax AMBIENTLY, so every app rendering <T> would also
@@ -32,6 +32,11 @@
     raw = undefined,
     components = undefined,
     children = undefined,
+    // 0.4 tombstone (`allowedTags?: never` in `TBaseProps`): pulled out here so
+    // it can never reach `directParams` below and be spread into `params` as
+    // an interpolation value — a JS caller ignoring the type error would
+    // otherwise silently leak it through. See `prepared` for the drop warning.
+    allowedTags = undefined,
     ...directParams
   }: TProps = $props();
 
@@ -63,6 +68,10 @@
     // inside its `createMemo` for the same reason.
     if (raw !== undefined) {
       warnDeprecatedRawProp(i18n);
+    }
+
+    if (allowedTags !== undefined) {
+      warnDeprecatedAllowedTagsProp(i18n);
     }
 
     // The spread is what SUBSCRIBES to each direct param, so it happens inside
