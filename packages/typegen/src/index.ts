@@ -59,6 +59,14 @@ export interface AppManifest {
  * is why nothing here touches `node_modules` — a physical lookup made Yarn PnP
  * (no `node_modules` at all) impossible to generate for.
  *
+ * `dependencies` and `devDependencies` of THIS manifest, and nothing else. A
+ * workspace root that declares the package for its apps does not count, and
+ * neither does `peerDependencies`: a peer is what a consumer must supply, not
+ * what this package resolves. The honest peer case — a component library that
+ * localizes its own components — declares the binding as a peer AND as a
+ * devDependency, and the devDependency is what is read. An app that relied on
+ * a hoisted copy instead is refused, with the error saying so.
+ *
  * Own keys only: an inherited `dependencies` entry is not a declaration.
  */
 export function chooseAugmentationTarget(manifest: AppManifest): string | undefined {
@@ -105,7 +113,9 @@ export function resolveAugmentationTarget(appRoot: string, override?: string): s
     `Generated types have to augment a Comvi module, and ${manifestPath} declares none.\n` +
       `Add the package this app imports \`t()\` from to its dependencies — one of ` +
       `${AUGMENTABLE_MODULES.slice(1).join(", ")} — or \`${DEFAULT_AUGMENTED_MODULE}\` itself. ` +
-      `A private wrapper package can be named instead with the \`augment\` option.`,
+      `Declaring it in a workspace root or under peerDependencies is not enough: this app's ` +
+      `own package.json must list it, or set \`augment\` — which is also how a private wrapper ` +
+      `package that re-exports one of them is named.`,
   );
 }
 
