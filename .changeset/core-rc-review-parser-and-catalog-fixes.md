@@ -18,9 +18,17 @@ shared list.
 ICU exact plural selectors are now matched as numbers, and a non-numeric one is rejected.
 
 `{n, plural, =1.0 {…} one {…} other {…}}` with `n = 1` used to render the `one` branch, because
-the selector was compared as the string it was written as. `=1.0`, `=01` and `=1.` are now all the
-`n = 1` branch, and a selector that is not a number (`=abc`) fails as ICU syntax instead of
-choosing a different branch.
+the selector was compared as the string it was written as. `=1.0` and `=01` are now both the
+`n = 1` branch. Where two selectors name the same number — `=1.0` and `=1`, or `=-0` and `=0` —
+the one written last wins, as two identical selectors always did.
+
+Explicit selectors are now held to ICU's grammar, which is a sign, digits and at most one
+fractional part. This is a behaviour break on values that are not ICU numbers but happened to
+match before, because the old comparison was a plain string match against `String(count)`:
+`=Infinity` with `n = Infinity` matched and now does not. `=Infinity`, `=0x1`, `=1e3`, `=+1`,
+`=.5`, `=1.` and `=abc` all raise `E_ICU_SYNTAX` when the catalog is ingested in development, and
+in production render the argument as written and report once, like every other unsupported ICU
+argument. Write the branch as a plain number, or move the special case into `select`.
 
 A closing tag written inside ICU-quoted literal text no longer ends the tag around it.
 
