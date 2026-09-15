@@ -3,7 +3,7 @@ import type { VirtualNode } from "../../virtualNode";
 import { createElement } from "../../virtualNode";
 import { warn } from "../../logger";
 import { TK_TAG, TK_TEXT, type ParsedToken, type TagToken } from "./cache";
-import { advancePastApostrophe, parseTemplate } from "./parser";
+import { advancePastBalancedApostrophe, parseTemplate } from "./parser";
 import {
   registerSyntaxExtension,
   type MessageCompiler,
@@ -113,29 +113,22 @@ function parseTag(
   return { endIndex: startIndex + 1, isTag: false };
 }
 
-type ClosingTagSpan = [closingStart: number, endIndex: number];
-
-/** The scan ran out of message with tags still open — the retryable failure. */
-const EXHAUSTED = 0;
-/** A mismatched closing tag ended the scan; no rescan can make it match. */
-const MISMATCHED = 1;
-
 /**
  * Find the `</tagName>` that closes the tag opened at `startIndex`.
  *
- * Two passes, because ICU quoting and tag syntax genuinely disagree about an
- * apostrophe that never closes. The first pass honours quoting, which is what
- * keeps a `</b>` written inside a BALANCED quoted literal —
- * `<b>'{x </b> y}'</b>` — from closing the tag around it.
+ * The scan skips what the message parser skips, so a `</b>` written inside a
+ * BALANCED ICU-quoted literal — `<b>'{x </b> y}'</b>` — does not close the tag
+ * around it. `hashIsSyntax` is the tag's own quoting context, threaded down
+ * from `parseTag`, so `'#'` counts as a quote exactly where the message parser
+ * says it does.
  *
- * ICU's DOUBLE_OPTIONAL rule then says an UNMATCHED apostrophe quotes to the
- * end of the message, which would leave the tag open and leak its markup as
- * visible text. The shape that happens on is ordinary copy, not hostile input:
- * elision before a placeholder, `<b>l'{name}</b>` in French, `dell'{item}` in
- * Italian. `<` is not ICU syntax at all, so where the quote-aware pass runs out
- * of message the apostrophe is taken as the literal it looks like and the tag
- * closes. Only exhaustion is retried: a rescan after a MISMATCH could reach
- * exactly the `</b>` the quote was protecting.
+ * An apostrophe whose own quote never closes is a different matter and
+ * `advancePastBalancedApostrophe` is where that decision lives: ICU would have
+ * it quote to the end of the message, which would leave the tag open and show
+ * its markup as text, and the shape it happens on is ordinary copy — elision
+ * before a placeholder, `l'{name}` in French, `dell'{item}` in Italian.
+ * Judging each apostrophe on its own quote is what lets one message hold both
+ * shapes.
  */
 function findClosingTag(
   str: string,
@@ -143,37 +136,15 @@ function findClosingTag(
   len: number,
   tagName: string,
   hashIsSyntax: boolean,
-): ClosingTagSpan | undefined {
-  const quoted = scanForClosingTag(str, startIndex, len, tagName, hashIsSyntax, false);
-  if (quoted !== EXHAUSTED) return quoted === MISMATCHED ? undefined : quoted;
-  // The second pass owns the unclosed-tag warning, so a tag that really is
-  // unclosed still reports once per parse rather than once per scan.
-  const literal = scanForClosingTag(str, startIndex, len, tagName, hashIsSyntax, true);
-  return typeof literal === "number" ? undefined : literal;
-}
-
-/**
- * One closing-tag scan. `apostropheIsLiteral` turns ICU quote-skipping off and
- * turns the dev unclosed-tag warning on; `hashIsSyntax` is the tag's own
- * quoting context, threaded down from `parseTag`, so `'#'` counts as a quote
- * exactly where the message parser says it does.
- */
-function scanForClosingTag(
-  str: string,
-  startIndex: number,
-  len: number,
-  tagName: string,
-  hashIsSyntax: boolean,
-  apostropheIsLiteral: boolean,
-): ClosingTagSpan | typeof EXHAUSTED | typeof MISMATCHED {
+): [closingStart: number, endIndex: number] | undefined {
   const tagStack: string[] = [tagName];
   let i = startIndex;
 
   while (i < len && tagStack.length > 0) {
     const code = str.charCodeAt(i);
 
-    if (code === APOSTROPHE && !apostropheIsLiteral) {
-      i = advancePastApostrophe(str, i, len, hashIsSyntax);
+    if (code === APOSTROPHE) {
+      i = advancePastBalancedApostrophe(str, i, len, hashIsSyntax);
       continue;
     }
 
@@ -206,7 +177,7 @@ function scanForClosingTag(
             if (IS_DEV) {
               warn(`[i18n] Tag mismatch: expected </${expectedTag}>, found </${closeName}>`);
             }
-            return MISMATCHED;
+            return undefined;
           }
         }
         continue;
@@ -241,10 +212,10 @@ function scanForClosingTag(
     i++;
   }
 
-  if (IS_DEV && apostropheIsLiteral && tagStack.length > 0) {
+  if (IS_DEV && tagStack.length > 0) {
     warn(`[i18n] Unclosed tag: <${tagStack[tagStack.length - 1]}>`);
   }
-  return EXHAUSTED;
+  return undefined;
 }
 
 /** Resolution order: a handler in params, then the basic-HTML whitelist, then `strict`. */

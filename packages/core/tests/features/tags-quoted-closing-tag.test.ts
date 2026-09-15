@@ -97,6 +97,55 @@ describe("an unterminated ICU quote inside a tag", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
+  // One message can hold BOTH shapes: a balanced quote protecting a `</b>`
+  // and an unterminated elision quote. Each apostrophe has to be judged on its
+  // own quote, so the balanced one keeps the protection while the unterminated
+  // one stays literal. Delta review D1.
+  it.each([
+    [
+      "balanced quote first, elision second",
+      "<b>'{x </b> y}' l'{name}</b>",
+      "[b:{x </b> y} l{name}]",
+    ],
+    [
+      // `'s` is not a quote start, so it consumes no apostrophe of the pair
+      // that follows it. This is the only way round for an apostrophe of each
+      // kind to sit in one message: see the note below.
+      "a literal apostrophe first, balanced quote second",
+      "<b>it's '{x </b> y}'</b>",
+      "[b:it's {x </b> y}]",
+    ],
+    [
+      "elision inside a balanced quote's own literal",
+      "<b>'{l'' {x} </b>}' d'{b}</b>",
+      "[b:{l' {x} </b>} d{b}]",
+    ],
+  ])("keeps the balanced quote protected — %s", (_label, template, expected) => {
+    expect(render(template, handlers("b"))).toBe(expected);
+  });
+
+  // ICU pairs apostrophes sequentially, so an UNTERMINATED quote can only ever
+  // be the last one in a message: anything that looks like "elision first,
+  // balanced quote second" actually pairs the elision apostrophe with the
+  // opener that follows it. In `<b>l'{name} '{y </b> z}'</b>` the quote is
+  // therefore `{name} `, and the `</b>` is not inside a quote at all — it is
+  // inside a braced argument, which this scanner has never skipped. Pinned as
+  // the pre-existing limitation it is, NOT as desired output: a scanner taught
+  // to skip balanced `{...}` would close at the second `</b>` and this
+  // expectation would change.
+  it("closes at a </b> inside a braced argument, which the scan does not skip", () => {
+    expect(render("<b>l'{name} '{y </b> z}'</b>", handlers("b"))).toBe("[b:l{name} {y ] z}'</b>");
+  });
+
+  it("leaves the tag unclosed when a BALANCED quote runs to the last character", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // The quote closes, so the `</b>` inside it is protected and there is no
+    // closing tag left outside it. Rejecting the tag is the #7 answer.
+    expect(render("<b>'{x</b>}'", handlers("b"))).toBe("<b>{x</b>}");
+    expect(warnSpy).toHaveBeenCalledWith("[i18n] Unclosed tag: <b>");
+  });
+
   it("does not turn a tag MISMATCH into a match by rescanning", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 

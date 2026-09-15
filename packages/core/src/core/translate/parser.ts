@@ -104,8 +104,12 @@ function warnUnclaimedTag(
   );
 }
 
-/** @returns the index AFTER the closing quote. */
-function skipQuotedSection(str: string, startIndex: number, len: number): number {
+/**
+ * Index just past the apostrophe that CLOSES the quoted section opened at
+ * `startIndex`, or -1 when nothing closes it. A `''` inside the section is a
+ * literal apostrophe and does not close it.
+ */
+function closingQuoteEnd(str: string, startIndex: number, len: number): number {
   let i = startIndex + 1;
   while (i < len) {
     const code = str.charCodeAt(i);
@@ -119,7 +123,7 @@ function skipQuotedSection(str: string, startIndex: number, len: number): number
       i++;
     }
   }
-  return i;
+  return -1;
 }
 
 export function advancePastApostrophe(
@@ -132,7 +136,40 @@ export function advancePastApostrophe(
     return index + 2;
   }
   if (isQuoteStart(str, index, len, hashIsSyntax)) {
-    return skipQuotedSection(str, index, len);
+    // An unterminated quote runs to the end of the message, which is ICU's
+    // DOUBLE_OPTIONAL rule and what the token scanner wants.
+    const end = closingQuoteEnd(str, index, len);
+    return end === -1 ? len : end;
+  }
+  return index + 1;
+}
+
+/**
+ * `advancePastApostrophe` for a scan that must not be swallowed by a quote
+ * that never closes — today the closing-tag scan in `tags.ts`.
+ *
+ * A BALANCED quoted section is skipped exactly as the message parser skips it,
+ * so a `</b>` written inside one keeps its protection. An apostrophe whose own
+ * quote is never closed advances by one instead, as the literal it looks like:
+ * `<b>l'{name}</b>` is French elision, not a quote, and swallowing the rest of
+ * the message would leave the tag unclosed and show its markup as text.
+ *
+ * The decision is per apostrophe, which is what lets one message hold both
+ * shapes — `<b>'{x </b> y}' l'{name}</b>` protects the first and ignores the
+ * second.
+ */
+export function advancePastBalancedApostrophe(
+  str: string,
+  index: number,
+  len: number,
+  hashIsSyntax: boolean,
+): number {
+  if (index + 1 < len && str.charCodeAt(index + 1) === APOSTROPHE) {
+    return index + 2;
+  }
+  if (isQuoteStart(str, index, len, hashIsSyntax)) {
+    const end = closingQuoteEnd(str, index, len);
+    if (end !== -1) return end;
   }
   return index + 1;
 }
