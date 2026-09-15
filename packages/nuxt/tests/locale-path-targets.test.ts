@@ -64,32 +64,13 @@ describe("useLocalePath target forms", () => {
     expect(localePath("/notes:2024", "de")).toBe("/de/notes:2024");
   });
 
-  it.each(["https://example.com/a", "//cdn.example.com/app.js", "mailto:someone@example.com"])(
-    "leaves a route object whose path is %s untouched",
-    (path) => {
-      const localePath = useLocalePath();
-
-      expect(localePath({ path }, "de")).toBe(path);
-    },
-  );
-
-  it("keeps the query of a route object with an external path", () => {
-    const localePath = useLocalePath();
-
-    expect(localePath({ path: "https://example.com/a", query: { ref: "nav" } }, "de")).toBe(
-      "https://example.com/a?ref=nav",
-    );
-  });
-
-  it("still localizes a route object that carries only query and hash", () => {
-    // The guard reads the path the CALLER wrote. A route object with no path
-    // resolves against the current route, so it is localized like any internal
-    // target — next's `localizeUrlObject` defaults a missing pathname to "/"
-    // the same way. Only a pathless STRING (`"?tab=1"`) is left alone.
-    const localePath = useLocalePath();
-
-    expect(localePath({ query: { a: "b" }, hash: "#top" }, "de")).toBe("/de?a=b#top");
-  });
+  // ROUTE OBJECTS are asserted in `locale-path-real-router.test.ts` instead.
+  // The `useRouter` stub in `tests/mocks/nuxt-app.ts` echoes `to.path` back, so
+  // an external object path came out of it unchanged and these assertions held
+  // whether the composable guarded the target or not. A real vue-router
+  // resolves an object RELATIVE to the current route, which is the only way to
+  // see the behaviour. What stays here is the STRING form, which never reaches
+  // the router at all.
 
   it("still localizes a route object with an internal path", () => {
     const localePath = useLocalePath();
@@ -114,6 +95,10 @@ describe("NuxtLinkLocale target forms", () => {
   });
 
   it("renders a route object with an external path unchanged", async () => {
+    // Meaningful now that the composable answers an external object path
+    // without consulting the router: the `resolve` stub is never called, so
+    // nothing here rides on its echo. What the mock `NuxtLink` still cannot
+    // show is how the REAL NuxtLink treats an external href.
     expect(await renderLinkHref({ to: { path: "https://example.com/a" }, locale: "de" })).toBe(
       "https://example.com/a",
     );

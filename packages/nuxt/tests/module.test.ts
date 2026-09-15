@@ -976,6 +976,18 @@ describe("nuxt module setup", () => {
       expect(byName(pages, "home___de")?.alias).toBe("/de");
     });
 
+    it("does not double-prefix an alias that already carries a locale prefix", async () => {
+      // A hand-written `alias: "/de/already"` would otherwise clone to
+      // `/en/de/already`. next strips an existing prefix before adding one.
+      const pages = await localizedPages(
+        [{ name: "legacy", path: "/legacy", alias: ["/de/already", "/en", "/enter"] }],
+        "always",
+      );
+
+      expect(byName(pages, "legacy___en")?.alias).toEqual(["/en/already", "/en", "/en/enter"]);
+      expect(byName(pages, "legacy___de")?.alias).toEqual(["/de/already", "/de", "/de/enter"]);
+    });
+
     it("leaves an external or protocol-relative alias alone", async () => {
       const pages = await localizedPages([
         {
@@ -1012,6 +1024,25 @@ describe("nuxt module setup", () => {
 
       expect(byName(pages, "legacy___de")?.redirect).toBe("/de/new");
       expect(byName(pages, "root___de")?.redirect).toBe("/de");
+    });
+
+    it("does not double-prefix a redirect that already carries a locale prefix", async () => {
+      // Same defect class as the alias case, and the same answer: the target is
+      // re-prefixed for this locale. Leaving `/en/de/new` behind is what no
+      // author can have meant.
+      const pages = await localizedPages(
+        [
+          { name: "legacy", path: "/legacy", redirect: "/de/new" },
+          { name: "object", path: "/object", redirect: { path: "/de/new", query: { a: "1" } } },
+        ],
+        "always",
+      );
+
+      expect(byName(pages, "legacy___en")?.redirect).toBe("/en/new");
+      expect(byName(pages, "object___en")?.redirect).toEqual({
+        path: "/en/new",
+        query: { a: "1" },
+      });
     });
 
     it("leaves an external string redirect alone", async () => {
@@ -1070,6 +1101,24 @@ describe("nuxt module setup", () => {
       ]);
 
       expect(byName(pages, "legacy___de")?.redirect).toEqual({ name: "somewhere-else" });
+    });
+
+    it("leaves a name-based redirect at a [locale] page untouched, though that page is deleted", async () => {
+      // Documented, not fixed: `[locale]`-param pages are excluded from
+      // localization and then removed from the route table entirely, so a
+      // redirect naming one cannot resolve — under `always` there is no
+      // unprefixed record left to fall back to either. The deletion predates
+      // this lot and the name is deliberately left as the author wrote it.
+      const pages = await localizedPages(
+        [
+          { name: "legacy", path: "/legacy", redirect: { name: "locale-blog" } },
+          { name: "locale-blog", path: "/:locale/blog", file: "/app/pages/[locale]/blog.vue" },
+        ],
+        "always",
+      );
+
+      expect(byName(pages, "legacy___en")?.redirect).toEqual({ name: "locale-blog" });
+      expect(pages.some((page) => page.name === "locale-blog")).toBe(false);
     });
 
     it("leaves a function redirect alone", async () => {
