@@ -221,3 +221,119 @@ describe("prototype pollution through locale and namespace names", () => {
     });
   });
 });
+
+/**
+ * The innermost level of a remote response is the raw `JSON.parse` object, so
+ * a local key named after something on `Object.prototype` used to find an
+ * inherited function where the remote catalog has no such key at all:
+ * `--force-mode abort` failed a clean push, and `keep` reported the wrong
+ * skipped count. Local files already flatten into a null-prototype map.
+ */
+describe("inherited keys in the catalog level", () => {
+  const INHERITED_NAMES = ["constructor", "toString", "valueOf", "hasOwnProperty"] as const;
+
+  /** Own keys named after inherited members, each new to the remote catalog. */
+  function localCatalog(): Record<string, string> {
+    const catalog: Record<string, string> = {};
+    for (const name of INHERITED_NAMES) {
+      catalog[name] = "Local";
+    }
+    return catalog;
+  }
+
+  const PROJECT = {
+    id: 123,
+    organizationId: 1,
+    name: "Test Project",
+    description: null,
+    sourceLocale: "en",
+  };
+
+  const COMMIT_OK = {
+    success: true,
+    stats: {
+      keysCreated: 4,
+      keysUpdated: 0,
+      keysDeleted: 0,
+      translationsCreated: 4,
+      translationsUpdated: 0,
+      namespacesCreated: [],
+    },
+  };
+
+  /** The remote has one ordinary key and none of the four names. */
+  const REMOTE = { locales: ["en"], namespaces: { common: { en: { greeting: "Remote" } } } };
+
+  function stubPush(): ReturnType<typeof vi.fn> {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      // `/v1/projects/123/import/commit` contains `/v1/project`, so it goes first.
+      const body = url.includes("/import/commit")
+        ? COMMIT_OK
+        : url.includes("/v1/translations")
+          ? REMOTE
+          : url.includes("/v1/project")
+            ? PROJECT
+            : undefined;
+
+      if (!body) throw new Error(`unexpected request: ${url}`);
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock as unknown as ReturnType<typeof vi.fn>;
+  }
+
+  it.each(["abort", "keep", "override"] as const)(
+    "counts no conflict for inherited names in %s mode",
+    async (forceMode) => {
+      stubPush();
+      const client = new ApiClient({ apiKey: "test-key", apiBaseUrl: API_BASE_URL });
+
+      const result = await client.pushTranslations({
+        translations: { en: { common: localCatalog() } },
+        forceMode,
+      });
+
+      expect(result).toEqual({ created: 4, updated: 0, skipped: 0 });
+    },
+  );
+
+  it("still counts a real conflict on an inherited name", async () => {
+    stubPush();
+    const client = new ApiClient({ apiKey: "test-key", apiBaseUrl: API_BASE_URL });
+
+    const result = await client.pushTranslations({
+      translations: { en: { common: { greeting: "Local" } } },
+      forceMode: "keep",
+    });
+
+    expect(result.skipped).toBe(1);
+  });
+
+  describe("compareTranslations", () => {
+    const sync = new TranslationSync({
+      translationsPath: "src/locales",
+      fileTemplate: DEFAULT_FILE_TEMPLATE,
+      format: "json",
+    });
+
+    it("reports inherited names missing from the remote as created", () => {
+      const diff = sync.compareTranslations(
+        { en: { common: localCatalog() } },
+        { en: { common: { greeting: "Remote" } } },
+      );
+
+      expect(diff).toEqual({ created: 4, updated: 0, conflicts: 0, deleted: 1 });
+    });
+
+    it("reports inherited names missing from the local catalog as deleted", () => {
+      const diff = sync.compareTranslations(
+        { en: { common: { greeting: "Local" } } },
+        { en: { common: localCatalog() } },
+      );
+
+      expect(diff).toEqual({ created: 1, updated: 0, conflicts: 0, deleted: 4 });
+    });
+  });
+});

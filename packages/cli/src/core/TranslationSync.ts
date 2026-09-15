@@ -10,7 +10,7 @@ import type {
 import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
-import { emptyDictionary } from "../utils/dictionary";
+import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
@@ -341,7 +341,10 @@ export class TranslationSync {
         const remoteNs = remoteLocale[ns] || {};
 
         for (const key of Object.keys(localNs)) {
-          if (!(key in remoteNs)) {
+          // `key in remoteNs` answers true for `constructor` or `toString` on
+          // an ordinary object, so a new key named after an inherited member
+          // used to count as a changed one.
+          if (!hasOwnKey(remoteNs, key)) {
             created++;
           } else if (localNs[key] !== remoteNs[key]) {
             conflicts++;
@@ -361,7 +364,7 @@ export class TranslationSync {
         const remoteNs = remoteLocale[ns];
 
         for (const key of Object.keys(remoteNs)) {
-          if (!(key in localNs)) {
+          if (!hasOwnKey(localNs, key)) {
             deleted++;
           }
         }

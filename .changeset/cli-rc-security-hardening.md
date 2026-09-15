@@ -32,6 +32,15 @@ and a `__proto__` namespace replaced a locale map's prototype outright. All thre
 map are now null-prototype dictionaries read by own key only, so those names are ordinary
 entries — and a `pull` still refuses to turn `__proto__` into a file name.
 
+**`comvi push` no longer invents conflicts for keys named `constructor`, `toString`, `valueOf` or
+`hasOwnProperty`.** A remote catalog is an ordinary JSON object, so looking up one of those keys
+answered with an inherited function instead of "the remote does not have this key". A local
+catalog holding any of them made `--force-mode abort` refuse a perfectly clean push, made
+`keep` report them as skipped, and made `push --dry-run` show them as conflicts instead of new
+keys. Key-level maps from the API are null-prototype now, and both comparisons use own-key
+lookups, so a key named after anything on `Object.prototype` is compared as the ordinary key it
+is.
+
 **Security: `"emptyDir": "false"` in `.comvirc.json` no longer deletes the catalog.** A quoted
 `"false"` is a truthy string, so the option that clears the translations directory before a pull
 was enabled by the exact value that reads as "off" — and nothing checked it. `pull.emptyDir` and

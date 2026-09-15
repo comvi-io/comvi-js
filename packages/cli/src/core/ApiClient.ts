@@ -20,7 +20,7 @@ import type {
   ForceMode,
 } from "../types";
 import { wrapError, ErrorCodes, TypegenError } from "../utils/errors";
-import { emptyDictionary } from "../utils/dictionary";
+import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
 export interface ApiClientOptions {
   apiKey: string;
@@ -623,15 +623,19 @@ export class ApiClient {
 }
 
 function normalizeTranslationsResponse(response: ApiTranslationsResponse): TranslationsResponse {
-  // Both levels are keyed by names the server chose, so both are
-  // null-prototype maps, and `Object.entries` reads own keys only.
+  // All three levels are keyed by names the CLI does not control — the server
+  // chose the locales and namespaces, the project chose the keys — so all
+  // three are null-prototype maps, and `Object.entries` reads own keys only.
+  // The key level matters as much as the other two: a local key named
+  // `constructor` compared against a plain remote catalog found an inherited
+  // function and counted as a conflict against a key the remote never had.
   const translations: TranslationData = emptyDictionary();
   const namespaceNames = Object.keys(response.namespaces);
 
   for (const [namespace, locales] of Object.entries(response.namespaces)) {
     for (const [locale, values] of Object.entries(locales)) {
       translations[locale] ??= emptyDictionary();
-      translations[locale][namespace] = values;
+      translations[locale][namespace] = dictionaryFrom(values);
     }
   }
 
@@ -647,8 +651,12 @@ function countConflicts(local: TranslationData, remote: TranslationData): number
 
   for (const [locale, namespaces] of Object.entries(local)) {
     for (const [namespace, keys] of Object.entries(namespaces)) {
+      const remoteKeys = ownValue(ownValue(remote, locale), namespace);
+
       for (const [key, value] of Object.entries(keys)) {
-        const remoteValue = remote[locale]?.[namespace]?.[key];
+        // Own key only: `remoteKeys["toString"]` on a plain object answers with
+        // an inherited function for a key the remote catalog does not have.
+        const remoteValue = ownValue(remoteKeys, key);
         if (remoteValue !== undefined && remoteValue !== value) {
           conflicts++;
         }
@@ -657,6 +665,11 @@ function countConflicts(local: TranslationData, remote: TranslationData): number
   }
 
   return conflicts;
+}
+
+/** `map[key]`, but only when `key` is the map's own — never an inherited member. */
+function ownValue<T>(map: Record<string, T> | undefined, key: string): T | undefined {
+  return map && hasOwnKey(map, key) ? map[key] : undefined;
 }
 
 function countTranslationValues(translations: TranslationData): number {
