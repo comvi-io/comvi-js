@@ -49,6 +49,23 @@ export interface SetI18nContextOptions {
  * </script>
  * ```
  */
+/**
+ * Matches react's/solid's/vue's own auto-init catch: `onError` is typed to
+ * receive an `Error`, so a non-Error rejection (a thrown string, object, …)
+ * is normalized here rather than cast past the type system. `cause` keeps
+ * the original value reachable — assigned rather than passed through the
+ * `Error` constructor's options so this compiles under the repo's ES2020
+ * `lib` target too.
+ */
+function normalizeInitError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  const normalized: Error & { cause?: unknown } = new Error(String(error));
+  normalized.cause = error;
+  return normalized;
+}
+
 export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOptions): void {
   setContext(I18N_CONTEXT_KEY, i18n);
 
@@ -56,7 +73,7 @@ export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOption
     void Promise.resolve().then(() => {
       if (!i18n.isInitialized && !i18n.isInitializing) {
         return i18n.init().catch((error: unknown) => {
-          options?.onError?.(error as Error);
+          options?.onError?.(normalizeInitError(error));
         });
       }
     });
