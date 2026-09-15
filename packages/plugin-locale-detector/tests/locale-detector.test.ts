@@ -775,6 +775,45 @@ describe("localeDetectorPlugin plugin", () => {
 
       cleanup?.();
     });
+
+    it("does not let a post-init manual detect() suppress a later explicit choice of its own fallback locale", async () => {
+      mockWindowLocation("");
+      const i18n = createI18n("en");
+      const cleanup = installDetector(i18n, {
+        order: ["querystring"],
+        caches: ["localStorage"],
+        cacheFirst: false,
+        fallbackLocale: "it",
+      });
+
+      // init() drives the ONE auto-applied detector call: no querystring, so
+      // it falls back to "it" — that fallback-only transition is correctly
+      // not cached (existing, documented behavior).
+      await i18n.init();
+      expect(i18n.locale).toBe("it");
+      expect(localStorage.getItem("i18n_locale")).toBeNull();
+
+      // An unrelated explicit change, made well after init.
+      await i18n.setLocaleAsync("de");
+      expect(localStorage.getItem("i18n_locale")).toBe("de");
+
+      // The app manually re-consults the detector post-init (e.g. a "reset to
+      // detected locale" affordance). It reports the fallback again, "it",
+      // which now differs from the current locale — this arms the fallback
+      // marker.
+      expect(await i18n.getLanguageDetector()?.()).toBe("it");
+
+      // The user then explicitly chooses "it" themselves — a deliberate pick
+      // that happens to match the stale marker's fallback value. It must be
+      // cached like any other explicit choice: this call was never the
+      // automatic follow-up detect()'s own value application, since detect()
+      // only auto-drives a locale change from inside init(), which has long
+      // since finished.
+      await i18n.setLocaleAsync("it");
+      expect(localStorage.getItem("i18n_locale")).toBe("it");
+
+      cleanup?.();
+    });
   });
 
   describe("resolveLocale", () => {

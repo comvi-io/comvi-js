@@ -239,10 +239,18 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
         }
       }
 
-      pendingInitResult = { locale: fallbackLocale, cache: false };
-      if (fallbackLocale === i18n.locale) {
-        pendingInitResult = null;
-      }
+      // The fallback marker exists to bridge THIS `detect()` call to the one
+      // `localeChanged` event `i18n.init()` emits right after it (see the
+      // `pendingInitResult` declaration above). `init()` is the only caller
+      // that ever auto-applies a detected locale — once it has finished,
+      // nothing will apply this fallback for us, so a call reached after init
+      // (e.g. a consumer re-consulting `getLanguageDetector()` directly) must
+      // never arm a marker that could later swallow an unrelated, deliberate
+      // choice of this same locale.
+      pendingInitResult =
+        i18n.isInitialized || fallbackLocale === i18n.locale
+          ? null
+          : { locale: fallbackLocale, cache: false };
 
       return fallbackLocale;
     };
