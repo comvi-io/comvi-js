@@ -256,6 +256,23 @@ describe("activate() translation refresh", () => {
 
     expect(addedCatalogs(addTranslations)).toEqual([]);
   });
+
+  it("RC review #11: drops a NON-EMPTY refresh that resolves after the runtime was stopped", async () => {
+    const i18n = makeI18n();
+    const addTranslations = vi.spyOn(i18n, "addTranslations");
+    const inFlight = createDeferred<Map<string, unknown>>();
+    fetchApiTranslationsMock.mockReturnValue(inFlight.promise);
+
+    const result = activate({ apiKey: "test-key" });
+    result?.stop();
+    // The in-flight refresh resolves AFTER teardown with real, non-empty
+    // data — the identity guard must reject the merge itself, not only the
+    // later render refresh (which an empty map could never exercise).
+    inFlight.resolve(new Map([["en:default", { hello: "Stale" }]]));
+    await settleRefresh();
+
+    expect(addedCatalogs(addTranslations)).toEqual([]);
+  });
 });
 
 describe("activate() proxy transport", () => {
