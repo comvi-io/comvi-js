@@ -25,6 +25,7 @@ const OPEN_BRACE = 123;
 const CLOSE_BRACE = 125;
 const COMMA = 44;
 const SPACE = 32;
+const EQUALS = 61;
 
 /**
  * Detects whether the `{` at braceIndex starts a plural/selectordinal
@@ -142,19 +143,66 @@ function failIcuArg(
   argumentType: string,
   content: string,
   malformedChoices: string | undefined,
+  badExactSelector?: string,
 ): undefined {
   if (!IS_DEV) {
     setIcuHit(argumentType);
     return undefined;
   }
   const error = new Error(
-    malformedChoices === undefined
-      ? `[i18n] ICU argument \`{${content}}\` is not supported: this compiler implements \`plural\`, \`selectordinal\` and \`select\`, each with a choice list like \`other {…}\`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}`
-      : `[i18n] The \`${argumentType}\` choice list \`${malformedChoices}\` is malformed; every selector needs a braced sub-message, as in \`other {…}\``,
+    badExactSelector !== undefined
+      ? `[i18n] The exact selector \`${badExactSelector}\` in the \`${argumentType}\` choice list \`${malformedChoices}\` is not a number; an ICU exact selector is \`=\` followed by a number, as in \`=1 {…}\``
+      : malformedChoices === undefined
+        ? `[i18n] ICU argument \`{${content}}\` is not supported: this compiler implements \`plural\`, \`selectordinal\` and \`select\`, each with a choice list like \`other {…}\`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}`
+        : `[i18n] The \`${argumentType}\` choice list \`${malformedChoices}\` is malformed; every selector needs a braced sub-message, as in \`other {…}\``,
   ) as IcuSyntaxError;
   error.code = "E_ICU_SYNTAX";
   error.argumentType = argumentType;
   throw error;
+}
+
+/**
+ * Rewrite every `=N` key of a freshly parsed plural choice list to the
+ * canonical number string, because render-time lookup is `"=" + count` and
+ * only `String(count)` is what a count produces. `=1.0`, `=01` and `=1.` are
+ * all the `n = 1` branch; ICU matches explicit selectors BEFORE the plural
+ * categories, so one that never matched used to fall through to `one`/`other`
+ * silently.
+ *
+ * Mutates the map in place — `parsePluralChoices` just built it, so it belongs
+ * to this compiler and never to the caller's catalog. When two selectors
+ * canonicalize to the same number the LAST one wins, which is what duplicate
+ * verbatim selectors already did.
+ *
+ * A selector that is not a finite number (`=abc`, a bare `=`, `=1_000`,
+ * `=Infinity`) returns `undefined` through `failIcuArg`: `E_ICU_SYNTAX` in
+ * development, a literal segment plus one host report in production, rather
+ * than a branch that silently can never be chosen.
+ */
+function canonicalizeExactSelectors(
+  choices: Record<string, string>,
+  argumentType: string,
+  content: string,
+  choicesStr: string,
+): Record<string, string> | undefined {
+  const keys = Object.keys(choices);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (key.charCodeAt(0) !== EQUALS) continue;
+    const digits = key.slice(1);
+    const value = Number(digits);
+    // `Number("")` is 0 and `Number(" 1")` is 1, so the emptiness check earns
+    // its keep: a bare `=` is not a selector for zero.
+    if (digits === "" || !isFinite(value)) {
+      return failIcuArg(argumentType, content, choicesStr, key);
+    }
+    const canonical = "=" + value;
+    if (canonical !== key) {
+      choices[canonical] = choices[key];
+      delete choices[key];
+    }
+  }
+  return choices;
 }
 
 /**
@@ -211,14 +259,22 @@ function makeIcuArgToken(
     // borrow the other's.
     if (isPlural) {
       const choicesStr = content.slice(secondComma + 1).trim();
-      const choices = parsePluralChoices(choicesStr, true);
-      if (choices === null) return failIcuArg(typeStr, content, choicesStr);
+      const parsed = parsePluralChoices(choicesStr, true);
+      if (parsed === null) return failIcuArg(typeStr, content, choicesStr);
+      // A stray `=` inside a sub-message also trips this, which costs one walk
+      // of the key list and nothing else; the flag's job is only to keep the
+      // render-time exact probe off lists that plainly have no `=` at all.
+      const hasExact = choicesStr.indexOf("=") !== -1;
+      const choices = hasExact
+        ? canonicalizeExactSelectors(parsed, typeStr, content, choicesStr)
+        : parsed;
+      if (choices === undefined) return undefined;
       return [
         TK_PLURAL,
         paramName,
         choicesStr,
         choices,
-        choicesStr.indexOf("=") !== -1 ? 1 : 0,
+        hasExact ? 1 : 0,
         typeStr === "selectordinal" ? 1 : 0,
       ];
     }
@@ -258,6 +314,10 @@ function processPlural(
 
   let selected: string | undefined;
   if (hasExactSelectors) {
+    // `makeIcuArgToken` already rewrote every `=N` key to `"=" + Number(N)`,
+    // so this one string concatenation is the whole match. A token an injected
+    // compiler built itself (the `?? parsePluralChoices` arm above) carries its
+    // selectors as written, and matches only the ones already canonical.
     selected = choices["=" + count];
   }
   if (selected === undefined) {

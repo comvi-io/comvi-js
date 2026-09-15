@@ -14,3 +14,10 @@ Only `{`, `<` and `'` used to send a selected sub-message back through the parse
 plain text kept `&amp;` escaped while the same text one level up rendered `&` — and adding a
 parameter to the branch changed the entity's rendering. All five syntax characters are now one
 shared list.
+
+ICU exact plural selectors are now matched as numbers, and a non-numeric one is rejected.
+
+`{n, plural, =1.0 {…} one {…} other {…}}` with `n = 1` used to render the `one` branch, because
+the selector was compared as the string it was written as. `=1.0`, `=01` and `=1.` are now all the
+`n = 1` branch, and a selector that is not a number (`=abc`) fails as ICU syntax instead of
+choosing a different branch.
