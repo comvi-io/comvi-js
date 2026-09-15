@@ -180,29 +180,44 @@ describe("extractSchema", () => {
         value: "{place, selectordinal, other {#th}}",
         params: [{ name: "place", type: "number" }],
       },
-      { form: "a number", value: "{total, number}", params: [{ name: "total", type: "number" }] },
+      // `@comvi/core` implements no `number`, `date` or `time` argument type:
+      // it raises E_ICU_SYNTAX, and the ingestion preflight refuses the key. A
+      // generated parameter would demand an argument at a call that throws.
+      { form: "a number, which core does not implement", value: "{total, number}", params: [] },
       {
         form: "a number with a style",
         value: "{total, number, percent}",
-        params: [{ name: "total", type: "number" }],
+        params: [],
+      },
+      { form: "a date", value: "{when, date, short}", params: [] },
+      { form: "a time", value: "{at, time}", params: [] },
+      { form: "a time with a style", value: "{at, time, short}", params: [] },
+      {
+        form: "a type that merely starts with one core implements",
+        value: "{n, pluralx, other {a}}",
+        params: [],
       },
       {
-        form: "a date",
-        value: "{when, date, short}",
-        params: [{ name: "when", type: "number" }],
+        form: "a plural with no choice list",
+        value: "{count, plural}",
+        params: [],
       },
-      { form: "a time", value: "{at, time}", params: [{ name: "at", type: "number" }] },
       {
-        form: "a time with a style",
-        value: "{at, time, short}",
-        params: [{ name: "at", type: "number" }],
+        form: "a choice list whose selector has no sub-message",
+        value: "{count, plural, other}",
+        params: [],
+      },
+      {
+        form: "an unsupported argument beside a good one",
+        value: "Hi {name} and {total, number}",
+        params: [],
       },
       {
         form: "a select",
         value: "{gender, select, male {he} other {they}}",
         params: [{ name: "gender", type: "string" }],
       },
-      { form: "an argument type it does not know", value: "{x, wobble, other {a}}", params: [] },
+      { form: "an argument type core does not know", value: "{x, wobble, other {a}}", params: [] },
       {
         form: "a plural whose branches are words",
         value: "{count, plural, one {item} other {items}}",
@@ -223,8 +238,10 @@ describe("extractSchema", () => {
       },
       {
         form: "a brace that opens no placeholder",
+        // Nothing closes the first `{`, so core treats the rest of the message
+        // as literal text and the `{name}` after it is not a placeholder.
         value: "a { b {name}",
-        params: [{ name: "name", type: "string" }],
+        params: [],
       },
       {
         form: "a name used again after a typed use",
@@ -236,12 +253,23 @@ describe("extractSchema", () => {
         value: "{count, plural, other {#}} {count, select, other {x}}",
         params: [{ name: "count", type: "number" }],
       },
-      { form: "a name followed by other text", value: "{name x}", params: [] },
-      { form: "a name that does not start at the brace", value: "{ spaced }", params: [] },
+      // A group with no comma is a parameter whose name is its trimmed
+      // contents, whatever that looks like — core's compiler does the same.
+      {
+        form: "a name followed by other text",
+        value: "{name x}",
+        params: [{ name: "name x", type: "string" }],
+      },
+      {
+        form: "a name padded with spaces",
+        value: "{ spaced }",
+        params: [{ name: "spaced", type: "string" }],
+      },
+      { form: "a numeric name", value: "{0} items", params: [{ name: "0", type: "string" }] },
       {
         form: "an unclosed brace before a real placeholder",
         value: "{name and {other}",
-        params: [{ name: "other", type: "string" }],
+        params: [],
       },
     ])("types $form", async ({ value, params }) => {
       const schema = await schemaFor({ message: value });

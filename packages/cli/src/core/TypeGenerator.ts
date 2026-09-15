@@ -1,6 +1,6 @@
 import { countKeyLines, normalizeGenerated } from "@comvi/typegen";
 import { ApiClient } from "./ApiClient";
-import { assertAugmentationTarget, emitCliDeclarations } from "./TypeEmitter";
+import { cliAugmentationTarget, emitCliDeclarations } from "./TypeEmitter";
 import { FileSystemWriter } from "./FileSystemWriter";
 import { ConsoleReporter, type GenerationReporter } from "./GenerationReporter";
 import type { GeneratorOptions, GenerationResult, ProjectSchema, CheckResult } from "../types";
@@ -101,9 +101,13 @@ export class TypeGenerator {
       ]);
       const keyCount = Object.keys(schema.keys).length;
 
+      // The same question the write path asks, answered from the same
+      // manifest: a check that guessed a different target would report drift
+      // no regeneration could clear.
       const expectedTypes = emitCliDeclarations(schema, {
         strictParams: this.options.strictParams,
         defaultNsName,
+        augment: cliAugmentationTarget(this.options.augment),
       });
 
       let currentTypes: string | null = null;
@@ -153,16 +157,16 @@ export class TypeGenerator {
 
       this.reporter.reportGenerating();
 
-      // The generated file augments `@comvi/core`. An app that cannot resolve
-      // it gets declarations that do nothing, and nothing says so: TypeScript
-      // reports TS2882 on the generated import, `skipLibCheck: true` hides that,
-      // and every unknown key then type-checks. Refused here, before the write,
-      // so the project never holds a file that looks like working types.
-      assertAugmentationTarget();
+      // Resolved before the write: a project that declares no Comvi package
+      // has no module the declarations could augment, and a file that augments
+      // an unresolvable one is silently inert — TypeScript reports TS2882 on
+      // the generated import and `skipLibCheck: true` hides even that.
+      const augment = cliAugmentationTarget(this.options.augment);
 
       const typeDeclarations = emitCliDeclarations(schema, {
         strictParams: this.options.strictParams,
         defaultNsName: resolvedDefaultNsName,
+        augment,
       });
 
       await this.writer.write(this.options.outputPath, typeDeclarations);

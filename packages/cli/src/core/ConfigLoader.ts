@@ -148,6 +148,18 @@ export class ConfigLoader {
     // Validation throws VALIDATION_FAILED so the CLI maps it to exit code 4.
     config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
     config.locales = this.normalizeFilterField(config.locales, "locales");
+
+    // A non-string `augment` would reach the emitter and be interpolated into
+    // the generated `declare module`, producing a file TypeScript cannot parse.
+    if (config.augment !== undefined) {
+      if (typeof config.augment !== "string" || config.augment.trim() === "") {
+        throw new TypegenError(
+          `Invalid configuration: "augment" must be a non-empty module specifier, received ${JSON.stringify(config.augment)}`,
+          ErrorCodes.VALIDATION_FAILED,
+        );
+      }
+      config.augment = config.augment.trim();
+    }
   }
 
   /**
@@ -284,6 +296,7 @@ export class ConfigLoader {
       apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
       outputPath: config.outputPath || "src/types/i18n.d.ts",
       strictParams: config.strictParams ?? true,
+      augment: config.augment,
     };
   }
 

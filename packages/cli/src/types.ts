@@ -107,6 +107,17 @@ export interface ComviConfig {
   strictParams?: boolean;
 
   /**
+   * Module the generated declarations augment.
+   *
+   * Left out, it is the Comvi package this project declares: `@comvi/core` when
+   * it is a dependency, otherwise the framework binding (`@comvi/react`,
+   * `@comvi/next`, `@comvi/vue`, `@comvi/nuxt`, `@comvi/svelte`,
+   * `@comvi/solid`). Set it to name a private wrapper package that re-exports
+   * one of those instead.
+   */
+  augment?: string;
+
+  /**
    * Local translations folder path
    * @default "./src/locales"
    */
@@ -169,6 +180,13 @@ export interface GeneratorOptions {
    * @default true
    */
   strictParams?: boolean;
+
+  /**
+   * Module the generated declarations augment. Defaults to the Comvi package
+   * this project declares in its `package.json` — `@comvi/core` when it is
+   * there, otherwise the framework binding.
+   */
+  augment?: string;
 }
 
 export interface TranslationSyncOptions {

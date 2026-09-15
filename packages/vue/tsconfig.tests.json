@@ -29,6 +29,7 @@
     // global to whichever program contains it — leaving it here would narrow
     // every sibling test's runtime-string `t("hello")` call to `never`.
     // It has its own program: tsconfig.keys-closed.json.
-    "tests/types-keys-closed/**"
+    "tests/types-keys-closed/**",
+    "tests/types-keys-via-binding/**"
   ]
 }

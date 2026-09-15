@@ -56,10 +56,13 @@ const REJECTED_SCHEMA_ROUTES: Routes = {
 describe("comvi generate-types", () => {
   let configPath: string;
   let outputPath: string;
+  let projectDir: string;
+  let originalCwd: string;
   let output: ConsoleCapture;
 
   beforeEach(async () => {
     const dir = await makeTempDir("comvi-typegen");
+    projectDir = dir;
     configPath = join(dir, ".comvirc.json");
     outputPath = join(dir, "types", "i18n.d.ts");
 
@@ -67,6 +70,16 @@ describe("comvi generate-types", () => {
       configPath,
       JSON.stringify({ apiKey: "test-key", apiBaseUrl: "https://api.test.com", outputPath }),
     );
+
+    // A real app manifest: the generated declarations augment the Comvi package
+    // the project declares, and the command reads that from the directory it
+    // runs in. Nothing here installs anything — declaring is the whole rule.
+    await nodeFs.writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "app", dependencies: { "@comvi/react": "^0.5.0" } }),
+    );
+    originalCwd = process.cwd();
+    process.chdir(dir);
 
     vi.stubEnv("COMVI_API_KEY", undefined);
     vi.stubEnv("COMVI_API_BASE_URL", undefined);
@@ -78,6 +91,7 @@ describe("comvi generate-types", () => {
   });
 
   afterEach(async () => {
+    process.chdir(originalCwd);
     await removeTempDirs();
     assertNoUnexpectedRequests();
   });
@@ -92,9 +106,41 @@ describe("comvi generate-types", () => {
     ).rejects.toMatchObject({ exitCode: 0 });
 
     const written = await nodeFs.readFile(outputPath, "utf-8");
-    expect(written).toContain("declare module '@comvi/core'");
+    expect(written).toContain("declare module '@comvi/react'");
     expect(written).toContain('"common:welcome": never;');
     expect(written).toContain('"common:greeting": { "name": string };');
+  });
+
+  it("augments the module named by `augment` in the config", async () => {
+    await nodeFs.writeFile(
+      configPath,
+      JSON.stringify({
+        apiKey: "test-key",
+        apiBaseUrl: "https://api.test.com",
+        outputPath,
+        augment: "@acme/i18n",
+      }),
+    );
+
+    await expect(
+      createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 0 });
+
+    expect(await nodeFs.readFile(outputPath, "utf-8")).toContain("declare module '@acme/i18n'");
+  });
+
+  it("fails and names the packages to declare when the project declares none", async () => {
+    // Nothing to augment means the file would be inert: TypeScript reports
+    // TS2882 on the generated import and `skipLibCheck: true` hides even that,
+    // so every unknown key would type-check.
+    await nodeFs.writeFile(join(projectDir, "package.json"), JSON.stringify({ name: "app" }));
+
+    await expect(
+      createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 1 });
+
+    expect(output.stderr).toContain("@comvi/react");
+    expect(await nodeFs.readFile(outputPath, "utf-8").catch(() => null)).toBeNull();
   });
 
   it("reports the number of keys and the file it wrote", async () => {

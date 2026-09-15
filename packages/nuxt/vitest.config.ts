@@ -43,6 +43,13 @@ export default defineConfig({
     unstubGlobals: true,
     environment: "happy-dom",
     include: ["tests/**/*.{test,test-d}.ts"],
+    // `tests/types-keys-via-binding/**` is a type-only program with its own
+    // tsconfig (`tsconfig.keys-via-binding.json`, run from `test:types`). It
+    // must stay out of this one: it carries a `declare module "@comvi/nuxt"`
+    // block, which is global to whichever program contains it and would close
+    // the key registry for every other file here.
+    // vitest's own defaults are restated: naming `exclude` replaces them.
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/types-keys-via-binding/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

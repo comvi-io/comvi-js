@@ -16,7 +16,7 @@ import type {
 import fs from "node:fs";
 import os from "node:os";
 import nodePath from "node:path";
-import { assertAugmentationTarget, TypeEmitter } from "../src/core/TypeEmitter";
+import { cliAugmentationTarget, TypeEmitter } from "../src/core/TypeEmitter";
 import { ErrorCodes } from "../src/utils/errors";
 import type { KeySchema, ProjectSchema, SchemaParam } from "../src/types";
 
@@ -42,11 +42,15 @@ describe("@comvi/cli over @comvi/typegen", () => {
     expect(new TypeEmitter().generate(SCHEMA)).toBe(emitDeclarations(SCHEMA));
   });
 
-  it("writes the tool-neutral header, byte-identical to the shared emitter's output", () => {
+  it("writes a header that names no tool, only the augmented module", () => {
     // The Vite plugin writes the same bytes for the same schema. `check()`
     // compares the file on disk literally, so a CLI-only header line made a
     // Vite-generated file look stale in CI.
-    expect(new TypeEmitter().generate(SCHEMA)).toBe(emitDeclarations(SCHEMA));
+    const header = new TypeEmitter().generate(SCHEMA, { augment: "@comvi/vue" }).split("\n");
+
+    expect(header[1]).toBe(" * Auto-generated translation keys, augmenting '@comvi/vue'");
+    expect(header[2]).toBe(" * DO NOT EDIT — this file is generated from your translation schema");
+    expect(header.slice(0, 4).join("\n")).not.toContain("@comvi/cli");
   });
 
   it("maps defaultNsName onto the shared defaultNs option", () => {
@@ -55,42 +59,44 @@ describe("@comvi/cli over @comvi/typegen", () => {
     );
   });
 
-  describe("the @comvi/core dependency the generated declarations augment", () => {
+  describe("the module the declarations augment", () => {
     const tempDirs: string[] = [];
 
     afterEach(() => {
       for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    /** An app directory, with or without `@comvi/core` installed for it. */
-    function appDir(withCore: boolean): string {
+    /** A project directory whose manifest declares `dependencies`. */
+    function project(dependencies: Record<string, string>): string {
       const dir = fs.mkdtempSync(nodePath.join(os.tmpdir(), "comvi-cli-augment-"));
       tempDirs.push(dir);
-
-      if (withCore) {
-        const pkg = nodePath.join(dir, "node_modules", "@comvi", "core");
-        fs.mkdirSync(pkg, { recursive: true });
-        fs.writeFileSync(nodePath.join(pkg, "package.json"), '{ "name": "@comvi/core" }');
-      }
-
+      fs.writeFileSync(
+        nodePath.join(dir, "package.json"),
+        JSON.stringify({ name: "app", dependencies }),
+      );
       return dir;
     }
 
-    it("refuses an app that cannot resolve it, naming the install command", () => {
-      // The documented framework install adds only the binding, and core is its
-      // transitive dependency: under a strict layout the app cannot reach the
-      // module the generated file augments, and the declarations do nothing.
-      expect(() => assertAugmentationTarget(appDir(false))).toThrow(
-        expect.objectContaining({
-          name: "TypegenError",
-          code: ErrorCodes.VALIDATION_FAILED,
-          message: expect.stringContaining("pnpm add -D @comvi/core"),
-        }),
+    it("answers with the Comvi package the project declares", () => {
+      expect(cliAugmentationTarget(undefined, project({ "@comvi/solid": "^0.5.0" }))).toBe(
+        "@comvi/solid",
       );
     });
 
-    it("accepts an app that has it installed", () => {
-      expect(() => assertAugmentationTarget(appDir(true))).not.toThrow();
+    it("takes the configured override over the manifest", () => {
+      expect(cliAugmentationTarget("@acme/i18n", project({ "@comvi/solid": "*" }))).toBe(
+        "@acme/i18n",
+      );
+    });
+
+    it("reports a project that declares none as a TypegenError, so the exit code holds", () => {
+      expect(() => cliAugmentationTarget(undefined, project({ react: "^19.0.0" }))).toThrow(
+        expect.objectContaining({
+          name: "TypegenError",
+          code: ErrorCodes.VALIDATION_FAILED,
+          message: expect.stringContaining("@comvi/react"),
+        }),
+      );
     });
   });
 

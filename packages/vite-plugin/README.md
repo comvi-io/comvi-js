@@ -34,15 +34,15 @@ two-step quickstart, the package matrix and the measured bundle weights.
 ## Install
 
 ```bash
-npm install -D @comvi/vite-plugin @comvi/core
+npm install -D @comvi/vite-plugin
 # Peer: vite ^5 || ^6 || ^7 || ^8
 ```
 
-`@comvi/core` belongs in your own dependencies even if you installed a framework binding such as
-`@comvi/react`, which already depends on it. The generated declaration augments `@comvi/core`, and
-a strict node_modules layout (pnpm, Yarn PnP) only lets an app resolve what it depends on directly.
-Without it the plugin refuses to write, rather than leaving a file that `skipLibCheck: true` turns
-into silently inert types.
+The generated declaration augments the Comvi package your `package.json` already declares —
+`@comvi/core` when it is a dependency, otherwise your framework binding (`@comvi/react`,
+`@comvi/next`, `@comvi/vue`, `@comvi/nuxt`, `@comvi/svelte`, `@comvi/solid`). Nothing else to
+install. Pass `augment` to name a different module, such as a private wrapper package that
+re-exports a binding.
 
 ## Quick start
 
@@ -95,14 +95,14 @@ The plugin writes to `src/types/i18n.d.ts`:
 
 ```typescript check=group=typed-keys
 /**
- * Auto-generated translation keys
+ * Auto-generated translation keys, augmenting '@comvi/react'
  * DO NOT EDIT — this file is generated from your translation schema
  */
 
 // Import to ensure module is resolved before augmentation
-import "@comvi/core";
+import "@comvi/react";
 
-declare module "@comvi/core" {
+declare module "@comvi/react" {
   interface TranslationKeys {
     welcome: { name: string };
     items: { count: number };

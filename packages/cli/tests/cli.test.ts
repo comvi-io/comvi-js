@@ -76,6 +76,9 @@ describe("TypeGenerator.generate() over a mocked fetch", () => {
     apiBaseUrl: "https://api.test.com",
     outputPath: "src/types/i18n.d.ts",
     strictParams: true,
+    // Named, so these tests do not depend on what the directory vitest runs in
+    // declares. `tests/TypeGenerator.test.ts` covers the manifest rule.
+    augment: "@comvi/core",
   };
 
   function makeGenerator(overrides: Partial<GeneratorOptions> = {}): TypeGenerator {

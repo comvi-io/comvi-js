@@ -1,6 +1,6 @@
 /** Schema keys arrive as `"namespace:key"`, e.g. `"common:greeting"`. */
 
-import { augmentationTargetError, emitDeclarations, type ProjectSchema } from "@comvi/typegen";
+import { emitDeclarations, resolveAugmentationTarget, type ProjectSchema } from "@comvi/typegen";
 import { ErrorCodes, TypegenError } from "../utils/errors";
 
 export interface TypeEmitterOptions {
@@ -20,6 +20,12 @@ export interface TypeEmitterOptions {
    * // 'admin:dashboard' → 'admin:dashboard'
    */
   defaultNsName?: string;
+
+  /**
+   * Module the declarations augment. `cliAugmentationTarget()` answers this
+   * for a project; a caller that names nothing gets `@comvi/core`.
+   */
+  augment?: string;
 }
 
 /**
@@ -43,6 +49,7 @@ export function emitCliDeclarations(
     return emitDeclarations(schema, {
       strictParams: options.strictParams,
       defaultNs: options.defaultNsName,
+      augment: options.augment,
     });
   } catch (error) {
     const cause = error instanceof Error ? error : undefined;
@@ -55,22 +62,28 @@ export function emitCliDeclarations(
 }
 
 /**
- * Refuses when the app cannot resolve `@comvi/core`, the module every generated
- * declaration augments.
+ * The module this project's generated declarations augment: `augment` from the
+ * config when it is set, otherwise the Comvi package the project declares.
  *
- * Called before the file is written, never before a `--check` comparison: a
- * check compares text, and a CI job that installed production dependencies only
- * has no dev-time `@comvi/core` to find — failing the comparison over that would
- * report drift where there is none.
+ * Both the write path and `--check` go through here, so they always agree — the
+ * answer comes from the project's own `package.json`, not from what happens to
+ * be installed, and is therefore the same on every machine and under every
+ * package manager.
  *
- * `appRoot` is the project the declarations are for, and defaults to the
- * directory `comvi typegen` was run in, which is that project by construction
- * (the config path and the output path are both read relative to it).
+ * `appRoot` defaults to the directory `comvi typegen` was run in, which is the
+ * project by construction: the config path and the output path are both read
+ * relative to it.
  */
-export function assertAugmentationTarget(appRoot: string = process.cwd()): void {
-  const error = augmentationTargetError(appRoot);
-  if (error !== undefined) {
-    throw new TypegenError(error, ErrorCodes.VALIDATION_FAILED);
+export function cliAugmentationTarget(override?: string, appRoot: string = process.cwd()): string {
+  try {
+    return resolveAugmentationTarget(appRoot, override);
+  } catch (error) {
+    const cause = error instanceof Error ? error : undefined;
+    throw new TypegenError(
+      cause ? cause.message : String(error),
+      ErrorCodes.VALIDATION_FAILED,
+      cause,
+    );
   }
 }
 
