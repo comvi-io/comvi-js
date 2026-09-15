@@ -3,6 +3,7 @@ import type { CdnLayoutOptions, FallbackMap, FetchLoaderOptions } from "./option
 import type { InflightRequests } from "./inflight";
 import {
   RequestAbortedError,
+  assertCatalogObject,
   buildCacheOptions,
   fetchJsonWithTimeout,
   isAborted,
@@ -71,6 +72,11 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
         if (!result.ok) throw new Error(`HTTP ${result.status}: ${result.statusText}`);
 
         const data = result.data;
+        // The API path validates every catalog position it stores; the CDN
+        // path serves one catalog per request and validates that. Without it a
+        // string root became per-character keys and an array or `null` an
+        // empty catalog, where a reported load failure belongs.
+        assertCatalogObject(data, "CDN", ck);
         if (signal.aborted || isStopped()) throw new RequestAbortedError(url);
         reportSuccess(locale, namespace);
         return data;

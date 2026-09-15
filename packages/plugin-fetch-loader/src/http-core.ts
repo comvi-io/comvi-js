@@ -151,6 +151,25 @@ const VALID_ID = /^[\w\-@.]+$/;
 export const isSafeId = (value: string): boolean =>
   !!value && value !== "." && value !== ".." && VALID_ID.test(value);
 
+/**
+ * Refuse a catalog position that is not a JSON object — the one check BOTH
+ * request paths run, so `source` ("API" or "CDN") is all that differs in the
+ * message.
+ *
+ * It is not pedantry: `Object.entries("ab")` is `[["0","a"],["1","b"]]`, so a
+ * string where a map belongs becomes junk cache entries, an array becomes
+ * numeric keys, and `null` becomes an empty catalog — each of them a silently
+ * wrong catalog rather than a reported load failure.
+ */
+export function assertCatalogObject(
+  value: unknown,
+  source: string,
+  path: string,
+): asserts value is Record<string, never> {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`${ERROR_PREFIX} Invalid ${source} response: "${path}" must be an object`);
+}
+
 export function validateId(value: string, label: string): void {
   if (!isSafeId(value))
     throw new Error(
