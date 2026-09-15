@@ -39,17 +39,6 @@ export interface SetI18nContextOptions {
 }
 
 /**
- * Call this in the root component (`App.svelte`, `+layout.svelte`).
- *
- * @example Guaranteed ready before the first render
- * ```svelte
- * <script>
- *   setI18nContext(i18n);
- *   await i18n.init();
- * </script>
- * ```
- */
-/**
  * Matches react's/solid's/vue's own auto-init catch: `onError` is typed to
  * receive an `Error`, so a non-Error rejection (a thrown string, object, …)
  * is normalized here rather than cast past the type system. `cause` keeps
@@ -66,6 +55,17 @@ function normalizeInitError(error: unknown): Error {
   return normalized;
 }
 
+/**
+ * Call this in the root component (`App.svelte`, `+layout.svelte`).
+ *
+ * @example Guaranteed ready before the first render
+ * ```svelte
+ * <script>
+ *   setI18nContext(i18n);
+ *   await i18n.init();
+ * </script>
+ * ```
+ */
 export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOptions): void {
   setContext(I18N_CONTEXT_KEY, i18n);
 
