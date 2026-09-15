@@ -16,14 +16,15 @@ One entry now carries both.
 </script>
 ```
 
-| export                                       | what it is                                       |
-| -------------------------------------------- | ------------------------------------------------ |
-| `createI18n`, `I18n`                         | core's base host — its constructor and its class |
-| `icuCompiler`                                | from `@comvi/core/icu` — the ICU compiler        |
-| `loader`, `attachLoader`                     | from `@comvi/core/loader`                        |
-| `plugins`, `definePlugin`                    | from `@comvi/core/plugins`                       |
-| `devtools`                                   | from `@comvi/core/devtools`                      |
-| every store factory, the readers, `T`, types | the svelte bindings                              |
+| export                                       | what it is                                                                                      |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `createI18n`                                 | core's base host constructor                                                                    |
+| `I18n` (type only)                           | core's base host class, for typing a host you compose — a runtime value only from `@comvi/core` |
+| `icuCompiler`                                | from `@comvi/core/icu` — the ICU compiler                                                       |
+| `loader`, `attachLoader`                     | from `@comvi/core/loader`                                                                       |
+| `plugins`, `definePlugin`                    | from `@comvi/core/plugins`                                                                      |
+| `devtools`                                   | from `@comvi/core/devtools`                                                                     |
+| every store factory, the readers, `T`, types | the svelte bindings                                                                             |
 
 There is no svelte-side wrapper object to build — the host goes straight into
 `setI18nContext(i18n)` — so the constructor IS core's own `createI18n`, re-exported by name.

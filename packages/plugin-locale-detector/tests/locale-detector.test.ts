@@ -776,6 +776,36 @@ describe("localeDetectorPlugin plugin", () => {
       cleanup?.();
     });
 
+    it("M8: does not let a PRE-init manual detect() suppress a later explicit choice of its own fallback locale", async () => {
+      mockWindowLocation("");
+      const i18n = createI18n("en");
+      // `installDetector` only wires the plugin up — `i18n.init()` is never
+      // called in this test at all, so `isInitializing` stays false exactly
+      // as it would for a real host that has not started `init()` yet.
+      const cleanup = installDetector(i18n, {
+        order: ["querystring"],
+        caches: ["localStorage"],
+        fallbackLocale: "it",
+      });
+
+      // A manual, PRE-init consultation of the detector — e.g. code that
+      // wants to know what locale would be picked before deciding whether to
+      // call init() at all. No querystring, so it falls back to "it", which
+      // differs from the current locale "en".
+      expect(await i18n.getLanguageDetector()?.()).toBe("it");
+      expect(i18n.isInitialized).toBe(false);
+
+      // The user (or the app) then explicitly chooses "it" themselves — a
+      // deliberate pick that happens to match the pre-init marker's fallback
+      // value. It must be cached like any other explicit choice: core never
+      // auto-applied this detect() call (init() was never even entered), so
+      // there is no "own follow-up" localeChanged for the marker to bridge to.
+      await i18n.setLocaleAsync("it");
+      expect(localStorage.getItem("i18n_locale")).toBe("it");
+
+      cleanup?.();
+    });
+
     it("does not let a post-init manual detect() suppress a later explicit choice of its own fallback locale", async () => {
       mockWindowLocation("");
       const i18n = createI18n("en");
@@ -798,9 +828,9 @@ describe("localeDetectorPlugin plugin", () => {
       expect(localStorage.getItem("i18n_locale")).toBe("de");
 
       // The app manually re-consults the detector post-init (e.g. a "reset to
-      // detected locale" affordance). It reports the fallback again, "it",
-      // which now differs from the current locale — this arms the fallback
-      // marker.
+      // detected locale" affordance). It reports the fallback again, "it" —
+      // `isInitializing` is false here (init() settled long ago), so no
+      // marker is armed at all.
       expect(await i18n.getLanguageDetector()?.()).toBe("it");
 
       // The user then explicitly chooses "it" themselves — a deliberate pick
