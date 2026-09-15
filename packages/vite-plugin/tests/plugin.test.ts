@@ -88,24 +88,30 @@ afterEach(async () => {
 });
 
 /**
- * A project root with `locales/en.json` holding `content`.
+ * A project root with `locales/en.json` holding `content`, and a manifest.
  *
- * `@comvi/core` is installed because the plugin refuses to write declarations
- * for a project that cannot resolve the module they augment — the file would be
- * inert. `withCore: false` builds the project that has the problem.
+ * The manifest is what decides which module the declarations augment, so every
+ * project here declares one. `declares: {}` builds the project that declares no
+ * Comvi package, which the plugin refuses to generate for.
  */
-async function makeProject(content: string, options: { withCore?: boolean } = {}): Promise<string> {
+async function makeProject(
+  content: string,
+  options: { declares?: Record<string, string> } = {},
+): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "comvi-vite-plugin-"));
   tempDirs.push(root);
   const localesDir = path.join(root, "locales");
   await fs.mkdir(localesDir, { recursive: true });
   await fs.writeFile(path.join(localesDir, "en.json"), content, "utf-8");
 
-  if (options.withCore !== false) {
-    const corePkg = path.join(root, "node_modules", "@comvi", "core");
-    await fs.mkdir(corePkg, { recursive: true });
-    await fs.writeFile(path.join(corePkg, "package.json"), '{ "name": "@comvi/core" }', "utf-8");
-  }
+  await fs.writeFile(
+    path.join(root, "package.json"),
+    JSON.stringify({
+      name: "app",
+      dependencies: options.declares ?? { "@comvi/react": "^0.5.0" },
+    }),
+    "utf-8",
+  );
 
   return root;
 }
@@ -151,7 +157,7 @@ describe("comviTypes plugin", () => {
       await buildStart(plugin);
 
       const written = await fs.readFile(outputPath(root), "utf-8");
-      expect(written).toContain("declare module '@comvi/core' {");
+      expect(written).toContain("declare module '@comvi/react' {");
       expect(written).toContain('"greeting": { "name": string };');
     });
 
@@ -179,17 +185,48 @@ describe("comviTypes plugin", () => {
       expect(written).toContain('"admin:dashboard": never;');
     });
 
-    it("refuses to write when the app cannot resolve @comvi/core", async () => {
-      // The documented framework install adds only the binding; core is its
-      // transitive dependency, so a strict node_modules layout leaves the
-      // generated augmentation unreachable. TypeScript reports TS2882 on the
-      // generated import, `skipLibCheck: true` hides that, and every unknown
-      // key then type-checks — a file that looks like working types and is not.
-      const root = await makeProject('{ "greeting": "Hello" }', { withCore: false });
+    it("augments the Comvi package the project declares", async () => {
+      // The documented install is one package, and core arrives through it as a
+      // transitive dependency a strict layout will not let the app name. What
+      // the app declares is the one specifier it is certain to resolve.
+      const root = await makeProject('{ "greeting": "Hello" }', {
+        declares: { "@comvi/svelte": "^0.5.0" },
+      });
       const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
       resolvePlugin(plugin, root, "build");
 
-      await expect(buildStart(plugin)).rejects.toThrow("pnpm add -D @comvi/core");
+      await buildStart(plugin);
+
+      const written = await fs.readFile(outputPath(root), "utf-8");
+      expect(written).toContain("declare module '@comvi/svelte' {");
+      expect(written).toContain("import '@comvi/svelte';");
+    });
+
+    it("augments the module named by the augment option instead", async () => {
+      const root = await makeProject('{ "greeting": "Hello" }');
+      const plugin = comviTypes({
+        translations: "./locales",
+        output: OUTPUT,
+        augment: "@acme/i18n",
+      });
+      resolvePlugin(plugin, root, "build");
+
+      await buildStart(plugin);
+
+      expect(await fs.readFile(outputPath(root), "utf-8")).toContain(
+        "declare module '@acme/i18n' {",
+      );
+    });
+
+    it("refuses to write when the project declares no Comvi package", async () => {
+      // Nothing to augment means an inert file: TypeScript reports TS2882 on
+      // the generated import, `skipLibCheck: true` hides even that, and every
+      // unknown key type-checks — types that look like they work and do not.
+      const root = await makeProject('{ "greeting": "Hello" }', { declares: {} });
+      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
+      resolvePlugin(plugin, root, "build");
+
+      await expect(buildStart(plugin)).rejects.toThrow("@comvi/react");
       await expect(fs.readFile(outputPath(root), "utf-8")).rejects.toThrow(/ENOENT/);
     });
 

@@ -31,6 +31,7 @@
     "node_modules",
     "dist",
     "tests/types/**",
-    "tests/types-keys-open/**"
+    "tests/types-keys-open/**",
+    "tests/types-keys-via-binding/**"
   ]
 }

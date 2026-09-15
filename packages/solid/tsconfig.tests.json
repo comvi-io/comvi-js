@@ -36,5 +36,11 @@
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "tests/types/**", "tests/types-keys-closed/**"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests/types/**",
+    "tests/types-keys-closed/**",
+    "tests/types-keys-via-binding/**"
+  ]
 }

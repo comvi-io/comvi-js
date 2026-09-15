@@ -22,7 +22,7 @@
 import type { Plugin } from "vite";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { augmentationTargetError } from "@comvi/typegen";
+import { resolveAugmentationTarget } from "@comvi/typegen";
 import { extractSchema } from "./extract";
 import { emitDeclarations, type EmitOptions } from "./emit";
 import { createGenerationScheduler } from "./scheduler";
@@ -62,6 +62,17 @@ export interface ComviTypesOptions {
    * @default true
    */
   strictParams?: boolean;
+
+  /**
+   * Module the generated declarations augment.
+   *
+   * Left out, it is the Comvi package this project declares in its
+   * `package.json`: `@comvi/core` when it is a dependency, otherwise the
+   * framework binding (`@comvi/react`, `@comvi/next`, `@comvi/vue`,
+   * `@comvi/nuxt`, `@comvi/svelte`, `@comvi/solid`). Set it to name a private
+   * wrapper package that re-exports one of those instead.
+   */
+  augment?: string;
 }
 
 export function comviTypes(options: ComviTypesOptions): Plugin {
@@ -71,6 +82,7 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
     fileTemplate,
     defaultNs,
     strictParams,
+    augment,
   } = options;
 
   let resolvedTranslationsPath: string;
@@ -86,15 +98,14 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
 
   async function generate(options: { throwOnError: boolean }): Promise<void> {
     try {
-      // The declarations augment `@comvi/core`. A project that cannot resolve it
-      // gets a file that does nothing, and nothing says so: TypeScript reports
-      // TS2882 on the generated import, `skipLibCheck: true` hides that error,
-      // and every unknown key then type-checks. Checked against the Vite root,
-      // which is the app, before anything is written.
-      const dependencyError = augmentationTargetError(resolvedRoot);
-      if (dependencyError !== undefined) {
-        throw new Error(dependencyError);
-      }
+      // Which module the declarations augment is a property of the project, so
+      // it is read from the Vite root's manifest — the same answer `comvi
+      // typegen` reads, on every machine and under every package manager. A
+      // project that declares no Comvi package has nothing to augment, and a
+      // file augmenting an unresolvable module is silently inert: TypeScript
+      // reports TS2882 on the generated import and `skipLibCheck: true` hides
+      // even that. Resolved before anything is written.
+      const augmentTarget = resolveAugmentationTarget(resolvedRoot, augment);
 
       const schema = await extractSchema({
         translationsPath: resolvedTranslationsPath,
@@ -102,7 +113,7 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
         defaultNs,
       });
 
-      const content = emitDeclarations(schema, emitOptions);
+      const content = emitDeclarations(schema, { ...emitOptions, augment: augmentTarget });
 
       // Skipping the unchanged write avoids a TS re-check storm in dev.
       if (content === lastContent) return;

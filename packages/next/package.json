@@ -79,7 +79,7 @@
     "build": "tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",
-    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-closed.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-closed.json && tsc --noEmit -p tsconfig.keys-via-binding.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",

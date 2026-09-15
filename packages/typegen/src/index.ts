@@ -8,74 +8,105 @@
  * cannot drift.
  *
  * Zero dependencies, and the emitter itself uses no Node built-ins — the caller
- * owns reading the schema and writing the file. `augmentationTargetError` is the
- * exception: deciding whether the file it emits will do anything at all means
- * looking at the app's installed packages, and both callers are Node tools.
+ * owns reading the schema and writing the file. `resolveAugmentationTarget` is
+ * the exception: which module a generated file augments is read from the app's
+ * own `package.json`, and both callers are Node tools.
  */
 
-import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
- * The module the generated declarations augment, and the only module they name.
+ * The modules a generated file can augment, in the order one is chosen.
  *
- * `t()`'s key type comes from `TranslationKeys` as `@comvi/core` declares it, so
- * the augmentation has to land on core's own interface. It cannot be routed
- * through the framework binding an app installed: TypeScript merges a `declare
- * module '@comvi/<binding>'` block into core's interface only where that binding
- * re-exports core's whole type surface with `export type *`, and silently
- * creates a separate, inert interface where the binding names the type
- * explicitly — a no-op no generated file can detect. Loud beats clever, so the
- * target is fixed and `augmentationTargetError` refuses when the app cannot
- * reach it. `docs/design/limitations.md` records the measurement.
+ * `t()`'s key type reads `TranslationKeys` as `@comvi/core` declares it, and a
+ * `declare module '@comvi/<binding>'` block merges into that same interface —
+ * each binding re-exports it, and `tests/types-keys-via-binding` in every
+ * binding package is the executable proof, one program per binding.
+ *
+ * So the file augments the module the APP DECLARES, which is the one specifier
+ * the app is guaranteed to resolve: the documented install is a single package,
+ * and core arrives as its transitive dependency, which a strict pnpm layout or
+ * Yarn PnP will not let the app name. Core comes first because an app that
+ * declares it means it.
  */
-export const AUGMENTED_MODULE = "@comvi/core";
+export const AUGMENTABLE_MODULES = [
+  "@comvi/core",
+  "@comvi/react",
+  "@comvi/next",
+  "@comvi/vue",
+  "@comvi/nuxt",
+  "@comvi/svelte",
+  "@comvi/solid",
+] as const;
 
-/**
- * Why the generated declarations would do nothing from `appRoot`, or `undefined`
- * when they will work.
- *
- * The generated file augments `@comvi/core`. The documented install for a
- * framework adds only that binding, and core is its TRANSITIVE dependency — so
- * under a strict, non-hoisted layout (pnpm, Yarn PnP) the app cannot resolve
- * core and the augmentation never happens. TypeScript reports TS2882 on the
- * generated import, `skipLibCheck: true` hides that error, and every unknown
- * translation key then type-checks: the generated types are inert and nothing
- * says so. Both tools call this before they write a file, so the app hears
- * about it from the generator instead.
- *
- * The lookup mirrors what TypeScript does with a bare specifier: walk up from
- * the app, taking the first `node_modules/@comvi/core` that exists. A workspace
- * root that holds the install therefore passes, as it does for the compiler.
- */
-export function augmentationTargetError(appRoot: string): string | undefined {
-  if (findAugmentationTarget(appRoot) !== undefined) return undefined;
+/** The module a generated file augments when the caller names none. */
+const DEFAULT_AUGMENTED_MODULE = AUGMENTABLE_MODULES[0];
 
-  return (
-    `Generated types augment \`${AUGMENTED_MODULE}\`, which is not resolvable from ${appRoot}. ` +
-    `It is a transitive dependency of the Comvi framework bindings, and a strict ` +
-    `node_modules layout does not let this app reach it.\n` +
-    `Add it as a dev dependency:\n\n` +
-    `  pnpm add -D ${AUGMENTED_MODULE}\n\n` +
-    `Without it TypeScript reports TS2882 on the generated import, and with ` +
-    `\`skipLibCheck: true\` that error disappears while every unknown translation key ` +
-    `silently type-checks.`
-  );
+/** The parts of an app's `package.json` that decide the target. */
+export interface AppManifest {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 }
 
-/** The `package.json` of the nearest installed `@comvi/core`, walking up from `appRoot`. */
-function findAugmentationTarget(appRoot: string): string | undefined {
-  const segments = AUGMENTED_MODULE.split("/");
-  let dir = resolve(appRoot);
+/**
+ * The module an app with this manifest should have its types augment, or
+ * `undefined` when it declares none of them.
+ *
+ * DECLARED, not installed: the answer is a property of the app's own manifest,
+ * so it is the same on every machine and under every package manager. That is
+ * what lets `--check` regenerate the same file the write path produced, and it
+ * is why nothing here touches `node_modules` — a physical lookup made Yarn PnP
+ * (no `node_modules` at all) impossible to generate for.
+ *
+ * Own keys only: an inherited `dependencies` entry is not a declaration.
+ */
+export function chooseAugmentationTarget(manifest: AppManifest): string | undefined {
+  const declared = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.devDependencies ?? {}),
+  ]);
 
-  for (;;) {
-    const candidate = join(dir, "node_modules", ...segments, "package.json");
-    if (existsSync(candidate)) return candidate;
+  return AUGMENTABLE_MODULES.find((module) => declared.has(module));
+}
 
-    const parent = dirname(dir);
-    if (parent === dir) return undefined;
-    dir = parent;
+/**
+ * The module the app at `appRoot` has its generated types augment.
+ *
+ * `override` is the app's explicit choice (`augment` in the CLI config or the
+ * Vite plugin options) and wins over the manifest — a private wrapper package
+ * that re-exports a binding is a legitimate target this rule cannot guess.
+ *
+ * @throws when the app declares no Comvi module and names none
+ */
+export function resolveAugmentationTarget(appRoot: string, override?: string): string {
+  if (override !== undefined) {
+    if (override.trim() === "") {
+      throw new Error(
+        "`augment` is empty. Name the module the generated types should augment, " +
+          "or remove the option to use the one this app declares.",
+      );
+    }
+    return override.trim();
   }
+
+  const manifestPath = join(appRoot, "package.json");
+  let manifest: AppManifest | undefined;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as AppManifest;
+  } catch {
+    manifest = undefined;
+  }
+
+  const target = manifest === undefined ? undefined : chooseAugmentationTarget(manifest);
+  if (target !== undefined) return target;
+
+  throw new Error(
+    `Generated types have to augment a Comvi module, and ${manifestPath} declares none.\n` +
+      `Add the package this app imports \`t()\` from to its dependencies — one of ` +
+      `${AUGMENTABLE_MODULES.slice(1).join(", ")} — or \`${DEFAULT_AUGMENTED_MODULE}\` itself. ` +
+      `A private wrapper package can be named instead with the \`augment\` option.`,
+  );
 }
 
 /** `number` is the type carried by plural counts. */
@@ -98,6 +129,11 @@ export interface EmitOptions {
   strictParams?: boolean;
   /** Default namespace — keys from this ns drop their prefix. @default 'default' */
   defaultNs?: string;
+  /**
+   * The module the declarations augment — `resolveAugmentationTarget`'s answer
+   * for the app being generated for. @default '@comvi/core'
+   */
+  augment?: string;
 }
 
 /**
@@ -134,23 +170,30 @@ const HEADER_NOTICE = "DO NOT EDIT — this file is generated from your translat
 const DROPPED_HEADER_PREFIXES = ["* Generated at:", "* DO NOT EDIT"];
 
 export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {}): string {
-  const { strictParams = true, defaultNs = "default" } = options;
+  const {
+    strictParams = true,
+    defaultNs = "default",
+    augment = DEFAULT_AUGMENTED_MODULE,
+  } = options;
   const defaultPrefix = `${defaultNs}:`;
 
   const lines: string[] = [
     "/**",
-    " * Auto-generated translation keys",
+    // The target is named here because it is a property of the project, not of
+    // the format: change which Comvi package the app depends on and this file
+    // has to be regenerated. `--check` compares this line, so it says so.
+    ` * Auto-generated translation keys, augmenting '${augment}'`,
     ` * ${HEADER_NOTICE}`,
     " */",
     "",
     // The side-effect import is load-bearing, not decoration: without it the
     // `declare module` block below declares a NEW ambient module when the
-    // specifier does not resolve, instead of augmenting core's interface, and
+    // specifier does not resolve, instead of merging into the interface, and
     // every unknown key then type-checks with no error anywhere.
     "// Import to ensure module is resolved before augmentation",
-    `import '${AUGMENTED_MODULE}';`,
+    `import '${augment}';`,
     "",
-    `declare module '${AUGMENTED_MODULE}' {`,
+    `declare module '${augment}' {`,
     "  interface TranslationKeys {",
   ];
 

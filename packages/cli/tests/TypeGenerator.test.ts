@@ -5,7 +5,7 @@ import { InMemoryFileSystem, FileSystemWriter } from "../src/core/FileSystemWrit
 import { CollectingReporter } from "../src/core/GenerationReporter";
 import { SilentLogger, type Logger } from "../src/utils/logger";
 import type { GeneratorOptions, ProjectSchema } from "../src/types";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -34,6 +34,10 @@ describe("TypeGenerator", () => {
       apiBaseUrl: "https://api.test.com",
       outputPath: "src/types/i18n.d.ts",
       strictParams: true,
+      // Named explicitly so these tests do not depend on what the directory
+      // vitest happens to run in declares. The block that exercises the
+      // manifest rule builds its own generator without it.
+      augment: "@comvi/core",
     };
 
     vi.clearAllMocks();
@@ -64,6 +68,7 @@ describe("TypeGenerator", () => {
         apiKey: "test-key",
         apiBaseUrl: "https://api.test.com",
         outputPath: "types/i18n.d.ts",
+        augment: "@comvi/core",
       };
 
       const gen = new TypeGenerator(minimalOptions, {
@@ -85,6 +90,7 @@ describe("TypeGenerator", () => {
         apiBaseUrl: "https://api.test.com",
         outputPath: "types/i18n.d.ts",
         strictParams: false,
+        augment: "@comvi/core",
       };
 
       const gen = new TypeGenerator(customOptions, {
@@ -333,7 +339,7 @@ describe("TypeGenerator", () => {
     });
   });
 
-  describe("the @comvi/core dependency", () => {
+  describe("the module the declarations augment", () => {
     const tempDirs: string[] = [];
     let originalCwd: string;
 
@@ -346,34 +352,93 @@ describe("TypeGenerator", () => {
       for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
     });
 
-    /** A project directory with no `@comvi/core` resolvable from it. */
-    function projectWithoutCore(): string {
+    /** A project directory whose manifest declares `dependencies`. */
+    function project(dependencies: Record<string, string>): string {
       const dir = mkdtempSync(join(tmpdir(), "comvi-generator-augment-"));
       tempDirs.push(dir);
+      writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "app", dependencies }));
       return dir;
     }
 
-    it("writes no declarations for a project that cannot resolve it", async () => {
-      // A file augmenting an unresolvable module is inert and silently so, so
-      // the generator refuses rather than leaving something that looks like
-      // working types on disk.
-      process.chdir(projectWithoutCore());
+    /** A generator with no configured `augment`, so the manifest decides. */
+    function generatorForManifest(augment?: string): TypeGenerator {
+      return new TypeGenerator(
+        { ...mockOptions, augment },
+        { writer: mockWriter, reporter: mockReporter, logger: mockLogger },
+      );
+    }
 
-      const result = await generator.generate();
+    it("augments the binding the project declares, with no core dependency", async () => {
+      // The documented install is one package, and core arrives through it.
+      // Augmenting what the app declares is the only specifier it can resolve.
+      process.chdir(project({ "@comvi/react": "^0.5.0" }));
+
+      const result = await generatorForManifest().generate();
+
+      expect(result.success).toBe(true);
+      expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain(
+        "declare module '@comvi/react' {",
+      );
+    });
+
+    it("prefers @comvi/core when the project declares it too", async () => {
+      process.chdir(project({ "@comvi/react": "^0.5.0", "@comvi/core": "^0.5.0" }));
+
+      await generatorForManifest().generate();
+
+      expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain(
+        "declare module '@comvi/core' {",
+      );
+    });
+
+    it("takes the configured augment module over the manifest", async () => {
+      process.chdir(project({ "@comvi/react": "^0.5.0" }));
+      await generatorForManifest("@acme/i18n").generate();
+
+      expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain(
+        "declare module '@acme/i18n' {",
+      );
+    });
+
+    it("writes nothing for a project that declares no Comvi module", async () => {
+      process.chdir(project({ react: "^19.0.0" }));
+
+      const result = await generatorForManifest().generate();
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("pnpm add -D @comvi/core");
+      expect(result.error).toContain("@comvi/react");
       expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toBeUndefined();
     });
 
-    it("still compares an existing file for a project that cannot resolve it", async () => {
-      // `--check` compares text. A CI job that installed production
-      // dependencies only has no dev-time `@comvi/core` to find, and reporting
-      // drift over that would fail a check on a file that is in fact current.
-      await generator.generate();
-      process.chdir(projectWithoutCore());
+    it("checks against the same target it would write, so a check reports no drift", async () => {
+      // The target comes from the manifest, so every machine picks the same
+      // one. That is what lets the verify path regenerate the write path's
+      // file instead of needing a carve-out.
+      process.chdir(project({ "@comvi/nuxt": "^0.5.0" }));
+      const manifestGenerator = generatorForManifest();
+      await manifestGenerator.generate();
 
-      await expect(generator.check()).resolves.toMatchObject({ upToDate: true });
+      await expect(manifestGenerator.check()).resolves.toMatchObject({ upToDate: true });
+      expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain(
+        "declare module '@comvi/nuxt' {",
+      );
+    });
+
+    it("reports drift once the project switches to another Comvi package", async () => {
+      process.chdir(project({ "@comvi/vue": "^0.5.0" }));
+      const manifestGenerator = generatorForManifest();
+      await manifestGenerator.generate();
+      process.chdir(project({ "@comvi/svelte": "^0.5.0" }));
+
+      await expect(manifestGenerator.check()).resolves.toMatchObject({ upToDate: false });
+    });
+
+    it("refuses to check a project that declares no Comvi module", async () => {
+      // No carve-out: the write path and the verify path ask the manifest the
+      // same question, so neither can pass where the other fails.
+      process.chdir(project({ react: "^19.0.0" }));
+
+      await expect(generatorForManifest().check()).rejects.toThrow("@comvi/react");
     });
   });
 

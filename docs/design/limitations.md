@@ -67,21 +67,26 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 - **Typed keys are generated, not inferred.** `TranslationKeys` is a declaration-merging interface;
   `@comvi/cli` (from the platform) or `@comvi/vite-plugin` (from local JSON) writes it. Nothing
   infers key types from a runtime catalog.
-- **Generating types requires `@comvi/core` in the app's own dependencies**, on top of whichever
-  framework binding it installed. The generated file augments `@comvi/core`, and under a strict
-  node_modules layout (pnpm, Yarn PnP) an app can only resolve what it depends on directly — core
-  arrives as the binding's transitive dependency and is unreachable. Both generators check this
-  before writing and refuse with the install command, because the failure is otherwise silent:
-  TypeScript reports TS2882 on the generated import, `skipLibCheck: true` removes that error, and
-  every unknown key then type-checks against types that do nothing.
+- **Generated types augment the Comvi package your app declares, so switching packages means
+  regenerating.** The generated file carries `declare module '<that package>'` and names it in its
+  header. `@comvi/core` wins when your `package.json` declares it; otherwise it is the framework
+  binding (`@comvi/react`, `@comvi/next`, `@comvi/vue`, `@comvi/nuxt`, `@comvi/svelte`,
+  `@comvi/solid`). Declare none of them and both generators refuse rather than write an inert file.
+  Point them somewhere else — a private wrapper package that re-exports a binding — with `augment`
+  in `.comvirc.json` or the `augment` plugin option.
 
-  Routing the augmentation through the binding instead (`declare module '@comvi/react'`) was
-  measured and rejected. It does work — TypeScript merges such a block into core's interface where
-  the binding re-exports core's whole type surface with `export type *`, which six of the seven
-  bindings do. But where a binding names the type explicitly (`export type { TranslationKeys }`),
-  TypeScript creates a separate, inert interface and reports nothing at all, and no generated file
-  can tell the two apart. One loud requirement beats an invariant that disappears with a refactor.
-  `pnpm check:strict-consumer` holds the evidence for both halves.
+  The rule reads your manifest and nothing else. It does not look at `node_modules`, because what
+  an app DECLARES is the one specifier it is certain to resolve: the documented install is a single
+  package, core arrives through it as a transitive dependency that a strict pnpm layout will not let
+  the app name, and Yarn PnP has no `node_modules` to inspect at all. Reading the manifest also
+  makes the answer identical on every machine, which is what lets `comvi typegen --check` regenerate
+  the same file the write path produced.
+
+  That the augmentation reaches `t()` through a binding is measured, not assumed:
+  `tests/types-keys-via-binding` in each of the six binding packages is an isolated TypeScript
+  program that augments `TranslationKeys` through that package and fails if a declared key stops
+  compiling OR an undeclared one starts. `pnpm check:strict-consumer` proves the same thing from
+  outside, in a temp app that declares one package under a layout that hoists nothing.
 
 ## Typed keys: three shapes `t()` does not check
 

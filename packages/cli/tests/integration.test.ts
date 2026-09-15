@@ -14,6 +14,9 @@ const options: GeneratorOptions = {
   apiBaseUrl: "https://api.test.com",
   outputPath: "src/types/i18n.d.ts",
   strictParams: true,
+  // Named, so the target does not depend on what the directory vitest runs in
+  // declares. `tests/TypeGenerator.test.ts` covers the manifest rule.
+  augment: "@comvi/core",
 };
 
 const mockSchema: ProjectSchema = {

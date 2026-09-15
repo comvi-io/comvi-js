@@ -71,7 +71,7 @@ describe("emitDeclarations", () => {
     expect(emitDeclarations(schema)).toBe(
       [
         "/**",
-        " * Auto-generated translation keys",
+        " * Auto-generated translation keys, augmenting '@comvi/core'",
         " * DO NOT EDIT — this file is generated from your translation schema",
         " */",
         "",

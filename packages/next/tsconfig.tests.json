@@ -39,6 +39,7 @@
     "dist",
     "tests/types/**",
     "tests/types-keys-closed/**",
+    "tests/types-keys-via-binding/**",
     "tests/dist/**"
   ]
 }
