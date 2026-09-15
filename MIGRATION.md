@@ -516,16 +516,19 @@ export" at build time, not a runtime `undefined`:
 | `TranslationCache`                                                     | `useI18n().translationCache` for the read-only snapshot; the class, `@comvi/core`                       |
 | `createBoundTranslation`, `translationResultToString`, `createElement` | `@comvi/core`                                                                                           |
 | `flattenCatalog`                                                       | nothing, in almost every case: every host flattens a nested catalog itself. The function, `@comvi/core` |
+| `I18n` (the class, as a value)                                         | `createI18n(options)`, or import the class from `@comvi/core`                                           |
 
-Every one of the ten is still exported by `@comvi/core`, which `@comvi/vue`
-depends on, so the fix is a one-line import move and nothing was actually
-removed from the library. Prefer the `useI18n()` members where the table offers
-them: those track the locale, where the bare helpers take it as an argument.
-`@comvi/react`, `@comvi/solid` and `@comvi/svelte` are not affected by THIS
-ten-name drop — they already used `export type *` in 0.4.x, so the rest of
-their value surface only grew. One value export dropped on all four binding
-roots alike, `@comvi/vue` included: `I18n` itself, covered separately in §2's
-migration table, not counted among the ten above.
+Every one of the ten `export * from "@comvi/core"` names above the last row
+is still exported by `@comvi/core`, which `@comvi/vue` depends on, so the fix
+is a one-line import move and nothing was actually removed from the library.
+Prefer the `useI18n()` members where the table offers them: those track the
+locale, where the bare helpers take it as an argument. The last row, `I18n`,
+is a SEPARATE, shared change: it dropped from all four binding roots alike
+(§2's migration table), not from `@comvi/vue`'s `export * from "@comvi/core"`
+going away — `@comvi/react`, `@comvi/solid` and `@comvi/svelte` are not
+affected by the ten-name drop above (they already used `export type *` in
+0.4.x, so the rest of their value surface only grew), but lost `I18n` as a
+value too.
 
 ## 4. Plugins
 

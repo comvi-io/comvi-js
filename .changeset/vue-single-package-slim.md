@@ -21,16 +21,16 @@ const host = createCore({ locale: "en" }).use(loader(importMap));
 const wrapped = createI18nFromCore(host, { ssrLocale: "en" }); // wrapped.core is exactly `host`
 ```
 
-| export                                            | what it is                                                      |
-| ------------------------------------------------- | --------------------------------------------------------------- |
-| `createI18n`                                      | the preset — a `VueI18n` over a base host, with `.use(…)` on it |
-| `createI18nFromCore`                              | unchanged — wraps that host, preserving its exact type          |
-| `I18n`                                            | the base class `createI18n` produces                            |
-| `icuCompiler`                                     | from `@comvi/core/icu` — the ICU compiler                       |
-| `loader`, `attachLoader`                          | from `@comvi/core/loader`                                       |
-| `plugins`, `definePlugin`                         | from `@comvi/core/plugins`                                      |
-| `devtools`                                        | from `@comvi/core/devtools`                                     |
-| `VueI18n`, the composables, `<T>`, the inject key | unchanged                                                       |
+| export                                            | what it is                                                                     |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `createI18n`                                      | the preset — a `VueI18n` over a base host, with `.use(…)` on it                |
+| `createI18nFromCore`                              | unchanged — wraps that host, preserving its exact type                         |
+| `I18n` (type only)                                | the base class `createI18n` produces — a runtime value only from `@comvi/core` |
+| `icuCompiler`                                     | from `@comvi/core/icu` — the ICU compiler                                      |
+| `loader`, `attachLoader`                          | from `@comvi/core/loader`                                                      |
+| `plugins`, `definePlugin`                         | from `@comvi/core/plugins`                                                     |
+| `devtools`                                        | from `@comvi/core/devtools`                                                    |
+| `VueI18n`, the composables, `<T>`, the inject key | unchanged                                                                      |
 
 Vue is the one binding whose preset is a real function — there is a `VueI18n` to construct,
 and `ssrLocale` has to reach the host before the reactive ref is seeded — so `createI18n`
