@@ -111,6 +111,17 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
         translationsPath: resolvedTranslationsPath,
         fileTemplate,
         defaultNs,
+        // A key whose message carries ICU syntax core does not implement gets
+        // no parameters, because the ingestion preflight refuses the whole key
+        // at runtime. Said out loud here: the alternative is a key that looks
+        // typed, takes no arguments, and throws on first render.
+        onIssue: ({ key, filePath, argumentType, value }) => {
+          console.warn(
+            `[@comvi/vite-plugin] "${key}" in ${path.relative(resolvedRoot, filePath)} uses the ICU ` +
+              `\`${argumentType}\` argument type, which @comvi/core does not implement, so no ` +
+              `parameters were generated for it: ${JSON.stringify(value)}`,
+          );
+        },
       });
 
       const content = emitDeclarations(schema, { ...emitOptions, augment: augmentTarget });

@@ -230,6 +230,29 @@ describe("comviTypes plugin", () => {
       await expect(fs.readFile(outputPath(root), "utf-8")).rejects.toThrow(/ENOENT/);
     });
 
+    it("warns about a key whose ICU argument core does not implement", async () => {
+      // The key is still generated — it exists — but with no parameters, since
+      // `@comvi/core` refuses the whole message at ingestion. Silence here
+      // would ship a key that looks typed and throws on first render.
+      const root = await makeProject('{ "price": "{amount, number}" }');
+      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
+      resolvePlugin(plugin, root, "build");
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      try {
+        await buildStart(plugin);
+
+        expect(warn.mock.calls.map(([message]) => String(message)).join("\n")).toContain(
+          "uses the ICU `number` argument type, which @comvi/core does not implement",
+        );
+      } finally {
+        warn.mockRestore();
+      }
+
+      const written = await fs.readFile(outputPath(root), "utf-8");
+      expect(written).toContain('"price": never;');
+    });
+
     it("skips the write when the generated content is unchanged", async () => {
       const root = await makeProject('{ "greeting": "Hello" }');
       const plugin = comviTypes({ translations: "./locales", output: OUTPUT });

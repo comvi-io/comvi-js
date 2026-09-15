@@ -12,6 +12,17 @@ import type { KeySchema, ProjectSchema, SchemaParam } from "@comvi/typegen";
 
 export type { KeySchema, ProjectSchema, SchemaParam };
 
+/** A key whose message carries ICU syntax `@comvi/core` does not implement. */
+export interface ExtractionIssue {
+  /** `"namespace:key"`, as it appears in the schema. */
+  key: string;
+  filePath: string;
+  /** The ICU argument type core refused, e.g. `"number"`. */
+  argumentType: string;
+  /** The message itself, so the report can quote it. */
+  value: string;
+}
+
 interface TranslationFile {
   language: string;
   namespace: string;
@@ -91,18 +102,24 @@ function flattenObject(obj: Record<string, unknown>, prefix = ""): Record<string
 }
 
 /**
- * Extract params from a translation value.
- * Uses brace scanning to handle arbitrary nesting depth.
- * Type is determined strictly from ICU syntax:
- * - {name} → string
- * - {count, plural, ...} → number
- * - {gender, select, ...} → string
- * - {val, number/date/time, ...} → number
+ * Extract the parameters of a translation value, reading the same grammar
+ * `@comvi/core` reads at runtime.
+ *
+ * - `{name}`, `{ name }`, `{name x}`, `{0}` → one `string` parameter whose name
+ *   is the trimmed contents, because that is what core's compiler makes of a
+ *   group with no comma in it.
+ * - `{count, plural, …}` and `{count, selectordinal, …}` → `number`.
+ * - `{gender, select, …}` → `string`.
+ * - Any other argument type — `{price, number}`, `{when, date, short}`,
+ *   `{n, pluralx, …}` — and any of the three with a choice list that does not
+ *   parse: NO parameter, and the message is reported as an issue. `@comvi/core`
+ *   implements no `number`, `date` or `time` argument type (see
+ *   `docs/design/limitations.md`); it raises `E_ICU_SYNTAX`, which the
+ *   ingestion preflight turns into a refusal of the whole key. Generating a
+ *   parameter for such a key would demand an argument at a call that throws.
+ * - An unclosed `{` makes everything from it to the end literal text, as core's
+ *   `extractToken` does when `findMatchingBraceEnd` finds no match.
  */
-
-// The whole of an argument's contents: its name, and everything after the
-// first comma when it has an argument type.
-const ARGUMENT = /^([a-zA-Z_]\w*)\s*(,?)/;
 
 /**
  * ICU DOUBLE_OPTIONAL quoting, the rule `@comvi/core`'s message parser applies
@@ -221,27 +238,125 @@ function closingBrace(value: string, open: number, hashIsSyntax: boolean): numbe
 }
 
 /**
- * Collect the placeholders of one message.
+ * One `{…}` group, read the way core's `makeIcuArgToken` reads it.
  *
- * A `{…}` group is only a placeholder where a message expects one. The branch
- * bodies of a `plural` / `select` / `selectordinal` are messages of their own,
- * so `{count, plural, one {item} other {items}}` has ONE parameter and
- * `{count, plural, other {# of {total}}}` has two — a body's braces hold text,
- * the braces inside a body hold a placeholder.
+ * A comma at depth zero makes the argument TYPED, and only `plural`,
+ * `selectordinal` and `select` are implemented — each needing a choice list
+ * that parses. Everything else is a refusal, not a parameter.
+ */
+type Argument =
+  | { kind: "param"; name: string }
+  | { kind: "plural"; name: string; branches: string[] }
+  | { kind: "select"; name: string; branches: string[] }
+  | { kind: "unsupported"; type: string };
+
+/**
+ * The choice list's sub-messages, or `undefined` when the list is malformed.
  *
- * `branches` says which of the two levels this call is scanning: the tail of a
- * complex argument, where every group is a body, or an ordinary message, where
- * every group is a placeholder.
+ * Mirrors core's `parsePluralChoices`: a selector runs to the next whitespace
+ * or `{`, and what follows must be a braced sub-message. A trailing selector
+ * with no sub-message, or anything that is not a selector followed by a brace,
+ * makes the whole argument fail — which is why a malformed list produces no
+ * parameter here either.
+ */
+function parseChoices(choicesStr: string, hashIsSyntax: boolean): string[] | undefined {
+  const branches: string[] = [];
+  const len = choicesStr.length;
+  let i = 0;
+
+  while (i < len) {
+    while (i < len && choicesStr.charCodeAt(i) <= 32) i++;
+    if (i >= len) break;
+
+    while (i < len) {
+      const code = choicesStr.charCodeAt(i);
+      if (code <= 32 || choicesStr[i] === "{") break;
+      i++;
+    }
+
+    while (i < len && choicesStr.charCodeAt(i) <= 32) i++;
+    if (choicesStr[i] !== "{") return undefined;
+
+    const close = closingBrace(choicesStr, i, hashIsSyntax);
+    if (close === undefined) return undefined;
+
+    branches.push(choicesStr.slice(i + 1, close));
+    i = close + 1;
+  }
+
+  return branches;
+}
+
+/** Reads the contents of one `{…}` group. `hashIsSyntax` applies to its quoting. */
+function readArgument(content: string, hashIsSyntax: boolean): Argument {
+  const len = content.length;
+  let firstComma = -1;
+  let secondComma = -1;
+  let depth = 0;
+
+  for (let i = 0; i < len; i++) {
+    const char = content[i];
+
+    if (char === "'") {
+      i = advancePastApostrophe(content, i, hashIsSyntax) - 1;
+      continue;
+    }
+
+    if (char === "{") depth++;
+    else if (char === "}") depth--;
+    else if (char === "," && depth === 0) {
+      if (firstComma === -1) firstComma = i;
+      else {
+        secondComma = i;
+        break;
+      }
+    }
+  }
+
+  // No comma: the whole content is the parameter name, whatever it looks like.
+  // `{ spaced }`, `{name x}` and `{0}` are all parameters at runtime.
+  if (firstComma === -1) return { kind: "param", name: content.trim() };
+
+  const name = content.slice(0, firstComma).trim();
+  const type = (
+    secondComma === -1 ? content.slice(firstComma + 1) : content.slice(firstComma + 1, secondComma)
+  ).trim();
+
+  // A one-comma argument (`{n, plural}`) has a type but no choice list, which
+  // core refuses as well.
+  if (secondComma === -1) return { kind: "unsupported", type };
+
+  const isPlural = type === "plural" || type === "selectordinal";
+  if (isPlural || type === "select") {
+    const branches = parseChoices(
+      content.slice(secondComma + 1).trim(),
+      isPlural ? true : hashIsSyntax,
+    );
+    if (branches === undefined) return { kind: "unsupported", type };
+    return { kind: isPlural ? "plural" : "select", name, branches };
+  }
+
+  return { kind: "unsupported", type };
+}
+
+/** What one message yielded: its parameters, or the argument that made it unusable. */
+interface MessageScan {
+  params: Map<string, SchemaParam>;
+  unsupported?: string;
+}
+
+/**
+ * Collect the parameters of one message.
+ *
+ * A `{…}` group is a placeholder or a typed argument; a typed argument's branch
+ * bodies are messages of their own, so `{count, plural, one {item} other
+ * {items}}` has ONE parameter and `{count, plural, other {# of {total}}}` has
+ * two — a body's braces hold text, the braces inside a body hold a placeholder.
  *
  * `hashIsSyntax` is true inside a plural or selectordinal sub-message, where
  * `#` is syntax and therefore `'#'` opens a quoted literal.
  */
-function scanMessage(
-  value: string,
-  params: Map<string, SchemaParam>,
-  branches: boolean,
-  hashIsSyntax: boolean,
-): void {
+function scanMessage(value: string, scan: MessageScan, hashIsSyntax: boolean): void {
   for (let i = 0; i < value.length; i++) {
     if (value[i] === "'") {
       // Quoted literal text holds no placeholders. The loop's own `i++` lands
@@ -253,64 +368,44 @@ function scanMessage(
     if (value[i] !== "{") continue;
 
     const close = closingBrace(value, i, hashIsSyntax);
-    if (close === undefined) continue;
+    // Nothing closes it: the rest of the message is literal text, exactly as
+    // core's parser treats it, so no later group is a placeholder either.
+    if (close === undefined) return;
 
-    const inner = value.slice(i + 1, close);
-
-    if (branches) {
-      // A branch body is a message of its own, and it inherits the `#` scope of
-      // the argument whose branch it is.
-      scanMessage(inner, params, false, hashIsSyntax);
-      i = close;
-      continue;
-    }
-
-    const argument = inner.match(ARGUMENT);
-    if (!argument) continue;
-
-    // Everything up to `close` belongs to this argument; its branch bodies are
-    // scanned below, never again as text of the message around it.
+    const argument = readArgument(value.slice(i + 1, close), hashIsSyntax);
     i = close;
 
-    const name = argument[1];
-    const known = params.has(name);
-
-    if (argument[2] !== ",") {
-      // A bare `{name}` — anything else after the name (`{name x}`) is text.
-      if (inner.length === argument[0].length && !known) {
-        params.set(name, { name, type: "string" });
-      }
+    if (argument.kind === "unsupported") {
+      scan.unsupported ??= argument.type;
       continue;
     }
 
-    const afterName = inner.slice(argument[0].length).trimStart();
-    const isPluralArg = afterName.startsWith("plural") || afterName.startsWith("selectordinal");
-
-    if (!known) {
-      if (isPluralArg) {
-        params.set(name, { name, type: "number" });
-      } else if (
-        afterName.startsWith("number") ||
-        afterName.startsWith("date") ||
-        afterName.startsWith("time")
-      ) {
-        params.set(name, { name, type: "number" });
-      } else if (afterName.startsWith("select")) {
-        params.set(name, { name, type: "string" });
-      }
+    if (!scan.params.has(argument.name)) {
+      scan.params.set(argument.name, {
+        name: argument.name,
+        type: argument.kind === "plural" ? "number" : "string",
+      });
     }
 
-    // A plural's branches bind `#`; a select's do not, but a select nested in a
-    // plural keeps the enclosing binding, as core's parser does.
-    scanMessage(afterName, params, true, hashIsSyntax || isPluralArg);
+    if (argument.kind === "param") continue;
+
+    for (const branch of argument.branches) {
+      scanMessage(branch, scan, hashIsSyntax || argument.kind === "plural");
+    }
   }
 }
 
-function extractParams(value: string): SchemaParam[] {
-  const params = new Map<string, SchemaParam>();
+function extractParams(value: string): { params: SchemaParam[]; unsupported?: string } {
+  const scan: MessageScan = { params: new Map() };
   // A whole message starts outside any plural, so `#` is literal text here.
-  scanMessage(value, params, false, false);
-  return Array.from(params.values());
+  scanMessage(value, scan, false);
+
+  // An argument core cannot compile makes the ingestion preflight refuse the
+  // whole key, so no parameter of it is reachable — including the ones in the
+  // parts that would have compiled.
+  if (scan.unsupported !== undefined) return { params: [], unsupported: scan.unsupported };
+
+  return { params: Array.from(scan.params.values()) };
 }
 
 /**
@@ -343,14 +438,30 @@ export async function extractSchema(options: {
   translationsPath: string;
   fileTemplate?: string;
   defaultNs?: string;
+  /**
+   * Called for a key whose message `@comvi/core` cannot compile. Generation
+   * continues — the key is still a key — but it gets no parameters, so the
+   * project hears about the catalog defect instead of discovering it at the
+   * first render.
+   */
+  onIssue?: (issue: ExtractionIssue) => void;
 }): Promise<ProjectSchema> {
   const {
     translationsPath,
     fileTemplate = "{namespace}/{languageTag}.json",
     defaultNs = "default",
+    onIssue,
   } = options;
 
   const keys: Record<string, KeySchema> = {};
+
+  function paramsFor(value: string, fullKey: string, filePath: string): SchemaParam[] {
+    const { params, unsupported } = extractParams(value);
+    if (unsupported !== undefined) {
+      onIssue?.({ key: fullKey, filePath, argumentType: unsupported, value });
+    }
+    return params;
+  }
 
   const allJsonFiles = await findFiles(translationsPath);
   const matchedPaths = new Set<string>();
@@ -364,7 +475,7 @@ export async function extractSchema(options: {
 
     for (const [key, value] of Object.entries(flat)) {
       const fullKey = `${file.namespace}:${key}`;
-      const params = extractParams(value);
+      const params = paramsFor(value, fullKey, file.filePath);
       if (keys[fullKey]) {
         keys[fullKey].params = mergeParams(keys[fullKey].params, params);
       } else {
@@ -383,7 +494,7 @@ export async function extractSchema(options: {
 
     for (const [key, value] of Object.entries(flat)) {
       const fullKey = `${defaultNs}:${key}`;
-      const params = extractParams(value);
+      const params = paramsFor(value, fullKey, filePath);
       if (keys[fullKey]) {
         keys[fullKey].params = mergeParams(keys[fullKey].params, params);
       } else {
