@@ -25,6 +25,15 @@ function typeNameOf(value: unknown): string {
   return typeof value;
 }
 
+/**
+ * The type and the value, for a reader looking at the line they wrote — except
+ * for `null`, whose type name already *is* its value, so naming both read
+ * "received null null".
+ */
+function describe(value: unknown): string {
+  return value === null ? "null" : `${typeNameOf(value)} ${JSON.stringify(value)}`;
+}
+
 export class ConfigLoader {
   private static readonly CONFIG_FILENAME = ".comvirc.json";
 
@@ -169,8 +178,7 @@ export class ConfigLoader {
     }
 
     throw new TypegenError(
-      `Invalid configuration: "${key}" must be a boolean (true or false), received ` +
-        `${typeNameOf(value)} ${JSON.stringify(value) ?? String(value)}`,
+      `Invalid configuration: "${key}" must be a boolean (true or false), received ${describe(value)}`,
       ErrorCodes.VALIDATION_FAILED,
     );
   }

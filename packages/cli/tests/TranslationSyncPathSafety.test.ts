@@ -44,6 +44,9 @@ describe("TranslationSync path containment", () => {
     ["leading dot", ".hidden"],
     ["prototype key", "__proto__"],
     ["empty string", ""],
+    ["NUL byte", "en\u0000.json"],
+    ["control character", "en\u0001"],
+    ["newline", "en\n"],
   ];
 
   describe.each(traversals)("rejects a %s as the locale", (_label, identifier) => {
@@ -95,6 +98,166 @@ describe("TranslationSync path containment", () => {
       expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
       expect((error as TypegenError).message).toContain("namespace from API response");
       expect(await listFiles(root)).toEqual([]);
+    });
+  });
+
+  /**
+   * The platform validates a namespace as 1–255 characters and a locale code
+   * as 1–50, with no character class at all, so a name with a space, an `@` or
+   * non-ASCII text is legal to create in the product. `pull` has to write it:
+   * containment is enforced by `path.relative` and the real-path checks, not by
+   * the shape of the name.
+   */
+  const usable: Array<[label: string, identifier: string]> = [
+    ["a space", "web app"],
+    ["an @ prefix", "@scope"],
+    ["Cyrillic text", "переклади"],
+    ["a CJK name", "翻訳"],
+    ["an underscore separator", "pt_BR"],
+    ["a script and region subtag", "zh-Hant-TW"],
+    ["a trailing dot", "app."],
+    ["inner dots", "a..b"],
+  ];
+
+  /**
+   * The platform's own limits: 255 characters for a namespace, 50 for a locale
+   * code. A namespace is a directory name; a locale becomes the file name, and
+   * `atomicWriteFile` appends a pid-and-uuid suffix to it, so 255 there would
+   * exceed the 255-byte limit every common filesystem has.
+   */
+  const longest: Array<[label: string, namespace: string, locale: string]> = [
+    ["a 255-character namespace", "n".repeat(255), "en"],
+    ["a 50-character locale", "common", "l".repeat(50)],
+  ];
+
+  it.each(longest)("writes %s", async (_label, namespace, locale) => {
+    const root = await makeTempDir("comvi-cli-containment");
+    const translationsPath = join(root, "locales");
+    const sync = new TranslationSync({
+      translationsPath,
+      fileTemplate: DEFAULT_FILE_TEMPLATE,
+      format: "json",
+    });
+
+    const result = await sync.writeTranslations(responseFor(locale, namespace));
+
+    expect(result.filesWritten).toBe(1);
+    expect(await listFiles(translationsPath)).toEqual([`${namespace}/${locale}.json`]);
+  });
+
+  it.each(usable)("writes a namespace containing %s", async (_label, identifier) => {
+    const root = await makeTempDir("comvi-cli-containment");
+    const translationsPath = join(root, "locales");
+    const sync = new TranslationSync({
+      translationsPath,
+      fileTemplate: DEFAULT_FILE_TEMPLATE,
+      format: "json",
+    });
+
+    const result = await sync.writeTranslations(responseFor("en", identifier));
+
+    expect(result.filesWritten).toBe(1);
+    expect(await listFiles(translationsPath)).toEqual([`${identifier}/en.json`]);
+  });
+
+  it.each(usable)("writes a locale containing %s", async (_label, identifier) => {
+    const root = await makeTempDir("comvi-cli-containment");
+    const translationsPath = join(root, "locales");
+    const sync = new TranslationSync({
+      translationsPath,
+      fileTemplate: DEFAULT_FILE_TEMPLATE,
+      format: "json",
+    });
+
+    const result = await sync.writeTranslations(responseFor(identifier, "default"));
+
+    expect(result.filesWritten).toBe(1);
+    expect(await listFiles(translationsPath)).toEqual([`${identifier}.json`]);
+  });
+
+  /**
+   * `pull --empty-dir` clears before it writes, so a rejection that fires
+   * halfway through the response leaves the project with the namespaces sorted
+   * before the offending one and nothing else. Either all of it or none of it.
+   */
+  describe("all or nothing", () => {
+    const mixed = {
+      locales: ["en"],
+      namespaces: ["aaa", "../escape", "zzz"],
+      translations: {
+        en: {
+          aaa: CATALOG,
+          "../escape": CATALOG,
+          zzz: CATALOG,
+        },
+      },
+    };
+
+    it("creates no file when a later namespace is unusable", async () => {
+      const root = await makeTempDir("comvi-cli-containment");
+      const sync = new TranslationSync({
+        translationsPath: join(root, "locales"),
+        fileTemplate: DEFAULT_FILE_TEMPLATE,
+        format: "json",
+      });
+
+      const error = await rejectionOf(sync.writeTranslations(mixed));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect(await listFiles(root)).toEqual([]);
+    });
+
+    it("rejects an unusable name through assertWritable, before a clear could run", async () => {
+      const root = await makeTempDir("comvi-cli-containment");
+      const sync = new TranslationSync({
+        translationsPath: join(root, "locales"),
+        fileTemplate: DEFAULT_FILE_TEMPLATE,
+        format: "json",
+      });
+
+      const error = await rejectionOf(sync.assertWritable(mixed));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as TypegenError).message).toContain("namespace from API response");
+      expect(await listFiles(root)).toEqual([]);
+    });
+
+    it("accepts a response every name of which is usable", async () => {
+      const root = await makeTempDir("comvi-cli-containment");
+      const sync = new TranslationSync({
+        translationsPath: join(root, "locales"),
+        fileTemplate: DEFAULT_FILE_TEMPLATE,
+        format: "json",
+      });
+
+      await expect(
+        sync.assertWritable({
+          locales: ["en"],
+          namespaces: ["aaa", "web app"],
+          translations: { en: { aaa: CATALOG, "web app": CATALOG } },
+        }),
+      ).resolves.toBeUndefined();
+      expect(await listFiles(root)).toEqual([]);
+    });
+
+    it("rejects a locale the response lists but sends no catalog for", async () => {
+      const root = await makeTempDir("comvi-cli-containment");
+      const sync = new TranslationSync({
+        translationsPath: join(root, "locales"),
+        fileTemplate: DEFAULT_FILE_TEMPLATE,
+        format: "json",
+      });
+
+      const error = await rejectionOf(
+        sync.assertWritable({
+          locales: ["en", "../escape"],
+          namespaces: ["default"],
+          translations: { en: { default: CATALOG } },
+        }),
+      );
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as TypegenError).message).toContain("locale from API response");
     });
   });
 

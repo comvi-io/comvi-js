@@ -10,7 +10,7 @@ import type {
 import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
-import { emptyDictionary } from "../utils/dictionary";
+import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
@@ -31,6 +31,12 @@ export interface ClearScope {
   locales?: string[];
   namespaces?: string[];
   defaultNamespace?: string;
+}
+
+/** One file a response resolves to, in the order `writeTranslations` writes them. */
+interface PlannedWrite {
+  filePath: string;
+  catalog: Record<string, string>;
 }
 
 export interface LocalTranslations {
@@ -54,39 +60,41 @@ export class TranslationSync {
     data: TranslationsResponse,
     options: WriteTranslationsOptions = {},
   ): Promise<PullResult> {
-    const { translations, locales, namespaces } = data;
-    const defaultNamespace = options.defaultNamespace ?? DEFAULT_NAMESPACE;
-    let filesWritten = 0;
+    const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
 
-    for (const locale of locales) {
-      const localeTranslations = translations[locale];
-      if (!localeTranslations) continue;
+    // Every target is resolved and checked before the first mkdir, so a name
+    // the CLI refuses leaves nothing behind.
+    await this.assertPlanContained(planned);
 
-      for (const ns of namespaces) {
-        const nsTranslations = localeTranslations[ns];
-        if (!nsTranslations) continue;
+    for (const { filePath, catalog } of planned) {
+      await this.ensureDirectory(dirname(filePath));
 
-        const filePath = this.resolveFilePath(locale, ns, defaultNamespace);
-        const directory = dirname(filePath);
-
-        // Before mkdir: an existing directory on the way down may be a symlink
-        // that leaves the tree, and `mkdir -p` would follow it silently.
-        await this.assertRealPathContained(directory);
-        await this.ensureDirectory(directory);
-        // Before the write: the target itself may be a symlink out of the tree.
-        await this.assertRealPathContained(filePath);
-
-        const content = JSON.stringify(nsTranslations, null, 2) + "\n";
-        await atomicWriteFile(filePath, content);
-        filesWritten++;
-      }
+      const content = JSON.stringify(catalog, null, 2) + "\n";
+      await atomicWriteFile(filePath, content);
     }
 
     return {
-      locales,
-      namespaces,
-      filesWritten,
+      locales: data.locales,
+      namespaces: data.namespaces,
+      filesWritten: planned.length,
     };
+  }
+
+  /**
+   * Run every check `writeTranslations` performs, and write nothing.
+   *
+   * `pull --empty-dir` clears the translations directory before it writes, so
+   * the names have to be judged before the clear: a rejection from inside the
+   * write loop would delete the catalog, restore the namespaces sorted before
+   * the offending one, and lose the rest on every run.
+   */
+  async assertWritable(
+    data: TranslationsResponse,
+    options: WriteTranslationsOptions = {},
+  ): Promise<void> {
+    const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
+
+    await this.assertPlanContained(planned);
   }
 
   /**
@@ -96,21 +104,52 @@ export class TranslationSync {
     data: TranslationsResponse,
     options: WriteTranslationsOptions = {},
   ): { files: string[] } {
-    const { translations, locales, namespaces } = data;
-    const defaultNamespace = options.defaultNamespace ?? DEFAULT_NAMESPACE;
-    const files: string[] = [];
+    const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
 
-    for (const locale of locales) {
-      const localeTranslations = translations[locale];
+    return { files: planned.map(({ filePath }) => filePath) };
+  }
+
+  /**
+   * Resolve every file the response would produce, validating as it goes: each
+   * locale and namespace the response declares, then each resolved path. The
+   * caller gets the whole plan or an error, never half of it.
+   */
+  private planWrites(data: TranslationsResponse, defaultNamespace: string): PlannedWrite[] {
+    for (const locale of data.locales) {
+      assertPathSegment(locale, "locale from API response");
+    }
+    for (const namespace of data.namespaces) {
+      assertPathSegment(namespace, "namespace from API response");
+    }
+
+    const planned: PlannedWrite[] = [];
+
+    for (const locale of data.locales) {
+      const localeTranslations = data.translations[locale];
       if (!localeTranslations) continue;
 
-      for (const ns of namespaces) {
-        if (!localeTranslations[ns]) continue;
-        files.push(this.resolveFilePath(locale, ns, defaultNamespace));
+      for (const namespace of data.namespaces) {
+        const catalog = localeTranslations[namespace];
+        if (!catalog) continue;
+
+        planned.push({
+          filePath: this.resolveFilePath(locale, namespace, defaultNamespace),
+          catalog,
+        });
       }
     }
 
-    return { files };
+    return planned;
+  }
+
+  private async assertPlanContained(planned: PlannedWrite[]): Promise<void> {
+    for (const { filePath } of planned) {
+      // An existing directory on the way down may be a symlink that leaves the
+      // tree, and `mkdir -p` would follow it silently; the target itself may be
+      // one too.
+      await this.assertRealPathContained(dirname(filePath));
+      await this.assertRealPathContained(filePath);
+    }
   }
 
   async readTranslations(options: ReadTranslationsOptions = {}): Promise<LocalTranslations> {
@@ -302,7 +341,10 @@ export class TranslationSync {
         const remoteNs = remoteLocale[ns] || {};
 
         for (const key of Object.keys(localNs)) {
-          if (!(key in remoteNs)) {
+          // `key in remoteNs` answers true for `constructor` or `toString` on
+          // an ordinary object, so a new key named after an inherited member
+          // used to count as a changed one.
+          if (!hasOwnKey(remoteNs, key)) {
             created++;
           } else if (localNs[key] !== remoteNs[key]) {
             conflicts++;
@@ -322,7 +364,7 @@ export class TranslationSync {
         const remoteNs = remoteLocale[ns];
 
         for (const key of Object.keys(remoteNs)) {
-          if (!(key in localNs)) {
+          if (!hasOwnKey(localNs, key)) {
             deleted++;
           }
         }
@@ -501,17 +543,48 @@ function escapeRegExp(value: string): string {
 }
 
 /**
- * A locale or namespace that is about to become a path segment: one plain
- * name, so no `/`, no `\`, no `..`, and no leading dot that would hide the
- * file or start a traversal.
+ * A C0 control character or DEL. Written as a scan rather than a regular
+ * expression because a control character inside a regex literal is itself
+ * unreadable (and `no-control-regex` refuses it); a surrogate pair reports its
+ * high surrogate, which is never a control character.
  */
-const PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
+function hasControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code < 0x20 || code === 0x7f) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Why a locale or namespace cannot be used as one path segment, or undefined
+ * when it can.
+ *
+ * The platform validates a namespace as 1-255 characters and a locale code as
+ * 1-50, with no character class at all, so a name holding a space, an `@` or
+ * non-ASCII text is legal to create in the product and has to pull. Only what
+ * makes a path unsafe is refused here; containment itself is enforced by
+ * `assertContained` and `assertRealPathContained`, which is where the boundary
+ * actually is. A leading dot covers `.` and `..` along with hidden names.
+ */
+function unusableSegmentReason(value: string): string | undefined {
+  if (value === "") return "it is empty";
+  if (value.includes("/") || value.includes("\\")) return "it contains a path separator";
+  if (hasControlCharacter(value)) return "it contains a control character";
+  if (value.startsWith(".")) return "it starts with a dot";
+  if (value === "__proto__") return "it is a reserved JavaScript property name";
+  return undefined;
+}
 
 function assertPathSegment(value: string, source: string): void {
-  if (!PATH_SEGMENT.test(value)) {
+  const reason = unusableSegmentReason(value);
+
+  if (reason) {
     throw new TypegenError(
-      `Invalid ${source}: ${JSON.stringify(value)} is not a usable file name — ` +
-        `expected a name matching ${PATH_SEGMENT.source}`,
+      `Invalid ${source}: ${JSON.stringify(value)} cannot be used as a file name — ${reason}`,
       ErrorCodes.VALIDATION_FAILED,
     );
   }

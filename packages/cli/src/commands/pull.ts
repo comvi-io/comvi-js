@@ -64,6 +64,11 @@ export function createPullCommand(): Command {
           ? await apiClient.fetchDefaultNamespace()
           : undefined;
 
+        // Judge every name and every resolved path before the clear: the clear
+        // runs first, so a name the CLI refuses mid-write would delete the
+        // catalog and restore only part of it.
+        await sync.assertWritable(translations, { defaultNamespace });
+
         // The clear runs only once the fetch has returned everything that was
         // asked for, and only over the locales and namespaces being pulled: a
         // failed request, or one missing a requested namespace, must leave the

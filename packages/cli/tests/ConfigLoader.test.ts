@@ -360,6 +360,14 @@ describe("ConfigLoader", () => {
       });
     });
 
+    it("names a null value once, not twice", async () => {
+      const error = await rejectionOf(loadWith({ pull: { emptyDir: null } }));
+
+      expect((error as TypegenError).message).toContain('"pull.emptyDir" must be a boolean');
+      expect((error as TypegenError).message).toContain("received null");
+      expect((error as TypegenError).message).not.toContain("null null");
+    });
+
     it("rejects a pull section that is not an object", async () => {
       const error = await rejectionOf(loadWith({ pull: "false" }));
 
