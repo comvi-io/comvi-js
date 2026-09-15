@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/plugin-fetch-loader</h1>
 
-<p align="center">HTTP translation loader for Comvi i18n — load translations from a CDN or the Comvi API.</p>
+<p align="center">Load Comvi i18n translations over HTTP — from the CDN, or from the platform API.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/plugin-fetch-loader"><img src="https://img.shields.io/npm/v/@comvi/plugin-fetch-loader?color=blue" alt="npm"></a>
@@ -19,8 +19,8 @@
 
 This package registers a translation loader that fetches JSON over HTTP. It is **step 2** of every
 framework quickstart: the piece that turns a bundled catalog into one the Comvi platform serves.
-Start from your framework's README — [react](../react) · [vue](../vue) · [solid](../solid) ·
-[svelte](../svelte) · [next](../next) · [nuxt](../nuxt) · [core](../core) — and come here for the
+Start from your framework's README — [react](../react) · [next](../next) · [vue](../vue) ·
+[nuxt](../nuxt) · [svelte](../svelte) · [solid](../solid) · [core](../core) — and come here for the
 options.
 
 Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
@@ -29,7 +29,7 @@ current locale and `t()`.
 Concurrent requests for the same locale and namespace are deduplicated, translations re-fetch on a
 locale change with no manual cache invalidation, and namespaces load on demand.
 
-📖 [Documentation](https://comvi.io/docs/i18n/plugins/fetch-loader/)
+📖 [Documentation](https://comvi.io/docs/i18n/plugins/fetch-loader)
 
 ## Install
 
@@ -48,15 +48,7 @@ npm install @comvi/plugin-fetch-loader
 `cdnLoader()` from the `/cdn` subpath is the CDN half on its own, and it is what a quickstart uses.
 `fetchLoader()` from the package root serves both: it reads the CDN, and switches to the API when
 the host carries an `apiKey`. That choice is made at runtime, so the API request path is in the
-bundle either way — which is why the CDN-only subpath exists. Two of the measurements CI keeps in
-[`scripts/size-budgets.json`](../../scripts/size-budgets.json) are exactly that difference:
-
-| graph                                  | measured as                    | min+gz  |
-| -------------------------------------- | ------------------------------ | ------- |
-| base host, ICU, and the `/cdn` subpath | `plugin-fetch-loader-cdn-lite` | 9173 B  |
-| base host, ICU, and the root entry     | `plugin-fetch-loader-cdn`      | 11139 B |
-
-The gap between the two rows IS the API request path a CDN-only app does not ship.
+bundle either way — which is why the CDN-only subpath exists, and why it is the lighter row below.
 
 ## Connect to Comvi
 
@@ -93,111 +85,39 @@ lines of markup in [vue](../vue#3-connect-to-comvi) and [svelte](../svelte#3-con
 `loadTranslations()` server-side in [next](../next#3-connect-to-comvi) and
 [nuxt](../nuxt#3-connect-to-comvi).
 
-## CDN namespace layout
-
-By default both loaders keep the same URL convention: the host's `defaultNs` loads from
-`{cdnUrl}/{locale}.json`, and every other namespace loads from `{cdnUrl}/{namespace}/{locale}.json`.
-
-If the namespace stored at the CDN root differs from the namespace your app uses as `defaultNs`,
-configure that storage identity explicitly:
-
-```ts
-import { createI18n } from "@comvi/core";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
-
-const i18n = createI18n({
-  locale: "en",
-  defaultNs: "storefront",
-  ns: ["storefront", "default"],
-}).use(
-  cdnLoader({
-    cdnUrl: "https://cdn.comvi.io/your-distribution-id",
-    cdnLayout: { rootNamespace: "default" },
-  }),
-);
-```
-
-This maps `storefront` to `storefront/en.json` and `default` to `en.json`. For a custom CDN where
-every namespace has its own folder, use `cdnLayout: { rootNamespace: false }`.
-
-`cdnLayout` affects CDN mode only. When `createI18n({ apiKey })` enables API mode on the root entry,
-namespaces are sent explicitly in the API request.
-
-## API mode
-
-API mode lives on the root entry. Pass an `apiKey` on `createI18n` and use `fetchLoader`; the loader
-then talks to the platform API instead of the public CDN. Staging, draft translations and auth-gated
-content need that.
-
-```ts
-import { createI18n } from "@comvi/core";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
-
-const i18n = createI18n({
-  locale: "en",
-  apiKey: process.env.COMVI_API_KEY, // triggers API mode
-}).use(
-  fetchLoader({
-    cdnUrl: "https://cdn.comvi.io/your-distribution-id", // required by the loader options
-    apiBaseUrl: process.env.COMVI_API_URL || "https://api.comvi.io",
-  }),
-);
-
-await i18n.init();
-```
-
-Requests run with `Authorization: Bearer <apiKey>`. Use a project API key with project-read and
-translation-read access. `cdnUrl` is still required by the loader options for CDN mode; API-mode
-fallback uses the optional `fallback` import map.
-
-## Reference: the installer and the factory
+## Installer or plugin factory
 
 Each entry point exports one name for each way in: `cdnLoader` / `cdnLoaderPlugin` on `/cdn`,
-`fetchLoader` / `fetchLoaderPlugin` at the root. The table uses the `/cdn` pair; the root pair behaves
-identically.
-
-|                   | `.use(cdnLoader(options))`                    | `registerPlugin(cdnLoaderPlugin(options))`                                       |
-| ----------------- | --------------------------------------------- | -------------------------------------------------------------------------------- |
-| what it is        | the **installer** — the bare name             | the **plugin factory** — the `*Plugin` name                                      |
-| the host it needs | any host, including a bare `createI18n(…)`    | one that already has the loader **and** plugin capabilities                      |
-| what it composes  | both capabilities, idempotently, loader first | nothing; it only registers                                                       |
-| use it when       | you are setting up the host                   | you already compose capabilities explicitly, or you register plugins from a list |
-
-Both end in the same place. The installer is the one-call form of this:
-
-```ts
-import { createI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
-import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";
-
-const i18n = createI18n({ locale: "en" }).use(attachLoader).use(attachPlugins);
-i18n.registerPlugin(cdnLoaderPlugin({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
-```
+`fetchLoader` / `fetchLoaderPlugin` at the root. The bare name is the **installer** — it composes
+the loader and plugin capabilities itself, idempotently, so it works on a bare `createI18n(…)` and
+is what you want while setting up the host. The `*Plugin` name only registers, so it needs a host
+that already has both capabilities.
 
 **Swapping the two is a type error, and each half is caught at runtime too.**
-`registerPlugin(cdnLoader(…))` fails at `init()` with `E_INSTALLER_AS_PLUGIN`, the first thing the
-installer does, before it has set anything up. `.use(cdnLoaderPlugin(…))` throws
-`E_USE_NOT_INSTALLER`: a plugin is not an installer, so what it hands back is not the host. `.use`
-calls it before it checks, so the plugin runs outside `init()`'s drain loop and, being async, hands
-back a promise nobody awaits. Register it with `registerPlugin`, where `required`, `timeout`,
-`onError` and cleanup apply to it. The full reasoning is in
-[docs/design/composition.md](../../docs/design/composition.md#installer-or-plugin-swapping-the-slots-is-loud-both-ways).
-
-The `CDN_BASE_URL` export is **deprecated and removed in 0.6**: `cdnUrl` is required, there is no
-environment override for it, and nothing in this package reads the constant — the hosted default
-lives on `comviPreset` instead.
+`registerPlugin(cdnLoader(…))` fails at `init()` with `E_INSTALLER_AS_PLUGIN`. `.use(cdnLoaderPlugin(…))`
+throws `E_USE_NOT_INSTALLER`: a plugin is not an installer, so what it hands back is not the host.
+Register it with `registerPlugin`, where `required`, `timeout`, `onError` and cleanup apply to it.
 
 ## Where to go next
 
-- **Your framework's two-step quickstart:** [react](../react) · [vue](../vue) · [solid](../solid) ·
-  [svelte](../svelte) · [next](../next) · [nuxt](../nuxt) · [core](../core)
-- **Design notes:** [composition](../../docs/design/composition.md) ·
-  [ICU](../../docs/design/icu.md) · [SSR](../../docs/design/ssr.md) ·
-  [limitations](../../docs/design/limitations.md)
-- **SSR fetch-cache integration, offline fallbacks, lazy namespace loading, the full options
-  reference and the lower-level helpers** exported for `@comvi/next` and `@comvi/nuxt`:
-  [comvi.io/docs/i18n/plugins/fetch-loader/](https://comvi.io/docs/i18n/plugins/fetch-loader/)
+- **Your framework's two-step quickstart:** [react](../react) · [next](../next) · [vue](../vue) ·
+  [nuxt](../nuxt) · [svelte](../svelte) · [solid](../solid) · [core](../core)
+- **This package:** the full options reference, CDN namespace layout and `cdnLayout`, API mode and
+  its `Authorization: Bearer` requirements, SSR fetch caching, offline fallbacks, lazy namespaces
+  and the lower-level helpers: [fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader)
+- **Guides:** [loading & caching](https://comvi.io/docs/i18n/loading-translations) ·
+  [namespaces](https://comvi.io/docs/i18n/namespaces) ·
+  [errors](https://comvi.io/docs/i18n/errors) · [limitations](https://comvi.io/docs/i18n/limitations)
+- **Also here:** [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) ·
+  [`docs/design/`](../../docs/design)
+
+Measured min+gz through the published exports map, gated in CI. The root entry's row, which carries
+the API request path a CDN-only app never ships, is on the
+[bundle size](https://comvi.io/docs/i18n/bundle-size) page beside this one.
+
+| graph                                  | measured as                    | min+gz |
+| -------------------------------------- | ------------------------------ | ------ |
+| base host, ICU, and the `/cdn` subpath | `plugin-fetch-loader-cdn-lite` | 9173 B |
 
 ## License
 
