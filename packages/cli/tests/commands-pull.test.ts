@@ -238,6 +238,59 @@ describe("comvi pull", () => {
   });
 
   /**
+   * The clear runs before the write, so a name the CLI refuses has to be
+   * refused before the clear: otherwise `--empty-dir` deletes the catalog,
+   * rewrites the namespaces sorted before the offending one, and exits 4,
+   * losing the rest on every run.
+   */
+  it("--empty-dir keeps the catalog when the response names an unusable namespace", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await fs.mkdir(localesDir, { recursive: true });
+    await fs.writeFile(join(localesDir, "stale.json"), "{}", "utf-8");
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: {
+          locales: ["en"],
+          namespaces: {
+            aaa: { en: { greeting: "Hello" } },
+            "../escape": { en: { greeting: "Escaped" } },
+            zzz: { en: { greeting: "Hello" } },
+          },
+        },
+      },
+    });
+
+    const exitCode = await runPull(["-c", configPath, "--empty-dir"]);
+
+    expect(exitCode).toBe(4);
+    expect(output.stderr).toContain("namespace from API response");
+    expect(await fs.readFile(join(localesDir, "stale.json"), "utf-8")).toBe("{}");
+    expect(await fs.readdir(localesDir)).toEqual(["stale.json"]);
+    expect(output.stdout).not.toContain("Clearing translations directory");
+  });
+
+  it("writes a namespace containing a space, which the platform allows", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: {
+          locales: ["en"],
+          namespaces: { "web app": { en: { greeting: "Hello" } } },
+        },
+      },
+    });
+
+    const exitCode = await runPull(["-c", configPath]);
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(await fs.readFile(join(localesDir, "web app", "en.json"), "utf-8"))).toEqual({
+      greeting: "Hello",
+    });
+  });
+
+  /**
    * `"emptyDir": "false"` reads as "do not clear" and used to mean the
    * opposite, because a non-empty string is truthy. The run has to stop while
    * loading the config — before a request goes out and before a single file is
