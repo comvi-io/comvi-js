@@ -292,7 +292,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
       }
 
       if (IS_DEV) {
-        for (const key in options.translation) {
+        // Own keys, so this validates exactly the entries `_nsAddTranslations`
+        // will go on to ingest — no more and no less.
+        for (const key of Object.keys(options.translation)) {
           const value = options.translation[key];
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
             throw new Error(ERR_TRANSLATION_NOT_OBJECT);
@@ -956,7 +958,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * resolve as missing on a base host.
    */
   private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
-    for (const localeOrKey in translations) {
+    // OWN keys: `for...in` walked the prototype chain of the outer map, so a
+    // map built on a prototype that carries locale entries had those adopted
+    // as though the caller had passed them.
+    const localeKeys = Object.keys(translations);
+    for (let k = 0; k < localeKeys.length; k++) {
+      const localeOrKey = localeKeys[k];
       // `normalizeTranslationObject` returns a FRESH null-prototype object, so
       // this is also the prototype-pollution guard — one copy, here, where the
       // raw object enters. Input that is already prototype-less is taken as

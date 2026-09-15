@@ -28,3 +28,9 @@ The closing-tag scanner skipped backslash escapes but not apostrophe quoting, so
 `<b>'{x </b> y}'</b>` rendered `{x y}'</b>` instead of the literal `{x </b> y}` inside the bold
 tag. It now skips quoted sections through the message parser's own helper, in the same
 `#`-is-syntax context the tag was parsed in.
+
+Catalog ingestion now enumerates own locale keys only.
+
+`addTranslations` and the `translation` option walked the prototype chain of the outer
+`{ locale: catalog }` map, so a map built on a prototype carrying locale entries had those
+adopted as if they had been passed in.
