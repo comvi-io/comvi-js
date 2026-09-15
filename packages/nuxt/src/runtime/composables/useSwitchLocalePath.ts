@@ -53,7 +53,11 @@ export function useSwitchLocalePath() {
 
     const { pathname, suffix } = splitPathAndSuffix(route.fullPath || route.path);
 
-    const cleanPath = stripLocalePrefix(pathname, locales);
+    // A leading run of slashes left behind by prefix stripping would come back
+    // as a protocol-relative `//evil.com`, turning the locale switcher on
+    // `/en//evil.com` into an off-site link. Collapse the leading run only,
+    // like `useLocalePath` and next's `localizePathname`.
+    const cleanPath = stripLocalePrefix(pathname, locales).replace(/^\/{2,}/, "/");
 
     // Apply prefix based on mode and keep the configured locale query in sync.
     const localizedPath = buildLocalizedPath(cleanPath, locale, defaultLocale, localePrefix);
