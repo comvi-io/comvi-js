@@ -504,23 +504,46 @@ ${check}`;
         };
 
         /**
+         * Drop a locale prefix the path already carries, so a hand-written
+         * `alias: "/de/already"` clones to `/en/already` instead of
+         * `/en/de/already`. Segment-based, like the runtime stripper: `/enter`
+         * keeps its leading `en` bytes.
+         */
+        const withoutLocalePrefix = (path: string): string => {
+          for (const locale of localeCodes) {
+            if (path === `/${locale}`) {
+              return "/";
+            }
+            if (path.startsWith(`/${locale}/`)) {
+              return path.slice(locale.length + 1);
+            }
+          }
+          return path;
+        };
+
+        /**
          * An alias is an extra path the SAME record answers on, so a clone that
          * kept its source's aliases would answer on the unlocalized URL too —
          * under `localePrefix: "always"` that URL is supposed to be gone. Each
-         * entry goes through the path rule: absolute ones are prefixed,
-         * relative child aliases stay relative, external ones are left alone.
+         * entry goes through the path rule: absolute ones are re-prefixed for
+         * this locale, relative child aliases stay relative, external ones are
+         * left alone.
          */
         const localizeAlias = (alias: NuxtPage["alias"], locale: string): NuxtPage["alias"] => {
+          const localizeEntry = (entry: string): string =>
+            withLocalePrefix(withoutLocalePrefix(entry), locale);
           if (typeof alias === "string") {
-            return withLocalePrefix(alias, locale);
+            return localizeEntry(alias);
           }
-          return alias?.map((entry) => withLocalePrefix(entry, locale));
+          return alias?.map(localizeEntry);
         };
 
         /**
          * A redirect target that stays unlocalized drops the visitor out of the
          * locale they were in. A string or a `path` location is rewritten like
-         * any path; a `name` location is retargeted at the clone of the same
+         * any path, an existing locale prefix included, so a target written as
+         * `/de/new` becomes this locale's `/en/new` rather than `/en/de/new`;
+         * a `name` location is retargeted at the clone of the same
          * locale, because in `always` mode the unprefixed record it named no
          * longer exists. A function redirect and a name no cloned page defines
          * are the caller's own resolution and stay untouched.
@@ -531,11 +554,14 @@ ${check}`;
           clonedNames: ReadonlySet<string>,
         ): NuxtPage["redirect"] => {
           if (typeof redirect === "string") {
-            return withLocalePrefix(redirect, locale);
+            return withLocalePrefix(withoutLocalePrefix(redirect), locale);
           }
           if (typeof redirect === "object" && redirect !== null) {
             if ("path" in redirect && typeof redirect.path === "string") {
-              return { ...redirect, path: withLocalePrefix(redirect.path, locale) };
+              return {
+                ...redirect,
+                path: withLocalePrefix(withoutLocalePrefix(redirect.path), locale),
+              };
             }
             if (
               "name" in redirect &&
