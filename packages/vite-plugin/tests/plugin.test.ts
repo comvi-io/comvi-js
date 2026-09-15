@@ -87,13 +87,26 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
 });
 
-/** A project root with `locales/en.json` holding `content`. */
-async function makeProject(content: string): Promise<string> {
+/**
+ * A project root with `locales/en.json` holding `content`.
+ *
+ * `@comvi/core` is installed because the plugin refuses to write declarations
+ * for a project that cannot resolve the module they augment — the file would be
+ * inert. `withCore: false` builds the project that has the problem.
+ */
+async function makeProject(content: string, options: { withCore?: boolean } = {}): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "comvi-vite-plugin-"));
   tempDirs.push(root);
   const localesDir = path.join(root, "locales");
   await fs.mkdir(localesDir, { recursive: true });
   await fs.writeFile(path.join(localesDir, "en.json"), content, "utf-8");
+
+  if (options.withCore !== false) {
+    const corePkg = path.join(root, "node_modules", "@comvi", "core");
+    await fs.mkdir(corePkg, { recursive: true });
+    await fs.writeFile(path.join(corePkg, "package.json"), '{ "name": "@comvi/core" }', "utf-8");
+  }
+
   return root;
 }
 
@@ -164,6 +177,20 @@ describe("comviTypes plugin", () => {
       // root en.json lands in defaultNs "common" and loses the prefix; admin keeps it
       expect(written).toContain('"greeting": { "name"?: string };');
       expect(written).toContain('"admin:dashboard": never;');
+    });
+
+    it("refuses to write when the app cannot resolve @comvi/core", async () => {
+      // The documented framework install adds only the binding; core is its
+      // transitive dependency, so a strict node_modules layout leaves the
+      // generated augmentation unreachable. TypeScript reports TS2882 on the
+      // generated import, `skipLibCheck: true` hides that, and every unknown
+      // key then type-checks — a file that looks like working types and is not.
+      const root = await makeProject('{ "greeting": "Hello" }', { withCore: false });
+      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
+      resolvePlugin(plugin, root, "build");
+
+      await expect(buildStart(plugin)).rejects.toThrow("pnpm add -D @comvi/core");
+      await expect(fs.readFile(outputPath(root), "utf-8")).rejects.toThrow(/ENOENT/);
     });
 
     it("skips the write when the generated content is unchanged", async () => {

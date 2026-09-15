@@ -1,6 +1,6 @@
 import { countKeyLines, normalizeGenerated } from "@comvi/typegen";
 import { ApiClient } from "./ApiClient";
-import { emitCliDeclarations } from "./TypeEmitter";
+import { assertAugmentationTarget, emitCliDeclarations } from "./TypeEmitter";
 import { FileSystemWriter } from "./FileSystemWriter";
 import { ConsoleReporter, type GenerationReporter } from "./GenerationReporter";
 import type { GeneratorOptions, GenerationResult, ProjectSchema, CheckResult } from "../types";
@@ -152,6 +152,14 @@ export class TypeGenerator {
       const resolvedDefaultNsName = defaultNsName ?? (await this.getDefaultNamespaceName());
 
       this.reporter.reportGenerating();
+
+      // The generated file augments `@comvi/core`. An app that cannot resolve
+      // it gets declarations that do nothing, and nothing says so: TypeScript
+      // reports TS2882 on the generated import, `skipLibCheck: true` hides that,
+      // and every unknown key then type-checks. Refused here, before the write,
+      // so the project never holds a file that looks like working types.
+      assertAugmentationTarget();
+
       const typeDeclarations = emitCliDeclarations(schema, {
         strictParams: this.options.strictParams,
         defaultNsName: resolvedDefaultNsName,

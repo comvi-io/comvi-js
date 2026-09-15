@@ -22,6 +22,7 @@
 import type { Plugin } from "vite";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { augmentationTargetError } from "@comvi/typegen";
 import { extractSchema } from "./extract";
 import { emitDeclarations, type EmitOptions } from "./emit";
 import { createGenerationScheduler } from "./scheduler";
@@ -74,6 +75,7 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
 
   let resolvedTranslationsPath: string;
   let resolvedOutputPath: string;
+  let resolvedRoot: string;
   let isBuildCommand = false;
   let lastContent = "";
 
@@ -84,6 +86,16 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
 
   async function generate(options: { throwOnError: boolean }): Promise<void> {
     try {
+      // The declarations augment `@comvi/core`. A project that cannot resolve it
+      // gets a file that does nothing, and nothing says so: TypeScript reports
+      // TS2882 on the generated import, `skipLibCheck: true` hides that error,
+      // and every unknown key then type-checks. Checked against the Vite root,
+      // which is the app, before anything is written.
+      const dependencyError = augmentationTargetError(resolvedRoot);
+      if (dependencyError !== undefined) {
+        throw new Error(dependencyError);
+      }
+
       const schema = await extractSchema({
         translationsPath: resolvedTranslationsPath,
         fileTemplate,
@@ -123,6 +135,7 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
     enforce: "pre",
 
     configResolved(config) {
+      resolvedRoot = config.root;
       resolvedTranslationsPath = path.resolve(config.root, translations);
       resolvedOutputPath = path.resolve(config.root, output);
       isBuildCommand = config.command === "build";

@@ -12,6 +12,9 @@ export default defineConfig({
   build: createPluginBuildOptions({
     entry: resolve(__dirname, "src/index.ts"),
     name: "ComviTypegen",
-    external: [],
+    // `augmentationTargetError` reads the app's node_modules; the built
+    // declaration emitter stays free of Node built-ins. Both consumers inline
+    // this bundle, and both already externalize these.
+    external: ["node:fs", "node:path"],
   }),
 });

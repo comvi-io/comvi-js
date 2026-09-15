@@ -249,6 +249,82 @@ describe("extractSchema", () => {
       expect(schema.keys["default:message"]).toEqual({ params });
     });
 
+    /**
+     * ICU DOUBLE_OPTIONAL quoting, the same rule `@comvi/core`'s message parser
+     * applies at runtime (packages/core/src/core/translate/parser.ts): an
+     * apostrophe opens quoted literal text only when it immediately precedes a
+     * syntax character — `{`, `}`, or `#` inside a plural sub-message — and
+     * `''` is always one literal apostrophe. The extracted parameter set has to
+     * equal what the runtime substitutes, or the generated types demand an
+     * argument no message consumes.
+     */
+    describe("ICU apostrophe quoting", () => {
+      it.each([
+        { form: "a quoted placeholder", value: "'{name}' stays literal", params: [] },
+        {
+          form: "a quoted placeholder beside a real one",
+          value: "'{name}' but {real}",
+          params: [{ name: "real", type: "string" }],
+        },
+        {
+          form: "a doubled apostrophe before a placeholder",
+          value: "It''s {name}",
+          params: [{ name: "name", type: "string" }],
+        },
+        {
+          form: "a doubled apostrophe wrapping a placeholder",
+          value: "''{name}''",
+          params: [{ name: "name", type: "string" }],
+        },
+        {
+          form: "a lone apostrophe in ordinary prose",
+          value: "Superiors' behavior for {name}",
+          params: [{ name: "name", type: "string" }],
+        },
+        {
+          form: "a quoted closing brace",
+          value: "'}' closes nothing, {name} does",
+          params: [{ name: "name", type: "string" }],
+        },
+        {
+          form: "a quoted placeholder inside a plural branch",
+          value: "{count, plural, other {'{total}' items}}",
+          params: [{ name: "count", type: "number" }],
+        },
+        {
+          form: "a quoted hash beside a real placeholder in a plural branch",
+          value: "{count, plural, other {'#' of {total}}}",
+          params: [
+            { name: "count", type: "number" },
+            { name: "total", type: "string" },
+          ],
+        },
+        {
+          form: "a quoted brace that must not close the plural branch",
+          value: "{count, plural, other {'}' {total}}}",
+          params: [
+            { name: "count", type: "number" },
+            { name: "total", type: "string" },
+          ],
+        },
+        {
+          form: "a quoted placeholder inside a select branch",
+          value: "{gender, select, other {'{x}'}}",
+          params: [{ name: "gender", type: "string" }],
+        },
+        {
+          form: "an apostrophe before a hash at the top level, where # is text",
+          value: "'#' {n}",
+          params: [{ name: "n", type: "string" }],
+        },
+        { form: "a quote that is never closed", value: "'{name} and {other}", params: [] },
+      ])("reads $form the way the runtime does", async ({ value, params }) => {
+        const schema = await schemaFor({ message: value });
+
+        expect(schema.keys["default:message"]).toEqual({ params });
+      });
+    });
+
     it("skips leaves that are not strings", async () => {
       const schema = await schemaFor({
         greeting: "Hello",

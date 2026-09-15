@@ -7,9 +7,76 @@
  * were merged into this package instead: the format lives in one place and
  * cannot drift.
  *
- * Zero dependencies and no Node built-ins — the caller owns reading the schema
- * and writing the file.
+ * Zero dependencies, and the emitter itself uses no Node built-ins — the caller
+ * owns reading the schema and writing the file. `augmentationTargetError` is the
+ * exception: deciding whether the file it emits will do anything at all means
+ * looking at the app's installed packages, and both callers are Node tools.
  */
+
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+
+/**
+ * The module the generated declarations augment, and the only module they name.
+ *
+ * `t()`'s key type comes from `TranslationKeys` as `@comvi/core` declares it, so
+ * the augmentation has to land on core's own interface. It cannot be routed
+ * through the framework binding an app installed: TypeScript merges a `declare
+ * module '@comvi/<binding>'` block into core's interface only where that binding
+ * re-exports core's whole type surface with `export type *`, and silently
+ * creates a separate, inert interface where the binding names the type
+ * explicitly — a no-op no generated file can detect. Loud beats clever, so the
+ * target is fixed and `augmentationTargetError` refuses when the app cannot
+ * reach it. `docs/design/limitations.md` records the measurement.
+ */
+export const AUGMENTED_MODULE = "@comvi/core";
+
+/**
+ * Why the generated declarations would do nothing from `appRoot`, or `undefined`
+ * when they will work.
+ *
+ * The generated file augments `@comvi/core`. The documented install for a
+ * framework adds only that binding, and core is its TRANSITIVE dependency — so
+ * under a strict, non-hoisted layout (pnpm, Yarn PnP) the app cannot resolve
+ * core and the augmentation never happens. TypeScript reports TS2882 on the
+ * generated import, `skipLibCheck: true` hides that error, and every unknown
+ * translation key then type-checks: the generated types are inert and nothing
+ * says so. Both tools call this before they write a file, so the app hears
+ * about it from the generator instead.
+ *
+ * The lookup mirrors what TypeScript does with a bare specifier: walk up from
+ * the app, taking the first `node_modules/@comvi/core` that exists. A workspace
+ * root that holds the install therefore passes, as it does for the compiler.
+ */
+export function augmentationTargetError(appRoot: string): string | undefined {
+  if (findAugmentationTarget(appRoot) !== undefined) return undefined;
+
+  return (
+    `Generated types augment \`${AUGMENTED_MODULE}\`, which is not resolvable from ${appRoot}. ` +
+    `It is a transitive dependency of the Comvi framework bindings, and a strict ` +
+    `node_modules layout does not let this app reach it.\n` +
+    `Add it as a dev dependency:\n\n` +
+    `  pnpm add -D ${AUGMENTED_MODULE}\n\n` +
+    `Without it TypeScript reports TS2882 on the generated import, and with ` +
+    `\`skipLibCheck: true\` that error disappears while every unknown translation key ` +
+    `silently type-checks.`
+  );
+}
+
+/** The `package.json` of the nearest installed `@comvi/core`, walking up from `appRoot`. */
+function findAugmentationTarget(appRoot: string): string | undefined {
+  const segments = AUGMENTED_MODULE.split("/");
+  let dir = resolve(appRoot);
+
+  for (;;) {
+    const candidate = join(dir, "node_modules", ...segments, "package.json");
+    if (existsSync(candidate)) return candidate;
+
+    const parent = dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
 
 /** `number` is the type carried by plural counts. */
 export interface SchemaParam {
@@ -31,43 +98,59 @@ export interface EmitOptions {
   strictParams?: boolean;
   /** Default namespace — keys from this ns drop their prefix. @default 'default' */
   defaultNs?: string;
-  /**
-   * Header line 3, verbatim, so each tool keeps its own "DO NOT EDIT" wording.
-   * The line carries no timestamp: a regenerated file that is otherwise
-   * unchanged must be byte-identical, or every run dirties the working tree.
-   */
-  generatedBy?: string;
 }
 
-/** Used when the caller names no tool of its own. */
-const DEFAULT_GENERATED_BY = "DO NOT EDIT — this file is generated from your translation schema";
+/**
+ * Header line 3 of every generated file, and deliberately NOT a caller option.
+ *
+ * `@comvi/cli` and `@comvi/vite-plugin` each used to stamp its own name here.
+ * Byte-identical output is the contract between them — `TypeGenerator.check`
+ * compares the file on disk against freshly emitted output literally — so the
+ * two wordings made a Vite-written file look stale to a CLI check in CI, drift
+ * that regenerating could never clear. One line that names no tool cannot
+ * drift, and there is no option left to reintroduce the difference.
+ *
+ * The line carries no timestamp either: a regenerated file that is otherwise
+ * unchanged must be byte-identical, or every run dirties the working tree.
+ */
+const HEADER_NOTICE = "DO NOT EDIT — this file is generated from your translation schema";
 
 /**
- * How the header line `@comvi/cli` 0.4 wrote under its own begins, once the
- * comment indent is trimmed. Anchored rather than searched: a translation key
- * may contain this text, and dropping its declaration line would hide drift in
- * that key from every comparison.
+ * Header comment lines a regeneration is allowed to have changed, matched once
+ * the comment indent is trimmed.
+ *
+ * `* Generated at:` is the timestamp line `@comvi/cli` 0.4 wrote under its own
+ * header. `* DO NOT EDIT` is header line 3 in every wording that has shipped:
+ * 0.4's "generated by @comvi/cli", early 0.5's "regenerated by
+ * @comvi/vite-plugin", and today's tool-neutral line. Dropping it from both
+ * sides is what keeps a file written by either tool, at either version, from
+ * being reported stale on upgrade.
+ *
+ * Anchored to the start of the trimmed line rather than searched: a translation
+ * key may contain either text, and a key's declaration line starts with its
+ * own quote, never with `*`. Matching anywhere on the line would erase a real
+ * key from both sides of the comparison and hide drift in it forever.
  */
-const TIMESTAMP_LINE_PREFIX = "* Generated at:";
+const DROPPED_HEADER_PREFIXES = ["* Generated at:", "* DO NOT EDIT"];
 
 export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {}): string {
-  const {
-    strictParams = true,
-    defaultNs = "default",
-    generatedBy = DEFAULT_GENERATED_BY,
-  } = options;
+  const { strictParams = true, defaultNs = "default" } = options;
   const defaultPrefix = `${defaultNs}:`;
 
   const lines: string[] = [
     "/**",
     " * Auto-generated translation keys",
-    ` * ${generatedBy}`,
+    ` * ${HEADER_NOTICE}`,
     " */",
     "",
+    // The side-effect import is load-bearing, not decoration: without it the
+    // `declare module` block below declares a NEW ambient module when the
+    // specifier does not resolve, instead of augmenting core's interface, and
+    // every unknown key then type-checks with no error anywhere.
     "// Import to ensure module is resolved before augmentation",
-    "import '@comvi/core';",
+    `import '${AUGMENTED_MODULE}';`,
     "",
-    "declare module '@comvi/core' {",
+    `declare module '${AUGMENTED_MODULE}' {`,
     "  interface TranslationKeys {",
   ];
 
@@ -115,15 +198,17 @@ export function countKeyLines(content: string): number {
 }
 
 /**
- * Drops what a regeneration is allowed to change, so `--check` compares only the
- * declarations. The WHOLE `Generated at:` header line goes, not just its tail: a
- * file written by 0.4 carries that line and 0.5 output does not, and leaving the
- * emptied line behind would report every existing repo as stale on upgrade.
+ * Drops what a regeneration is allowed to have changed, so `--check` compares
+ * only the declarations. WHOLE header lines go, not just their tails: leaving
+ * an emptied line behind would report every existing repo as stale on upgrade.
  */
 export function normalizeGenerated(content: string): string {
   return content
     .split("\n")
-    .filter((line) => !line.trimStart().startsWith(TIMESTAMP_LINE_PREFIX))
+    .filter((line) => {
+      const trimmed = line.trimStart();
+      return !DROPPED_HEADER_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
+    })
     .join("\n")
     .trim();
 }
