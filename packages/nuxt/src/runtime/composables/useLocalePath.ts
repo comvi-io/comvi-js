@@ -1,7 +1,13 @@
 import { useRuntimeConfig, useRouter } from "#app";
 import { useLocaleState } from "../utils/locale-state";
 import type { RouteLocationRaw } from "vue-router";
-import { stripLocalePrefix, buildLocalizedPath, splitPathAndSuffix } from "../utils/locale-path";
+import {
+  stripLocalePrefix,
+  buildLocalizedPath,
+  splitPathAndSuffix,
+  isExternalTarget,
+  isQueryOrFragmentOnly,
+} from "../utils/locale-path";
 
 type QueryValue = string | number | boolean | null | undefined;
 type QueryRecord = Record<string, QueryValue | QueryValue[]>;
@@ -30,6 +36,29 @@ const toQueryString = (query: QueryRecord | undefined): string => {
 
   const encoded = params.toString();
   return encoded ? `?${encoded}` : "";
+};
+
+/**
+ * The path the CALLER wrote, if they wrote one at all — the string form, or a
+ * route object's own `path`. A named route resolves through the router by name,
+ * and a route object carrying only `query`/`hash` resolves against the current
+ * route, so neither has a caller-written path for the external/pathless guard
+ * to judge. Parity with next, whose `localizeUrlObject` defaults a missing
+ * pathname to `/` and localizes it.
+ */
+const rawTargetPath = (target: RouteLocationRaw): string | undefined => {
+  if (typeof target === "string") {
+    return target;
+  }
+  if (typeof target === "object" && target !== null) {
+    if ("name" in target && target.name) {
+      return undefined;
+    }
+    if ("path" in target && typeof target.path === "string") {
+      return target.path;
+    }
+  }
+  return undefined;
 };
 
 /**
@@ -94,6 +123,18 @@ export function useLocalePath() {
         const hashStr = resolvedPath.hash ? String(resolvedPath.hash) : "";
         fullPath = `${nameParams}${queryStr}${hashStr}`;
       }
+    }
+
+    // Only an app-internal path is localized. An external URL, a
+    // protocol-relative host and a bare `?query` / `#fragment` come back as the
+    // caller wrote them: prefixing an external target produced hrefs like
+    // `/de/https://example.com/a`, and prefixing a pathless target sent the
+    // link to the locale root instead of the page it was written on. The
+    // resolved string is what is returned, so a route object with an external
+    // `path` keeps the query the router appended to it.
+    const written = rawTargetPath(path);
+    if (written !== undefined && (isExternalTarget(written) || isQueryOrFragmentOnly(written))) {
+      return fullPath;
     }
 
     const { pathname, suffix } = splitPathAndSuffix(fullPath);
