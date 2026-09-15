@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter, type RouteRecordRaw } from "vue-rout
 import { resetMocks, setMockRoute, setRouterResolveOverride } from "./mocks/nuxt-app";
 import { useLocalePath } from "../src/runtime/composables/useLocalePath";
 import { useSwitchLocalePath } from "../src/runtime/composables/useSwitchLocalePath";
+import { useLocaleRoute } from "../src/runtime/composables/useLocaleRoute";
 
 /**
  * These cases run against a REAL `vue-router`, not the `resolve` stub in
@@ -138,6 +139,54 @@ describe("useLocalePath against a real vue-router", () => {
       // Interior doubled slashes stay as the caller wrote them, like next.
       expect(localePath("/en/a//b", "de")).toBe("/de/a//b");
     });
+  });
+});
+
+describe("useLocaleRoute against a real vue-router", () => {
+  beforeEach(() => {
+    resetMocks();
+  });
+
+  it("resolves an internal target to the localized route record", async () => {
+    await realRouterAt("/en/pricing");
+    const localeRoute = useLocaleRoute();
+
+    const resolved = localeRoute("/about", "de");
+
+    expect(resolved?.path).toBe("/de/about");
+    expect(resolved?.name).toBe("about___de");
+  });
+
+  it.each(["https://example.com/a", "mailto:someone@example.com", "//cdn.example.com/app.js"])(
+    "answers undefined for %s instead of a route that matches nothing",
+    async (target) => {
+      // An off-site URL is not a route in this app, which is exactly what the
+      // composable's documented `undefined` means. Resolving it produced a
+      // record with `matched: []` and a path of `/en/https://example.com/a` —
+      // a vue-router warning, and a value a caller could still bind to a link.
+      // Callers who want the href itself use `useLocalePath`, the way next's
+      // router wrapper hands an external href straight to navigation.
+      await realRouterAt("/en/pricing");
+      const localeRoute = useLocaleRoute();
+
+      expect(localeRoute(target, "de")).toBeUndefined();
+    },
+  );
+
+  it("answers undefined for a route object whose path is external", async () => {
+    await realRouterAt("/en/pricing");
+    const localeRoute = useLocaleRoute();
+
+    expect(localeRoute({ path: "https://example.com/a", query: { ref: "nav" } }, "de")).toBe(
+      undefined,
+    );
+  });
+
+  it("still resolves a pathless route object against the current route", async () => {
+    await realRouterAt("/en/pricing");
+    const localeRoute = useLocaleRoute();
+
+    expect(localeRoute({ query: { a: "b" } }, "de")?.fullPath).toBe("/de/pricing?a=b");
   });
 });
 

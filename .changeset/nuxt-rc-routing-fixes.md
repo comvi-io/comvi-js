@@ -31,3 +31,8 @@ redirect already carries is replaced rather than stacked, so `/de/already` clone
 `/en/already`, not `/en/de/already`. External and protocol-relative targets, relative child
 aliases and function redirects are left untouched; a `name` redirect is retargeted at the clone of
 the same locale when a cloned page defines that name.
+
+`useLocaleRoute()` returns `undefined` for an off-site target instead of a route record that
+matches nothing: an external or protocol-relative URL resolved to a record whose path was the URL
+glued onto the current route, such as `/en/https://example.com/a`. Use `useLocalePath()` when you
+want the href itself.
