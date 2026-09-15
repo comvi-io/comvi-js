@@ -43,6 +43,24 @@ describe("setI18nContext onError", () => {
     expect(errors[0].message).toBe("init failed");
   });
 
+  it("RC review #17: a string rejection reaches onError as an Error, not the raw string", async () => {
+    const fake = new FakeI18n({ language: "en" });
+    fake.initError = "init failed";
+    const errors: Error[] = [];
+
+    component = mount(ContextOnErrorHarness, {
+      target,
+      props: { i18n: fake.asI18n(), onError: (error: Error) => errors.push(error) },
+    });
+
+    await vi.waitFor(() => {
+      expect(errors).toHaveLength(1);
+    });
+    expect(errors[0]).toBeInstanceOf(Error);
+    expect(errors[0].message).toBe("init failed");
+    expect((errors[0] as Error & { cause?: unknown }).cause).toBe("init failed");
+  });
+
   it("auto-init resolves → onError is never called", async () => {
     const fake = new FakeI18n({ language: "en" });
     const errors: Error[] = [];

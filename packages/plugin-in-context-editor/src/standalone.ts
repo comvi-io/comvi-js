@@ -15,6 +15,11 @@ import type { EditorI18n } from "./Core";
 
 let activeCore: Core | null = null;
 let activeLifecycleCallback: ((detail: EditorLifecycleDetail) => void) | undefined;
+// Aborts any in-flight translation refresh on teardown/replacement, and its
+// signal is re-checked right before the refresh merges into the host i18n
+// instance — the identity check on `activeCore` alone only protected the
+// later render refresh, not this merge.
+let activeRefreshController: AbortController | undefined;
 
 /** Public, credential-free lifecycle event emitted by the standalone runtime. */
 export const EDITOR_LIFECYCLE_EVENT = "comvi-in-context-editor:lifecycle";
@@ -98,6 +103,7 @@ async function refreshTranslationsFromApi(
   i18n: EditorI18n,
   apiKey: string | undefined,
   scopeId: string,
+  signal: AbortSignal,
 ): Promise<void> {
   const config = getApiConfig(scopeId);
   if (!apiKey && !config.transport) {
@@ -131,6 +137,7 @@ async function refreshTranslationsFromApi(
           // projects/transports. Scope cached project metadata to this
           // editor instance instead.
           config.transport ? scopeId : undefined,
+          { signal },
         );
         for (const [key, translations] of store) {
           updates[key] = translations as Record<string, TranslationValue>;
@@ -138,10 +145,21 @@ async function refreshTranslationsFromApi(
       }),
     );
 
+    // The identity guard must sit immediately before the merge itself, not
+    // only before the later render refresh: a replacement/teardown that
+    // happens while this refresh is in flight must stop the stale catalog
+    // from ever reaching addTranslations, however non-empty it is.
+    if (signal.aborted) {
+      return;
+    }
+
     if (Object.keys(updates).length > 0) {
       i18n.addTranslations(updates);
     }
   } catch (error) {
+    if (signal.aborted) {
+      return;
+    }
     console.warn("[ComviInContextEditor] Failed to refresh translations from API.", error);
   }
 }
@@ -255,12 +273,16 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   console.info(`[ComviInContextEditor] Activated (instance: ${instanceId})`);
 
   if (options.refreshTranslations !== false) {
-    void refreshTranslationsFromApi(i18n, apiKey, instanceId).finally(() => {
-      if (activeCore === null || activeCore.getInstanceId() !== instanceId) {
-        return;
-      }
-      refreshRenderedTranslations(i18n);
-    });
+    const refreshController = new AbortController();
+    activeRefreshController = refreshController;
+    void refreshTranslationsFromApi(i18n, apiKey, instanceId, refreshController.signal).finally(
+      () => {
+        if (activeCore === null || activeCore.getInstanceId() !== instanceId) {
+          return;
+        }
+        refreshRenderedTranslations(i18n);
+      },
+    );
   }
 
   return {
@@ -287,6 +309,8 @@ function deactivateInstance(expectedInstanceId?: string): void {
   const lifecycleCallback = activeLifecycleCallback;
   activeCore = null;
   activeLifecycleCallback = undefined;
+  activeRefreshController?.abort();
+  activeRefreshController = undefined;
   let cleanupError: unknown;
   try {
     core.stop();
