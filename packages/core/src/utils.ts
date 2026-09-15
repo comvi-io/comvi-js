@@ -63,13 +63,34 @@ export function flattenNestedObject(
 }
 
 /**
+ * True when every own value is already a string — i.e. the object IS the shape
+ * the cache stores, and adopting it whole changes nothing.
+ *
+ * A missing prototype is NOT that proof. `Object.create(null)` is a normal way
+ * to build a nested catalog, and one adopted on its prototype alone stored an
+ * object-valued leaf: `t("nav.home")` answered with the key, and `t("nav")`
+ * crashed trying to render the object.
+ */
+function isFlatCatalog(obj: Record<string, any>): boolean {
+  const keys = Object.keys(obj);
+  for (let i = 0; i < keys.length; i++) {
+    if (typeof obj[keys[i]] !== "string") return false;
+  }
+  return true;
+}
+
+/**
  * Normalize catalog input to the prototype-less flat shape the cache stores.
  * NEVER mutates the caller's object: a flat catalog is just the depth-1 case,
  * where the prefix stays empty and every key passes through unchanged.
- * Prototype-less input is assumed already normalized.
+ *
+ * Prototype-less input whose leaves are all strings is adopted WITHOUT a copy —
+ * the contract that keeps re-ingesting an already-normalized catalog (a loader
+ * result, a previous flatten) off `Object.assign`'s ~130 ns per key. The leaf
+ * scan is one `typeof` per key on the ingestion path only.
  */
 export function normalizeTranslationObject(obj: Record<string, any>): Record<string, string> {
-  return Object.getPrototypeOf(obj) === null
+  return Object.getPrototypeOf(obj) === null && isFlatCatalog(obj)
     ? (obj as Record<string, string>)
     : flattenNestedObject(obj);
 }

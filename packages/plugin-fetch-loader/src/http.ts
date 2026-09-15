@@ -8,7 +8,10 @@
  */
 import type { ExportApiResponse, TranslationStore } from "./types";
 import { API_BASE_URL } from "./options";
-import { ERROR_PREFIX, stripSlash, validateId } from "./http-core";
+import { assertCatalogObject, stripSlash, validateId } from "./http-core";
+
+/** Names this request path in the shape errors `assertCatalogObject` raises. */
+const API = "API";
 
 export type { ExtendedFetchOptions, FetchRequestOptions, JsonResult } from "./http-core";
 export {
@@ -82,21 +85,14 @@ export function buildLegacyApiExportUrl(
 /** Transform API response to internal cache format */
 export function transformApiResponse(response: ExportApiResponse): TranslationStore {
   const namespaces = (response as ExportApiResponse | undefined)?.namespaces;
-  assertObject(namespaces, "namespaces");
+  assertCatalogObject(namespaces, API, "namespaces");
   const store: TranslationStore = new Map();
   for (const [ns, locales] of Object.entries(namespaces)) {
-    // `Object.entries("ab")` is `[["0","a"],["1","b"]]`: a string where a map
-    // belongs would otherwise become junk cache entries instead of an error.
-    assertObject(locales, `namespaces.${ns}`);
+    assertCatalogObject(locales, API, `namespaces.${ns}`);
     for (const [locale, translations] of Object.entries(locales)) {
-      assertObject(translations, `namespaces.${ns}.${locale}`);
+      assertCatalogObject(translations, API, `namespaces.${ns}.${locale}`);
       store.set(`${locale}:${ns}`, translations);
     }
   }
   return store;
-}
-
-function assertObject(value: unknown, path: string): asserts value is Record<string, never> {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error(`${ERROR_PREFIX} Invalid API response: "${path}" must be an object`);
 }

@@ -138,6 +138,26 @@ export function advancePastApostrophe(
 }
 
 /**
+ * Every character `parseTemplate` treats as something other than literal
+ * text, minus `#` (which is syntax only under `hashIsSyntax`, so its callers
+ * ask separately): `{` opens a core argument, `'` starts ICU quoting, and
+ * `<`, `&` and `\` are the three positions the scanner offers to the syntax
+ * extensions.
+ *
+ * Exported so a compiler deciding whether a sub-message can be used as the
+ * text it already is tests the SAME set the scanner acts on. `&` used to be
+ * missing from the ICU compiler's copy of this list, which left `&amp;`
+ * escaped inside a plain plural/select branch while the identical text one
+ * level up decoded — and made adding a parameter to the branch change it.
+ */
+const SYNTAX_CHARS = /['{<&\\]/;
+
+/** True when `str` holds anything the parser would not pass through as text. */
+export function hasSyntaxChars(str: string): boolean {
+  return SYNTAX_CHARS.test(str);
+}
+
+/**
  * Signature of `MessageCompiler.argOpensHashScope`: whether the `{` at
  * braceIndex starts an argument that rebinds `#` (ICU plural/selectordinal).
  * Compilers without such syntax leave it unset and the parser never treats
