@@ -27,7 +27,6 @@ describe("an exact plural selector", () => {
     ["the canonical form matches", "=1", 1],
     ["a decimal-point form matches the same integer", "=1.0", 1],
     ["a leading zero matches the same integer", "=01", 1],
-    ["a trailing-dot form matches the same integer", "=1.", 1],
   ])("%s", (_label, selector, n) => {
     expect(render(WITH_EXACT(selector), n)).toBe("exact");
   });
@@ -64,6 +63,12 @@ describe("an exact plural selector that is not a number", () => {
     ["a bare equals sign", "="],
     ["a thousands separator", "=1_000"],
     ["a non-finite name", "=Infinity"],
+    ["a hexadecimal literal", "=0x1"],
+    ["exponent notation", "=1e3"],
+    ["an explicit plus sign", "=+1"],
+    ["a leading decimal point", "=.5"],
+    ["a trailing decimal point", "=1."],
+    ["a trailing-space literal", "=1 2"],
   ])("throws E_ICU_SYNTAX at ingestion for %s", (_label, selector) => {
     expect(() => ingest(WITH_EXACT(selector))).toThrow(
       expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
@@ -85,5 +90,44 @@ describe("an exact plural selector that is not a number", () => {
     i18n.addTranslations({ en: { k: "{g, select, =abc {odd} other {other}}" } });
 
     expect(i18n.t("k", { g: "=abc" } as never)).toBe("odd");
+  });
+});
+
+// ICU's explicit-value grammar is `=` followed by a number, and the render
+// probe is `"=" + count`, so the compiler rewrites each selector to the
+// canonical spelling of that number. Two selectors can therefore collide, and
+// which one wins has to be the one written LAST, exactly as two identical
+// verbatim selectors already behaved. Combined review M1.
+describe("two exact selectors that canonicalize to the same number", () => {
+  it.each([
+    ["the later canonical form wins", "{n, plural, =1.0 {A} =1 {B} other {o}}", 1, "B"],
+    ["the later non-canonical form wins", "{n, plural, =1 {B} =1.0 {A} other {o}}", 1, "A"],
+    ["a leading zero collides the same way", "{n, plural, =01 {A} =1 {B} other {o}}", 1, "B"],
+    ["=-0 does not annex a later =0", "{n, plural, =-0 {negzero} =0 {zero} other {o}}", 0, "zero"],
+    ["=-0 written last does win", "{n, plural, =0 {zero} =-0 {negzero} other {o}}", 0, "negzero"],
+  ])("%s", (_label, template, n, expected) => {
+    expect(render(template, n)).toBe(expected);
+  });
+
+  it("matches a -0 count against the =0 branch, since ICU compares numbers", () => {
+    expect(render("{n, plural, =0 {zero} other {o}}", -0)).toBe("zero");
+  });
+
+  it("leaves the plural categories in place around a collision", () => {
+    const template = "{n, plural, =1.0 {A} =1 {B} one {one} other {other}}";
+
+    expect(render(template, 1)).toBe("B");
+    expect(render(template, 5)).toBe("other");
+  });
+});
+
+describe("an exact selector at the edge of double precision", () => {
+  // `Number()` is the right canonicalizer precisely because the render probe
+  // compares against a JS number: a selector past 2^53 can only ever be
+  // matched by the value it rounds to, so that is what it is stored as.
+  it("matches the count it rounds to", () => {
+    expect(render("{n, plural, =9007199254740993 {edge} other {o}}", 9007199254740992)).toBe(
+      "edge",
+    );
   });
 });

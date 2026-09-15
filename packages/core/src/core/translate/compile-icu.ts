@@ -162,22 +162,38 @@ function failIcuArg(
 }
 
 /**
- * Rewrite every `=N` key of a freshly parsed plural choice list to the
- * canonical number string, because render-time lookup is `"=" + count` and
- * only `String(count)` is what a count produces. `=1.0`, `=01` and `=1.` are
- * all the `n = 1` branch; ICU matches explicit selectors BEFORE the plural
- * categories, so one that never matched used to fall through to `one`/`other`
- * silently.
+ * ICU's explicit-value grammar: `=` followed by a number, and a number is an
+ * optional sign, digits, and at most one fractional part. Deliberately NOT
+ * `Number()`, which also swallows `0x1`, `1e3`, `+1`, `.5`, `Infinity` and the
+ * empty string — none of which an ICU message may write, and each of which
+ * would then match some count nobody declared a branch for.
+ */
+const EXACT_VALUE = /^-?\d+(\.\d+)?$/;
+
+/**
+ * Rewrite every `=N` selector of a freshly parsed plural choice list to the
+ * canonical spelling of its number, because render-time lookup is
+ * `"=" + count` and only `String(count)` is what a count produces. `=1.0` and
+ * `=01` are both the `n = 1` branch; ICU matches explicit selectors BEFORE the
+ * plural categories, so one that never matched used to fall through to
+ * `one`/`other` silently.
  *
- * Mutates the map in place — `parsePluralChoices` just built it, so it belongs
- * to this compiler and never to the caller's catalog. When two selectors
- * canonicalize to the same number the LAST one wins, which is what duplicate
- * verbatim selectors already did.
+ * Rebuilt into a FRESH map in source order rather than rewritten in place: two
+ * selectors can canonicalize to the same number (`=1.0` and `=1`, or `=-0` and
+ * `=0`, since `String(-0)` is `"0"` and ICU compares numbers), and the one the
+ * translator wrote LAST has to win — the same rule two identical verbatim
+ * selectors already followed. Rewriting a snapshot of the keys made an earlier
+ * selector overwrite a later one instead. The map is this compiler's own, never
+ * the caller's catalog.
  *
- * A selector that is not a finite number (`=abc`, a bare `=`, `=1_000`,
- * `=Infinity`) returns `undefined` through `failIcuArg`: `E_ICU_SYNTAX` in
- * development, a literal segment plus one host report in production, rather
- * than a branch that silently can never be chosen.
+ * `Number()` is still the canonicalizer once the grammar has passed, and that
+ * is exactly right for a selector past 2^53: the probe compares against a JS
+ * number, so such a selector can only ever be matched by the value it rounds
+ * to, and that is the value it is stored as.
+ *
+ * A selector outside the grammar returns `undefined` through `failIcuArg`:
+ * `E_ICU_SYNTAX` in development, a literal segment plus one host report in
+ * production, rather than a branch that silently can never be chosen.
  */
 function canonicalizeExactSelectors(
   choices: Record<string, string>,
@@ -186,23 +202,20 @@ function canonicalizeExactSelectors(
   choicesStr: string,
 ): Record<string, string> | undefined {
   const keys = Object.keys(choices);
+  const canonical = Object.create(null) as Record<string, string>;
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
-    if (key.charCodeAt(0) !== EQUALS) continue;
-    const digits = key.slice(1);
-    const value = Number(digits);
-    // `Number("")` is 0 and `Number(" 1")` is 1, so the emptiness check earns
-    // its keep: a bare `=` is not a selector for zero.
-    if (digits === "" || !isFinite(value)) {
+    if (key.charCodeAt(0) !== EQUALS) {
+      canonical[key] = choices[key];
+      continue;
+    }
+    const value = key.slice(1);
+    if (!EXACT_VALUE.test(value)) {
       return failIcuArg(argumentType, content, choicesStr, key);
     }
-    const canonical = "=" + value;
-    if (canonical !== key) {
-      choices[canonical] = choices[key];
-      delete choices[key];
-    }
+    canonical["=" + Number(value)] = choices[key];
   }
-  return choices;
+  return canonical;
 }
 
 /**

@@ -55,6 +55,12 @@ export const CASES = [
   { name: "t() static key", iters: 2_000_000 },
   { name: "t() with {name}", iters: 1_500_000 },
   { name: "t() ICU plural (icuCompiler)", iters: 500_000 },
+  // A plural branch of ordinary copy that contains a bare `&`. The branch is
+  // text, so it must take the same text-only path as the case above; the `&`
+  // is here because it is a character the parser offers to the syntax
+  // extensions, and a branch routed to the parser over one costs ~25% more for
+  // byte-identical output. "Terms & Conditions" is the copy this happens to.
+  { name: "t() ICU plural, branch with a bare &", iters: 500_000 },
   { name: "prepareTranslation(<b>)", iters: 800_000 },
 ];
 
@@ -75,8 +81,9 @@ function distUrl(distRoot, file) {
 }
 
 /**
- * Builds the five thunks against one dist root. The inputs are fixed and
- * identical on both sides of a comparison — that is the whole protocol.
+ * Builds one thunk per case against one dist root, in `CASES` order. The
+ * inputs are fixed and identical on both sides of a comparison — that is the
+ * whole protocol.
  */
 export async function buildCaseThunks(distRoot) {
   const { createI18n } = await import(distUrl(distRoot, "comvi-core.js"));
@@ -98,12 +105,20 @@ export async function buildCaseThunks(distRoot) {
     compiler: icuCompiler,
     translation: { en: { n: "{count, plural, one {# item} other {# items}}" } },
   });
+  const ampI18n = createI18n({
+    locale: "en",
+    compiler: icuCompiler,
+    translation: {
+      en: { n: "{count, plural, one {# Term & Condition} other {# Terms & Conditions}}" },
+    },
+  });
 
   return [
     () => make(),
     () => staticI18n.t("key0"),
     () => paramI18n.t("key1", { name: "world" }),
     () => icuI18n.t("n", { count: 5 }),
+    () => ampI18n.t("n", { count: 5 }),
     () => prepareTranslation(richI18n, { i18nKey: "rich", params: { what: "docs" } }),
   ];
 }

@@ -113,15 +113,29 @@ function parseTag(
   return { endIndex: startIndex + 1, isTag: false };
 }
 
+type ClosingTagSpan = [closingStart: number, endIndex: number];
+
+/** The scan ran out of message with tags still open — the retryable failure. */
+const EXHAUSTED = 0;
+/** A mismatched closing tag ended the scan; no rescan can make it match. */
+const MISMATCHED = 1;
+
 /**
  * Find the `</tagName>` that closes the tag opened at `startIndex`.
  *
- * `hashIsSyntax` is the tag's own quoting context, threaded down from
- * `parseTag`, because the scan must skip exactly what the message parser
- * skips: ICU apostrophe-quoted sections, where `'#'` is a quote only inside a
- * plural sub-message. Quoting used to be ignored here, so a `</b>` written
- * inside quoted literal text — `<b>'{x </b> y}'</b>` — closed the tag that
- * surrounded it and the literal came out mangled.
+ * Two passes, because ICU quoting and tag syntax genuinely disagree about an
+ * apostrophe that never closes. The first pass honours quoting, which is what
+ * keeps a `</b>` written inside a BALANCED quoted literal —
+ * `<b>'{x </b> y}'</b>` — from closing the tag around it.
+ *
+ * ICU's DOUBLE_OPTIONAL rule then says an UNMATCHED apostrophe quotes to the
+ * end of the message, which would leave the tag open and leak its markup as
+ * visible text. The shape that happens on is ordinary copy, not hostile input:
+ * elision before a placeholder, `<b>l'{name}</b>` in French, `dell'{item}` in
+ * Italian. `<` is not ICU syntax at all, so where the quote-aware pass runs out
+ * of message the apostrophe is taken as the literal it looks like and the tag
+ * closes. Only exhaustion is retried: a rescan after a MISMATCH could reach
+ * exactly the `</b>` the quote was protecting.
  */
 function findClosingTag(
   str: string,
@@ -129,14 +143,36 @@ function findClosingTag(
   len: number,
   tagName: string,
   hashIsSyntax: boolean,
-): [closingStart: number, endIndex: number] | undefined {
+): ClosingTagSpan | undefined {
+  const quoted = scanForClosingTag(str, startIndex, len, tagName, hashIsSyntax, false);
+  if (quoted !== EXHAUSTED) return quoted === MISMATCHED ? undefined : quoted;
+  // The second pass owns the unclosed-tag warning, so a tag that really is
+  // unclosed still reports once per parse rather than once per scan.
+  const literal = scanForClosingTag(str, startIndex, len, tagName, hashIsSyntax, true);
+  return typeof literal === "number" ? undefined : literal;
+}
+
+/**
+ * One closing-tag scan. `apostropheIsLiteral` turns ICU quote-skipping off and
+ * turns the dev unclosed-tag warning on; `hashIsSyntax` is the tag's own
+ * quoting context, threaded down from `parseTag`, so `'#'` counts as a quote
+ * exactly where the message parser says it does.
+ */
+function scanForClosingTag(
+  str: string,
+  startIndex: number,
+  len: number,
+  tagName: string,
+  hashIsSyntax: boolean,
+  apostropheIsLiteral: boolean,
+): ClosingTagSpan | typeof EXHAUSTED | typeof MISMATCHED {
   const tagStack: string[] = [tagName];
   let i = startIndex;
 
   while (i < len && tagStack.length > 0) {
     const code = str.charCodeAt(i);
 
-    if (code === APOSTROPHE) {
+    if (code === APOSTROPHE && !apostropheIsLiteral) {
       i = advancePastApostrophe(str, i, len, hashIsSyntax);
       continue;
     }
@@ -170,7 +206,7 @@ function findClosingTag(
             if (IS_DEV) {
               warn(`[i18n] Tag mismatch: expected </${expectedTag}>, found </${closeName}>`);
             }
-            return undefined;
+            return MISMATCHED;
           }
         }
         continue;
@@ -205,14 +241,10 @@ function findClosingTag(
     i++;
   }
 
-  if (tagStack.length > 0) {
-    if (IS_DEV) {
-      warn(`[i18n] Unclosed tag: <${tagStack[tagStack.length - 1]}>`);
-    }
-    return undefined;
+  if (IS_DEV && apostropheIsLiteral && tagStack.length > 0) {
+    warn(`[i18n] Unclosed tag: <${tagStack[tagStack.length - 1]}>`);
   }
-
-  return undefined;
+  return EXHAUSTED;
 }
 
 /** Resolution order: a handler in params, then the basic-HTML whitelist, then `strict`. */
