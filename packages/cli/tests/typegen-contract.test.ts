@@ -6,14 +6,17 @@
  * produces the CLI's own file, and a schema the emitter refuses reaches the
  * command as a `TypegenError` so `comvi typegen` keeps its exit code.
  */
-import { describe, it, expect, expectTypeOf } from "vitest";
+import { afterEach, describe, it, expect, expectTypeOf } from "vitest";
 import { emitDeclarations } from "@comvi/typegen";
 import type {
   KeySchema as SharedKeySchema,
   ProjectSchema as SharedProjectSchema,
   SchemaParam as SharedSchemaParam,
 } from "@comvi/typegen";
-import { TypeEmitter } from "../src/core/TypeEmitter";
+import fs from "node:fs";
+import os from "node:os";
+import nodePath from "node:path";
+import { assertAugmentationTarget, TypeEmitter } from "../src/core/TypeEmitter";
 import { ErrorCodes } from "../src/utils/errors";
 import type { KeySchema, ProjectSchema, SchemaParam } from "../src/types";
 
@@ -50,6 +53,45 @@ describe("@comvi/cli over @comvi/typegen", () => {
     expect(new TypeEmitter().generate(SCHEMA, { defaultNsName: "admin" })).toBe(
       emitDeclarations(SCHEMA, { defaultNs: "admin" }),
     );
+  });
+
+  describe("the @comvi/core dependency the generated declarations augment", () => {
+    const tempDirs: string[] = [];
+
+    afterEach(() => {
+      for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    /** An app directory, with or without `@comvi/core` installed for it. */
+    function appDir(withCore: boolean): string {
+      const dir = fs.mkdtempSync(nodePath.join(os.tmpdir(), "comvi-cli-augment-"));
+      tempDirs.push(dir);
+
+      if (withCore) {
+        const pkg = nodePath.join(dir, "node_modules", "@comvi", "core");
+        fs.mkdirSync(pkg, { recursive: true });
+        fs.writeFileSync(nodePath.join(pkg, "package.json"), '{ "name": "@comvi/core" }');
+      }
+
+      return dir;
+    }
+
+    it("refuses an app that cannot resolve it, naming the install command", () => {
+      // The documented framework install adds only the binding, and core is its
+      // transitive dependency: under a strict layout the app cannot reach the
+      // module the generated file augments, and the declarations do nothing.
+      expect(() => assertAugmentationTarget(appDir(false))).toThrow(
+        expect.objectContaining({
+          name: "TypegenError",
+          code: ErrorCodes.VALIDATION_FAILED,
+          message: expect.stringContaining("pnpm add -D @comvi/core"),
+        }),
+      );
+    });
+
+    it("accepts an app that has it installed", () => {
+      expect(() => assertAugmentationTarget(appDir(true))).not.toThrow();
+    });
   });
 
   it("rethrows an emitter refusal as a TypegenError, message untouched", () => {

@@ -5,6 +5,9 @@ import { InMemoryFileSystem, FileSystemWriter } from "../src/core/FileSystemWrit
 import { CollectingReporter } from "../src/core/GenerationReporter";
 import { SilentLogger, type Logger } from "../src/utils/logger";
 import type { GeneratorOptions, ProjectSchema } from "../src/types";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 vi.mock("../src/core/ApiClient");
 
@@ -327,6 +330,50 @@ describe("TypeGenerator", () => {
 
       expect(result.success).toBe(true);
       expect(result.duration).toBe(10);
+    });
+  });
+
+  describe("the @comvi/core dependency", () => {
+    const tempDirs: string[] = [];
+    let originalCwd: string;
+
+    beforeEach(() => {
+      originalCwd = process.cwd();
+    });
+
+    afterEach(() => {
+      process.chdir(originalCwd);
+      for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+    });
+
+    /** A project directory with no `@comvi/core` resolvable from it. */
+    function projectWithoutCore(): string {
+      const dir = mkdtempSync(join(tmpdir(), "comvi-generator-augment-"));
+      tempDirs.push(dir);
+      return dir;
+    }
+
+    it("writes no declarations for a project that cannot resolve it", async () => {
+      // A file augmenting an unresolvable module is inert and silently so, so
+      // the generator refuses rather than leaving something that looks like
+      // working types on disk.
+      process.chdir(projectWithoutCore());
+
+      const result = await generator.generate();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("pnpm add -D @comvi/core");
+      expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toBeUndefined();
+    });
+
+    it("still compares an existing file for a project that cannot resolve it", async () => {
+      // `--check` compares text. A CI job that installed production
+      // dependencies only has no dev-time `@comvi/core` to find, and reporting
+      // drift over that would fail a check on a file that is in fact current.
+      await generator.generate();
+      process.chdir(projectWithoutCore());
+
+      await expect(generator.check()).resolves.toMatchObject({ upToDate: true });
     });
   });
 

@@ -13,6 +13,9 @@
     "isolatedModules": true,
     "rootDir": "./src",
     "noEmit": true,
+    // `augmentationTargetError` looks at the app's installed packages, which is
+    // the one part of this package that touches Node built-ins.
+    "types": ["node"],
 
     /* Linting */
     "strict": true,

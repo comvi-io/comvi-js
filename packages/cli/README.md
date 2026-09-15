@@ -36,8 +36,14 @@ two-step quickstart, the package matrix and the measured bundle weights.
 ## Install
 
 ```bash
-npm install -D @comvi/cli
+npm install -D @comvi/cli @comvi/core
 ```
+
+`@comvi/core` belongs in your own dependencies even if you installed a framework binding such as
+`@comvi/react`, which already depends on it. The generated declaration augments `@comvi/core`, and
+a strict node_modules layout (pnpm, Yarn PnP) only lets an app resolve what it depends on directly.
+Without it `comvi generate-types` refuses to write, rather than leaving a file that
+`skipLibCheck: true` turns into silently inert types.
 
 ## Quick start
 

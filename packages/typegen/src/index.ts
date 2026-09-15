@@ -7,9 +7,76 @@
  * were merged into this package instead: the format lives in one place and
  * cannot drift.
  *
- * Zero dependencies and no Node built-ins — the caller owns reading the schema
- * and writing the file.
+ * Zero dependencies, and the emitter itself uses no Node built-ins — the caller
+ * owns reading the schema and writing the file. `augmentationTargetError` is the
+ * exception: deciding whether the file it emits will do anything at all means
+ * looking at the app's installed packages, and both callers are Node tools.
  */
+
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+
+/**
+ * The module the generated declarations augment, and the only module they name.
+ *
+ * `t()`'s key type comes from `TranslationKeys` as `@comvi/core` declares it, so
+ * the augmentation has to land on core's own interface. It cannot be routed
+ * through the framework binding an app installed: TypeScript merges a `declare
+ * module '@comvi/<binding>'` block into core's interface only where that binding
+ * re-exports core's whole type surface with `export type *`, and silently
+ * creates a separate, inert interface where the binding names the type
+ * explicitly — a no-op no generated file can detect. Loud beats clever, so the
+ * target is fixed and `augmentationTargetError` refuses when the app cannot
+ * reach it. `docs/design/limitations.md` records the measurement.
+ */
+export const AUGMENTED_MODULE = "@comvi/core";
+
+/**
+ * Why the generated declarations would do nothing from `appRoot`, or `undefined`
+ * when they will work.
+ *
+ * The generated file augments `@comvi/core`. The documented install for a
+ * framework adds only that binding, and core is its TRANSITIVE dependency — so
+ * under a strict, non-hoisted layout (pnpm, Yarn PnP) the app cannot resolve
+ * core and the augmentation never happens. TypeScript reports TS2882 on the
+ * generated import, `skipLibCheck: true` hides that error, and every unknown
+ * translation key then type-checks: the generated types are inert and nothing
+ * says so. Both tools call this before they write a file, so the app hears
+ * about it from the generator instead.
+ *
+ * The lookup mirrors what TypeScript does with a bare specifier: walk up from
+ * the app, taking the first `node_modules/@comvi/core` that exists. A workspace
+ * root that holds the install therefore passes, as it does for the compiler.
+ */
+export function augmentationTargetError(appRoot: string): string | undefined {
+  if (findAugmentationTarget(appRoot) !== undefined) return undefined;
+
+  return (
+    `Generated types augment \`${AUGMENTED_MODULE}\`, which is not resolvable from ${appRoot}. ` +
+    `It is a transitive dependency of the Comvi framework bindings, and a strict ` +
+    `node_modules layout does not let this app reach it.\n` +
+    `Add it as a dev dependency:\n\n` +
+    `  pnpm add -D ${AUGMENTED_MODULE}\n\n` +
+    `Without it TypeScript reports TS2882 on the generated import, and with ` +
+    `\`skipLibCheck: true\` that error disappears while every unknown translation key ` +
+    `silently type-checks.`
+  );
+}
+
+/** The `package.json` of the nearest installed `@comvi/core`, walking up from `appRoot`. */
+function findAugmentationTarget(appRoot: string): string | undefined {
+  const segments = AUGMENTED_MODULE.split("/");
+  let dir = resolve(appRoot);
+
+  for (;;) {
+    const candidate = join(dir, "node_modules", ...segments, "package.json");
+    if (existsSync(candidate)) return candidate;
+
+    const parent = dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
 
 /** `number` is the type carried by plural counts. */
 export interface SchemaParam {
@@ -76,10 +143,14 @@ export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {
     ` * ${HEADER_NOTICE}`,
     " */",
     "",
+    // The side-effect import is load-bearing, not decoration: without it the
+    // `declare module` block below declares a NEW ambient module when the
+    // specifier does not resolve, instead of augmenting core's interface, and
+    // every unknown key then type-checks with no error anywhere.
     "// Import to ensure module is resolved before augmentation",
-    "import '@comvi/core';",
+    `import '${AUGMENTED_MODULE}';`,
     "",
-    "declare module '@comvi/core' {",
+    `declare module '${AUGMENTED_MODULE}' {`,
     "  interface TranslationKeys {",
   ];
 

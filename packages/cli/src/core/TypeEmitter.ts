@@ -1,6 +1,6 @@
 /** Schema keys arrive as `"namespace:key"`, e.g. `"common:greeting"`. */
 
-import { emitDeclarations, type ProjectSchema } from "@comvi/typegen";
+import { augmentationTargetError, emitDeclarations, type ProjectSchema } from "@comvi/typegen";
 import { ErrorCodes, TypegenError } from "../utils/errors";
 
 export interface TypeEmitterOptions {
@@ -51,6 +51,26 @@ export function emitCliDeclarations(
       ErrorCodes.VALIDATION_FAILED,
       cause,
     );
+  }
+}
+
+/**
+ * Refuses when the app cannot resolve `@comvi/core`, the module every generated
+ * declaration augments.
+ *
+ * Called before the file is written, never before a `--check` comparison: a
+ * check compares text, and a CI job that installed production dependencies only
+ * has no dev-time `@comvi/core` to find — failing the comparison over that would
+ * report drift where there is none.
+ *
+ * `appRoot` is the project the declarations are for, and defaults to the
+ * directory `comvi typegen` was run in, which is that project by construction
+ * (the config path and the output path are both read relative to it).
+ */
+export function assertAugmentationTarget(appRoot: string = process.cwd()): void {
+  const error = augmentationTargetError(appRoot);
+  if (error !== undefined) {
+    throw new TypegenError(error, ErrorCodes.VALIDATION_FAILED);
   }
 }
 

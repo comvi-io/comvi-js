@@ -67,6 +67,21 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 - **Typed keys are generated, not inferred.** `TranslationKeys` is a declaration-merging interface;
   `@comvi/cli` (from the platform) or `@comvi/vite-plugin` (from local JSON) writes it. Nothing
   infers key types from a runtime catalog.
+- **Generating types requires `@comvi/core` in the app's own dependencies**, on top of whichever
+  framework binding it installed. The generated file augments `@comvi/core`, and under a strict
+  node_modules layout (pnpm, Yarn PnP) an app can only resolve what it depends on directly — core
+  arrives as the binding's transitive dependency and is unreachable. Both generators check this
+  before writing and refuse with the install command, because the failure is otherwise silent:
+  TypeScript reports TS2882 on the generated import, `skipLibCheck: true` removes that error, and
+  every unknown key then type-checks against types that do nothing.
+
+  Routing the augmentation through the binding instead (`declare module '@comvi/react'`) was
+  measured and rejected. It does work — TypeScript merges such a block into core's interface where
+  the binding re-exports core's whole type surface with `export type *`, which six of the seven
+  bindings do. But where a binding names the type explicitly (`export type { TranslationKeys }`),
+  TypeScript creates a separate, inert interface and reports nothing at all, and no generated file
+  can tell the two apart. One loud requirement beats an invariant that disappears with a refactor.
+  `pnpm check:strict-consumer` holds the evidence for both halves.
 
 ## Typed keys: three shapes `t()` does not check
 

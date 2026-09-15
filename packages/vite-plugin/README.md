@@ -34,9 +34,15 @@ two-step quickstart, the package matrix and the measured bundle weights.
 ## Install
 
 ```bash
-npm install -D @comvi/vite-plugin
+npm install -D @comvi/vite-plugin @comvi/core
 # Peer: vite ^5 || ^6 || ^7 || ^8
 ```
+
+`@comvi/core` belongs in your own dependencies even if you installed a framework binding such as
+`@comvi/react`, which already depends on it. The generated declaration augments `@comvi/core`, and
+a strict node_modules layout (pnpm, Yarn PnP) only lets an app resolve what it depends on directly.
+Without it the plugin refuses to write, rather than leaving a file that `skipLibCheck: true` turns
+into silently inert types.
 
 ## Quick start
 
