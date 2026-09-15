@@ -211,16 +211,17 @@ three bindings — and the pair stays on the `VueI18n` class, reachable as
 
 ## 2. The migration table
 
-| 0.4.x                                                   | 0.5.0                                                                                                                                                       |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `const { reloadTranslations, … } = useI18n()`           | `const { reloadTranslations, addActiveNamespaces, … } = useI18nLoader()`                                                                                    |
-| `const { onMissingKey } = useI18n()`                    | `const { onMissingKey } = useI18nPlugins()`                                                                                                                 |
-| `useI18n("ns")` for a capability member                 | `useI18n("ns")` keeps `t`; the capability APIs take no argument                                                                                             |
-| vue `i18n.registerLoader(…)`, 0.4's `.use(…)`, six more | `i18n.core.*` once the capability is composed on the `createI18n` result: `.use(attachLoader)` for `registerLoader`, `.use(plugins())` for `registerPlugin` |
-| vue `new VueI18n(options)`                              | `createI18n(options)`; the constructor takes `(core, vueOptions)`                                                                                           |
-| svelte/solid `getI18nContext().reloadTranslations()`    | `useI18nLoader()` in a component, or hold your own host                                                                                                     |
-| nuxt `comvi.setup` calling a dropped `VueI18n` proxy    | `context.core.*`                                                                                                                                            |
-| next: a second `setI18n(other)`                         | one configuration source per process; see §5                                                                                                                |
+| 0.4.x                                                               | 0.5.0                                                                                                                                                       |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `const { reloadTranslations, … } = useI18n()`                       | `const { reloadTranslations, addActiveNamespaces, … } = useI18nLoader()`                                                                                    |
+| `const { onMissingKey } = useI18n()`                                | `const { onMissingKey } = useI18nPlugins()`                                                                                                                 |
+| `useI18n("ns")` for a capability member                             | `useI18n("ns")` keeps `t`; the capability APIs take no argument                                                                                             |
+| vue `i18n.registerLoader(…)`, 0.4's `.use(…)`, six more             | `i18n.core.*` once the capability is composed on the `createI18n` result: `.use(attachLoader)` for `registerLoader`, `.use(plugins())` for `registerPlugin` |
+| vue `new VueI18n(options)`                                          | `createI18n(options)`; the constructor takes `(core, vueOptions)`                                                                                           |
+| react/solid/svelte/vue `new I18n(options)` (root `I18n` as a value) | `createI18n(options)`; `I18n` is a TYPE-only export on all four binding roots now — import the class itself from `@comvi/core` if you need it directly      |
+| svelte/solid `getI18nContext().reloadTranslations()`                | `useI18nLoader()` in a component, or hold your own host                                                                                                     |
+| nuxt `comvi.setup` calling a dropped `VueI18n` proxy                | `context.core.*`                                                                                                                                            |
+| next: a second `setI18n(other)`                                     | one configuration source per process; see §5                                                                                                                |
 
 `useI18nLoader()` and `useI18nPlugins()` ship from every binding
 (`@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`,
@@ -248,9 +249,13 @@ constructor and the capability toolkit on the ONE entry it publishes.
 Next's two entries are a RUNTIME split, not a host-tier split: both publish the
 same base constructor and the same toolkit. Six capability bindings are
 re-exported **by name** on each entry (`icuCompiler`, `loader`, `attachLoader`,
-`plugins`, `definePlugin`, `devtools`), plus the base `I18n` class and the core
-type vocabulary, so the ICU compiler is reachable from the one import an app
-already has, and the bindings you never call are pruned by your bundler.
+`plugins`, `definePlugin`, `devtools`), so the ICU compiler is reachable from
+the one import an app already has, and the bindings you never call are pruned
+by your bundler. `client`/`server` expose `createI18n` like every other
+binding root, plus only the type-level surface they each need; the base
+`I18n` class VALUE and core's full type vocabulary (`export type * from
+"@comvi/core"`) live on the `@comvi/next` root only — `new I18n(…)` needs the
+root specifier, not `client` or `server`.
 `@comvi/nuxt` is the one exception and re-exports nothing (§6). `createI18n` IS
 core's own constructor everywhere but `@comvi/vue`, whose `createI18n` builds
 the `VueI18n` preset around it.
@@ -272,11 +277,15 @@ import it from `@comvi/core/plugins` / `@comvi/core/devtools` instead:
 ```
 
 **Every 0.4.x import path still resolves** — the SPECIFIER, that is. What
-changed is the HOST those entries construct, not the module you name. The one
-place a 0.4.x _named import_ can stop resolving is `@comvi/vue`, which used to
+changed is the HOST those entries construct, not the module you name. Two
+kinds of 0.4.x _named import_ can stop resolving. First, a runtime `import {
+I18n } from` any of `@comvi/react`, `@comvi/solid`, `@comvi/svelte` or
+`@comvi/vue` (`new I18n(…)`, `instanceof I18n`, …): `I18n` is now a TYPE-only
+export on all four roots — see the migration table in §2, or import the class
+from `@comvi/core`. Second, `@comvi/vue` specifically, which used to
 carry `export * from "@comvi/core"` and now re-exports core's values by name;
-the ten names that dropped out, and where each one moved, are tabled in the
-`@comvi/vue` subsection below. And since no package publishes a
+the ten OTHER names that dropped out, and where each one moved, are tabled in
+the `@comvi/vue` subsection below. And since no package publishes a
 second copy of a binding, the old entry-mixing hazard is gone: `@comvi/react`,
 `@comvi/solid`, `@comvi/svelte` and `@comvi/vue` ship theirs from one entry each,
 `@comvi/next` splits its two runtime entries by runtime rather than by tier, and
@@ -512,8 +521,11 @@ Every one of the ten is still exported by `@comvi/core`, which `@comvi/vue`
 depends on, so the fix is a one-line import move and nothing was actually
 removed from the library. Prefer the `useI18n()` members where the table offers
 them: those track the locale, where the bare helpers take it as an argument.
-`@comvi/react`, `@comvi/solid` and `@comvi/svelte` are not affected — they
-already used `export type *` in 0.4.x, so their value surface only grew.
+`@comvi/react`, `@comvi/solid` and `@comvi/svelte` are not affected by THIS
+ten-name drop — they already used `export type *` in 0.4.x, so the rest of
+their value surface only grew. One value export dropped on all four binding
+roots alike, `@comvi/vue` included: `I18n` itself, covered separately in §2's
+migration table, not counted among the ten above.
 
 ## 4. Plugins
 
