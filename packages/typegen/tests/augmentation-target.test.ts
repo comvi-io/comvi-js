@@ -111,6 +111,30 @@ describe("resolveAugmentationTarget", () => {
     expect(() => resolveAugmentationTarget(app)).toThrow(/augment/);
   });
 
+  it("says that a workspace root or a peer declaration is not enough", () => {
+    // The rule reads two fields of ONE manifest, so an app whose Comvi
+    // dependency is declared only at a workspace root — or only as a peer — is
+    // refused, where the old physical `node_modules` lookup found a hoisted
+    // copy and passed. The message has to name that, or the fix looks absent.
+    const app = appDir({ peerDependencies: { "@comvi/react": "^0.5.0" } });
+
+    expect(() => resolveAugmentationTarget(app)).toThrow(
+      /workspace root or under peerDependencies is not enough/,
+    );
+  });
+
+  it("takes a Comvi package declared as a peer AND a devDependency", () => {
+    // The honest peer case is a component library that localizes its own
+    // components: it declares the binding as a peer for its consumers and as a
+    // devDependency for itself, and the devDependency is what this reads.
+    const app = appDir({
+      peerDependencies: { "@comvi/react": "^0.5.0" },
+      devDependencies: { "@comvi/react": "^0.5.0" },
+    });
+
+    expect(resolveAugmentationTarget(app)).toBe("@comvi/react");
+  });
+
   it("says where it looked when the app has no manifest", () => {
     const app = appDir(undefined);
 

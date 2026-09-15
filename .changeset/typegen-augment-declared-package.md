@@ -7,4 +7,6 @@ Generated types now augment the Comvi package your app declares, so a one-packag
 
 The target is read from your `package.json`: `@comvi/core` when you declare it, otherwise `@comvi/react`, `@comvi/next`, `@comvi/vue`, `@comvi/nuxt`, `@comvi/svelte` or `@comvi/solid`. The generated header names it. Nothing extra to install, and nothing is resolved from `node_modules`, so the answer is the same on every machine and `comvi typegen --check` regenerates the same file the write path produced. Declare none of them and both tools refuse instead of writing an inert file. Set `augment` in `.comvirc.json`, or the `augment` plugin option, to name another module such as a private wrapper package that re-exports a binding.
 
+The rule reads the `dependencies` and `devDependencies` of that one `package.json`. Declaring the package in a workspace root or under `peerDependencies` is not enough: the app's own manifest must list it, or `augment` must name the module. If your app relied on a hoisted copy it never declared, generation now fails until you add it — which is the dependency you were already importing.
+
 Regenerate once after upgrading: the header line changed and `--check` compares it.
