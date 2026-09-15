@@ -11,7 +11,7 @@ import {
   type PluralToken,
   type SelectToken,
 } from "./cache";
-import { advancePastApostrophe, findMatchingBraceEnd } from "./parser";
+import { advancePastApostrophe, findMatchingBraceEnd, hasSyntaxChars } from "./parser";
 import { setIcuHit, type IcuSyntaxError } from "./compile-simple";
 import type { MessageCompiler, TranslateCtx } from "./syntax";
 import { translateSegment } from "../translate";
@@ -55,10 +55,10 @@ export function isPluralArgStart(str: string, braceIndex: number, len: number): 
  * Replaces every `#` in a plural sub-message with the count.
  *
  * Reached only from the TEXT-ONLY fast path in `processPlural`: a branch that
- * gets here holds no `{`, `<` or `'`, so there is no nested plural whose `#`
- * must be skipped and no quoted `'#'` to protect. Any branch that holds one of
- * those characters is re-parsed instead, and its `#` becomes a `TK_HASH` token
- * the renderer resolves against `hashValue`.
+ * gets here holds none of the parser's syntax characters (`hasSyntaxChars`),
+ * so there is no nested plural whose `#` must be skipped and no quoted `'#'`
+ * to protect. Any branch that holds one of them is re-parsed instead, and its
+ * `#` becomes a `TK_HASH` token the renderer resolves against `hashValue`.
  */
 export function replaceTopLevelHash(str: string, replacement: string): string {
   let at = str.indexOf("#");
@@ -270,11 +270,7 @@ function processPlural(
 
   const replacement = String(count);
 
-  if (
-    selected.indexOf("{") !== -1 ||
-    selected.indexOf("<") !== -1 ||
-    selected.indexOf("'") !== -1
-  ) {
+  if (hasSyntaxChars(selected)) {
     // The branch goes to the parser UNCHANGED, so its cache entry is shared by
     // every count; `#` arrives as a token the renderer resolves against
     // `hashValue`. The previous count is restored afterwards — an inner plural
@@ -303,15 +299,11 @@ function processSelect(
 
   const selected = choices[value] ?? choices.other ?? "";
 
-  // A chosen branch may itself contain ICU params, tags or quoting — and,
-  // inside a plural sub-message, a `#` that belongs to the enclosing plural.
-  // A select never rebinds `#`, so `hashValue` carries straight through.
-  if (
-    selected.includes("{") ||
-    selected.includes("<") ||
-    selected.includes("'") ||
-    (hashIsSyntax && selected.includes("#"))
-  ) {
+  // A chosen branch may itself contain ICU params, extension syntax (tags,
+  // entities, the `\<` escape) or quoting — and, inside a plural sub-message, a
+  // `#` that belongs to the enclosing plural. A select never rebinds `#`, so
+  // `hashValue` carries straight through.
+  if (hasSyntaxChars(selected) || (hashIsSyntax && selected.includes("#"))) {
     return translateSegment(selected, ctx, hashIsSyntax);
   }
 
