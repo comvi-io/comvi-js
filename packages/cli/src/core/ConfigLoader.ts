@@ -14,6 +14,17 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+/**
+ * The JSON type a config value actually has, for an error the reader can act
+ * on: `null` and an array are both `typeof "object"`, and saying so would not
+ * explain what is wrong with the line they wrote.
+ */
+function typeNameOf(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  return typeof value;
+}
+
 export class ConfigLoader {
   private static readonly CONFIG_FILENAME = ".comvirc.json";
 
@@ -122,10 +133,64 @@ export class ConfigLoader {
       );
     }
 
+    this.validateSwitches(config);
+
     // Filter fields: namespaces / locales.
     // Validation throws VALIDATION_FAILED so the CLI maps it to exit code 4.
     config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
     config.locales = this.normalizeFilterField(config.locales, "locales");
+  }
+
+  /**
+   * Every boolean switch in the config, and the two sections that hold them.
+   *
+   * A JSON string is truthy, so `"emptyDir": "false"` used to read as "yes,
+   * clear the directory" — the option that deletes the local catalog, set to
+   * the exact opposite of what the file says. The same mistake in
+   * `strictParams` silently turned strict parameters back on. Both are
+   * refused during `load`, which runs before any command opens a socket or
+   * touches the translations directory.
+   *
+   * `push.forceMode` is the other destructive switch; `push` itself validates
+   * it against the four allowed modes before it sends anything.
+   */
+  private static validateSwitches(config: ComviConfig): void {
+    this.assertOptionalBoolean(config.strictParams, "strictParams");
+
+    const pull = this.assertOptionalSection(config.pull, "pull");
+    this.assertOptionalBoolean(pull?.emptyDir, "pull.emptyDir");
+
+    this.assertOptionalSection(config.push, "push");
+  }
+
+  private static assertOptionalBoolean(value: unknown, key: string): void {
+    if (value === undefined || typeof value === "boolean") {
+      return;
+    }
+
+    throw new TypegenError(
+      `Invalid configuration: "${key}" must be a boolean (true or false), received ` +
+        `${typeNameOf(value)} ${JSON.stringify(value) ?? String(value)}`,
+      ErrorCodes.VALIDATION_FAILED,
+    );
+  }
+
+  private static assertOptionalSection(
+    value: unknown,
+    key: string,
+  ): Record<string, unknown> | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      throw new TypegenError(
+        `Invalid configuration: "${key}" must be an object, received ${typeNameOf(value)}`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
+    return value as Record<string, unknown>;
   }
 
   /**

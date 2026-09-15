@@ -20,3 +20,12 @@ on every object in the process; the same pattern read local catalogs and built t
 and a `__proto__` namespace replaced a locale map's prototype outright. All three maps are now
 null-prototype dictionaries read by own key only, so those names are ordinary entries — and a
 `pull` still refuses to turn `__proto__` into a file name.
+
+**Security: `"emptyDir": "false"` in `.comvirc.json` no longer deletes the catalog.** A quoted
+`"false"` is a truthy string, so the option that clears the translations directory before a pull
+was enabled by the exact value that reads as "off" — and nothing checked it. `pull.emptyDir` and
+`strictParams` must now be a boolean or absent, `pull` and `push` must be objects, and each is
+refused while the config is loading, before any request is sent or any file removed. The error
+names the key and the type it received, and the exit code is 4 like every other invalid
+configuration. `push.forceMode`, the other destructive switch, was already checked against its
+four allowed modes before `push` sent anything.
