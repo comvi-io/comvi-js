@@ -8,73 +8,56 @@ import { fileURLToPath } from "node:url";
 import {
   classifyActions,
   isPublishedPath,
-  loadPublishablePackages,
   parseSeverityArg,
   severityAtLeast,
+  workspaceRootWord,
   DEFAULT_SEVERITY,
 } from "./audit-published.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(SCRIPT_DIR, "audit-published.mjs");
 
-/**
- * A synthetic workspace: one publishable package with a runtime dependency
- * and a dev-only one, and one PRIVATE package — mirrors the real shapes
- * (`@comvi/plugin-in-context-editor` publishable, `@comvi/typegen` private)
- * without depending on either's actual manifest staying the same.
- */
-function writeFixtureWorkspace() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "audit-published-"));
-  const write = (dir, pkg) => {
-    fs.mkdirSync(path.join(root, "packages", dir), { recursive: true });
-    fs.writeFileSync(
-      path.join(root, "packages", dir, "package.json"),
-      JSON.stringify(pkg, null, 2),
-    );
-  };
-  write("foo-public", {
-    name: "@fixture/foo-public",
-    dependencies: { lodash: "^4.0.0" },
-    devDependencies: { vitest: "^1.0.0" },
-  });
-  write("bar-private", {
-    name: "@fixture/bar-private",
-    private: true,
-    dependencies: { leftpad: "^1.0.0" },
-  });
-  return root;
-}
-
-test("loadPublishablePackages keeps only non-private packages/* members, keyed by their runtime deps", () => {
-  const root = writeFixtureWorkspace();
-  const publishable = loadPublishablePackages(root);
-
-  assert.deepEqual([...publishable.keys()].sort(), ["packages__foo-public"]);
-  assert.deepEqual([...publishable.get("packages__foo-public")], ["lodash"]);
+test("workspaceRootWord normalizes both separator conventions the audit JSON uses for the same chain", () => {
+  // `actions[].resolves[].path`: "__" for the folder separator, ">" between deps.
+  assert.equal(workspaceRootWord("test-apps__nuxt>nuxt>@nuxt/devtools>ws"), "test-apps");
+  assert.equal(workspaceRootWord("packages__plugin-in-context-editor>vue>reka-ui"), "packages");
+  assert.equal(workspaceRootWord("tooling__test-utils>vitest>@vitest/mocker"), "tooling");
+  // `advisories[<id>].findings[].paths`: "/" for the folder separator, " > " between deps.
+  assert.equal(workspaceRootWord("test-apps/next > next@15.5.18 > postcss@8.4.31"), "test-apps");
+  // A bare word with none of the three separators is its own root.
+  assert.equal(workspaceRootWord("packages"), "packages");
 });
 
-test("isPublishedPath: RC review #15 — a private-tooling path is never published", () => {
-  const root = writeFixtureWorkspace();
-  const publishable = loadPublishablePackages(root);
-
-  assert.equal(isPublishedPath("tooling__test-utils>vitest>@vitest/mocker", publishable), false);
-  assert.equal(isPublishedPath("test-apps__nuxt>nuxt>@nuxt/devtools>ws", publishable), false);
-  // Rooted in packages/*, but that member is `private: true` — still not published.
-  assert.equal(isPublishedPath("packages__bar-private>leftpad", publishable), false);
+test("isPublishedPath: RC review M9 — packages/* is published-relevant regardless of the member's own private field", () => {
+  // `@comvi/typegen` and `@comvi/locale-routing` are `private: true` under
+  // packages/* but get inlined into twelve other published packages — the
+  // classifier no longer reads any package.json at all to decide this.
+  assert.equal(isPublishedPath("packages__typegen>some-dep"), true);
+  assert.equal(isPublishedPath("packages__locale-routing>some-dep"), true);
 });
 
-test("isPublishedPath: a published-package runtime path is reported", () => {
-  const root = writeFixtureWorkspace();
-  const publishable = loadPublishablePackages(root);
-
-  assert.equal(isPublishedPath("packages__foo-public>lodash>deep-thing", publishable), true);
+test("isPublishedPath: RC review M9 — a devDependency-only path in a published package is still published-relevant", () => {
+  // `@comvi/plugin-in-context-editor`'s `./standalone` entry bundles with
+  // `external: []`, inlining devDependencies (vue, reka-ui, …) into a
+  // published artifact — dependencies-vs-devDependencies is not a signal of
+  // what a bundler inlined, so it is no longer consulted.
+  assert.equal(isPublishedPath("packages__plugin-in-context-editor>vue>reka-ui"), true);
 });
 
-test("isPublishedPath: a path reachable only through a devDependency of a published package is not published", () => {
-  const root = writeFixtureWorkspace();
-  const publishable = loadPublishablePackages(root);
+test("isPublishedPath: only test-apps/tooling/examples roots are private", () => {
+  assert.equal(isPublishedPath("test-apps__nuxt>nuxt>@nuxt/devtools>ws"), false);
+  assert.equal(isPublishedPath("tooling__test-utils>vitest>@vitest/mocker"), false);
+  assert.equal(isPublishedPath("examples__basic>some-dep"), false);
+});
 
-  assert.equal(isPublishedPath("packages__foo-public>vitest>@vitest/mocker", publishable), false);
+test("isPublishedPath: RC review M9 — apps/* (e.g. the Chrome extension) is published-relevant, and an unrecognized root fails CLOSED", () => {
+  assert.equal(isPublishedPath("apps__chrome-extension>some-dep"), true);
+  assert.equal(isPublishedPath("some-future-top-level-dir__thing>dep"), true);
+});
+
+test("isPublishedPath: the alternate advisories-style path spelling classifies the same as the actions-style one", () => {
+  assert.equal(isPublishedPath("test-apps/next > next@15.5.18 > postcss@8.4.31"), false);
+  assert.equal(isPublishedPath("packages/core > some-dep@1.0.0"), true);
 });
 
 test("severityAtLeast orders info < low < moderate < high < critical and fails open on unknown severities", () => {
@@ -91,10 +74,7 @@ test("parseSeverityArg reads --severity <value> and --severity=<value>, defaulti
   assert.equal(parseSeverityArg(["--severity=critical"]), "critical");
 });
 
-test("classifyActions: RC review #15 — `--severity high` drops a moderate finding, keeps a high one, both in a published package", () => {
-  const root = writeFixtureWorkspace();
-  const publishablePackages = loadPublishablePackages(root);
-
+test("classifyActions: `--severity high` drops a moderate finding, keeps a high one, both in a published package", () => {
   const data = {
     actions: [
       {
@@ -120,10 +100,10 @@ test("classifyActions: RC review #15 — `--severity high` drops a moderate find
     },
   };
 
-  const atModerate = classifyActions(data, { publishablePackages, severity: "moderate" });
+  const atModerate = classifyActions(data, { severity: "moderate" });
   assert.deepEqual(atModerate.map((a) => a.module).sort(), ["critical-lib", "leftpad-vuln"]);
 
-  const atHigh = classifyActions(data, { publishablePackages, severity: "high" });
+  const atHigh = classifyActions(data, { severity: "high" });
   assert.deepEqual(
     atHigh.map((a) => a.module),
     ["critical-lib"],
@@ -131,7 +111,7 @@ test("classifyActions: RC review #15 — `--severity high` drops a moderate find
 });
 
 test("classifyActions throws on a missing `actions` array instead of silently reporting nothing", () => {
-  assert.throws(() => classifyActions({}, { publishablePackages: new Map() }), /actions/);
+  assert.throws(() => classifyActions({}), /actions/);
 });
 
 /** Puts a stub `pnpm` ahead of PATH that answers `audit --prod --json` with fixed JSON. */
@@ -170,5 +150,27 @@ test("CLI end-to-end: a vulnerability rooted only in a private workspace member 
       encoding: "utf8",
     });
     assert.match(result, /no vulnerabilities/);
+  });
+});
+
+test("CLI end-to-end: RC review M9 — a vulnerability in a packages/* devDependency chain fails the gate", () => {
+  const auditJson = {
+    actions: [
+      {
+        module: "vue",
+        target: "3.9.9",
+        resolves: [{ id: 1, path: "packages__plugin-in-context-editor>vue>reka-ui", dev: false }],
+      },
+    ],
+    advisories: { 1: { severity: "high" } },
+  };
+
+  withStubPnpm(auditJson, (env) => {
+    assert.throws(() => {
+      execFileSync(process.execPath, [SCRIPT, "--severity", "high"], {
+        env: { ...process.env, ...env },
+        encoding: "utf8",
+      });
+    }, /Command failed/);
   });
 });

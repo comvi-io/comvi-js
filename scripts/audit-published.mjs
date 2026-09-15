@@ -1,16 +1,36 @@
 #!/usr/bin/env node
 /**
  * Run `pnpm audit --prod --json` and exit non-zero ONLY if a vulnerability at
- * or above the requested severity reaches a *published* @comvi/* package
- * through one of ITS runtime dependencies.
+ * or above the requested severity reaches a *published* artifact — anything a
+ * user actually installs or downloads, not this repo's own dev/test tooling.
  *
- * "Published" means: rooted in a `packages/*` workspace member whose
- * package.json does not declare `private: true`, reached through a name
- * listed in that package's `dependencies` (not `devDependencies` — a path
- * that only dips into the package through its own build/test tooling never
- * ships). Every other workspace member — `test-apps/*`, `tooling/*`,
- * `apps/*`, and any `private: true` package under `packages/*` (e.g.
- * `@comvi/typegen`, `@comvi/locale-routing`) — is dev-only noise and ignored.
+ * "Published" is decided by the FIRST path segment (the workspace root pnpm
+ * emits, e.g. `packages__plugin-in-context-editor`) alone: `test-apps/*`,
+ * `tooling/*` and `examples/*` are dev-only fixtures and sample code that
+ * never ship, so their roots are excluded. Everything else — `packages/*`
+ * (published npm packages) AND `apps/*` (e.g. the Chrome extension, shipped
+ * to the Chrome Web Store rather than npm) — is published-relevant. This is
+ * deliberately NOT narrowed by a package's own `private` field or by whether
+ * a dependency is listed under `dependencies` vs `devDependencies`: this
+ * repo's build tooling bundles across both without preserving that split —
+ * `@comvi/plugin-in-context-editor`'s `./standalone` entry is built with
+ * `external: []`, so it inlines devDependencies (vue, reka-ui, …) into a
+ * published artifact, and the two `private: true` packages under `packages/*`
+ * (`@comvi/typegen`, `@comvi/locale-routing`) are themselves inlined into
+ * twelve OTHER published packages. Package-manifest metadata cannot tell you
+ * what a bundler actually inlined, so every `packages/*` and `apps/*` path is
+ * in scope, full stop. An UNRECOGNIZED workspace root (a future top-level
+ * directory, or pnpm reshaping the JSON) fails CLOSED: it is reported, not
+ * silently dropped.
+ *
+ * The root check normalizes across the two path-string conventions this same
+ * `pnpm audit --json` output uses for what is otherwise the same dependency
+ * chain: `actions[].resolves[].path` joins segments with ">" and spells the
+ * workspace root with "__" for its folder separator
+ * (`test-apps__nuxt>nuxt>ws`), while `advisories[<id>].findings[].paths`
+ * joins with " > " and spells it with "/" (`test-apps/nuxt > nuxt@… > ws@…`).
+ * `workspaceRootWord()` strips at whichever of "__", ">" or "/" comes first,
+ * so both spellings of the same root resolve to the same word.
  *
  * Usage:
  *   node scripts/audit-published.mjs [--severity <info|low|moderate|high|critical>]
@@ -21,15 +41,12 @@
  *   2 — script error (audit could not run / parse)
  */
 import { execSync } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-export const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 
 export const SEVERITY_ORDER = ["info", "low", "moderate", "high", "critical"];
 export const DEFAULT_SEVERITY = "high";
+
+/** Workspace roots that are dev-only fixtures/samples and never ship. */
+export const PRIVATE_ROOT_WORDS = new Set(["test-apps", "tooling", "examples"]);
 
 /** `sev` meets or exceeds `threshold`; an unrecognized severity fails open (kept, not dropped). */
 export function severityAtLeast(severity, threshold) {
@@ -49,54 +66,28 @@ export function parseSeverityArg(argv, fallback = DEFAULT_SEVERITY) {
 }
 
 /**
- * Publishable workspace packages, keyed by the pnpm-audit path prefix pnpm
- * emits for that workspace importer (`packages/<dir>` -> `packages__<dir>`,
- * `/` replaced with `__`, matching the `>`-joined dependency-chain format).
- * Each value is the set of that package's runtime `dependencies` names.
+ * The first path segment (the workspace root) of a pnpm-audit dependency
+ * chain, independent of which of the two separator conventions this
+ * particular string uses — see the module doc comment. Only the first
+ * segment is normalized: everything after it is an ordinary npm package name
+ * (which may itself legitimately contain "/", e.g. `@nuxt/devtools`) and is
+ * never re-split.
  */
-export function loadPublishablePackages(repoRoot = REPO_ROOT) {
-  const packagesDir = path.join(repoRoot, "packages");
-  const publishable = new Map();
-  let entries;
-  try {
-    entries = fs.readdirSync(packagesDir, { withFileTypes: true });
-  } catch {
-    return publishable;
-  }
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const pkgJsonPath = path.join(packagesDir, entry.name, "package.json");
-    let pkg;
-    try {
-      pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
-    } catch {
-      continue;
-    }
-    if (pkg.private === true) continue;
-
-    const prefix = `packages__${entry.name}`;
-    publishable.set(prefix, new Set(Object.keys(pkg.dependencies || {})));
-  }
-
-  return publishable;
+export function workspaceRootWord(auditPath) {
+  const raw = String(auditPath);
+  const candidates = [raw.indexOf("__"), raw.indexOf(">"), raw.indexOf("/")].filter(
+    (i) => i !== -1,
+  );
+  const stop = candidates.length > 0 ? Math.min(...candidates) : raw.length;
+  return raw.slice(0, stop);
 }
 
 /**
- * A pnpm audit `resolves[].path` is a *published* path when its root segment
- * names a publishable workspace package and — if the chain goes deeper — the
- * very next segment is one of that package's runtime `dependencies`. Once
- * inside a real runtime dependency, everything nested beneath it is whatever
- * npm/pnpm actually installed for it; only the package's OWN top-level
- * dependencies-vs-devDependencies split matters.
+ * A path is published-relevant unless it is rooted in a known dev-only
+ * workspace area. Fails CLOSED on anything it does not recognize.
  */
-export function isPublishedPath(auditPath, publishablePackages) {
-  const segments = String(auditPath).split(">");
-  const root = segments[0];
-  const runtimeDeps = publishablePackages.get(root);
-  if (!runtimeDeps) return false;
-  if (segments.length === 1) return true;
-  return runtimeDeps.has(segments[1]);
+export function isPublishedPath(auditPath) {
+  return !PRIVATE_ROOT_WORDS.has(workspaceRootWord(auditPath));
 }
 
 /**
@@ -105,7 +96,7 @@ export function isPublishedPath(auditPath, publishablePackages) {
  * drift — silently defaulting `actions` to `[]` would produce a green gate
  * when pnpm changes its JSON shape.
  */
-export function classifyActions(data, { publishablePackages, severity = DEFAULT_SEVERITY }) {
+export function classifyActions(data, { severity = DEFAULT_SEVERITY } = {}) {
   if (!Array.isArray(data?.actions)) {
     throw new Error("unexpected pnpm audit JSON schema (missing `actions` array)");
   }
@@ -116,7 +107,7 @@ export function classifyActions(data, { publishablePackages, severity = DEFAULT_
       module: a.module,
       target: a.target,
       resolves: (a.resolves || []).filter((r) => {
-        if (!isPublishedPath(r.path || "", publishablePackages)) return false;
+        if (!isPublishedPath(r.path || "")) return false;
         const advisorySeverity = advisories[String(r.id)]?.severity;
         return advisorySeverity ? severityAtLeast(advisorySeverity, severity) : true;
       }),
@@ -166,11 +157,9 @@ function main() {
     process.exit(2);
   }
 
-  const publishablePackages = loadPublishablePackages();
-
   let publishedActions;
   try {
-    publishedActions = classifyActions(data, { publishablePackages, severity });
+    publishedActions = classifyActions(data, { severity });
   } catch (err) {
     console.error(`audit-published: ${err.message}`);
     process.exit(2);
@@ -179,7 +168,7 @@ function main() {
   if (publishedActions.length === 0) {
     console.log(
       `audit-published: no vulnerabilities at/above "${severity}" in published packages ` +
-        "(private workspace packages ignored as dev-only).",
+        "(test-apps/tooling/examples paths ignored as dev-only).",
     );
     process.exit(0);
   }
