@@ -137,14 +137,14 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     if (addOgLocale) {
       meta.push({
         property: "og:locale",
-        content: (localeObj?.iso || currentLocale).replace("-", "_"),
+        content: (localeObj?.iso || currentLocale).replace(/-/g, "_"),
       });
 
       for (const locale of locales) {
         if (locale !== currentLocale) {
           meta.push({
             property: "og:locale:alternate",
-            content: (localeObjects[locale]?.iso || locale).replace("-", "_"),
+            content: (localeObjects[locale]?.iso || locale).replace(/-/g, "_"),
           });
         }
       }

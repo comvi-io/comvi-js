@@ -456,6 +456,22 @@ describe("useLocaleHead", () => {
     ]);
   });
 
+  it("replaces every hyphen in a script-and-region iso, not only the first", () => {
+    setMockRoute({ path: "/de/about", fullPath: "/de/about" });
+    useState<string>("i18n-locale", () => "de");
+    withMixedLocaleObjects();
+    mockRuntimeConfig.public.comvi.localeObjects.uk = {
+      code: "uk",
+      name: "Traditional Chinese (Taiwan)",
+      iso: "zh-Hant-TW",
+    };
+
+    const headConfig = useLocaleHead({ baseUrl: "https://example.com" });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.meta).toContainEqual({ property: "og:locale:alternate", content: "zh_Hant_TW" });
+  });
+
   it("uses each locale's iso for the hreflang of its alternate link", () => {
     setMockRoute({ path: "/de/about", fullPath: "/de/about" });
     useState<string>("i18n-locale", () => "de");
