@@ -933,6 +933,175 @@ describe("nuxt module setup", () => {
     expect(paths).toEqual(["/:localeId/profile", "/de/:localeId/profile"]);
   });
 
+  /**
+   * Route generation for aliases and redirects, through the real `extendPages`
+   * hook. A clone that keeps its source's unprefixed alias re-opens the
+   * unlocalized URL (under `localePrefix: "always"` that URL is supposed to be
+   * gone), and an unprefixed redirect drops the visitor out of their locale.
+   */
+  describe("cloned aliases and redirects", () => {
+    const localizedPages = async (
+      pages: NuxtPage[],
+      localePrefix: "always" | "as-needed" = "as-needed",
+    ) => {
+      const moduleDefinition = await importModule();
+      const nuxt = createNuxtStub();
+      await moduleDefinition.setup(
+        { locales: ["en", "de"], defaultLocale: "en", localePrefix },
+        nuxt,
+      );
+      extendPagesHandler!(pages);
+      return pages;
+    };
+
+    const byName = (pages: NuxtPage[], name: string) => pages.find((page) => page.name === name);
+
+    it("localizes an array of internal absolute aliases", async () => {
+      const pages = await localizedPages([
+        { name: "legacy", path: "/legacy", alias: ["/old", "/archive"] },
+      ]);
+
+      expect(byName(pages, "legacy___de")?.alias).toEqual(["/de/old", "/de/archive"]);
+      // The source page keeps its own, unprefixed aliases.
+      expect(byName(pages, "legacy")?.alias).toEqual(["/old", "/archive"]);
+    });
+
+    it("localizes a single string alias and the root alias", async () => {
+      const pages = await localizedPages([
+        { name: "legacy", path: "/legacy", alias: "/old" },
+        { name: "home", path: "/home", alias: "/" },
+      ]);
+
+      expect(byName(pages, "legacy___de")?.alias).toBe("/de/old");
+      expect(byName(pages, "home___de")?.alias).toBe("/de");
+    });
+
+    it("leaves an external or protocol-relative alias alone", async () => {
+      const pages = await localizedPages([
+        {
+          name: "legacy",
+          path: "/legacy",
+          alias: ["https://example.com/old", "//cdn.example.com/old", "/old"],
+        },
+      ]);
+
+      expect(byName(pages, "legacy___de")?.alias).toEqual([
+        "https://example.com/old",
+        "//cdn.example.com/old",
+        "/de/old",
+      ]);
+    });
+
+    it("keeps a child alias relative, like the child path", async () => {
+      const pages = await localizedPages([
+        {
+          name: "dashboard",
+          path: "/dashboard",
+          children: [{ name: "dashboard-settings", path: "settings", alias: "preferences" }],
+        },
+      ]);
+
+      expect(byName(pages, "dashboard___de")?.children?.[0]?.alias).toBe("preferences");
+    });
+
+    it("localizes a string redirect", async () => {
+      const pages = await localizedPages([
+        { name: "legacy", path: "/legacy", redirect: "/new" },
+        { name: "root", path: "/root", redirect: "/" },
+      ]);
+
+      expect(byName(pages, "legacy___de")?.redirect).toBe("/de/new");
+      expect(byName(pages, "root___de")?.redirect).toBe("/de");
+    });
+
+    it("leaves an external string redirect alone", async () => {
+      const pages = await localizedPages([
+        { name: "legacy", path: "/legacy", redirect: "https://example.com/new" },
+      ]);
+
+      expect(byName(pages, "legacy___de")?.redirect).toBe("https://example.com/new");
+    });
+
+    it("localizes the path of a route-location redirect and keeps its query and hash", async () => {
+      const pages = await localizedPages([
+        {
+          name: "legacy",
+          path: "/legacy",
+          redirect: { path: "/new", query: { from: "legacy" }, hash: "#top" },
+        },
+      ]);
+
+      expect(byName(pages, "legacy___de")?.redirect).toEqual({
+        path: "/de/new",
+        query: { from: "legacy" },
+        hash: "#top",
+      });
+    });
+
+    it("retargets a name-based redirect at the cloned route of the same locale", async () => {
+      // A name-based redirect is the one form that MUST be rewritten: under
+      // `localePrefix: "always"` the unprefixed record it names is removed, so
+      // leaving the plain name behind would resolve to nothing. The clone's own
+      // names carry the `___<locale>` suffix, so the redirect follows them —
+      // including a child name.
+      const pages = await localizedPages(
+        [
+          { name: "legacy", path: "/legacy", redirect: { name: "target" } },
+          { name: "legacy-child", path: "/legacy-child", redirect: { name: "dashboard-settings" } },
+          { name: "target", path: "/target" },
+          {
+            name: "dashboard",
+            path: "/dashboard",
+            children: [{ name: "dashboard-settings", path: "settings" }],
+          },
+        ],
+        "always",
+      );
+
+      expect(byName(pages, "legacy___de")?.redirect).toEqual({ name: "target___de" });
+      expect(byName(pages, "legacy-child___de")?.redirect).toEqual({
+        name: "dashboard-settings___de",
+      });
+    });
+
+    it("leaves a name-based redirect alone when no cloned page defines that name", async () => {
+      const pages = await localizedPages([
+        { name: "legacy", path: "/legacy", redirect: { name: "somewhere-else" } },
+      ]);
+
+      expect(byName(pages, "legacy___de")?.redirect).toEqual({ name: "somewhere-else" });
+    });
+
+    it("leaves a function redirect alone", async () => {
+      // Nuxt types `redirect` as a route location, but vue-router accepts a
+      // function at runtime and a user config can carry one; it decides the
+      // target itself, so the module must not touch it.
+      const redirect = () => "/new";
+      const pages = await localizedPages([
+        { name: "legacy", path: "/legacy", redirect: redirect as unknown as NuxtPage["redirect"] },
+      ]);
+
+      expect(byName(pages, "legacy___de")?.redirect).toBe(redirect);
+    });
+
+    it("leaves no unprefixed alias behind under localePrefix always", async () => {
+      const pages = await localizedPages(
+        [
+          { name: "legacy", path: "/legacy", alias: ["/old", "/archive"] },
+          { name: "home", path: "/", alias: "/start" },
+        ],
+        "always",
+      );
+
+      const aliases = pages.flatMap((page) =>
+        page.alias === undefined ? [] : [page.alias].flat(),
+      );
+
+      expect(aliases.length).toBe(6);
+      expect(aliases.filter((alias) => /^\/(en|de)(\/|$)/.test(alias))).toEqual(aliases);
+    });
+  });
+
   it("keeps relative child paths when cloning localized nested routes", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
