@@ -10,6 +10,7 @@ import type {
 import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
+import { emptyDictionary } from "../utils/dictionary";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
@@ -114,7 +115,10 @@ export class TranslationSync {
 
   async readTranslations(options: ReadTranslationsOptions = {}): Promise<LocalTranslations> {
     const defaultNamespace = options.defaultNamespace ?? DEFAULT_NAMESPACE;
-    const result: TranslationData = {};
+    // Keyed by locale and namespace names parsed off the file tree, so both
+    // levels are null-prototype maps: a `__proto__.json` file must become an
+    // entry, never a write through Object.prototype.
+    const result: TranslationData = emptyDictionary();
     const foundLocales = new Set<string>();
     const foundNamespaces = new Set<string>();
     const sourceFiles = new Map<string, string>();
@@ -152,9 +156,7 @@ export class TranslationSync {
 
         const translations = flattenTranslationFile(parsed, filePath);
 
-        if (!result[locale]) {
-          result[locale] = {};
-        }
+        result[locale] ??= emptyDictionary();
         result[locale][namespace] = translations;
 
         foundLocales.add(locale);
@@ -605,7 +607,7 @@ function flattenTranslationFile(
 ): Record<string, string> {
   // Null prototype so a key literally named `__proto__` lands as data instead
   // of hitting Object.prototype's setter and vanishing.
-  const result: Record<string, string> = Object.create(null) as Record<string, string>;
+  const result: Record<string, string> = emptyDictionary();
 
   const visit = (node: Record<string, unknown>, prefix: string): void => {
     for (const [key, value] of Object.entries(node)) {
