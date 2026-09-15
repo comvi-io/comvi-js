@@ -12,8 +12,9 @@ Extension syntax inside a plural or select branch is now parsed exactly as it is
 
 Only `{`, `<` and `'` used to send a selected sub-message back through the parser, so a branch of
 plain text kept `&amp;` escaped while the same text one level up rendered `&` — and adding a
-parameter to the branch changed the entity's rendering. All five syntax characters are now one
-shared list.
+parameter to the branch changed the entity's rendering. The parser's syntax characters are now one
+shared list. A bare `&` is not one of them: it is ordinary copy, so "Terms & Conditions" in a
+branch costs exactly what it did before, while `&amp;` and `&#38;` are decoded.
 
 ICU exact plural selectors are now matched as numbers, and a non-numeric one is rejected.
 

@@ -149,8 +149,18 @@ export function advancePastApostrophe(
  * missing from the ICU compiler's copy of this list, which left `&amp;`
  * escaped inside a plain plural/select branch while the identical text one
  * level up decoded — and made adding a parameter to the branch change it.
+ *
+ * `&` is narrowed to one that can actually OPEN something: an entity is `&`
+ * plus a name or a `#`. A bare `&` is ordinary copy ("Terms & Conditions"),
+ * and treating it as a trigger sent branches of plain text through the parser
+ * for byte-identical output at +27% on the perf gate's own case. The parser
+ * still offers every `&` to the extensions, so nothing an extension claims is
+ * lost: the narrowing only decides when re-parsing is worth doing at all, and
+ * a `&` followed by anything else is claimed by no shipped grammar. `\` stays
+ * broad — only `\<` is an escape, but a lone backslash in translation copy is
+ * rare enough that narrowing it buys nothing measurable.
  */
-const SYNTAX_CHARS = /['{<&\\]/;
+const SYNTAX_CHARS = /['{<\\]|&[#A-Za-z]/;
 
 /** True when `str` holds anything the parser would not pass through as text. */
 export function hasSyntaxChars(str: string): boolean {
