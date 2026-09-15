@@ -29,6 +29,11 @@ The closing-tag scanner skipped backslash escapes but not apostrophe quoting, so
 tag. It now skips quoted sections through the message parser's own helper, in the same
 `#`-is-syntax context the tag was parsed in.
 
+An apostrophe that never closes is treated as the literal it looks like, so elision before a
+placeholder keeps working. `<b>l'{name}</b>` in French and `dell'{item}` in Italian are ordinary
+copy, and ICU's rule that an unmatched apostrophe quotes to the end of the message would have left
+the tag unclosed and shown its markup as text. A balanced quote still protects a `</b>` inside it.
+
 Catalog ingestion now enumerates own locale keys only.
 
 `addTranslations` and the `translation` option walked the prototype chain of the outer
