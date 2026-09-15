@@ -20,6 +20,7 @@ import type {
   ForceMode,
 } from "../types";
 import { wrapError, ErrorCodes, TypegenError } from "../utils/errors";
+import { emptyDictionary } from "../utils/dictionary";
 
 export interface ApiClientOptions {
   apiKey: string;
@@ -622,12 +623,14 @@ export class ApiClient {
 }
 
 function normalizeTranslationsResponse(response: ApiTranslationsResponse): TranslationsResponse {
-  const translations: TranslationData = {};
+  // Both levels are keyed by names the server chose, so both are
+  // null-prototype maps, and `Object.entries` reads own keys only.
+  const translations: TranslationData = emptyDictionary();
   const namespaceNames = Object.keys(response.namespaces);
 
   for (const [namespace, locales] of Object.entries(response.namespaces)) {
     for (const [locale, values] of Object.entries(locales)) {
-      translations[locale] ??= {};
+      translations[locale] ??= emptyDictionary();
       translations[locale][namespace] = values;
     }
   }
@@ -671,11 +674,13 @@ function countTranslationValues(translations: TranslationData): number {
 function toNamespaceImportData(
   translations: TranslationData,
 ): Record<string, Record<string, Record<string, string>>> {
-  const namespaces: Record<string, Record<string, Record<string, string>>> = {};
+  // Same reason as `normalizeTranslationsResponse`: the namespace names come
+  // from the project's own directory layout, not from this code.
+  const namespaces: Record<string, Record<string, Record<string, string>>> = emptyDictionary();
 
   for (const [locale, namespaceMap] of Object.entries(translations)) {
     for (const [namespace, keys] of Object.entries(namespaceMap)) {
-      namespaces[namespace] ??= {};
+      namespaces[namespace] ??= emptyDictionary();
       namespaces[namespace][locale] = keys;
     }
   }

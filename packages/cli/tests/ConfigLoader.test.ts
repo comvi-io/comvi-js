@@ -314,6 +314,69 @@ describe("ConfigLoader", () => {
     });
   });
 
+  /**
+   * `pull.emptyDir` decides whether a pull deletes the catalog first, and a
+   * string is truthy: `"false"` used to read as "yes, delete". A switch that
+   * can destroy files has to be a boolean or absent, and it has to be refused
+   * during `load` — before the pull opens a socket or touches the directory.
+   */
+  describe("boolean switch validation", () => {
+    const loadWith = async (extra: Record<string, unknown>) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    const switches: Array<[key: string, config: (value: unknown) => Record<string, unknown>]> = [
+      ["pull.emptyDir", (value) => ({ pull: { emptyDir: value } })],
+      ["strictParams", (value) => ({ strictParams: value })],
+    ];
+
+    describe.each(switches)("%s", (key, configFor) => {
+      const invalid: Array<[label: string, value: unknown, type: string]> = [
+        ['the string "false"', "false", "string"],
+        ['the string "true"', "true", "string"],
+        ["a number", 1, "number"],
+        ["an object", {}, "object"],
+        ["an array", [], "array"],
+        ["null", null, "null"],
+      ];
+
+      it.each(invalid)("rejects %s", async (_label, value, type) => {
+        const error = await rejectionOf(loadWith(configFor(value)));
+
+        expect(error).toBeInstanceOf(TypegenError);
+        expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+        expect((error as TypegenError).message).toContain(`"${key}"`);
+        expect((error as TypegenError).message).toContain(type);
+      });
+
+      it.each([true, false])("accepts %s", async (value) => {
+        await expect(loadWith(configFor(value))).resolves.toBeDefined();
+      });
+
+      it("accepts the field being absent", async () => {
+        await expect(loadWith({})).resolves.toBeDefined();
+      });
+    });
+
+    it("rejects a pull section that is not an object", async () => {
+      const error = await rejectionOf(loadWith({ pull: "false" }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as TypegenError).message).toContain('"pull"');
+      expect((error as TypegenError).message).toContain("string");
+    });
+
+    it("rejects a push section that is not an object", async () => {
+      const error = await rejectionOf(loadWith({ push: ["override"] }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as TypegenError).message).toContain('"push"');
+      expect((error as TypegenError).message).toContain("array");
+    });
+  });
+
   describe("toGeneratorOptions", () => {
     it("should convert config to generator options with defaults", () => {
       const config: ComviConfig = {

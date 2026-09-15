@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { createPullCommand } from "../src/commands/pull";
+import { TranslationSync } from "../src/core/TranslationSync";
 import {
   assertNoUnexpectedRequests,
   captureConsole,
@@ -234,6 +235,32 @@ describe("comvi pull", () => {
     expect(JSON.parse(await fs.readFile(join(localesDir, "en.json"), "utf-8"))).toEqual({
       greeting: "Hello",
     });
+  });
+
+  /**
+   * `"emptyDir": "false"` reads as "do not clear" and used to mean the
+   * opposite, because a non-empty string is truthy. The run has to stop while
+   * loading the config — before a request goes out and before a single file is
+   * removed.
+   */
+  it('refuses a string "false" for pull.emptyDir without clearing or fetching', async () => {
+    const configPath = await writeConfig({
+      translationsPath: localesDir,
+      pull: { emptyDir: "false" },
+    });
+    await fs.mkdir(localesDir, { recursive: true });
+    await fs.writeFile(join(localesDir, "stale.json"), "{}", "utf-8");
+    const clearDirectory = vi.spyOn(TranslationSync.prototype, "clearDirectory");
+    http = stubFetch({});
+
+    const exitCode = await runPull(["-c", configPath]);
+
+    expect(exitCode).toBe(4);
+    expect(clearDirectory).not.toHaveBeenCalled();
+    expect(http.requests).toEqual([]);
+    expect(await fs.readFile(join(localesDir, "stale.json"), "utf-8")).toBe("{}");
+    expect(output.stderr).toContain('"pull.emptyDir"');
+    expect(output.stderr).toContain("string");
   });
 
   it("keeps stale files when neither the flag nor the config asks for a clear", async () => {

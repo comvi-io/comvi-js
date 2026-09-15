@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import type {
   TranslationData,
   TranslationsResponse,
@@ -10,6 +10,7 @@ import type {
 import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
+import { emptyDictionary } from "../utils/dictionary";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
@@ -66,7 +67,14 @@ export class TranslationSync {
         if (!nsTranslations) continue;
 
         const filePath = this.resolveFilePath(locale, ns, defaultNamespace);
-        await this.ensureDirectory(dirname(filePath));
+        const directory = dirname(filePath);
+
+        // Before mkdir: an existing directory on the way down may be a symlink
+        // that leaves the tree, and `mkdir -p` would follow it silently.
+        await this.assertRealPathContained(directory);
+        await this.ensureDirectory(directory);
+        // Before the write: the target itself may be a symlink out of the tree.
+        await this.assertRealPathContained(filePath);
 
         const content = JSON.stringify(nsTranslations, null, 2) + "\n";
         await atomicWriteFile(filePath, content);
@@ -107,7 +115,10 @@ export class TranslationSync {
 
   async readTranslations(options: ReadTranslationsOptions = {}): Promise<LocalTranslations> {
     const defaultNamespace = options.defaultNamespace ?? DEFAULT_NAMESPACE;
-    const result: TranslationData = {};
+    // Keyed by locale and namespace names parsed off the file tree, so both
+    // levels are null-prototype maps: a `__proto__.json` file must become an
+    // entry, never a write through Object.prototype.
+    const result: TranslationData = emptyDictionary();
     const foundLocales = new Set<string>();
     const foundNamespaces = new Set<string>();
     const sourceFiles = new Map<string, string>();
@@ -145,9 +156,7 @@ export class TranslationSync {
 
         const translations = flattenTranslationFile(parsed, filePath);
 
-        if (!result[locale]) {
-          result[locale] = {};
-        }
+        result[locale] ??= emptyDictionary();
         result[locale][namespace] = translations;
 
         foundLocales.add(locale);
@@ -230,14 +239,7 @@ export class TranslationSync {
 
   /** A path outside the project is never a pull target; refuse before deleting anything. */
   private assertInsideProject(): void {
-    const relativeToCwd = relative(resolve(process.cwd()), this.translationsPath);
-
-    if (
-      relativeToCwd === "" ||
-      relativeToCwd === ".." ||
-      relativeToCwd.startsWith(`..${sep}`) ||
-      isAbsolute(relativeToCwd)
-    ) {
+    if (!isBeneathDirectory(resolve(process.cwd()), this.translationsPath)) {
       throw new TypegenError(
         `Refusing to clear translations directory outside the current project: ${this.translationsPath}`,
         ErrorCodes.FS_WRITE_FAILED,
@@ -333,8 +335,14 @@ export class TranslationSync {
   private resolveFilePath(locale: string, namespace: string, defaultNamespace: string): string {
     const extension = this.format;
 
+    // The identifiers come from the translations response, not from the
+    // project: refuse anything that is not a plain name before it becomes a
+    // path segment.
+    assertPathSegment(locale, "locale from API response");
+    assertPathSegment(namespace, "namespace from API response");
+
     if (this.usesDefaultFileLayout() && namespace === defaultNamespace) {
-      return join(this.translationsPath, `${locale}.${extension}`);
+      return this.assertContained(join(this.translationsPath, `${locale}.${extension}`));
     }
 
     const relativePath = this.fileTemplate
@@ -342,7 +350,49 @@ export class TranslationSync {
       .replace("{namespace}", namespace)
       .replace("{extension}", extension);
 
-    return join(this.translationsPath, relativePath);
+    return this.assertContained(join(this.translationsPath, relativePath));
+  }
+
+  /**
+   * Lexical containment: the resolved target must be strictly below the
+   * translations directory. Compared with `path.relative`, not a string
+   * prefix, so `/locales-other` is not mistaken for a child of `/locales`.
+   */
+  private assertContained(filePath: string): string {
+    const resolved = resolve(filePath);
+
+    if (!isBeneathDirectory(this.translationsPath, resolved)) {
+      throw new TypegenError(
+        `Refusing to write translations outside "${this.translationsPath}": resolved path "${resolved}" ` +
+          `escapes the configured translations directory`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
+    return resolved;
+  }
+
+  /**
+   * `path.relative` cannot see through a symlink, so a directory or file
+   * inside the tree may still point out of it. Resolve the deepest part of the
+   * target that exists on disk and re-check it against the resolved root —
+   * `translationsPath` itself is allowed to be a symlink.
+   */
+  private async assertRealPathContained(target: string): Promise<void> {
+    // Both sides go through the same resolution: the first pull runs before
+    // the translations directory exists, and on macOS the temp and home trees
+    // are themselves symlinks, so resolving only one side would compare
+    // `/var/...` against `/private/var/...`.
+    const root = await realPathOfExistingPrefix(this.translationsPath);
+    const resolved = await realPathOfExistingPrefix(target);
+
+    if (!isWithinDirectory(root, resolved)) {
+      throw new TypegenError(
+        `Refusing to write translations outside "${this.translationsPath}": "${target}" resolves to ` +
+          `"${resolved}" through a symlink that leaves the translations directory`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
   }
 
   /**
@@ -450,6 +500,69 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * A locale or namespace that is about to become a path segment: one plain
+ * name, so no `/`, no `\`, no `..`, and no leading dot that would hide the
+ * file or start a traversal.
+ */
+const PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
+
+function assertPathSegment(value: string, source: string): void {
+  if (!PATH_SEGMENT.test(value)) {
+    throw new TypegenError(
+      `Invalid ${source}: ${JSON.stringify(value)} is not a usable file name — ` +
+        `expected a name matching ${PATH_SEGMENT.source}`,
+      ErrorCodes.VALIDATION_FAILED,
+    );
+  }
+}
+
+/**
+ * `candidate` is `root` itself, or a path below it. The relative form is what
+ * decides, so a sibling directory whose name merely starts with the root's
+ * (`/locales-backup` under `/locales`) is not mistaken for a child; a path on
+ * another Windows drive has no relative form and comes back absolute.
+ */
+function isWithinDirectory(root: string, candidate: string): boolean {
+  const relativePath = relative(root, candidate);
+
+  return relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath);
+}
+
+/** `candidate` is strictly below `root` — never the directory itself. */
+function isBeneathDirectory(root: string, candidate: string): boolean {
+  return relative(root, candidate) !== "" && isWithinDirectory(root, candidate);
+}
+
+/**
+ * The target does not exist yet — that is the point of writing it. Walk up to
+ * the deepest ancestor the OS can resolve, resolve its symlinks, and re-attach
+ * the part that is still missing.
+ *
+ * Every failure walks further up rather than aborting: a missing directory is
+ * ENOENT, a file where a directory is expected is ENOTDIR, a symlink loop is
+ * ELOOP. None of them can hide an escape, because the write that follows needs
+ * the same resolution the OS just refused; reporting it here would only
+ * replace the real mkdir/write error with a worse one.
+ */
+async function realPathOfExistingPrefix(target: string): Promise<string> {
+  let current = resolve(target);
+  const missing: string[] = [];
+
+  for (;;) {
+    try {
+      return join(await fs.realpath(current), ...missing);
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) {
+        return join(current, ...missing);
+      }
+      missing.unshift(basename(current));
+      current = parent;
+    }
+  }
+}
+
 function parseDefaultNamespaceFile(relativePath: string, format: "json"): string | null {
   const regex = new RegExp(`^([A-Za-z0-9_-]+)\\.${escapeRegExp(format)}$`);
   return relativePath.match(regex)?.[1] ?? null;
@@ -494,7 +607,7 @@ function flattenTranslationFile(
 ): Record<string, string> {
   // Null prototype so a key literally named `__proto__` lands as data instead
   // of hitting Object.prototype's setter and vanishing.
-  const result: Record<string, string> = Object.create(null) as Record<string, string>;
+  const result: Record<string, string> = emptyDictionary();
 
   const visit = (node: Record<string, unknown>, prefix: string): void => {
     for (const [key, value] of Object.entries(node)) {
