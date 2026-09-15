@@ -3,7 +3,7 @@ import type { VirtualNode } from "../../virtualNode";
 import { createElement } from "../../virtualNode";
 import { warn } from "../../logger";
 import { TK_TAG, TK_TEXT, type ParsedToken, type TagToken } from "./cache";
-import { parseTemplate } from "./parser";
+import { advancePastApostrophe, parseTemplate } from "./parser";
 import {
   registerSyntaxExtension,
   type MessageCompiler,
@@ -17,6 +17,7 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 const AMPERSAND = 38;
+const APOSTROPHE = 39;
 const BACKSLASH = 92;
 const LESS_THAN = 60;
 const GREATER_THAN = 62;
@@ -91,7 +92,7 @@ function parseTag(
   if (code === GREATER_THAN) {
     i++;
     const contentStart = i;
-    const result = findClosingTag(str, i, len, tagName);
+    const result = findClosingTag(str, i, len, tagName, hashIsSyntax);
 
     if (!result) {
       return { endIndex: startIndex + 1, isTag: false };
@@ -112,17 +113,33 @@ function parseTag(
   return { endIndex: startIndex + 1, isTag: false };
 }
 
+/**
+ * Find the `</tagName>` that closes the tag opened at `startIndex`.
+ *
+ * `hashIsSyntax` is the tag's own quoting context, threaded down from
+ * `parseTag`, because the scan must skip exactly what the message parser
+ * skips: ICU apostrophe-quoted sections, where `'#'` is a quote only inside a
+ * plural sub-message. Quoting used to be ignored here, so a `</b>` written
+ * inside quoted literal text — `<b>'{x </b> y}'</b>` — closed the tag that
+ * surrounded it and the literal came out mangled.
+ */
 function findClosingTag(
   str: string,
   startIndex: number,
   len: number,
   tagName: string,
+  hashIsSyntax: boolean,
 ): [closingStart: number, endIndex: number] | undefined {
   const tagStack: string[] = [tagName];
   let i = startIndex;
 
   while (i < len && tagStack.length > 0) {
     const code = str.charCodeAt(i);
+
+    if (code === APOSTROPHE) {
+      i = advancePastApostrophe(str, i, len, hashIsSyntax);
+      continue;
+    }
 
     if (code === BACKSLASH) {
       i += 2;

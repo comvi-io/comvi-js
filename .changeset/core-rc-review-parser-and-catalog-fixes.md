@@ -21,3 +21,10 @@ ICU exact plural selectors are now matched as numbers, and a non-numeric one is 
 the selector was compared as the string it was written as. `=1.0`, `=01` and `=1.` are now all the
 `n = 1` branch, and a selector that is not a number (`=abc`) fails as ICU syntax instead of
 choosing a different branch.
+
+A closing tag written inside ICU-quoted literal text no longer ends the tag around it.
+
+The closing-tag scanner skipped backslash escapes but not apostrophe quoting, so
+`<b>'{x </b> y}'</b>` rendered `{x y}'</b>` instead of the literal `{x </b> y}` inside the bold
+tag. It now skips quoted sections through the message parser's own helper, in the same
+`#`-is-syntax context the tag was parsed in.
