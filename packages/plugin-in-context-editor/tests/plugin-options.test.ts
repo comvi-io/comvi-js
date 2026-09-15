@@ -351,6 +351,7 @@ describe("standalone lifecycle notifications", () => {
       undefined,
       expect.any(Function),
       result?.instanceId,
+      { signal: expect.any(AbortSignal) },
     );
     expect(transport.mock.calls.map(([path]) => path)).toEqual([
       "/v1/project?locale=en",
