@@ -496,18 +496,84 @@ ${check}`;
           }
           // Child route paths are often relative (e.g. "settings").
           // Only absolute route paths should get locale prefixes.
-          if (path.startsWith("/")) {
+          // A leading `//` is a protocol-relative URL, not an app path.
+          if (path.startsWith("/") && !path.startsWith("//")) {
             return `/${locale}${path}`;
           }
           return path;
         };
 
-        const clonePageWithPrefix = (page: NuxtPage, locale: string): NuxtPage => {
+        /**
+         * An alias is an extra path the SAME record answers on, so a clone that
+         * kept its source's aliases would answer on the unlocalized URL too —
+         * under `localePrefix: "always"` that URL is supposed to be gone. Each
+         * entry goes through the path rule: absolute ones are prefixed,
+         * relative child aliases stay relative, external ones are left alone.
+         */
+        const localizeAlias = (alias: NuxtPage["alias"], locale: string): NuxtPage["alias"] => {
+          if (typeof alias === "string") {
+            return withLocalePrefix(alias, locale);
+          }
+          return alias?.map((entry) => withLocalePrefix(entry, locale));
+        };
+
+        /**
+         * A redirect target that stays unlocalized drops the visitor out of the
+         * locale they were in. A string or a `path` location is rewritten like
+         * any path; a `name` location is retargeted at the clone of the same
+         * locale, because in `always` mode the unprefixed record it named no
+         * longer exists. A function redirect and a name no cloned page defines
+         * are the caller's own resolution and stay untouched.
+         */
+        const localizeRedirect = (
+          redirect: NuxtPage["redirect"],
+          locale: string,
+          clonedNames: ReadonlySet<string>,
+        ): NuxtPage["redirect"] => {
+          if (typeof redirect === "string") {
+            return withLocalePrefix(redirect, locale);
+          }
+          if (typeof redirect === "object" && redirect !== null) {
+            if ("path" in redirect && typeof redirect.path === "string") {
+              return { ...redirect, path: withLocalePrefix(redirect.path, locale) };
+            }
+            if (
+              "name" in redirect &&
+              typeof redirect.name === "string" &&
+              clonedNames.has(redirect.name)
+            ) {
+              return { ...redirect, name: `${redirect.name}___${locale}` };
+            }
+          }
+          return redirect;
+        };
+
+        const collectNames = (pageList: NuxtPage[], into: Set<string>): Set<string> => {
+          for (const page of pageList) {
+            if (page.name) {
+              into.add(page.name);
+            }
+            if (page.children) {
+              collectNames(page.children, into);
+            }
+          }
+          return into;
+        };
+
+        const clonePageWithPrefix = (
+          page: NuxtPage,
+          locale: string,
+          clonedNames: ReadonlySet<string>,
+        ): NuxtPage => {
           return {
             ...page,
             path: withLocalePrefix(page.path, locale),
             name: page.name ? `${page.name}___${locale}` : undefined,
-            children: page.children?.map((child) => clonePageWithPrefix(child, locale)),
+            alias: localizeAlias(page.alias, locale),
+            redirect: localizeRedirect(page.redirect, locale, clonedNames),
+            children: page.children?.map((child) =>
+              clonePageWithPrefix(child, locale, clonedNames),
+            ),
           };
         };
 
@@ -515,13 +581,17 @@ ${check}`;
           (page) => !isLocaleParamRoute(page.path) && !page.file?.includes("[locale]"),
         );
 
+        // Every name the clones will define, so a name-based redirect can tell
+        // a cloned target from one the module never touches.
+        const clonedNames = collectNames(rootPages, new Set<string>());
+
         for (const locale of localeCodes) {
           const shouldPrefix =
             localePrefix === "always" || (localePrefix === "as-needed" && locale !== defaultLocale);
 
           if (shouldPrefix) {
             for (const page of rootPages) {
-              localizedPages.push(clonePageWithPrefix(page, locale));
+              localizedPages.push(clonePageWithPrefix(page, locale, clonedNames));
             }
           }
         }

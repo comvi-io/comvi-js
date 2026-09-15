@@ -365,6 +365,19 @@ describe("useTranslation (server)", () => {
     expect(getHeader).toHaveBeenCalledWith(event, "accept-language");
   });
 
+  it("ignores a locale the Accept-Language header refuses with q=0", async () => {
+    // The Nitro utils' half of the q=0 parity check; middleware.test.ts carries
+    // the route-middleware half. Both call the one resolver.
+    const i18n = createI18nStub("en");
+    createComviCore.mockReturnValue(i18n);
+    getHeader.mockReturnValue("uk;q=0");
+    const useTranslation = await importUseTranslation();
+
+    const { locale } = await useTranslation(createEvent());
+
+    expect(locale).toBe("en");
+  });
+
   it("resolves the fallback locale when the request sends no Accept-Language header", async () => {
     const i18n = createI18nStub("en");
     createComviCore.mockReturnValue(i18n);

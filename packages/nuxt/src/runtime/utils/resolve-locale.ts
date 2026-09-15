@@ -6,7 +6,8 @@
  * 2. Base language match (e.g., "en-US" matches "en")
  * 3. Prefix match — find a locale starting with the base (e.g., "en" matches "en-US")
  *
- * Languages are tried in quality-value order as specified by RFC 9110.
+ * Languages are tried in quality-value order as specified by RFC 9110. A
+ * language the client refuses with `q=0` is never selected.
  */
 export function resolveAcceptLanguage(
   acceptLanguage: string,
@@ -23,6 +24,11 @@ export function resolveAcceptLanguage(
         quality: isNaN(quality) ? 1 : quality,
       };
     })
+    // `q=0` means "not acceptable" (RFC 9110 §12.4.2), so a refused language is
+    // dropped rather than merely sorted last: sorting alone still let
+    // `fr;q=0` win when it was the only entry matching a configured locale.
+    // An entry with no language tag (a stray comma) can match nothing either.
+    .filter(({ code, quality }) => code.length > 0 && quality > 0)
     .sort((a, b) => b.quality - a.quality);
 
   for (const { code } of languages) {

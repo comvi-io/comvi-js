@@ -219,6 +219,27 @@ describe("i18n middleware", () => {
     expect(localeState.value).toBe("uk");
   });
 
+  it("does not redirect to a locale the Accept-Language header refuses with q=0", async () => {
+    // The route middleware and the Nitro `useTranslation` share one resolver;
+    // this is its half of the q=0 parity check (server-use-translation.test.ts
+    // carries the other). A refused `uk` leaves nothing to match, so detection
+    // yields the fallback and the root path is not redirected to `/uk`.
+    setServerMode(true);
+    withDetect({ useCookie: false });
+    setMockRequestHeaders({
+      "accept-language": "uk;q=0",
+    });
+
+    const result = await runMiddleware({
+      path: "/",
+      fullPath: "/",
+    });
+
+    expect(result).toBeUndefined();
+    const localeState = useState<string>("i18n-locale");
+    expect(localeState.value).toBe("en");
+  });
+
   it("does not use Accept-Language for non-root paths in as-needed mode", async () => {
     setServerMode(true);
     withDetect({ useCookie: false });
