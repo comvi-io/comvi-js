@@ -27,10 +27,15 @@ declare module "@comvi/vue" {
   }
 }
 
-declare const i18n: I18n;
+/**
+ * A function body, never called: some packages run `.test-d.ts` files through
+ * vitest's runtime as well, and a top-level `declare const` would be a
+ * ReferenceError there. Type-checking is the whole point of the file.
+ */
+export function keysReachTranslate(i18n: I18n): void {
+  i18n.t("farewell");
+  i18n.t("greeting", { name: "Ada" });
 
-i18n.t("farewell");
-i18n.t("greeting", { name: "Ada" });
-
-// @ts-expect-error `missing` is not one of the declared keys
-i18n.t("missing");
+  // @ts-expect-error `missing` is not one of the declared keys
+  i18n.t("missing");
+}
