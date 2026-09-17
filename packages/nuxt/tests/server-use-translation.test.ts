@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hasLoaderApi } from "@comvi/core";
+import { nodeResponseStub } from "./mocks/node-response";
 
 const getCookie = vi.fn();
 const getHeader = vi.fn();
@@ -22,6 +23,7 @@ vi.mock("#build/comvi.setup", () => ({
 /** Overrides merge into `public.comvi`, so a test shows only the field it varies. */
 function createEvent(comviOverrides: Record<string, unknown> = {}) {
   return {
+    node: { res: nodeResponseStub() },
     context: {
       runtimeConfig: {
         public: {
@@ -427,6 +429,7 @@ describe("useTranslation (server)", () => {
     createComviCore.mockReturnValue(i18n);
     const useTranslation = await importUseTranslation();
     const bareEvent = {
+      node: { res: nodeResponseStub() },
       context: { runtimeConfig: { public: { comvi: {} }, comvi: {} } },
     } as any;
 

@@ -7,6 +7,7 @@ import {
   addImports,
   addComponent,
   addServerImportsDir,
+  addServerPlugin,
   addRouteMiddleware,
   extendPages,
 } from "@nuxt/kit";
@@ -467,6 +468,12 @@ ${check}`;
     });
 
     addServerImportsDir(resolve("./runtime/server/utils"));
+
+    // Owns the per-request host teardown: Nitro's `afterResponse` fires after
+    // the handler returned AND after the response was written, which the
+    // response's `close` event cannot promise on a client abort. Registering it
+    // also tells `getRequestI18n` to stop hooking the response itself.
+    addServerPlugin(resolve("./runtime/server/plugins/request-cleanup"));
 
     addRouteMiddleware({
       name: "i18n",

@@ -13,8 +13,8 @@
  * fake event cannot say whether the response had actually finished.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createApp, defineEventHandler, getQuery, toNodeListener } from "h3";
-import type { App } from "h3";
+import { createApp, defineEventHandler, getQuery, toNodeListener, toWebHandler } from "h3";
+import type { App, H3Event } from "h3";
 import { createServer, request } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { ClientRequest, Server, ServerResponse } from "node:http";
@@ -31,6 +31,8 @@ interface Teardown {
 }
 
 const teardowns: Teardown[] = [];
+/** Ordered log for the cases whose contract is "A happens before B". */
+const order: string[] = [];
 /** The `once(event, …)` names each handler saw registered on ITS response. */
 const hookedEvents = new Map<string, string[]>();
 const responses = new Map<string, ServerResponse>();
@@ -62,6 +64,7 @@ function hostRecordingTeardown(options: Record<string, unknown>) {
   return createI18n(options as unknown as Parameters<typeof createI18n>[0]).use(
     definePlugin(() => () => {
       teardowns.push({ label, writableEnded: responses.get(id)?.writableEnded === true });
+      order.push(`teardown:${label}`);
     }),
   );
 }
@@ -128,6 +131,7 @@ beforeEach(() => {
   resetComviHostMock();
   resetComviSetupMock();
   teardowns.length = 0;
+  order.length = 0;
   hookedEvents.clear();
   responses.clear();
   createComviCore.mockImplementation(hostRecordingTeardown);
@@ -186,6 +190,9 @@ describe("request host teardown", () => {
     await get(port, "/render");
 
     expect(hookedEvents.get("solo")).toEqual(["close"]);
+    // Registration is not firing: an event name that never emits would keep
+    // the assertion above green, so pin the teardown it produced as well.
+    await vi.waitFor(() => expect(teardowns.map((t) => t.label)).toEqual(["solo:en"]));
   });
 
   it("destroys every locale instance a single request built", async () => {
@@ -387,5 +394,111 @@ describe("request host teardown", () => {
 
     expect(response.body).toBe("Hello");
     await vi.waitFor(() => expect(teardowns.map((t) => t.label)).toEqual(["partial:en"]));
+  });
+
+  it("lets a handler still rendering after an abort finish before the teardown", async () => {
+    // The shape that makes this more than cosmetic: `defineCachedEventHandler`
+    // and the `swr` / `isr` route rules complete the render of an aborted
+    // request and WRITE IT INTO THE CACHE. A host destroyed under that render
+    // caches untranslated keys and then serves them to everyone.
+    let aborted: () => void = () => {};
+    const abortSeen = new Promise<void>((resolve) => {
+      aborted = resolve;
+    });
+    let textAfterAbort = "";
+
+    const app = createApp();
+    app.use(
+      "/cached",
+      defineEventHandler(async (event) => {
+        responses.set("cached", event.node.res);
+        event.context.runtimeConfig = runtimeConfigFor("cached");
+
+        const i18n = await getRequestI18n(event, "en");
+        event.node.res.once("close", aborted);
+        event.node.res.writeHead(200, { "content-type": "text/plain" });
+        event.node.res.write(i18n.t("hi"));
+        await abortSeen;
+
+        // The rest of the render, as microtasks — what a handler that has not
+        // yielded to a timer still has in flight when the socket dies.
+        for (let hop = 0; hop < 10; hop += 1) await Promise.resolve();
+        textAfterAbort = i18n.t("hi");
+        order.push("handler-end");
+        return undefined;
+      }),
+    );
+    const port = await serve(app);
+
+    await new Promise<void>((resolve) => {
+      const req = createRequest(port, "/cached", () => resolve());
+      req.on("error", () => resolve());
+      req.on("response", (res) => {
+        res.once("data", () => {
+          req.destroy();
+          resolve();
+        });
+      });
+      req.end();
+    });
+
+    await vi.waitFor(() => expect(order).toContain("teardown:cached:en"));
+    expect(textAfterAbort).toBe("Hello");
+    expect(order).toEqual(["handler-end", "teardown:cached:en"]);
+  });
+
+  it("refuses to build a host for a request whose hosts were already destroyed", async () => {
+    let captured: H3Event | undefined;
+
+    const app = createApp();
+    app.use(
+      "/render",
+      defineEventHandler(async (event) => {
+        captured = event;
+        responses.set("late", event.node.res);
+        event.context.runtimeConfig = runtimeConfigFor("late");
+        const i18n = await getRequestI18n(event, "en");
+        return i18n.t("hi");
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/render")).body).toBe("Hello");
+    await vi.waitFor(() => expect(teardowns).toHaveLength(1));
+
+    // A `waitUntil`-shaped task, or a render that outlived its response, asking
+    // for a locale it had not asked for yet. Silently building a host here is
+    // the leak the teardown exists to close.
+    await expect(getRequestI18n(captured!, "uk")).rejects.toThrow(
+      "[comvi/nuxt] useTranslation()/loadTranslations() after the response ended",
+    );
+    await expect(getRequestI18n(captured!, "en")).rejects.toThrow(
+      "the request host is already destroyed",
+    );
+    expect(teardowns).toHaveLength(1);
+  });
+
+  it("tears down on the web adapter, where h3 mocks the node response", async () => {
+    const app = createApp();
+    app.use(
+      "/web",
+      defineEventHandler(async (event) => {
+        responses.set("web", event.node.res);
+        watchOnce(event.node.res, "web");
+        event.context.runtimeConfig = runtimeConfigFor("web");
+        const i18n = await getRequestI18n(event, "en");
+        return i18n.t("hi");
+      }),
+    );
+
+    const response = await toWebHandler(app)(new Request("http://localhost/web"));
+
+    expect(await response.text()).toBe("Hello");
+    // h3 1.x builds `event.node.res` from node-mock-http even on the web path,
+    // whose `end()` emits `close` synchronously with the body already
+    // buffered — so a Cloudflare / Deno / Bun preset DOES get the teardown.
+    expect(hookedEvents.get("web")).toEqual(["close"]);
+    await vi.waitFor(() => expect(teardowns.map((t) => t.label)).toEqual(["web:en"]));
+    expect(teardowns[0].writableEnded).toBe(true);
   });
 });

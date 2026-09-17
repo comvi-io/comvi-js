@@ -17,14 +17,14 @@ A server process handles concurrent requests. The host holds a mutable `locale`.
 depends on whether a request ever WRITES that locale, and each framework's SSR entry point answers
 differently.
 
-| framework   | host at module scope on the server | why                                                                                                             | how the request locale arrives                      |
-| ----------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| **Next.js** | **required**                       | `setI18n()` registers one instance per process and `getI18n()` resolves it; no request writes the locale        | passed explicitly to every `getI18n()` lookup       |
-| **Nuxt**    | **forbidden**                      | the module builds a FRESH host per request through the host factory, and destroys it when the response ends     | nuxt's resolved `locale` option, per request        |
-| **Solid**   | **forbidden**                      | adopting `ssrLocale` is a WRITE to `i18n.locale`, and `renderToString` runs it in the server process            | `ssrLocale` on `<I18nProvider>`                     |
-| **Svelte**  | **forbidden**                      | a per-request instance built in `+layout.svelte` from `load` data; a `load` return value is serialized          | `data.locale` from the `load` function              |
-| **React**   | either, if nothing writes          | plain react has no SSR entry of its own; the rule is the host framework's                                       | `ssrLocale` (or `ssrInitialLocale`) on the provider |
-| **Vue**     | **forbidden**                      | a module-scope `createI18n(...)` is a singleton whose reactive `locale` ref moves under every concurrent render | `ssrLocale` in the constructor options              |
+| framework   | host at module scope on the server | why                                                                                                               | how the request locale arrives                      |
+| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **Next.js** | **required**                       | `setI18n()` registers one instance per process and `getI18n()` resolves it; no request writes the locale          | passed explicitly to every `getI18n()` lookup       |
+| **Nuxt**    | **forbidden**                      | the module builds a FRESH host per request through the host factory, and destroys it once the request is answered | nuxt's resolved `locale` option, per request        |
+| **Solid**   | **forbidden**                      | adopting `ssrLocale` is a WRITE to `i18n.locale`, and `renderToString` runs it in the server process              | `ssrLocale` on `<I18nProvider>`                     |
+| **Svelte**  | **forbidden**                      | a per-request instance built in `+layout.svelte` from `load` data; a `load` return value is serialized            | `data.locale` from the `load` function              |
+| **React**   | either, if nothing writes          | plain react has no SSR entry of its own; the rule is the host framework's                                         | `ssrLocale` (or `ssrInitialLocale`) on the provider |
+| **Vue**     | **forbidden**                      | a module-scope `createI18n(...)` is a singleton whose reactive `locale` ref moves under every concurrent render   | `ssrLocale` in the constructor options              |
 
 Read that column again if you are porting an app between frameworks: **Next requires the shared
 module-scope host that Solid, Svelte, Vue and Nuxt forbid.** It is the one place in this library
@@ -71,12 +71,27 @@ SSR loading is the loader capability at work, so a server-rendered nuxt app comp
 `comvi.host.ts`. Without one, the server utilities say so once, by name, and render whatever the
 catalog already holds. They never call a member the host does not have.
 
-**The request host is destroyed when the response ends.** One hook per request, on the response's
-`close` event — which fires for a finished, an aborted and an errored response alike, and always
-after the last chunk is written, so a streamed render can read the host to its end. Every locale
-instance the request built is destroyed, so a plugin's cleanup runs once per request instead of
-never; a `destroy()` that fails is reported through the host's `onError` with source
-`"request-cleanup"`, never thrown into a response that has already been sent.
+**The request host is destroyed once the request is answered.** The module registers a Nitro server
+plugin that hooks `afterResponse` and `error`; the hook destroys every locale instance that request
+built, so a plugin's cleanup runs once per request instead of never. A `destroy()` that fails is
+reported through the host's `onError` with source `"request-cleanup"`, never thrown into a response
+that has already been sent.
+
+`afterResponse` and not the response's `close` event, because `close` says only that the socket is
+gone. On a client abort that is true **while the handler may still be rendering**, and a destroyed
+host renders missing keys — which a `defineCachedEventHandler` or an `swr` / `isr` route would then
+write into the cache and serve to everyone. `afterResponse` means both "the handler returned" and
+"the response is written": h3 calls it after the response is sent, and again from its own catch for
+a handler that threw.
+
+**Without Nitro** — a bare h3 app embedding these utilities — there is no such hook, so the
+fallback is `close` after all: a response that ENDED is torn down immediately, and an ABORTED one
+waits either for the response to end after all or for one macrotask, whichever comes first, so a
+handler whose remaining work is microtasks finishes first. **The residual race:** a handler that
+yields to a timer or to real I/O after an abort can still have its hosts destroyed under it. What it
+cannot do is get a silently half-dead host — the next `useTranslation()` / `loadTranslations()` on a
+torn-down request throws, naming the situation, because the response is gone and there is nothing
+left to translate for.
 
 ## Vue — build the instance in the request handler
 

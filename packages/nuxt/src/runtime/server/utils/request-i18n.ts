@@ -6,90 +6,20 @@ import { runComviSetup } from "#build/comvi.setup";
 import { createComviCore } from "#build/comvi.host";
 import type { NuxtServerHost } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
-
-// Keep one i18n instance per locale within a single request.
-// This costs more than a single shared request instance, but it preserves
-// SSR correctness when server code resolves multiple locales concurrently.
-const requestI18nMap = new WeakMap<object, Map<string, Promise<NuxtServerHost>>>();
-
-/**
- * Contexts that already carry an end-of-response hook. The WeakMap above makes
- * the hosts COLLECTABLE, which is not the same as destroyed: a plugin's cleanup
- * (an interval, a socket, a subscription) runs only when someone calls
- * `destroy()`, and on the server nobody did.
- */
-const cleanupHooked = new WeakSet<object>();
-
-const getContextKey = (event: H3Event): object => {
-  if (event.context && typeof event.context === "object") {
-    return event.context as object;
-  }
-  return event as unknown as object;
-};
-
-/**
- * Tear down every host this request built, once the response is off the wire.
- *
- * A rejected creation promise has no host to destroy and is skipped — the
- * rejection was already delivered to the caller that asked for that locale.
- * A `destroy()` that rejects is reported through the host's own error channel:
- * the response is written by now, so there is nowhere else for it to go, and
- * throwing here would surface as an unhandled rejection in the server process.
- */
-async function destroyRequestHosts(contextKey: object): Promise<void> {
-  const localeInstances = requestI18nMap.get(contextKey);
-  if (!localeInstances) return;
-  requestI18nMap.delete(contextKey);
-  const pending = [...localeInstances.values()];
-  localeInstances.clear();
-
-  for (const instancePromise of pending) {
-    let i18n: NuxtServerHost;
-    try {
-      i18n = await instancePromise;
-    } catch {
-      continue;
-    }
-    try {
-      await i18n.destroy();
-    } catch (error) {
-      try {
-        i18n.reportError(error instanceof Error ? error : new Error(String(error)), {
-          source: "request-cleanup",
-        });
-      } catch {
-        // A reporter that throws must not take the process down either.
-      }
-    }
-  }
-}
-
-/**
- * One hook per request, on `close`.
- *
- * `finish` fires only for a response that was written in full, and `end` is not
- * an event on the response at all; `close` fires exactly once for a finished,
- * an aborted and an errored response alike — and always AFTER the response is
- * off the wire, which is what makes it safe for a streamed render that reads
- * the host until its last chunk.
- *
- * A web-only event (no `event.node.res`) has nothing to hang this off, so it
- * registers nothing rather than guessing; the hosts stay collectable, exactly
- * as they were before this hook existed.
- */
-function hookRequestCleanup(event: H3Event, contextKey: object): void {
-  if (cleanupHooked.has(contextKey)) return;
-  const res = event.node?.res;
-  if (typeof res?.once !== "function") return;
-  cleanupHooked.add(contextKey);
-  res.once("close", () => {
-    void destroyRequestHosts(contextKey);
-  });
-}
+// The registry and its teardown live outside this file so the Nitro server
+// plugin can import them: nuxt's `impound` plugin refuses the `#build/*`
+// aliases above anywhere in the nitro runtime graph.
+import {
+  assertRequestLive,
+  getContextKey,
+  hookRequestCleanup,
+  requestI18nMap,
+} from "../internal/request-hosts";
 
 /** Keyed by event context in a WeakMap, so cleanup is automatic. */
 export async function getRequestI18n(event: H3Event, locale: string): Promise<NuxtServerHost> {
   const contextKey = getContextKey(event);
+  assertRequestLive(contextKey);
   let localeInstances = requestI18nMap.get(contextKey);
   if (!localeInstances) {
     localeInstances = new Map<string, Promise<NuxtServerHost>>();

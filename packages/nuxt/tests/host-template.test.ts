@@ -25,6 +25,7 @@ const nuxtKitMocks = {
   addImports: vi.fn(),
   addComponent: vi.fn(),
   addServerImportsDir: vi.fn(),
+  addServerPlugin: vi.fn(),
   addRouteMiddleware: vi.fn(),
   extendPages: vi.fn(),
 };
@@ -38,6 +39,7 @@ vi.mock("@nuxt/kit", () => ({
   addImports: (...args: unknown[]) => nuxtKitMocks.addImports(...args),
   addComponent: (...args: unknown[]) => nuxtKitMocks.addComponent(...args),
   addServerImportsDir: (...args: unknown[]) => nuxtKitMocks.addServerImportsDir(...args),
+  addServerPlugin: (...args: unknown[]) => nuxtKitMocks.addServerPlugin(...args),
   addRouteMiddleware: (...args: unknown[]) => nuxtKitMocks.addRouteMiddleware(...args),
   extendPages: (...args: unknown[]) => nuxtKitMocks.extendPages(...args),
 }));
