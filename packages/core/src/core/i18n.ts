@@ -416,10 +416,27 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // must be able to change the locale before namespaces are loaded.
       await (this as unknown as I18nInternal)._beforeInit?.();
 
+      // `destroy()` can land during EVERY await in this method, so the flag is
+      // re-read after each one. A host destroyed mid-init RESOLVES QUIETLY:
+      // `this` back, `isInitialized` still false, no `initialized` emit, no
+      // `reportError`. The normal producer of this race is a binding whose
+      // component unmounted while its fire-and-forget `init()` was in flight
+      // (react/solid/svelte providers, vue's `install()`, next's
+      // `ensureInitialized`, nuxt's request host) — turning every unmount into
+      // a reported error would be worse than a resolve whose `isInitialized`
+      // honestly reads false. Pinned by tests/features/destroy-races.test.ts.
+      //
+      // The check BEFORE the namespace load matters on its own: destroy()
+      // cleared the active-namespace set and the cache, and loading here would
+      // put both back.
+      if (this._isDestroyed) return this;
+
       const namespacesToLoad = this._initialNamespaces ?? [this._cachedDefaultNs];
       if (namespacesToLoad.length > 0) {
         await this._nsAddActiveNamespaces(namespacesToLoad);
       }
+
+      if (this._isDestroyed) return this;
 
       this._isInitialized = true;
       this._emit("initialized");
