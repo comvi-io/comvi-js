@@ -77,7 +77,9 @@ import { plugins } from "@comvi/core/plugins";
 import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
-i18n.registerPlugin(cdnLoaderPlugin({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.registerPlugin(
+  cdnLoaderPlugin({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
+);
 ```
 
 Swapping the slots is a type error, and both halves are caught at runtime too.

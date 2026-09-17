@@ -31,8 +31,8 @@ export const i18n = createI18n({
   compiler: icuCompiler,
 }).use(
   cdnLoader({
-    // The distribution id comes from the Comvi platform: open your project
-    // and read it off the Distributions page.
+    // The whole URL comes from the Comvi platform: open your project and use
+    // Copy URL on the CDN Endpoint card under Settings → Content Deploy.
     cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/",
   }),
 );
