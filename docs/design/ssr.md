@@ -72,8 +72,12 @@ SSR loading is the loader capability at work, so a server-rendered nuxt app comp
 catalog already holds. They never call a member the host does not have.
 
 **The request host is destroyed once the request is answered.** The module registers a Nitro server
-plugin that hooks `afterResponse` and `error`; the hook destroys every locale instance that request
-built, so a plugin's cleanup runs once per request instead of never. A `destroy()` that fails is
+plugin that destroys every locale instance that request built, so a plugin's cleanup runs once per
+request instead of never.
+
+The plugin listens through Hookable's `afterEach` rather than as a named `afterResponse` handler: a
+named handler runs in the middle of the call, where a LATER handler (another module's, or Nitro's
+own background-refresh registration) has not yet called `event.waitUntil()`. A `destroy()` that fails is
 reported through the host's `onError` with source `"request-cleanup"`, never thrown into a response
 that has already been sent.
 
