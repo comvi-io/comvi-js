@@ -108,6 +108,30 @@ describe.each([["prod", ""] as const, ["dev", ".dev"] as const])(
       expect(cleanup).toHaveBeenCalledTimes(1);
     });
 
+    it("resolves a repeat destroy() only once the single cleanup has settled", async () => {
+      const order: string[] = [];
+
+      const i18n = await composed({ locale: "en" });
+      i18n.registerPlugin(
+        () => () =>
+          new Promise<void>((resolve) =>
+            setTimeout(() => {
+              order.push("cleanup");
+              resolve();
+            }, 0),
+          ),
+      );
+      await i18n.init();
+
+      const first = i18n.destroy();
+      const second = i18n.destroy();
+
+      await second;
+      expect(order).toEqual(["cleanup"]);
+      expect(second).toBe(first);
+      await first;
+    });
+
     it("abandons a locale switch that was in flight", async () => {
       let release!: (value: Record<string, string>) => void;
       const load = new Promise<Record<string, string>>((resolve) => {

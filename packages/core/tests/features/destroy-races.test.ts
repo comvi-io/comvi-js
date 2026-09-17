@@ -11,10 +11,11 @@ import { flushMicrotasks } from "../helpers/flush";
  * `destroy()` racing an operation that is ALREADY IN FLIGHT.
  *
  * `destroy-order.test.ts` covers the phase order of a destroy that nothing
- * races. These are the four races: an `init()` mid-flight, a plugin cleanup
- * that arrives after the drain, a locale switch mid-flight, and — the one race
- * against nothing at all — a loader that throws synchronously, which settles
- * before the pending-load bookkeeping around it has run.
+ * races. These are the five: an `init()` mid-flight, a plugin cleanup that
+ * arrives after the drain, a second `destroy()` while the first is still
+ * draining, a locale switch mid-flight, and — the one race against nothing at
+ * all — a loader that throws synchronously, which settles before the
+ * pending-load bookkeeping around it has run.
  *
  * Gotcha the helpers repeat and this suite depends on: `_emit` and
  * `_preDestroy` swallow listener exceptions, so every observation is recorded
@@ -144,6 +145,64 @@ describe("plugin cleanups racing destroy()", () => {
     await flushMicrotasks();
 
     expect(second).not.toHaveBeenCalled();
+  });
+});
+
+describe("destroy() racing itself", () => {
+  it("resolves every call only once the single cleanup has settled", async () => {
+    const order: string[] = [];
+
+    const i18n = attachPlugins(attachLoader(createBaseI18n({ locale: "en", exposeGlobal: false })));
+    i18n.registerPlugin(
+      () => () =>
+        new Promise<void>((resolve) =>
+          setTimeout(() => {
+            order.push("cleanup");
+            resolve();
+          }, 0),
+        ),
+    );
+    await i18n.init();
+
+    const first = i18n.destroy();
+    const second = i18n.destroy();
+
+    // The defect: the second caller was told the teardown was done while the
+    // first was still awaiting `_preDestroy`.
+    await second;
+    expect(order).toEqual(["cleanup"]);
+
+    // And it is not a second teardown either — it is the SAME attempt.
+    expect(second).toBe(first);
+
+    await first;
+    // Settled: a later call is still the same promise and re-runs nothing.
+    expect(i18n.destroy()).toBe(first);
+    await i18n.destroy();
+    expect(order).toEqual(["cleanup"]);
+  });
+
+  it("keeps reporting a cleanup throw and still resolves both callers", async () => {
+    const onError = vi.fn();
+    const boom = new Error("cleanup exploded");
+
+    const i18n = attachPlugins(
+      attachLoader(createBaseI18n({ locale: "en", exposeGlobal: false, onError })),
+    );
+    i18n.registerPlugin(() => async () => {
+      await Promise.resolve();
+      throw boom;
+    });
+    await i18n.init();
+
+    const first = i18n.destroy();
+    const second = i18n.destroy();
+
+    await expect(first).resolves.toBeUndefined();
+    await expect(second).resolves.toBeUndefined();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0]).toBe(boom);
+    expect(onError.mock.calls[0][1]).toMatchObject({ source: "plugin-cleanup" });
   });
 });
 

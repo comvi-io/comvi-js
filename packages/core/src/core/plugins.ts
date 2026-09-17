@@ -101,6 +101,12 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * again when a plugin it was still awaiting returns its cleanup after this
    * phase has already run (see there). Draining twice is safe — the `pop()`
    * loop cannot hand the same cleanup out twice, and an empty queue is a no-op.
+   *
+   * BOUNDARY, by design: that late drain is awaited by `init()`, NOT by
+   * `destroy()`. So `await i18n.destroy()` can resolve before the cleanup of a
+   * plugin that was still initializing has finished — `destroy()` must not
+   * hang on a slow plugin, and it does not wait for `init()`. Await the
+   * `init()` promise too if a test or a request teardown needs both.
    */
   protected async _preDestroy(): Promise<void> {
     while (this._pluginCleanups.length) {

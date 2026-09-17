@@ -114,7 +114,14 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   /** Destroy phase 3 — runs only after the `destroyed` listeners saw the still-live state. */
   protected _resetLoader(): void {
     this._nsGeneration++;
-    this._pendingLoads = {};
+    // Null-prototype, matching `_initLoader`. NOT load-bearing today: every
+    // key `_loadOne` probes is `locale + ":" + namespace`, which no
+    // `Object.prototype` member can spell, and `_cancelNs`'s `for...in` sees
+    // only enumerable keys. It is here so the field has ONE shape — a probe
+    // that ever dropped the prefix would read an inherited function as a
+    // pending load — and it costs 0 B min+gz, the identifier being in the
+    // bundle already.
+    this._pendingLoads = Object.create(null);
     this._loader = undefined;
   }
 

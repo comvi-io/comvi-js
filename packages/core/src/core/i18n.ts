@@ -171,6 +171,15 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * an operation already in flight can find out that `destroy()` has landed.
    */
   protected _isDestroyed: boolean = false;
+  /**
+   * The one teardown attempt, stored so a repeat `destroy()` is the same
+   * attempt rather than a resolved promise that lies about being finished.
+   * Optional and never initialized, so a host that was never destroyed does
+   * not carry it as an own property. It does NOT replace `_isDestroyed`: the
+   * flag has to be readable SYNCHRONOUSLY, because `init()`, `_beforeInit` and
+   * `setLocaleAsync` re-read it right after their own awaits.
+   */
+  private _destroyAttempt?: Promise<void>;
   private _loadingCount: number = 0;
   protected _fallbackLocales: string[];
   public readonly apiKey: string | undefined;
@@ -1023,11 +1032,24 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
   }
 
-  /** Tear the instance down; it cannot be re-initialized afterwards. */
-  public async destroy(): Promise<void> {
-    if (this._isDestroyed) {
-      return;
-    }
+  /**
+   * Tear the instance down; it cannot be re-initialized afterwards.
+   *
+   * A repeat call is the SAME attempt, not a second teardown and not a
+   * resolved promise: `await i18n.destroy()` means the plugin cleanups have
+   * FINISHED even for a caller who arrived while the first call was still
+   * awaiting them. Two callers is the normal case — a binding unmounting twice,
+   * a request host torn down by both the response hook and an error path — and
+   * the old early `return` told the second one that cleanup was done before it
+   * had begun to finish.
+   */
+  public destroy(): Promise<void> {
+    // `_destroy()` sets `_isDestroyed` before its first await, so the flag is
+    // true the instant this returns, exactly as the old assignment was.
+    return (this._destroyAttempt ??= this._destroy());
+  }
+
+  private async _destroy(): Promise<void> {
     this._isDestroyed = true;
 
     // Phase 0 — discovery removal, before any lifecycle reset.

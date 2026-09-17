@@ -18,7 +18,15 @@ A plugin cleanup that arrived after `destroy()` had drained the queue used to be
 without ever running or reporting — a subscription or interval the plugin owned stayed alive
 for the life of the page. Such a cleanup now runs, and a throw from it is reported exactly as
 any other cleanup's is. In the same pass, `destroy()` during plugin initialization no longer
-starts the plugins that had not begun yet, or the locale detector after them.
+starts the plugins that had not begun yet, or the locale detector after them. One boundary
+worth knowing: that late cleanup is awaited by the `init()` promise, not by `destroy()`, so
+`destroy()` never hangs waiting for a plugin that is still starting up — await the `init()`
+promise as well if you need both to have finished.
+
+A repeat `destroy()` used to resolve immediately while the first call was still running the
+cleanups, so a second caller — a component unmounting twice, a server host torn down by two
+paths — was told the teardown had finished before it had. Every call is now the same attempt
+and resolves when that one teardown has actually settled.
 
 A locale switch that was in flight when `destroy()` landed used to apply anyway, changing
 `locale` and emitting `localeChanged` on a destroyed host. A pending switch is now abandoned.
