@@ -20,7 +20,7 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 export default ((options) =>
   createI18n(options).use(
-    cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+    cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
   )) satisfies NuxtHostFactory;
 ```
 

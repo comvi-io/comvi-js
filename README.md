@@ -77,12 +77,24 @@ own idiom: [react](packages/react) · [next](packages/next) · [vue](packages/vu
 
 ### Step 1 — an inline catalog
 
+Scaffold a React app and add one package:
+
+```bash
+npm create vite@latest my-app -- --template react-ts
+cd my-app && npm install
+npm install @comvi/react
+```
+
+The starter is not optional. It supplies the bundler, the `index.html` that `#root` lives in, the
+`tsconfig.json` (these snippets need `jsx: "react-jsx"` and `moduleResolution: "bundler"`) and React
+itself — `@comvi/react` peer-depends on `react` only, not `react-dom`.
+
 Five things to know. `createI18n` builds **the host**: the object it returns, holding the catalog,
 the current locale and `t()`. `locale` is what renders now, `fallbackLocale` covers a missing key,
 `translation` is the catalog, and `<I18nProvider>` puts the host where the `useI18n()` hook can find
 it. Runnable: [`examples/react`](examples/react).
 
-```tsx title="src/main.tsx"
+```tsx title="src/main.tsx" check=group=readme-step-1
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
 import App from "./App";
@@ -103,8 +115,30 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-Any component under the provider reads it with `const { t, locale, setLocale } = useI18n()`, and
-renders `t("greeting", { name: "Alice" })`. The member names are the same in all six bindings.
+Any component under the provider reads the host with `useI18n()`. The member names are the same in
+all six bindings.
+
+```tsx title="src/App.tsx" check=group=readme-step-1
+import { useI18n } from "@comvi/react";
+
+export default function App() {
+  const { t, locale, setLocale } = useI18n();
+
+  return (
+    <>
+      <h1>{t("greeting", { name: "Alice" })}</h1>
+      <select value={locale} onChange={(e) => setLocale(e.target.value)}>
+        <option value="en">English</option>
+        <option value="uk">Українська</option>
+      </select>
+    </>
+  );
+}
+```
+
+`npm run dev`, then open the URL it prints: the heading reads `Hello, Alice!`, and choosing
+**Українська** in the select changes it to `Привіт, Alice!` without a reload. There is no
+`i18n.init()` call — `<I18nProvider>` initializes the host itself (`autoInit`, on by default).
 
 ### Step 2 — connect to Comvi
 
@@ -126,22 +160,32 @@ same order; only the third answer differs, except on next, where step 1 already 
    Vue and Svelte have no `fallback` prop and gate on `isInitializing` instead; core, next and nuxt
    need no gate at all.
 
-```ts title="src/i18n.ts"
-import { createI18n, icuCompiler } from "@comvi/react";
+```tsx title="src/main.tsx" check=group=readme-step-2
+import { createRoot } from "react-dom/client";
+import { createI18n, icuCompiler, I18nProvider } from "@comvi/react";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import App from "./App";
 
-export const i18n = createI18n({
+const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }));
+
+createRoot(document.getElementById("root")!).render(
+  <I18nProvider i18n={i18n} fallback={<div className="spinner" />}>
+    <App />
+  </I18nProvider>,
+);
 ```
 
-The render call is step 1's, with one prop added:
-`<I18nProvider i18n={i18n} fallback={<div className="spinner" />}>`.
+That is step 1's `src/main.tsx` with the catalog swapped for the loader and one prop added to the
+provider; `src/App.tsx` does not change.
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
-**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved).
+The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
+open your project and use **Copy URL** on the
+**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
+enabled and saved).
 
 Chain `.use(…)` before `init()`; doing it afterwards warns once in development. ICU is not chained
 at all — it is the constructor option above. Full rules:

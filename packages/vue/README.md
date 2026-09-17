@@ -108,7 +108,7 @@ const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }));
 
 createApp(App).use(i18n).mount("#app");
 ```
@@ -116,8 +116,10 @@ createApp(App).use(i18n).mount("#app");
 The catalogs now come from the platform, so `t("items", { count: 5 })` renders a locale-correct
 plural from `"{count, plural, one {# item} other {# items}}"`.
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
-**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved). **Compose before `app.use(i18n)`**, which is what the chain above does — it
+The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
+open your project and use **Copy URL** on the
+**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
+enabled and saved). **Compose before `app.use(i18n)`**, which is what the chain above does — it
 is the one ordering rule this package adds.
 
 ## 4. What is specific to Vue

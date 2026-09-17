@@ -238,9 +238,9 @@ import type { LayoutLoad } from "./$types";
 export const load: LayoutLoad = async ({ fetch }) => {
   const locale = "en";
   // Plain JSON, safe to serialize to the client.
-  const messages = await fetch(`https://cdn.comvi.io/your-distribution-id/${locale}.json`).then(
-    (r) => r.json(),
-  );
+  const messages = await fetch(
+    `https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b/${locale}.json`,
+  ).then((r) => r.json());
   return { locale, messages };
 };
 ```

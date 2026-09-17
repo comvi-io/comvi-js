@@ -6,6 +6,7 @@ import { icuCompiler } from "@comvi/core/icu";
 import { fetchLoader } from "@comvi/plugin-fetch-loader";
 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
+  // Stale placeholder on purpose: this literal is measured, and no reader sees a fixture.
   fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
