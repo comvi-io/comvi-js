@@ -114,7 +114,8 @@ createApp(App).use(i18n).mount("#app");
 ```
 
 The catalogs now come from the platform, so `t("items", { count: 5 })` renders a locale-correct
-plural from `"{count, plural, one {# item} other {# items}}"`.
+plural from `"{count, plural, one {# item} other {# items}}"` — the `items` key
+[Connect Comvi](https://comvi.io/docs/i18n/connect-comvi) step 3 has you create.
 
 The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
 open your project and use **Copy URL** on the

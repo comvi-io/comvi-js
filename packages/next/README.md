@@ -187,6 +187,10 @@ URLs are a `defineRouting` module and a middleware — see
 
 ## 3. Connect to Comvi
 
+Step 1's inline `translation` goes away with the loader, so the two keys it put in your own
+source — `greeting` and the `items` plural — now have to exist on the platform; [Connect Comvi](https://comvi.io/docs/i18n/connect-comvi)
+step 3 creates both.
+
 Three questions, and the first is already answered in step 1.
 
 1. **Which parser?** `compiler: icuCompiler`, unchanged from step 1. The platform's catalogs use

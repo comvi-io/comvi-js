@@ -103,6 +103,10 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items" — from "{count, plural, one {# item} other {# items}}"
 ```
 
+Both keys above come from the platform now, and
+[Connect Comvi](https://comvi.io/docs/i18n/connect-comvi) step 3 is where you create them:
+`greeting` as plain source copy, `items` with the **Plural key** box ticked.
+
 The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
 open your project and use **Copy URL** on the
 **CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
