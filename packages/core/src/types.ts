@@ -754,6 +754,12 @@ export interface ErrorReportContext {
   source:
     | "plugin"
     | "plugin-cleanup"
+    /**
+     * A request-scoped host failed to tear down at the end of its request —
+     * `@comvi/nuxt`'s per-request Nitro host. The response is already written
+     * when this fires, so the error has nowhere else to go.
+     */
+    | "request-cleanup"
     | "init"
     | "translation"
     | "namespace-load"

@@ -20,7 +20,7 @@ differently.
 | framework   | host at module scope on the server | why                                                                                                             | how the request locale arrives                      |
 | ----------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | **Next.js** | **required**                       | `setI18n()` registers one instance per process and `getI18n()` resolves it; no request writes the locale        | passed explicitly to every `getI18n()` lookup       |
-| **Nuxt**    | **forbidden**                      | the module builds a FRESH host per request through the host factory                                             | nuxt's resolved `locale` option, per request        |
+| **Nuxt**    | **forbidden**                      | the module builds a FRESH host per request through the host factory, and destroys it when the response ends     | nuxt's resolved `locale` option, per request        |
 | **Solid**   | **forbidden**                      | adopting `ssrLocale` is a WRITE to `i18n.locale`, and `renderToString` runs it in the server process            | `ssrLocale` on `<I18nProvider>`                     |
 | **Svelte**  | **forbidden**                      | a per-request instance built in `+layout.svelte` from `load` data; a `load` return value is serialized          | `data.locale` from the `load` function              |
 | **React**   | either, if nothing writes          | plain react has no SSR entry of its own; the rule is the host framework's                                       | `ssrLocale` (or `ssrInitialLocale`) on the provider |
@@ -51,6 +51,13 @@ the factory if a server route needs it.
 SSR loading is the loader capability at work, so a server-rendered nuxt app composes a loader in
 `comvi.host.ts`. Without one, the server utilities say so once, by name, and render whatever the
 catalog already holds. They never call a member the host does not have.
+
+**The request host is destroyed when the response ends.** One hook per request, on the response's
+`close` event — which fires for a finished, an aborted and an errored response alike, and always
+after the last chunk is written, so a streamed render can read the host to its end. Every locale
+instance the request built is destroyed, so a plugin's cleanup runs once per request instead of
+never; a `destroy()` that fails is reported through the host's `onError` with source
+`"request-cleanup"`, never thrown into a response that has already been sent.
 
 ## Vue — build the instance in the request handler
 
