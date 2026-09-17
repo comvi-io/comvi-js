@@ -156,13 +156,36 @@ interface NitroEventContext {
  * built — the channel belongs to the request, not to one locale.
  */
 function reportRequestCleanup(contextKey: object, message: string): void {
-  const first = requestI18nMap.get(contextKey)?.values().next().value;
-  void first?.then(
-    (i18n) => {
-      i18n.reportError(new Error(message), { source: "request-cleanup" });
-    },
-    () => {},
-  );
+  const fromRegistry = requestI18nMap.get(contextKey)?.values().next().value;
+  if (fromRegistry) {
+    void fromRegistry.then(
+      (i18n) => {
+        i18n.reportError(new Error(message), { source: "request-cleanup" });
+      },
+      () => {},
+    );
+    return;
+  }
+
+  // A plain page render builds ONLY the app plugin's host, so that is the whole
+  // error channel this request has. Looking in the locale registry alone loses
+  // the report.
+  const parked = (contextKey as Record<string, unknown>)[REQUEST_HOSTS_KEY];
+  const appHost = Array.isArray(parked) ? (parked[0] as RequestScopedHost | undefined) : undefined;
+  if (appHost) {
+    try {
+      appHost.reportError(new Error(message), { source: "request-cleanup" });
+    } catch {
+      // A reporter that throws must not take the teardown with it.
+    }
+    return;
+  }
+
+  // Neither host exists — a request that never translated. Silent in
+  // production on purpose: there is no app error handler to route this to.
+  if (process.env.NODE_ENV === "development") {
+    console.error(message);
+  }
 }
 
 /**

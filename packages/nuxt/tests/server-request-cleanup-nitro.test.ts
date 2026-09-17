@@ -738,4 +738,96 @@ describe("Nitro server plugin", () => {
 
     await vi.waitFor(() => expect(teardowns.map((t) => t.label)).toEqual(["aborted:en"]));
   });
+
+  it("reports through the app plugin's host when the request built no other", async () => {
+    // A plain page render builds ONLY the app host, so the error channel this
+    // teardown reports on has to be that one: looking in the locale registry
+    // alone loses the report entirely.
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    let captured: H3Event | undefined;
+    const reported: { message: string; source: string | undefined }[] = [];
+    const appHost = {
+      destroy: vi.fn(async () => {
+        order.push("teardown:app-host");
+      }),
+      reportError: vi.fn((error: Error, context?: { source?: string }) => {
+        reported.push({ message: error.message, source: context?.source });
+      }),
+    };
+    let failTask: () => void = () => {};
+    const taskGate = new Promise<void>((resolve) => {
+      failTask = resolve;
+    });
+
+    const app = createApp();
+    app.use(
+      "/page",
+      defineEventHandler((event) => {
+        captured = event;
+        responses.set("page", event.node.res);
+        nitroise(event);
+        // What `runtime/plugin.ts` does on the server, and the ONLY host here.
+        (event.context as Record<string, unknown>)[REQUEST_HOSTS_KEY] = [appHost];
+        event.waitUntil(
+          (async () => {
+            await taskGate;
+            throw new Error("revalidation failed");
+          })(),
+        );
+        return "rendered";
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/page")).body).toBe("rendered");
+
+    const hookDone = callAfterResponse(hooks, captured!);
+    failTask();
+    await hookDone;
+
+    await vi.waitFor(() => expect(reported).toHaveLength(1));
+    expect(reported[0].source).toBe("request-cleanup");
+    expect(reported[0].message).toContain("revalidation failed");
+    await vi.waitFor(() => expect(order).toContain("teardown:app-host"));
+  });
+
+  it("falls back to the console when a request has no host to report on", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "development");
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    let captured: H3Event | undefined;
+    let failTask: () => void = () => {};
+    const taskGate = new Promise<void>((resolve) => {
+      failTask = resolve;
+    });
+
+    const app = createApp();
+    app.use(
+      "/page",
+      defineEventHandler((event) => {
+        captured = event;
+        nitroise(event);
+        event.waitUntil(
+          (async () => {
+            await taskGate;
+            throw new Error("revalidation failed");
+          })(),
+        );
+        return "rendered";
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/page")).body).toBe("rendered");
+
+    const hookDone = callAfterResponse(hooks, captured!);
+    failTask();
+    await hookDone;
+
+    await vi.waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("revalidation failed")),
+    );
+  });
 });

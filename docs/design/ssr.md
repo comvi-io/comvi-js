@@ -113,8 +113,9 @@ It is not the only signal needed, because neither hook means "nothing else will 
   non-array field simply means there is nothing to wait for. A task that REJECTS delays nothing.
 
 Two limits are worth knowing. **The wait follows work that registers more work, for 100 rounds.**
-Past that the hosts are destroyed anyway and the host's `onError` is told, with source
-`"request-cleanup"` and the round count: a background task that reschedules itself forever would
+Past that the hosts are destroyed anyway and the request's `onError` is told — the server
+utilities' host if it built one, otherwise the app plugin's — with source `"request-cleanup"` and
+the round count: a background task that reschedules itself forever would
 otherwise pin that request's hosts, which is the leak this mechanism exists to close. **On a web
 preset the teardown is best effort.** It runs as a continuation after `afterResponse` returns, and a
 platform that suspends the isolate the moment the `Response` is handed back — Cloudflare, Deno
