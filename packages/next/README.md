@@ -55,7 +55,9 @@ runtime, and its composition never travels — both builds get it by evaluating 
 
 One call is not optional. The server helpers read the request locale from React's per-request
 cache, which either `createMiddleware()` fills or you fill with **`setRequestLocale(locale)`**. This
-quickstart has no middleware yet, so the layout calls it, and `getI18n()` throws
+quickstart has no middleware yet, so call it at the top of **every** layout and page that later
+reaches a server helper — the layout's call does not cover the page, because React can start
+rendering the page while the layout is still awaiting its own `params`. `getI18n()` throws
 `[comvi/next] Locale not set.` if nothing did.
 
 ```ts title="src/i18n.ts" check=group=next-quickstart-inline
@@ -153,10 +155,18 @@ export default async function LocaleLayout({
 ```tsx title="src/app/[locale]/page.tsx" check=group=next-quickstart-inline
 // Imported for its side effect: setI18n() must run before getI18n() does.
 import "@/i18n.server";
-import { getI18n } from "@comvi/next/server";
+import { getI18n, setRequestLocale } from "@comvi/next/server";
 import { Greeting } from "./Greeting";
 
-export default async function HomePage() {
+export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+
+  // Not redundant with the layout's call. React can start this subtree while
+  // the layout above is still awaiting its own `params`, so the page has to
+  // fill the per-request cache for itself; without this line the first load of
+  // `/en` is a 500 with `[comvi/next] Locale not set.`
+  setRequestLocale(locale);
+
   const { t } = await getI18n();
 
   return (

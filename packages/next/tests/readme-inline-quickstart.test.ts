@@ -23,6 +23,7 @@ const README = path.join(path.dirname(url.fileURLToPath(import.meta.url)), "..",
 const FENCE = '```ts title="src/i18n.ts" check=group=next-quickstart-inline';
 const LAYOUT_FENCE =
   '```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-inline';
+const PAGE_FENCE = '```tsx title="src/app/[locale]/page.tsx" check=group=next-quickstart-inline';
 
 /** The named fence's code, without its info string or closing fence. */
 function readFence(source: string, opening: string): string {
@@ -122,6 +123,48 @@ describe("the README's inline quickstart layout", () => {
     // "server-only" re-export module instead, which is the shape
     // examples/next uses.
     const importLine = layout
+      .split("\n")
+      .find((line) => line.includes("setRequestLocale") && line.startsWith("import "));
+
+    expect(importLine).toBeDefined();
+    expect(importLine).toContain('from "@comvi/next/server"');
+  });
+});
+
+describe("the README's inline quickstart page", () => {
+  const page = readFence(fs.readFileSync(README, "utf8"), PAGE_FENCE);
+
+  it("calls setRequestLocale(locale) before it awaits getI18n()", () => {
+    // The layout's call is NOT enough, and the layout probe above cannot see
+    // that. React can begin rendering this page while the layout is still
+    // awaiting its own `params`, so the page reaches `getI18n()` with the
+    // per-request cache still empty — `src/server/getI18n.ts` says as much
+    // ("A page can render before its layout completes").
+    //
+    // Observed, not reasoned: the fence extracted verbatim into a Next app
+    // served `/en` as HTTP 500 with
+    //   Error: [comvi/next] Locale not set. Call setRequestLocale(locale) in
+    //   your layout/page first, or configure middleware.
+    // on next@16.3.5 AND on next@15.5.9, with the README's layout fence — which
+    // does call it — directly above. Adding the call turned both `/en` and
+    // `/uk` into 200s.
+    const call = page.indexOf("setRequestLocale(locale)");
+    const getI18n = page.indexOf("await getI18n()");
+
+    expect(call).toBeGreaterThan(-1);
+    expect(getI18n).toBeGreaterThan(-1);
+    expect(call).toBeLessThan(getI18n);
+  });
+
+  it("takes the locale from its own params, and imports the call from @comvi/next/server", () => {
+    // `setRequestLocale(locale)` needs a `locale` binding in scope. A page gets
+    // one the same way the layout does — `await params` — and nowhere else; a
+    // fence that calls it without the prop would type-check against `any` only
+    // if the prop were untyped, so this pins both halves.
+    expect(page).toContain("params: Promise<{ locale: string }>");
+    expect(page).toContain("const { locale } = await params;");
+
+    const importLine = page
       .split("\n")
       .find((line) => line.includes("setRequestLocale") && line.startsWith("import "));
 
