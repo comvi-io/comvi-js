@@ -171,6 +171,20 @@ describe("a locale switch racing destroy()", () => {
     expect(i18n.locale).toBe("en");
     expect(localeChanged).not.toHaveBeenCalled();
   });
+
+  it("still applies synchronously with no loader in the graph", () => {
+    // The no-loader path CANNOT have a switch in flight: the base
+    // `setLocaleAsync` awaits nothing, which is what makes `i18n.locale = "fr"`
+    // apply in the same tick. Pinned here so the destroy re-check above is
+    // never "fixed" into a version that adds a tick to this path.
+    const i18n = createBaseI18n({ locale: "en", exposeGlobal: false });
+    i18n.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+
+    i18n.locale = "fr";
+
+    expect(i18n.locale).toBe("fr");
+    expect(i18n.t("hello")).toBe("Bonjour");
+  });
 });
 
 describe("a loader that throws synchronously", () => {

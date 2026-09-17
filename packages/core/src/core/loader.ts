@@ -159,8 +159,14 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
         await this._loadNs(value, [...this._activeNamespaces], true);
       }
 
-      // Staleness must be re-checked after EVERY await.
-      if (changeId !== this._currentLocaleChangeId) {
+      // Staleness must be re-checked after EVERY await — and `destroy()` is a
+      // second way to go stale that the changeId cannot see. Destroy phase 1
+      // is AWAITED, so a switch can resume BEFORE phase 3's `_resetLoader()`
+      // runs; an invalidation that lived only there would be too late, and
+      // bumping the changeId from `destroy()` would put loader-owned state in
+      // the base host. One extra clause, checked where the switch resumes,
+      // covers every phase order.
+      if (changeId !== this._currentLocaleChangeId || this._isDestroyed) {
         return;
       }
 
