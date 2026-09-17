@@ -1,8 +1,9 @@
 import type { H3Event } from "h3";
 import {
+  armRequestTeardown,
   claimRequestCleanup,
   destroyAfterResponse,
-  destroyWhenResponseEnds,
+  destroyIfResponseOver,
 } from "../internal/request-hosts";
 
 /**
@@ -23,6 +24,7 @@ interface NitroHookEvent {
 
 interface NitroAppLike {
   hooks: {
+    hook(name: "error", fn: (error: Error, context: { event?: H3Event }) => void): unknown;
     afterEach(fn: (event: NitroHookEvent) => void): unknown;
   };
 }
@@ -30,8 +32,8 @@ interface NitroAppLike {
 /**
  * Destroys each request's i18n hosts once Nitro is done with the request.
  *
- * It listens through `afterEach` rather than as a named `afterResponse` /
- * `error` handler, because a named handler runs in the MIDDLE of the callHook:
+ * It listens for `afterResponse` through `afterEach` rather than as a named
+ * handler, because a named handler runs in the MIDDLE of the callHook:
  * another plugin's handler — or Nitro's own stale-while-revalidate
  * registration — sits after ours and calls `event.waitUntil()` there, which a
  * teardown that already read the pending-work array would miss and destroy the
@@ -61,6 +63,17 @@ interface NitroAppLike {
 export default function comviRequestCleanup(nitroApp: NitroAppLike): void {
   claimRequestCleanup();
 
+  // A NAMED hook for `error`, deliberately: this one must run BEFORE any other
+  // error handler gets a chance to await, or a client that disconnects during
+  // that await has already emitted `close` by the time the listener goes on.
+  // It only arms listeners, so running early costs nothing.
+  nitroApp.hooks.hook("error", (_error, context) => {
+    // Nitro's `captureError` is also called for failures with no request.
+    if (context.event) {
+      armRequestTeardown(context.event);
+    }
+  });
+
   nitroApp.hooks.afterEach(({ name, args }) => {
     if (name === "afterResponse") {
       // Not awaited on purpose: `afterEach` handlers are called and dropped
@@ -70,10 +83,11 @@ export default function comviRequestCleanup(nitroApp: NitroAppLike): void {
       return;
     }
     if (name === "error") {
-      // Nitro's `captureError` is also called for failures with no request.
+      // The other half of the error path, late on purpose: the teardown reads
+      // the pending-work array, and a later error handler may still add to it.
       const context = args[1] as { event?: H3Event } | undefined;
       if (context?.event) {
-        destroyWhenResponseEnds(context.event);
+        destroyIfResponseOver(context.event);
       }
     }
   });
