@@ -342,8 +342,22 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 
     // A load is cancelled when its _pendingLoads entry is removed (clear/reload)
     // or the generation is bumped (destroy). Cancelled loads must neither write
-    // to the cache nor surface their errors. The closure only reads `guarded`
-    // after the first await, when the assignment below has already run.
+    // to the cache nor surface their errors. The closure normally reads
+    // `guarded` after the first await, when the assignment below has run.
+    //
+    // ONE case reads it before: a loader that throws SYNCHRONOUSLY. The async
+    // IIFE runs to its first await synchronously, so that throw reaches the
+    // catch and the finally while `guarded` is still `undefined` — the identity
+    // comparisons are then `undefined === this._pendingLoads[key]`, which holds
+    // (nothing is parked under the key yet, or `_loadOne` would have returned
+    // the existing entry at the top), so the error reports and rejects exactly
+    // as a rejected promise does. What it must NOT do is park: the entry is
+    // published below, AFTER the finally that would have deleted it, and a
+    // REJECTED promise sitting under the key is returned to every retry
+    // forever — the loader is never called again and no further `loadError` is
+    // ever emitted. `settled` is that one-bit distinction; it can only be true
+    // here if the IIFE ran to completion without suspending.
+    let settled = false;
     let guarded!: Promise<void>;
     // eslint-disable-next-line prefer-const -- self-reference needs declare-then-assign
     guarded = (async () => {
@@ -363,13 +377,14 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
         this._emit("loadError", { locale, namespace, error: error as Error });
         throw error;
       } finally {
+        settled = true;
         if (this._pendingLoads[key] === guarded) {
           delete this._pendingLoads[key];
         }
       }
     })();
 
-    this._pendingLoads[key] = guarded;
+    if (!settled) this._pendingLoads[key] = guarded;
     return guarded;
   }
 
