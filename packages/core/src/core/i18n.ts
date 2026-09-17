@@ -392,8 +392,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // An option whose capability was never composed does nothing, and doing
       // nothing quietly is what makes it cost an afternoon. Reported HERE
       // rather than in the constructor because both capabilities are legally
-      // composed after construction and before `init()`. Once per host: a
-      // second `init()` finds one of the two lifecycle flags already set.
+      // composed after construction and before `init()`. Once per SUCCESSFUL
+      // init: a second `init()` finds `_isInitialized` set (or, on a
+      // concurrent one, `_isInitializing`) and stays quiet. A first `init()`
+      // that THREW leaves both flags clear, so the retry warns again — which
+      // is right, the capability is still missing. A destroyed host never
+      // reaches here at all; it throws above.
       // DEV-only — a missing capability is not a boundary violation, so
       // production stays fail-soft and silent.
       if (IS_DEV && !this._isInitialized && !this._isInitializing) {

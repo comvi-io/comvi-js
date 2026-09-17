@@ -27,13 +27,14 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /**
- * `init()` loads the initial namespaces once. A loader composed after it is
- * never asked for them, so the host looks composed and stays empty until
- * something else (`addActiveNamespace`, `reloadTranslations`, a locale switch)
- * happens to trigger a load. Empty in prod so terser drops the string.
+ * `init()` loads the initial namespaces. A loader composed after it has run is
+ * not asked for them, so the host looks composed and stays empty until
+ * something else (`addActiveNamespace`, `reloadTranslations`, a locale switch,
+ * another `init()`) happens to trigger a load. Empty in prod so terser drops
+ * the string.
  */
 const ERR_LATE_LOADER = IS_DEV
-  ? "[i18n] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
+  ? "[i18n] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and does not re-run on its own for this loader — call reloadTranslations() or addActiveNamespace() to load now."
   : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
@@ -458,9 +459,9 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
  * i18n.registerLoader(async (locale, ns) => (await fetch(`/${locale}/${ns}.json`)).json());
  * ```
  *
- * MUST run BEFORE `init()`, which loads the initial namespaces exactly once.
- * A loader composed afterwards is never consulted for them; that warns in dev
- * and the recovery is an explicit `addActiveNamespace()` /
+ * MUST run BEFORE `init()`, which is what loads the initial namespaces. A
+ * loader composed afterwards is not consulted for them; that warns in dev and
+ * the recovery is an explicit `addActiveNamespace()` /
  * `reloadTranslations()`.
  *
  * Idempotent via a dot-access probe on an installed hook — never `in`, never a

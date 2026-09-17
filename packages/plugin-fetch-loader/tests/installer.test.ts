@@ -185,7 +185,7 @@ describe("fetchLoader() wrong use", () => {
    * A late `.use(fetchLoader(…))` registers nothing, so the loader
    * capability's recovery advice ("call reloadTranslations() or
    * addActiveNamespace()") cannot work: the plugin that would have called
-   * `registerLoader` never runs. The late-compose warning is once per host, so
+   * `registerLoader` has not run. The late-compose warning is once per host, so
    * the plugin capability's message — the accurate one — has to claim the slot.
    */
   it("warns with the plugin-queue message, not the loader's impossible recovery advice", async () => {

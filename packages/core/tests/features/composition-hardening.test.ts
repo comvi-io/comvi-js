@@ -50,7 +50,8 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
     const host = i18n.use(plugins());
     host.registerPlugin(() => void ran());
 
-    // The defect itself: the plugin is queued and never drained.
+    // The defect itself: the plugin is queued and this init() has already
+    // drained the queue, so nothing runs now.
     expect(ran).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(String(warnSpy.mock.calls[0]![0])).toContain("before init()");

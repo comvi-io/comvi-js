@@ -460,7 +460,7 @@ export class VueI18n<
     if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateUse) {
       this._warnedLateUse = true;
       console.warn(
-        "[i18n] .use(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. The plugin queue is drained inside init() and never again, so a plugin composed now will never run.",
+        "[i18n] .use(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. A plugin queued now does not run until the next init(), which re-runs the whole queue and accumulates a second set of cleanups — so nothing has changed on this host.",
       );
     }
     const widened: unknown = installer(this.core);
