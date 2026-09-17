@@ -6,6 +6,7 @@ import { EDITOR_INITIAL_MAPPINGS_GLOBAL, EDITOR_MAPPINGS_GLOBAL } from "@comvi/c
 // A REAL instance, for the one case that has to prove a key renders rather
 // than that an option was forwarded; every other case keeps the stub.
 import { createI18n as createVueI18n } from "@comvi/vue";
+import { REQUEST_HOSTS_KEY } from "../src/runtime/request-hosts-key";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
 
@@ -72,8 +73,11 @@ function createNuxtAppStub(overrides?: Record<string, unknown>): NuxtAppStub {
 }
 
 /** The Nuxt app shape the SSR branch needs: a payload it can write into. */
-function createServerNuxtAppStub(payload: Record<string, unknown> = {}) {
-  return { ...createNuxtAppStub(), payload };
+function createServerNuxtAppStub(
+  payload: Record<string, unknown> = {},
+  overrides?: Record<string, unknown>,
+) {
+  return { ...createNuxtAppStub(), payload, ...overrides };
 }
 
 /** The `app:rendered` callback the plugin registered with Nuxt. */
@@ -586,6 +590,43 @@ describe("runtime plugin", () => {
   describe("server rendering", () => {
     beforeEach(() => {
       vi.stubGlobal("__COMVI_TEST_SERVER__", true);
+    });
+
+    it("parks its SSR host on the request event, for the Nitro teardown", async () => {
+      // The host is per-request on the server and `destroy()` otherwise runs
+      // only from the HMR dispose, so every SSR request used to leak whatever
+      // its plugins held. The Nitro server plugin destroys what it finds here,
+      // after the response and after the request's background work.
+      const i18n = createI18nStub("en");
+      createComviI18n.mockReturnValue(i18n);
+      const event = { context: {} as Record<string, unknown> };
+
+      const plugin = await importPlugin();
+      await plugin.setup(createServerNuxtAppStub({}, { ssrContext: { event } }));
+
+      expect(event.context[REQUEST_HOSTS_KEY]).toEqual([i18n]);
+    });
+
+    it("appends to an existing parked list instead of replacing it", async () => {
+      // Two Comvi instances in one request (a layer's own plugin, or a second
+      // app) must both be torn down, not the last one only.
+      const existing = { destroy: vi.fn(), reportError: vi.fn() };
+      const i18n = createI18nStub("en");
+      createComviI18n.mockReturnValue(i18n);
+      const event = { context: { [REQUEST_HOSTS_KEY]: [existing] } as Record<string, unknown> };
+
+      const plugin = await importPlugin();
+      await plugin.setup(createServerNuxtAppStub({}, { ssrContext: { event } }));
+
+      expect(event.context[REQUEST_HOSTS_KEY]).toEqual([existing, i18n]);
+    });
+
+    it("renders without a request event, as a prerender pass does", async () => {
+      createComviI18n.mockReturnValue(createI18nStub("en"));
+
+      const plugin = await importPlugin();
+
+      await expect(plugin.setup(createServerNuxtAppStub())).resolves.toBeDefined();
     });
 
     it("hands the private api key to the host", async () => {

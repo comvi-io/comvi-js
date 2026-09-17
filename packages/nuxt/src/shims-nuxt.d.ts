@@ -40,6 +40,12 @@ declare module "#app" {
       use(plugin: unknown): unknown;
     };
     payload: NuxtPayload;
+    /**
+     * Server only, and the reason it is declared here: the app plugin hands its
+     * per-request host to the Nitro teardown through this event's context.
+     * Nuxt's own type has `event` required; optional is the safer shim.
+     */
+    ssrContext?: { event?: import("h3").H3Event; [key: string]: unknown };
     hook(name: string, callback: (...args: unknown[]) => unknown): void;
     $i18n: import("@comvi/vue").AnyVueI18n;
     [key: string]: unknown;

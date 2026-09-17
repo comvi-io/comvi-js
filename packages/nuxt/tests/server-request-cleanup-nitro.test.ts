@@ -38,6 +38,7 @@ import type { Server, ServerResponse } from "node:http";
 import { createI18n } from "@comvi/core";
 import { definePlugin } from "@comvi/core/plugins";
 import { getRequestI18n } from "../src/runtime/server/utils/request-i18n";
+import { REQUEST_HOSTS_KEY } from "../src/runtime/request-hosts-key";
 import requestCleanupPlugin from "../src/runtime/server/plugins/request-cleanup";
 import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
 import { resetComviSetupMock } from "./mocks/comvi-setup";
@@ -620,5 +621,50 @@ describe("Nitro server plugin", () => {
     await vi.waitFor(() => expect(order).toHaveLength(2));
     expect(backgroundText).toBe("Hello");
     expect(order).toEqual(["background-end", "teardown:later:en"]);
+  });
+
+  it("destroys the app plugin's SSR host, parked on the request context, once", async () => {
+    // The Vue host the app plugin builds per SSR request is not in the locale
+    // registry — it is handed over as data on the event context, because the
+    // app bundle and the nitro bundle do not share module state. It has to be
+    // destroyed by the same teardown, and exactly once.
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    let captured: H3Event | undefined;
+    const appHostDestroys: number[] = [];
+    const appHost = {
+      destroy: vi.fn(async () => {
+        appHostDestroys.push(Date.now());
+        order.push("teardown:app-host");
+      }),
+      reportError: vi.fn(),
+    };
+
+    const app = createApp();
+    app.use(
+      "/render",
+      defineEventHandler(async (event) => {
+        captured = event;
+        responses.set("app", event.node.res);
+        nitroise(event);
+        event.context.runtimeConfig = runtimeConfigFor("app");
+        // Exactly what `runtime/plugin.ts` does on the server.
+        (event.context as Record<string, unknown>)[REQUEST_HOSTS_KEY] = [appHost];
+        const i18n = await getRequestI18n(event, "en");
+        return i18n.t("hi");
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/render")).body).toBe("Hello");
+
+    await callAfterResponse(hooks, captured!);
+    // A second signal must not destroy it twice.
+    await callAfterResponse(hooks, captured!);
+
+    await vi.waitFor(() => expect(order).toContain("teardown:app:en"));
+    expect(appHostDestroys).toHaveLength(1);
+    expect(order).toEqual(["teardown:app-host", "teardown:app:en"]);
+    expect(appHost.reportError).not.toHaveBeenCalled();
   });
 });
