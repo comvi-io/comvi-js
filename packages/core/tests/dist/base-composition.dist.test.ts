@@ -37,6 +37,10 @@ const INTERNAL_NAMES = [
   "_disposeDevtools",
   "_globalEntry",
   "_preflightSimpleCatalog",
+  // Declared and applied by the base chunk (`core/i18n.ts`), seeded and taken
+  // over by the plugin chunk (`core/plugins.ts`) on the first
+  // `registerPostProcessor()`.
+  "_postProcessor",
 ];
 
 /** Dev-only text: absent from every prod artifact, readable verbatim in dev. */

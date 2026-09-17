@@ -207,8 +207,17 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _missingParam: MissingParamMode;
   protected _compiler: MessageCompiler;
   protected _compilerId: number;
-  /** `protected`: `registerPostProcessor` lives in the plugin capability. */
-  protected _postProcessors: PostProcessFn[] = [];
+  /**
+   * The ONE universal post-processor: the `postProcess` constructor option.
+   * No field initializer, so a host that was not given one has no own property
+   * for it — and `!this._postProcessor` is a sound emptiness test, because the
+   * slot only ever holds a function or nothing.
+   *
+   * `protected`: CHAINING is the plugin capability's job. `registerPostProcessor`
+   * owns the array and the loop (`core/plugins.ts`) and takes this slot over
+   * with its own chaining applier on the first registration.
+   */
+  protected _postProcessor?: PostProcessFn;
   private _primaryTranslations?: FlattenedTranslations;
   private _primaryTranslationsRevision: number = -1;
   private _primaryTranslationsLocale: string = "";
@@ -293,7 +302,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
       : undefined;
     this._tagInterpolation = tagInterpolation;
     if (options.postProcess) {
-      this._postProcessors.push(options.postProcess);
+      this._postProcessor = options.postProcess;
     }
 
     if (options.translation !== undefined) {
@@ -719,7 +728,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const userParams = params[0];
 
     // Fast path: a template with no placeholders needs no compile at all.
-    if (userParams == null && !this._postProcessors.length) {
+    if (userParams == null && !this._postProcessor) {
       const translations = this._getPrimaryTranslations();
       if (translations !== undefined) {
         const template = translations[key];
@@ -792,7 +801,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const hasParams = params != null;
     const locale = hasParams && params.locale !== undefined ? params.locale : currentLocale;
     const namespace = hasParams && params.ns !== undefined ? params.ns : defaultNamespace;
-    const skipPostProcess = !this._postProcessors.length;
+    const skipPostProcess = !this._postProcessor;
     // `params.tagInterpolation` merges over the instance option for this call
     // only; a no-op when there are no params.
     const tagInterpolation = mergeTagInterpolation(
@@ -878,23 +887,28 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this.reportError(err, { source: "compile", key, namespace, locale });
   }
 
+  /**
+   * Apply the slot, swallowing a throw — UNIVERSAL, because the `postProcess`
+   * constructor option is. A throw must not reach `t()`, so the un-processed
+   * result is returned instead and reported as `source: "post-processor"`.
+   *
+   * With the plugin capability composed the slot holds its chaining applier,
+   * which catches per processor so one throw cannot abort the rest; this
+   * `try` is then the outer net that never fires.
+   */
   private _postProcess(
     result: TranslationResult,
     key: string,
     namespace: string,
     params?: TranslationParams,
   ): TranslationResult {
-    const safeParams = params ?? {};
-    let acc = result;
-    for (let i = 0; i < this._postProcessors.length; i++) {
-      try {
-        acc = this._postProcessors[i](acc, key, namespace, safeParams);
-      } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        this.reportError(err, { source: "post-processor", key, namespace });
-      }
+    try {
+      return this._postProcessor!(result, key, namespace, params ?? {});
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.reportError(err, { source: "post-processor", key, namespace });
+      return result;
     }
-    return acc;
   }
 
   private _handleMissingTranslation(
@@ -1071,7 +1085,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     this._eventCallbacks = {};
     this._activeNamespaces.clear();
-    this._postProcessors = [];
+    this._postProcessor = undefined;
 
     this.translationCache.clear();
 

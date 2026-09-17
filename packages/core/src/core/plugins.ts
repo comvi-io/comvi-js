@@ -17,6 +17,7 @@ import type {
   I18nPluginHost,
   I18nPluginHostApi,
   PostProcessFn,
+  TranslationParams,
   TranslationResult,
 } from "../types";
 import { I18n as I18nBase, type I18nInternal } from "./i18n";
@@ -130,6 +131,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   protected _resetPlugins(): void {
     this._initPlugins();
     this._localeDetector = undefined;
+    // The base already cleared `_postProcessor`; drop the chain behind it, so a
+    // re-registration after `destroy()` starts from the constructed state.
+    this._postProcessors = undefined;
   }
 
   /**
@@ -293,6 +297,15 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     return fallbackValue;
   }
 
+  /**
+   * The CHAIN — array and loop both live here, so a base host that only ever
+   * got the `postProcess` constructor option carries neither. Created on the
+   * first registration, never by `_initPlugins`: a composed host that
+   * registers nothing keeps `_postProcessor` empty, which is what arms the
+   * paramless fast path in `tRaw()`.
+   */
+  declare protected _postProcessors?: PostProcessFn[];
+
   /** Post-processors are chained in registration order (FIFO). */
   public registerPostProcessor(fn: PostProcessFn): void {
     if (typeof fn !== "function") {
@@ -302,7 +315,43 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
           : "E_REGISTER_POST_PROCESSOR",
       );
     }
+    if (this._postProcessors === undefined) {
+      // Seed with the constructor option, if there was one — it is the head of
+      // the chain — then take the base's single slot over with the applier
+      // below. `_chainPostProcess` is stored UNBOUND on purpose: the base calls
+      // it as `this._postProcessor(...)`, so the receiver is this host.
+      this._postProcessors = this._postProcessor ? [this._postProcessor] : [];
+      this._postProcessor = this._chainPostProcess;
+    }
     this._postProcessors.push(fn);
+  }
+
+  /**
+   * Chain every registered processor over one result. Catches PER processor:
+   * a throw is reported and leaves the accumulator untouched, so the
+   * processors after it still run — which is why this never throws, and the
+   * base's own `try` around it never fires.
+   */
+  private _chainPostProcess(
+    result: TranslationResult,
+    key: string,
+    namespace: string,
+    params: TranslationParams,
+  ): TranslationResult {
+    const processors = this._postProcessors!;
+    let acc = result;
+    for (let i = 0; i < processors.length; i++) {
+      try {
+        acc = processors[i](acc, key, namespace, params);
+      } catch (error) {
+        this.reportError(error instanceof Error ? error : new Error(String(error)), {
+          source: "post-processor",
+          key,
+          namespace,
+        });
+      }
+    }
+    return acc;
   }
 
   /** Store plugin-specific data that persists for the life of the instance. */

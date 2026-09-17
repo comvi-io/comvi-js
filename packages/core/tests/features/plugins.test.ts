@@ -155,6 +155,58 @@ describe("I18n#registerPlugin() — execution, ordering and failure", () => {
     expect(i18n.t("test")).toBe("value");
   });
 
+  // The `postProcess` constructor option is UNIVERSAL (it works on a bare base
+  // host), while the chain is the capability's. Where the two meet, the option
+  // is the HEAD of the chain — registering never displaces it.
+  it("keeps the constructor postProcess at the head of the registered chain", () => {
+    const i18n = new I18n({
+      locale: "en",
+      postProcess: (val) => (typeof val === "string" ? `[option]${val}` : val),
+    });
+    i18n.addTranslations({ en: { test: "value" } });
+
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-a` : val));
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-b` : val));
+
+    expect(i18n.t("test")).toBe("[option]value-a-b");
+  });
+
+  it("continues the chain when the constructor postProcess throws", () => {
+    const onError = vi.fn();
+    const i18n = new I18n({
+      locale: "en",
+      onError,
+      postProcess: () => {
+        throw new Error("option processor failed");
+      },
+    });
+    i18n.addTranslations({ en: { test: "value" } });
+
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? val.toUpperCase() : val));
+
+    expect(i18n.t("test")).toBe("VALUE");
+    expect(onError).toHaveBeenCalledWith(expect.any(Error), {
+      source: "post-processor",
+      key: "test",
+      namespace: "default",
+    });
+  });
+
+  // `destroy()` drops the chain, not just the constructor option: a processor
+  // registered afterwards must start a FRESH chain, never append to the one the
+  // destroyed host had.
+  it("drops the registered chain on destroy, so a later registration starts fresh", async () => {
+    const i18n = new I18n({ locale: "en" });
+    i18n.addTranslations({ en: { test: "value" } });
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-before` : val));
+
+    await i18n.destroy();
+    i18n.addTranslations({ en: { test: "value" } });
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-after` : val));
+
+    expect(i18n.t("test")).toBe("value-after");
+  });
+
   it("rejects non-function post processors", () => {
     const i18n = new I18n({ locale: "en" });
 
