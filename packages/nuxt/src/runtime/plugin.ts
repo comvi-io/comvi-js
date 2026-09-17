@@ -10,6 +10,7 @@ import { createComviI18n } from "#build/comvi.host";
 import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./defaults";
+import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "./request-hosts-key";
 import {
   EDITOR_INITIAL_MAPPINGS_GLOBAL,
   toRecordOfNumbers,
@@ -92,6 +93,22 @@ export default defineNuxtPlugin({
     );
 
     if (import.meta.server) {
+      // This host is per-request on the server, and until now nothing destroyed
+      // it: `destroy()` ran only from the HMR dispose below, so a plugin
+      // installed on the SSR host never cleaned up. Park it where the Nitro
+      // server plugin's teardown looks, so the request's app host and the
+      // server utilities' hosts go together, after the response.
+      const requestEvent = nuxtApp.ssrContext?.event;
+      if (requestEvent) {
+        const context = requestEvent.context as Record<string, unknown>;
+        const parked = context[REQUEST_HOSTS_KEY];
+        if (Array.isArray(parked)) {
+          (parked as RequestScopedHost[]).push(i18n);
+        } else {
+          context[REQUEST_HOSTS_KEY] = [i18n] satisfies RequestScopedHost[];
+        }
+      }
+
       nuxtApp.hook("app:rendered", () => {
         const mappings = readEditorMappings(i18n)?.getKeyMappings();
         if (mappings) {

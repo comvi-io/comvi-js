@@ -1,5 +1,6 @@
 import type { H3Event } from "h3";
 import type { NuxtServerHost } from "../../../types";
+import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "../../request-hosts-key";
 
 /**
  * The per-request host registry and its teardown, kept apart from
@@ -67,23 +68,33 @@ export function assertRequestLive(contextKey: object): void {
 }
 
 /**
- * Tear down every host this request built.
+ * Tear down every host this request built: the app plugin's SSR host and every
+ * locale instance the server utilities made.
  *
  * A rejected creation promise has no host to destroy and is skipped — the
  * rejection was already delivered to the caller that asked for that locale.
- * A `destroy()` that rejects is reported through the host's own error channel:
- * the response is written by now, so there is nowhere else for it to go, and
- * throwing here would surface as an unhandled rejection in the server process.
  */
 async function destroyRequestHosts(contextKey: object): Promise<void> {
   // Marked BEFORE the first await: anything that asks while the teardown is in
   // flight would otherwise create a host the loop below has already walked past.
   tornDown.add(contextKey);
+
   const localeInstances = requestI18nMap.get(contextKey);
-  if (!localeInstances) return;
   requestI18nMap.delete(contextKey);
-  const pending = [...localeInstances.values()];
-  localeInstances.clear();
+  const pending = localeInstances ? [...localeInstances.values()] : [];
+  localeInstances?.clear();
+
+  // The app plugin's own SSR host, parked on the event context because the app
+  // bundle and the nitro bundle do not share module state (see
+  // `runtime/request-hosts-key.ts`).
+  const context = contextKey as Record<string, unknown>;
+  const parked = context[REQUEST_HOSTS_KEY];
+  if (Array.isArray(parked)) {
+    delete context[REQUEST_HOSTS_KEY];
+    for (const i18n of parked as RequestScopedHost[]) {
+      await destroyHost(i18n);
+    }
+  }
 
   for (const instancePromise of pending) {
     let i18n: NuxtServerHost;
@@ -92,16 +103,25 @@ async function destroyRequestHosts(contextKey: object): Promise<void> {
     } catch {
       continue;
     }
+    await destroyHost(i18n);
+  }
+}
+
+/**
+ * A rejected `destroy()` is reported through the host's own error channel: the
+ * response is written by now, so there is nowhere else for it to go, and
+ * throwing here would surface as an unhandled rejection in the server process.
+ */
+async function destroyHost(i18n: RequestScopedHost): Promise<void> {
+  try {
+    await i18n.destroy();
+  } catch (error) {
     try {
-      await i18n.destroy();
-    } catch (error) {
-      try {
-        i18n.reportError(error instanceof Error ? error : new Error(String(error)), {
-          source: "request-cleanup",
-        });
-      } catch {
-        // A reporter that throws must not take the process down either.
-      }
+      i18n.reportError(error instanceof Error ? error : new Error(String(error)), {
+        source: "request-cleanup",
+      });
+    } catch {
+      // A reporter that throws must not take the process down either.
     }
   }
 }

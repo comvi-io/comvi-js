@@ -5,10 +5,11 @@
 
 The per-request server host is now destroyed once the request is answered.
 
-A Nitro request built one host per locale and parked it in a WeakMap, which made the hosts
-collectable but never destroyed: a plugin's cleanup — an interval, a socket, a subscription — ran
-on the client at teardown and never on the server. The module now registers a Nitro server plugin
-that hooks `afterResponse` and `error` and destroys every locale instance that request built.
+A Nitro request built one host per locale and parked it in a WeakMap, and the app plugin built one
+more for the SSR render itself; all of them were collectable but never destroyed, so a plugin's
+cleanup — an interval, a socket, a subscription — ran on the client at teardown and never on the
+server. The module now registers a Nitro server plugin that destroys every host the request made,
+the app plugin's included.
 `afterResponse` is the signal that means both "the handler returned" and "the response is written",
 so a still-running render is never handed a destroyed host — which matters for
 `defineCachedEventHandler` and `swr` / `isr` routes, where an aborted request still completes and

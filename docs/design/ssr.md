@@ -37,7 +37,9 @@ catalog. It never runs a plugin's cleanup — an interval, a socket, a subscript
 someone calls `destroy()`. So on a long-lived server the question is who calls it.
 
 - **`@comvi/nuxt`: the module does.** Its Nitro plugin destroys every host the request built, once
-  the request is answered. Nothing to write.
+  the request is answered — BOTH the app plugin's own host, the one your pages and components
+  render against, and any host the server utilities built for `useTranslation()` /
+  `loadTranslations()`. Nothing to write.
 - **Vue SSR, Solid, Svelte: your app does.** You build the instance in the request handler, so it is
   yours to tear down: `await i18n.destroy()` when the render is finished. The recipes below do it.
   Skip it only if you know your plugins hold nothing — the catalog is collected either way.
@@ -71,9 +73,15 @@ SSR loading is the loader capability at work, so a server-rendered nuxt app comp
 `comvi.host.ts`. Without one, the server utilities say so once, by name, and render whatever the
 catalog already holds. They never call a member the host does not have.
 
-**The request host is destroyed once the request is answered.** The module registers a Nitro server
-plugin that hooks `afterResponse` and `error`; the hook destroys every locale instance that request
-built, so a plugin's cleanup runs once per request instead of never. A `destroy()` that fails is
+**Both of the request's hosts are destroyed once the request is answered.** The module registers a
+Nitro server plugin; its teardown covers the app plugin's per-request host — the one the SSR render
+uses, handed over on the h3 event's context, because the app bundle and the Nitro runtime are built
+separately and share no module state — and every locale instance the server utilities built. So a
+plugin's cleanup runs once per request instead of never.
+
+The plugin listens through Hookable's `afterEach` rather than as a named `afterResponse` handler: a
+named handler runs in the middle of the call, where a LATER handler (another module's, or Nitro's
+own background-refresh registration) has not yet called `event.waitUntil()`. A `destroy()` that fails is
 reported through the host's `onError` with source `"request-cleanup"`, never thrown into a response
 that has already been sent.
 

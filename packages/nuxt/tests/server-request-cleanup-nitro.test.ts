@@ -26,6 +26,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, createError, defineEventHandler, toNodeListener } from "h3";
+// The real Hookable, because WHEN our teardown starts relative to the other
+// handlers of the same `callHook` is the contract under test. It is nitro's own
+// dependency and this repo installs shamefully-hoisted, which is how
+// `locale-path-real-router.test.ts` reaches `vue-router`.
+import { createHooks } from "hookable";
 import type { App, H3Event } from "h3";
 import { createServer, request } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -33,6 +38,7 @@ import type { Server, ServerResponse } from "node:http";
 import { createI18n } from "@comvi/core";
 import { definePlugin } from "@comvi/core/plugins";
 import { getRequestI18n } from "../src/runtime/server/utils/request-i18n";
+import { REQUEST_HOSTS_KEY } from "../src/runtime/request-hosts-key";
 import requestCleanupPlugin from "../src/runtime/server/plugins/request-cleanup";
 import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
 import { resetComviSetupMock } from "./mocks/comvi-setup";
@@ -48,18 +54,37 @@ const responses = new Map<string, ServerResponse>();
 /** The `once(event, …)` names the handler saw registered on its own response. */
 const hookedEvents = new Map<string, string[]>();
 
-/** Records what the plugin registered, the way Nitro's Hookable would hold it. */
+/**
+ * A Nitro app around a REAL `createHooks()`, with the registration calls
+ * recorded so a test can still say HOW the plugin listens.
+ */
 function fakeNitroApp() {
-  const hooks = new Map<string, (...args: never[]) => unknown>();
-  const nitroApp = {
-    hooks: {
-      hook(name: string, fn: (...args: never[]) => unknown) {
-        hooks.set(name, fn);
-      },
-    },
-  };
-  return { nitroApp, hooks };
+  const hooks = createHooks();
+  const named: string[] = [];
+  const afterEachCalls: unknown[] = [];
+  const hook = hooks.hook.bind(hooks);
+  const afterEach = hooks.afterEach.bind(hooks);
+  hooks.hook = ((name: string, fn: never) => {
+    named.push(name);
+    return hook(name, fn);
+  }) as typeof hooks.hook;
+  hooks.afterEach = ((fn: never) => {
+    afterEachCalls.push(fn);
+    return afterEach(fn);
+  }) as typeof hooks.afterEach;
+  const nitroApp = { hooks } as unknown as Parameters<typeof requestCleanupPlugin>[0];
+  return { nitroApp, hooks, named, afterEachCalls };
 }
+
+type NitroHooks = ReturnType<typeof createHooks>;
+
+/** What Nitro does at `afterResponse`. */
+const callAfterResponse = (hooks: NitroHooks, event: H3Event) =>
+  hooks.callHook("afterResponse", event, undefined);
+
+/** What Nitro's `captureError` does. */
+const callError = (hooks: NitroHooks, error: Error, context: { event?: H3Event }) =>
+  hooks.callHookParallel("error", error, context);
 
 function runtimeConfigFor(id: string) {
   return {
@@ -158,12 +183,16 @@ afterEach(async () => {
 });
 
 describe("Nitro server plugin", () => {
-  it("registers exactly the two hooks that see a finished request", () => {
-    const { nitroApp, hooks } = fakeNitroApp();
+  it("listens through afterEach, not as a named hook", () => {
+    // A named `afterResponse` handler runs in the MIDDLE of the callHook, where
+    // a later handler's `event.waitUntil()` has not been registered yet.
+    // `afterEach` fires once the whole callHook has settled.
+    const { nitroApp, named, afterEachCalls } = fakeNitroApp();
 
     requestCleanupPlugin(nitroApp);
 
-    expect([...hooks.keys()].sort()).toEqual(["afterResponse", "error"]);
+    expect(named).toEqual([]);
+    expect(afterEachCalls).toHaveLength(1);
   });
 
   it("destroys the request's hosts from afterResponse, and getRequestI18n hooks nothing", async () => {
@@ -192,8 +221,7 @@ describe("Nitro server plugin", () => {
     expect(hookedEvents.get("nitro")).toEqual([]);
     expect(teardowns).toEqual([]);
 
-    const afterResponse = hooks.get("afterResponse") as (event: H3Event) => unknown;
-    await afterResponse(captured!);
+    await callAfterResponse(hooks, captured!);
 
     await vi.waitFor(() =>
       expect(teardowns.map((t) => t.label).sort()).toEqual(["nitro:en", "nitro:uk"]),
@@ -221,8 +249,7 @@ describe("Nitro server plugin", () => {
     expect((await get(port, "/boom")).status).toBe(500);
     expect(teardowns).toEqual([]);
 
-    const errorHook = hooks.get("error") as (error: Error, context: { event?: H3Event }) => unknown;
-    await errorHook(new Error("render failed"), { event: captured });
+    await callError(hooks, new Error("render failed"), { event: captured });
 
     await vi.waitFor(() => expect(teardowns.map((t) => t.label)).toEqual(["boom:en"]));
   });
@@ -230,10 +257,8 @@ describe("Nitro server plugin", () => {
   it("survives an error hook that carries no event", () => {
     const { nitroApp, hooks } = fakeNitroApp();
     requestCleanupPlugin(nitroApp);
-    const errorHook = hooks.get("error") as (error: Error, context: { event?: H3Event }) => unknown;
-
     // Nitro's `captureError` is called for failures that never had a request.
-    expect(() => errorHook(new Error("startup failed"), {})).not.toThrow();
+    expect(() => void callError(hooks, new Error("startup failed"), {})).not.toThrow();
   });
 
   it("keeps a live request working after a captured non-fatal error", async () => {
@@ -243,7 +268,6 @@ describe("Nitro server plugin", () => {
     // handler's next await lands after it.
     const { nitroApp, hooks } = fakeNitroApp();
     requestCleanupPlugin(nitroApp);
-    const errorHook = hooks.get("error") as (error: Error, context: { event?: H3Event }) => unknown;
     let textAfterCapture = "";
     let secondLocale = "";
 
@@ -256,7 +280,7 @@ describe("Nitro server plugin", () => {
         event.context.runtimeConfig = runtimeConfigFor("live");
         const i18n = await getRequestI18n(event, "en");
 
-        errorHook(new Error("cache read failed"), { event });
+        void callError(hooks, new Error("cache read failed"), { event });
 
         // The handler's next real await: a fetch, a DB round trip, anything
         // that yields to the macrotask queue.
@@ -287,11 +311,10 @@ describe("Nitro server plugin", () => {
     // response is still open — and asynchronously so — while this hook runs.
     const { nitroApp, hooks } = fakeNitroApp();
     requestCleanupPlugin(nitroApp);
-    const errorHook = hooks.get("error") as (error: Error, context: { event?: H3Event }) => unknown;
 
     const app = createApp({
       onError: async (error, event) => {
-        errorHook(error, { event });
+        void callError(hooks, error, { event });
         // Stands in for rendering the error page.
         await new Promise((resolve) => setTimeout(resolve, 0));
       },
@@ -364,8 +387,7 @@ describe("Nitro server plugin", () => {
 
     expect((await get(port, "/cached")).body).toBe("Hello");
 
-    const afterResponse = hooks.get("afterResponse") as (event: H3Event) => unknown;
-    const hookDone = afterResponse(captured!);
+    const hookDone = callAfterResponse(hooks, captured!);
     startRefresh();
     await hookDone;
 
@@ -383,7 +405,6 @@ describe("Nitro server plugin", () => {
     // the response has ended is exactly this shape.
     const { nitroApp, hooks } = fakeNitroApp();
     requestCleanupPlugin(nitroApp);
-    const errorHook = hooks.get("error") as (error: Error, context: { event?: H3Event }) => unknown;
     let taskText = "";
     let startTask: () => void = () => {};
     const taskGate = new Promise<void>((resolve) => {
@@ -402,7 +423,7 @@ describe("Nitro server plugin", () => {
         event.waitUntil(
           (async () => {
             await taskGate;
-            errorHook(new Error("storage read failed"), { event });
+            void callError(hooks, new Error("storage read failed"), { event });
             for (let hop = 0; hop < 10; hop += 1) await Promise.resolve();
             taskText = i18n.t("hi");
             order.push("task-end");
@@ -485,8 +506,7 @@ describe("Nitro server plugin", () => {
 
     expect((await get(port, "/endless")).body).toBe("Hello");
 
-    const afterResponse = hooks.get("afterResponse") as (event: H3Event) => unknown;
-    const hookDone = afterResponse(captured!);
+    const hookDone = callAfterResponse(hooks, captured!);
     startChain();
     await hookDone;
 
@@ -547,8 +567,7 @@ describe("Nitro server plugin", () => {
 
     expect((await get(port, "/render")).body).toBe("Hello");
 
-    const afterResponse = hooks.get("afterResponse") as (event: H3Event) => unknown;
-    const hookDone = afterResponse(captured!);
+    const hookDone = callAfterResponse(hooks, captured!);
     failTask();
     await hookDone;
 
@@ -558,5 +577,94 @@ describe("Nitro server plugin", () => {
     expect(reported[0].message).toContain("revalidation failed");
     // And the teardown still happened.
     await vi.waitFor(() => expect(order).toContain("teardown:rejected:en"));
+  });
+
+  it("waits for waitUntil work registered by a LATER afterResponse hook", async () => {
+    // Registration order is not ours to choose: another Nitro plugin's
+    // `afterResponse` handler runs after this one, and Nitro's own SWR refresh
+    // registration lives in exactly that position. Starting the wait inside our
+    // own handler snapshots an array that has not been written to yet.
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    let captured: H3Event | undefined;
+    let backgroundText = "";
+    let host: { t: (key: string) => string } | undefined;
+
+    hooks.hook("afterResponse", (event: H3Event) => {
+      event.waitUntil(
+        (async () => {
+          for (let hop = 0; hop < 10; hop += 1) await Promise.resolve();
+          backgroundText = host!.t("hi");
+          order.push("background-end");
+        })(),
+      );
+    });
+
+    const app = createApp();
+    app.use(
+      "/render",
+      defineEventHandler(async (event) => {
+        captured = event;
+        responses.set("later", event.node.res);
+        nitroise(event);
+        event.context.runtimeConfig = runtimeConfigFor("later");
+        host = await getRequestI18n(event, "en");
+        return host.t("hi");
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/render")).body).toBe("Hello");
+
+    await callAfterResponse(hooks, captured!);
+
+    await vi.waitFor(() => expect(order).toHaveLength(2));
+    expect(backgroundText).toBe("Hello");
+    expect(order).toEqual(["background-end", "teardown:later:en"]);
+  });
+
+  it("destroys the app plugin's SSR host, parked on the request context, once", async () => {
+    // The Vue host the app plugin builds per SSR request is not in the locale
+    // registry — it is handed over as data on the event context, because the
+    // app bundle and the nitro bundle do not share module state. It has to be
+    // destroyed by the same teardown, and exactly once.
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    let captured: H3Event | undefined;
+    const appHostDestroys: number[] = [];
+    const appHost = {
+      destroy: vi.fn(async () => {
+        appHostDestroys.push(Date.now());
+        order.push("teardown:app-host");
+      }),
+      reportError: vi.fn(),
+    };
+
+    const app = createApp();
+    app.use(
+      "/render",
+      defineEventHandler(async (event) => {
+        captured = event;
+        responses.set("app", event.node.res);
+        nitroise(event);
+        event.context.runtimeConfig = runtimeConfigFor("app");
+        // Exactly what `runtime/plugin.ts` does on the server.
+        (event.context as Record<string, unknown>)[REQUEST_HOSTS_KEY] = [appHost];
+        const i18n = await getRequestI18n(event, "en");
+        return i18n.t("hi");
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/render")).body).toBe("Hello");
+
+    await callAfterResponse(hooks, captured!);
+    // A second signal must not destroy it twice.
+    await callAfterResponse(hooks, captured!);
+
+    await vi.waitFor(() => expect(order).toContain("teardown:app:en"));
+    expect(appHostDestroys).toHaveLength(1);
+    expect(order).toEqual(["teardown:app-host", "teardown:app:en"]);
+    expect(appHost.reportError).not.toHaveBeenCalled();
   });
 });
