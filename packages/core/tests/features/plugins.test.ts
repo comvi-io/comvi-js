@@ -29,18 +29,30 @@ describe("I18n#registerPlugin()", () => {
     expect(ran).toEqual(["a", "b"]);
   });
 
-  it("warns in development when called after init(), and queues a plugin that never runs", async () => {
+  it("warns in development when called after init(): the plugin does not run now, the next init() drains it", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const i18n = new I18n({ locale: "en", ns: [] });
+      const early = vi.fn();
+      i18n.registerPlugin(early);
       await i18n.init();
+      expect(early).toHaveBeenCalledTimes(1);
 
       const late = vi.fn();
       i18n.registerPlugin(late);
 
       expect(warn).toHaveBeenCalledTimes(1);
       expect(warn.mock.calls[0]![0]).toContain("registerPlugin() was called after init()");
+      // The warning's whole point: nothing happened. It is NOT discarded
+      // though, which is what the warning now says — see below.
       expect(late).not.toHaveBeenCalled();
+
+      await i18n.init();
+
+      expect(late).toHaveBeenCalledTimes(1);
+      // Together with everything already queued, which is the cost the
+      // warning names.
+      expect(early).toHaveBeenCalledTimes(2);
     } finally {
       warn.mockRestore();
     }

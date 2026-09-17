@@ -33,16 +33,17 @@ const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
   : "E_REGISTER_LOCALE_DETECTOR";
 
 /**
- * The plugin queue is drained inside `init()` and never again, so a plugin
- * registered afterwards silently never runs. Empty in prod so terser drops the
+ * `init()` is the only thing that drains the plugin queue, so a plugin
+ * registered after it has run does nothing until the NEXT `init()` — which is
+ * almost never what the caller meant. Empty in prod so terser drops the
  * strings — and the WeakSet with them.
  */
 const ERR_LATE_PLUGINS = IS_DEV
-  ? "[i18n] .use(plugins()) ran after init(): compose capabilities before init(). The plugin queue is drained inside init() and never again, so a plugin queued now will never run. Create the host, compose it, then init()."
+  ? "[i18n] .use(plugins()) ran after init(): compose capabilities before init(). A plugin queued now does not run until the next init(), which re-runs the WHOLE queue and accumulates a second set of cleanups — so this host is unchanged. Create the host, compose it, then init()."
   : "";
 
 const ERR_LATE_REGISTER_PLUGIN = IS_DEV
-  ? "[i18n] registerPlugin() was called after init(): register plugins before init(). The plugin queue is drained inside init() and never again, so this plugin will never run."
+  ? "[i18n] registerPlugin() was called after init(): register plugins before init(). This plugin has not run and will not run on its own; the next init() drains it together with every plugin already in the queue, and the cleanups of both drains accumulate."
   : "";
 
 const ERR_PLUGIN_INIT_RETURN = IS_DEV
@@ -95,6 +96,17 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * Destroy phase 1 — awaited before any lifecycle reset or emit, so cleanups
    * observe live capability state. LIFO: a cleanup may depend on one queued
    * before it.
+   *
+   * Also the drain for a cleanup that arrives LATE: `_beforeInit` calls this
+   * again when a plugin it was still awaiting returns its cleanup after this
+   * phase has already run (see there). Draining twice is safe — the `pop()`
+   * loop cannot hand the same cleanup out twice, and an empty queue is a no-op.
+   *
+   * BOUNDARY, by design: that late drain is awaited by `init()`, NOT by
+   * `destroy()`. So `await i18n.destroy()` can resolve before the cleanup of a
+   * plugin that was still initializing has finished — `destroy()` must not
+   * hang on a slow plugin, and it does not wait for `init()`. Await the
+   * `init()` promise too if a test or a request teardown needs both.
    */
   protected async _preDestroy(): Promise<void> {
     while (this._pluginCleanups.length) {
@@ -127,11 +139,14 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * own inline plugin goes through the `definePlugin(fn)` installer, which is this
    * call in `.use` clothing.
    *
-   * MUST be called BEFORE `init()`. The queue is drained once, inside `init()`,
-   * and re-running it is not supported (a plugin's cleanup and the lifecycle
-   * events around it assume a single drain), so a plugin registered afterwards
-   * never runs — that warns in dev and is a no-op in prod. Registering from
-   * INSIDE a plugin is fine: the drain loop picks the new entry up.
+   * MUST be called BEFORE `init()`, which is the only thing that drains the
+   * queue. A plugin registered afterwards therefore does not run now — that
+   * warns in dev and is silent in prod. It is not discarded either: the next
+   * `init()` drains the queue again, running it together with every plugin
+   * already in there, and the cleanups of both drains accumulate until one
+   * `destroy()` releases them all (pinned by
+   * `tests/features/initialization.test.ts`). Registering from INSIDE a plugin
+   * is fine: the current drain loop picks the new entry up.
    */
   public registerPlugin(plugin: I18nPluginFn, options?: PluginOptions): this {
     if (IS_DEV && this.isInitialized) warnLateCompose(this, ERR_LATE_REGISTER_PLUGIN);
@@ -209,11 +224,26 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
         this._pluginInit = false;
         clearTimeout(timeoutId);
       }
+
+      // `destroy()` landed while THIS plugin was running. Two things follow,
+      // and the loop bottom is the one place both are true: every interleaving
+      // point in this method is an await inside the iteration above, so a
+      // check here catches every one of them.
+      //
+      //  • A cleanup this plugin just returned was pushed AFTER destroy phase 1
+      //    drained the queue, and phase 3's `_resetPlugins()` throws the array
+      //    away — so it would never run and never report. Drain it here, which
+      //    reuses phase 1's own reporting (`plugin-cleanup`) verbatim.
+      //  • No further plugin may START. A plugin whose `plugin(host)` call had
+      //    not begun when destroy landed does not run at all, and the locale
+      //    detector below does not run either.
+      if (this._isDestroyed) return this._preDestroy();
     }
 
     if (this._localeDetector) {
       const detectedLocale = await this._localeDetector();
-      if (detectedLocale && detectedLocale !== this._locale) {
+      // Re-checked after the detector's await for the same reason.
+      if (!this._isDestroyed && detectedLocale && detectedLocale !== this._locale) {
         await this.setLocaleAsync(detectedLocale);
       }
     }
@@ -288,8 +318,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
 /**
  * Add the plugin-host capability to a base host.
  *
- * MUST run BEFORE `init()`, which drains the plugin queue exactly once — a host
- * composed afterwards has a `registerPlugin()` that can never take effect.
+ * MUST run BEFORE `init()`, which is where the plugin queue is drained — a host
+ * composed afterwards has a `registerPlugin()` whose plugins sit in the queue
+ * until the next `init()`.
  *
  * Attach `attachLoader` TOO if any hosted plugin registers a loader, in either
  * order. Without it, this installs — IN DEVELOPMENT ONLY — a branded throwing

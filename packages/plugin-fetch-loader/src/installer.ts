@@ -26,7 +26,7 @@ export type FetchLoaderInstaller = <T extends I18n<any>>(
  * `attachLoader` overwrites `attachPlugins`' dev loader shims cleanly. It does
  * decide the DIAGNOSTIC on a late compose: the late-compose warning fires once
  * per host, and only the plugin capability's message is true here. A late
- * `.use(fetchLoader(…))` never runs the plugin, so no loader is ever
+ * `.use(fetchLoader(…))` does not run the plugin, so no loader is
  * registered and the loader message's recovery advice — `reloadTranslations()`
  * (which throws `E_NO_LOADER_REGISTERED`) or `addActiveNamespace()` (which
  * fetches nothing) — cannot work. `attachPlugins` therefore runs FIRST so its

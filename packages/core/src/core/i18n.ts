@@ -165,7 +165,21 @@ export class I18n<D extends DefaultTranslationParams = {}>
   public readonly translationCache: TranslationCache;
   private _isInitializing: boolean = false;
   private _isInitialized: boolean = false;
-  private _isDestroyed: boolean = false;
+  /**
+   * `protected`, not `private`: the capability subclasses in `core/loader.ts` /
+   * `core/plugins.ts` re-check it after their own awaits, which is the only way
+   * an operation already in flight can find out that `destroy()` has landed.
+   */
+  protected _isDestroyed: boolean = false;
+  /**
+   * The one teardown attempt, stored so a repeat `destroy()` is the same
+   * attempt rather than a resolved promise that lies about being finished.
+   * Optional and never initialized, so a host that was never destroyed does
+   * not carry it as an own property. It does NOT replace `_isDestroyed`: the
+   * flag has to be readable SYNCHRONOUSLY, because `init()`, `_beforeInit` and
+   * `setLocaleAsync` re-read it right after their own awaits.
+   */
+  private _destroyAttempt?: Promise<void>;
   private _loadingCount: number = 0;
   protected _fallbackLocales: string[];
   public readonly apiKey: string | undefined;
@@ -387,8 +401,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // An option whose capability was never composed does nothing, and doing
       // nothing quietly is what makes it cost an afternoon. Reported HERE
       // rather than in the constructor because both capabilities are legally
-      // composed after construction and before `init()`. Once per host: a
-      // second `init()` finds one of the two lifecycle flags already set.
+      // composed after construction and before `init()`. Once per SUCCESSFUL
+      // init: a second `init()` finds `_isInitialized` set (or, on a
+      // concurrent one, `_isInitializing`) and stays quiet. A first `init()`
+      // that THREW leaves both flags clear, so the retry warns again — which
+      // is right, the capability is still missing. A destroyed host never
+      // reaches here at all; it throws above.
       // DEV-only — a missing capability is not a boundary violation, so
       // production stays fail-soft and silent.
       if (IS_DEV && !this._isInitialized && !this._isInitializing) {
@@ -416,10 +434,27 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // must be able to change the locale before namespaces are loaded.
       await (this as unknown as I18nInternal)._beforeInit?.();
 
+      // `destroy()` can land during EVERY await in this method, so the flag is
+      // re-read after each one. A host destroyed mid-init RESOLVES QUIETLY:
+      // `this` back, `isInitialized` still false, no `initialized` emit, no
+      // `reportError`. The normal producer of this race is a binding whose
+      // component unmounted while its fire-and-forget `init()` was in flight
+      // (react/solid/svelte providers, vue's `install()`, next's
+      // `ensureInitialized`, nuxt's request host) — turning every unmount into
+      // a reported error would be worse than a resolve whose `isInitialized`
+      // honestly reads false. Pinned by tests/features/destroy-races.test.ts.
+      //
+      // The check BEFORE the namespace load matters on its own: destroy()
+      // cleared the active-namespace set and the cache, and loading here would
+      // put both back.
+      if (this._isDestroyed) return this;
+
       const namespacesToLoad = this._initialNamespaces ?? [this._cachedDefaultNs];
       if (namespacesToLoad.length > 0) {
         await this._nsAddActiveNamespaces(namespacesToLoad);
       }
+
+      if (this._isDestroyed) return this;
 
       this._isInitialized = true;
       this._emit("initialized");
@@ -997,11 +1032,24 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
   }
 
-  /** Tear the instance down; it cannot be re-initialized afterwards. */
-  public async destroy(): Promise<void> {
-    if (this._isDestroyed) {
-      return;
-    }
+  /**
+   * Tear the instance down; it cannot be re-initialized afterwards.
+   *
+   * A repeat call is the SAME attempt, not a second teardown and not a
+   * resolved promise: `await i18n.destroy()` means the plugin cleanups have
+   * FINISHED even for a caller who arrived while the first call was still
+   * awaiting them. Two callers is the normal case — a binding unmounting twice,
+   * a request host torn down by both the response hook and an error path — and
+   * the old early `return` told the second one that cleanup was done before it
+   * had begun to finish.
+   */
+  public destroy(): Promise<void> {
+    // `_destroy()` sets `_isDestroyed` before its first await, so the flag is
+    // true the instant this returns, exactly as the old assignment was.
+    return (this._destroyAttempt ??= this._destroy());
+  }
+
+  private async _destroy(): Promise<void> {
     this._isDestroyed = true;
 
     // Phase 0 — discovery removal, before any lifecycle reset.

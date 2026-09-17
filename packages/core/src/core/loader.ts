@@ -27,13 +27,14 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /**
- * `init()` loads the initial namespaces once. A loader composed after it is
- * never asked for them, so the host looks composed and stays empty until
- * something else (`addActiveNamespace`, `reloadTranslations`, a locale switch)
- * happens to trigger a load. Empty in prod so terser drops the string.
+ * `init()` loads the initial namespaces. A loader composed after it has run is
+ * not asked for them, so the host looks composed and stays empty until
+ * something else (`addActiveNamespace`, `reloadTranslations`, a locale switch,
+ * another `init()`) happens to trigger a load. Empty in prod so terser drops
+ * the string.
  */
 const ERR_LATE_LOADER = IS_DEV
-  ? "[i18n] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
+  ? "[i18n] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and does not re-run on its own for this loader — call reloadTranslations() or addActiveNamespace() to load now."
   : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
@@ -113,7 +114,14 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   /** Destroy phase 3 — runs only after the `destroyed` listeners saw the still-live state. */
   protected _resetLoader(): void {
     this._nsGeneration++;
-    this._pendingLoads = {};
+    // Null-prototype, matching `_initLoader`. NOT load-bearing today: every
+    // key `_loadOne` probes is `locale + ":" + namespace`, which no
+    // `Object.prototype` member can spell, and `_cancelNs`'s `for...in` sees
+    // only enumerable keys. It is here so the field has ONE shape — a probe
+    // that ever dropped the prefix would read an inherited function as a
+    // pending load — and it costs 0 B min+gz, the identifier being in the
+    // bundle already.
+    this._pendingLoads = Object.create(null);
     this._loader = undefined;
   }
 
@@ -159,8 +167,14 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
         await this._loadNs(value, [...this._activeNamespaces], true);
       }
 
-      // Staleness must be re-checked after EVERY await.
-      if (changeId !== this._currentLocaleChangeId) {
+      // Staleness must be re-checked after EVERY await — and `destroy()` is a
+      // second way to go stale that the changeId cannot see. Destroy phase 1
+      // is AWAITED, so a switch can resume BEFORE phase 3's `_resetLoader()`
+      // runs; an invalidation that lived only there would be too late, and
+      // bumping the changeId from `destroy()` would put loader-owned state in
+      // the base host. One extra clause, checked where the switch resumes,
+      // covers every phase order.
+      if (changeId !== this._currentLocaleChangeId || this._isDestroyed) {
         return;
       }
 
@@ -336,8 +350,22 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 
     // A load is cancelled when its _pendingLoads entry is removed (clear/reload)
     // or the generation is bumped (destroy). Cancelled loads must neither write
-    // to the cache nor surface their errors. The closure only reads `guarded`
-    // after the first await, when the assignment below has already run.
+    // to the cache nor surface their errors. The closure normally reads
+    // `guarded` after the first await, when the assignment below has run.
+    //
+    // ONE case reads it before: a loader that throws SYNCHRONOUSLY. The async
+    // IIFE runs to its first await synchronously, so that throw reaches the
+    // catch and the finally while `guarded` is still `undefined` — the identity
+    // comparisons are then `undefined === this._pendingLoads[key]`, which holds
+    // (nothing is parked under the key yet, or `_loadOne` would have returned
+    // the existing entry at the top), so the error reports and rejects exactly
+    // as a rejected promise does. What it must NOT do is park: the entry is
+    // published below, AFTER the finally that would have deleted it, and a
+    // REJECTED promise sitting under the key is returned to every retry
+    // forever — the loader is never called again and no further `loadError` is
+    // ever emitted. `settled` is that one-bit distinction; it can only be true
+    // here if the IIFE ran to completion without suspending.
+    let settled = false;
     let guarded!: Promise<void>;
     // eslint-disable-next-line prefer-const -- self-reference needs declare-then-assign
     guarded = (async () => {
@@ -357,13 +385,14 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
         this._emit("loadError", { locale, namespace, error: error as Error });
         throw error;
       } finally {
+        settled = true;
         if (this._pendingLoads[key] === guarded) {
           delete this._pendingLoads[key];
         }
       }
     })();
 
-    this._pendingLoads[key] = guarded;
+    if (!settled) this._pendingLoads[key] = guarded;
     return guarded;
   }
 
@@ -437,9 +466,9 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
  * i18n.registerLoader(async (locale, ns) => (await fetch(`/${locale}/${ns}.json`)).json());
  * ```
  *
- * MUST run BEFORE `init()`, which loads the initial namespaces exactly once.
- * A loader composed afterwards is never consulted for them; that warns in dev
- * and the recovery is an explicit `addActiveNamespace()` /
+ * MUST run BEFORE `init()`, which is what loads the initial namespaces. A
+ * loader composed afterwards is not consulted for them; that warns in dev and
+ * the recovery is an explicit `addActiveNamespace()` /
  * `reloadTranslations()`.
  *
  * Idempotent via a dot-access probe on an installed hook — never `in`, never a

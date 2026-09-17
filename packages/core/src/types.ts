@@ -1083,9 +1083,12 @@ export interface I18nLoaderApi {
  */
 export interface I18nPluginHostApi {
   /**
-   * Register a raw plugin. Chainable. MUST be called before `init()`, which
-   * drains the queue once. NOT a composition verb — `.use(definePlugin(fn))` is
-   * how an app registers its own inline plugin through the one verb.
+   * Register a raw plugin. Chainable. MUST be called before `init()`, which is
+   * the only thing that drains the queue: a plugin registered afterwards does
+   * not run now, the next `init()` drains it together with every plugin already
+   * queued, and the cleanups of both drains accumulate. NOT a composition
+   * verb — `.use(definePlugin(fn))` is how an app registers its own inline
+   * plugin through the one verb.
    */
   registerPlugin(plugin: I18nPlugin, options?: PluginOptions): this;
 

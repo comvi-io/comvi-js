@@ -483,7 +483,9 @@ composed, so the capability is in place and stays typed afterwards. ICU is not
 composed at all: it is `compiler: icuCompiler` in the options, beside
 `ssrLocale`. Assign the result: a discarded `i18n.use(…)` still attaches the
 capability at runtime but leaves the binding's `core` unwidened. Compose before
-`app.use(i18n)`, which starts `init()` and drains the plugin queue once.
+`app.use(i18n)`, which starts `init()` — the one thing that drains the plugin
+queue. Compose after it and the plugin waits for the next `init()`, which is
+almost never what you meant; the dev build warns.
 `createI18nFromCore` (wrapping a host you built yourself, with `createI18n` from
 `@comvi/core`; the `createCore` alias is gone) is unchanged and advanced:
 it is for a host built elsewhere, such as Nuxt's `hostModule` (§6) or one host
