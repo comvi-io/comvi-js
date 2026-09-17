@@ -171,6 +171,26 @@ Each capability is one import and one `.use(...)`. `.use(installer)` is core's c
 `useSwitchLocalePath()` are all auto-imported; `useI18n()` is `@comvi/vue`'s composable, returning
 Vue refs, and `<T>` is inherited from there with the same named-slot shape.
 
+On the server, `useTranslation(event)` returns `{ t, hasTranslation, locale }` and takes the
+namespace as `ns` — the same shape and the same word `@comvi/next`'s `getI18n()` uses. The 0.4
+spelling `namespace` still works through 0.5 and warns once in dev.
+
+### Locale routing: what `@comvi/next` and `@comvi/nuxt` share
+
+The two framework modules share their semantics and keep their adapters. Locale routing,
+`Accept-Language` matching and the server helper's vocabulary and result shape are one
+implementation, so the same request resolves to the same locale in both. Host lifetime, the cookie
+name (`NEXT_LOCALE` on Next, `i18n_locale` on Nuxt — each ecosystem's existing one) and how you
+install the integration stay framework-shaped.
+
+One behavioural difference remains on purpose. With `localePrefix: "as-needed"`,
+`defaultLocale: "en"` and a `de` locale cookie, a request for `/about` is redirected to `/de/about`
+on Next, because a next-intl app treats the stored preference as authoritative; Nuxt serves `en` at
+`/about` and keeps the cookie, because a nuxt-i18n app treats an unprefixed non-root path as the
+default locale's own URL. After 0.5 this becomes one shared option with one name and one meaning,
+defaulting per framework to today's behaviour. Full reasoning:
+[`docs/design/next-nuxt-parity.md`](../../docs/design/next-nuxt-parity.md).
+
 ## 5. Where to go next
 
 - **This binding:** [guide](https://comvi.io/docs/i18n/nuxt) ·
@@ -180,6 +200,7 @@ Vue refs, and `<T>` is inherited from there with the same named-slot shape.
   [typed keys](https://comvi.io/docs/i18n/type-safety) · [SSR](https://comvi.io/docs/i18n/ssr) ·
   [errors](https://comvi.io/docs/i18n/errors) · [limitations](https://comvi.io/docs/i18n/limitations)
 - **Also here:** [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader) · [`@comvi/vue`](../vue) ·
+  [`docs/design/next-nuxt-parity.md`](../../docs/design/next-nuxt-parity.md) ·
   [`docs/design/`](../../docs/design)
 - **Upgrading from 0.4.x:** the host moved into `comvi.host.ts` and `comvi.cdnUrl` / `comvi.apiBaseUrl`
   are gone. [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) and
