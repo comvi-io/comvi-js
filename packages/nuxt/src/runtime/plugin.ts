@@ -166,7 +166,10 @@ export default defineNuxtPlugin({
       import.meta.hot.dispose(() => {
         unsubLocaleChanged();
         unwatchLocale();
-        i18n.destroy();
+        // `dispose` is synchronous and HMR does not wait: fire-and-forget is
+        // the contract here, and `destroy()` resolves even when the host's
+        // cleanup fails, so nothing can reach this as an unhandled rejection.
+        void i18n.destroy();
       });
     }
 

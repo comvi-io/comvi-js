@@ -92,7 +92,8 @@ export interface UseI18nReturn<
 
   dir: ComputedRef<"ltr" | "rtl">;
 
-  destroy: () => void;
+  /** Resolves once the host's plugin cleanups have finished. */
+  destroy: () => Promise<void>;
 
   // D″ tombstones. These four members LEFT `useI18n()` in 0.5 for
   // `useI18nLoader()` / `useI18nPlugins()`. Declaring each optional and
