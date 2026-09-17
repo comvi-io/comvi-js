@@ -79,9 +79,11 @@ uses, handed over on the h3 event's context, because the app bundle and the Nitr
 separately and share no module state — and every locale instance the server utilities built. So a
 plugin's cleanup runs once per request instead of never.
 
-The plugin listens through Hookable's `afterEach` rather than as a named `afterResponse` handler: a
+The plugin takes `afterResponse` through Hookable's `afterEach` rather than as a named handler: a
 named handler runs in the middle of the call, where a LATER handler (another module's, or Nitro's
-own background-refresh registration) has not yet called `event.waitUntil()`. A `destroy()` that fails is
+own background-refresh registration) has not yet called `event.waitUntil()`. The `error` hook is
+named, for the opposite reason — it must arm its response-end listeners before any other error
+handler can await, since a client that disconnects during that await has already emitted `close`. A `destroy()` that fails is
 reported through the host's `onError` with source `"request-cleanup"`, never thrown into a response
 that has already been sent.
 

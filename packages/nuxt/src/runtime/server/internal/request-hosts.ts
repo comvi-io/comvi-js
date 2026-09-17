@@ -253,38 +253,57 @@ export async function destroyAfterResponse(event: H3Event): Promise<void> {
 }
 
 /**
- * Nitro's `error` hook, which is `captureError` and does NOT mean the request
- * is over: `event.captureError()`, a swallowed `request`-hook throw and a cache
- * read/write failure all reach it on a request that keeps running. So this path
- * never arms the macrotask timer — that timer belongs to the abort case, where
- * nothing more will ever be written, and arming it here would destroy the hosts
- * at the handler's next await.
+ * Arm the response-end teardown, at the START of Nitro's error handling.
  *
- * It is load-bearing rather than belt-and-braces: for a thrown handler under
- * Nitro, h3 1.15.11 never calls `onAfterResponse` at all — its catch runs
- * `onError` first, and `if (event.handled) return` fires because Nitro's
- * `errorHandler` has already sent the response. Nitro captures BEFORE it sends,
- * so `finish` is what says the error response went out.
+ * Nitro's `error` hook is `captureError` and does NOT mean the request is over:
+ * `event.captureError()`, a swallowed `request`-hook throw and a cache
+ * read/write failure all reach it on a request that keeps running. So this arms
+ * listeners and destroys nothing — the teardown happens when the response
+ * actually ends, and never on the macrotask timer, which belongs to the abort
+ * case alone.
+ *
+ * Arming has to happen HERE, not when the hook call finishes, because an error
+ * handler may AWAIT — Nitro's error renderer does. If the client disconnects
+ * during that await, `close` has already fired by the time a later-armed
+ * listener goes on, and a thrown handler never reaches `afterResponse` at all:
+ * h3 1.15.11's catch runs `onError` first and returns on `event.handled`,
+ * which Nitro's `errorHandler` has just set by sending the response. The host
+ * would be retained for the life of the process.
+ *
+ * Idempotent: `captureError` can fire many times on one request, and the
+ * WeakSet keeps this to one pair of listeners.
  */
-export function destroyWhenResponseEnds(event: H3Event): void {
+export function armRequestTeardown(event: H3Event): void {
   const contextKey = getContextKey(event);
-  const res = event.node.res;
-  if (res.writableEnded) {
-    // Through `destroyAfterResponse`, not straight to the teardown: a capture
-    // can arrive from INSIDE a `waitUntil` task (`event.captureError()`, or
-    // Nitro's cache layer capturing a read failure with whatever event it was
-    // handed), and that task is exactly what must finish first. It cannot
-    // deadlock — the wait runs on its own chain, so it simply defers.
-    void destroyAfterResponse(event);
-    return;
-  }
   if (endWatched.has(contextKey)) return;
   endWatched.add(contextKey);
+  const res = event.node.res;
   const whenOver = (): void => {
     void destroyAfterResponse(event);
   };
   res.once("finish", whenOver);
   res.once("close", whenOver);
+}
+
+/**
+ * The late half of the error path: tear down if the response is ALREADY over.
+ *
+ * Called once the whole error hook call has settled, because
+ * `destroyAfterResponse` reads the pending-work array and a later error handler
+ * may still add to it. A response that was over before
+ * {@link armRequestTeardown} ran — written, or a socket an abort already
+ * destroyed — will never emit to those listeners, so this is its only signal.
+ * It goes through `destroyAfterResponse` rather than straight to the teardown
+ * because a capture can arrive from INSIDE a `waitUntil` task
+ * (`event.captureError()`, or Nitro's cache layer capturing a read failure with
+ * whatever event it was handed), and that task must finish first. No deadlock:
+ * the wait runs on its own chain, so it simply defers.
+ */
+export function destroyIfResponseOver(event: H3Event): void {
+  const res = event.node.res;
+  if (res.writableEnded || res.destroyed) {
+    void destroyAfterResponse(event);
+  }
 }
 
 /**

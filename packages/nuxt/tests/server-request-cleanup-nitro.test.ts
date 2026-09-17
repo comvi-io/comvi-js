@@ -150,6 +150,21 @@ async function serve(app: App): Promise<number> {
   return (started.address() as AddressInfo).port;
 }
 
+/** Sends a request and pulls the plug as soon as the first chunk lands. */
+function getThenAbort(port: number, path: string): Promise<void> {
+  return new Promise((resolve) => {
+    const req = request({ host: "127.0.0.1", port, path, method: "GET" }, (res) => {
+      res.once("data", () => {
+        req.destroy();
+        resolve();
+      });
+      res.on("end", () => resolve());
+    });
+    req.on("error", () => resolve());
+    req.end();
+  });
+}
+
 function get(port: number, path: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = request({ host: "127.0.0.1", port, path, method: "GET" }, (res) => {
@@ -183,15 +198,18 @@ afterEach(async () => {
 });
 
 describe("Nitro server plugin", () => {
-  it("listens through afterEach, not as a named hook", () => {
-    // A named `afterResponse` handler runs in the MIDDLE of the callHook, where
-    // a later handler's `event.waitUntil()` has not been registered yet.
-    // `afterEach` fires once the whole callHook has settled.
+  it("arms from a named error hook and triggers from afterEach", () => {
+    // Two registrations, each for a reason. `afterResponse` goes through
+    // `afterEach` because a named handler runs in the MIDDLE of the callHook,
+    // where a later handler's `event.waitUntil()` is not registered yet. `error`
+    // needs a NAMED hook as well, because arming the response-end listeners has
+    // to happen before any other error handler can await — by the end of the
+    // call a disconnect has already emitted `close`.
     const { nitroApp, named, afterEachCalls } = fakeNitroApp();
 
     requestCleanupPlugin(nitroApp);
 
-    expect(named).toEqual([]);
+    expect(named).toEqual(["error"]);
     expect(afterEachCalls).toHaveLength(1);
   });
 
@@ -666,5 +684,58 @@ describe("Nitro server plugin", () => {
     expect(appHostDestroys).toHaveLength(1);
     expect(order).toEqual(["teardown:app-host", "teardown:app:en"]);
     expect(appHost.reportError).not.toHaveBeenCalled();
+  });
+
+  it("destroys once when the client aborts while another error hook is awaiting", async () => {
+    // The `error` hook fires at the START of error handling, but our teardown
+    // used to be armed from `afterEach` — after every error handler had
+    // finished. An error handler that AWAITS (Nitro's own error renderer does)
+    // is all it takes: the client disconnects during that await, `close` has
+    // already fired by the time the listener goes on, and a thrown handler
+    // never reaches `afterResponse`. The host is then retained for good.
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    let releaseErrorHook: () => void = () => {};
+    const errorHookGate = new Promise<void>((resolve) => {
+      releaseErrorHook = resolve;
+    });
+    let aborted: () => void = () => {};
+    const abortSeen = new Promise<void>((resolve) => {
+      aborted = resolve;
+    });
+
+    // Registered AFTER ours, and it awaits — the shape that exposes the timing.
+    hooks.hook("error", async () => {
+      await errorHookGate;
+    });
+
+    const app = createApp({
+      onError: async (error, event) => {
+        await callError(hooks, error, { event });
+      },
+    });
+    app.use(
+      "/boom",
+      defineEventHandler(async (event) => {
+        responses.set("aborted", event.node.res);
+        nitroise(event);
+        event.context.runtimeConfig = runtimeConfigFor("aborted");
+        const i18n = await getRequestI18n(event, "en");
+        event.node.res.writeHead(200, { "content-type": "text/plain" });
+        event.node.res.write(i18n.t("hi"));
+        await abortSeen;
+        throw createError({ statusCode: 500, statusMessage: "render failed" });
+      }),
+    );
+    const port = await serve(app);
+
+    await getThenAbort(port, "/boom");
+    // The handler throws now; the awaiting error hook holds error handling open
+    // across the disconnect.
+    aborted();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    releaseErrorHook();
+
+    await vi.waitFor(() => expect(teardowns.map((t) => t.label)).toEqual(["aborted:en"]));
   });
 });
