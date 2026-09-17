@@ -4,7 +4,7 @@
 
 **BREAKING (breaking change on a 0.x minor): `comvi.cdnUrl` and `comvi.apiBaseUrl` are removed.**
 
-Both were documented with `@example "https://cdn.comvi.io/your-distribution-id"` and written into
+Both were documented with an `@example` CDN URL and written into
 `runtimeConfig.public.comvi`, and no runtime code in this package ever read either one. An app
 that set them got a config key, a serialized payload entry, and no loading — the exact shape of a
 setting that looks configured and does nothing. They are removed rather than wired: this module
@@ -20,7 +20,7 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 export default ((options) =>
   createI18n(options).use(
-    cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+    cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
   )) satisfies NuxtHostFactory;
 ```
 
