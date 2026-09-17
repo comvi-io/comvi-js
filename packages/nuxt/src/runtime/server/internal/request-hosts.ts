@@ -121,6 +121,38 @@ interface NitroEventContext {
 }
 
 /**
+ * How many rounds of "work that registered more work" the teardown follows.
+ *
+ * The wait re-reads the array, so a background task that reschedules itself
+ * would keep the loop — and with it the event and its hosts — alive forever,
+ * which is the leak this whole mechanism exists to close. At the cap the hosts
+ * are destroyed anyway and the host's `onError` is told, because at that point
+ * something in the app is looping, not translating.
+ */
+const MAX_WAIT_ROUNDS = 100;
+
+/** What Nitro's `onRequest` puts on the context. Not ours, so read defensively. */
+interface NitroEventContext {
+  nitro?: { _waitUntilPromises?: unknown[] };
+}
+
+/** Tell the request's own error channel that the wait was abandoned. */
+function reportAbandonedWait(contextKey: object): void {
+  const first = requestI18nMap.get(contextKey)?.values().next().value;
+  void first?.then(
+    (i18n) => {
+      i18n.reportError(
+        new Error(
+          `[comvi/nuxt] event.waitUntil() work was still registering more work after ${MAX_WAIT_ROUNDS} rounds; destroying this request's i18n hosts anyway`,
+        ),
+        { source: "request-cleanup" },
+      );
+    },
+    () => {},
+  );
+}
+
+/**
  * Wait for the work the request registered with `event.waitUntil()`.
  *
  * `afterResponse` means the response is written, NOT that nothing else holds
@@ -136,13 +168,19 @@ interface NitroEventContext {
  * `context.nitro` is the only storage (declared in its `H3EventContext`
  * augmentation, underscore-private). So it is read defensively — a missing or
  * non-array field just means there is nothing to wait for — and the loop
- * re-reads the array because work settling here can register more.
+ * re-reads the array because work settling here can register more, up to
+ * {@link MAX_WAIT_ROUNDS}. A task that REJECTS does not block anything:
+ * `allSettled` waits for it and moves on.
  */
-async function settlePendingWork(event: H3Event): Promise<void> {
+async function settlePendingWork(event: H3Event, contextKey: object): Promise<void> {
   const pending = (event.context as NitroEventContext | undefined)?.nitro?._waitUntilPromises;
   if (!Array.isArray(pending)) return;
   let settled = 0;
-  while (pending.length > settled) {
+  for (let round = 0; pending.length > settled; round += 1) {
+    if (round >= MAX_WAIT_ROUNDS) {
+      reportAbandonedWait(contextKey);
+      return;
+    }
     const batch = pending.slice(settled);
     settled = pending.length;
     await Promise.allSettled(batch);
@@ -182,8 +220,9 @@ function scheduleTeardown(event: H3Event, contextKey: object): void {
 
 /** Nitro's `afterResponse`: the response is written, so only its background work is left. */
 export async function destroyAfterResponse(event: H3Event): Promise<void> {
-  await settlePendingWork(event);
-  scheduleTeardown(event, getContextKey(event));
+  const contextKey = getContextKey(event);
+  await settlePendingWork(event, contextKey);
+  scheduleTeardown(event, contextKey);
 }
 
 /**
@@ -204,7 +243,12 @@ export function destroyWhenResponseEnds(event: H3Event): void {
   const contextKey = getContextKey(event);
   const res = event.node.res;
   if (res.writableEnded) {
-    void destroyRequestHosts(contextKey);
+    // Through `destroyAfterResponse`, not straight to the teardown: a capture
+    // can arrive from INSIDE a `waitUntil` task (`event.captureError()`, or
+    // Nitro's cache layer capturing a read failure with whatever event it was
+    // handed), and that task is exactly what must finish first. It cannot
+    // deadlock — the wait runs on its own chain, so it simply defers.
+    void destroyAfterResponse(event);
     return;
   }
   if (endWatched.has(contextKey)) return;

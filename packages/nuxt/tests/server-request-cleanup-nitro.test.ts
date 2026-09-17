@@ -348,6 +348,14 @@ describe("Nitro server plugin", () => {
             order.push("refresh-end");
           })(),
         );
+        // A task that FAILS must not block the teardown. Gated like the one
+        // above, so the rejection happens after the wait has attached to it.
+        event.waitUntil(
+          (async () => {
+            await refreshGate;
+            throw new Error("a background task failed");
+          })(),
+        );
 
         return i18n.t("hi");
       }),
@@ -365,5 +373,129 @@ describe("Nitro server plugin", () => {
     await vi.waitFor(() => expect(order).toHaveLength(2));
     expect(refreshText).toBe("Hello");
     expect(order).toEqual(["refresh-end", "teardown:swr:en"]);
+  });
+
+  it("waits for background work even when the capture arrives after the response ended", async () => {
+    // D6: every other path waits for `waitUntil` work; the error hook's
+    // already-ended branch did not. `event.captureError()` inside a background
+    // task is the documented way to report a non-fatal failure — and Nitro's
+    // own cache layer captures with whatever event it was handed, which after
+    // the response has ended is exactly this shape.
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    const errorHook = hooks.get("error") as (error: Error, context: { event?: H3Event }) => unknown;
+    let taskText = "";
+    let startTask: () => void = () => {};
+    const taskGate = new Promise<void>((resolve) => {
+      startTask = resolve;
+    });
+
+    const app = createApp();
+    app.use(
+      "/cached",
+      defineEventHandler(async (event) => {
+        responses.set("capture", event.node.res);
+        nitroise(event);
+        event.context.runtimeConfig = runtimeConfigFor("capture");
+        const i18n = await getRequestI18n(event, "en");
+
+        event.waitUntil(
+          (async () => {
+            await taskGate;
+            errorHook(new Error("storage read failed"), { event });
+            for (let hop = 0; hop < 10; hop += 1) await Promise.resolve();
+            taskText = i18n.t("hi");
+            order.push("task-end");
+          })(),
+        );
+
+        return i18n.t("hi");
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/cached")).body).toBe("Hello");
+    startTask();
+
+    await vi.waitFor(() => expect(order).toHaveLength(2));
+    expect(taskText).toBe("Hello");
+    expect(order).toEqual(["task-end", "teardown:capture:en"]);
+  });
+
+  it("gives up on background work that keeps registering more, and reports it", async () => {
+    // D7: the wait follows work that registers work, so a task that reschedules
+    // itself forever would pin the request's hosts — the leak this whole
+    // mechanism exists to close, for that one request.
+    const reported: { message: string; source: string | undefined }[] = [];
+    createComviCore.mockImplementation((options: Record<string, unknown>) =>
+      createI18n({
+        ...options,
+        onError: (error: Error, context?: { source?: string }) => {
+          reported.push({ message: error.message, source: context?.source });
+        },
+      } as unknown as Parameters<typeof createI18n>[0]).use(
+        definePlugin(() => () => {
+          teardowns.push({ label: "endless:en", writableEnded: true });
+          order.push("teardown:endless:en");
+          roundsAtTeardown = rounds;
+        }),
+      ),
+    );
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    let captured: H3Event | undefined;
+    let rounds = 0;
+    let roundsAtTeardown = -1;
+    const CHAIN = 120;
+    // Each link is paced by a timer and registers the next one only when it
+    // finishes, so the chain cannot outrun the wait: exactly one round of the
+    // wait per link. A chain of plain microtasks cascades to its end inside a
+    // single round and proves nothing. The gate lines the first link up with
+    // the wait rather than the socket round trip.
+    let startChain: () => void = () => {};
+    const chainGate = new Promise<void>((resolve) => {
+      startChain = resolve;
+    });
+
+    const registerNext = (event: H3Event): void => {
+      event.waitUntil(
+        (async () => {
+          await chainGate;
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          rounds += 1;
+          if (rounds < CHAIN) registerNext(event);
+        })(),
+      );
+    };
+
+    const app = createApp();
+    app.use(
+      "/endless",
+      defineEventHandler(async (event) => {
+        captured = event;
+        responses.set("endless", event.node.res);
+        nitroise(event);
+        event.context.runtimeConfig = runtimeConfigFor("endless");
+        const i18n = await getRequestI18n(event, "en");
+        registerNext(event);
+        return i18n.t("hi");
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/endless")).body).toBe("Hello");
+
+    const afterResponse = hooks.get("afterResponse") as (event: H3Event) => unknown;
+    const hookDone = afterResponse(captured!);
+    startChain();
+    await hookDone;
+
+    await vi.waitFor(() => expect(order).toContain("teardown:endless:en"));
+    expect(reported).toHaveLength(1);
+    expect(reported[0].source).toBe("request-cleanup");
+    expect(reported[0].message).toContain("100");
+    // It gave up rather than following the chain to its end.
+    expect(roundsAtTeardown).toBeGreaterThanOrEqual(100);
+    expect(roundsAtTeardown).toBeLessThan(CHAIN);
   });
 });

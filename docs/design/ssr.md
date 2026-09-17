@@ -97,9 +97,20 @@ It is not the only signal needed, because neither hook means "nothing else will 
   is the documented way to keep working after responding, and a cached handler registers its
   stale-while-revalidate refresh through that same mechanism, running it with the PARENT event's
   context — the very key teardown is filed under. So teardown first awaits the event's pending
-  `waitUntil` promises. That list is `context.nitro._waitUntilPromises`, which nitropack 2.13.4
-  exposes through no public accessor, so it is read defensively: a missing or non-array field simply
-  means there is nothing to wait for.
+  `waitUntil` promises, and every path to teardown goes through that wait, including a captured
+  error that arrives after the response has ended. That list is `context.nitro._waitUntilPromises`,
+  which nitropack 2.13.4 exposes through no public accessor, so it is read defensively: a missing or
+  non-array field simply means there is nothing to wait for. A task that REJECTS delays nothing.
+
+Two limits are worth knowing. **The wait follows work that registers more work, for 100 rounds.**
+Past that the hosts are destroyed anyway and the host's `onError` is told, with source
+`"request-cleanup"` and the round count: a background task that reschedules itself forever would
+otherwise pin that request's hosts, which is the leak this mechanism exists to close. **On a web
+preset the teardown is best effort.** It runs as a continuation after `afterResponse` returns, and a
+platform that suspends the isolate the moment the `Response` is handed back — Cloudflare, Deno
+Deploy — may never run it. Node presets do guarantee it. Registering the teardown itself through
+`event.waitUntil` would fix that and deadlock the wait against itself, so the honest statement is
+this sentence rather than a mechanism.
 
 **Without Nitro** — a bare h3 app embedding these utilities — there is no such hook, so the
 fallback is `close` after all: a response that ENDED is torn down immediately, and an ABORTED one
