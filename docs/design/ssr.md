@@ -37,6 +37,12 @@ request does writes the instance's locale or its active namespaces, which is wha
 host safe. `setI18n(i18n)` registers it once per process and throws (in development and production)
 on a second registration with a different instance, naming both sources.
 
+That one host holds every catalog it ever loaded for the life of the process: a catalog is never
+evicted (only the template, `Intl` and plural-rules caches are bounded, and by entry count, not by
+bytes). A page set with a fixed number of locales and namespaces is therefore a bounded amount of
+memory; a server that loads unbounded catalogs into it is not, and the shared host has no lifecycle
+of its own to fix that. See [limitations.md](limitations.md#memory).
+
 Full reasoning, including why the config module is evaluated twice and what must not reach the Edge
 runtime, is in [next-runtimes.md](next-runtimes.md).
 

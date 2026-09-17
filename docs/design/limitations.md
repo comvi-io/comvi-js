@@ -121,6 +121,18 @@ Four members on `useI18n()` are declared as optional `never` in react, solid, sv
 with no default and no environment override, so the constant answers a question the loader does not
 ask. The hosted CDN default stays readable as `comviPreset.cdnBaseUrl`.
 
+## Memory
+
+- **A catalog is never evicted.** Everything `addTranslations` and a loader merge into a host stays
+  in its translation cache until `clearTranslations()` or `destroy()`. The three caches that ARE
+  bounded — compiled templates, `Intl` formatters and plural rules — hold 1000 entries each, FIFO,
+  and are shared by every host in the process; that is an ENTRY limit, not a byte limit, so 1000
+  long messages cost more than 1000 short ones. A client app with a fixed set of languages therefore
+  has a bounded model and nothing here to tune. A long-lived server that loads many locales or
+  namespaces into ONE host needs a lifecycle instead of a limit: the request-scoped hosts (Nuxt, Vue
+  SSR, Solid, Svelte) are destroyed with their request, while the shared `@comvi/next` server host
+  holds every catalog it ever loaded for the life of the process. See [ssr.md](ssr.md).
+
 ## Environment
 
 - **Node 20 or newer** for the runtime packages; **Node 22 or newer** for `@comvi/cli` and
