@@ -19,6 +19,9 @@ const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../d
 
 /** Cross-chunk internals whose names must never survive into the prod dist. */
 const INTERNAL_NAMES = [
+  // Owned by the base class, re-read after their own awaits by the loader and
+  // plugin chunks — see `destroy-races.dist.test.ts`.
+  "_isDestroyed",
   "_pendingLoads",
   "_nsGeneration",
   "_loadNs",
