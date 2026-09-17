@@ -311,6 +311,7 @@ Each row is one grep, and each edit is by hand.
 | `CdnLoader(options)`                                     | `cdnLoaderPlugin(options)`             |
 | `LocaleDetector(options?)`                               | `localeDetectorPlugin(options?)`       |
 | `InContextEditorPlugin(options?)`                        | `inContextEditorPlugin(options?)`      |
+| `useTranslation(event, { namespace })` on nuxt's server  | `{ ns }` — `namespace` warns until 0.6 |
 
 The four raw plugin factories — the ones you hand to `registerPlugin` — are
 renamed because they used to differ from their installers by letter case alone:
@@ -319,6 +320,12 @@ mistyped capital silently changed what your chain did. The `Plugin` suffix says
 which is which, and the installers (`fetchLoader`, `cdnLoader`,
 `localeDetector`, `inContextEditor`) keep their names. `window.ComviInContextEditor`
 on the standalone editor bundle exposes the factory under the new name too.
+
+The last row is the one rename with a deprecation window rather than a hard
+break. `ns` is what core's `t(key, { ns })` and `@comvi/next`'s `getI18n({ ns })`
+already called it, so nuxt's server helper was the only place in the library
+spelling the same idea `namespace`. Passing `namespace` keeps working for all of
+0.5 and warns once in dev; passing both takes `ns`.
 
 | 0.5 pre-release                                                | 0.5.0                                                          |
 | -------------------------------------------------------------- | -------------------------------------------------------------- |
