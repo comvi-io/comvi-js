@@ -107,11 +107,50 @@ async function destroyRequestHosts(contextKey: object): Promise<void> {
 }
 
 /**
- * Tear the request's hosts down once the handler has let go of the event.
+ * Responses already being watched for their end, and contexts whose deferred
+ * teardown is already armed. Nitro's `error` hook is `captureError` and can
+ * fire many times on one request; without these, each call would add another
+ * listener and Node would print `MaxListenersExceededWarning` past ten.
+ */
+const endWatched = new WeakSet<object>();
+const deferralArmed = new WeakSet<object>();
+
+/** What Nitro's `onRequest` puts on the context. Not ours, so read defensively. */
+interface NitroEventContext {
+  nitro?: { _waitUntilPromises?: unknown[] };
+}
+
+/**
+ * Wait for the work the request registered with `event.waitUntil()`.
  *
- * Nitro calls this from `afterResponse` and from `error`; without Nitro it is
- * what the response's `close` hook below runs. The two cases differ in one
- * thing only — whether the response was ENDED:
+ * `afterResponse` means the response is written, NOT that nothing else holds
+ * the event. Nitro keeps two kinds of work running past it under the SAME
+ * context: an explicit `event.waitUntil(promise)`, and a cached handler's
+ * stale-while-revalidate refresh — which Nitro registers through that same
+ * `waitUntil` and runs with the PARENT event's context by identity
+ * (`cache.mjs`: `event.context = incomingEvent.context`). Destroying at
+ * `afterResponse` would hand that refresh a cleared catalog, and the refresh's
+ * body is what goes into the cache.
+ *
+ * nitropack 2.13.4 offers no public accessor: `_waitUntilPromises` on
+ * `context.nitro` is the only storage (declared in its `H3EventContext`
+ * augmentation, underscore-private). So it is read defensively — a missing or
+ * non-array field just means there is nothing to wait for — and the loop
+ * re-reads the array because work settling here can register more.
+ */
+async function settlePendingWork(event: H3Event): Promise<void> {
+  const pending = (event.context as NitroEventContext | undefined)?.nitro?._waitUntilPromises;
+  if (!Array.isArray(pending)) return;
+  let settled = 0;
+  while (pending.length > settled) {
+    const batch = pending.slice(settled);
+    settled = pending.length;
+    await Promise.allSettled(batch);
+  }
+}
+
+/**
+ * Destroy now, or once the response is over.
  *
  *  - ended: the handler has returned and the body is written, so destroy now.
  *  - not ended: the socket died under a handler that may still be rendering,
@@ -126,18 +165,55 @@ async function destroyRequestHosts(contextKey: object): Promise<void> {
  * a timer or real I/O AFTER an abort can still be torn down under, and its next
  * `getRequestI18n` then throws rather than returning a half-dead host.
  */
-export function scheduleRequestCleanup(event: H3Event): void {
+function scheduleTeardown(event: H3Event, contextKey: object): void {
+  const res = event.node.res;
+  if (res.writableEnded) {
+    void destroyRequestHosts(contextKey);
+    return;
+  }
+  if (deferralArmed.has(contextKey)) return;
+  deferralArmed.add(contextKey);
+  const run = (): void => {
+    void destroyRequestHosts(contextKey);
+  };
+  res.once("finish", run);
+  setTimeout(run, 0);
+}
+
+/** Nitro's `afterResponse`: the response is written, so only its background work is left. */
+export async function destroyAfterResponse(event: H3Event): Promise<void> {
+  await settlePendingWork(event);
+  scheduleTeardown(event, getContextKey(event));
+}
+
+/**
+ * Nitro's `error` hook, which is `captureError` and does NOT mean the request
+ * is over: `event.captureError()`, a swallowed `request`-hook throw and a cache
+ * read/write failure all reach it on a request that keeps running. So this path
+ * never arms the macrotask timer — that timer belongs to the abort case, where
+ * nothing more will ever be written, and arming it here would destroy the hosts
+ * at the handler's next await.
+ *
+ * It is load-bearing rather than belt-and-braces: for a thrown handler under
+ * Nitro, h3 1.15.11 never calls `onAfterResponse` at all — its catch runs
+ * `onError` first, and `if (event.handled) return` fires because Nitro's
+ * `errorHandler` has already sent the response. Nitro captures BEFORE it sends,
+ * so `finish` is what says the error response went out.
+ */
+export function destroyWhenResponseEnds(event: H3Event): void {
   const contextKey = getContextKey(event);
   const res = event.node.res;
   if (res.writableEnded) {
     void destroyRequestHosts(contextKey);
     return;
   }
-  const run = (): void => {
-    void destroyRequestHosts(contextKey);
+  if (endWatched.has(contextKey)) return;
+  endWatched.add(contextKey);
+  const whenOver = (): void => {
+    void destroyAfterResponse(event);
   };
-  res.once("finish", run);
-  setTimeout(run, 0);
+  res.once("finish", whenOver);
+  res.once("close", whenOver);
 }
 
 /**
@@ -155,6 +231,6 @@ export function hookRequestCleanup(event: H3Event, contextKey: object): void {
   if (nitroOwnsCleanup || cleanupHooked.has(contextKey)) return;
   cleanupHooked.add(contextKey);
   event.node.res.once("close", () => {
-    scheduleRequestCleanup(event);
+    scheduleTeardown(event, contextKey);
   });
 }

@@ -1,5 +1,9 @@
 import type { H3Event } from "h3";
-import { claimRequestCleanup, scheduleRequestCleanup } from "../internal/request-hosts";
+import {
+  claimRequestCleanup,
+  destroyAfterResponse,
+  destroyWhenResponseEnds,
+} from "../internal/request-hosts";
 
 /**
  * The slice of Nitro's app this plugin drives, declared here rather than
@@ -18,12 +22,12 @@ interface NitroAppLike {
 /**
  * Destroys each request's i18n hosts once Nitro is done with the request.
  *
- * `afterResponse` is the one signal that means BOTH "the handler returned" and
- * "the response is written": h3 1.x calls it after `handleHandlerResponse` for
- * a normal response, and again from `toNodeListener`'s catch for a thrown one.
- * The response's own `close` event only means the socket is gone, which on a
- * client abort is true while the handler is still rendering — so with this
- * plugin installed, `getRequestI18n` hooks nothing and this owns teardown.
+ * `afterResponse` means both "the handler returned" and "the response is
+ * written", which the response's own `close` event does not: on a client abort
+ * `close` is true while the handler may still be rendering. So with this plugin
+ * installed, `getRequestI18n` hooks nothing and this owns teardown. What
+ * `afterResponse` does NOT mean is that nothing else holds the event, hence the
+ * wait for `event.waitUntil` work inside `destroyAfterResponse`.
  *
  * Why it imports `../internal/request-hosts` and not the server util next to
  * it: nuxt's `impound` plugin refuses a `#build/*` alias anywhere in the nitro
@@ -31,24 +35,27 @@ interface NitroAppLike {
  * host. Pulling that module in here fails an app's `nitro` build outright —
  * which is why `test-apps/nuxt` is built as part of this lot's gates.
  *
- * `error` covers what `afterResponse` cannot reach: an error handler that has
- * already sent the response (h3 skips `onAfterResponse` when `event.handled`
- * was set inside `onError`). It can also fire BEFORE the error response is
- * written, which is why it goes through the same scheduler — an unended
- * response defers instead of tearing down under a live handler. Both hooks are
+ * `error` is the ONLY signal a thrown handler gives: h3 skips
+ * `onAfterResponse` entirely once `onError` has sent the response, which is
+ * what Nitro's `errorHandler` does. But that hook is Nitro's `captureError`,
+ * which also fires for errors that leave the request running, so it waits for
+ * the response to actually end rather than scheduling anything. Both hooks are
  * idempotent, so a request that reaches both is destroyed once.
  */
 export default function comviRequestCleanup(nitroApp: NitroAppLike): void {
   claimRequestCleanup();
 
+  // Not awaited on purpose: Nitro awaits this hook, and the teardown waits for
+  // the request's own background work, so returning the promise would hold the
+  // request handler open until a stale-while-revalidate refresh finished.
   nitroApp.hooks.hook("afterResponse", (event) => {
-    scheduleRequestCleanup(event);
+    void destroyAfterResponse(event);
   });
 
   nitroApp.hooks.hook("error", (_error, context) => {
     // Nitro's `captureError` is also called for failures with no request.
     if (context.event) {
-      scheduleRequestCleanup(context.event);
+      destroyWhenResponseEnds(context.event);
     }
   });
 }

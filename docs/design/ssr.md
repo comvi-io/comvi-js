@@ -81,8 +81,25 @@ that has already been sent.
 gone. On a client abort that is true **while the handler may still be rendering**, and a destroyed
 host renders missing keys — which a `defineCachedEventHandler` or an `swr` / `isr` route would then
 write into the cache and serve to everyone. `afterResponse` means both "the handler returned" and
-"the response is written": h3 calls it after the response is sent, and again from its own catch for
-a handler that threw.
+"the response is written".
+
+It is not the only signal needed, because neither hook means "nothing else will use this event":
+
+- **A thrown handler never reaches `afterResponse`.** h3's catch runs `onError` first, and Nitro's
+  error handler sends the response there, so h3 returns on `event.handled` before it would have
+  called `afterResponse`. The `error` hook is the only signal such a request gives.
+- **`error` is Nitro's `captureError`, and fires on requests that keep running** —
+  `event.captureError()`, a `request` hook that throws and is swallowed, a cache read or write
+  failure. So that path does not schedule anything: it waits for the response to actually end
+  (`finish`, or `close` for a request that never finishes). Nitro captures before it sends, so
+  `finish` is exactly when the error response went out.
+- **`afterResponse` fires while background work still holds the event.** `event.waitUntil(promise)`
+  is the documented way to keep working after responding, and a cached handler registers its
+  stale-while-revalidate refresh through that same mechanism, running it with the PARENT event's
+  context — the very key teardown is filed under. So teardown first awaits the event's pending
+  `waitUntil` promises. That list is `context.nitro._waitUntilPromises`, which nitropack 2.13.4
+  exposes through no public accessor, so it is read defensively: a missing or non-array field simply
+  means there is nothing to wait for.
 
 **Without Nitro** — a bare h3 app embedding these utilities — there is no such hook, so the
 fallback is `close` after all: a response that ENDED is torn down immediately, and an ABORTED one
