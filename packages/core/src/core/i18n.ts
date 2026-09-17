@@ -165,7 +165,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
   public readonly translationCache: TranslationCache;
   private _isInitializing: boolean = false;
   private _isInitialized: boolean = false;
-  private _isDestroyed: boolean = false;
+  /**
+   * `protected`, not `private`: the capability subclasses in `core/loader.ts` /
+   * `core/plugins.ts` re-check it after their own awaits, which is the only way
+   * an operation already in flight can find out that `destroy()` has landed.
+   */
+  protected _isDestroyed: boolean = false;
   private _loadingCount: number = 0;
   protected _fallbackLocales: string[];
   public readonly apiKey: string | undefined;

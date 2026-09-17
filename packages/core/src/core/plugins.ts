@@ -95,6 +95,11 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * Destroy phase 1 — awaited before any lifecycle reset or emit, so cleanups
    * observe live capability state. LIFO: a cleanup may depend on one queued
    * before it.
+   *
+   * Also the drain for a cleanup that arrives LATE: `_beforeInit` calls this
+   * again when a plugin it was still awaiting returns its cleanup after this
+   * phase has already run (see there). Draining twice is safe — the `pop()`
+   * loop cannot hand the same cleanup out twice, and an empty queue is a no-op.
    */
   protected async _preDestroy(): Promise<void> {
     while (this._pluginCleanups.length) {
@@ -209,11 +214,26 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
         this._pluginInit = false;
         clearTimeout(timeoutId);
       }
+
+      // `destroy()` landed while THIS plugin was running. Two things follow,
+      // and the loop bottom is the one place both are true: every interleaving
+      // point in this method is an await inside the iteration above, so a
+      // check here catches every one of them.
+      //
+      //  • A cleanup this plugin just returned was pushed AFTER destroy phase 1
+      //    drained the queue, and phase 3's `_resetPlugins()` throws the array
+      //    away — so it would never run and never report. Drain it here, which
+      //    reuses phase 1's own reporting (`plugin-cleanup`) verbatim.
+      //  • No further plugin may START. A plugin whose `plugin(host)` call had
+      //    not begun when destroy landed does not run at all, and the locale
+      //    detector below does not run either.
+      if (this._isDestroyed) return this._preDestroy();
     }
 
     if (this._localeDetector) {
       const detectedLocale = await this._localeDetector();
-      if (detectedLocale && detectedLocale !== this._locale) {
+      // Re-checked after the detector's await for the same reason.
+      if (!this._isDestroyed && detectedLocale && detectedLocale !== this._locale) {
         await this.setLocaleAsync(detectedLocale);
       }
     }
