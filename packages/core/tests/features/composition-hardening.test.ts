@@ -2,9 +2,11 @@
  * Composition hardening: three defects about the ORDER a host is composed in,
  * each of which used to fail SILENTLY.
  *
- *  • Composing a capability (or queueing a plugin) AFTER `init()` is a no-op,
- *    because the plugin queue is drained inside `init()` and the initial
- *    namespace load already happened. Nothing warned.
+ *  • Composing a capability (or queueing a plugin) AFTER `init()` does nothing
+ *    NOW, because `init()` is where the plugin queue is drained and the
+ *    initial namespace load already happened. Nothing warned. (A later
+ *    `init()` would drain the queue again — see `plugins.test.ts` — which is
+ *    why the warning says "not now", not "never".)
  *  • A plugins-only host hands every plugin an `I18nPluginHost`, whose type
  *    promises the loader API. Calling `registerLoader` on one died with a bare
  *    `TypeError: … is not a function` instead of the actionable

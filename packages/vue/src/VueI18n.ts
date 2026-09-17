@@ -442,11 +442,13 @@ export class VueI18n<
    * ```
    *
    * The one ordering rule: compose BEFORE `app.use(i18n)` — Vue's own `use`,
-   * not this one — because `install` starts `init()`, which drains the plugin
-   * queue once, so a `plugins()` or `definePlugin(…)` composed later is never run
-   * (development warns; the host's own late-compose guards do not see the
-   * synchronous start of `init()`). ICU is not composed at all: it is
-   * `compiler: icuCompiler` in the options.
+   * not this one — because `install` starts `init()`, the only thing that
+   * drains the plugin queue, so a `plugins()` or `definePlugin(…)` composed
+   * later does not run now: it waits for the next `init()`, which re-runs the
+   * whole queue and accumulates another set of cleanups (development warns;
+   * the host's own late-compose guards do not see the synchronous start of
+   * `init()`). ICU is not composed at all: it is `compiler: icuCompiler` in
+   * the options.
    *
    * Installers widen the host IN PLACE and return it; the wrapper's bound
    * proxies point at that one host, so an installer that hands back a
