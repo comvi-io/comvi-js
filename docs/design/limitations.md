@@ -129,9 +129,18 @@ ask. The hosted CDN default stays readable as `comviPreset.cdnBaseUrl`.
   and are shared by every host in the process; that is an ENTRY limit, not a byte limit, so 1000
   long messages cost more than 1000 short ones. A client app with a fixed set of languages therefore
   has a bounded model and nothing here to tune. A long-lived server that loads many locales or
-  namespaces into ONE host needs a lifecycle instead of a limit: the request-scoped hosts (Nuxt, Vue
-  SSR, Solid, Svelte) are destroyed with their request, while the shared `@comvi/next` server host
-  holds every catalog it ever loaded for the life of the process. See [ssr.md](ssr.md).
+  namespaces into ONE host needs a lifecycle instead of a limit — and which code provides that
+  lifecycle differs by framework:
+  - **`@comvi/nuxt` destroys its per-request hosts for you**, from a Nitro hook once the request is
+    answered.
+  - **A per-request host you build yourself — Vue SSR, Solid, Svelte — is discarded and collected,
+    which is not the same as destroyed.** Collection frees the catalog; it never runs a plugin's
+    cleanup. If your plugins hold anything (an interval, a socket, a subscription),
+    `await i18n.destroy()` when the render is done. Nothing in the library does it for you.
+  - **The shared `@comvi/next` server host** holds every catalog it ever loaded for the life of the
+    process.
+
+  See [ssr.md](ssr.md).
 
 ## Environment
 

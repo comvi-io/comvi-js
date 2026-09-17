@@ -30,6 +30,19 @@ Read that column again if you are porting an app between frameworks: **Next requ
 module-scope host that Solid, Svelte, Vue and Nuxt forbid.** It is the one place in this library
 where the correct answer inverts.
 
+## Who destroys the per-request host?
+
+A host that goes out of scope is COLLECTED, which is not the same as DESTROYED. Collection frees the
+catalog. It never runs a plugin's cleanup — an interval, a socket, a subscription stays alive until
+someone calls `destroy()`. So on a long-lived server the question is who calls it.
+
+- **`@comvi/nuxt`: the module does.** Its Nitro plugin destroys every host the request built, once
+  the request is answered. Nothing to write.
+- **Vue SSR, Solid, Svelte: your app does.** You build the instance in the request handler, so it is
+  yours to tear down: `await i18n.destroy()` when the render is finished. The recipes below do it.
+  Skip it only if you know your plugins hold nothing — the catalog is collected either way.
+- **`@comvi/next`: nobody, by design.** The host is process-scoped and outlives every request.
+
 ## Next.js — one shared host, request locale passed explicitly
 
 The instance contributes the catalog and the loader; the locale belongs to the request. Nothing a
@@ -79,6 +92,10 @@ against the same locale it was served.
 which is a client-side convenience; on the server that races translation loading and can serialize
 an empty cache.
 
+**`await i18n.destroy()` when the render is done.** The instance is this request's, so its teardown
+is this request's too — `destroy()` resolves once the plugin cleanups have finished. Dropping the
+reference instead collects the catalog but leaves a plugin's interval or socket running.
+
 ```ts title="server.ts"
 // One instance per request.
 import { createSSRApp } from "vue";
@@ -97,7 +114,12 @@ export async function render(localeFromRequest: string) {
   app.use(i18n);
   await i18n.init();
 
-  return renderToString(app);
+  try {
+    return await renderToString(app);
+  } finally {
+    // This host belongs to this request. Nothing in the library destroys it.
+    await i18n.destroy();
+  }
 }
 ```
 
@@ -123,18 +145,23 @@ import en from "./locales/en.json";
 import uk from "./locales/uk.json";
 import App from "./App";
 
-export function render(locale: string) {
+export async function render(locale: string) {
   const i18n = createI18n({
     locale,
     compiler: icuCompiler,
     translation: { "en:default": en, "uk:default": uk },
   });
 
-  return renderToString(() => (
-    <I18nProvider i18n={i18n} ssrLocale={locale}>
-      <App />
-    </I18nProvider>
-  ));
+  try {
+    return renderToString(() => (
+      <I18nProvider i18n={i18n} ssrLocale={locale}>
+        <App />
+      </I18nProvider>
+    ));
+  } finally {
+    // This host belongs to this request. Nothing in the library destroys it.
+    await i18n.destroy();
+  }
 }
 ```
 
@@ -190,6 +217,12 @@ export const load: LayoutLoad = async ({ fetch }) => {
 ```
 
 Child components call `useI18n()` as normal, and the context carries the per-request instance.
+
+The server-side instance is yours to destroy. A `+layout.svelte` has no "render finished" hook to
+hang that on, so do it where the response is assembled — a `handle` hook in `src/hooks.server.ts`
+that builds the host, puts it in `event.locals`, and `await i18n.destroy()`s it after `resolve()` —
+or skip it knowingly, if your plugins hold nothing. See
+[Who destroys the per-request host?](#who-destroys-the-per-request-host) above.
 
 Prefer the runtime CDN/API loader for client navigation? Keep the per-request
 `createI18n(...).use(cdnLoader(...))` in `+layout.svelte` and `await i18n.init()` inside an
