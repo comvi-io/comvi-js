@@ -99,9 +99,9 @@ Both halves are pinned by a test — `packages/next/tests/parity-known-differenc
 cannot go stale without a suite going red.
 
 **Plan: one option, one name, one meaning, after RC.** The difference belongs to a decision neither
-package currently lets an app make: whether a stored preference may redirect a prefixless URL. After
-0.5 that becomes a single shared option with the same name and the same meaning in both, defaulting
-per framework to what that ecosystem does today, so nothing breaks on upgrade. It is out of RC
+package currently lets an app make: whether a stored preference may redirect a prefixless URL. The
+plan after 0.5 is a single shared option with the same name and the same meaning in both, defaulting
+per framework to what that ecosystem does today, so nothing would break on upgrade. It is out of RC
 because changing redirect behaviour during a release candidate is how apps get surprised, and
 because the option wants a name chosen once for both rather than twice.
 

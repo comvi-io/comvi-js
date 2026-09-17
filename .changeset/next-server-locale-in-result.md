@@ -8,6 +8,8 @@ which could only ever disagree. `@comvi/nuxt`'s `useTranslation(event)` already 
 server helpers are now `{ t, hasTranslation, locale }`. Additive: nothing that destructures the old
 two members changes.
 
-`Accept-Language` matching also moved to one shared implementation with `@comvi/nuxt`, so the two
-frameworks provably answer identically for the same header. No header changes the locale it resolved
-to in this release.
+`Accept-Language` matching now lives in the shared locale routing primitives instead of the
+middleware: `createMiddleware` no longer carries a parser of its own, and `@comvi/nuxt` resolves
+headers through that same source, so the two frameworks provably answer identically for the same
+header. A custom `localeDetection.resolveAcceptLanguage` still overrides it, unchanged. No header
+changes the locale it resolved to in this release.

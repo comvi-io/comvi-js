@@ -187,7 +187,7 @@ One behavioural difference remains on purpose. With `localePrefix: "as-needed"`,
 `defaultLocale: "en"` and a `de` locale cookie, a request for `/about` is redirected to `/de/about`
 on Next, because a next-intl app treats the stored preference as authoritative; Nuxt serves `en` at
 `/about` and keeps the cookie, because a nuxt-i18n app treats an unprefixed non-root path as the
-default locale's own URL. After 0.5 this becomes one shared option with one name and one meaning,
+default locale's own URL. The plan after 0.5 is one shared option with one name and one meaning,
 defaulting per framework to today's behaviour. Full reasoning:
 [`docs/design/next-nuxt-parity.md`](../../docs/design/next-nuxt-parity.md).
 

@@ -234,6 +234,12 @@ The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 | `@comvi/next/routing`    | `defineRouting`, `hasLocale`, `createGetPathname` — server-safe, no host in the graph                                 |
 | `@comvi/next/middleware` | `createMiddleware`                                                                                                    |
 
+The first three each carry the identical capability toolkit (`createI18n`, `icuCompiler`, `loader`,
+`attachLoader`, `plugins`, `definePlugin`, `devtools`, and this package's `nextPlugin` /
+`nextPluginLazy`), so the host and its capabilities come from this package alone. `/routing` and
+`/middleware` deliberately carry none of it: they are what `middleware.ts` imports, and an Edge
+isolate executes every module its entry reaches. `/navigation` is `"use client"`.
+
 `await getI18n()` returns three members, the same three `@comvi/nuxt`'s `useTranslation(event)`
 returns:
 
@@ -244,12 +250,6 @@ returns:
 | `locale`                     | the locale this call resolved — the string `t` closes over, so it cannot differ |
 
 Read `locale` rather than calling `getLocale()` again: a second read is a second answer.
-
-The first three each carry the identical capability toolkit (`createI18n`, `icuCompiler`, `loader`,
-`attachLoader`, `plugins`, `definePlugin`, `devtools`, and this package's `nextPlugin` /
-`nextPluginLazy`), so the host and its capabilities come from this package alone. `/routing` and
-`/middleware` deliberately carry none of it: they are what `middleware.ts` imports, and an Edge
-isolate executes every module its entry reaches. `/navigation` is `"use client"`.
 
 ### Locale routing: what `@comvi/next` and `@comvi/nuxt` share
 
@@ -263,7 +263,7 @@ One behavioural difference remains on purpose. With `localePrefix: "as-needed"`,
 `defaultLocale: "en"` and a `de` locale cookie, a request for `/about` is redirected to `/de/about`
 on Next, because a next-intl app treats the stored preference as authoritative; Nuxt serves `en` at
 `/about` and keeps the cookie, because a nuxt-i18n app treats an unprefixed non-root path as the
-default locale's own URL. After 0.5 this becomes one shared option with one name and one meaning,
+default locale's own URL. The plan after 0.5 is one shared option with one name and one meaning,
 defaulting per framework to today's behaviour. Full reasoning:
 [`docs/design/next-nuxt-parity.md`](../../docs/design/next-nuxt-parity.md).
 

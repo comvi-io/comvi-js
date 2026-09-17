@@ -17,11 +17,16 @@ export interface UseTranslationOptions {
    * `hasTranslation`'s `{ ns }`, and `@comvi/next`'s `getI18n({ ns })` — so the
    * two server helpers no longer differ by vocabulary alone. See
    * `docs/design/next-nuxt-parity.md`.
+   *
+   * An empty string counts as NOT GIVEN: `ns: ""` falls through to `namespace`
+   * if you passed one, and otherwise to `defaultNs`.
    */
   ns?: string;
 
   /**
    * @deprecated Renamed in 0.5: use `ns`. Removed in 0.6.
+   *
+   * Ignored when `ns` is given as a non-empty string.
    */
   namespace?: string;
 
@@ -100,12 +105,13 @@ export async function useTranslation(
     defaultNs = "default",
     detectBrowserLanguage,
   } = publicConfig;
-  if (
-    import.meta.dev &&
-    !warnedAboutBothNamespaceOptions &&
-    options.ns !== undefined &&
-    options.namespace !== undefined
-  ) {
+  // An EMPTY `ns` counts as not given, not as "the empty namespace": `""` has
+  // always fallen through to the next option, and the one rule has to hold in
+  // both places or the warning below would claim `ns` won a fight the `||`
+  // chain then gave to `namespace`.
+  const nsGiven = options.ns !== undefined && options.ns !== "";
+
+  if (import.meta.dev && !warnedAboutBothNamespaceOptions && nsGiven && options.namespace) {
     warnedAboutBothNamespaceOptions = true;
     console.warn(
       `[@comvi/nuxt] useTranslation() was passed both \`ns\` ("${options.ns}") and the ` +

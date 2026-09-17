@@ -137,6 +137,49 @@ describe("useTranslation namespace vocabulary", () => {
     );
   });
 
+  it("treats an empty `ns` as not given, leaving `namespace` in charge", async () => {
+    const i18n = createI18nStub();
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+
+    const { t } = await useTranslation(createEvent(), {
+      locale: "de",
+      ns: "",
+      namespace: "admin",
+    });
+    t("hello");
+
+    expect(i18n.t).toHaveBeenCalledWith(
+      "hello",
+      expect.objectContaining({ locale: "de", ns: "admin" }),
+    );
+  });
+
+  it("does not claim `ns` won when an empty `ns` was not given at all", async () => {
+    vi.stubGlobal("__COMVI_TEST_DEV__", true);
+    createComviCore.mockReturnValue(createI18nStub());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const useTranslation = await importUseTranslation();
+
+    await useTranslation(createEvent(), { locale: "de", ns: "", namespace: "admin" });
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("falls back to defaultNs when an empty `ns` is the only option given", async () => {
+    const i18n = createI18nStub();
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+
+    const { t } = await useTranslation(createEvent(), { locale: "de", ns: "" });
+    t("hello");
+
+    expect(i18n.t).toHaveBeenCalledWith(
+      "hello",
+      expect.objectContaining({ locale: "de", ns: "common" }),
+    );
+  });
+
   it("warns once in dev when both are passed, naming which one won", async () => {
     vi.stubGlobal("__COMVI_TEST_DEV__", true);
     const i18n = createI18nStub();

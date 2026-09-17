@@ -25,7 +25,7 @@ describe("nuxt resolves the shared Accept-Language table", () => {
  * vendored copy that `tests/vendor-parity.test.ts` pins byte-for-byte to
  * `packages/locale-routing/src/index.ts`.
  */
-describe("nuxt has no Accept-Language parser of its own", () => {
+describe("nuxt has no Accept-Language parser in this file", () => {
   const source = readFileSync(resolve(__dirname, "../src/runtime/utils/resolve-locale.ts"), "utf8");
 
   it("re-exports the resolver from the vendored shared source", () => {
@@ -33,9 +33,11 @@ describe("nuxt has no Accept-Language parser of its own", () => {
     expect(source).toContain("resolveAcceptLanguage");
   });
 
-  it("parses nothing locally: no q-value arithmetic in this package", () => {
-    // The two markers of the deleted local copy. If either comes back, the
-    // package has a second implementation to keep in step again.
+  it("parses nothing locally: no q-value arithmetic in this file", () => {
+    // The two markers of the deleted local copy in THIS file. If either comes
+    // back, the package has a second implementation to keep in step again.
+    // The vendored source is the one place q-parsing may live, and
+    // `tests/vendor-parity.test.ts` is what pins that.
     expect(source).not.toContain("parseFloat");
     expect(source).not.toContain("q=1");
   });
