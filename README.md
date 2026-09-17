@@ -160,19 +160,27 @@ same order; only the third answer differs, except on next, where step 1 already 
    Vue and Svelte have no `fallback` prop and gate on `isInitializing` instead; core, next and nuxt
    need no gate at all.
 
-```ts title="src/i18n.ts"
-import { createI18n, icuCompiler } from "@comvi/react";
+```tsx title="src/main.tsx" check=group=readme-step-2
+import { createRoot } from "react-dom/client";
+import { createI18n, icuCompiler, I18nProvider } from "@comvi/react";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import App from "./App";
 
-export const i18n = createI18n({
+const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,
 }).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }));
+
+createRoot(document.getElementById("root")!).render(
+  <I18nProvider i18n={i18n} fallback={<div className="spinner" />}>
+    <App />
+  </I18nProvider>,
+);
 ```
 
-The render call is step 1's, with one prop added:
-`<I18nProvider i18n={i18n} fallback={<div className="spinner" />}>`.
+That is step 1's `src/main.tsx` with the catalog swapped for the loader and one prop added to the
+provider; `src/App.tsx` does not change.
 
 `cdnUrl` is the whole URL the platform hands you: open your project and use **Copy URL** on the
 **CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
