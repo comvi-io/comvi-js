@@ -103,7 +103,8 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items" — from "{count, plural, one {# item} other {# items}}"
 ```
 
-`cdnUrl` is the whole URL the platform hands you: open your project and use **Copy URL** on the
+The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
+open your project and use **Copy URL** on the
 **CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
 enabled and saved). Compose before `init()`: composing after it warns once per host in
 development.

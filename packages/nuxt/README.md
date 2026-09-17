@@ -136,7 +136,8 @@ export default ((options) =>
 `"{count, plural, one {# item} other {# items}}"`, and `setLocale()` loads and switches
 asynchronously.
 
-`cdnUrl` is the whole URL the platform hands you: open your project and use **Copy URL** on the
+The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
+open your project and use **Copy URL** on the
 **CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
 enabled and saved).
 
