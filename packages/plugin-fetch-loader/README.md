@@ -42,7 +42,7 @@ npm install @comvi/plugin-fetch-loader
 
 | Mode    | Entry point                                    | Use case                                                                                                                                  |
 | ------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **CDN** | `@comvi/plugin-fetch-loader/cdn`               | Static, public translations served from `https://cdn.comvi.io/<distribution-id>`. Fast, cached at the edge. Best for production.          |
+| **CDN** | `@comvi/plugin-fetch-loader/cdn`               | Static, public translations served from your project's CDN endpoint on `cdn.comvi.io`. Fast, cached at the edge. Best for production.     |
 | **API** | `@comvi/plugin-fetch-loader` (CDN **and** API) | Authenticated requests to the Comvi API. Draft translations, private projects, SSR fetch caching. Use for staging and auth-gated content. |
 
 `cdnLoader()` from the `/cdn` subpath is the CDN half on its own, and it is what a quickstart uses.
@@ -66,7 +66,7 @@ import { icuCompiler } from "@comvi/core/icu";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en", compiler: icuCompiler }).use(
-  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
 );
 
 await i18n.init();
@@ -75,8 +75,9 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items" — from "{count, plural, one {# item} other {# items}}"
 ```
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
-**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved).
+`cdnUrl` is the whole URL the platform hands you: open your project and use **Copy URL** on the
+**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
+enabled and saved).
 
 In a framework, the host goes to that framework's provider or plugin instead of `await init()`, and
 the first paint needs a gate because the catalog is in flight. Each framework README shows its own:

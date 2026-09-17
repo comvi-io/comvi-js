@@ -30,7 +30,7 @@ export { resolveFallback } from "./fallback";
  *   apiKey: 'your-api-key',
  * })
  * .registerPlugin(fetchLoaderPlugin({
- *   cdnUrl: 'https://cdn.comvi.io/your-distribution-id',
+ *   cdnUrl: 'https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b',
  *   fallback: {
  *     'en': () => import('./locales/en.json'),
  *   },

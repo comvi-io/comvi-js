@@ -128,7 +128,7 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler }).use(
-    cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+    cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
   )) satisfies NuxtHostFactory;
 ```
 
@@ -136,8 +136,9 @@ export default ((options) =>
 `"{count, plural, one {# item} other {# items}}"`, and `setLocale()` loads and switches
 asynchronously.
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
-**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved).
+`cdnUrl` is the whole URL the platform hands you: open your project and use **Copy URL** on the
+**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
+enabled and saved).
 
 **The factory must return a fresh host every call.** It runs once per constructed instance: the app
 plugin, and each per-request server instance ([SSR](https://comvi.io/docs/i18n/ssr)).

@@ -220,8 +220,9 @@ The app files from step 1 change in two places, and nowhere else: the layout awa
 server/client contract — every server helper, the provider's prop table, and plugin scoping — is at
 [server and client APIs](https://comvi.io/docs/i18n/next/server-client).
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
-**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved).
+`cdnUrl` is the whole URL the platform hands you: open your project and use **Copy URL** on the
+**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
+enabled and saved).
 
 ## 4. What is specific to Next.js
 
