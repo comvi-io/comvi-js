@@ -198,7 +198,7 @@ describe("fetchLoader() wrong use", () => {
 
     expect(messages).toHaveLength(1);
     expect(messages[0]).toContain(".use(plugins()) ran after init()");
-    expect(messages[0]).toContain("a plugin queued now will never run");
+    expect(messages[0]).toContain("does not run until the next init()");
     expect(messages[0]).not.toContain("reloadTranslations()");
 
     // Why the loader message would have been wrong: no loader was registered,
