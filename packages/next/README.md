@@ -234,6 +234,17 @@ The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 | `@comvi/next/routing`    | `defineRouting`, `hasLocale`, `createGetPathname` — server-safe, no host in the graph                                 |
 | `@comvi/next/middleware` | `createMiddleware`                                                                                                    |
 
+`await getI18n()` returns three members, the same three `@comvi/nuxt`'s `useTranslation(event)`
+returns:
+
+| member                       | what it is                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| `t(key, params?)`            | a plain string, bound to the resolved locale and to `ns` if you passed one      |
+| `hasTranslation(key, opts?)` | whether a key resolves, defaulting to that same locale and namespace            |
+| `locale`                     | the locale this call resolved — the string `t` closes over, so it cannot differ |
+
+Read `locale` rather than calling `getLocale()` again: a second read is a second answer.
+
 The first three each carry the identical capability toolkit (`createI18n`, `icuCompiler`, `loader`,
 `attachLoader`, `plugins`, `definePlugin`, `devtools`, and this package's `nextPlugin` /
 `nextPluginLazy`), so the host and its capabilities come from this package alone. `/routing` and

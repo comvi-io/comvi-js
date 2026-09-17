@@ -19,8 +19,9 @@ import type {
  * Uses the global i18n instance (configured via setI18n) and reads the locale
  * from the request context (set by setRequestLocale or middleware).
  *
- * @param options - Options object with locale and namespace
- * @returns Object with t() function and hasTranslation() helper
+ * @param options - Options object with `locale` and `ns`
+ * @returns `{ t, hasTranslation, locale }` — the same shape `@comvi/nuxt`'s
+ * `useTranslation` returns
  *
  * @example
  * ```tsx
@@ -106,5 +107,8 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
     return i18n.hasTranslation(key, checkLocale, checkNs);
   };
 
-  return { t, hasTranslation };
+  // `locale` is the same binding `t` and `hasTranslation` close over, not a
+  // second read: a result whose `locale` could disagree with its own `t` would
+  // be worse than no `locale` at all.
+  return { t, hasTranslation, locale };
 }

@@ -35,6 +35,16 @@ export interface HasTranslationOptions {
 export interface ServerI18n {
   t: TranslationFunction;
   hasTranslation: (key: string, options?: HasTranslationOptions) => boolean;
+  /**
+   * The locale this call resolved — the explicit `locale` option when given,
+   * otherwise the request locale — and the exact string `t` closes over. Read
+   * it instead of calling `getLocale()` a second time, which can only differ.
+   *
+   * The same member `@comvi/nuxt`'s `useTranslation` returns: both server
+   * helpers are `{ t, hasTranslation, locale }`. See
+   * `docs/design/next-nuxt-parity.md`.
+   */
+  locale: string;
 }
 
 export interface RequestStore {
