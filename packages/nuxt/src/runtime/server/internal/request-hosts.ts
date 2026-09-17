@@ -115,11 +115,6 @@ async function destroyRequestHosts(contextKey: object): Promise<void> {
 const endWatched = new WeakSet<object>();
 const deferralArmed = new WeakSet<object>();
 
-/** What Nitro's `onRequest` puts on the context. Not ours, so read defensively. */
-interface NitroEventContext {
-  nitro?: { _waitUntilPromises?: unknown[] };
-}
-
 /**
  * How many rounds of "work that registered more work" the teardown follows.
  *
@@ -136,17 +131,15 @@ interface NitroEventContext {
   nitro?: { _waitUntilPromises?: unknown[] };
 }
 
-/** Tell the request's own error channel that the wait was abandoned. */
-function reportAbandonedWait(contextKey: object): void {
+/**
+ * Say something on the request's own error channel, through the first host it
+ * built — the channel belongs to the request, not to one locale.
+ */
+function reportRequestCleanup(contextKey: object, message: string): void {
   const first = requestI18nMap.get(contextKey)?.values().next().value;
   void first?.then(
     (i18n) => {
-      i18n.reportError(
-        new Error(
-          `[comvi/nuxt] event.waitUntil() work was still registering more work after ${MAX_WAIT_ROUNDS} rounds; destroying this request's i18n hosts anyway`,
-        ),
-        { source: "request-cleanup" },
-      );
+      i18n.reportError(new Error(message), { source: "request-cleanup" });
     },
     () => {},
   );
@@ -170,7 +163,8 @@ function reportAbandonedWait(contextKey: object): void {
  * non-array field just means there is nothing to wait for — and the loop
  * re-reads the array because work settling here can register more, up to
  * {@link MAX_WAIT_ROUNDS}. A task that REJECTS does not block anything:
- * `allSettled` waits for it and moves on.
+ * `allSettled` waits for it and moves on — and reports it, because attaching a
+ * handler to that promise is also what keeps the rejection away from Nitro.
  */
 async function settlePendingWork(event: H3Event, contextKey: object): Promise<void> {
   const pending = (event.context as NitroEventContext | undefined)?.nitro?._waitUntilPromises;
@@ -178,12 +172,25 @@ async function settlePendingWork(event: H3Event, contextKey: object): Promise<vo
   let settled = 0;
   for (let round = 0; pending.length > settled; round += 1) {
     if (round >= MAX_WAIT_ROUNDS) {
-      reportAbandonedWait(contextKey);
+      reportRequestCleanup(
+        contextKey,
+        `[comvi/nuxt] event.waitUntil() work was still registering more work after ${MAX_WAIT_ROUNDS} rounds; destroying this request's i18n hosts anyway`,
+      );
       return;
     }
     const batch = pending.slice(settled);
     settled = pending.length;
-    await Promise.allSettled(batch);
+    for (const result of await Promise.allSettled(batch)) {
+      if (result.status === "rejected") {
+        // Attaching a handler is what stops this blocking the teardown, and it
+        // is also what hides the rejection from Nitro's own unhandled-rejection
+        // capture. Say it here so it is not simply lost.
+        reportRequestCleanup(
+          contextKey,
+          `[comvi/nuxt] a background task of this request (event.waitUntil) rejected: ${String(result.reason)}`,
+        );
+      }
+    }
   }
 }
 

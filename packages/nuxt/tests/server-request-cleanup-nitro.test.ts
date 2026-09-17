@@ -498,4 +498,65 @@ describe("Nitro server plugin", () => {
     expect(roundsAtTeardown).toBeGreaterThanOrEqual(100);
     expect(roundsAtTeardown).toBeLessThan(CHAIN);
   });
+
+  it("reports a background task that rejected", async () => {
+    // `allSettled` is what keeps a failed task from blocking the teardown, and
+    // attaching that handler is also what hides the rejection from Nitro's
+    // unhandled-rejection capture. So the request's own channel hears about it.
+    const reported: { message: string; source: string | undefined }[] = [];
+    createComviCore.mockImplementation((options: Record<string, unknown>) =>
+      createI18n({
+        ...options,
+        onError: (error: Error, context?: { source?: string }) => {
+          reported.push({ message: error.message, source: context?.source });
+        },
+      } as unknown as Parameters<typeof createI18n>[0]).use(
+        definePlugin(() => () => {
+          order.push("teardown:rejected:en");
+        }),
+      ),
+    );
+    const { nitroApp, hooks } = fakeNitroApp();
+    requestCleanupPlugin(nitroApp);
+    let captured: H3Event | undefined;
+    let failTask: () => void = () => {};
+    const taskGate = new Promise<void>((resolve) => {
+      failTask = resolve;
+    });
+
+    const app = createApp();
+    app.use(
+      "/render",
+      defineEventHandler(async (event) => {
+        captured = event;
+        responses.set("rejected", event.node.res);
+        nitroise(event);
+        event.context.runtimeConfig = runtimeConfigFor("rejected");
+        const i18n = await getRequestI18n(event, "en");
+        // Gated, so the rejection lands after the wait has attached to it.
+        event.waitUntil(
+          (async () => {
+            await taskGate;
+            throw new Error("revalidation failed");
+          })(),
+        );
+        return i18n.t("hi");
+      }),
+    );
+    const port = await serve(app);
+
+    expect((await get(port, "/render")).body).toBe("Hello");
+
+    const afterResponse = hooks.get("afterResponse") as (event: H3Event) => unknown;
+    const hookDone = afterResponse(captured!);
+    failTask();
+    await hookDone;
+
+    await vi.waitFor(() => expect(reported).toHaveLength(1));
+    expect(reported[0].source).toBe("request-cleanup");
+    expect(reported[0].message).toContain("rejected");
+    expect(reported[0].message).toContain("revalidation failed");
+    // And the teardown still happened.
+    await vi.waitFor(() => expect(order).toContain("teardown:rejected:en"));
+  });
 });
