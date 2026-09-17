@@ -1,49 +1,26 @@
 /**
- * Resolve Accept-Language header to a supported locale.
+ * `Accept-Language` resolution, re-exported from the shared source.
  *
- * Matching strategy (in order):
- * 1. Exact match (e.g., "en-US" matches "en-US")
- * 2. Base language match (e.g., "en-US" matches "en")
- * 3. Prefix match — find a locale starting with the base (e.g., "en" matches "en-US")
+ * This file used to hold nuxt's own copy of the matcher. The copy is why `q=0`
+ * was honoured in `@comvi/next` from its first release and ignored here until
+ * 0.5: the same twenty lines, maintained twice. The rules now live in ONE
+ * place, documented at `resolveAcceptLanguage` in
+ * `packages/locale-routing/src/index.ts`, and both frameworks answer
+ * identically — pinned by the shared input table in
+ * `tooling/test-utils/acceptLanguageTable.ts`, asserted here and in
+ * `packages/next/tests/accept-language-parity.test.ts`.
  *
- * Languages are tried in quality-value order as specified by RFC 9110. A
- * language the client refuses with `q=0` is never selected.
+ * The import is `../_vendor/locale-routing`, a COMMITTED copy of that source
+ * (`pnpm --filter @comvi/nuxt vendor`, pinned byte-for-byte by
+ * `tests/vendor-parity.test.ts`). `nuxt-module-build` transpiles `runtime/`
+ * file by file and leaves bare specifiers alone, so a workspace package
+ * imported here would ship as an unresolvable import; there is no bundling step
+ * to inline it with. Same reason `locale-path.ts` imports from `_vendor/`.
+ *
+ * The module path stays put: the route middleware and the Nitro server utils
+ * both import `resolveAcceptLanguage` from here, so this is the seam that keeps
+ * them on the shared matcher.
+ *
+ * See `docs/design/next-nuxt-parity.md`.
  */
-export function resolveAcceptLanguage(
-  acceptLanguage: string,
-  locales: readonly string[],
-): string | undefined {
-  // Parse Accept-Language header (e.g., "en-US,en;q=0.9,uk;q=0.8")
-  const languages = acceptLanguage
-    .split(",")
-    .map((lang) => {
-      const [code, q = "q=1"] = lang.trim().split(";");
-      const quality = parseFloat(q.split("=")[1] || "1");
-      return {
-        code: code.trim(),
-        quality: isNaN(quality) ? 1 : quality,
-      };
-    })
-    // `q=0` means "not acceptable" (RFC 9110 §12.4.2), so a refused language is
-    // dropped rather than merely sorted last: sorting alone still let
-    // `fr;q=0` win when it was the only entry matching a configured locale.
-    // An entry with no language tag (a stray comma) can match nothing either.
-    .filter(({ code, quality }) => code.length > 0 && quality > 0)
-    .sort((a, b) => b.quality - a.quality);
-
-  for (const { code } of languages) {
-    const normalizedCode = code.toLowerCase();
-
-    const exactMatch = locales.find((locale) => locale.toLowerCase() === normalizedCode);
-    if (exactMatch) return exactMatch;
-
-    const baseLang = normalizedCode.split("-")[0];
-    const baseMatch = locales.find((locale) => locale.toLowerCase() === baseLang);
-    if (baseMatch) return baseMatch;
-
-    const prefixMatch = locales.find((locale) => locale.toLowerCase().startsWith(baseLang + "-"));
-    if (prefixMatch) return prefixMatch;
-  }
-
-  return undefined;
-}
+export { resolveAcceptLanguage } from "../_vendor/locale-routing";

@@ -9,11 +9,37 @@ import { resolveAcceptLanguage } from "../../utils/resolve-locale";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../../defaults";
 
 export interface UseTranslationOptions {
+  /**
+   * Namespace bound into `t()` when a call names none. Defaults to the
+   * module's `defaultNs`.
+   *
+   * `ns` is the word the whole library uses — core's `t(key, { ns })`,
+   * `hasTranslation`'s `{ ns }`, and `@comvi/next`'s `getI18n({ ns })` — so the
+   * two server helpers no longer differ by vocabulary alone. See
+   * `docs/design/next-nuxt-parity.md`.
+   *
+   * An empty string counts as NOT GIVEN: `ns: ""` falls through to `namespace`
+   * if you passed one, and otherwise to `defaultNs`.
+   */
+  ns?: string;
+
+  /**
+   * @deprecated Renamed in 0.5: use `ns`. Removed in 0.6.
+   *
+   * Ignored when `ns` is given as a non-empty string.
+   */
   namespace?: string;
 
   /** Overrides detection. */
   locale?: string;
 }
+
+/**
+ * The both-options warning is once per process, not once per request: a server
+ * helper is called on every request, and a call site that passes both passes
+ * both every time.
+ */
+let warnedAboutBothNamespaceOptions = false;
 
 /**
  * ONE signature, keyed through core's `AcceptedKey` / `ArgsFor` pair exactly as
@@ -60,8 +86,8 @@ export interface UseTranslationResult {
  *
  * @example
  * ```typescript
- * // With explicit namespace
- * const { t } = await useTranslation(event, { namespace: 'api' })
+ * // With an explicit namespace
+ * const { t } = await useTranslation(event, { ns: 'api' })
  * return { message: t('hello') }
  * ```
  */
@@ -79,7 +105,24 @@ export async function useTranslation(
     defaultNs = "default",
     detectBrowserLanguage,
   } = publicConfig;
-  const namespace = options.namespace || defaultNs;
+  // An EMPTY `ns` counts as not given, not as "the empty namespace": `""` has
+  // always fallen through to the next option, and the one rule has to hold in
+  // both places or the warning below would claim `ns` won a fight the `||`
+  // chain then gave to `namespace`.
+  const nsGiven = options.ns !== undefined && options.ns !== "";
+
+  if (import.meta.dev && !warnedAboutBothNamespaceOptions && nsGiven && options.namespace) {
+    warnedAboutBothNamespaceOptions = true;
+    console.warn(
+      `[@comvi/nuxt] useTranslation() was passed both \`ns\` ("${options.ns}") and the ` +
+        `deprecated \`namespace\` ("${options.namespace}"). \`ns\` wins. Drop \`namespace\`: ` +
+        "it is removed in 0.6.",
+    );
+  }
+
+  // `||`, not `??`: an empty string has always fallen back to `defaultNs`, and
+  // the rename is not the place to change that.
+  const namespace = options.ns || options.namespace || defaultNs;
 
   const detectConfig =
     detectBrowserLanguage === false

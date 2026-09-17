@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractLocaleFromPath } from "@comvi/locale-routing";
+import { extractLocaleFromPath, resolveAcceptLanguage } from "@comvi/locale-routing";
 import type { MiddlewareConfig, LocaleDetectionSource } from "./types";
 import { createGetPathname } from "../routing/defineRouting";
 import type { RoutingConfig } from "../routing/types";
@@ -50,8 +50,10 @@ export function createMiddleware(config: MiddlewareConfig) {
   const cookieSecureConfig = localeDetection?.cookieSecure ?? true;
   const isDev = process.env.NODE_ENV === "development";
   const headerName = localeDetection?.headerName;
-  const resolveAcceptLanguage =
-    localeDetection?.resolveAcceptLanguage ?? defaultResolveAcceptLanguage;
+  // The shared matcher from the workspace locale-routing package, which
+  // `@comvi/nuxt` vendors the same source of. Its rules are documented there,
+  // once, for both frameworks — see `docs/design/next-nuxt-parity.md`.
+  const resolveHeader = localeDetection?.resolveAcceptLanguage ?? resolveAcceptLanguage;
   const routing = {
     locales,
     defaultLocale,
@@ -100,7 +102,7 @@ export function createMiddleware(config: MiddlewareConfig) {
           defaultLocale,
           cookieName,
           headerName,
-          resolveAcceptLanguage,
+          resolveHeader,
         );
         if (detected) {
           detectedLocale = detected;
@@ -168,7 +170,7 @@ function detectFromSource(
   defaultLocale: string,
   cookieName: string,
   headerName: string | undefined,
-  resolveAcceptLanguage: (
+  resolveHeader: (
     header: string,
     locales: readonly string[],
     defaultLocale: string,
@@ -193,7 +195,7 @@ function detectFromSource(
     case "accept-language": {
       const acceptLanguage = request.headers.get("accept-language");
       if (!acceptLanguage) return undefined;
-      return resolveAcceptLanguage(acceptLanguage, locales, defaultLocale);
+      return resolveHeader(acceptLanguage, locales, defaultLocale);
     }
     default:
       return undefined;
@@ -206,56 +208,6 @@ function detectFromSource(
 function shouldSkipPath(pathname: string): boolean {
   const isApiPath = pathname === "/api" || pathname.startsWith("/api/");
   return pathname.startsWith("/_next") || isApiPath;
-}
-
-/**
- * Handles common cases with a simple parser. For production apps with diverse
- * locales (CJK, regional variants), use @formatjs/intl-localematcher.
- *
- * Matching strategy:
- * 1. Try exact match (e.g., "en-US" matches "en-US")
- * 2. Try base language match (e.g., "en-US" matches "en")
- * 3. Try finding a locale that starts with the language (e.g., "en" matches "en-US")
- */
-function defaultResolveAcceptLanguage(
-  acceptLanguage: string,
-  locales: readonly string[],
-  _defaultLocale: string,
-): string | undefined {
-  // Parse Accept-Language header (e.g., "en-US,en;q=0.9,uk;q=0.8")
-  const languages = acceptLanguage
-    .split(",")
-    .map((lang) => {
-      const [code, q] = lang.trim().split(";");
-      // Anything that is not a number - an entry with no ";q=" part at all, a
-      // bare ";q", a ";q=nonsense" - reaches parseFloat as a non-numeric string
-      // and comes back NaN, so the isNaN backstop below is the single source of
-      // the "most preferred" default. String() is what carries an absent half
-      // into that backstop instead of a second, shadowed fallback here.
-      const quality = parseFloat(String(q?.split("=")[1]));
-      return {
-        code: code.trim(),
-        quality: isNaN(quality) ? 1 : quality,
-      };
-    })
-    .filter(({ code, quality }) => code.length > 0 && quality > 0)
-    .sort((a, b) => b.quality - a.quality);
-
-  for (const { code } of languages) {
-    const normalizedCode = code.toLowerCase();
-
-    const exactMatch = locales.find((locale) => locale.toLowerCase() === normalizedCode);
-    if (exactMatch) return exactMatch;
-
-    const baseLang = normalizedCode.split("-")[0];
-    const baseMatch = locales.find((locale) => locale.toLowerCase() === baseLang);
-    if (baseMatch) return baseMatch;
-
-    const prefixMatch = locales.find((locale) => locale.toLowerCase().startsWith(baseLang + "-"));
-    if (prefixMatch) return prefixMatch;
-  }
-
-  return undefined;
 }
 
 /** Drop a single trailing slash; the root path keeps its only slash. */

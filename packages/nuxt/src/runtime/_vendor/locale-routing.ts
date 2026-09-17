@@ -14,6 +14,8 @@
  * - Locale matching is SEGMENT-based: `/ensemble` never matches `en`.
  * - Trailing slashes are PRESERVED: `/de/` → `/`, `/de/about/` → `/about/`.
  * - Inputs are normalized to a leading slash; interior bytes are never rewritten.
+ * - `Accept-Language` has ONE matcher, {@link resolveAcceptLanguage}, shared by
+ *   every integration; its rules are written out at the function.
  */
 
 /** Locale prefix strategy shared by all Comvi framework integrations. */
@@ -38,6 +40,87 @@ export interface BuildLocalizedPathOptions {
    * added for the lookup (`"about"` is not `"/about"`).
    */
   pathnames?: PathnamesMap;
+}
+
+/**
+ * Match an `Accept-Language` header against the configured locales.
+ *
+ * THE one implementation. Every integration resolves the header through this
+ * function — next imports it, nuxt vendors it — because two copies of these
+ * twenty lines is what let `q=0` be honoured in one framework and ignored in
+ * the other for a whole release. `tooling/test-utils/acceptLanguageTable.ts`
+ * holds the input table that all of them assert; the rules it pins are:
+ *
+ * 1. **Parsing.** Entries split on `,` and are trimmed. The language tag is
+ *    everything before the first `;`. Only the FIRST parameter after the tag is
+ *    examined for a quality value, and its text is read with `parseFloat`;
+ *    anything absent or unparseable (`;q=`, a bare `;q`, `;q=abc`, or no
+ *    parameter at all) means q = 1, the most preferred. The parameter's NAME is
+ *    not checked, so `;level=1` is read as the q value and `;Q=0.5` works.
+ * 2. **Refusals are dropped, not ranked last.** `q=0` means "not acceptable"
+ *    (RFC 9110 §12.4.2), so a refused entry is removed before matching; sorting
+ *    alone still let `fr;q=0` win when it was the only entry matching a
+ *    configured locale. Negative q is refused the same way. An entry with an
+ *    empty tag (a stray comma) can match nothing and goes too.
+ * 3. **Order.** Remaining entries are sorted by descending q with a stable
+ *    sort, so ties keep the order the client wrote them in.
+ * 4. **Matching.** Each tag in that order is tried against `locales` IN
+ *    CONFIGURATION ORDER, three ways, and the first hit wins outright:
+ *    an exact case-insensitive match; then the tag's base language against a
+ *    whole locale (`en-US` → `en`); then a configured locale under that base
+ *    language (`en` → `en-US`). A later, better-matching entry never overrides
+ *    an earlier entry's weaker match.
+ * 5. **No weighing beyond that.** Script and region subtags are not scored:
+ *    with `["zh-Hant-TW", "zh-Hans"]`, `zh-Hans-CN` resolves to `zh-Hant-TW`
+ *    because that is the first locale under base `zh`.
+ * 6. **`*` is not expanded.** It names no configured locale, so it matches
+ *    nothing and the next entry is tried.
+ * 7. **The CONFIGURED spelling comes back**, never the header's: `pt-br`
+ *    against `["pt-BR"]` returns `pt-BR`. `undefined` means no configured
+ *    locale is acceptable — each caller decides what to do with that, and the
+ *    frameworks differ (next's middleware falls back to `defaultLocale`).
+ *
+ * Known limitation, shared by every caller by construction: because only the
+ * first parameter is read (rule 1), a header that puts another parameter before
+ * `q` — `en;level=1;q=0.5` — is treated as q = 1. Real browsers do not send
+ * that shape. It is one implementation's limitation now rather than two.
+ *
+ * @example
+ * resolveAcceptLanguage('en-US,fr;q=0.5', ['en', 'fr']) // 'en'
+ * resolveAcceptLanguage('fr;q=0', ['en', 'fr'])         // undefined
+ */
+export function resolveAcceptLanguage(
+  acceptLanguage: string,
+  locales: readonly string[],
+): string | undefined {
+  const entries = acceptLanguage
+    .split(",")
+    .map((entry) => {
+      const [tag, firstParam] = entry.trim().split(";");
+      // `String()` is what carries an absent parameter into the `isNaN`
+      // backstop below, so that backstop is the single source of the
+      // "most preferred" default rather than one of two fallbacks.
+      const quality = parseFloat(String(firstParam?.split("=")[1]));
+      return { tag: tag.trim(), quality: isNaN(quality) ? 1 : quality };
+    })
+    .filter(({ tag, quality }) => tag.length > 0 && quality > 0)
+    .sort((a, b) => b.quality - a.quality);
+
+  for (const { tag } of entries) {
+    const normalizedTag = tag.toLowerCase();
+
+    const exactMatch = locales.find((locale) => locale.toLowerCase() === normalizedTag);
+    if (exactMatch) return exactMatch;
+
+    const baseLang = normalizedTag.split("-")[0];
+    const baseMatch = locales.find((locale) => locale.toLowerCase() === baseLang);
+    if (baseMatch) return baseMatch;
+
+    const prefixMatch = locales.find((locale) => locale.toLowerCase().startsWith(baseLang + "-"));
+    if (prefixMatch) return prefixMatch;
+  }
+
+  return undefined;
 }
 
 /**

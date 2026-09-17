@@ -240,6 +240,33 @@ The first three each carry the identical capability toolkit (`createI18n`, `icuC
 `/middleware` deliberately carry none of it: they are what `middleware.ts` imports, and an Edge
 isolate executes every module its entry reaches. `/navigation` is `"use client"`.
 
+`await getI18n()` returns three members, the same three `@comvi/nuxt`'s `useTranslation(event)`
+returns:
+
+| member                       | what it is                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| `t(key, params?)`            | a plain string, bound to the resolved locale and to `ns` if you passed one      |
+| `hasTranslation(key, opts?)` | whether a key resolves, defaulting to that same locale and namespace            |
+| `locale`                     | the locale this call resolved — the string `t` closes over, so it cannot differ |
+
+Read `locale` rather than calling `getLocale()` again: a second read is a second answer.
+
+### Locale routing: what `@comvi/next` and `@comvi/nuxt` share
+
+The two framework modules share their semantics and keep their adapters. Locale routing,
+`Accept-Language` matching and the server helper's vocabulary and result shape are one
+implementation, so the same request resolves to the same locale in both. Host lifetime, the cookie
+name (`NEXT_LOCALE` on Next, `i18n_locale` on Nuxt — each ecosystem's existing one) and how you
+install the integration stay framework-shaped.
+
+One behavioural difference remains on purpose. With `localePrefix: "as-needed"`,
+`defaultLocale: "en"` and a `de` locale cookie, a request for `/about` is redirected to `/de/about`
+on Next, because a next-intl app treats the stored preference as authoritative; Nuxt serves `en` at
+`/about` and keeps the cookie, because a nuxt-i18n app treats an unprefixed non-root path as the
+default locale's own URL. The plan after 0.5 is one shared option with one name and one meaning,
+defaulting per framework to today's behaviour. Full reasoning:
+[`docs/design/next-nuxt-parity.md`](../../docs/design/next-nuxt-parity.md).
+
 **Never compose `localeDetector()` on this host.** It lives at module scope and is process-wide on
 the App Router, so the detector would run once, at `init()`, and the first request's headers would
 pin the locale for every later render. Use
@@ -256,6 +283,7 @@ pin the locale for every later render. Use
   [errors](https://comvi.io/docs/i18n/errors) · [limitations](https://comvi.io/docs/i18n/limitations)
 - **Also here:** [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader) ·
   [`docs/design/next-runtimes.md`](../../docs/design/next-runtimes.md) ·
+  [`docs/design/next-nuxt-parity.md`](../../docs/design/next-nuxt-parity.md) ·
   [`docs/design/`](../../docs/design)
 - **Upgrading from 0.4.x:** `use(plugin, options)` was Next's own scoped raw-plugin queue and is
   gone, and `useClient`, `useServer`, `useClientLazy` and `useServerLazy` are deleted rather than
