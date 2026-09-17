@@ -6,6 +6,7 @@ import type { PrepareTranslationSource } from "@comvi/core/rich-text";
 import { getRequestI18n } from "../src/runtime/server/utils/request-i18n";
 import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
+import { nodeResponseStub } from "./mocks/node-response";
 
 /** Only the runtime-config slice `getRequestI18n` reads. */
 type ComviPublic = Record<string, unknown>;
@@ -21,7 +22,10 @@ function createContext(comvi: ComviPublic = {}, privateComvi: unknown = {}) {
   };
 }
 
-const eventFor = (context: unknown) => ({ context }) as unknown as H3Event;
+// h3 1.x always gives an event a node response, so a hand-made one carries the
+// stub — `getRequestI18n` hangs its cleanup hook off it.
+const eventFor = (context: unknown) =>
+  ({ context, node: { res: nodeResponseStub() } }) as unknown as H3Event;
 
 const createEvent = (comvi: ComviPublic = {}, privateComvi: unknown = {}) =>
   eventFor(createContext(comvi, privateComvi));

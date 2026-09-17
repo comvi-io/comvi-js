@@ -71,6 +71,68 @@ describe("VueI18n destroy()", () => {
 
     expect(onError).toHaveBeenCalledWith(failure, { source: "plugin-cleanup" });
   });
+
+  it("resolves only once the host's cleanup has finished", async () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+    await i18n.init();
+    let cleanupFinished = false;
+    // A timer, not a resolved promise: no number of microtasks crosses it, so
+    // this can only pass if the return value IS the cleanup's promise.
+    vi.spyOn(i18n.core, "destroy").mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          setTimeout(() => {
+            cleanupFinished = true;
+            resolve();
+          }, 0);
+        }),
+    );
+
+    const destroyed = i18n.destroy();
+    expect(cleanupFinished).toBe(false);
+    await destroyed;
+
+    expect(cleanupFinished).toBe(true);
+  });
+
+  it("resolves instead of rejecting when the host's cleanup fails", async () => {
+    const onError = vi.fn();
+    const i18n = createI18n({ locale: "en", exposeGlobal: false, onError });
+    const failure = new Error("cleanup exploded");
+    vi.spyOn(i18n.core, "destroy").mockRejectedValue(failure);
+
+    // Fire-and-forget callers (a Vue `onUnmounted`, nuxt's HMR dispose) are the
+    // reason this resolves: an awaited rejection nobody handles is an unhandled
+    // rejection in every one of them. The error still reaches `onError`.
+    await expect(i18n.destroy()).resolves.toBeUndefined();
+    expect(onError).toHaveBeenCalledWith(failure, { source: "plugin-cleanup" });
+  });
+
+  it("makes a second call await the same cleanup rather than resolve early", async () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+    await i18n.init();
+    let cleanupFinished = false;
+    const destroyHost = vi.spyOn(i18n.core, "destroy").mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          setTimeout(() => {
+            cleanupFinished = true;
+            resolve();
+          }, 0);
+        }),
+    );
+
+    const first = i18n.destroy();
+    const second = i18n.destroy();
+    await second;
+
+    expect(cleanupFinished).toBe(true);
+    expect(destroyHost).toHaveBeenCalledTimes(1);
+    await expect(first).resolves.toBeUndefined();
+    // And once it HAS finished, a later call is the immediate resolve.
+    await expect(i18n.destroy()).resolves.toBeUndefined();
+    expect(destroyHost).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("VueI18n install()", () => {

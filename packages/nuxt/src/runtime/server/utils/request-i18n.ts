@@ -6,22 +6,20 @@ import { runComviSetup } from "#build/comvi.setup";
 import { createComviCore } from "#build/comvi.host";
 import type { NuxtServerHost } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
-
-// Keep one i18n instance per locale within a single request.
-// This costs more than a single shared request instance, but it preserves
-// SSR correctness when server code resolves multiple locales concurrently.
-const requestI18nMap = new WeakMap<object, Map<string, Promise<NuxtServerHost>>>();
-
-const getContextKey = (event: H3Event): object => {
-  if (event.context && typeof event.context === "object") {
-    return event.context as object;
-  }
-  return event as unknown as object;
-};
+// The registry and its teardown live outside this file so the Nitro server
+// plugin can import them: nuxt's `impound` plugin refuses the `#build/*`
+// aliases above anywhere in the nitro runtime graph.
+import {
+  assertRequestLive,
+  getContextKey,
+  hookRequestCleanup,
+  requestI18nMap,
+} from "../internal/request-hosts";
 
 /** Keyed by event context in a WeakMap, so cleanup is automatic. */
 export async function getRequestI18n(event: H3Event, locale: string): Promise<NuxtServerHost> {
   const contextKey = getContextKey(event);
+  assertRequestLive(contextKey);
   let localeInstances = requestI18nMap.get(contextKey);
   if (!localeInstances) {
     localeInstances = new Map<string, Promise<NuxtServerHost>>();
@@ -81,6 +79,9 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
     })();
 
     localeInstances.set(locale, instancePromise);
+    // After the map holds something worth destroying, so the hook can never
+    // fire against an empty request.
+    hookRequestCleanup(event, contextKey);
   }
 
   let i18n: NuxtServerHost;

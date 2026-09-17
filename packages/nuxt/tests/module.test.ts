@@ -15,6 +15,7 @@ const nuxtKitMocks = {
   addImports: vi.fn(),
   addComponent: vi.fn(),
   addServerImportsDir: vi.fn(),
+  addServerPlugin: vi.fn(),
   addRouteMiddleware: vi.fn(),
   extendPages: vi.fn(),
 };
@@ -40,6 +41,7 @@ vi.mock("@nuxt/kit", () => ({
   addImports: (...args: unknown[]) => nuxtKitMocks.addImports(...args),
   addComponent: (...args: unknown[]) => nuxtKitMocks.addComponent(...args),
   addServerImportsDir: (...args: unknown[]) => nuxtKitMocks.addServerImportsDir(...args),
+  addServerPlugin: (...args: unknown[]) => nuxtKitMocks.addServerPlugin(...args),
   addRouteMiddleware: (...args: unknown[]) => nuxtKitMocks.addRouteMiddleware(...args),
   extendPages: (handler: (pages: NuxtPage[]) => void) => {
     extendPagesHandler = handler;
@@ -115,6 +117,7 @@ describe("nuxt module setup", () => {
     nuxtKitMocks.addImports.mockReset();
     nuxtKitMocks.addComponent.mockReset();
     nuxtKitMocks.addServerImportsDir.mockReset();
+    nuxtKitMocks.addServerPlugin.mockReset();
     nuxtKitMocks.addRouteMiddleware.mockReset();
     nuxtKitMocks.extendPages.mockReset();
     nuxtKitMocks.createResolver.mockReturnValue({
@@ -245,6 +248,11 @@ describe("nuxt module setup", () => {
     });
     expect(nuxtKitMocks.addServerImportsDir).toHaveBeenCalledWith(
       "/resolved/./runtime/server/utils",
+    );
+    // The per-request teardown is this plugin; unregistered, every request host
+    // on the server leaks its plugin cleanups again.
+    expect(nuxtKitMocks.addServerPlugin).toHaveBeenCalledWith(
+      "/resolved/./runtime/server/plugins/request-cleanup",
     );
     expect(nuxtKitMocks.addRouteMiddleware).toHaveBeenCalledWith({
       name: "i18n",

@@ -87,7 +87,11 @@ export class VueI18n<
   private _requestedLocale: string;
   private _localeQueue: Promise<void> = Promise.resolve();
   private _isLocaleQueueIdle = true;
-  private _isDestroyed = false;
+  /**
+   * Set by the first `destroy()` and never cleared: it is both the
+   * already-destroyed flag and what a repeat call returns.
+   */
+  private _destroyed?: Promise<void>;
   private _warnedLateUse = false;
 
   // Declared here, assigned as bound proxies in the constructor.
@@ -485,9 +489,23 @@ export class VueI18n<
     return this;
   }
 
-  destroy(): void {
-    if (this._isDestroyed) return;
-    this._isDestroyed = true;
+  /**
+   * Unsubscribe from the host, then tear the host down.
+   *
+   * Returns the cleanup's promise, so `await i18n.destroy()` means the plugin
+   * cleanups have FINISHED — a test tearing an instance down between cases, or
+   * a request-scoped host on the server, has something to wait for. Every
+   * existing fire-and-forget caller keeps working: the promise RESOLVES even
+   * when the host's cleanup rejects, because a rejection nobody awaits is an
+   * unhandled rejection, and the error already has its channel
+   * (`onError`, source `plugin-cleanup`).
+   *
+   * A repeat call is the same promise, not a second teardown, so a second
+   * `await` cannot report "done" while the first cleanup is still running; once
+   * it has settled, a later call resolves immediately.
+   */
+  destroy(): Promise<void> {
+    if (this._destroyed) return this._destroyed;
 
     this._unsubscribers
       .slice()
@@ -495,9 +513,10 @@ export class VueI18n<
       .forEach((unsub) => unsub());
     this._unsubscribers.length = 0;
 
-    this.core.destroy().catch((error) => {
+    this._destroyed = this.core.destroy().catch((error: unknown) => {
       this.core.reportError(error, { source: "plugin-cleanup" });
     });
+    return this._destroyed;
   }
 
   private _installedApps = new WeakSet<App>();

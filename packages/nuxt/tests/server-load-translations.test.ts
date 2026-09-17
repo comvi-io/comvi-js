@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { nodeResponseStub } from "./mocks/node-response";
 
 const createComviCore = vi.fn();
 const runComviSetup = vi.fn(async () => undefined);
@@ -27,6 +28,7 @@ const NO_LOADER_REGISTERED_MESSAGE =
 
 function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
   return {
+    node: { res: nodeResponseStub() },
     context: {
       runtimeConfig: {
         public: {
