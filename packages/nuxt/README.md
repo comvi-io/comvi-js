@@ -133,8 +133,9 @@ export default ((options) =>
 ```
 
 `t("items", { count: 5 })` now renders a locale-correct plural from
-`"{count, plural, one {# item} other {# items}}"`, and `setLocale()` loads and switches
-asynchronously.
+`"{count, plural, one {# item} other {# items}}"` — the `items` key
+[Connect Comvi](https://comvi.io/docs/i18n/connect-comvi) step 3 has you create — and `setLocale()`
+loads and switches asynchronously.
 
 The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
 open your project and use **Copy URL** on the
