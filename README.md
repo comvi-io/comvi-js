@@ -50,7 +50,7 @@ bundles `@comvi/core` and re-exports what you compose with.
 
 ```bash
 npm install @comvi/react     # Peer: react ^18 || ^19
-npm install @comvi/next      # Peers: next ^14 || ^15, react ^18 || ^19
+npm install @comvi/next      # Peers: next ^15 || ^16, react ^18.2 || ^19
 npm install @comvi/vue       # Peer: vue ^3
 npm install @comvi/nuxt      # Peer: nuxt ^3 || ^4
 npm install @comvi/svelte    # Peer: svelte ^5.3

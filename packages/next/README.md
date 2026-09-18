@@ -36,7 +36,7 @@ Throughout this README, **the host** is the i18n instance `createNextI18n` retur
 
 ```bash
 npm install @comvi/next server-only
-# Peers: next ^14 || ^15, react ^18 || ^19
+# Peers: next ^15 || ^16, react ^18.2 || ^19
 ```
 
 `server-only` is the guard on the server module below: importing it from a Client Component becomes

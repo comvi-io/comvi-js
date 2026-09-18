@@ -5,7 +5,10 @@
 // bin targets are executable with a shebang, no `.DS_Store`/`.env*`/`.tsbuildinfo`
 // is shipped, and no built file names a workspace-private package (it must be
 // inlined/vendored instead — a private package resolves fine inside the workspace
-// but is unresolvable once published). Known limitations: the `.env*` check only
+// but is unresolvable once published). It also checks one cross-file fact that is
+// not per-package: `@comvi/next`'s `next` peer range is written in four files, and
+// the three mirrors must agree with the manifest (see
+// `checkNextPeerRangeDeclarations`). Known limitations: the `.env*` check only
 // matches a root-level entry (not e.g. `dist/.env`); suffix globs in exports
 // (`./dist/*.css`) degrade to a weak prefix check; the bin executable-bit check
 // reads the working-tree mode, not the 0755 npm normalises to in the tarball. Run
@@ -107,6 +110,155 @@ function npmPackDryRun(packageDir) {
   });
   const parsed = JSON.parse(output);
   return new Set(parsed.flatMap((item) => item.files.map((file) => file.path)));
+}
+
+/**
+ * `@comvi/next`'s peer ranges are written down in several places, and until this
+ * check existed nothing tied them together: `scripts/sync-peer-ranges.mjs` only
+ * pins internal `@comvi/*` peers, and the rest of this file has no peer logic at
+ * all. So the human-written mirrors drifted silently — `next` said `^14 || ^15`
+ * everywhere while Next 14 was, in fact, unusable (every page 500s with
+ * `TypeError: Cannot redefine property: I18nProvider`).
+ *
+ * Both mirrored peers are checked, because both were wrong at once:
+ *   - `next`  — the range this repo decides.
+ *   - `react` — a floor NEXT decides. Every Next in the supported window
+ *     (14.2.35, 15.5.9, 15.5.18, 16.3.5) declares `react: ^18.2.0`, so a
+ *     `^18.0.0` floor here advertises React 18.0/18.1 with Next 15/16, which
+ *     Next itself refuses. `@comvi/react` deliberately keeps `^18.0.0` —
+ *     `useSyncExternalStore` lands in React 18.0 and that range is ours, not
+ *     Next's — which is why this check is scoped to `packages/next` alone.
+ *
+ * `packages/next/package.json` is the single source. The mirrors must agree:
+ * both README install comments verbatim, and the bundler-matrix stub by having
+ * a version the `next` range accepts plus prose that names that range.
+ *
+ * Deliberately narrow — two peers of ONE package. Generalising it to every peer
+ * in the repo would need a prose convention the other pages do not follow
+ * (`packages/react/README.md` writes full triples, `# Peer: react ^18.0.0 ||
+ * ^19.0.0`), and a guard that has to guess at formats is a guard that reports
+ * noise.
+ */
+const NEXT_PEER_SOURCE = "packages/next/package.json";
+const NEXT_PEER_README_MIRRORS = ["packages/next/README.md", "README.md"];
+const NEXT_PEER_STUB_MIRROR = "scripts/bundler-matrix/app/stubs/next/package.json";
+
+/**
+ * `"^18.2.0 || ^19.0.0"` → `[[18, 2, 0], [19, 0, 0]]`; `null` if any member is
+ * not a plain caret range (a prose form cannot be derived from `>=15`).
+ */
+export function parseCaretRange(range) {
+  if (typeof range !== "string" || range.trim() === "") return null;
+  const parsed = [];
+  for (const part of range.split("||")) {
+    const match = /^\^(\d+)(?:\.(\d+))?(?:\.(\d+))?$/.exec(part.trim());
+    if (!match) return null;
+    parsed.push([Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)]);
+  }
+  return parsed;
+}
+
+/**
+ * The shorthand the prose mirrors use: trailing zero components are dropped, so
+ * `^15.0.0` → `^15` and `^18.2.0` → `^18.2`. A floor that carries a meaningful
+ * minor keeps it; one that does not reads as the bare major it is.
+ */
+export function shorthandCaretRange(parsed) {
+  return parsed
+    .map(([major, minor, patch]) => {
+      if (patch !== 0) return `^${major}.${minor}.${patch}`;
+      if (minor !== 0) return `^${major}.${minor}`;
+      return `^${major}`;
+    })
+    .join(" || ");
+}
+
+export function checkNextPeerRangeDeclarations(root) {
+  const errors = [];
+
+  const sourcePath = path.join(root, NEXT_PEER_SOURCE);
+  if (!existsSync(sourcePath)) return errors;
+  const peers = readJson(sourcePath).peerDependencies ?? {};
+
+  const declared = {};
+  const shorthand = {};
+  let nextMajors = null;
+  for (const peer of ["next", "react"]) {
+    declared[peer] = peers[peer];
+    const parsed = parseCaretRange(declared[peer]);
+    if (parsed === null) {
+      errors.push(
+        `${NEXT_PEER_SOURCE}: peerDependencies.${peer} must be caret ranges joined by "||" ` +
+          `so the prose mirrors can be derived from it; got ${JSON.stringify(declared[peer])}`,
+      );
+      return errors;
+    }
+    shorthand[peer] = shorthandCaretRange(parsed);
+    if (peer === "next") nextMajors = parsed.map(([major]) => major);
+  }
+
+  // One regex for the whole comment: `# Peers: next <range>, react <range>`.
+  // Keying on BOTH names is what keeps the sibling install lines out — the root
+  // README's `@comvi/react` line is `# Peer: react …` (singular, no `next`),
+  // and `nuxt ^3 || ^4` never matches `next\s`. Requiring at least one match is
+  // the point too: a renamed comment must fail, not pass by matching nothing.
+  for (const mirror of NEXT_PEER_README_MIRRORS) {
+    const mirrorPath = path.join(root, mirror);
+    if (!existsSync(mirrorPath)) {
+      errors.push(`${mirror}: missing, but it declares the @comvi/next peer ranges`);
+      continue;
+    }
+    const matches = [
+      ...readFileSync(mirrorPath, "utf8").matchAll(
+        /#\s*Peers:\s*next\s+([^,\n]+),\s*react\s+([^,\n]+)/g,
+      ),
+    ];
+    if (matches.length === 0) {
+      errors.push(
+        `${mirror}: no "# Peers: next <range>, react <range>" comment found; ` +
+          `${NEXT_PEER_SOURCE} declares next ${declared.next} and react ${declared.react}, ` +
+          `so this file must mirror them as "next ${shorthand.next}, react ${shorthand.react}"`,
+      );
+      continue;
+    }
+    for (const match of matches) {
+      for (const [index, peer] of ["next", "react"].entries()) {
+        const found = match[index + 1].trim();
+        assert(
+          found === shorthand[peer],
+          `${mirror}: declares ${peer} "${found}" but ${NEXT_PEER_SOURCE} declares ` +
+            `"${declared[peer]}" (expected the comment to read "${shorthand[peer]}")`,
+          errors,
+        );
+      }
+    }
+  }
+
+  // The stub is checked for SATISFACTION, not equality: it is pinned to the
+  // floor of the range on purpose, so that the lowest supported Next is the one
+  // proven to resolve. Equality would force it to the newest major and lose that.
+  const stubPath = path.join(root, NEXT_PEER_STUB_MIRROR);
+  if (!existsSync(stubPath)) {
+    errors.push(`${NEXT_PEER_STUB_MIRROR}: missing, but it must satisfy the next peer range`);
+    return errors;
+  }
+  const stub = readJson(stubPath);
+  const stubMajor = Number(String(stub.version ?? "").split(".")[0]);
+  assert(
+    nextMajors.includes(stubMajor),
+    `${NEXT_PEER_STUB_MIRROR}: version ${stub.version} is outside ${NEXT_PEER_SOURCE}'s ` +
+      `next range "${declared.next}" (majors ${nextMajors.join(", ")}), so the bundler matrix ` +
+      `installs a stub the published range would reject`,
+    errors,
+  );
+  assert(
+    typeof stub.description === "string" && stub.description.includes(`(${shorthand.next})`),
+    `${NEXT_PEER_STUB_MIRROR}: description must name the range as "(${shorthand.next})" to match ` +
+      `${NEXT_PEER_SOURCE}'s "${declared.next}"`,
+    errors,
+  );
+
+  return errors;
 }
 
 /**
@@ -253,6 +405,14 @@ export async function checkPackageContracts({ root = process.cwd(), log = consol
     if (failed) errors.push(...packageErrors);
     summaries.push(`${failed ? "FAIL" : "PASS"} ${packageName}: ${packedFiles.size} files checked`);
   }
+
+  // Repo-wide, not per-package: one fact declared in four files.
+  const peerRangeErrors = checkNextPeerRangeDeclarations(root);
+  errors.push(...peerRangeErrors);
+  summaries.push(
+    `${peerRangeErrors.length > 0 ? "FAIL" : "PASS"} next peer range: ` +
+      `${NEXT_PEER_README_MIRRORS.length + 1} mirrors checked against ${NEXT_PEER_SOURCE}`,
+  );
 
   for (const summary of summaries) {
     log(summary);
