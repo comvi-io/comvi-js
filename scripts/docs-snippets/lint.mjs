@@ -168,11 +168,13 @@ const ICU_SYNTAX = /\{\s*\w+\s*,\s*(?:plural|selectordinal|select)\s*,/;
 
 /**
  * Pages that must show capability composition. A framework page or the
- * quick-start that never composes is documenting the 0.4 host
+ * platform-connection page that never composes is documenting the 0.4 host
  * (MIGRATION.md §3, "`.use(installer)` — composing a capability").
+ * `quick-start` is inline-only by design since the 2026-09 rewrite; the
+ * `.use(cdnLoader())` step lives on `connect-comvi`.
  */
 const FRAMEWORK_BASENAMES = new Set([
-  "quick-start",
+  "connect-comvi",
   "react",
   "vue",
   "svelte",
