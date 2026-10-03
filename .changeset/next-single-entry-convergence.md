@@ -42,5 +42,5 @@ runtime split, never a host-tier split.
 
 Residual: `t("Click <b>here</b>")` returns markup as text, since neither entry registers tag
 syntax ambiently. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §5 and
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §5 and
 `core-single-entry-convergence.md`.

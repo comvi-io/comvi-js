@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/nuxt</h1>
 
-<p align="center">Nuxt module for Comvi i18n — auto-imports, SSR, and locale-prefixed routes.</p>
+<p align="center">Nuxt module for Comvi i18n: auto-imports, SSR, and locale-prefixed routes.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/nuxt"><img src="https://img.shields.io/npm/v/@comvi/nuxt?color=blue" alt="npm"></a>
@@ -17,48 +17,32 @@
 
 ---
 
-`@comvi/nuxt` is a Nuxt module: add it to `modules` and `useI18n()`, `<T>` and
-`<NuxtLinkLocale>` are auto-imported, with SSR and locale-prefixed routes handled for you. App code
-imports nothing. Pair it with the [Comvi platform](https://comvi.io) and the catalogs are fetched
-from the CDN at runtime instead of bundled.
+`@comvi/nuxt` is a Nuxt module: it auto-imports the composables and `<T>`, clones your pages into
+locale-prefixed routes, builds one host per request on the server and hydrates the client from what
+the server loaded. The full guide is [Nuxt](https://comvi.io/docs/i18n/nuxt) on the docs site.
 
-One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
-`formatRelativeTime`, `getTextDirection`) are auto-imported by nothing. A component that calls one
-directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
-transitively. `useI18n()` hands back bound formatters, which need no extra import.
-
-Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
-current locale and `t()`. In a nuxt app you
-build it in one file, `comvi.host.ts`, and the module constructs it once per runtime — plus once per
-server request.
-
-📖 [Documentation](https://comvi.io/docs/i18n/nuxt) · ⚖️ [Comvi vs nuxt-i18n](https://comvi.io/compare/nuxt-i18n)
-
-## 1. Install
+## Install
 
 ```bash
 npm install @comvi/nuxt
 # Peer: nuxt ^3.0.0 || ^4.0.0
 ```
 
-## 2. Quick start — an inline catalog
+## Setup
 
-Two files plus one call. `nuxt.config.ts` configures the locales, the routing and the inline
-catalog, `app.vue` makes the one call the module will not make for you, and a page reads
-`useI18n()`. There is no host file yet — step 3 adds it. Runnable:
-[`examples/nuxt`](../../examples/nuxt).
-
-```ts title="nuxt.config.ts"
+```ts title="nuxt.config.ts" check=group=nuxt-app
 import { defineNuxtConfig } from "nuxt/config";
+import type {} from "@comvi/nuxt";
 
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
+
   comvi: {
+    defaultLocale: "en",
     locales: [
       { code: "en", name: "English", iso: "en-US" },
       { code: "uk", name: "Українська", iso: "uk-UA" },
     ],
-    defaultLocale: "en",
     localePrefix: "as-needed",
     translation: {
       en: { greeting: "Hello, {name}!" },
@@ -68,13 +52,8 @@ export default defineNuxtConfig({
 });
 ```
 
-```vue title="app.vue"
+```vue title="app.vue" check=group=nuxt-app
 <script setup lang="ts">
-// The ONE call the module will not make for you. Nothing in @comvi/nuxt touches
-// <html>, so `lang` and `dir` stay unset until this runs — a page that renders
-// perfectly and ships <html> with no `lang` is the symptom. `addDir` derives the
-// direction from the locale, so adding an RTL locale to nuxt.config.ts gives you
-// dir="rtl" with no further change.
 useLocaleHead({ addLang: true, addDir: true });
 </script>
 
@@ -83,9 +62,16 @@ useLocaleHead({ addLang: true, addDir: true });
 </template>
 ```
 
-```vue title="pages/index.vue"
+`comvi.translation` is the inline catalog, nested or flat, and must stay JSON-serializable. The
+type-only import brings in the module's `NuxtConfig` augmentation before the first dev run. Call
+`useLocaleHead()` yourself: nothing in the module touches `<html>`, and without this call the page
+ships `<html>` with no `lang` and no `dir`.
+
+## Use in components
+
+```vue title="pages/index.vue" check=group=nuxt-app
 <script setup lang="ts">
-const { t, locale } = useI18n(); // auto-imported
+const { t, locale } = useI18n();
 </script>
 
 <template>
@@ -94,129 +80,64 @@ const { t, locale } = useI18n(); // auto-imported
 </template>
 ```
 
-With no `comvi.host.*` file the module builds the **base host** for you: text and `{param}`
-interpolation, the translation cache, events and default params — no ICU compiler, no loader, no
-plugin host, no devtools discovery. Nothing is injected on your behalf, so nothing you did not ask
-for is in your bundle. A nested `translation` object is flattened by the base host, so
-`{ nav: { home: "Home" } }` resolves `t("nav.home")` with nothing composed.
+`useI18n()` is auto-imported. It returns the `@comvi/vue` composable plus `locales` and
+`defaultLocale` from runtime config. `setLocale()` loads the new catalog and advances the locale
+state the route middleware watches. `$t()` works in any template without calling `useI18n()`.
 
-## 3. Connect to Comvi
+## Load from Comvi
 
-One file, and it is the one place that decides what your app loads and compiles:
-**`comvi.host.ts`**. Three questions, and the third needs no line here at all.
+```bash
+npm install @comvi/plugin-fetch-loader
+```
 
-1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
-   default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
-   (`{count, plural, …}`) fails in development at ingestion, before anything renders. Inline, it
-   throws `E_ICU_SYNTAX` at the call that carries the catalog; over a loader it fails that
-   namespace's load instead — `E_ICU_SYNTAX` reaches `onLoadError`, the namespace stays empty, and
-   `init()` rejects with `[i18n] Failed to load all namespaces …`, not with `E_ICU_SYNTAX`, when
-   that was the only namespace. In production it renders the message text literally and reports the
-   error through `onError` (`console.error` when no handler is set).
-2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn` (a second
-   install), which fetches the catalog at runtime instead of bundling it.
-3. **What to paint meanwhile?** Nothing, on this module. Its route middleware pre-loads the
-   current locale before the page renders, and the server hydrates the client with what it loaded,
-   so there is no gate to write.
-
-`compiler` is a constructor argument rather than something `.use()` can pipe on, so it goes
-into the options object.
-
-```ts title="comvi.host.ts" check=group=nuxt-app
-import { createI18n, icuCompiler, type NuxtHostFactory } from "@comvi/nuxt/host";
+```ts title="comvi.host.ts" check=group=nuxt-cdn
+import { createI18n, type NuxtHostFactory } from "@comvi/nuxt/host";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 export default ((options) =>
-  createI18n({ ...options, compiler: icuCompiler }).use(
-    cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
+  createI18n(options).use(
+    cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }),
   )) satisfies NuxtHostFactory;
 ```
 
-`t("items", { count: 5 })` now renders a locale-correct plural from
-`"{count, plural, one {# item} other {# items}}"` — the `items` key
-[Connect Comvi](https://comvi.io/docs/i18n/connect-comvi) step 3 has you create — and `setLocale()`
-loads and switches asynchronously.
+Add this file next to `nuxt.config.ts`. The module picks up `./comvi.host.*` by convention and
+logs the path; `comvi.hostModule` points at a file elsewhere. The default export receives the
+resolved `comvi` options and must return a fresh host on every call. The CDN URL is on
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
+(`{count, plural, …}`), set `comvi.icu: true` or pass `compiler: icuCompiler` in the factory, as on
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
+independent.
 
-The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
-open your project and use **Copy URL** on the
-**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
-enabled and saved).
+## Specific to Nuxt
 
-**The factory must return a fresh host every call.** It runs once per constructed instance: the app
-plugin, and each per-request server instance ([SSR](https://comvi.io/docs/i18n/ssr)).
+- The module builds one host per request, detects the locale from the URL path, the cookie or the
+  `Accept-Language` header, runs `comvi.setup.ts` for that host, and serializes the loaded catalog
+  into the payload, so the client hydrates with no second fetch and no flash.
+- Without a host file the module builds the base host, with no loader and no ICU compiler. Every
+  installer `comvi.host.ts` needs (`createI18n`, `loader`, `icuCompiler`, `plugins`, `devtools`)
+  comes from `@comvi/nuxt/host`, so the file resolves from `npm install @comvi/nuxt` alone.
+- In a Nitro route the server auto-imports are `useTranslation(event)`,
+  `loadTranslations(event, locale)`, `getRequestI18n(event, locale)` and
+  `getServerRuntimeConfig(event)`; the app-side composables do not exist there.
+- `<T>` is auto-imported. Each tag a translator wrote becomes a named slot, or an entry in the
+  `components` prop. Never render a translation with `v-html`.
 
-## 4. What is specific to Nuxt
+| `localePrefix` | Default locale | Other locale                           |
+| -------------- | -------------- | -------------------------------------- |
+| `as-needed`    | `/about`       | `/de/about`                            |
+| `always`       | `/en/about`    | `/de/about`                            |
+| `never`        | `/about`       | `/about`, locale from cookie or header |
 
-The module looks for `./comvi.host.*` under `srcDir`, then `rootDir`, and logs the path it picked.
-The `hostModule` option names the file explicitly; it is a module **path**, not a function, and a
-set `hostModule` that does not resolve fails the build rather than falling back.
+The route middleware detects the locale, persists it in the `i18n_locale` cookie and pre-loads
+that locale's catalog before the page renders. Pair a switcher with `useSwitchLocalePath()` when
+the URL should change too.
 
-### What goes in the host file
+## Next steps
 
-Each capability is one import and one `.use(...)`. `.use(installer)` is core's composition pipe:
-`i18n.use(f)` is `f(i18n)`, nothing more.
-
-| you want                                                  | you add                                                                                                                                     |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| ICU plurals / select / selectordinal                      | `compiler: icuCompiler`, in the options object                                                                                              |
-| SSR + async translation loading                           | `.use(loader(importMap))`                                                                                                                   |
-| plugins, locale detectors, missing-key hooks              | `.use(plugins())`                                                                                                                           |
-| your own inline plugin, in one call                       | `.use(definePlugin(fn))`                                                                                                                    |
-| browser-extension discovery                               | `.use(devtools())`                                                                                                                          |
-| `<tag>` syntax in plain string-API `t()`                  | `import "@comvi/core/tags"` once, anywhere in the app                                                                                       |
-| a first-party plugin: CDN loader, locale detector, editor | `.use(cdnLoader({ … }))` / `.use(localeDetector())` / `.use(inContextEditor())`; each installer composes the capabilities that plugin needs |
-
-**Every value but the ambient tag import comes from `@comvi/nuxt/host`**, which re-exports
-`createI18n`, `icuCompiler`, `loader`, `attachLoader`, `plugins`, `devtools`, `definePlugin` and the
-`NuxtHostFactory` type — so `comvi.host.ts` resolves from `npm install @comvi/nuxt` alone.
-
-`useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `useLocaleHead()`, `useLocalePath()` and
-`useSwitchLocalePath()` are all auto-imported; `useI18n()` is `@comvi/vue`'s composable, returning
-Vue refs, and `<T>` is inherited from there with the same named-slot shape.
-
-On the server, `useTranslation(event)` returns `{ t, hasTranslation, locale }` and takes the
-namespace as `ns` — the same shape and the same word `@comvi/next`'s `getI18n()` uses. The 0.4
-spelling `namespace` still works through 0.5 and warns once in dev.
-
-### Locale routing: what `@comvi/next` and `@comvi/nuxt` share
-
-The two framework modules share their semantics and keep their adapters. Locale routing,
-`Accept-Language` matching and the server helper's vocabulary and result shape are one
-implementation, so the same request resolves to the same locale in both. Host lifetime, the cookie
-name (`NEXT_LOCALE` on Next, `i18n_locale` on Nuxt — each ecosystem's existing one) and how you
-install the integration stay framework-shaped.
-
-One behavioural difference remains on purpose. With `localePrefix: "as-needed"`,
-`defaultLocale: "en"` and a `de` locale cookie, a request for `/about` is redirected to `/de/about`
-on Next, because a next-intl app treats the stored preference as authoritative; Nuxt serves `en` at
-`/about` and keeps the cookie, because a nuxt-i18n app treats an unprefixed non-root path as the
-default locale's own URL. The plan after 0.5 is one shared option with one name and one meaning,
-defaulting per framework to today's behaviour. Full reasoning:
-[`docs/design/next-nuxt-parity.md`](../../docs/design/next-nuxt-parity.md).
-
-## 5. Where to go next
-
-- **This binding:** [guide](https://comvi.io/docs/i18n/nuxt) ·
-  [module options](https://comvi.io/docs/i18n/api/nuxt) ·
-  [composables](https://comvi.io/docs/i18n/api/nuxt-composables)
-- **Guides:** [plurals & ICU](https://comvi.io/docs/i18n/pluralization) ·
-  [typed keys](https://comvi.io/docs/i18n/type-safety) · [SSR](https://comvi.io/docs/i18n/ssr) ·
-  [errors](https://comvi.io/docs/i18n/errors) · [limitations](https://comvi.io/docs/i18n/limitations)
-- **Also here:** [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader) · [`@comvi/vue`](../vue) ·
-  [`docs/design/next-nuxt-parity.md`](../../docs/design/next-nuxt-parity.md) ·
-  [`docs/design/`](../../docs/design)
-- **Upgrading from 0.4.x:** the host moved into `comvi.host.ts` and `comvi.cdnUrl` / `comvi.apiBaseUrl`
-  are gone. [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) and
-  [upgrade to 0.5](https://comvi.io/docs/i18n/guides/upgrade-to-v05/nuxt) cover it row by row.
-
-Beyond `h3` and `@nuxt/kit`, which every Nuxt app already has, there are no runtime dependencies,
-and no `eval` or `new Function` anywhere. Measured min+gz with `vue`, `#app`, `#build` and `h3`
-externalized, gated in CI; every fixture and the 0.4.1 comparison:
-[bundle size](https://comvi.io/docs/i18n/bundle-size).
-
-| graph                                                 | measured as              | min+gz |
-| ----------------------------------------------------- | ------------------------ | ------ |
-| client: runtime plugin + `useI18n()` on the base host | `fw-nuxt-client-default` | 8440 B |
+- [Nuxt guide](https://comvi.io/docs/i18n/nuxt): rich text, SSR, locale routing.
+- [Nuxt API reference](https://comvi.io/docs/i18n/api/nuxt): every module option, the host factory and setup types, the composables.
+- [Server-side rendering](https://comvi.io/docs/i18n/ssr#nuxt): `comvi.setup.ts`, per-request hosts and hydration.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `t()` autocompletes in templates.
 
 ## License
 

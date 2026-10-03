@@ -23,4 +23,4 @@ referentially stable per host instance.
 renders it drops the whole rich-text path and one that does never executes tag registration.
 `I18nProviderProps.i18n` and both context value types accept `WrapperI18nHost` instead of
 the concrete `I18n` class, so any composition of the base host fits. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md).

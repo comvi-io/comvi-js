@@ -47,10 +47,6 @@ function makeFixtureRoot(t) {
   );
   write(path.join(root, "packages/cli/README.md"), "# @comvi/cli\n\nNo code here.\n");
   write(
-    path.join(root, "MIGRATION.md"),
-    "# Migrating\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).use(loader());\n```\n",
-  );
-  write(
     path.join(root, "README.md"),
     "# comvi\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).use(loader());\n```\n",
   );
@@ -147,17 +143,12 @@ test("parseArgs with both runners and a version → both surfaces in one run", (
   assert.equal(options.json, true);
 });
 
-test("collectReadmes → every package README, then MIGRATION.md, then the root README", (t) => {
+test("collectReadmes → every package README, then the root README", (t) => {
   const root = makeFixtureRoot(t);
 
   const files = collectReadmes(root).map((file) => path.relative(root, file));
 
-  assert.deepEqual(files, [
-    "packages/cli/README.md",
-    "packages/react/README.md",
-    "MIGRATION.md",
-    "README.md",
-  ]);
+  assert.deepEqual(files, ["packages/cli/README.md", "packages/react/README.md", "README.md"]);
 });
 
 test("collectReadmes → examples/README.md is gated too", (t) => {
@@ -171,7 +162,6 @@ test("collectReadmes → examples/README.md is gated too", (t) => {
   assert.deepEqual(files, [
     "packages/cli/README.md",
     "packages/react/README.md",
-    "MIGRATION.md",
     "README.md",
     path.join("examples", "README.md"),
   ]);
@@ -190,7 +180,6 @@ test("collectReadmes → the design notes under docs/design are gated too", (t) 
   assert.deepEqual(files, [
     "packages/cli/README.md",
     "packages/react/README.md",
-    "MIGRATION.md",
     "README.md",
     path.join("docs", "design", "composition.md"),
     path.join("docs", "design", "icu.md"),
@@ -202,12 +191,7 @@ test("collectReadmes without a docs/design tree → unchanged, not an error", (t
 
   const files = collectReadmes(root).map((file) => path.relative(root, file));
 
-  assert.deepEqual(files, [
-    "packages/cli/README.md",
-    "packages/react/README.md",
-    "MIGRATION.md",
-    "README.md",
-  ]);
+  assert.deepEqual(files, ["packages/cli/README.md", "packages/react/README.md", "README.md"]);
 });
 
 test("a stale size figure in a design note fails the gate like one in a README", (t) => {
@@ -326,7 +310,7 @@ test("formatReport on a clean run → the OK line and the document count", (t) =
 
   const report = formatReport(runGate({ readmes: true, content: null, sdkVersion: "0.5.0", root }));
 
-  assert.match(report, /docs-snippets: 4 documents, 3 fences, 3 linted\./);
+  assert.match(report, /docs-snippets: 3 documents, 2 fences, 2 linted\./);
   assert.match(report, /docs-snippets: OK — no findings\./);
 });
 

@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/plugin-in-context-editor</h1>
 
-<p align="center">Edit translations directly inside your running app — point, click, save.</p>
+<p align="center">Edit translations inside your running app: hold Alt, click the text, save to Comvi.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/plugin-in-context-editor"><img src="https://img.shields.io/npm/v/@comvi/plugin-in-context-editor?color=blue" alt="npm"></a>
@@ -17,93 +17,102 @@
 
 ---
 
-> ⚠️ **Requires the [Comvi Platform](https://comvi.io).** This plugin saves edits back to the Comvi TMS via API, so it doesn't work standalone. You'll need a Comvi account and an API key.
-
-The In-Context Editor overlays a visual editor on your app: hovering highlights translated strings, clicking opens a modal to edit the source value, and saved changes are pushed back to the Comvi TMS. Translators and product managers can fix copy without waiting for a redeploy.
-
-**Who benefits:**
-
-- **For translators:** Edit copy where it appears in your app, in context, instead of guessing from a string ID in a spreadsheet.
-- **For product / engineering:** Ship copy fixes instantly without a code change or redeploy.
-
-The editor renders independently of your app's framework, so it works with Vue, React, Solid, Svelte, Next.js, and Nuxt.
-
-Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
-current locale and `t()`.
-
-Comvi i18n is a framework-agnostic i18n library with ICU MessageFormat, rich text without XSS
-and typed translation keys. The [root README](https://github.com/comvi-io/comvi-js) has the
-two-step quickstart, the package matrix and the measured bundle weights.
-
-📖 **Documentation:** https://comvi.io/docs/i18n/plugins/in-context-editor/
+`@comvi/plugin-in-context-editor` injects invisible key markers into `t()` output so a translator
+can click any rendered text and edit it in the browser. Saves go to the
+[Comvi platform](https://comvi.io) over its API, so it needs a project and an API key; it has no
+offline mode. The full guide is
+[In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor) on the docs site.
 
 ## Install
 
 ```bash
 npm install @comvi/plugin-in-context-editor
-# Peer: @comvi/core
+# Peer: @comvi/core, which every framework package already brings
 ```
 
-## Quick start
+## Set up
 
-```ts
+```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
-const i18n = createI18n({
+export const i18n = createI18n({
   locale: "en",
-  // Dev/preview editor key used to create and edit keys/translations.
   apiKey: import.meta.env.VITE_COMVI_EDITOR_API_KEY,
-}).use(inContextEditor());
+})
+  .use(cdnLoader({ cdnUrl: import.meta.env.VITE_COMVI_CDN_URL }))
+  .use(inContextEditor());
 
 await i18n.init();
 ```
 
-Without an API key the editor runs in **demo mode**: the UI mounts but edits are not persisted. The app-bundle production export is a no-op, so normal production builds do not ship the editor runtime. Production editing is handled by the browser extension: a translator opens the live site, enters their API key, and the extension injects the standalone editor. The API key needs project read plus translation read/write scopes.
+Create an API key in the project's settings with project read plus translation read and write;
+read alone loads the editor but every save fails. The editor reads the key off `i18n.apiKey`, the
+same option the fetch loader reads for API mode. Compose a loader or an inline `translation`
+catalog next to it: the editor can only edit text the app rendered through `t()`.
 
-## Two ways in
+| Do this                                  | And                                                         |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Hold `Alt` (`Option` on macOS) and hover | translated elements light up with an overlay naming the key |
+| `Alt` + click a highlighted element      | the edit modal opens on that key                            |
+| `Cmd` or `Ctrl` + `S` in the modal       | saves without closing                                       |
+| `Escape`                                 | closes the modal, or asks about unsaved edits               |
 
-`@comvi/core` is the BASE host. Extension discovery and the plugin host are
-imports you add, so an app that uses neither never pays for them. This package
-exports one name for each way of adding them.
+With no key configured the plugin starts in demo mode: the console says
+`[InContextEditor] Running in demo mode - API key not configured. Changes cannot be saved.` once,
+and every click opens one panel naming the key, with no translation list.
 
-|                    | `.use(inContextEditor(options))`                                                                                            | `registerPlugin(inContextEditorPlugin(options))` |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| what it is         | the **installer** — the bare name                                                                                           | the **plugin factory** — the `*Plugin` name      |
-| the host it needs  | any host, including a bare `createI18n(…)`                                                                                  | one that already has `@comvi/core/plugins`       |
-| what it composes   | `@comvi/core/devtools` first, then `@comvi/core/plugins`, both idempotently                                                 | nothing; it only registers                       |
-| host type after    | **unchanged**. The editor asks nothing of your public API, and this is the only widening that stays true under `production` | unchanged                                        |
-| lifecycle          | the host's own: it ends in `registerPlugin(inContextEditorPlugin(options))`                                                 | the host's own                                   |
-| under `production` | `(host) => host`. No discovery, no capability, no plugin, no editor bytes                                                   | a plugin that does nothing                       |
+## Gate it out of production
 
-Discovery comes first. The editor is the one capability that is driven from
-outside the page, so an editor-enabled host announces itself on the
-`window.__COMVI__` queue without a second `.use(devtools())`. If you want
-`registerPlugin` yourself, compose `.use(plugins())`. The installer does not
-promise it, because
-under `production` that member would be typed present and absent at the same
-time.
+```ts title="src/i18n.ts"
+import { createI18n } from "@comvi/core";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
-**Swapping the two is a type error, and it fails loudly at runtime too.** Nothing
-is branded: an installer and a plugin are both "a function of the host". So each
-slot rejects the other explicitly instead of half-working:
+const editorEnabled = import.meta.env.DEV || import.meta.env.VITE_COMVI_EDITOR === "true";
 
-- `registerPlugin(inContextEditor(…))` fails at `init()` with
-  `E_INSTALLER_AS_PLUGIN`. Under the default entry that is the first thing the
-  installer does, before discovery or the plugin host is set up. Under
-  `production` the installer sets nothing up, so the no-op runs and hands the
-  host back. A plugin may only return nothing or a cleanup
-  function, so `init()` rejects that too, before anything is queued for
-  teardown.
-- `.use(inContextEditorPlugin(…))` calls the plugin against a host that has no
-  `registerPostProcessor`, so the invocation is rejected. On a host that does
-  have the plugin capability the plugin runs, and `.use` then throws
-  `E_USE_NOT_INSTALLER`: an installer widens the host in place and hands that
-  same host back, and `.use` refuses any other return value, whatever its shape.
-  A plugin belongs in the queue, through `registerPlugin` or
-  `definePlugin(fn)`.
+const base = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+  apiKey: editorEnabled ? import.meta.env.VITE_COMVI_EDITOR_API_KEY : undefined,
+}).use(cdnLoader({ cdnUrl: import.meta.env.VITE_COMVI_CDN_URL }));
 
-The standalone bundle (used by the Comvi Chrome extension) exposes `ComviInContextEditor` on `window`, and the plugin factory on it follows the 0.5.0 rename: `window.ComviInContextEditor.inContextEditorPlugin`, not the old capitalised spelling. For target-element scoping and the full options reference, see the [documentation](https://comvi.io/docs/i18n/plugins/in-context-editor/).
+export const i18n = editorEnabled ? base.use(inContextEditor()) : base;
+
+await i18n.init();
+```
+
+Two things already keep the editor out of a production build: the package's `production` export
+condition resolves to an entry whose installer is `(host) => host`, with no editor bytes, and
+`inContextEditorPlugin()` returns a no-op when `process.env.NODE_ENV` is `"production"`. Gate it
+yourself to choose where it runs, such as a preview deployment. The installer returns the host type
+unchanged, so both branches of the ternary have the same type. On a live site a translator uses the
+browser extension instead: it injects the standalone editor runtime, and the key never enters the
+page.
+
+## Options
+
+| Option                | Default                                                                                  | Behaviour                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `targetElement`       | `document.body`                                                                          | The DOM subtree to watch.                                                                |
+| `tagAttributes`       | built-in map                                                                             | HTML tag name to the attributes treated as translated values. Replaces the built-in map. |
+| `debug`               | `false`                                                                                  | Verbose console logging.                                                                 |
+| `highlightStyle`      | `{ borderColor: '#D97706', backgroundColor: 'rgba(217, 119, 6, 0.12)', borderWidth: 2 }` | The overlay. Its `z-index: 10000` is fixed.                                              |
+| `collectContext`      | `true`                                                                                   | Passive context collection while the editor runs.                                        |
+| `screenGroupResolver` | none                                                                                     | `() => '/users/:id'`, a PII-free route template shown instead of a URL digest.           |
+| `apiKeyOverride`      | none                                                                                     | Overrides `i18n.apiKey` for this plugin only; used by the extension.                     |
+
+`tagAttributes` replaces the built-in map, so `{ img: ['alt'] }` stops the scan of `aria-label`,
+`placeholder` and the rest; copy the default and spread it to add to the map. Pass `raw: true` to
+`t()` wherever invisible markers must not appear: document titles, `<meta>` content, values you
+compare or hash. On `<T>` the equivalent is the `skipPostProcess` prop.
+
+## Next steps
+
+- [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor): the default `tagAttributes` map, extension discovery, the standalone runtime.
+- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the loader the editor edits on top of.
+- [Devtools API](https://comvi.io/docs/i18n/api/core-devtools): `devtools()`, `instanceId` and `exposeGlobal`.
 
 ## License
 

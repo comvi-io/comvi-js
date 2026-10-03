@@ -40,5 +40,5 @@ hands the grammar to core per call. `<T>` renders exactly as before; what change
 no longer decides `t()`'s behaviour behind your back — that is now your own
 `import "@comvi/core/tags"`. `svelte-package` preserves modules, so an app that never
 renders `<T>` drops the whole rich-text path. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §3 and
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §3 and
 `core-single-entry-convergence.md`.

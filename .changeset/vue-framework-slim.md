@@ -40,4 +40,4 @@ already-correct raw core instance, and only you can tell which.
 and translate chunks into its own bundle, and `<T>` is its own dist chunk with a
 `/*@__PURE__*/` factory call — so a vue app that never renders `<T>` no longer ships the tag
 machinery, and no vue bundle runs core's ambient `registerTagSyntax()` at all. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md).

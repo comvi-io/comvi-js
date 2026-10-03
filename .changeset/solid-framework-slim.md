@@ -27,4 +27,4 @@ renders it drops the whole rich-text path and one that does never executes tag r
 `WrapperI18nHost` instead of the concrete `I18n` class — the seven read-only `create*Signal`
 accessors plus the two `create*State` pairs, `createDefaultNamespaceState` and
 `createDefaultParamsState`, whose setters write through to the host. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md).

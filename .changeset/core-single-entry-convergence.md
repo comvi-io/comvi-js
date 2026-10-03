@@ -53,4 +53,4 @@ pre-flattening data by hand, not as the answer to a rule;
 `@comvi/core/rich-text` is the pure `<T>` toolbox and `@comvi/core/tags` still registers
 string-API tag syntax; `instanceId` is absent unless devtools is composed, and the
 loader/plugin members are no longer on the prototype chain. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md).

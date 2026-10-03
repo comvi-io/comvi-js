@@ -45,5 +45,5 @@ again in any production build that pruned the component. It now imports the pure
 `@comvi/core/rich-text` seam: rich-text rendering is unchanged, the accidental ambient switch
 and its dev/prod divergence are gone, and `t("Click <b>here</b>")` stays literal until you
 `import "@comvi/core/tags"` once at your own entry. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §3 and
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §3 and
 `core-single-entry-convergence.md`.

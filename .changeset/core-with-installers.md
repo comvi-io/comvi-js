@@ -41,4 +41,4 @@ Plugin packages are unaffected, and now ALSO ship a bare-name installer each —
 `localeDetector`, `inContextEditor` — which composes the capabilities their plugin needs and then
 routes into the same `registerPlugin`. Nothing is removed: `attachLoader` / `attachPlugins` /
 `attachDevtools` remain the low-level API, and every 0.4.x import path still resolves. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §3.
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §3.

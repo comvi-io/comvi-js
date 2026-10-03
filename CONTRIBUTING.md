@@ -224,7 +224,7 @@ direction.
 ### 8. The docs snippet gate, in two halves
 
 Every fenced code block in the npm documentation surface — `packages/*/README.md`, the root
-`README.md`, `MIGRATION.md`, `examples/README.md` and `docs/design/*.md` — is checked, by two
+`README.md`, `examples/README.md` and `docs/design/*.md` — is checked, by two
 passes with two different costs. Both are CI gates, in two different jobs.
 
 ```bash
@@ -330,7 +330,7 @@ into `src/` proper, or into the test tree where it is exercised directly.
 | Release scripts in `scripts/`         | `pnpm test:release-tools`                                                                                                                                        |
 | The Chrome extension                  | `pnpm extension:test`, and `pnpm extension:gate-e` for E2E                                                                                                       |
 | `examples/*` or its scripts           | `node scripts/examples-sync-locales.mjs --check` (also in CI), and `pnpm examples:verify` — see gate 7                                                           |
-| A README fence, or `MIGRATION.md`     | `pnpm check:snippets`, then `pnpm build && pnpm check:snippets:types` — see gate 8                                                                               |
+| A README fence                        | `pnpm check:snippets`, then `pnpm build && pnpm check:snippets:types` — see gate 8                                                                               |
 | `scripts/docs-snippets/**`            | `node --test "scripts/docs-snippets/*.test.mjs"`, then both halves of gate 8                                                                                     |
 
 Nothing in CI runs `node scripts/perf.mjs --compare-ref <ref>` (see gate 6). Run it yourself for a
