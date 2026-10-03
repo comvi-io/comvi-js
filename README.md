@@ -136,23 +136,15 @@ independent, and either works without the other.
 | [`@comvi/vite-plugin`](packages/vite-plugin)                           | Generate `TranslationKeys` from local JSON at dev/build | [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin)             |
 | [`@comvi/cli`](packages/cli)                                           | Pull, push and generate types from the Comvi platform   | [Comvi CLI](https://comvi.io/docs/cli)                                    |
 
-Two workspace packages, `locale-routing` and `typegen`, are private: they publish no npm package
-and are inlined into the packages above at build time.
+`locale-routing` and `typegen` are private workspace packages, inlined into the packages above at build time.
 
 ## Repository
 
 A [pnpm](https://pnpm.io/) + [Turborepo](https://turbo.build/) monorepo: `packages/` holds the
 workspace packages, `examples/` the runnable StackBlitz demos, `docs/design/` the design notes,
 `test-apps/` this workspace's own CI apps and `tooling/` the shared Vite/Vitest config.
-
-```bash
-pnpm install     # install workspace deps
-pnpm build       # build all packages
-pnpm -w run test # run all tests
-pnpm lint        # lint all packages
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the gates a change has to pass.
+`pnpm install && pnpm build && pnpm -w run test` runs the whole thing; the gates a change has to
+pass are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
