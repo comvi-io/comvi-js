@@ -202,12 +202,16 @@
       ],
       "fixture": "framework/nuxt-full-composite.ts",
       "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
-      "define": { "import.meta.server": "false", "import.meta.client": "true" },
-      "gzipBudgetBytes": 12704,
+      "define": {
+        "import.meta.server": "false",
+        "import.meta.client": "true",
+        "import.meta.dev": "false"
+      },
+      "gzipBudgetBytes": 13237,
       "baseline": {
-        "minBytes": 36244,
-        "gzipBytes": 12099,
-        "measuredAt": "2026-09-12"
+        "minBytes": 37587,
+        "gzipBytes": 12606,
+        "measuredAt": "2026-10-03"
       },
       "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."
     },
@@ -220,12 +224,16 @@
       ],
       "fixture": "framework/nuxt-client-default.ts",
       "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
-      "define": { "import.meta.server": "false", "import.meta.client": "true" },
-      "gzipBudgetBytes": 8862,
+      "define": {
+        "import.meta.server": "false",
+        "import.meta.client": "true",
+        "import.meta.dev": "false"
+      },
+      "gzipBudgetBytes": 8718,
       "baseline": {
-        "minBytes": 25169,
-        "gzipBytes": 8440,
-        "measuredAt": "2026-09-12"
+        "minBytes": 24917,
+        "gzipBytes": 8302,
+        "measuredAt": "2026-10-03"
       },
       "note": "Gated Nuxt client floor: the runtime client entry only \u2014 the anchor the Nuxt ceiling row is read against."
     },

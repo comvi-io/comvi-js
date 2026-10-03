@@ -22,8 +22,9 @@ fixture, so a framework row measures **the comvi graph only**.
 
 A row may carry its own `define`, merged over the run's. The two Nuxt runtime rows
 (`fw-nuxt-client-default`, `fw-nuxt-full-composite`) set `import.meta.server` to `false` and
-`import.meta.client` to `true`, as Nuxt's client build does, so server-only branches of the runtime
-plugin are not counted against a client bundle they never ship in. A server utility a fixture
+`import.meta.client` to `true` and `import.meta.dev` to `false`, as Nuxt's production client build
+does, so server-only and dev-only branches of the runtime are not counted against a client bundle
+they never ship in. Both rows were re-baselined on 2026-10-03 when these flags came in. A server utility a fixture
 imports directly is still counted.
 
 Every row is gated. There is no informational tier: a row that gates nothing does not earn its
