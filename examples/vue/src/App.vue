@@ -27,6 +27,7 @@ watchEffect(() => {
         <button
           v-for="code in locales"
           :key="code"
+          :data-testid="`locale-${code}`"
           :aria-pressed="locale === code"
           @click="setLocale(code)"
         >
@@ -39,16 +40,16 @@ watchEffect(() => {
     <!-- 2 — a string with a parameter -->
     <section>
       <h2>interpolation</h2>
-      <p>{{ t("greeting.hello", { name: "Ada" }) }}</p>
+      <p data-testid="greeting">{{ t("greeting.hello", { name: "Ada" }) }}</p>
     </section>
 
     <!-- 3 — an ICU plural, live on a counter -->
     <section>
       <h2>plural</h2>
       <div class="row">
-        <button @click="count = Math.max(0, count - 1)">−</button>
-        <button @click="count++">+</button>
-        <span>{{ t("cart.items", { count }) }}</span>
+        <button data-testid="cart-dec" @click="count = Math.max(0, count - 1)">−</button>
+        <button data-testid="cart-inc" @click="count++">+</button>
+        <span data-testid="cart">{{ t("cart.items", { count }) }}</span>
       </div>
     </section>
 
@@ -57,7 +58,7 @@ watchEffect(() => {
          `t()` elsewhere is unaffected. -->
     <section>
       <h2>tag interpolation</h2>
-      <p>
+      <p data-testid="read-more">
         <T
           i18n-key="docs.read_more"
           :components="{
@@ -87,7 +88,9 @@ watchEffect(() => {
     <section>
       <h2>lazy loading</h2>
       <p>
-        <code>{{ t("loader.fetched", { locales: loadedLocales.join(", ") }) }}</code>
+        <code data-testid="fetched">{{
+          t("loader.fetched", { locales: loadedLocales.join(", ") })
+        }}</code>
       </p>
     </section>
   </main>

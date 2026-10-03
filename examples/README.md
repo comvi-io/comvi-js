@@ -57,22 +57,27 @@ its comments elided:
 
 ```ts title="src/i18n.ts"
 import { createI18n, icuCompiler, loader } from "@comvi/react";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 export const locales = ["en", "uk", "de"] as const;
+
+const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
+
+const catalogs: ReturnType<typeof loader> = cdnUrl
+  ? cdnLoader({ cdnUrl })
+  : loader({
+      en: () => import("./locales/en.json"),
+      uk: () => import("./locales/uk.json"),
+      de: () => import("./locales/de.json"),
+    });
 
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,
 })
-  .use(
-    loader({
-      en: () => import("./locales/en.json"),
-      uk: () => import("./locales/uk.json"),
-      de: () => import("./locales/de.json"),
-    }),
-  )
+  .use(catalogs)
   .use(
     localeDetector({
       supportedLocales: [...locales],
@@ -98,6 +103,23 @@ The three that depart from it:
 
 Neither SSR example composes a locale detector: the URL is the source of truth there, and the
 framework middleware decides the locale before the host runs.
+
+## Connect to Comvi (opt-in)
+
+Every example can read its catalogs from the platform CDN instead of the
+bundled JSON. Set one variable when you build, and the host composes
+`cdnLoader({ cdnUrl })` from `@comvi/plugin-fetch-loader/cdn` in place of the
+import map:
+
+| example                            | variable                                                   |
+| ---------------------------------- | ---------------------------------------------------------- |
+| react, vue, svelte, solid, vanilla | `VITE_COMVI_CDN_URL` (build time)                          |
+| next                               | `NEXT_PUBLIC_COMVI_CDN_URL` (build time)                   |
+| nuxt                               | `NUXT_PUBLIC_COMVI_CDN_URL` (runtime config `comviCdnUrl`) |
+
+Unset, which is the default and what StackBlitz runs, the import map is the
+only loader and nothing changes. The CDN serves `{cdnUrl}/{locale}.json` for
+the default namespace and `{cdnUrl}/{namespace}/{locale}.json` for the rest.
 
 ## The catalogs
 
@@ -126,3 +148,60 @@ pnpm examples:verify --no-build --no-pack --keep   # re-run against the tarballs
 
 A green run says the source compiles under these manifests, not that `^0.5.0` is satisfiable;
 only publishing settles that. Re-run the gate after the version bump.
+
+## Connect to Comvi (opt-in)
+
+Every example can read its catalogs from the platform CDN instead of the
+bundled JSON. Set one variable when you build, and the host composes
+`cdnLoader({ cdnUrl })` from `@comvi/plugin-fetch-loader/cdn` in place of the
+import map:
+
+| example                            | variable                                                   |
+| ---------------------------------- | ---------------------------------------------------------- |
+| react, vue, svelte, solid, vanilla | `VITE_COMVI_CDN_URL` (build time)                          |
+| next                               | `NEXT_PUBLIC_COMVI_CDN_URL` (build time)                   |
+| nuxt                               | `NUXT_PUBLIC_COMVI_CDN_URL` (runtime config `comviCdnUrl`) |
+
+Unset, which is the default and what StackBlitz runs, the import map is the
+only loader and nothing changes. The CDN serves `{cdnUrl}/{locale}.json` for
+the default namespace and `{cdnUrl}/{namespace}/{locale}.json` for the rest.
+
+## Running the scenario in a browser
+
+`examples:verify` proves the seven compile. `examples:e2e` opens them: it
+installs and builds each example exactly as `examples:verify` does, starts the
+built app the way a reader would (`vite preview`, `next start`, or Nitro's
+`.output/server/index.mjs`), and runs one Playwright spec against all seven
+through the same `data-testid`s:
+
+```bash
+pnpm exec playwright install chromium   # once per machine
+pnpm examples:e2e                       # all seven, bundled catalogs
+pnpm examples:e2e --cdn                 # the same, catalogs from a mock CDN
+pnpm examples:e2e --only react,next --no-build --no-pack --keep
+```
+
+The steps, each a column in the report:
+
+| step | asserts                                                                               |
+| ---- | ------------------------------------------------------------------------------------- |
+| a    | the first render is real text, and no catalog key appears anywhere in the page        |
+| b    | the switcher goes en → uk → de and the greeting follows                               |
+| c    | the counter at 0, 1, 2 and 5 renders the catalog's plural branch in en, uk and de     |
+| d    | `<T>` renders `docs.read_more` with a real `<a href>` around the translated link text |
+| e    | the "catalogs fetched so far" line starts at `en` and grows by one per visited locale |
+| f    | next and nuxt only: plain-HTTP `GET /uk` is already Ukrainian, then the page hydrates |
+| g    | no `console.error` and no uncaught exception during the whole run                     |
+| cdn  | `--cdn` only: the mock CDN served all three locales to this example and nothing 404'd |
+
+Every expected string is computed from `examples/locales/*.json` when the spec
+runs. The plural branch comes from `Intl.PluralRules`, so the assertion is
+"the page says what the catalog says", never a copy that can drift.
+
+`--cdn` starts a small server that serves `examples/locales` in the CDN layout
+and builds every example with its "Connect to Comvi" variable pointing at it.
+The `cdn` column reads that server's request log. Without it, a variable that
+silently failed to apply would pass on the bundled import map.
+
+The run exits non-zero on any failure, and the failing assertion is printed
+under the table.

@@ -11,6 +11,16 @@ export default defineNuxtConfig({
   srcDir: "src/",
   compatibilityDate: "2024-11-01",
 
+  // Connect to Comvi, opt-in: empty by default, so `comvi.host.ts` composes the
+  // local import map. `NUXT_PUBLIC_COMVI_CDN_URL` overrides it at runtime (Nuxt
+  // maps that variable onto this key), and the host then loads every catalog
+  // from the platform CDN instead, on the server and in the browser.
+  runtimeConfig: {
+    public: {
+      comviCdnUrl: "",
+    },
+  },
+
   comvi: {
     defaultLocale: "en",
     // No `dir` on any of them: `useLocaleHead({ addDir: true })` derives the

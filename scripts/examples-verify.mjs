@@ -107,7 +107,7 @@ function runOrThrow(command, args, options = {}) {
   return output;
 }
 
-function copyTree(from, to) {
+export function copyTree(from, to) {
   fs.mkdirSync(to, { recursive: true });
   for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
     if (SKIP_ENTRIES.has(entry.name)) continue;
@@ -117,6 +117,18 @@ function copyTree(from, to) {
     else fs.copyFileSync(source, target);
   }
 }
+
+/**
+ * The temp install's `.npmrc`; why each line is there is spelled out where
+ * `verifyExample` writes it. Exported so `examples:e2e` installs the same way.
+ */
+export const EXAMPLE_NPMRC = [
+  "ignore-workspace=true",
+  "node-linker=hoisted",
+  "auto-install-peers=false",
+  "strict-peer-dependencies=true",
+  "",
+].join("\n");
 
 /**
  * The example's manifest with every `@comvi/*` pinned to a local tarball.
@@ -618,16 +630,7 @@ async function verifyExample(example, packages, options) {
     // satisfied by construction. The bump is the moment that range and the
     // examples' `^0.5.0` meet for the first time, and the only moment this
     // check can fail.
-    fs.writeFileSync(
-      path.join(target, ".npmrc"),
-      [
-        "ignore-workspace=true",
-        "node-linker=hoisted",
-        "auto-install-peers=false",
-        "strict-peer-dependencies=true",
-        "",
-      ].join("\n"),
-    );
+    fs.writeFileSync(path.join(target, ".npmrc"), EXAMPLE_NPMRC);
 
     for (const [step, argv] of [
       ["install", ["install", "--no-frozen-lockfile", "--ignore-workspace"]],

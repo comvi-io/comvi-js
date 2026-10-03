@@ -29,6 +29,7 @@ export function App() {
           {locales.map((code) => (
             <button
               key={code}
+              data-testid={`locale-${code}`}
               aria-pressed={locale === code}
               onClick={() => {
                 void setLocale(code);
@@ -44,16 +45,20 @@ export function App() {
       {/* 2 — a string with a parameter */}
       <section>
         <h2>interpolation</h2>
-        <p>{t("greeting.hello", { name: "Ada" })}</p>
+        <p data-testid="greeting">{t("greeting.hello", { name: "Ada" })}</p>
       </section>
 
       {/* 3 — an ICU plural, live on a counter */}
       <section>
         <h2>plural</h2>
         <div className="row">
-          <button onClick={() => setCount((n) => Math.max(0, n - 1))}>−</button>
-          <button onClick={() => setCount((n) => n + 1)}>+</button>
-          <span>{t("cart.items", { count })}</span>
+          <button data-testid="cart-dec" onClick={() => setCount((n) => Math.max(0, n - 1))}>
+            −
+          </button>
+          <button data-testid="cart-inc" onClick={() => setCount((n) => n + 1)}>
+            +
+          </button>
+          <span data-testid="cart">{t("cart.items", { count })}</span>
         </div>
       </section>
 
@@ -62,7 +67,7 @@ export function App() {
           `t()` elsewhere is unaffected. */}
       <section>
         <h2>tag interpolation</h2>
-        <p>
+        <p data-testid="read-more">
           <T
             i18nKey="docs.read_more"
             components={{
@@ -91,7 +96,9 @@ export function App() {
       <section>
         <h2>lazy loading</h2>
         <p>
-          <code>{t("loader.fetched", { locales: getLoadedLocales().join(", ") })}</code>
+          <code data-testid="fetched">
+            {t("loader.fetched", { locales: getLoadedLocales().join(", ") })}
+          </code>
         </p>
       </section>
     </main>
