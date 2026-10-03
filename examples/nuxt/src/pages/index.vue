@@ -13,6 +13,9 @@ const { t, locale, locales, setLocale, isLoading, formatNumber, formatDate, load
 const switchLocalePath = useSwitchLocalePath();
 
 const count = ref(2);
+
+// Routable but not in the switcher: the right-to-left locale the e2e suite uses.
+const rtlLocale = "ar";
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
 async function select(code: string) {
@@ -33,6 +36,9 @@ async function select(code: string) {
 const fetched = ref<string[]>([]);
 onMounted(() => {
   fetched.value = loadedLocales.value;
+  // A marker for the e2e suite: set once Vue has hydrated this page, so a test
+  // can tell the server's HTML from the live page.
+  document.documentElement.dataset.hydrated = "true";
 });
 watch([locale, isLoading], () => {
   fetched.value = loadedLocales.value;
@@ -48,13 +54,16 @@ watch([locale, isLoading], () => {
       <h2>{{ t("app.language") }}</h2>
       <div class="row">
         <button
-          v-for="code in locales"
+          v-for="code in locales.filter((code) => code !== rtlLocale)"
           :key="code"
           :data-testid="`locale-${code}`"
           :aria-pressed="locale === code"
           @click="select(code)"
         >
           {{ code }}
+        </button>
+        <button hidden :data-testid="`locale-${rtlLocale}`" @click="select(rtlLocale)">
+          {{ rtlLocale }}
         </button>
         <code v-if="isLoading">{{ t("app.loading") }}</code>
       </div>
@@ -118,6 +127,30 @@ watch([locale, isLoading], () => {
           t("loader.fetched", { locales: fetched.join(", ") })
         }}</code>
       </p>
+    </section>
+
+    <!-- 7 — a second page; <NuxtLinkLocale> keeps the current locale in the URL -->
+    <section>
+      <h2>navigation</h2>
+      <p>
+        <NuxtLinkLocale data-testid="nav-about" to="/about">{{ t("nav.about") }}</NuxtLinkLocale>
+      </p>
+    </section>
+
+    <!-- 8 — fallback: uk has no `fallback.only_en`, so uk renders the en text;
+         a key no catalog has renders as the key itself -->
+    <section>
+      <h2>fallback</h2>
+      <p data-testid="fallback">{{ t("fallback.only_en") }}</p>
+      <p>
+        <code data-testid="missing-key">{{ t("fallback.nowhere") }}</code>
+      </p>
+    </section>
+
+    <!-- 9 — a missing parameter renders as its own placeholder -->
+    <section>
+      <h2>missing parameter</h2>
+      <p data-testid="missing-param">{{ t("greeting.hello", {}) }}</p>
     </section>
   </main>
 </template>

@@ -13,6 +13,7 @@ import {
   cdnRoute,
   cdnVerdict,
   freePort,
+  nuxtCatalogChunks,
   parseArgs,
   renderTable,
   serverCommand,
@@ -239,7 +240,17 @@ const report = {
             },
           ],
         },
-        { title: "f: SSR", tests: [{ results: [{ status: "skipped" }] }] },
+        {
+          title: "f: SSR",
+          tests: [
+            {
+              annotations: [{ type: "skip", description: "client-rendered example" }],
+              results: [{ status: "skipped" }],
+            },
+          ],
+        },
+        { title: "k2: dead CDN", tests: [{ results: [{ status: "passed" }] }] },
+        { title: "o: no reason", tests: [{ results: [{ status: "skipped" }] }] },
         { title: "not a step", tests: [{ results: [{ status: "passed" }] }] },
       ],
       suites: [
@@ -252,17 +263,23 @@ const report = {
   ],
 };
 
-test("stepResults: one verdict per step letter, from nested suites too", () => {
+test("stepResults: one verdict per step id, from nested suites too", () => {
   const steps = stepResults(report);
-  assert.deepEqual(Object.keys(steps).sort(), ["a", "c", "f", "g"]);
+  assert.deepEqual(Object.keys(steps).sort(), ["a", "c", "f", "g", "k2", "o"]);
   assert.deepEqual(steps.a, { status: "pass", message: undefined });
   assert.equal(steps.c.status, "fail");
   assert.equal(steps.c.message, "Error: uk, count 2 | expect(locator).toHaveText(expected) failed");
-  assert.equal(steps.f.status, "skip");
+  assert.deepEqual(steps.k2, { status: "pass", message: undefined });
   assert.deepEqual(steps.g, { status: "fail", message: "timedOut" });
 });
 
-test("summarizeError: strips colour, stack and diff scaffolding, keeps the values", () => {
+test("stepResults: a skip carries the reason the spec gave, and says so when there was none", () => {
+  const steps = stepResults(report);
+  assert.deepEqual(steps.f, { status: "skip", message: "client-rendered example" });
+  assert.deepEqual(steps.o, { status: "skip", message: "skipped without a reason" });
+});
+
+test("summarizeError: strips colour, stack, code frame and diff scaffolding, keeps the values", () => {
   const message = [
     "Error: raw keys in the rendered page",
     "",
@@ -273,6 +290,9 @@ test("summarizeError: strips colour, stack and diff scaffolding, keeps the value
     "+ Array [",
     '+   "app.language",',
     "+ ]",
+    "  325 |   await open(page);",
+    "> 326 |   expect(x).toEqual([]);",
+    "      |             ^",
     "    at scenario.spec.ts:10:3",
   ].join("\n");
   assert.equal(
@@ -282,49 +302,81 @@ test("summarizeError: strips colour, stack and diff scaffolding, keeps the value
   assert.equal(summarizeError("x".repeat(500), 10), `${"x".repeat(9)}…`);
 });
 
+test("nuxtCatalogChunks: maps each locale's catalog to its hash-named chunk", () => {
+  const manifest = {
+    "locales/uk.json": { file: "FOGPGq4F.js" },
+    "src/locales/de.json": { file: "NPGEZfEc.js" },
+    "pages/index.vue": { file: "x.js" },
+    "locales/broken.json": {},
+  };
+  assert.deepEqual(nuxtCatalogChunks(manifest), {
+    uk: "/_nuxt/FOGPGq4F.js",
+    de: "/_nuxt/NPGEZfEc.js",
+  });
+  assert.deepEqual(nuxtCatalogChunks(undefined), {});
+});
+
 const pass = { status: "pass" };
 const allSteps = (entry) => Object.fromEntries(STEPS.map((step) => [step, entry]));
 
-test("renderTable: a row per framework, failures listed once per message", () => {
+test("STEPS: a column per scenario, k2/k3 beside k", () => {
+  assert.deepEqual(STEPS.slice(STEPS.indexOf("j"), STEPS.indexOf("l") + 1), [
+    "j",
+    "k",
+    "k2",
+    "k3",
+    "l",
+  ]);
+  assert.equal(STEPS.at(-1), "p");
+});
+
+test("renderTable: a row per framework; failures and skip reasons listed once per message", () => {
   const results = [
-    { name: "react", build: pass, steps: { ...allSteps(pass), f: { status: "skip" } }, cdn: pass },
+    {
+      name: "react",
+      build: pass,
+      steps: { ...allSteps(pass), f: { status: "skip", message: "client-rendered" } },
+    },
     {
       name: "nuxt",
       build: pass,
-      steps: allSteps({ status: "fail", message: "GET /en answered 500" }),
-      cdn: { status: "fail", message: "never served en" },
+      steps: {
+        ...allSteps({ status: "fail", message: "GET /en answered 500" }),
+        k: { status: "fail", message: "never served en" },
+      },
     },
-    {
-      name: "vue",
-      build: { status: "fail", message: "vite build exited 1" },
-      steps: {},
-      cdn: null,
-    },
+    { name: "vue", build: { status: "fail", message: "vite build exited 1" }, steps: {} },
   ];
-  const text = renderTable(results, { cdn: true });
+  const text = renderTable(results);
   const lines = text.split("\n");
-  assert.match(lines[0], /^framework\s+build\s+a\s+b\s+c\s+d\s+e\s+f\s+g\s+cdn$/);
-  assert.match(lines[2], /^react\s+ok\s+ok\s+ok\s+ok\s+ok\s+ok\s+—\s+ok\s+ok$/);
-  assert.match(lines[3], /^nuxt\s+ok(\s+FAIL){8}$/);
-  assert.match(lines[4], /^vue\s+FAIL(\s+·){7}\s+·$/);
-  assert.ok(text.includes("nuxt/a,b,c,d,e,f,g: GET /en answered 500"));
-  assert.ok(text.includes("nuxt/cdn: never served en"));
+  assert.match(lines[0], new RegExp(`^framework\\s+build\\s+${STEPS.join("\\s+")}$`));
+  assert.match(lines[2], /^react\s+ok\s+ok\s+ok\s+ok\s+ok\s+ok\s+skip(\s+ok){12}$/);
+  assert.match(lines[3], new RegExp(`^nuxt\\s+ok(\\s+FAIL){${STEPS.length}}$`));
+  assert.match(lines[4], new RegExp(`^vue\\s+FAIL(\\s+·){${STEPS.length}}$`));
+  const others = STEPS.filter((step) => step !== "k").join(",");
+  assert.ok(text.includes(`nuxt/${others}: GET /en answered 500`));
+  assert.ok(text.includes("nuxt/k: never served en"));
   assert.ok(text.includes("vue/build: vite build exited 1"));
+  assert.ok(text.includes("skipped:\nreact/f: client-rendered"));
+  assert.ok(text.indexOf("skipped:") < text.indexOf("failures:"));
 });
 
-test("renderTable: without --cdn the cdn column says it did not run", () => {
-  const text = renderTable([{ name: "react", build: pass, steps: allSteps(pass), cdn: null }]);
-  assert.match(text.split("\n")[2], /\s—$/);
-  assert.ok(text.includes("not run; pass --cdn"));
+test("renderTable: a green run has no failures section and explains every column", () => {
+  const text = renderTable([{ name: "react", build: pass, steps: allSteps(pass) }]);
   assert.ok(!text.includes("failures:"));
+  assert.ok(!text.includes("skipped:"));
+  for (const step of STEPS) assert.match(text, new RegExp(`^${step}\\s+\\S`, "m"));
 });
 
 test("allPassed: skips are fine, failures and unreached steps are not", () => {
-  const green = { name: "x", build: pass, steps: { ...allSteps(pass), f: { status: "skip" } } };
+  const green = {
+    name: "x",
+    build: pass,
+    steps: { ...allSteps(pass), f: { status: "skip", message: "r" } },
+  };
   assert.equal(allPassed([green]), true);
   assert.equal(allPassed([{ ...green, steps: { ...green.steps, c: { status: "fail" } } }]), false);
+  assert.equal(allPassed([{ ...green, steps: { ...green.steps, k2: undefined } }]), false);
   assert.equal(allPassed([{ ...green, steps: {} }]), false);
   assert.equal(allPassed([{ ...green, build: { status: "fail" } }]), false);
-  assert.equal(allPassed([{ ...green, cdn: null }], { cdn: true }), false);
-  assert.equal(allPassed([{ ...green, cdn: pass }], { cdn: true }), true);
 });

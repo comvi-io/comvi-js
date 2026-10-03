@@ -28,13 +28,20 @@ export default ((options) => {
   // The lazy loader, and the reason this app renders translated HTML on the
   // server at all: SSR loading IS the loader capability. One dynamic `import()`
   // per locale, so a catalog is read the first time that locale is requested.
+  //
+  // One import map, two uses: the loader itself by default, and the CDN loader's
+  // `fallback` when the CDN is configured but unreachable. `ar` is not in the
+  // switcher; it is the right-to-left locale the e2e suite switches to.
+  const localCatalogs = {
+    en: () => import("./locales/en.json"),
+    uk: () => import("./locales/uk.json"),
+    de: () => import("./locales/de.json"),
+    ar: () => import("./locales/ar.json"),
+  };
+
   const catalogs: ReturnType<typeof loader> = cdnUrl
-    ? cdnLoader({ cdnUrl })
-    : loader({
-        en: () => import("./locales/en.json"),
-        uk: () => import("./locales/uk.json"),
-        de: () => import("./locales/de.json"),
-      });
+    ? cdnLoader({ cdnUrl, fallback: localCatalogs })
+    : loader(localCatalogs);
 
   return createI18n({
     ...options,

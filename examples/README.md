@@ -1,6 +1,6 @@
 # Comvi examples
 
-Seven small apps, one page each, that demonstrate the same six things through
+Seven small apps, each a demo page plus a second page, that demonstrate the same six things through
 seven different bindings. Open one in the browser, switch the language, and
 watch the plural change.
 
@@ -68,6 +68,15 @@ The same scenario everywhere, in the same order down the page:
    `nuxt` read that line after mount rather than during the server render; see
    below.)
 
+Three more rows sit under those six, there mainly for the browser suite
+(see "Running the scenario in a browser"): a link to a **second page**
+(`/about`, a real route in `next` and `nuxt`, a `history.pushState` view in the
+other five), a **fallback** row (`fallback.only_en` is missing from `uk.json`
+on purpose, and `fallback.nowhere` is in no catalog), and a **missing
+parameter** row (`t("greeting.hello", {})`). The catalogs also hold `ar`, a
+right-to-left locale with two keys, behind a hidden button rather than in the
+switcher.
+
 The whole setup is one file per example, and in five of the seven that file is
 the same composition: ICU through the constructor's `compiler`, then
 `.use(loader({…}))` (or `cdnLoader`, see "Connect to Comvi" below), then
@@ -82,16 +91,20 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 export const locales = ["en", "uk", "de"] as const;
+export const rtlLocale = "ar";
 
 const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
 
+const localCatalogs = {
+  en: () => import("./locales/en.json"),
+  uk: () => import("./locales/uk.json"),
+  de: () => import("./locales/de.json"),
+  ar: () => import("./locales/ar.json"),
+};
+
 const catalogs: ReturnType<typeof loader> = cdnUrl
-  ? cdnLoader({ cdnUrl })
-  : loader({
-      en: () => import("./locales/en.json"),
-      uk: () => import("./locales/uk.json"),
-      de: () => import("./locales/de.json"),
-    });
+  ? cdnLoader({ cdnUrl, fallback: localCatalogs })
+  : loader(localCatalogs);
 
 export const i18n = createI18n({
   locale: "en",
@@ -303,7 +316,9 @@ import map:
 | nuxt                               | `NUXT_PUBLIC_COMVI_CDN_URL` (runtime config `comviCdnUrl`) |
 
 Unset, which is the default and what StackBlitz runs, the import map is the
-only loader and nothing changes. The CDN serves `{cdnUrl}/{locale}.json` for
+only loader and nothing changes. Set, the same import map becomes the CDN
+loader's `fallback`, so a CDN that cannot be reached still leaves the app in
+its bundled language. The CDN serves `{cdnUrl}/{locale}.json` for
 the default namespace and `{cdnUrl}/{namespace}/{locale}.json` for the rest.
 
 ## The catalogs
@@ -406,18 +421,29 @@ pnpm examples:e2e --cdn                 # the same, catalogs from a mock CDN
 pnpm examples:e2e --only react,next --no-build --no-pack --keep
 ```
 
-The steps, each a column in the report:
+The steps, each a column in the report. A step that cannot apply to an
+example is `skip`, and the reason is printed under the table:
 
-| step | asserts                                                                               |
-| ---- | ------------------------------------------------------------------------------------- |
-| a    | the first render is real text, and no catalog key appears anywhere in the page        |
-| b    | the switcher goes en → uk → de and the greeting follows                               |
-| c    | the counter at 0, 1, 2 and 5 renders the catalog's plural branch in en, uk and de     |
-| d    | `<T>` renders `docs.read_more` with a real `<a href>` around the translated link text |
-| e    | the "catalogs fetched so far" line starts at `en` and grows by one per visited locale |
-| f    | next and nuxt only: plain-HTTP `GET /uk` is already Ukrainian, then the page hydrates |
-| g    | no `console.error` and no uncaught exception during the whole run                     |
-| cdn  | `--cdn` only: the mock CDN served all three locales to this example and nothing 404'd |
+| step | asserts                                                                                                 |
+| ---- | ------------------------------------------------------------------------------------------------------- |
+| a    | the first render is real text, and no catalog key appears anywhere in the page                          |
+| b    | the switcher goes en → uk → de and the greeting follows                                                 |
+| c    | the counter at 0, 1, 2 and 5 renders the catalog's plural branch in en, uk and de                       |
+| d    | `<T>` renders `docs.read_more` with a real `<a href>` around the translated link text                   |
+| e    | the "catalogs fetched so far" line starts at `en` and grows by one per visited locale                   |
+| f    | next, nuxt: plain-HTTP `GET /uk` is already Ukrainian, and the hydrated page shows no key               |
+| g    | no `console.error` and no uncaught exception during the whole run                                       |
+| h    | the second page is translated, and the locale survives the link there, the link back and Back           |
+| i    | next, nuxt: `/de` renders German, switching navigates to `/uk`, Back restores `/de`                     |
+| j    | uk's catalog is requested only when uk is chosen (a Nuxt `<link rel="prefetch">` hint is not a load)    |
+| k    | `--cdn`: the mock CDN served en, uk and de to this example, and nothing 404'd                           |
+| k2   | `--cdn`: rebuilt against a CDN where nothing listens, the bundled `fallback` imports serve the catalogs |
+| k3   | `--cdn`: the CDN's uk bundle lacks `fallback.only_en`, and the en value renders instead of the key      |
+| l    | the en value fills the key uk lacks; `fallback.nowhere` renders as itself                               |
+| m    | reload keeps uk (and next, nuxt: `/` returns to `/uk`); a fresh `de-DE` browser starts in German        |
+| n    | `<html lang>` follows the locale and `dir` becomes `rtl` for `ar`                                       |
+| o    | next, nuxt: from first paint through hydration the greeting is only ever the Ukrainian text             |
+| p    | a missing parameter renders as its own placeholder, `{name}`                                            |
 
 Every expected string is computed from `examples/locales/*.json` when the spec
 runs. The plural branch comes from `Intl.PluralRules`, so the assertion is
@@ -425,8 +451,11 @@ runs. The plural branch comes from `Intl.PluralRules`, so the assertion is
 
 `--cdn` starts a small server that serves `examples/locales` in the CDN layout
 and builds every example with its "Connect to Comvi" variable pointing at it.
-The `cdn` column reads that server's request log. Without it, a variable that
-silently failed to apply would pass on the bundled import map.
+Column `k` reads that server's request log. Without it, a variable that
+silently failed to apply would pass on the bundled import map. Each example is
+then built a second time against a port where nothing listens, and `k2` runs
+alone against that build, so the errors a dead CDN legitimately logs never
+reach step `g`.
 
 The run exits non-zero on any failure, and the failing assertion is printed
 under the table.

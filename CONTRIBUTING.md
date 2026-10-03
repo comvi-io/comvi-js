@@ -178,7 +178,7 @@ the branch point of the cycle that introduced the entries instead.
 
 ### 7. The StackBlitz examples build, against locally packed 0.5
 
-`examples/*` are seven one-page apps — five Vite, plus `next` and `nuxt` — that depend on the
+`examples/*` are seven small apps — five Vite, plus `next` and `nuxt` — that depend on the
 **published** names at `^0.5.0` and are deliberately outside `pnpm-workspace.yaml`. A
 `workspace:*` example cannot be opened in a WebContainer, which is exactly why `test-apps/*`
 cannot double as demos. The cost of that is a hole: `pnpm install` at the root ignores them and
@@ -193,6 +193,11 @@ It packs all fourteen packages and pins every `@comvi/*` — direct and transiti
 tarball through `pnpm.overrides`, then runs `pnpm install`, `pnpm build` and each example's own
 typecheck in a temp directory outside every workspace. The committed `^0.5.0` ranges are not
 rewritten, and no lockfile in this repository is read or written.
+
+`pnpm examples:e2e [--cdn]` goes one step further on the same install: it serves each built app
+the way a reader would and runs one Playwright scenario (Chromium) against all seven, one column
+per step. `examples/README.md`, "Running the scenario in a browser", lists the steps. Run
+`pnpm exec playwright install chromium` once per machine first.
 
 Each example is classified by the CLI its own `build` script runs — `vite`, `next` or `nuxt` —
 and that KIND picks the size probe, because the three build tools do not put the entry chunk in

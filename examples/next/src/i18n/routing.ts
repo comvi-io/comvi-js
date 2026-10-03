@@ -1,6 +1,14 @@
 import { defineRouting } from "@comvi/next/routing";
 
+/** The locales the switcher shows. */
 export const locales = ["en", "uk", "de"] as const;
+
+/**
+ * Routable but not in the switcher: the right-to-left locale the e2e suite
+ * uses to check `<html dir="rtl">`. Its catalog holds two keys; the rest falls
+ * back to English.
+ */
+export const rtlLocale = "ar";
 
 /**
  * The URL rules, and NOTHING else — no host, no loader, no catalogs.
@@ -18,7 +26,7 @@ export const locales = ["en", "uk", "de"] as const;
  * source of truth for the URL rules.
  */
 export const routing = defineRouting({
-  locales: [...locales],
+  locales: [...locales, rtlLocale],
   // `always`: every URL carries its locale, so /en, /uk and /de are three real
   // addresses you can link, bookmark and curl. `as-needed` (the default) would
   // serve the default locale from an unprefixed /.

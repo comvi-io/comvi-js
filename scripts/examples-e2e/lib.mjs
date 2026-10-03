@@ -10,18 +10,52 @@ import path from "node:path";
  * how a server is started per kind, and the result table.
  */
 
-/** The scenario's steps, in the order the spec runs and the table prints them. */
-export const STEPS = ["a", "b", "c", "d", "e", "f", "g"];
+/**
+ * The scenario's steps, in the order the table prints them. `k` is the
+ * runner's own verdict on the mock CDN's request log; every other step is a
+ * test in `scenario.spec.ts` whose title starts with its id.
+ */
+export const STEPS = [
+  "a",
+  "b",
+  "c",
+  "d",
+  "e",
+  "f",
+  "g",
+  "h",
+  "i",
+  "j",
+  "k",
+  "k2",
+  "k3",
+  "l",
+  "m",
+  "n",
+  "o",
+  "p",
+];
 
-/** What each step asserts, printed under the table so a column letter is never a riddle. */
+/** What each step asserts, printed under the table so a column id is never a riddle. */
 export const STEP_LEGEND = {
   a: "initial render shows real text, no raw keys",
   b: "switcher en → uk → de changes the greeting",
   c: "plural 0/1/2/5 in en, uk (one/few/many) and de",
   d: "<T> renders a real <a href> with translated text",
   e: "catalogs load lazily, one per visited locale",
-  f: "SSR: plain-HTTP /uk already translated, then hydrates (next, nuxt only)",
-  g: "no console errors during the run",
+  f: "SSR: plain-HTTP /uk already translated, then hydrates",
+  g: "no console errors during the whole run",
+  h: "a second page is translated and the locale survives navigation and Back",
+  i: "locale in the URL: /de renders German, switching navigates, Back restores",
+  j: "a locale's catalog is requested only when first needed, then renders",
+  k: "--cdn: every catalog came from the mock CDN, nothing 404'd",
+  k2: "--cdn: CDN unreachable → the bundled `fallback` imports serve the catalogs",
+  k3: "--cdn: the CDN's uk bundle lacks a key → the en value renders, not the key",
+  l: "fallbackLocale: en-only key renders en under uk; unknown key renders as itself",
+  m: "persistence: reload keeps uk; a fresh de browser starts in de",
+  n: "<html lang dir> follow the locale, dir=rtl for ar",
+  o: "SSR: the greeting text is right from first paint through hydration",
+  p: "a missing parameter renders as its own placeholder",
 };
 
 export function parseArgs(argv) {
@@ -226,6 +260,23 @@ export function cdnEnv(kind, cdnUrl) {
   throw new Error(`no CDN switch for kind "${kind}"`);
 }
 
+/**
+ * The URL path of each locale's catalog chunk, read off Nuxt's client manifest.
+ *
+ * Vite names a dynamic `import("./locales/uk.json")` chunk `uk-<hash>.js`, so
+ * the spec can match it by name; Nuxt names chunks by hash alone, so the only
+ * honest way to know which request IS the uk catalog is the manifest the build
+ * wrote. `manifest` is that module's default export.
+ */
+export function nuxtCatalogChunks(manifest) {
+  const out = {};
+  for (const [key, chunk] of Object.entries(manifest ?? {})) {
+    const match = /(?:^|\/)locales\/([A-Za-z0-9_-]+)\.json$/.exec(key);
+    if (match && chunk?.file) out[match[1]] = `/_nuxt/${chunk.file}`;
+  }
+  return out;
+}
+
 /** Where the scenario starts: SSR examples carry the locale in the URL. */
 export function startPath(kind) {
   return kind === "vite" ? "/" : "/en";
@@ -234,22 +285,29 @@ export function startPath(kind) {
 /**
  * Per-step results out of Playwright's JSON report.
  *
- * Each test title starts with its step letter (`"a: …"`). The first error's
- * first lines are kept, so a failing cell can say WHICH assertion failed
- * without pasting a stack trace into the table.
+ * Each test title starts with its step id (`"a: …"`, `"k2: …"`). A failure
+ * keeps the first error's first lines, so the table can say WHICH assertion
+ * failed without a stack trace; a skip keeps the reason the spec gave, so a
+ * skipped cell is never silent.
  */
 export function stepResults(report) {
   const out = {};
   const visit = (suite) => {
     for (const spec of suite.specs ?? []) {
-      const step = /^([a-z])\b/.exec(spec.title)?.[1];
+      const step = /^([a-z]\d?):/.exec(spec.title)?.[1];
       if (!step) continue;
       for (const test of spec.tests ?? []) {
         const result = test.results?.[test.results.length - 1];
         const status = result?.status ?? test.status ?? "unknown";
+        if (status === "skipped") {
+          const annotations = [...(test.annotations ?? []), ...(result?.annotations ?? [])];
+          const reason = annotations.find((entry) => entry.type === "skip")?.description;
+          out[step] = { status: "skip", message: reason ?? "skipped without a reason" };
+          continue;
+        }
         const error = result?.errors?.[0]?.message ?? result?.error?.message;
         out[step] = {
-          status: status === "passed" ? "pass" : status === "skipped" ? "skip" : "fail",
+          status: status === "passed" ? "pass" : "fail",
           message: error ? summarizeError(error) : status === "passed" ? undefined : status,
         };
       }
@@ -269,6 +327,8 @@ export function summarizeError(message, maxLength = 300) {
     .map((line) => line.trim())
     .filter(Boolean)
     .filter((line) => !/^(at |Call log:|- )/.test(line))
+    // Playwright's code frame ("325 |   await open(…)", "> 325 |", "|    ^").
+    .filter((line) => !/^(>\s*)?\d*\s*\|/.test(line))
     // Diff scaffolding carries no information; the values inside it do.
     .filter((line) => !/^[+-]?\s*(Expected|Received)\b.*\+\s*\d+$/.test(line))
     .filter((line) => !/^[+-]?\s*(Array \[|\])$/.test(line));
@@ -276,28 +336,29 @@ export function summarizeError(message, maxLength = 300) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
-const CELL = { pass: "ok", fail: "FAIL", skip: "—" };
+const CELL = { pass: "ok", fail: "FAIL", skip: "skip" };
 
 /**
- * The report: one row per framework, one column per step, and the failing
- * assertion text listed underneath, keyed `framework/column`.
+ * The report: one row per framework, one column per step, then every failing
+ * assertion and every skip reason underneath, keyed `framework/columns` and
+ * listed once per distinct message.
  *
- * `result` shape: `{ name, build: {status, message?}, steps: {a: {...}, …},
- * cdn: {status, message?} | null }`. A step that never ran because the build
- * failed has no entry and prints as `·`, which is not the same thing as a
- * skip.
+ * `result` shape: `{ name, build: {status, message?}, steps: {a: {...}, …} }`.
+ * A step that never ran because the build or the server failed has no entry
+ * and prints as `·`, which is not the same thing as a skip.
  */
-export function renderTable(results, { cdn = false } = {}) {
-  const header = ["framework", "build", ...STEPS, "cdn"];
+export function renderTable(results) {
+  const header = ["framework", "build", ...STEPS];
   const failures = [];
+  const skips = [];
   const rows = results.map((result) => {
-    // One line per distinct message: a server that never came up fails every
-    // step with the same cause, and seven copies of it bury the next failure.
-    const byMessage = new Map();
+    const failed = new Map();
+    const skipped = new Map();
     const cell = (column, entry) => {
       if (!entry) return "·";
-      if (entry.status === "fail" && entry.message) {
-        byMessage.set(entry.message, [...(byMessage.get(entry.message) ?? []), column]);
+      const bucket = entry.status === "fail" ? failed : entry.status === "skip" ? skipped : null;
+      if (bucket && entry.message) {
+        bucket.set(entry.message, [...(bucket.get(entry.message) ?? []), column]);
       }
       return CELL[entry.status] ?? entry.status;
     };
@@ -305,10 +366,12 @@ export function renderTable(results, { cdn = false } = {}) {
       result.name,
       cell("build", result.build),
       ...STEPS.map((step) => cell(step, result.steps?.[step])),
-      cdn ? cell("cdn", result.cdn) : "—",
     ];
-    for (const [message, columns] of byMessage) {
+    for (const [message, columns] of failed) {
       failures.push(`${result.name}/${columns.join(",")}: ${message}`);
+    }
+    for (const [message, columns] of skipped) {
+      skips.push(`${result.name}/${columns.join(",")}: ${message}`);
     }
     return row;
   });
@@ -323,21 +386,22 @@ export function renderTable(results, { cdn = false } = {}) {
   const table = [line(header), line(widths.map((width) => "-".repeat(width))), ...rows.map(line)];
   const legend = [
     "",
-    ...STEPS.map((step) => `${step}  ${STEP_LEGEND[step]}`),
-    `cdn  ${cdn ? "every catalog came from the mock CDN (--cdn)" : "not run; pass --cdn"}`,
-    "ok = passed, FAIL = failed, — = not applicable, · = not reached",
+    ...STEPS.map((step) => `${step.padEnd(3)} ${STEP_LEGEND[step]}`),
+    "ok = passed, FAIL = failed, skip = not applicable (reason below), · = not reached",
   ];
-  return [...table, ...legend, ...(failures.length ? ["", "failures:", ...failures] : [])].join(
-    "\n",
-  );
+  return [
+    ...table,
+    ...legend,
+    ...(skips.length ? ["", "skipped:", ...skips] : []),
+    ...(failures.length ? ["", "failures:", ...failures] : []),
+  ].join("\n");
 }
 
-/** Whether a whole run is green: every build and every step that ran passed. */
-export function allPassed(results, { cdn = false } = {}) {
+/** Whether a whole run is green: every build passed and no step failed or went unreached. */
+export function allPassed(results) {
   return results.every(
     (result) =>
       result.build?.status === "pass" &&
-      STEPS.every((step) => result.steps?.[step] && result.steps[step].status !== "fail") &&
-      (!cdn || result.cdn?.status === "pass"),
+      STEPS.every((step) => result.steps?.[step] && result.steps[step].status !== "fail"),
   );
 }
