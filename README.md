@@ -38,6 +38,18 @@ only what it names.
 
 ## Install
 
+One package per framework; each binding brings `@comvi/core` with it.
+
+```bash
+npm install @comvi/react
+npm install @comvi/next     # Peers: next ^15 || ^16, react ^18.2 || ^19
+npm install @comvi/vue
+npm install @comvi/nuxt
+npm install @comvi/svelte
+npm install @comvi/solid
+npm install @comvi/core     # vanilla JavaScript
+```
+
 | Framework          | Package         | Peer dependencies | Guide                                         |
 | ------------------ | --------------- | ----------------- | --------------------------------------------- |
 | Vanilla JavaScript | `@comvi/core`   | none              | [Vanilla](https://comvi.io/docs/i18n/vanilla) |
