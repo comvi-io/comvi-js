@@ -144,3 +144,9 @@ export function setRequestLocaleInternal(locale: string): void {
 export function getRequestLocaleFromCache(): string | undefined {
   return getRequestStore().locale;
 }
+
+/** @internal The pairs whose load failed during this request. */
+export function getRequestFailedLoads(): Set<string> {
+  const store = getRequestStore();
+  return (store.failedLoads ??= new Set());
+}

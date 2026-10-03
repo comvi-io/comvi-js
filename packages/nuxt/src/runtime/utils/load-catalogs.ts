@@ -12,6 +12,14 @@ const toError = (error: unknown): Error =>
 const pendingLoads = new WeakMap<WrapperI18nHost, Record<string, Promise<void> | undefined>>();
 
 /**
+ * Pairs whose load failed on a host. Every server host is the request's own,
+ * so this is per request: a failed pair is not retried before the request
+ * ends, because the render already went without it and the payload must carry
+ * what the render read.
+ */
+const failedLoads = new WeakMap<WrapperI18nHost, Set<string>>();
+
+/**
  * Load `namespaces` (default: the active ones) for `locale` and every locale of
  * the host's `fallbackLocale` chain, in core's lookup order, skipping every
  * pair already in the cache. Without `locale`, the fallback chain minus the
@@ -37,17 +45,20 @@ export async function loadCatalogs(
   if (!loads) {
     pendingLoads.set(i18n, (loads = {}));
   }
+  const failed = failedLoads.get(i18n) ?? new Set<string>();
+  failedLoads.set(i18n, failed);
   const pending: Array<Promise<void>> = [];
   const fallbacks = i18n.getFallbackLocales();
   const locales = locale ? [locale, ...fallbacks] : fallbacks.filter((loc) => loc !== i18n.locale);
   for (const loc of new Set(locales)) {
     for (const ns of namespaces ?? i18n.getActiveNamespaces()) {
       const key = `${loc}:${ns}`;
-      if (!i18n.hasLocale(loc, ns)) {
+      if (!i18n.hasLocale(loc, ns) && !failed.has(key)) {
         pending.push(
           (loads[key] ??= i18n
             .reloadTranslations(loc, ns)
             .catch((error: unknown) => {
+              failed.add(key);
               console.warn(`[@comvi/nuxt] Failed to load ${key}:`, toError(error).message);
             })
             .finally(() => {

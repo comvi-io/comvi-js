@@ -77,7 +77,12 @@ const expectServerSide = (row: SsrFallbackCase, loader: Loader, reports: Reports
   const fetched = fetchedPairs(loader);
   expect(fetched).toEqual(expect.arrayContaining([...(row.fetched ?? [])]));
   for (const pair of row.notFetched ?? []) expect(fetched).not.toContain(pair);
-  expect([...new Set(reports.loadErrors)].sort()).toEqual([...row.loadErrors].sort());
+  expect([...reports.loadErrors].sort()).toEqual([...row.loadErrors].sort());
+  for (const pair of row.failing ?? []) {
+    expect(fetched.filter((p) => p === pair)).toHaveLength(
+      row.loadErrors.filter((p) => p === pair).length,
+    );
+  }
   const onErrorCalls = reports.onError.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
   expect(onErrorCalls).toBe(SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD * reports.loadErrors.length);
 };
@@ -258,5 +263,29 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
     }
 
     expectServerSide(row, loader, reports);
+  });
+});
+
+describe("@comvi/nuxt app plugin: the activation wrapper", () => {
+  beforeEach(() => {
+    resetComviHostMock();
+    resetComviSetupMock();
+  });
+
+  it("a factory that returns one shared host → wrapped once, not once per request", async () => {
+    const [row] = SSR_FALLBACK_CASES;
+    nuxtAppMocks.resetMocks();
+    Object.assign(nuxtAppMocks.mockRuntimeConfig.public.comvi, comviConfig(row));
+    const loader = createLoader(row);
+    const shared = createVueI18n({ locale: "en", exposeGlobal: false } as never).use(attachLoader);
+    shared.core.registerLoader(loader);
+    createComviI18n.mockReturnValue(shared);
+    vi.stubGlobal("__COMVI_TEST_SERVER__", true);
+
+    await runPlugin(createNuxtApp());
+    const wrapped = shared.core.addActiveNamespaces;
+    await runPlugin(createNuxtApp());
+
+    expect(shared.core.addActiveNamespaces).toBe(wrapped);
   });
 });

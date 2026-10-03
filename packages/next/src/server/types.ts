@@ -49,6 +49,13 @@ export interface ServerI18n {
 
 export interface RequestStore {
   locale: string | undefined;
+  /**
+   * `locale:namespace` pairs whose load failed during this request. They are
+   * not retried before the request ends: the render already went without
+   * them, and a later success would hand the client a catalog the server
+   * render never used.
+   */
+  failedLoads?: Set<string>;
 }
 
 /**

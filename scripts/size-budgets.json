@@ -207,10 +207,10 @@
         "import.meta.client": "true",
         "import.meta.dev": "false"
       },
-      "gzipBudgetBytes": 13237,
+      "gzipBudgetBytes": 13270,
       "baseline": {
-        "minBytes": 37587,
-        "gzipBytes": 12606,
+        "minBytes": 37660,
+        "gzipBytes": 12638,
         "measuredAt": "2026-10-03"
       },
       "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."

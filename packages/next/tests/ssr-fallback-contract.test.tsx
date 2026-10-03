@@ -39,7 +39,8 @@ vi.mock("react", async (importOriginal) => ({
   cache: <T,>(fn: () => T) => {
     return () => {
       const store = requests.getStore();
-      if (!store) throw new Error("test: no request store");
+      // Outside a render React's `cache()` does not memoize.
+      if (!store) return fn();
       if (!store.has(fn)) store.set(fn, fn());
       return store.get(fn) as T;
     };
@@ -148,7 +149,12 @@ describe("@comvi/next: the server fallback-chain contract", () => {
     const fetched = loader.mock.calls.map(([locale, namespace]) => `${locale}:${namespace}`);
     expect(fetched).toEqual(expect.arrayContaining([...(row.fetched ?? [])]));
     for (const pair of row.notFetched ?? []) expect(fetched).not.toContain(pair);
-    expect([...new Set(loadErrors)].sort()).toEqual([...row.loadErrors].sort());
+    expect([...loadErrors].sort()).toEqual([...row.loadErrors].sort());
+    for (const pair of row.failing ?? []) {
+      expect(fetched.filter((p) => p === pair)).toHaveLength(
+        row.loadErrors.filter((p) => p === pair).length,
+      );
+    }
     expect(reports).toHaveBeenCalledTimes(
       SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD * loadErrors.length,
     );

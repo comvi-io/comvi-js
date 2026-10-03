@@ -1,5 +1,5 @@
 import type { TranslationValue } from "@comvi/core";
-import { getI18nInstance } from "./cache";
+import { getI18nInstance, getRequestFailedLoads } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import type { ServerI18nHost } from "./hostTypes";
 
@@ -78,7 +78,9 @@ const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Prom
 /**
  * Load `namespaces` for `locales`, skipping every cached pair. Without a loader
  * there is nothing to load; that is said once per host when none of the pairs
- * is cached either. Nothing missing, nothing touched.
+ * is cached either. Nothing missing, nothing touched. A pair that failed earlier
+ * in the same request is not retried: the render already went without it, and
+ * the client must get the same catalogs the server read.
  *
  * @internal Shared by `loadTranslations()` and `getI18n()`.
  */
@@ -87,14 +89,20 @@ export const loadChain = async (
   locales: readonly string[],
   namespaces: readonly string[],
 ): Promise<void> => {
+  const failed = getRequestFailedLoads();
   const missing = locales.flatMap((loc) =>
-    namespaces.filter((ns) => !i18n.hasLocale(loc, ns)).map((ns) => [loc, ns] as const),
+    namespaces
+      .filter((ns) => !i18n.hasLocale(loc, ns) && !failed.has(`${loc}:${ns}`))
+      .map((ns) => [loc, ns] as const),
   );
   if (missing.length === 0) {
     return;
   }
   if (i18n.getLoader()) {
     await Promise.all(missing.map(([loc, ns]) => loadPair(i18n, loc, ns)));
+    for (const [loc, ns] of missing) {
+      if (!i18n.hasLocale(loc, ns)) failed.add(`${loc}:${ns}`);
+    }
   } else if (missing.length === locales.length * namespaces.length) {
     warnNoLoaderConfigured(i18n);
   }

@@ -94,7 +94,12 @@ export interface SsrFallbackCase {
   fetched?: readonly string[];
   /** Pairs the loader must never have been asked for. */
   notFetched?: readonly string[];
-  /** Pairs reported through `loadError`, as a set. Empty: nothing reported. */
+  /**
+   * Every `loadError` the server reports, with multiplicity, across the row's
+   * requests. A failed pair is attempted once per request: it is not retried
+   * before the request ends, so the client gets what the render read. The
+   * loader is asked for each failing pair exactly as often as it appears here.
+   */
   loadErrors: readonly string[];
 }
 

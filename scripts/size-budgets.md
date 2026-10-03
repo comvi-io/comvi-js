@@ -24,7 +24,12 @@ A row may carry its own `define`, merged over the run's. The two Nuxt runtime ro
 (`fw-nuxt-client-default`, `fw-nuxt-full-composite`) set `import.meta.server` to `false` and
 `import.meta.client` to `true` and `import.meta.dev` to `false`, as Nuxt's production client build
 does, so server-only and dev-only branches of the runtime are not counted against a client bundle
-they never ship in. Both rows were re-baselined on 2026-10-03 when these flags came in. A server utility a fixture
+they never ship in. Both rows were re-baselined on 2026-10-03 when these flags came in. With the
+same flags, `fw-nuxt-full-composite` measured 12491 B on the base branch (9219ef84), so of the rise
+to the 12638 B recorded now from the 09-12 baseline of 12099 B, 392 B is base drift and 147 B is the
+SSR fallback-chain loader that the fixture's server `loadTranslations` import pulls in (chain
+loading, in-flight dedupe and the per-request failed set the contract requires);
+`fw-nuxt-client-default` measured 8330 B on the base and 8302 B after. A server utility a fixture
 imports directly is still counted.
 
 Every row is gated. There is no informational tier: a row that gates nothing does not earn its

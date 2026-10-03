@@ -19,6 +19,9 @@ import {
   readEditorMappings,
 } from "@comvi/core/editor-bridge";
 
+/** Server hosts whose `addActiveNamespaces` already loads the fallback chain. */
+const chainLoadingHosts = new WeakSet<object>();
+
 const I18N_EDITOR_MAPPINGS_STATE_KEY = "__comvi_ice_mappings__";
 const I18N_TRANSLATIONS_PAYLOAD_KEY = "__comvi_translations__";
 
@@ -178,8 +181,13 @@ export default defineNuxtPlugin({
       // waits for what a component awaits, not for anything collected before
       // `app:rendered` (by then the HTML already holds the raw key), so the
       // activation itself resolves only once the chain is in. This host is the
-      // request's own, so the override never leaves the request.
-      if (hasLoaderApi(core)) {
+      // request's own, so the override never leaves the request; a `hostModule`
+      // factory that returns one shared host anyway gets it wrapped once, not
+      // once per request. One path still bypasses it: an `addActiveNamespaces`
+      // reference taken inside `comvi.setup`, which runs before this line, and
+      // called later. A `useI18nLoader()` bag acquired there is the same case.
+      if (hasLoaderApi(core) && !chainLoadingHosts.has(core)) {
+        chainLoadingHosts.add(core);
         const activate = core.addActiveNamespaces.bind(core);
         core.addActiveNamespaces = async (namespaces: string[]) => {
           await Promise.all([activate(namespaces), loadCatalogs(core, namespaces)]);
