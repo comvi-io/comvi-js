@@ -3,6 +3,11 @@ import type { TranslationResult } from "@comvi/core";
 import { i18n, locales, rtlLocale } from "./i18n";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
+
+// The greeting's `{name}`: "Ada", or `?name=…` from the address bar. Whatever
+// arrives there is a parameter, and a parameter is rendered as text, never as
+// markup: try `?name=<b>Grace</b>`.
+const name = new URLSearchParams(location.search).get("name") ?? "Ada";
 const root = document.getElementById("app")!;
 
 let count = 2;
@@ -186,7 +191,7 @@ function render(): void {
     // 1 — locale switcher
     controlSection(i18n.t("app.language"), ...switcher),
     // 2 — a string with a parameter
-    section("interpolation", i18n.t("greeting.hello", { name: "Ada" }), "greeting"),
+    section("interpolation", i18n.t("greeting.hello", { name }), "greeting"),
     // 3 — an ICU plural, live on a counter
     controlSection(
       "plural",

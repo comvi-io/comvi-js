@@ -35,7 +35,8 @@ jobs:
   rc:
     if: github.repository == 'comvi-io/comvi-js' && github.event_name == 'workflow_dispatch' && inputs.rc != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Two full examples:e2e runs (seven frameworks, both modes) gate the publish.
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -81,13 +82,32 @@ jobs:
       - name: Verify built artifacts inline the manifest version
         run: node tooling/check-inlined-version.mjs
 
-      - name: Publish rc under dist-tag next
-        run: pnpm -r --filter './packages/*' publish --tag next --access public --no-git-checks
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Packs once, prints each tarball's sha256, runs `examples:e2e` in both
+      # modes against THOSE files (`--tarballs`), and only then publishes the
+      # same files with `npm publish <tgz>` — nothing is rebuilt or re-packed
+      # between verification and publish.
+      - name: Verify and publish the rc tarballs under dist-tag next
+        run: node scripts/publish-candidate.mjs --dir release-candidate --tag next
+
+      - name: Upload e2e diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-rc-examples-e2e
+          path: |
+            test-results/examples-e2e/
+            release-candidate/SHA256SUMS
+          if-no-files-found: ignore
+          retention-days: 14
 
   release:
     if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A publishing run verifies the candidate with two full examples:e2e runs.
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -124,6 +144,17 @@ jobs:
       - name: Verify built artifacts inline the manifest version
         run: node tooling/check-inlined-version.mjs
 
+      # Needed only when the run publishes, and cheap enough to install always:
+      # the publish command below decides, not this workflow.
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # `publish` packs the versioned checkout once, exits early when every
+      # version is already on npm, runs `examples:e2e` in both modes against the
+      # packed files, and publishes exactly those files (`npm publish <tgz>`),
+      # printing their sha256 and the `New tag:` lines this action reads for
+      # `publishedPackages`. `--git-tag` creates the tags `changeset publish`
+      # would; the action pushes them.
       - name: Create Release PR or Publish
         id: changesets
         uses: changesets/action@v1
@@ -131,10 +162,21 @@ jobs:
           commit: "chore: release packages"
           title: "chore: release packages"
           version: pnpm release:version
-          publish: npm exec --no -- changeset publish
+          publish: node scripts/publish-candidate.mjs --dir release-candidate --tag latest --git-tag
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload e2e diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-ga-examples-e2e
+          path: |
+            test-results/examples-e2e/
+            release-candidate/SHA256SUMS
+          if-no-files-found: ignore
+          retention-days: 14
 
       # Runs after publish (needs publishedPackages output). If it fails, npm is live but GH Release is missing —
       # re-run this step or run `PUBLISHED_PACKAGES=… node .github/scripts/create-combined-release.mjs` manually.

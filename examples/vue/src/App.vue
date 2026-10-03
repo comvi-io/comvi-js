@@ -10,6 +10,11 @@ const { t, locale, setLocale, dir, isLoading, formatNumber, formatDate, loadedLo
 const count = ref(2);
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
+// The greeting's `{name}`: "Ada", or `?name=…` from the address bar. Whatever
+// arrives there is a parameter, and a parameter is rendered as text, never as
+// markup: try `?name=<b>Grace</b>`.
+const name = new URLSearchParams(location.search).get("name") ?? "Ada";
+
 // A second view, so the locale can be seen surviving a navigation. No router
 // dependency: `history.pushState` and `popstate` are the whole of it, and
 // `vite preview` serves index.html for /about on a reload.
@@ -66,7 +71,7 @@ watchEffect(() => {
       <!-- 2 — a string with a parameter -->
       <section>
         <h2>interpolation</h2>
-        <p data-testid="greeting">{{ t("greeting.hello", { name: "Ada" }) }}</p>
+        <p data-testid="greeting">{{ t("greeting.hello", { name }) }}</p>
       </section>
 
       <!-- 3 — an ICU plural, live on a counter -->

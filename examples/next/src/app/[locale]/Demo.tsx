@@ -13,6 +13,16 @@ export function Demo() {
   const { t, locale, isLoading, formatNumber, formatDate, getLoadedLocales } = useI18n();
   const [count, setCount] = useState(2);
 
+  // The greeting's `{name}`: "Ada", or `?name=…` from the address bar, read
+  // after mount because these pages are prerendered and the server never sees
+  // the query. Whatever arrives there is a parameter, and a parameter is
+  // rendered as text, never as markup: try `?name=<b>Grace</b>`.
+  const [name, setName] = useState("Ada");
+  useEffect(() => {
+    const fromQuery = new URLSearchParams(location.search).get("name");
+    if (fromQuery !== null) setName(fromQuery);
+  }, []);
+
   // A marker for the e2e suite: set once React has hydrated this tree, so a
   // test can tell the server's HTML from the live page.
   useEffect(() => {
@@ -70,7 +80,7 @@ export function Demo() {
       {/* 2 — a string with a parameter */}
       <section>
         <h2>interpolation</h2>
-        <p data-testid="greeting">{t("greeting.hello", { name: "Ada" })}</p>
+        <p data-testid="greeting">{t("greeting.hello", { name })}</p>
       </section>
 
       {/* 3 — an ICU plural, live on a counter. The compiler is named once, in

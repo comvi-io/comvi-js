@@ -354,11 +354,6 @@ jobs:
         framework: [react, next, vue, nuxt, svelte, solid, vanilla]
         mode: [default, cdn]
 
-    env:
-      # run.mjs works in os.tmpdir(); pin it so `--keep` leaves the report,
-      # console log and Playwright traces somewhere the upload step can name.
-      TMPDIR: ${{ runner.temp }}/examples-e2e
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -386,19 +381,17 @@ jobs:
           MODE: ${{ matrix.mode }}
         run: |
           set -euo pipefail
-          mkdir -p "$TMPDIR"
-          ARGS=(--only "$FRAMEWORK" --keep)
+          ARGS=(--only "$FRAMEWORK")
           if [ "$MODE" = "cdn" ]; then ARGS+=(--cdn); fi
           node scripts/examples-e2e/run.mjs "${ARGS[@]}"
 
+      # run.mjs copies a failing example's reports, console, server and
+      # Playwright logs and traces here on its own, without --keep.
       - name: Upload e2e diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: examples-e2e-${{ matrix.framework }}-${{ matrix.mode }}
-          path: |
-            ${{ runner.temp }}/examples-e2e/comvi-e2e-*/e2e-report-*.json
-            ${{ runner.temp }}/examples-e2e/comvi-e2e-*/e2e-console-*.log
-            ${{ runner.temp }}/examples-e2e/comvi-e2e-*/e2e-artifacts-*/
+          path: test-results/examples-e2e/
           if-no-files-found: ignore
           retention-days: 14

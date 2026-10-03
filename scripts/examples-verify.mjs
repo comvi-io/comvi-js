@@ -140,7 +140,8 @@ export const EXAMPLE_NPMRC = [
  */
 export function withOverrides(manifest, packages) {
   const overrides = {};
-  for (const pkg of packages) overrides[pkg.name] = `file:${tarballFor(pkg)}`;
+  // `pkg.tarball` when the caller names the file (`examples:e2e --tarballs`).
+  for (const pkg of packages) overrides[pkg.name] = `file:${pkg.tarball ?? tarballFor(pkg)}`;
   return { ...manifest, pnpm: { ...manifest.pnpm, overrides } };
 }
 

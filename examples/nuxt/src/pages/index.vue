@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
 // Auto-imported by the module — there is no `import { useI18n }` anywhere in a
 // Nuxt app. `locales` and `defaultLocale` are Nuxt's own additions to
@@ -13,6 +13,12 @@ const { t, locale, locales, setLocale, isLoading, formatNumber, formatDate, load
 const switchLocalePath = useSwitchLocalePath();
 
 const count = ref(2);
+
+// The greeting's `{name}`: "Ada", or `?name=…` from the address bar, on the
+// server and in the browser alike. Whatever arrives there is a parameter, and a
+// parameter is rendered as text, never as markup: try `?name=<b>Grace</b>`.
+const route = useRoute();
+const name = computed(() => (typeof route.query.name === "string" ? route.query.name : "Ada"));
 
 // Routable but not in the switcher: the right-to-left locale the e2e suite uses.
 const rtlLocale = "ar";
@@ -72,7 +78,7 @@ watch([locale, isLoading], () => {
     <!-- 2 — a string with a parameter -->
     <section>
       <h2>interpolation</h2>
-      <p data-testid="greeting">{{ t("greeting.hello", { name: "Ada" }) }}</p>
+      <p data-testid="greeting">{{ t("greeting.hello", { name }) }}</p>
     </section>
 
     <!-- 3 — an ICU plural, live on a counter. The compiler was named in

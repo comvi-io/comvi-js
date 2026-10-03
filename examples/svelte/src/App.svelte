@@ -40,6 +40,11 @@
   };
   const RELEASED = new Date('2026-09-01T00:00:00Z');
 
+  // The greeting's `{name}`: 'Ada', or `?name=…` from the address bar. Whatever
+  // arrives there is a parameter, and a parameter is rendered as text, never as
+  // markup: try `?name=<b>Grace</b>`.
+  const name = new URLSearchParams(location.search).get('name') ?? 'Ada';
+
   // `$effect` — not a top-level statement: the document is only there to touch
   // after the component has mounted, and this re-runs whenever the locale moves.
   $effect(() => {
@@ -95,7 +100,7 @@
   <!-- 2 — a string with a parameter -->
   <section>
     <h2>interpolation</h2>
-    <p data-testid="greeting">{$t('greeting.hello', { name: 'Ada' })}</p>
+    <p data-testid="greeting">{$t('greeting.hello', { name })}</p>
   </section>
 
   <!-- 3 — an ICU plural, live on a counter -->

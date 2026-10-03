@@ -36,8 +36,11 @@ that path today.
 
 Dispatch `Release` with the `rc` input set to the rc number. The job rewrites versions in its own
 working tree only (`scripts/rc-version.mjs`), builds after the rewrite so the inlined runtime version
-matches what npm receives, asserts that with `node tooling/check-inlined-version.mjs`, and publishes
-under the `next` dist-tag. Dispatch it from a green ref: the job runs no tests of its own.
+matches what npm receives, asserts that with `node tooling/check-inlined-version.mjs`, then runs
+`scripts/publish-candidate.mjs`: it packs once, prints each tarball's sha256, runs `examples:e2e` in
+both modes against those files (`--tarballs`), and publishes the same files with
+`npm publish <tgz>` under the `next` dist-tag. Dispatch it from a green ref: apart from that browser
+suite the job runs no tests of its own.
 
 ## 3. The cut
 
@@ -46,7 +49,10 @@ under the `next` dist-tag. Dispatch it from a green ref: the job runs no tests o
       `changesets/action` and opens the release PR. Re-run `pnpm examples:verify` after the version
       bump: that is when the peer ranges and the examples' ranges meet.
 - [ ] Read the generated CHANGELOGs before merging the release PR.
-- [ ] Merging the release PR publishes, then `.github/scripts/create-combined-release.mjs` creates
+- [ ] Merging the release PR publishes through `scripts/publish-candidate.mjs` (the same
+      pack-verify-publish path as the RC, with `--tag latest --git-tag`). A red `examples:e2e` on the
+      candidate stops the publish before anything reaches npm; its diagnostics are the job's
+      `release-ga-examples-e2e` artifact. Then `.github/scripts/create-combined-release.mjs` creates
       the combined GitHub Release. The tag is the release train's version; independently versioned
       packages appear in the notes and in `manifest.json` at their own version. If that step fails,
       npm is already live: fix and re-run it (or run it by hand with `PUBLISHED_PACKAGES=…`).
@@ -74,5 +80,5 @@ under the `next` dist-tag. Dispatch it from a green ref: the job runs no tests o
 
 ## Known release-tooling gaps (recorded, not fixed)
 
-- The `rc` job publishes after a build only (no tests, no package-contract or size gate) and inherits
-  the workflow-level `contents: write` it does not need.
+- The `rc` job runs the browser suite on its candidate but no unit tests, package-contract or size
+  gate, and inherits the workflow-level `contents: write` it does not need.

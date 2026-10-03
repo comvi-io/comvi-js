@@ -5,13 +5,25 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
+import crypto from "node:crypto";
+
 import {
+  CDN_MARK,
+  EXPECTED_FAILURES,
+  F15_VARIANT,
   STEPS,
   allPassed,
+  allowedSkips,
+  applyExpectedFailures,
+  applyVariant,
+  assertCandidateIntegrity,
+  candidatePackages,
   catalogFile,
+  cdnCatalog,
   cdnEnv,
   cdnRoute,
   cdnVerdict,
+  enforceSkipMatrix,
   freePort,
   nuxtCatalogChunks,
   parseArgs,
@@ -21,6 +33,8 @@ import {
   startPath,
   stepResults,
   summarizeError,
+  tarballName,
+  tarballResolutions,
 } from "./lib.mjs";
 
 /**
@@ -39,6 +53,7 @@ test("parseArgs: defaults build, pack, no cdn", () => {
     pack: true,
     keep: false,
     headed: false,
+    tarballs: null,
   });
 });
 
@@ -152,9 +167,9 @@ test("startMockCdn: serves the catalogs with CORS, 404s the rest, and logs both"
     const root = await fetch(`${cdn.url}/en.json`);
     assert.equal(root.status, 200);
     assert.equal(root.headers.get("access-control-allow-origin"), "*");
-    assert.deepEqual(await root.json(), { a: "b" });
+    assert.deepEqual(await root.json(), { a: `${CDN_MARK}b` });
     const namespaced = await fetch(`${cdn.url}/admin/de.json`);
-    assert.deepEqual(await namespaced.json(), { c: "d" });
+    assert.deepEqual(await namespaced.json(), { c: `${CDN_MARK}d` });
     assert.equal((await fetch(`${cdn.url}/uk.json`)).status, 404);
     assert.deepEqual(
       cdn.requests.map((entry) => [entry.pathname, entry.status]),
@@ -319,7 +334,7 @@ test("nuxtCatalogChunks: maps each locale's catalog to its hash-named chunk", ()
 const pass = { status: "pass" };
 const allSteps = (entry) => Object.fromEntries(STEPS.map((step) => [step, entry]));
 
-test("STEPS: a column per scenario, k2/k3 beside k", () => {
+test("STEPS: a column per scenario, k2/k3 beside k, g2 beside g", () => {
   assert.deepEqual(STEPS.slice(STEPS.indexOf("j"), STEPS.indexOf("l") + 1), [
     "j",
     "k",
@@ -327,7 +342,8 @@ test("STEPS: a column per scenario, k2/k3 beside k", () => {
     "k3",
     "l",
   ]);
-  assert.equal(STEPS.at(-1), "p");
+  assert.equal(STEPS[STEPS.indexOf("g") + 1], "g2");
+  assert.deepEqual(STEPS.slice(-3), ["q", "r", "s"]);
 });
 
 test("renderTable: a row per framework; failures and skip reasons listed once per message", () => {
@@ -350,7 +366,11 @@ test("renderTable: a row per framework; failures and skip reasons listed once pe
   const text = renderTable(results);
   const lines = text.split("\n");
   assert.match(lines[0], new RegExp(`^framework\\s+build\\s+${STEPS.join("\\s+")}$`));
-  assert.match(lines[2], /^react\s+ok\s+ok\s+ok\s+ok\s+ok\s+ok\s+skip(\s+ok){12}$/);
+  const afterF = STEPS.length - STEPS.indexOf("f") - 1;
+  assert.match(
+    lines[2],
+    new RegExp(`^react\\s+ok\\s+ok\\s+ok\\s+ok\\s+ok\\s+ok\\s+skip(\\s+ok){${afterF}}$`),
+  );
   assert.match(lines[3], new RegExp(`^nuxt\\s+ok(\\s+FAIL){${STEPS.length}}$`));
   assert.match(lines[4], new RegExp(`^vue\\s+FAIL(\\s+·){${STEPS.length}}$`));
   const others = STEPS.filter((step) => step !== "k").join(",");
@@ -419,4 +439,200 @@ test("examples:e2e:all runs both modes, and closes test:release", () => {
   // The --cdn pass reuses the first pass's tarballs; run.mjs refuses stale ones.
   assert.equal(second.build || second.pack, false);
   assert.match(scripts["test:release"], /&& pnpm examples:e2e:all$/);
+});
+
+// ── provenance of the catalogs ─────────────────────────────────────────────
+
+test("cdnCatalog: every message marked, nested too; the CDN-missing keys dropped", () => {
+  const bundled = {
+    greeting: { hello: "Привіт, {name}!" },
+    fallback: { only_en: "x" },
+    cart: { items: "{count, plural, one {# товар} other {# товарів}}" },
+  };
+  assert.deepEqual(cdnCatalog(bundled, "uk"), {
+    greeting: { hello: `${CDN_MARK}Привіт, {name}!` },
+    fallback: {},
+    cart: { items: `${CDN_MARK}{count, plural, one {# товар} other {# товарів}}` },
+  });
+  // en keeps the key the CDN's uk lacks, marked: k3's en value differs from the bundle's.
+  assert.equal(cdnCatalog(bundled, "en").fallback.only_en, `${CDN_MARK}x`);
+});
+
+// ── skips and expected failures ────────────────────────────────────────────
+
+test("allowedSkips: SSR-only steps for vite, CDN steps without --cdn, s with --cdn", () => {
+  assert.deepEqual([...allowedSkips({ kind: "vite", cdn: false })].sort(), [
+    "f",
+    "g2",
+    "i",
+    "k",
+    "k2",
+    "k3",
+    "o",
+    "s",
+  ]);
+  assert.deepEqual([...allowedSkips({ kind: "next", cdn: true })], ["s"]);
+  assert.deepEqual([...allowedSkips({ kind: "nuxt", cdn: false })].sort(), ["g2", "k", "k2", "k3"]);
+});
+
+test("enforceSkipMatrix: an unlisted skip fails its step, a listed one stays a skip", () => {
+  const steps = enforceSkipMatrix(
+    {
+      a: { status: "skip", message: "SSR examples only" },
+      f: { status: "skip", message: "client-rendered" },
+      b: pass,
+    },
+    { kind: "vite", cdn: true },
+  );
+  assert.equal(steps.a.status, "fail");
+  assert.match(steps.a.message, /unexpected skip.*SSR examples only/);
+  assert.deepEqual(steps.f, { status: "skip", message: "client-rendered" });
+  assert.deepEqual(steps.b, pass);
+});
+
+test("applyExpectedFailures: only the listed failure is xfail; a pass or another failure is not", () => {
+  const list = [{ framework: "nuxt", step: "s", ref: "F-15", reason: "r", match: /fallback/ }];
+  const failing = applyExpectedFailures(
+    "nuxt",
+    { s: { status: "fail", message: "the en-only key: fallback.only_en" } },
+    list,
+  );
+  assert.equal(failing.s.status, "xfail");
+  assert.match(failing.s.message, /^F-15 \(r\): /);
+  const other = applyExpectedFailures(
+    "nuxt",
+    { s: { status: "fail", message: "the server exited (1)" } },
+    list,
+  );
+  assert.equal(other.s.status, "fail");
+  const passing = applyExpectedFailures("nuxt", { s: pass }, list);
+  assert.equal(passing.s.status, "fail");
+  assert.match(passing.s.message, /F-15 is listed in EXPECTED_FAILURES but passed/);
+  assert.deepEqual(applyExpectedFailures("next", { s: { status: "fail" } }, list).s.status, "fail");
+});
+
+test("EXPECTED_FAILURES: each entry has a reference and a message to match", () => {
+  for (const entry of EXPECTED_FAILURES) {
+    assert.ok(STEPS.includes(entry.step));
+    assert.match(entry.ref, /\S/);
+    assert.ok(entry.match instanceof RegExp);
+  }
+});
+
+test("renderTable / allPassed: an xfail is listed with its reference and keeps the run green", () => {
+  const steps = { ...allSteps(pass), s: { status: "xfail", message: "F-15 (r): boom" } };
+  const text = renderTable([{ name: "nuxt", build: pass, steps }]);
+  assert.match(text.split("\n")[2], /\sxfail$/);
+  assert.ok(text.includes("expected failures:\nnuxt/s: F-15 (r): boom"));
+  assert.equal(allPassed([{ name: "nuxt", build: pass, steps }]), true);
+});
+
+// ── the F-15 variant ───────────────────────────────────────────────────────
+
+test("applyVariant: edits the copy once, and refuses a config it does not recognise", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-variant-"));
+  try {
+    fs.writeFileSync(
+      path.join(dir, "nuxt.config.ts"),
+      'comvi: { defaultLocale: "en", fallbackLocale: "en" }',
+    );
+    applyVariant(dir, F15_VARIANT.nuxt);
+    assert.equal(
+      fs.readFileSync(path.join(dir, "nuxt.config.ts"), "utf8"),
+      'comvi: { defaultLocale: "uk", fallbackLocale: "en" }',
+    );
+    // Applied twice, the edit no longer matches: never a silent no-op.
+    assert.throws(() => applyVariant(dir, F15_VARIANT.nuxt), /exactly once.*found 0/);
+    fs.writeFileSync(path.join(dir, "nuxt.config.ts"), 'comvi: { defaultLocale: "en" }');
+    assert.throws(() => applyVariant(dir, F15_VARIANT.nuxt), /no longer contains/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("F15_VARIANT matches the committed next and nuxt examples", () => {
+  for (const kind of ["next", "nuxt"]) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `comvi-e2e-${kind}-`));
+    try {
+      fs.cpSync(path.join(REPO, "examples", kind), dir, {
+        recursive: true,
+        filter: (source) => !source.includes("node_modules"),
+      });
+      applyVariant(dir, F15_VARIANT[kind]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+// ── candidate tarballs ─────────────────────────────────────────────────────
+
+const sri = (body) => `sha512-${crypto.createHash("sha512").update(body).digest("base64")}`;
+
+test("candidatePackages: names each package's file in the dir, refuses gaps and strays", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-candidate-"));
+  const packages = [
+    { name: "@comvi/core", version: "0.5.0" },
+    { name: "@comvi/react", version: "0.5.0" },
+  ];
+  try {
+    assert.equal(tarballName(packages[0]), "comvi-core-0.5.0.tgz");
+    fs.writeFileSync(path.join(dir, "comvi-core-0.5.0.tgz"), "core");
+    assert.throws(() => candidatePackages(dir, packages), /no comvi-react-0\.5\.0\.tgz/);
+    fs.writeFileSync(path.join(dir, "comvi-react-0.5.0.tgz"), "react");
+    assert.deepEqual(
+      candidatePackages(dir, packages).map((pkg) => pkg.tarball),
+      [path.join(dir, "comvi-core-0.5.0.tgz"), path.join(dir, "comvi-react-0.5.0.tgz")],
+    );
+    fs.writeFileSync(path.join(dir, "comvi-core-0.4.0.tgz"), "old");
+    assert.throws(() => candidatePackages(dir, packages), /no package names: comvi-core-0\.4\.0/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("assertCandidateIntegrity: the lockfile must name the candidate's file with its sha512", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-integrity-"));
+  try {
+    const install = path.join(root, "install");
+    const candidate = path.join(root, "candidate");
+    fs.mkdirSync(install);
+    fs.mkdirSync(candidate);
+    const tarball = path.join(candidate, "comvi-core-0.5.0.tgz");
+    fs.writeFileSync(tarball, "core bytes");
+    const packages = [{ name: "@comvi/core", version: "0.5.0", tarball }];
+    const lock = (integrity, file = "../candidate/comvi-core-0.5.0.tgz") =>
+      [
+        "packages:",
+        "",
+        `  '@comvi/core@file:${file}':`,
+        `    resolution: {integrity: ${integrity}, tarball: file:${file}}`,
+        "    version: 0.5.0",
+        "",
+      ].join("\n");
+
+    assert.deepEqual(tarballResolutions(lock(sri("core bytes")), install), [
+      { name: "@comvi/core", integrity: sri("core bytes"), tarball },
+    ]);
+    assertCandidateIntegrity(lock(sri("core bytes")), install, packages);
+    assert.throws(
+      () => assertCandidateIntegrity(lock(sri("other bytes")), install, packages),
+      /lockfile's integrity .* is not the candidate tarball's/,
+    );
+    assert.throws(
+      () =>
+        assertCandidateIntegrity(
+          lock(sri("core bytes"), "../elsewhere/comvi-core-0.5.0.tgz"),
+          install,
+          packages,
+        ),
+      /not the candidate's/,
+    );
+    assert.throws(
+      () => assertCandidateIntegrity("lockfileVersion: '9.0'\n", install, packages),
+      /names no @comvi tarball resolution/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

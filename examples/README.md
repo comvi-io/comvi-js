@@ -42,7 +42,9 @@ pnpm examples:use-tag --print   # what each example asks for right now
 The same scenario everywhere, in the same order down the page:
 
 1. **A locale switcher:** `en` / `uk` / `de`.
-2. **A string with a parameter:** `greeting.hello`, `{name}`.
+2. **A string with a parameter:** `greeting.hello`, `{name}`. The name is "Ada", or whatever
+   `?name=…` in the address says; try `?name=<b>Grace</b>` to see that a parameter renders as
+   text, never as markup.
 3. **A plural:** `cart.items`, an ICU `plural` on a live counter.
 4. **`<T>` with a tag:** `docs.read_more` holds `<link>…</link>`; the app decides that `<link>` is
    an `<a href>`. The vanilla example does the same through the string API and a tag handler.
@@ -206,7 +208,8 @@ example is `skip`, and the reason is printed under the table:
 | d    | `<T>` renders `docs.read_more` with a real `<a href>` around the translated link text                   |
 | e    | the "catalogs fetched so far" line starts at `en` and grows by one per visited locale                   |
 | f    | next, nuxt: plain-HTTP `GET /uk` is already Ukrainian, and the hydrated page shows no key               |
-| g    | no `console.error` and no uncaught exception during the whole run                                       |
+| g    | no `console.error` and no uncaught exception during a full pass of its own                              |
+| g2   | `--cdn`: g again in the dead-CDN build, past an allowlist of the refused-connection messages            |
 | h    | the second page is translated, and the locale survives the link there, the link back and Back           |
 | i    | next, nuxt: `/de` renders German, switching navigates to `/uk`, Back restores `/de`                     |
 | j    | uk's catalog is requested only when uk is chosen (a Nuxt `<link rel="prefetch">` hint is not a load)    |
@@ -218,18 +221,35 @@ example is `skip`, and the reason is printed under the table:
 | n    | `<html lang>` follows the locale and `dir` becomes `rtl` for `ar`                                       |
 | o    | next, nuxt: from first paint through hydration the greeting is only ever the Ukrainian text             |
 | p    | a missing parameter renders as its own placeholder, `{name}`                                            |
+| q    | `?name=<img src=x onerror=…>` renders as text: no element is created and the handler never runs         |
+| r    | every DOM state during en → uk → de is one whole language matching `<html lang>`, never a raw key       |
+| s    | next, nuxt: a build with `defaultLocale: "uk"` serves `/uk` with the en value of an en-only key         |
 
-Every expected string is computed from `examples/locales/*.json` when the spec
-runs. The plural branch comes from `Intl.PluralRules`, so the assertion is
-"the page says what the catalog says", never a copy that can drift.
+The critical texts (the greeting, the plural branches, `<T>`, the fallback row and
+the placeholder) are written out literally in the spec, so a catalog that goes
+wrong fails the suite instead of moving the expectation with it. Titles and the
+second page are smoke checks read from `examples/locales/*.json`.
 
-`--cdn` starts a small server that serves `examples/locales` in the CDN layout
-and builds every example with its "Connect to Comvi" variable pointing at it.
+Every step also fails on its own if the page logs a `console.error` or throws,
+so no verdict depends on which steps ran before it. A skip that the runner's
+matrix does not list fails its step. A failing step stays red unless the
+runner's `EXPECTED_FAILURES` names that framework, that step and a reference
+(today only F-15 on nuxt, step s). On any failure the reports, console logs,
+server logs and Playwright traces are copied to `test-results/examples-e2e/`.
+
+`--cdn` starts a small server that serves `examples/locales` in the CDN layout,
+every message prefixed with `[CDN] `, and builds every example with its "Connect
+to Comvi" variable pointing at it. The prefix is how the suite tells a text the
+app read from the CDN from the same text out of its bundled `fallback` imports.
 Column `k` reads that server's request log. Without it, a variable that
 silently failed to apply would pass on the bundled import map. Each example is
 then built a second time against a port where nothing listens, and `k2` runs
-alone against that build, so the errors a dead CDN legitimately logs never
-reach step `g`.
+and `g` (as `g2`) run against that build, where the refused connections to the CDN
+address are the only console errors allowed.
+
+`--tarballs <dir>` runs the suite against a release candidate's packed files
+instead of packing the workspace. The release workflow packs once, runs both
+modes this way and publishes the same files.
 
 The run exits non-zero on any failure, and the failing assertion is printed
 under the table.
