@@ -24,8 +24,10 @@ permissions: {}
 
 # Each release path is three jobs (GA: plus `version` for the release PR).
 #
-#   *pack     (contents: read) builds, packs ONCE into release-candidate/,
-#             writes SHA256SUMS — the only list of what may be published —
+#   *pack     (contents: read; installs cold, without the Actions pnpm cache
+#             that verify and CI fill from untrusted installs) builds, packs
+#             ONCE into release-candidate/, writes SHA256SUMS — the only list
+#             of what may be published —
 #             and uploads it as the `release-candidate` artifact. Its outputs
 #             `sums` (sha256 of SHA256SUMS) and `pending` are the only job
 #             outputs the publishing job reads. No e2e, no browser.
@@ -76,7 +78,8 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
+          # No `cache: pnpm`: verify and CI install untrusted examples into the pnpm store
+          # and save it to the Actions cache; the job that builds the release installs cold.
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -282,7 +285,8 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
+          # No `cache: pnpm`: verify and CI install untrusted examples into the pnpm store
+          # and save it to the Actions cache; the job that builds the release installs cold.
 
       - name: Install dependencies
         if: steps.changesets.outputs.pending == 'false'
