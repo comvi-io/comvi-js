@@ -4,6 +4,8 @@ import http from "node:http";
 import net from "node:net";
 import path from "node:path";
 
+import { packedManifest } from "./candidate-registry.mjs";
+
 /**
  * The parts of `examples:e2e` that do not need a browser, a build or an
  * install, kept apart from `run.mjs` so they can be unit-tested
@@ -696,29 +698,42 @@ export function fileDigest(file, algorithm = "sha256") {
 
 /**
  * The packages with `tarball` pointing into a candidate directory, as
- * `--tarballs <dir>` passes it: the release job packs once, verifies those
- * files and publishes the same files. A package with no tarball there fails,
- * and so does a `.tgz` in the directory that belongs to no package — a
- * leftover from another version is exactly what must not be verified in place
- * of the candidate.
+ * `--tarballs <dir>` passes it: the release workflow packs once, verifies
+ * those files and publishes the same files.
+ *
+ * Name and version come from `package/package.json` inside each tarball, not
+ * from the checkout: the job that verifies a release candidate runs on an
+ * un-rewritten checkout (an RC's versions exist only in the pack job), and
+ * the tarball is the thing under test anyway. The set of names must be the
+ * workspace's publishable set exactly — a missing package, a stray `.tgz`, or
+ * a file whose name is not `pnpm pack`'s for its manifest all fail.
  */
-export function candidatePackages(dir, packages) {
+export function candidatePackages(dir, packages, readManifest = packedManifest) {
   const absolute = path.resolve(dir);
-  const expected = new Set();
-  const out = packages.map((pkg) => {
-    const tarball = path.join(absolute, tarballName(pkg));
-    if (!fs.existsSync(tarball)) {
-      throw new Error(`--tarballs: no ${tarballName(pkg)} in ${absolute} for ${pkg.name}`);
-    }
-    expected.add(path.basename(tarball));
-    return { ...pkg, tarball };
-  });
-  const strays = fs
+  const out = [];
+  for (const file of fs
     .readdirSync(absolute)
-    .filter((entry) => entry.endsWith(".tgz") && !expected.has(entry));
-  if (strays.length > 0) {
+    .filter((entry) => entry.endsWith(".tgz"))
+    .sort()) {
+    const tarball = path.join(absolute, file);
+    const { name, version } = readManifest(tarball);
+    if (!packages.some((pkg) => pkg.name === name)) {
+      throw new Error(`--tarballs: ${file} holds ${name}, which no workspace package names`);
+    }
+    if (tarballName({ name, version }) !== file) {
+      throw new Error(
+        `--tarballs: ${file} holds ${name}@${version}; pnpm would name it ${tarballName({ name, version })}`,
+      );
+    }
+    if (out.some((pkg) => pkg.name === name)) {
+      throw new Error(`--tarballs: more than one tarball for ${name} in ${absolute}`);
+    }
+    out.push({ ...packages.find((pkg) => pkg.name === name), version, tarball });
+  }
+  const missing = packages.filter((pkg) => !out.some((entry) => entry.name === pkg.name));
+  if (missing.length > 0) {
     throw new Error(
-      `--tarballs: ${absolute} holds tarballs no package names: ${strays.join(", ")}`,
+      `--tarballs: no tarball in ${absolute} for ${missing.map((pkg) => pkg.name).join(", ")}`,
     );
   }
   return out;

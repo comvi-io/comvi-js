@@ -32,7 +32,7 @@
  *                                     [--tarballs <dir>]
  *
  * `--tarballs <dir>` runs against a release candidate: the `.tgz` files in
- * `<dir>`, exactly as `scripts/publish-candidate.mjs verify` packed them and
+ * `<dir>`, exactly as `scripts/publish-candidate.mjs pack` packed them and
  * the release workflow's publish job will publish them. It implies
  * `--no-build --no-pack`. After every install, each `@comvi/*` in the lockfile
  * — `file:` override or peer resolved through the candidate registry — must

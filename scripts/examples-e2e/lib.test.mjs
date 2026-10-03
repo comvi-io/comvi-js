@@ -597,23 +597,42 @@ test("F15_VARIANT matches the committed next and nuxt examples", () => {
 
 const sri = (body) => `sha512-${crypto.createHash("sha512").update(body).digest("base64")}`;
 
-test("candidatePackages: names each package's file in the dir, refuses gaps and strays", () => {
+test("candidatePackages: names and versions come from the tarballs; gaps and strays refused", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-candidate-"));
+  // The checkout says 0.4.0; the candidate (an RC packed elsewhere) says 0.5.0-rc.1.
   const packages = [
-    { name: "@comvi/core", version: "0.5.0" },
-    { name: "@comvi/react", version: "0.5.0" },
+    { name: "@comvi/core", version: "0.4.0" },
+    { name: "@comvi/react", version: "0.4.0" },
   ];
+  const manifests = {};
+  const put = (file, manifest) => {
+    fs.writeFileSync(path.join(dir, file), file);
+    manifests[file] = manifest;
+  };
+  const read = (tarball) => manifests[path.basename(tarball)];
   try {
-    assert.equal(tarballName(packages[0]), "comvi-core-0.5.0.tgz");
-    fs.writeFileSync(path.join(dir, "comvi-core-0.5.0.tgz"), "core");
-    assert.throws(() => candidatePackages(dir, packages), /no comvi-react-0\.5\.0\.tgz/);
-    fs.writeFileSync(path.join(dir, "comvi-react-0.5.0.tgz"), "react");
+    assert.equal(tarballName(packages[0]), "comvi-core-0.4.0.tgz");
+    put("comvi-core-0.5.0-rc.1.tgz", { name: "@comvi/core", version: "0.5.0-rc.1" });
+    assert.throws(() => candidatePackages(dir, packages, read), /no tarball .* for @comvi\/react/);
+    put("comvi-react-0.5.0-rc.1.tgz", { name: "@comvi/react", version: "0.5.0-rc.1" });
     assert.deepEqual(
-      candidatePackages(dir, packages).map((pkg) => pkg.tarball),
-      [path.join(dir, "comvi-core-0.5.0.tgz"), path.join(dir, "comvi-react-0.5.0.tgz")],
+      candidatePackages(dir, packages, read).map((pkg) => [pkg.name, pkg.version, pkg.tarball]),
+      [
+        ["@comvi/core", "0.5.0-rc.1", path.join(dir, "comvi-core-0.5.0-rc.1.tgz")],
+        ["@comvi/react", "0.5.0-rc.1", path.join(dir, "comvi-react-0.5.0-rc.1.tgz")],
+      ],
     );
-    fs.writeFileSync(path.join(dir, "comvi-core-0.4.0.tgz"), "old");
-    assert.throws(() => candidatePackages(dir, packages), /no package names: comvi-core-0\.4\.0/);
+    put("comvi-core-0.4.0.tgz", { name: "@comvi/core", version: "0.4.0" });
+    assert.throws(
+      () => candidatePackages(dir, packages, read),
+      /more than one tarball for @comvi\/core/,
+    );
+    fs.rmSync(path.join(dir, "comvi-core-0.4.0.tgz"));
+    put("comvi-evil-1.0.0.tgz", { name: "@comvi/evil", version: "1.0.0" });
+    assert.throws(() => candidatePackages(dir, packages, read), /no workspace package names/);
+    fs.rmSync(path.join(dir, "comvi-evil-1.0.0.tgz"));
+    put("comvi-vue-0.5.0-rc.1.tgz", { name: "@comvi/react", version: "0.5.0-rc.1" });
+    assert.throws(() => candidatePackages(dir, packages, read), /pnpm would name it/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

@@ -1,41 +1,44 @@
 #!/usr/bin/env node
 /**
- * Pack once, verify those bytes in a browser, publish those bytes — in two
- * jobs that never share privileges.
+ * Pack once, verify those bytes in a browser, publish those bytes — in three
+ * jobs that never share privileges or outputs they should not.
  *
  * `changeset publish` and `pnpm publish` pack at publish time, so whatever was
  * tested before them is not, strictly, what npm receives. And the browser
  * suite installs every example with hundreds of unpinned third-party packages
- * and their lifecycle scripts, which must never run in a job that can mint an
- * npm publish token or push to the repository. Hence two subcommands, one per
- * job in `release.yml` (GA and RC alike):
+ * and their lifecycle scripts, so the job that runs it is treated as hostile:
+ * it can neither publish nor tell the publishing job what to publish. Hence
+ * three subcommands, one per job in `release.yml` (GA and RC alike):
  *
- *   verify  (job permissions: contents: read; no id-token)
- *     1. `pnpm pack:release` from the dist the job built and checked, every
- *        tarball moved into `--dir`, each sha256 printed and written to
- *        `<dir>/SHA256SUMS`;
- *     2. ask the registry which versions are not published yet and record
- *        them in `<dir>/pending.json`; with none, stop (every push to `main`
- *        after a release lands here);
- *     3. run `examples:e2e` in both modes against `--tarballs <dir>`, which
- *        installs exactly these files and checks every lockfile integrity
- *        against them, and say which candidate packages no example installed;
- *     4. with `GITHUB_OUTPUT`, emit `pending` and `sums` (the sha256 of
- *        SHA256SUMS) for the publishing job. The workflow uploads `<dir>`.
+ *   pack    (contents: read; no e2e, no browser, no example installs)
+ *     packs the dist the job built and checked into `--dir`, writes
+ *     `<dir>/SHA256SUMS` (the ONLY list of what may be published), asks npm
+ *     which versions are new (`<dir>/pending.json`, for humans), and emits
+ *     `sums` (the sha256 of SHA256SUMS) and `pending` to GITHUB_OUTPUT, once.
+ *     The workflow uploads `<dir>` as the candidate artifact.
  *
- *   publish (job permissions: id-token: write [+ contents: write for tags];
- *            no install, no build — only this script and npm)
- *     1. the downloaded SHA256SUMS must hash to verify's `sums` output, and
- *        every tarball to its line in it;
- *     2. `npm publish <tgz>` each pending package not yet on npm, core first;
- *        a failure is reported and the loop CONTINUES;
- *     3. `--git-tag` tags every package that published, `--push-tags` pushes
- *        exactly those tags, even when another package failed — so a re-run,
- *        which skips what is already on npm, never leaves a published version
- *        untagged;
- *     4. with `GITHUB_OUTPUT`, emit `published` and `publishedPackages` for the
- *        combined GitHub Release; exit 1 if any package failed.
+ *   verify  (contents: read; downloads pack's artifact; writes NO outputs)
+ *     checks every tarball against SHA256SUMS, runs `examples:e2e` in both
+ *     modes with `--tarballs <dir>`, and says which candidate packages no
+ *     example installed. Its only effect on publishing is its exit status.
  *
+ *   publish (id-token: write [+ contents: write for GA tags]; no install,
+ *            no build; downloads PACK's artifact, never verify's)
+ *     1. SHA256SUMS must hash to pack's `sums`; every listed file must be
+ *        present with its digest, and any other file in the directory is
+ *        refused;
+ *     2. the candidates come from SHA256SUMS alone — each tarball's name and
+ *        version are read from `package/package.json` inside it, and the file
+ *        name must be the one `pnpm pack` gives that name and version;
+ *        `pending.json` is not read;
+ *     3. `npm publish <tgz>` each one npm does not have yet, core first; a
+ *        failure is reported and the loop CONTINUES;
+ *     4. `--git-tag` tags what published, `--push-tags` pushes exactly those
+ *        tags, so a re-run (which skips what npm has) never leaves a
+ *        published version untagged; GITHUB_OUTPUT gets `published` and
+ *        `publishedPackages`; exit 1 if any package failed.
+ *
+ *   node scripts/publish-candidate.mjs pack    --dir <dir>
  *   node scripts/publish-candidate.mjs verify  --dir <dir>
  *   node scripts/publish-candidate.mjs publish --dir <dir> --expect-sums <sha256>
  *                                      [--tag latest|next] [--git-tag]
@@ -53,12 +56,17 @@ import {
   tarballFor,
   workspacePackages,
 } from "./docs-snippets/link-sdk.mjs";
-import { fileDigest } from "./examples-e2e/lib.mjs";
+import { fileDigest, tarballName } from "./examples-e2e/lib.mjs";
+import { packedManifest } from "./examples-e2e/candidate-registry.mjs";
+
+const COMMANDS = ["pack", "verify", "publish"];
+/** The files a candidate directory may hold besides its tarballs. */
+const BOOKKEEPING = new Set(["SHA256SUMS", "pending.json"]);
 
 export function parseArgs(argv) {
   const [command, ...rest] = argv;
-  if (command !== "verify" && command !== "publish") {
-    throw new Error("usage: publish-candidate.mjs verify|publish --dir <dir> […]");
+  if (!COMMANDS.includes(command)) {
+    throw new Error("usage: publish-candidate.mjs pack|verify|publish --dir <dir> […]");
   }
   const options = {
     command,
@@ -87,7 +95,7 @@ export function parseArgs(argv) {
   if (!options.dir) throw new Error("--dir is required");
   if (!/^[a-z][a-z0-9-]*$/.test(options.tag)) throw new Error(`not a dist-tag: ${options.tag}`);
   if (command === "publish" && !/^[0-9a-f]{64}$/.test(options.expectSums ?? "")) {
-    throw new Error("publish needs --expect-sums <sha256 of SHA256SUMS>, from the verify job");
+    throw new Error("publish needs --expect-sums <sha256 of SHA256SUMS>, from the pack job");
   }
   return options;
 }
@@ -117,23 +125,44 @@ export function checksums(files) {
     .join("\n");
 }
 
-/** Fail unless every file still has the digest recorded before verification. */
-export function assertChecksums(dir, recorded) {
-  const files = recorded
+/** The file names SHA256SUMS lists, in order; a malformed line is an error. */
+export function listedFiles(recorded) {
+  return recorded
     .split("\n")
     .filter(Boolean)
-    .map((line) => path.join(dir, line.split(/\s+/)[1]));
-  const now = checksums(files);
+    .map((line) => {
+      const match = /^[0-9a-f]{64} {2}([A-Za-z0-9._-]+\.tgz)$/.exec(line);
+      if (!match) throw new Error(`not a SHA256SUMS line for a tarball: ${JSON.stringify(line)}`);
+      return match[1];
+    });
+}
+
+/**
+ * Fail unless the directory holds exactly what SHA256SUMS lists, byte for
+ * byte: every listed file present with its digest, and no other file except
+ * the bookkeeping (`SHA256SUMS`, `pending.json`).
+ */
+export function assertChecksums(dir, recorded) {
+  const listed = listedFiles(recorded);
+  const missing = listed.filter((file) => !fs.existsSync(path.join(dir, file)));
+  if (missing.length > 0) throw new Error(`listed in SHA256SUMS but absent: ${missing.join(", ")}`);
+  const extra = fs
+    .readdirSync(dir)
+    .filter((file) => !BOOKKEEPING.has(file) && !listed.includes(file));
+  if (extra.length > 0) {
+    throw new Error(`in ${dir} but not in SHA256SUMS, refused: ${extra.join(", ")}`);
+  }
+  const now = checksums(listed.map((file) => path.join(dir, file)));
   if (now !== recorded.trim()) {
     throw new Error(
-      `the tarballs in ${dir} changed after verification:\nverified:\n${recorded}\nnow:\n${now}`,
+      `the tarballs in ${dir} changed after packing:\npacked:\n${recorded}\nnow:\n${now}`,
     );
   }
 }
 
 /**
- * The publishing job's integrity check: SHA256SUMS is the file the verify job
- * wrote (its sha256 is verify's `sums` output), and every tarball matches it.
+ * The publishing job's integrity check: SHA256SUMS is the file the pack job
+ * wrote (its sha256 is pack's `sums` output), and the directory matches it.
  * Returns the SHA256SUMS text.
  */
 export function assertVerifiedCandidate(dir, expectSums) {
@@ -141,13 +170,35 @@ export function assertVerifiedCandidate(dir, expectSums) {
   const actual = fileDigest(sumsFile);
   if (actual !== expectSums) {
     throw new Error(
-      `SHA256SUMS hashes to ${actual}, but the verify job produced ${expectSums}: ` +
-        "this is not the candidate that was verified",
+      `SHA256SUMS hashes to ${actual}, but the pack job produced ${expectSums}: ` +
+        "this is not the candidate that was packed and verified",
     );
   }
   const recorded = fs.readFileSync(sumsFile, "utf8");
   assertChecksums(dir, recorded);
   return recorded;
+}
+
+/**
+ * What may be published: one entry per SHA256SUMS line, its name and version
+ * read from the tarball itself. The file name must be `pnpm pack`'s name for
+ * that manifest, and the name must be in the `@comvi` scope — a tarball that
+ * says it is something else is refused, not published under its own claim.
+ */
+export function candidatesFromSums(dir, recorded, readManifest = packedManifest) {
+  return listedFiles(recorded).map((file) => {
+    const tarball = path.join(dir, file);
+    const { name, version } = readManifest(tarball);
+    if (typeof name !== "string" || !name.startsWith("@comvi/")) {
+      throw new Error(`${file} is not an @comvi package (package.json says ${name})`);
+    }
+    if (tarballName({ name, version }) !== file) {
+      throw new Error(
+        `${file} holds ${name}@${version}, which pnpm would pack as ${tarballName({ name, version })}`,
+      );
+    }
+    return { name, version, file, tarball };
+  });
 }
 
 /** `@comvi/core` first, so a consumer never resolves a binding before its core. */
@@ -197,6 +248,7 @@ function sh(command, args, options = {}) {
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
+/** One append per job: everything this job outputs, together. */
 function output(values) {
   if (!process.env.GITHUB_OUTPUT) return;
   fs.appendFileSync(
@@ -214,10 +266,8 @@ function notOnNpm(pkg) {
   return !isPublished(view, pkg.version);
 }
 
-function verify(options) {
+function pack(options) {
   const dir = path.resolve(REPO_ROOT, options.dir);
-
-  // 1. Pack once, from the dist already built and checked by the job.
   cleanTarballs(REPO_ROOT);
   sh("pnpm", ["pack:release"]);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -232,8 +282,8 @@ function verify(options) {
   const sums = fileDigest(path.join(dir, "SHA256SUMS"));
   console.log(`candidate tarballs (sha256), ${dir}:\n${recorded}\nSHA256SUMS sha256: ${sums}`);
 
-  // 2. What is new.
   const pending = packages.filter(notOnNpm);
+  // For humans reading the artifact; the publishing job never reads it.
   fs.writeFileSync(
     path.join(dir, "pending.json"),
     `${JSON.stringify(
@@ -244,12 +294,17 @@ function verify(options) {
   );
   if (pending.length === 0) {
     console.log("every candidate version is already on npm; nothing to verify or publish");
-    output({ pending: "false", sums });
-    return 0;
+  } else {
+    console.log(`unpublished: ${pending.map((pkg) => `${pkg.name}@${pkg.version}`).join(", ")}`);
   }
-  console.log(`unpublished: ${pending.map((pkg) => `${pkg.name}@${pkg.version}`).join(", ")}`);
+  output({ pending: String(pending.length > 0), sums });
+  return 0;
+}
 
-  // 3. Both e2e modes against exactly these files.
+function verify(options) {
+  const dir = path.resolve(REPO_ROOT, options.dir);
+  const recorded = fs.readFileSync(path.join(dir, "SHA256SUMS"), "utf8");
+  assertChecksums(dir, recorded);
   const runner = path.join(REPO_ROOT, "scripts", "examples-e2e", "run.mjs");
   for (const mode of [[], ["--cdn"]]) {
     const { status } = sh(process.execPath, [runner, "--tarballs", dir, ...mode], {
@@ -259,16 +314,14 @@ function verify(options) {
       console.error(
         `examples:e2e ${mode.join(" ")} failed on the candidate; nothing was published`,
       );
-      output({ pending: "false", sums });
       return 1;
     }
   }
-  assertChecksums(dir, recorded);
   const reports = ["report.json", "report-cdn.json"].map((file) =>
     JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "test-results", "examples-e2e", file), "utf8")),
   );
   const missed = unexercised(
-    packages.map((pkg) => pkg.name),
+    candidatesFromSums(dir, recorded).map((pkg) => pkg.name),
     reports,
   );
   if (missed.length > 0) {
@@ -276,18 +329,13 @@ function verify(options) {
       `not installed by any example, so published without a browser check: ${missed.join(", ")}`,
     );
   }
-
-  // 4. Hand over to the publishing job.
-  output({ pending: "true", sums });
   return 0;
 }
 
 function publish(options) {
   const dir = path.resolve(REPO_ROOT, options.dir);
-  assertVerifiedCandidate(dir, options.expectSums);
-  const candidates = JSON.parse(fs.readFileSync(path.join(dir, "pending.json"), "utf8")).map(
-    (pkg) => ({ ...pkg, tarball: path.join(dir, pkg.file) }),
-  );
+  const recorded = assertVerifiedCandidate(dir, options.expectSums);
+  const candidates = candidatesFromSums(dir, recorded);
   // A re-run after a partial failure: what made it to npm is skipped (its tag
   // was pushed by the run that published it).
   const pending = candidates.filter(notOnNpm);
@@ -330,7 +378,7 @@ function publish(options) {
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {
   try {
     const options = parseArgs(process.argv.slice(2));
-    process.exitCode = options.command === "verify" ? verify(options) : publish(options);
+    process.exitCode = { pack, verify, publish }[options.command](options);
   } catch (error) {
     console.error(`publish-candidate: ${error.message}`);
     process.exitCode = 1;

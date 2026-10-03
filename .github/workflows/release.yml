@@ -22,38 +22,45 @@ concurrency:
 # Nothing by default: every job names the least it needs.
 permissions: {}
 
-# Each release path is two jobs that never share privileges.
+# Each release path is three jobs (GA: plus `version` for the release PR).
 #
-#   *-verify  (contents: read, no id-token, credentials not persisted)
-#       builds, packs ONCE into release-candidate/, records SHA256SUMS, and runs
-#       examples:e2e in both modes against those files. That suite installs
-#       every example with hundreds of unpinned third-party packages and their
-#       lifecycle scripts, so it must never run where an npm publish token can
-#       be minted or the repository written.
-#   *-publish (id-token: write; contents: write for tags on GA)
-#       no install, no build: downloads release-candidate/, checks SHA256SUMS
-#       against the sha256 the verify job reported and every tarball against
-#       SHA256SUMS, then `npm publish <tgz>` — the verified bytes, unchanged.
+#   *pack     (contents: read) builds, packs ONCE into release-candidate/,
+#             writes SHA256SUMS — the only list of what may be published —
+#             and uploads it as the `release-candidate` artifact. Its outputs
+#             `sums` (sha256 of SHA256SUMS) and `pending` are the only job
+#             outputs the publishing job reads. No e2e, no browser.
+#   *verify   (contents: read, no id-token, credentials not persisted)
+#             downloads that artifact and runs examples:e2e in both modes
+#             against those files (`--tarballs`; no build, no pack). It
+#             installs every example with unpinned third-party packages and
+#             their lifecycle scripts, so it is treated as hostile: it writes
+#             no outputs, uploads only diagnostics, and its one effect on
+#             publishing is its exit status.
+#   *publish  (id-token: write; GA also contents: write for tags) installs
+#             and builds nothing. It downloads PACK's artifact, checks that
+#             SHA256SUMS hashes to pack's `sums`, that every listed tarball
+#             matches it and that the directory holds nothing else, reads each
+#             tarball's name and version from its own package.json, and runs
+#             `npm publish <tgz>` on exactly those bytes.
 #
-# Both publish jobs live in this workflow file, so the npm trusted-publisher
+# All publish jobs live in this workflow file, so the npm trusted-publisher
 # binding (which names the workflow file) holds for GA and RC alike.
 
 jobs:
-  # RC rehearsal. Versions and peer ranges are rewritten in the verify job's
-  # working tree only (scripts/rc-version.mjs); nothing is committed, no
-  # changeset is consumed, and no GitHub release is created. `--access public`
-  # is passed by the publish script because `access: public` lives only in the
+  # RC rehearsal. Versions and peer ranges are rewritten in rc-pack's working
+  # tree only (scripts/rc-version.mjs); nothing is committed, no changeset is
+  # consumed, and no GitHub release is created. `--access public` is passed
+  # by the publish script because `access: public` lives only in the
   # Changesets config.
-  rc-verify:
+  rc-pack:
     if: github.repository == 'comvi-io/comvi-js' && github.event_name == 'workflow_dispatch' && inputs.rc != ''
     runs-on: ubuntu-latest
-    # Two full examples:e2e runs (seven frameworks, both modes).
-    timeout-minutes: 90
+    timeout-minutes: 20
     permissions:
       contents: read
     outputs:
-      pending: ${{ steps.candidate.outputs.pending }}
-      sums: ${{ steps.candidate.outputs.sums }}
+      pending: ${{ steps.pack.outputs.pending }}
+      sums: ${{ steps.pack.outputs.sums }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -97,15 +104,12 @@ jobs:
       - name: Verify built artifacts inline the manifest version
         run: node tooling/check-inlined-version.mjs
 
-      - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Pack the candidate
+        id: pack
+        run: node scripts/publish-candidate.mjs pack --dir release-candidate
 
-      - name: Pack the candidate and run examples:e2e against it
-        id: candidate
-        run: node scripts/publish-candidate.mjs verify --dir release-candidate
-
-      - name: Upload the verified candidate
-        if: steps.candidate.outputs.pending == 'true'
+      - name: Upload the candidate
+        if: steps.pack.outputs.pending == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: release-candidate
@@ -113,20 +117,58 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  rc-verify:
+    needs: rc-pack
+    if: needs.rc-pack.outputs.pending == 'true'
+    runs-on: ubuntu-latest
+    # Two full examples:e2e runs (seven frameworks, both modes).
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Download the candidate
+        uses: actions/download-artifact@v5
+        with:
+          name: release-candidate
+          path: release-candidate
+
+      - name: Run examples:e2e against the candidate
+        run: node scripts/publish-candidate.mjs verify --dir release-candidate
+
       - name: Upload e2e diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: release-rc-examples-e2e
-          path: |
-            test-results/examples-e2e/
-            release-candidate/SHA256SUMS
+          path: test-results/examples-e2e/
           if-no-files-found: ignore
           retention-days: 14
 
   rc-publish:
-    needs: rc-verify
-    if: needs.rc-verify.outputs.pending == 'true'
+    needs: [rc-pack, rc-verify]
+    if: needs.rc-pack.outputs.pending == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -144,10 +186,12 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      # setup-node cannot pin npm itself; this is npm's own package at an exact
+      # version, the one install this job makes.
       - name: Ensure npm 11.5.1+ for OIDC trusted publishing
         run: npm install -g npm@11.11.0
 
-      - name: Download the verified candidate
+      - name: Download the candidate (from rc-pack)
         uses: actions/download-artifact@v5
         with:
           name: release-candidate
@@ -155,12 +199,12 @@ jobs:
 
       - name: Publish the verified rc tarballs under dist-tag next
         env:
-          SUMS: ${{ needs.rc-verify.outputs.sums }}
+          SUMS: ${{ needs.rc-pack.outputs.sums }}
         run: node scripts/publish-candidate.mjs publish --dir release-candidate --expect-sums "$SUMS" --tag next
 
-  # GA, step 1 of 3: the release PR. With pending changesets, changesets/action
-  # opens or updates it through `pnpm release:version`; with none it does
-  # nothing (it is given no publish command — publishing is the two jobs below).
+  # GA: the release PR. With pending changesets, changesets/action opens or
+  # updates it through `pnpm release:version`; with none it does nothing (it
+  # is given no publish command — publishing is pack → verify → publish).
   version:
     if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
     runs-on: ubuntu-latest
@@ -198,18 +242,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # GA, step 2 of 3: a push with no pending changesets is the merged release
-  # PR (or a push after a release, which finds nothing new on npm).
-  verify:
+  # GA: a push with no pending changesets is the merged release PR (or a push
+  # after a release, which finds nothing new on npm and stops here).
+  pack:
     if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
     runs-on: ubuntu-latest
-    # A publishing run verifies the candidate with two full examples:e2e runs.
-    timeout-minutes: 90
+    timeout-minutes: 20
     permissions:
       contents: read
     outputs:
-      pending: ${{ steps.candidate.outputs.pending }}
-      sums: ${{ steps.candidate.outputs.sums }}
+      pending: ${{ steps.pack.outputs.pending }}
+      sums: ${{ steps.pack.outputs.sums }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -255,18 +298,14 @@ jobs:
         if: steps.changesets.outputs.pending == 'false'
         run: node tooling/check-inlined-version.mjs
 
-      - name: Install Chromium
+      # Writes pending=false when every version is already on npm.
+      - name: Pack the candidate
+        id: pack
         if: steps.changesets.outputs.pending == 'false'
-        run: pnpm exec playwright install --with-deps chromium
+        run: node scripts/publish-candidate.mjs pack --dir release-candidate
 
-      # Exits early (pending=false) when every version is already on npm.
-      - name: Pack the candidate and run examples:e2e against it
-        id: candidate
-        if: steps.changesets.outputs.pending == 'false'
-        run: node scripts/publish-candidate.mjs verify --dir release-candidate
-
-      - name: Upload the verified candidate
-        if: steps.candidate.outputs.pending == 'true'
+      - name: Upload the candidate
+        if: steps.pack.outputs.pending == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: release-candidate
@@ -274,21 +313,59 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  verify:
+    needs: pack
+    if: needs.pack.outputs.pending == 'true'
+    runs-on: ubuntu-latest
+    # Two full examples:e2e runs (seven frameworks, both modes).
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Download the candidate
+        uses: actions/download-artifact@v5
+        with:
+          name: release-candidate
+          path: release-candidate
+
+      - name: Run examples:e2e against the candidate
+        run: node scripts/publish-candidate.mjs verify --dir release-candidate
+
       - name: Upload e2e diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: release-ga-examples-e2e
-          path: |
-            test-results/examples-e2e/
-            release-candidate/SHA256SUMS
+          path: test-results/examples-e2e/
           if-no-files-found: ignore
           retention-days: 14
 
-  # GA, step 3 of 3: publish the verified bytes, tag them, release them.
+  # GA: publish the verified bytes, tag them, release them.
   publish:
-    needs: verify
-    if: needs.verify.outputs.pending == 'true'
+    needs: [pack, verify]
+    if: needs.pack.outputs.pending == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -296,7 +373,8 @@ jobs:
       id-token: write
     steps:
       # Credentials ARE persisted here: the publish script pushes the tags of
-      # what it published. Nothing in this job installs or builds anything.
+      # what it published. Nothing in this job installs or builds anything
+      # beyond npm itself.
       - name: Checkout
         uses: actions/checkout@v6
 
@@ -306,22 +384,25 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      # setup-node cannot pin npm itself; this is npm's own package at an exact
+      # version, the one install this job makes.
       - name: Ensure npm 11.5.1+ for OIDC trusted publishing
         run: npm install -g npm@11.11.0
 
-      - name: Download the verified candidate
+      - name: Download the candidate (from pack)
         uses: actions/download-artifact@v5
         with:
           name: release-candidate
           path: release-candidate
 
-      # Publishes every pending tarball (core first), continuing past a failed
-      # one; tags and pushes exactly the ones that published, then exits 1 if
-      # any failed. A re-run skips what is already on npm.
+      # Publishes every tarball SHA256SUMS lists that npm does not have yet
+      # (core first), continuing past a failed one; tags and pushes exactly the
+      # ones that published, then exits 1 if any failed. A re-run skips what is
+      # already on npm.
       - name: Publish the verified tarballs
         id: publish
         env:
-          SUMS: ${{ needs.verify.outputs.sums }}
+          SUMS: ${{ needs.pack.outputs.sums }}
         run: node scripts/publish-candidate.mjs publish --dir release-candidate --expect-sums "$SUMS" --tag latest --git-tag --push-tags
 
       # If it fails, npm is live but the GitHub Release is missing — re-run this

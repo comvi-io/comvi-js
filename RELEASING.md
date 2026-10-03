@@ -34,15 +34,23 @@ that path today.
 
 ## 2. RC rehearsal (optional but recommended)
 
-Dispatch `Release` with the `rc` input set to the rc number. Two jobs run. `rc-verify` has read-only
-permissions and no npm token: it rewrites versions in its own working tree only
-(`scripts/rc-version.mjs`), builds after the rewrite so the inlined runtime version matches what npm
-receives, asserts that with `node tooling/check-inlined-version.mjs`, then runs
-`scripts/publish-candidate.mjs verify`. That packs once, prints each tarball's sha256 into
-`SHA256SUMS`, runs `examples:e2e` in both modes against those files (`--tarballs`), and uploads them.
-`rc-publish` holds the OIDC token, installs and builds nothing, checks the downloaded files against
-the verify job's digests, and publishes the same files with `npm publish <tgz>` under the `next`
-dist-tag. Dispatch it from a green ref: apart from that browser suite the jobs run no tests.
+Dispatch `Release` with the `rc` input set to the rc number. Three jobs run, and none holds more than
+it needs:
+
+1. `rc-pack` (read-only) rewrites versions in its own working tree only (`scripts/rc-version.mjs`),
+   builds after the rewrite so the inlined runtime version matches what npm receives, asserts that
+   with `node tooling/check-inlined-version.mjs`, and runs `scripts/publish-candidate.mjs pack`: it
+   packs once, writes `SHA256SUMS`, and uploads the tarballs. The digest of `SHA256SUMS` is its
+   output.
+2. `rc-verify` (read-only, no npm token, writes no outputs) downloads those tarballs and runs
+   `examples:e2e` in both modes against them (`--tarballs`). It installs third-party packages, so it
+   is treated as untrusted: it can stop a publish, never shape one.
+3. `rc-publish` holds the OIDC token, installs and builds nothing, downloads `rc-pack`'s artifact,
+   checks `SHA256SUMS` against `rc-pack`'s digest and the directory against `SHA256SUMS` (any file
+   not listed is refused), reads each tarball's name and version from its own `package.json`, and
+   publishes those files with `npm publish <tgz>` under the `next` dist-tag.
+
+Dispatch it from a green ref: apart from that browser suite the jobs run no tests.
 
 ## 3. The cut
 
@@ -51,14 +59,14 @@ dist-tag. Dispatch it from a green ref: apart from that browser suite the jobs r
       `changesets/action` and opens the release PR. Re-run `pnpm examples:verify` after the version
       bump: that is when the peer ranges and the examples' ranges meet.
 - [ ] Read the generated CHANGELOGs before merging the release PR.
-- [ ] Merging the release PR publishes through the `verify` and `publish` jobs: the same
-      pack-verify-publish split as the RC, with `--tag latest`, git tags pushed for each published
-      package, and the combined GitHub Release built from the verified tarballs. A red
-      `examples:e2e` on the candidate stops the publish before anything reaches npm; its diagnostics
-      are the `release-ga-examples-e2e` artifact. A failed `npm publish` does not stop the others:
-      the job tags what published, exits 1, and a re-run skips what is already on npm. Then
-      `.github/scripts/create-combined-release.mjs` creates the combined GitHub Release. The tag is the release train's version; independently versioned
-      packages appear in the notes and in `manifest.json` at their own version. If that step fails,
+- [ ] Merging the release PR publishes through the `pack`, `verify` and `publish` jobs: the same
+      three-job chain as the RC, with `--tag latest` and git tags pushed for each published
+      package. A red `examples:e2e` on the candidate stops the publish before anything reaches npm;
+      its diagnostics are the `release-ga-examples-e2e` artifact. A failed `npm publish` does not
+      stop the others: the job tags what published, exits 1, and a re-run skips what is already on
+      npm. Then `.github/scripts/create-combined-release.mjs` creates the combined GitHub Release
+      from the published tarballs. The tag is the release train's version; independently
+      versioned packages appear in the notes and in `manifest.json` at their own version. If that step fails,
       npm is already live: fix and re-run it (or run it by hand with `PUBLISHED_PACKAGES=…` and
       `COMVI_RELEASE_TARBALLS_DIR=…`).
 
