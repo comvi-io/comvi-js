@@ -30,6 +30,17 @@
  *   node scripts/examples-e2e/run.mjs [--only react,next] [--cdn]
  *                                     [--no-build] [--no-pack] [--keep] [--headed]
  *
+ * Where it runs: `pnpm examples:e2e:all` (both modes) closes `test:release`,
+ * and CI's `examples-e2e` job runs one `--only <framework> [--cdn]` shard per
+ * runner whenever packages/, examples/ or this runner change.
+ *
+ * Production builds only. A development build's console warnings (an unknown
+ * key under `strict: "dev"`, which no example enables) are not observed here;
+ * `packages/core/tests/dist/missing-key-warning.dist.test.ts` covers them
+ * against the built dev and prod entries, with step `l`'s key. A `--dev` mode
+ * was not added: steps e, f, j and o assert on built chunks and SSR output a
+ * dev server does not produce, and with `strict` off it would assert nothing.
+ *
  * Nothing phones home: every child process runs with `CI=1`, the Next and Nuxt
  * telemetry switches and `DO_NOT_TRACK=1`, exactly as `examples:verify` does.
  */

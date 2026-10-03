@@ -380,3 +380,43 @@ test("allPassed: skips are fine, failures and unreached steps are not", () => {
   assert.equal(allPassed([{ ...green, steps: {} }]), false);
   assert.equal(allPassed([{ ...green, build: { status: "fail" } }]), false);
 });
+
+// ── where the suite runs ───────────────────────────────────────────────────
+
+const REPO = path.resolve(import.meta.dirname, "../..");
+
+test("CI shards every example, in both modes", async () => {
+  const { exampleDirs } = await import("../examples-verify.mjs");
+  const ci = fs.readFileSync(path.join(REPO, ".github/workflows/ci.yml"), "utf8");
+  const list = (name) => {
+    const match = new RegExp(`^\\s+${name}: \\[([^\\]]*)\\]$`, "m").exec(ci);
+    assert.ok(match, `ci.yml has no one-line \`${name}: [...]\` matrix axis`);
+    return match[1].split(",").map((entry) => entry.trim());
+  };
+  // A new example with no shard would never run in CI, and nothing else says so.
+  assert.deepEqual(
+    list("framework").sort(),
+    exampleDirs().map((entry) => entry.name),
+  );
+  assert.deepEqual(list("mode"), ["default", "cdn"]);
+});
+
+test("examples:e2e:all runs both modes, and closes test:release", () => {
+  const { scripts } = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8"));
+  const runs = scripts["examples:e2e:all"]
+    .split("&&")
+    .map((command) => command.trim().split(/\s+/));
+  assert.deepEqual(
+    runs.map((argv) => argv.slice(0, 2)),
+    [
+      ["node", "scripts/examples-e2e/run.mjs"],
+      ["node", "scripts/examples-e2e/run.mjs"],
+    ],
+  );
+  const [first, second] = runs.map((argv) => parseArgs(argv.slice(2)));
+  assert.equal(first.cdn, false);
+  assert.equal(second.cdn, true);
+  // The --cdn pass reuses the first pass's tarballs; run.mjs refuses stale ones.
+  assert.equal(second.build || second.pack, false);
+  assert.match(scripts["test:release"], /&& pnpm examples:e2e:all$/);
+});

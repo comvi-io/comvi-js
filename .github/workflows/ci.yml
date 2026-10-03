@@ -282,3 +282,123 @@ jobs:
             apps/chrome-extension/test-results/
           if-no-files-found: ignore
           retention-days: 14
+
+  # Decides whether `examples-e2e` runs: only when something it exercises
+  # changed. Same mechanism as the changeset gate in `quality` (a plain
+  # `git diff`), rather than a third-party paths-filter action. A push whose
+  # `before` is unknown (a new branch, a force-push) runs the suite.
+  examples-e2e-changes:
+    name: Examples e2e (change detection)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Diff against the base
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT" = "pull_request" ]; then
+            RANGE="origin/${BASE_REF}...HEAD"
+          elif [ -n "$BEFORE" ] && ! echo "$BEFORE" | grep -qE '^0+$' && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            RANGE="${BEFORE}..HEAD"
+          else
+            echo "No usable base for this ${EVENT}; running the suite."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RELEVANT="$(
+            git diff --name-only "$RANGE" \
+              | grep -E '^(packages/|examples/|scripts/examples-e2e/|scripts/docs-snippets/link-sdk|scripts/examples-verify\.mjs$|pnpm-lock\.yaml$|\.github/workflows/ci\.yml$)' \
+              || true
+          )"
+
+          if [ -z "$RELEVANT" ]; then
+            echo "Nothing the examples e2e suite exercises changed in ${RANGE}."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changes the suite exercises:"
+            echo "$RELEVANT"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # `pnpm examples:e2e`, sharded: one framework and one mode per runner, so the
+  # wall time is one example's build-install-serve-scenario rather than
+  # fourteen of them. Each shard builds and packs the workspace itself:
+  # `run.mjs` refuses stale tarballs, and rebuilding is cheaper than shipping
+  # dist between jobs with mtimes it would have to trust. Production builds
+  # only; dev-only warnings are covered by core's
+  # `tests/dist/missing-key-warning.dist.test.ts` (see run.mjs's header).
+  examples-e2e:
+    name: Examples e2e (${{ matrix.framework }}, ${{ matrix.mode }})
+    needs: examples-e2e-changes
+    if: needs.examples-e2e-changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [react, next, vue, nuxt, svelte, solid, vanilla]
+        mode: [default, cdn]
+
+    env:
+      # run.mjs works in os.tmpdir(); pin it so `--keep` leaves the report,
+      # console log and Playwright traces somewhere the upload step can name.
+      TMPDIR: ${{ runner.temp }}/examples-e2e
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run the scenario
+        env:
+          FRAMEWORK: ${{ matrix.framework }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$TMPDIR"
+          ARGS=(--only "$FRAMEWORK" --keep)
+          if [ "$MODE" = "cdn" ]; then ARGS+=(--cdn); fi
+          node scripts/examples-e2e/run.mjs "${ARGS[@]}"
+
+      - name: Upload e2e diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: examples-e2e-${{ matrix.framework }}-${{ matrix.mode }}
+          path: |
+            ${{ runner.temp }}/examples-e2e/comvi-e2e-*/e2e-report-*.json
+            ${{ runner.temp }}/examples-e2e/comvi-e2e-*/e2e-console-*.log
+            ${{ runner.temp }}/examples-e2e/comvi-e2e-*/e2e-artifacts-*/
+          if-no-files-found: ignore
+          retention-days: 14
