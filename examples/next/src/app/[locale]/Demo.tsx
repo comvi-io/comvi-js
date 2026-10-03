@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { T, useI18n } from "@comvi/next/client";
-import { useLocalizedRouter, usePathname } from "@comvi/next/navigation";
-import { locales } from "@/i18n/config";
+import { Link, useLocalizedRouter, usePathname } from "@comvi/next/navigation";
+import { locales, rtlLocale } from "@/i18n/config";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
@@ -12,6 +12,12 @@ export function Demo() {
   // re-renders when the locale changes.
   const { t, locale, isLoading, formatNumber, formatDate, getLoadedLocales } = useI18n();
   const [count, setCount] = useState(2);
+
+  // A marker for the e2e suite: set once React has hydrated this tree, so a
+  // test can tell the server's HTML from the live page.
+  useEffect(() => {
+    document.documentElement.dataset.hydrated = "true";
+  }, []);
 
   // The locale lives in the URL here, so the switcher NAVIGATES rather than
   // calling `setLocale`: `usePathname()` is the path with the locale prefix
@@ -47,6 +53,16 @@ export function Demo() {
               {code}
             </button>
           ))}
+          {/* Not in the switcher: the right-to-left locale the e2e suite uses. */}
+          <button
+            hidden
+            data-testid={`locale-${rtlLocale}`}
+            onClick={() => {
+              router.push(pathname, rtlLocale);
+            }}
+          >
+            {rtlLocale}
+          </button>
           {isLoading && <code>{t("app.loading")}</code>}
         </div>
       </section>
@@ -106,6 +122,32 @@ export function Demo() {
         <p>
           <code data-testid="fetched">{t("loader.fetched", { locales: fetched.join(", ") })}</code>
         </p>
+      </section>
+
+      {/* 7 — a second page; <Link> keeps the current locale in the URL */}
+      <section>
+        <h2>navigation</h2>
+        <p>
+          <Link data-testid="nav-about" href="/about">
+            {t("nav.about")}
+          </Link>
+        </p>
+      </section>
+
+      {/* 8 — fallback: uk has no `fallback.only_en`, so uk renders the en text;
+          a key no catalog has renders as the key itself */}
+      <section>
+        <h2>fallback</h2>
+        <p data-testid="fallback">{t("fallback.only_en")}</p>
+        <p>
+          <code data-testid="missing-key">{t("fallback.nowhere")}</code>
+        </p>
+      </section>
+
+      {/* 9 — a missing parameter renders as its own placeholder */}
+      <section>
+        <h2>missing parameter</h2>
+        <p data-testid="missing-param">{t("greeting.hello", {})}</p>
       </section>
     </>
   );

@@ -1,12 +1,37 @@
 import { createElement, formatDate, formatNumber, getTextDirection } from "@comvi/core";
 import type { TranslationResult } from "@comvi/core";
-import { i18n, locales } from "./i18n";
+import { i18n, locales, rtlLocale } from "./i18n";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 const root = document.getElementById("app")!;
 
 let count = 2;
 let isLoading = false;
+
+// A second view, so the locale can be seen surviving a navigation. No router
+// dependency: `history.pushState` and `popstate` are the whole of it, and
+// `vite preview` serves index.html for /about on a reload.
+type View = "home" | "about";
+const viewFromPath = (): View => (location.pathname === "/about" ? "about" : "home");
+let view = viewFromPath();
+window.addEventListener("popstate", () => {
+  view = viewFromPath();
+  render();
+});
+
+function navLink(to: View, label: string, testId: string): HTMLAnchorElement {
+  const link = document.createElement("a");
+  link.href = to === "about" ? "/about" : "/";
+  link.textContent = label;
+  link.dataset.testid = testId;
+  link.onclick = (event) => {
+    event.preventDefault();
+    history.pushState(null, "", link.href);
+    view = to;
+    render();
+  };
+  return link;
+}
 
 /**
  * The framework-agnostic half of rich text: `tRaw()` returns virtual nodes, and
@@ -124,11 +149,37 @@ function render(): void {
   cart.textContent = i18n.t("cart.items", { count });
 
   const switcher: Array<Node | string> = locales.map(localeButton);
+  // Not in the switcher: the right-to-left locale the e2e suite uses.
+  const rtl = localeButton(rtlLocale);
+  rtl.hidden = true;
+  switcher.push(rtl);
   if (isLoading) {
     const loading = document.createElement("code");
     loading.textContent = i18n.t("app.loading");
     switcher.push(loading);
   }
+
+  if (view === "about") {
+    const about = section("navigation", i18n.t("about.body"), "about-body");
+    const back = document.createElement("p");
+    back.append(navLink("home", i18n.t("nav.home"), "nav-home"));
+    about.append(back);
+    root.replaceChildren(
+      title,
+      // 1 — locale switcher
+      controlSection(i18n.t("app.language"), ...switcher),
+      about,
+    );
+    return;
+  }
+
+  const fallback = section("fallback", i18n.t("fallback.only_en"), "fallback");
+  const missingKey = document.createElement("code");
+  missingKey.dataset.testid = "missing-key";
+  missingKey.textContent = i18n.t("fallback.nowhere");
+  const missingKeyRow = document.createElement("p");
+  missingKeyRow.append(missingKey);
+  fallback.append(missingKeyRow);
 
   root.replaceChildren(
     title,
@@ -155,6 +206,13 @@ function render(): void {
     ),
     // 6 — proof the loader is lazy: only the locales you visited are here
     section("lazy loading", fetched),
+    // 7 — a second view; the locale is not part of the path here
+    section("navigation", navLink("about", i18n.t("nav.about"), "nav-about")),
+    // 8 — fallback: uk has no `fallback.only_en`, so uk renders the en text; a
+    // key no catalog has renders as the key itself
+    fallback,
+    // 9 — a missing parameter renders as its own placeholder
+    section("missing parameter", i18n.t("greeting.hello", {}), "missing-param"),
   );
 }
 

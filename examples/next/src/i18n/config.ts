@@ -2,7 +2,7 @@ import { createNextI18n, icuCompiler, loader } from "@comvi/next";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { routing } from "./routing";
 
-export { locales, routing } from "./routing";
+export { locales, routing, rtlLocale } from "./routing";
 
 // Connect to Comvi, opt-in. With `NEXT_PUBLIC_COMVI_CDN_URL` set at BUILD time
 // the catalogs come from the platform CDN through `cdnLoader`, on the server and
@@ -11,13 +11,19 @@ export { locales, routing } from "./routing";
 // without these lines.
 const cdnUrl: string | undefined = process.env.NEXT_PUBLIC_COMVI_CDN_URL;
 
+// One import map, two uses: the loader itself by default, and the CDN loader's
+// `fallback` when the CDN is configured but unreachable. `ar` is not in the
+// switcher; it is the right-to-left locale the e2e suite switches to.
+const localCatalogs = {
+  en: () => import("../locales/en.json"),
+  uk: () => import("../locales/uk.json"),
+  de: () => import("../locales/de.json"),
+  ar: () => import("../locales/ar.json"),
+};
+
 const catalogs: ReturnType<typeof loader> = cdnUrl
-  ? cdnLoader({ cdnUrl })
-  : loader({
-      en: () => import("../locales/en.json"),
-      uk: () => import("../locales/uk.json"),
-      de: () => import("../locales/de.json"),
-    });
+  ? cdnLoader({ cdnUrl, fallback: localCatalogs })
+  : loader(localCatalogs);
 
 /**
  * The composed root. `createNextI18n` is the batteries-included preset: it

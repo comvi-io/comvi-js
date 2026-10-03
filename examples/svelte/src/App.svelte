@@ -1,6 +1,6 @@
 <script lang="ts">
   import { setI18nContext, useI18n, T } from '@comvi/svelte';
-  import { i18n, locales } from './i18n';
+  import { i18n, locales, rtlLocale } from './i18n';
 
   // Publishes the instance to every descendant and — because `autoInit`
   // defaults to true — calls `i18n.init()`, which runs the plugins and loads
@@ -21,6 +21,23 @@
   } = useI18n();
 
   let count = $state(2);
+
+  // A second view, so the locale can be seen surviving a navigation. No router
+  // dependency: `history.pushState` and `popstate` are the whole of it, and
+  // `vite preview` serves index.html for /about on a reload.
+  type View = 'home' | 'about';
+  const viewFromPath = (): View => (location.pathname === '/about' ? 'about' : 'home');
+  let view = $state(viewFromPath());
+  $effect(() => {
+    const onPop = () => (view = viewFromPath());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  });
+  const go = (to: View) => (event: MouseEvent) => {
+    event.preventDefault();
+    history.pushState(null, '', to === 'about' ? '/about' : '/');
+    view = to;
+  };
   const RELEASED = new Date('2026-09-01T00:00:00Z');
 
   // `$effect` — not a top-level statement: the document is only there to touch
@@ -60,10 +77,21 @@
           aria-pressed={$locale === code}
           onclick={() => setLocale(code)}>{code}</button>
       {/each}
+      <!-- Not in the switcher: the right-to-left locale the e2e suite uses. -->
+      <button hidden data-testid="locale-{rtlLocale}" onclick={() => setLocale(rtlLocale)}
+        >{rtlLocale}</button
+      >
       {#if $isLoading}<code>{$t('app.loading')}</code>{/if}
     </div>
   </section>
 
+  {#if view === 'about'}
+  <section>
+    <h2>navigation</h2>
+    <p data-testid="about-body">{$t('about.body')}</p>
+    <p><a data-testid="nav-home" href="/" onclick={go('home')}>{$t('nav.home')}</a></p>
+  </section>
+  {:else}
   <!-- 2 — a string with a parameter -->
   <section>
     <h2>interpolation</h2>
@@ -111,4 +139,29 @@
     <h2>lazy loading</h2>
     <p><code data-testid="fetched">{fetched}</code></p>
   </section>
+
+  <!-- 7 — a second view; the locale is not part of the path here -->
+  <section>
+    <h2>navigation</h2>
+    <p>
+      <a data-testid="nav-about" href="/about" onclick={go('about')}>{$t('nav.about')}</a>
+    </p>
+  </section>
+
+  <!--
+    8 — fallback: uk has no `fallback.only_en`, so uk renders the en text; a key
+    no catalog has renders as the key itself
+  -->
+  <section>
+    <h2>fallback</h2>
+    <p data-testid="fallback">{$t('fallback.only_en')}</p>
+    <p><code data-testid="missing-key">{$t('fallback.nowhere')}</code></p>
+  </section>
+
+  <!-- 9 — a missing parameter renders as its own placeholder -->
+  <section>
+    <h2>missing parameter</h2>
+    <p data-testid="missing-param">{$t('greeting.hello', {})}</p>
+  </section>
+  {/if}
 </main>

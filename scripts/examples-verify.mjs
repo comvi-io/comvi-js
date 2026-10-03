@@ -276,12 +276,15 @@ export function exampleKind(manifest, name = "an example") {
 }
 
 /**
- * The app's own page entry in Next's `app-build-manifest.json`.
+ * The app's LANDING page entry in Next's `app-build-manifest.json`.
  *
  * Next records one chunk list per App Router entry: every layout, every page,
- * and its own built-in `/_not-found`. A one-page example has exactly one page
- * of its own, so anything else is a question this cannot answer — it refuses
- * rather than reporting whichever key happened to come first.
+ * and its own built-in `/_not-found`. The examples have a second page (the
+ * e2e suite navigates to it), so "first load" is reported for the landing
+ * page: the one route whose path is nothing but dynamic segments
+ * (`/page` or `/[locale]/page`). Zero or several such routes is a question
+ * this cannot answer, and it refuses rather than reporting whichever key
+ * happened to come first.
  */
 export function nextPageRoute(manifest) {
   const pages = manifest?.pages;
@@ -293,14 +296,21 @@ export function nextPageRoute(manifest) {
     );
   }
   const routes = Object.keys(pages).filter((key) => key.endsWith("/page") && !key.startsWith("/_"));
-  if (routes.length !== 1) {
+  const landing = routes.filter((key) =>
+    key
+      .slice(0, -"/page".length)
+      .split("/")
+      .filter(Boolean)
+      .every((segment) => /^\[.+\]$/.test(segment)),
+  );
+  if (landing.length !== 1) {
     throw new Error(
-      `expected exactly one page route in app-build-manifest.json, found ${routes.length}` +
-        `${routes.length > 0 ? `: ${routes.join(", ")}` : ""}. "First load" is a property of ONE ` +
-        "route, so an example that grew a second page has to say which one the table reports.",
+      `expected exactly one landing page route in app-build-manifest.json, found ${landing.length}` +
+        ` among ${routes.length} page route(s)${routes.length > 0 ? `: ${routes.join(", ")}` : ""}. ` +
+        '"First load" is a property of ONE route, and the table reports the landing page.',
     );
   }
-  return routes[0];
+  return landing[0];
 }
 
 /**
@@ -359,7 +369,7 @@ export function nuxtEntryKey(manifest) {
 }
 
 /**
- * The app's own page chunk in Nuxt's client manifest.
+ * The app's LANDING page chunk in Nuxt's client manifest.
  *
  * Nuxt compiles every route component into its own dynamic chunk, keyed by its
  * source path under `pages/`, alongside its built-in `error-404.vue` and
@@ -378,14 +388,18 @@ export function nuxtPageRoute(manifest) {
   const routes = Object.keys(manifest).filter(
     (key) => /(^|\/)pages\/.+\.vue$/.test(key) && !key.includes("node_modules"),
   );
-  if (routes.length !== 1) {
+  // The landing page, by the same rule as Next: the examples have a second
+  // page, and the table reports the one a visitor lands on.
+  const landing = routes.filter((key) => /(^|\/)pages\/index\.vue$/.test(key));
+  if (landing.length !== 1) {
     throw new Error(
-      `expected exactly one page chunk in Nuxt's client manifest, found ${routes.length}` +
+      `expected exactly one landing page chunk (pages/index.vue) in Nuxt's client manifest, ` +
+        `found ${landing.length} among ${routes.length} page chunk(s)` +
         `${routes.length > 0 ? `: ${routes.join(", ")}` : ""}. "First load" is a property of ONE ` +
-        "route, so an example that grew a second page has to say which one the table reports.",
+        "route, and the table reports the landing page.",
     );
   }
-  return routes[0];
+  return landing[0];
 }
 
 /**

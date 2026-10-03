@@ -18,5 +18,15 @@
   },
   "loader": {
     "fetched": "Catalogs fetched so far: {locales}"
+  },
+  "nav": {
+    "home": "Home",
+    "about": "About"
+  },
+  "about": {
+    "body": "This is a second page, translated like the first."
+  },
+  "fallback": {
+    "only_en": "This sentence is missing from the Ukrainian catalog."
   }
 }

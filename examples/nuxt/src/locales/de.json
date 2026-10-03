@@ -18,5 +18,15 @@
   },
   "loader": {
     "fetched": "Bisher geladene Kataloge: {locales}"
+  },
+  "nav": {
+    "home": "Startseite",
+    "about": "Über"
+  },
+  "about": {
+    "body": "Das ist eine zweite Seite, übersetzt wie die erste."
+  },
+  "fallback": {
+    "only_en": "Dieser Satz fehlt im ukrainischen Katalog."
   }
 }

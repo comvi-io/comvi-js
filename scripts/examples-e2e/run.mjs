@@ -63,6 +63,7 @@ import {
   cdnEnv,
   cdnVerdict,
   freePort,
+  nuxtCatalogChunks,
   parseArgs,
   renderTable,
   serverCommand,
@@ -227,14 +228,42 @@ async function startServer(kind, dir, extraEnv) {
   return { baseUrl, stop, output: () => output };
 }
 
+/**
+ * The two Playwright runs an example can get.
+ *
+ *   - `main`: every step against the app as built (bundled catalogs, or the
+ *     mock CDN under `--cdn`). `k2` skips itself here.
+ *   - `cdn-down` (`--cdn` only): the app rebuilt against a CDN address where
+ *     nothing listens, running `k2` alone — so the console errors a dead CDN
+ *     legitimately produces never reach step `g`, which belongs to `main`.
+ */
+const PHASES = {
+  main: { grep: null, expect: STEPS.filter((step) => step !== "k") },
+  "cdn-down": { grep: "\\bk2: ", expect: ["k2"] },
+};
+
 /** One Playwright run of the scenario against a served example. */
-async function runScenario(example, kind, baseUrl, workDir, options) {
-  const reportFile = path.join(workDir, "e2e-report.json");
-  const consoleLog = path.join(workDir, "e2e-console.log");
+async function runScenario(example, kind, baseUrl, workDir, options, { phase, cdnUrl }) {
+  const reportFile = path.join(workDir, `e2e-report-${phase}.json`);
+  const consoleLog = path.join(workDir, `e2e-console-${phase}.log`);
   fs.rmSync(reportFile, { force: true });
   fs.rmSync(consoleLog, { force: true });
   const args = ["test", "--config", CONFIG];
+  if (PHASES[phase].grep) args.push("--grep", PHASES[phase].grep);
   if (options.headed) args.push("--headed");
+  // Nuxt's catalog chunks are hash-named; the manifest says which one is which.
+  const chunks =
+    kind === "nuxt"
+      ? nuxtCatalogChunks(
+          (
+            await import(
+              url.pathToFileURL(
+                path.join(workDir, ".nuxt", "dist", "server", "client.manifest.mjs"),
+              ).href + `?t=${Date.now()}`
+            )
+          ).default,
+        )
+      : {};
   const { status, output } = await run(PLAYWRIGHT, args, {
     cwd: REPO_ROOT,
     env: childEnv(null, {
@@ -245,14 +274,17 @@ async function runScenario(example, kind, baseUrl, workDir, options) {
       E2E_LOCALES_DIR: LOCALES_DIR,
       E2E_CONSOLE_LOG: consoleLog,
       E2E_JSON_REPORT: reportFile,
-      E2E_OUTPUT_DIR: path.join(workDir, "e2e-artifacts"),
+      E2E_OUTPUT_DIR: path.join(workDir, `e2e-artifacts-${phase}`),
+      E2E_PHASE: phase,
+      E2E_CDN_URL: cdnUrl ?? "",
+      E2E_CATALOG_CHUNKS: JSON.stringify(chunks),
     }),
   });
   if (!fs.existsSync(reportFile)) {
     throw new Error(`Playwright wrote no report (exit ${status}):\n${tail(output)}`);
   }
   const steps = stepResults(JSON.parse(fs.readFileSync(reportFile, "utf8")));
-  const missing = STEPS.filter((step) => !steps[step]);
+  const missing = PHASES[phase].expect.filter((step) => !steps[step]);
   if (missing.length > 0) {
     throw new Error(
       `the report has no result for step(s) ${missing.join(", ")} (exit ${status}):\n${tail(output)}`,
@@ -261,13 +293,43 @@ async function runScenario(example, kind, baseUrl, workDir, options) {
   return { steps, output, status };
 }
 
+/** Install once, then build → serve → run one phase; builds again for each later phase. */
+async function buildServeRun(ctx, phase, cdnUrl) {
+  const { example, kind, target, options, log } = ctx;
+  const extraEnv = cdnUrl ? cdnEnv(kind, cdnUrl) : {};
+  log(`build${cdnUrl ? ` (catalogs from ${cdnUrl})` : ""}…`);
+  await runOrThrow("pnpm", KINDS[kind].build, { cwd: target, env: childEnv(kind, extraEnv) });
+  const server = await startServer(kind, target, extraEnv);
+  try {
+    log(`serving ${server.baseUrl}, running the ${phase} phase…`);
+    const result = await runScenario(example, kind, server.baseUrl, target, options, {
+      phase,
+      cdnUrl,
+    });
+    if (Object.values(result.steps).some((entry) => entry.status === "fail")) {
+      console.error(
+        `\n${example.name} (${phase}): Playwright output\n${tail(result.output, 80)}\n`,
+      );
+    }
+    return result.steps;
+  } finally {
+    await server.stop();
+  }
+}
+
 async function e2eExample(example, packages, options, cdn) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), `comvi-e2e-${example.name}-`));
-  const result = { name: example.name, dir: target, build: null, steps: {}, cdn: null };
+  const result = { name: example.name, dir: target, build: null, steps: {} };
   const started = Date.now();
-  let server = null;
   const log = (message) => console.error(`examples-e2e: ${example.name}: ${message}`);
   const firstRequest = cdn ? cdn.requests.length : 0;
+  const failAll = (steps, error) => {
+    // The server never came up, or Playwright never reported: every step is a
+    // failure with the same cause, rather than a blank that reads as "ok".
+    for (const step of steps)
+      result.steps[step] = { status: "fail", message: firstLine(error.message) };
+    console.error(`\n${example.name}: ${tail(error.message, 60)}\n`);
+  };
   try {
     copyTree(example.dir, target);
     const manifestPath = path.join(target, "package.json");
@@ -279,8 +341,8 @@ async function e2eExample(example, packages, options, cdn) {
       `${JSON.stringify(withOverrides(manifest, packages), null, 2)}\n`,
     );
     fs.writeFileSync(path.join(target, ".npmrc"), EXAMPLE_NPMRC);
+    const ctx = { example, kind, target, options, log };
 
-    const extraEnv = cdn ? cdnEnv(kind, cdn.url) : {};
     try {
       log("install…");
       await runOrThrow("pnpm", ["install", "--no-frozen-lockfile", "--ignore-workspace"], {
@@ -291,33 +353,48 @@ async function e2eExample(example, packages, options, cdn) {
         fs.readFileSync(path.join(target, "pnpm-lock.yaml"), "utf8"),
         declaredComviDeps(manifest),
       );
-      log(`build${cdn ? ` (catalogs from ${cdn.url})` : ""}…`);
-      await runOrThrow("pnpm", KINDS[kind].build, { cwd: target, env: childEnv(kind, extraEnv) });
-      result.build = { status: "pass" };
     } catch (error) {
       result.build = { status: "fail", message: firstLine(error.message) };
       console.error(`\n${example.name}: ${tail(error.message, 60)}\n`);
       return result;
     }
 
+    // Phase 1: everything but k2.
     try {
-      server = await startServer(kind, target, extraEnv);
-      log(`serving ${server.baseUrl}, running the scenario…`);
-      const run = await runScenario(example, kind, server.baseUrl, target, options);
-      result.steps = run.steps;
-      if (STEPS.some((step) => run.steps[step].status === "fail")) {
-        console.error(`\n${example.name}: Playwright output\n${tail(run.output, 80)}\n`);
-      }
+      result.steps = await buildServeRun(ctx, "main", cdn?.url);
+      result.build = { status: "pass" };
     } catch (error) {
-      // The server never came up, or Playwright never reported: every step is
-      // a failure with the same cause, rather than a blank that reads as "ok".
-      const message = firstLine(error.message);
-      for (const step of STEPS) result.steps[step] = { status: "fail", message };
-      console.error(`\n${example.name}: ${tail(error.message, 60)}\n`);
+      const built = !/^pnpm run build/.test(error.message);
+      result.build = built
+        ? { status: "pass" }
+        : { status: "fail", message: firstLine(error.message) };
+      if (!built) return result;
+      // k2 and k3 would have skipped without --cdn; failing them for a server
+      // that never came up would report a CDN problem nobody tested.
+      failAll(
+        PHASES.main.expect.filter((step) => cdn || !["k2", "k3"].includes(step)),
+        error,
+      );
+      if (!cdn) {
+        for (const step of ["k2", "k3"])
+          result.steps[step] = { status: "skip", message: "needs --cdn" };
+      }
     }
-    if (cdn) {
-      const verdict = cdnVerdict(cdn.requests.slice(firstRequest));
-      result.cdn = verdict.ok ? { status: "pass" } : { status: "fail", message: verdict.message };
+
+    if (!cdn) {
+      result.steps.k = { status: "skip", message: "needs --cdn" };
+      return result;
+    }
+    const verdict = cdnVerdict(cdn.requests.slice(firstRequest));
+    result.steps.k = verdict.ok ? { status: "pass" } : { status: "fail", message: verdict.message };
+
+    // Phase 2: the same app, rebuilt against a CDN that is down.
+    try {
+      const deadUrl = `http://127.0.0.1:${await freePort()}/cdn/e2e`;
+      const steps = await buildServeRun(ctx, "cdn-down", deadUrl);
+      result.steps.k2 = steps.k2;
+    } catch (error) {
+      failAll(["k2"], error);
     }
     return result;
   } catch (error) {
@@ -325,7 +402,6 @@ async function e2eExample(example, packages, options, cdn) {
     console.error(`\n${example.name}: ${error.message}\n`);
     return result;
   } finally {
-    if (server) await server.stop();
     result.seconds = Math.round((Date.now() - started) / 1000);
     log(`done in ${result.seconds}s`);
     if (!options.keep) fs.rmSync(target, { recursive: true, force: true });
@@ -390,8 +466,8 @@ async function main(argv) {
       `${packages.length} local tarballs, wall time ${Math.floor(seconds / 60)}m${seconds % 60}s ` +
       `(${results.map((result) => `${result.name} ${result.seconds}s`).join(", ")})\n`,
   );
-  console.log(renderTable(results, { cdn: options.cdn }));
-  return allPassed(results, { cdn: options.cdn }) ? 0 : 1;
+  console.log(renderTable(results));
+  return allPassed(results) ? 0 : 1;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {

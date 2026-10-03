@@ -270,10 +270,18 @@ test("nextPageRoute picks the app's own page and ignores Next's built-in ones", 
   assert.equal(nextPageRoute(manifest), "/[locale]/page");
 });
 
-test("nextPageRoute refuses to guess when an app has more than one page", () => {
+test("nextPageRoute reports the landing page when an app has a second page", () => {
   const manifest = { pages: { "/[locale]/page": ["a.js"], "/[locale]/about/page": ["b.js"] } };
 
-  assert.throws(() => nextPageRoute(manifest), { message: /exactly one page route.*found 2/s });
+  assert.equal(nextPageRoute(manifest), "/[locale]/page");
+});
+
+test("nextPageRoute refuses to guess when there is no single landing page", () => {
+  const none = { pages: { "/[locale]/about/page": ["b.js"] } };
+  const two = { pages: { "/page": ["a.js"], "/[locale]/page": ["b.js"] } };
+
+  assert.throws(() => nextPageRoute(none), { message: /exactly one landing page route.*found 0/s });
+  assert.throws(() => nextPageRoute(two), { message: /exactly one landing page route.*found 2/s });
 });
 
 test("nextPageRoute fails closed on a manifest shape it cannot read", () => {
@@ -367,13 +375,21 @@ test("nuxtPageRoute picks the app's page, not a dependency's", () => {
   assert.equal(nuxtPageRoute(manifest), "pages/index.vue");
 });
 
-test("nuxtPageRoute refuses to guess when an app has more than one page", () => {
+test("nuxtPageRoute reports the landing page when an app has a second page", () => {
   const manifest = {
     "pages/index.vue": { file: "a.js" },
     "pages/about.vue": { file: "b.js" },
   };
 
-  assert.throws(() => nuxtPageRoute(manifest), { message: /exactly one page chunk.*found 2/s });
+  assert.equal(nuxtPageRoute(manifest), "pages/index.vue");
+});
+
+test("nuxtPageRoute refuses to guess when there is no landing page", () => {
+  const manifest = { "pages/about.vue": { file: "b.js" } };
+
+  assert.throws(() => nuxtPageRoute(manifest), {
+    message: /exactly one landing page chunk.*found 0/s,
+  });
 });
 
 test("nuxtPageRoute fails closed on a manifest shape it cannot read", () => {
