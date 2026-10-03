@@ -97,13 +97,26 @@ export function planPage(source, pageKey, file = `${pageKey}.mdx`) {
     return out.get(key);
   };
 
+  // The frameworks this page has a tab for. A Terminal fence that sits outside
+  // every tab (the shared install or run step) is part of each of their projects.
+  const pageKeys = FRAMEWORKS.map((fw) => fw.key).filter((key) =>
+    labels.some((label) => label && LABEL_TO_KEY.get(label) === key),
+  );
+
   for (const fence of fences) {
     const label = labels[fence.line];
     const key = label ? LABEL_TO_KEY.get(label) : null;
+    const isTerminal = fence.lang === "bash" && fence.title === "Terminal";
+
+    if (isTerminal && label === null) {
+      const lines = fence.lines.map((line) => line.text).filter((t) => t.trim());
+      for (const pageKey of pageKeys) entry(pageKey).terminal.push(...lines);
+      continue;
+    }
     if (!key) continue;
     const plan = entry(key);
 
-    if (fence.lang === "bash" && fence.title === "Terminal") {
+    if (isTerminal) {
       plan.terminal.push(...fence.lines.map((line) => line.text).filter((t) => t.trim()));
       continue;
     }
@@ -249,6 +262,8 @@ export function parseTerminal(lines) {
   const plan = { scaffold: null, installs: [], unknown: [] };
   for (const argv of splitCommands(lines)) {
     if (argv[0] === "cd") continue;
+    // The reader's "start it" step; the gate builds and serves the app itself.
+    if (argv[0] === "npm" && argv[1] === "run" && argv[2] === "dev" && argv.length === 3) continue;
     if (argv[0] === "npm" && (argv[1] === "install" || argv[1] === "i" || argv[1] === "add")) {
       plan.installs.push(...argv.slice(2).filter((arg) => !arg.startsWith("-")));
       continue;

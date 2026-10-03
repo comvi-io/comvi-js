@@ -269,3 +269,33 @@ test("parseArgs: --content is required and --only must name known frameworks", (
   assert.deepEqual(options.only, ["react", "vue"]);
   assert.equal(options.jobs, 2);
 });
+
+test("planPage: a Terminal fence outside every tab applies to each framework on the page", () => {
+  const page = [
+    '```bash title="Terminal"',
+    "npm install @comvi/plugin-fetch-loader",
+    "```",
+    '<Tabs syncKey="fw">',
+    '  <TabItem label="React">',
+    '  ```tsx title="src/main.tsx" check=group=connect-comvi-react-1',
+    "  export {};",
+    "  ```",
+    "  </TabItem>",
+    '  <TabItem label="Vue">',
+    '  ```ts title="src/main.ts" check=group=connect-comvi-vue-1',
+    "  export {};",
+    "  ```",
+    "  </TabItem>",
+    "</Tabs>",
+  ].join("\n");
+  const plans = planPage(page, "connect-comvi");
+  assert.deepEqual([...plans.keys()].sort(), ["react", "vue"]);
+  assert.deepEqual(plans.get("react").terminal, ["npm install @comvi/plugin-fetch-loader"]);
+  assert.deepEqual(plans.get("vue").terminal, ["npm install @comvi/plugin-fetch-loader"]);
+});
+
+test("parseTerminal: `npm run dev` is the reader's step the gate performs itself, not an unknown", () => {
+  const plan = parseTerminal(["npm install @comvi/react", "npm run dev"]);
+  assert.deepEqual(plan.installs, ["@comvi/react"]);
+  assert.deepEqual(plan.unknown, []);
+});
