@@ -657,6 +657,10 @@ test("stepFindings → collectFindings → renderFindings: sub-frame states are 
             title: "r: DOM states",
             tests: [
               {
+                // Playwright repeats a runtime annotation on the test itself.
+                annotations: [
+                  { type: "finding:subFrameMixedState", description: JSON.stringify(state) },
+                ],
                 results: [
                   {
                     status: "passed",

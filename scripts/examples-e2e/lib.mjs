@@ -402,7 +402,9 @@ export function stepFindings(report) {
       if (!step) continue;
       for (const test of spec.tests ?? []) {
         const result = test.results?.[test.results.length - 1];
-        for (const annotation of [...(test.annotations ?? []), ...(result?.annotations ?? [])]) {
+        // A runtime annotation appears both on the test and on its result.
+        const annotations = result?.annotations?.length ? result.annotations : test.annotations;
+        for (const annotation of annotations ?? []) {
           const kind = /^finding:(.+)$/.exec(annotation.type ?? "")?.[1];
           if (!kind) continue;
           out.push({ kind, step, ...JSON.parse(annotation.description ?? "{}") });
@@ -601,18 +603,10 @@ export function enforceSkipMatrix(steps, context) {
  * cannot outlive it. A step is never skipped to hide a defect.
  */
 export const EXPECTED_FAILURES = [
-  {
-    framework: "nuxt",
-    step: "s",
-    ref: "F-15",
-    // The failure this entry stands for, and no other: the en-only key's en
-    // text is missing where s asserts it. A step that fails for any other
-    // reason (no report, a server that did not start) stays a failure.
-    match: /fallback|This sentence is missing from the Ukrainian catalog/,
-    reason:
-      "@comvi/nuxt preloads only defaultLocale and the visitor's locale on the server, " +
-      "never fallbackLocale; owner-confirmed bug, fixed in a separate lot",
-  },
+  // Empty. F-15 (nuxt, step s) was listed here until the F-15a fix made the
+  // Nuxt server load the whole fallback chain; the step then passed, and the
+  // runner failed the run until this entry was removed. An entry looks like:
+  // { framework: "nuxt", step: "s", ref: "F-15", match: /fallback/, reason: "…" }
 ];
 
 /** Apply `EXPECTED_FAILURES` to one example's steps, in place. */
