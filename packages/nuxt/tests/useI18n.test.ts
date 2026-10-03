@@ -26,9 +26,13 @@ vi.mock("@comvi/core", async (importOriginal) => ({
 // The composable is a pass-through map over the WHOLE host surface, so a
 // partial stub would hand back `undefined` where the contract promises a member.
 function createI18nStub() {
+  const locale = ref("en");
   return {
-    locale: ref("en"),
-    setLocale: vi.fn(async () => undefined),
+    locale,
+    // A switch that resolves has applied, as on a real host.
+    setLocale: vi.fn(async (next: string) => {
+      locale.value = next;
+    }),
     translationCache: computed(() => new Map()),
     isLoading: ref(false),
     isInitializing: ref(false),
@@ -86,6 +90,41 @@ describe("useI18n composable", () => {
     await api.setLocale("de");
     expect(i18n.setLocale).toHaveBeenCalledWith("de");
     expect(useState<string>("i18n-locale").value).toBe("de");
+  });
+
+  it("leaves locale state on the newer locale when an earlier setLocale is superseded", async () => {
+    // Core's loader switch: the first request is still loading when a second
+    // one starts; the second applies, and the first then resolves WITHOUT
+    // applying. Writing its locale anyway flipped the state (and so
+    // `<html lang>`, and through the plugin's watcher the locale itself) back.
+    const i18n = createI18nStub();
+    const pending = new Map<string, () => void>();
+    let latest = "";
+    i18n.setLocale.mockImplementation(
+      (next: string) =>
+        new Promise<void>((resolve) => {
+          latest = next;
+          pending.set(next, () => {
+            if (latest === next) {
+              i18n.locale.value = next;
+            }
+            resolve();
+          });
+        }),
+    );
+    setMockI18n(i18n);
+    const localeState = useState<string>("i18n-locale", () => "en");
+    const api = useI18n();
+
+    const first = api.setLocale("de");
+    const second = api.setLocale("uk");
+    pending.get("uk")!();
+    await second;
+    pending.get("de")!();
+    await first;
+
+    expect(i18n.locale.value).toBe("uk");
+    expect(localeState.value).toBe("uk");
   });
 
   it("creates bound translation with the correct namespace argument", () => {

@@ -92,7 +92,9 @@ describe("useLocaleHead: <html lang/dir> follow the rendered text in the same co
     vi.useRealTimers();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Drain the deferred head writes this test scheduled, so none lands in the next.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     app?.unmount();
     app = undefined;
     document.body.innerHTML = "";
@@ -163,6 +165,20 @@ describe("useLocaleHead: <html lang/dir> follow the rendered text in the same co
 
     expect(document.documentElement.hasAttribute("lang")).toBe(false);
     expect(document.documentElement.hasAttribute("dir")).toBe(false);
+  });
+
+  it("leaves an attribute alone that a higher-priority head entry owns", async () => {
+    // The app pinned `lang` itself (`useHead({ htmlAttrs: { lang } })` at a
+    // higher priority), so the DOM holds that value, not the one this
+    // composable produced. The head renderer keeps it; so must the same-commit write.
+    const { i18n } = await mountPage();
+    document.documentElement.setAttribute("lang", "x-app");
+
+    await i18n.setLocale("ar");
+    await nextTick();
+
+    expect(document.documentElement.lang).toBe("x-app");
+    expect(document.documentElement.dir).toBe("rtl");
   });
 
   it("does not write an attribute its option turned off", async () => {

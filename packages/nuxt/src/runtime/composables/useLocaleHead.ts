@@ -200,11 +200,24 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     // locale state and the wrapper's `locale` ref change in one synchronous
     // `localeChanged` emit. Not immediate, so hydration keeps the server's
     // attributes; the head renderer later writes the same values.
+    //
+    // Only an attribute this composable owns is written: one whose value in
+    // the DOM is still the one it produced last. An app's own higher-priority
+    // `useHead({ htmlAttrs: { lang } })` puts a different value there, and is
+    // left alone. (Unhead would restore it on its next render anyway, since it
+    // compares against the live DOM, but not before a frame could paint.)
+    const root = document.documentElement;
     watch(
-      () => headConfig.value.htmlAttrs as Record<string, string> | undefined,
-      (htmlAttrs) => {
-        for (const [name, value] of Object.entries(htmlAttrs ?? {})) {
-          document.documentElement.setAttribute(name, value);
+      () => {
+        const attrs = headConfig.value.htmlAttrs as Record<string, string> | undefined;
+        return [attrs?.lang, attrs?.dir] as const;
+      },
+      ([lang, dir], [prevLang, prevDir]) => {
+        if (lang !== undefined && lang !== prevLang && root.getAttribute("lang") === prevLang) {
+          root.setAttribute("lang", lang);
+        }
+        if (dir !== undefined && dir !== prevDir && root.getAttribute("dir") === prevDir) {
+          root.setAttribute("dir", dir);
         }
       },
       { flush: "post" },

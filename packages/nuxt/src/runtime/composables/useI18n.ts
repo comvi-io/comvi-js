@@ -52,10 +52,15 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
   const t = ((key: string, params?: TranslationParams) =>
     translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"];
 
-  // setLocale must also advance the Nuxt state the middleware watches.
+  // setLocale must also advance the Nuxt state the middleware watches, but only
+  // to a locale that applied: a switch a newer one superseded resolves without
+  // applying, and writing it anyway would flip `<html lang>` (and, through the
+  // plugin's state watcher, the locale itself) back to the losing request.
   const setLocale = async (newLocale: string) => {
     await i18n.setLocale(newLocale);
-    localeState.value = newLocale;
+    if (i18n.locale.value === newLocale) {
+      localeState.value = newLocale;
+    }
   };
 
   return {
