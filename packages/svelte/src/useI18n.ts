@@ -1,4 +1,4 @@
-import { derived, type Readable } from "svelte/store";
+import { derived, fromStore, type Readable } from "svelte/store";
 import { useI18nHost } from "./context.js";
 import {
   createLocaleStore,
@@ -28,6 +28,7 @@ import type {
   I18nEventData,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
+  LocaleSource,
 } from "@comvi/core";
 
 /** Loader/plugin-host members are NOT part of it — see `capabilities.ts`. */
@@ -200,7 +201,9 @@ export interface UseI18nReturn<
   /** Routes to the configured `onError` handler. */
   reportError: Host["reportError"];
 
-  // The formatters below are plain functions, not stores.
+  // The formatters below are plain functions, not stores, and follow the
+  // locale: markup and `$derived` that call them re-run on a switch. A
+  // trailing `locale` argument overrides it.
   formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
 
   formatDate: (
@@ -279,6 +282,20 @@ export function useI18n<
   const tRaw = getOrCreateRawTranslationStore(i18n, ns) as unknown as UseI18nReturn<D, NS>["tRaw"];
   const t = getOrCreateTextTranslationStore(i18n, ns) as unknown as UseI18nReturn<D, NS>["t"];
 
+  // What the bound formatters read their default locale from. `fromStore`
+  // subscribes to the locale store when `current` is read under any active
+  // reaction (`effect_tracking()`: markup, `$derived`, `$effect`), so those
+  // re-run on a switch, as `$t` does. A call from an event handler or plain
+  // script, and any call on the server, reads the store once.
+  // An explicit trailing `locale` argument short-circuits in core and never
+  // reaches the getter.
+  const currentLocale = fromStore(locale);
+  const localeSource: LocaleSource = {
+    get locale() {
+      return currentLocale.current;
+    },
+  };
+
   return {
     t,
     tRaw,
@@ -308,12 +325,12 @@ export function useI18n<
     getTranslationCache: () => i18n.translationCache.getInternalMap(),
     on: i18n.on.bind(i18n),
     reportError: i18n.reportError.bind(i18n),
-    formatNumber: (value, options, loc) => formatNumber(i18n, value, options, loc),
-    formatDate: (value, options, loc) => formatDate(i18n, value, options, loc),
+    formatNumber: (value, options, loc) => formatNumber(localeSource, value, options, loc),
+    formatDate: (value, options, loc) => formatDate(localeSource, value, options, loc),
     formatCurrency: (value, currency, options, loc) =>
-      formatCurrency(i18n, value, currency, options, loc),
+      formatCurrency(localeSource, value, currency, options, loc),
     formatRelativeTime: (value, unit, options, loc) =>
-      formatRelativeTime(i18n, value, unit, options, loc),
+      formatRelativeTime(localeSource, value, unit, options, loc),
     dir: derived(locale, ($locale) => getTextDirection($locale)),
   };
 }

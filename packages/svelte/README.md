@@ -128,6 +128,9 @@ independent, and either works without the other.
 
 - Everything reactive is a store: `$t`, `$tRaw`, `$locale`, `$isLoading`, `$isInitializing`, `$dir`.
   `$t` inside a `$derived` re-runs when the locale or the catalog changes.
+- `formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` are plain functions, not
+  stores, and still follow the locale in markup and `$derived`. A trailing `locale` argument
+  overrides it.
 - `<T components={{ link: 'a', policy: { tag: 'a', props: { href: '/privacy' } } }} />`: each tag
   maps to an element name, a `{ tag, props }` config, or a Svelte component that receives the tag's
   content as its `children` snippet. `<T>` builds real DOM nodes, never an HTML string.

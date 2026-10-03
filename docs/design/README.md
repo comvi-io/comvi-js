@@ -16,13 +16,13 @@ of them and worth saying so.
 The vocabulary every record assumes — the host is what `createI18n` returns, and `.use(installer)`
 is the one composition verb.
 
-| Record                                     | The decision it records                                                  |
-| ------------------------------------------ | ------------------------------------------------------------------------ |
-| [composition.md](composition.md)           | one entry per package, `.use(installer)` as the only composition verb    |
-| [icu.md](icu.md)                           | ICU never enables itself, and its gaps fail loudly                       |
-| [rich-text.md](rich-text.md)               | `<T>` renders structurally; string-API tags are an ambient opt-in        |
-| [formatting.md](formatting.md)             | formatters are free functions, and the bindings' asymmetry is deliberate |
-| [next-runtimes.md](next-runtimes.md)       | one shared config module per runtime, nothing composed on the Edge       |
-| [next-nuxt-parity.md](next-nuxt-parity.md) | what next and nuxt share, and what stays different                       |
-| [ssr.md](ssr.md)                           | the four module-scope rules side by side (user-facing)                   |
-| [limitations.md](limitations.md)           | everything the library does not do (user-facing)                         |
+| Record                                     | The decision it records                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------------- |
+| [composition.md](composition.md)           | one entry per package, `.use(installer)` as the only composition verb           |
+| [icu.md](icu.md)                           | ICU never enables itself, and its gaps fail loudly                              |
+| [rich-text.md](rich-text.md)               | `<T>` renders structurally; string-API tags are an ambient opt-in               |
+| [formatting.md](formatting.md)             | formatters are free functions, and every binding's formatters follow the locale |
+| [next-runtimes.md](next-runtimes.md)       | one shared config module per runtime, nothing composed on the Edge              |
+| [next-nuxt-parity.md](next-nuxt-parity.md) | what next and nuxt share, and what stays different                              |
+| [ssr.md](ssr.md)                           | the four module-scope rules side by side (user-facing)                          |
+| [limitations.md](limitations.md)           | everything the library does not do (user-facing)                                |
