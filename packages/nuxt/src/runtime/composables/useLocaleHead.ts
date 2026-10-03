@@ -5,7 +5,7 @@ import { useHead, useRuntimeConfig, useRoute, useRequestURL } from "#app";
 import { getTextDirection } from "@comvi/core";
 import { useLocaleState } from "../utils/locale-state";
 import type { ComputedRef } from "vue";
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { stripLocalePrefix, buildLocalizedPath } from "../utils/locale-path";
 
 export interface LocaleHeadOptions {
@@ -190,6 +190,26 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
   });
 
   useHead(headConfig as ComputedRef<Record<string, unknown>>);
+
+  if (!import.meta.server) {
+    // The head renderer patches the DOM a task after Vue's render: unhead
+    // debounces it to `setTimeout(0)`, and Nuxt pauses it from `page:start`
+    // to `page:finish`. The text `t()` renders switches in Vue's flush, so a
+    // browser could paint the new language under the old `<html lang/dir>`.
+    // A post-flush watcher writes both in the same flush as that render: the
+    // locale state and the wrapper's `locale` ref change in one synchronous
+    // `localeChanged` emit. Not immediate, so hydration keeps the server's
+    // attributes; the head renderer later writes the same values.
+    watch(
+      () => headConfig.value.htmlAttrs as Record<string, string> | undefined,
+      (htmlAttrs) => {
+        for (const [name, value] of Object.entries(htmlAttrs ?? {})) {
+          document.documentElement.setAttribute(name, value);
+        }
+      },
+      { flush: "post" },
+    );
+  }
 
   return headConfig;
 }
