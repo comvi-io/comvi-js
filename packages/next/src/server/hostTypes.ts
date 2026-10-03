@@ -42,6 +42,7 @@ export type ServerI18nHost = Pick<
   | "hasLocale"
   | "hasTranslation"
   | "getTranslations"
+  | "getFallbackLocales"
 > &
   Pick<I18nLoaderApi, "getLoader" | "reloadTranslations">;
 

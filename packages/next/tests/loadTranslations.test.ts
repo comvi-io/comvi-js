@@ -97,12 +97,17 @@ describe("loadTranslations", () => {
       namespaces: ["common", "admin"],
     });
 
-    expect(loaderMock).toHaveBeenCalledTimes(2);
+    // `en` is the default `fallbackLocale`: `en:common` was seeded, so only
+    // `en:admin` is fetched for the chain.
+    expect(loaderMock).toHaveBeenCalledTimes(3);
     expect(loaderMock).toHaveBeenCalledWith("fr", "common");
     expect(loaderMock).toHaveBeenCalledWith("fr", "admin");
+    expect(loaderMock).toHaveBeenCalledWith("en", "admin");
     expect(result).toEqual({
       "fr:common": { greeting: "Bonjour" },
       "fr:admin": { title: "Admin Panel" },
+      "en:common": { __seed: "seed" },
+      "en:admin": {},
     });
   });
 
@@ -128,11 +133,14 @@ describe("loadTranslations", () => {
       namespaces: ["common", "admin"],
     });
 
-    expect(loaderMock).toHaveBeenCalledTimes(1);
+    expect(loaderMock).toHaveBeenCalledTimes(2);
     expect(loaderMock).toHaveBeenCalledWith("fr", "admin");
+    expect(loaderMock).toHaveBeenCalledWith("en", "admin");
     expect(result).toEqual({
       "fr:common": { greeting: "Bonjour cached" },
       "fr:admin": { title: "Admin Panel" },
+      "en:common": { __seed: "seed" },
+      "en:admin": { title: "Admin Panel" },
     });
   });
 
@@ -158,6 +166,8 @@ describe("loadTranslations", () => {
 
     expect(result).toEqual({
       "fr:admin": { title: "Admin Panel" },
+      "en:common": { __seed: "seed" },
+      "en:admin": { title: "Admin Panel" },
     });
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("Failed to load fr:common:"),
@@ -195,5 +205,85 @@ describe("loadTranslations", () => {
     // Re-checked after both loads settled: a second init scheduled later in the
     // sequence would be caught here, not only within the first microtask.
     expect(initSpy).toHaveBeenCalledTimes(1);
+  });
+  describe("fallback chain", () => {
+    const makeChainHost = (fallbackLocale: string | string[]) =>
+      createNextI18n({
+        locales: ["en", "uk", "de"],
+        defaultLocale: "en",
+        defaultNs: "common",
+        fallbackLocale,
+        devMode: false,
+      }).i18n;
+
+    const catalogs: Record<string, Record<string, Record<string, string>>> = {
+      en: { common: { greeting: "Hello", only_en: "Only en" }, admin: { title: "Admin" } },
+      uk: { common: { greeting: "Привіт" }, admin: { title: "Адмін" } },
+      de: { common: { greeting: "Hallo", only_de: "Nur de" }, admin: { title: "Verwaltung" } },
+    };
+    const makeLoader = () =>
+      vi.fn(
+        async (language: string, namespace: string): Promise<LoaderResult> =>
+          catalogs[language]?.[namespace] ?? {},
+      );
+
+    it("ships every catalog of an array chain, so a key only in a fallback survives hydration", async () => {
+      const i18n = makeChainHost(["de", "en"]);
+      const loaderMock = makeLoader();
+      i18n.registerLoader(loaderMock);
+      setI18n(i18n);
+
+      const result = await loadTranslations("uk");
+
+      expect(Object.keys(result)).toEqual(["uk:common", "de:common", "en:common"]);
+      expect(result["en:common"]).toEqual(catalogs.en.common);
+      expect(result["de:common"]).toEqual(catalogs.de.common);
+
+      // The real consequence: a client host seeded ONLY with this payload
+      // resolves the fallback-only key exactly as the server did.
+      const client = makeChainHost(["de", "en"]);
+      client.addTranslations(result);
+      expect(client.t("only_en", { locale: "uk" })).toBe("Only en");
+      expect(client.t("only_de", { locale: "uk" })).toBe("Nur de");
+    });
+
+    it("loads a string fallbackLocale alongside the requested locale", async () => {
+      const i18n = makeChainHost("en");
+      i18n.registerLoader(makeLoader());
+      setI18n(i18n);
+
+      const result = await loadTranslations("uk");
+
+      expect(result).toEqual({
+        "uk:common": catalogs.uk.common,
+        "en:common": catalogs.en.common,
+      });
+    });
+
+    it("loads a fallback equal to the requested locale once and adds nothing outside the chain", async () => {
+      const i18n = makeChainHost("en");
+      const loaderMock = makeLoader();
+      i18n.registerLoader(loaderMock);
+      setI18n(i18n);
+
+      const result = await loadTranslations("en");
+
+      expect(result).toEqual({ "en:common": catalogs.en.common });
+      expect(loaderMock.mock.calls.filter(([lang]) => lang === "en")).toHaveLength(1);
+      expect(loaderMock).not.toHaveBeenCalledWith("de", expect.anything());
+      expect(loaderMock).not.toHaveBeenCalledWith("uk", expect.anything());
+    });
+
+    it("loads only the requested namespaces for every locale in the chain", async () => {
+      const i18n = makeChainHost("en");
+      const loaderMock = makeLoader();
+      i18n.registerLoader(loaderMock);
+      setI18n(i18n);
+
+      const result = await loadTranslations("uk", { namespaces: ["admin"] });
+
+      expect(Object.keys(result).sort()).toEqual(["en:admin", "uk:admin"]);
+      expect(loaderMock).not.toHaveBeenCalledWith("uk", "common");
+    });
   });
 });
