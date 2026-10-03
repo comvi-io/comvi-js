@@ -387,6 +387,68 @@ export function stepResults(report) {
   return out;
 }
 
+/**
+ * Findings a test recorded without failing, out of Playwright's JSON report:
+ * every annotation whose type is `finding:<kind>`, as
+ * `{ kind, step, ...JSON.parse(description) }`. Step r records each
+ * mixed-language or raw-key DOM state that was replaced before the next
+ * animation frame this way (`subFrameMixedState`).
+ */
+export function stepFindings(report) {
+  const out = [];
+  const visit = (suite) => {
+    for (const spec of suite.specs ?? []) {
+      const step = /^([a-z]\d?):/.exec(spec.title)?.[1];
+      if (!step) continue;
+      for (const test of spec.tests ?? []) {
+        const result = test.results?.[test.results.length - 1];
+        for (const annotation of [...(test.annotations ?? []), ...(result?.annotations ?? [])]) {
+          const kind = /^finding:(.+)$/.exec(annotation.type ?? "")?.[1];
+          if (!kind) continue;
+          out.push({ kind, step, ...JSON.parse(annotation.description ?? "{}") });
+        }
+      }
+    }
+    for (const child of suite.suites ?? []) visit(child);
+  };
+  for (const suite of report?.suites ?? []) visit(suite);
+  return out;
+}
+
+/**
+ * The run's findings, grouped by kind for the report file:
+ * `{ subFrameMixedStates: [{ framework, mode, phase, step, … }] }`.
+ */
+export function collectFindings(results, mode) {
+  const findings = { subFrameMixedStates: [] };
+  for (const result of results) {
+    for (const finding of result.findings ?? []) {
+      const { kind, ...rest } = finding;
+      const entry = { framework: result.name, mode, ...rest };
+      if (kind === "subFrameMixedState") findings.subFrameMixedStates.push(entry);
+      else (findings[kind] ??= []).push(entry);
+    }
+  }
+  return findings;
+}
+
+/** The findings section printed under the table; empty when there are none. */
+export function renderFindings(findings) {
+  const states = findings.subFrameMixedStates ?? [];
+  if (states.length === 0) return "";
+  return [
+    "",
+    "findings (recorded, not failed): a mixed-language or raw-key state that is replaced " +
+      "before the next animation frame is recorded, not failed",
+    ...states.map(
+      (entry) =>
+        `${entry.framework}/${entry.step} (${entry.phase}): ${entry.problem}; ` +
+        `lang=${entry.lang}, greeting=${JSON.stringify(entry.text)}, ` +
+        `${entry.mutationBatches} mutation batch(es)`,
+    ),
+  ].join("\n");
+}
+
 /** The ANSI-free first meaningful lines of a Playwright error. */
 export function summarizeError(message, maxLength = 300) {
   // eslint-disable-next-line no-control-regex

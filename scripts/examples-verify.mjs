@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import url from "node:url";
 import zlib from "node:zlib";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 import {
   REPO_ROOT,
@@ -645,7 +645,15 @@ async function verifyExample(example, packages, options) {
     // satisfied by construction. The bump is the moment that range and the
     // examples' `^0.5.0` meet for the first time, and the only moment this
     // check can fail.
-    fs.writeFileSync(path.join(target, ".npmrc"), EXAMPLE_NPMRC);
+    //
+    // The last line sends the whole @comvi scope to the candidate's own
+    // registry, so a PEER no override reaches (core behind the fetch loader in
+    // the Nuxt example) resolves to the same tarballs and never to npmjs.org:
+    // scripts/examples-e2e/candidate-registry.mjs.
+    fs.writeFileSync(
+      path.join(target, ".npmrc"),
+      `${EXAMPLE_NPMRC}@comvi:registry=${options.registryUrl}\n`,
+    );
 
     for (const [step, argv] of [
       ["install", ["install", "--no-frozen-lockfile", "--ignore-workspace"]],
@@ -728,10 +736,34 @@ async function main(argv) {
   const packages = workspacePackages(REPO_ROOT);
   if (!options.pack) assertTarballsFresh(packages);
 
+  // A child process, not an in-process server: the installs below are
+  // `spawnSync`, which would block a server living in this event loop.
+  const urlFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "comvi-registry-")), "url");
+  const registry = spawn(
+    process.execPath,
+    [
+      path.join(SCRIPT_DIR, "examples-e2e", "candidate-registry.mjs"),
+      "--url-file",
+      urlFile,
+      ...packages.map((pkg) => tarballFor(pkg)),
+    ],
+    { stdio: ["ignore", "ignore", "inherit"] },
+  );
   const results = [];
-  for (const example of examples) {
-    console.error(`examples-verify: ${example.name}…`);
-    results.push(await verifyExample(example, packages, options));
+  try {
+    for (let waited = 0; !fs.existsSync(urlFile); waited += 100) {
+      if (waited > 30_000 || registry.exitCode !== null) {
+        throw new Error("the candidate registry did not start");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    options.registryUrl = fs.readFileSync(urlFile, "utf8");
+    for (const example of examples) {
+      console.error(`examples-verify: ${example.name}…`);
+      results.push(await verifyExample(example, packages, options));
+    }
+  } finally {
+    registry.kill();
   }
 
   if (options.json) {

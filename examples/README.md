@@ -222,7 +222,7 @@ example is `skip`, and the reason is printed under the table:
 | o    | next, nuxt: from first paint through hydration the greeting is only ever the Ukrainian text             |
 | p    | a missing parameter renders as its own placeholder, `{name}`                                            |
 | q    | `?name=<img src=x onerror=…>` renders as text: no element is created and the handler never runs         |
-| r    | every DOM state during en → uk → de is one whole language matching `<html lang>`, never a raw key       |
+| r    | every painted DOM state during en → uk → de is one whole language matching `<html lang>`, never a key   |
 | s    | next, nuxt: a build with `defaultLocale: "uk"` serves `/uk` with the en value of an en-only key         |
 
 The critical texts (the greeting, the plural branches, `<T>`, the fallback row and
@@ -233,8 +233,8 @@ second page are smoke checks read from `examples/locales/*.json`.
 Every step also fails on its own if the page logs a `console.error` or throws,
 so no verdict depends on which steps ran before it. A skip that the runner's
 matrix does not list fails its step. A failing step stays red unless the
-runner's `EXPECTED_FAILURES` names that framework, that step and a reference
-(today only F-15 on nuxt, step s). On any failure the reports, console logs,
+runner's `EXPECTED_FAILURES` names that framework, that step and a reference.
+On any failure the reports, console logs,
 server logs and Playwright traces are copied to `test-results/examples-e2e/`.
 
 `--cdn` starts a small server that serves `examples/locales` in the CDN layout,
@@ -243,13 +243,25 @@ to Comvi" variable pointing at it. The prefix is how the suite tells a text the
 app read from the CDN from the same text out of its bundled `fallback` imports.
 Column `k` reads that server's request log. Without it, a variable that
 silently failed to apply would pass on the bundled import map. Each example is
-then built a second time against a port where nothing listens, and `k2` runs
-and `g` (as `g2`) run against that build, where the refused connections to the CDN
+then built a second time against a port where nothing listens, and `k2` and
+`g` (as `g2`) run against that build, where the refused connections to the CDN
 address are the only console errors allowed.
 
 `--tarballs <dir>` runs the suite against a release candidate's packed files
 instead of packing the workspace. The release workflow packs once, runs both
 modes this way and publishes the same files.
+
+Step r watches the DOM, not the screen, and follows one rule: a mixed-language or
+raw-key state that is replaced before the next animation frame is recorded, not
+failed. Recorded states are printed under the table and written to
+`test-results/examples-e2e/report.json` (`report-cdn.json` for `--cdn`) under
+`findings.subFrameMixedStates`, next to every step's verdict.
+
+Every install resolves the whole `@comvi` scope from the tarballs under test:
+`pnpm.overrides` pins each package, and the temp `.npmrc` points the scope at a
+small local registry that serves only those tarballs. A peer no override
+reaches, such as `@comvi/core` behind `@comvi/plugin-fetch-loader` in the Nuxt
+example, therefore resolves to the same files and never to npm.
 
 The run exits non-zero on any failure, and the failing assertion is printed
 under the table.

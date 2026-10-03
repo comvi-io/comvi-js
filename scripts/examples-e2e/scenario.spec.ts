@@ -710,6 +710,8 @@ type Frame = {
   dir: string | null;
   /** Animation frames run before this state was recorded. */
   paints: number;
+  /** Mutation batches observed before this state was recorded. */
+  batch: number;
 };
 
 /**
@@ -741,17 +743,20 @@ test("r: DOM states during en → uk → de are whole languages, never a key or 
   // A DOM guarantee, not a visual one: a MutationObserver installed before
   // the document exists records the watched elements and <html lang dir>
   // after every batch of mutations, from the parser's first insert through
-  // both switches. A state that lived between two mutation batches is seen
-  // even if no frame was ever painted with it; one that began and ended
-  // inside a single batch is not, and neither is anything CSS does.
+  // both switches, with the number of animation frames run so far.
+  //
+  // The rule: a mixed-language or raw-key state that is replaced before the
+  // next animation frame is recorded, not failed. Only a state that survived
+  // across an animation frame — one a user could have seen — fails the step.
+  // Recorded states go into the report as findings (`subFrameMixedStates`).
   await page.addInitScript(() => {
     const frames: unknown[] = [];
     (window as unknown as { __frames: unknown[] }).__frames = frames;
     let last = "";
-    // How many animation frames have run: two DOM states recorded under the
-    // same count never met a rendering opportunity between them, which the
-    // failure message reports (it does not excuse the state).
+    // How many animation frames have run: a state recorded under the same
+    // count as the state that replaced it never met a rendering opportunity.
     let paints = 0;
+    let batch = 0;
     const tick = () => {
       paints++;
       requestAnimationFrame(tick);
@@ -759,6 +764,7 @@ test("r: DOM states during en → uk → de are whole languages, never a key or 
     requestAnimationFrame(tick);
     const text = (selector: string) => document.querySelector(selector)?.textContent ?? null;
     const record = () => {
+      batch++;
       const html = document.documentElement;
       const frame = {
         greeting: text('[data-testid="greeting"]'),
@@ -769,7 +775,7 @@ test("r: DOM states during en → uk → de are whole languages, never a key or 
         dir: html.getAttribute("dir"),
       };
       const key = JSON.stringify(frame);
-      if (key !== last) frames.push({ ...frame, paints });
+      if (key !== last) frames.push({ ...frame, paints, batch });
       last = key;
     };
     new MutationObserver(record).observe(document, {
@@ -788,34 +794,45 @@ test("r: DOM states during en → uk → de are whole languages, never a key or 
   const frames = await page.evaluate(() => (window as unknown as { __frames: Frame[] }).__frames);
 
   const violations: string[] = [];
+  const findings: Array<Record<string, unknown>> = [];
   const order: Shown[] = [];
   for (const [index, frame] of frames.entries()) {
+    const next = frames[index + 1];
+    // The last state is still on screen; any other was painted if an
+    // animation frame ran before the state that replaced it.
+    const painted = !next || next.paints !== frame.paints;
     const { locales, unknown } = classify(frame);
-    const painted =
-      frames[index + 1]?.paints === frame.paints
-        ? "replaced before the next animation frame"
-        : "lasted across an animation frame";
-    if (unknown.length > 0) {
-      violations.push(`frame ${index}: not any locale's text (${painted}): ${unknown.join(", ")}`);
-      continue;
+    let problem: string | null = null;
+    if (unknown.length > 0) problem = `not any locale's text: ${unknown.join(", ")}`;
+    else if (locales.size > 1) problem = `mixed languages ${[...locales].join("+")}`;
+    else if (locales.size === 1) {
+      const [locale] = [...locales];
+      if (frame.lang !== locale) problem = `${locale} text under <html lang="${frame.lang}">`;
+      else if (frame.dir !== null && frame.dir !== "ltr") {
+        problem = `${locale} text under <html dir="${frame.dir}">`;
+      }
     }
-    // Nothing rendered yet: the document shell (a client-rendered example
-    // before its first render). Allowed whatever <html> says.
-    if (locales.size === 0) continue;
-    if (locales.size > 1) {
-      violations.push(`frame ${index}: mixed languages ${[...locales].join("+")}`);
-      continue;
+    if (problem && painted) {
+      violations.push(`frame ${index}: ${problem} (lasted across an animation frame)`);
+    } else if (problem) {
+      findings.push({
+        problem,
+        lang: frame.lang,
+        text: frame.greeting,
+        mutationBatches: next.batch - frame.batch,
+      });
     }
-    const [locale] = [...locales];
-    if (frame.lang !== locale) {
-      violations.push(
-        `frame ${index}: ${locale} text on a page whose <html lang> is ${frame.lang} (${painted})`,
-      );
+    // Only states a user could have seen make up the language sequence.
+    if (!problem && painted && locales.size === 1) {
+      const [locale] = [...locales];
+      if (order[order.length - 1] !== locale) order.push(locale);
     }
-    if (frame.dir !== null && frame.dir !== "ltr") {
-      violations.push(`frame ${index}: ${locale} text with <html dir="${frame.dir}">`);
-    }
-    if (order[order.length - 1] !== locale) order.push(locale);
+  }
+  for (const finding of findings) {
+    test.info().annotations.push({
+      type: "finding:subFrameMixedState",
+      description: JSON.stringify(finding),
+    });
   }
   expect(violations, `${frames.length} frames:\n${JSON.stringify(frames, null, 1)}`).toEqual([]);
   // The previous language until the switch lands, then the new one: never

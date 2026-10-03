@@ -23,14 +23,17 @@ import {
   cdnEnv,
   cdnRoute,
   cdnVerdict,
+  collectFindings,
   enforceSkipMatrix,
   freePort,
   nuxtCatalogChunks,
   parseArgs,
+  renderFindings,
   renderTable,
   serverCommand,
   startMockCdn,
   startPath,
+  stepFindings,
   stepResults,
   summarizeError,
   tarballName,
@@ -634,5 +637,92 @@ test("assertCandidateIntegrity: the lockfile must name the candidate's file with
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ── findings ───────────────────────────────────────────────────────────────
+
+test("stepFindings → collectFindings → renderFindings: sub-frame states are reported, not failed", () => {
+  const state = {
+    problem: 'en text under <html lang="uk">',
+    lang: "uk",
+    text: "Hello",
+    mutationBatches: 1,
+  };
+  const report = {
+    suites: [
+      {
+        specs: [
+          {
+            title: "r: DOM states",
+            tests: [
+              {
+                results: [
+                  {
+                    status: "passed",
+                    annotations: [
+                      { type: "finding:subFrameMixedState", description: JSON.stringify(state) },
+                      { type: "note", description: "ignored" },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const found = stepFindings(report);
+  assert.deepEqual(found, [{ kind: "subFrameMixedState", step: "r", ...state }]);
+  const findings = collectFindings(
+    [{ name: "next", findings: found.map((entry) => ({ ...entry, phase: "main" })) }],
+    "default",
+  );
+  assert.deepEqual(findings.subFrameMixedStates, [
+    { framework: "next", mode: "default", step: "r", phase: "main", ...state },
+  ]);
+  const text = renderFindings(findings);
+  assert.match(text, /recorded, not failed/);
+  assert.match(
+    text,
+    /next\/r \(main\): en text under <html lang="uk">; lang=uk, greeting="Hello", 1 mutation batch/,
+  );
+  assert.equal(renderFindings(collectFindings([{ name: "react", findings: [] }], "cdn")), "");
+});
+
+// ── the candidate registry ─────────────────────────────────────────────────
+
+test("startCandidateRegistry: serves only the candidate's versions, and 404s the rest", async () => {
+  const { startCandidateRegistry, scopeRegistryLine } = await import("./candidate-registry.mjs");
+  const { execFileSync } = await import("node:child_process");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-registry-"));
+  try {
+    fs.mkdirSync(path.join(dir, "package"));
+    fs.writeFileSync(
+      path.join(dir, "package", "package.json"),
+      JSON.stringify({ name: "@comvi/core", version: "0.5.0-rc.1" }),
+    );
+    const tarball = path.join(dir, "comvi-core-0.5.0-rc.1.tgz");
+    execFileSync("tar", ["-czf", tarball, "-C", dir, "package"]);
+    const registry = await startCandidateRegistry([tarball]);
+    try {
+      const packument = await (await fetch(`${registry.url}@comvi%2fcore`)).json();
+      assert.deepEqual(Object.keys(packument.versions), ["0.5.0-rc.1"]);
+      const { dist } = packument.versions["0.5.0-rc.1"];
+      assert.equal(dist.integrity, sri(fs.readFileSync(tarball)));
+      const bytes = Buffer.from(await (await fetch(dist.tarball)).arrayBuffer());
+      assert.ok(bytes.equals(fs.readFileSync(tarball)));
+      assert.equal((await fetch(`${registry.url}@comvi%2freact`)).status, 404);
+      assert.deepEqual(
+        registry.requests.map((entry) => entry.status),
+        [200, 200, 404],
+      );
+      assert.equal(scopeRegistryLine(registry.url), `@comvi:registry=${registry.url}\n`);
+    } finally {
+      await registry.close();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

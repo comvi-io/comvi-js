@@ -43,7 +43,11 @@
  * as g2), and `f15` for next and nuxt without `--cdn` (step s, against the
  * `F15_VARIANT` edit of the copy). A skip outside `allowedSkips` fails its
  * step, and a failure is green only when `EXPECTED_FAILURES` lists it with a
- * reference. On any failure the reports, console logs, server logs and
+ * reference. Step r follows one rule: a mixed-language or raw-key state that
+ * is replaced before the next animation frame is recorded, not failed; such
+ * states are printed under the table and written, with every result, to
+ * `test-results/examples-e2e/report[-cdn].json` under
+ * `findings.subFrameMixedStates`. On any failure the reports, console logs, server logs and
  * Playwright traces are copied to `test-results/examples-e2e/<example>[-cdn]/`,
  * `--keep` or not.
  *
@@ -97,17 +101,21 @@ import {
   candidatePackages,
   cdnEnv,
   cdnVerdict,
+  collectFindings,
   enforceSkipMatrix,
   fileDigest,
   freePort,
   nuxtCatalogChunks,
   parseArgs,
+  renderFindings,
   renderTable,
   serverCommand,
   startMockCdn,
   startPath,
+  stepFindings,
   stepResults,
 } from "./lib.mjs";
+import { scopeRegistryLine, startCandidateRegistry } from "./candidate-registry.mjs";
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const LOCALES_DIR = path.join(REPO_ROOT, "examples", "locales");
@@ -334,7 +342,9 @@ async function runScenario(example, kind, baseUrl, workDir, options, { phase, cd
   if (!fs.existsSync(reportFile)) {
     throw new Error(`Playwright wrote no report (exit ${status}):\n${tail(output)}`);
   }
-  const reported = stepResults(JSON.parse(fs.readFileSync(reportFile, "utf8")));
+  const report = JSON.parse(fs.readFileSync(reportFile, "utf8"));
+  const reported = stepResults(report);
+  const findings = stepFindings(report).map((finding) => ({ ...finding, phase }));
   const missing = PHASES[phase].expect.filter((step) => !reported[step]);
   if (missing.length > 0) {
     throw new Error(
@@ -345,7 +355,7 @@ async function runScenario(example, kind, baseUrl, workDir, options, { phase, cd
   for (const [step, entry] of Object.entries(reported)) {
     steps[PHASES[phase].rename[step] ?? step] = entry;
   }
-  return { steps, output, status };
+  return { steps, findings, output, status };
 }
 
 /** Install once, then build → serve → run one phase; builds again for each later phase. */
@@ -371,6 +381,7 @@ async function buildServeRun(ctx, phase, cdnUrl) {
         `\n${example.name} (${phase}): Playwright output\n${tail(result.output, 80)}\n`,
       );
     }
+    ctx.findings.push(...result.findings);
     return result.steps;
   } finally {
     await server.stop();
@@ -398,7 +409,7 @@ async function e2eExample(example, packages, options, cdn) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), `comvi-e2e-${example.name}-`));
   // A previous run's diagnostics for this example would read as this run's.
   fs.rmSync(diagnosticsDir(example.name, cdn), { recursive: true, force: true });
-  const result = { name: example.name, dir: target, build: null, steps: {} };
+  const result = { name: example.name, dir: target, build: null, steps: {}, findings: [] };
   const started = Date.now();
   const log = (message) => console.error(`examples-e2e: ${example.name}: ${message}`);
   const firstRequest = cdn ? cdn.requests.length : 0;
@@ -419,8 +430,13 @@ async function e2eExample(example, packages, options, cdn) {
       manifestPath,
       `${JSON.stringify(withOverrides(manifest, packages), null, 2)}\n`,
     );
-    fs.writeFileSync(path.join(target, ".npmrc"), EXAMPLE_NPMRC);
-    const ctx = { example, kind, target, options, log };
+    // The whole @comvi scope resolves from the candidate, peers included
+    // (candidate-registry.mjs says why the overrides alone are not enough).
+    fs.writeFileSync(
+      path.join(target, ".npmrc"),
+      EXAMPLE_NPMRC + scopeRegistryLine(options.registryUrl),
+    );
+    const ctx = { example, kind, target, options, log, findings: result.findings };
 
     try {
       log("install…");
@@ -555,6 +571,9 @@ async function main(argv) {
     console.error(`  ${fileDigest(pkg.tarball)}  ${path.basename(pkg.tarball)}`);
   }
 
+  const registry = await startCandidateRegistry(packages.map((pkg) => pkg.tarball));
+  options.registryUrl = registry.url;
+  console.error(`examples-e2e: @comvi scope served from the candidate at ${registry.url}`);
   const cdn = options.cdn ? await startMockCdn({ localesDir: LOCALES_DIR }) : null;
   if (cdn) console.error(`examples-e2e: mock CDN at ${cdn.url} (serving ${LOCALES_DIR})`);
 
@@ -565,6 +584,7 @@ async function main(argv) {
     }
   } finally {
     if (cdn) await cdn.close();
+    await registry.close();
   }
 
   const seconds = Math.round((Date.now() - started) / 1000);
@@ -574,6 +594,38 @@ async function main(argv) {
       `(${results.map((result) => `${result.name} ${result.seconds}s`).join(", ")})\n`,
   );
   console.log(renderTable(results));
+  const mode = options.cdn ? "cdn" : "default";
+  const findings = collectFindings(results, mode);
+  const findingsText = renderFindings(findings);
+  if (findingsText) console.log(findingsText);
+  // The whole run as data: every step's verdict, and what was recorded
+  // without failing (step r's sub-frame states).
+  fs.mkdirSync(RESULTS_DIR, { recursive: true });
+  const reportFile = path.join(RESULTS_DIR, `report${options.cdn ? "-cdn" : ""}.json`);
+  fs.writeFileSync(
+    reportFile,
+    `${JSON.stringify(
+      {
+        mode,
+        tarballs: packages.map((pkg) => ({
+          name: pkg.name,
+          file: path.basename(pkg.tarball),
+          sha256: fileDigest(pkg.tarball),
+        })),
+        results: results.map(({ name, kind, build, steps, seconds }) => ({
+          name,
+          kind,
+          build,
+          steps,
+          seconds,
+        })),
+        findings,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  console.log(`\nreport: ${path.relative(REPO_ROOT, reportFile)}`);
   return allPassed(results) ? 0 : 1;
 }
 
