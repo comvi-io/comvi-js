@@ -343,7 +343,13 @@ async function render(dir, fw, page) {
       let seen = "";
       const deadline = Date.now() + 10_000;
       while (Date.now() < deadline) {
-        seen = await tab.evaluate(() => document.body?.innerText ?? "");
+        try {
+          seen = await tab.evaluate(() => document.body?.innerText ?? "");
+        } catch {
+          // Mid-navigation (e.g. "Execution context was destroyed" after the
+          // Switch click): the next poll reads the new page.
+          seen = "";
+        }
         const where = `${seen}\n${want.where.includes("console") ? consoleLines.join("\n") : ""}`;
         if (where.includes(text)) return { found: true, seen };
         await new Promise((resolve) => setTimeout(resolve, 250));
