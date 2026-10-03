@@ -55,7 +55,10 @@
     <h2>{$t('app.language')}</h2>
     <div class="row">
       {#each locales as code (code)}
-        <button aria-pressed={$locale === code} onclick={() => setLocale(code)}>{code}</button>
+        <button
+          data-testid="locale-{code}"
+          aria-pressed={$locale === code}
+          onclick={() => setLocale(code)}>{code}</button>
       {/each}
       {#if $isLoading}<code>{$t('app.loading')}</code>{/if}
     </div>
@@ -64,16 +67,16 @@
   <!-- 2 — a string with a parameter -->
   <section>
     <h2>interpolation</h2>
-    <p>{$t('greeting.hello', { name: 'Ada' })}</p>
+    <p data-testid="greeting">{$t('greeting.hello', { name: 'Ada' })}</p>
   </section>
 
   <!-- 3 — an ICU plural, live on a counter -->
   <section>
     <h2>plural</h2>
     <div class="row">
-      <button onclick={() => (count = Math.max(0, count - 1))}>−</button>
-      <button onclick={() => count++}>+</button>
-      <span>{$t('cart.items', { count })}</span>
+      <button data-testid="cart-dec" onclick={() => (count = Math.max(0, count - 1))}>−</button>
+      <button data-testid="cart-inc" onclick={() => count++}>+</button>
+      <span data-testid="cart">{$t('cart.items', { count })}</span>
     </div>
   </section>
 
@@ -84,7 +87,7 @@
   -->
   <section>
     <h2>tag interpolation</h2>
-    <p>
+    <p data-testid="read-more">
       <T
         i18nKey="docs.read_more"
         components={{
@@ -106,6 +109,6 @@
   <!-- 6 — proof the loader is lazy: only the locales you visited are here -->
   <section>
     <h2>lazy loading</h2>
-    <p><code>{fetched}</code></p>
+    <p><code data-testid="fetched">{fetched}</code></p>
   </section>
 </main>

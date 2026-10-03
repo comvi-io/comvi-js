@@ -1,7 +1,23 @@
 import { createNextI18n, icuCompiler, loader } from "@comvi/next";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { routing } from "./routing";
 
 export { locales, routing } from "./routing";
+
+// Connect to Comvi, opt-in. With `NEXT_PUBLIC_COMVI_CDN_URL` set at BUILD time
+// the catalogs come from the platform CDN through `cdnLoader`, on the server and
+// in the browser alike; unset — the default, and what StackBlitz runs — the
+// import map is the only loader and this file behaves exactly as it reads
+// without these lines.
+const cdnUrl: string | undefined = process.env.NEXT_PUBLIC_COMVI_CDN_URL;
+
+const catalogs: ReturnType<typeof loader> = cdnUrl
+  ? cdnLoader({ cdnUrl })
+  : loader({
+      en: () => import("../locales/en.json"),
+      uk: () => import("../locales/uk.json"),
+      de: () => import("../locales/de.json"),
+    });
 
 /**
  * The composed root. `createNextI18n` is the batteries-included preset: it
@@ -29,10 +45,4 @@ export const { i18n } = createNextI18n({
   ...routing,
   fallbackLocale: "en",
   compiler: icuCompiler,
-}).use(
-  loader({
-    en: () => import("../locales/en.json"),
-    uk: () => import("../locales/uk.json"),
-    de: () => import("../locales/de.json"),
-  }),
-);
+}).use(catalogs);

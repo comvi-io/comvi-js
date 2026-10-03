@@ -7,9 +7,29 @@ import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import { loader } from "@comvi/core/loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 export const locales = ["en", "uk", "de"] as const;
+
+// Connect to Comvi, opt-in. With `VITE_COMVI_CDN_URL` set at BUILD time the
+// catalogs come from the platform CDN through `cdnLoader`; unset — the default,
+// and what StackBlitz runs — the import map below is the only loader and this
+// file behaves exactly as it reads without these lines.
+const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
+
+// The lazy loader. One dynamic `import()` per locale, so a catalog is fetched
+// the first time that locale is selected and never up front — the bundler
+// splits each JSON into its own chunk. `loader(map)` attaches the loader
+// capability AND registers the import-map adapter; `registerLoader` on its
+// own takes a plain function, never a map.
+const catalogs: ReturnType<typeof loader> = cdnUrl
+  ? cdnLoader({ cdnUrl })
+  : loader({
+      en: () => import("./locales/en.json"),
+      uk: () => import("./locales/uk.json"),
+      de: () => import("./locales/de.json"),
+    });
 
 export const i18n = createI18n({
   locale: "en",
@@ -20,18 +40,7 @@ export const i18n = createI18n({
   // can reach the host.
   compiler: icuCompiler,
 })
-  // The lazy loader. One dynamic `import()` per locale, so a catalog is fetched
-  // the first time that locale is selected and never up front — the bundler
-  // splits each JSON into its own chunk. `loader(map)` attaches the loader
-  // capability AND registers the import-map adapter; `registerLoader` on its
-  // own takes a plain function, never a map.
-  .use(
-    loader({
-      en: () => import("./locales/en.json"),
-      uk: () => import("./locales/uk.json"),
-      de: () => import("./locales/de.json"),
-    }),
-  )
+  .use(catalogs)
   // The locale detector, through the package's own bare-name installer: it
   // attaches the plugin host it needs and registers the detector, so an app
   // never touches the raw plugin queue.
