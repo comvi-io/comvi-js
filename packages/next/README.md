@@ -25,7 +25,7 @@ and the React bindings. The full guide is [Next.js](https://comvi.io/docs/i18n/n
 
 ```bash
 npm install @comvi/next
-# Peers: next ^15.0.0 || ^16.0.0, react ^18.2.0 || ^19.0.0
+# Peers: next ^15 || ^16, react ^18.2 || ^19
 ```
 
 ## Setup
