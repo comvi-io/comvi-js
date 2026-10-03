@@ -86,6 +86,10 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       "next/headers",
       "next/navigation",
       "next/link",
+      // The bare side-effect import at the top of `src/server.ts`. External so
+      // the emitted `dist/server.js` keeps it verbatim for the APP's bundler to
+      // resolve per condition; inlined, it would be either a throw or nothing.
+      "server-only",
       // Every `@comvi/core` specifier this package names must be external,
       // or rolldown inlines a verbatim copy of core into `dist`. Kept in sync
       // by hand: `@comvi/next` does not use `createLibraryBuildOptions`, so it

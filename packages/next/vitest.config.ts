@@ -17,6 +17,15 @@ const REACT_SRC = resolve(
   "../src/index.ts",
 );
 const SRC_ALIAS = { find: "@", replacement: resolve(__dirname, "./src") };
+// `src/server.ts` imports `server-only`, whose default export condition THROWS
+// (only `react-server` resolves it to an empty module). Vitest is neither Next
+// nor a react-server graph, so the tests take the empty half: the same module
+// Next resolves for a Server Component. `tests/dist/server-only-guard.test.ts`
+// proves the import ships in the built entry.
+const SERVER_ONLY_ALIAS = {
+  find: /^server-only$/,
+  replacement: resolve(dirname(createRequire(import.meta.url).resolve("server-only")), "empty.js"),
+};
 
 /**
  * Pin every `@comvi/core*` specifier — next's own imports, and react's
@@ -41,7 +50,12 @@ const coreBuild = (suffix: "" | ".dev") =>
 const jsContract = (suffix: "" | ".dev") => ({
   plugins: [react()],
   resolve: {
-    alias: [SRC_ALIAS, { find: /^@comvi\/react$/, replacement: REACT_SRC }, ...coreBuild(suffix)],
+    alias: [
+      SRC_ALIAS,
+      SERVER_ONLY_ALIAS,
+      { find: /^@comvi\/react$/, replacement: REACT_SRC },
+      ...coreBuild(suffix),
+    ],
   },
   define: {
     __DEV__: JSON.stringify(suffix === ".dev"),
@@ -77,7 +91,13 @@ export default defineConfig({
     },
     projects: [
       {
-        resolve: { alias: [SRC_ALIAS, { find: /^@comvi\/react$/, replacement: REACT_SRC }] },
+        resolve: {
+          alias: [
+            SRC_ALIAS,
+            SERVER_ONLY_ALIAS,
+            { find: /^@comvi\/react$/, replacement: REACT_SRC },
+          ],
+        },
         define: { __DEV__: JSON.stringify(true) },
         test: {
           name: "unit",

@@ -204,8 +204,7 @@ function makePeerRangeTree(t, overrides = {}) {
   if (overrides.packageReadme !== null) {
     write(
       "packages/next/README.md",
-      overrides.packageReadme ??
-        `\`\`\`bash\nnpm install @comvi/next server-only\n# Peers: ${prose}\n\`\`\`\n`,
+      overrides.packageReadme ?? `\`\`\`bash\nnpm install @comvi/next\n# Peers: ${prose}\n\`\`\`\n`,
     );
   }
   if (overrides.rootReadme !== null) {

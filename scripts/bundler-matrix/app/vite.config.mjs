@@ -18,16 +18,22 @@
 // re-entered the graph, the webpack build would fail outright.)
 import fs from "node:fs";
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defaultClientConditions, defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 export default defineConfig(({ mode }) => {
   const entry = process.env.BM_ENTRY;
   const out = process.env.BM_OUT;
   if (!entry || !out) throw new Error("BM_ENTRY and BM_OUT must be set");
+  // Extra resolve conditions a case declares (`conditions` in run.mjs), ahead
+  // of Vite's defaults. Unset for every case that models a plain consumer.
+  const conditions = process.env.BM_CONDITIONS ? process.env.BM_CONDITIONS.split(",") : [];
 
   return {
     logLevel: "warn",
+    ...(conditions.length > 0 && {
+      resolve: { conditions: [...conditions, ...defaultClientConditions] },
+    }),
     define: {
       // Vue esm-bundler feature flags (standard consumer configuration).
       __VUE_OPTIONS_API__: "true",

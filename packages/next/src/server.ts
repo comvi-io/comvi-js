@@ -1,3 +1,8 @@
+// Fails the build when a Client Component imports this entry: Next resolves
+// `server-only` to an empty module under the `react-server` condition and to a
+// module that throws everywhere else. Apps no longer need their own marker.
+import "server-only";
+
 export { setRequestLocale } from "./server/setRequestLocale";
 export { getI18n } from "./server/getI18n";
 export { getLocale } from "./server/getLocale";

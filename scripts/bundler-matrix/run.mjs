@@ -189,6 +189,10 @@ const CASES = [
     // instead of relying on the bundler to prune it. `@comvi/core` itself is
     // present — it is the base host this fixture composes on.
     name: "next-server-on-default",
+    // A Next SERVER graph resolves under `react-server`, which is what turns
+    // the entry's own `import "server-only"` into an empty module. Without it
+    // the bundle carries the marker's throw, exactly as a client graph would.
+    conditions: ["react-server"],
     sentinels: "absent",
     absentModules: [
       ...UNUSED_CAPABILITY_SUBPATHS,
@@ -613,7 +617,7 @@ function perMode(value, bundler, mode) {
   return value[`${bundler}:${mode}`] ?? value.default;
 }
 
-function bundle(bundler, mode, fixture) {
+function bundle(bundler, mode, fixture, conditions) {
   const entry = path.join(APP_DIR, "src", `${fixture}.mjs`);
   const outFile = path.join(
     OUT_DIR,
@@ -625,6 +629,7 @@ function bundle(bundler, mode, fixture) {
       ? ["--config", "webpack.config.mjs", "--mode", mode, "--json", `${outFile}.stats.json`]
       : ["build", "--config", "vite.config.mjs", "--mode", mode];
   const env = { ...childEnv, BM_ENTRY: entry, BM_OUT: outFile };
+  if (conditions !== undefined) env.BM_CONDITIONS = conditions.join(",");
   if (bundler === "vite") {
     // Vite's `development|production` resolve condition follows NODE_ENV, not
     // `--mode` (which alone leaves builds on NODE_ENV=production). Real
@@ -656,7 +661,7 @@ for (const bundler of BUNDLERS) {
         continue;
       }
       const label = `${bundler} × ${mode} × ${fixture}`;
-      const { outFile, moduleIds } = bundle(bundler, mode, fixture);
+      const { outFile, moduleIds } = bundle(bundler, mode, fixture, testCase.conditions);
 
       // Export-condition check: dev builds must contain the dev-only core
       // chunk marker, prod builds must not.

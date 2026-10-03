@@ -17,14 +17,14 @@
 
 ---
 
-Translate a Next.js App Router app with `@comvi/next`: one config module, a `server-only`
+Translate a Next.js App Router app with `@comvi/next`: one config module, a server
 registration, and `t()` in Server and Client Components alike. One install brings `@comvi/core`
 and the React bindings. The full guide is [Next.js](https://comvi.io/docs/i18n/next) on the docs site.
 
 ## Install
 
 ```bash
-npm install @comvi/next server-only
+npm install @comvi/next
 # Peers: next ^15.0.0 || ^16.0.0, react ^18.2.0 || ^19.0.0
 ```
 
@@ -44,8 +44,6 @@ export const { i18n, routing } = createNextI18n({
 ```
 
 ```ts title="src/i18n.server.ts" check=group=quick-start-next-1
-import "server-only";
-
 import { setI18n } from "@comvi/next/server";
 import { i18n } from "./i18n";
 
@@ -78,9 +76,10 @@ export default async function LocaleLayout({
 }
 ```
 
-`createNextI18n` builds the host and the routing config. The `server-only` module registers the
-host for the server helpers and keeps that file out of the client bundle; the layout imports it for
-the side effect. `setRequestLocale()` puts the locale where `getI18n()` reads it. Without a
+`createNextI18n` builds the host and the routing config. The server module registers the host for
+the server helpers, and the layout imports it for the side effect. `@comvi/next/server` guards
+itself: a Client Component that imports it, directly or through this file, fails `next build`, so
+you do not install or import `server-only` yourself. `setRequestLocale()` puts the locale where `getI18n()` reads it. Without a
 `middleware.ts` the only routes are `/en` and `/uk`; see
 [Locale routing](https://comvi.io/docs/i18n/next/routing).
 
