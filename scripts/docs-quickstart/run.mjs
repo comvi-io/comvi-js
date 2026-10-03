@@ -318,7 +318,7 @@ async function render(dir, fw, page) {
   let serverLog = "";
   child.stdout.on("data", (chunk) => (serverLog += chunk));
   child.stderr.on("data", (chunk) => (serverLog += chunk));
-  const url = `http://127.0.0.1:${port}${want.path}`;
+  const url = `http://${serve.host ?? "127.0.0.1"}:${port}${want.path}`;
   try {
     if (!(await waitForServer(url, child))) {
       return { status: 1, output: `server did not answer ${url}\n${serverLog}` };
@@ -329,30 +329,60 @@ async function render(dir, fw, page) {
     const errors = [];
     tab.on("console", (message) => consoleLines.push(message.text()));
     tab.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-    try {
-      const response = await tab.goto(url, { waitUntil: "load", timeout: 30_000 });
-      let text = "";
+    const fail = (line) => ({
+      status: 1,
+      output: [
+        line,
+        ...errors,
+        ...consoleLines.map((entry) => `console: ${entry}`),
+        serverLog,
+      ].join("\n"),
+    });
+    // Polls the page (and, for Vanilla, the console) for `text` for up to 10 s.
+    const waitForText = async (text) => {
+      let seen = "";
       const deadline = Date.now() + 10_000;
       while (Date.now() < deadline) {
-        text = await tab.evaluate(() => document.body?.innerText ?? "");
-        const seen = `${text}\n${want.where.includes("console") ? consoleLines.join("\n") : ""}`;
-        if (seen.includes(want.text)) {
-          return { status: 0, output: `HTTP ${response?.status()} ${url}: "${want.text}" found` };
-        }
+        seen = await tab.evaluate(() => document.body?.innerText ?? "");
+        const where = `${seen}\n${want.where.includes("console") ? consoleLines.join("\n") : ""}`;
+        if (where.includes(text)) return { found: true, seen };
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      const visible = text.replace(/\s+/g, " ").trim().slice(0, 160);
-      const rawKey = /\bgreeting\b/.test(text) ? " (the raw key `greeting` is on the page)" : "";
-      return {
-        status: 1,
-        output: [
+      return { found: false, seen };
+    };
+    try {
+      const response = await tab.goto(url, { waitUntil: "load", timeout: 30_000 });
+      const first = await waitForText(want.text);
+      if (!first.found) {
+        const visible = first.seen.replace(/\s+/g, " ").trim().slice(0, 160);
+        const rawKey = /\bgreeting\b/.test(first.seen)
+          ? " (the raw key `greeting` is on the page)"
+          : "";
+        return fail(
           `error: "${want.text}" not in ${want.where} at ${url} (HTTP ${response?.status()})${rawKey}; ` +
             `page text: "${visible}"`,
-          ...errors,
-          ...consoleLines.map((line) => `console: ${line}`),
-          serverLog,
-        ].join("\n"),
-      };
+        );
+      }
+      const output = `HTTP ${response?.status()} ${url}: "${want.text}" found`;
+      if (!want.switchTo) return { status: 0, output };
+
+      const { link, path: switchPath, text } = want.switchTo;
+      await tab.getByRole("link", { name: link }).click({ timeout: 10_000 });
+      const switched = await waitForText(text);
+      const at = new URL(tab.url()).pathname;
+      if (switched.found && at === switchPath) {
+        return { status: 0, output: `${output}; "${link}" -> ${at}: "${text}" found` };
+      }
+      const visible = switched.seen.replace(/\s+/g, " ").trim().slice(0, 160);
+      return fail(
+        `error: after clicking "${link}", "${text}" not on the page at ${at} ` +
+          `(expected ${switchPath}); page text: "${visible}"`,
+      );
+    } catch (error) {
+      // A navigation that never settles (a redirect loop is
+      // net::ERR_TOO_MANY_REDIRECTS) is this project's failed render, not the
+      // end of the whole run.
+      return fail(`error: ${String(error?.message ?? error).split("\n")[0]} (${url})`);
     } finally {
       await context.close();
     }

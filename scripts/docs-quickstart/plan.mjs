@@ -335,7 +335,8 @@ export const CDN_CATALOG = {
  *
  * Vanilla renders nothing — its page promises a `console.log` — so its text is
  * looked for in the console as well as on the page. Next's routes live under
- * `[locale]`, so its page is `/en`.
+ * `[locale]`: `/` reaches `/en` through the middleware rewrite, and the page's
+ * Switch link must then render the Ukrainian greeting at `/uk`.
  */
 export function expectation(fw, page) {
   const cdn = page === "connect-comvi";
@@ -346,10 +347,19 @@ export function expectation(fw, page) {
       where: "page text or console",
     };
   }
-  return {
-    path: fw === "next" ? "/en" : "/",
+  const want = {
+    path: "/",
     text: cdn ? "Hello from the CDN, Alice!" : "Hello, Alice!",
     where: "page text",
+  };
+  if (fw !== "next") return want;
+  return {
+    ...want,
+    switchTo: {
+      link: "Switch",
+      path: "/uk",
+      text: cdn ? "Привіт з CDN, Alice!" : "Привіт, Alice!",
+    },
   };
 }
 
@@ -374,9 +384,15 @@ export const TOOLCHAIN = {
   next: {
     build: ["run", "build"],
     typecheck: ["exec", "tsc", "--noEmit"],
+    // Not 127.0.0.1: Next's NextURL renames loopback IPs to `localhost`
+    // (next/dist/server/web/next-url.js parseURL), so a middleware rewrite comes
+    // back as http://localhost:PORT while the router's origin is the -H value;
+    // next/dist/server/web/adapter.js keeps the renamed host, the router proxies
+    // the rewrite as an external request, and as-needed `/` -> `/en` -> `/` loops.
     serve: (port) => ({
-      argv: ["exec", "next", "start", "-p", `${port}`, "-H", "127.0.0.1"],
+      argv: ["exec", "next", "start", "-p", `${port}`, "-H", "localhost"],
       env: {},
+      host: "localhost",
     }),
     extraDevDeps: {},
   },

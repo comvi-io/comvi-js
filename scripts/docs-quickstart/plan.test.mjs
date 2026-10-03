@@ -16,6 +16,7 @@ import {
   splitCommands,
   substituteCdn,
   tabLabels,
+  TOOLCHAIN,
 } from "./plan.mjs";
 import { parseArgs, projectPlan } from "./run.mjs";
 
@@ -184,7 +185,14 @@ test("substituteCdn: a production URL in another form is reported, not built", (
 test("expectation: connect pages look for the CDN wording, Vanilla also in the console", () => {
   assert.equal(expectation("react", "quick-start").text, "Hello, Alice!");
   assert.equal(expectation("react", "connect-comvi").text, "Hello from the CDN, Alice!");
-  assert.equal(expectation("next", "quick-start").path, "/en");
+  assert.equal(expectation("next", "quick-start").path, "/");
+  assert.deepEqual(expectation("next", "connect-comvi").switchTo, {
+    link: "Switch",
+    path: "/uk",
+    text: "Привіт з CDN, Alice!",
+  });
+  assert.equal(expectation("react", "quick-start").switchTo, undefined);
+  assert.equal(TOOLCHAIN.next.serve(3000).host, "localhost");
   assert.match(expectation("vanilla", "quick-start").where, /console/);
 });
 
