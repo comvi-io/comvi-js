@@ -5,7 +5,17 @@ import { locales, rtlLocale } from "./i18n";
 
 // `locale`, `dir` and `isLoading` are refs, so the template re-renders on a
 // locale change; `t` and the formatters read the current locale on every call.
-const { t, locale, setLocale, dir, isLoading, formatNumber, formatDate, loadedLocales } = useI18n();
+const {
+  t,
+  locale,
+  setLocale,
+  dir,
+  isLoading,
+  isInitializing,
+  formatNumber,
+  formatDate,
+  loadedLocales,
+} = useI18n();
 
 const count = ref(2);
 const RELEASED = new Date("2026-09-01T00:00:00Z");
@@ -36,7 +46,10 @@ watchEffect(() => {
 </script>
 
 <template>
-  <main>
+  <!-- `app.use(i18n)` starts `init()`; until the first catalog is in, show this
+       rather than raw keys. -->
+  <p v-if="isInitializing">Loading…</p>
+  <main v-else>
     <h1>{{ t("app.title") }}</h1>
 
     <!-- 1 — locale switcher -->

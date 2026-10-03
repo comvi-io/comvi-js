@@ -14,6 +14,7 @@
     dir,
     setLocale,
     isLoading,
+    isInitializing,
     cacheRevision,
     formatNumber,
     formatDate,
@@ -69,6 +70,11 @@
   });
 </script>
 
+<!-- `setI18nContext` starts `init()`; until the first catalog is in, show this
+     rather than raw keys. -->
+{#if $isInitializing}
+  <p>Loading…</p>
+{:else}
 <main>
   <h1>{$t('app.title')}</h1>
 
@@ -170,3 +176,4 @@
   </section>
   {/if}
 </main>
+{/if}

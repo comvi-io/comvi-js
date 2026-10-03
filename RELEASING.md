@@ -34,13 +34,15 @@ that path today.
 
 ## 2. RC rehearsal (optional but recommended)
 
-Dispatch `Release` with the `rc` input set to the rc number. The job rewrites versions in its own
-working tree only (`scripts/rc-version.mjs`), builds after the rewrite so the inlined runtime version
-matches what npm receives, asserts that with `node tooling/check-inlined-version.mjs`, then runs
-`scripts/publish-candidate.mjs`: it packs once, prints each tarball's sha256, runs `examples:e2e` in
-both modes against those files (`--tarballs`), and publishes the same files with
-`npm publish <tgz>` under the `next` dist-tag. Dispatch it from a green ref: apart from that browser
-suite the job runs no tests of its own.
+Dispatch `Release` with the `rc` input set to the rc number. Two jobs run. `rc-verify` has read-only
+permissions and no npm token: it rewrites versions in its own working tree only
+(`scripts/rc-version.mjs`), builds after the rewrite so the inlined runtime version matches what npm
+receives, asserts that with `node tooling/check-inlined-version.mjs`, then runs
+`scripts/publish-candidate.mjs verify`. That packs once, prints each tarball's sha256 into
+`SHA256SUMS`, runs `examples:e2e` in both modes against those files (`--tarballs`), and uploads them.
+`rc-publish` holds the OIDC token, installs and builds nothing, checks the downloaded files against
+the verify job's digests, and publishes the same files with `npm publish <tgz>` under the `next`
+dist-tag. Dispatch it from a green ref: apart from that browser suite the jobs run no tests.
 
 ## 3. The cut
 
@@ -49,13 +51,16 @@ suite the job runs no tests of its own.
       `changesets/action` and opens the release PR. Re-run `pnpm examples:verify` after the version
       bump: that is when the peer ranges and the examples' ranges meet.
 - [ ] Read the generated CHANGELOGs before merging the release PR.
-- [ ] Merging the release PR publishes through `scripts/publish-candidate.mjs` (the same
-      pack-verify-publish path as the RC, with `--tag latest --git-tag`). A red `examples:e2e` on the
-      candidate stops the publish before anything reaches npm; its diagnostics are the job's
-      `release-ga-examples-e2e` artifact. Then `.github/scripts/create-combined-release.mjs` creates
-      the combined GitHub Release. The tag is the release train's version; independently versioned
+- [ ] Merging the release PR publishes through the `verify` and `publish` jobs: the same
+      pack-verify-publish split as the RC, with `--tag latest`, git tags pushed for each published
+      package, and the combined GitHub Release built from the verified tarballs. A red
+      `examples:e2e` on the candidate stops the publish before anything reaches npm; its diagnostics
+      are the `release-ga-examples-e2e` artifact. A failed `npm publish` does not stop the others:
+      the job tags what published, exits 1, and a re-run skips what is already on npm. Then
+      `.github/scripts/create-combined-release.mjs` creates the combined GitHub Release. The tag is the release train's version; independently versioned
       packages appear in the notes and in `manifest.json` at their own version. If that step fails,
-      npm is already live: fix and re-run it (or run it by hand with `PUBLISHED_PACKAGES=…`).
+      npm is already live: fix and re-run it (or run it by hand with `PUBLISHED_PACKAGES=…` and
+      `COMVI_RELEASE_TARBALLS_DIR=…`).
 
 ## 4. After GA
 
@@ -80,5 +85,5 @@ suite the job runs no tests of its own.
 
 ## Known release-tooling gaps (recorded, not fixed)
 
-- The `rc` job runs the browser suite on its candidate but no unit tests, package-contract or size
-  gate, and inherits the workflow-level `contents: write` it does not need.
+- The RC jobs run the browser suite on the candidate but no unit tests, package-contract or size
+  gate.

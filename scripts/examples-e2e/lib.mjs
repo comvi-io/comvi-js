@@ -613,8 +613,10 @@ export const EXPECTED_FAILURES = [
 export function applyExpectedFailures(name, steps, list = EXPECTED_FAILURES) {
   for (const entry of list) {
     if (entry.framework !== name) continue;
+    // Without `g`/`y`: a stateful regex would match every other call.
+    const pattern = new RegExp(entry.match.source, entry.match.flags.replace(/[gy]/g, ""));
     const result = steps[entry.step];
-    if (result?.status === "fail" && entry.match.test(result.message ?? "")) {
+    if (result?.status === "fail" && pattern.test(result.message ?? "")) {
       steps[entry.step] = {
         status: "xfail",
         message: `${entry.ref} (${entry.reason}): ${result.message ?? "failed"}`,
@@ -625,6 +627,14 @@ export function applyExpectedFailures(name, steps, list = EXPECTED_FAILURES) {
         message:
           `${entry.ref} is listed in EXPECTED_FAILURES but passed: remove the entry ` +
           "(scripts/examples-e2e/lib.mjs) together with the fix",
+      };
+    } else if (result?.status !== "fail") {
+      // Skipped or never reached: the entry no longer observes anything.
+      steps[entry.step] = {
+        status: "fail",
+        message:
+          `${entry.ref} is listed in EXPECTED_FAILURES but ${entry.step} was ` +
+          `${result ? result.status : "not reached"}: the entry is stale`,
       };
     }
   }
@@ -715,46 +725,92 @@ export function candidatePackages(dir, packages) {
 }
 
 /**
- * Every `@comvi/*` tarball resolution in a pnpm v9 lockfile:
- * `{ name, tarball (absolute), integrity }`. The `packages:` entry of a
- * `file:` tarball carries `resolution: {integrity: …, tarball: file:<path>}`,
- * with the path relative to the install directory.
+ * Every `@comvi/*` entry of a pnpm v9 lockfile's `packages:` section, as
+ * `{ name, reference, integrity, tarball }`. Two shapes are expected:
+ *
+ *   - `'@comvi/core@file:<path>'` — an override to a local tarball; `tarball`
+ *     is that path made absolute against `installDir`;
+ *   - `'@comvi/core@0.5.0'` — a version resolved through the candidate
+ *     registry (a peer no override reaches); `tarball` is the URL pnpm
+ *     recorded, or null.
+ *
+ * `snapshots:` is not read: it repeats the keys without resolutions.
  */
-export function tarballResolutions(lockfile, installDir) {
+export function comviLockEntries(lockfile, installDir) {
+  const lines = lockfile.split("\n");
+  const start = lines.findIndex((line) => /^packages:\s*$/.test(line));
+  if (start === -1) return [];
   const out = [];
-  const pattern =
-    /^\s*'(@comvi\/[A-Za-z0-9._-]+)@file:[^']*':\s*\n\s*resolution: \{integrity: ([^,\s]+), tarball: file:([^}]+)\}/gm;
-  for (const match of lockfile.matchAll(pattern)) {
-    out.push({
-      name: match[1],
-      integrity: match[2],
-      tarball: path.resolve(installDir, match[3].trim()),
-    });
+  let current = null;
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break; // the next top-level section
+    const key = /^ {2}'?(@[^@'\s]+\/[^@'\s]+)@([^']+?)'?:\s*$/.exec(line);
+    if (key) {
+      current = key[1].startsWith("@comvi/") ? { name: key[1], reference: key[2] } : null;
+      if (current) out.push({ ...current, integrity: null, tarball: null });
+      continue;
+    }
+    if (/^ {2}\S/.test(line)) {
+      current = null; // a key this parser does not recognise; checked below
+      const name = /^ {2}'?(@comvi\/[^@'\s]+)/.exec(line)?.[1];
+      if (name) out.push({ name, reference: line.trim(), integrity: null, tarball: null });
+      continue;
+    }
+    const resolution = /^\s+resolution: \{integrity: ([^,\s}]+)(?:, tarball: ([^}]+))?\}/.exec(
+      line,
+    );
+    if (current && resolution) {
+      const entry = out[out.length - 1];
+      entry.integrity = resolution[1];
+      const tarball = resolution[2]?.trim() ?? null;
+      entry.tarball = tarball?.startsWith("file:")
+        ? path.resolve(installDir, tarball.slice("file:".length))
+        : tarball;
+    }
   }
   return out;
 }
 
 /**
  * Fail unless every `@comvi/*` the install resolved is the candidate's own
- * tarball, byte for byte: same path, and the lockfile's integrity equal to the
- * sha512 of the file on disk. Fails closed when the lockfile names none.
+ * tarball, byte for byte, whichever way it was resolved:
+ *
+ *   - a `file:` entry must name the candidate's file, and
+ *   - a version entry (a peer resolved through the candidate registry) must
+ *     carry the candidate's version,
+ *
+ * and in both cases the lockfile's integrity must equal the sha512 of the
+ * candidate file. Any other `@comvi/` key, or one without an integrity, is an
+ * error rather than something to skip. Fails closed when there are none.
  */
 export function assertCandidateIntegrity(lockfile, installDir, packages) {
-  const resolutions = tarballResolutions(lockfile, installDir);
-  if (resolutions.length === 0) {
+  const entries = comviLockEntries(lockfile, installDir);
+  if (entries.length === 0) {
     throw new Error(
-      "the lockfile names no @comvi tarball resolution, so the candidate's provenance was never checked",
+      "the lockfile names no @comvi package resolution, so the candidate's provenance was never checked",
     );
   }
-  for (const entry of resolutions) {
+  for (const entry of entries) {
     const pkg = packages.find((candidate) => candidate.name === entry.name);
     if (!pkg?.tarball)
       throw new Error(`${entry.name} resolved, but the candidate has no tarball for it`);
-    if (entry.tarball !== pkg.tarball) {
-      throw new Error(
-        `${entry.name} resolved to ${entry.tarball}, not the candidate's ${pkg.tarball}`,
-      );
+    if (entry.reference.startsWith("file:")) {
+      if (entry.tarball !== pkg.tarball) {
+        throw new Error(
+          `${entry.name} resolved to ${entry.tarball}, not the candidate's ${pkg.tarball}`,
+        );
+      }
+    } else if (/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(entry.reference)) {
+      if (entry.reference !== pkg.version) {
+        throw new Error(
+          `${entry.name}@${entry.reference} resolved, but the candidate is ${pkg.version}`,
+        );
+      }
+    } else {
+      throw new Error(`unexplained @comvi lockfile entry: ${entry.name} (${entry.reference})`);
     }
+    if (!entry.integrity)
+      throw new Error(`${entry.name}@${entry.reference} has no integrity in the lockfile`);
     const actual = fileDigest(pkg.tarball, "sha512");
     if (actual !== entry.integrity) {
       throw new Error(
@@ -762,5 +818,5 @@ export function assertCandidateIntegrity(lockfile, installDir, packages) {
       );
     }
   }
-  return resolutions;
+  return entries;
 }

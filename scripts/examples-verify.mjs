@@ -14,6 +14,7 @@ import {
   tarballFor,
   workspacePackages,
 } from "./docs-snippets/link-sdk.mjs";
+import { assertCandidateIntegrity } from "./examples-e2e/lib.mjs";
 
 /**
  * Build gate for `examples/*` — the StackBlitz demos.
@@ -164,8 +165,13 @@ export function declaredComviDeps(manifest) {
  * cannot read yields zero entries, and "zero registry resolutions" then reads as
  * evidence when nothing was checked. So every package the example DECLARES must
  * be accounted for before the stray filter is believed.
+ *
+ * With `candidate` (`{ installDir, packages }`), the stray filter is replaced
+ * by the stricter `assertCandidateIntegrity`: since the @comvi scope resolves
+ * from the candidate registry, a version-keyed entry is legitimate when — and
+ * only when — its bytes are the candidate's, and that is what it checks.
  */
-export function assertLocalResolutions(lockfile, declared) {
+export function assertLocalResolutions(lockfile, declared, candidate = null) {
   const seen = new Set(comviResolutions(lockfile).map((entry) => entry.name));
   const unaccounted = declared.filter((name) => !seen.has(name));
   if (unaccounted.length > 0) {
@@ -174,6 +180,9 @@ export function assertLocalResolutions(lockfile, declared) {
         "packages parsed). Either the install did not happen, or this is a lockfile format " +
         "`comviResolutions` cannot read — in which case provenance was never checked.",
     );
+  }
+  if (candidate) {
+    return assertCandidateIntegrity(lockfile, candidate.installDir, candidate.packages);
   }
   const strays = registryResolutions(lockfile);
   if (strays.length > 0) {
@@ -676,6 +685,10 @@ async function verifyExample(example, packages, options) {
         assertLocalResolutions(
           fs.readFileSync(path.join(target, "pnpm-lock.yaml"), "utf8"),
           declaredComviDeps(manifest),
+          {
+            installDir: target,
+            packages: packages.map((pkg) => ({ ...pkg, tarball: pkg.tarball ?? tarballFor(pkg) })),
+          },
         );
         // Recorded, not inferred: the provenance summary at the end may only
         // be printed for examples that really reached this line.
@@ -738,7 +751,8 @@ async function main(argv) {
 
   // A child process, not an in-process server: the installs below are
   // `spawnSync`, which would block a server living in this event loop.
-  const urlFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "comvi-registry-")), "url");
+  const urlDir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-registry-"));
+  const urlFile = path.join(urlDir, "url");
   const registry = spawn(
     process.execPath,
     [
@@ -764,6 +778,7 @@ async function main(argv) {
     }
   } finally {
     registry.kill();
+    fs.rmSync(urlDir, { recursive: true, force: true });
   }
 
   if (options.json) {

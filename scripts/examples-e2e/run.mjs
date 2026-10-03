@@ -32,11 +32,13 @@
  *                                     [--tarballs <dir>]
  *
  * `--tarballs <dir>` runs against a release candidate: the `.tgz` files in
- * `<dir>`, exactly as `scripts/publish-candidate.mjs` packed them and will
- * publish them. It implies `--no-build --no-pack`, and after every install the
- * lockfile's integrity for each `@comvi/*` must equal the sha512 of the
- * candidate's own file (`assertCandidateIntegrity`) — which every run checks,
- * candidate or not, against whichever tarballs it installed.
+ * `<dir>`, exactly as `scripts/publish-candidate.mjs verify` packed them and
+ * the release workflow's publish job will publish them. It implies
+ * `--no-build --no-pack`. After every install, each `@comvi/*` in the lockfile
+ * — `file:` override or peer resolved through the candidate registry — must
+ * carry the sha512 of the candidate's own file (`assertCandidateIntegrity`),
+ * which every run checks, candidate or not, against whichever tarballs it
+ * installed.
  *
  * Each example runs up to three phases, each a fresh build of the same copy:
  * `main` (every step but k2 and s), `cdn-down` under `--cdn` (k2, and g again
@@ -97,7 +99,6 @@ import {
   allPassed,
   applyExpectedFailures,
   applyVariant,
-  assertCandidateIntegrity,
   candidatePackages,
   cdnEnv,
   cdnVerdict,
@@ -445,8 +446,11 @@ async function e2eExample(example, packages, options, cdn) {
         env: childEnv(kind),
       });
       const lockfile = fs.readFileSync(path.join(target, "pnpm-lock.yaml"), "utf8");
-      assertLocalResolutions(lockfile, declaredComviDeps(manifest));
-      assertCandidateIntegrity(lockfile, target, packages);
+      const entries = assertLocalResolutions(lockfile, declaredComviDeps(manifest), {
+        installDir: target,
+        packages,
+      });
+      result.resolved = [...new Set(entries.map((entry) => entry.name))].sort();
     } catch (error) {
       result.build = { status: "fail", message: firstLine(error.message) };
       console.error(`\n${example.name}: ${tail(error.message, 60)}\n`);
@@ -612,12 +616,13 @@ async function main(argv) {
           file: path.basename(pkg.tarball),
           sha256: fileDigest(pkg.tarball),
         })),
-        results: results.map(({ name, kind, build, steps, seconds }) => ({
+        results: results.map(({ name, kind, build, steps, seconds, resolved }) => ({
           name,
           kind,
           build,
           steps,
           seconds,
+          resolved,
         })),
         findings,
       },

@@ -37,7 +37,7 @@ import {
   stepResults,
   summarizeError,
   tarballName,
-  tarballResolutions,
+  comviLockEntries,
 } from "./lib.mjs";
 
 /**
@@ -71,6 +71,16 @@ test("parseArgs: --only takes a comma list, repeats, and the = form", () => {
 test("parseArgs: --only without a value is an error, not an empty filter", () => {
   assert.throws(() => parseArgs(["--only"]), /needs a framework/);
   assert.throws(() => parseArgs(["--only", "--cdn"]), /needs a framework/);
+});
+
+test("parseArgs: --tarballs forces --no-build and --no-pack", () => {
+  for (const argv of [["--tarballs", "rc"], ["--tarballs=rc"]]) {
+    const options = parseArgs(argv);
+    assert.equal(options.tarballs, "rc");
+    assert.equal(options.build, false);
+    assert.equal(options.pack, false);
+  }
+  assert.throws(() => parseArgs(["--tarballs"]), /--tarballs needs a directory/);
 });
 
 test("parseArgs: flags and unknown arguments", () => {
@@ -512,6 +522,21 @@ test("applyExpectedFailures: only the listed failure is xfail; a pass or another
   assert.equal(passing.s.status, "fail");
   assert.match(passing.s.message, /F-15 is listed in EXPECTED_FAILURES but passed/);
   assert.deepEqual(applyExpectedFailures("next", { s: { status: "fail" } }, list).s.status, "fail");
+  for (const stale of [{ s: { status: "skip", message: "x" } }, {}]) {
+    const steps = applyExpectedFailures("nuxt", stale, list);
+    assert.equal(steps.s.status, "fail");
+    assert.match(steps.s.message, /the entry is stale/);
+  }
+  // A /g pattern is not stateful across calls.
+  const global = [{ ...list[0], match: /fallback/g }];
+  for (let i = 0; i < 3; i++) {
+    const steps = applyExpectedFailures(
+      "nuxt",
+      { s: { status: "fail", message: "fallback" } },
+      global,
+    );
+    assert.equal(steps.s.status, "xfail");
+  }
 });
 
 test("EXPECTED_FAILURES: each entry has a reference and a message to match", () => {
@@ -614,8 +639,13 @@ test("assertCandidateIntegrity: the lockfile must name the candidate's file with
         "",
       ].join("\n");
 
-    assert.deepEqual(tarballResolutions(lock(sri("core bytes")), install), [
-      { name: "@comvi/core", integrity: sri("core bytes"), tarball },
+    assert.deepEqual(comviLockEntries(lock(sri("core bytes")), install), [
+      {
+        name: "@comvi/core",
+        reference: "file:../candidate/comvi-core-0.5.0.tgz",
+        integrity: sri("core bytes"),
+        tarball,
+      },
     ]);
     assertCandidateIntegrity(lock(sri("core bytes")), install, packages);
     assert.throws(
@@ -633,7 +663,53 @@ test("assertCandidateIntegrity: the lockfile must name the candidate's file with
     );
     assert.throws(
       () => assertCandidateIntegrity("lockfileVersion: '9.0'\n", install, packages),
-      /names no @comvi tarball resolution/,
+      /names no @comvi package resolution/,
+    );
+
+    // A peer resolved through the candidate registry: a version key, the
+    // registry's URL, and the same bytes. Accepted only with the candidate's
+    // version AND the candidate's sha512.
+    const registryLock = (version, integrity) =>
+      [
+        "lockfileVersion: '9.0'",
+        "",
+        "packages:",
+        "",
+        `  '@comvi/core@${version}':`,
+        `    resolution: {integrity: ${integrity}, tarball: http://127.0.0.1:1234/-/tarballs/comvi-core-${version}.tgz}`,
+        "",
+        "  vue@3.5.43:",
+        "    resolution: {integrity: sha512-x}",
+        "",
+        "snapshots:",
+        "",
+        `  '@comvi/core@${version}': {}`,
+        "",
+      ].join("\n");
+    const [entry] = comviLockEntries(registryLock("0.5.0", sri("core bytes")), install);
+    assert.equal(entry.reference, "0.5.0");
+    assert.equal(entry.tarball, "http://127.0.0.1:1234/-/tarballs/comvi-core-0.5.0.tgz");
+    assertCandidateIntegrity(registryLock("0.5.0", sri("core bytes")), install, packages);
+    assert.throws(
+      () => assertCandidateIntegrity(registryLock("0.5.0", sri("npm bytes")), install, packages),
+      /is not the candidate tarball's/,
+    );
+    assert.throws(
+      () => assertCandidateIntegrity(registryLock("0.4.1", sri("core bytes")), install, packages),
+      /@comvi\/core@0\.4\.1 resolved, but the candidate is 0\.5\.0/,
+    );
+    // Any other shape is an error, never skipped.
+    assert.throws(
+      () =>
+        assertCandidateIntegrity(
+          registryLock("0.5.0", sri("core bytes")).replace(
+            "'@comvi/core@0.5.0':",
+            "'@comvi/core@link:../core':",
+          ),
+          install,
+          packages,
+        ),
+      /unexplained @comvi lockfile entry/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -718,9 +794,10 @@ test("startCandidateRegistry: serves only the candidate's versions, and 404s the
       const bytes = Buffer.from(await (await fetch(dist.tarball)).arrayBuffer());
       assert.ok(bytes.equals(fs.readFileSync(tarball)));
       assert.equal((await fetch(`${registry.url}@comvi%2freact`)).status, 404);
+      assert.equal((await fetch(`${registry.url}%E0%A4%A`)).status, 400);
       assert.deepEqual(
         registry.requests.map((entry) => entry.status),
-        [200, 200, 404],
+        [200, 200, 404, 400],
       );
       assert.equal(scopeRegistryLine(registry.url), `@comvi:registry=${registry.url}\n`);
     } finally {

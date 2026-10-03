@@ -64,7 +64,7 @@ function makeFixture(t, packages) {
   return { root, archiveDir };
 }
 
-function runScript({ root, archiveDir, published }) {
+function runScript({ root, archiveDir, published, tarballsDir }) {
   return spawnSync(process.execPath, [scriptPath], {
     cwd: root,
     encoding: "utf8",
@@ -73,6 +73,7 @@ function runScript({ root, archiveDir, published }) {
       PUBLISHED_PACKAGES: JSON.stringify(published),
       COMVI_RELEASE_DRY_RUN: "1",
       COMVI_RELEASE_ARCHIVE_DIR: archiveDir,
+      ...(tarballsDir ? { COMVI_RELEASE_TARBALLS_DIR: tarballsDir } : {}),
     },
   });
 }
@@ -221,4 +222,27 @@ test("no published packages is a no-op", (t) => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /No packages were published/);
+});
+
+test("COMVI_RELEASE_TARBALLS_DIR: the archive holds the published tarballs byte for byte", (t) => {
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+  const tarballsDir = path.join(root, "release-candidate");
+  fs.mkdirSync(tarballsDir);
+  fs.writeFileSync(path.join(tarballsDir, "comvi-core-0.5.0.tgz"), "the core bytes npm received");
+  fs.writeFileSync(path.join(tarballsDir, "comvi-react-0.5.0.tgz"), "the react bytes npm received");
+  const result = runScript({
+    root,
+    archiveDir,
+    tarballsDir,
+    published: [
+      { name: "@comvi/core", version: "0.5.0" },
+      { name: "@comvi/react", version: "0.5.0" },
+    ],
+  });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const archiveRoot = extractArchive(t, archiveDir, "comvi-v0.5.0");
+  assert.equal(
+    fs.readFileSync(path.join(archiveRoot, "packages", "comvi-core-0.5.0.tgz"), "utf8"),
+    "the core bytes npm received",
+  );
 });

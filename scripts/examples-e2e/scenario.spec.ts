@@ -644,12 +644,20 @@ test("q: an HTML-like parameter renders as text, creates no element, runs nothin
 }) => {
   const target = `${START}?name=${encodeURIComponent(PAYLOAD)}`;
   if (SSR) {
-    // Nuxt renders the query on the server too; Next prerenders and reads it
-    // after mount. Either way the HTML that leaves the server holds no tag
-    // made from the parameter.
+    // The HTML that leaves the server holds no tag made from the parameter.
+    // Nuxt renders the query on the server, so its server HTML must ALSO show
+    // the payload as text — otherwise "no <img>" would pass just because the
+    // server ignored ?name=. Next prerenders these pages and never sees the
+    // query, so for Next the server check is inherently vacuous; its client
+    // render below is the real test.
     const html = await (await request.get(target)).text();
     const markup = html.replace(/<script\b[\s\S]*?<\/script>/gi, "");
     expect(markup, "an <img> made from the parameter in the server HTML").not.toMatch(/<img\b/i);
+    if (KIND === "nuxt") {
+      expect(visibleText(html), "the payload as text in Nuxt's server HTML").toContain(
+        greeting(localeOf(START), PAYLOAD),
+      );
+    }
   }
   // Every request for the payload's `src` is answered here, in arrival order,
   // with a body no browser decodes as an image: an <img> made from the
@@ -753,12 +761,20 @@ test("r: DOM states during en → uk → de are whole languages, never a key or 
     const frames: unknown[] = [];
     (window as unknown as { __frames: unknown[] }).__frames = frames;
     let last = "";
-    // How many animation frames have run: a state recorded under the same
-    // count as the state that replaced it never met a rendering opportunity.
+    // How many frames have been PAINTED: a state recorded under the same count
+    // as the state that replaced it never reached a paint. The count moves
+    // after the frame, not at its first rAF callback: a MessageChannel task
+    // posted from rAF runs once the frame's rAF callbacks, style, layout and
+    // paint are done, so a mutation made by a later rAF callback of the same
+    // frame is still counted as painted.
     let paints = 0;
     let batch = 0;
-    const tick = () => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
       paints++;
+    };
+    const tick = () => {
+      channel.port2.postMessage(null);
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -792,6 +808,16 @@ test("r: DOM states during en → uk → de are whole languages, never a key or 
   await switchTo(page, "de");
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
   const frames = await page.evaluate(() => (window as unknown as { __frames: Frame[] }).__frames);
+  // The painted/sub-frame split means nothing in a page that never renders
+  // (a background tab, a throttled renderer): every bad state would turn
+  // into a finding. Fail instead.
+  expect(await page.evaluate(() => document.visibilityState), "the page is visible").toBe(
+    "visible",
+  );
+  expect(
+    frames.length > 1 && frames[frames.length - 1].paints > frames[0].paints,
+    "no rendering opportunities observed between the first and the last state",
+  ).toBe(true);
 
   const violations: string[] = [];
   const findings: Array<Record<string, unknown>> = [];

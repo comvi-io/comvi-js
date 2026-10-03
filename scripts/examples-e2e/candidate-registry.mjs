@@ -58,7 +58,14 @@ export async function startCandidateRegistry(tarballs, { host = "127.0.0.1" } = 
   const requests = [];
   let base = "";
   const server = http.createServer((req, res) => {
-    const pathname = decodeURIComponent(new URL(req.url ?? "/", "http://registry").pathname);
+    let pathname;
+    try {
+      pathname = decodeURIComponent(new URL(req.url ?? "/", "http://registry").pathname);
+    } catch {
+      requests.push({ path: req.url ?? "", status: 400 });
+      res.writeHead(400, { "content-type": "application/json" }).end("{}");
+      return;
+    }
     const reply = (status, body, type = "application/json") => {
       requests.push({ path: pathname, status });
       res.writeHead(status, { "content-type": type }).end(body);
@@ -112,6 +119,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(impor
   const urlFile = args[at + 1];
   const tarballs = args.filter((_, index) => index !== at && index !== at + 1);
   const registry = await startCandidateRegistry(tarballs);
-  fs.writeFileSync(urlFile, registry.url);
+  // Written whole, then renamed: a reader polling for the file never sees it
+  // half-written.
+  fs.writeFileSync(`${urlFile}.tmp`, registry.url);
+  fs.renameSync(`${urlFile}.tmp`, urlFile);
   // Lives until the parent kills it.
 }

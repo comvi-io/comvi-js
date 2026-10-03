@@ -113,7 +113,16 @@ function createReleaseArchive() {
       }
 
       const before = new Set(readdirSync(packagesDir));
-      run("pnpm", ["--dir", dir, "pack", "--pack-destination", packagesDir]);
+      // COMVI_RELEASE_TARBALLS_DIR: the release job's verified candidate (what
+      // npm just received), copied rather than re-packed — the publishing job
+      // has no install and no build to pack from.
+      const tarballsDir = process.env.COMVI_RELEASE_TARBALLS_DIR;
+      if (tarballsDir) {
+        const file = `${pkg.name.replace(/^@/, "").replace("/", "-")}-${pkg.version}.tgz`;
+        copyFileSync(join(tarballsDir, file), join(packagesDir, file));
+      } else {
+        run("pnpm", ["--dir", dir, "pack", "--pack-destination", packagesDir]);
+      }
       const created = readdirSync(packagesDir).filter((file) => !before.has(file));
       if (created.length !== 1) {
         console.error(`Expected one tarball for ${pkg.name}, found ${created.length}`);
