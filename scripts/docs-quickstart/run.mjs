@@ -17,7 +17,8 @@
  *
  * Per framework and page:
  *
- *   1. scaffold — the Terminal fence's create command, with only the flags that
+ *   1. scaffold — the Terminal fence's create command (the page may show none; then
+ *      the `DEFAULT_SCAFFOLDS` entry), with only the flags that
  *      answer its prompts the way Enter would (`plan.mjs` SCAFFOLDERS). Cached
  *      per command under the temp dir, so a second run starts from a copy.
  *   2. install — the page's titled fences are written over the scaffold, every
@@ -62,6 +63,9 @@ import {
   fenceForLine,
   firstFailingLine,
   parseTerminal,
+  nonInteractive,
+  splitCommands,
+  DEFAULT_SCAFFOLDS,
   planPage,
   renderTable,
   stripAnsi,
@@ -379,9 +383,13 @@ export function projectPlan(pagePlans, fw, pageKey) {
     notes.push(...plan.notes);
   }
   const parsed = parseTerminal(terminal);
+  // The page may show only `npm install`; the project still starts from a scaffold.
+  const scaffoldSource = parsed.scaffold ? "page" : "default";
+  const scaffold = parsed.scaffold ?? nonInteractive(splitCommands([DEFAULT_SCAFFOLDS[fw]])[0]);
   return {
     files,
-    scaffold: parsed.scaffold,
+    scaffold,
+    scaffoldSource,
     installs: parsed.installs,
     unknown: parsed.unknown,
     notes,
@@ -413,6 +421,7 @@ async function runProject({ fw, page, plan, packages, cdn, options }) {
   if (plan.unknown.length > 0) {
     result.notes.push(`Terminal lines the gate does not understand: ${plan.unknown.join("; ")}`);
   }
+  result.notes.push(`scaffold: ${plan.scaffoldSource}`);
   result.notes.push(`scaffold flags added: ${plan.scaffold.note}`);
 
   const scaffolded = await scaffold(plan.scaffold, options);

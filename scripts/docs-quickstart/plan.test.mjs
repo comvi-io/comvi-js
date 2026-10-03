@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   CDN_PLACEHOLDER,
+  DEFAULT_SCAFFOLDS,
+  FRAMEWORKS,
   QUIET_ENV,
   expectation,
   fenceForLine,
@@ -298,4 +300,55 @@ test("parseTerminal: `npm run dev` is the reader's step the gate performs itself
   const plan = parseTerminal(["npm install @comvi/react", "npm run dev"]);
   assert.deepEqual(plan.installs, ["@comvi/react"]);
   assert.deepEqual(plan.unknown, []);
+});
+
+const INSTALL_ONLY_PAGE = [
+  '<TabItem label="React">',
+  '```bash title="Terminal"',
+  "npm install @comvi/react",
+  "```",
+  "</TabItem>",
+  '<TabItem label="Next.js">',
+  '```bash title="Terminal"',
+  "npm install @comvi/next",
+  "```",
+  "</TabItem>",
+].join("\n");
+
+test("projectPlan: an install-only page falls back to the default scaffold", () => {
+  const pages = new Map([["quick-start", planPage(INSTALL_ONLY_PAGE, "quick-start")]]);
+  const react = projectPlan(pages, "react", "quick-start");
+  assert.equal(react.scaffoldSource, "default");
+  assert.deepEqual(react.scaffold.argv.slice(0, 6), [
+    "npm",
+    "create",
+    "vite@latest",
+    "my-app",
+    "--",
+    "--template",
+  ]);
+  assert.ok(react.scaffold.argv.includes("--no-interactive"));
+  assert.deepEqual(react.installs, ["@comvi/react"]);
+  const next = projectPlan(pages, "next", "quick-start");
+  assert.ok(next.scaffold.argv.includes("--src-dir"));
+  assert.ok(next.scaffold.argv.includes("--yes"));
+});
+
+test("projectPlan: a scaffold on the page wins over the default", () => {
+  const page = INSTALL_ONLY_PAGE.replace(
+    "npm install @comvi/react",
+    "npm create vite@latest other-app -- --template react-swc-ts\nnpm install @comvi/react",
+  );
+  const pages = new Map([["quick-start", planPage(page, "quick-start")]]);
+  const react = projectPlan(pages, "react", "quick-start");
+  assert.equal(react.scaffoldSource, "page");
+  assert.equal(react.scaffold.dir, "other-app");
+  assert.ok(react.scaffold.argv.includes("react-swc-ts"));
+});
+
+test("DEFAULT_SCAFFOLDS: covers every framework and each command is understood", () => {
+  for (const fw of FRAMEWORKS) {
+    assert.ok(DEFAULT_SCAFFOLDS[fw.key], `no default scaffold for ${fw.key}`);
+    assert.equal(nonInteractive(splitCommands([DEFAULT_SCAFFOLDS[fw.key]])[0]).dir, "my-app");
+  }
 });

@@ -205,6 +205,21 @@ export const SCAFFOLDERS = [
   },
 ];
 
+/**
+ * The scaffold each framework's project starts from when the page shows no
+ * scaffold command of its own (the quick start only says `npm install`, for an
+ * app the reader already has). A scaffold on the page wins over this table.
+ */
+export const DEFAULT_SCAFFOLDS = {
+  react: "npm create vite@latest my-app -- --template react-ts",
+  next: "npx create-next-app@latest my-app --src-dir",
+  vue: "npm create vite@latest my-app -- --template vue-ts",
+  nuxt: "npm create nuxt@latest my-app",
+  svelte: "npx sv create my-app",
+  solid: "npm create vite@latest my-app -- --template solid-ts",
+  vanilla: "npm create vite@latest my-app -- --template vanilla-ts",
+};
+
 /** `npm create <name>[@v]`, `npm init <name>`, or `npx [create-]<name>[@v]`. */
 function isCreate(argv, name) {
   const pkgName = (spec) => spec?.replace(/@[^@/]*$/, "");
