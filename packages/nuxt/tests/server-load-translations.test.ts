@@ -82,6 +82,9 @@ function createI18nStub(
     hasLocale: vi.fn((locale: string, namespace = defaultNs) =>
       loaded.has(`${locale}:${namespace}`),
     ),
+    // No fallback chain: the chain is pinned with real hosts in
+    // `server-fallback-chain.test.ts`.
+    getFallbackLocales: vi.fn((): string[] => []),
     getTranslations: vi.fn((locale: string, namespace = defaultNs) => {
       const key = `${locale}:${namespace}`;
       return translations.get(key) ?? Object.create(null);

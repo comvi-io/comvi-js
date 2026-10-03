@@ -3,6 +3,7 @@ import type { TranslationValue } from "@comvi/core";
 import type { NuxtServerHost } from "../../../types";
 import type { H3Event } from "h3";
 import { getRequestI18n } from "./request-i18n";
+import { loadCatalogs } from "../../utils/load-catalogs";
 
 export interface LoadTranslationsOptions {
   /** Defaults to the default namespace. */
@@ -14,8 +15,6 @@ export interface LoadTranslationsOptions {
  */
 export type TranslationsResult = Record<string, Record<string, TranslationValue>>;
 
-const toError = (error: unknown): Error =>
-  error instanceof Error ? error : new Error(String(error));
 const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 
 // Two distinct failures, two distinct sentences. The generated DEFAULT host is
@@ -59,6 +58,10 @@ const warnNoLoader = (i18n: NuxtServerHost, message: string): void => {
 
 /**
  * Load translations for SSR/SSG using the configured i18n loader pipeline.
+ *
+ * The result holds the requested locale AND every locale of the
+ * `fallbackLocale` chain, for each requested namespace, keyed
+ * `locale:namespace`.
  */
 export async function loadTranslations(
   event: H3Event,
@@ -70,26 +73,23 @@ export async function loadTranslations(
   const namespaces = options.namespaces ?? [defaultNs];
   const loaderHost = hasLoaderApi(i18n) ? i18n : undefined;
   const hasLoader = loaderHost !== undefined && Boolean(loaderHost.getLoader());
+  // The client hydrates from these catalogs, so ship every catalog the server
+  // render could have read: the requested locale, then its fallback chain in
+  // the order core's lookup walks it. A cached primary catalog says nothing
+  // about the fallbacks, so each pair is checked on its own.
+  await loadCatalogs(i18n, namespaces, locale);
+  const locales = [...new Set([locale, ...i18n.getFallbackLocales()])];
+
   const result: TranslationsResult = {};
-
-  for (const namespace of namespaces) {
-    const cacheKey = `${locale}:${namespace}`;
-
-    if (!i18n.hasLocale(locale, namespace) && loaderHost && hasLoader) {
-      try {
-        await loaderHost.reloadTranslations(locale, namespace);
-      } catch (error) {
-        const err = toError(error);
-        console.warn(`[@comvi/nuxt] Failed to load ${locale}:${namespace}:`, err.message);
+  for (const loc of locales) {
+    for (const namespace of namespaces) {
+      if (i18n.hasLocale(loc, namespace)) {
+        const translations = i18n.getTranslations(loc, namespace) as Record<
+          string,
+          TranslationValue
+        >;
+        result[`${loc}:${namespace}`] = toPlainObject(translations);
       }
-    }
-
-    if (i18n.hasLocale(locale, namespace)) {
-      const translations = i18n.getTranslations(locale, namespace) as Record<
-        string,
-        TranslationValue
-      >;
-      result[cacheKey] = toPlainObject(translations);
     }
   }
 

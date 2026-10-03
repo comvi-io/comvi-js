@@ -5,6 +5,7 @@ import type { TranslationParams } from "@comvi/core";
 import type { NuxtServerHost } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
 import { getRequestI18n } from "./request-i18n";
+import { loadCatalogs } from "../../utils/load-catalogs";
 import { resolveAcceptLanguage } from "../../utils/resolve-locale";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../../defaults";
 
@@ -161,6 +162,9 @@ export async function useTranslation(
   if (!i18n.hasLocale(resolvedLocale, namespace)) {
     await loadTranslationsForLocale(i18n, resolvedLocale, [namespace]);
   }
+  // The fallback chain too, whether or not the primary catalog was cached:
+  // otherwise a key present only in a fallback catalog renders as the raw key.
+  await loadCatalogs(i18n, [namespace]);
 
   const t: ServerTranslationFunction = ((key: string, params?: TranslationParams) => {
     // `as never` because the key is a RUNTIME string: once an app generates

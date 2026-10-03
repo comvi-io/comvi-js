@@ -40,6 +40,42 @@ const warnNoLoaderConfigured = (i18n: ServerI18nHost): void => {
 };
 
 /**
+ * In-flight loads per host and `locale:namespace`. Core's `reloadTranslations`
+ * cancels and restarts a pair that is already loading, so concurrent requests
+ * share the first one's promise here instead of fetching the pair twice.
+ */
+const pendingLoads = new WeakMap<ServerI18nHost, Map<string, Promise<void>>>();
+
+const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Promise<void> => {
+  if (i18n.hasLocale(locale, namespace)) {
+    return Promise.resolve();
+  }
+  let pending = pendingLoads.get(i18n);
+  if (!pending) {
+    pending = new Map();
+    pendingLoads.set(i18n, pending);
+  }
+  const key = `${locale}:${namespace}`;
+  let load = pending.get(key);
+  if (!load) {
+    const loads = pending;
+    // Reuse core loading pipeline (events, error handling). A failure has
+    // already reached `onError` and `loadError`; the render continues without
+    // the catalog, and the client gets the same catalogs, so both sides agree.
+    load = i18n
+      .reloadTranslations(locale, namespace)
+      .catch((error: unknown) => {
+        console.warn(`[comvi/next] Failed to load ${key}:`, toError(error).message);
+      })
+      .finally(() => {
+        loads.delete(key);
+      });
+    pending.set(key, load);
+  }
+  return load;
+};
+
+/**
  * Load translations for a locale using the configured i18n loader.
  *
  * The result holds the requested locale AND every locale of the host's
@@ -80,28 +116,21 @@ export async function loadTranslations(
   // make the client render the raw key where the server rendered the fallback.
   const locales = [...new Set([locale, ...i18n.getFallbackLocales()])];
 
-  const result: TranslationsResult = {};
+  if (hasLoader) {
+    await Promise.all(
+      locales.flatMap((loc) => namespaces.map((namespace) => loadPair(i18n, loc, namespace))),
+    );
+  }
 
+  const result: TranslationsResult = {};
   for (const loc of locales) {
     for (const namespace of namespaces) {
-      const cacheKey = `${loc}:${namespace}`;
-
-      if (!i18n.hasLocale(loc, namespace) && hasLoader) {
-        try {
-          // Reuse core loading pipeline (events, error handling, deduplication).
-          await i18n.reloadTranslations(loc, namespace);
-        } catch (error) {
-          const err = toError(error);
-          console.warn(`[comvi/next] Failed to load ${cacheKey}:`, err.message);
-        }
-      }
-
       if (i18n.hasLocale(loc, namespace)) {
         const translations = i18n.getTranslations(loc, namespace) as Record<
           string,
           TranslationValue
         >;
-        result[cacheKey] = toPlainObject(translations);
+        result[`${loc}:${namespace}`] = toPlainObject(translations);
       }
     }
   }

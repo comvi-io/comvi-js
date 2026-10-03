@@ -21,6 +21,7 @@ function createHostStub() {
   const host = {
     getDefaultNamespace: vi.fn(() => "common"),
     hasLocale: vi.fn(() => true),
+    getFallbackLocales: vi.fn(() => ["en"]),
     hasTranslation: vi.fn(() => true),
     // The parameters are declared so `mock.calls[0][1]` is typed: an untyped
     // `vi.fn()` records a zero-length tuple and indexing it is a tsc error.

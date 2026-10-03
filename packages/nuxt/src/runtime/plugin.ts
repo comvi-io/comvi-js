@@ -10,6 +10,7 @@ import { createComviI18n } from "#build/comvi.host";
 import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./defaults";
+import { loadCatalogs } from "./utils/load-catalogs";
 import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "./request-hosts-key";
 import {
   EDITOR_INITIAL_MAPPINGS_GLOBAL,
@@ -163,6 +164,14 @@ export default defineNuxtPlugin({
 
     // Only after every plugin is registered.
     await i18n.init();
+
+    if (import.meta.server) {
+      // `init()` and the middleware's locale switch load the active namespaces
+      // for one locale each, never the fallback chain. The chain does not
+      // depend on the request locale, so it is loaded once here, before the
+      // render, and reaches the client through the payload with the rest.
+      await loadCatalogs(i18n.core);
+    }
 
     const unsubLocaleChanged = i18n.on("localeChanged", ({ to }) => {
       localeState.value = to;

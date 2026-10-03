@@ -49,9 +49,11 @@ import type {
  * ```
  *
  * @remarks
- * getI18n auto-loads only the default namespace (or the namespace passed via
- * getI18n({ ns })). If you call t() with a different ns, ensure you preloaded it
- * via loadTranslations(locale, { namespaces: [...] }) in your layout or metadata.
+ * getI18n auto-loads one namespace, the default one or the one passed via
+ * getI18n({ ns }), for the request locale and every locale of the host's
+ * `fallbackLocale` chain. If you call t() with a different ns, ensure you
+ * preloaded it via loadTranslations(locale, { namespaces: [...] }) in your layout
+ * or metadata.
  */
 export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
   const i18n = getI18nInstance();
@@ -78,8 +80,11 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
 
   const defaultNs: RequestView["defaultNs"] = options?.ns ?? i18n.getDefaultNamespace();
 
-  // A page can render before its layout completes, so the namespace may not be in yet.
-  if (!i18n.hasLocale(locale, defaultNs)) {
+  // A page can render before its layout completes, so the namespace may not be
+  // in yet — for the request locale or for any locale of its fallback chain. A
+  // cached primary catalog says nothing about the fallbacks, so each is checked.
+  const chain = [locale, ...i18n.getFallbackLocales()];
+  if (chain.some((loc) => !i18n.hasLocale(loc, defaultNs))) {
     await loadTranslations(locale, { namespaces: [defaultNs] });
   }
 
