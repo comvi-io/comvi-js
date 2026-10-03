@@ -120,8 +120,8 @@ independent, and either works without the other.
 ## Specific to Solid
 
 - `useI18n('admin')` binds a namespace at the type level too. The `formatNumber`, `formatDate`,
-  `formatCurrency` and `formatRelativeTime` members read no signal; pass `locale()` as their
-  trailing argument to re-run them on a switch.
+  `formatCurrency` and `formatRelativeTime` members follow the locale like `t()`, and a trailing
+  `locale` argument overrides it.
 - `<T components={{ link: (props) => <a href="/docs">{props.children}</a> }} />`: each tag maps to a
   plain function or an element name such as `{ policy: 'a' }`. Plain `t()` does not parse tags.
 - `<I18nProvider>` initializes from a `createEffect`, and effects do not run during Solid's server

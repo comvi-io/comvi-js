@@ -16,6 +16,7 @@ import type {
   FlattenedTranslations,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
+  LocaleSource,
 } from "@comvi/core";
 
 /** Loader/plugin-host members are NOT part of it — see `capabilityHooks`. */
@@ -101,7 +102,8 @@ export interface UseI18nReturn<
   /** Routes to the configured `onError` handler. */
   reportError: Host["reportError"];
 
-  // The formatters below default to the current locale.
+  // The formatters below default to the current locale and are reactive: a
+  // trailing `locale` argument overrides it.
   formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
 
   formatDate: (
@@ -195,6 +197,16 @@ export function useI18n<
     return ctx.i18n.tRaw(key as never, { ns, ...params } as TranslationParams);
   }) as UseI18nRawTranslation<DefaultNS, D>;
 
+  // What the bound formatters read their default locale from. The getter
+  // reads the locale signal, so a JSX expression, memo or effect that calls a
+  // formatter re-runs on a locale switch, as `t()` does. An explicit trailing
+  // `locale` argument short-circuits in core and never reaches the getter.
+  const localeSource: LocaleSource = {
+    get locale() {
+      return ctx.signals.locale();
+    },
+  };
+
   const t = ((key: string, params?: TranslationParams): string => {
     return translationResultToString(tRaw(key as never, params as never));
   }) as UseI18nTranslation<DefaultNS, D>;
@@ -237,10 +249,10 @@ export function useI18n<
     getTranslationCache: () => ctx.i18n.translationCache.getInternalMap(),
     on: (...args) => ctx.i18n.on(...args),
     reportError: (...args) => ctx.i18n.reportError(...args),
-    formatNumber: (...args) => formatNumber(ctx.i18n, ...args),
-    formatDate: (...args) => formatDate(ctx.i18n, ...args),
-    formatCurrency: (...args) => formatCurrency(ctx.i18n, ...args),
-    formatRelativeTime: (...args) => formatRelativeTime(ctx.i18n, ...args),
+    formatNumber: (...args) => formatNumber(localeSource, ...args),
+    formatDate: (...args) => formatDate(localeSource, ...args),
+    formatCurrency: (...args) => formatCurrency(localeSource, ...args),
+    formatRelativeTime: (...args) => formatRelativeTime(localeSource, ...args),
     dir: () => getTextDirection(ctx.signals.locale()),
   };
 }

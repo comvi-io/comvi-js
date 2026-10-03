@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { createMemo } from "solid-js";
 import { render } from "solid-js/web";
 import { attachLoader, createI18n, icuCompiler } from "../src/index";
 import { attachPlugins } from "@comvi/core/plugins";
@@ -395,6 +396,100 @@ describe("useI18n", () => {
     ).toBe("Jan 1, 2026");
     expect(api.formatCurrency(9.99, "USD")).toBe("$9.99");
     expect(api.formatRelativeTime(-1, "day")).toBe("1 day ago");
+  });
+
+  it("re-renders a formatter expression in JSX when the locale switches", async () => {
+    const fake = new FakeI18n({ language: "en" });
+
+    const Price = () => {
+      const { formatCurrency } = useI18n();
+      return <span>{formatCurrency(1234.5, "EUR")}</span>;
+    };
+
+    const container = renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Price />
+      </I18nProvider>
+    ));
+
+    expect(container.textContent).toBe("€1,234.50");
+
+    await fake.setLocaleAsync("de");
+    await flushMicrotasks();
+
+    expect(container.textContent).toBe(
+      new Intl.NumberFormat("de", { style: "currency", currency: "EUR" }).format(1234.5),
+    );
+  });
+
+  it("re-runs a createMemo over formatDate when the locale switches", async () => {
+    const fake = new FakeI18n({ language: "en" });
+    const day = new Date(Date.UTC(2026, 0, 1));
+    const options = { timeZone: "UTC", dateStyle: "long" } as const;
+    let runs = 0;
+
+    let label!: () => string;
+    const Probe = () => {
+      const { formatDate } = useI18n();
+      label = createMemo(() => {
+        runs += 1;
+        return formatDate(day, options);
+      });
+      return null;
+    };
+
+    renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
+
+    expect(label()).toBe("January 1, 2026");
+    expect(runs).toBe(1);
+
+    await fake.setLocaleAsync("de");
+    await flushMicrotasks();
+
+    expect(label()).toBe(new Intl.DateTimeFormat("de", options).format(day));
+    expect(runs).toBe(2);
+  });
+
+  it("lets a trailing locale argument override the render locale", async () => {
+    const fake = new FakeI18n({ language: "en" });
+
+    const Probe = () => {
+      const { formatNumber, formatDate, formatCurrency, formatRelativeTime } = useI18n();
+      const day = new Date(Date.UTC(2026, 0, 1));
+      return (
+        <div>
+          {formatNumber(1234.5, undefined, "de")}|
+          {formatDate(day, { timeZone: "UTC", month: "long" }, "fr")}|
+          {formatCurrency(1, "EUR", undefined, "de")}|
+          {formatRelativeTime(-1, "day", undefined, "fr")}
+        </div>
+      );
+    };
+
+    const container = renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
+
+    const expected = [
+      new Intl.NumberFormat("de").format(1234.5),
+      new Intl.DateTimeFormat("fr", { timeZone: "UTC", month: "long" }).format(
+        new Date(Date.UTC(2026, 0, 1)),
+      ),
+      new Intl.NumberFormat("de", { style: "currency", currency: "EUR" }).format(1),
+      new Intl.RelativeTimeFormat("fr").format(-1, "day"),
+    ].join("|");
+    expect(container.textContent).toBe(expected);
+
+    await fake.setLocaleAsync("ar");
+    await flushMicrotasks();
+
+    expect(container.textContent).toBe(expected);
   });
 
   it("exposes dir() that reflects the current language direction", async () => {
