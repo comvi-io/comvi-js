@@ -183,6 +183,7 @@ export type _ServerHostMembers = Expect<
     | "hasLocale"
     | "hasTranslation"
     | "getTranslations"
+    | "getFallbackLocales"
     | "getLoader"
     | "reloadTranslations"
   >

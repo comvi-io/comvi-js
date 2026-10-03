@@ -42,6 +42,10 @@ const warnNoLoaderConfigured = (i18n: ServerI18nHost): void => {
 /**
  * Load translations for a locale using the configured i18n loader.
  *
+ * The result holds the requested locale AND every locale of the host's
+ * `fallbackLocale` chain, for each requested namespace, so a key the server
+ * rendered from a fallback catalog resolves identically after hydration.
+ *
  * If no loader is configured, this function returns already-cached translations
  * for requested namespaces (if any) and logs a warning.
  *
@@ -70,27 +74,35 @@ export async function loadTranslations(
   const namespaces = options.namespaces ?? [defaultNs];
   const hasLoader = Boolean(i18n.getLoader());
 
+  // The client hydrates from these catalogs alone, so ship every catalog the
+  // server render could have read: the requested locale, then its fallback
+  // chain in the order core's lookup walks it. A missing fallback catalog would
+  // make the client render the raw key where the server rendered the fallback.
+  const locales = [...new Set([locale, ...i18n.getFallbackLocales()])];
+
   const result: TranslationsResult = {};
 
-  for (const namespace of namespaces) {
-    const cacheKey = `${locale}:${namespace}`;
+  for (const loc of locales) {
+    for (const namespace of namespaces) {
+      const cacheKey = `${loc}:${namespace}`;
 
-    if (!i18n.hasLocale(locale, namespace) && hasLoader) {
-      try {
-        // Reuse core loading pipeline (events, error handling, deduplication).
-        await i18n.reloadTranslations(locale, namespace);
-      } catch (error) {
-        const err = toError(error);
-        console.warn(`[comvi/next] Failed to load ${locale}:${namespace}:`, err.message);
+      if (!i18n.hasLocale(loc, namespace) && hasLoader) {
+        try {
+          // Reuse core loading pipeline (events, error handling, deduplication).
+          await i18n.reloadTranslations(loc, namespace);
+        } catch (error) {
+          const err = toError(error);
+          console.warn(`[comvi/next] Failed to load ${cacheKey}:`, err.message);
+        }
       }
-    }
 
-    if (i18n.hasLocale(locale, namespace)) {
-      const translations = i18n.getTranslations(locale, namespace) as Record<
-        string,
-        TranslationValue
-      >;
-      result[cacheKey] = toPlainObject(translations);
+      if (i18n.hasLocale(loc, namespace)) {
+        const translations = i18n.getTranslations(loc, namespace) as Record<
+          string,
+          TranslationValue
+        >;
+        result[cacheKey] = toPlainObject(translations);
+      }
     }
   }
 

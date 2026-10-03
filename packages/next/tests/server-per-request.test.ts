@@ -178,10 +178,13 @@ describe("the two request→global writes the shared host still accepts", () => 
     // other request too. Only the app's own configuration may add one.
     expect(namespacesBefore).toEqual(["common"]);
     expect(i18n.getActiveNamespaces()).toEqual(namespacesBefore);
+    // "en:admin" is the fallback chain's copy: the request's `t()` resolves
+    // an admin key missing in fr through it.
     expect(loader.mock.calls).toEqual([
       ["en", "common"],
       ["fr", "common"],
       ["fr", "admin"],
+      ["en", "admin"],
     ]);
   });
 
