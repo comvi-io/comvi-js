@@ -202,6 +202,7 @@
       ],
       "fixture": "framework/nuxt-full-composite.ts",
       "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "define": { "import.meta.server": "false", "import.meta.client": "true" },
       "gzipBudgetBytes": 12704,
       "baseline": {
         "minBytes": 36244,
@@ -219,6 +220,7 @@
       ],
       "fixture": "framework/nuxt-client-default.ts",
       "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "define": { "import.meta.server": "false", "import.meta.client": "true" },
       "gzipBudgetBytes": 8862,
       "baseline": {
         "minBytes": 25169,

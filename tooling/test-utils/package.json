@@ -8,7 +8,8 @@
     "./acceptLanguageTable": "./acceptLanguageTable.ts",
     "./fakeI18n": "./fakeI18n.ts",
     "./fakeI18nCore": "./fakeI18nCore.ts",
-    "./fakeVueI18n": "./fakeVueI18n.ts"
+    "./fakeVueI18n": "./fakeVueI18n.ts",
+    "./ssrFallbackContract": "./ssrFallbackContract.ts"
   },
   "dependencies": {
     "@comvi/core": "workspace:*"

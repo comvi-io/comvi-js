@@ -20,6 +20,12 @@ exports target that falls outside the package's `files` allowlist.
 Framework peer deps (`react`, `vue`, `solid-js`, `svelte`, `next`, `nuxt`) are marked `external` per
 fixture, so a framework row measures **the comvi graph only**.
 
+A row may carry its own `define`, merged over the run's. The two Nuxt runtime rows
+(`fw-nuxt-client-default`, `fw-nuxt-full-composite`) set `import.meta.server` to `false` and
+`import.meta.client` to `true`, as Nuxt's client build does, so server-only branches of the runtime
+plugin are not counted against a client bundle they never ship in. A server utility a fixture
+imports directly is still counted.
+
 Every row is gated. There is no informational tier: a row that gates nothing does not earn its
 measurement cost, and `size-check.mjs` throws on a row without a `gzipBudgetBytes`.
 

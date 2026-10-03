@@ -350,7 +350,8 @@ export async function runSizeCheck({
       entryFile,
       packageRoots,
       conditions,
-      define,
+      // A row's own `define` (e.g. Nuxt's client-build flags) wins over the run's.
+      define: { ...define, ...fixture.define },
       external: fixture.external,
     });
     results.push({
