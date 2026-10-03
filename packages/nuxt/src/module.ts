@@ -84,6 +84,16 @@ function toTypeImportSpecifier(path: string): string {
   return path.replace(/\\/gu, "/").replace(/\.(?:[cm]?tsx?|[cm]?jsx?)$/u, "");
 }
 
+/**
+ * Nitro serializes runtime config and normalizes every `undefined` value to
+ * `""`, so an unset option written as a key reaches the runtime as an empty
+ * string. For `translation` that string fails core's catalog check and every
+ * SSR request answers 500, so unset options must be absent, not `undefined`.
+ */
+function withoutUndefined<T extends Record<string, unknown>>(record: T): T {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined)) as T;
+}
+
 const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOptions>({
   meta: {
     name: "@comvi/nuxt",
@@ -216,7 +226,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       cookieName,
     };
 
-    nuxt.options.runtimeConfig.public.comvi = {
+    nuxt.options.runtimeConfig.public.comvi = withoutUndefined({
       ...existingPublicRuntimeConfig,
       locales: localeCodes,
       localeObjects,
@@ -236,7 +246,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       defaultParams: existingPublicRuntimeConfig.defaultParams ?? options.defaultParams,
       basicHtmlTags: existingPublicRuntimeConfig.basicHtmlTags ?? options.basicHtmlTags,
       detectBrowserLanguage,
-    };
+    });
 
     nuxt.options.runtimeConfig.comvi = {
       ...(nuxt.options.runtimeConfig.comvi ?? {}),

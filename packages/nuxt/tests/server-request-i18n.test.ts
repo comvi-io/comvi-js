@@ -180,6 +180,28 @@ describe("getRequestI18n", () => {
       expect(host.t("greeting")).toBe("Hello");
     });
 
+    it("treats an empty-string translation from runtime config as no catalog", async () => {
+      // Same normalization as the app plugin: the `""` runtime config makes of
+      // an unset option must not reach core, which rejects a string catalog.
+      createComviCore.mockImplementation((options: Record<string, unknown>) =>
+        createI18n(options as unknown as Parameters<typeof createI18n>[0]),
+      );
+
+      await expect(getRequestI18n(createEvent({ translation: "" }), "en")).resolves.toBeDefined();
+
+      expect(createComviCore).toHaveBeenCalledWith(
+        expect.objectContaining({ translation: undefined }),
+      );
+    });
+
+    it("passes an empty translation object through unchanged", async () => {
+      createComviCore.mockReturnValue(createHost());
+
+      await getRequestI18n(createEvent({ translation: {} }), "en");
+
+      expect(createComviCore).toHaveBeenCalledWith(expect.objectContaining({ translation: {} }));
+    });
+
     it("prefers the configured fallbackLocale over defaultLocale and the request locale", async () => {
       createComviCore.mockReturnValue(createHost());
 
