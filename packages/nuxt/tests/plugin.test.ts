@@ -187,6 +187,33 @@ describe("runtime plugin", () => {
     expect(result.provide.i18n.t("greeting")).toBe("Hello");
   });
 
+  it("treats an empty-string translation from runtime config as no catalog", async () => {
+    // Runtime config turns an unset option into `""` (and a
+    // `NUXT_PUBLIC_COMVI_TRANSLATION=` override does too). Forwarded as-is,
+    // core rejects it with E_TRANSLATION_NOT_OBJECT and every SSR page is a 500.
+    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).translation = "";
+    createComviI18n.mockImplementation((options: Record<string, unknown>) =>
+      createVueI18n({ ...options, exposeGlobal: false } as never),
+    );
+
+    const plugin = await importPlugin();
+    await expect(plugin.setup(createNuxtAppStub())).resolves.toBeDefined();
+
+    expect(createComviI18n).toHaveBeenCalledWith(
+      expect.objectContaining({ translation: undefined }),
+    );
+  });
+
+  it("passes an empty translation object through unchanged", async () => {
+    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).translation = {};
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(createComviI18n).toHaveBeenCalledWith(expect.objectContaining({ translation: {} }));
+  });
+
   it("hands the comvi.setup hook the core host as `core`", async () => {
     const i18n = createI18nStub("en");
     createComviI18n.mockReturnValue(i18n);

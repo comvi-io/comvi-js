@@ -810,6 +810,32 @@ describe("nuxt module setup", () => {
     expect(nuxt.options.runtimeConfig.public.comvi.defaultNs).toBe("default");
   });
 
+  it("leaves unset catalog options out of the public runtime config instead of writing undefined", async () => {
+    // Nitro normalizes an `undefined` runtime-config value to `""`, and core
+    // rejects `translation: ""` — every SSR page of an app that loads its
+    // catalogs through a host loader answered 500. Absent keys stay absent.
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    const publicComvi = nuxt.options.runtimeConfig.public.comvi;
+    for (const key of ["translation", "defaultParams", "basicHtmlTags"]) {
+      expect(publicComvi).not.toHaveProperty(key);
+    }
+    expect(Object.values(publicComvi)).not.toContain(undefined);
+  });
+
+  it("drops an undefined value an existing public runtime config carries", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    nuxt.options.runtimeConfig.public.comvi = { translation: undefined };
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("translation");
+  });
+
   it("keeps the app's own vite configuration while pre-bundling the wrappers", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();

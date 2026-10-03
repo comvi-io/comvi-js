@@ -78,7 +78,11 @@ export default defineNuxtPlugin({
       apiKey: privateConfig?.apiKey,
       // Without a `hostModule` the generated host is core's BASE host and has
       // no loader, so `comvi.translation` is the only catalog it ever gets.
-      translation: publicConfig.translation,
+      // `||`, not the value as-is: runtime config turns an unset option into
+      // `""` (a `NUXT_PUBLIC_COMVI_TRANSLATION=` override does too), and core
+      // rejects a string catalog. `defaultParams` and `basicHtmlTags` below are
+      // truthy-checked for the same reason.
+      translation: publicConfig.translation || undefined,
       tagInterpolation: publicConfig.basicHtmlTags
         ? { basicHtmlTags: publicConfig.basicHtmlTags }
         : undefined,
