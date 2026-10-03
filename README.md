@@ -123,8 +123,7 @@ createRoot(document.getElementById("root")!).render(
 saves it, without a redeploy. The CDN URL comes from **Settings → Content Deploy** in the Comvi
 project; the walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your
 keys use ICU (`{count, plural, …}`), add `compiler: icuCompiler` as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent, and either works without the other.
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are independent.
 
 ## Plugins and tooling
 
