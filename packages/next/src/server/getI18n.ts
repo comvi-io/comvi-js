@@ -4,7 +4,7 @@ import { getI18nInstance } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import { getLocale } from "./getLocale";
 import type { ServerTranslatingHost } from "./hostTypes";
-import { loadTranslations } from "./loadTranslations";
+import { loadChain } from "./loadTranslations";
 import type {
   GetI18nOptions,
   RequestView,
@@ -83,10 +83,7 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
   // A page can render before its layout completes, so the namespace may not be
   // in yet — for the request locale or for any locale of its fallback chain. A
   // cached primary catalog says nothing about the fallbacks, so each is checked.
-  const chain = [locale, ...i18n.getFallbackLocales()];
-  if (chain.some((loc) => !i18n.hasLocale(loc, defaultNs))) {
-    await loadTranslations(locale, { namespaces: [defaultNs] });
-  }
+  await loadChain(i18n, [locale, ...i18n.getFallbackLocales()], [defaultNs]);
 
   // The one place allowed to reach the host's translator: the shared host
   // contributes catalog and loader only, and `ServerI18nHost` has no `t`/`tRaw`

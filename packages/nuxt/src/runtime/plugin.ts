@@ -11,6 +11,7 @@ import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./defaults";
 import { loadCatalogs } from "./utils/load-catalogs";
+import { hasLoaderApi } from "@comvi/core";
 import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "./request-hosts-key";
 import {
   EDITOR_INITIAL_MAPPINGS_GLOBAL,
@@ -166,11 +167,24 @@ export default defineNuxtPlugin({
     await i18n.init();
 
     if (import.meta.server) {
+      const core = i18n.core;
       // `init()` and the middleware's locale switch load the active namespaces
       // for one locale each, never the fallback chain. The chain does not
       // depend on the request locale, so it is loaded once here, before the
       // render, and reaches the client through the payload with the rest.
-      await loadCatalogs(i18n.core);
+      await loadCatalogs(core);
+      // A namespace a page activates DURING the render (`useI18nLoader()
+      // .addActiveNamespace(ns)`) loads for the current locale only. The render
+      // waits for what a component awaits, not for anything collected before
+      // `app:rendered` (by then the HTML already holds the raw key), so the
+      // activation itself resolves only once the chain is in. This host is the
+      // request's own, so the override never leaves the request.
+      if (hasLoaderApi(core)) {
+        const activate = core.addActiveNamespaces.bind(core);
+        core.addActiveNamespaces = async (namespaces: string[]) => {
+          await Promise.all([activate(namespaces), loadCatalogs(core, namespaces)]);
+        };
+      }
     }
 
     const unsubLocaleChanged = i18n.on("localeChanged", ({ to }) => {

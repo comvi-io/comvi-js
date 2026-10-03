@@ -76,6 +76,31 @@ const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Prom
 };
 
 /**
+ * Load `namespaces` for `locales`, skipping every cached pair. Without a loader
+ * there is nothing to load; that is said once per host when none of the pairs
+ * is cached either. Nothing missing, nothing touched.
+ *
+ * @internal Shared by `loadTranslations()` and `getI18n()`.
+ */
+export const loadChain = async (
+  i18n: ServerI18nHost,
+  locales: readonly string[],
+  namespaces: readonly string[],
+): Promise<void> => {
+  const missing = locales.flatMap((loc) =>
+    namespaces.filter((ns) => !i18n.hasLocale(loc, ns)).map((ns) => [loc, ns] as const),
+  );
+  if (missing.length === 0) {
+    return;
+  }
+  if (i18n.getLoader()) {
+    await Promise.all(missing.map(([loc, ns]) => loadPair(i18n, loc, ns)));
+  } else if (missing.length === locales.length * namespaces.length) {
+    warnNoLoaderConfigured(i18n);
+  }
+};
+
+/**
  * Load translations for a locale using the configured i18n loader.
  *
  * The result holds the requested locale AND every locale of the host's
@@ -108,19 +133,13 @@ export async function loadTranslations(
 
   const defaultNs = i18n.getDefaultNamespace();
   const namespaces = options.namespaces ?? [defaultNs];
-  const hasLoader = Boolean(i18n.getLoader());
 
   // The client hydrates from these catalogs alone, so ship every catalog the
   // server render could have read: the requested locale, then its fallback
   // chain in the order core's lookup walks it. A missing fallback catalog would
   // make the client render the raw key where the server rendered the fallback.
   const locales = [...new Set([locale, ...i18n.getFallbackLocales()])];
-
-  if (hasLoader) {
-    await Promise.all(
-      locales.flatMap((loc) => namespaces.map((namespace) => loadPair(i18n, loc, namespace))),
-    );
-  }
+  await loadChain(i18n, locales, namespaces);
 
   const result: TranslationsResult = {};
   for (const loc of locales) {
@@ -133,10 +152,6 @@ export async function loadTranslations(
         result[`${loc}:${namespace}`] = toPlainObject(translations);
       }
     }
-  }
-
-  if (!hasLoader && Object.keys(result).length === 0) {
-    warnNoLoaderConfigured(i18n);
   }
 
   return result;

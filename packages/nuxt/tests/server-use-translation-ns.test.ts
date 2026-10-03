@@ -49,7 +49,7 @@ function createI18nStub() {
     }),
     hasLocale: vi.fn((locale: string, ns = "common") => loaded.has(`${locale}:${ns}`)),
     // No fallback chain: the chain is pinned with real hosts in
-    // `server-fallback-chain.test.ts`.
+    // `ssr-fallback-contract.test.ts`.
     getFallbackLocales: vi.fn((): string[] => []),
     t: vi.fn(() => "translated-value"),
     hasTranslation: vi.fn(() => true),

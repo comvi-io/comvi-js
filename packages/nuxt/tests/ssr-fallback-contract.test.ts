@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 import type { NuxtApp } from "#app";
 import { createI18n as createCoreI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
+import { acquireLoaderApi, attachLoader } from "@comvi/core/loader";
 import { createI18n as createVueI18n } from "@comvi/vue";
 import {
   SSR_FALLBACK_CASES,
   SSR_FALLBACK_CATALOGS,
   SSR_FALLBACK_DEFAULT_NS,
   SSR_FALLBACK_LOCALES,
+  SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD,
   type SsrFallbackCase,
 } from "@comvi/test-utils/ssrFallbackContract";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
@@ -60,12 +61,25 @@ const comviConfig = (row: Pick<SsrFallbackCase, "defaultLocale" | "fallbackLocal
   detectBrowserLanguage: false as const,
 });
 
-/** The fetch, cache-seed and loadError surface shared by both paths. */
-const expectServerSide = (row: SsrFallbackCase, loader: Loader, loadErrors: Set<string>) => {
+/** What every server host reported, across the hosts a row built. */
+interface Reports {
+  loadErrors: string[];
+  onError: Array<{ mock: { calls: unknown[] } }>;
+}
+
+const observe = (host: ReturnType<typeof attachLoader>, reports: Reports) => {
+  host.onLoadError((locale, namespace) => reports.loadErrors.push(`${locale}:${namespace}`));
+  reports.onError.push(vi.spyOn(host, "reportError"));
+};
+
+/** The fetch and error-reporting surface shared by both paths. */
+const expectServerSide = (row: SsrFallbackCase, loader: Loader, reports: Reports) => {
   const fetched = fetchedPairs(loader);
   expect(fetched).toEqual(expect.arrayContaining([...(row.fetched ?? [])]));
   for (const pair of row.notFetched ?? []) expect(fetched).not.toContain(pair);
-  expect([...loadErrors].sort()).toEqual([...row.loadErrors].sort());
+  expect([...new Set(reports.loadErrors)].sort()).toEqual([...row.loadErrors].sort());
+  const onErrorCalls = reports.onError.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
+  expect(onErrorCalls).toBe(SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD * reports.loadErrors.length);
 };
 
 const rows = SSR_FALLBACK_CASES.map((row) => [row.name, row] as const);
@@ -80,12 +94,12 @@ describe("@comvi/nuxt server utilities: the server fallback-chain contract", () 
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const ns = row.ns ?? SSR_FALLBACK_DEFAULT_NS;
     const loader = createLoader(row);
-    const loadErrors = new Set<string>();
+    const reports: Reports = { loadErrors: [], onError: [] };
     createComviCore.mockImplementation((options: Record<string, unknown>) => {
       const host = attachLoader(createCoreI18n(options as never));
       host.registerLoader(loader);
       if (row.cached) host.addTranslations(row.cached as Catalogs);
-      host.onLoadError((locale, namespace) => loadErrors.add(`${locale}:${namespace}`));
+      observe(host, reports);
       return host;
     });
 
@@ -109,7 +123,7 @@ describe("@comvi/nuxt server utilities: the server fallback-chain contract", () 
       expect(served[index].texts).toEqual(request.expect);
       expect(Object.keys(served[index].messages)).toEqual(request.clientCatalogs);
     });
-    expectServerSide(row, loader, loadErrors);
+    expectServerSide(row, loader, reports);
   });
 
   it("concurrent loads of one pair in one request → one fetch", async () => {
@@ -147,28 +161,37 @@ type PluginI18n = {
   t: (key: string, params?: Record<string, unknown>) => string;
   setLocale: (locale: string) => Promise<void>;
   locale: { value: string };
+  core: ReturnType<typeof attachLoader>;
 };
 
 /**
- * The app host: a real VueI18n with the loader composed onto its core. A
- * non-default namespace is activated before init, as `comvi.setup` would.
+ * The app host: a real VueI18n with the loader composed onto its core. On the
+ * server, the row's pre-cached catalogs are in the host before `init()`, as a
+ * catalog `comvi.setup` adds would be.
  */
-function serveAppHost(row: SsrFallbackCase, loader: Loader, loadErrors?: Set<string>) {
+function serveAppHost(row: SsrFallbackCase, loader: Loader, server?: { reports: Reports }) {
   createComviI18n.mockImplementation((options: Record<string, unknown>) => {
     const i18n = createVueI18n({ ...options, exposeGlobal: false } as never).use(attachLoader);
     i18n.core.registerLoader(loader);
-    if (row.ns) void i18n.core.addActiveNamespace(row.ns);
-    if (loadErrors) {
-      i18n.core.onLoadError((locale, namespace) => loadErrors.add(`${locale}:${namespace}`));
+    if (server) {
+      if (row.cached) i18n.core.addTranslations(row.cached as Catalogs);
+      observe(i18n.core, server.reports);
     }
     return i18n;
   });
 }
 
 async function runPlugin(nuxtApp: NuxtAppStub) {
-  const result = (await plugin.setup(nuxtApp)) as { provide: { i18n: PluginI18n } };
+  const result = (await plugin.setup(nuxtApp)) as unknown as { provide: { i18n: PluginI18n } };
   return result.provide.i18n;
 }
+
+/** What a page component does for a namespace it needs: activate it, awaited in setup. */
+const activateDuringRender = async (i18n: PluginI18n, ns: string) => {
+  if (ns !== SSR_FALLBACK_DEFAULT_NS) {
+    await acquireLoaderApi(i18n.core).addActiveNamespace(ns);
+  }
+};
 
 const translateAll = (i18n: PluginI18n, keys: readonly string[], ns: string) =>
   Object.fromEntries(keys.map((key) => [key, i18n.t(key, { ns })]));
@@ -183,7 +206,7 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const ns = row.ns ?? SSR_FALLBACK_DEFAULT_NS;
     const loader = createLoader(row);
-    const loadErrors = new Set<string>();
+    const reports: Reports = { loadErrors: [], onError: [] };
 
     // The plugin reads module-level Nuxt state, so requests render one by one;
     // each still gets its own host, as each SSR request does.
@@ -192,17 +215,14 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
       Object.assign(nuxtAppMocks.mockRuntimeConfig.public.comvi, comviConfig(row));
       const keys = Object.keys(request.expect);
 
-      // Server: plugin, then the middleware's locale switch, then the render.
+      // Server: plugin, the middleware's locale switch, then the page, which
+      // activates its namespace during the render, then the payload.
       vi.stubGlobal("__COMVI_TEST_SERVER__", true);
-      serveAppHost(row, loader, loadErrors);
+      serveAppHost(row, loader, { reports });
       const serverApp = createNuxtApp();
       const server = await runPlugin(serverApp);
-      if (row.cached) {
-        (server as unknown as { addTranslations: (c: Catalogs) => void }).addTranslations(
-          row.cached as Catalogs,
-        );
-      }
       await server.setLocale(request.locale);
+      await activateDuringRender(server, ns);
       expect(translateAll(server, keys, ns)).toEqual(request.expect);
       const rendered = serverApp.hook.mock.calls.find(([event]) => event === "app:rendered");
       (rendered![1] as () => void)();
@@ -214,10 +234,14 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
       expect(Object.keys(payload)).toEqual(expect.arrayContaining([...request.clientCatalogs]));
       for (const pair of row.failing ?? []) expect(Object.keys(payload)).not.toContain(pair);
 
-      // Client: hydrates from the payload, renders the same text.
+      // Client: hydrates from the payload and renders the same text without a
+      // single fetch.
       const clientLoader = createLoader(row);
       serveAppHost(row, clientLoader);
       const client = await runPlugin(createNuxtApp({ __comvi_translations__: payload }));
+      expect(clientLoader).not.toHaveBeenCalled();
+      await activateDuringRender(client, ns);
+      expect(clientLoader).not.toHaveBeenCalled();
       expect(client.locale.value).toBe(request.locale);
       expect(translateAll(client, keys, ns)).toEqual(request.expect);
 
@@ -233,6 +257,6 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
       }
     }
 
-    expectServerSide(row, loader, loadErrors);
+    expectServerSide(row, loader, reports);
   });
 });

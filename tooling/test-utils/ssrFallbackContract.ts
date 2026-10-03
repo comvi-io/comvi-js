@@ -16,8 +16,12 @@
  *   + `getI18n()`, then `loadTranslations()`, then `<I18nProvider messages>`
  *   through `renderToString` and `hydrateRoot`;
  * - `packages/nuxt/tests/ssr-fallback-contract.test.ts` — the server
- *   `useTranslation()` and `loadTranslations()`, and the app plugin's SSR pass,
+ *   `useTranslation()` and `loadTranslations()`, and the app plugin's SSR pass
+ *   (the row's namespace activated during the render, as a page does), its
  *   payload and client hydration.
+ *
+ * Both fixtures also assert that hydration fetches nothing, and that `onError`
+ * fires {@link SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD} times per `loadError`.
  *
  * One table, two adapters: a row added here runs against both, and a row
  * cannot be "fixed" for one adapter while the other fails. This file is a
@@ -44,6 +48,17 @@ export const SSR_FALLBACK_CATALOGS: Readonly<Record<string, Readonly<Record<stri
   "de:admin": { title: "Verwaltung", onlyDeAdmin: "Nur Verwaltung" },
   "fr:admin": { title: "Administration" },
 };
+
+/**
+ * `onError` reports per failed catalog load, counted against `loadError`
+ * events. It is 2, not 1, because of core and not the adapters: a single-pair
+ * `reloadTranslations(locale, ns)` that fails reports `E_ALL_NAMESPACES_FAILED`
+ * from `_loadNs` and then `E_FAILED_RELOAD_TRANSLATIONS` from
+ * `reloadTranslations` itself (`packages/core/src/core/loader.ts`), and core
+ * exposes no non-reporting single-pair load. Both adapters assert this ratio,
+ * so the day core reports once, this constant is the one place to change.
+ */
+export const SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD = 2;
 
 export interface SsrFallbackRequest {
   /** The locale the request renders in. */
@@ -143,6 +158,21 @@ export const SSR_FALLBACK_CASES: readonly SsrFallbackCase[] = [
     ],
     fetched: ["de:admin"],
     notFetched: ["fr:admin"],
+    loadErrors: [],
+  },
+  {
+    name: "a namespace first needed during the render (not cached, not active at init) → its fallback is loaded before the text renders",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    ns: "admin",
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDeAdmin: "Nur Verwaltung", title: "Administration" },
+        clientCatalogs: ["fr:admin", "de:admin"],
+      },
+    ],
+    fetched: ["fr:admin", "de:admin"],
     loadErrors: [],
   },
   {
