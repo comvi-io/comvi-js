@@ -95,7 +95,7 @@ The three that depart from it:
   `<tag>…</tag>`; the framework examples get tags through `<T>` instead.
 - **Next** keeps the host in `examples/next/src/i18n/config.ts` and the routing in a separate
   `routing.ts`, because `middleware.ts` runs in the Edge runtime and must not import the composed
-  host. A `server-only` module registers the host, the layout calls `setRequestLocale()` and
+  host. A server module registers the host, the layout calls `setRequestLocale()` and
   `loadTranslations()`, and a `"use client"` provider receives the locale and the catalog.
 - **Nuxt** names a Comvi package in one file only, `examples/nuxt/src/comvi.host.ts`: a factory
   that composes `icuCompiler` and `loader(map)` on the options Nuxt resolved. `useI18n()`, `<T>`

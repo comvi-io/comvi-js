@@ -154,7 +154,6 @@ export interface CreateNextI18nResult<
  * @example
  * ```typescript
  * // i18n/server.ts - Server entry point
- * import "server-only";
  * import { setI18n } from "@comvi/next/server";
  * import { i18n } from "./config";
  *

@@ -73,7 +73,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/server.js",
+    "./dist/server.dev.js"
+  ],
   "scripts": {
     "dev": "vite build --watch",
     "build": "tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
@@ -88,7 +91,8 @@
   },
   "dependencies": {
     "@comvi/core": "workspace:*",
-    "@comvi/react": "workspace:*"
+    "@comvi/react": "workspace:*",
+    "server-only": "^0.0.1"
   },
   "peerDependencies": {
     "next": "^15.0.0 || ^16.0.0",

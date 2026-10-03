@@ -19,12 +19,17 @@ export default (env, argv) => {
   const entry = process.env.BM_ENTRY;
   const out = process.env.BM_OUT;
   if (!entry || !out) throw new Error("BM_ENTRY and BM_OUT must be set");
+  // Extra resolve conditions a case declares (`conditions` in run.mjs), put
+  // AHEAD of webpack's own defaults ("..."), the way Next's server layer adds
+  // `react-server`. Unset for every case that models a plain consumer.
+  const conditions = process.env.BM_CONDITIONS ? process.env.BM_CONDITIONS.split(",") : [];
 
   return {
     mode,
     entry,
     target: "node18",
     devtool: false,
+    ...(conditions.length > 0 && { resolve: { conditionNames: [...conditions, "..."] } }),
     output: {
       path: path.dirname(out),
       filename: path.basename(out),

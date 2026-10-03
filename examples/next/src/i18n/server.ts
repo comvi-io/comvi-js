@@ -1,7 +1,5 @@
-// `server-only` is the marker that keeps this file — and the host registration
-// below — out of the client graph.
-import "server-only";
-
+// `@comvi/next/server` carries its own `server-only` guard, so a Client
+// Component that imports this file fails `next build`.
 import { setI18n } from "@comvi/next/server";
 import { i18n, routing } from "./config";
 

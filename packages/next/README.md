@@ -17,15 +17,15 @@
 
 ---
 
-Translate a Next.js App Router app with `@comvi/next`: one config module, a `server-only`
+Translate a Next.js App Router app with `@comvi/next`: one config module, a server
 registration, and `t()` in Server and Client Components alike. One install brings `@comvi/core`
 and the React bindings. The full guide is [Next.js](https://comvi.io/docs/i18n/next) on the docs site.
 
 ## Install
 
 ```bash
-npm install @comvi/next server-only
-# Peers: next ^15.0.0 || ^16.0.0, react ^18.2.0 || ^19.0.0
+npm install @comvi/next
+# Peers: next ^15 || ^16, react ^18.2 || ^19
 ```
 
 ## Setup
@@ -44,8 +44,6 @@ export const { i18n, routing } = createNextI18n({
 ```
 
 ```ts title="src/i18n.server.ts" check=group=quick-start-next-1
-import "server-only";
-
 import { setI18n } from "@comvi/next/server";
 import { i18n } from "./i18n";
 
@@ -78,20 +76,23 @@ export default async function LocaleLayout({
 }
 ```
 
-`createNextI18n` builds the host and the routing config. The `server-only` module registers the
-host for the server helpers and keeps that file out of the client bundle; the layout imports it for
-the side effect. `setRequestLocale()` puts the locale where `getI18n()` reads it. Without a
-`middleware.ts` the only routes are `/en` and `/uk`; see
+`createNextI18n` builds the host and the routing config. The server module registers the host for
+the server helpers, and the layout imports it for the side effect. `@comvi/next/server` guards
+itself: a Client Component that imports it, directly or through this file, fails `next build`, so
+you do not install or import `server-only` yourself. `setRequestLocale()` puts the locale where
+`getI18n()` reads it. Without a `middleware.ts` the only routes are `/en` and `/uk`; see
 [Locale routing](https://comvi.io/docs/i18n/next/routing).
 
 ## Use in components
 
 ```tsx title="src/app/[locale]/page.tsx" check=group=quick-start-next-1
 import Link from "next/link";
-import { getI18n } from "@comvi/next/server";
+import { getI18n, setRequestLocale } from "@comvi/next/server";
 
-export default async function HomePage() {
-  const { t, locale } = await getI18n();
+export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const { t } = await getI18n();
 
   return (
     <div>
@@ -103,7 +104,8 @@ export default async function HomePage() {
 ```
 
 In a Server Component `getI18n()` returns `t`, `hasTranslation` and `locale`, bound to the
-request. In a Client Component `useI18n()`, `<T>` and the other React hooks come from
+request. The page calls `setRequestLocale()` too: Next can render it before the layout has set the
+locale. In a Client Component `useI18n()`, `<T>` and the other React hooks come from
 `@comvi/next/client`, under the `"use client"` provider on the guide's [Setup](https://comvi.io/docs/i18n/next#setup).
 
 ## Load from Comvi

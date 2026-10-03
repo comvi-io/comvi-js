@@ -61,7 +61,6 @@ export interface CreateNextI18nFromHostResult<
  * @example
  * ```typescript
  * // i18n/index.ts
- * import "server-only";
  * import { createI18n } from "@comvi/core";
  * import { attachLoader } from "@comvi/core/loader";
  * import { createNextI18nFromHost } from "@comvi/next/server";
