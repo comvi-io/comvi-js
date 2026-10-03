@@ -61,4 +61,4 @@ named re-exports plus `export type *` drops `TranslationCache`, `createBoundTran
 `formatRelativeTime`, `getTextDirection` and `createElement` from this entry's value surface.
 Types are unaffected. `useI18n()` returns the four formatters and `dir` already bound to the
 locale, and all nine are still exported by `@comvi/core`, so each is a one-line import move;
-the mapping is tabled in MIGRATION.md §3 and the package README.
+the mapping is tabled in the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §3.

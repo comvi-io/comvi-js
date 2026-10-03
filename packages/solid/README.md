@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/solid</h1>
 
-<p align="center">SolidJS bindings for Comvi i18n — provider, reactive primitives, and the <code>&lt;T&gt;</code> component.</p>
+<p align="center">SolidJS bindings for Comvi i18n: provider, signal-backed accessors, and the <code>&lt;T&gt;</code> component.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/solid"><img src="https://img.shields.io/npm/v/@comvi/solid?color=blue" alt="npm"></a>
@@ -17,35 +17,21 @@
 
 ---
 
-`@comvi/solid` is the whole toolkit for a SolidJS app: it bundles `@comvi/core`, so one install is
-enough. Translations are signals, so a locale change updates only what read it. Pair it with the
-[Comvi platform](https://comvi.io) and the catalogs are fetched from the CDN at runtime instead of
-bundled.
+`@comvi/solid` binds the Comvi host to Solid's signals: `<I18nProvider>` holds it, and `useI18n()`
+gives your components `t()`, `locale()` and `setLocale()`. The package depends on `@comvi/core`, so
+one install is enough. The full guide is [Solid](https://comvi.io/docs/i18n/solid) on the docs
+site.
 
-One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
-`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
-directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
-transitively. `useI18n()` hands back bound formatters, which need no extra import.
-
-Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
-current locale and `t()`.
-
-📖 [Documentation](https://comvi.io/docs/i18n/solid)
-
-## 1. Install
+## Install
 
 ```bash
 npm install @comvi/solid
 # Peer: solid-js ^1.8.0
 ```
 
-## 2. Quick start — an inline catalog
+## Setup
 
-The smallest working app: `createI18n` builds the host, `locale` is what renders now,
-`fallbackLocale` covers a missing key, `translation` is the catalog, and `<I18nProvider>` puts the
-host where `useI18n()` can find it. Runnable: [`examples/solid`](../../examples/solid).
-
-```tsx title="src/index.tsx"
+```tsx title="src/index.tsx" check=group=solid-2
 import { render } from "solid-js/web";
 import { createI18n, I18nProvider } from "@comvi/solid";
 import App from "./App";
@@ -69,48 +55,50 @@ render(
 );
 ```
 
-```tsx title="src/App.tsx"
+`createI18n` builds the host and `<I18nProvider>` initializes it from an effect, so there is no
+`init()` call to write. Its other props are `autoInit`, `onError`, `fallback` and `ssrLocale`.
+
+## Use in components
+
+```tsx title="src/App.tsx" check=group=solid-2
 import { useI18n } from "@comvi/solid";
 
 export default function App() {
-  const { t } = useI18n();
-  return <h1>{t("greeting", { name: "Alice" })}</h1>;
+  const { t, locale, setLocale } = useI18n();
+
+  return (
+    <>
+      <h1>{t("greeting", { name: "Alice" })}</h1>
+      <select value={locale()} onChange={(e) => setLocale(e.currentTarget.value)}>
+        <option value="en">English</option>
+        <option value="uk">Українська</option>
+      </select>
+    </>
+  );
 }
 ```
 
-There is no `i18n.init()` call: `<I18nProvider>` initializes the host itself (`autoInit`, default on).
+`locale` is an `Accessor<string>`, and `setLocale()` resolves once the new locale's catalog has
+loaded. `t()` and `tRaw()` read the locale and cache signals at call time, so they stay reactive
+only inside JSX, a `createMemo` or a `createEffect`; `const greeting = t('greeting')` in the
+component body is computed once and never updates.
 
-## 3. Connect to Comvi
+## Load from Comvi
 
-Three questions, and the answers are the lines below. One limit first: server-side **loading** is
-not supported yet — `<I18nProvider>` starts `init()` from a `createEffect`, which a server render
-never runs, so a CDN catalog is absent from it. Keep the catalog inline for the server render, or
-load on the client and gate with `fallback` ([limitations](https://comvi.io/docs/i18n/limitations)).
+```bash
+npm install @comvi/plugin-fetch-loader
+```
 
-1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
-   default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
-   (`{count, plural, …}`) fails in development at ingestion, before anything renders. Inline, it
-   throws `E_ICU_SYNTAX` at the call that carries the catalog; over a loader it fails that
-   namespace's load instead — `E_ICU_SYNTAX` reaches `onLoadError`, the namespace stays empty, and
-   `init()` rejects with `[i18n] Failed to load all namespaces …`, not with `E_ICU_SYNTAX`, when
-   that was the only namespace. In production it renders the message text literally and reports the
-   error through `onError` (`console.error` when no handler is set).
-2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn` (a second
-   install), which fetches the catalog at runtime instead of bundling it.
-3. **What to paint meanwhile?** A **`fallback`** on `<I18nProvider>`. The catalog is in flight
-   during the first paint now, and the provider gates its children until the host is initialized.
-
-```tsx title="src/index.tsx"
+```tsx title="src/index.tsx" check=group=solid-cdn
 import { render } from "solid-js/web";
-import { createI18n, icuCompiler, I18nProvider } from "@comvi/solid";
+import { createI18n, I18nProvider } from "@comvi/solid";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  compiler: icuCompiler,
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }));
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
 
 render(
   () => (
@@ -122,47 +110,31 @@ render(
 );
 ```
 
-The catalogs now come from the platform, so `t("items", { count: 5 })` renders a locale-correct
-plural from `"{count, plural, one {# item} other {# items}}"` — the `items` key
-[Connect Comvi](https://comvi.io/docs/i18n/connect-comvi) step 3 has you create.
+Compose `.use(cdnLoader())` inside the `createI18n` expression, because the provider calls `init()`
+for you. `fallback` renders in place of the children until the host is initialized. The CDN URL is
+on [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
+(`{count, plural, …}`), add `compiler: icuCompiler` as on
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
+independent, and either works without the other.
 
-The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
-open your project and use **Copy URL** on the
-**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
-enabled and saved). Compose before `init()` — `<I18nProvider>` calls it for you, so compose in
-the `createI18n` expression as above.
+## Specific to Solid
 
-## 4. What is specific to Solid
+- `useI18n('admin')` binds a namespace at the type level too. The `formatNumber`, `formatDate`,
+  `formatCurrency` and `formatRelativeTime` members read no signal; pass `locale()` as their
+  trailing argument to re-run them on a switch.
+- `<T components={{ link: (props) => <a href="/docs">{props.children}</a> }} />`: each tag maps to a
+  plain function or an element name such as `{ policy: 'a' }`. Plain `t()` does not parse tags.
+- `<I18nProvider>` initializes from a `createEffect`, and effects do not run during Solid's server
+  render, so a loader fetches nothing there. Load the messages in a server function with a fresh
+  host per request, render through `<I18nProvider autoInit={false}>`, and pass `ssrLocale` on both
+  sides. Never share a module-level host across SSR requests; one is fine for a client-only app.
 
-- **Call `t()` inside a tracking scope.** `t()` and `tRaw()` read the locale and cache signals at
-  call time, so they stay reactive only when invoked inside JSX, a `createMemo` or a
-  `createEffect`. Reading the value once into a plain variable captures it forever.
-- **`useI18n(ns?)`** hands back accessors, not values: `locale()`, `isLoading()`,
-  `isInitializing()`, and `getTranslationCache()` where react and vue have a direct member. It does
-  **not** carry the loader or plugin members: `useI18nLoader()` and `useI18nPlugins()` acquire
-  those, and throw on a host that never composed them.
-- **Per-axis primitives** subscribe a component to one signal; `useI18nHost()` reads the bare host.
-- **`<T components={{ link: ({ children }) => <a href="/docs">{children}</a> }} />`** — Solid's
-  shape is a function per tag, which avoids Solid's conditional branch caching pitfall. A plain tag
-  name works too: `components={{ policy: "a" }}`.
+## Next steps
 
-## 5. Where to go next
-
-- **This binding:** [guide](https://comvi.io/docs/i18n/solid) ·
-  [API reference](https://comvi.io/docs/i18n/api/solid)
-- **Guides:** [plurals & ICU](https://comvi.io/docs/i18n/pluralization) ·
-  [typed keys](https://comvi.io/docs/i18n/type-safety) · [SSR](https://comvi.io/docs/i18n/ssr) ·
-  [errors](https://comvi.io/docs/i18n/errors) · [limitations](https://comvi.io/docs/i18n/limitations)
-- **Also here:** [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader) ·
-  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) ·
-  [`docs/design/`](../../docs/design)
-
-Measured min+gz through the published entry, gated in CI. Every fixture and the 0.4.1 comparison:
-[bundle size](https://comvi.io/docs/i18n/bundle-size).
-
-| app shape                      | measured as        | min+gz |
-| ------------------------------ | ------------------ | ------ |
-| base host + bindings, no `<T>` | `fw-solid-default` | 6591 B |
+- [Solid guide](https://comvi.io/docs/i18n/solid): tracking scopes, rich text, SSR.
+- [Solid API reference](https://comvi.io/docs/i18n/api/solid): every export, the standalone primitives and `<T>` props.
+- [SolidStart SSR](https://comvi.io/docs/i18n/ssr#sveltekit-and-solidstart): the server function, the route and the provider.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `t()` autocompletes.
 
 ## License
 

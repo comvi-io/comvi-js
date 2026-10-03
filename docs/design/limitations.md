@@ -52,7 +52,7 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
   installer, so a production build that composes it carries no editor bytes.
 - **The browser extension must be 0.5.0 or newer.** `window.__COMVI__` is protocol v2, and an older
   extension does not speak it. Discovery is opt-in either way: `.use(devtools())`. See
-  [MIGRATION.md](../../MIGRATION.md).
+  [Devtools API](https://comvi.io/docs/i18n/api/core-devtools).
 - **`cdnLoader` reads a public distribution only.** Draft translations, private projects and
   auth-gated content need API mode: `fetchLoader` from the package root plus an `apiKey` on the
   host. The root entry carries the API request path in the bundle either way, which is why the
@@ -60,8 +60,8 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 
 ## Tooling
 
-- **The 0.4 → 0.5 upgrade is a by-hand edit.** There is no migration tool and no published binary;
-  every rename is tabled in [MIGRATION.md](../../MIGRATION.md) instead.
+- **There is no migration tool.** Moving from another library is a by-hand edit; the
+  [migration guides](https://comvi.io/docs/i18n/guides/migrate-from-i18next) table the renames.
 - **Vue and Svelte template markup is edited by hand.** `<T raw>` inside a template is the rename
   a reader has to make themselves.
 - **Typed keys are generated, not inferred.** `TranslationKeys` is a declaration-merging interface;

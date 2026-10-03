@@ -4,7 +4,7 @@
  *
  * Why this file exists. `lint.mjs` lints symbols by PATTERN: it knows that
  * `registerLoader` is not on the base host and that `.with(` is gone, because
- * MIGRATION.md says so. What it could never know is whether the symbol a fence
+ * the 0.5.0 migration guide says so. What it could never know is whether the symbol a fence
  * imports is actually exported by the specifier it names. That gap shipped: when
  * `flattenCatalog` moved off `@comvi/core/loader`, `packages/core/README.md` kept
  * a live fence reading `import { flattenCatalog } from "@comvi/core/loader"`, the

@@ -55,4 +55,4 @@ factory first. `const { reloadTranslations } = useI18n()` becomes `useI18nLoader
 `onMissingKey` moves to `useI18nPlugins()`. The proxy calls in `.vue` / `comvi.setup.*` files
 are the ones to read carefully: `i18n.reloadTranslations()` may be a `VueI18n` proxy that moves
 to `i18n.core.*` or an already-correct raw core instance, and only you can tell which. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §6.
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §6.

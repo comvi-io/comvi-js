@@ -74,7 +74,7 @@ catalog walks its string leaves, so a bad template throws where it entered, and 
 ingestion — a per-call `params.fallback` — throws at its first compile. That walk sits behind the
 `__DEV__` guard, and a dist test asserts the identifier occurs in no production artifact. Production
 is LAZY, fail-soft and cached, so a hot key costs one report, not one per render; both error texts
-and the ways out are in [MIGRATION.md §0.2](../../MIGRATION.md).
+and the ways out are on [Plurals and ICU](https://comvi.io/docs/i18n/pluralization).
 
 ### What the neighbours do when ICU formatting fails
 
@@ -131,4 +131,4 @@ bare base host included.
 ## Related
 
 - [Composition](composition.md) · [Rich text](rich-text.md) · [Formatting](formatting.md) ·
-  [Limitations](limitations.md) · [MIGRATION.md §0 (ICU row)](../../MIGRATION.md)
+  [Limitations](limitations.md)

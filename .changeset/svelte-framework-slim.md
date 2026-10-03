@@ -34,4 +34,4 @@ public API changed.
 writable `createDefaultNamespaceStore` and `createDefaultParamsStore`, whose `set` / `update`
 write through to the host — and the store factories gained an
 optional `D` type parameter (inferred) because `WrapperI18nHost<D>` is invariant in `D`. See
-the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md).

@@ -49,4 +49,4 @@ The client inherits react's hook migration verbatim: `@comvi/next/client` export
 `useI18nLoader()` and `useI18nPlugins()` alongside `useI18n`, and there is no next-specific
 hook API. Its documented recipe is a base host hydrated from the catalog the server
 serialized, through `<I18nProvider messages>`. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §5.
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §5.

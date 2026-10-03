@@ -11,7 +11,11 @@
  *
  * Every BANNED and REQUIRED rule below is derived from `MIGRATION.md` and cites
  * the section it comes from, in the rule and in the message a reader sees. No
- * rule states an API fact that MIGRATION.md does not.
+ * rule states an API fact that MIGRATION.md does not. That document was retired
+ * from the tree once the site dropped its upgrade guide (0.4 had no external
+ * users); the sections the citations name are at
+ * https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md
+ * and the citations stay, because they are the provenance of each rule.
  *
  * ONE rule is derived from somewhere else, and it is the exception that proves
  * the shape of the rest. `banned/unresolved-comvi-import` cites no section: it
@@ -226,13 +230,13 @@ export function classify(file) {
     return classes;
   }
 
-  if (base === "README" || base === "MIGRATION") {
+  if (base === "README") {
     // Both layouts name the same package: `packages/cli/README.md` in this repo,
     // `node_modules/@comvi/cli/README.md` once www checks the published copies.
     // Matching only the first made every non-framework package's INSTALLED
     // README owe a `.use(` its own source is rightly not asked for.
     const pkg = posix.match(/(?:packages|@comvi)\/([^/]+)\/README\.md$/)?.[1];
-    if (base === "MIGRATION" || pkg === undefined || FRAMEWORK_PACKAGES.has(pkg)) {
+    if (pkg === undefined || FRAMEWORK_PACKAGES.has(pkg)) {
       classes.add("framework");
     }
     return classes;

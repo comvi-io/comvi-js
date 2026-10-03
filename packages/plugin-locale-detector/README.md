@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/plugin-locale-detector</h1>
 
-<p align="center">Auto-detect the user's locale from URL, storage, cookies, or <code>navigator</code>.</p>
+<p align="center">Detect the user's locale from the URL, storage, cookies or <code>navigator</code>, and persist the choice.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/plugin-locale-detector"><img src="https://img.shields.io/npm/v/@comvi/plugin-locale-detector?color=blue" alt="npm"></a>
@@ -17,138 +17,82 @@
 
 ---
 
-`localeDetectorPlugin` restores a saved locale from the first configured cache target, then walks an ordered list of detection sources, returns the first match, and persists the user's choice back to one or more caches. Set `cacheFirst: false` when the configured `order` should take priority over a saved locale. SSR-safe (gracefully skips browser-only APIs on the server) and supports BCP 47 lookup so `de-DE` matches `de` and vice versa.
-
-Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
-current locale and `t()`.
-
-Comvi i18n is a framework-agnostic i18n library with ICU MessageFormat, rich text without XSS
-and typed translation keys. The [root README](https://github.com/comvi-io/comvi-js) has the
-two-step quickstart, the package matrix and the measured bundle weights.
-
-### Why @comvi/plugin-locale-detector?
-
-- **Multi-source detection with configurable priority.** Detect from URL query string, cookie, localStorage, sessionStorage, or `navigator.language`, with optional cache-first priority.
-- **Persists user choice.** Automatically saves the detected or manually-changed locale to storage so it survives page reloads.
-- **SSR-safe.** Gracefully degrades when browser APIs (`window`, `navigator`, `document`) aren't available on the server.
-
-📖 **Documentation:** https://comvi.io/docs/i18n/plugins/locale-detector/
+`@comvi/plugin-locale-detector` reads a locale from the browser on startup and persists the choice.
+Every source falls through instead of throwing when `window` or `document` is missing. The full
+guide is [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector) on the docs site.
 
 ## Install
 
 ```bash
 npm install @comvi/plugin-locale-detector
-# Peer: @comvi/core
+# Peer: @comvi/core, which every framework package already brings
 ```
 
-## Quick start
+## Detect and persist
 
-```ts
+```ts title="src/i18n.ts" check=group=locale-detector-1
 import { createI18n } from "@comvi/core";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
-const i18n = createI18n({ locale: "en" }).use(
-  localeDetector({
-    supportedLocales: ["en", "uk", "de"],
-    order: ["querystring", "localStorage", "cookie", "navigator"],
-    caches: ["localStorage", "cookie"],
-    cacheFirst: false,
-  }),
+export const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(
+  localeDetector({ supportedLocales: ["en", "uk", "de"] }),
 );
 
 await i18n.init();
-// → if URL has ?lng=uk, locale becomes "uk" and is saved to localStorage + cookie
 ```
 
-## Two ways in
+`.use(localeDetector())` composes the plugin capability and registers the detector; every option
+is optional. `init()` runs the detector after every plugin has registered, so a loader composed
+next to it is in place, and applies the result through `setLocaleAsync()`, so the new locale's
+namespaces load before it takes effect. Every later `setLocaleAsync()`, including the one your
+switcher makes, is written to every configured cache. On a framework binding the same `.use()`
+goes inside the `createI18n` expression, before the provider or plugin starts `init()`.
 
-`@comvi/core` is the BASE host. The plugin host is an import you add, so an app
-that registers no plugins never pays for it. This package exports one name for
-each way of adding it.
+## Detection order
 
-|                   | `.use(localeDetector(options))`                                                                      | `registerPlugin(localeDetectorPlugin(options))`                                  |
-| ----------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| what it is        | the **installer** — the bare name                                                                    | the **plugin factory** — the `*Plugin` name                                      |
-| the host it needs | any host, including a bare `createI18n(…)`                                                           | one that already has `@comvi/core/plugins`                                       |
-| what it composes  | the plugin host, idempotently. No loader: the detector hands core a locale and never loads a catalog | nothing; it only registers                                                       |
-| lifecycle         | the host's own: it ends in `registerPlugin(localeDetectorPlugin(options))`                           | the host's own                                                                   |
-| use it when       | you are setting up the host                                                                          | you already compose capabilities explicitly, or you register plugins from a list |
+With `cacheFirst: true`, the first entry in `caches` is read first and a valid tag there ends
+detection. When it is empty, each source in `order` is tried left to right and the first valid tag
+wins. Set `cacheFirst: false` to let `order` alone decide priority, for example so a query
+parameter can override a persisted choice; caches are still written.
 
-Both end in the same place. The installer is the one-call form of this:
+With `supportedLocales`, a detected tag is matched with BCP 47 lookup: case-insensitive exact
+match, then shorter prefixes (`zh-Hant-TW`, `zh-Hant`, `zh`), then a regional variant of the base
+language (`de` to `de-DE`). A tag that matches nothing is skipped and the scan continues. When
+nothing matches, the locale is `fallbackLocale`, and that result is not cached.
 
-```ts
-import { createI18n } from "@comvi/core";
-import { attachPlugins } from "@comvi/core/plugins";
-import { localeDetectorPlugin } from "@comvi/plugin-locale-detector";
+## Options
 
-const i18n = createI18n({ locale: "en" }).use(attachPlugins);
-i18n.registerPlugin(localeDetectorPlugin({ supportedLocales: ["en", "uk", "de"] }));
-```
+| Option                  | Default                                                                    | Behaviour                                                                            |
+| ----------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `order`                 | `['querystring', 'localStorage', 'sessionStorage', 'cookie', 'navigator']` | Sources, tried left to right.                                                        |
+| `caches`                | `['localStorage']`                                                         | Where a detected or selected locale is written; the first is read on startup.        |
+| `cacheFirst`            | `true`                                                                     | Read the first cache before scanning `order`.                                        |
+| `lookupQuerystring`     | `'lng'`                                                                    | Query parameter name.                                                                |
+| `lookupCookie`          | `'i18n_lang'`                                                              | Cookie name.                                                                         |
+| `lookupLocalStorage`    | `'i18n_locale'`                                                            | `localStorage` key.                                                                  |
+| `lookupSessionStorage`  | `'i18n_locale'`                                                            | `sessionStorage` key.                                                                |
+| `cookieOptions`         | `{ path: '/', sameSite: 'lax' }`                                           | Also `domain` and `secure`. `sameSite: 'none'` adds `Secure`.                        |
+| `cookieMaxAge`          | `31536000`                                                                 | Cookie lifetime in seconds, one year.                                                |
+| `fallbackLocale`        | `i18n.locale` at plugin init                                               | Used when no source yields a supported tag.                                          |
+| `supportedLocales`      | none                                                                       | Restricts detected tags with BCP 47 lookup.                                          |
+| `convertDetectedLocale` | none                                                                       | `(tag) => string` mapping applied to every raw tag; switches `supportedLocales` off. |
 
-**Swapping the two is a type error, and each half is caught at runtime too.**
-Nothing is branded: an installer and a plugin are both "a function of the host",
-and `.use` is a pipe and nothing more, so it never inspects, orders or brands
-what you hand it. What it does check is identity: an installer widens the host
-in place and hands that same host back, and `.use` refuses any other return
-value, whatever its shape.
+Storage access is wrapped, so private mode, blocked cookies and quota errors are ignored. Only one
+detector is active on a host; a later registration replaces it. The plugin returns a cleanup
+function, so `destroy()` unsubscribes its `localeChanged` listener.
 
-- `registerPlugin(localeDetector(…))` fails at `init()` with
-  `E_INSTALLER_AS_PLUGIN`, the first thing the installer does, **before** the
-  plugin host is set up and before a second plugin reaches the queue. The
-  message names `localeDetector` and the `.use` form.
-- `.use(localeDetectorPlugin(…))` throws `E_USE_NOT_INSTALLER`: the plugin is not an
-  installer, so what it hands back is not the host. `.use` calls it before it
-  checks. On a bare host it dies even earlier, on `registerLocaleDetector`, and
-  because this plugin is synchronous that lands as a `TypeError` at the call
-  site. On a host that already composed `@comvi/core/plugins` every member it
-  touches exists, so the detector is live and subscribed to `localeChanged` by
-  the time `.use` refuses the return value, with no cleanup registered for it.
-  The listener is not leaked past teardown — `destroy()` clears every listener
-  on the host wholesale, registered cleanup or not — but the detector cannot be
-  disposed on its own short of destroying the host. `registerPlugin` is where a
-  plugin gets `required`, `timeout`, `onError` and cleanup registration.
+## On the server
 
-## How detection works
+Every source returns nothing on the server, so make the server-side decision in your framework's
+middleware and share it through a cookie; `@comvi/next` and `@comvi/nuxt` ship their own detection
+and need no detector on the host. See
+[Server-side rendering](https://comvi.io/docs/i18n/ssr#locale-on-the-server).
 
-On initialization, the detector checks the first entry in `caches` as the saved user preference by default. If no cached value exists, it walks `order` from first to last and returns the first non-empty match. Set `cacheFirst: false` to skip that preliminary cache read and make `order` the complete priority list.
+## Next steps
 
-| Step | Source         | Looks at                 | Match?        |
-| ---- | -------------- | ------------------------ | ------------- |
-| 1    | `querystring`  | `?lng=uk` in the URL     | **uk** → done |
-| 2    | `localStorage` | `i18n_locale` key        | (skipped)     |
-| 3    | `cookie`       | `i18n_lang` cookie       | (skipped)     |
-| 4    | `navigator`    | `navigator.languages[0]` | (skipped)     |
-
-Once a locale is chosen (by detection or by an explicit `setLocale()` call) it is written to every entry in `caches`. Because the first cache entry is read before `order` by default, put your preferred saved-locale source first. Use `cacheFirst: false` when query string or navigator detection should be able to override it; cache writes remain enabled, and cache sources are still read when included in `order`.
-
-BCP 47 lookup means `de-DE` matches `de` if `supportedLocales: ["en", "de"]`, and `zh-Hant-TW` falls back to `zh-Hant` then `zh`. Unsupported detected locales resolve to `fallbackLocale` (defaulting to the configured i18n locale) and are not cached.
-
-## Pair with your framework
-
-```tsx
-// React
-import { createI18n, I18nProvider } from "@comvi/react";
-import { localeDetector } from "@comvi/plugin-locale-detector";
-
-const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(
-  localeDetector({
-    supportedLocales: ["en", "uk", "de"],
-    order: ["querystring", "cookie", "navigator"],
-    caches: ["cookie", "localStorage"],
-  }),
-);
-
-<I18nProvider i18n={i18n}>…</I18nProvider>;
-```
-
-Same setup works in Solid and Svelte, and in Vue: `createI18n` there returns a
-`VueI18n` wrapper rather than a core host, and that wrapper has the same pipe,
-so `createI18n({ … }).use(localeDetector({ … }))` reads identically. For
-Next.js and Nuxt, prefer the framework's middleware (`@comvi/next`'s
-`createMiddleware()` or `@comvi/nuxt`'s `detectBrowserLanguage` config), which
-detect on the server before the page renders.
-
-For all detection sources, cookie/storage key options, BCP 47 normalization rules, and the full options reference, see the [documentation](https://comvi.io/docs/i18n/plugins/locale-detector/).
+- [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector): common setups, the tag validation rule.
+- [Language switching](https://comvi.io/docs/i18n/language-switching): `setLocaleAsync`, persistence and direction.
+- [Plugins overview](https://comvi.io/docs/i18n/plugins): installers, plugin factories and registration options.
 
 ## License
 

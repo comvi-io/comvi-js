@@ -4,8 +4,8 @@
  *
  * Two surfaces, one module (docs-0.5 plan §6.2):
  *
- *   --readmes            js-sdk CI: packages/<pkg>/README.md, MIGRATION.md and the
- *                        root README.md — the npm surface, checked by its owner,
+ *   --readmes            js-sdk CI: packages/<pkg>/README.md and the root
+ *                        README.md — the npm surface, checked by its owner,
  *                        BEFORE publication.
  *   --content <dir>      the www site: every .md/.mdx under <dir>, plus the README
  *                        of every installed `@comvi` package under node_modules, so
@@ -123,7 +123,7 @@ export function collectDocs(dir) {
 }
 
 /**
- * The js-sdk npm surface: every package README, MIGRATION.md, the root README,
+ * The js-sdk npm surface: every package README, the root README,
  * `examples/README.md`, and the design notes under `docs/design/`.
  *
  * `examples/README.md` is here because it was missing. It is a reader-facing
@@ -148,7 +148,7 @@ export function collectReadmes(root) {
       if (fs.existsSync(readme)) out.push(readme);
     }
   }
-  for (const name of ["MIGRATION.md", "README.md", path.join("examples", "README.md")]) {
+  for (const name of ["README.md", path.join("examples", "README.md")]) {
     const abs = path.join(root, name);
     if (fs.existsSync(abs)) out.push(abs);
   }

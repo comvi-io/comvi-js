@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/vue</h1>
 
-<p align="center">Vue 3 bindings for Comvi i18n — one plugin, composables, and the <code>&lt;T&gt;</code> component.</p>
+<p align="center">Vue 3 bindings for Comvi i18n: one plugin, composables, and the <code>&lt;T&gt;</code> component.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/vue"><img src="https://img.shields.io/npm/v/@comvi/vue?color=blue" alt="npm"></a>
@@ -17,37 +17,20 @@
 
 ---
 
-`@comvi/vue` is the whole toolkit for a Vue 3 app: it bundles `@comvi/core`, so one install is
-enough. `useI18n()` returns refs and computeds, so a locale or catalog change triggers precise
-re-renders. One `app.use(i18n)` covers the Composition API, the Options API and templates. Pair it
-with the [Comvi platform](https://comvi.io) and the catalogs are fetched from the CDN at runtime
-instead of bundled.
+Translate a Vue 3 app with `@comvi/vue`: `app.use(i18n)` at the root, `useI18n()` in components,
+and `<T>` for markup. The package depends on `@comvi/core`, so one install is enough. The full
+guide is [Vue](https://comvi.io/docs/i18n/vue) on the docs site.
 
-One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
-`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
-directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
-transitively. `useI18n()` hands back bound formatters, which need no extra import.
-
-Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
-current locale and `t()` — on this package
-that is a `VueI18n` wrapper, and the bare core host it wraps is public as `i18n.core`.
-
-📖 [Documentation](https://comvi.io/docs/i18n/vue)
-
-## 1. Install
+## Install
 
 ```bash
 npm install @comvi/vue
 # Peer: vue ^3.0.0
 ```
 
-## 2. Quick start — an inline catalog
+## Setup
 
-The smallest working app: `createI18n` builds the host, `locale` is what renders now,
-`fallbackLocale` covers a missing key, `translation` is the catalog, and `app.use(i18n)` installs it
-so `useI18n()` can find it. Runnable: [`examples/vue`](../../examples/vue).
-
-```ts title="src/main.ts"
+```ts title="src/main.ts" check=group=vue-1
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
 import App from "./App.vue";
@@ -64,94 +47,90 @@ const i18n = createI18n({
 createApp(App).use(i18n).mount("#app");
 ```
 
-```vue title="src/App.vue"
+`createI18n` builds the host and `app.use(i18n)` installs the plugin and starts `init()`.
+`app.use(i18n)` is Vue's plugin verb; Comvi's `.use(installer)` composes a capability on the host.
+
+## Use in components
+
+```vue title="src/App.vue" check=group=vue-1
 <script setup lang="ts">
 import { useI18n } from "@comvi/vue";
 
-const { t } = useI18n();
+const { t, locale, setLocale } = useI18n();
 </script>
 
 <template>
-  <h1>{{ t("greeting", { name: "Alice" }) }}</h1>
+  <h1>{{ t("greeting", { name: "Alice" }) }} ({{ locale }})</h1>
+  <button @click="setLocale('uk')">Українська</button>
+  <button @click="locale = 'en'">English</button>
 </template>
 ```
 
-There is no `i18n.init()` call: `app.use(i18n)` initializes the host itself. And `app.use(i18n)` is
-Vue's own plugin verb, unrelated to comvi's `.use(installer)` composition pipe below — the two share
-a name and take different arguments.
+`t()` inside a template or `computed` tracks the locale and the cache. `locale` is a
+`Ref<string>`: `setLocale()` resolves once the new locale's translations are loaded, and assigning
+`locale.value` triggers the same switch. `useI18n('admin')` binds a namespace.
 
-## 3. Connect to Comvi
+## Load from Comvi
 
-Three questions, and the answers are the lines below.
+```bash
+npm install @comvi/plugin-fetch-loader
+```
 
-1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
-   default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
-   (`{count, plural, …}`) fails in development at ingestion, before anything renders. Inline, it
-   throws `E_ICU_SYNTAX` at the call that carries the catalog; over a loader it fails that
-   namespace's load instead — `E_ICU_SYNTAX` reaches `onLoadError`, the namespace stays empty, and
-   `init()` rejects with `[i18n] Failed to load all namespaces …`, not with `E_ICU_SYNTAX`, when
-   that was the only namespace. In production it renders the message text literally and reports the
-   error through `onError` (`console.error` when no handler is set).
-2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn` (a second
-   install), which fetches the catalog at runtime instead of bundling it.
-3. **What to paint meanwhile?** `isInitializing`, in the component that owns the children. The
-   catalog is in flight during the first paint now, and Vue has no `fallback` prop, so the gate is
-   `<div v-if="isInitializing" class="spinner" />` and a `v-else` beside it.
-
-```ts title="src/main.ts"
+```ts title="src/main.ts" check=group=vue-3
 import { createApp } from "vue";
-import { createI18n, icuCompiler } from "@comvi/vue";
+import { createI18n } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  compiler: icuCompiler,
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }));
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
 
 createApp(App).use(i18n).mount("#app");
 ```
 
-The catalogs now come from the platform, so `t("items", { count: 5 })` renders a locale-correct
-plural from `"{count, plural, one {# item} other {# items}}"` — the `items` key
-[Connect Comvi](https://comvi.io/docs/i18n/connect-comvi) step 3 has you create.
+```vue title="src/App.vue" check=group=vue-3
+<script setup lang="ts">
+import { useI18n } from "@comvi/vue";
 
-The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
-open your project and use **Copy URL** on the
-**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
-enabled and saved). **Compose before `app.use(i18n)`**, which is what the chain above does — it
-is the one ordering rule this package adds.
+const { t, isInitializing } = useI18n();
+</script>
 
-## 4. What is specific to Vue
+<template>
+  <div v-if="isInitializing" class="spinner" />
+  <h1 v-else>{{ t("greeting", { name: "Alice" }) }}</h1>
+</template>
+```
 
-- **`useI18n(ns?)`** returns refs and computeds — `t`, `locale`, `isLoading`, `isInitializing`,
-  `setLocale`, the four `Intl` formatters, and `translationCache` as a direct member. It does
-  **not** carry the loader or plugin members: `useI18nLoader()` and `useI18nPlugins()` acquire
-  those, and throw on a host that never composed them.
-- **The bare core host** is `i18n.core`, or `inject(I18N_INJECTION_KEY).core` inside a component.
-- **Options API and templates** get `$t`, `$locale` and `$setLocale` from the same
-  `app.use(i18n)`, so a template needs no import.
-- **`<T i18nKey="help">`** takes its tag handlers as named slots (`<template #link="{ children }">`),
-  with the `components` prop as the programmatic alternative for a map built in `setup()`.
+`.use(cdnLoader())` fetches each locale from the CDN. Compose before `app.use(i18n)`: `init()`
+drains the plugin queue once, and an installer composed after it never runs. Vue has no `fallback`
+prop, so `isInitializing` gates the first paint. The CDN URL is on
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
+(`{count, plural, …}`), add `compiler: icuCompiler` as on
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
+independent, and either works without the other.
 
-## 5. Where to go next
+## Specific to Vue
 
-- **This binding:** [guide](https://comvi.io/docs/i18n/vue) ·
-  [API reference](https://comvi.io/docs/i18n/api/vue)
-- **Guides:** [plurals & ICU](https://comvi.io/docs/i18n/pluralization) ·
-  [typed keys](https://comvi.io/docs/i18n/type-safety) · [SSR](https://comvi.io/docs/i18n/ssr) ·
-  [errors](https://comvi.io/docs/i18n/errors) · [limitations](https://comvi.io/docs/i18n/limitations)
-- **Also here:** [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader) ·
-  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) ·
-  [`docs/design/`](../../docs/design)
+- `useI18n()` returns refs and computeds: `t`, `locale`, `setLocale`, `isLoading`,
+  `isInitializing`, and `dir` as a `ComputedRef<"ltr" | "rtl">`.
+- Installing the plugin adds `$t(key, params?)`, `$tRaw(key, params?)` and `$i18n` to every
+  component, so `$i18n.setLocale('uk')` works from a template too.
+- `<T i18nKey="help">` takes a named slot per tag, with the content as `children`; the `components`
+  prop takes an HTML tag name, a Vue component or a `{ component, props }` config and wins over a
+  slot of the same name. Plain `t()` does not parse tags.
+- For server-side rendering, build one instance per request, pass the request locale as
+  `ssrLocale`, and await `i18n.init()` before `renderToString`, because `app.use(i18n)` starts it
+  fire-and-forget. On Nuxt, [`@comvi/nuxt`](https://comvi.io/docs/i18n/nuxt) does all three per
+  request.
 
-Measured min+gz through the published entry, gated in CI. Every fixture and the 0.4.1 comparison:
-[bundle size](https://comvi.io/docs/i18n/bundle-size).
+## Next steps
 
-| app shape                      | measured as      | min+gz |
-| ------------------------------ | ---------------- | ------ |
-| base host + bindings, no `<T>` | `fw-vue-default` | 7272 B |
+- [Vue guide](https://comvi.io/docs/i18n/vue): markup inside a translation, SSR, the Options API.
+- [Loading translations](https://comvi.io/docs/i18n/loading-translations): `loader(map)`, namespaces and `useI18nLoader()`.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `t()` checks keys and params.
+- [Vue API reference](https://comvi.io/docs/i18n/api/vue): every export, composable, `<T>` prop and the injection key.
 
 ## License
 

@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/core</h1>
 
-<p align="center">The framework-agnostic runtime behind Comvi i18n — the host, <code>t()</code>, and the capability pipe.</p>
+<p align="center">The framework-agnostic runtime behind Comvi i18n: the host, <code>t()</code>, and the capability pipe.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/core"><img src="https://img.shields.io/npm/v/@comvi/core?color=blue" alt="npm"></a>
@@ -17,38 +17,27 @@
 
 ---
 
-`@comvi/core` is the runtime every Comvi i18n binding is built on. If you use
-[`@comvi/vue`](../vue), [`@comvi/react`](../react), [`@comvi/solid`](../solid),
-[`@comvi/svelte`](../svelte), [`@comvi/next`](../next) or [`@comvi/nuxt`](../nuxt), you already have
-it — install this package directly for vanilla JS, Node, a worker, or a custom integration. Pair it
-with the [Comvi platform](https://comvi.io) and the catalogs are fetched from the CDN at runtime
-instead of bundled.
+`@comvi/core` is the host every binding builds on. Use it directly for Web Components, static
+sites, server-side scripts, or anywhere a framework would be more than you need. With
+`@comvi/react`, `@comvi/vue`, `@comvi/next`, `@comvi/nuxt`, `@comvi/svelte` or `@comvi/solid` you
+already have it. The full guide is [Vanilla JavaScript](https://comvi.io/docs/i18n/vanilla) on the
+docs site.
 
-Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
-current locale and `t()`.
-
-Zero runtime dependencies, and no `eval` or `new Function` anywhere, so it runs under a strict CSP
-without `unsafe-eval`.
-
-📖 [Documentation](https://comvi.io/docs/i18n/vanilla) · ⚖️ [Comvi vs i18next](https://comvi.io/compare/i18next)
-
-## 1. Install
+## Install
 
 ```bash
 npm install @comvi/core
 # Node 20 or newer. No peer dependencies.
 ```
 
-## 2. Quick start — an inline catalog
+The package is ESM. A `<script src>` global build exists too, as `ComviCore.I18n`, fully composed.
 
-The smallest working script: `createI18n` builds the host, `locale` is what renders now,
-`fallbackLocale` covers a missing key, `translation` is the catalog, and `init()` readies the host
-before the first `t()`. Runnable: [`examples/vanilla`](../../examples/vanilla).
+## Create the host
 
-```ts title="src/i18n.ts"
+```ts title="src/i18n.ts" check=group=vanilla-2
 import { createI18n } from "@comvi/core";
 
-const i18n = createI18n({
+export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   translation: {
@@ -60,100 +49,77 @@ const i18n = createI18n({
 await i18n.init();
 
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
-
-i18n.locale = "uk";
-i18n.t("greeting", { name: "Аліса" }); // "Привіт, Аліса!"
 ```
 
-A parameter you leave out renders as its own placeholder — `t("greeting")` gives
-`"Hello, {name}!"` — plus one development warning per template and parameter. Pass
-`missingParam: "drop"` to render an empty string instead.
+`init()` readies the host before the first `t()` and resolves to the instance. `t()` always
+returns a string; `tRaw()` returns the structured result when a translation carries tags.
 
-## 3. Connect to Comvi
+## Switch the locale
 
-Three questions, and the third needs no line here at all.
+```ts title="src/switch.ts" check=group=vanilla-2
+import { i18n } from "./i18n";
 
-1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
-   default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
-   (`{count, plural, …}`) fails in development at ingestion, before anything renders. Inline, it
-   throws `E_ICU_SYNTAX` at the call that carries the catalog; over a loader it fails that
-   namespace's load instead — `E_ICU_SYNTAX` reaches `onLoadError`, the namespace stays empty, and
-   `init()` rejects with `[i18n] Failed to load all namespaces …`, not with `E_ICU_SYNTAX`, when
-   that was the only namespace. In production it renders the message text literally and reports the
-   error through `onError` (`console.error` when no handler is set).
-2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn` (a second
-   install), which fetches the catalog at runtime instead of bundling it.
-3. **What to paint meanwhile?** Nothing, on this host. `await init()` is where the first fetch
-   happens, so a vanilla script simply awaits it and there is no gate to write.
+await i18n.setLocaleAsync("uk");
+console.log(i18n.t("greeting", { name: "Аліса" })); // "Привіт, Аліса!"
+```
 
-```ts title="src/i18n.ts"
+The host has a `locale` getter and setter and `setLocaleAsync()`; `setLocale()` is a helper the
+framework bindings add. With a loader composed, `setLocaleAsync()` loads the active namespaces
+before the locale applies.
+
+## Load from Comvi
+
+```bash
+npm install @comvi/plugin-fetch-loader
+```
+
+```ts title="src/i18n.ts" check=group=vanilla-cdn
 import { createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({
+export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  compiler: icuCompiler,
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }));
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
 
 await i18n.init();
-
-i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
-i18n.t("items", { count: 5 }); // "5 items" — from "{count, plural, one {# item} other {# items}}"
 ```
 
-Both keys above come from the platform now, and
-[Connect Comvi](https://comvi.io/docs/i18n/connect-comvi) step 3 is where you create them:
-`greeting` as plain source copy, `items` with the **Plural key** box ticked.
+Compose `.use(cdnLoader())` before `init()`: the first fetch happens inside `await init()`, so
+there is no gate to write. The CDN URL is on
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
+(`{count, plural, …}`), add `compiler: icuCompiler` from `@comvi/core/icu` as on
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
+independent, and either works without the other.
 
-The URL in the snippet above is an example. `cdnUrl` is the whole URL the platform hands you:
-open your project and use **Copy URL** on the
-**CDN Endpoint** card under **Settings → Content Deploy** (it appears once Content Deploy is
-enabled and saved). Compose before `init()`: composing after it warns once per host in
-development.
+## Specific to core
 
-## 4. What is specific to core
+The root entry is the base host: text and `{param}` interpolation, the translation cache, events,
+default params and the `.use(installer)` pipe. Everything else is a subpath you import, and a
+capability you never import never enters your bundle.
 
-`@comvi/core` is the base host: text and `{param}` interpolation, the translation cache, events,
-default params and the `.use(installer)` pipe. Everything else is a subpath you import.
-
-| you want                              | you import                                             | you write                   |
+| You want                              | You import                                             | You write                   |
 | ------------------------------------- | ------------------------------------------------------ | --------------------------- |
 | ICU `plural`/`select`/`selectordinal` | `icuCompiler` from `@comvi/core/icu`                   | `compiler: icuCompiler`     |
-| async / remote loading                | `loader` or `attachLoader` from `@comvi/core/loader`   | `.use(loader(map))`         |
-| the plugin host, post-processors      | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
-| browser-extension discovery           | `devtools` from `@comvi/core/devtools`                 | `.use(devtools())`          |
-| `<tag>` markup inside `t()`           | `@comvi/core/tags`                                     | `import "@comvi/core/tags"` |
-| the pure rich-text toolbox            | `@comvi/core/rich-text`                                | `prepareTranslation(…)`     |
+| Async or remote loading               | `loader` or `attachLoader` from `@comvi/core/loader`   | `.use(loader(map))`         |
+| The plugin host, post-processors      | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
+| Browser-extension discovery           | `devtools` from `@comvi/core/devtools`                 | `.use(devtools())`          |
+| `<tag>` markup inside plain `t()`     | `@comvi/core/tags`                                     | `import "@comvi/core/tags"` |
+| The rich-text toolbox                 | `prepareTranslation` from `@comvi/core/rich-text`      | `prepareTranslation(…)`     |
 
-A capability you never import never enters your module graph, and calling its member on a host that
-never composed it is a **compile error**. Two consequences worth knowing: `@comvi/core/tags`
-registers the grammar **per bundle**, so an SSR app imports it in the server graph too, and the
-unpkg/jsdelivr global build starts fully composed because a `<script src>` consumer has no import
-graph to extend.
+Without a framework's reactivity, events are how you learn that state changed: `i18n.on()` takes
+`initialized`, `destroyed`, `localeChanged`, `defaultNamespaceChanged`, `translationsCleared`,
+`loadingStateChanged`, `namespaceLoaded`, `missingKey`, `loadError` and `configChanged`, and returns
+an unsubscribe function. `destroy()` tears the instance down; a destroyed instance cannot be
+re-initialized. On a server, build a fresh host per request. Never assign a translation to
+`innerHTML`; use `textContent` or build real nodes with `prepareTranslation`.
 
-## 5. Where to go next
+## Next steps
 
-- **A framework:** [react](../react) · [next](../next) · [vue](../vue) · [nuxt](../nuxt) ·
-  [svelte](../svelte) · [solid](../solid)
-- **Reference:** [@comvi/core API](https://comvi.io/docs/i18n/api/core) ·
-  [/loader](https://comvi.io/docs/i18n/api/core-loader) ·
-  [/plugins](https://comvi.io/docs/i18n/api/core-plugins) ·
-  [vanilla guide](https://comvi.io/docs/i18n/vanilla)
-- **Guides:** [plurals & ICU](https://comvi.io/docs/i18n/pluralization) ·
-  [typed keys](https://comvi.io/docs/i18n/type-safety) · [SSR](https://comvi.io/docs/i18n/ssr) ·
-  [errors](https://comvi.io/docs/i18n/errors) · [limitations](https://comvi.io/docs/i18n/limitations)
-- **Also here:** [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader) ·
-  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) ·
-  [`docs/design/`](../../docs/design)
-
-Measured min+gz through the published exports map, gated in CI. Every fixture and the 0.4.1
-comparison: [bundle size](https://comvi.io/docs/i18n/bundle-size).
-
-| graph                                 | measured as | min+gz |
-| ------------------------------------- | ----------- | ------ |
-| `@comvi/core` alone, nothing composed | `core-base` | 5270 B |
+- [Vanilla guide](https://comvi.io/docs/i18n/vanilla): update the DOM from events, instance lifetime.
+- [Core API reference](https://comvi.io/docs/i18n/api/core): every instance member, the events and the capability subpaths.
+- [Loading translations](https://comvi.io/docs/i18n/loading-translations): `.use(loader(map))`, namespaces and caching.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): augment `TranslationKeys` on `@comvi/core` so `t()` autocompletes.
 
 ## License
 

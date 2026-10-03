@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/vite-plugin</h1>
 
-<p align="center">Vite plugin that auto-generates strict TypeScript types from local translation files.</p>
+<p align="center">Vite plugin that generates a <code>TranslationKeys</code> declaration from local translation JSON.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/vite-plugin"><img src="https://img.shields.io/npm/v/@comvi/vite-plugin?color=blue" alt="npm"></a>
@@ -16,38 +16,22 @@
 
 ---
 
-`@comvi/vite-plugin` watches your translation JSON files in dev and emits a `TranslationKeys` declaration that types every `t()` call in your project. No TMS and no API key: point it at a folder and you get autocomplete and parameter validation.
-
-**Use `@comvi/vite-plugin`** if your translations live as local JSON files and you want autocomplete in your editor.
-**Use `@comvi/cli`** if your translations live in the Comvi TMS and you want to sync them to your repo or generate types from the live schema.
-
-Comvi i18n is a framework-agnostic i18n library with ICU MessageFormat, rich text without XSS
-and typed translation keys. The [root README](https://github.com/comvi-io/comvi-js) has the
-two-step quickstart, the package matrix and the measured bundle weights.
-
-## Why @comvi/vite-plugin?
-
-- **Autocomplete and parameter validation.** Generated from your local JSON at dev time, so every translation key is strictly typed.
-- **Zero runtime cost.** Types only, no plugin code in your bundle. Regenerates on save during `vite dev`.
-- **No external dependencies.** Works offline. Point it at a folder of JSON and go.
+`@comvi/vite-plugin` watches your local translation JSON and writes the declaration that types
+every `t()` call. It runs in-process with no API key and no network. For catalogs that live on the
+Comvi platform, use [comvi typegen](https://comvi.io/docs/cli/typegen) instead; both emit the same
+file. The full guide is [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin) on the docs
+site.
 
 ## Install
 
 ```bash
 npm install -D @comvi/vite-plugin
-# Peer: vite ^5 || ^6 || ^7 || ^8
+# Peer: vite ^5 || ^6 || ^7 || ^8. Node 22 or newer.
 ```
 
-The generated declaration augments the Comvi package your `package.json` already declares —
-`@comvi/core` when it is a dependency, otherwise your framework binding (`@comvi/react`,
-`@comvi/next`, `@comvi/vue`, `@comvi/nuxt`, `@comvi/svelte`, `@comvi/solid`). Nothing else to
-install. Pass `augment` to name a different module, such as a private wrapper package that
-re-exports a binding.
+## Configure
 
-## Quick start
-
-```ts
-// vite.config.ts
+```ts title="vite.config.ts"
 import { defineConfig } from "vite";
 import { comviTypes } from "@comvi/vite-plugin";
 
@@ -62,24 +46,24 @@ export default defineConfig({
 });
 ```
 
-The plugin watches `./src/locales` and rewrites the declaration whenever you save a JSON file. Add the generated `.d.ts` to your `tsconfig.json` `include` (most setups already cover `src/**/*`). Comvi's default namespace is `default`; set `defaultNs` to match your runtime/TMS default namespace. This example uses `defaultNs: "common"`, which strips the `common:` prefix from generated keys. Other namespaces stay namespaced and are called with `{ ns: "..." }`.
+The plugin generates once on `buildStart` and again whenever a `.json` file under `translations`
+is added, changed or removed. Both paths resolve against the Vite root. Make sure `output` is
+inside your `tsconfig.json` `include`; most `src/**/*` setups already cover it.
 
-## What you get
+## Options
 
-Given this directory layout:
+| Option         | Default                            | Behaviour                                                                                                            |
+| -------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `translations` | required                           | Directory holding the translation JSON.                                                                              |
+| `output`       | `'./src/types/i18n.d.ts'`          | Where the declaration is written; parent directories are created.                                                    |
+| `fileTemplate` | `'{namespace}/{languageTag}.json'` | Maps a file path to a language and a namespace. A file the template does not match is read as the default namespace. |
+| `defaultNs`    | `'default'`                        | Keys from this namespace lose their prefix. Set it to what your runtime uses.                                        |
+| `strictParams` | `true`                             | Parameters required; `false` emits them as optional.                                                                 |
+| `augment`      | from `package.json`                | The module the declaration augments.                                                                                 |
 
-```text
-src/locales/
-├── en.json
-├── uk.json
-└── errors/
-    ├── en.json
-    └── uk.json
-```
+## What gets generated
 
-…and `en.json`:
-
-```json
+```json title="src/locales/en.json"
 {
   "welcome": "Hello, {name}!",
   "items": "{count, plural, one {# item} other {# items}}",
@@ -87,85 +71,58 @@ src/locales/
 }
 ```
 
-Typing a key is not the same as rendering it: the `items` value above is ICU, so the app's host
-still needs `compiler: icuCompiler` from `@comvi/core/icu`. Without it that message throws in
-development and renders literally in production, whatever the generated types say.
-
-The plugin writes to `src/types/i18n.d.ts`:
-
-```typescript check=group=typed-keys
+```ts title="src/types/i18n.d.ts" check=group=typed-calls
 /**
- * Auto-generated translation keys, augmenting '@comvi/react'
+ * Auto-generated translation keys, augmenting '@comvi/core'
  * DO NOT EDIT — this file is generated from your translation schema
  */
 
 // Import to ensure module is resolved before augmentation
-import "@comvi/react";
+import "@comvi/core";
 
-declare module "@comvi/react" {
+declare module "@comvi/core" {
   interface TranslationKeys {
-    welcome: { name: string };
-    items: { count: number };
-    greeting: never;
     "errors:NOT_FOUND": never;
+    greeting: never;
+    items: { count: number };
+    welcome: { name: string };
   }
 }
 
 export {};
 ```
 
-The header line comes from the plugin (`emitDeclarations` in `packages/vite-plugin/src/emit.ts`). The
-emitter writes single quotes (`emitDeclarations` in `packages/typegen/src/index.ts`); the block
-above is Prettier-formatted like the rest of the README.
+```ts title="src/usage.ts" check=group=typed-calls
+import { i18n } from "./i18n";
 
-Every `t()` call across your project is now strictly typed:
-
-```ts check=group=typed-keys
-import { useI18n } from "@comvi/react"; // or vue, solid, svelte, @comvi/next/client; Nuxt auto-imports it
-const { t } = useI18n();
-
-// ✓ Compiles — name required, type-checked
-t("welcome", { name: "Alice" });
-
-// ✓ No params needed
-t("greeting");
-
-// ✓ Namespaced keys use the ns option
-t("NOT_FOUND", { ns: "errors" });
+i18n.t("welcome", { name: "Alice" });
+i18n.t("greeting");
+i18n.t("NOT_FOUND", { ns: "errors" });
 ```
 
-**What TypeScript catches:**
+Keys come out in code-unit order, `never` means no parameters, and nested JSON flattens to dot
+keys; `errors:NOT_FOUND` comes from an `errors/en.json` beside the file above. Parameter types
+come from ICU syntax: a bare `{name}` is `string`, a `plural` or `selectordinal` count is
+`number`, a `select` variable is `string`. The declaration augments `@comvi/core` when
+`package.json` declares it, otherwise the first framework binding it declares. Types and the
+compiler are two decisions: the `items` key above needs `compiler: icuCompiler` from
+`@comvi/core/icu` on the host, or it throws at ingestion in development and renders its braces in
+production; see [Plurals and ICU](https://comvi.io/docs/i18n/pluralization).
 
-```ts check=group=typed-keys check=expect-error=TS2554
-import { useI18n } from "@comvi/react";
-const { t } = useI18n();
+## Dev and build
 
-// ✗ TS2554 — Expected 2 arguments, but got 1. `welcome` declares a required param,
-//   so its params object is not optional.
-t("welcome");
-```
+`vite dev` generates on startup, then on every JSON add, change or delete, with no restart.
+`vite build` generates once before bundling; a generation error fails the build, in dev it is only
+logged. Unchanged output is not written. Every failure logs
+`[@comvi/vite-plugin] Failed to generate types: …`: a missing `translations` directory, a
+malformed JSON file, a key collision after stripping the default namespace, or a parameter type
+outside `string` and `number`.
 
-```ts check=group=typed-keys check=expect-error=TS2345
-import { useI18n } from "@comvi/react";
-const { t } = useI18n();
+## Next steps
 
-// ✗ TS2345 — Property 'name' is missing in type '{ age: number; }' but required in
-//   type 'MissingParams<{ name: string; }, {}>'
-t("welcome", { age: 5 });
-
-// ✗ TS2322 — Type 'number' is not assignable to type 'string'
-t("welcome", { name: 42 });
-
-// ✗ TS2345 — Argument of type '"typo"' is not assignable to parameter of type
-//   \'"welcome" | "items" | "greeting"\'
-t("typo", { name: "Alice" });
-```
-
-`t()` has one call signature, so each of these names its own problem on the first line. The key
-parameter is the union of the keys this call site may use — the default namespace's, plus any
-namespace it named — which is also the list of what you may have meant.
-
-Add a key to a JSON file → save → the declaration regenerates → autocomplete updates. No restart, no build step.
+- [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin): what TypeScript catches, key collisions, the full table.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): how the augmentation reaches `useI18n()`, and `InferKeys`.
+- [comvi typegen](https://comvi.io/docs/cli/typegen): the same declarations from the platform schema.
 
 ## License
 

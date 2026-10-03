@@ -119,4 +119,4 @@ plugin `required`, `timeout`, `onError` and cleanup.
 ## Related
 
 - [ICU](icu.md) · [Rich text](rich-text.md) · [Formatting](formatting.md) · [SSR](ssr.md) ·
-  [Limitations](limitations.md) · [MIGRATION.md](../../MIGRATION.md) (the 0.4 → 0.5 renames)
+  [Limitations](limitations.md)
