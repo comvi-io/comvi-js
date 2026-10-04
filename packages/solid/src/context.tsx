@@ -11,6 +11,7 @@ import {
 import type { AnyI18nHost, WrapperI18nHost } from "@comvi/core";
 import {
   createLocaleSignal,
+  createSeededLocaleSignal,
   createDefaultNamespaceSignal,
   createLoadingSignal,
   createInitializingSignal,
@@ -19,8 +20,8 @@ import {
 } from "./primitives";
 
 /**
- * Loader/plugin-host capabilities are acquired separately through
- * `useI18nLoader()` / `useI18nPlugins()`, so the Provider accepts a host that
+ * Loader/plugin capabilities are acquired separately through
+ * `useI18nLoader()` / `useI18nPlugins()`, so the Provider accepts an instance that
  * never had them.
  */
 export interface I18nContextValue {
@@ -43,12 +44,12 @@ export type { AnyI18nHost };
 const I18nContext = createContext<I18nContextValue>();
 
 export interface I18nProviderProps {
-  /** Any host, whatever default-params type it carries. */
+  /** Any instance, whatever default-params type it carries. */
   i18n: AnyI18nHost;
   /** Auto-initialize the instance on mount (default: true). */
   autoInit?: boolean;
   /**
-   * Rendered INSTEAD of `children` until the host is INITIALIZED, so no paint
+   * Rendered INSTEAD of `children` until the instance is INITIALIZED, so no paint
    * is ever a flash of raw keys. Omit it and `children` render throughout,
    * exactly as before this prop existed.
    *
@@ -58,7 +59,7 @@ export interface I18nProviderProps {
    * initializing" is open for exactly the paint the raw keys would appear in.
    * With `autoInit: false` the fallback therefore stays until your app calls
    * `i18n.init()` itself, and during `renderToString` — where no effect runs
-   * and nothing initializes the host — the fallback is what the server paints.
+   * and nothing initializes the instance — the fallback is what the server paints.
    *
    * @example
    * ```tsx
@@ -69,19 +70,21 @@ export interface I18nProviderProps {
    */
   fallback?: JSX.Element;
   /**
-   * Render locale for SSR, under the name `@comvi/vue` uses: the host adopts
-   * it during the render phase, BEFORE the locale signal is seeded, so
-   * `renderToString` and the hydrating client agree on the first paint. Set it
+   * Render locale for SSR, under the name `@comvi/vue` uses: the instance adopts
+   * it during the render phase and the locale signal is seeded from it, so
+   * `renderToString` and the hydrating client agree on the first paint — also
+   * on an instance with `@comvi/core/loader` composed, whose `setLocale`
+   * settles a microtask later. Set it
    * when the server renders in a locale the client would not detect on its
    * own.
    *
-   * **The host must be per request.** This is a WRITE to `i18n.locale`, and
-   * during `renderToString` it happens in the server process: a host built at
+   * **The instance must be per request.** This is a WRITE to `i18n.locale`, and
+   * during `renderToString` it happens in the server process: an instance built at
    * module scope and shared by every concurrent request would take one
    * request's locale into another's tree — the same leak
    * `@comvi/next`'s provider refuses to risk by never writing the locale on
-   * the server. Build the host inside the request handler (see the SSR section
-   * of the package README); on the client, where a module-scope host is the
+   * the server. Build the instance inside the request handler (see the SSR section
+   * of the package README); on the client, where a module-scope instance is the
    * normal shape, there is one request and nothing to leak.
    */
   ssrLocale?: string;
@@ -105,6 +108,16 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
   if (ssrLocale !== undefined && props.i18n.locale !== ssrLocale) {
     props.i18n.locale = ssrLocale;
   }
+  // The write above lands synchronously on a base instance. With
+  // `@comvi/core/loader` composed and a namespace active, the loader's
+  // `setLocale` awaits the namespace (even on a cache hit) before `locale`
+  // moves, so the instance still reports the OLD locale here. The locale
+  // signal is then seeded from `ssrLocale` instead, and `t()` resolves against
+  // the signal, so the first render — `renderToString` and the hydrating
+  // client alike — paints `ssrLocale`. The seed is for this instance only.
+  const seededInstance = props.i18n;
+  const seededLocale =
+    ssrLocale !== undefined && seededInstance.locale !== ssrLocale ? ssrLocale : undefined;
 
   // `isInitialized`/`isInitializing` are plain non-reactive getters, read here
   // only as a re-entry guard: the effect re-runs on `props.i18n` /
@@ -124,7 +137,10 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
   // detaches their cleanups from the memo's owner and leaks the core event
   // subscriptions whenever `props.i18n` is swapped.
   const signalsMemo = createMemo(() => ({
-    locale: createLocaleSignal(props.i18n),
+    locale:
+      seededLocale !== undefined && props.i18n === seededInstance
+        ? createSeededLocaleSignal(props.i18n, seededLocale)
+        : createLocaleSignal(props.i18n),
     defaultNamespace: createDefaultNamespaceSignal(props.i18n),
     isLoading: createLoadingSignal(props.i18n),
     isInitializing: createInitializingSignal(props.i18n),
@@ -206,8 +222,8 @@ export function useI18nContextValue(): I18nContextValue {
 }
 
 /**
- * The host the nearest `<I18nProvider>` holds, as a bare `WrapperI18nHost` —
- * THE name for "give me the host", the same in react, solid and svelte (vue's
+ * The instance the nearest `<I18nProvider>` holds, as a bare `WrapperI18nHost` —
+ * THE name for "give me the instance", the same in react, solid and svelte (vue's
  * equivalent is `inject(I18N_INJECTION_KEY).core`).
  *
  * @throws if called outside an `<I18nProvider>`.

@@ -19,7 +19,7 @@ import type {
   LocaleSource,
 } from "@comvi/core";
 
-/** Loader/plugin-host members are NOT part of it — see `capabilityHooks`. */
+/** Loader/plugin members are NOT part of it — see `capabilityHooks`. */
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 // The namespace-bound narrowing is core's `NamespaceBoundTranslateFn`, shared
@@ -36,8 +36,8 @@ type UseI18nRawTranslation<
 > = NamespaceBoundTranslateFn<DefaultNS, D, TranslationResult>;
 
 /**
- * The host-only translation surface. Loader and plugin-host members are not
- * part of it — they do not exist on a base host, so a type promising them
+ * The base-instance translation surface. Loader and plugin members are not
+ * part of it — they do not exist on a base instance, so a type promising them
  * would be lying; `useI18nLoader()` / `useI18nPlugins()` acquire those.
  */
 export interface UseI18nReturn<
@@ -160,7 +160,13 @@ export function useI18n<
     // does not depend on the active locale, and tracking it there would
     // recompute on every unrelated global locale change.
     if (params?.locale === undefined) {
-      ctx.signals.locale();
+      // The render locale is the signal. It equals `ctx.i18n.locale` except
+      // while an `ssrLocale` the instance has not adopted yet is pending (see
+      // the provider); only then is it passed explicitly.
+      const renderLocale = ctx.signals.locale();
+      if (renderLocale !== ctx.i18n.locale) {
+        params = { ...params, locale: renderLocale };
+      }
     }
     ctx.signals.cacheRevision();
     if (ns === undefined) {

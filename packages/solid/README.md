@@ -17,7 +17,7 @@
 
 ---
 
-`@comvi/solid` binds the Comvi host to Solid's signals: `<I18nProvider>` holds it, and `useI18n()`
+`@comvi/solid` binds the i18n instance to Solid's signals: `<I18nProvider>` holds it, and `useI18n()`
 gives your components `t()`, `locale()` and `setLocale()`. The package depends on `@comvi/core`, so
 one install is enough. The full guide is [Solid](https://comvi.io/docs/i18n/solid) on the docs
 site.
@@ -55,7 +55,7 @@ render(
 );
 ```
 
-`createI18n` builds the host and `<I18nProvider>` initializes it from an effect, so there is no
+`createI18n` builds the i18n instance and `<I18nProvider>` initializes it from an effect, so there is no
 `init()` call to write. Its other props are `autoInit`, `onError`, `fallback` and `ssrLocale`.
 
 ## Use in components
@@ -111,7 +111,7 @@ render(
 ```
 
 Compose `.use(cdnLoader())` inside the `createI18n` expression, because the provider calls `init()`
-for you. `fallback` renders in place of the children until the host is initialized. The CDN URL is
+for you. `fallback` renders in place of the children until the i18n instance is initialized. The CDN URL is
 on [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
@@ -126,8 +126,8 @@ independent, and either works without the other.
   plain function or an element name such as `{ policy: 'a' }`. Plain `t()` does not parse tags.
 - `<I18nProvider>` initializes from a `createEffect`, and effects do not run during Solid's server
   render, so a loader fetches nothing there. Load the messages in a server function with a fresh
-  host per request, render through `<I18nProvider autoInit={false}>`, and pass `ssrLocale` on both
-  sides. Never share a module-level host across SSR requests; one is fine for a client-only app.
+  instance per request, render through `<I18nProvider autoInit={false}>`, and pass `ssrLocale` on both
+  sides. Never share a module-level instance across SSR requests; one is fine for a client-only app.
 
 ## Next steps
 

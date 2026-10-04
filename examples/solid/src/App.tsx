@@ -121,15 +121,13 @@ export function App() {
               </p>
             </section>
 
-            {/* 5 — date and number formatting. The formatters take the locale as
-          their last argument; passing `locale()` is what subscribes this
-          expression to a locale change. */}
+            {/* 5 — date and number formatting. */}
             <section>
               <h2>formatting</h2>
               <p>
                 {t("stats.summary", {
-                  views: formatNumber(1234567, undefined, locale()),
-                  date: formatDate(RELEASED, { dateStyle: "long" }, locale()),
+                  views: formatNumber(1234567),
+                  date: formatDate(RELEASED, { dateStyle: "long" }),
                 })}
               </p>
             </section>
