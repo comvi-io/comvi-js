@@ -10,6 +10,7 @@
  * Named re-exports only, one hop straight from `@comvi/core` or one of its
  * pure subpaths — the same re-export discipline the binding roots follow, so
  * nothing here relays a relayed export and `sideEffects: false` still holds.
+ * The one local export, `defineComviHost`, is an identity function for typing.
  *
  * `flattenCatalog` is deliberately NOT here: the base host flattens a nested
  * catalog itself, so pre-flattening data by hand stays on the `@comvi/core`
@@ -28,4 +29,28 @@ export { attachLoader, loader } from "@comvi/core/loader";
 export { definePlugin, plugins } from "@comvi/core/plugins";
 export { devtools } from "@comvi/core/devtools";
 
+import type { DefaultTranslationParams, WrapperI18nHost } from "@comvi/core";
+import type { NuxtHostFactoryOptions } from "../types";
+
 export type { NuxtHostFactory } from "../types";
+
+/**
+ * Types a `comvi.host.ts` default export: `options` is the resolved options
+ * nuxt passes, and the factory comes back unchanged, so the composed host's
+ * type still reaches `comvi.setup`. It replaces `satisfies NuxtHostFactory`.
+ *
+ * The factory runs once per instance (the client, and each server request),
+ * so it must return a new instance from `createI18n` on every call; in
+ * development the module throws when it gets the same host twice.
+ *
+ * @example
+ * ```ts
+ * export default defineComviHost((options) => createI18n(options).use(loader(map)));
+ * ```
+ */
+export function defineComviHost<
+  C extends WrapperI18nHost<D>,
+  D extends DefaultTranslationParams = {},
+>(factory: (options: NuxtHostFactoryOptions<D>) => C): (options: NuxtHostFactoryOptions<D>) => C {
+  return factory;
+}

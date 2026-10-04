@@ -90,7 +90,8 @@ interface ModuleDefinition {
 async function emitHostTemplate(
   hostModule?: string,
   extraOptions: Record<string, unknown> = {},
-): Promise<HostTemplate> {
+  nuxtOptions: { dev?: boolean } = {},
+): Promise<HostTemplate & { source: string }> {
   vi.resetModules();
   // Dynamic on purpose: re-evaluated per case so its @nuxt/kit calls hit a fresh mock.
   const imported = await import("../src/module");
@@ -109,6 +110,7 @@ async function emitHostTemplate(
         if (name === "prepare:types") prepareTypesHandlers.push(handler);
       },
       options: {
+        ...nuxtOptions,
         runtimeConfig: { public: {}, comvi: {} },
         appConfig: {},
         build: { transpile: [] },
@@ -122,9 +124,10 @@ async function emitHostTemplate(
   )?.[0] as NuxtTemplateStub;
 
   const file = join(workDir, `host-${moduleId++}.mjs`);
-  writeFileSync(file, template.getContents());
+  const source = template.getContents();
+  writeFileSync(file, source);
   // Dynamic by necessity: the specifier is a file this test just generated.
-  return (await import(pathToFileURL(file).href)) as HostTemplate;
+  return { ...((await import(pathToFileURL(file).href)) as HostTemplate), source };
 }
 
 function writeHostModule(body: string): string {
@@ -671,5 +674,70 @@ describe("generated types/comvi-host.ts declaration", () => {
     const off = await emitTypeTemplate({ host: "/app/comvi.host.ts" });
     const on = await emitTypeTemplate({ host: "/app/comvi.host.ts" }, { icu: true });
     expect(on).toBe(off);
+  });
+});
+
+describe("generated #build/comvi.host template: one host per call", () => {
+  beforeEach(() => {
+    for (const mock of Object.values(nuxtKitMocks)) mock.mockReset();
+    nuxtKitMocks.createResolver.mockReturnValue({ resolve: (id: string) => `/resolved/${id}` });
+    nuxtKitMocks.addTemplate.mockImplementation((candidate) => ({
+      filename: candidate.filename,
+      dst: `/build/${candidate.filename}`,
+    }));
+    prepareTypesHandlers = [];
+  });
+
+  /** A factory that hands every caller the same module-level host. */
+  function singletonHostModule() {
+    return writeHostModule(`
+import { createI18n } from "@comvi/core";
+
+const shared = createI18n({ locale: "en", exposeGlobal: false });
+
+export default () => shared;
+`);
+  }
+
+  it("throws a named error in development when the factory returns the same host twice", async () => {
+    nuxtKitMocks.findPath.mockResolvedValue(singletonHostModule());
+    const { createComviCore, createComviI18n } = await emitHostTemplate(
+      "./comvi.host.mjs",
+      {},
+      { dev: true },
+    );
+
+    createComviI18n({ locale: "en" });
+    expect(() => createComviCore({ locale: "en" })).toThrow(
+      "[@comvi/nuxt] comvi hostModule returned a host it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
+    );
+  });
+
+  it("lets a factory that builds a new host every call through in development", async () => {
+    nuxtKitMocks.findPath.mockResolvedValue(
+      writeHostModule(`
+import { createI18n } from "@comvi/core";
+
+export default (options) => createI18n({ ...options, exposeGlobal: false });
+`),
+    );
+    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs", {}, { dev: true });
+
+    const first = createComviCore({ locale: "en" });
+    expect(createComviCore({ locale: "en" })).not.toBe(first);
+  });
+
+  it("emits no guard in a production build", async () => {
+    nuxtKitMocks.findPath.mockResolvedValue(singletonHostModule());
+    const { createComviCore, source } = await emitHostTemplate(
+      "./comvi.host.mjs",
+      {},
+      {
+        dev: false,
+      },
+    );
+
+    expect(createComviCore({ locale: "en" })).toBe(createComviCore({ locale: "en" }));
+    expect(source).not.toContain("WeakSet");
   });
 });

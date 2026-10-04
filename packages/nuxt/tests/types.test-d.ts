@@ -18,6 +18,7 @@ import type {
   NuxtI18nSetup as PublicNuxtI18nSetup,
 } from "@comvi/nuxt";
 import type { UseI18nReturn as NuxtUseI18nReturn } from "../src/runtime/composables/useI18n";
+import { attachLoader, createI18n, defineComviHost } from "../src/runtime/host";
 import type {
   CheckedNuxtI18nSetup,
   NuxtHostFactory,
@@ -172,5 +173,29 @@ describe("the comvi.setup host cross-check", () => {
       core.t("greeting");
     }) satisfies NuxtI18nSetup;
     expectTypeOf(hook).toBeFunction();
+  });
+});
+
+describe("defineComviHost", () => {
+  // The helper replaces `satisfies NuxtHostFactory`: `options` is typed from it
+  // and the factory comes back unchanged, so the generated declaration's
+  // `ReturnType<typeof import("./comvi.host").default>` still reads the
+  // composed host and the setup hook still sees its capabilities.
+  const composedHost = defineComviHost((options) => {
+    expectTypeOf(options).toEqualTypeOf<NuxtHostFactoryOptions>();
+    return createI18n(options).use(attachLoader);
+  });
+
+  it("keeps the composed host as the factory's return type", () => {
+    expectTypeOf<ReturnType<typeof composedHost>>().toMatchTypeOf<I18n & I18nLoaderApi>();
+    expectTypeOf(composedHost).toMatchTypeOf<NuxtHostFactory<ReturnType<typeof composedHost>>>();
+    expectTypeOf<
+      CheckedNuxtI18nSetup<ReturnType<typeof composedHost>, NuxtI18nSetup<I18n & I18nLoaderApi>>
+    >().toEqualTypeOf<NuxtI18nSetup<I18n & I18nLoaderApi>>();
+  });
+
+  it("rejects a factory that does not return a host", () => {
+    // @ts-expect-error a number is not an i18n host
+    defineComviHost(() => 42);
   });
 });

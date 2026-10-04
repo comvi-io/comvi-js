@@ -344,11 +344,25 @@ export function createComviCore(options) {
         // after the spread wins by key order.
         const icuImport = options.icu ? `import { icuCompiler } from "@comvi/core/icu";\n` : "";
         const factoryOptions = options.icu ? "{ ...options, compiler: icuCompiler }" : "options";
+        // Development only, decided at codegen like the branch itself: a factory
+        // that hands back one shared host would mix every request's locale and
+        // catalog. Production builds carry no guard and no WeakSet.
+        const freshHostGuard = nuxt.options.dev
+          ? `
+  if (returnedHosts.has(host)) {
+    throw new Error(
+      "[@comvi/nuxt] comvi hostModule returned a host it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
+    );
+  }
+  returnedHosts.add(host);
+`
+          : "";
+        const guardState = nuxt.options.dev ? "\nconst returnedHosts = new WeakSet();\n" : "";
 
         return `
 import { createI18nFromCore } from "@comvi/vue";
 ${icuImport}import hostFactory from ${JSON.stringify(hostPath)};
-
+${guardState}
 function createHost(options) {
   if (typeof hostFactory !== "function") {
     throw new TypeError(
@@ -367,6 +381,7 @@ function createHost(options) {
     );
   }
 
+${freshHostGuard}
   return host;
 }
 

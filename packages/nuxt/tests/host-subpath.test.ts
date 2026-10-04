@@ -10,6 +10,7 @@ describe("@comvi/nuxt/host", () => {
     expect(Object.keys(host).sort()).toEqual([
       "attachLoader",
       "createI18n",
+      "defineComviHost",
       "definePlugin",
       "devtools",
       "icuCompiler",
@@ -32,6 +33,11 @@ describe("@comvi/nuxt/host", () => {
     // The base host flattens a nested catalog itself, so pre-flattening by hand
     // stays on the `@comvi/core` root instead of becoming the answer to a rule.
     expect(host).not.toHaveProperty("flattenCatalog");
+  });
+
+  it("defineComviHost returns the factory it was given", () => {
+    const factory = (options: { locale: string }) => host.createI18n(options);
+    expect(host.defineComviHost(factory)).toBe(factory);
   });
 
   it("composes a working host through this subpath alone", () => {
