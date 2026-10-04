@@ -23,13 +23,17 @@ export { resolveFallback } from "./fallback";
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/core';
+ * import { attachLoader } from '@comvi/core/loader';
+ * import { plugins } from '@comvi/core/plugins';
  * import { fetchLoaderPlugin } from '@comvi/plugin-fetch-loader/api';
  *
- * const i18n = createI18n({
- *   locale: 'en',
- *   apiKey: 'your-api-key',
- * })
- * .registerPlugin(fetchLoaderPlugin({
+ * // The plugin factory needs a host with both capabilities composed;
+ * // `.use(fetchLoader(options))` does this composition for you.
+ * const i18n = createI18n({ locale: 'en', apiKey: 'your-api-key' })
+ *   .use(attachLoader)
+ *   .use(plugins());
+ *
+ * i18n.registerPlugin(fetchLoaderPlugin({
  *   cdnUrl: 'https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b',
  *   fallback: {
  *     'en': () => import('./locales/en.json'),
