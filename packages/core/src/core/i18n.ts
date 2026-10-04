@@ -1037,6 +1037,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // dictionary-mode (null-prototype) source has no V8 fast path and costs
       // ~130 ns PER KEY, so storing `flat` directly on the first write is what
       // keeps `new I18n({ messages })` from being 2.5x slower.
+      // This write is newer than any load already in flight for the same
+      // catalog: invalidate it, or its older response would replace the merge.
+      (this as unknown as I18nInternal)._cancelNs?.(loc, ns);
       const existing = this.messagesCache.get(loc, ns);
       this.messagesCache.set(
         loc,
