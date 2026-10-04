@@ -60,8 +60,11 @@ it needs:
    publishes those files with `npm publish <tgz>`. It uses the same two phases as GA: the files are
    published under the candidate's staging dist-tag, and `next` moves only once npm has the whole
    set. The difference is that npm keeps every version it accepted, so after a partial RC some
-   versions exist under the staging tag only. That is tolerable for a rehearsal: re-run
-   `rc-publish` to finish it, or dispatch the next rc number.
+   versions exist under the staging tag only. That is tolerable for a rehearsal: use "Re-run failed
+   jobs" on `rc-publish` to finish it, or dispatch the next rc number. Do not dispatch the same rc
+   number again: the new dispatch packs a new candidate with a new staging tag, and `rc-publish`
+   refuses it, publishing and promoting nothing, because the versions already on npm carry the
+   first candidate's staging tag instead.
 
 Dispatch it from a green ref: apart from that browser suite the jobs run no tests.
 
@@ -91,10 +94,19 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
       not start a fresh workflow run. Once every version is on npm, a fresh run's `pack` finds
       nothing pending and stops. After a partial publish it packs a new candidate from the current
       commit, and the `publish` step refuses it before publishing or promoting anything when the
-      versions already on npm are tagged at the older commit. The re-run
+      versions already on npm are tagged at the older commit, or when they do not carry the new
+      candidate's staging tag (see below). The re-run
       skips what npm has, publishes the rest, moves `latest` for every package not yet on it
       (including after a crash between publishing and promotion), and pushes any missing tag,
-      including the tag of a version an earlier run published but never tagged. An existing tag at a different commit
+      including the tag of a version an earlier run published but never tagged. **The staging tag
+      is the candidate's identity.** While anything is still to publish, every version already on
+      npm must carry the current candidate's staging tag, or the job refuses before publishing or
+      promoting anything. It names each package, the staging tag it expected and the one it found.
+      This holds with and without git tags, so it covers the RC job, and it catches a fresh run at
+      the same commit whose tarballs differ from the ones npm has. The recovery is "Re-run failed
+      jobs" on the run that published those versions, since only that run has the same candidate.
+      Once npm has every version there is nothing to mix, so the check is skipped: a retry after the
+      staging tag was removed still reaches the git-tag checks and reports the full set. An existing tag at a different commit
       stops the job with both SHAs: decide by hand, and never move a tag that names released bytes.
       Promotion never moves a dist-tag backwards. If `latest` (or `next`) already names a newer
       version of any package, for example on a stale re-run of 0.5.0 after 0.5.1 shipped, the job
@@ -148,5 +160,8 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
   residual gap is the by-hand path: once the original run's artifact has expired, nothing but a
   hand-made tag at the original commit lets a fresh run proceed, and a byte comparison of npm's
   `dist.integrity` with the candidate tarball's sha512 would need byte-reproducible builds. A fresh
-  run at the same commit passes the tag check, because its tags match. It repacks from the same
-  sources, and its bytes are not compared with what npm already has.
+  run at the same commit passes the tag check, because its tags match. While anything is still to
+  publish, the staging-tag check closes that case: the versions already on npm carry the earlier
+  candidate's staging tag, not the fresh run's, so the run refuses. The residual gap is a version
+  whose staging tag is gone, which happens only after the whole set was on npm and promoted. Then
+  nothing is published, and no bytes are compared with npm's `dist.integrity`.

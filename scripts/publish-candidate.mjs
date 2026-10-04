@@ -46,7 +46,11 @@
  *        ones. An existing tag at any other commit is refused, naming both.
  *        Before publishing, a version already on npm whose git tag names
  *        another commit stops the run: a fresh run at a newer commit never
- *        completes an older commit's train. A version this run published
+ *        completes an older commit's train. And whenever something is still
+ *        to publish, every version npm already has must carry THIS
+ *        candidate's staging tag (git-tagged or not, RC or GA): a version
+ *        from another candidate stops the run before anything is published
+ *        or promoted. A version this run published
  *        that npm does not show yet is asked again with backoff (npm's
  *        reads lag its writes).
  *        Only once npm has the whole set does `--tag` (latest, or next for an
@@ -626,6 +630,40 @@ function publish(options) {
       console.error(
         `nothing was published or promoted: the versions already on npm belong to another ` +
           `commit's run, and this candidate must not complete their train.\n${error.message}`,
+      );
+      return 1;
+    }
+  }
+
+  // One train, one candidate: when this run is about to publish, every
+  // version npm already has must carry THIS candidate's staging tag, which a
+  // partial train keeps until it is promoted. A git tag proves the commit,
+  // not the bytes, and the RC job sets no git tags at all; without this a
+  // fresh dispatch of the same versions would complete another candidate's
+  // train with its own bytes. When npm has the whole set (pending is empty)
+  // there is nothing to mix, and a GA retry after the staging tag was removed
+  // must still reach its tag checks and re-emit the set.
+  if (pending.length > 0 && skipped.length > 0) {
+    try {
+      const foreign = skipped.flatMap((pkg) => {
+        const distTags = distTagsOf(pkg);
+        if (distTags[staging] === pkg.version) return [];
+        const found = Object.entries(distTags)
+          .filter(([tag, version]) => tag.startsWith("release-") && version === pkg.version)
+          .map(([tag]) => tag);
+        return [
+          `  ${pkg.name}@${pkg.version} is on npm from another candidate: expected dist-tag ` +
+            `${staging}, found ${found.length > 0 ? found.join(", ") : "none"}`,
+        ];
+      });
+      if (foreign.length > 0) throw new Error(foreign.join("\n"));
+    } catch (error) {
+      output({ published: "false", publishedPackages: "[]" });
+      console.error(
+        `nothing was published or promoted: this candidate (${staging}) must not complete ` +
+          `a train another candidate started.\n${error.message}\n` +
+          `Finish that train with 'Re-run failed jobs' on the run that published it, ` +
+          `or dispatch a new version.`,
       );
       return 1;
     }

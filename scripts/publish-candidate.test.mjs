@@ -396,11 +396,19 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
   }
   const recorded = checksums(packages.map((p) => path.join(dir, `comvi-${p}-0.5.0.tgz`)));
   fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${recorded}\n`);
-  const sums = digest(path.join(dir, "SHA256SUMS"));
+  let sums = digest(path.join(dir, "SHA256SUMS"));
 
   const staging = `release-${sums.slice(0, 12)}`;
   // `attempt` is GITHUB_RUN_ATTEMPT; unset (the default) is a run outside CI.
-  const run = ({ fail = [], failPromote = [], lag = [], attempt } = {}) => {
+  // `tagging: false` and `tag: "next"` are the RC job's flags (no git tags).
+  const run = ({
+    fail = [],
+    failPromote = [],
+    lag = [],
+    attempt,
+    tagging = true,
+    tag = "latest",
+  } = {}) => {
     const outputFile = path.join(root, `output-${Date.now()}-${Math.random()}`);
     const env = {
       ...gitEnv(repo),
@@ -415,7 +423,17 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     delete env.GITHUB_RUN_ATTEMPT;
     if (attempt !== undefined) env.GITHUB_RUN_ATTEMPT = String(attempt);
     const result = spawnSyncNode(
-      [SCRIPT, "publish", "--dir", dir, "--expect-sums", sums, "--git-tag", "--push-tags"],
+      [
+        SCRIPT,
+        "publish",
+        "--dir",
+        dir,
+        "--expect-sums",
+        sums,
+        "--tag",
+        tag,
+        ...(tagging ? ["--git-tag", "--push-tags"] : []),
+      ],
       { cwd: repo, env },
     );
     const outputs = Object.fromEntries(
@@ -453,6 +471,20 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     edit(next[`@comvi/${p}`]);
     fs.writeFileSync(path.join(registry, "state.json"), JSON.stringify(next));
   };
+  /**
+   * Pack the candidate again with different bytes at the same versions (what
+   * a fresh dispatch does at another commit, or with a non-reproducible
+   * build); later `run`s publish it. Returns its staging tag.
+   */
+  const repack = (marker) => {
+    for (const p of packages) {
+      tarball(dir, `comvi-${p}-0.5.0.tgz`, { name: `@comvi/${p}`, version: "0.5.0", marker });
+    }
+    const next = checksums(packages.map((p) => path.join(dir, `comvi-${p}-0.5.0.tgz`)));
+    fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${next}\n`);
+    sums = digest(path.join(dir, "SHA256SUMS"));
+    return `release-${sums.slice(0, 12)}`;
+  };
   return {
     root,
     repo,
@@ -465,6 +497,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     distTags,
     patch,
     npmCalls,
+    repack,
   };
 }
 
@@ -662,6 +695,90 @@ test("mixed train: a run at a newer commit after a partial publish at another on
   assert.doesNotMatch(calls, /^publish /m);
   assert.doesNotMatch(calls, /^dist-tag /m);
   assert.equal(ws.distTags("core").latest, "0.4.1");
+});
+
+test("mixed candidate (RC): a fresh dispatch of the same rc number from a later commit publishes and promotes nothing", (t) => {
+  const ws = releaseWorkspace(t);
+  // RC N at commit A: core is published under A's staging tag, react 503s.
+  const partial = ws.run({ fail: ["@comvi/react"], tagging: false, tag: "next", attempt: 1 });
+  assert.equal(partial.status, 1, partial.log);
+  assert.equal(ws.distTags("core")[ws.staging], "0.5.0");
+
+  // main moves on; RC N is dispatched again and packs candidate B, same versions.
+  fs.writeFileSync(path.join(ws.repo, "later.txt"), "B");
+  git(ws.repo, "add", "later.txt");
+  git(ws.repo, "commit", "-q", "-m", "B");
+  const stagingB = ws.repack("commit B");
+  assert.notEqual(stagingB, ws.staging);
+  const before = ws.npmCalls().length;
+
+  const result = ws.run({ tagging: false, tag: "next", attempt: 1 });
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.equal(result.outputs.publishedPackages, "[]");
+  assert.match(
+    result.log,
+    new RegExp(
+      `@comvi/core@0\\.5\\.0 is on npm from another candidate: expected dist-tag ${stagingB}, ` +
+        `found ${ws.staging}`,
+    ),
+  );
+  assert.match(result.log, /'Re-run failed jobs'/);
+  const calls = ws.npmCalls().slice(before);
+  assert.doesNotMatch(calls, /^publish /m);
+  assert.doesNotMatch(calls, /^dist-tag /m);
+  assert.equal(ws.distTags("core").next, undefined);
+  assert.equal(ws.distTags("react").next, undefined);
+  assert.deepEqual(ws.remoteTags(), {});
+});
+
+test("mixed candidate (GA): a fresh run at the SAME commit with other bytes publishes and promotes nothing", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.run({ fail: ["@comvi/react"], attempt: 1 });
+  // core@0.5.0 is tagged at this commit, so the commit check passes; only the
+  // candidate's bytes (its staging tag) tell the two candidates apart.
+  assert.deepEqual(ws.remoteTags(), { "@comvi/core@0.5.0": ws.head });
+  const stagingB = ws.repack("rebuilt");
+  const before = ws.npmCalls().length;
+
+  const result = ws.run({ attempt: 1 });
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.match(
+    result.log,
+    new RegExp(
+      `@comvi/core@0\\.5\\.0 is on npm from another candidate: expected dist-tag ${stagingB}`,
+    ),
+  );
+  const calls = ws.npmCalls().slice(before);
+  assert.doesNotMatch(calls, /^publish /m);
+  assert.doesNotMatch(calls, /^dist-tag /m);
+  assert.equal(ws.distTags("core").latest, "0.4.1");
+  assert.equal(ws.remoteTags()["@comvi/react@0.5.0"], undefined);
+});
+
+test("mixed candidate: a version on npm with no staging tag at all is refused while others are pending", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core", {});
+  const result = ws.run({ tagging: false, tag: "next" });
+  assert.equal(result.status, 1, result.log);
+  assert.match(
+    result.log,
+    new RegExp(
+      `@comvi/core@0\\.5\\.0 is on npm from another candidate: expected dist-tag ${ws.staging}, found none`,
+    ),
+  );
+  assert.doesNotMatch(ws.npmCalls(), /^publish /m);
+});
+
+test("mixed candidate: an RC re-run of the same candidate finishes the train", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.run({ fail: ["@comvi/react"], tagging: false, tag: "next", attempt: 1 });
+  const result = ws.run({ tagging: false, tag: "next", attempt: 2 });
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.deepEqual(ws.distTags("core"), { latest: "0.4.1", next: "0.5.0" });
+  assert.deepEqual(ws.distTags("react"), { latest: "0.4.1", next: "0.5.0" });
 });
 
 test("compareVersions: semver precedence, prereleases included", () => {
