@@ -75,10 +75,16 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       middleware: resolve(dir, "src/middleware.ts"),
       routing: resolve(dir, "src/routing.ts"),
       navigation: resolve(dir, "src/navigation.ts"),
-      // Node only: next.config imports it, no bundle ever does.
-      plugin: resolve(dir, "src/plugin.ts"),
-      // The stub `@comvi/next/config` resolves to without `withComvi`.
-      config: resolve(dir, "src/config.ts"),
+      // Prod family only: neither has a "development" export condition, so a
+      // `.dev.js` twin would ship unreachable.
+      ...(suffix === ""
+        ? {
+            // Node only: next.config imports it, no bundle ever does.
+            plugin: resolve(dir, "src/plugin.ts"),
+            // The stub `@comvi/next/config` resolves to without `withComvi`.
+            config: resolve(dir, "src/config.ts"),
+          }
+        : {}),
     },
     formats: ["es" as const],
   },
