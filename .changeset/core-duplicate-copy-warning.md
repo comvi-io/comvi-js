@@ -14,7 +14,7 @@ feature was never registered, silently.
 The copy that loads second now says so once, naming both versions:
 
 ```
-[i18n] Two copies of @comvi/core are loaded, 0.4.0 and 0.5.0. Ambient tags
+[@comvi/core] Two copies of @comvi/core are loaded, 0.4.0 and 0.5.0. Ambient tags
 (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template
 cache belong to one copy each and will not be shared. Align the @comvi/core
 version your framework binding depends on with the one you installed directly.

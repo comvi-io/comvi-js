@@ -110,7 +110,7 @@ describe("reloadMessages() with no active namespace left", () => {
     await i18n.reloadMessages();
 
     expect(warnSpy).toHaveBeenCalledWith(
-      '[i18n] reloadMessages(): no namespace is active, reloading the default namespace "default". removeActiveNamespace(ns) deactivates a namespace; clearMessages() never does.',
+      '[@comvi/core] reloadMessages(): no namespace is active, reloading the default namespace "default". removeActiveNamespace(ns) deactivates a namespace; clearMessages() never does.',
     );
   });
 });

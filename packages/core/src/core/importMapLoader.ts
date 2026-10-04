@@ -35,7 +35,7 @@ export function createImportMapLoader(
     const importFn = importMap[key] ?? (namespace === defaultNs ? importMap[locale] : undefined);
     if (!importFn) {
       throw new Error(
-        IS_DEV ? `[i18n] registerLoader: no entry for "${key}"` : "E_REGISTER_LOADER_ENTRY",
+        IS_DEV ? `[@comvi/core] registerLoader: no entry for "${key}"` : "E_REGISTER_LOADER_ENTRY",
       );
     }
     const result = await importFn();

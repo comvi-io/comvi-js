@@ -139,6 +139,6 @@ describe("<T /> tag interpolation smoke", () => {
           <T i18nKey="msg" />
         </I18nProvider>,
       ),
-    ).toThrow("[i18n] Missing handler for tag: <link>");
+    ).toThrow("[@comvi/core] Missing handler for tag: <link>");
   });
 });

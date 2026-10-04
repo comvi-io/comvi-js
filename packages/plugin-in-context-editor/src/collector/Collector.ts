@@ -73,7 +73,7 @@ export class Collector {
     // it instead of debugging a mysteriously-inert collector.
     if (this.destroyed) {
       console.warn(
-        "[ComviInContextEditor] Collector.start() called after destroy(); this instance will not restart.",
+        "[@comvi/plugin-in-context-editor] Collector.start() called after destroy(); this instance will not restart.",
       );
       return;
     }
@@ -97,7 +97,7 @@ export class Collector {
     } catch (error) {
       this.disabled = true;
       console.error(
-        "[ComviInContextEditor] Collector failed to start; context collection disabled for this session.",
+        "[@comvi/plugin-in-context-editor] Collector failed to start; context collection disabled for this session.",
         error,
       );
     }
@@ -114,7 +114,10 @@ export class Collector {
         this.transport.flushOnTeardown(this.lastPass);
       }
     } catch (error) {
-      console.error("[ComviInContextEditor] Collector teardown failed (ignored).", error);
+      console.error(
+        "[@comvi/plugin-in-context-editor] Collector teardown failed (ignored).",
+        error,
+      );
     }
   }
 
@@ -231,14 +234,14 @@ export class Collector {
         // candidate and retries on the next pass (mutation-forced or
         // signature-changing) instead of needing a dedicated retry loop here.
         console.error(
-          "[ComviInContextEditor] Collector pass failed to send; will retry on a later pass.",
+          "[@comvi/plugin-in-context-editor] Collector pass failed to send; will retry on a later pass.",
           error,
         );
       });
     } catch (error) {
       this.disabled = true;
       console.error(
-        "[ComviInContextEditor] Collector pass crashed; context collection disabled for this session.",
+        "[@comvi/plugin-in-context-editor] Collector pass crashed; context collection disabled for this session.",
         error,
       );
       try {

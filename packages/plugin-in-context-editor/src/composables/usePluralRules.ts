@@ -158,7 +158,7 @@ function categorizeNumbers(
 
     return { categorized, categories };
   } catch (e) {
-    console.error("Error categorizing numbers:", e);
+    console.error("[@comvi/plugin-in-context-editor] Error categorizing numbers:", e);
     return null;
   }
 }
@@ -216,7 +216,7 @@ export function getPluralCategory(count: number, languageCode: string): string {
     const pluralRule = new Intl.PluralRules(normalizedCode, { type: "cardinal" });
     return pluralRule.select(count);
   } catch (e) {
-    console.error("Error getting plural category:", e);
+    console.error("[@comvi/plugin-in-context-editor] Error getting plural category:", e);
     return "other";
   }
 }

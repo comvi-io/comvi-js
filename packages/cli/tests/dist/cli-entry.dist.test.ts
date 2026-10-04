@@ -99,7 +99,7 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
       env: { COMVI_DEBUG: "1" },
     });
 
-    expect(run.stderr).toContain(`[comvi] loaded env from ${dotenvFile} (1 added, 0 skipped`);
+    expect(run.stderr).toContain(`[@comvi/cli] loaded env from ${dotenvFile} (1 added, 0 skipped`);
   });
 
   it("loads nothing when --no-dotenv is given, even with a .env next to it", async () => {

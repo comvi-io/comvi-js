@@ -19,18 +19,18 @@ const IS_DEV_BUILD = __COMVI_CORE_BUILD__ === "development";
 
 const EXPECTED = {
   loader: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).'
-    : "[comvi] missing loader capability — attach @comvi/core/loader",
+    ? '[@comvi/core] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).'
+    : "[@comvi/core] missing loader capability — attach @comvi/core/loader",
   plugins: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.'
-    : "[comvi] missing plugins capability — attach @comvi/core/plugins",
+    ? '[@comvi/core] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.'
+    : "[@comvi/core] missing plugins capability — attach @comvi/core/plugins",
 };
 
 // Same rule as EXPECTED: the message is written out per build family rather
 // than imported, and prod ships only the code.
 const allNamespacesFailed = (ns) =>
   IS_DEV_BUILD
-    ? `[i18n] Failed to load all namespaces for locale "en": ${ns}`
+    ? `[@comvi/core] Failed to load all namespaces for locale "en": ${ns}`
     : "E_ALL_NAMESPACES_FAILED";
 
 const wrapperFor = (i18n) =>

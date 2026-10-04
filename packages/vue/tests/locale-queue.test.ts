@@ -130,7 +130,7 @@ describe("VueI18n locale queue", () => {
     loader.mockClear();
 
     await expect(i18n.setLocale("fr")).rejects.toThrow(
-      '[i18n] Failed to load all namespaces for locale "fr": common',
+      '[@comvi/core] Failed to load all namespaces for locale "fr": common',
     );
     i18n.locale.value = "fr";
     await drainLocaleQueue();

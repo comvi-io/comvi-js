@@ -307,7 +307,7 @@ describe("createNextI18n — `.use(installer)` is the composition pipe", () => {
       expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }),
     );
     expect(() => nextI18n.use(() => other as never)).toThrow(
-      "[i18n] .use(installer) must return the host it was given",
+      "[@comvi/next] .use(installer) must return the host it was given",
     );
     // The message names the Next way out beside core's.
     expect(() => nextI18n.use(() => other as never)).toThrow(/nextPlugin\(f, \{ runtime \}\)/);

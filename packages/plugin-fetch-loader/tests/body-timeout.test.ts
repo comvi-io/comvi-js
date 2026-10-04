@@ -57,7 +57,9 @@ describe("a response body that never arrives", () => {
     expect(onLoadError).toHaveBeenCalledWith(
       "en",
       "default",
-      expect.objectContaining({ message: `Request timeout after ${TIMEOUT_MS}ms` }),
+      expect.objectContaining({
+        message: `[@comvi/plugin-fetch-loader] Request timeout after ${TIMEOUT_MS}ms`,
+      }),
     );
   });
 
@@ -82,7 +84,9 @@ describe("a response body that never arrives", () => {
     expect(onLoadError).toHaveBeenCalledWith(
       "en",
       "default",
-      expect.objectContaining({ message: `Request timeout after ${TIMEOUT_MS}ms` }),
+      expect.objectContaining({
+        message: `[@comvi/plugin-fetch-loader] Request timeout after ${TIMEOUT_MS}ms`,
+      }),
     );
   });
 

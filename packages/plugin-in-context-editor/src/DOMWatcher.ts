@@ -379,7 +379,9 @@ export class DOMWatcher {
 
   private scanInitialDOM(roots: Node[]): void {
     if (!this.targetElement) {
-      console.warn("Target element not available for initial scan");
+      console.warn(
+        "[@comvi/plugin-in-context-editor] Target element not available for initial scan",
+      );
       return;
     }
 

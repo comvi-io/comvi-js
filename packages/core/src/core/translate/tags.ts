@@ -175,7 +175,7 @@ function findClosingTag(
             }
           } else {
             if (IS_DEV) {
-              warn(`[i18n] Tag mismatch: expected </${expectedTag}>, found </${closeName}>`);
+              warn(`[@comvi/core] Tag mismatch: expected </${expectedTag}>, found </${closeName}>`);
             }
             return undefined;
           }
@@ -213,7 +213,7 @@ function findClosingTag(
   }
 
   if (IS_DEV && tagStack.length > 0) {
-    warn(`[i18n] Unclosed tag: <${tagStack[tagStack.length - 1]}>`);
+    warn(`[@comvi/core] Unclosed tag: <${tagStack[tagStack.length - 1]}>`);
   }
   return undefined;
 }
@@ -248,13 +248,13 @@ function processTag(
 
   if (strict === true) {
     throw new Error(
-      IS_DEV ? `[i18n] Missing handler for tag: <${tagName}>` : "E_MISSING_TAG_HANDLER",
+      IS_DEV ? `[@comvi/core] Missing handler for tag: <${tagName}>` : "E_MISSING_TAG_HANDLER",
     );
   }
 
   if (strict === "warn") {
     const message = IS_DEV
-      ? `[i18n] Missing handler for tag: <${tagName}>. Falling back to inner text.`
+      ? `[@comvi/core] Missing handler for tag: <${tagName}>. Falling back to inner text.`
       : "E_MISSING_TAG_FALLBACK";
     if (tagInterpolation?.onTagWarning) {
       try {

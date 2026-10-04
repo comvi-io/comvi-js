@@ -33,7 +33,7 @@ const ATTR_TEMPLATE = 'see <a href="x">docs</a>';
 const PLURAL = "{n, plural, one {<b>#</b> item} other {<b>#</b> items}}";
 
 const NO_EXTENSION_WARNING =
-  `[i18n] Tag syntax in "${GREET}" is rendering as literal text: no tag extension claims "<". ` +
+  `[@comvi/core] Tag syntax in "${GREET}" is rendering as literal text: no tag extension claims "<". ` +
   `Render it with your framework's <T> component, or import "@comvi/core/tags" to register tag ` +
   `syntax for the string API.`;
 
@@ -123,7 +123,7 @@ describe("rendering an ingested tag template — the dev warning", () => {
 
     expect(rendered).toBe(ATTR_TEMPLATE);
     expect(tagWarnings()).toEqual([
-      `[i18n] Tag syntax in "${ATTR_TEMPLATE}" is rendering as literal text: attributes are not ` +
+      `[@comvi/core] Tag syntax in "${ATTR_TEMPLATE}" is rendering as literal text: attributes are not ` +
         "supported in tag syntax; pass them via the `components` config " +
         '(`{ tag: "a", props: { href } }`).',
     ]);
@@ -142,7 +142,7 @@ describe("rendering an ingested tag template — the dev warning", () => {
 
     expect(rendered).toBe("<b>1</b> item");
     expect(tagWarnings()).toEqual([
-      `[i18n] Tag syntax in "<b>#</b> item" is rendering as literal text: no tag extension ` +
+      `[@comvi/core] Tag syntax in "<b>#</b> item" is rendering as literal text: no tag extension ` +
         `claims "<". Render it with your framework's <T> component, or import ` +
         `"@comvi/core/tags" to register tag syntax for the string API.`,
     ]);

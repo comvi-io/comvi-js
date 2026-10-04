@@ -99,12 +99,12 @@ export const PLUGIN_MEMBERS = [
 export function missingCapability(name: CapabilityName): Error {
   return new Error(
     IS_DEV
-      ? `[comvi] This i18n instance has no ${name} capability. Compose it: .use(${
+      ? `[@comvi/core] This i18n instance has no ${name} capability. Compose it: .use(${
           name === "loader" ? "attachLoader" : "plugins()"
         }) from "@comvi/core/${name}", or ${
           name === "loader" ? "loader(map)" : "the lower-level attachPlugins"
         }.`
-      : `[comvi] missing ${name} capability — attach @comvi/core/${name}`,
+      : `[@comvi/core] missing ${name} capability — attach @comvi/core/${name}`,
   );
 }
 

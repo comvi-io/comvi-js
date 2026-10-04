@@ -14,7 +14,7 @@ When the tag extension is registered and the refused tag carries attributes, the
 so, and points at the fix that works:
 
 ```
-[i18n] Tag syntax in "see <a href="/x">docs</a>" is rendering as literal text: attributes are
+[@comvi/core] Tag syntax in "see <a href="/x">docs</a>" is rendering as literal text: attributes are
 not supported in tag syntax; pass them via the `components` config (`{ tag: "a", props: { href } }`).
 ```
 

@@ -217,7 +217,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
         }
         const error = new Error(
           IS_DEV
-            ? "[i18n] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
+            ? "[@comvi/next] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
             : "E_USE_HOST_IDENTITY",
         ) as UseHostIdentityError;
         error.code = "E_USE_HOST_IDENTITY";

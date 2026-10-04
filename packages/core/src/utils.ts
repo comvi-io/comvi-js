@@ -12,13 +12,13 @@ function normalizeLeafValue(key: string, value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (value == null) {
     if (IS_DEV) {
-      warn(`[i18n] Dropping translation "${key}": value is ${String(value)}`);
+      warn(`[@comvi/core] Dropping translation "${key}": value is ${String(value)}`);
     }
     return undefined;
   }
   if (IS_DEV) {
     warn(
-      `[i18n] Translation "${key}" is not a string (got ${
+      `[@comvi/core] Translation "${key}" is not a string (got ${
         Array.isArray(value) ? "array" : typeof value
       }); coercing with String()`,
     );

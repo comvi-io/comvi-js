@@ -44,6 +44,6 @@ export function claimCoreInstance(version: string): void {
   if (loaded === undefined) slot[VERSION_KEY] = version;
   else if (loaded !== version)
     warn(
-      `[i18n] Two copies of @comvi/core are loaded, ${String(loaded)} and ${version}. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.`,
+      `[@comvi/core] Two copies of @comvi/core are loaded, ${String(loaded)} and ${version}. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.`,
     );
 }

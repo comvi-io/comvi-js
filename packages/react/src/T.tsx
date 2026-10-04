@@ -308,7 +308,9 @@ const TComponent = function T({
         children: <>{convertedChildren}</>,
       });
       if (!React.isValidElement(result)) {
-        throw new Error(`Tag handler for "${pending.name}" must return a React element`);
+        throw new Error(
+          `[@comvi/react] Tag handler for "${pending.name}" must return a React element`,
+        );
       }
       return guarded(result);
     }

@@ -51,7 +51,7 @@ describe("dev dist: missing-key warning", () => {
     });
 
     expect(i18n.t(KEY)).toBe(KEY);
-    expect(warn).toHaveBeenCalledWith(`[i18n] Translation not found: "${KEY}"`, {
+    expect(warn).toHaveBeenCalledWith(`[@comvi/core] Translation not found: "${KEY}"`, {
       key: KEY,
       locale: "uk",
       namespace: "default",

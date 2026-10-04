@@ -10,7 +10,9 @@ const handleSaveAndClose = inject<() => Promise<void>>("handleSaveAndClose");
 const isInDemoMode = inject<Ref<boolean>>("isInDemoMode", ref(false));
 
 if (!translationManager || !handleSaveOnly || !handleSaveAndClose) {
-  throw new Error("translationManager or save handlers not provided");
+  throw new Error(
+    "[@comvi/plugin-in-context-editor] translationManager or save handlers not provided",
+  );
 }
 
 const isSaving = ref(false);

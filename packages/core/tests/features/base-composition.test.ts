@@ -85,7 +85,7 @@ describe("base + /loader composition", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
     await expect(i18n.reloadMessages()).rejects.toThrow(
-      "[i18n] No loader registered. Cannot reload translations.",
+      "[@comvi/core] No loader registered. Cannot reload translations.",
     );
   });
 
@@ -368,7 +368,7 @@ describe("base + /plugins composition", () => {
     const i18n = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
 
     expect(() => i18n.registerPostProcessor(undefined as never)).toThrow(
-      "[i18n] registerPostProcessor(): argument must be a function. Received: undefined",
+      "[@comvi/core] registerPostProcessor(): argument must be a function. Received: undefined",
     );
   });
 
@@ -376,7 +376,7 @@ describe("base + /plugins composition", () => {
     const i18n = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
 
     expect(() => i18n.registerLocaleDetector(undefined as never)).toThrow(
-      "[i18n] registerLocaleDetector(): argument must be a function.",
+      "[@comvi/core] registerLocaleDetector(): argument must be a function.",
     );
   });
 });

@@ -11,7 +11,7 @@ Core enablers for framework bindings running on the base `@comvi/core` host.
   shared, loud boundary for an absent capability. The guards are structural and read public
   member names only, so property mangling cannot fool them. `missingCapability` builds the
   error a binding throws at a capability-acquisition call, in development **and** production,
-  never a silent no-op: `[comvi] This i18n instance has no loader capability. Compose it:
+  never a silent no-op: `[@comvi/core] This i18n instance has no loader capability. Compose it:
 .use(attachLoader) from "@comvi/core/loader", or loader(map).`
 - **`subscribeToRevision`, `REVISION_EVENTS` and `isVirtualNode`** are exported from
   `@comvi/core`, so a binding that reads reactivity events or sniffs virtual nodes reaches

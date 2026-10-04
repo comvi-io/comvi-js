@@ -167,7 +167,7 @@ function createHook(): ComviHookApi {
         resolvedId = `${claimed}#${++dedupeCounter}`;
       } while (instances.has(resolvedId) && instances.get(resolvedId) !== instance);
       console.warn(
-        `[ComviInContextEditor] Two i18n instances announced the same instanceId "${claimed}"; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
+        `[@comvi/plugin-in-context-editor] Two i18n instances announced the same instanceId "${claimed}"; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
       );
     }
     const prevId = idsByInstance.get(instance);

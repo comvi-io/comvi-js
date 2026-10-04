@@ -309,7 +309,7 @@ describe("Reactive State Transitions", () => {
       expect(i18n.t("hello")).toBe("Hello");
 
       await expect(i18n.setLocale("fr")).rejects.toThrow(
-        '[i18n] Failed to load all namespaces for locale "fr": common',
+        '[@comvi/core] Failed to load all namespaces for locale "fr": common',
       );
 
       await vi.waitFor(() => {
@@ -523,7 +523,7 @@ describe("Reactive State Transitions", () => {
       // to console.error instead of the user's onError handler.
       expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
       expect(onError.mock.calls[0][0].message).toBe(
-        '[i18n] Failed to load all namespaces for locale "badlocale": common',
+        '[@comvi/core] Failed to load all namespaces for locale "badlocale": common',
       );
       expect(consoleErr).not.toHaveBeenCalled();
     });

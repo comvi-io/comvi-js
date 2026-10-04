@@ -62,7 +62,7 @@ onMounted(async () => {
         isLoading: false,
       });
     } catch (error) {
-      console.error("Error loading translation preview:", error);
+      console.error("[@comvi/plugin-in-context-editor] Error loading translation preview:", error);
       translationPreviews.value.set(previewMapKey, {
         key: item.key,
         ns: item.ns,

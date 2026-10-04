@@ -71,7 +71,7 @@ describe("ConsoleReporter", () => {
 
     new ConsoleReporter().reportFetching();
 
-    expect(logSpy).toHaveBeenCalledWith("[comvi] Fetching translations from TMS...");
+    expect(logSpy).toHaveBeenCalledWith("[@comvi/cli] Fetching translations from TMS...");
   });
 });
 

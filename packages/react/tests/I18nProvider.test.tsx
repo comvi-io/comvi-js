@@ -123,7 +123,7 @@ describe("I18nProvider", () => {
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith(
-        "[i18n] Initialization failed:",
+        "[@comvi/react] Initialization failed:",
         expect.objectContaining({ message: "plugin failed" }),
       );
     });
@@ -197,7 +197,7 @@ describe("I18nProvider", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => render(<LocaleProbe />)).toThrow(
-      "[i18n] useLocale must be used within an I18nProvider",
+      "[@comvi/react] useLocale must be used within an I18nProvider",
     );
   });
 
@@ -405,6 +405,8 @@ describe("useI18nHost", () => {
       useI18nHost();
       return null;
     }
-    expect(() => render(<Probe />)).toThrow("[i18n] Hooks must be used within an I18nProvider.");
+    expect(() => render(<Probe />)).toThrow(
+      "[@comvi/react] Hooks must be used within an I18nProvider.",
+    );
   });
 });

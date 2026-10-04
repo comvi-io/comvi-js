@@ -304,7 +304,7 @@ describe("EventBus", () => {
       eventBus.emit("error-event");
 
       expect(consoleError).toHaveBeenCalledExactlyOnceWith(
-        'Error in event listener for "error-event":',
+        '[@comvi/plugin-in-context-editor] Error in event listener for "error-event":',
         expect.any(Error),
       );
     });

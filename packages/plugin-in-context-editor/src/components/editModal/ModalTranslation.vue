@@ -10,7 +10,7 @@ defineProps<{
 const translationManager = inject<any>("translationManager");
 
 if (!translationManager) {
-  throw new Error("translationManager not provided");
+  throw new Error("[@comvi/plugin-in-context-editor] translationManager not provided");
 }
 
 const translations = computed(() => translationManager.translations.value);

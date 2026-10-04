@@ -51,7 +51,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
  * `E_*_LOADER_*` family as the capability's own diagnostics.
  */
 const ERR_LOADER_IMPORT_MAP = IS_DEV
-  ? "[i18n] loader(importMap) requires the import map. A static map of import functions goes here: .use(loader({ uk: () => import('./uk.json') })). A plain loader FUNCTION goes to .use(attachLoader) followed by i18n.registerLoader(fn) — both from @comvi/core/loader."
+  ? "[@comvi/core] loader(importMap) requires the import map. A static map of import functions goes here: .use(loader({ uk: () => import('./uk.json') })). A plain loader FUNCTION goes to .use(attachLoader) followed by i18n.registerLoader(fn) — both from @comvi/core/loader."
   : "E_LOADER_IMPORT_MAP";
 
 /**

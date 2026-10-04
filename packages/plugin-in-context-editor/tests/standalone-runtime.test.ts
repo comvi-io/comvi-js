@@ -152,7 +152,7 @@ describe("activate() defaults", () => {
     activate({ refreshMessages: false });
 
     expect(info).toHaveBeenCalledWith(
-      `[ComviInContextEditor] Activated (instance: ${FIRST_MOCK_CORE_ID})`,
+      `[@comvi/plugin-in-context-editor] Activated (instance: ${FIRST_MOCK_CORE_ID})`,
     );
   });
 
@@ -163,7 +163,7 @@ describe("activate() defaults", () => {
 
     result?.stop();
 
-    expect(info).toHaveBeenCalledWith("[ComviInContextEditor] Deactivated");
+    expect(info).toHaveBeenCalledWith("[@comvi/plugin-in-context-editor] Deactivated");
   });
 });
 

@@ -110,7 +110,7 @@ export async function fetchJsonWithTimeout<T>(
     return { ok: true, data: await raceAbort(parseJson<T>(response, url), controller.signal) };
   } catch (e) {
     if (timedOut && e instanceof Error && e.name === "AbortError")
-      throw named("TimeoutError", `Request timeout after ${timeoutMs}ms`);
+      throw named("TimeoutError", `${ERROR_PREFIX} Request timeout after ${timeoutMs}ms`);
     if (externalSignal?.aborted) throw new RequestAbortedError(url);
     throw e;
   } finally {

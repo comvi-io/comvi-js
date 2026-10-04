@@ -85,7 +85,7 @@ describe("an ICU argument reaching the default compiler", () => {
     expect(i18n.t("c", { n: 2 })).toBe(template);
 
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith("[comvi] E_ICU_SYNTAX", "c", "en");
+    expect(spy).toHaveBeenCalledWith("[@comvi/core] E_ICU_SYNTAX", "c", "en");
   });
 
   it("writes nothing to the console when an onError handler is installed", () => {

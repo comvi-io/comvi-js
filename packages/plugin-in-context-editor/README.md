@@ -60,7 +60,7 @@ catalog next to it: the editor can only edit text the app rendered through `t()`
 | `Escape`                                 | closes the modal, or asks about unsaved edits               |
 
 With no key configured the plugin starts in demo mode: the console says
-`[InContextEditor] Running in demo mode - API key not configured. Changes cannot be saved.` once,
+`[@comvi/plugin-in-context-editor] Running in demo mode - API key not configured. Changes cannot be saved.` once,
 and every click opens one panel naming the key, with no translation list.
 
 ## Gate it out of production

@@ -25,8 +25,8 @@ describe("_resetMissingParamWarnings()", () => {
     i18n.t("greet" as never);
 
     expect(warnings(warnSpy, "Missing parameter")).toEqual([
-      '[i18n] Missing parameter "name" for template "Hi {name}"',
-      '[i18n] Missing parameter "name" for template "Hi {name}"',
+      '[@comvi/core] Missing parameter "name" for template "Hi {name}"',
+      '[@comvi/core] Missing parameter "name" for template "Hi {name}"',
     ]);
   });
 
@@ -38,7 +38,7 @@ describe("_resetMissingParamWarnings()", () => {
     i18n.t("greet" as never);
 
     expect(warnings(warnSpy, "Missing parameter")).toEqual([
-      '[i18n] Missing parameter "name" for template "Hi {name}"',
+      '[@comvi/core] Missing parameter "name" for template "Hi {name}"',
     ]);
   });
 });

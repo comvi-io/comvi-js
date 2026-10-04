@@ -14,7 +14,7 @@ export class TranslationRegistry {
   /** @throws {Error} If the element is null or undefined. */
   public add(element: Element, data: ElementData): void {
     if (!element) {
-      throw new Error("Element cannot be null or undefined");
+      throw new Error("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     }
 
     if (this.elements.has(element)) {
@@ -28,7 +28,7 @@ export class TranslationRegistry {
   /** @throws {Error} If the element is null or undefined. */
   public remove(element: Element): void {
     if (!element) {
-      throw new Error("Element cannot be null or undefined");
+      throw new Error("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     }
 
     if (this.elements.has(element)) {
@@ -42,7 +42,7 @@ export class TranslationRegistry {
    */
   public addOrUpdate(element: Element, data: ElementData): void {
     if (!element) {
-      throw new Error("Element cannot be null or undefined");
+      throw new Error("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     }
 
     if (this.elements.has(element)) {

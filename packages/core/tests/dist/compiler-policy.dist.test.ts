@@ -92,7 +92,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { c: template } } });
     expect(i18n.t("c", { n: 2 })).toBe(template);
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith("[comvi] E_ICU_SYNTAX", "c", "en");
+    expect(spy).toHaveBeenCalledWith("[@comvi/core] E_ICU_SYNTAX", "c", "en");
 
     expect(i18n.t("c", { n: 3 })).toBe(template);
     expect(spy).toHaveBeenCalledTimes(1);

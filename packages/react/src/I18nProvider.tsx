@@ -166,7 +166,7 @@ export function I18nProvider({
         if (onError) {
           onError(error);
         } else {
-          console.error("[i18n] Initialization failed:", error);
+          console.error("[@comvi/react] Initialization failed:", error);
         }
       });
     }
@@ -224,7 +224,7 @@ I18nProvider.displayName = "I18nProvider";
 export function useI18nInstance(): I18nInstanceContextValue {
   const instance = useContext(I18nInstanceContext);
   if (!instance) {
-    throw new Error("[i18n] Hooks must be used within an I18nProvider.");
+    throw new Error("[@comvi/react] Hooks must be used within an I18nProvider.");
   }
   return instance;
 }
@@ -249,7 +249,7 @@ export function useI18nHost(): WrapperI18nHost {
 export function useLocale(): string {
   const locale = useContext(LocaleContext);
   if (locale === null) {
-    throw new Error("[i18n] useLocale must be used within an I18nProvider.");
+    throw new Error("[@comvi/react] useLocale must be used within an I18nProvider.");
   }
   return locale;
 }

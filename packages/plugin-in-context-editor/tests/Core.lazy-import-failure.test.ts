@@ -91,7 +91,7 @@ describe("Core — an editor-UI chunk that fails to load", () => {
     await flushPendingImports();
 
     expect(consoleError).toHaveBeenCalledWith(
-      "[comvi] Failed to load editor UI:",
+      "[@comvi/plugin-in-context-editor] Failed to load editor UI:",
       expect.any(Error),
     );
     core.stop();
@@ -118,7 +118,7 @@ describe("Core — an editor-UI chunk that fails to load", () => {
     await flushPendingImports();
 
     expect(consoleError).toHaveBeenCalledWith(
-      "[comvi] Failed to load editor UI:",
+      "[@comvi/plugin-in-context-editor] Failed to load editor UI:",
       expect.any(Error),
     );
     core.stop();

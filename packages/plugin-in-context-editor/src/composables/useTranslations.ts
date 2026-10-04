@@ -92,7 +92,7 @@ export function useTranslations(
         return;
       }
       state.value.error = error instanceof Error ? error.message : "Failed to load translation";
-      console.error("Error loading translation:", error);
+      console.error("[@comvi/plugin-in-context-editor] Error loading translation:", error);
     } finally {
       if (requestId === latestLoadRequestId) {
         state.value.isLoading = false;
@@ -104,7 +104,9 @@ export function useTranslations(
   function updateRuntimeCache(data: TranslationData, namespace: string): void {
     const i18n = getI18nInstance(unref(instanceId));
     if (!i18n) {
-      console.warn("[InContextEditor] Cannot update runtime cache: i18n instance not available");
+      console.warn(
+        "[@comvi/plugin-in-context-editor] Cannot update runtime cache: i18n instance not available",
+      );
       return;
     }
 
@@ -157,7 +159,10 @@ export function useTranslations(
 
     if (!currentNamespace.value || currentNamespace.value.trim() === "") {
       state.value.error = "No namespace set. Please ensure the translation has a valid namespace.";
-      console.error("Save failed: namespace is", currentNamespace.value);
+      console.error(
+        "[@comvi/plugin-in-context-editor] Save failed: namespace is",
+        currentNamespace.value,
+      );
       return null;
     }
 
@@ -191,7 +196,7 @@ export function useTranslations(
       return savedData;
     } catch (error) {
       state.value.error = error instanceof Error ? error.message : "Failed to save translation";
-      console.error("Error saving translation:", error);
+      console.error("[@comvi/plugin-in-context-editor] Error saving translation:", error);
       return null;
     } finally {
       state.value.isLoading = false;
@@ -200,7 +205,7 @@ export function useTranslations(
 
   function updateTranslation(languageCode: string, pluralForm: string, value: string): void {
     if (!state.value.data) {
-      console.warn("Cannot update translation: no data loaded");
+      console.warn("[@comvi/plugin-in-context-editor] Cannot update translation: no data loaded");
       return;
     }
 
@@ -287,7 +292,7 @@ export function useTranslations(
 
   function updateMetadata(metadata: Partial<TranslationData["metadata"]>): void {
     if (!state.value.data) {
-      console.warn("Cannot update metadata: no data loaded");
+      console.warn("[@comvi/plugin-in-context-editor] Cannot update metadata: no data loaded");
       return;
     }
 
@@ -302,7 +307,9 @@ export function useTranslations(
   /** @param variable - ICU plural variable name, e.g. "count" or "n" */
   function updatePluralVariable(variable: string): void {
     if (!state.value.data) {
-      console.warn("Cannot update plural variable: no data loaded");
+      console.warn(
+        "[@comvi/plugin-in-context-editor] Cannot update plural variable: no data loaded",
+      );
       return;
     }
 
@@ -314,7 +321,7 @@ export function useTranslations(
   /** Existing translations are converted between the two shapes. */
   function togglePluralMode(enabled: boolean): void {
     if (!state.value.data) {
-      console.warn("Cannot toggle plural mode: no data loaded");
+      console.warn("[@comvi/plugin-in-context-editor] Cannot toggle plural mode: no data loaded");
       return;
     }
 
@@ -350,7 +357,7 @@ export function useTranslations(
     config?: { variable: string; options: string[] },
   ): void {
     if (!state.value.data) {
-      console.warn("Cannot toggle select mode: no data loaded");
+      console.warn("[@comvi/plugin-in-context-editor] Cannot toggle select mode: no data loaded");
       return;
     }
 
@@ -390,7 +397,7 @@ export function useTranslations(
 
   function updateSelectConfig(langCode: string, config: Partial<LanguageSelectConfig>): void {
     if (!state.value.data) {
-      console.warn("Cannot update select config: no data loaded");
+      console.warn("[@comvi/plugin-in-context-editor] Cannot update select config: no data loaded");
       return;
     }
 

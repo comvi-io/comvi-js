@@ -33,7 +33,7 @@ that renders correctly under that host renders literally under every other.
   fails in development at ingestion, before anything renders. Inline, it throws `E_ICU_SYNTAX` at
   the call that carries the catalog; over a loader it fails that namespace's load instead —
   `E_ICU_SYNTAX` reaches `onLoadError`, the namespace stays empty, and `init()` rejects with
-  `[i18n] Failed to load all namespaces …`, not with `E_ICU_SYNTAX`, when that was the only
+  `[@comvi/core] Failed to load all namespaces …`, not with `E_ICU_SYNTAX`, when that was the only
   namespace. In production it renders the message text literally and reports the error through
   `onError` (`console.error` when no handler is set).
 - **`E_ICU_SYNTAX` owns exactly two fields**, `code` and `argumentType`. Key, namespace and locale

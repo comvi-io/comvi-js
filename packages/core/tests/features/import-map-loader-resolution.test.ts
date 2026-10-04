@@ -36,7 +36,7 @@ describe("createImportMapLoader()", () => {
     const load = createImportMapLoader({ en: async () => catalog }, () => "common");
 
     await expect(load("en", "admin")).rejects.toThrow(
-      '[i18n] registerLoader: no entry for "en:admin"',
+      '[@comvi/core] registerLoader: no entry for "en:admin"',
     );
   });
 
@@ -57,7 +57,7 @@ describe("createImportMapLoader()", () => {
     const load = createImportMapLoader({ "en:common": async () => catalog }, () => "common");
 
     await expect(load("fr", "common")).rejects.toThrow(
-      '[i18n] registerLoader: no entry for "fr:common"',
+      '[@comvi/core] registerLoader: no entry for "fr:common"',
     );
   });
 });

@@ -111,7 +111,7 @@ export function loadEnv(options: LoadEnvOptions = {}): LoadEnvResult | null {
     // Don't crash: a malformed .env shouldn't kill `comvi pull`. We log on
     // stderr so CI sees it, then continue with the current process.env.
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`[comvi] warning: failed to parse ${path}: ${message}\n`);
+    process.stderr.write(`[@comvi/cli] warning: failed to parse ${path}: ${message}\n`);
     return null;
   }
 

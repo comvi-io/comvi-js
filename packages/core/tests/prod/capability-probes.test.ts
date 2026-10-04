@@ -20,13 +20,13 @@ function makeBareHost() {
 describe("missingCapability()", () => {
   it("names the loader subpath in the short production wording", () => {
     expect(missingCapability("loader").message).toBe(
-      "[comvi] missing loader capability — attach @comvi/core/loader",
+      "[@comvi/core] missing loader capability — attach @comvi/core/loader",
     );
   });
 
   it("names the plugins subpath in the short production wording", () => {
     expect(missingCapability("plugins").message).toBe(
-      "[comvi] missing plugins capability — attach @comvi/core/plugins",
+      "[@comvi/core] missing plugins capability — attach @comvi/core/plugins",
     );
   });
 });

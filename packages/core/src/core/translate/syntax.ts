@@ -143,7 +143,7 @@ const MAX_CACHE_BIT = 0x4000;
 export function _warnOnCompilerIdOverflow(id: number): void {
   if (id <= MAX_COMPILER_ID) return;
   warn(
-    `[i18n] More than 65535 message compilers have been created in this process; ` +
+    `[@comvi/core] More than 65535 message compilers have been created in this process; ` +
       `the template cache key holds the compiler id in 16 bits, so ids now wrap and ` +
       `two compilers can be served each other's parsed tokens. Reuse one compiler ` +
       `instance instead of constructing one per request.`,
@@ -194,7 +194,7 @@ function rebuildAmbient(): void {
 export function registerSyntaxExtension(ext: SyntaxExtension): () => void {
   if (IS_DEV && ext.cacheBit > MAX_CACHE_BIT) {
     warn(
-      `[i18n] Syntax extension "${ext.id}" declares cacheBit ${ext.cacheBit}; the template ` +
+      `[@comvi/core] Syntax extension "${ext.id}" declares cacheBit ${ext.cacheBit}; the template ` +
         `cache key carries the extension set in 15 bits, so the highest usable value is ` +
         `${MAX_CACHE_BIT}. This bit is dropped from the key and parses made with this ` +
         `extension will share cache entries with parses made without it.`,
@@ -206,7 +206,7 @@ export function registerSyntaxExtension(ext: SyntaxExtension): () => void {
       present = true;
     } else if (IS_DEV && ambient[i].cacheBit === ext.cacheBit) {
       warn(
-        `[i18n] Syntax extensions "${ambient[i].id}" and "${ext.id}" share cacheBit ${ext.cacheBit}; template cache entries may collide.`,
+        `[@comvi/core] Syntax extensions "${ambient[i].id}" and "${ext.id}" share cacheBit ${ext.cacheBit}; template cache entries may collide.`,
       );
     }
   }

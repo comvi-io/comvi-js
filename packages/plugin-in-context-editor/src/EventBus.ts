@@ -41,7 +41,10 @@ export class EventBus {
         try {
           callback(...args);
         } catch (error) {
-          console.error(`Error in event listener for "${event}":`, error);
+          console.error(
+            `[@comvi/plugin-in-context-editor] Error in event listener for "${event}":`,
+            error,
+          );
         }
       });
     }

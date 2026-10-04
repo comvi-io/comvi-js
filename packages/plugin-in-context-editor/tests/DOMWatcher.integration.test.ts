@@ -558,7 +558,7 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
 
       expect(survivor).toHaveBeenCalledTimes(1);
       expect(errorSpy).toHaveBeenCalledWith(
-        'Error in event listener for "structureChanges":',
+        '[@comvi/plugin-in-context-editor] Error in event listener for "structureChanges":',
         expect.any(Error),
       );
     });

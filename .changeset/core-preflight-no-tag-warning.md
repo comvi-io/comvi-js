@@ -6,7 +6,7 @@ The development catalog preflight no longer warns about tag syntax on a host tha
 registered a tag extension.
 
 Adding a catalog with `"Hi <b>{name}</b>"` in it used to print
-`[i18n] Tag syntax in "…" is rendering as literal text: no tag extension claims "<". Render it
+`[@comvi/core] Tag syntax in "…" is rendering as literal text: no tag extension claims "<". Render it
 with your framework's <T> component …` for every such entry, at `addMessages` time. In an app
 that renders those strings through `<T>` / `prepareTranslation` — which hands the tag grammar to
 core per call and registers nothing on the host — that advice was telling the user to do exactly

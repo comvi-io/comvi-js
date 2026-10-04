@@ -326,7 +326,9 @@ export class ElementHighlighter {
   private updateHighlightPosition(overlay: HTMLDivElement, element: Element): void {
     if (!element.isConnected) {
       if (this.debug) {
-        console.warn("[ElementHighlighter] Cannot update position: element is detached from DOM");
+        console.warn(
+          "[@comvi/plugin-in-context-editor] Cannot update position: element is detached from DOM",
+        );
       }
       return;
     }
@@ -435,7 +437,7 @@ export class ElementHighlighter {
   /** @throws {Error} If the element is null or undefined. */
   public addHighlight(element: Element): void {
     if (!element) {
-      throw new Error("Element cannot be null or undefined");
+      throw new Error("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     }
 
     this.highlightedElements.add(element);

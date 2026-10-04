@@ -12,10 +12,10 @@ const RESERVED_DEFAULT_PARAM_KEYS: readonly string[] = [
   "tagInterpolation",
 ];
 const ERR_RESERVED_DEFAULT_PARAMS = IS_DEV
-  ? "[i18n] defaultParams cannot contain call-control keys: locale, ns, fallback, raw, tagInterpolation"
+  ? "[@comvi/core] defaultParams cannot contain call-control keys: locale, ns, fallback, raw, tagInterpolation"
   : "E_RESERVED_DEFAULT_PARAMS";
 const ERR_NULLISH_DEFAULT_PARAMS = IS_DEV
-  ? "[i18n] defaultParams values cannot be null or undefined"
+  ? "[@comvi/core] defaultParams values cannot be null or undefined"
   : "E_NULLISH_DEFAULT_PARAMS";
 
 /**
@@ -49,7 +49,7 @@ export function assertPreservesDefaultParamKeys(
     ) {
       throw new Error(
         IS_DEV
-          ? `[i18n] defaultParams must preserve constructor-guaranteed key "${key}"`
+          ? `[@comvi/core] defaultParams must preserve constructor-guaranteed key "${key}"`
           : "E_DEFAULT_PARAMS_GUARANTEED_KEY",
       );
     }

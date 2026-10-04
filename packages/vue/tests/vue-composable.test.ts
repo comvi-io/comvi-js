@@ -16,7 +16,7 @@ describe("useI18n composable", () => {
     };
 
     expect(() => mount(C)).toThrow(
-      "[i18n] useI18n must be used within a Vue app with i18n plugin installed. " +
+      "[@comvi/vue] useI18n must be used within a Vue app with i18n plugin installed. " +
         "Make sure you called app.use(i18n) before using this composable.",
     );
   });

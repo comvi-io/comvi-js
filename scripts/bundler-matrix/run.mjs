@@ -371,7 +371,7 @@ const BUNDLERS = ["webpack", "vite"];
 
 /** Dev-only string from core's translate chunk: present iff the bundler
  *  resolved the "development" export condition. */
-const DEV_MARKER = "[i18n] Missing parameter";
+const DEV_MARKER = "[@comvi/core] Missing parameter";
 
 const ALL_PACKAGES = [
   { name: "@comvi/core", dir: "packages/core", distProbe: "dist/comvi-core.js" },

@@ -25,7 +25,7 @@ describe("the strict option", () => {
 
     i18n.t("nonexistent.key");
 
-    expect(warnSpy).toHaveBeenCalledWith('[i18n] Translation not found: "nonexistent.key"', {
+    expect(warnSpy).toHaveBeenCalledWith('[@comvi/core] Translation not found: "nonexistent.key"', {
       key: "nonexistent.key",
       locale: "en",
       namespace: "default",

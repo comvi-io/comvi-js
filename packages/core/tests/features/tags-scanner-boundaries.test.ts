@@ -208,7 +208,7 @@ describe("input the scanner refuses", () => {
     const rendered = render("<wrapper>text");
 
     expect(rendered).toBe("<wrapper>text");
-    expect(warnSpy).toHaveBeenCalledWith("[i18n] Unclosed tag: <wrapper>");
+    expect(warnSpy).toHaveBeenCalledWith("[@comvi/core] Unclosed tag: <wrapper>");
   });
 });
 

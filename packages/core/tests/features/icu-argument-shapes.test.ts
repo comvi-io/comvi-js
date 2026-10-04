@@ -33,7 +33,7 @@ describe("arguments the ICU compiler does not treat as plural or select", () => 
     "quotes %s and names the three supported types in the thrown message",
     (template) => {
       expect(() => ingest(template)).toThrow(
-        `[i18n] ICU argument \`${template}\` is not supported: this compiler implements ` +
+        `[@comvi/core] ICU argument \`${template}\` is not supported: this compiler implements ` +
           "`plural`, `selectordinal` and `select`, each with a choice list like `other {…}`. " +
           "Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}",
       );

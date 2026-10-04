@@ -96,7 +96,7 @@ describe("useFormatters", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => renderHook(() => useFormatters())).toThrow(
-      "[i18n] Hooks must be used within an I18nProvider",
+      "[@comvi/react] Hooks must be used within an I18nProvider",
     );
   });
 });

@@ -30,7 +30,7 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
-  ? "[i18n] registerLocaleDetector(): argument must be a function."
+  ? "[@comvi/core] registerLocaleDetector(): argument must be a function."
   : "E_REGISTER_LOCALE_DETECTOR";
 
 /**
@@ -40,15 +40,15 @@ const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
  * strings — and the WeakSet with them.
  */
 const ERR_LATE_PLUGINS = IS_DEV
-  ? "[i18n] .use(plugins()) ran after init(): compose capabilities before init(). A plugin queued now does not run until the next init(), which re-runs the WHOLE queue and accumulates a second set of cleanups — so this host is unchanged. Create the host, compose it, then init()."
+  ? "[@comvi/core] .use(plugins()) ran after init(): compose capabilities before init(). A plugin queued now does not run until the next init(), which re-runs the WHOLE queue and accumulates a second set of cleanups — so this host is unchanged. Create the host, compose it, then init()."
   : "";
 
 const ERR_LATE_REGISTER_PLUGIN = IS_DEV
-  ? "[i18n] registerPlugin() was called after init(): register plugins before init(). This plugin has not run and will not run on its own; the next init() drains it together with every plugin already in the queue, and the cleanups of both drains accumulate."
+  ? "[@comvi/core] registerPlugin() was called after init(): register plugins before init(). This plugin has not run and will not run on its own; the next init() drains it together with every plugin already in the queue, and the cleanups of both drains accumulate."
   : "";
 
 const ERR_PLUGIN_INIT_RETURN = IS_DEV
-  ? "[i18n] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a bare-name installer, compose it with `.use(installer(…))` — `registerPlugin()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
+  ? "[@comvi/core] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a bare-name installer, compose it with `.use(installer(…))` — `registerPlugin()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
   : "E_PLUGIN_INIT_RETURN";
 
 /** @internal Registered plugin tuple; owned by the plugin capability. */
@@ -186,7 +186,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
                 reject(
                   new Error(
                     IS_DEV
-                      ? `Plugin initialization timed out after ${timeout}ms`
+                      ? `[@comvi/core] Plugin initialization timed out after ${timeout}ms`
                       : "E_PLUGIN_INIT_TIMEOUT",
                   ),
                 ),
@@ -207,7 +207,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
           error instanceof Error
             ? error
             : new Error(
-                IS_DEV ? `Plugin initialization failed: ${String(error)}` : "E_PLUGIN_INIT_FAILED",
+                IS_DEV
+                  ? `[@comvi/core] Plugin initialization failed: ${String(error)}`
+                  : "E_PLUGIN_INIT_FAILED",
               );
 
         if (onError) {
@@ -215,7 +217,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
             onError(err);
           } catch (handlerError) {
             if (IS_DEV) {
-              warn(`[i18n] Plugin error handler failed: ${(handlerError as Error).message}`);
+              warn(`[@comvi/core] Plugin error handler failed: ${(handlerError as Error).message}`);
             }
           }
         }
@@ -311,7 +313,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     if (typeof fn !== "function") {
       throw new Error(
         IS_DEV
-          ? `[i18n] registerPostProcessor(): argument must be a function. Received: ${typeof fn}`
+          ? `[@comvi/core] registerPostProcessor(): argument must be a function. Received: ${typeof fn}`
           : "E_REGISTER_POST_PROCESSOR",
       );
     }
@@ -434,7 +436,7 @@ export function ensureInstallable<T>(i18n: T, installer: string): T {
   if ((i18n as unknown as PluginInitProbe)._pluginInit) {
     throw new Error(
       IS_DEV
-        ? `[i18n] ${installer}() is a .use installer, not a plugin, and it ran during plugin initialization — it was registered with registerPlugin(${installer}(…)) or definePlugin(${installer}(…)). Compose it instead: createI18n(…).use(${installer}(…)). Nothing was installed.`
+        ? `[@comvi/core] ${installer}() is a .use installer, not a plugin, and it ran during plugin initialization — it was registered with registerPlugin(${installer}(…)) or definePlugin(${installer}(…)). Compose it instead: createI18n(…).use(${installer}(…)). Nothing was installed.`
         : "E_INSTALLER_AS_PLUGIN",
     );
   }

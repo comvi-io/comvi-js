@@ -185,7 +185,7 @@ describe("a tag the extension recognises but refuses — the development warning
     const warnings = tagWarnings();
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toBe(
-      `[i18n] Tag syntax in "${ATTR_TEMPLATE}" is rendering as literal text: no tag extension ` +
+      `[@comvi/core] Tag syntax in "${ATTR_TEMPLATE}" is rendering as literal text: no tag extension ` +
         `claims "<". Render it with your framework's <T> component, or import ` +
         `"@comvi/core/tags" to register tag syntax for the string API.`,
     );

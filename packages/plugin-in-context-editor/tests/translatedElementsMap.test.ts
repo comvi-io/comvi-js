@@ -79,7 +79,7 @@ describe("TranslationRegistry", () => {
         map.add(null as any, {
           nodes: new Map(),
         });
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
     it("should throw error for undefined element", () => {
@@ -87,7 +87,7 @@ describe("TranslationRegistry", () => {
         map.add(undefined as any, {
           nodes: new Map(),
         });
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
     it("should handle multiple different elements", () => {
@@ -178,13 +178,13 @@ describe("TranslationRegistry", () => {
     it("should throw error for null element", () => {
       expect(() => {
         map.remove(null as any);
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
     it("should throw error for undefined element", () => {
       expect(() => {
         map.remove(undefined as any);
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
   });
 
@@ -264,7 +264,7 @@ describe("TranslationRegistry", () => {
     it("should throw error for null element", () => {
       expect(() => {
         map.addOrUpdate(null as any, { nodes: new Map() });
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
     it("should emit translationUpdated with the merged data for an already registered element", () => {

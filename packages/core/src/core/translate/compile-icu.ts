@@ -151,10 +151,10 @@ function failIcuArg(
   }
   const error = new Error(
     badExactSelector !== undefined
-      ? `[i18n] The exact selector \`${badExactSelector}\` in the \`${argumentType}\` choice list \`${malformedChoices}\` is not a number; an ICU exact selector is \`=\` followed by a number, as in \`=1 {…}\``
+      ? `[@comvi/core] The exact selector \`${badExactSelector}\` in the \`${argumentType}\` choice list \`${malformedChoices}\` is not a number; an ICU exact selector is \`=\` followed by a number, as in \`=1 {…}\``
       : malformedChoices === undefined
-        ? `[i18n] ICU argument \`{${content}}\` is not supported: this compiler implements \`plural\`, \`selectordinal\` and \`select\`, each with a choice list like \`other {…}\`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}`
-        : `[i18n] The \`${argumentType}\` choice list \`${malformedChoices}\` is malformed; every selector needs a braced sub-message, as in \`other {…}\``,
+        ? `[@comvi/core] ICU argument \`{${content}}\` is not supported: this compiler implements \`plural\`, \`selectordinal\` and \`select\`, each with a choice list like \`other {…}\`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}`
+        : `[@comvi/core] The \`${argumentType}\` choice list \`${malformedChoices}\` is malformed; every selector needs a braced sub-message, as in \`other {…}\``,
   ) as IcuSyntaxError;
   error.code = "E_ICU_SYNTAX";
   error.argumentType = argumentType;
@@ -318,7 +318,7 @@ function processPlural(
   if (isNaN(count)) {
     warn(
       IS_DEV
-        ? `[i18n] Invalid plural parameter value for "${param}": expected number, got ${typeof ctx.params[param]}`
+        ? `[@comvi/core] Invalid plural parameter value for "${param}": expected number, got ${typeof ctx.params[param]}`
         : "E_INVALID_PLURAL_PARAM",
       { param, value: ctx.params[param] },
     );

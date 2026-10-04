@@ -12,7 +12,7 @@ describe("flattenCatalog() with non-string leaves", () => {
 
     expect(Object.keys(flat)).toStrictEqual(["nav.home"]);
     expect(warnSpy).toHaveBeenCalledWith(
-      `[i18n] Dropping translation "nav.away": value is ${printed}`,
+      `[@comvi/core] Dropping translation "nav.away": value is ${printed}`,
     );
   });
 
@@ -23,7 +23,7 @@ describe("flattenCatalog() with non-string leaves", () => {
 
     expect(flat).toEqual({ count: "3" });
     expect(warnSpy).toHaveBeenCalledWith(
-      '[i18n] Translation "count" is not a string (got number); coercing with String()',
+      '[@comvi/core] Translation "count" is not a string (got number); coercing with String()',
     );
   });
 
@@ -34,7 +34,7 @@ describe("flattenCatalog() with non-string leaves", () => {
 
     expect(flat).toEqual({ tags: "a,b" });
     expect(warnSpy).toHaveBeenCalledWith(
-      '[i18n] Translation "tags" is not a string (got array); coercing with String()',
+      '[@comvi/core] Translation "tags" is not a string (got array); coercing with String()',
     );
   });
 });

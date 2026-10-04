@@ -77,7 +77,9 @@ describe("an ICU catalog over the loader, under <I18nProvider>", () => {
 
     await waitFor(() => expect(spy).toHaveBeenCalled());
 
-    const call = spy.mock.calls.find(([first]) => first === "[i18n] Initialization failed:");
+    const call = spy.mock.calls.find(
+      ([first]) => first === "[@comvi/react] Initialization failed:",
+    );
     expect(call).toBeDefined();
     expect((call![1] as Error).message).toContain("Failed to load all namespaces");
   });

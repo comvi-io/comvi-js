@@ -2,6 +2,7 @@ import type { TranslationValue } from "@comvi/core";
 import type { CdnLayoutOptions, FallbackMap, FetchLoaderOptions } from "./options";
 import type { InflightRequests } from "./inflight";
 import {
+  ERROR_PREFIX,
   RequestAbortedError,
   assertCatalogObject,
   buildCacheOptions,
@@ -69,7 +70,8 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
           { headers: { Accept: "application/json" }, signal, ...cacheOpts },
           timeout,
         );
-        if (!result.ok) throw new Error(`HTTP ${result.status}: ${result.statusText}`);
+        if (!result.ok)
+          throw new Error(`${ERROR_PREFIX} HTTP ${result.status}: ${result.statusText}`);
 
         const data = result.data;
         // The API path validates every catalog position it stores; the CDN

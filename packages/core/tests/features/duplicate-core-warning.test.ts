@@ -72,7 +72,7 @@ describe("duplicate @comvi/core detection", () => {
     claimCoreInstance("0.4.0");
 
     expect(warn.mock.calls[0]?.[0]).toBe(
-      "[i18n] Two copies of @comvi/core are loaded, 0.5.0 and 0.4.0. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.",
+      "[@comvi/core] Two copies of @comvi/core are loaded, 0.5.0 and 0.4.0. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.",
     );
   });
 

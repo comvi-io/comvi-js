@@ -59,7 +59,7 @@ const ERR_MESSAGES_NOT_OBJECT = IS_DEV
   ? "@comvi/core: `messages` is not an object"
   : "E_MESSAGES_NOT_OBJECT";
 const ERR_INSTANCE_DESTROYED = IS_DEV
-  ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
+  ? "[@comvi/core] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
 /**
  * See {@link I18n.use}: the rule is identity, and this is the whole diagnostic.
@@ -71,7 +71,7 @@ const ERR_INSTANCE_DESTROYED = IS_DEV
  * the bare code and then drops this function entirely.
  */
 const useNotInstallerMessage = (widened: unknown): string =>
-  `[i18n] .use(f) expects an installer that returns the host it was given, but f returned ${
+  `[@comvi/core] .use(f) expects an installer that returns the host it was given, but f returned ${
     widened === null
       ? "null"
       : typeof widened === "object" && typeof (widened as { then?: unknown }).then === "function"
@@ -290,7 +290,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
             ((tagName: string) => {
               this.reportError(
                 new Error(
-                  IS_DEV ? `Missing handler for tag: <${tagName}>` : "E_MISSING_TAG_HANDLER",
+                  IS_DEV
+                    ? `[@comvi/core] Missing handler for tag: <${tagName}>`
+                    : "E_MISSING_TAG_HANDLER",
                 ),
                 {
                   source: "translation",
@@ -422,14 +424,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
         const internal = this as unknown as I18nInternal;
         if (this._initialNamespaces?.length && internal._loadNs === undefined) {
           warn(
-            `[i18n] options.ns (${this._initialNamespaces.join(", ")}) needs the loader ` +
+            `[@comvi/core] options.ns (${this._initialNamespaces.join(", ")}) needs the loader ` +
               `capability; this host has none, so init() loads nothing. Compose it: ` +
               `createI18n(options).use(loader(map)).`,
           );
         }
         if (this._devDiscoveryOptions && internal._initDevtools === undefined) {
           warn(
-            `[i18n] options.instanceId / options.exposeGlobal need the discovery ` +
+            `[@comvi/core] options.instanceId / options.exposeGlobal need the discovery ` +
               `capability; this host has none, so neither does anything. Compose it: ` +
               `createI18n(options).use(devtools({ instanceId })).`,
           );
@@ -883,7 +885,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     err.code = "E_ICU_SYNTAX";
     err.argumentType = icuHit!;
     clearIcuHit();
-    if (!this._onError) console.error("[comvi] E_ICU_SYNTAX", key, locale);
+    if (!this._onError) console.error("[@comvi/core] E_ICU_SYNTAX", key, locale);
     this.reportError(err, { source: "compile", key, namespace, locale });
   }
 
@@ -919,7 +921,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     tagInterpolation?: TagInterpolationOptions,
   ): TranslationResult {
     if (this._strict === "dev") {
-      warn(IS_DEV ? `[i18n] Translation not found: "${key}"` : "E_TRANSLATION_NOT_FOUND", {
+      warn(IS_DEV ? `[@comvi/core] Translation not found: "${key}"` : "E_TRANSLATION_NOT_FOUND", {
         key,
         locale,
         namespace,
@@ -972,7 +974,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
         this._onError(err, context);
       } catch (e) {
         if (IS_DEV) {
-          warn(`[i18n] onError handler threw: ${(e as Error).message}`);
+          warn(`[@comvi/core] onError handler threw: ${(e as Error).message}`);
         }
       }
     } else if (IS_DEV) {
@@ -986,7 +988,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
         context?.namespace,
       ].filter(Boolean);
       const detail = parts.length ? parts.join(", ") : undefined;
-      warn(`[i18n] ${ctx}${detail ? ` (${detail})` : ""}: ${err.message}`);
+      warn(`[@comvi/core] ${ctx}${detail ? ` (${detail})` : ""}: ${err.message}`);
     }
   }
 

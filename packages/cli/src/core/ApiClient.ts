@@ -579,14 +579,14 @@ export class ApiClient {
         })
         .catch((error) => {
           // Ignore malformed events (could be keep-alive comments)
-          console.error("[comvi] Failed to process SSE event:", error);
+          console.error("[@comvi/cli] Failed to process SSE event:", error);
         });
     };
 
     // Handle errors (auto-reconnects by default)
     eventSource.onerror = () => {
       // On reconnect, server sends current schema immediately
-      console.warn("[comvi] Schema update stream interrupted; reconnecting...");
+      console.warn("[@comvi/cli] Schema update stream interrupted; reconnecting...");
     };
 
     return () => {

@@ -184,7 +184,7 @@ export async function getTranslation(
 
     return transformApiResponse(apiData, key);
   } catch (error) {
-    console.error("Error fetching translation:", error);
+    console.error("[@comvi/plugin-in-context-editor] Error fetching translation:", error);
     throw new Error("Failed to fetch translation");
   }
 }
@@ -274,7 +274,7 @@ export async function saveTranslation(
 
     return transformApiResponse(apiData, key);
   } catch (error) {
-    console.error("Error saving translation:", error);
+    console.error("[@comvi/plugin-in-context-editor] Error saving translation:", error);
     throw new Error("Failed to save translation");
   }
 }
@@ -296,7 +296,7 @@ export async function deleteTranslation(key: string, ns: string, scopeId?: strin
       throw new Error(`API error: ${response.status} ${response.statusText}`);
     }
   } catch (error) {
-    console.error("Error deleting translation:", error);
+    console.error("[@comvi/plugin-in-context-editor] Error deleting translation:", error);
     throw new Error("Failed to delete translation");
   }
 }
@@ -328,7 +328,7 @@ export async function getAllTranslationKeys(scopeId?: string): Promise<(string |
 
     return Array.from(keys).sort();
   } catch (error) {
-    console.error("Error getting translation keys:", error);
+    console.error("[@comvi/plugin-in-context-editor] Error getting translation keys:", error);
     return [];
   }
 }

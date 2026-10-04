@@ -84,7 +84,7 @@ describe("an unterminated ICU quote inside a tag", () => {
 
     expect(out).toBe("<wrapper>l{name}");
     expect(warnSpy.mock.calls.filter((c) => String(c[0]).includes("Unclosed tag"))).toEqual([
-      ["[i18n] Unclosed tag: <wrapper>"],
+      ["[@comvi/core] Unclosed tag: <wrapper>"],
     ]);
   });
 
@@ -143,7 +143,7 @@ describe("an unterminated ICU quote inside a tag", () => {
     // The quote closes, so the `</b>` inside it is protected and there is no
     // closing tag left outside it. Rejecting the tag is the #7 answer.
     expect(render("<b>'{x</b>}'", handlers("b"))).toBe("<b>{x</b>}");
-    expect(warnSpy).toHaveBeenCalledWith("[i18n] Unclosed tag: <b>");
+    expect(warnSpy).toHaveBeenCalledWith("[@comvi/core] Unclosed tag: <b>");
   });
 
   it("does not turn a tag MISMATCH into a match by rescanning", () => {

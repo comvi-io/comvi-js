@@ -185,7 +185,7 @@ async function fetchProjectInfoFromApi(
       }
 
       throw httpFailure(
-        `Failed to fetch project info: ${result.status} ${result.statusText}`,
+        `${ERROR_PREFIX} Failed to fetch project info: ${result.status} ${result.statusText}`,
         result.status,
         result.retryAfter,
       );
@@ -193,7 +193,11 @@ async function fetchProjectInfoFromApi(
 
     // Both spellings answered 404: the deployment has no project endpoint, and
     // asking again will not change that.
-    throw httpFailure(`Failed to fetch project info: 404 ${lastNotFound}`, 404, null);
+    throw httpFailure(
+      `${ERROR_PREFIX} Failed to fetch project info: 404 ${lastNotFound}`,
+      404,
+      null,
+    );
   };
 
   return requestOptions?.retry === false
@@ -252,7 +256,7 @@ export async function fetchApiTranslations(
   }
 
   if (result.status !== 404) {
-    throw new Error(`API error: ${result.status} ${result.statusText}`);
+    throw new Error(`${ERROR_PREFIX} API error: ${result.status} ${result.statusText}`);
   }
 
   const projectId = (
@@ -275,7 +279,7 @@ export async function fetchApiTranslations(
   }
 
   if (!exportResult.ok) {
-    throw new Error(`API error: ${exportResult.status} ${exportResult.statusText}`);
+    throw new Error(`${ERROR_PREFIX} API error: ${exportResult.status} ${exportResult.statusText}`);
   }
 
   return transformApiResponse(exportResult.data);

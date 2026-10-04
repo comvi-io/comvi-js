@@ -360,7 +360,7 @@ describe("useI18n", () => {
     // This file runs only under the `unit` project, which resolves ../src with
     // __DEV__ true, so the dev message is the only reachable one.
     await expect(loader.addActiveNamespace("admin")).rejects.toThrow(
-      '[i18n] Failed to load all namespaces for locale "en": admin',
+      '[@comvi/core] Failed to load all namespaces for locale "en": admin',
     );
     expect(loadErrors).toEqual([
       {

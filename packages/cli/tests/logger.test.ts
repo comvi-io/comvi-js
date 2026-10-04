@@ -35,10 +35,10 @@ const CONTEXT_CASES: Array<[keyof Omit<Logger, "setLevel">, "error" | "warn" | "
   ["debug", "log"],
 ];
 
-const THROUGH_ERROR = ["error [comvi] E"];
-const THROUGH_WARN = [...THROUGH_ERROR, "warn [comvi] W"];
-const THROUGH_INFO = [...THROUGH_WARN, "log [comvi] I"];
-const THROUGH_DEBUG = [...THROUGH_INFO, "log [comvi] D"];
+const THROUGH_ERROR = ["error [@comvi/cli] E"];
+const THROUGH_WARN = [...THROUGH_ERROR, "warn [@comvi/cli] W"];
+const THROUGH_INFO = [...THROUGH_WARN, "log [@comvi/cli] I"];
+const THROUGH_DEBUG = [...THROUGH_INFO, "log [@comvi/cli] D"];
 
 describe("ConsoleLogger", () => {
   let lines: string[];
@@ -95,7 +95,7 @@ describe("ConsoleLogger", () => {
 
       new ConsoleLogger(LogLevel.DEBUG)[method]("write failed", cause);
 
-      expect(spy).toHaveBeenCalledWith("[comvi] write failed", cause);
+      expect(spy).toHaveBeenCalledWith("[@comvi/cli] write failed", cause);
     },
   );
 
@@ -106,7 +106,7 @@ describe("ConsoleLogger", () => {
 
       new ConsoleLogger(LogLevel.DEBUG)[method]("write failed");
 
-      expect(spy).toHaveBeenCalledWith("[comvi] write failed");
+      expect(spy).toHaveBeenCalledWith("[@comvi/cli] write failed");
     },
   );
 });

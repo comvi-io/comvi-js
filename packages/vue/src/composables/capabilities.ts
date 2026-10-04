@@ -34,7 +34,7 @@ function injectHost(composable: string): WrapperI18nHost {
 
   if (!injected) {
     throw new Error(
-      `[i18n] ${composable} must be used within a Vue app with i18n plugin installed. ` +
+      `[@comvi/vue] ${composable} must be used within a Vue app with i18n plugin installed. ` +
         "Make sure you called app.use(i18n) before using this composable.",
     );
   }

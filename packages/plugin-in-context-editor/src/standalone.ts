@@ -33,7 +33,7 @@ function notifyLifecycle(detail: EditorLifecycleDetail, callback = activeLifecyc
   try {
     callback?.(detail);
   } catch (error) {
-    console.warn("[ComviInContextEditor] Lifecycle callback failed.", error);
+    console.warn("[@comvi/plugin-in-context-editor] Lifecycle callback failed.", error);
   }
   window.dispatchEvent(new CustomEvent<EditorLifecycleDetail>(EDITOR_LIFECYCLE_EVENT, { detail }));
 }
@@ -160,7 +160,10 @@ async function refreshMessagesFromApi(
     if (signal.aborted) {
       return;
     }
-    console.warn("[ComviInContextEditor] Failed to refresh translations from API.", error);
+    console.warn(
+      "[@comvi/plugin-in-context-editor] Failed to refresh translations from API.",
+      error,
+    );
   }
 }
 
@@ -203,7 +206,7 @@ function refreshRenderedTranslations(i18n: EditorI18n): void {
  */
 export function activate(options: ActivateOptions): ActivateResult | null {
   if (activeCore) {
-    console.warn("[ComviInContextEditor] Already active. Call deactivate() first.");
+    console.warn("[@comvi/plugin-in-context-editor] Already active. Call deactivate() first.");
     return null;
   }
 
@@ -212,7 +215,7 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   const comviHook = ensureComviHook();
   if (!comviHook || comviHook.instances.size === 0) {
     console.error(
-      "[ComviInContextEditor] No Comvi i18n found. Ensure @comvi/core is loaded on the page.",
+      "[@comvi/plugin-in-context-editor] No Comvi i18n found. Ensure @comvi/core is loaded on the page.",
     );
     return null;
   }
@@ -220,7 +223,7 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   const i18n = comviHook.get(options.instanceId);
   if (!i18n) {
     console.error(
-      "[ComviInContextEditor] No i18n instance found.",
+      "[@comvi/plugin-in-context-editor] No i18n instance found.",
       options.instanceId ? `Instance ID: ${options.instanceId}` : "No instances registered.",
     );
     return null;
@@ -267,7 +270,7 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   activeCore.start();
   activeLifecycleCallback = options.onLifecycle;
   notifyLifecycle({ state: "activated", instanceId });
-  console.info(`[ComviInContextEditor] Activated (instance: ${instanceId})`);
+  console.info(`[@comvi/plugin-in-context-editor] Activated (instance: ${instanceId})`);
 
   if (options.refreshMessages !== false) {
     const refreshController = new AbortController();
@@ -290,7 +293,7 @@ export function activate(options: ActivateOptions): ActivateResult | null {
 function deactivateInstance(expectedInstanceId?: string): void {
   if (!activeCore) {
     if (expectedInstanceId === undefined) {
-      console.warn("[ComviInContextEditor] Not active.");
+      console.warn("[@comvi/plugin-in-context-editor] Not active.");
     }
     return;
   }
@@ -320,7 +323,7 @@ function deactivateInstance(expectedInstanceId?: string): void {
   clearProjectInfoCache(instanceId);
   notifyLifecycle({ state: "deactivated", instanceId }, lifecycleCallback);
 
-  console.info("[ComviInContextEditor] Deactivated");
+  console.info("[@comvi/plugin-in-context-editor] Deactivated");
   if (cleanupError !== undefined) {
     throw cleanupError;
   }

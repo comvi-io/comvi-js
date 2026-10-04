@@ -237,7 +237,7 @@ export class CollectorTransport {
       this.applyResponse(data);
     } catch (error) {
       console.error(
-        "[ComviInContextEditor] Collector batch failed; will retry next settle.",
+        "[@comvi/plugin-in-context-editor] Collector batch failed; will retry next settle.",
         error,
       );
     }

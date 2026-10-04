@@ -20,11 +20,11 @@ const IS_DEV_BUILD = __COMVI_CORE_BUILD__ === "development";
 
 const EXPECTED = {
   loader: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).'
-    : "[comvi] missing loader capability — attach @comvi/core/loader",
+    ? '[@comvi/core] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).'
+    : "[@comvi/core] missing loader capability — attach @comvi/core/loader",
   plugins: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.'
-    : "[comvi] missing plugins capability — attach @comvi/core/plugins",
+    ? '[@comvi/core] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.'
+    : "[@comvi/core] missing plugins capability — attach @comvi/core/plugins",
 };
 
 const baseHost = () =>
@@ -194,7 +194,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     });
 
     expect(() => mount(Probe)).toThrow(
-      "[i18n] useI18nLoader must be used within a Vue app with i18n plugin installed. " +
+      "[@comvi/vue] useI18nLoader must be used within a Vue app with i18n plugin installed. " +
         "Make sure you called app.use(i18n) before using this composable.",
     );
   });
@@ -208,7 +208,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     });
 
     expect(() => mount(Probe)).toThrow(
-      "[i18n] useI18nPlugins must be used within a Vue app with i18n plugin installed. " +
+      "[@comvi/vue] useI18nPlugins must be used within a Vue app with i18n plugin installed. " +
         "Make sure you called app.use(i18n) before using this composable.",
     );
   });

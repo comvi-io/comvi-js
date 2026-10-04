@@ -209,7 +209,7 @@ function missingParamText(name: string, ctx: TranslateCtx): string {
     const dedupKey = ctx.template + "\u0000" + name;
     if (!missingParamWarned.has(dedupKey)) {
       missingParamWarned.add(dedupKey);
-      warn(`[i18n] Missing parameter "${name}" for template "${ctx.template}"`);
+      warn(`[@comvi/core] Missing parameter "${name}" for template "${ctx.template}"`);
     }
   }
   return "{" + name + "}";

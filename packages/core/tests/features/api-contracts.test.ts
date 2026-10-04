@@ -71,7 +71,7 @@ describe("I18n core API contracts", () => {
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
 
     expect(() => i18n.registerLocaleDetector("invalid" as any)).toThrow(
-      "[i18n] registerLocaleDetector(): argument must be a function.",
+      "[@comvi/core] registerLocaleDetector(): argument must be a function.",
     );
   });
 
@@ -109,7 +109,7 @@ describe("I18n core API contracts", () => {
     expect(() => i18n.reportError(new Error("original"), { source: "init" })).not.toThrow();
 
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[i18n] onError handler threw: onError failed"),
+      expect.stringContaining("[@comvi/core] onError handler threw: onError failed"),
     );
   });
 

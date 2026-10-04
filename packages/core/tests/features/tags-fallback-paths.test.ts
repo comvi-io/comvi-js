@@ -8,7 +8,8 @@ import { makeMarkerExtension } from "../helpers/extensions";
  * take to report a missing handler.
  */
 
-const MISSING_LINK_WARNING = "[i18n] Missing handler for tag: <link>. Falling back to inner text.";
+const MISSING_LINK_WARNING =
+  "[@comvi/core] Missing handler for tag: <link>. Falling back to inner text.";
 
 const RICH = { en: { msg: "Click <link>here</link>" } };
 
@@ -77,7 +78,7 @@ describe("missing tag handler", () => {
 
     expect(result).toBe("Click here");
     expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Missing handler for tag: <link>" }),
+      expect.objectContaining({ message: "[@comvi/core] Missing handler for tag: <link>" }),
       { source: "translation", tagName: "link" },
     );
     expect(warnSpy).not.toHaveBeenCalled();

@@ -341,7 +341,7 @@ describe("useI18n", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => renderHook(() => useI18n())).toThrow(
-      "[i18n] Hooks must be used within an I18nProvider",
+      "[@comvi/react] Hooks must be used within an I18nProvider",
     );
   });
 });

@@ -41,7 +41,7 @@ describe("the acquirers exist once, on the capability subpaths", () => {
 describe("acquireLoaderApi()", () => {
   it("throws the capability error on a host nobody composed a loader onto", () => {
     expect(() => acquireLoaderApi(bareHost())).toThrow(
-      '[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).',
+      '[@comvi/core] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).',
     );
   });
 
@@ -105,7 +105,7 @@ describe("acquireLoaderApi()", () => {
 describe("acquirePluginsApi()", () => {
   it("throws the capability error on a bare host", () => {
     expect(() => acquirePluginsApi(bareHost())).toThrow(
-      '[comvi] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.',
+      '[@comvi/core] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.',
     );
   });
 

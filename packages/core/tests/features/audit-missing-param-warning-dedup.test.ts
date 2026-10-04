@@ -15,8 +15,8 @@ describe("missing-parameter warning dedup", () => {
         .map((call) => call[0])
         .filter((message) => typeof message === "string" && message.includes("Missing parameter")),
     ).toEqual([
-      '[i18n] Missing parameter "ab" for template "{ab}{b}"',
-      '[i18n] Missing parameter "b" for template "{ab}{b}a"',
+      '[@comvi/core] Missing parameter "ab" for template "{ab}{b}"',
+      '[@comvi/core] Missing parameter "b" for template "{ab}{b}a"',
     ]);
   });
 });

@@ -50,7 +50,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
     it("should throw error when adding null element", () => {
       expect(() => {
         highlighter.addHighlight(null as any);
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
     it("should remove highlight from element", () => {
@@ -330,7 +330,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
           warn.mock.calls.filter(
             ([message]) =>
               message ===
-              "[ElementHighlighter] Cannot update position: element is detached from DOM",
+              "[@comvi/plugin-in-context-editor] Cannot update position: element is detached from DOM",
           ),
         ).toHaveLength(expectedWarnings);
 

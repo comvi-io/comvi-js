@@ -104,7 +104,7 @@ describe("vue on a base host", () => {
     // The unit project resolves ../src with __DEV__ true, so only the dev
     // message is reachable here; the prod text is pinned in tests/js-contract/.
     await expect(i18n.init()).rejects.toThrow(
-      "[i18n] Cannot call init() after destroy(). Create a new i18n instance.",
+      "[@comvi/core] Cannot call init() after destroy(). Create a new i18n instance.",
     );
   });
 

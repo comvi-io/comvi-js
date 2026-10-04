@@ -94,7 +94,7 @@ function warnUnclaimedTag(
   // reason it left a tag-like `<` unclaimed is an unsupported attribute.
   const hasTags = extensions.some((e) => e.id === TAGS_EXTENSION_ID);
   warn(
-    `[i18n] Tag syntax in "${template}" is rendering as literal text: ` +
+    `[@comvi/core] Tag syntax in "${template}" is rendering as literal text: ` +
       (hasTags && refusedForAttributes(template, index, len)
         ? `attributes are not supported in tag syntax; pass them via the ` +
           `\`components\` config (\`{ tag: "a", props: { href } }\`).`
@@ -370,7 +370,7 @@ export function extractToken(
 
   if (endIndex === -1) {
     if (IS_DEV) {
-      warn("[i18n] Unbalanced braces in template");
+      warn("[@comvi/core] Unbalanced braces in template");
     }
     return { endIndex: len, shouldBreak: true };
   }

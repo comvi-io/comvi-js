@@ -209,7 +209,9 @@ describe("cdnLoaderPlugin() body timeout", () => {
     expect(onLoadError).toHaveBeenCalledWith(
       "en",
       "default",
-      expect.objectContaining({ message: `Request timeout after ${TIMEOUT_MS}ms` }),
+      expect.objectContaining({
+        message: `[@comvi/plugin-fetch-loader] Request timeout after ${TIMEOUT_MS}ms`,
+      }),
     );
   });
 });
@@ -247,7 +249,9 @@ describe("cdnLoaderPlugin() when the CDN refuses", () => {
     expect(onLoadError).toHaveBeenCalledWith(
       "en",
       "default",
-      expect.objectContaining({ message: "HTTP 503: Service Unavailable" }),
+      expect.objectContaining({
+        message: "[@comvi/plugin-fetch-loader] HTTP 503: Service Unavailable",
+      }),
     );
   });
 });

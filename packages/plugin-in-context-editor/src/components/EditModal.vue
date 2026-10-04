@@ -72,7 +72,7 @@ async function loadLanguagesForCurrentInstance(): Promise<void> {
       return;
     }
 
-    console.error("Failed to load languages:", error);
+    console.error("[@comvi/plugin-in-context-editor] Failed to load languages:", error);
     languages.value = [];
     selectedLanguageCodes.value = [];
   } finally {

@@ -62,7 +62,9 @@ describe("plugin failure reports", () => {
     await i18n.init();
 
     expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Plugin initialization failed: socket hung up" }),
+      expect.objectContaining({
+        message: "[@comvi/core] Plugin initialization failed: socket hung up",
+      }),
       expect.objectContaining({ source: "plugin" }),
     );
   });
@@ -87,7 +89,7 @@ describe("plugin failure reports", () => {
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(String(warnSpy.mock.calls[0]![0])).toBe(
-      "[i18n] Plugin error handler failed: handler exploded",
+      "[@comvi/core] Plugin error handler failed: handler exploded",
     );
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ message: "boom" }),

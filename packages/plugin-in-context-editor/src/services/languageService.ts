@@ -30,7 +30,7 @@ export async function getLanguages(scopeId?: string): Promise<Language[]> {
       }),
     );
   } catch (error) {
-    console.error("Error fetching languages:", error);
+    console.error("[@comvi/plugin-in-context-editor] Error fetching languages:", error);
     throw new Error("Failed to fetch languages");
   }
 }

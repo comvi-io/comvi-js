@@ -17,7 +17,7 @@ passes nothing gets a named error at the `loader()` call site — both forms in 
 development, the bare code `E_LOADER_IMPORT_MAP` in production — rather than `undefined`
 surfacing inside the import-map adapter on the first load.
 
-The capability-absence error names the new pair: `[comvi] This i18n instance has no loader
+The capability-absence error names the new pair: `[@comvi/core] This i18n instance has no loader
 capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).`
 
 Bundle effect: the import-map adapter is in your graph only when you actually hand over a

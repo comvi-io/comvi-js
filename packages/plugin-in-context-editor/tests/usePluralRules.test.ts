@@ -256,7 +256,10 @@ describe("usePluralRules()", () => {
     const second = usePluralRules("zz-CACHED");
 
     expect(second).toBe(first);
-    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("Error categorizing numbers:", failure);
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+      "[@comvi/plugin-in-context-editor] Error categorizing numbers:",
+      failure,
+    );
   });
 });
 
@@ -315,6 +318,9 @@ describe("getPluralCategory()", () => {
     });
 
     expect(getPluralCategory(5, "zq-QQ")).toBe("other");
-    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("Error getting plural category:", failure);
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+      "[@comvi/plugin-in-context-editor] Error getting plural category:",
+      failure,
+    );
   });
 });

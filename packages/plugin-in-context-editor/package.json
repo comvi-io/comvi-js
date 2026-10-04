@@ -76,6 +76,7 @@
   "devDependencies": {
     "@comvi/core": "workspace:*",
     "@comvi/plugin-fetch-loader": "workspace:*",
+    "@comvi/test-utils": "workspace:*",
     "@lucide/vue": "^1.7.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.2",

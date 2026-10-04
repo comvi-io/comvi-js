@@ -68,6 +68,7 @@
     "vue": "^3.0.0"
   },
   "devDependencies": {
+    "@comvi/test-utils": "workspace:*",
     "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.13.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",

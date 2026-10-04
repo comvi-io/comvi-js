@@ -72,7 +72,7 @@ export const simpleCompiler: MessageCompiler = {
         return undefined;
       }
       const error = new Error(
-        `[i18n] "{${content}}" in "${template}" is ICU "${argumentType}" syntax; the default compiler supports {param} only. ` +
+        `[@comvi/core] "{${content}}" in "${template}" is ICU "${argumentType}" syntax; the default compiler supports {param} only. ` +
           (argumentType === "plural" ||
           argumentType === "select" ||
           argumentType === "selectordinal"

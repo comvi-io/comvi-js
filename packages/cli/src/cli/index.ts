@@ -36,7 +36,7 @@ program
 
       if (result && process.env.COMVI_DEBUG === "1") {
         process.stderr.write(
-          `[comvi] loaded env from ${result.path} ` +
+          `[@comvi/cli] loaded env from ${result.path} ` +
             `(${result.added} added, ${result.skipped} skipped — process.env wins)\n`,
         );
       }

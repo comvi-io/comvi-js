@@ -144,7 +144,7 @@ const TComponent = /*@__PURE__*/ defineComponent({
 
     if (!i18n) {
       throw new Error(
-        "[i18n] <T> component must be used within a Vue app with i18n plugin installed",
+        "[@comvi/vue] <T> component must be used within a Vue app with i18n plugin installed",
       );
     }
 

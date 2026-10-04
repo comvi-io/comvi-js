@@ -305,7 +305,7 @@ describe("composite parity — loader capability", () => {
       },
       {
         threw:
-          "[i18n] registerLoader(): argument must be a loader function. For a static import map use .use(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader.",
+          "[@comvi/core] registerLoader(): argument must be a loader function. For a static import map use .use(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader.",
       },
     );
   });

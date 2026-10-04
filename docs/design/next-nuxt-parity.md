@@ -120,8 +120,8 @@ headerName, resolveAcceptLanguage }`. The URL path always comes first, the defau
 - **Error-message vocabulary** (amended 2026-10-04). Every message starts with the package name,
   `[@comvi/next]` or `[@comvi/nuxt]`, as every other comvi package does. Three stems are spelled
   identically after it: `i18n not configured.`, `No loader registered, so SSR loaded nothing.` and
-  `Failed to load <locale>:<ns>:`. The one exception is next's `.use()` identity error, which keeps
-  `[i18n]` because `@comvi/vue` throws the same sentence for the same contract.
+  `Failed to load <locale>:<ns>:`. Next's `.use()` identity error is the same sentence `@comvi/vue`
+  throws for the same contract; each opens it with its own package name (amended 2026-10-04).
 - **Server helper vocabulary.** `ns`, the word core's `t(key, { ns })` already uses, and no other
   spelling; an empty `ns` counts as not given in both.
 - **Server helper locale.** Nuxt's `useTranslation(event)` resolves the locale in its route

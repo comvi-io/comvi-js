@@ -462,7 +462,7 @@ export class VueI18n<
     if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateUse) {
       this._warnedLateUse = true;
       console.warn(
-        "[i18n] .use(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. A plugin queued now does not run until the next init(), which re-runs the whole queue and accumulates a second set of cleanups — so nothing has changed on this host.",
+        "[@comvi/vue] .use(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. A plugin queued now does not run until the next init(), which re-runs the whole queue and accumulates a second set of cleanups — so nothing has changed on this host.",
       );
     }
     const widened: unknown = installer(this.core);
@@ -477,7 +477,7 @@ export class VueI18n<
       }
       const error = new Error(
         IS_DEV
-          ? "[i18n] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
+          ? "[@comvi/vue] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
           : "E_USE_HOST_IDENTITY",
       ) as UseHostIdentityError;
       error.code = "E_USE_HOST_IDENTITY";

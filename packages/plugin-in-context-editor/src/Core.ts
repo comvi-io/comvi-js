@@ -117,7 +117,8 @@ export class Core {
           );
         })
         .catch((error: unknown) => {
-          if (!this.stopped) console.error("[comvi] Failed to load editor UI:", error);
+          if (!this.stopped)
+            console.error("[@comvi/plugin-in-context-editor] Failed to load editor UI:", error);
         });
     } else if (nodeDataArray.length === 1) {
       void loadEditModal()
@@ -126,7 +127,8 @@ export class Core {
           showModal(nodeDataArray[0]!.key, nodeDataArray[0]!.ns, this.instanceId);
         })
         .catch((error: unknown) => {
-          if (!this.stopped) console.error("[comvi] Failed to load editor UI:", error);
+          if (!this.stopped)
+            console.error("[@comvi/plugin-in-context-editor] Failed to load editor UI:", error);
         });
     }
   };

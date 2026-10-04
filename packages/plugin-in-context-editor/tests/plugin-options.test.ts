@@ -210,7 +210,7 @@ describe("standalone lifecycle notifications", () => {
     expect(activate({ refreshMessages: false })).toBeNull();
 
     expect(error).toHaveBeenCalledExactlyOnceWith(
-      "[ComviInContextEditor] No Comvi i18n found. Ensure @comvi/core is loaded on the page.",
+      "[@comvi/plugin-in-context-editor] No Comvi i18n found. Ensure @comvi/core is loaded on the page.",
     );
     expect(isActive()).toBe(false);
   });
@@ -222,7 +222,7 @@ describe("standalone lifecycle notifications", () => {
     expect(activate({ instanceId: "missing", refreshMessages: false })).toBeNull();
 
     expect(error).toHaveBeenCalledExactlyOnceWith(
-      "[ComviInContextEditor] No i18n instance found.",
+      "[@comvi/plugin-in-context-editor] No i18n instance found.",
       "Instance ID: missing",
     );
     expect(isActive()).toBe(false);
@@ -252,7 +252,7 @@ describe("standalone lifecycle notifications", () => {
 
     expect(activate({ refreshMessages: false })).toBeNull();
     expect(warn).toHaveBeenCalledExactlyOnceWith(
-      "[ComviInContextEditor] Already active. Call deactivate() first.",
+      "[@comvi/plugin-in-context-editor] Already active. Call deactivate() first.",
     );
     expect(coreStartMock).toHaveBeenCalledTimes(1);
   });
@@ -303,7 +303,7 @@ describe("standalone lifecycle notifications", () => {
 
     expect(listener).toHaveBeenCalledTimes(2);
     expect(warn).toHaveBeenCalledWith(
-      "[ComviInContextEditor] Lifecycle callback failed.",
+      "[@comvi/plugin-in-context-editor] Lifecycle callback failed.",
       expect.any(Error),
     );
   });
@@ -377,7 +377,7 @@ describe("standalone lifecycle notifications", () => {
 
     await vi.waitFor(() =>
       expect(warn).toHaveBeenCalledWith(
-        "[ComviInContextEditor] Failed to refresh translations from API.",
+        "[@comvi/plugin-in-context-editor] Failed to refresh translations from API.",
         expect.any(Error),
       ),
     );
@@ -392,7 +392,7 @@ describe("standalone lifecycle notifications", () => {
     deactivate();
     deactivate();
 
-    expect(warn).toHaveBeenCalledExactlyOnceWith("[ComviInContextEditor] Not active.");
+    expect(warn).toHaveBeenCalledExactlyOnceWith("[@comvi/plugin-in-context-editor] Not active.");
     expect(coreStopMock).toHaveBeenCalledTimes(1);
   });
 });

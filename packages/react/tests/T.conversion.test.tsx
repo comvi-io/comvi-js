@@ -225,7 +225,7 @@ describe("<T /> handler resolution", () => {
 
     expect(reportError).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: 'Tag handler for "link" must return a React element',
+        message: '[@comvi/react] Tag handler for "link" must return a React element',
       }),
       { source: "translation", tagName: "link" },
     );

@@ -165,7 +165,7 @@ describe("missingParam — dev warning", () => {
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
-      '[i18n] Missing parameter "missingName" for template "Warn check {missingName}"',
+      '[@comvi/core] Missing parameter "missingName" for template "Warn check {missingName}"',
     );
   });
 });

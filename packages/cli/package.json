@@ -52,6 +52,7 @@
     "eventsource": "^4.1.0"
   },
   "devDependencies": {
+    "@comvi/test-utils": "workspace:*",
     "@comvi/typegen": "workspace:*",
     "@types/node": "^22.13.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",

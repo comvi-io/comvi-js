@@ -295,7 +295,7 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       // the throw (fault isolation) rather than let it reach IO's caller.
       expect(() => setIntersecting(el, true)).not.toThrow();
       expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[ComviInContextEditor]"),
+        expect.stringContaining("[@comvi/plugin-in-context-editor]"),
         expect.any(Error),
       );
 

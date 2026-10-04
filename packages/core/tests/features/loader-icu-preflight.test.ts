@@ -52,7 +52,7 @@ describe("an ICU catalog over the loader, in development", () => {
     const { i18n } = hostWithIcuLoader();
 
     await expect(i18n.init()).rejects.toThrow(
-      '[i18n] Failed to load all namespaces for locale "en": default',
+      '[@comvi/core] Failed to load all namespaces for locale "en": default',
     );
     await expect(i18n.init()).rejects.not.toHaveProperty("code");
   });
@@ -84,7 +84,7 @@ describe("an ICU catalog over the loader, in development", () => {
 
     // onError saw the namespace-load failure and NOT the ICU error.
     expect(reported.map((r) => r.error.message)).toEqual([
-      '[i18n] Failed to load all namespaces for locale "en": default',
+      '[@comvi/core] Failed to load all namespaces for locale "en": default',
     ]);
     expect(reported[0]!.context).toMatchObject({
       source: "namespace-load",
@@ -104,7 +104,7 @@ describe("an ICU catalog over the loader, in development", () => {
     expect(loadErrors.map((entry) => entry.namespace)).toEqual(["icu"]);
     expect(loadErrors[0]!.error).toMatchObject({ code: "E_ICU_SYNTAX" });
     expect(reported.map((r) => r.error.message)).toEqual([
-      '[i18n] Partial namespace load failure for "en": 1/2 failed (icu)',
+      '[@comvi/core] Partial namespace load failure for "en": 1/2 failed (icu)',
     ]);
   });
 

@@ -32,7 +32,7 @@ describe("a plural whose parameter is not a number", () => {
     i18n.t("k", { count: "abc" });
 
     expect(warnSpy).toHaveBeenCalledWith(
-      '[i18n] Invalid plural parameter value for "count": expected number, got string',
+      '[@comvi/core] Invalid plural parameter value for "count": expected number, got string',
       { param: "count", value: "abc" },
     );
   });

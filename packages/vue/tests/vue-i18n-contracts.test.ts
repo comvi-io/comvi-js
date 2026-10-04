@@ -90,7 +90,7 @@ describe("VueI18n contracts", () => {
     await vi.waitFor(() => {
       expect(onError).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: '[i18n] Failed to load all namespaces for locale "fr": common',
+          message: '[@comvi/core] Failed to load all namespaces for locale "fr": common',
         }),
         // Core reports "namespace-load" before VueI18n's catch wrapper would
         // report "setLocale"; either path satisfies the contract.
@@ -119,7 +119,7 @@ describe("VueI18n contracts", () => {
     await vi.waitFor(() => {
       expect(onError).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: '[i18n] Failed to load all namespaces for locale "fr": common',
+          message: '[@comvi/core] Failed to load all namespaces for locale "fr": common',
         }),
         // Core reports "namespace-load" before VueI18n's catch wrapper would
         // report "setLocale"; either path satisfies the contract.
@@ -203,7 +203,7 @@ describe("VueI18n contracts", () => {
     await i18n.init();
 
     await expect(i18n.core.addActiveNamespace("admin")).rejects.toThrow(
-      '[i18n] Failed to load all namespaces for locale "fr": admin',
+      '[@comvi/core] Failed to load all namespaces for locale "fr": admin',
     );
 
     await vi.waitFor(() => {
@@ -267,7 +267,7 @@ describe("VueI18n contracts", () => {
     // The unit project resolves ../src with __DEV__ true, so only the dev
     // message is reachable here; the prod text is pinned in tests/js-contract/.
     await expect(i18n.init()).rejects.toThrow(
-      "[i18n] Cannot call init() after destroy(). Create a new i18n instance.",
+      "[@comvi/core] Cannot call init() after destroy(). Create a new i18n instance.",
     );
   });
 

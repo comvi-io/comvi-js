@@ -58,7 +58,7 @@ describe("_warnOnCompilerIdOverflow()", () => {
     _warnOnCompilerIdOverflow(65536);
 
     expect(warnSpy).toHaveBeenCalledWith(
-      "[i18n] More than 65535 message compilers have been created in this process; the " +
+      "[@comvi/core] More than 65535 message compilers have been created in this process; the " +
         "template cache key holds the compiler id in 16 bits, so ids now wrap and two " +
         "compilers can be served each other's parsed tokens. Reuse one compiler instance " +
         "instead of constructing one per request.",
@@ -135,7 +135,7 @@ describe("registerSyntaxExtension()", () => {
     registerSyntaxExtension(inertExtension("too-wide", 0x8000));
 
     expect(warnSpy).toHaveBeenCalledWith(
-      '[i18n] Syntax extension "too-wide" declares cacheBit 32768; the template cache key ' +
+      '[@comvi/core] Syntax extension "too-wide" declares cacheBit 32768; the template cache key ' +
         "carries the extension set in 15 bits, so the highest usable value is 16384. This bit " +
         "is dropped from the key and parses made with this extension will share cache entries " +
         "with parses made without it.",

@@ -8,7 +8,7 @@ describe("reportError() without an onError handler (dev)", () => {
 
     i18n.reportError(new Error("boom"));
 
-    expect(warnSpy).toHaveBeenCalledWith("[i18n] unknown: boom");
+    expect(warnSpy).toHaveBeenCalledWith("[@comvi/core] unknown: boom");
   });
 
   it("appends every populated context field, comma-separated, after the source", () => {
@@ -23,7 +23,7 @@ describe("reportError() without an onError handler (dev)", () => {
       namespace: "nav",
     });
 
-    expect(warnSpy).toHaveBeenCalledWith("[i18n] translation (b, greeting, en, nav): boom");
+    expect(warnSpy).toHaveBeenCalledWith("[@comvi/core] translation (b, greeting, en, nav): boom");
   });
 });
 
@@ -37,7 +37,7 @@ describe("init() failure reporting", () => {
 
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: "[i18n] Cannot call init() after destroy(). Create a new i18n instance.",
+        message: "[@comvi/core] Cannot call init() after destroy(). Create a new i18n instance.",
       }),
       { source: "init" },
     );

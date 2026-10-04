@@ -44,9 +44,9 @@ export class ConsoleLogger implements Logger {
   error(message: string, context?: unknown): void {
     if (this.level >= LogLevel.ERROR) {
       if (context) {
-        console.error(`[comvi] ${message}`, context);
+        console.error(`[@comvi/cli] ${message}`, context);
       } else {
-        console.error(`[comvi] ${message}`);
+        console.error(`[@comvi/cli] ${message}`);
       }
     }
   }
@@ -54,9 +54,9 @@ export class ConsoleLogger implements Logger {
   warn(message: string, context?: unknown): void {
     if (this.level >= LogLevel.WARN) {
       if (context) {
-        console.warn(`[comvi] ${message}`, context);
+        console.warn(`[@comvi/cli] ${message}`, context);
       } else {
-        console.warn(`[comvi] ${message}`);
+        console.warn(`[@comvi/cli] ${message}`);
       }
     }
   }
@@ -64,9 +64,9 @@ export class ConsoleLogger implements Logger {
   info(message: string, context?: unknown): void {
     if (this.level >= LogLevel.INFO) {
       if (context) {
-        console.log(`[comvi] ${message}`, context);
+        console.log(`[@comvi/cli] ${message}`, context);
       } else {
-        console.log(`[comvi] ${message}`);
+        console.log(`[@comvi/cli] ${message}`);
       }
     }
   }
@@ -74,9 +74,9 @@ export class ConsoleLogger implements Logger {
   debug(message: string, context?: unknown): void {
     if (this.level >= LogLevel.DEBUG) {
       if (context) {
-        console.log(`[comvi] ${message}`, context);
+        console.log(`[@comvi/cli] ${message}`, context);
       } else {
-        console.log(`[comvi] ${message}`);
+        console.log(`[@comvi/cli] ${message}`);
       }
     }
   }

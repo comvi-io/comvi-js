@@ -334,7 +334,7 @@ describe("useTranslations", () => {
     expect(successfulSave).not.toBeNull();
     expect(addMessagesMock).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledExactlyOnceWith(
-      "[InContextEditor] Cannot update runtime cache: i18n instance not available",
+      "[@comvi/plugin-in-context-editor] Cannot update runtime cache: i18n instance not available",
     );
   });
 
@@ -342,32 +342,32 @@ describe("useTranslations", () => {
     [
       "updateTranslation",
       (m: TranslationManager) => m.updateTranslation("en", "other", "Hello"),
-      "Cannot update translation: no data loaded",
+      "[@comvi/plugin-in-context-editor] Cannot update translation: no data loaded",
     ],
     [
       "updateMetadata",
       (m: TranslationManager) => m.updateMetadata({ context: "ctx" }),
-      "Cannot update metadata: no data loaded",
+      "[@comvi/plugin-in-context-editor] Cannot update metadata: no data loaded",
     ],
     [
       "updatePluralVariable",
       (m: TranslationManager) => m.updatePluralVariable("count"),
-      "Cannot update plural variable: no data loaded",
+      "[@comvi/plugin-in-context-editor] Cannot update plural variable: no data loaded",
     ],
     [
       "togglePluralMode",
       (m: TranslationManager) => m.togglePluralMode(true),
-      "Cannot toggle plural mode: no data loaded",
+      "[@comvi/plugin-in-context-editor] Cannot toggle plural mode: no data loaded",
     ],
     [
       "toggleSelectMode",
       (m: TranslationManager) => m.toggleSelectMode("en", true),
-      "Cannot toggle select mode: no data loaded",
+      "[@comvi/plugin-in-context-editor] Cannot toggle select mode: no data loaded",
     ],
     [
       "updateSelectConfig",
       (m: TranslationManager) => m.updateSelectConfig("en", { enabled: true }),
-      "Cannot update select config: no data loaded",
+      "[@comvi/plugin-in-context-editor] Cannot update select config: no data loaded",
     ],
   ])("warns when %s is called without loaded data", (_name, call, message) => {
     const manager = createManager();
@@ -520,7 +520,10 @@ describe("useTranslations", () => {
     await manager.loadTranslation("home.title", "default");
 
     expect(manager.state.value.error).toBe("Failed to load translation");
-    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("Error loading translation:", "network down");
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+      "[@comvi/plugin-in-context-editor] Error loading translation:",
+      "network down",
+    );
   });
 
   it("ignores a stale rejection while a newer request is still loading", async () => {
@@ -570,7 +573,10 @@ describe("useTranslations", () => {
       "No namespace set. Please ensure the translation has a valid namespace.",
     );
     expect(saveTranslationMock).not.toHaveBeenCalled();
-    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("Save failed: namespace is", "   ");
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+      "[@comvi/plugin-in-context-editor] Save failed: namespace is",
+      "   ",
+    );
   });
 
   it("stays loading from the start of a save until it settles", async () => {
@@ -606,7 +612,10 @@ describe("useTranslations", () => {
 
     expect(result).toBeNull();
     expect(manager.state.value.error).toBe("Failed to save translation");
-    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("Error saving translation:", "offline");
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+      "[@comvi/plugin-in-context-editor] Error saving translation:",
+      "offline",
+    );
   });
 
   it("clears the unsaved-changes flags once a save succeeds", async () => {
@@ -854,7 +863,7 @@ describe("useTranslations", () => {
 
     expect(manager.isFieldDirty("en", "other")).toBe(true);
     expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
-      "Error loading translation:",
+      "[@comvi/plugin-in-context-editor] Error loading translation:",
       new Error("Load failed"),
     );
   });

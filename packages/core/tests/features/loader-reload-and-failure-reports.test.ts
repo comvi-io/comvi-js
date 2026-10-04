@@ -43,7 +43,7 @@ describe("reloadMessages()", () => {
     await expect(i18n.reloadMessages()).rejects.toThrow(/Failed to reload translations/);
 
     expect(onError).toHaveBeenLastCalledWith(
-      expect.objectContaining({ message: "[i18n] Failed to reload translations" }),
+      expect.objectContaining({ message: "[@comvi/core] Failed to reload translations" }),
       { source: "namespace-load" },
     );
   });
@@ -63,11 +63,11 @@ describe("namespace-load error reports", () => {
     // with `undefined`, so the rejection value is asserted first.
     await expect(activation).rejects.toBeInstanceOf(Error);
     await expect(activation).rejects.toThrow(
-      '[i18n] Failed to load all namespaces for locale "en": a, b',
+      '[@comvi/core] Failed to load all namespaces for locale "en": a, b',
     );
     expect(onError).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        message: '[i18n] Failed to load all namespaces for locale "en": a, b',
+        message: '[@comvi/core] Failed to load all namespaces for locale "en": a, b',
       }),
       { source: "namespace-load", locale: "en", namespace: "a, b" },
     );
@@ -88,7 +88,7 @@ describe("namespace-load error reports", () => {
     expect(onError).toHaveBeenCalledTimes(1);
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: '[i18n] Partial namespace load failure for "en": 1/2 failed (bad)',
+        message: '[@comvi/core] Partial namespace load failure for "en": 1/2 failed (bad)',
       }),
       { source: "namespace-load", locale: "en", namespace: "bad" },
     );

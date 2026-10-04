@@ -14,7 +14,7 @@ import { createI18n } from "../../src/index";
 const IS_DEV_BUILD = __COMVI_CORE_BUILD__ === "development";
 
 const EXPECTED_MESSAGE = IS_DEV_BUILD
-  ? "[i18n] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
+  ? "[@comvi/vue] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
   : "E_USE_HOST_IDENTITY";
 
 describe("VueI18n.use() identity refusal", () => {

@@ -49,7 +49,7 @@ describe(`createNextI18n without a compiler (${__COMVI_CORE_BUILD__} core build)
 
     expect(i18n.t("items", { count: 3 })).toBe(PLURAL);
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith("[comvi] E_ICU_SYNTAX", "items", "en");
+    expect(spy).toHaveBeenCalledWith("[@comvi/core] E_ICU_SYNTAX", "items", "en");
   });
 
   it("leaves a plain {param} catalog working in both builds", () => {

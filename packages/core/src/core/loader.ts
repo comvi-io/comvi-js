@@ -34,14 +34,14 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
  * the string.
  */
 const ERR_LATE_LOADER = IS_DEV
-  ? "[i18n] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and does not re-run on its own for this loader — call reloadMessages() or addActiveNamespace() to load now."
+  ? "[@comvi/core] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and does not re-run on its own for this loader — call reloadMessages() or addActiveNamespace() to load now."
   : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
-  ? "[i18n] No loader registered. Cannot reload translations."
+  ? "[@comvi/core] No loader registered. Cannot reload translations."
   : "E_NO_LOADER_REGISTERED";
 const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
-  ? "[i18n] Failed to reload translations"
+  ? "[@comvi/core] Failed to reload translations"
   : "E_FAILED_RELOAD_TRANSLATIONS";
 /**
  * A reload with nothing active still has a default namespace, and refetching it
@@ -50,13 +50,13 @@ const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
  */
 function reloadNoActiveNsMessage(defaultNs: string): string {
   return (
-    `[i18n] reloadMessages(): no namespace is active, reloading the default namespace "${defaultNs}". ` +
+    `[@comvi/core] reloadMessages(): no namespace is active, reloading the default namespace "${defaultNs}". ` +
     "removeActiveNamespace(ns) deactivates a namespace; clearMessages() never does."
   );
 }
 
 const ERR_REGISTER_LOADER_ARG = IS_DEV
-  ? "[i18n] registerLoader(): argument must be a loader function. For a static import map use .use(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader."
+  ? "[@comvi/core] registerLoader(): argument must be a loader function. For a static import map use .use(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader."
   : "E_REGISTER_LOADER_ARG";
 
 function createPartialNamespaceLoadError(
@@ -67,7 +67,7 @@ function createPartialNamespaceLoadError(
 ): Error {
   if (IS_DEV) {
     return new Error(
-      `[i18n] Partial namespace load failure for "${locale}": ` +
+      `[@comvi/core] Partial namespace load failure for "${locale}": ` +
         `${failedCount}/${totalCount} failed (${failedNamespaces})`,
     );
   }
@@ -77,7 +77,7 @@ function createPartialNamespaceLoadError(
 function createAllNamespacesFailedError(locale: string, failedNamespaces: string): Error {
   if (IS_DEV) {
     return new Error(
-      `[i18n] Failed to load all namespaces for locale "${locale}": ${failedNamespaces}`,
+      `[@comvi/core] Failed to load all namespaces for locale "${locale}": ${failedNamespaces}`,
     );
   }
   return new Error("E_ALL_NAMESPACES_FAILED");

@@ -301,7 +301,7 @@ describe("Core unit behavior", () => {
 
     await vi.waitFor(() => {
       expect(consoleError).toHaveBeenCalledExactlyOnceWith(
-        "[comvi] Failed to load editor UI:",
+        "[@comvi/plugin-in-context-editor] Failed to load editor UI:",
         error,
       );
     });
@@ -334,7 +334,10 @@ describe("Core unit behavior", () => {
 
     expect(() => clickElement(element)).not.toThrow();
     await vi.waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith("[comvi] Failed to load editor UI:", error);
+      expect(consoleError).toHaveBeenCalledWith(
+        "[@comvi/plugin-in-context-editor] Failed to load editor UI:",
+        error,
+      );
     });
 
     core.stop();

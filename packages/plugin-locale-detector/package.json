@@ -58,6 +58,7 @@
   },
   "devDependencies": {
     "@comvi/core": "workspace:*",
+    "@comvi/test-utils": "workspace:*",
     "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.13.0",
     "typescript": "~6.0.2",
