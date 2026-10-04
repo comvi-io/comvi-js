@@ -201,12 +201,16 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
         // expression-bodied arrow leaking its last value; both fail before a
         // cleanup is registered or the plugin counts as initialized. A cleanup
         // whose attempt failed, or whose host is gone, has nothing left to
-        // drain it, so it is released at once instead of queued.
+        // drain it, so it is released at once instead of queued. A late
+        // cleanup whose attempt was followed by a newer one goes BELOW that
+        // attempt's mark, so the newer attempt's rollback cannot release it.
         const own = (result: unknown) => {
           if (result !== undefined) {
             if (typeof result !== "function") throw new Error(ERR_PLUGIN_INIT_RETURN);
             if (this._isDestroyed || attempt.failed) return this._preDestroy([result as Cleanup]);
-            this._pluginCleanups.push(result as Cleanup);
+            const current = this._initRecord;
+            if (current === attempt) this._pluginCleanups.push(result as Cleanup);
+            else this._pluginCleanups.splice(current.mark++, 0, result as Cleanup);
           }
         };
         await own(
@@ -226,7 +230,12 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
                 // rejection was already reported as this timeout.
                 Promise.resolve(run)
                   .then(own, noop)
-                  .catch((error: Error) => this.reportError(error, { source: "plugin" }));
+                  .catch((error: Error) =>
+                    this.reportError(error, {
+                      source: "plugin",
+                      pluginName: plugin.name || "anonymous",
+                    }),
+                  );
               }, timeout);
             }),
           ]),

@@ -31,6 +31,12 @@ export interface InflightRequests {
    * `clearMessages`, `addMessages`) bumps the cache revision, and every
    * `messagesCleared` bumps it too, which covers a clear that found nothing
    * cached. A dedup entry from an older generation is never joined.
+   *
+   * Deliberately coarse: ANY catalog write moves it, so two calls for the same
+   * scope made on different ticks may not share a request once an unrelated
+   * catalog has landed between them. That costs a duplicate request, never a
+   * wrong result, and core-driven loads stay de-duplicated by core's own
+   * pending-load map regardless.
    */
   generation: () => number;
   /** True once `stop()` has run — the plugin is torn down, discard everything. */

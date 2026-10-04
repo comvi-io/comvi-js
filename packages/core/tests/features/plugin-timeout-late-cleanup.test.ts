@@ -75,7 +75,8 @@ describe("a timed-out plugin's late cleanup", () => {
     const late = createDeferred<unknown>();
     const onError = vi.fn();
     const i18n = new I18n({ locale: "en", ns: [], exposeGlobal: false, onError });
-    i18n.registerPlugin(() => late.promise as Promise<void>, { required: false, timeout: 100 });
+    const slowInstaller = () => late.promise as Promise<void>;
+    i18n.registerPlugin(slowInstaller, { required: false, timeout: 100 });
 
     const initPromise = i18n.init();
     await vi.advanceTimersByTimeAsync(150);
@@ -87,7 +88,45 @@ describe("a timed-out plugin's late cleanup", () => {
 
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining("returned a value") }),
-      expect.objectContaining({ source: "plugin" }),
+      expect.objectContaining({ source: "plugin", pluginName: "slowInstaller" }),
     );
+  });
+
+  it("a prior attempt's late cleanup survives a newer attempt's rollback", async () => {
+    const late = createDeferred<Cleanup>();
+    const secondGate = createDeferred<void>();
+    const cleaned = vi.fn();
+    let slowCalls = 0;
+    let failNow = false;
+    const i18n = new I18n({ locale: "en", ns: [], exposeGlobal: false, onError: () => {} });
+    i18n.registerPlugin(
+      () => {
+        slowCalls++;
+        return slowCalls === 1 ? late.promise : undefined;
+      },
+      { required: false, timeout: 100 },
+    );
+    i18n.registerPlugin(async () => {
+      if (!failNow) return;
+      await secondGate.promise;
+      throw new Error("second attempt fails");
+    });
+
+    const first = i18n.init();
+    await vi.advanceTimersByTimeAsync(150);
+    await first;
+
+    failNow = true;
+    const second = i18n.init();
+    const rejection = expect(second).rejects.toThrow("second attempt fails");
+    // The first attempt's plugin settles while the second attempt is live.
+    late.resolve(cleaned);
+    await vi.advanceTimersByTimeAsync(0);
+    secondGate.resolve();
+    await rejection;
+
+    expect(cleaned).not.toHaveBeenCalled();
+    await i18n.destroy();
+    expect(cleaned).toHaveBeenCalledTimes(1);
   });
 });
