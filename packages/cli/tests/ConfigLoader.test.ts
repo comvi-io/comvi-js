@@ -254,6 +254,27 @@ describe("ConfigLoader", () => {
       expect(cfg.format).toBe("json");
     });
 
+    it("treats an empty apiBaseUrl as unset", async () => {
+      const cfg = await loadWith({ apiBaseUrl: "" });
+      expect(cfg.apiBaseUrl).toBeUndefined();
+    });
+
+    it("blames COMVI_API_BASE_URL, not the file, when the variable is not an http(s) URL", async () => {
+      vi.stubEnv("COMVI_API_BASE_URL", "ftp://api.comvi.io");
+
+      const error = await rejectionOf(loadWith({ apiBaseUrl: "https://api.test.com" }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain("(from COMVI_API_BASE_URL)");
+    });
+
+    it("reports a non-string augment as CONFIG_INVALID naming the field", async () => {
+      const error = await rejectionOf(loadWith({ augment: 3 }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain('"augment" must be a non-empty string');
+    });
+
     it.each([
       "{namespace}/{languageTag}.json",
       "{languageTag}/{namespace}.{extension}",
@@ -391,7 +412,7 @@ describe("ConfigLoader", () => {
         const error = await rejectionOf(loadWith(configFor(value)));
 
         expect(error).toBeInstanceOf(TypegenError);
-        expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+        expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
         expect((error as TypegenError).message).toContain(`"${key}"`);
         expect((error as TypegenError).message).toContain(type);
       });
@@ -416,7 +437,7 @@ describe("ConfigLoader", () => {
     it("rejects a pull section that is not an object", async () => {
       const error = await rejectionOf(loadWith({ pull: "false" }));
 
-      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
       expect((error as TypegenError).message).toContain('"pull"');
       expect((error as TypegenError).message).toContain("string");
     });
@@ -424,7 +445,7 @@ describe("ConfigLoader", () => {
     it("rejects a push section that is not an object", async () => {
       const error = await rejectionOf(loadWith({ push: ["override"] }));
 
-      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
       expect((error as TypegenError).message).toContain('"push"');
       expect((error as TypegenError).message).toContain("array");
     });
@@ -485,7 +506,7 @@ describe("ConfigLoader", () => {
       async (value) => {
         const error = await rejectionOf(loadWith({ push: { forceMode: value } }));
 
-        expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+        expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
         expect((error as TypegenError).message).toContain('"push.forceMode" must be one of');
       },
     );
@@ -514,7 +535,7 @@ describe("ConfigLoader", () => {
     ])("refuses %s", async (_label, augment) => {
       const error = await rejectionOf(loadWith(augment));
 
-      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
       expect((error as TypegenError).message).toContain('"augment" must be a module specifier');
     });
 

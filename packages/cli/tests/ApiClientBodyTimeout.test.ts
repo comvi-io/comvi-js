@@ -108,11 +108,14 @@ describe("ApiClient request timeout covers the response body", () => {
  * A non-2xx response whose headers arrive at once and whose body never ends.
  * `cancel` is the only way the client can tell the transport to let it go.
  */
-function stalledBodyResponse(status: number, headers: Record<string, string> = {}) {
-  const cancel = vi.fn();
+function stalledBodyResponse(
+  status: number,
+  headers: Record<string, string> = {},
+  cancel: () => void | Promise<void> = vi.fn(),
+) {
   const body = new ReadableStream<Uint8Array>({ pull: () => new Promise(() => {}), cancel });
   const response = new Response(body, { status, headers });
-  return { response, cancel };
+  return { response, cancel: cancel as ReturnType<typeof vi.fn> };
 }
 
 describe("ApiClient cancels response bodies it does not read", () => {
@@ -142,6 +145,37 @@ describe("ApiClient cancels response bodies it does not read", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(first.cancel).toHaveBeenCalledTimes(1);
     expect(second.cancel).toHaveBeenCalledTimes(1);
+    // Cancelled before the next request starts, not abandoned and cancelled later.
+    expect(first.cancel.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock.mock.invocationCallOrder[1],
+    );
+    expect(second.cancel.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock.mock.invocationCallOrder[2],
+    );
+  });
+
+  it("still retries when cancelling a body rejects", async () => {
+    const first = stalledBodyResponse(503, { "Retry-After": "0" }, () =>
+      Promise.reject(new Error("socket already closed")),
+    );
+    fetchMock
+      .mockResolvedValueOnce(first.response)
+      .mockResolvedValueOnce({ ok: true, json: async () => projectInfo } as Response);
+
+    await expect(client.validateApiKey()).resolves.toEqual(projectInfo);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("still reports a 401 when cancelling its body rejects", async () => {
+    const stalled = stalledBodyResponse(401, {}, () =>
+      Promise.reject(new Error("socket already closed")),
+    );
+    fetchMock.mockResolvedValueOnce(stalled.response);
+
+    await expect(client.validateApiKey()).rejects.toMatchObject({
+      code: ErrorCodes.API_AUTH_FAILED,
+    });
   });
 
   it("cancels the body of a 401 without retrying", async () => {

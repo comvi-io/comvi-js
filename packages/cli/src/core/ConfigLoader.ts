@@ -136,6 +136,12 @@ export class ConfigLoader {
 
       this.rejectUnknownFields(config);
 
+      // An empty string means "not set", as it did when the commands fell back
+      // to the default with `||`.
+      if (config.apiBaseUrl === "") {
+        delete config.apiBaseUrl;
+      }
+
       this.applyEnvironmentOverrides(config);
 
       this.validateConfig(config);
@@ -187,7 +193,7 @@ export class ConfigLoader {
     this.validateSwitches(config);
 
     // Filter fields: namespaces / locales.
-    // Validation throws VALIDATION_FAILED so the CLI maps it to exit code 4.
+    // Validation throws CONFIG_INVALID so the CLI maps it to exit code 4.
     config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
     config.locales = this.normalizeFilterField(config.locales, "locales");
 
@@ -195,17 +201,12 @@ export class ConfigLoader {
     // non-string, or one holding a quote or line break, would produce a file
     // TypeScript cannot parse or one with injected declarations.
     if (config.augment !== undefined) {
-      if (typeof config.augment !== "string" || config.augment.trim() === "") {
-        throw new TypegenError(
-          `Invalid configuration: "augment" must be a non-empty module specifier, received ${JSON.stringify(config.augment)}`,
-          ErrorCodes.VALIDATION_FAILED,
-        );
-      }
+      this.assertOptionalNonEmptyString(config.augment, "augment");
       config.augment = config.augment.trim();
       if (!isModuleSpecifier(config.augment)) {
         throw new TypegenError(
           `Invalid configuration: "augment" must be a module specifier (letters, digits and @ # . / : ~ + - _), received ${JSON.stringify(config.augment)}`,
-          ErrorCodes.VALIDATION_FAILED,
+          ErrorCodes.CONFIG_INVALID,
         );
       }
     }
@@ -233,7 +234,7 @@ export class ConfigLoader {
     this.assertOptionalNonEmptyString(config.apiBaseUrl, "apiBaseUrl");
     if (config.apiBaseUrl !== undefined && !isHttpUrl(config.apiBaseUrl)) {
       throw new TypegenError(
-        `Invalid configuration: "apiBaseUrl" must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
+        `Invalid configuration: "apiBaseUrl"${process.env.COMVI_API_BASE_URL ? " (from COMVI_API_BASE_URL)" : ""} must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
         ErrorCodes.CONFIG_INVALID,
       );
     }
@@ -295,7 +296,7 @@ export class ConfigLoader {
     if (forceMode !== undefined && !FORCE_MODES.includes(forceMode as string)) {
       throw new TypegenError(
         `Invalid configuration: "push.forceMode" must be one of ${FORCE_MODES.map((mode) => `"${mode}"`).join(", ")}, received ${describe(forceMode)}`,
-        ErrorCodes.VALIDATION_FAILED,
+        ErrorCodes.CONFIG_INVALID,
       );
     }
   }
@@ -307,7 +308,7 @@ export class ConfigLoader {
 
     throw new TypegenError(
       `Invalid configuration: "${key}" must be a boolean (true or false), received ${describe(value)}`,
-      ErrorCodes.VALIDATION_FAILED,
+      ErrorCodes.CONFIG_INVALID,
     );
   }
 
@@ -322,7 +323,7 @@ export class ConfigLoader {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       throw new TypegenError(
         `Invalid configuration: "${key}" must be an object, received ${typeNameOf(value)}`,
-        ErrorCodes.VALIDATION_FAILED,
+        ErrorCodes.CONFIG_INVALID,
       );
     }
 
@@ -333,9 +334,9 @@ export class ConfigLoader {
    * Normalize and validate an optional string-array filter from config.
    *
    * - undefined → undefined (field omitted, "all" semantics)
-   * - non-array, non-string items, blank items → VALIDATION_FAILED
-   * - empty array → VALIDATION_FAILED with "remove the field" hint
-   * - duplicates after trimming → VALIDATION_FAILED
+   * - non-array, non-string items, blank items → CONFIG_INVALID
+   * - empty array → CONFIG_INVALID with "remove the field" hint
+   * - duplicates after trimming → CONFIG_INVALID
    * - otherwise: returns trimmed array
    */
   private static normalizeFilterField(
@@ -349,14 +350,14 @@ export class ConfigLoader {
     if (!Array.isArray(value)) {
       throw new TypegenError(
         `Invalid configuration: "${fieldName}" must be an array of strings`,
-        ErrorCodes.VALIDATION_FAILED,
+        ErrorCodes.CONFIG_INVALID,
       );
     }
 
     if (value.length === 0) {
       throw new TypegenError(
         `Invalid configuration: "${fieldName}" is an empty list — remove the field to operate on all ${fieldName}`,
-        ErrorCodes.VALIDATION_FAILED,
+        ErrorCodes.CONFIG_INVALID,
       );
     }
 
@@ -365,14 +366,14 @@ export class ConfigLoader {
       if (typeof item !== "string") {
         throw new TypegenError(
           `Invalid configuration: "${fieldName}" must contain only strings`,
-          ErrorCodes.VALIDATION_FAILED,
+          ErrorCodes.CONFIG_INVALID,
         );
       }
       const t = item.trim();
       if (t === "") {
         throw new TypegenError(
           `Invalid configuration: "${fieldName}" contains an empty string`,
-          ErrorCodes.VALIDATION_FAILED,
+          ErrorCodes.CONFIG_INVALID,
         );
       }
       trimmed.push(t);
@@ -389,7 +390,7 @@ export class ConfigLoader {
     if (duplicates.length > 0) {
       throw new TypegenError(
         `Invalid configuration: "${fieldName}" contains duplicate values: ${[...new Set(duplicates)].join(", ")}`,
-        ErrorCodes.VALIDATION_FAILED,
+        ErrorCodes.CONFIG_INVALID,
       );
     }
 
