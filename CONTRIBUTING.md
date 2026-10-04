@@ -107,7 +107,11 @@ pnpm lint:fix
 pnpm typecheck        # packages + apps + test-apps
 ```
 
-Prettier and ESLint also run through husky and lint-staged on commit.
+Prettier and ESLint also run through husky and lint-staged on commit. The hook runs
+`lint-staged --no-stash`, so it never pushes a backup onto the repository's shared stash stack,
+which several worktrees use at once. The trade-off: when the hook fails, lint-staged does not
+restore a partially staged file, so its formatter edits stay in the working tree. Review them with
+`git diff` before committing again.
 
 ### 3. Size budgets
 

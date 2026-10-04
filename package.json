@@ -44,7 +44,7 @@
     "extension:test": "turbo run test --filter @comvi/chrome-extension",
     "extension:gate-e": "turbo run build --filter @comvi/plugin-in-context-editor && pnpm --filter @comvi/chrome-extension test:e2e",
     "extension:release": "turbo run build --filter @comvi/plugin-in-context-editor && pnpm --filter @comvi/chrome-extension test:release",
-    "lint:staged": "lint-staged",
+    "lint:staged": "lint-staged --no-stash",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "audit:package-contracts": "node tooling/check-package-contracts.mjs",
