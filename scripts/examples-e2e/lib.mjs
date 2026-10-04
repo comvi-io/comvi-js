@@ -313,8 +313,16 @@ export async function startMockCdn({ localesDir, base = "/cdn/e2e", host = "127.
       req.setEncoding("utf8");
       req.on("data", (chunk) => (body += chunk));
       req.on("end", () => {
+        // A bad body is the test's mistake: answer it, never take down the
+        // mock every example shares.
+        let next;
+        try {
+          next = body ? JSON.parse(body) : {};
+        } catch (error) {
+          json(res, 400, { error: `the mode is not JSON: ${error.message}` });
+          return;
+        }
         drop();
-        const next = body ? JSON.parse(body) : {};
         mode = { ...empty(), ...next, missing: next.missing ?? CDN_MISSING };
         json(res, 200, mode);
       });

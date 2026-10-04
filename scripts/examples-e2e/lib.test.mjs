@@ -276,6 +276,11 @@ test("startMockCdn: hang never answers, corrupt is not JSON, missing overrides C
     assert.deepEqual((await (await fetch(`${cdn.url}/de.json`)).json()).fallback, {
       only_en: `${CDN_MARK}x`,
     });
+    // A mode that is not JSON is refused and changes nothing; the mock stays up.
+    const bad = await fetch(`${cdn.controlUrl}/mode`, { method: "POST", body: "{not json" });
+    assert.equal(bad.status, 400);
+    assert.match((await bad.json()).error, /not JSON/);
+    assert.equal(await (await fetch(`${cdn.url}/uk.json`)).text(), CORRUPT_BODY);
     // reset() is plain serving again: the corrupt mode does not outlive the step.
     cdn.reset();
     assert.deepEqual(await (await fetch(`${cdn.url}/uk.json`)).json(), { a: `${CDN_MARK}b` });
