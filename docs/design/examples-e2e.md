@@ -52,10 +52,10 @@ listed in `EXPECTED_FAILURES`.
 The two recorded states became failures and were fixed in their adapters:
 
 - `@comvi/react` gained `<I18nProvider targetLocale>`: the tree renders in the locale a caller is
-  switching the host to, from the render in which it changes until the host's locale next moves.
-  `@comvi/next`'s provider adds the handed-over catalog during render and passes its `locale` as
-  `targetLocale`. The translated text now commits in the same React commit as the new
-  `<html lang>`, and the browser no longer re-fetches the catalog the server sent.
+  switching the i18n instance to, from the render in which it changes until the i18n instance's
+  locale next moves. `@comvi/next`'s provider adds the handed-over catalog during render and
+  passes its `locale` as `targetLocale`. The translated text now commits in the same React commit
+  as the new `<html lang>`, and the browser no longer re-fetches the catalog the server sent.
 - `@comvi/svelte`'s `isInitializing` reads `true` while the auto-init that `setI18nContext`
   scheduled has not started, so the documented gate is closed from the first render.
 
@@ -73,10 +73,11 @@ first run, on every machine.
   known mixed state behind a green run.
 - **Pinning Next's render locale to the route parameter outright.** `localePrefix: "never"` apps
   switch with `setLocale()` and no navigation, which a pinned render locale would ignore. The
-  handover ends as soon as the host's locale moves.
-- **Starting the Svelte auto-init synchronously.** Core's `init()` does not deduplicate concurrent
-  calls, and the documented recipe of a manual `init()` right after `setI18nContext` relies on the
-  microtask.
+  handover ends as soon as the i18n instance's locale moves.
+- **Starting the Svelte auto-init synchronously.** It would run `init()` before anything composed
+  later in the same component setup, and the documented manual `init()` right after
+  `setI18nContext` would no longer be the one that starts it. Core's `init()` is single-flight, so
+  this is about ordering, not about a double init.
 
 ## Where it lives
 
