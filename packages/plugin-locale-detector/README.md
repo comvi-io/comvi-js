@@ -60,6 +60,10 @@ match, then shorter prefixes (`zh-Hant-TW`, `zh-Hant`, `zh`), then a regional va
 language (`de` to `de-DE`). A tag that matches nothing is skipped and the scan continues. When
 nothing matches, the locale is `fallbackLocale`, and that result is not cached.
 
+Without `supportedLocales`, every detected and cached tag is shortened to its lowercased base
+language: `pt-BR` becomes `pt`, `de-DE` becomes `de`. An app with a regional locale such as
+`pt-BR` must list its locales in `supportedLocales`, or the next visit asks for `pt`.
+
 ## Options
 
 | Option                  | Default                                                                    | Behaviour                                                                            |
@@ -78,14 +82,14 @@ nothing matches, the locale is `fallbackLocale`, and that result is not cached.
 | `convertDetectedLocale` | none                                                                       | `(tag) => string` mapping applied to every raw tag; switches `supportedLocales` off. |
 
 Storage access is wrapped, so private mode, blocked cookies and quota errors are ignored. Only one
-detector is active on a host; a later registration replaces it. The plugin returns a cleanup
+detector is active on an i18n instance; a later registration replaces it. The plugin returns a cleanup
 function, so `destroy()` unsubscribes its `localeChanged` listener.
 
 ## On the server
 
 Every source returns nothing on the server, so make the server-side decision in your framework's
 middleware and share it through a cookie; `@comvi/next` and `@comvi/nuxt` ship their own detection
-and need no detector on the host. See
+and need no detector on the i18n instance. See
 [Server-side rendering](https://comvi.io/docs/i18n/ssr#locale-on-the-server).
 
 ## Next steps

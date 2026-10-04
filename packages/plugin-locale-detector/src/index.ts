@@ -85,8 +85,9 @@ export interface LocaleDetectorOptions {
    *   2. Base language match: "de-DE" → "de"
    *   3. Regional variant match: "de" → "de-DE" (if only regional variant is supported)
    *
-   * When not provided, the detected locale tag is truncated to the base language
-   * for backwards compatibility (e.g., "de-DE" → "de").
+   * When not provided, every detected AND cached tag is shortened to its
+   * lowercased base language ("pt-BR" → "pt", "de-DE" → "de"). An app with a
+   * regional locale such as `pt-BR` must list it here.
    *
    * @example
    * ```typescript
@@ -118,22 +119,24 @@ interface DetectionResult {
 }
 
 /**
- * Locale detection plus persistence, for a host that already has the plugin
- * capability. Every source and cache target is SSR-safe: a missing `window`
+ * Locale detection plus persistence, for an i18n instance that already has the
+ * plugin capability; `localeDetector()` composes that capability for you. Every source and cache target is SSR-safe: a missing `window`
  * or `document` falls through instead of throwing.
  *
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/core';
- * import { localeDetectorPlugin } from '@comvi/plugin-locale-detector';
+ * import { localeDetector } from '@comvi/plugin-locale-detector';
  *
- * const i18n = createI18n({ locale: 'en' })
- *   .registerPlugin(localeDetectorPlugin({
+ * const i18n = createI18n({ locale: 'en' }).use(
+ *   localeDetector({
+ *     supportedLocales: ['en', 'de', 'pt-BR'],
  *     order: ['querystring', 'localStorage', 'cookie', 'navigator'],
  *     caches: ['localStorage', 'cookie'],
  *     lookupQuerystring: 'lang',
- *     cookieMaxAge: 365 * 24 * 60 * 60 // 1 year
- *   }));
+ *     cookieMaxAge: 365 * 24 * 60 * 60, // 1 year
+ *   }),
+ * );
  * ```
  */
 export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
@@ -283,7 +286,7 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
   };
 };
 
-/** The host surface `localeDetector` guarantees on the way out. */
+/** The i18n instance surface `localeDetector` guarantees on the way out. */
 export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi;
 
 /**
@@ -296,11 +299,11 @@ export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18n
  * await i18n.init();
  * ```
  *
- * The attach is idempotent: composing onto a host that already has the plugin
+ * The attach is idempotent: composing onto an i18n instance that already has the plugin
  * capability keeps every plugin already registered, and composing twice
  * registers the plugin twice, exactly as two `use` calls would. No loader
  * capability is composed — the detector hands core a locale, and core loads
- * namespaces through whatever loading the host already has.
+ * namespaces through whatever loading the i18n instance already has.
  *
  * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
  * not re-implemented here; they keep running inside `I18nPluginHost`, because
