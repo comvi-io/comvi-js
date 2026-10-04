@@ -58,4 +58,26 @@ describe("concurrent init()", () => {
     expect(calls).toBe(2);
     expect(i18n.isInitialized).toBe(true);
   });
+
+  it("joins a call re-entered from a synchronous loadingStateChanged listener", async () => {
+    const plugin = vi.fn();
+    const initialized = vi.fn();
+    const i18n = new I18n({ locale: "en", ns: [], exposeGlobal: false });
+    i18n.registerPlugin(plugin);
+    i18n.on("initialized", initialized);
+    let nested: Promise<unknown> | undefined;
+    i18n.on("loadingStateChanged", ({ isLoading }) => {
+      if (isLoading && nested === undefined) nested = i18n.init();
+    });
+
+    const outer = i18n.init();
+    // The synchronous isInitializing transition stays part of the contract.
+    expect(i18n.isInitializing).toBe(true);
+    await Promise.all([outer, nested]);
+
+    expect(nested).toBe(outer);
+    expect(plugin).toHaveBeenCalledTimes(1);
+    expect(initialized).toHaveBeenCalledTimes(1);
+    expect(i18n.isInitialized).toBe(true);
+  });
 });

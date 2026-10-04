@@ -241,6 +241,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
           ]),
         );
       } catch (error) {
+        // Failing after destroy() is the quiet end `init()` promises: no
+        // report, no `onError`, and no further plugin starts.
+        if (this._isDestroyed) return;
         const err =
           error instanceof Error
             ? error

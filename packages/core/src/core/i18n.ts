@@ -413,12 +413,26 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _initAttempt?: Promise<unknown>;
 
   public init(): Promise<this> {
-    return (this._initAttempt ??= this._init().finally(() => {
-      this._initAttempt = undefined;
-    })) as Promise<this>;
+    let attempt = this._initAttempt;
+    if (!attempt) {
+      // The slot is filled BEFORE `_init()` runs: `_init()` emits
+      // `loadingStateChanged` synchronously, and a listener that calls
+      // `init()` from there must join this attempt, not start a second one.
+      // `_init()` itself still starts synchronously, so `isInitializing` is
+      // true the moment `init()` returns.
+      // `_init()`'s `finally` clears the slot. That needs no identity check:
+      // the slot is only ever filled while empty, so it holds this attempt.
+      let run!: (result: Promise<this>) => void;
+      this._initAttempt = attempt = new Promise((resolve) => (run = resolve));
+      run(this._init());
+    }
+    return attempt as Promise<this>;
   }
 
   private async _init(): Promise<this> {
+    // Set once this attempt has started: a destroy() after that point ends the
+    // attempt quietly, while init() on an already-destroyed host still throws.
+    let started = false;
     try {
       if (this._isDestroyed) {
         throw new Error(ERR_INSTANCE_DESTROYED);
@@ -453,7 +467,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
         }
       }
 
-      this._isInitializing = true;
+      started = this._isInitializing = true;
       this._setLoadingState(true);
 
       // Plugins first, then any plugin-registered locale detector: a detector
@@ -486,6 +500,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this._emit("initialized");
       return this;
     } catch (error) {
+      // A failure that settles after destroy() is part of the same quiet end:
+      // nothing to report, and destroy() already released what was acquired.
+      if (started && this._isDestroyed) return this;
       this.reportError(error as Error, { source: "init" });
       // Transactional: release what this attempt's plugins acquired before
       // rejecting, so a rejected or retried host holds nothing extra.
@@ -494,6 +511,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     } finally {
       this._isInitializing = false;
       this._setLoadingState(false);
+      this._initAttempt = undefined;
     }
   }
 
