@@ -2,6 +2,7 @@ import type {
   I18nOptions,
   I18nCoreInstance,
   I18nCoreExtraApi,
+  I18nMessagesView,
   FlattenedMessages,
   TranslationValue,
   TranslationResult,
@@ -223,6 +224,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _primaryMessagesRevision: number = -1;
   private _primaryMessagesLocale: string = "";
   private _primaryMessagesNamespace: string = "";
+  /**
+   * The catalogs of the `withMessages` view whose call is running, keyed
+   * `"locale:namespace"`; `undefined` outside one. Set and restored around a
+   * single synchronous call, and read only by {@link I18n._catalog}.
+   */
+  private _overlay?: Readonly<Record<string, FlattenedMessages>>;
 
   protected _activeNamespaces = new Set<string>();
 
@@ -672,17 +679,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
   ): boolean {
     const loc = locale ?? this._locale;
     const ns = namespace ?? this._cachedDefaultNs;
-    const translations =
-      loc === this._locale && ns === this._cachedDefaultNs
-        ? this._getPrimaryTranslations()
-        : this.messagesCache.get(loc, ns);
+    const translations = this._catalog(loc, ns);
     if (translations !== undefined && translations[key] !== undefined) {
       return true;
     }
     if (checkFallbacks) {
       for (const fallbackLoc of this._fallbackLocales) {
         if (fallbackLoc === loc) continue;
-        const fallbackTranslations = this.messagesCache.get(fallbackLoc, ns);
+        const fallbackTranslations = this._catalog(fallbackLoc, ns);
         if (fallbackTranslations !== undefined && fallbackTranslations[key] !== undefined) {
           return true;
         }
@@ -766,8 +770,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const key = translationKey as string;
     const userParams = params[0];
 
-    // Fast path: a template with no placeholders needs no compile at all.
-    if (userParams == null && !this._postProcessor) {
+    // Fast path: a template with no placeholders needs no compile at all. It
+    // reads the cache's primary catalog, so a `withMessages` call skips it.
+    if (userParams == null && !this._postProcessor && !this._overlay) {
       const translations = this._getPrimaryTranslations();
       if (translations !== undefined) {
         const template = translations[key];
@@ -806,6 +811,44 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   t(translationKey: string | null, ...params: [TranslationParams?]): string {
     return translationResultToString(this.tRaw(translationKey as any, ...(params as any)));
+  }
+
+  /**
+   * A read view of the instance: `t`, `tRaw` and `hasTranslation` that, for
+   * the duration of each call, resolve a `locale:namespace` held in `catalogs`
+   * from there and everything else from the cache. The i18n instance is not
+   * written — no cache entry, no active namespace, no event — so a view a
+   * caller drops leaves nothing behind. `catalogs` is keyed
+   * `"locale:namespace"` and holds flat catalogs, as `flattenCatalog` returns
+   * them; a catalog it holds replaces the cached one for that call.
+   */
+  withMessages(catalogs: Readonly<Record<string, FlattenedMessages>>): I18nMessagesView<D> {
+    const call =
+      (name: keyof I18nMessagesView) =>
+      (...args: unknown[]): unknown => {
+        const outer = this._overlay;
+        this._overlay = catalogs;
+        try {
+          return (this[name] as (...a: unknown[]) => unknown)(...args);
+        } finally {
+          this._overlay = outer;
+        }
+      };
+    return {
+      t: call("t"),
+      tRaw: call("tRaw"),
+      hasTranslation: call("hasTranslation"),
+    } as I18nMessagesView<D>;
+  }
+
+  /** The catalog a lookup reads: the running `withMessages` view's, else the cache's. */
+  private _catalog(locale: string, namespace: string): FlattenedMessages | undefined {
+    return (
+      this._overlay?.[locale + ":" + namespace] ??
+      (locale === this._locale && namespace === this._cachedDefaultNs
+        ? this._getPrimaryTranslations()
+        : this.messagesCache.get(locale, namespace))
+    );
   }
 
   private _getPrimaryTranslations(): FlattenedMessages | undefined {
@@ -848,10 +891,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
       params?.tagInterpolation,
     );
 
-    const translations =
-      locale === this._locale && namespace === this._cachedDefaultNs
-        ? this._getPrimaryTranslations()
-        : this.messagesCache.get(locale, namespace);
+    const translations = this._catalog(locale, namespace);
     const template = translations?.[translationKey];
     if (template !== undefined) {
       const result = translate(
@@ -873,7 +913,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
 
     for (const fallbackLoc of fallbackLocales) {
-      const fallbackTranslations = this.messagesCache.get(fallbackLoc, namespace);
+      const fallbackTranslations = this._catalog(fallbackLoc, namespace);
       const fallbackTemplate = fallbackTranslations?.[translationKey];
       if (fallbackTemplate !== undefined) {
         const result = translate(

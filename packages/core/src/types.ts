@@ -1144,7 +1144,21 @@ export interface I18nCoreExtraApi {
 
   /** Every locale code that currently has translations cached. */
   getLoadedLocales: () => string[];
+
+  /**
+   * A read view whose `t` / `tRaw` / `hasTranslation` resolve `catalogs`
+   * first, for each call, and the cache otherwise. The i18n instance is not
+   * written. `catalogs` is keyed `"locale:namespace"` and holds flat catalogs
+   * (`flattenCatalog`).
+   */
+  withMessages(catalogs: Readonly<Record<string, FlattenedMessages>>): I18nMessagesView;
 }
+
+/** What {@link I18nCoreExtraApi.withMessages} returns. */
+export type I18nMessagesView<D extends DefaultTranslationParams = {}> = Pick<
+  I18nCoreInstance<D>,
+  "t" | "tRaw" | "hasTranslation"
+>;
 
 /**
  * The instance surface a framework wrapper (react/solid/svelte/vue/next/nuxt)
