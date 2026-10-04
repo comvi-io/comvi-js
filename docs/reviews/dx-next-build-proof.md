@@ -232,6 +232,40 @@ next/r (main): uk text under <html lang="de">; lang=de, greeting="[CDN] Прив
 report: test-results/examples-e2e/report-cdn.json
 ```
 
+## `next dev`: an edited config module is picked up without a restart
+
+Run on the commit after cd398ffa (README and error text only since ec2ff3d9). The project is
+`examples/next` installed from the packed tarballs (`pnpm examples:verify --only next --keep`),
+`next` 15.5.27, Node v24.19.0. Next 15 runs `next dev` on webpack by default, so it was run
+twice: once with `--turbopack` and once without the flag.
+
+The edit is in `src/i18n/config.ts`, the module `withComvi` aliases. It points the `en` import of
+the loader map at `de.json`. `/en`'s `<h1>` is rendered on the server by `getI18n({ locale })`
+through the aliased config. The edit was reverted afterwards and the file checked.
+
+```bash
+next dev --turbopack -p 3931   # then: next dev -p 3932
+curl -s http://localhost:3931/en | grep -o '<h1>[^<]*</h1>'
+sed -i '' 's#en: () => import("../locales/en.json")#en: () => import("../locales/de.json")#' src/i18n/config.ts
+curl -s http://localhost:3931/en | grep -o '<h1>[^<]*</h1>'   # same dev server process
+# revert the edit, then curl again
+```
+
+```text
+== next dev --turbopack   (▲ Next.js 15.5.27 (Turbopack))
+before edit: <h1>Comvi live example</h1>
+after edit, same dev server (pid 17335 alive: yes): <h1>Comvi Live-Beispiel</h1>
+after revert: <h1>Comvi live example</h1>
+== next dev (webpack)     (▲ Next.js 15.5.27)
+before edit: <h1>Comvi live example</h1>
+after edit, same dev server (pid 17401 alive: yes): <h1>Comvi Live-Beispiel</h1>
+after revert: <h1>Comvi live example</h1>
+```
+
+Both dev logs show only `Compiled` and `GET /en 200` lines around the edit, with no error and no
+comvi warning. This matches the development-reloads paragraph of the `next-runtimes` ADR
+amendment.
+
 ## Observed and unexplained: `--cdn --no-build --no-pack` integrity failure
 
 Once, on 27128a54, `pnpm examples:e2e --only next --cdn --no-build --no-pack`, run right after a

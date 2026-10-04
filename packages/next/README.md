@@ -84,12 +84,12 @@ export default async function LocaleLayout({
 }
 ```
 
-`createNextI18n` builds the host, and `withComvi` points the library at the module that exports
-it. The relative `config` path resolves from the directory Next runs in, and an absolute path
-works too. `withComvi` loads from `next.config.ts`, `.mjs` and `.js` alike, and it wraps an
-object or a function config. The server helpers and `<ComviProvider>` read the host from there, so you write no
+`createNextI18n` builds the i18n instance, and `withComvi` points the library at the module that
+exports it. A relative `config` path resolves against the directory you run `next` in, so run it
+from the app directory or pass an absolute path. `withComvi` loads from `next.config.ts`, `.mjs` and `.js` alike, and it wraps an
+object or a function config. The server helpers and `<ComviProvider>` read the i18n instance from there, so you write no
 registration module and no `"use client"` wrapper. `<ComviProvider>` loads the locale's
-catalogs on the server and hands them to the client host, so Client Components render the right
+catalogs on the server and hands them to the client's i18n instance, so Client Components render the right
 language on the first paint. `@comvi/next/server` guards itself: a Client Component that imports
 it fails `next build`. Without a `middleware.ts` the only routes are `/en` and `/uk`; see
 [Locale routing](https://comvi.io/docs/i18n/next/routing).
@@ -146,11 +146,11 @@ independent, and either works without the other.
 ## Specific to Next.js
 
 Seven entries: `@comvi/next`, `/client`, `/server`, `/navigation`, `/routing`, `/middleware` and
-`/plugin`. `/routing` and `/middleware` carry no host, and `/plugin` runs only in next.config.
+`/plugin`. `/routing` and `/middleware` carry no i18n instance, and `/plugin` runs only in next.config.
 `src/i18n/config.ts` is bundled into the server build and into the client build, and each build
 evaluates it once, so it must be client-safe. A loader that needs server-only code stays on the
 manual setup: `createNextI18nFromHost` in a server-only module and your own `"use client"` wrapper
-around `<I18nProvider>`. Never compose a locale detector on this host: the config module is
+around `<I18nProvider>`. Never compose a locale detector on this i18n instance: the config module is
 process-wide on the server, so the first request's headers would pin the locale for everyone.
 Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'client' })`; see
 [Plugin scoping](https://comvi.io/docs/i18n/next/server-client#plugin-scoping).
@@ -159,7 +159,7 @@ Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'c
 
 - [Next.js guide](https://comvi.io/docs/i18n/next): `withComvi`, `<ComviProvider>`, `loadTranslations()`, two runtimes, errors.
 - [Locale routing](https://comvi.io/docs/i18n/next/routing): `defineRouting`, the middleware and localized links.
-- [Next.js API reference](https://comvi.io/docs/i18n/api/next): every export of the six entries.
+- [Next.js API reference](https://comvi.io/docs/i18n/api/next): every export of the seven entries.
 
 ## License
 
