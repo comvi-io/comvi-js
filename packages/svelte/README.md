@@ -17,8 +17,8 @@
 
 ---
 
-`@comvi/svelte` puts the Comvi host on Svelte's context and hands your components `$t`, `$locale`
-and `<T>` as stores. It targets Svelte 5 and works with SvelteKit for SSR. The package depends on
+`@comvi/svelte` puts the i18n instance on Svelte's context and hands your components `$t` and
+`$locale` as stores, and `<T>` for markup inside a translation. It targets Svelte 5 and works with SvelteKit for SSR. The package depends on
 `@comvi/core`, so one install is enough. The full guide is
 [Svelte](https://comvi.io/docs/i18n/svelte) on the docs site.
 
@@ -53,7 +53,7 @@ npm install @comvi/svelte
 {@render children()}
 ```
 
-`createI18n` builds the host and `setI18nContext` puts it where `useI18n()` finds it. It also calls
+`createI18n` returns the i18n instance and `setI18nContext` puts it where `useI18n()` finds it. It also calls
 `init()` in a microtask, so there is no `init()` call to write; pass `{ autoInit: false }` to run it
 yourself, and `{ onError }` to see a failed auto-init. In a plain Vite app the same code goes in
 `src/App.svelte`.
@@ -134,9 +134,9 @@ independent, and either works without the other.
 - `<T components={{ link: 'a', policy: { tag: 'a', props: { href: '/privacy' } } }} />`: each tag
   maps to an element name, a `{ tag, props }` config, or a Svelte component that receives the tag's
   content as its `children` snippet. `<T>` builds real DOM nodes, never an HTML string.
-- `@comvi/svelte` ships no SvelteKit adapter and needs none. Build a fresh host per request and
+- `@comvi/svelte` ships no SvelteKit adapter and needs none. Build a fresh instance per request and
   never mutate a module-level singleton on the server. A `load` function returns plain data,
-  `{ locale, messages }`, never the host; construct the instance in `+layout.svelte` with
+  `{ locale, messages }`, never the instance; construct the instance in `+layout.svelte` with
   `setI18nContext(i18n, { autoInit: false })` seeded from that payload.
 - Set `lang` and `dir` on `<html>` from `$locale` and `$dir` in an `$effect`, or with
   `<svelte:html lang={$locale} dir={$dir} />` on Svelte 5.16 or newer.

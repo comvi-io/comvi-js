@@ -3,8 +3,8 @@ import type { AnyI18nHost, WrapperI18nHost } from "@comvi/core";
 import { autoInitPending, syncInitializing } from "./stores.js";
 
 /**
- * Loader/plugin-host capabilities are acquired separately through
- * `useI18nLoader()` / `useI18nPlugins()`, so the context accepts a host that
+ * Loader/plugin capabilities are acquired separately through
+ * `useI18nLoader()` / `useI18nPlugins()`, so the context accepts an instance that
  * never had them.
  */
 type Host = WrapperI18nHost;
@@ -30,7 +30,7 @@ export interface SetI18nContextOptions {
    * solid's providers expose as a provider prop. Nothing else can observe that
    * rejection: the init runs in a microtask this function does not return.
    *
-   * The host's own `onError` (the `createI18n({ onError })` option) still
+   * The instance's own `onError` (the `createI18n({ onError })` option) still
    * reports the failure FIRST, with `{ source: "init" }`; this handler is for
    * the app that wants to react in the component tree, not to replace it.
    *
@@ -91,8 +91,8 @@ export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOption
 }
 
 /**
- * The host the nearest `setI18nContext` ancestor provided, as a bare
- * `WrapperI18nHost` — THE name for "give me the host", the same in react,
+ * The instance the nearest `setI18nContext` ancestor provided, as a bare
+ * `WrapperI18nHost` — THE name for "give me the instance", the same in react,
  * solid and svelte (vue's equivalent is `inject(I18N_INJECTION_KEY).core`).
  * A context reader, so callable during component initialisation only.
  *

@@ -8,15 +8,15 @@ type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
  * One store set per instance, so repeated `useI18n()` / `<T>` calls do not
  * build duplicates.
  *
- * Keyed by object IDENTITY, not by a host type: `WrapperI18nHost<D>` is
+ * Keyed by object IDENTITY, not by an instance type: `WrapperI18nHost<D>` is
  * INVARIANT in `D` (`init(): Promise<this>` recurses back through the
- * `D`-typed `setDefaultParams`), so there is no single host type every host
+ * `D`-typed `setDefaultParams`), so there is no single instance type every instance
  * widens to. Nothing here reads `D` — every store below is `D`-free or
  * `D`-erased, and `createDefaultParamsStore` re-applies the caller's `D` on
  * the way out.
  */
 /**
- * Hosts whose `setI18nContext` auto-init is scheduled but not started yet.
+ * Instances whose `setI18nContext` auto-init is scheduled but not started yet.
  *
  * The auto-init runs a microtask after `setI18nContext` (so a manual
  * `i18n.init()` in the same setup still runs first), while the component
@@ -192,7 +192,7 @@ export function createCacheRevisionStore<D extends DefaultTranslationParams = {}
 /**
  * Shallow snapshot of the instance-level interpolation defaults, writable:
  * `store.set({ … })` / `$store = { … }` calls `setDefaultParams`, it does not
- * shadow the host's own value, and `undefined` clears them. Memoized per i18n
+ * shadow the instance's own value, and `undefined` clears them. Memoized per i18n
  * instance. The solid counterpart is
  * `solid/src/primitives.ts:createDefaultParamsState`, which returns the setter
  * beside the accessor instead (its `create*Signal` half reads only).
@@ -206,7 +206,7 @@ export function createDefaultParamsStore<D extends DefaultTranslationParams = {}
 /**
  * The default namespace, writable: assigning into it (`$store = "admin"` or
  * `store.set("admin")`) writes through to `setDefaultNamespace`, it does not
- * shadow the host's own value. Memoized per i18n instance. The solid
+ * shadow the instance's own value. Memoized per i18n instance. The solid
  * counterpart is `solid/src/primitives.ts:createDefaultNamespaceState`, which
  * returns the same axis as a signal + setter tuple.
  */

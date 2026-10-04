@@ -31,7 +31,7 @@ import type {
   LocaleSource,
 } from "@comvi/core";
 
-/** Loader/plugin-host members are NOT part of it — see `capabilities.ts`. */
+/** Loader/plugin members are NOT part of it — see `capabilities.ts`. */
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 const DEFAULT_NS_CACHE_KEY = Symbol("comvi-default-ns");
@@ -62,7 +62,7 @@ type CachedTextTranslationStore = TextTranslationStore<{}>;
  *
  * Keyed by object IDENTITY: `WrapperI18nHost<D>` is INVARIANT in `D`
  * (`init(): Promise<this>` recurses back through the `D`-typed
- * `setDefaultParams`), so there is no host type every host widens to. The
+ * `setDefaultParams`), so there is no instance type every instance widens to. The
  * cached stores are `D`-erased and re-typed per caller on the way out.
  */
 const rawTranslationStoreCache = new WeakMap<
@@ -130,10 +130,10 @@ function getOrCreateTextTranslationStore<D extends DefaultTranslationParams>(
 }
 
 /**
- * The host-only translation surface. Loader and plugin-host members are not
- * part of it — they do not exist on a base host, and svelte is the wrapper
+ * The base-instance translation surface. Loader and plugin members are not
+ * part of it — they do not exist on a base instance, and svelte is the wrapper
  * where promising them crashed EAGERLY: `useI18n()` `.bind()`s its members at
- * call time, so a base host threw before returning anything.
+ * call time, so a base instance threw before returning anything.
  */
 export interface UseI18nReturn<
   D extends DefaultTranslationParams = {},
