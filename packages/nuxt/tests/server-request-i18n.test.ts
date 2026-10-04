@@ -34,7 +34,7 @@ function createHost(locale = "en") {
   const host = {
     locale,
     init: vi.fn().mockResolvedValue(undefined),
-    setLocaleAsync: vi.fn(async (next: string) => {
+    setLocale: vi.fn(async (next: string) => {
       host.locale = next;
     }),
   };
@@ -339,7 +339,7 @@ describe("getRequestI18n", () => {
       const back = await getRequestI18n(event, "en");
 
       expect(back.locale).toBe("en");
-      expect(shared.setLocaleAsync).toHaveBeenCalledWith("en");
+      expect(shared.setLocale).toHaveBeenCalledWith("en");
     });
   });
 

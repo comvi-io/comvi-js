@@ -187,7 +187,7 @@ async function loadTranslationsForLocale(
   namespaces: string[],
 ): Promise<void> {
   if (i18n.locale !== locale) {
-    await i18n.setLocaleAsync(locale);
+    await i18n.setLocale(locale);
   }
 
   if (!hasLoaderApi(i18n)) {

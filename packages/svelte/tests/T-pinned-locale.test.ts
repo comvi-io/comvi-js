@@ -161,7 +161,7 @@ describe("T.svelte pinned locale — rendered output", () => {
 
     expect(rendered()).toBe("Hallo");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     await settle();
 
     expect(rendered()).toBe("Hallo");

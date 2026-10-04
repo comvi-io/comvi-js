@@ -31,7 +31,7 @@ type Host = {
   isInitialized: boolean;
   locale: string;
   on(event: string, cb: (data?: unknown) => void): () => void;
-  setLocaleAsync(value: string): Promise<void>;
+  setLocale(value: string): Promise<void>;
   addActiveNamespace(ns: string): Promise<void>;
   registerLoader(fn: (locale: string, ns: string) => unknown): void;
   registerPlugin(fn: (host: unknown) => unknown): unknown;
@@ -143,7 +143,7 @@ describe.each([["prod", ""] as const, ["dev", ".dev"] as const])(
       i18n.addTranslations({ en: { hello: "Hello" } });
       await i18n.init();
 
-      const switchPromise = i18n.setLocaleAsync("fr");
+      const switchPromise = i18n.setLocale("fr");
       await flush();
 
       await i18n.destroy();

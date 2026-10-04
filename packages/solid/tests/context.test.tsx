@@ -195,7 +195,7 @@ describe("solid context", () => {
     await flushMicrotasks();
     expect(container.textContent).toBe("fr");
 
-    await first.setLocaleAsync("de");
+    await first.setLocale("de");
     await flushMicrotasks(2);
 
     expect(container.textContent).toBe("fr");

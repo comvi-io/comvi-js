@@ -36,7 +36,7 @@ export interface CdnLoad {
  * One request per `locale:namespace`, under a timeout that covers the response
  * BODY, with the `fallback` import map behind it. Nothing here is retried: core's
  * fallback-locale loop already sits in front of it, and retrying would multiply
- * what `setLocaleAsync` costs on a flapping CDN.
+ * what `setLocale` costs on a flapping CDN.
  *
  * Cancellation is not this module's decision. It asks `requests` for a signal,
  * and every point where a result could still be published re-checks it: a load

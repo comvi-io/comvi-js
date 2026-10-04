@@ -104,7 +104,7 @@ describe("published createNextI18n — composed capabilities", () => {
     await i18n.init();
 
     expect(i18n.t("k")).toBe("EN");
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
     expect(i18n.t("k")).toBe("DE");
   });
 

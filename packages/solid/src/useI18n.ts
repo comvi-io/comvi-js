@@ -73,7 +73,7 @@ export interface UseI18nReturn<
   defaultParams: Accessor<DefaultParamsSnapshot<D>>;
 
   /** Resolves once translations for the new locale have loaded. */
-  setLocale: Host["setLocaleAsync"];
+  setLocale: Host["setLocale"];
 
   addTranslations: Host["addTranslations"];
 
@@ -236,7 +236,7 @@ export function useI18n<
     // not have, and a closure over an absent member is a silent "undefined is
     // not a function" at CALL time. `useI18nLoader()` / `useI18nPlugins()`
     // acquire them instead, throwing one named error at the acquisition point.
-    setLocale: (...args) => ctx.i18n.setLocaleAsync(...args),
+    setLocale: (...args) => ctx.i18n.setLocale(...args),
     addTranslations: (...args) => ctx.i18n.addTranslations(...args),
     setFallbackLocale: (...args) => ctx.i18n.setFallbackLocale(...args),
     setDefaultParams: (params) => ctx.i18n.setDefaultParams(params as never),

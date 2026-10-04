@@ -5,7 +5,7 @@
  * `plugins-failure-reports.test.ts` pins the empty-string case (a detector may
  * decline). The claim here is the other half of the same guard: a detector that
  * merely CONFIRMS the current locale must be a no-op. Handing it to
- * `setLocaleAsync` would look harmless — the locale is already applied — but
+ * `setLocale` would look harmless — the locale is already applied — but
  * that call bumps the change id, and the bump cancels the switch a plugin
  * started a moment earlier.
  */
@@ -32,7 +32,7 @@ describe("init() with a locale detector", () => {
     i18n.on("localeChanged", ({ from, to }) => changes.push(`${from}->${to}`));
     let switching!: Promise<void>;
     i18n.registerPlugin((host) => {
-      switching = host.setLocaleAsync("fr");
+      switching = host.setLocale("fr");
       host.registerLocaleDetector(() => "en");
     });
 

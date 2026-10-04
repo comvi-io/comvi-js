@@ -50,7 +50,7 @@ async function main() {
   assertEqual(i18n.t("absent"), "from-callback", "missing-key callback fallback");
 
   // Locale switch loads the active namespaces through the attached loader.
-  await i18n.setLocaleAsync("fr");
+  await i18n.setLocale("fr");
   assertEqual(i18n.t("hello"), "Bonjour", "locale switch loads through the loader");
 
   // reloadTranslations must refetch, not resolve from the cache.
@@ -85,7 +85,7 @@ async function main() {
   assertEqual(pipedOrder, ["plugin"], "plugins() hosts plugins through the pipe");
   assertEqual(piped.getPluginData("probe"), "set", "plugin data survives the pipe");
 
-  await piped.setLocaleAsync("fr");
+  await piped.setLocale("fr");
   assertEqual(piped.t("hello"), "Bonjour", "the piped import map loads on demand");
 
   // Composing a capability the host already has must change nothing. The

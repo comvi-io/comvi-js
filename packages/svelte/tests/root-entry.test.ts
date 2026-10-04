@@ -190,7 +190,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
     await i18n.init();
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
 
-    await i18n.setLocaleAsync("uk");
+    await i18n.setLocale("uk");
     expect(i18n.t("items" as never, { count: 3 } as never)).toBe("3 items");
   });
 

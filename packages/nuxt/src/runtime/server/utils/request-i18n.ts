@@ -101,7 +101,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
   }
 
   if (i18n.locale !== locale) {
-    await i18n.setLocaleAsync(locale);
+    await i18n.setLocale(locale);
   }
 
   return i18n;

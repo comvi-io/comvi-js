@@ -129,7 +129,7 @@ describe("clearTranslations() namespace scoping", () => {
     expect(i18n.t("key", { ns: "admin" })).toBe("key");
     expect(i18n.getActiveNamespaces()).toContain("admin");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(loaderCalls).toEqual(["en:admin", "fr:admin"]);
   });
@@ -152,7 +152,7 @@ describe("reloadTranslations(locale, namespace)", () => {
 
     await i18n.init();
     await i18n.addActiveNamespaces(["common", "admin"]);
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(i18n.t("marker", { locale: "fr", ns: "admin" })).toBe("fr:admin:v1");
     expect(i18n.t("marker", { locale: "fr", ns: "common" })).toBe("fr:common:v1");

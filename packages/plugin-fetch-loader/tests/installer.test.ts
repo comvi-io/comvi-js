@@ -34,7 +34,7 @@ describe("fetchLoader() installer", () => {
     expect(i18n.getPluginData(FETCH_LOADER_PLUGIN_KEY)).toMatchObject({ cdnUrl: TEST_CDN_URL });
     expect(i18n.t("greeting")).toBe("Hello");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     expect(i18n.t("greeting")).toBe("Bonjour");
 
     await i18n.destroy();

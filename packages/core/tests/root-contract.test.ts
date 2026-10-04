@@ -44,7 +44,7 @@ const BASE_PROTOTYPE_METHODS = [
   "use",
   "t",
   "tRaw",
-  "setLocaleAsync",
+  "setLocale",
   "setFallbackLocale",
   "setDefaultParams",
   "setDefaultNamespace",

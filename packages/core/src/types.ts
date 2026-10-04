@@ -1140,7 +1140,7 @@ export interface I18nCoreExtraApi {
   destroy: () => Promise<void>;
 
   /** Set the locale and wait for the active namespaces to load. */
-  setLocaleAsync: (value: string) => Promise<void>;
+  setLocale: (value: string) => Promise<void>;
 
   /** The current default namespace. */
   getDefaultNamespace: () => string;

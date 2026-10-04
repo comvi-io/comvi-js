@@ -37,7 +37,7 @@ describe("solid integration smoke", () => {
 
     expect(container.textContent).toBe("enHello");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     await flushMicrotasks();
 
     expect(container.textContent).toBe("frBonjour");

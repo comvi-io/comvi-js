@@ -82,7 +82,7 @@ describe("react on a base host", () => {
     const { result } = renderHook(() => useI18n(), { wrapper: wrapperFor(i18n) });
 
     await act(async () => {
-      await i18n.setLocaleAsync("fr");
+      await i18n.setLocale("fr");
     });
 
     expect(result.current.locale).toBe("fr");

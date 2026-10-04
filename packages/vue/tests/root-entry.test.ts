@@ -178,7 +178,7 @@ describe("@comvi/vue — the capability toolkit", () => {
     await core.init();
     expect(i18n.t("greeting" as never)).toBe("Hello");
 
-    await core.setLocaleAsync("uk");
+    await core.setLocale("uk");
     expect(i18n.t("greeting" as never)).toBe("Привіт");
   });
 

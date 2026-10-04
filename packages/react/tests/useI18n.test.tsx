@@ -204,7 +204,7 @@ describe("useI18n", () => {
     });
   });
 
-  it("proxies setLocale() to i18n.setLocaleAsync()", async () => {
+  it("proxies setLocale() to i18n.setLocale()", async () => {
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
 
@@ -212,7 +212,7 @@ describe("useI18n", () => {
       await result.current.setLocale("fr");
     });
 
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("fr");
+    expect(fake.setLocale).toHaveBeenCalledWith("fr");
   });
 
   it("proxies addTranslations() and updates translation cache reference data", () => {
@@ -333,8 +333,8 @@ describe("useI18n", () => {
       await setLocale!("fr");
     });
 
-    expect(second.setLocaleAsync).toHaveBeenCalledWith("fr");
-    expect(first.setLocaleAsync).not.toHaveBeenCalled();
+    expect(second.setLocale).toHaveBeenCalledWith("fr");
+    expect(first.setLocale).not.toHaveBeenCalled();
   });
 
   it("throws when used outside I18nProvider", () => {

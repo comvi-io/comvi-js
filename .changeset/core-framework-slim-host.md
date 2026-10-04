@@ -16,7 +16,7 @@ Core enablers for framework bindings running on the base `@comvi/core` host.
 - **`subscribeToRevision`, `REVISION_EVENTS` and `isVirtualNode`** are exported from
   `@comvi/core`, so a binding that reads reactivity events or sniffs virtual nodes reaches
   them without pulling ambient tag registration into its bundle.
-- **`setLocaleAsync`'s race machinery moved to `@comvi/core/loader`** — staleness
+- **`setLocale`'s race machinery moved to `@comvi/core/loader`** — staleness
   arbitration, mid-flight cancellation and the loading refcount only mean something when a
   load can be in flight. On any host with the loader capability behaviour is identical, down
   to the event order (`loadingStateChanged` → `localeChanged` → `loadingStateChanged`), and

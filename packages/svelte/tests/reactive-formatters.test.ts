@@ -40,7 +40,7 @@ describe("useI18n formatters follow the locale (F-18)", () => {
     await tick();
     expect(text("currency")).toBe("€1,234.50");
 
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
     await tick();
     expect(text("currency")).toBe(eur("de"));
     expect(text("currency")).toBe("1.234,50 €");
@@ -52,7 +52,7 @@ describe("useI18n formatters follow the locale (F-18)", () => {
     await tick();
     expect(text("date")).toBe(longDate("en"));
 
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
     await tick();
     expect(text("date")).toBe(longDate("de"));
   });
@@ -70,7 +70,7 @@ describe("useI18n formatters follow the locale (F-18)", () => {
     };
     for (const [id, value] of Object.entries(expected)) expect(text(id)).toBe(value);
 
-    await i18n.setLocaleAsync("ar");
+    await i18n.setLocale("ar");
     await tick();
     // The active locale did move: the unpinned currency is Arabic now.
     expect(text("currency")).toBe(eur("ar"));

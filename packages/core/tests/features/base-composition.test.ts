@@ -29,10 +29,10 @@ describe("base + /loader composition", () => {
   it("installs the capability as non-enumerable own properties", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
-    // `setLocaleAsync` is the race-machinery OVERRIDE: it shadows the base
+    // `setLocale` is the race-machinery OVERRIDE: it shadows the base
     // prototype method and must carry the same class-method descriptor as every
     // other attached member.
-    for (const name of ["registerLoader", "getLoader", "reloadTranslations", "setLocaleAsync"]) {
+    for (const name of ["registerLoader", "getLoader", "reloadTranslations", "setLocale"]) {
       const descriptor = Object.getOwnPropertyDescriptor(i18n, name);
       expect(descriptor, name).toBeDefined();
       expect(
@@ -73,7 +73,7 @@ describe("base + /loader composition", () => {
 
     expect(i18n.t("hello")).toBe("Hello");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     expect(i18n.t("hello")).toBe("Bonjour");
 
     store["fr:default"] = { hello: "Salut" };
@@ -737,7 +737,7 @@ describe(".use(loader(…)) — the configured loader installer", () => {
     // Lazy by construction: the locale that was never active never imported.
     expect(uk).not.toHaveBeenCalled();
 
-    await i18n.setLocaleAsync("uk");
+    await i18n.setLocale("uk");
     expect(i18n.t("hello")).toBe("Привіт");
     expect(uk).toHaveBeenCalledOnce();
   });

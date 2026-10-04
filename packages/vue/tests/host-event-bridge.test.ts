@@ -43,7 +43,7 @@ describe("VueI18n host event bridge", () => {
     watch(i18n.loadedLocales, (locales) => loadedSeen.push([...locales]));
 
     host.addTranslations({ "fr:common": { hello: "Bonjour" } });
-    await host.setLocaleAsync("fr");
+    await host.setLocale("fr");
     await nextTick();
 
     expect(localeSeen).toEqual([]);
@@ -77,7 +77,7 @@ describe("VueI18n host event bridge", () => {
     const localeSeen: string[] = [];
     watch(i18n.locale, (locale) => localeSeen.push(locale));
 
-    await host.setLocaleAsync("fr");
+    await host.setLocale("fr");
     emit("loadingStateChanged");
     await nextTick();
 
@@ -86,7 +86,7 @@ describe("VueI18n host event bridge", () => {
 
   it("does not ask the host to change to the locale it already has", async () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
-    const changeHostLocale = vi.spyOn(i18n.core, "setLocaleAsync");
+    const changeHostLocale = vi.spyOn(i18n.core, "setLocale");
 
     await i18n.setLocale("en");
 

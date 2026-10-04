@@ -67,10 +67,10 @@ describe("compiler option — every catalog source", () => {
       items: locale === "uk" ? "{count, plural, one {# річ} few {# речі} other {# речей}}" : PLURAL,
     }));
     await i18n.init();
-    await i18n.setLocaleAsync("uk");
+    await i18n.setLocale("uk");
     await i18n.reloadTranslations();
     expect(i18n.t("items", { count: 3 })).toBe("3 речі");
-    await i18n.setLocaleAsync("en");
+    await i18n.setLocale("en");
     expect(i18n.t("items", { count: 1 })).toBe("1 item");
   });
 

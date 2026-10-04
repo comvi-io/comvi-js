@@ -141,7 +141,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * transition at all; this override is what makes a locale switch an
    * observable loading operation.
    */
-  public override async setLocaleAsync(value: string): Promise<void> {
+  public override async setLocale(value: string): Promise<void> {
     // The early exit must compare against the LAST REQUESTED locale, not the
     // applied one: reverting to the current locale while another change is in
     // flight has to cancel that change (the bump invalidates its changeId).

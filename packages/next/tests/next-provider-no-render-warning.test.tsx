@@ -239,7 +239,7 @@ describe("Test B — locale round-trip: mutating provider mounts 3 times (de→e
     const { rerender, getByTestId } = render(<Host cycleKey={0} messages={DE} />);
 
     await act(async () => {
-      await fake.setLocaleAsync("de");
+      await fake.setLocale("de");
       await flushMicrotasks();
     });
 
@@ -254,7 +254,7 @@ describe("Test B — locale round-trip: mutating provider mounts 3 times (de→e
     for (const [cycleKey, messages, locale, expected] of trips) {
       await act(async () => {
         rerender(<Host cycleKey={cycleKey} messages={messages} />);
-        await fake.setLocaleAsync(locale);
+        await fake.setLocale(locale);
         await flushMicrotasks();
       });
 

@@ -3,7 +3,7 @@
  *
  * Every JSON request the loader makes is two waits: the response, then reading
  * it. A timer that is cleared once the headers arrive leaves the second wait
- * unbounded, so a server that answers and then stalls holds `setLocaleAsync`
+ * unbounded, so a server that answers and then stalls holds `setLocale`
  * open forever and `onLoadError` never fires. Each test here stalls the body of
  * one request shape and asserts the timeout still lands.
  */

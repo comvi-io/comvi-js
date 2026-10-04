@@ -1,5 +1,5 @@
 /**
- * What the loader's `setLocaleAsync` override decides BEFORE it awaits, and
+ * What the loader's `setLocale` override decides BEFORE it awaits, and
  * how it arbitrates between requests once it has.
  *
  * Two claims the race machinery rests on and that `locale-race.test.ts` does
@@ -19,7 +19,7 @@ type Catalog = Record<string, string>;
 
 const makeHost = () => attachLoader(createI18n({ locale: "en", ns: [] }));
 
-describe("setLocaleAsync() with a loader that has nothing to fetch", () => {
+describe("setLocale() with a loader that has nothing to fetch", () => {
   it("applies the locale synchronously when no namespace is active", () => {
     const load = vi.fn(async () => ({}));
     const i18n = makeHost();
@@ -37,14 +37,14 @@ describe("setLocaleAsync() with a loader that has nothing to fetch", () => {
     i18n.registerLoader(load);
     i18n.addTranslations({ en: { hi: "Hi" }, fr: { hi: "Salut" } });
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(load).not.toHaveBeenCalled();
     expect(i18n.t("hi")).toBe("Salut");
   });
 });
 
-describe("setLocaleAsync() staleness arbitration", () => {
+describe("setLocale() staleness arbitration", () => {
   it("keeps a superseded request suppressed after a cancel and a later switch (sequence)", async () => {
     const requested: string[] = [];
     const settlers = new Map<string, Deferred<Catalog>>();
@@ -67,10 +67,10 @@ describe("setLocaleAsync() staleness arbitration", () => {
     const changes: string[] = [];
     i18n.on("localeChanged", ({ from, to }) => changes.push(`${from}->${to}`));
 
-    const toFr = i18n.setLocaleAsync("fr");
+    const toFr = i18n.setLocale("fr");
     // Re-requesting the CURRENT locale cancels the in-flight switch.
-    await i18n.setLocaleAsync("en");
-    const toDe = i18n.setLocaleAsync("de");
+    await i18n.setLocale("en");
+    const toDe = i18n.setLocale("de");
 
     expect(requested).toEqual(["fr:default", "de:default"]);
 

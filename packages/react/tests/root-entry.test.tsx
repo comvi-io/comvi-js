@@ -113,7 +113,7 @@ describe("@comvi/react — the capability toolkit", () => {
     await i18n.init();
     expect(i18n.t("greeting" as never)).toBe("Hello");
 
-    await i18n.setLocaleAsync("uk");
+    await i18n.setLocale("uk");
     expect(i18n.t("greeting" as never)).toBe("Привіт");
   });
 

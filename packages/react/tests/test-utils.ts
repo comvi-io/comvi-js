@@ -4,7 +4,7 @@ import type { I18n } from "../src";
 /** act()-wrapped, so the provider update does not warn. */
 export const setLocale = async (i18n: I18n, locale: string) => {
   await act(async () => {
-    await i18n.setLocaleAsync(locale);
+    await i18n.setLocale(locale);
   });
 };
 

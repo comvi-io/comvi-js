@@ -39,7 +39,7 @@ describe("Solid primitives", () => {
 
     const locale = createTestRoot(() => createLocaleSignal(i18n));
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(locale()).toBe("fr");
   });
@@ -117,11 +117,11 @@ describe("Solid primitives", () => {
       dispose: disposeRoot,
     }));
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     expect(locale()).toBe("fr");
 
     dispose();
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
 
     expect(locale()).toBe("fr");
   });

@@ -25,7 +25,7 @@ Solid and Svelte read the reactive locale inside each formatter.
   binding they follow the locale being rendered: a call in markup or in that framework's derived
   value re-runs on a switch. A trailing `locale` argument overrides the active one. There is no
   per-binding exception to document.
-- **Core behaves identically under all of them.** `setLocaleAsync` and the synchronous `locale`
+- **Core behaves identically under all of them.** `setLocale` and the synchronous `locale`
   setter both move what the formatters read.
 
 ## Consequences

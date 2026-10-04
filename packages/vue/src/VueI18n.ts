@@ -344,7 +344,7 @@ export class VueI18n<
     this._requestedLocale = target;
     const run = async () => {
       if (this.core.locale !== target) {
-        await this.core.setLocaleAsync(target);
+        await this.core.setLocale(target);
       }
     };
 

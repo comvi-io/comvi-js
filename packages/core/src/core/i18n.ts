@@ -145,7 +145,7 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
 
   // `_currentLocaleChangeId`/`_requestedLocale` arbitrate rapid locale
   // switches; they live here rather than on the base because only the
-  // `/loader` `setLocaleAsync` override can have a load in flight.
+  // `/loader` `setLocale` override can have a load in flight.
   _loader?: LoaderFn;
   _pendingLoads: Record<string, Promise<void> | undefined>;
   _nsGeneration: number;
@@ -177,7 +177,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * Optional and never initialized, so a host that was never destroyed does
    * not carry it as an own property. It does NOT replace `_isDestroyed`: the
    * flag has to be readable SYNCHRONOUSLY, because `init()`, `_beforeInit` and
-   * `setLocaleAsync` re-read it right after their own awaits.
+   * `setLocale` re-read it right after their own awaits.
    */
   private _destroyAttempt?: Promise<void>;
   private _loadingCount: number = 0;
@@ -524,7 +524,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     // Fire-and-forget: the synchronous setter cannot await the namespace load,
     // so a failure is surfaced as an event instead. Already went through
     // reportError — do not log it a second time.
-    this.setLocaleAsync(value).catch((error) => {
+    this.setLocale(value).catch((error) => {
       this._emit("loadError", {
         locale: value,
         namespace: "locale-change",
@@ -542,7 +542,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * cancellation, loading refcount); both paths keep this `Promise`-returning
    * signature.
    */
-  async setLocaleAsync(value: string): Promise<void> {
+  async setLocale(value: string): Promise<void> {
     if (this._locale === value) return;
 
     const oldLocale = this._locale;
@@ -667,7 +667,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /**
    * Reference-counted so overlapping async loads emit one state change.
    * `_isInitializing` is owned by `init()` exclusively — nested loads (e.g. a
-   * locale detector calling setLocaleAsync mid-init) must not clear it.
+   * locale detector calling setLocale mid-init) must not clear it.
    */
   protected _setLoadingState(isLoading: boolean): void {
     const wasLoading = this._loadingCount > 0;

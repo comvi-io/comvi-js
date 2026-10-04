@@ -109,7 +109,7 @@ describe("createNextI18n composed host — reflective contract (B7)", () => {
     await i18n.init();
 
     expect(i18n.t("k")).toBe("EN");
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
     expect(i18n.t("k")).toBe("DE");
 
     const fn = createNextI18n({ ...ROUTING });

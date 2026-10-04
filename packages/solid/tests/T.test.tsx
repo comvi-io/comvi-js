@@ -314,7 +314,7 @@ describe("T.tsx", () => {
     expect(unpinned.textContent).toBe("locale=en");
     const callsAfterRender = fake.tRaw.mock.calls.length;
 
-    await fake.setLocaleAsync("de");
+    await fake.setLocale("de");
     await flushMicrotasks(2);
 
     expect(unpinned.textContent).toBe("locale=de");
@@ -420,7 +420,7 @@ describe("T.tsx", () => {
 
     expect(container.textContent).toBe("Hello");
 
-    await fake.setLocaleAsync("fr");
+    await fake.setLocale("fr");
     await flushMicrotasks();
 
     expect(container.textContent).toBe("Bonjour");
@@ -480,7 +480,7 @@ describe("T.tsx", () => {
     ));
     const mounted = container.querySelector("span");
 
-    await fake.setLocaleAsync("fr");
+    await fake.setLocale("fr");
     await flushMicrotasks(2);
 
     expect(container.querySelector("span")).toBe(mounted);

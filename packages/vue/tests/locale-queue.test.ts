@@ -173,7 +173,7 @@ describe("VueI18n locale queue", () => {
     const onError = vi.fn();
     const i18n = createI18n({ locale: "en", exposeGlobal: false, onError });
     const failure = new Error("host refused the locale");
-    vi.spyOn(i18n.core, "setLocaleAsync").mockRejectedValue(failure);
+    vi.spyOn(i18n.core, "setLocale").mockRejectedValue(failure);
 
     i18n.locale.value = "fr";
     await flushPromises();
@@ -185,7 +185,7 @@ describe("VueI18n locale queue", () => {
     const onError = vi.fn();
     const i18n = createI18n({ locale: "en", exposeGlobal: false, onError });
     const failure = new Error("host refused the locale");
-    vi.spyOn(i18n.core, "setLocaleAsync").mockRejectedValue(failure);
+    vi.spyOn(i18n.core, "setLocale").mockRejectedValue(failure);
 
     i18n.locale = "fr";
     await flushPromises();

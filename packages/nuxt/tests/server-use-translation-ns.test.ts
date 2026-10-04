@@ -43,7 +43,7 @@ function createI18nStub() {
     locale: "en",
     init: vi.fn().mockResolvedValue(undefined),
     use: vi.fn(),
-    setLocaleAsync: vi.fn(async (next: string) => {
+    setLocale: vi.fn(async (next: string) => {
       i18n.locale = next;
     }),
     hasLocale: vi.fn((locale: string, ns = "common") => loaded.has(`${locale}:${ns}`)),

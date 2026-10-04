@@ -115,7 +115,7 @@ export interface FetchLoaderOptions {
    *
    * Only the project-info request is retried. The CDN namespace load and the
    * API translations request are not: core's fallback-locale loop already sits
-   * behind them, and retrying there would multiply what `setLocaleAsync` costs
+   * behind them, and retrying there would multiply what `setLocale` costs
    * on a flapping CDN.
    * @default true
    */

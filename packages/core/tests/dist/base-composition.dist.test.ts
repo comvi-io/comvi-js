@@ -98,7 +98,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
 
     expect(i18n.t("hello")).toBe("Hello");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     expect(i18n.t("hello")).toBe("Bonjour");
 
     store["fr:default"] = { hello: "Salut" };

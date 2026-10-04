@@ -7,7 +7,7 @@ export interface UseSetLocaleTransitionReturn {
 }
 
 /**
- * Wraps `i18n.setLocaleAsync()` in a React `useTransition` so the old UI
+ * Wraps `i18n.setLocale()` in a React `useTransition` so the old UI
  * remains interactive while the new locale loads.
  *
  * `isPending` covers the whole switch, including the async catalog load. The
@@ -52,7 +52,7 @@ export function useSetLocaleTransition(): UseSetLocaleTransitionReturn {
         }
 
         i18n
-          .setLocaleAsync(locale)
+          .setLocale(locale)
           .catch((err) => {
             const error = err instanceof Error ? err : new Error(String(err));
             i18n.reportError(error, { source: "setLocale", locale });

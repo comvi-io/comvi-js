@@ -62,14 +62,14 @@ describe("clearTranslations() then reloadTranslations()", () => {
   });
 });
 
-describe("clearTranslations() then setLocaleAsync()", () => {
+describe("clearTranslations() then setLocale()", () => {
   it("loads the still-active namespaces for the new locale", async () => {
     const { i18n, loads } = recordingHost();
     await i18n.addActiveNamespace("nav");
     loads.length = 0;
 
     i18n.clearTranslations();
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
 
     expect(loads).toEqual(["de:nav"]);
   });

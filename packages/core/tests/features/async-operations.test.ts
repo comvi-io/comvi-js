@@ -5,8 +5,8 @@ import { createDeferred, type Deferred } from "../helpers/deferred";
 
 type Catalog = Record<string, string>;
 
-describe("setLocaleAsync() / addActiveNamespace() concurrency", () => {
-  it("setLocaleAsync uses latest request and ignores stale results", async () => {
+describe("setLocale() / addActiveNamespace() concurrency", () => {
+  it("setLocale uses latest request and ignores stale results", async () => {
     const deferreds = new Map<string, Deferred<Catalog>>();
     const pending = (key: string): Deferred<Catalog> => {
       const existing = deferreds.get(key);
@@ -27,9 +27,9 @@ describe("setLocaleAsync() / addActiveNamespace() concurrency", () => {
     pending("en:common").resolve({ key: "value_en" });
     await addPromise;
 
-    const toFr = i18n.setLocaleAsync("fr");
-    const toDe = i18n.setLocaleAsync("de");
-    const toEs = i18n.setLocaleAsync("es");
+    const toFr = i18n.setLocale("fr");
+    const toDe = i18n.setLocale("de");
+    const toEs = i18n.setLocale("es");
 
     pending("es:common").resolve({ key: "value_es" });
     pending("fr:common").resolve({ key: "value_fr" });

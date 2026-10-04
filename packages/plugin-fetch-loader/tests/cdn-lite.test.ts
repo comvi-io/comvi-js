@@ -46,7 +46,7 @@ describe("cdnLoader() installer", () => {
 
     const i18n = base().use(cdnLoader({ cdnUrl: TEST_CDN_URL }));
     await i18n.init();
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(i18n.t("greeting")).toBe("Bonjour");
 

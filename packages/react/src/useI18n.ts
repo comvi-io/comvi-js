@@ -303,7 +303,7 @@ export function useI18n<
     }
     return {
       ...methods,
-      setLocale: (loc: string) => i18n.setLocaleAsync(loc),
+      setLocale: (loc: string) => i18n.setLocale(loc),
     };
   }, [i18n]);
 

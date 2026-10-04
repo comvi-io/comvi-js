@@ -43,8 +43,8 @@ await i18n.init();
 
 `.use(localeDetector())` composes the plugin capability and registers the detector; every option
 is optional. `init()` runs the detector after every plugin has registered, so a loader composed
-next to it is in place, and applies the result through `setLocaleAsync()`, so the new locale's
-namespaces load before it takes effect. Every later `setLocaleAsync()`, including the one your
+next to it is in place, and applies the result through `setLocale()`, so the new locale's
+namespaces load before it takes effect. Every later `setLocale()`, including the one your
 switcher makes, is written to every configured cache. On a framework binding the same `.use()`
 goes inside the `createI18n` expression, before the provider or plugin starts `init()`.
 
@@ -91,7 +91,7 @@ and need no detector on the host. See
 ## Next steps
 
 - [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector): common setups, the tag validation rule.
-- [Language switching](https://comvi.io/docs/i18n/language-switching): `setLocaleAsync`, persistence and direction.
+- [Language switching](https://comvi.io/docs/i18n/language-switching): `setLocale`, persistence and direction.
 - [Plugins overview](https://comvi.io/docs/i18n/plugins): installers, plugin factories and registration options.
 
 ## License

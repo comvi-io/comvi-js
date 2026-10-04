@@ -98,7 +98,7 @@ describe("solid on a base host", () => {
 
     expect(container.textContent).toBe("Hello, Ada!|en");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(container.textContent).toBe("Bonjour, Ada !|fr");
   });

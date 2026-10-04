@@ -42,7 +42,7 @@ describe("svelte integration smoke", () => {
 
     expect(hook()).toBe("Hello-en");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     await tick();
 
     expect(hook()).toBe("Bonjour-fr");

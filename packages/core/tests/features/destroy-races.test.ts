@@ -216,7 +216,7 @@ describe("a locale switch racing destroy()", () => {
     i18n.addTranslations({ en: { hello: "Hello" } });
     await i18n.init();
 
-    const switchPromise = i18n.setLocaleAsync("fr");
+    const switchPromise = i18n.setLocale("fr");
     await flushMicrotasks();
     // Registered AFTER init so only the switch's emit can reach it; destroy
     // clears every subscription at phase 2, which is why the assertion below
@@ -233,7 +233,7 @@ describe("a locale switch racing destroy()", () => {
 
   it("still applies synchronously with no loader in the graph", () => {
     // The no-loader path CANNOT have a switch in flight: the base
-    // `setLocaleAsync` awaits nothing, which is what makes `i18n.locale = "fr"`
+    // `setLocale` awaits nothing, which is what makes `i18n.locale = "fr"`
     // apply in the same tick. Pinned here so the destroy re-check above is
     // never "fixed" into a version that adds a tick to this path.
     const i18n = createBaseI18n({ locale: "en", exposeGlobal: false });

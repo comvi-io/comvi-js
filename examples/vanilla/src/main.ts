@@ -90,7 +90,7 @@ function localeButton(code: string): HTMLButtonElement {
   button.textContent = code;
   button.dataset.testid = `locale-${code}`;
   button.setAttribute("aria-pressed", String(i18n.locale === code));
-  // `setLocaleAsync` resolves once the catalog for the new locale has landed,
+  // `setLocale` resolves once the catalog for the new locale has landed,
   // so there is no frame where the UI shows the old text under the new locale.
   // The gap before it resolves is a real fetch, and the other four examples
   // render `isLoading` through it — this is the hand-rolled equivalent, set
@@ -98,7 +98,7 @@ function localeButton(code: string): HTMLButtonElement {
   button.onclick = () => {
     isLoading = true;
     render();
-    void i18n.setLocaleAsync(code).finally(() => {
+    void i18n.setLocale(code).finally(() => {
       isLoading = false;
       render();
     });

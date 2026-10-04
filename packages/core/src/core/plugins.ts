@@ -165,7 +165,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
 
   /**
    * @internal `_beforeInit` hook. Plugins first, detector second, and the
-   * detector goes through the public `setLocaleAsync` so namespaces load before
+   * detector goes through the public `setLocale` so namespaces load before
    * the locale applies.
    */
   protected async _beforeInit(): Promise<void> {
@@ -248,7 +248,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
       const detectedLocale = await this._localeDetector();
       // Re-checked after the detector's await for the same reason.
       if (!this._isDestroyed && detectedLocale && detectedLocale !== this._locale) {
-        await this.setLocaleAsync(detectedLocale);
+        await this.setLocale(detectedLocale);
       }
     }
   }

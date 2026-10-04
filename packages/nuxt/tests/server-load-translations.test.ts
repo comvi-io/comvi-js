@@ -75,7 +75,7 @@ function createI18nStub(
   const i18n: any = {
     locale: initialLanguage,
     init: vi.fn().mockResolvedValue(undefined),
-    setLocaleAsync: vi.fn(async (newLocale: string) => {
+    setLocale: vi.fn(async (newLocale: string) => {
       i18n.locale = newLocale;
     }),
     getDefaultNamespace: vi.fn(() => defaultNs),

@@ -41,7 +41,7 @@ describe("useFormatters", () => {
     expect(result.current.formatNumber(1234)).toBe("1,234");
 
     await act(async () => {
-      await fake.setLocaleAsync("de");
+      await fake.setLocale("de");
     });
 
     expect(result.current.formatNumber(1234)).toBe("1.234");
@@ -61,7 +61,7 @@ describe("useFormatters", () => {
     const before = result.current;
 
     await act(async () => {
-      await fake.setLocaleAsync("de");
+      await fake.setLocale("de");
     });
 
     expect(result.current).not.toBe(before);

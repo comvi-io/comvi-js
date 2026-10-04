@@ -43,7 +43,7 @@ describe("published plugins on a composed slim host", () => {
     });
     expect(i18n.t("greeting")).toBe("Hello");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     expect(i18n.t("greeting")).toBe("Bonjour");
 
     await i18n.destroy();

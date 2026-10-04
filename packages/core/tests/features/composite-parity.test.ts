@@ -273,7 +273,7 @@ describe("composite parity — loader capability", () => {
         const i18n = make({ importMap: map });
         await i18n.init();
         const before = i18n.t("k");
-        await i18n.setLocaleAsync("de");
+        await i18n.setLocale("de");
         return [before, i18n.t("k")];
       },
       { value: ["EN", "DE"] },

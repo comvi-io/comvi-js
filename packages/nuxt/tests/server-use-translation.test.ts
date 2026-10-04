@@ -52,7 +52,7 @@ function createI18nStub(initialLanguage = "en", { loaderCapability = true } = {}
     locale: initialLanguage,
     init: vi.fn().mockResolvedValue(undefined),
     use: vi.fn(),
-    setLocaleAsync: vi.fn(async (newLocale: string) => {
+    setLocale: vi.fn(async (newLocale: string) => {
       i18n.locale = newLocale;
     }),
     hasLocale: vi.fn((locale: string, namespace = "common") =>
@@ -230,7 +230,7 @@ describe("useTranslation (server)", () => {
 
     expect(createComviCore).toHaveBeenCalledTimes(1);
     expect(runComviSetup).toHaveBeenCalledTimes(1);
-    expect(i18n.setLocaleAsync).not.toHaveBeenCalled();
+    expect(i18n.setLocale).not.toHaveBeenCalled();
   });
 
   it("deduplicates concurrent request-level i18n initialization", async () => {
@@ -396,7 +396,7 @@ describe("useTranslation (server)", () => {
 
     await useTranslation(createEvent(), { locale: "en", ns: "admin" });
 
-    expect(i18n.setLocaleAsync).not.toHaveBeenCalled();
+    expect(i18n.setLocale).not.toHaveBeenCalled();
     expect(i18n.addActiveNamespace).toHaveBeenCalledWith("admin");
   });
 

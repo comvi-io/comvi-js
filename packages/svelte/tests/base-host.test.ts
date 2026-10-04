@@ -96,7 +96,7 @@ describe("svelte on a base host", () => {
     const i18n = makeHost();
     render(i18n);
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     await tick();
 
     expect(text("locale")).toBe("fr");

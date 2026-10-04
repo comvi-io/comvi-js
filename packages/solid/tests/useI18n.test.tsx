@@ -180,7 +180,7 @@ describe("useI18n", () => {
     // The loading axis deliberately does NOT bump the cache revision.
     expect(revision.textContent).toBe("0");
 
-    await fake.setLocaleAsync("fr");
+    await fake.setLocale("fr");
     fake.addTranslations({ fr: { greeting: "Bonjour" } });
     fake.isInitialized = true;
     fake.emit("initialized", undefined);
@@ -414,7 +414,7 @@ describe("useI18n", () => {
 
     expect(container.textContent).toBe("€1,234.50");
 
-    await fake.setLocaleAsync("de");
+    await fake.setLocale("de");
     await flushMicrotasks();
 
     expect(container.textContent).toBe(
@@ -447,7 +447,7 @@ describe("useI18n", () => {
     expect(label()).toBe("January 1, 2026");
     expect(runs).toBe(1);
 
-    await fake.setLocaleAsync("de");
+    await fake.setLocale("de");
     await flushMicrotasks();
 
     expect(label()).toBe(new Intl.DateTimeFormat("de", options).format(day));
@@ -486,7 +486,7 @@ describe("useI18n", () => {
     ].join("|");
     expect(container.textContent).toBe(expected);
 
-    await fake.setLocaleAsync("ar");
+    await fake.setLocale("ar");
     await flushMicrotasks();
 
     expect(container.textContent).toBe(expected);
@@ -508,7 +508,7 @@ describe("useI18n", () => {
 
     expect(container.textContent).toBe("ltr");
 
-    await fake.setLocaleAsync("ar");
+    await fake.setLocale("ar");
     await flushMicrotasks();
 
     expect(container.textContent).toBe("rtl");
@@ -603,11 +603,11 @@ describe("useI18n", () => {
       seen.push(to);
     });
 
-    await fake.setLocaleAsync("fr");
+    await fake.setLocale("fr");
     expect(seen).toEqual(["fr"]);
 
     unsubscribe();
-    await fake.setLocaleAsync("de");
+    await fake.setLocale("de");
 
     expect(seen).toEqual(["fr"]);
   });

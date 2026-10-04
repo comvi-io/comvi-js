@@ -39,11 +39,11 @@ describe("SSR cross-request isolation — store-level", () => {
     expect(instanceA.locale).toBe("en");
     expect(instanceB.locale).toBe("uk");
 
-    await instanceA.setLocaleAsync("fr");
+    await instanceA.setLocale("fr");
     expect(instanceA.locale).toBe("fr");
     expect(instanceB.locale).toBe("uk");
 
-    await instanceB.setLocaleAsync("de");
+    await instanceB.setLocale("de");
     expect(instanceB.locale).toBe("de");
     expect(instanceA.locale).toBe("fr");
   });
@@ -109,7 +109,7 @@ describe("SSR cross-request isolation — store-level", () => {
     expect(get(storeA)).toBe("en");
     expect(get(storeB)).toBe("de");
 
-    await instanceA.setLocaleAsync("es");
+    await instanceA.setLocale("es");
 
     expect(get(storeA)).toBe("es");
     expect(get(storeB)).toBe("de");

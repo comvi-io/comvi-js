@@ -186,10 +186,10 @@ export class FakeI18nCore {
   }
 
   async setLanguageAsync(language: string): Promise<void> {
-    return this.setLocaleAsync(language);
+    return this.setLocale(language);
   }
 
-  async setLocaleAsync(locale: string): Promise<void> {
+  async setLocale(locale: string): Promise<void> {
     const from = this._language;
     this._language = locale;
     this.emit("localeChanged", { from, to: locale });

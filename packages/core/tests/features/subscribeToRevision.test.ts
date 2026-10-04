@@ -82,7 +82,7 @@ describe("subscribeToRevision", () => {
     const received: RevisionEvent[] = [];
     subscribeToRevision(i18n, (event) => received.push(event));
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(received).toEqual(["localeChanged"]);
 
@@ -98,7 +98,7 @@ describe("subscribeToRevision", () => {
     const unsubscribe = subscribeToRevision(i18n, (event) => received.push(event));
 
     unsubscribe();
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(received).toEqual([]);
   });

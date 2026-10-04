@@ -241,7 +241,7 @@ describe("useLocalizedRouter", () => {
     });
 
     await act(async () => {
-      await fake.setLocaleAsync("en");
+      await fake.setLocale("en");
     });
     result.current.push("/about");
     result.current.replace("/about");

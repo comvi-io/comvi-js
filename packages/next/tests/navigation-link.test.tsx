@@ -123,7 +123,7 @@ describe("<Link>", () => {
     expect(hrefHandedToNext()).toBe("/de/ueber-uns");
 
     await act(async () => {
-      await fake.setLocaleAsync("en");
+      await fake.setLocale("en");
     });
 
     expect(hrefHandedToNext()).toBe("/about");

@@ -53,13 +53,13 @@ describe("removeActiveNamespace()", () => {
     expect(loads).toEqual(["en:nav"]);
   });
 
-  it("stops setLocaleAsync() loading it for the new locale", async () => {
+  it("stops setLocale() loading it for the new locale", async () => {
     const { i18n, loads } = recordingHost();
     await i18n.addActiveNamespaces(["nav", "admin"]);
     loads.length = 0;
 
     i18n.removeActiveNamespace("admin");
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
 
     expect(loads).toEqual(["de:nav"]);
   });

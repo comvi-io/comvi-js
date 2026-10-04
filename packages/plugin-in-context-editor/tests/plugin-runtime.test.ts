@@ -233,7 +233,7 @@ describe("inContextEditorPlugin key enqueueing", () => {
     i18n.t("hello");
     const beforeLocaleChange = getKeyMappings();
 
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
     i18n.t("hello");
 
     expect(getKeyMappings()).toEqual(beforeLocaleChange);

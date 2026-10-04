@@ -59,13 +59,12 @@ returns a string; `tRaw()` returns the structured result when a translation carr
 ```ts title="src/switch.ts" check=group=vanilla-2
 import { i18n } from "./i18n";
 
-await i18n.setLocaleAsync("uk");
+await i18n.setLocale("uk");
 console.log(i18n.t("greeting", { name: "Аліса" })); // "Привіт, Аліса!"
 ```
 
-The host has a `locale` getter and setter and `setLocaleAsync()`; `setLocale()` is a helper the
-framework bindings add. With a loader composed, `setLocaleAsync()` loads the active namespaces
-before the locale applies.
+`await i18n.setLocale()` switches the locale; with a loader composed, it loads the active
+namespaces first. Assigning `i18n.locale` does the same without waiting.
 
 ## Load from Comvi
 

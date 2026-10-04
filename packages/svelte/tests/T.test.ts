@@ -148,7 +148,7 @@ describe("T.svelte fallback contract", () => {
 
     expect(rendered()).toBe("Hello World");
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
     await tick();
 
     expect(rendered()).toBe("Bonjour le Monde");

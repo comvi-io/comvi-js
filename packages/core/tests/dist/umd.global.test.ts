@@ -152,7 +152,7 @@ describe("UMD global build (A12)", () => {
     expect(i18n.t("items", { count: 5 })).toBe("5 items");
     expect(i18n.getPluginData("umd")).toEqual({ ok: true });
 
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
     expect(i18n.locale).toBe("de");
     expect(i18n.t("greeting", { name: "Bea" })).toBe("Hallo, Bea!");
     expect(i18n.t("items", { count: 1 })).toBe("1 Eintrag");
@@ -178,7 +178,7 @@ describe("UMD global build (A12)", () => {
     await i18n.init();
 
     expect(i18n.t("k")).toBe("EN");
-    await i18n.setLocaleAsync("de");
+    await i18n.setLocale("de");
     expect(i18n.t("k")).toBe("DE");
   });
 

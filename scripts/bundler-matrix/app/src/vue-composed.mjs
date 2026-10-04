@@ -61,7 +61,7 @@ async function main() {
   await host.init();
   assertEqual(wrapped.t("greeting"), "Hello", "the piped import map loads at init");
 
-  await host.setLocaleAsync("uk");
+  await host.setLocale("uk");
   assertEqual(wrapped.t("greeting"), "Привіт", "the piped import map loads on demand");
 
   // The preset's own host takes the same pipe — the vue-specific half.

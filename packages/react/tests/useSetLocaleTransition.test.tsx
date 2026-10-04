@@ -24,7 +24,7 @@ describe("useSetLocaleTransition", () => {
     expect(result.current.isPending).toBe(false);
   });
 
-  it("calls i18n.setLocaleAsync with the given locale", async () => {
+  it("calls i18n.setLocale with the given locale", async () => {
     const fake = new FakeI18n();
     const { result } = renderHook(() => useSetLocaleTransition(), {
       wrapper: createWrapper(fake),
@@ -34,7 +34,7 @@ describe("useSetLocaleTransition", () => {
       result.current.setLocale("fr");
     });
 
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("fr");
+    expect(fake.setLocale).toHaveBeenCalledWith("fr");
   });
 
   it("keeps isPending true until the async locale change settles", async () => {
@@ -42,7 +42,7 @@ describe("useSetLocaleTransition", () => {
 
     const deferred = createDeferred<void>();
 
-    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+    fake.setLocale.mockImplementation(() => deferred.promise);
 
     const { result } = renderHook(() => useSetLocaleTransition(), {
       wrapper: createWrapper(fake),
@@ -64,7 +64,7 @@ describe("useSetLocaleTransition", () => {
     await waitFor(() => {
       expect(result.current.isPending).toBe(false);
     });
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("fr");
+    expect(fake.setLocale).toHaveBeenCalledWith("fr");
   });
 
   it("locale is updated after setLocale resolves", async () => {
@@ -78,7 +78,7 @@ describe("useSetLocaleTransition", () => {
       result.current.setLocale("de");
     });
 
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("de");
+    expect(fake.setLocale).toHaveBeenCalledWith("de");
     expect(fake.language).toBe("de");
   });
 
@@ -93,7 +93,7 @@ describe("useSetLocaleTransition", () => {
   it("clears isPending and reports the error when the locale change rejects", async () => {
     const fake = new FakeI18n();
     const deferred = createDeferred<void>();
-    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+    fake.setLocale.mockImplementation(() => deferred.promise);
 
     const { result } = renderHook(() => useSetLocaleTransition(), {
       wrapper: createWrapper(fake),
@@ -122,7 +122,7 @@ describe("useSetLocaleTransition", () => {
   it("normalizes a non-Error locale-change rejection before reporting it", async () => {
     const fake = new FakeI18n();
     const deferred = createDeferred<void>();
-    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+    fake.setLocale.mockImplementation(() => deferred.promise);
 
     const { result } = renderHook(() => useSetLocaleTransition(), {
       wrapper: createWrapper(fake),
@@ -151,7 +151,7 @@ describe("useSetLocaleTransition", () => {
     const firstChange = createDeferred<void>();
     const secondChange = createDeferred<void>();
     const inFlight = [firstChange.promise, secondChange.promise];
-    fake.setLocaleAsync.mockImplementation(() => inFlight.shift()!);
+    fake.setLocale.mockImplementation(() => inFlight.shift()!);
 
     const { result } = renderHook(() => useSetLocaleTransition(), {
       wrapper: createWrapper(fake),
@@ -203,8 +203,8 @@ describe("useSetLocaleTransition", () => {
       setLocale!("fr");
     });
 
-    expect(second.setLocaleAsync).toHaveBeenCalledWith("fr");
-    expect(first.setLocaleAsync).not.toHaveBeenCalled();
+    expect(second.setLocale).toHaveBeenCalledWith("fr");
+    expect(first.setLocale).not.toHaveBeenCalled();
   });
 
   // StrictMode mounts, tears down and remounts every effect. The unmount guard
@@ -213,7 +213,7 @@ describe("useSetLocaleTransition", () => {
   it("reports isPending under StrictMode, whose double-mount runs the cleanup", async () => {
     const fake = new FakeI18n();
     const deferred = createDeferred<void>();
-    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+    fake.setLocale.mockImplementation(() => deferred.promise);
 
     // `render`, not `renderHook`: only a real element tree gets StrictMode's
     // mount -> cleanup -> mount effect sequence.
@@ -247,7 +247,7 @@ describe("useSetLocaleTransition", () => {
     await waitFor(() => {
       expect(api.isPending).toBe(false);
     });
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("de");
+    expect(fake.setLocale).toHaveBeenCalledWith("de");
   });
 
   // REGRESSION GUARD (passes before and after): re-arming the mount flag on
@@ -255,7 +255,7 @@ describe("useSetLocaleTransition", () => {
   it("does not update state after a real unmount", async () => {
     const fake = new FakeI18n();
     const deferred = createDeferred<void>();
-    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+    fake.setLocale.mockImplementation(() => deferred.promise);
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const { result, unmount } = renderHook(() => useSetLocaleTransition(), {
@@ -282,7 +282,7 @@ describe("useSetLocaleTransition", () => {
   it("reports isPending for a setLocale issued from a mount layout effect", async () => {
     const fake = new FakeI18n();
     const deferred = createDeferred<void>();
-    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+    fake.setLocale.mockImplementation(() => deferred.promise);
 
     let api!: ReturnType<typeof useSetLocaleTransition>;
     const Probe = () => {

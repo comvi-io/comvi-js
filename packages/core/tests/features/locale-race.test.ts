@@ -13,7 +13,7 @@ import { createDeferred, type Deferred } from "../helpers/deferred";
  *
  * The race machinery — changeId staleness arbitration, mid-flight cancellation,
  * the loading refcount — lives in `@comvi/core/loader`, which OVERRIDES
- * `setLocaleAsync`. A bare instance can never have a load in flight, so it must
+ * `setLocale`. A bare instance can never have a load in flight, so it must
  * not pay for any of it.
  *
  * The event-trace and race tests that pin the split:
@@ -44,7 +44,7 @@ describe("locale switch on a host WITHOUT the loader capability", () => {
     });
     const trace = traceLocaleEvents(i18n);
 
-    const pending = i18n.setLocaleAsync("fr");
+    const pending = i18n.setLocale("fr");
 
     // Nothing to await: the locale is applied before the first microtask.
     expect(i18n.locale).toBe("fr");
@@ -61,7 +61,7 @@ describe("locale switch on a host WITHOUT the loader capability", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
     const trace = traceLocaleEvents(i18n);
 
-    await i18n.setLocaleAsync("en");
+    await i18n.setLocale("en");
 
     expect(trace).toEqual([]);
     expect(i18n.locale).toBe("en");
@@ -71,7 +71,7 @@ describe("locale switch on a host WITHOUT the loader capability", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
     const trace = traceLocaleEvents(i18n);
 
-    await Promise.all([i18n.setLocaleAsync("fr"), i18n.setLocaleAsync("de")]);
+    await Promise.all([i18n.setLocale("fr"), i18n.setLocale("de")]);
 
     expect(trace).toEqual(["locale:en->fr", "locale:fr->de"]);
     expect(i18n.locale).toBe("de");
@@ -91,7 +91,7 @@ describe("locale switch on a host WITHOUT the loader capability", () => {
     const i18n = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
     const trace = traceLocaleEvents(i18n);
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(trace).toEqual(["locale:en->fr"]);
   });
@@ -128,7 +128,7 @@ describe.each([
     const { i18n, pending } = await setup();
     const trace = traceLocaleEvents(i18n);
 
-    const switching = i18n.setLocaleAsync("fr");
+    const switching = i18n.setLocale("fr");
     expect(i18n.isLoading).toBe(true);
     // The locale must not apply before its namespaces are loaded (no UI flash).
     expect(i18n.locale).toBe("en");
@@ -145,7 +145,7 @@ describe.each([
     const i18n = make();
     const trace = traceLocaleEvents(i18n);
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(trace).toEqual(["loading:true", "locale:en->fr", "loading:false"]);
   });
@@ -154,8 +154,8 @@ describe.each([
     const { i18n, pending } = await setup();
     const trace = traceLocaleEvents(i18n);
 
-    const toFr = i18n.setLocaleAsync("fr");
-    const toDe = i18n.setLocaleAsync("de");
+    const toFr = i18n.setLocale("fr");
+    const toDe = i18n.setLocale("de");
 
     pending("de").resolve({ hi: "Hallo" });
     await toDe;
@@ -173,8 +173,8 @@ describe.each([
   it("suppresses a stale ERROR: only the latest request's outcome is observed", async () => {
     const { i18n, pending } = await setup();
 
-    const toFr = i18n.setLocaleAsync("fr");
-    const toDe = i18n.setLocaleAsync("de");
+    const toFr = i18n.setLocale("fr");
+    const toDe = i18n.setLocale("de");
 
     pending("de").resolve({ hi: "Hallo" });
     await toDe;
@@ -188,7 +188,7 @@ describe.each([
   it("surfaces the error of a request that was NOT superseded", async () => {
     const { i18n, pending } = await setup();
 
-    const toFr = i18n.setLocaleAsync("fr");
+    const toFr = i18n.setLocale("fr");
     pending("fr").reject(new Error("fr backend exploded"));
 
     await expect(toFr).rejects.toThrow(/Failed to load|E_ALL_NAMESPACES_FAILED|fr backend/);
@@ -200,12 +200,12 @@ describe.each([
     const { i18n, pending } = await setup();
     const trace = traceLocaleEvents(i18n);
 
-    const toFr = i18n.setLocaleAsync("fr");
+    const toFr = i18n.setLocale("fr");
     expect(i18n.locale).toBe("en");
 
     // Reverting to the ALREADY-APPLIED locale is not a no-op while another
     // change is in flight: it invalidates that change's changeId.
-    await i18n.setLocaleAsync("en");
+    await i18n.setLocale("en");
 
     pending("fr").resolve({ hi: "Salut" });
     await toFr;
@@ -216,23 +216,23 @@ describe.each([
   });
 });
 
-describe("attachLoader install contract for the setLocaleAsync override", () => {
+describe("attachLoader install contract for the setLocale override", () => {
   it("leaves the base implementation on the prototype of a bare instance", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
-    expect(Object.prototype.hasOwnProperty.call(i18n, "setLocaleAsync")).toBe(false);
-    expect(typeof i18n.setLocaleAsync).toBe("function");
+    expect(Object.prototype.hasOwnProperty.call(i18n, "setLocale")).toBe(false);
+    expect(typeof i18n.setLocale).toBe("function");
   });
 
   it("seeds the race state from the CURRENT locale, not the constructor locale", async () => {
     const bare = createI18n({ locale: "en", exposeGlobal: false });
-    await bare.setLocaleAsync("fr");
+    await bare.setLocale("fr");
 
     const i18n = attachLoader(bare);
     const trace = traceLocaleEvents(i18n);
 
     // "fr" is both the applied and the last-requested locale: a silent no-op.
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(trace).toEqual([]);
     expect(i18n.locale).toBe("fr");
@@ -242,7 +242,7 @@ describe("attachLoader install contract for the setLocaleAsync override", () => 
     const i18n = attachLoader(attachLoader(createI18n({ locale: "en", exposeGlobal: false })));
     const trace = traceLocaleEvents(i18n);
 
-    await i18n.setLocaleAsync("fr");
+    await i18n.setLocale("fr");
 
     expect(trace).toEqual(["loading:true", "locale:en->fr", "loading:false"]);
   });

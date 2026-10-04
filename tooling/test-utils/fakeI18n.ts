@@ -77,8 +77,8 @@ export class FakeI18n {
     await this.core.setLanguageAsync(language);
   });
 
-  public readonly setLocaleAsync = vi.fn(async (locale: string): Promise<void> => {
-    await this.core.setLocaleAsync(locale);
+  public readonly setLocale = vi.fn(async (locale: string): Promise<void> => {
+    await this.core.setLocale(locale);
   });
 
   public readonly addTranslations = vi.fn(

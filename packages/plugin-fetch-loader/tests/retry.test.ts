@@ -5,7 +5,7 @@
  * repeating: it is small, idempotent, and everything behind it waits on it. The
  * policy is deliberately narrow — a 429, a 5xx or a transport failure gets two
  * more goes, a timeout and a 404 get none, and the whole thing may add at most
- * five seconds — because the alternative is a stalled `setLocaleAsync`.
+ * five seconds — because the alternative is a stalled `setLocale`.
  *
  * The retry lives INSIDE the pending-request entry, so every joiner of one
  * project-info lookup shares one sequence of attempts.

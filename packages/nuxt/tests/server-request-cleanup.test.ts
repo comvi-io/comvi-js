@@ -335,7 +335,7 @@ describe("request host teardown", () => {
       locale: "en",
       t: () => "Hello",
       init: vi.fn().mockResolvedValue(undefined),
-      setLocaleAsync: vi.fn(),
+      setLocale: vi.fn(),
       destroy: vi.fn().mockRejectedValue(new Error("cleanup exploded")),
       reportError: (error: unknown, context?: { source?: string }) => {
         reported.push({ message: (error as Error).message, source: context?.source });
@@ -368,7 +368,7 @@ describe("request host teardown", () => {
         return {
           locale: "uk",
           init: vi.fn().mockRejectedValue(new Error("catalog unreachable")),
-          setLocaleAsync: vi.fn(),
+          setLocale: vi.fn(),
           destroy: vi.fn(),
           reportError: vi.fn(),
         };

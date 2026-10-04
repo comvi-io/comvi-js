@@ -102,7 +102,7 @@ describe("isInitializing — owned by init()", () => {
   });
 });
 
-describe("setLocaleAsync — revert-to-current cancels in-flight change", () => {
+describe("setLocale — revert-to-current cancels in-flight change", () => {
   it("locale stays at the last requested value", async () => {
     const i18n = new I18n({ locale: "en", translation: { en: { greet: "Hello" } } });
     const de = deferred<Record<string, string>>();
@@ -112,8 +112,8 @@ describe("setLocaleAsync — revert-to-current cancels in-flight change", () => 
     const changes: string[] = [];
     i18n.on("localeChanged", ({ to }) => changes.push(to));
 
-    const dePromise = i18n.setLocaleAsync("de"); // pending on loader
-    await i18n.setLocaleAsync("en"); // revert — must cancel the "de" change
+    const dePromise = i18n.setLocale("de"); // pending on loader
+    await i18n.setLocale("en"); // revert — must cancel the "de" change
 
     de.resolve({ greet: "Hallo" });
     await dePromise;

@@ -167,7 +167,7 @@ export interface UseI18nReturn<
   defaultParams: Readable<DefaultParamsSnapshot<D>>;
 
   /** Resolves once translations for the new locale have loaded. */
-  setLocale: Host["setLocaleAsync"];
+  setLocale: Host["setLocale"];
 
   addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
 
@@ -312,7 +312,7 @@ export function useI18n<
     // object literal used to crash `useI18n()` on such a host.
     // `useI18nLoader()` / `useI18nPlugins()` acquire them instead, throwing one
     // named error at the acquisition point.
-    setLocale: i18n.setLocaleAsync.bind(i18n),
+    setLocale: i18n.setLocale.bind(i18n),
     addTranslations: i18n.addTranslations.bind(i18n),
     setFallbackLocale: i18n.setFallbackLocale.bind(i18n),
     setDefaultParams: i18n.setDefaultParams.bind(i18n) as Host<D>["setDefaultParams"],

@@ -74,9 +74,9 @@ describe("Repro 1 — startTransition + locale flip", () => {
 
     await act(async () => {
       startTransition(() => {
-        void fake.setLocaleAsync("fr");
+        void fake.setLocale("fr");
       });
-      // Two turns: the gated `setLocaleAsync` resolves on the second.
+      // Two turns: the gated `setLocale` resolves on the second.
       await flushMicrotasks(2);
     });
 
@@ -103,7 +103,7 @@ describe("Repro 1 — startTransition + locale flip", () => {
 
     await act(async () => {
       startTransition(() => {
-        void fake.setLocaleAsync("fr");
+        void fake.setLocale("fr");
       });
       await flushMicrotasks(2);
     });
@@ -126,7 +126,7 @@ describe("Repro 2 — Aborted transition leakage", () => {
     const secondGate = createDeferred<void>();
     const calls: string[] = [];
 
-    fake.setLocaleAsync.mockImplementation(async (loc: string) => {
+    fake.setLocale.mockImplementation(async (loc: string) => {
       calls.push(loc);
       if (loc === "fr") await firstGate.promise;
       if (loc === "de") await secondGate.promise;
@@ -144,7 +144,7 @@ describe("Repro 2 — Aborted transition leakage", () => {
 
     await act(async () => {
       startTransition(() => {
-        void fake.setLocaleAsync("fr");
+        void fake.setLocale("fr");
       });
       await flushMicrotasks();
     });
@@ -155,7 +155,7 @@ describe("Repro 2 — Aborted transition leakage", () => {
     // Second transition scheduled BEFORE the first resolves.
     await act(async () => {
       startTransition(() => {
-        void fake.setLocaleAsync("de");
+        void fake.setLocale("de");
       });
       await flushMicrotasks();
     });

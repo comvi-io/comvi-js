@@ -36,10 +36,10 @@ describe("Integration Tests", () => {
             <T i18nKey="title" />
           </h1>
           <div data-testid="lang">{locale}</div>
-          <button data-testid="btn-fr" onClick={() => void i18n.setLocaleAsync("fr")}>
+          <button data-testid="btn-fr" onClick={() => void i18n.setLocale("fr")}>
             Fr
           </button>
-          <button data-testid="btn-en" onClick={() => void i18n.setLocaleAsync("en")}>
+          <button data-testid="btn-en" onClick={() => void i18n.setLocale("en")}>
             En
           </button>
           <div data-testid="switch-text">{t("switchLang")}</div>

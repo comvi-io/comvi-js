@@ -294,7 +294,7 @@ describe("createNextI18n — `.use(installer)` is the composition pipe", () => {
     );
 
     await nextI18n.i18n.init();
-    await nextI18n.i18n.setLocaleAsync("de");
+    await nextI18n.i18n.setLocale("de");
 
     expect(nextI18n.i18n.t("greeting")).toBe("Hallo");
   });

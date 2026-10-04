@@ -339,7 +339,7 @@ describe("localeDetectorPlugin plugin", () => {
       const cookieSetter = vi.spyOn(document, "cookie", "set");
       const i18n = await initWithEveryCacheTarget();
 
-      await i18n.setLocaleAsync("pt");
+      await i18n.setLocale("pt");
 
       expect(localStorage.getItem("custom_lang_key")).toBe("pt");
       expect(sessionStorage.getItem("session_lang_key")).toBe("pt");
@@ -350,7 +350,7 @@ describe("localeDetectorPlugin plugin", () => {
       const cookieSetter = vi.spyOn(document, "cookie", "set");
       const i18n = await initWithEveryCacheTarget();
 
-      await i18n.setLocaleAsync("pt");
+      await i18n.setLocale("pt");
 
       expect(cookieSetter.mock.calls.at(-1)?.[0]).toBe(
         "language=pt; max-age=86400; path=/app; samesite=strict; domain=example.com; secure",
@@ -371,7 +371,7 @@ describe("localeDetectorPlugin plugin", () => {
         "en",
       );
 
-      await i18n.setLocaleAsync("pt");
+      await i18n.setLocale("pt");
 
       const cookieWrite = cookieSetter.mock.calls.at(-1)?.[0] as string;
       expect(cookieWrite).toContain("samesite=none");
@@ -385,12 +385,12 @@ describe("localeDetectorPlugin plugin", () => {
         lookupLocalStorage: "cleanup_test_key",
       });
 
-      await i18n.setLocaleAsync("fr");
+      await i18n.setLocale("fr");
       expect(localStorage.getItem("cleanup_test_key")).toBe("fr");
 
       cleanup?.();
 
-      await i18n.setLocaleAsync("de");
+      await i18n.setLocale("de");
       expect(localStorage.getItem("cleanup_test_key")).toBe("fr");
     });
 
@@ -411,7 +411,7 @@ describe("localeDetectorPlugin plugin", () => {
           "en",
         );
 
-        await expect(i18n.setLocaleAsync("fr")).resolves.toBeUndefined();
+        await expect(i18n.setLocale("fr")).resolves.toBeUndefined();
         expect(i18n.locale).toBe("fr");
         // Both writes (init's cache populate and the change above) really threw, so
         // the resolution asserted above is the swallow and not an untaken path.
@@ -704,7 +704,7 @@ describe("localeDetectorPlugin plugin", () => {
       expect(localStorage.getItem("i18n_locale")).toBeNull();
       expect(sessionStorage.getItem("i18n_locale")).toBeNull();
 
-      await i18n.setLocaleAsync("fr");
+      await i18n.setLocale("fr");
       expect(localStorage.getItem("i18n_locale")).toBe("fr");
       expect(sessionStorage.getItem("i18n_locale")).toBe("fr");
     });
@@ -716,7 +716,7 @@ describe("localeDetectorPlugin plugin", () => {
           caches: ["localStorage", "sessionStorage", "cookie"],
         });
 
-        await expect(i18n.setLocaleAsync("fr")).resolves.toBeUndefined();
+        await expect(i18n.setLocale("fr")).resolves.toBeUndefined();
 
         expect(i18n.locale).toBe("fr");
 
@@ -769,7 +769,7 @@ describe("localeDetectorPlugin plugin", () => {
 
       expect(await i18n.getLanguageDetector()?.()).toBe("fr");
 
-      await i18n.setLocaleAsync("de");
+      await i18n.setLocale("de");
 
       expect(localStorage.getItem("i18n_locale")).toBe("de");
 
@@ -800,7 +800,7 @@ describe("localeDetectorPlugin plugin", () => {
       // value. It must be cached like any other explicit choice: core never
       // auto-applied this detect() call (init() was never even entered), so
       // there is no "own follow-up" localeChanged for the marker to bridge to.
-      await i18n.setLocaleAsync("it");
+      await i18n.setLocale("it");
       expect(localStorage.getItem("i18n_locale")).toBe("it");
 
       cleanup?.();
@@ -824,7 +824,7 @@ describe("localeDetectorPlugin plugin", () => {
       expect(localStorage.getItem("i18n_locale")).toBeNull();
 
       // An unrelated explicit change, made well after init.
-      await i18n.setLocaleAsync("de");
+      await i18n.setLocale("de");
       expect(localStorage.getItem("i18n_locale")).toBe("de");
 
       // The app manually re-consults the detector post-init (e.g. a "reset to
@@ -839,7 +839,7 @@ describe("localeDetectorPlugin plugin", () => {
       // automatic follow-up detect()'s own value application, since detect()
       // only auto-drives a locale change from inside init(), which has long
       // since finished.
-      await i18n.setLocaleAsync("it");
+      await i18n.setLocale("it");
       expect(localStorage.getItem("i18n_locale")).toBe("it");
 
       cleanup?.();
