@@ -8,6 +8,6 @@ setI18n(i18n);
 
 export { i18n, routing };
 
-export { getI18n, loadTranslations } from "@comvi/next/server";
+export { getI18n, loadMessages } from "@comvi/next/server";
 
 export { hasLocale } from "@comvi/next/routing";

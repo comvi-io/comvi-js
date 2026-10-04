@@ -18,7 +18,7 @@ const baseHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: { en: { greeting: "Hello" } },
+    messages: { en: { greeting: "Hello" } },
   });
 
 const composedHost = () => attachPlugins(attachLoader(baseHost()));
@@ -53,10 +53,10 @@ describe.each([
   };
 
   it("pure destructure yields undefined and calling it is a TypeError", () => {
-    const { reloadTranslations } = bag();
+    const { reloadMessages } = bag();
 
-    expect(reloadTranslations).toBeUndefined();
-    expect(() => reloadTranslations()).toThrow(TypeError);
+    expect(reloadMessages).toBeUndefined();
+    expect(() => reloadMessages()).toThrow(TypeError);
   });
 
   it("mixed destructure keeps the common members working", () => {
@@ -67,7 +67,7 @@ describe.each([
   });
 
   it("aliased destructure yields undefined", () => {
-    const { reloadTranslations: r, addActiveNamespace: addNs } = bag();
+    const { reloadMessages: r, addActiveNamespace: addNs } = bag();
 
     expect(r).toBeUndefined();
     expect(addNs).toBeUndefined();
@@ -78,19 +78,14 @@ describe.each([
 
     expect(api.onLoadError).toBeUndefined();
     expect(api.onMissingKey).toBeUndefined();
-    expect(api.reloadTranslations).toBeUndefined();
+    expect(api.reloadMessages).toBeUndefined();
     expect(api.addActiveNamespace).toBeUndefined();
   });
 
   it("does not carry the members as own or inherited keys", () => {
     const api = bag();
 
-    const capabilityOnly = [
-      "addActiveNamespace",
-      "reloadTranslations",
-      "onLoadError",
-      "onMissingKey",
-    ];
+    const capabilityOnly = ["addActiveNamespace", "reloadMessages", "onLoadError", "onMissingKey"];
 
     expect(capabilityOnly.filter((name) => name in api)).toEqual([]);
   });

@@ -47,7 +47,7 @@ async function main() {
     exposeGlobal: false,
     // Flat by choice, not by rule: the base host flattens nested catalogs
     // itself, and this fixture deliberately composes no capability.
-    translation: { en: { hello: "Hello", greeting: "Hi {name}" } },
+    messages: { en: { hello: "Hello", greeting: "Hi {name}" } },
   });
 
   // `.use(inContextEditor())` returns the host it was handed. Under the

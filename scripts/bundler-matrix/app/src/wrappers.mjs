@@ -25,7 +25,7 @@ assert(isComponent(vueWrapper.T), "@comvi/vue exports T");
 
 const i18n = createI18n({
   locale: "en",
-  translation: { en: { msg: "a <b>c</b> d" } },
+  messages: { en: { msg: "a <b>c</b> d" } },
 });
 assert(
   i18n.t("msg", { b: ({ children }) => `*${children}*` }) === "a <b>c</b> d",

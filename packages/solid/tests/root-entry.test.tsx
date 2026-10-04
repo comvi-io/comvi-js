@@ -54,7 +54,7 @@ describe("@comvi/solid — the single root entry", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello, {name}!" } },
+      messages: { en: { greeting: "Hello, {name}!" } },
     });
 
     expect(i18n.t("greeting" as never, { name: "world" } as never)).toBe("Hello, world!");
@@ -67,7 +67,7 @@ describe("@comvi/solid — the single root entry", () => {
     // claim needs a view that admits them as optional to be readable at all.
     const bare = i18n as Partial<I18nLoaderApi & I18nPluginHostApi>;
 
-    expect(bare.reloadTranslations).toBeUndefined();
+    expect(bare.reloadMessages).toBeUndefined();
     expect(bare.onMissingKey).toBeUndefined();
     expect("registerLoader" in i18n).toBe(false);
     expect("instanceId" in i18n).toBe(false);
@@ -89,7 +89,7 @@ describe("@comvi/solid — ICU, one shape, one specifier", () => {
       locale: "en",
       exposeGlobal: false,
       compiler: root.icuCompiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+      messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
@@ -98,7 +98,7 @@ describe("@comvi/solid — ICU, one shape, one specifier", () => {
 
   it("takes the same COMPILER option for a catalog that arrives later", () => {
     // One enable form for every catalog source: the option is read in the
-    // constructor, so an `addTranslations` or loader merge compiles under ICU
+    // constructor, so an `addMessages` or loader merge compiles under ICU
     // without anything being composed.
     const i18n = root.createI18n({
       locale: "en",
@@ -106,7 +106,7 @@ describe("@comvi/solid — ICU, one shape, one specifier", () => {
       compiler: root.icuCompiler,
     });
 
-    i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
+    i18n.addMessages({ en: { items: "{count, plural, one {# item} other {# items}}" } });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
@@ -140,7 +140,7 @@ describe("@comvi/solid — the capability toolkit", () => {
 
     const bag = underProvider(i18n, () => root.useI18nLoader());
 
-    expect(typeof bag.reloadTranslations).toBe("function");
+    expect(typeof bag.reloadMessages).toBe("function");
     expect(typeof bag.addActiveNamespace).toBe("function");
     // Loader ATTACH is not loader CONFIG: the host has the API, and the app
     // registers its loader through it afterwards.
@@ -162,7 +162,7 @@ describe("@comvi/solid — the capability toolkit", () => {
       );
 
     const bag = underProvider(i18n, () => root.useI18nLoader());
-    expect(typeof bag.reloadTranslations).toBe("function");
+    expect(typeof bag.reloadMessages).toBe("function");
     // Unlike bare `attachLoader`, this one is CONFIGURED.
     expect(typeof i18n.getLoader()).toBe("function");
 
@@ -236,7 +236,7 @@ describe("@comvi/solid — one entry, one solid context", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
 
     let text: string | undefined;

@@ -40,7 +40,7 @@ import { createI18n } from "@comvi/core";
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  translation: {
+  messages: {
     en: { greeting: "Hello, {name}!" },
     uk: { greeting: "Привіт, {name}!" },
   },
@@ -107,7 +107,7 @@ capability you never import never enters your bundle.
 | The rich-text toolbox                 | `prepareTranslation` from `@comvi/core/rich-text`      | `prepareTranslation(…)`     |
 
 Without a framework's reactivity, events are how you learn that state changed: `i18n.on()` takes
-`initialized`, `destroyed`, `localeChanged`, `defaultNamespaceChanged`, `translationsCleared`,
+`initialized`, `destroyed`, `localeChanged`, `defaultNamespaceChanged`, `messagesCleared`,
 `loadingStateChanged`, `namespaceLoaded`, `missingKey`, `loadError` and `configChanged`, and returns
 an unsubscribe function. `destroy()` tears the instance down; a destroyed instance cannot be
 re-initialized. On a server, build a fresh host per request. Never assign a translation to

@@ -170,7 +170,7 @@ describe("VueI18n contracts", () => {
     expect(i18n.defaultNamespace.value).toBe("common");
     expect(i18n.activeNamespaces.value).toContain("common");
 
-    i18n.addTranslations({ en: { fallbackOnly: "Fallback only" } });
+    i18n.addMessages({ en: { fallbackOnly: "Fallback only" } });
     i18n.setFallbackLocale("en");
 
     expect(i18n.t("fallbackOnly")).toBe("Fallback only");

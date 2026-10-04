@@ -28,7 +28,7 @@ function makeHost() {
   return createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: { en: { hello: "Hello" } },
+    messages: { en: { hello: "Hello" } },
   });
 }
 

@@ -91,7 +91,7 @@ describe("Next <I18nProvider> server render does not write the shared host", () 
   it("leaves the locale and the active namespaces unchanged on later server renders", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
       exposeGlobal: false,
     });
     const messages: MessagesMap = { "fr:default": { greeting: "Bonjour" } };
@@ -116,7 +116,7 @@ describe("Next <I18nProvider> server render does not write the shared host", () 
   it("resolves useI18n().hasTranslation against the provider locale, not the host locale", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: {}, fr: { greeting: "Bonjour" } },
+      messages: { en: {}, fr: { greeting: "Bonjour" } },
       exposeGlobal: false,
     });
     const HasTranslationProbe = () => {
@@ -137,7 +137,7 @@ describe("Next <I18nProvider> server render does not write the shared host", () 
   it("still renders the request locale's text without touching the host", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" }, fr: { greeting: "Bonjour" } },
+      messages: { en: { greeting: "Hello" }, fr: { greeting: "Bonjour" } },
       exposeGlobal: false,
     });
     const Greeting = () => <span>{useI18n().t("greeting" as never)}</span>;

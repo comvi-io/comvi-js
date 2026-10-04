@@ -16,7 +16,7 @@ describe("tRaw() with node params", () => {
   });
 
   it("interpolates a virtual node param into an array result", () => {
-    i18n.addTranslations({ en: { text: "This is {bold} text" } });
+    i18n.addMessages({ en: { text: "This is {bold} text" } });
 
     const result = i18n.tRaw("text", { bold: NODE });
 
@@ -24,7 +24,7 @@ describe("tRaw() with node params", () => {
   });
 
   it("passes the caller's node through by reference rather than cloning it", () => {
-    i18n.addTranslations({ en: { text: "This is {bold} text" } });
+    i18n.addMessages({ en: { text: "This is {bold} text" } });
 
     const result = i18n.tRaw("text", { bold: NODE });
 
@@ -32,13 +32,13 @@ describe("tRaw() with node params", () => {
   });
 
   it("t() flattens a virtual node param to its inner text", () => {
-    i18n.addTranslations({ en: { text: "This is {bold} text" } });
+    i18n.addMessages({ en: { text: "This is {bold} text" } });
 
     expect(i18n.t("text", { bold: NODE })).toBe("This is Bold text");
   });
 
   it("flattens arrays of virtual nodes", () => {
-    i18n.addTranslations({ en: { list: "Items: {items}" } });
+    i18n.addMessages({ en: { list: "Items: {items}" } });
 
     const result = i18n.tRaw("list", { items: NODES });
 
@@ -46,7 +46,7 @@ describe("tRaw() with node params", () => {
   });
 
   it("passes each node of an array param through by reference", () => {
-    i18n.addTranslations({ en: { list: "Items: {items}" } });
+    i18n.addMessages({ en: { list: "Items: {items}" } });
 
     const result = i18n.tRaw("list", { items: NODES });
 
@@ -55,13 +55,13 @@ describe("tRaw() with node params", () => {
   });
 
   it("t() flattens an array of virtual node params to their text", () => {
-    i18n.addTranslations({ en: { list: "Items: {items}" } });
+    i18n.addMessages({ en: { list: "Items: {items}" } });
 
     expect(i18n.t("list", { items: NODES })).toBe("Items: OneTwo");
   });
 
   it("tRaw() returns a single string when no virtual nodes are present", () => {
-    i18n.addTranslations({ en: { simple: "Simple text" } });
+    i18n.addMessages({ en: { simple: "Simple text" } });
 
     expect(i18n.tRaw("simple")).toBe("Simple text");
   });
@@ -69,7 +69,7 @@ describe("tRaw() with node params", () => {
   it("supports virtual nodes inside plural options", () => {
     const vNode: VirtualNode = { type: "element", tag: "span", props: {}, children: ["5"] };
 
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         plural: "{count, plural, other {Count: {badge}}}",
       },
@@ -84,7 +84,7 @@ describe("tRaw() with node params", () => {
   it("treats Vue-style VNodes as node values for interpolation", () => {
     const vueVNode = { __v_isVNode: true, type: "span", children: ["Vue"] };
 
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { text: "This is {node} text" },
     });
 
@@ -100,7 +100,7 @@ describe("tRaw() with node params", () => {
       props: { children: "React" },
     };
 
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { text: "This is {node} text" },
     });
 

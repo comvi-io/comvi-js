@@ -27,7 +27,7 @@ does, so server-only and dev-only branches of the runtime are not counted agains
 they never ship in. Both rows were re-baselined on 2026-10-03 when these flags came in. With the
 same flags, `fw-nuxt-full-composite` measured 12491 B on the base branch (9219ef84), so of the rise
 to the 12638 B recorded now from the 09-12 baseline of 12099 B, 392 B is base drift and 147 B is the
-SSR fallback-chain loader that the fixture's server `loadTranslations` import pulls in (chain
+SSR fallback-chain loader that the fixture's server `loadMessages` import pulls in (chain
 loading, in-flight dedupe and the per-request failed set the contract requires);
 `fw-nuxt-client-default` measured 8330 B on the base and 8302 B after. A server utility a fixture
 imports directly is still counted. The `comvi.head` util (`runtime/utils/html-attrs.ts`, which

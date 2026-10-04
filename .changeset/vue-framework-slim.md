@@ -16,14 +16,14 @@ name — see `vue-drop-create-core.md`. `createI18n(options)` is unchanged and
 still the default: it builds the host internally from the same options object, and
 `.use(installer)` on its result composes capabilities onto that host.
 
-| 0.4.x                                                                       | 0.5.0                                                                        |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `const { reloadTranslations, addActiveNamespace, onLoadError } = useI18n()` | the same names from `useI18nLoader()`                                        |
-| `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                                  |
-| `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; the capability composables take no argument       |
-| `i18n.registerLoader(…)` and the other six instance proxies                 | `i18n.core.registerLoader(…)` etc.                                           |
-| `i18n.use(plugin)` / `createI18n(options).use(plugin)`                      | `i18n.core.registerPlugin(plugin)` — assign first, then register on the host |
-| `new VueI18n(options)`                                                      | `createI18n(options)` — the constructor now takes `(core, vueOptions)`       |
+| 0.4.x                                                                   | 0.5.0                                                                        |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `const { reloadMessages, addActiveNamespace, onLoadError } = useI18n()` | the same names from `useI18nLoader()`                                        |
+| `const { onMissingKey } = useI18n()`                                    | `const { onMissingKey } = useI18nPlugins()`                                  |
+| `const { t, reloadMessages } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; the capability composables take no argument       |
+| `i18n.registerLoader(…)` and the other six instance proxies             | `i18n.core.registerLoader(…)` etc.                                           |
+| `i18n.use(plugin)` / `createI18n(options).use(plugin)`                  | `i18n.core.registerPlugin(plugin)` — assign first, then register on the host |
+| `new VueI18n(options)`                                                  | `createI18n(options)` — the constructor now takes `(core, vueOptions)`       |
 
 Plugin registration is the **eighth** dropped proxy and the one that changed late: 0.4's
 `use(plugin)` briefly survived behind a capability guard, which made it the only member typed
@@ -33,7 +33,7 @@ called `registerPlugin` on the host. The `use` the class carries now is the comp
 which takes an installer.
 
 The eight dropped instance proxies each need a by-hand move to `i18n.core.*`: the receiver's
-type is textually undecidable, so `i18n.reloadTranslations()` may be a `VueI18n` proxy or an
+type is textually undecidable, so `i18n.reloadMessages()` may be a `VueI18n` proxy or an
 already-correct raw core instance, and only you can tell which.
 
 **Also fixed (no app change needed).** `@comvi/vue` no longer inlines copies of core's tag

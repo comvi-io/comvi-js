@@ -16,7 +16,7 @@ import type { TranslationResult } from "../../src";
  */
 function render(template: string, params: Record<string, unknown>): TranslationResult {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({ en: { msg: template } });
+  i18n.addMessages({ en: { msg: template } });
   return i18n.t("msg", params as never);
 }
 
@@ -45,7 +45,7 @@ describe("# inside a plural branch that is re-parsed", () => {
 
   it("resolves a # nested inside a tag", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { rich: "{n, plural, other {<b>#</b> messages}}" } });
+    i18n.addMessages({ en: { rich: "{n, plural, other {<b>#</b> messages}}" } });
 
     const content = prepareTranslation(i18n, {
       i18nKey: "rich",

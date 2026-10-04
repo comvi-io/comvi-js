@@ -11,7 +11,7 @@ describe("postProcess", () => {
   it("applies to a placeholder-free template on a repeated paramless render", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
       postProcess: shout,
     });
     i18n.t("greeting" as never);

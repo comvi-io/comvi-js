@@ -44,7 +44,7 @@ export interface CreateNextI18nFromHostResult<
  *
  * Construction is EAGER: `host()` runs exactly once, inside this call, and the
  * instance it returns is both `result.i18n` and what every server helper
- * (`getI18n()` / `loadTranslations()`) resolves. The documented shape is a
+ * (`getI18n()` / `loadMessages()`) resolves. The documented shape is a
  * module-scope `export const { i18n, routing } = createNextI18nFromHost(…)`,
  * which is exactly when a module-scope host should be built — the same moment
  * `createNextI18n` builds its own. A factory that throws leaves nothing

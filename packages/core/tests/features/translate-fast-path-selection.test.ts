@@ -44,7 +44,7 @@ describe("an empty-string parameter before a node parameter, in a template that 
   it("contributes no part of its own", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "{empty}{node}!" } },
+      messages: { en: { msg: "{empty}{node}!" } },
     });
 
     const parts = i18n.tRaw("msg" as never, { empty: "", node } as never);
@@ -62,7 +62,7 @@ describe("a template made of a single character an extension claims", () => {
     ["ampersand", "&", "AMP"],
   ])("renders a lone %s through the extension", (_label, char, rendered) => {
     registerSyntaxExtension(makeLoneCharExtension(char, rendered));
-    const i18n = createI18n({ locale: "en", translation: { en: { msg: char } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { msg: char } } });
 
     expect(i18n.t("msg" as never)).toBe(rendered);
   });

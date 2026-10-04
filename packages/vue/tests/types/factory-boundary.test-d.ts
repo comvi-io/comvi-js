@@ -33,7 +33,7 @@ type _InjectedCoreIsHostTyped = Expect<Equal<InjectedCore, WrapperI18nHost>>;
 type _InjectedCoreIsNotTheClass = Expect<Equal<InjectedCore extends I18n ? true : false, false>>;
 
 // @ts-expect-error — loader capability is absent from the injected core's type
-injected.core.reloadTranslations();
+injected.core.reloadMessages();
 // @ts-expect-error — plugin-host capability is absent from the injected core's type
 injected.core.onMissingKey(() => undefined);
 // @ts-expect-error — the eight dropped proxies are gone from the instance too
@@ -41,7 +41,7 @@ injected.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error — `use` dropped in 0.5.0 (P6); register through `core.use`
 injected.use(() => undefined);
 
-injected.core.addTranslations({ en: { greeting: "Hello" } });
+injected.core.addMessages({ en: { greeting: "Hello" } });
 void injected.t("greeting");
 
 // The FACTORY RESULT preserves the exact host type `C`.
@@ -59,14 +59,14 @@ type _LoaderCoreHasLoaderApi = Expect<
 type _LoaderCoreHasNoPluginApi = Expect<
   Equal<(typeof fromLoader)["core"] extends I18nPluginHostApi ? true : false, false>
 >;
-void fromLoader.core.reloadTranslations();
+void fromLoader.core.reloadMessages();
 // @ts-expect-error — this host was composed WITHOUT the plugin capability
 fromLoader.core.registerPostProcessor((result) => result);
 
 const fromBase = createI18nFromCore(baseCore);
 type _BaseCoreIsExact = Expect<Equal<(typeof fromBase)["core"], typeof baseCore>>;
 // @ts-expect-error — a base host has no loader capability, at any level
-fromBase.core.reloadTranslations();
+fromBase.core.reloadMessages();
 
 // The preset path is capability-free too: its core is core's BASE `I18n`, the
 // same class `createCore` builds. Compose what the app needs with `.use(…)`
@@ -84,7 +84,7 @@ const chained = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 type _ChainedIsWrapper = Expect<
   Equal<typeof chained, VueI18n<{}, I18n<{}> & I18nLoaderApi & I18nPluginHostApi>>
 >;
-void chained.core.reloadTranslations();
+void chained.core.reloadMessages();
 void chained.core.onMissingKey(() => undefined);
 void chained.core.registerPlugin(() => undefined);
 void chained.t("greeting");
@@ -104,14 +104,14 @@ const typedParams = unchainedParams.use(attachLoader);
 type _DSurvives = Expect<
   Equal<(typeof typedParams)["core"], (typeof unchainedParams)["core"] & I18nLoaderApi>
 >;
-void typedParams.core.reloadTranslations();
+void typedParams.core.reloadMessages();
 
 // The pipe works on a `createI18nFromCore` wrapper as well, widening from its exact `C`.
 const fromBaseChained = createI18nFromCore(baseCore).use(attachLoader);
 type _FromBaseChainedCore = Expect<
   Equal<(typeof fromBaseChained)["core"], I18n<{}> & I18nLoaderApi>
 >;
-void fromBaseChained.core.reloadTranslations();
+void fromBaseChained.core.reloadMessages();
 
 // `devtools()` is THE identity installer: it widens nothing, so the core keeps
 // its exact type.
@@ -129,7 +129,7 @@ const withPlugin = createI18n({ locale: "en" }).use(pluginInstaller);
 type _PluginInstallerCore = Expect<
   Equal<(typeof withPlugin)["core"], I18n<{}> & I18nLoaderApi & I18nPluginHostApi>
 >;
-void withPlugin.core.reloadTranslations();
+void withPlugin.core.reloadMessages();
 void withPlugin.core.registerPlugin(() => undefined);
 
 // …but NOT through the inject path: the injected core is a bare
@@ -141,8 +141,8 @@ injected.use(attachLoader);
 // The instance never regains the dropped proxies, whatever `C` is — including
 // `use`, the last typed-present-may-throw member the class had. Probed on
 // every `C` shape the factories produce.
-// @ts-expect-error — dropped in 0.5.0; use `i18n.core.reloadTranslations()`
-fromComposed.reloadTranslations();
+// @ts-expect-error — dropped in 0.5.0; use `i18n.core.reloadMessages()`
+fromComposed.reloadMessages();
 // @ts-expect-error — an installer must return a host; use `i18n.core.registerPlugin(...)`
 fromComposed.use(() => undefined);
 // @ts-expect-error — dropped in 0.5.0 even on the one-call preset's wrapper

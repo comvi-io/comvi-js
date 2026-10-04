@@ -15,7 +15,7 @@ import { plugins } from "../../src/plugins";
 
 /** A host with a catalog, so `init()` needs no loader to succeed. */
 const makeHost = () =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: { en: { hi: "Hi" } } });
+  createI18n({ locale: "en", exposeGlobal: false, messages: { en: { hi: "Hi" } } });
 
 describe("composing before init()", () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;

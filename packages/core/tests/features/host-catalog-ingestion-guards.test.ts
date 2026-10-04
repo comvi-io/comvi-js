@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
 
-describe("addTranslations() on a non-flat catalog (C1)", () => {
+describe("addMessages() on a non-flat catalog (C1)", () => {
   // This block used to assert the opposite: a dev warning naming the offending
   // key and telling the reader the base host "stores catalogs as given". The
   // rule it softened is gone — the base flattens unconditionally — so the
@@ -10,7 +10,7 @@ describe("addTranslations() on a non-flat catalog (C1)", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = createI18n({ locale: "en" });
 
-    i18n.addTranslations({ en: { nav: { home: "Home" } } as never });
+    i18n.addMessages({ en: { nav: { home: "Home" } } as never });
 
     expect(i18n.t("nav.home" as never)).toBe("Home");
     expect(warnSpy).not.toHaveBeenCalled();
@@ -20,7 +20,7 @@ describe("addTranslations() on a non-flat catalog (C1)", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = createI18n({ locale: "en" });
 
-    i18n.addTranslations({ en: { total: null } as never });
+    i18n.addMessages({ en: { total: null } as never });
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping translation "total"'));
     expect(i18n.hasTranslation("total")).toBe(false);
@@ -30,7 +30,7 @@ describe("addTranslations() on a non-flat catalog (C1)", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = createI18n({ locale: "en" });
 
-    i18n.addTranslations({ en: { total: 3 } as never });
+    i18n.addMessages({ en: { total: 3 } as never });
 
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Translation "total" is not a string'),
@@ -39,14 +39,14 @@ describe("addTranslations() on a non-flat catalog (C1)", () => {
   });
 });
 
-describe("addTranslations() ICU preflight on the base host", () => {
+describe("addMessages() ICU preflight on the base host", () => {
   // `'#` is a quote only inside a plural sub-message; at the top level it is
   // two literal characters, so the ICU segment behind it must still be seen.
   it("still rejects an ICU segment that follows a top-level '# sequence", () => {
     const i18n = createI18n({ locale: "en" });
 
     expect(() =>
-      i18n.addTranslations({ en: { items: "'#{count, plural, one {item} other {items}}" } }),
+      i18n.addMessages({ en: { items: "'#{count, plural, one {item} other {items}}" } }),
     ).toThrow(/is ICU "plural" syntax/);
   });
 });

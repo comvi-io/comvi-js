@@ -1,8 +1,8 @@
-import type { FlattenedTranslations } from "../types";
+import type { FlattenedMessages } from "../types";
 
 /** Nested `Map<locale, Map<namespace, translations>>` storage. */
 export class TranslationCache {
-  private _cache = new Map<string, Map<string, FlattenedTranslations>>();
+  private _cache = new Map<string, Map<string, FlattenedMessages>>();
   private _defaultNs: string;
   private _revision = 0;
   /**
@@ -10,17 +10,17 @@ export class TranslationCache {
    * reference being STABLE between revisions — React excludes it from memo deps
    * and uses `getRevision()` for change detection.
    */
-  private _flatSnapshot: Map<string, FlattenedTranslations> | null = null;
+  private _flatSnapshot: Map<string, FlattenedMessages> | null = null;
 
   constructor(options?: { defaultNs?: string }) {
     this._defaultNs = options?.defaultNs ?? "default";
   }
 
-  get(locale: string, namespace?: string): FlattenedTranslations | undefined {
+  get(locale: string, namespace?: string): FlattenedMessages | undefined {
     return this._cache.get(locale)?.get(namespace ?? this._defaultNs);
   }
 
-  set(locale: string, namespace: string, translations: FlattenedTranslations): void {
+  set(locale: string, namespace: string, translations: FlattenedMessages): void {
     let localeMap = this._cache.get(locale);
     if (!localeMap) {
       localeMap = new Map();
@@ -76,14 +76,14 @@ export class TranslationCache {
   }
 
   /** A detached copy — callers may mutate it without touching the internal snapshot. */
-  clone(): Map<string, FlattenedTranslations> {
+  clone(): Map<string, FlattenedMessages> {
     return new Map(this._getFlatSnapshot());
   }
 
-  private _getFlatSnapshot(): Map<string, FlattenedTranslations> {
+  private _getFlatSnapshot(): Map<string, FlattenedMessages> {
     if (this._flatSnapshot !== null) return this._flatSnapshot;
 
-    const result = new Map<string, FlattenedTranslations>();
+    const result = new Map<string, FlattenedMessages>();
     for (const [lang, nsMap] of this._cache) {
       for (const [ns, translations] of nsMap) {
         result.set(`${lang}:${ns}`, translations);
@@ -99,7 +99,7 @@ export class TranslationCache {
    * it corrupts the cache.
    * @internal
    */
-  getInternalMap(): ReadonlyMap<string, FlattenedTranslations> {
+  getInternalMap(): ReadonlyMap<string, FlattenedMessages> {
     return this._getFlatSnapshot();
   }
 

@@ -41,7 +41,7 @@ from one side and nothing else keeps the two identical; no runtime hand-off will
 `test-apps/next/src/i18n/config.ts` in this repo follows exactly that shape.
 
 **Two writes do travel from a request to the shared instance**, and the package's tests pin that
-neither is the locale or the active namespaces. `addTranslations()` is additive and keyed by
+neither is the locale or the active namespaces. `addMessages()` is additive and keyed by
 `locale:namespace`, so a concurrent request can only write what the other would have loaded anyway —
 though a first add for a given key does emit `namespaceLoaded`. `init()` loads the default namespace
 once, at the instance's own configured locale, never at a request's. The internal server host type
@@ -82,7 +82,7 @@ to the library: `withComvi({ config })` from `@comvi/next/plugin`, in `next.conf
   still fill the once-cell, and it wins. Otherwise the server helpers use the alias's `i18n`, read
   at call time. Neither is an error naming all three ways out.
 - **`<ComviProvider>` from `@comvi/next/server` replaces the app's wrapper.** It sets the request
-  locale, runs `loadTranslations(locale, { namespaces })` and renders a library `"use client"`
+  locale, runs `loadMessages(locale, { namespaces })` and renders a library `"use client"`
   module that imports the same config through the alias. Only `locale` and the plain `messages`
   cross the boundary, exactly as before.
 - **The page passes its locale: `getI18n({ locale })`.** An explicit locale reads and writes no

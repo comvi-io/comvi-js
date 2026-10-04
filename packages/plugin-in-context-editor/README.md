@@ -49,7 +49,7 @@ await i18n.init();
 
 Create an API key in the project's settings with project read plus translation read and write;
 read alone loads the editor but every save fails. The editor reads the key off `i18n.apiKey`, the
-same option the fetch loader reads for API mode. Compose a loader or an inline `translation`
+same option the fetch loader reads for API mode. Compose a loader or an inline `messages`
 catalog next to it: the editor can only edit text the app rendered through `t()`.
 
 | Do this                                  | And                                                         |

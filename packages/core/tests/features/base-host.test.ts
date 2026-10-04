@@ -22,7 +22,7 @@ describe("createI18n() — the base host", () => {
   it("interpolates {param} like the composed host", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greet: "Hello, {name}!", plain: "Just text" } },
+      messages: { en: { greet: "Hello, {name}!", plain: "Just text" } },
     });
     expect(i18n.t("greet" as never, { name: "Ada" } as never)).toBe("Hello, Ada!");
     expect(i18n.t("plain" as never)).toBe("Just text");
@@ -35,7 +35,7 @@ describe("createI18n() — the base host", () => {
   // suite can observe that half, because only there is the `__DEV__` fold real.
   it("throws E_ICU_SYNTAX on ICU argument syntax instead of rendering it literally", () => {
     const template = "{count, plural, one {# item} other {# items}}";
-    const construct = () => createI18n({ locale: "en", translation: { en: { items: template } } });
+    const construct = () => createI18n({ locale: "en", messages: { en: { items: template } } });
 
     expect(construct).toThrow(
       expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
@@ -46,7 +46,7 @@ describe("createI18n() — the base host", () => {
   it("renders <tag> markup literally (no tag graph on the base host)", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "<link>hi</link>" } },
+      messages: { en: { msg: "<link>hi</link>" } },
     });
     expect(i18n.t("msg" as never)).toBe("<link>hi</link>");
   });
@@ -55,7 +55,7 @@ describe("createI18n() — the base host", () => {
     const i18n = createI18n({
       locale: "en",
       compiler: icuCompiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+      messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
     expect(i18n.t("items" as never, { count: 5 } as never)).toBe("5 items");
@@ -67,7 +67,7 @@ describe("createI18n() — the base host", () => {
   it("leaves &lt; / &gt; / &amp; and \\< literal with no tag extension", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: {
           entities: "a &lt;b&gt; &amp; c",
           escape: "Use \\<div>",
@@ -82,7 +82,7 @@ describe("createI18n() — the base host", () => {
   it("decodes those same sequences as soon as the tag extension is supplied", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: {
           entities: "a &lt;b&gt; &amp; c",
           escape: "Use \\<div>",
@@ -100,7 +100,7 @@ describe("createI18n() — the base host", () => {
   it("still applies ICU '' apostrophe quoting with no extension at all", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: {
           quoted: "'{literal}' stays",
           doubled: "it''s here",
@@ -115,10 +115,10 @@ describe("createI18n() — the base host", () => {
   });
 
   // Nested-catalog flattening is BASE behaviour, not a capability (C1).
-  describe("addTranslations on a bare host", () => {
+  describe("addMessages on a bare host", () => {
     it("stores a FLAT catalog, including colon-keyed namespaces", () => {
       const i18n = createI18n({ locale: "en" });
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { "nav.home": "Home" },
         "en:admin": { "nav.home": "Admin home" },
       });
@@ -130,8 +130,8 @@ describe("createI18n() — the base host", () => {
 
     it("merges repeated adds for the same locale/namespace", () => {
       const i18n = createI18n({ locale: "en" });
-      i18n.addTranslations({ en: { a: "A" } });
-      i18n.addTranslations({ en: { b: "B", a: "A2" } });
+      i18n.addMessages({ en: { a: "A" } });
+      i18n.addMessages({ en: { b: "B", a: "A2" } });
 
       expect(i18n.t("a" as never)).toBe("A2");
       expect(i18n.t("b" as never)).toBe("B");
@@ -139,20 +139,20 @@ describe("createI18n() — the base host", () => {
 
     it("keeps a raw user object's prototype members out of lookups", () => {
       const i18n = createI18n({ locale: "en" });
-      i18n.addTranslations({ en: { real: "Real" } });
+      i18n.addMessages({ en: { real: "Real" } });
 
       // The catalog the caller passed has Object.prototype; the cache copy
       // must not, or `toString` would resolve as a translation.
       expect(i18n.hasTranslation("toString")).toBe(false);
       expect(i18n.t("toString" as never)).toBe("toString");
-      expect(Object.getPrototypeOf(i18n.getTranslations())).toBeNull();
+      expect(Object.getPrototypeOf(i18n.getMessages())).toBeNull();
     });
 
     it("flattens a nested catalog, with no warning about it", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       const i18n = createI18n({ locale: "en" });
 
-      i18n.addTranslations({ en: { nav: { home: "Home", deep: { x: "X" } } } as never });
+      i18n.addMessages({ en: { nav: { home: "Home", deep: { x: "X" } } } as never });
 
       expect(i18n.t("nav.home" as never)).toBe("Home");
       expect(i18n.t("nav.deep.x" as never)).toBe("X");
@@ -163,7 +163,7 @@ describe("createI18n() — the base host", () => {
 
     it("flattens a nested CONSTRUCTOR catalog — the C1 reproduction", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const i18n = createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
+      const i18n = createI18n({ locale: "en", messages: { en: { nav: { home: "Home" } } } });
 
       expect(i18n.t("nav.home" as never)).toBe("Home");
       expect(i18n.hasTranslation("nav.home")).toBe(true);
@@ -173,7 +173,7 @@ describe("createI18n() — the base host", () => {
     it("takes a MIXED flat-and-nested catalog in one object", () => {
       const i18n = createI18n({
         locale: "en",
-        translation: {
+        messages: {
           en: { "nav.home": "Home", nav: { away: "Away" }, plain: "Plain" },
           "en:admin": { panel: { title: "Panel" } },
         },
@@ -189,7 +189,7 @@ describe("createI18n() — the base host", () => {
       const i18n = createI18n({
         locale: "en",
         compiler: icuCompiler,
-        translation: {
+        messages: {
           en: { cart: { items: "{count, plural, one {# item} other {# items}}" } },
         },
       });
@@ -200,17 +200,17 @@ describe("createI18n() — the base host", () => {
 
     it("keeps prototype-pollution safety through the flattener", () => {
       const hostile = JSON.parse('{"nav":{"home":"Home"},"__proto__":{"polluted":"yes"}}');
-      const i18n = createI18n({ locale: "en", translation: { en: hostile } });
+      const i18n = createI18n({ locale: "en", messages: { en: hostile } });
 
       expect(i18n.t("nav.home" as never)).toBe("Home");
-      expect(Object.getPrototypeOf(i18n.getTranslations())).toBeNull();
+      expect(Object.getPrototypeOf(i18n.getMessages())).toBeNull();
       expect(i18n.hasTranslation("toString")).toBe(false);
       expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     });
 
     it("still accepts an already-flattened catalog from flattenCatalog()", () => {
       const i18n = createI18n({ locale: "en" });
-      i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" }, count: 3 }) });
+      i18n.addMessages({ en: flattenCatalog({ nav: { home: "Home" }, count: 3 }) });
 
       expect(i18n.t("nav.home" as never)).toBe("Home");
       // Non-string leaves are coerced, exactly as on the loader path.

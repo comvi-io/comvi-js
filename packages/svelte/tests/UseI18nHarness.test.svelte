@@ -21,8 +21,8 @@
     tRaw,
     setLocale,
     setDefaultParams,
-    addTranslations,
-    clearTranslations,
+    addMessages,
+    clearMessages,
     hasLocale,
     hasTranslation,
     getLoadedLocales,
@@ -80,7 +80,7 @@
   }
 
   function addDynamicTranslations(): void {
-    addTranslations({
+    addMessages({
       en: { dynamic: "Dynamic" },
       fr: { dynamic: "Dynamique" },
       ar: { dynamic: "ديناميكي" },
@@ -88,7 +88,7 @@
   }
 
   function clearEnglishCommon(): void {
-    clearTranslations("en", "common");
+    clearMessages("en", "common");
   }
 
   $: {

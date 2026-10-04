@@ -6,7 +6,7 @@ import { icuCompiler } from "../../src/core/translate/compile-icu";
 
 function ingest(template: string): void {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({ en: { msg: template } });
+  i18n.addMessages({ en: { msg: template } });
 }
 
 describe("ICU plural with a malformed choice list", () => {
@@ -47,7 +47,7 @@ describe("a plural token an injected compiler built from a malformed list", () =
         makeArgToken: (content) => [TK_PLURAL, content, "other {'#}' left}"],
         processArgToken: icuCompiler.processArgToken,
       },
-      translation: { en: { msg: "a{n}b" } },
+      messages: { en: { msg: "a{n}b" } },
     });
 
     expect(i18n.t("msg", { n: 1 })).toBe("a#} leftb");
@@ -60,7 +60,7 @@ describe("a plural token an injected compiler built from a malformed list", () =
         makeArgToken: (content) => [TK_SELECT, content, "other {chosen}"],
         processArgToken: icuCompiler.processArgToken,
       },
-      translation: { en: { msg: "a{g}b" } },
+      messages: { en: { msg: "a{g}b" } },
     });
 
     expect(i18n.t("msg", { g: "any" })).toBe("achosenb");
@@ -73,7 +73,7 @@ describe("a plural token an injected compiler built from a malformed list", () =
         makeArgToken: (content) => [TK_PLURAL, content, "'{one'"],
         processArgToken: icuCompiler.processArgToken,
       },
-      translation: { en: { msg: "a{n}b" } },
+      messages: { en: { msg: "a{n}b" } },
     });
 
     expect(i18n.t("msg", { n: 1 })).toBe("ab");

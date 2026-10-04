@@ -27,17 +27,12 @@ const baseHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: { en: { greeting: "Hello" } },
+    messages: { en: { greeting: "Hello" } },
   });
 
 const composedHost = () => attachPlugins(attachLoader(baseHost()));
 
-const CAPABILITY_MEMBERS = [
-  "addActiveNamespace",
-  "reloadTranslations",
-  "onLoadError",
-  "onMissingKey",
-];
+const CAPABILITY_MEMBERS = ["addActiveNamespace", "reloadMessages", "onLoadError", "onMissingKey"];
 
 // A capability-CARRYING host must behave exactly like the base one here: the
 // members are gone from `useI18n()` by absence, not by host sniffing.
@@ -48,10 +43,10 @@ describe.each([
   const render = () => renderHook(useI18n, { wrapper: wrapperFor(makeHost()) });
 
   it("pure destructure yields undefined and calling it is a TypeError", () => {
-    const { reloadTranslations } = render().result;
+    const { reloadMessages } = render().result;
 
-    expect(reloadTranslations).toBeUndefined();
-    expect(() => reloadTranslations()).toThrow(TypeError);
+    expect(reloadMessages).toBeUndefined();
+    expect(() => reloadMessages()).toThrow(TypeError);
   });
 
   it("mixed destructure keeps the common members working", () => {
@@ -62,7 +57,7 @@ describe.each([
   });
 
   it("aliased destructure yields undefined", () => {
-    const { reloadTranslations: r, addActiveNamespace: addNs } = render().result;
+    const { reloadMessages: r, addActiveNamespace: addNs } = render().result;
 
     expect(r).toBeUndefined();
     expect(addNs).toBeUndefined();
@@ -73,7 +68,7 @@ describe.each([
 
     expect(api.onLoadError).toBeUndefined();
     expect(api.onMissingKey).toBeUndefined();
-    expect(api.reloadTranslations).toBeUndefined();
+    expect(api.reloadMessages).toBeUndefined();
     expect(api.addActiveNamespace).toBeUndefined();
   });
 

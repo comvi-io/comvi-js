@@ -96,19 +96,19 @@ export async function buildCaseThunks(distRoot) {
   }
   catalog.rich = "Click <b>here</b> for {what}";
 
-  const make = () => createI18n({ locale: "en", translation: { en: catalog } });
+  const make = () => createI18n({ locale: "en", messages: { en: catalog } });
   const staticI18n = make();
   const paramI18n = make();
   const richI18n = make();
   const icuI18n = createI18n({
     locale: "en",
     compiler: icuCompiler,
-    translation: { en: { n: "{count, plural, one {# item} other {# items}}" } },
+    messages: { en: { n: "{count, plural, one {# item} other {# items}}" } },
   });
   const ampI18n = createI18n({
     locale: "en",
     compiler: icuCompiler,
-    translation: {
+    messages: {
       en: { n: "{count, plural, one {# Term & Condition} other {# Terms & Conditions}}" },
     },
   });

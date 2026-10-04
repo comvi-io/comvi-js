@@ -59,14 +59,14 @@ describe("catalog ingestion — the dev preflight", () => {
   it("stays silent for tag markup a host with no tag extension ingests", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
-    i18n.addTranslations({ en: { greet: GREET } });
+    i18n.addMessages({ en: { greet: GREET } });
 
     expect(tagWarnings()).toEqual([]);
   });
 
   it("stays silent for tag markup a loader merges in", async () => {
     // The loader preflights its own normalized copy BEFORE the merge — a second
-    // ingestion seam, which `addTranslations` above cannot speak for.
+    // ingestion seam, which `addMessages` above cannot speak for.
     const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(attachLoader);
     i18n.registerLoader(async () => ({ greet: GREET }));
 
@@ -83,7 +83,7 @@ describe("catalog ingestion — the dev preflight", () => {
     // second parse the top-level call cannot speak for.
     const i18n = new IcuI18n({ locale: "en", exposeGlobal: false });
 
-    i18n.addTranslations({ en: { items: PLURAL } });
+    i18n.addMessages({ en: { items: PLURAL } });
 
     expect(tagWarnings()).toEqual([]);
   });
@@ -94,7 +94,7 @@ describe("rendering an ingested tag template — the dev warning", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greet: GREET } },
+      messages: { en: { greet: GREET } },
     });
     // Ingestion has happened; anything the spy holds from here is the RENDER
     // path's, which is the whole distinction under test.
@@ -114,7 +114,7 @@ describe("rendering an ingested tag template — the dev warning", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { docs: ATTR_TEMPLATE } },
+      messages: { en: { docs: ATTR_TEMPLATE } },
     });
     warnSpy.mockClear();
 
@@ -133,7 +133,7 @@ describe("rendering an ingested tag template — the dev warning", () => {
     const i18n = new IcuI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { items: PLURAL } },
+      messages: { en: { items: PLURAL } },
     });
     warnSpy.mockClear();
 
@@ -152,7 +152,7 @@ describe("rendering an ingested tag template — the dev warning", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greet: GREET } },
+      messages: { en: { greet: GREET } },
     });
 
     const prepared = prepareTranslation(i18n, {

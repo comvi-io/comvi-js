@@ -3,7 +3,7 @@ import { createI18n, useI18n } from "@comvi/vue";
 
 const i18n = createI18n({
   locale: "en",
-  translation: { en: { greeting: "Hello, {name}!" } },
+  messages: { en: { greeting: "Hello, {name}!" } },
   ssrLocale: "en",
 });
 

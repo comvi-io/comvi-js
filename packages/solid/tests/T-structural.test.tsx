@@ -44,7 +44,7 @@ const makeI18n = async (translations: Record<string, string>) => {
   const i18n = createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: { en: translations },
+    messages: { en: translations },
   });
   await i18n.init();
   return i18n;

@@ -91,8 +91,8 @@ export interface NuxtI18nOptions {
   apiKey?: string;
 
   /**
-   * Inline translation catalogs, keyed `locale` or `"locale:namespace"` —
-   * exactly `I18nOptions["translation"]`, forwarded verbatim into BOTH
+   * Inline catalogs, keyed `locale` or `"locale:namespace"` —
+   * exactly `I18nOptions["messages"]`, forwarded verbatim into BOTH
    * constructed hosts (the client plugin and each per-request server host) and
    * into a `hostModule` factory's resolved options.
    *
@@ -105,7 +105,7 @@ export interface NuxtI18nOptions {
    *
    * @example { en: { greeting: "Hello" }, de: { greeting: "Hallo" } }
    */
-  translation?: I18nOptions["translation"];
+  messages?: I18nOptions["messages"];
 
   /**
    * Default namespace for translations
@@ -269,7 +269,7 @@ export interface NuxtI18nRuntimeConfig {
     defaultLocale: string;
     localePrefix: LocalePrefixMode;
     head?: boolean;
-    translation?: I18nOptions["translation"];
+    messages?: I18nOptions["messages"];
     defaultNs: string;
     ns?: I18nOptions["ns"];
     fallbackLocale: string | string[];
@@ -317,7 +317,7 @@ export interface NuxtI18nSetupEvent extends H3Event {
 /**
  * The host shape nuxt's SERVER utilities accept: the BASE host and nothing
  * more, because that is what the generated default `#build/comvi.host` builds.
- * The loader is NOT part of it — `loadTranslations` and `useTranslation` probe
+ * The loader is NOT part of it — `loadMessages` and `useTranslation` probe
  * for the capability with core's `hasLoaderApi` and say so once, by name, when
  * it is absent, rather than calling a member the host does not have.
  */
@@ -327,7 +327,7 @@ export type NuxtServerHost<D extends DefaultTranslationParams = {}> = WrapperI18
  * A {@link NuxtServerHost} whose `hostModule` factory composed
  * `@comvi/core/loader`. This is the shape SSR translation loading actually
  * needs, and the one the server utilities narrow to before driving
- * `reloadTranslations` / `addActiveNamespace`.
+ * `reloadMessages` / `addActiveNamespace`.
  */
 export type NuxtServerLoaderHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D> &
   I18nLoaderApi;
@@ -350,8 +350,8 @@ export type NuxtHostFactoryOptions<D extends DefaultTranslationParams = {}> = {
   ns?: I18nOptions["ns"];
   devMode?: boolean;
   apiKey?: string;
-  /** `comvi.translation` verbatim; a factory that spreads `options` keeps it. */
-  translation?: I18nOptions["translation"];
+  /** `comvi.messages` verbatim; a factory that spreads `options` keeps it. */
+  messages?: I18nOptions["messages"];
   /**
    * `icuCompiler`, present only when `comvi.icu` is `true` — the last key in
    * the object, so `createI18n({ ...options })` compiles ICU and

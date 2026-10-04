@@ -2,19 +2,19 @@ import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import { createDeferred as deferred } from "../helpers/deferred";
 
-describe("addTranslations() / the `translation` option — no input mutation", () => {
-  it("addTranslations does not mutate the caller's object", () => {
+describe("addMessages() / the `messages` option — no input mutation", () => {
+  it("addMessages does not mutate the caller's object", () => {
     const catalog = { hello: "Hello" };
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: catalog });
+    i18n.addMessages({ en: catalog });
 
     expect(Object.getPrototypeOf(catalog)).toBe(Object.prototype);
     expect(i18n.t("hello")).toBe("Hello");
   });
 
-  it("constructor translation option does not mutate the caller's object", () => {
+  it("constructor messages option does not mutate the caller's object", () => {
     const catalog = { greet: "Hi" };
-    const i18n = new I18n({ locale: "en", translation: { en: catalog } });
+    const i18n = new I18n({ locale: "en", messages: { en: catalog } });
 
     expect(Object.getPrototypeOf(catalog)).toBe(Object.prototype);
     expect(i18n.t("greet")).toBe("Hi");
@@ -22,9 +22,9 @@ describe("addTranslations() / the `translation` option — no input mutation", (
 
   it("later cache merges do not leak keys into the user's object", () => {
     const catalog: Record<string, string> = { hello: "Hello" };
-    const i18n = new I18n({ locale: "en", translation: { en: catalog } });
+    const i18n = new I18n({ locale: "en", messages: { en: catalog } });
 
-    i18n.addTranslations({ en: { extra: "X" } });
+    i18n.addMessages({ en: { extra: "X" } });
 
     expect(catalog.extra).toBeUndefined();
     expect(i18n.t("extra")).toBe("X");
@@ -34,15 +34,15 @@ describe("addTranslations() / the `translation` option — no input mutation", (
     // A host WITH the flattener gets a fresh prototype-less catalog out of it,
     // so the first write stores that object as-is. Object IDENTITY is the cheap,
     // deterministic proxy for "the constructor does not copy the whole catalog a
-    // second time" — the copy that made `new I18n({ translation })` 2.5x slower.
+    // second time" — the copy that made `new I18n({ messages })` 2.5x slower.
     const catalog: Record<string, string> = Object.assign(Object.create(null), {
       hello: "Hello",
     });
-    const i18n = new I18n({ locale: "en", translation: { en: catalog } });
+    const i18n = new I18n({ locale: "en", messages: { en: catalog } });
 
-    expect(i18n.getTranslations()).toBe(catalog);
+    expect(i18n.getMessages()).toBe(catalog);
     // A genuine merge still copies, so the adopted object is never mutated.
-    i18n.addTranslations({ en: { extra: "X" } });
+    i18n.addMessages({ en: { extra: "X" } });
     expect(catalog.extra).toBeUndefined();
     expect(i18n.t("extra")).toBe("X");
     expect(i18n.t("hello")).toBe("Hello");
@@ -52,7 +52,7 @@ describe("addTranslations() / the `translation` option — no input mutation", (
 describe("catalog leaf hardening — non-string values", () => {
   it("joins an array leaf, coerces a number leaf and drops a null leaf", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { list: ["a", "b"], num: 5, nothing: null } as never,
     });
 
@@ -64,7 +64,7 @@ describe("catalog leaf hardening — non-string values", () => {
 
   it("nested catalogs with array leaves do not crash t()", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { menu: { items: ["one", "two"], title: "Menu" } } as never,
     });
 
@@ -104,7 +104,7 @@ describe("isInitializing — owned by init()", () => {
 
 describe("setLocale — revert-to-current cancels in-flight change", () => {
   it("locale stays at the last requested value", async () => {
-    const i18n = new I18n({ locale: "en", translation: { en: { greet: "Hello" } } });
+    const i18n = new I18n({ locale: "en", messages: { en: { greet: "Hello" } } });
     const de = deferred<Record<string, string>>();
     i18n.registerLoader((loc) => (loc === "de" ? de.promise : Promise.resolve({})));
     await i18n.init();
@@ -123,14 +123,14 @@ describe("setLocale — revert-to-current cancels in-flight change", () => {
   });
 });
 
-describe("clearTranslations / reloadTranslations — pending load cancellation", () => {
-  it("a load in flight when clearTranslations() is called does not repopulate the cache", async () => {
+describe("clearMessages / reloadMessages — pending load cancellation", () => {
+  it("a load in flight when clearMessages() is called does not repopulate the cache", async () => {
     const d = deferred<Record<string, string>>();
     const i18n = new I18n({ locale: "en" });
     i18n.registerLoader(() => d.promise);
 
     const loadPromise = i18n.addActiveNamespace("default");
-    i18n.clearTranslations();
+    i18n.clearMessages();
     d.resolve({ hello: "Hello" });
     await loadPromise;
 
@@ -138,7 +138,7 @@ describe("clearTranslations / reloadTranslations — pending load cancellation",
     expect(i18n.getLoadedLocales()).toEqual([]);
   });
 
-  it("scoped clearTranslations() only cancels loads in that scope", async () => {
+  it("scoped clearMessages() only cancels loads in that scope", async () => {
     const slow = deferred<Record<string, string>>();
     const i18n = new I18n({ locale: "en" });
     i18n.registerLoader((_loc, ns) =>
@@ -147,7 +147,7 @@ describe("clearTranslations / reloadTranslations — pending load cancellation",
 
     const adminLoad = i18n.addActiveNamespace("admin");
     const defaultLoad = i18n.addActiveNamespace("default");
-    i18n.clearTranslations("en", "admin");
+    i18n.clearMessages("en", "admin");
     slow.resolve({ panel: "Panel" });
     await Promise.all([adminLoad, defaultLoad]);
 
@@ -155,7 +155,7 @@ describe("clearTranslations / reloadTranslations — pending load cancellation",
     expect(i18n.hasLocale("en", "default")).toBe(true);
   });
 
-  it("reloadTranslations() fetches fresh data instead of resolving an in-flight stale request", async () => {
+  it("reloadMessages() fetches fresh data instead of resolving an in-flight stale request", async () => {
     let calls = 0;
     const first = deferred<Record<string, string>>();
     const i18n = new I18n({ locale: "en" });
@@ -165,7 +165,7 @@ describe("clearTranslations / reloadTranslations — pending load cancellation",
     });
 
     const initial = i18n.addActiveNamespace("default"); // pending (call 1)
-    const reload = i18n.reloadTranslations("en", "default"); // cancels call 1, starts call 2
+    const reload = i18n.reloadMessages("en", "default"); // cancels call 1, starts call 2
     first.resolve({ v: "stale" });
     await Promise.all([initial, reload]);
 

@@ -21,7 +21,7 @@ describe("T.svelte tag-handler error path", () => {
     createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { welcome: "Hello <strong>{name}</strong>!" } },
+      messages: { en: { welcome: "Hello <strong>{name}</strong>!" } },
     });
 
   beforeEach(() => {

@@ -20,7 +20,7 @@ function assertEqual(actual, expected, label) {
 const i18n = createI18n({
   locale: "en",
   exposeGlobal: false,
-  translation: { en: { msg: template } },
+  messages: { en: { msg: template } },
 });
 
 assertEqual(

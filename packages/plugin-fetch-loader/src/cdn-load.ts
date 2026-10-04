@@ -119,7 +119,7 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
 export interface InitialLoadHost {
   readonly locale: string;
   getActiveNamespaces(): string[];
-  addTranslations(translations: Record<string, Record<string, TranslationValue>>): void;
+  addMessages(translations: Record<string, Record<string, TranslationValue>>): void;
 }
 
 /**
@@ -140,7 +140,7 @@ export async function loadInitialFromCdn(
     await Promise.all(
       namespaces.map(async (ns) => {
         const data = await load(locale, ns);
-        i18n.addTranslations({ [`${locale}:${ns}`]: data });
+        i18n.addMessages({ [`${locale}:${ns}`]: data });
       }),
     );
   } catch {

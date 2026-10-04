@@ -12,7 +12,7 @@ import {
 } from "@comvi/svelte";
 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
-i18n.addTranslations({ en: { greeting: "Hello, <b>{name}</b>!" } });
+i18n.addMessages({ en: { greeting: "Hello, <b>{name}</b>!" } });
 i18n.use(devtools());
 
 console.log(i18n.t("greeting" as never, { name: "world" } as never), setI18nContext, useI18n, T);

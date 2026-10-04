@@ -14,14 +14,14 @@ describe("t() with untrusted input", () => {
 
     it("should interpolate malicious scripts into parameters without executing them (passthrough)", () => {
       const malicious = "<script>alert(1)</script>";
-      i18n.addTranslations({ en: { msg: "User: {name}" } });
+      i18n.addMessages({ en: { msg: "User: {name}" } });
 
       expect(i18n.t("msg", { name: malicious })).toBe(`User: ${malicious}`);
     });
 
     it("should pass through deeply nested/recursive HTML input unchanged", () => {
       const nested = "<div><div><div><script>alert('deep')</script></div></div></div>";
-      i18n.addTranslations({ en: { deep: "Content: {html}" } });
+      i18n.addMessages({ en: { deep: "Content: {html}" } });
 
       expect(i18n.t("deep", { html: nested })).toBe(`Content: ${nested}`);
     });
@@ -33,13 +33,13 @@ describe("t() with untrusted input", () => {
     });
 
     it("does not re-parse braces that arrive inside a parameter value", () => {
-      i18n.addTranslations({ en: { msg: "User: {name}" } });
+      i18n.addMessages({ en: { msg: "User: {name}" } });
 
       expect(i18n.t("msg", { name: "{injected}" })).toBe("User: {injected}");
     });
 
     it("does not resolve a placeholder smuggled in through another parameter's value", () => {
-      i18n.addTranslations({ en: { msg: "User: {name}" } });
+      i18n.addMessages({ en: { msg: "User: {name}" } });
 
       expect(i18n.t("msg", { name: "{injected}", injected: "owned" })).toBe("User: {injected}");
     });
@@ -47,7 +47,7 @@ describe("t() with untrusted input", () => {
 
   describe("malformed templates", () => {
     it("should handle unclosed braces gracefully and warn", () => {
-      i18n.addTranslations({ en: { bad: "Hello {name" } });
+      i18n.addMessages({ en: { bad: "Hello {name" } });
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       // Best effort plus a warning; never a throw.
@@ -56,7 +56,7 @@ describe("t() with untrusted input", () => {
     });
 
     it("renders an unmatched closing brace literally and does not warn", () => {
-      i18n.addTranslations({ en: { bad: "Hello } name" } });
+      i18n.addMessages({ en: { bad: "Hello } name" } });
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       expect(i18n.t("bad")).toBe("Hello } name");

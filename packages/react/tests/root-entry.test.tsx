@@ -35,7 +35,7 @@ describe("@comvi/react — the one-call host", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello, {name}!" } },
+      messages: { en: { greeting: "Hello, {name}!" } },
     });
 
     expect(i18n.t("greeting" as never, { name: "world" } as never)).toBe("Hello, world!");
@@ -48,7 +48,7 @@ describe("@comvi/react — the one-call host", () => {
     // claim needs a view that admits them as optional to be readable at all.
     const bare = i18n as Partial<I18nLoaderApi & I18nPluginHostApi>;
 
-    expect(bare.reloadTranslations).toBeUndefined();
+    expect(bare.reloadMessages).toBeUndefined();
     expect(bare.onMissingKey).toBeUndefined();
     expect("registerLoader" in i18n).toBe(false);
     expect("instanceId" in i18n).toBe(false);
@@ -59,7 +59,7 @@ describe("@comvi/react — the one-call host", () => {
       locale: "en",
       exposeGlobal: false,
       compiler: root.icuCompiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+      messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
@@ -88,7 +88,7 @@ describe("@comvi/react — the capability toolkit", () => {
 
     const { result } = renderHook(() => root.useI18nLoader(), { wrapper: wrapperFor(i18n) });
 
-    expect(typeof result.current.reloadTranslations).toBe("function");
+    expect(typeof result.current.reloadMessages).toBe("function");
     expect(typeof result.current.addActiveNamespace).toBe("function");
     // Loader ATTACH is not loader CONFIG: the host has the API, and the app
     // registers its loader through it afterwards.
@@ -106,7 +106,7 @@ describe("@comvi/react — the capability toolkit", () => {
       );
 
     const { result } = renderHook(() => root.useI18nLoader(), { wrapper: wrapperFor(i18n) });
-    expect(typeof result.current.reloadTranslations).toBe("function");
+    expect(typeof result.current.reloadMessages).toBe("function");
     // Unlike bare `attachLoader`, this one is CONFIGURED.
     expect(typeof i18n.getLoader()).toBe("function");
 
@@ -171,7 +171,7 @@ describe("@comvi/react — the export surface", () => {
     const built = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
     expect(built).toBeInstanceOf(I18n);
     expect(built.t("greeting" as never)).toBe("Hello");
@@ -192,7 +192,7 @@ describe("@comvi/react — the export surface", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
 
     const { result } = renderHook(

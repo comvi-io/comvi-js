@@ -213,7 +213,7 @@ describe("a locale switch racing destroy()", () => {
 
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
     i18n.registerLoader(async () => load.promise);
-    i18n.addTranslations({ en: { hello: "Hello" } });
+    i18n.addMessages({ en: { hello: "Hello" } });
     await i18n.init();
 
     const switchPromise = i18n.setLocale("fr");
@@ -237,7 +237,7 @@ describe("a locale switch racing destroy()", () => {
     // apply in the same tick. Pinned here so the destroy re-check above is
     // never "fixed" into a version that adds a tick to this path.
     const i18n = createBaseI18n({ locale: "en", exposeGlobal: false });
-    i18n.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+    i18n.addMessages({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
 
     i18n.locale = "fr";
 
@@ -269,7 +269,7 @@ describe("a loader that throws synchronously", () => {
     expect((loadError.mock.calls[0][0] as { error: Error }).error.message).toBe("sync loader boom");
 
     // The retry is the point, and `addActiveNamespace` is the path that shows
-    // it: `reloadTranslations` cancels pending loads first, so it would mask a
+    // it: `reloadMessages` cancels pending loads first, so it would mask a
     // parked entry. A parked entry means the loader is never called again and
     // `loadError` is never emitted again.
     await expect(i18n.addActiveNamespace("sync")).rejects.toThrow("Failed to load all namespaces");

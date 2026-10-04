@@ -29,7 +29,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({ "en:common": { __seed: "seed" } });
+    i18n.addMessages({ "en:common": { __seed: "seed" } });
 
     const loaderMock = vi.fn(async (language: string, namespace: string) => {
       if (language === "fr" && namespace === "common") {
@@ -53,7 +53,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({ "en:common": { __seed: "seed" } });
+    i18n.addMessages({ "en:common": { __seed: "seed" } });
 
     const loaderMock = vi.fn(async () => ({ greeting: "Bonjour" }));
     i18n.registerLoader(loaderMock);
@@ -80,7 +80,7 @@ describe("server getI18n", () => {
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(true);
 
-    i18n.addTranslations({ "fr:common": { __seed: "ok" } });
+    i18n.addMessages({ "fr:common": { __seed: "ok" } });
     setI18n(i18n);
 
     const { hasTranslation } = await getI18n({ locale: "fr" });
@@ -122,7 +122,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({ "fr:common": { greeting: "Bonjour" } });
+    i18n.addMessages({ "fr:common": { greeting: "Bonjour" } });
 
     const loaderMock = vi.fn(async () => ({ title: "Console" }));
     i18n.registerLoader(loaderMock);
@@ -142,7 +142,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": { __seed: "seed" },
       "fr:common": { greeting: "Bonjour cached" },
     });
@@ -169,7 +169,7 @@ describe("server getI18n", () => {
       const serverPlugin = vi.fn(async () => undefined);
       nextI18n.use(nextPlugin(serverPlugin, { runtime: "server" }));
 
-      nextI18n.i18n.addTranslations({
+      nextI18n.i18n.addMessages({
         "fr:common": { greeting: "Bonjour cached" },
       });
 
@@ -188,7 +188,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({ "fr:common": { __seed: "ok" } });
+    i18n.addMessages({ "fr:common": { __seed: "ok" } });
 
     const tSpy = vi.spyOn(i18n, "tRaw").mockReturnValue("translated");
     setI18n(i18n);
@@ -216,7 +216,7 @@ describe("server getI18n", () => {
       devMode: false,
     });
 
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": {
         greeting: "Hello <strong>{name}</strong>",
       },

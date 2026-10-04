@@ -27,7 +27,7 @@ export type FetchLoaderInstaller = <T extends I18n<any>>(
  * decide the DIAGNOSTIC on a late compose: the late-compose warning fires once
  * per host, and only the plugin capability's message is true here. A late
  * `.use(fetchLoader(…))` does not run the plugin, so no loader is
- * registered and the loader message's recovery advice — `reloadTranslations()`
+ * registered and the loader message's recovery advice — `reloadMessages()`
  * (which throws `E_NO_LOADER_REGISTERED`) or `addActiveNamespace()` (which
  * fetches nothing) — cannot work. `attachPlugins` therefore runs FIRST so its
  * message claims the slot.

@@ -16,10 +16,10 @@ function withInheritedLocale(): Record<string, Record<string, string>> {
 }
 
 describe("a catalog map with an inherited locale entry", () => {
-  it("adopts the own locale only, through addTranslations", () => {
+  it("adopts the own locale only, through addMessages", () => {
     const i18n = new I18n({ locale: "fr" });
 
-    i18n.addTranslations(withInheritedLocale());
+    i18n.addMessages(withInheritedLocale());
 
     expect(i18n.getLoadedLocales()).toEqual(["fr"]);
     expect(i18n.hasTranslation("greeting", "en")).toBe(false);
@@ -27,7 +27,7 @@ describe("a catalog map with an inherited locale entry", () => {
   });
 
   it("adopts the own locale only, through the constructor", () => {
-    const i18n = new I18n({ locale: "fr", translation: withInheritedLocale() });
+    const i18n = new I18n({ locale: "fr", messages: withInheritedLocale() });
 
     expect(i18n.getLoadedLocales()).toEqual(["fr"]);
     expect(i18n.hasTranslation("greeting", "en")).toBe(false);
@@ -38,7 +38,7 @@ describe("a catalog map with an inherited locale entry", () => {
     const locales: string[] = [];
     i18n.on("namespaceLoaded", ({ locale }) => void locales.push(locale));
 
-    i18n.addTranslations(withInheritedLocale());
+    i18n.addMessages(withInheritedLocale());
 
     expect(locales).toEqual(["fr"]);
   });

@@ -35,7 +35,7 @@ describe("setLocale() with a loader that has nothing to fetch", () => {
     const load = vi.fn(async () => ({}));
     const i18n = makeHost();
     i18n.registerLoader(load);
-    i18n.addTranslations({ en: { hi: "Hi" }, fr: { hi: "Salut" } });
+    i18n.addMessages({ en: { hi: "Hi" }, fr: { hi: "Salut" } });
 
     await i18n.setLocale("fr");
 
@@ -63,7 +63,7 @@ describe("setLocale() staleness arbitration", () => {
       settlers.set(key, settler);
       return settler.promise;
     });
-    i18n.addTranslations({ en: { hi: "Hi" } });
+    i18n.addMessages({ en: { hi: "Hi" } });
     const changes: string[] = [];
     i18n.on("localeChanged", ({ from, to }) => changes.push(`${from}->${to}`));
 

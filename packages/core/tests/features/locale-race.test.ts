@@ -40,7 +40,7 @@ describe("locale switch on a host WITHOUT the loader capability", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { hi: "Hi" }, fr: { hi: "Salut" } },
+      messages: { en: { hi: "Hi" }, fr: { hi: "Salut" } },
     });
     const trace = traceLocaleEvents(i18n);
 

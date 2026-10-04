@@ -9,7 +9,7 @@ describe("t() with ICU select", () => {
   });
 
   it("should select based on exact string match", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         gender: "{gender, select, male {He} female {She} other {They}} went to the store.",
       },
@@ -21,7 +21,7 @@ describe("t() with ICU select", () => {
   });
 
   it("should support 'other' as fallback", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         status: "Status: {val, select, active {Green} other {Gray}}",
       },
@@ -30,7 +30,7 @@ describe("t() with ICU select", () => {
   });
 
   it("should support nested select statements", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         profile:
           "{gender, select, male {His status is {status, select, online {Online} other {Offline}}} other {Their status is unknown}}",
@@ -42,7 +42,7 @@ describe("t() with ICU select", () => {
   });
 
   it("should support plural inside select", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         party:
           "{host, select, me {I have {guestCount, plural, one {one guest} other {# guests}}} other {{host} has {guestCount, plural, one {one guest} other {# guests}}}}",
@@ -55,7 +55,7 @@ describe("t() with ICU select", () => {
   });
 
   it("should handle prototype-like select values safely", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         fallback: "{val, select, active {Green} other {Gray}}",
         proto: "{val, select, __proto__ {Proto} other {Other}}",
@@ -68,7 +68,7 @@ describe("t() with ICU select", () => {
   });
 
   it("matches a branch by the string form of a non-string value", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         count: "{n, select, 2 {a pair} other {some}}",
       },
@@ -78,7 +78,7 @@ describe("t() with ICU select", () => {
   });
 
   it("falls back to other when the select value is null", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         status: "Status: {val, select, active {Green} other {Gray}}",
       },
@@ -88,7 +88,7 @@ describe("t() with ICU select", () => {
   });
 
   it("renders empty when no branch matches and there is no other branch", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         strict: "{val, select, active {Green}}",
       },

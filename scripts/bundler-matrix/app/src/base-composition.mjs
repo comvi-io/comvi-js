@@ -53,10 +53,10 @@ async function main() {
   await i18n.setLocale("fr");
   assertEqual(i18n.t("hello"), "Bonjour", "locale switch loads through the loader");
 
-  // reloadTranslations must refetch, not resolve from the cache.
+  // reloadMessages must refetch, not resolve from the cache.
   store["fr:default"] = { hello: "Salut" };
-  await i18n.reloadTranslations();
-  assertEqual(i18n.t("hello"), "Salut", "reloadTranslations refetches");
+  await i18n.reloadMessages();
+  assertEqual(i18n.t("hello"), "Salut", "reloadMessages refetches");
 
   await i18n.destroy();
   assertEqual(order, ["plugin", "cleanup"], "plugin cleanup runs on destroy");

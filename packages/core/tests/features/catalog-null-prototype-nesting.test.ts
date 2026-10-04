@@ -21,16 +21,16 @@ function nestedNullProto(): Record<string, unknown> {
 
 describe("a nested null-prototype catalog", () => {
   it("is flattened when it arrives through the constructor", () => {
-    const i18n = new I18n({ locale: "en", translation: { en: nestedNullProto() as never } });
+    const i18n = new I18n({ locale: "en", messages: { en: nestedNullProto() as never } });
 
     expect(i18n.t("nav.home" as never)).toBe("Home");
     expect(i18n.t("title" as never)).toBe("Comvi");
   });
 
-  it("is flattened when it arrives through addTranslations", () => {
+  it("is flattened when it arrives through addMessages", () => {
     const i18n = new I18n({ locale: "en" });
 
-    i18n.addTranslations({ en: nestedNullProto() as never });
+    i18n.addMessages({ en: nestedNullProto() as never });
 
     expect(i18n.t("nav.home" as never)).toBe("Home");
   });
@@ -47,7 +47,7 @@ describe("a nested null-prototype catalog", () => {
   it("leaves the parent key missing instead of crashing on the object leaf", () => {
     const i18n = new I18n({ locale: "en" });
 
-    i18n.addTranslations({ en: nestedNullProto() as never });
+    i18n.addMessages({ en: nestedNullProto() as never });
 
     expect(() => i18n.t("nav" as never)).not.toThrow();
     expect(i18n.t("nav" as never)).toBe("nav");
@@ -59,7 +59,7 @@ describe("a nested null-prototype catalog", () => {
     catalog.total = 3;
     const i18n = new I18n({ locale: "en" });
 
-    i18n.addTranslations({ en: catalog as never });
+    i18n.addMessages({ en: catalog as never });
 
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Translation "total" is not a string'),

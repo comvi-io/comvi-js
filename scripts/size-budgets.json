@@ -238,7 +238,7 @@
       "entry": [
         "@comvi/nuxt/runtime/plugin.js",
         "@comvi/nuxt/runtime/composables/useI18n.js",
-        "@comvi/nuxt/runtime/server/utils/loadTranslations.js",
+        "@comvi/nuxt/runtime/server/utils/loadMessages.js",
         "@comvi/vue",
         "@comvi/core",
         "@comvi/core/icu",

@@ -38,11 +38,11 @@ describe("registerLoader()", () => {
   });
 });
 
-describe("reloadTranslations()", () => {
+describe("reloadMessages()", () => {
   it("rejects with the bare E_NO_LOADER_REGISTERED code when nothing was registered", async () => {
     const i18n = makeHost();
 
-    await expect(i18n.reloadTranslations()).rejects.toThrowError(
+    await expect(i18n.reloadMessages()).rejects.toThrowError(
       expect.objectContaining({ message: "E_NO_LOADER_REGISTERED" }),
     );
   });
@@ -53,9 +53,9 @@ describe("reloadTranslations()", () => {
     i18n.registerLoader(async () => {
       throw new Error("network down");
     });
-    i18n.addTranslations({ "en:x": { key: "cached" } });
+    i18n.addMessages({ "en:x": { key: "cached" } });
 
-    await expect(i18n.reloadTranslations()).rejects.toThrowError(
+    await expect(i18n.reloadMessages()).rejects.toThrowError(
       expect.objectContaining({ message: "E_FAILED_RELOAD_TRANSLATIONS" }),
     );
 

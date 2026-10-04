@@ -35,7 +35,7 @@ const host = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: { en: { msg: TEMPLATE } },
+    messages: { en: { msg: TEMPLATE } },
   });
 
 describe("@comvi/core/rich-text (pure seam)", () => {

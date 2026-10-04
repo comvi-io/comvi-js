@@ -10,8 +10,8 @@ import { I18nProvider } from "../src/context";
 import { T } from "../src/T";
 import { renderSolid } from "./test-utils";
 
-const makeI18n = (translation: Record<string, Record<string, string>>) =>
-  createI18n({ locale: "en", exposeGlobal: false, translation });
+const makeI18n = (messages: Record<string, Record<string, string>>) =>
+  createI18n({ locale: "en", exposeGlobal: false, messages });
 
 const renderWithProvider = (i18n: ReturnType<typeof makeI18n>, ui: () => JSX.Element) =>
   renderSolid(() => (

@@ -17,7 +17,7 @@ function icuHost(template: string) {
     locale: "en",
     exposeGlobal: false,
     compiler: icuCompiler,
-    translation: { en: { k: template } },
+    messages: { en: { k: template } },
     onError: (error, context) => void reports.push({ error, context }),
   });
   return { i18n, reports };

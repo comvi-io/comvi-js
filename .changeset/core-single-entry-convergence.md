@@ -18,13 +18,13 @@ and loses only its `compiler` default — see that package's own changesets.
 
 ```ts
 // INLINE catalogs.
-const i18n = createI18n({ locale: "en", translation, compiler: icuCompiler });
+const i18n = createI18n({ locale: "en", messages, compiler: icuCompiler });
 // REMOTE catalogs — the same option, in the same place.
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(fetchLoader({ … }));
 ```
 
 `compiler` is a constructor field held for the instance's life, so one option covers every
-catalog source: a constructor `translation`, an `addTranslations` call, a loader merge. The
+catalog source: a constructor `messages`, an `addMessages` call, a loader merge. The
 library has no ordering rule left, so `loader()`, `plugins()` and `devtools()` may be
 composed in any order among themselves.
 

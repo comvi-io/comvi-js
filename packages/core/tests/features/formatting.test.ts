@@ -10,7 +10,7 @@ describe("ICU message formatting and the Intl helpers", () => {
 
   describe("Quoting", () => {
     it("should escape special characters using single quotes", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           literal: "This is '{not}' a param.",
         },
@@ -19,7 +19,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     });
 
     it("should escape double single quotes as a literal single quote", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           possession: "It''s a beautiful day.",
         },
@@ -28,7 +28,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     });
 
     it("should render quoted templates identically on repeated calls", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           literal: "Fully '{quoted}' message with no params.",
         },
@@ -41,7 +41,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     });
 
     it("should handle complex quoting in CJK text", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         ja: {
           msg: "愛 '{param}' 愛",
         },
@@ -51,7 +51,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     });
 
     it("renders a doubled quote alone as one literal quote", () => {
-      i18n.addTranslations({ en: { empty: "''" } });
+      i18n.addMessages({ en: { empty: "''" } });
 
       expect(i18n.t("empty")).toBe("'");
     });
@@ -59,7 +59,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     it("renders a quote-brace-quote template as one literal brace", () => {
       // '{' — the leading quote opens a literal section, { is literal text, and
       // the trailing quote closes the section.
-      i18n.addTranslations({ en: { brace: "'{'" } });
+      i18n.addMessages({ en: { brace: "'{'" } });
 
       expect(i18n.t("brace")).toBe("{");
     });
@@ -67,7 +67,7 @@ describe("ICU message formatting and the Intl helpers", () => {
 
   describe("Apostrophes (ICU DOUBLE_OPTIONAL)", () => {
     it("should treat apostrophes inside words as literal text (French)", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         fr: {
           summer: "C'est l'été",
         },
@@ -77,7 +77,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     });
 
     it("should treat apostrophes inside words as literal text (English)", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           cant: "I can't do that.",
         },
@@ -86,7 +86,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     });
 
     it("should treat apostrophes inside words as literal text (Hebrew)", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         he: {
           geresh: "ג'מוס",
         },
@@ -103,7 +103,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     ])(
       "should keep an apostrophe literal unless it precedes a syntax character: %s",
       (_label, template, expected) => {
-        i18n.addTranslations({ en: { msg: template } });
+        i18n.addMessages({ en: { msg: template } });
 
         expect(i18n.t("msg")).toBe(expected);
       },
@@ -121,7 +121,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     ])(
       "should start quoted text only before {, } or #: %s",
       (_label, template, params, expected) => {
-        i18n.addTranslations({ en: { msg: template } });
+        i18n.addMessages({ en: { msg: template } });
 
         expect(i18n.t("msg", params)).toBe(expected);
       },
@@ -154,7 +154,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     ])(
       "should treat # as syntax only inside plural sub-messages: %s",
       (_label, template, params, expected) => {
-        i18n.addTranslations({ en: { msg: template } });
+        i18n.addMessages({ en: { msg: template } });
 
         expect(i18n.t("msg", params)).toBe(expected);
       },
@@ -177,7 +177,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     ])(
       "should keep apostrophes literal inside plural and select branches: %s",
       (_label, template, params, expected) => {
-        i18n.addTranslations({ de: { msg: template } });
+        i18n.addMessages({ de: { msg: template } });
         i18n.locale = "de";
 
         expect(i18n.t("msg", params)).toBe(expected);
@@ -217,7 +217,7 @@ describe("ICU message formatting and the Intl helpers", () => {
       [4, "4th"],
       [21, "21st"],
     ])("formats English ordinal %i as %s", (place, ordinal) => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           rank: "You are {place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} place",
         },
@@ -227,7 +227,7 @@ describe("ICU message formatting and the Intl helpers", () => {
     });
 
     it("selects the 'other' branch for a count no keyword matches", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           msg: "{n, selectordinal, one {first} other {nth}}",
         },

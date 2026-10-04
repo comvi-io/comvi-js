@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
-import { loadTranslations, setI18n } from "../src/server";
+import { loadMessages, setI18n } from "../src/server";
 import { _resetServerI18n } from "../src/server/cache";
 
 const makeHost = () =>
@@ -29,7 +29,7 @@ describe("server-side initialization", () => {
     const initSpy = vi.spyOn(i18n, "init");
     setI18n(i18n);
 
-    await loadTranslations("fr");
+    await loadMessages("fr");
 
     expect(initSpy).not.toHaveBeenCalled();
   });
@@ -40,7 +40,7 @@ describe("server-side initialization", () => {
     const initSpy = vi.spyOn(i18n, "init");
     setI18n(i18n);
 
-    await loadTranslations("fr");
+    await loadMessages("fr");
 
     expect(initSpy).toHaveBeenCalledOnce();
     expect(i18n.isInitialized).toBe(true);
@@ -54,8 +54,8 @@ describe("server-side initialization", () => {
       .mockRejectedValueOnce(new Error("plugin blew up during init"));
     setI18n(i18n);
 
-    await expect(loadTranslations("fr")).rejects.toThrow("plugin blew up during init");
-    await loadTranslations("fr");
+    await expect(loadMessages("fr")).rejects.toThrow("plugin blew up during init");
+    await loadMessages("fr");
 
     expect(initSpy).toHaveBeenCalledTimes(2);
     expect(i18n.isInitialized).toBe(true);

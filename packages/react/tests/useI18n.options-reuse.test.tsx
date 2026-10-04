@@ -97,7 +97,7 @@ describe("useI18n t() options object", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
       postProcess: (translationResult, _key, _ns, params) => {
         (params as Record<string, unknown>).touched = true;
         return translationResult;

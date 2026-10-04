@@ -38,7 +38,7 @@ describe("setDefaultParams()", () => {
       locale: "en",
       exposeGlobal: false,
       defaultParams: { formality: "formal" },
-      translation: { en: { greeting: "Hi, {formality}!" } },
+      messages: { en: { greeting: "Hi, {formality}!" } },
     });
 
     i18n.setDefaultParams({ formality: "informal" });

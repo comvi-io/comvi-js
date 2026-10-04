@@ -142,8 +142,8 @@ readEditorMappings({}).getKeyMappings();
 // A bare slim instance genuinely lacks the loader capability.
 // @ts-expect-error — registerLoader lives in @comvi/core/loader
 slim.registerLoader(async () => ({}));
-// @ts-expect-error — reloadTranslations lives in @comvi/core/loader
-slim.reloadTranslations();
+// @ts-expect-error — reloadMessages lives in @comvi/core/loader
+slim.reloadMessages();
 
 // Namespace activation and the loadError wrapper are loader-domain, so they are
 // absent from a bare instance.
@@ -164,7 +164,7 @@ const loaderFn: LoaderFn = async () => ({ hello: "world" });
 withLoader.registerLoader(loaderFn);
 const registered: LoaderFn | undefined = withLoader.getLoader();
 void registered;
-void withLoader.reloadTranslations("en", "default");
+void withLoader.reloadMessages("en", "default");
 void withLoader.addActiveNamespaces(["common"]);
 withLoader.removeActiveNamespace("common");
 withLoader.removeActiveNamespaces(["common"]);
@@ -250,7 +250,7 @@ const failure: Error = missingCapability(capabilityName);
 void failure;
 
 if (hasLoaderApi(slimHost)) {
-  void slimHost.reloadTranslations();
+  void slimHost.reloadMessages();
   void slimHost.addActiveNamespaces(["common"]);
   slimHost.removeActiveNamespaces(["common"]);
 }
@@ -289,14 +289,14 @@ const queue: ComviQueue = [queueEntry];
 void (queue satisfies ComviQueueEntry[] | ComviHook);
 
 // ── nested catalogs: BASE behaviour, no escape hatch needed (C1) ─────────
-createBaseI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
-createBaseI18n({ locale: "en" }).addTranslations({ en: { nav: { home: "Home" } } });
+createBaseI18n({ locale: "en", messages: { en: { nav: { home: "Home" } } } });
+createBaseI18n({ locale: "en" }).addMessages({ en: { nav: { home: "Home" } } });
 
 // `flattenCatalog` stays published, from the ROOT only, for hand-flattening.
 // @ts-expect-error — flattenCatalog is no longer part of @comvi/core/loader
 void (loaderEntry.flattenCatalog as unknown);
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
-createBaseI18n({ locale: "en" }).addTranslations({ en: flat });
+createBaseI18n({ locale: "en" }).addMessages({ en: flat });
 
 // ── `.use(…)`: the composition pipe + configured installers (fs-dx2) ─────
 //
@@ -311,7 +311,7 @@ const piped = createBaseI18n({ locale: "en", compiler: icuCompiler }).use(
 piped.registerLoader(loaderFn);
 const pipedLoader: LoaderFn | undefined = piped.getLoader();
 void pipedLoader;
-void piped.reloadTranslations("uk", "default");
+void piped.reloadMessages("uk", "default");
 piped.onLoadError(() => {});
 
 // THE DECAY PROBE. `D` is empty here, so `review` still requires its

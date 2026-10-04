@@ -38,19 +38,19 @@ describe("createNextI18n", () => {
       devMode: false,
     });
 
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:default": { greeting: "Hello" },
     });
 
     expect(i18n.t("greeting")).toBe("Hello");
   });
 
-  it("accepts static translation option from core", () => {
+  it("accepts the static messages option from core", () => {
     const { i18n } = createNextI18n({
       locales: ["en", "fr"],
       defaultLocale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: {
           greeting: "Hello from static",
         },
@@ -73,7 +73,7 @@ describe("createNextI18n", () => {
       // The default parameter is consumed by an ICU `select`, so this case
       // needs the compiler named — the factory supplies none.
       compiler: icuCompiler,
-      translation: {
+      messages: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
       },
       devMode: false,
@@ -100,12 +100,12 @@ describe("createNextI18n", () => {
       devMode: false,
     });
 
-    i18n.addTranslations({
+    i18n.addMessages({
       "fr:default": { hello: "Bonjour" },
     });
 
     // `de` is registered empty, so lookups must fall back to `fr`.
-    i18n.addTranslations({
+    i18n.addMessages({
       "de:default": {},
     });
 
@@ -120,7 +120,7 @@ describe("createNextI18n", () => {
       devMode: false,
     });
 
-    i18n.addTranslations({
+    i18n.addMessages({
       "de:default": { greeting: "Hallo" },
       "fr:default": {},
     });
@@ -237,7 +237,7 @@ describe("createNextI18n", () => {
       defaultLocale: "en",
       devMode: false,
       compiler: icuCompiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+      messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
     expect(i18n.t("items" as never, { count: 3 } as never)).toBe("3 items");
@@ -253,7 +253,7 @@ describe("createNextI18n", () => {
       defaultLocale: "en",
       devMode: false,
       compiler: literal,
-      translation: { en: { items: template } },
+      messages: { en: { items: template } },
     });
 
     expect(i18n.t("items" as never, { count: 3 } as never)).toBe(template);

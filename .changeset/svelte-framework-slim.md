@@ -10,11 +10,11 @@ on one. `useI18n()` eagerly `.bind()`-ed all four in the object literal it retur
 host without those capabilities it threw
 `Cannot read properties of undefined (reading 'bind')` before a single translation rendered.
 
-| 0.4.x                                                                       | 0.5.0                                                              |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `const { addActiveNamespace, reloadTranslations, onLoadError } = useI18n()` | the same names, plus `addActiveNamespaces`, from `useI18nLoader()` |
-| `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                        |
-| `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
+| 0.4.x                                                                   | 0.5.0                                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `const { addActiveNamespace, reloadMessages, onLoadError } = useI18n()` | the same names, plus `addActiveNamespaces`, from `useI18nLoader()` |
+| `const { onMissingKey } = useI18n()`                                    | `const { onMissingKey } = useI18nPlugins()`                        |
+| `const { t, reloadMessages } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
 
 **They are readers, NOT stores.** `useI18nLoader()` / `useI18nPlugins()` call
 `getI18nContext()`, so — like `useI18n()` — they are callable during component

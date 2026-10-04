@@ -16,7 +16,7 @@ import {
   attachLoader,
   createI18n,
   createNextI18nFromHost,
-  loadTranslations,
+  loadMessages,
   setRequestLocale,
 } from "@comvi/next/server";
 
@@ -37,7 +37,7 @@ function assertEqual(actual, expected, label) {
 }
 
 assert(typeof createNextI18nFromHost === "function", "@comvi/next/server exports the companion");
-assert(typeof loadTranslations === "function", "@comvi/next/server exports loadTranslations");
+assert(typeof loadMessages === "function", "@comvi/next/server exports loadMessages");
 assert(typeof setRequestLocale === "function", "@comvi/next/server exports setRequestLocale");
 assert(typeof createI18n === "function", "@comvi/next/server exports createI18n");
 assert(typeof attachLoader === "function", "@comvi/next/server re-exports attachLoader");
@@ -50,7 +50,7 @@ const result = createNextI18nFromHost(
       createI18n({
         locale: "en",
         exposeGlobal: false,
-        translation: { en: { msg: "a <b>c</b> d" } },
+        messages: { en: { msg: "a <b>c</b> d" } },
       }),
     );
   },
@@ -66,7 +66,7 @@ const i18n = result.i18n;
 assert(result.i18n === i18n, "the host is a plain field");
 assertEqual(hostCalls, 1, "later accesses run nothing");
 
-assert(typeof i18n.reloadTranslations === "function", "the composed host carries the loader API");
+assert(typeof i18n.reloadMessages === "function", "the composed host carries the loader API");
 assert(
   typeof i18n.registerPlugin === "undefined",
   "base + attachLoader has no plugin-host capability",

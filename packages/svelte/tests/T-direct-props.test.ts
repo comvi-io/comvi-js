@@ -9,8 +9,8 @@ import TDirectPropsWrapper from "./TDirectProps.test.svelte";
 import TDirectPropsReactiveWrapper from "./TDirectPropsReactive.test.svelte";
 import { createI18n } from "../src/index";
 
-const makeI18n = (translation: Record<string, Record<string, string>>) =>
-  createI18n({ locale: "en", exposeGlobal: false, translation });
+const makeI18n = (messages: Record<string, Record<string, string>>) =>
+  createI18n({ locale: "en", exposeGlobal: false, messages });
 
 describe("T.svelte direct-prop params", () => {
   let target: HTMLElement;

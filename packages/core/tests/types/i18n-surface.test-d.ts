@@ -39,10 +39,10 @@ type PreSplitKeySnapshot =
   | "isInitializing"
   | "isInitialized"
   | "hasLocale"
-  | "addTranslations"
-  | "getTranslations"
-  | "clearTranslations"
-  | "reloadTranslations"
+  | "addMessages"
+  | "getMessages"
+  | "clearMessages"
+  | "reloadMessages"
   | "t"
   | "tRaw"
   | "hasTranslation"
@@ -68,7 +68,7 @@ export type _LoaderApiKeys = Expect<
     keyof I18nLoaderApi,
     | "registerLoader"
     | "getLoader"
-    | "reloadTranslations"
+    | "reloadMessages"
     | "addActiveNamespace"
     | "addActiveNamespaces"
     | "removeActiveNamespace"
@@ -135,7 +135,7 @@ const fetchLoaderShaped: I18nPlugin = (i18n) => {
     return (await res.json()) as Record<string, TranslationValue>;
   });
   i18n.onMissingKey((key) => `missing:${key}`);
-  return () => void i18n.reloadTranslations();
+  return () => void i18n.reloadMessages();
 };
 void fetchLoaderShaped;
 
@@ -170,7 +170,7 @@ const rootAsHost: WrapperI18nHost = createI18n({ locale: "en" });
 void rootAsHost;
 
 // @ts-expect-error — the host type does not carry loader members
-rootAsHost.reloadTranslations();
+rootAsHost.reloadMessages();
 
 // The published one-argument facade.
 //

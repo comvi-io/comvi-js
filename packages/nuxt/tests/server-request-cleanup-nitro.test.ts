@@ -93,7 +93,7 @@ function runtimeConfigFor(id: string) {
         defaultLocale: "en",
         fallbackLocale: "en",
         defaultNs: "common",
-        translation: { "en:common": { hi: "Hello" }, "uk:common": { hi: "Привіт" } },
+        messages: { "en:common": { hi: "Hello" }, "uk:common": { hi: "Привіт" } },
       },
     },
     comvi: { apiKey: id },

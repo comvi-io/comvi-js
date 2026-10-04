@@ -4,7 +4,7 @@
  * One entry per `locale:namespace`, and the entry IS the identity that decides
  * three things when a load finally settles: whether it may write to the cache,
  * whether its failure is observable, and whether it may drop the entry. A load
- * that was cancelled (`reloadTranslations` clears the scope it is about to
+ * that was cancelled (`reloadMessages` clears the scope it is about to
  * refetch) or superseded by a newer one for the same key must do none of the
  * three — and, crucially, must not evict the newer load's entry on its way out.
  */
@@ -61,7 +61,7 @@ describe("in-flight namespace loads", () => {
     i18n.registerLoader(loader.load);
 
     const superseded = i18n.addActiveNamespace("x");
-    const reload = i18n.reloadTranslations(undefined, "x");
+    const reload = i18n.reloadMessages(undefined, "x");
     loader.settle(0, { key: "stale" });
     await flushMicrotasks();
 
@@ -85,7 +85,7 @@ describe("in-flight namespace loads", () => {
     i18n.onLoadError((_locale, _namespace, error) => loadErrors.push(error));
 
     const cancelled = i18n.addActiveNamespace("x");
-    const reload = i18n.reloadTranslations(undefined, "x");
+    const reload = i18n.reloadMessages(undefined, "x");
     loader.fail(0, new Error("stale request failed"));
     loader.settle(1, { key: "fresh" });
     await Promise.all([cancelled, reload]);
@@ -127,7 +127,7 @@ describe("in-flight namespace loads", () => {
     i18n.registerLoader(loader.load);
 
     const activation = i18n.addActiveNamespace("x");
-    const reload = i18n.reloadTranslations("fr", "x");
+    const reload = i18n.reloadMessages("fr", "x");
     loader.settle(1, { key: "fr value" });
     await reload;
 

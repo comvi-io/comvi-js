@@ -110,7 +110,7 @@ export interface AcquiredLoaderApi {
   /** Deactivate several namespaces and cancel their pending loads. */
   removeActiveNamespaces: I18nLoaderApi["removeActiveNamespaces"];
   /** Force reload translations from the registered loader. */
-  reloadTranslations: I18nLoaderApi["reloadTranslations"];
+  reloadMessages: I18nLoaderApi["reloadMessages"];
   /** Subscribe to load failures. Returns an unsubscribe function. */
   onLoadError: I18nLoaderApi["onLoadError"];
 }
@@ -160,7 +160,7 @@ export function acquireLoaderApi(host: WrapperI18nHost): AcquiredLoaderApi {
     addActiveNamespaces: host.addActiveNamespaces.bind(host),
     removeActiveNamespace: host.removeActiveNamespace.bind(host),
     removeActiveNamespaces: host.removeActiveNamespaces.bind(host),
-    reloadTranslations: host.reloadTranslations.bind(host),
+    reloadMessages: host.reloadMessages.bind(host),
     onLoadError: host.onLoadError.bind(host),
   };
   loaderBags.set(host, bag);

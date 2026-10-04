@@ -125,7 +125,7 @@ export function Demo() {
 
       {/* 6 — proof the loader is lazy: only the locales this browser has visited
           are here. Each catalog is a dynamic `import()` the SERVER resolves in
-          `loadTranslations()`, and only the ones you asked for ever cross the
+          `loadMessages()`, and only the ones you asked for ever cross the
           hydration boundary. Switch language and watch the list grow. */}
       <section>
         <h2>lazy loading</h2>

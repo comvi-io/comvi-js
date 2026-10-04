@@ -5,7 +5,7 @@ import type { H3Event } from "h3";
 import { getRequestI18n } from "./request-i18n";
 import { loadCatalogs } from "../../utils/load-catalogs";
 
-export interface LoadTranslationsOptions {
+export interface LoadMessagesOptions {
   /** Defaults to the default namespace. */
   namespaces?: string[];
 }
@@ -13,7 +13,7 @@ export interface LoadTranslationsOptions {
 /**
  * Translations result keyed by "locale:namespace"
  */
-export type TranslationsResult = Record<string, Record<string, TranslationValue>>;
+export type MessagesMap = Record<string, Record<string, TranslationValue>>;
 
 const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 
@@ -63,11 +63,11 @@ const warnNoLoader = (i18n: NuxtServerHost, message: string): void => {
  * `fallbackLocale` chain, for each requested namespace, keyed
  * `locale:namespace`.
  */
-export async function loadTranslations(
+export async function loadMessages(
   event: H3Event,
   locale: string,
-  options: LoadTranslationsOptions = {},
-): Promise<TranslationsResult> {
+  options: LoadMessagesOptions = {},
+): Promise<MessagesMap> {
   const i18n = await getRequestI18n(event, locale);
   const defaultNs = i18n.getDefaultNamespace();
   const namespaces = options.namespaces ?? [defaultNs];
@@ -80,14 +80,11 @@ export async function loadTranslations(
   await loadCatalogs(i18n, namespaces, locale);
   const locales = [...new Set([locale, ...i18n.getFallbackLocales()])];
 
-  const result: TranslationsResult = {};
+  const result: MessagesMap = {};
   for (const loc of locales) {
     for (const namespace of namespaces) {
       if (i18n.hasLocale(loc, namespace)) {
-        const translations = i18n.getTranslations(loc, namespace) as Record<
-          string,
-          TranslationValue
-        >;
+        const translations = i18n.getMessages(loc, namespace) as Record<string, TranslationValue>;
         result[`${loc}:${namespace}`] = toPlainObject(translations);
       }
     }

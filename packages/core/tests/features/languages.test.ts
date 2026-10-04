@@ -4,7 +4,7 @@ import { I18n } from "../../src";
 describe("i18n.locale setter", () => {
   it("should switch locale and use new translations (sequence)", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { hello: "Hello" },
       fr: { hello: "Bonjour" },
     });
@@ -29,7 +29,7 @@ describe("i18n.locale setter", () => {
 describe("fallbackLocale resolution", () => {
   it("should fallback to a single locale", () => {
     const i18n = new I18n({ locale: "de", fallbackLocale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { key: "English" },
       de: { other: "German" },
     });
@@ -43,7 +43,7 @@ describe("fallbackLocale resolution", () => {
     ["3rd", "enOnly", "EN"],
   ])("resolves a key held only by the %s locale in the chain", (_position, key, expected) => {
     const i18n = new I18n({ locale: "it", fallbackLocale: ["fr", "es", "en"] });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { enOnly: "EN" },
       es: { esOnly: "ES" },
       fr: { frOnly: "FR" },
@@ -54,7 +54,7 @@ describe("fallbackLocale resolution", () => {
 
   it("returns the key itself when no fallback chain is configured", () => {
     const i18n = new I18n({ locale: "de" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
       de: { other: "Andere" },
@@ -65,7 +65,7 @@ describe("fallbackLocale resolution", () => {
 
   it("should use updated fallback chain after each setFallbackLocale() at runtime (sequence)", () => {
     const i18n = new I18n({ locale: "de" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
       de: { other: "Andere" },
@@ -80,7 +80,7 @@ describe("fallbackLocale resolution", () => {
 
   it("should fallback for keys that exist on Object.prototype", () => {
     const i18n = new I18n({ locale: "en", fallbackLocale: "fr" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { hello: "Hi" },
       fr: { toString: "Chaine" },
     });
@@ -92,7 +92,7 @@ describe("fallbackLocale resolution", () => {
 describe("t() locale override", () => {
   it("should allow overriding locale in t() call", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { key: "EN" },
       fr: { key: "FR" },
     });

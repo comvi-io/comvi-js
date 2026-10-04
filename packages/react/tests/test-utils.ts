@@ -9,12 +9,9 @@ export const setLocale = async (i18n: I18n, locale: string) => {
 };
 
 /** act()-wrapped, so the provider update does not warn. */
-export const addTranslations = async (
-  i18n: I18n,
-  translations: Parameters<I18n["addTranslations"]>[0],
-) => {
+export const addMessages = async (i18n: I18n, translations: Parameters<I18n["addMessages"]>[0]) => {
   await act(async () => {
-    i18n.addTranslations(translations);
+    i18n.addMessages(translations);
   });
 };
 

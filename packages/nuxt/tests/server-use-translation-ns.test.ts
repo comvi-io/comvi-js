@@ -54,7 +54,7 @@ function createI18nStub() {
     hasTranslation: vi.fn(() => true),
     registerLoader: vi.fn(),
     getLoader: vi.fn(() => ({ name: "loader" })),
-    reloadTranslations: vi.fn().mockResolvedValue(undefined),
+    reloadMessages: vi.fn().mockResolvedValue(undefined),
     addActiveNamespaces: vi.fn().mockResolvedValue(undefined),
     removeActiveNamespace: vi.fn(),
     removeActiveNamespaces: vi.fn(),

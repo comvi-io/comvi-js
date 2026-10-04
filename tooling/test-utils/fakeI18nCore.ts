@@ -195,7 +195,7 @@ export class FakeI18nCore {
     this.emit("localeChanged", { from, to: locale });
   }
 
-  addTranslations(translations: Record<string, TranslationTable>): void {
+  addMessages(translations: Record<string, TranslationTable>): void {
     for (const [languageOrComposite, values] of Object.entries(translations)) {
       const { language, namespace } = normalizeLanguageNamespace(
         languageOrComposite,
@@ -225,13 +225,13 @@ export class FakeI18nCore {
     this.emit("configChanged", { source: "namespaceDeactivated" });
   }
 
-  async reloadTranslations(_language?: string, _namespace?: string): Promise<void> {
+  async reloadMessages(_language?: string, _namespace?: string): Promise<void> {
     return Promise.resolve();
   }
 
-  clearTranslations(language?: string, namespace?: string): void {
+  clearMessages(language?: string, namespace?: string): void {
     this.cache.clear(language, namespace);
-    this.emit("translationsCleared", { locale: language, namespace });
+    this.emit("messagesCleared", { locale: language, namespace });
   }
 
   setFallbackLanguage(fallback: string | string[]): void {
@@ -280,7 +280,7 @@ export class FakeI18nCore {
     this.emit("defaultNamespaceChanged", { from, to: namespace });
   }
 
-  getTranslations(): Record<string, TranslationTable> {
+  getMessages(): Record<string, TranslationTable> {
     const result: Record<string, TranslationTable> = {};
     for (const [key, value] of this.cache.getInternalMap().entries()) {
       result[key] = { ...value };

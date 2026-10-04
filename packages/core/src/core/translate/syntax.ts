@@ -29,7 +29,7 @@ export interface MessageCompiler {
   readonly cid?: number;
   /**
    * Opt in to the development ingestion preflight: every string in an ingested
-   * catalog is parsed with this compiler at `addTranslations` time, so an
+   * catalog is parsed with this compiler at `addMessages` time, so an
    * argument it cannot compile throws where the catalog entered rather than at
    * first render. Both shipped compilers set it; a user-supplied compiler
    * leaves it unset, because a throw from a third-party `makeArgToken` would

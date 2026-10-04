@@ -19,11 +19,11 @@ function assertEqual(actual, expected, label) {
 }
 
 const TEMPLATE = "<link>hi</link>";
-const translation = { en: { msg: TEMPLATE } };
+const messages = { en: { msg: TEMPLATE } };
 const linkHandler = ({ children }) => `[${children}]`;
 
 // Ambient channel: importing /tags registered the extension module-globally.
-const ambient = createI18n({ locale: "en", translation });
+const ambient = createI18n({ locale: "en", messages });
 assertEqual(
   ambient.t("msg", { link: linkHandler }),
   "[hi]",
@@ -35,7 +35,7 @@ const dispose = registerTagSyntax();
 dispose();
 
 // With ambient gone a plain instance renders the tag literally...
-const plain = createI18n({ locale: "en", translation });
+const plain = createI18n({ locale: "en", messages });
 assertEqual(
   plain.t("msg", { link: linkHandler }),
   TEMPLATE,
@@ -45,7 +45,7 @@ assertEqual(
 // ...while the per-call channel keeps rendering tags with zero ambient state.
 const perCall = createI18n({
   locale: "en",
-  translation,
+  messages,
   tagInterpolation: { extensions: [tagSyntaxExtension] },
 });
 assertEqual(

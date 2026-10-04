@@ -8,7 +8,7 @@ describe("Vue plugin integration", () => {
   it("installs and exposes $t and $i18n", () => {
     const app = createApp(defineComponent({ template: "<div />" }));
     const i18nPlugin = createI18n({ locale: "en" });
-    i18nPlugin.addTranslations({ en: { hello: "Hello" } });
+    i18nPlugin.addMessages({ en: { hello: "Hello" } });
     app.use(i18nPlugin);
 
     app.mount(document.createElement("div"));
@@ -25,7 +25,7 @@ describe("Vue plugin integration", () => {
 
   it("stays usable when the same instance is installed into two apps", () => {
     const i18nPlugin = createI18n({ locale: "en" });
-    i18nPlugin.addTranslations({ en: { hello: "Hello" } });
+    i18nPlugin.addMessages({ en: { hello: "Hello" } });
 
     const first = createApp(defineComponent({ template: "<div />" }));
     const second = createApp(defineComponent({ template: "<div />" }));
@@ -49,7 +49,7 @@ describe("Vue plugin integration", () => {
     // that composes it rather than on the base preset.
     const i18nPlugin = createI18nFromCore(createCore({ locale: "en" }).use(attachPlugins));
     i18nPlugin.core.registerPlugin(plugin);
-    i18nPlugin.addTranslations({ en: { hello: "Hi" } });
+    i18nPlugin.addMessages({ en: { hello: "Hi" } });
 
     const app = createApp(defineComponent({ template: "<div />" }));
     app.use(i18nPlugin);

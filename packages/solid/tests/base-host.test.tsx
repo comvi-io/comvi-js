@@ -19,7 +19,7 @@ const makeHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: {
+    messages: {
       en: { greeting: "Hello, {name}!", rich: "Click <link>here</link>" },
       fr: { greeting: "Bonjour, {name} !", rich: "Cliquez <link>ici</link>" },
     },
@@ -45,13 +45,8 @@ function useI18nUnder(i18n: WrapperI18nHost) {
   return { api, container };
 }
 
-const HOST_SAFE_MEMBERS = ["t", "tRaw", "setLocale", "addTranslations", "on", "reportError"];
-const CAPABILITY_MEMBERS = [
-  "addActiveNamespace",
-  "reloadTranslations",
-  "onLoadError",
-  "onMissingKey",
-];
+const HOST_SAFE_MEMBERS = ["t", "tRaw", "setLocale", "addMessages", "on", "reportError"];
+const CAPABILITY_MEMBERS = ["addActiveNamespace", "reloadMessages", "onLoadError", "onMissingKey"];
 
 describe("solid on a base host", () => {
   it("renders translations through useI18n()", () => {
@@ -137,7 +132,7 @@ describe("solid on a base host", () => {
     const i18n = makeHost();
     const { api } = useI18nUnder(i18n);
 
-    api.addTranslations({ en: { late: "Late binding" } });
+    api.addMessages({ en: { late: "Late binding" } });
 
     expect(api.t("late" as never)).toBe("Late binding");
   });

@@ -5,7 +5,7 @@
  * through `@comvi/next/config`; here `vi.doMock` stands in for the alias, and
  * each runtime gets its own module load and its own host, as Next's server and
  * client builds do. What crosses the boundary is `locale` and the `messages`
- * `loadTranslations` produced, nothing else.
+ * `loadMessages` produced, nothing else.
  */
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { isValidElement, type ReactElement } from "react";
@@ -37,7 +37,7 @@ const CATALOGS: Record<string, Record<string, string>> = {
 type Loaded = {
   ComviProvider: typeof import("../src/server/ComviProvider").ComviProvider;
   ComviClientProvider: typeof import("../src/client/ComviClientProvider").ComviClientProvider;
-  loadTranslations: typeof import("../src/server/loadTranslations").loadTranslations;
+  loadMessages: typeof import("../src/server/loadMessages").loadMessages;
   getRequestLocaleFromCache: typeof import("../src/server/cache").getRequestLocaleFromCache;
   getI18n: typeof import("../src/server/getI18n").getI18n;
   T: typeof import("@comvi/react").T;
@@ -65,14 +65,14 @@ async function runtime({ withConfig = true } = {}): Promise<Loaded> {
   );
   const { ComviProvider } = await import("../src/server/ComviProvider");
   const { ComviClientProvider } = await import("../src/client/ComviClientProvider");
-  const { loadTranslations } = await import("../src/server/loadTranslations");
+  const { loadMessages } = await import("../src/server/loadMessages");
   const { getRequestLocaleFromCache } = await import("../src/server/cache");
   const { getI18n } = await import("../src/server/getI18n");
   const { T } = await import("@comvi/react");
   return {
     ComviProvider,
     ComviClientProvider,
-    loadTranslations,
+    loadMessages,
     getRequestLocaleFromCache,
     getI18n,
     T,
@@ -94,7 +94,7 @@ beforeEach(() => {
 });
 
 describe("ComviProvider (server)", () => {
-  it("hands the client exactly what loadTranslations(locale, { namespaces }) returns", async () => {
+  it("hands the client exactly what loadMessages(locale, { namespaces }) returns", async () => {
     const server = await runtime();
     const element = (await server.ComviProvider({
       locale: "uk",
@@ -107,7 +107,7 @@ describe("ComviProvider (server)", () => {
     expect(element.props.locale).toBe("uk");
     expect(element.props.children).toBe("child");
     expect(element.props.messages).toEqual(
-      await server.loadTranslations("uk", { namespaces: ["default", "admin"] }),
+      await server.loadMessages("uk", { namespaces: ["default", "admin"] }),
     );
     expect(Object.keys(element.props.messages as object)).toEqual([
       "uk:default",

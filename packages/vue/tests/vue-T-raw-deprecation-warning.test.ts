@@ -20,7 +20,7 @@ describe("<T /> deprecated raw prop warning", () => {
   it("warns once in development when raw is used, and not for skipPostProcess", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const i18n = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+      const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
 
       mount(T, {
         props: { i18nKey: "greeting", skipPostProcess: true },

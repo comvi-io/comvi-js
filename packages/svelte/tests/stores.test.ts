@@ -28,7 +28,7 @@ describe("Svelte stores", () => {
 
   beforeEach(() => {
     fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({
+    fake.addMessages({
       en: { hello: "Hello" },
       fr: { hello: "Bonjour" },
     });
@@ -77,7 +77,7 @@ describe("Svelte stores", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { hello: "Hello" },
       },
     });
@@ -120,7 +120,7 @@ describe("Svelte stores", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { hello: "Hello" },
       },
     });
@@ -159,9 +159,9 @@ describe("Svelte stores", () => {
     const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
     const before = values.at(-1)!;
 
-    fake.addTranslations({ en: { welcome: "Welcome" } });
+    fake.addMessages({ en: { welcome: "Welcome" } });
     const afterAdd = values.at(-1)!;
-    fake.clearTranslations("en", "common");
+    fake.clearMessages("en", "common");
     const afterClear = values.at(-1)!;
 
     expect(afterAdd).toBeGreaterThan(before);
@@ -315,9 +315,9 @@ describe("Svelte stores", () => {
 
   it("cacheRevision is strictly monotonic across all tracked events — no dropped updates", () => {
     // A fresh FakeI18n, so the revision counter starts at 0 rather than
-    // carrying the addTranslations() the beforeEach instance has already seen.
+    // carrying the addMessages() the beforeEach instance has already seen.
     const fresh = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fresh.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+    fresh.addMessages({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
 
     const cacheRevision = createCacheRevisionStore(fresh.asI18n());
     const values: number[] = [];
@@ -330,15 +330,15 @@ describe("Svelte stores", () => {
     // sum-based counter could collide with the one above and drop.
     fresh.emit("configChanged", { source: "fallbackLocale" });
 
-    // translationsCleared — cache change
-    fresh.emit("translationsCleared", { locale: "en", namespace: "common" });
+    // messagesCleared — cache change
+    fresh.emit("messagesCleared", { locale: "en", namespace: "common" });
 
     // defaultNamespaceChanged — config change
     fresh.emit("defaultNamespaceChanged", { from: "common", to: "admin" });
 
     // configChanged again — two consecutive config-only events must not
     // collide either.
-    fresh.emit("configChanged", { source: "translationsAdded" });
+    fresh.emit("configChanged", { source: "messagesAdded" });
 
     // initialized
     fresh.emit("initialized", undefined);
@@ -362,7 +362,7 @@ describe("Svelte cacheRevision store excludes the locale and loading axes", () =
 
   beforeEach(() => {
     fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+    fake.addMessages({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
   });
 
   it("does not bump on localeChanged", async () => {
@@ -390,7 +390,7 @@ describe("Svelte cacheRevision store excludes the locale and loading axes", () =
   });
 
   it("starts a fresh subscription at 0 rather than the cache's own revision", () => {
-    fake.addTranslations({ de: { hello: "Hallo" } });
+    fake.addMessages({ de: { hello: "Hallo" } });
     const cacheRevision = createCacheRevisionStore(fake.asI18n());
     const values: number[] = [];
     const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
@@ -407,7 +407,7 @@ describe("Svelte cacheRevision store excludes the locale and loading axes", () =
     const cacheRevision = createCacheRevisionStore(fake.asI18n());
     const first: number[] = [];
     const unsubscribeFirst = cacheRevision.subscribe((v) => first.push(v));
-    fake.addTranslations({ en: { welcome: "Welcome" } });
+    fake.addMessages({ en: { welcome: "Welcome" } });
     expect(first.at(-1)!).toBeGreaterThan(0);
     unsubscribeFirst();
 
@@ -424,7 +424,7 @@ describe("Svelte cacheRevision store excludes the locale and loading axes", () =
     const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
     const before = values.at(-1)!;
 
-    fake.addTranslations({ en: { welcome: "Welcome" } });
+    fake.addMessages({ en: { welcome: "Welcome" } });
 
     expect(values.at(-1)!).toBeGreaterThan(before);
     unsubscribe();

@@ -30,7 +30,7 @@ const shapeOf = (d: PropertyDescriptor | undefined) =>
 const COMPOSED_MEMBERS = [
   "registerLoader",
   "getLoader",
-  "reloadTranslations",
+  "reloadMessages",
   "addActiveNamespace",
   "addActiveNamespaces",
   "removeActiveNamespace",
@@ -55,7 +55,7 @@ describe("createNextI18n composed host — reflective contract (B7)", () => {
   });
 
   it("enumerates data only — no capability member leaks into Object.keys or a spread", () => {
-    const { i18n } = createNextI18n({ ...ROUTING, translation: { en: { a: "A" } } });
+    const { i18n } = createNextI18n({ ...ROUTING, messages: { en: { a: "A" } } });
 
     const host = i18n as unknown as Record<string, unknown>;
     const enumerableFunctions = Object.keys(host).filter((key) => typeof host[key] === "function");
@@ -86,7 +86,7 @@ describe("createNextI18n composed host — reflective contract (B7)", () => {
     expect(shapes).toEqual({
       registerLoader: CLASS_METHOD_DESCRIPTOR,
       getLoader: CLASS_METHOD_DESCRIPTOR,
-      reloadTranslations: CLASS_METHOD_DESCRIPTOR,
+      reloadMessages: CLASS_METHOD_DESCRIPTOR,
       addActiveNamespace: CLASS_METHOD_DESCRIPTOR,
       addActiveNamespaces: CLASS_METHOD_DESCRIPTOR,
       removeActiveNamespace: CLASS_METHOD_DESCRIPTOR,

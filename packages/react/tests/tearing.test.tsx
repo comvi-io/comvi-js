@@ -51,8 +51,8 @@ describe("Repro 1 — startTransition + locale flip", () => {
 
   beforeEach(() => {
     fake = new FakeI18n();
-    fake.addTranslations({ en: EN });
-    fake.addTranslations({ fr: FR });
+    fake.addMessages({ en: EN });
+    fake.addMessages({ fr: FR });
   });
 
   it("two <T> consumers commit pair-consistent locale under startTransition (StrictMode OFF)", async () => {
@@ -116,9 +116,9 @@ describe("Repro 1 — startTransition + locale flip", () => {
 describe("Repro 2 — Aborted transition leakage", () => {
   it("two interleaved startTransition setLocale calls — final committed locale is the latest", async () => {
     const fake = new FakeI18n();
-    fake.addTranslations({ en: EN });
-    fake.addTranslations({ fr: FR });
-    fake.addTranslations({ de: DE });
+    fake.addMessages({ en: EN });
+    fake.addMessages({ fr: FR });
+    fake.addMessages({ de: DE });
 
     // The gated implementation must NOT call the original mock — that would
     // recurse — so it writes `language` through the core-exposed setter.
@@ -175,7 +175,7 @@ describe("Repro 2 — Aborted transition leakage", () => {
 });
 
 describe("Repro 3 — Next provider render-time mutation idempotency", () => {
-  it("addTranslations is called exactly once per stable messages prop across re-renders (StrictMode OFF)", () => {
+  it("addMessages is called exactly once per stable messages prop across re-renders (StrictMode OFF)", () => {
     const fake = new FakeI18n();
     fake.locale = "en";
     fake.isInitialized = true; // skip autoInit init() path
@@ -192,22 +192,22 @@ describe("Repro 3 — Next provider render-time mutation idempotency", () => {
 
     const { rerender } = render(<Host locale="en" />);
 
-    expect(fake.addTranslations).toHaveBeenCalledTimes(1);
+    expect(fake.addMessages).toHaveBeenCalledTimes(1);
 
     act(() => {
       rerender(<Host locale="fr" />);
     });
-    expect(fake.addTranslations).toHaveBeenCalledTimes(1);
+    expect(fake.addMessages).toHaveBeenCalledTimes(1);
     expect(fake.locale).toBe("fr");
 
     act(() => {
       rerender(<Host locale="en" />);
     });
-    expect(fake.addTranslations).toHaveBeenCalledTimes(1);
+    expect(fake.addMessages).toHaveBeenCalledTimes(1);
     expect(fake.locale).toBe("en");
   });
 
-  it("addTranslations call count under StrictMode on first mount", () => {
+  it("addMessages call count under StrictMode on first mount", () => {
     const fake = new FakeI18n();
     fake.locale = "en";
     fake.isInitialized = true;
@@ -231,7 +231,7 @@ describe("Repro 3 — Next provider render-time mutation idempotency", () => {
     // StrictMode runs the render body twice on mount and may double-fire the
     // layout effect; `isFirstRenderRef` and the messages-ref guard must absorb
     // all of that into ONE call. More than one means a guard is broken.
-    expect(fake.addTranslations).toHaveBeenCalledTimes(1);
+    expect(fake.addMessages).toHaveBeenCalledTimes(1);
 
     act(() => {
       rerender(
@@ -240,10 +240,10 @@ describe("Repro 3 — Next provider render-time mutation idempotency", () => {
         </StrictMode>,
       );
     });
-    expect(fake.addTranslations).toHaveBeenCalledTimes(1);
+    expect(fake.addMessages).toHaveBeenCalledTimes(1);
   });
 
-  it("a new messages object identity triggers exactly one additional addTranslations call", () => {
+  it("a new messages object identity triggers exactly one additional addMessages call", () => {
     const fake = new FakeI18n();
     fake.locale = "en";
     fake.isInitialized = true;
@@ -260,12 +260,12 @@ describe("Repro 3 — Next provider render-time mutation idempotency", () => {
     }
 
     const { rerender } = render(<Host locale="en" messages={messages1} />);
-    expect(fake.addTranslations).toHaveBeenCalledTimes(1);
+    expect(fake.addMessages).toHaveBeenCalledTimes(1);
 
     act(() => {
       rerender(<Host locale="fr" messages={messages2} />);
     });
     // Exactly +1: the new messages identity is picked up by the layout effect.
-    expect(fake.addTranslations).toHaveBeenCalledTimes(2);
+    expect(fake.addMessages).toHaveBeenCalledTimes(2);
   });
 });

@@ -49,7 +49,7 @@ describe("post-processors", () => {
     const onError = vi.fn();
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
       postProcess: (result) => `${result}!`,
       onError,
     });
@@ -63,7 +63,7 @@ describe("post-processors", () => {
     const onError = vi.fn();
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
       postProcess: () => {
         throw failure;
       },

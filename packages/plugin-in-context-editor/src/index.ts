@@ -62,7 +62,7 @@ function enqueueNamespaceKeys(
     return;
   }
 
-  const translations = i18n.getTranslations(locale, namespace) as Record<string, unknown>;
+  const translations = i18n.getMessages(locale, namespace) as Record<string, unknown>;
   for (const key of Object.keys(translations)) {
     pendingCombinedKeys.add(`${namespace}:${key}`);
   }

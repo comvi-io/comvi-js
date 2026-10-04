@@ -6,7 +6,7 @@
  * share a user-visible failure mode, and the READMEs describe both in one
  * sentence — so the sentence needs the loader half pinned here.
  *
- * Inline (`new I18n({ translation })` / `addTranslations`): the preflight
+ * Inline (`new I18n({ messages })` / `addMessages`): the preflight
  * throws `E_ICU_SYNTAX` synchronously, at the call.
  *
  * Loader: the throw happens inside `_loadOne`, which emits `loadError` with it
@@ -113,7 +113,7 @@ describe("an ICU catalog over the loader, in development", () => {
 
     let thrown: unknown;
     try {
-      i18n.addTranslations({ en: ICU_CATALOG });
+      i18n.addMessages({ en: ICU_CATALOG });
     } catch (error) {
       thrown = error;
     }

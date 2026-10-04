@@ -2,7 +2,7 @@ import { hasLoaderApi } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 
 /**
- * In-flight loads per host and `locale:namespace`. Core's `reloadTranslations`
+ * In-flight loads per host and `locale:namespace`. Core's `reloadMessages`
  * cancels and restarts a pair that is already loading, so concurrent callers
  * share the first one's promise here instead of fetching the pair twice.
  */
@@ -56,7 +56,7 @@ export async function loadCatalogs(
       if (!i18n.hasLocale(loc, ns) && !failed.has(key)) {
         pending.push(
           (loads[key] ??= i18n
-            .reloadTranslations(loc, ns)
+            .reloadMessages(loc, ns)
             .catch((error: unknown) => {
               failed.add(key);
               console.warn(`[@comvi/nuxt] Failed to load ${key}:`, toError(error).message);

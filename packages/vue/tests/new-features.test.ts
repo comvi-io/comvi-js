@@ -16,7 +16,7 @@ describe("New Features", () => {
 
       expect(cache.value.size).toBe(0);
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello", goodbye: "Bye" },
       });
 
@@ -34,7 +34,7 @@ describe("New Features", () => {
 
       const cache = i18n.translationCache;
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -71,7 +71,7 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -93,7 +93,7 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
         de: { hello: "Hallo" },
@@ -173,7 +173,7 @@ describe("New Features", () => {
         defaultNs: "common",
       });
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -195,7 +195,7 @@ describe("New Features", () => {
         defaultNs: "common",
       });
 
-      i18n.addTranslations({
+      i18n.addMessages({
         fr: { hello: "Bonjour" },
       });
 
@@ -210,7 +210,7 @@ describe("New Features", () => {
   describe("hasTranslationNow / hasLocaleNow (imperative, non-reactive)", () => {
     it("hasTranslationNow returns a plain boolean (not a ref)", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await i18n.init();
 
       const result = i18n.hasTranslationNow("greeting");
@@ -220,7 +220,7 @@ describe("New Features", () => {
 
     it("hasTranslationNow returns true for an existing key and false for a missing key", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await i18n.init();
 
       expect(i18n.hasTranslationNow("greeting")).toBe(true);
@@ -229,7 +229,7 @@ describe("New Features", () => {
 
     it("hasTranslationNow result matches reactive hasTranslation().value", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await i18n.init();
 
       const scope = effectScope();
@@ -249,7 +249,7 @@ describe("New Features", () => {
 
     it("hasTranslationNow can be called in a loop outside any effectScope without throwing", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { key0: "v0", key1: "v1", key2: "v2" } });
+      i18n.addMessages({ en: { key0: "v0", key1: "v1", key2: "v2" } });
       await i18n.init();
 
       const results: boolean[] = [];
@@ -265,7 +265,7 @@ describe("New Features", () => {
 
     it("hasLocaleNow returns a plain boolean (not a ref)", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+      i18n.addMessages({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
       await i18n.init();
 
       const result = i18n.hasLocaleNow("en");
@@ -275,7 +275,7 @@ describe("New Features", () => {
 
     it("hasLocaleNow returns true for a loaded locale and false for an absent one", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { hello: "Hello" } });
+      i18n.addMessages({ en: { hello: "Hello" } });
       await i18n.init();
 
       expect(i18n.hasLocaleNow("en")).toBe(true);
@@ -284,7 +284,7 @@ describe("New Features", () => {
 
     it("hasLocaleNow result matches reactive hasLocale().value", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { hello: "Hello" } });
+      i18n.addMessages({ en: { hello: "Hello" } });
       await i18n.init();
 
       const scope = effectScope();
@@ -304,7 +304,7 @@ describe("New Features", () => {
 
     it("hasTranslation() returns a ComputedRef while hasTranslationNow() returns a primitive", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await i18n.init();
 
       const scope = effectScope();
@@ -328,7 +328,7 @@ describe("New Features", () => {
     // injection key.
     it("useI18n() does not return hasTranslationNow / hasLocaleNow, the class does", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { hello: "Hello" } });
+      i18n.addMessages({ en: { hello: "Hello" } });
       await i18n.init();
 
       let composable: Record<string, unknown> | undefined;
@@ -362,7 +362,7 @@ describe("New Features", () => {
 
     it("hasTranslationNow respects locale and namespace opts", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ "fr:common": { bonjour: "Bonjour" } });
+      i18n.addMessages({ "fr:common": { bonjour: "Bonjour" } });
       await i18n.init();
 
       expect(i18n.hasTranslationNow("bonjour", { locale: "fr", namespace: "common" })).toBe(true);
@@ -371,7 +371,7 @@ describe("New Features", () => {
 
     it("hasLocaleNow respects optional namespace parameter", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ "fr:admin": { title: "Admin" } });
+      i18n.addMessages({ "fr:admin": { title: "Admin" } });
       await i18n.init();
 
       expect(i18n.hasLocaleNow("fr", "admin")).toBe(true);
@@ -415,7 +415,7 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });

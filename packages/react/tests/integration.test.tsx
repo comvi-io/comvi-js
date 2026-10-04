@@ -21,7 +21,7 @@ describe("Integration Tests", () => {
   it("handles a language switcher workflow (hook + T)", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: { title: "Welcome", switchLang: "Switch Language" },
         fr: { title: "Bienvenue", switchLang: "Changer de langue" },
       },
@@ -83,7 +83,7 @@ describe("Integration Tests", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { home: "Home", loading: "Loading..." },
       },
     }).use(attachLoader);
@@ -142,7 +142,7 @@ describe("Integration Tests", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: { en: { home: "Home", loading: "Loading..." } },
+      messages: { en: { home: "Home", loading: "Loading..." } },
     }).use(attachLoader);
 
     i18n.registerLoader(() => deferred.promise);

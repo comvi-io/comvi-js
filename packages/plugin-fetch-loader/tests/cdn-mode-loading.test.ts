@@ -24,7 +24,7 @@ describe("fetchLoaderPlugin() in CDN mode", () => {
 
   it("loads the namespaces already active on the host rather than the default one", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
-    i18n.addTranslations({ "fr:dashboard": { title: "Tableau" } });
+    i18n.addMessages({ "fr:dashboard": { title: "Tableau" } });
     server.use(
       http.get(`${TEST_CDN_URL}/dashboard/en.json`, () =>
         HttpResponse.json({ title: "Dashboard" }),

@@ -4,7 +4,7 @@
 // because a runtime flag turned it off. Each one is a subpath import:
 //   • `@comvi/core/icu`      — `icuCompiler` for plural/select/selectordinal
 //     (pass it as `compiler: icuCompiler` in the constructor options);
-//   • `@comvi/core/loader`   — registerLoader / reloadTranslations,
+//   • `@comvi/core/loader`   — registerLoader / reloadMessages,
 //     `createImportMapLoader`;
 //   • `@comvi/core/plugins`  — use / locale detector / missing-key callbacks /
 //     post-processors / plugin data;
@@ -42,7 +42,7 @@ export { TranslationCache } from "./core/TranslationCache";
 
 /**
  * Flatten a nested catalog into the flat `{ "a.b": "…" }` shape a host stores.
- * PURE, and NOT required: `options.translation` and `addTranslations()` accept
+ * PURE, and NOT required: `options.messages` and `addMessages()` accept
  * nested objects on every host and flatten them themselves. Reach for this only
  * to pre-flatten data by hand — to inspect the keys a catalog will produce, or
  * to merge several sources before handing one object over.

@@ -6,7 +6,7 @@ const FORMALITY_SELECT = "{formality, select, formal {Ihre Bewertung} other {Dei
 
 function createInstance(defaultParams?: Record<string, string>) {
   const i18n = new I18n({ locale: "de", defaultParams });
-  i18n.addTranslations({
+  i18n.addMessages({
     de: {
       review: FORMALITY_SELECT,
       greeting: "Hallo {name}!",

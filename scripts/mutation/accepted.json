@@ -1992,7 +1992,7 @@
       "snippet": "if (Object.keys(translations).length > 0) {",
       "lineHint": 253,
       "kind": "equivalent",
-      "reason": "core's addTranslations({}) is a no-op: it emits no event and activates no namespace, so calling it with an empty record is indistinguishable from skipping it.",
+      "reason": "core's addMessages({}) is a no-op: it emits no event and activates no namespace, so calling it with an empty record is indistinguishable from skipping it.",
       "round": 4
     },
     {
@@ -4450,7 +4450,7 @@
       "snippet": "if (!i18n.hasLocale(locale, namespace)) {",
       "lineHint": 61,
       "kind": "equivalent",
-      "reason": "equivalent (2 mutants). Pure short-circuit: core's `getTranslations` answers `{}` for a locale/namespace pair it does not hold, so running the body for an unloaded pair enqueues nothing. CHECKED: each hand-applied, full suite green, restored byte-identically.",
+      "reason": "equivalent (2 mutants). Pure short-circuit: core's `getMessages` answers `{}` for a locale/namespace pair it does not hold, so running the body for an unloaded pair enqueues nothing. CHECKED: each hand-applied, full suite green, restored byte-identically.",
       "round": 5
     },
     {
@@ -4530,7 +4530,7 @@
       "snippet": "if (locales.length === 0 || namespaces.length === 0) {",
       "lineHint": 114,
       "kind": "equivalent",
-      "reason": "equivalent (5 mutants). Pure short-circuit: `namespaces` always holds at least the default namespace, and with zero loaded locales the `Promise.all` below maps over nothing, so `updates` stays empty and no `addTranslations` follows. Pinned from the outside by tests/standalone-runtime.test.ts > \"pushes no update at all when the page has no translations loaded\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
+      "reason": "equivalent (5 mutants). Pure short-circuit: `namespaces` always holds at least the default namespace, and with zero loaded locales the `Promise.all` below maps over nothing, so `updates` stays empty and no `addMessages` follows. Pinned from the outside by tests/standalone-runtime.test.ts > \"pushes no update at all when the page has no translations loaded\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
       "round": 5
     },
     {
@@ -4540,7 +4540,7 @@
       "snippet": "if (!i18n.hasLocale(locale, namespace)) {",
       "lineHint": 157,
       "kind": "equivalent",
-      "reason": "equivalent (2 mutants). Pure short-circuit: `getTranslations` answers `{}` for a pair the host does not hold, and the `Object.keys(translations).length > 0` check three lines down already excludes an empty catalog — pinned by tests/standalone-runtime.test.ts > \"leaves an empty loaded namespace out of the re-added catalog\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
+      "reason": "equivalent (2 mutants). Pure short-circuit: `getMessages` answers `{}` for a pair the host does not hold, and the `Object.keys(translations).length > 0` check three lines down already excludes an empty catalog — pinned by tests/standalone-runtime.test.ts > \"leaves an empty loaded namespace out of the re-added catalog\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
       "round": 5
     },
     {
@@ -5429,7 +5429,7 @@
     {
       "file": "src/core/i18n.ts",
       "mutators": ["StringLiteral"],
-      "snippet": ": \"E_TRANSLATION_NOT_OBJECT\";",
+      "snippet": ": \"E_MESSAGES_NOT_OBJECT\";",
       "package": "packages/core",
       "lineHint": 58,
       "reason": "module-scope constant, same tooling blind spot as line 55. The prod arm is asserted by tests/prod/dev-only-guards.test.ts and the dev arm by tests/features/host-option-validation.test.ts; both hand-probed against the full suite (probes d_i18n_notobj_prod, n4).",
@@ -5550,16 +5550,16 @@
       "snippet": "if (!i18n.hasLocale(locale, defaultNs)) {",
       "lineHint": 74,
       "kind": "equivalent",
-      "reason": "loadTranslations re-checks the identical hasLocale before doing anything; with a warm cache it performs no load and warns nothing — the guard saves work, not behaviour. Hand-applied; green."
+      "reason": "loadMessages re-checks the identical hasLocale before doing anything; with a warm cache it performs no load and warns nothing — the guard saves work, not behaviour. Hand-applied; green."
     },
     {
       "package": "packages/next",
       "file": "src/composedHost.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (translation !== undefined) {",
+      "snippet": "if (messages !== undefined) {",
       "lineHint": 76,
       "kind": "equivalent",
-      "reason": "core's addTranslations(undefined) is a no-op; the guard only avoids a redundant call. Hand-applied; green."
+      "reason": "core's addMessages(undefined) is a no-op; the guard only avoids a redundant call. Hand-applied; green."
     },
     {
       "package": "packages/next",
@@ -5689,7 +5689,7 @@
     },
     {
       "package": "packages/next",
-      "file": "src/server/loadTranslations.ts",
+      "file": "src/server/loadMessages.ts",
       "mutators": ["ArrowFunction"],
       "snippet": "const toError = (error: unknown): Error =>",
       "lineHint": 18,
@@ -5698,7 +5698,7 @@
     },
     {
       "package": "packages/next",
-      "file": "src/server/loadTranslations.ts",
+      "file": "src/server/loadMessages.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"[comvi/next] No loader configured. \" +",
       "lineHint": 23,
@@ -5707,7 +5707,7 @@
     },
     {
       "package": "packages/next",
-      "file": "src/server/loadTranslations.ts",
+      "file": "src/server/loadMessages.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"Register one via i18n.registerLoader(...) or createNextI18n(...).use(plugin).\";",
       "lineHint": 24,
@@ -6123,7 +6123,7 @@
       "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying it turns 4 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed. Evidence: hand-applied in the worktree, full suite (279 tests) run, observed RED, restored",
       "package": "packages/nuxt",
       "file": "src/runtime/plugin.ts",
-      "snippet": "const I18N_TRANSLATIONS_PAYLOAD_KEY = \"__comvi_translations__\";",
+      "snippet": "const I18N_MESSAGES_PAYLOAD_KEY = \"__comvi_messages__\";",
       "mutators": ["StringLiteral"],
       "kind": "tooling:static-mutant",
       "lineHint": 20
@@ -6327,7 +6327,7 @@
       "lineHint": 86
     },
     {
-      "reason": "getRequestI18n already guarantees `i18n.locale === locale` before it returns, so this defensive re-sync inside loadTranslationsForLocale is never taken; the ConditionalExpression->true and EqualityOperator mutants on the same line ARE killed. / the BlockStatement mutant is the same unreachable branch: emptying a block that never runs changes nothing. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "reason": "getRequestI18n already guarantees `i18n.locale === locale` before it returns, so this defensive re-sync inside loadMessagesForLocale is never taken; the ConditionalExpression->true and EqualityOperator mutants on the same line ARE killed. / the BlockStatement mutant is the same unreachable branch: emptying a block that never runs changes nothing. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
       "package": "packages/nuxt",
       "file": "src/runtime/server/utils/useTranslation.ts",
       "snippet": "if (i18n.locale !== locale) {",
@@ -7839,7 +7839,7 @@
       "snippet": "release: () => inflight.delete(request),",
       "lineHint": 80,
       "kind": "equivalent",
-      "reason": "`inflight` is only walked to abort what is still running — by abortAll() and by the translationsCleared listener. Leaving a settled request in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
+      "reason": "`inflight` is only walked to abort what is still running — by abortAll() and by the messagesCleared listener. Leaving a settled request in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
@@ -7939,7 +7939,7 @@
       "snippet": "unfollow();",
       "lineHint": 91,
       "kind": "equivalent",
-      "reason": "dropping the unsubscribe leaks a listener, not behaviour: cleanup runs abortAll() first, which sets `stopped` and empties `inflight`, so a later translationsCleared walks an empty set and aborts nothing. Nothing public exposes a host's listener count, so no test can see the difference.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)"
+      "reason": "dropping the unsubscribe leaks a listener, not behaviour: cleanup runs abortAll() first, which sets `stopped` and empties `inflight`, so a later messagesCleared walks an empty set and aborts nothing. Nothing public exposes a host's listener count, so no test can see the difference.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)"
     },
     {
       "package": "packages/core",

@@ -18,7 +18,7 @@ const catalog = {
   fr: { greeting: "Bonjour" },
 };
 
-const host = () => createI18n({ locale: "en", translation: catalog, exposeGlobal: false });
+const host = () => createI18n({ locale: "en", messages: catalog, exposeGlobal: false });
 
 const renderOnServer = async (props: Parameters<typeof App>[0]) =>
   (await import("./render.server")).renderApp(props);
@@ -78,7 +78,7 @@ describe("solid SSR — ssrLocale", () => {
 
     // The paint SURVIVES the first reactive update, which is where a locale
     // the client never agreed with would have shown up.
-    clientHost.addTranslations({ fr: { unrelated: "x" } });
+    clientHost.addMessages({ fr: { unrelated: "x" } });
     expect(container.textContent).toBe("Bonjour");
   });
 
@@ -99,7 +99,7 @@ describe("solid SSR — ssrLocale", () => {
     expect(clientHost.locale).toBe("en");
     expect(container.textContent).toBe("Bonjour");
 
-    clientHost.addTranslations({ fr: { unrelated: "x" } });
+    clientHost.addMessages({ fr: { unrelated: "x" } });
     expect(container.textContent).toBe("Hello");
   });
 });

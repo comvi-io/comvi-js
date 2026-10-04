@@ -9,7 +9,7 @@ unset: it builds text + `{param}` interpolation, the cache, events and default p
 NOTHING ELSE. ICU throws `E_ICU_SYNTAX` in development and renders literally in production;
 the loader, plugin host and devtools discovery are absent until the app composes them; and
 string-API tag syntax is literal (dev-warned). A nested inline catalog is NOT on that list:
-the base host flattens one itself, so `comvi.translation` works nested or flat.
+the base host flattens one itself, so `comvi.messages` works nested or flat.
 
 `hostModule` is the composition escape and, for any app that loads translations
 asynchronously, the migration path. (`icu: true` is the one exception — see
@@ -51,8 +51,8 @@ absent loader member.
 
 `comvi.setup` still receives a `VueI18n`, and its removed capability proxies remain a
 breaking migration: move them to `i18n.core.*`, composing that capability in the host
-factory first. `const { reloadTranslations } = useI18n()` becomes `useI18nLoader()`, and
+factory first. `const { reloadMessages } = useI18n()` becomes `useI18nLoader()`, and
 `onMissingKey` moves to `useI18nPlugins()`. The proxy calls in `.vue` / `comvi.setup.*` files
-are the ones to read carefully: `i18n.reloadTranslations()` may be a `VueI18n` proxy that moves
+are the ones to read carefully: `i18n.reloadMessages()` may be a `VueI18n` proxy that moves
 to `i18n.core.*` or an already-correct raw core instance, and only you can tell which. See the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §6.

@@ -80,7 +80,7 @@ createNextI18nFromHost(() => composedHost, {
   locales: ["en"],
   defaultLocale: "en",
   // @ts-expect-error -- owned by the host factory, never silently reapplied
-  translation: { en: {} },
+  messages: { en: {} },
 });
 
 // The server ALWAYS needs the loader: an uncomposed BASE host — what the plain
@@ -135,7 +135,7 @@ export type _NoServerLockedError = serverEntry.CompilerLockedError;
 // `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
 // @ts-expect-error -- flattenCatalog is not part of this entry
 void (serverEntry.flattenCatalog as unknown);
-serverEntry.createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
+serverEntry.createI18n({ locale: "en", messages: { en: { nav: { home: "Home" } } } });
 
 // The same recipe through the `.use(installer)` pipe — the sharpest decay
 // probe: if the pipe let the host collapse to `any`, the negative case below
@@ -182,16 +182,16 @@ export type _ServerHostMembers = Expect<
     | "getDefaultNamespace"
     | "hasLocale"
     | "hasTranslation"
-    | "getTranslations"
+    | "getMessages"
     | "getFallbackLocales"
     | "getLoader"
-    | "reloadTranslations"
+    | "reloadMessages"
   >
 >;
 
 // A host missing one of those members is not a `ServerI18nHost`.
-export type _MissingGetTranslationsRejected = Expect<
-  Equal<Omit<ServerI18nHost, "getTranslations"> extends ServerI18nHost ? true : false, false>
+export type _MissingGetMessagesRejected = Expect<
+  Equal<Omit<ServerI18nHost, "getMessages"> extends ServerI18nHost ? true : false, false>
 >;
 
 // `getI18n` is the single sanctioned crossing, and it names the widening.

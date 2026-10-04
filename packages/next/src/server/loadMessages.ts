@@ -3,7 +3,7 @@ import { resolveServerI18n, getRequestFailedLoads } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import type { ServerI18nHost } from "./hostTypes";
 
-export interface LoadTranslationsOptions {
+export interface LoadMessagesOptions {
   /**
    * Namespaces to load. Defaults to default namespace only.
    */
@@ -13,7 +13,7 @@ export interface LoadTranslationsOptions {
 /**
  * Translations result keyed by "locale:namespace"
  */
-export type TranslationsResult = Record<string, Record<string, TranslationValue>>;
+export type MessagesMap = Record<string, Record<string, TranslationValue>>;
 
 const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
@@ -40,7 +40,7 @@ const warnNoLoaderConfigured = (i18n: ServerI18nHost): void => {
 };
 
 /**
- * In-flight loads per host and `locale:namespace`. Core's `reloadTranslations`
+ * In-flight loads per host and `locale:namespace`. Core's `reloadMessages`
  * cancels and restarts a pair that is already loading, so concurrent requests
  * share the first one's promise here instead of fetching the pair twice.
  */
@@ -63,7 +63,7 @@ const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Prom
     // already reached `onError` and `loadError`; the render continues without
     // the catalog, and the client gets the same catalogs, so both sides agree.
     load = i18n
-      .reloadTranslations(locale, namespace)
+      .reloadMessages(locale, namespace)
       .catch((error: unknown) => {
         console.warn(`[@comvi/next] Failed to load ${key}:`, toError(error).message);
       })
@@ -82,7 +82,7 @@ const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Prom
  * in the same request is not retried: the render already went without it, and
  * the client must get the same catalogs the server read.
  *
- * @internal Shared by `loadTranslations()` and `getI18n()`.
+ * @internal Shared by `loadMessages()` and `getI18n()`.
  */
 export const loadChain = async (
   i18n: ServerI18nHost,
@@ -120,20 +120,20 @@ export const loadChain = async (
  *
  * @example
  * ```typescript
- * const messages = await loadTranslations(locale);
+ * const messages = await loadMessages(locale);
  * ```
  *
  * @example
  * ```typescript
- * const messages = await loadTranslations(locale, {
+ * const messages = await loadMessages(locale, {
  *   namespaces: ["common", "admin"],
  * });
  * ```
  */
-export async function loadTranslations(
+export async function loadMessages(
   locale: string,
-  options: LoadTranslationsOptions = {},
-): Promise<TranslationsResult> {
+  options: LoadMessagesOptions = {},
+): Promise<MessagesMap> {
   const i18n = resolveServerI18n();
 
   // Auto-initialize so plugins can register loaders
@@ -149,14 +149,11 @@ export async function loadTranslations(
   const locales = [...new Set([locale, ...i18n.getFallbackLocales()])];
   await loadChain(i18n, locales, namespaces);
 
-  const result: TranslationsResult = {};
+  const result: MessagesMap = {};
   for (const loc of locales) {
     for (const namespace of namespaces) {
       if (i18n.hasLocale(loc, namespace)) {
-        const translations = i18n.getTranslations(loc, namespace) as Record<
-          string,
-          TranslationValue
-        >;
+        const translations = i18n.getMessages(loc, namespace) as Record<string, TranslationValue>;
         result[`${loc}:${namespace}`] = toPlainObject(translations);
       }
     }

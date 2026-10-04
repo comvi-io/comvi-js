@@ -43,7 +43,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const reports: Array<{ error: Error; context?: Record<string, unknown> }> = [];
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { items: PLURAL } },
+      messages: { en: { items: PLURAL } },
       onError: (error: Error, context?: Record<string, unknown>) =>
         void reports.push({ error, context }),
     });
@@ -72,7 +72,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const reports: unknown[] = [];
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { cached: template } },
+      messages: { en: { cached: template } },
       onError: (error: Error) => void reports.push(error),
     });
 
@@ -89,7 +89,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const template = "{n, plural, one {# console} other {# consoles}}";
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const i18n = createI18n({ locale: "en", translation: { en: { c: template } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { c: template } } });
     expect(i18n.t("c", { n: 2 })).toBe(template);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith("[comvi] E_ICU_SYNTAX", "c", "en");
@@ -106,7 +106,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const i18n = createI18n({
       locale: "fr",
       fallbackLocale: "en",
-      translation: { en: { fb: template } },
+      messages: { en: { fb: template } },
       onError: (_error: Error, context?: Record<string, unknown>) => void contexts.push(context),
     });
 
@@ -128,7 +128,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const reports: Array<{ error: Error; context?: Record<string, unknown> }> = [];
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { plainKey: "Hi, {name}!" } },
+      messages: { en: { plainKey: "Hi, {name}!" } },
       onError: (error: Error, context?: Record<string, unknown>) =>
         void reports.push({ error, context }),
     });
@@ -156,7 +156,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const reports: unknown[] = [];
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { plainKey: "Hi, {name}!" } },
+      messages: { en: { plainKey: "Hi, {name}!" } },
       onError: (error: Error) => void reports.push(error),
     });
 
@@ -177,12 +177,12 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const bReports: unknown[] = [];
     const a = createI18n({
       locale: "en",
-      translation: { en: {} },
+      messages: { en: {} },
       onError: (error: Error) => void aReports.push(error),
     });
     const b = createI18n({
       locale: "en",
-      translation: { en: { plain: "Just text" } },
+      messages: { en: { plain: "Just text" } },
       onError: (error: Error) => void bReports.push(error),
     });
 
@@ -205,7 +205,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const reported: Error[] = [];
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { g: "{g, select, other{x}}" } },
+      messages: { en: { g: "{g, select, other{x}}" } },
       onError: (error: Error) => void reported.push(error),
     });
 
@@ -232,7 +232,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
       const reported: Array<{ argumentType?: unknown }> = [];
       const i18n = createI18n({
         locale: "en",
-        translation: { en: { [key]: template } },
+        messages: { en: { [key]: template } },
         onError: (error: Error) => void reported.push(error),
       });
 
@@ -246,7 +246,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { quoted: "'{name, other}'", plain: "Hello, {name}!" } },
+      messages: { en: { quoted: "'{name, other}'", plain: "Hello, {name}!" } },
     });
 
     expect(i18n.t("quoted")).toBe("{name, other}");
@@ -260,14 +260,14 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const viaConstructorCatalog = createI18n({
       locale: "en",
       compiler: icuCompiler,
-      translation: { en: { items: PLURAL } },
+      messages: { en: { items: PLURAL } },
     });
     expect(viaConstructorCatalog.t("items", { count: 2 })).toBe("2 items");
 
     // The option is the ONLY enable form, so it has to hold for a catalog that
     // arrives after construction too.
     const viaLaterCatalog = createI18n({ locale: "en", compiler: icuCompiler });
-    viaLaterCatalog.addTranslations({ en: { items: PLURAL } });
+    viaLaterCatalog.addMessages({ en: { items: PLURAL } });
     expect(viaLaterCatalog.t("items", { count: 1 })).toBe("1 item");
   });
 
@@ -295,7 +295,7 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
   it("throws EAGERLY at construction, before any render", async () => {
     const { createI18n } = await import("../../dist/comvi-core.dev.js");
 
-    expect(() => createI18n({ locale: "en", translation: { en: { items: PLURAL } } })).toThrowError(
+    expect(() => createI18n({ locale: "en", messages: { en: { items: PLURAL } } })).toThrowError(
       expect.objectContaining({
         code: "E_ICU_SYNTAX",
         argumentType: "plural",
@@ -304,11 +304,11 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     );
   });
 
-  it("throws EAGERLY from addTranslations too", async () => {
+  it("throws EAGERLY from addMessages too", async () => {
     const { createI18n } = await import("../../dist/comvi-core.dev.js");
 
     const i18n = createI18n({ locale: "en" });
-    expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrowError(
+    expect(() => i18n.addMessages({ en: { items: PLURAL } })).toThrowError(
       expect.objectContaining({
         code: "E_ICU_SYNTAX",
         argumentType: "plural",
@@ -349,7 +349,7 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     const i18n = createI18n({
       locale: "en",
       compiler: icuCompiler,
-      translation: { en: { items: PLURAL } },
+      messages: { en: { items: PLURAL } },
     });
     expect(i18n.t("items", { count: 5 })).toBe("5 items");
   });

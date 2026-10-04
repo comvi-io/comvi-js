@@ -52,7 +52,7 @@ afterAll(() => rmSync(workDir, { recursive: true, force: true }));
 
 interface HostStub extends Record<string, unknown> {
   locale: string;
-  addTranslations: (translations: Record<string, Record<string, string>>) => void;
+  addMessages: (translations: Record<string, Record<string, string>>) => void;
   getDefaultNamespace: () => string;
   t: (key: string, params?: Record<string, unknown>) => string;
 }
@@ -176,7 +176,7 @@ describe("generated #build/comvi.host template", () => {
 
     const core = createComviCore({ locale: "de", exposeGlobal: false });
     expect(core.locale).toBe("de");
-    expect(core.reloadTranslations).toBeUndefined();
+    expect(core.reloadMessages).toBeUndefined();
     expect(core.getLoader).toBeUndefined();
     // The wrapper seam agrees, so the absence is loud instead of a TypeError later.
     expect(hasLoaderApi(core as unknown as WrapperI18nHost)).toBe(false);
@@ -190,7 +190,7 @@ describe("generated #build/comvi.host template", () => {
     // `__DEV__` is true here, so the eager ingestion check throws; production
     // renders the braced segment literally and reports the same code via onError.
     expect(() =>
-      core.addTranslations({
+      core.addMessages({
         en: { cart: "{count, plural, one {# item} other {# items}}" },
       }),
     ).toThrow(expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }));
@@ -201,7 +201,7 @@ describe("generated #build/comvi.host template", () => {
 
     // Counterpart to the detector test: proves `compiler: icuCompiler` is wired, not just emitted.
     const core = createComviCore({ locale: "en" });
-    core.addTranslations({
+    core.addMessages({
       en: { cart: "{count, plural, one {# item} other {# items}}" },
     });
     expect(core.t("cart", { count: 5 })).toBe("5 items");
@@ -209,7 +209,7 @@ describe("generated #build/comvi.host template", () => {
 
     // Same template function builds both, so SSR and client share one compiler.
     const i18n = createComviI18n({ locale: "en", exposeGlobal: false });
-    i18n.core.addTranslations({
+    i18n.core.addMessages({
       en: { cart: "{count, plural, one {# item} other {# items}}" },
     });
     expect(i18n.core.t("cart", { count: 5 })).toBe("5 items");
@@ -248,7 +248,7 @@ export default () => {
     expect(built).toHaveLength(1);
     expect(core).toBe(built[0]);
     // Exactly the capabilities the factory added: loader yes, plugin host no.
-    expect(typeof core.reloadTranslations).toBe("function");
+    expect(typeof core.reloadMessages).toBe("function");
     expect(core.registerPlugin).toBeUndefined();
 
     // …and every construction gets a FRESH host (one per request on the server).
@@ -262,7 +262,7 @@ export default () => {
     expect(i18n.locale.value).toBe("de");
 
     // The capability proxies are absent from the wrapper on this branch too.
-    expect("reloadTranslations" in i18n).toBe(false);
+    expect("reloadMessages" in i18n).toBe(false);
   });
 
   it("hands nuxt's resolved options to the host factory", async () => {
@@ -306,7 +306,7 @@ export default (options) => {
     expect(i18n.locale.value).toBe("uk");
   });
 
-  it("renders a key from comvi.translation on the default branch", async () => {
+  it("renders a key from comvi.messages on the default branch", async () => {
     // The two-line module-options floor: no hostModule, therefore no loader,
     // therefore this inline catalog is the only one the host will ever have.
     const { createComviI18n, createComviCore } = await emitHostTemplate();
@@ -314,7 +314,7 @@ export default (options) => {
     const i18n = createComviI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
     expect(i18n.core.t("greeting")).toBe("Hello");
 
@@ -322,23 +322,23 @@ export default (options) => {
     const core = createComviCore({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
     expect(core.t("greeting")).toBe("Hello");
   });
 
-  it("flattens a NESTED comvi.translation catalog on the base host", async () => {
+  it("flattens a NESTED comvi.messages catalog on the base host", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { createComviCore } = await emitHostTemplate();
 
     const core = createComviCore({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { nav: { home: "Home" } } },
+      messages: { en: { nav: { home: "Home" } } },
     });
 
     // The base host flattens every catalog it ingests, so the module's own
-    // generated host resolves a dotted key from a nested `comvi.translation`
+    // generated host resolves a dotted key from a nested `comvi.messages`
     // with no capability composed and nothing to warn about. This pairs the
     // nuxt option with core's guarantee: the two construction paths cannot
     // disagree about what a nested catalog means.
@@ -388,17 +388,17 @@ export default (options) => createI18n({ ...options, exposeGlobal: false }).use(
     );
     const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs");
 
-    const core = createComviCore({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const core = createComviCore({ locale: "en", messages: { en: { greeting: "Hello" } } });
     expect(core.t("greeting")).toBe("Hello");
-    expect(typeof core.reloadTranslations).toBe("function");
+    expect(typeof core.reloadMessages).toBe("function");
 
     // And the wrapper branch wraps it exactly once.
-    const i18n = createComviI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const i18n = createComviI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     expect(i18n.core.t("greeting")).toBe("Hello");
     expect((i18n.core as unknown as { core?: unknown }).core).toBeUndefined();
   });
 
-  it("hands comvi.translation to a hostModule factory in its resolved options", async () => {
+  it("hands comvi.messages to a hostModule factory in its resolved options", async () => {
     const hostPath = writeHostModule(`
 import { createI18n } from "@comvi/core";
 
@@ -416,9 +416,9 @@ export default (options) => {
       seen: Record<string, unknown>[];
     };
 
-    const core = createComviCore({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const core = createComviCore({ locale: "en", messages: { en: { greeting: "Hello" } } });
 
-    expect(seen[0]).toMatchObject({ translation: { en: { greeting: "Hello" } } });
+    expect(seen[0]).toMatchObject({ messages: { en: { greeting: "Hello" } } });
     expect(core.t("greeting")).toBe("Hello");
   });
 
@@ -438,12 +438,12 @@ export default (options) => createI18n({ ...options, exposeGlobal: false });
     expect(warnSpy).not.toHaveBeenCalled();
 
     const core = createComviCore({ locale: "en" });
-    core.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
+    core.addMessages({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
     expect(core.t("cart", { count: 5 })).toBe("5 items");
 
     // Both constructions, so SSR and hydration compile the same catalog the same way.
     const i18n = createComviI18n({ locale: "en", ssrLocale: "en" });
-    i18n.core.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
+    i18n.core.addMessages({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
     expect(i18n.core.t("cart", { count: 1 })).toBe("1 item");
   });
 
@@ -472,7 +472,7 @@ export default (options) => {
     // ICU arrived in the resolved options…
     expect(seen).toEqual([true]);
     // …and the factory's own `compiler`, written after the spread, is the one in use.
-    core.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
+    core.addMessages({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
     expect(core.t("cart", { count: 5 })).toBe("{count, plural, one {# item} other {# items}}");
   });
 
@@ -497,7 +497,7 @@ export default (options) => {
     expect(seen).toEqual([false]);
     // The simple compiler, so the detector fires as on the default branch.
     expect(() =>
-      core.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } }),
+      core.addMessages({ en: { cart: "{count, plural, one {# item} other {# items}}" } }),
     ).toThrow(expect.objectContaining({ code: "E_ICU_SYNTAX" }));
   });
 

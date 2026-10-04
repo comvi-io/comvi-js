@@ -5,7 +5,7 @@ describe("missing-parameter warning dedup", () => {
   it("warns for two templates whose (template, param) pairs concatenate to the same text", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { first: "{ab}{b}", second: "{ab}{b}a" } });
+    i18n.addMessages({ en: { first: "{ab}{b}", second: "{ab}{b}a" } });
 
     i18n.t("first", { b: "x" });
     i18n.t("second", { ab: "y" });

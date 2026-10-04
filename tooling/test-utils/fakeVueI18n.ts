@@ -34,7 +34,7 @@ export interface FakeVueI18n {
   translationCache: Readonly<Ref<Readonly<TranslationMap>>>;
   t: (key: string, params?: TranslationParams) => TranslationResult;
   setLanguage: (language: string) => Promise<void>;
-  addTranslations: (translations: Record<string, Record<string, unknown>>) => void;
+  addMessages: (translations: Record<string, Record<string, unknown>>) => void;
   addActiveNamespace: (namespace: string) => Promise<void>;
   setFallbackLanguage: (languages: string | string[]) => void;
   onMissingKey: (
@@ -43,8 +43,8 @@ export interface FakeVueI18n {
   onLoadError: (
     callback: (language: string, namespace: string, error: Error) => void,
   ) => () => void;
-  clearTranslations: (language?: string, namespace?: string) => void;
-  reloadTranslations: (language?: string, namespace?: string) => Promise<void>;
+  clearMessages: (language?: string, namespace?: string) => void;
+  reloadMessages: (language?: string, namespace?: string) => Promise<void>;
   hasLanguage: (language: string, namespace?: string) => boolean;
   hasTranslation: (
     key: string,
@@ -102,7 +102,7 @@ export function createFakeVueI18n(options: FakeVueI18nOptions = {}): FakeVueI18n
     core.on("namespaceLoaded", () => {
       triggerRef(translationCacheRef);
     }),
-    core.on("translationsCleared", () => {
+    core.on("messagesCleared", () => {
       triggerRef(translationCacheRef);
     }),
     core.on("initialized", () => {
@@ -119,8 +119,8 @@ export function createFakeVueI18n(options: FakeVueI18nOptions = {}): FakeVueI18n
     setLanguage: vi.fn(async (nextLanguage: string): Promise<void> => {
       await core.setLanguageAsync(nextLanguage);
     }),
-    addTranslations: vi.fn((translations: Record<string, Record<string, unknown>>): void => {
-      core.addTranslations(translations);
+    addMessages: vi.fn((translations: Record<string, Record<string, unknown>>): void => {
+      core.addMessages(translations);
     }),
     addActiveNamespace: vi.fn(async (namespace: string): Promise<void> => {
       await core.addActiveNamespace(namespace);
@@ -138,12 +138,12 @@ export function createFakeVueI18n(options: FakeVueI18nOptions = {}): FakeVueI18n
         return core.onLoadError(callback);
       },
     ),
-    clearTranslations: vi.fn((targetLanguage?: string, targetNamespace?: string): void => {
-      core.clearTranslations(targetLanguage, targetNamespace);
+    clearMessages: vi.fn((targetLanguage?: string, targetNamespace?: string): void => {
+      core.clearMessages(targetLanguage, targetNamespace);
     }),
-    reloadTranslations: vi.fn(
+    reloadMessages: vi.fn(
       async (targetLanguage?: string, targetNamespace?: string): Promise<void> => {
-        await core.reloadTranslations(targetLanguage, targetNamespace);
+        await core.reloadMessages(targetLanguage, targetNamespace);
       },
     ),
     hasLanguage: vi.fn((targetLanguage: string, targetNamespace?: string): boolean => {

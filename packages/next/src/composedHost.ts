@@ -39,8 +39,8 @@ type ComposedOptions<D extends DefaultTranslationParams> = I18nOptions<D> & {
 export function createComposedNextI18n<const D extends DefaultTranslationParams = {}>(
   options: ComposedOptions<D>,
 ): NextComposedI18n<D> {
-  const { translation, instanceId, exposeGlobal, ...rest } = options as ComposedOptions<D> & {
-    translation?: I18nOptions["translation"];
+  const { messages, instanceId, exposeGlobal, ...rest } = options as ComposedOptions<D> & {
+    messages?: I18nOptions["messages"];
   };
 
   // The compiler is the caller's, and nothing defaults it: `createNextI18n`
@@ -74,8 +74,8 @@ export function createComposedNextI18n<const D extends DefaultTranslationParams 
     configurable: true,
   });
 
-  if (translation !== undefined) {
-    host.addTranslations(translation as Record<string, Record<string, never>>);
+  if (messages !== undefined) {
+    host.addMessages(messages as Record<string, Record<string, never>>);
   }
 
   // LAST, as the 0.4 root constructor did: discovery is the only capability

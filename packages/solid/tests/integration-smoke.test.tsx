@@ -10,7 +10,7 @@ describe("solid integration smoke", () => {
   it("renders with real core and reacts to locale changes", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: { greeting: "Hello" },
         fr: { greeting: "Bonjour" },
       },
@@ -47,7 +47,7 @@ describe("solid integration smoke", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { hello: "Hello" },
       },
       // `attachLoader` rather than `loader(map)`: this drives a raw `LoaderFn`.
@@ -81,7 +81,7 @@ describe("solid integration smoke", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         "en:common": { title: "Common Title" },
         "en:admin": { title: "Admin Title" },
       },

@@ -692,24 +692,24 @@ test("prose sourcing onLoadError from useI18n() → banned", () => {
   assert.deepEqual(rulesOf(body), ["prose/capability-member-from-use-i18n"]);
 });
 
-test("prose saying useI18n() returns reloadTranslations → banned", () => {
-  const body = "The `useI18n()` hook returns `t`, `locale` and `reloadTranslations`.";
+test("prose saying useI18n() returns reloadMessages → banned", () => {
+  const body = "The `useI18n()` hook returns `t`, `locale` and `reloadMessages`.";
 
   assert.deepEqual(rulesOf(body), ["prose/use-i18n-returns-capability"]);
 });
 
-test("prose claiming clearTranslations deactivates a namespace → banned", () => {
-  const body = "Calling `clearTranslations(undefined, ns)` deactivates the namespace.";
+test("prose claiming clearMessages deactivates a namespace → banned", () => {
+  const body = "Calling `clearMessages(undefined, ns)` deactivates the namespace.";
 
-  assert.deepEqual(rulesOf(body), ["prose/clear-translations-deactivates"]);
+  assert.deepEqual(rulesOf(body), ["prose/clear-messages-deactivates"]);
 });
 
 test("MIGRATION.md's past-tense narration of the same change → clean", () => {
   // The rule has to survive the document that DOCUMENTS the break: MIGRATION.md
-  // §8 says `clearTranslations(undefined, ns)` also DEACTIVATED the namespace,
+  // §8 says `clearMessages(undefined, ns)` also DEACTIVATED the namespace,
   // and then that it no longer does.
   const body =
-    "In 0.4 `clearTranslations(undefined, ns)` also DEACTIVATED the namespace. It no longer does.";
+    "In 0.4 `clearMessages(undefined, ns)` also DEACTIVATED the namespace. It no longer does.";
 
   assert.deepEqual(rulesOf(body), []);
 });
@@ -975,7 +975,7 @@ test("the same catalog on a page that names icuCompiler → clean", () => {
     '{ "cart": "{count, plural, one {# item} other {# items}}" }',
     "```",
     "```ts",
-    "const i18n = createI18n({ locale: 'en', translation, compiler: icuCompiler });",
+    "const i18n = createI18n({ locale: 'en', messages, compiler: icuCompiler });",
     "```",
   ].join("\n");
 

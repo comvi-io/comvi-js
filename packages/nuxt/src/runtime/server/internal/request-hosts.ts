@@ -50,7 +50,7 @@ export function claimRequestCleanup(): void {
 }
 
 const AFTER_RESPONSE_MESSAGE =
-  "[@comvi/nuxt] useTranslation()/loadTranslations() after the response ended — the request " +
+  "[@comvi/nuxt] useTranslation()/loadMessages() after the response ended — the request " +
   "host is already destroyed; translate before responding, or create your own host";
 
 export const getContextKey = (event: H3Event): object => {

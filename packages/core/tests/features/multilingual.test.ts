@@ -4,7 +4,7 @@ import { I18n } from "../helpers/composedHost";
 describe("t() with non-Latin locales", () => {
   it("interpolates params in CJK text without spaces", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       jp: { welcome: "ようこそ{name}さん" },
     });
 
@@ -20,7 +20,7 @@ describe("t() with non-Latin locales", () => {
     [100, "كتب"],
   ])("selects the Arabic plural branch for count %i", (count, expected) => {
     const i18n = new I18n({ locale: "ar" });
-    i18n.addTranslations({
+    i18n.addMessages({
       ar: {
         books:
           "{count, plural, =0 {لا كتب} one {كتاب واحد} two {كتابان} few {كتب قليلة} many {كتب كثيرة} other {كتب}}",

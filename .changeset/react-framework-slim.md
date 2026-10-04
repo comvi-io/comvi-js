@@ -5,11 +5,11 @@
 **BREAKING (breaking change on a 0.x minor):** `@comvi/react` runs on a base `@comvi/core` host,
 and the four loader/plugin members left `useI18n()` for two dedicated hooks.
 
-| 0.4.x                                                                       | 0.5.0                                                              |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `const { addActiveNamespace, reloadTranslations, onLoadError } = useI18n()` | the same names, plus `addActiveNamespaces`, from `useI18nLoader()` |
-| `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                        |
-| `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
+| 0.4.x                                                                   | 0.5.0                                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `const { addActiveNamespace, reloadMessages, onLoadError } = useI18n()` | the same names, plus `addActiveNamespaces`, from `useI18nLoader()` |
+| `const { onMissingKey } = useI18n()`                                    | `const { onMissingKey } = useI18nPlugins()`                        |
+| `const { t, reloadMessages } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
 
 **Why the members moved.** `useI18n()` used to bind them eagerly, so the hook could not run
 at all on a host without the loader/plugin capability, and its return type promised methods

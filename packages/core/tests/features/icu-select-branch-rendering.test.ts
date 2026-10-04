@@ -5,7 +5,7 @@ import type { TranslationResult } from "../../src";
 
 function render(template: string, params: Record<string, unknown>): string | TranslationResult {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({ en: { k: template } });
+  i18n.addMessages({ en: { k: template } });
   return i18n.t("k", params as never);
 }
 
@@ -88,7 +88,7 @@ describe("a bare ampersand in a plural or select branch", () => {
   /** Entries added by rendering `template` once, the message's own included. */
   function entriesFor(template: string, params: Record<string, unknown>): number {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { k: template } });
+    i18n.addMessages({ en: { k: template } });
     // The dev ingestion preflight has already parsed the message; clearing
     // here makes the count the RENDER's own.
     clearTemplateCache();

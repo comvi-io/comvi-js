@@ -146,7 +146,7 @@ export async function useTranslation(
   await Promise.all([
     i18n.hasLocale(resolvedLocale, namespace)
       ? undefined
-      : loadTranslationsForLocale(i18n, resolvedLocale, [namespace]),
+      : loadMessagesForLocale(i18n, resolvedLocale, [namespace]),
     loadCatalogs(i18n, [namespace]),
   ]);
 
@@ -181,7 +181,7 @@ export async function useTranslation(
  * — whatever `comvi.setup` put in the catalog is already there — so this
  * returns instead of calling a member the host does not have.
  */
-async function loadTranslationsForLocale(
+async function loadMessagesForLocale(
   i18n: NuxtServerHost,
   locale: string,
   namespaces: string[],

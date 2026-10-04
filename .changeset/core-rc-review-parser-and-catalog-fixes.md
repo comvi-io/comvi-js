@@ -46,6 +46,6 @@ a balanced quote in the same message still protects a `</b>` inside it.
 
 Catalog ingestion now enumerates own locale keys only.
 
-`addTranslations` and the `translation` option walked the prototype chain of the outer
+`addMessages` and the `messages` option walked the prototype chain of the outer
 `{ locale: catalog }` map, so a map built on a prototype carrying locale entries had those
 adopted as if they had been passed in.

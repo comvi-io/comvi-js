@@ -332,7 +332,7 @@ function escapeRegExp(text: string): string {
  *   - nuxt: the same chunk under `/_nuxt/`, hash-named, so the runner reads its
  *     name from the client manifest.
  *   - next: the browser never imports a catalog — the server resolves it in
- *     `loadTranslations()` and it arrives inside the RSC payload of the
+ *     `loadMessages()` and it arrives inside the RSC payload of the
  *     navigation, which is the request for `/<locale>?_rsc=…`.
  */
 function catalogRequest(locale: Locale): RegExp {

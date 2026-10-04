@@ -14,7 +14,7 @@ const OPTIONS = { cdnUrl: "https://cdn.comvi.io/distribution" };
 // capabilities the installer attaches, and nothing more.
 export const composed = createI18n({ locale: "en" }).use(fetchLoader(OPTIONS));
 void composed.registerLoader;
-void composed.reloadTranslations;
+void composed.reloadMessages;
 void composed.onLoadError;
 void composed.use;
 void composed.setPluginData;

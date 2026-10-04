@@ -14,7 +14,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   it("renderToString uses the configured locale via getServerSnapshot", () => {
     const i18n = createI18n({
       locale: "fr",
-      translation: { fr: { greeting: "Bonjour" }, en: { greeting: "Hello" } },
+      messages: { fr: { greeting: "Bonjour" }, en: { greeting: "Hello" } },
     });
 
     const html = renderToString(
@@ -29,7 +29,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   it("ssrInitialLocale overrides the i18n.locale on the server snapshot path", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: { greeting: "Hello" },
         de: { greeting: "Hallo" },
       },
@@ -51,7 +51,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   });
 
   it("ssrInitialIsLoading flows through useIsLoading on the server snapshot path", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { x: "x" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { x: "x" } } });
 
     function Show() {
       const { isLoading, isInitializing } = useIsLoading();
@@ -75,7 +75,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   it("useI18n on the server snapshot path returns the configured locale + a valid t()", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
 
     function Show() {
@@ -93,7 +93,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   });
 
   it("falls back to the live host state when no ssrInitial* prop is given", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { x: "x" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { x: "x" } } });
 
     function Show() {
       const { isLoading, isInitializing } = useIsLoading();
@@ -125,7 +125,7 @@ describe("@comvi/react SSR — useI18n().hasTranslation follows the provider loc
   it("answers for ssrInitialLocale, not the instance locale", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: {}, fr: { greeting: "Bonjour" } },
+      messages: { en: {}, fr: { greeting: "Bonjour" } },
       exposeGlobal: false,
     });
     const Probe = () => <>{`has:${useI18n().hasTranslation("greeting")}`}</>;
@@ -142,7 +142,7 @@ describe("@comvi/react SSR — useI18n().hasTranslation follows the provider loc
   it("reports false for a key the provider locale does not have", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" }, fr: {} },
+      messages: { en: { greeting: "Hello" }, fr: {} },
       exposeGlobal: false,
     });
     const Probe = () => <>{`has:${useI18n().hasTranslation("greeting")}`}</>;
@@ -167,7 +167,7 @@ describe("@comvi/react SSR — a throwing tag handler is NOT contained on the se
   it("renderToString rethrows the handler's error instead of rendering the children", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "Click <link>here</link>" } },
+      messages: { en: { msg: "Click <link>here</link>" } },
       exposeGlobal: false,
     });
     const Exploding = (): React.ReactElement => {
@@ -194,7 +194,7 @@ describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
   const withGreeting = () =>
     createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" }, de: { greeting: "Hallo" } },
+      messages: { en: { greeting: "Hello" }, de: { greeting: "Hallo" } },
       exposeGlobal: false,
     });
 
@@ -257,7 +257,7 @@ describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
  */
 describe("@comvi/react SSR — fallback follows the server snapshot", () => {
   const host = () =>
-    createI18n({ locale: "en", translation: { en: { greeting: "Hello" } }, exposeGlobal: false });
+    createI18n({ locale: "en", messages: { en: { greeting: "Hello" } }, exposeGlobal: false });
 
   it("renders children, not the fallback, on the default server snapshot", () => {
     const html = renderToString(

@@ -14,7 +14,7 @@ Without the option an ICU message is not silently wrong, it is loud: development
    locales: ["en", "uk"],
    defaultLocale: "en",
 +  compiler: icuCompiler,
-   translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+   messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
  });
 ```
 

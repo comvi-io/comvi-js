@@ -39,7 +39,7 @@ describe("I18n core API contracts", () => {
   describe("hasTranslation()", () => {
     function makeI18n() {
       const i18n = new I18n({ locale: "de", fallbackLocale: ["de", "en"], exposeGlobal: false });
-      i18n.addTranslations({ en: { hello: "Hello" } });
+      i18n.addMessages({ en: { hello: "Hello" } });
       return i18n;
     }
 

@@ -6,7 +6,7 @@ import type {
   TranslationParams,
   TranslationResult,
   NamespaceBoundTranslateFn,
-  FlattenedTranslations,
+  FlattenedMessages,
   TranslationValue,
   I18nEvent,
   I18nEventData,
@@ -33,7 +33,7 @@ export interface UseI18nReturn<
   setLocale: (locale: string) => Promise<void>;
 
   /** Stable identity; re-evaluates on cache mutation. */
-  translationCache: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
+  translationCache: ComputedRef<ReadonlyMap<string, FlattenedMessages>>;
 
   isLoading: Readonly<Ref<boolean>>;
 
@@ -44,7 +44,7 @@ export interface UseI18nReturn<
   /** Core's translation-cache revision, reactive; read it to depend on cache changes. */
   cacheRevision: Readonly<Ref<number>>;
 
-  addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
+  addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
 
   setFallbackLocale: (locales: string | string[]) => void;
 
@@ -54,7 +54,7 @@ export interface UseI18nReturn<
   /** Replace instance-level interpolation defaults. */
   setDefaultParams: WrapperI18nHost<D>["setDefaultParams"];
 
-  clearTranslations: (locale?: string, namespace?: string) => void;
+  clearMessages: (locale?: string, namespace?: string) => void;
 
   loadedLocales: ComputedRef<string[]>;
 
@@ -102,8 +102,8 @@ export interface UseI18nReturn<
   // the object `useI18n()` returns never carries these keys, in any build.
   /** @deprecated Moved in 0.5. Acquire it: `const { addActiveNamespace } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.addActiveNamespace)` compiles and is always false. */
   addActiveNamespace?: never;
-  /** @deprecated Moved in 0.5. Acquire it: `const { reloadTranslations } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.reloadTranslations)` compiles and is always false. */
-  reloadTranslations?: never;
+  /** @deprecated Moved in 0.5. Acquire it: `const { reloadMessages } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.reloadMessages)` compiles and is always false. */
+  reloadMessages?: never;
   /** @deprecated Moved in 0.5. Acquire it: `const { onLoadError } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.onLoadError)` compiles and is always false. */
   onLoadError?: never;
   /** @deprecated Moved in 0.5. Acquire it: `const { onMissingKey } = useI18nPlugins()`. Optional only so the key can be absent: `if (bag.onMissingKey)` compiles and is always false. */
@@ -131,11 +131,11 @@ const PASSTHROUGH_KEYS = [
   "isInitializing",
   "isInitialized",
   "cacheRevision",
-  "addTranslations",
+  "addMessages",
   "setFallbackLocale",
   "defaultParams",
   "setDefaultParams",
-  "clearTranslations",
+  "clearMessages",
   "hasLocale",
   "hasTranslation",
   "loadedLocales",

@@ -25,7 +25,7 @@ describe("createBoundTranslation()", () => {
 
   it("binds nothing for an empty namespace, so lookups keep hitting the default one", () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ "en:default": { hello: "Hello" } });
+    i18n.addMessages({ "en:default": { hello: "Hello" } });
 
     expect(createBoundTranslation(i18n, "")("hello")).toBe("Hello");
   });

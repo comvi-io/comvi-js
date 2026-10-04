@@ -14,12 +14,12 @@ const TRANSLATIONS = {
 };
 
 async function createServerLikeI18n(
-  translation: Record<string, Record<string, string>> = TRANSLATIONS,
+  messages: Record<string, Record<string, string>> = TRANSLATIONS,
 ) {
   const i18n = createI18n({
     locale: "en",
     defaultNs: "default",
-    translation,
+    messages,
   });
 
   i18n.registerPlugin(inContextEditorPlugin());

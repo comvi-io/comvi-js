@@ -23,7 +23,7 @@ function makeHost(collectContext?: boolean): ComposedHost {
     locale: "en",
     defaultNs: "default",
     apiKey: "test-api-key",
-    translation: { "en:default": { hello: "Hello" } },
+    messages: { "en:default": { hello: "Hello" } },
     ...(collectContext === undefined ? {} : { collectContext }),
   });
 }

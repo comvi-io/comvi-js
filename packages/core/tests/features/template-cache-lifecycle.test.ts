@@ -26,7 +26,7 @@ describe("templateCache eviction", () => {
   it("reuses the context-tagged cache entry across repeated renders of a static template", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello world" } },
+      messages: { en: { greeting: "Hello world" } },
     });
     const [compilerId, extBits] = rootVariant();
     expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBeUndefined();
@@ -46,7 +46,7 @@ describe("templateCache eviction", () => {
     for (let n = 0; n < OVER_CAP; n++) {
       translations[`key_${n}`] = `Value number ${n}`;
     }
-    const i18n = createI18n({ locale: "en", translation: { en: translations } });
+    const i18n = createI18n({ locale: "en", messages: { en: translations } });
     // Per-call options skip the host's static fast path, so every call really
     // does reach the cache.
     for (let n = 0; n < OVER_CAP; n++) {
@@ -65,7 +65,7 @@ describe("templateCache eviction", () => {
     for (let n = 0; n < OVER_CAP; n++) {
       translations[`key_${n}`] = `Value ${n} for {name}`;
     }
-    i18n.addTranslations({ en: translations });
+    i18n.addMessages({ en: translations });
 
     for (let n = 0; n < OVER_CAP; n++) {
       i18n.t(`key_${n}` as never, { name: "World" } as never);
@@ -81,7 +81,7 @@ describe("templateCache eviction", () => {
     for (let n = 0; n < OVER_CAP; n++) {
       translations[`static_${n}`] = `Hello world number ${n}`;
     }
-    i18n.addTranslations({ en: translations });
+    i18n.addMessages({ en: translations });
 
     for (let n = 0; n < OVER_CAP; n++) {
       i18n.t(`static_${n}` as never);
@@ -91,28 +91,28 @@ describe("templateCache eviction", () => {
   });
 });
 
-describe("templateCache correctness after clearTranslations", () => {
-  it("translates correctly after clearTranslations() + re-add", () => {
+describe("templateCache correctness after clearMessages", () => {
+  it("translates correctly after clearMessages() + re-add", () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ en: { greeting: "Hello, {name}!" } });
+    i18n.addMessages({ en: { greeting: "Hello, {name}!" } });
 
     expect(i18n.t("greeting" as never, { name: "Alice" } as never)).toBe("Hello, Alice!");
 
-    i18n.clearTranslations();
-    i18n.addTranslations({ en: { greeting: "Hello, {name}!" } });
+    i18n.clearMessages();
+    i18n.addMessages({ en: { greeting: "Hello, {name}!" } });
 
     // Still compiled in the module-level cache, so translation must still work.
     expect(i18n.t("greeting" as never, { name: "Bob" } as never)).toBe("Hello, Bob!");
   });
 
-  it("returns updated translation value after clearTranslations() + re-add with new text", () => {
+  it("returns updated translation value after clearMessages() + re-add with new text", () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ en: { msg: "Old {value}" } });
+    i18n.addMessages({ en: { msg: "Old {value}" } });
 
     expect(i18n.t("msg" as never, { value: "text" } as never)).toBe("Old text");
 
-    i18n.clearTranslations();
-    i18n.addTranslations({ en: { msg: "New {value}" } });
+    i18n.clearMessages();
+    i18n.addMessages({ en: { msg: "New {value}" } });
 
     expect(i18n.t("msg" as never, { value: "text" } as never)).toBe("New text");
   });
@@ -128,8 +128,8 @@ describe("templateCache cross-instance isolation", () => {
     const i18nA = createI18n({ locale: "en" });
     const i18nB = createI18n({ locale: "en" });
 
-    i18nA.addTranslations({ en: { shared: template } });
-    i18nB.addTranslations({ en: { shared: template } });
+    i18nA.addMessages({ en: { shared: template } });
+    i18nB.addMessages({ en: { shared: template } });
 
     expect(i18nA.t(key, params)).toBe(expected);
     expect(i18nB.t(key, params)).toBe(expected);
@@ -140,20 +140,20 @@ describe("templateCache cross-instance isolation", () => {
     expect(i18nB.t(key, params)).toBe(expected);
   });
 
-  it("clearTranslations() on instance A does not break instance B", () => {
+  it("clearMessages() on instance A does not break instance B", () => {
     const key = "hello" as never;
     const template = "Hi {name}";
 
     const i18nA = createI18n({ locale: "en" });
     const i18nB = createI18n({ locale: "en" });
 
-    i18nA.addTranslations({ en: { hello: template } });
-    i18nB.addTranslations({ en: { hello: template } });
+    i18nA.addMessages({ en: { hello: template } });
+    i18nB.addMessages({ en: { hello: template } });
 
     i18nA.t(key, { name: "X" } as never);
     i18nB.t(key, { name: "Y" } as never);
 
-    i18nA.clearTranslations();
+    i18nA.clearMessages();
 
     expect(i18nB.t(key, { name: "Z" } as never)).toBe("Hi Z");
   });
@@ -163,7 +163,7 @@ describe("context-sensitive cache keys", () => {
   it("does not collide with a top-level template that starts with the context marker", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: {
           plural: "{count, plural, other {'#'}}",
           topLevel: "\u0001'#'",
@@ -178,7 +178,7 @@ describe("context-sensitive cache keys", () => {
   it("does not collide when the marker-prefixed top-level template is cached first", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: {
           topLevel: "\u0001'#'",
           plural: "{count, plural, other {'#'}}",

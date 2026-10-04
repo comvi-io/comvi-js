@@ -153,7 +153,7 @@ export type _DDoesNotInferFromDefaultParams = Expect<
 // that demanded a mutable array made the package's documented composition
 // uncompilable, and rejected the `as const` tuple `hasLocale` narrowing needs.
 const _routing = defineRouting({ locales: ["en", "de"], defaultLocale: "en" } as const);
-const _spread = createNextI18n({ ..._routing, translation: { en: {} } });
+const _spread = createNextI18n({ ..._routing, messages: { en: {} } });
 export type _RoutingSpreadsIntoFactory = Expect<Equal<typeof _spread.i18n, NextComposedI18n<{}>>>;
 
 // The same tuple handed straight to the factory, which is what an app that

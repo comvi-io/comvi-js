@@ -40,7 +40,7 @@ never discovered missing in production:
 
 | Capability            | Subpath                                                 | Members                                                                                                                                                                                                |
 | --------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Async loading         | `@comvi/core/loader` (`attachLoader`)                   | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError`                                                                                |
+| Async loading         | `@comvi/core/loader` (`attachLoader`)                   | `registerLoader`, `getLoader`, `reloadMessages`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError`                                                                                    |
 | Import-map loading    | `@comvi/core/loader`                                    | `createImportMapLoader`, and `loader(map)` to attach + register in one call                                                                                                                            |
 | Plugin host           | `@comvi/core/plugins` (`plugins()`, `definePlugin(fn)`) | `registerPlugin`, `setPluginData`, `getPluginData`                                                                                                                                                     |
 | Locale detection      | `@comvi/core/plugins`                                   | `registerLocaleDetector`, `getLanguageDetector`                                                                                                                                                        |
@@ -55,7 +55,7 @@ never discovered missing in production:
 **Three placements are not where a reader guesses.** `addActiveNamespace(s)` /
 `removeActiveNamespace(s)` and `onLoadError` are on `/loader`, because activating a namespace and
 emitting `loadError` only mean anything when something loads — the base host self-activates instead,
-as `addTranslations` activates the namespaces it carries. Discovery is on `/devtools`, so an app
+as `addMessages` activates the namespaces it carries. Discovery is on `/devtools`, so an app
 shipping no extension integration carries no `window` protocol. Nested-catalog flattening is on no
 subpath at all: it happens at the one place a catalog enters, composed or not.
 
@@ -98,7 +98,7 @@ plugin `required`, `timeout`, `onError` and cleanup.
 - **A shape probe for installers** — a `*Plugin` factory is async, so calling one returns a Promise,
   which IS an object; the plugin would have run at composition time, rejection unhandled.
 - **An `icu()` installer, and the two catalog-source-keyed enable forms `E_COMPILER_LOCKED` policed**
-  — composable too late, after `translation` was walked, and a rule to learn for no benefit.
+  — composable too late, after `messages` was walked, and a rule to learn for no benefit.
 - **A bare attach-only `loader()`** — it names the import-map adapter statically, so it pulled
   ~111–124 B min+gz into a graph that registered no map: invisible bytes for a reader to weigh.
 - **Installers returning a derived object** — refused, so `.use` can never lie about what an

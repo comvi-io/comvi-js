@@ -20,7 +20,7 @@ const makeI18n = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: { en: {}, de: {}, ar: {} },
+    messages: { en: {}, de: {}, ar: {} },
   });
 
 let component: ReturnType<typeof mount> | undefined;

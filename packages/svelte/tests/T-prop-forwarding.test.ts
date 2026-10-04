@@ -10,7 +10,7 @@ import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 const createI18n = (): FakeI18n => {
   const fake = new FakeI18n({ language: "en", defaultNamespace: "default" });
-  fake.addTranslations({ en: { probe: "x" }, fr: { probe: "x" }, "fr:admin": { probe: "x" } });
+  fake.addMessages({ en: { probe: "x" }, fr: { probe: "x" }, "fr:admin": { probe: "x" } });
   return fake;
 };
 

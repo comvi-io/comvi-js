@@ -13,7 +13,7 @@ const makeRealI18n = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: {
+    messages: {
       en: {
         welcome: "Hello <strong>{name}</strong>!",
         linebreak: "Top<break/>Bottom",
@@ -23,7 +23,7 @@ const makeRealI18n = () =>
 
 const createInterpolationI18n = (): FakeI18n => {
   const fake = new FakeI18n({ language: "en", defaultNamespace: "default" });
-  fake.addTranslations({
+  fake.addMessages({
     en: { welcome: "x", linebreak: "x", unsafe: "x", reserved: "x" },
     "fr:admin": { reserved: "x" },
   });
@@ -215,7 +215,7 @@ describe("T.svelte tag interpolation contract", () => {
           : "click";
       return ["Please ", link];
     };
-    fake.addTranslations({ en: { attrtest: "x" } });
+    fake.addMessages({ en: { attrtest: "x" } });
 
     component = mount(TInterpolationWrapper, {
       target,

@@ -42,7 +42,7 @@ describe("VueI18n host event bridge", () => {
     watch(i18n.locale, (locale) => localeSeen.push(locale));
     watch(i18n.loadedLocales, (locales) => loadedSeen.push([...locales]));
 
-    host.addTranslations({ "fr:common": { hello: "Bonjour" } });
+    host.addMessages({ "fr:common": { hello: "Bonjour" } });
     await host.setLocale("fr");
     await nextTick();
 
@@ -61,7 +61,7 @@ describe("VueI18n host event bridge", () => {
     const loadedSeen: string[][] = [];
     watch(i18n.loadedLocales, (locales) => loadedSeen.push([...locales]));
 
-    host.addTranslations({ "de:common": { hello: "Hallo" } });
+    host.addMessages({ "de:common": { hello: "Hallo" } });
     await nextTick();
 
     expect(loadedSeen).toEqual([]);

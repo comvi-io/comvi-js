@@ -16,7 +16,7 @@ describe("strict tag interpolation", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: RICH,
+      messages: RICH,
       tagInterpolation: { strict: true },
     });
 
@@ -29,7 +29,7 @@ describe("strict tag interpolation", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: RICH,
+      messages: RICH,
       tagInterpolation: { strict: true },
     });
 
@@ -44,7 +44,7 @@ describe("an ICU argument with the tag grammar loaded", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { tagged: template } },
+      messages: { en: { tagged: template } },
       onError: (error) => void reports.push(error as IcuSyntaxError),
     });
 
@@ -59,7 +59,7 @@ describe("an ICU argument with the tag grammar loaded", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: {
+      messages: {
         en: {
           mixed: "{n, plural, one {# left} other {# lefts}} <link>here</link>",
           plain: "Just text",
@@ -84,7 +84,7 @@ describe("an ICU argument with the tag grammar loaded", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { m: "a <b>b</b> c" } },
+      messages: { en: { m: "a <b>b</b> c" } },
     });
 
     expect(i18n.t("m", { b: ({ children }) => `B${children}` })).toBe("a Bb c");

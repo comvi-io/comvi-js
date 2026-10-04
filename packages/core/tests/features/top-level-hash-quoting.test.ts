@@ -27,7 +27,7 @@ describe("a select rendered twice", () => {
     // into it would re-parse the branch under plural rules.
     const i18n = createFullI18n({
       locale: "en",
-      translation: { en: { rank: "{kind, select, sharp{'#'1} other{plain}}" } },
+      messages: { en: { rank: "{kind, select, sharp{'#'1} other{plain}}" } },
     });
     expect(i18n.t("rank", { kind: "sharp" })).toBe("'#'1");
 
@@ -48,7 +48,7 @@ describe("a select's own hash context", () => {
     // `}` — opens a quote that swallows both closing braces. The argument never
     // closes, so the whole template stays literal.
     const template = "{kind, select, other {'#'}}";
-    const i18n = createFullI18n({ locale: "en", translation: { en: { rank: template } } });
+    const i18n = createFullI18n({ locale: "en", messages: { en: { rank: template } } });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     expect(i18n.t("rank", { kind: "any" })).toBe(template);
@@ -59,7 +59,7 @@ describe("a select's own hash context", () => {
   it("renders a quoted # in a select branch nested in a plural as the literal", () => {
     const i18n = createFullI18n({
       locale: "en",
-      translation: { en: { rank: "{n, plural, other {{kind, select, other {'#' of #}}}}" } },
+      messages: { en: { rank: "{n, plural, other {{kind, select, other {'#' of #}}}}" } },
     });
 
     expect(i18n.t("rank", { n: 3, kind: "any" })).toBe("# of 3");
@@ -74,7 +74,7 @@ describe("a select's own hash context", () => {
     // EXPECT_ARGUMENT_CLOSING_BRACE, exactly as the scanner does.
     const i18n = createFullI18n({
       locale: "en",
-      translation: { en: { rank: "{kind, select, other {'#{x}' tail}}" } },
+      messages: { en: { rank: "{kind, select, other {'#{x}' tail}}" } },
     });
 
     expect(i18n.t("rank", { kind: "any", x: 7 })).toBe("'#7' tail");

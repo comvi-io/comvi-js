@@ -29,12 +29,12 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 /**
  * `init()` loads the initial namespaces. A loader composed after it has run is
  * not asked for them, so the host looks composed and stays empty until
- * something else (`addActiveNamespace`, `reloadTranslations`, a locale switch,
+ * something else (`addActiveNamespace`, `reloadMessages`, a locale switch,
  * another `init()`) happens to trigger a load. Empty in prod so terser drops
  * the string.
  */
 const ERR_LATE_LOADER = IS_DEV
-  ? "[i18n] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and does not re-run on its own for this loader — call reloadTranslations() or addActiveNamespace() to load now."
+  ? "[i18n] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and does not re-run on its own for this loader — call reloadMessages() or addActiveNamespace() to load now."
   : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
@@ -50,8 +50,8 @@ const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
  */
 function reloadNoActiveNsMessage(defaultNs: string): string {
   return (
-    `[i18n] reloadTranslations(): no namespace is active, reloading the default namespace "${defaultNs}". ` +
-    "removeActiveNamespace(ns) deactivates a namespace; clearTranslations() never does."
+    `[i18n] reloadMessages(): no namespace is active, reloading the default namespace "${defaultNs}". ` +
+    "removeActiveNamespace(ns) deactivates a namespace; clearMessages() never does."
   );
 }
 
@@ -223,7 +223,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * Activate a namespace and load it for the current locale.
    *
    * Namespace ACTIVATION only matters when something loads namespaces, so it
-   * lives with the loader. A base host activates implicitly: `addTranslations`
+   * lives with the loader. A base host activates implicitly: `addMessages`
    * self-activates every namespace it carries.
    */
   public async addActiveNamespace(namespace: string): Promise<void> {
@@ -244,19 +244,19 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * Deactivate a namespace and cancel its pending loads.
    *
    * The mirror image of {@link addActiveNamespace}, and INTENT only: a locale
-   * switch stops fetching the namespace and {@link reloadTranslations} fetches
+   * switch stops fetching the namespace and {@link reloadMessages} fetches
    * only what is still active, while the catalog already in the cache stays
    * there and keeps resolving. Dropping the content is
-   * `clearTranslations(undefined, namespace)`, which never deactivates.
+   * `clearMessages(undefined, namespace)`, which never deactivates.
    *
    * ONE exception to "a reload will not fetch it": a reload with nothing active
    * left falls back to the DEFAULT namespace. Remove the last active namespace
-   * and the next `reloadTranslations()` fetches the default one — which is the
+   * and the next `reloadMessages()` fetches the default one — which is the
    * namespace you just removed only if that namespace WAS the default. A locale
    * switch has no such fallback and fetches nothing.
    *
    * Two ways a namespace comes BACK, and only one of them re-activates it:
-   * `addTranslations()` self-activates every namespace it carries, so a merge
+   * `addMessages()` self-activates every namespace it carries, so a merge
    * undoes this call. A loader refetch does NOT — it writes straight to the
    * cache, so the content returns while the namespace stays deactivated.
    *
@@ -299,7 +299,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * @param namespace - Optional namespace to reload (defaults to all active)
    * @throws {Error} Throws if all reload attempts fail, indicating the cache may be empty.
    */
-  public async reloadTranslations(locale?: string, namespace?: string): Promise<void> {
+  public async reloadMessages(locale?: string, namespace?: string): Promise<void> {
     if (!this._loader) {
       throw new Error(ERR_NO_LOADER_REGISTERED);
     }
@@ -469,7 +469,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
  * MUST run BEFORE `init()`, which is what loads the initial namespaces. A
  * loader composed afterwards is not consulted for them; that warns in dev and
  * the recovery is an explicit `addActiveNamespace()` /
- * `reloadTranslations()`.
+ * `reloadMessages()`.
  *
  * Idempotent via a dot-access probe on an installed hook — never `in`, never a
  * string key (see the mangling contract above). The members land as
@@ -492,6 +492,6 @@ export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderAp
 }
 
 // `flattenCatalog` is NOT re-exported here. Every host flattens nested
-// catalogs on its own (`_nsAddTranslations` in `core/i18n.ts`), so the
+// catalogs on its own (`_nsAddMessages` in `core/i18n.ts`), so the
 // flattener is no longer an escape hatch attached to this capability — it stays
 // published from the `@comvi/core` root for pre-flattening data by hand.

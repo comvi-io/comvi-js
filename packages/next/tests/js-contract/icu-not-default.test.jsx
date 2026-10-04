@@ -17,12 +17,12 @@ import { createNextI18n } from "../../src/createNextI18n";
 
 const PLURAL = "{count, plural, one {# item} other {# items}}";
 
-const make = (translation) =>
+const make = (messages) =>
   createNextI18n({
     locales: ["en"],
     defaultLocale: "en",
     devMode: false,
-    translation,
+    messages,
   });
 
 describe(`createNextI18n without a compiler (${__COMVI_CORE_BUILD__} core build)`, () => {

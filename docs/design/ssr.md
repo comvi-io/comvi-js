@@ -39,7 +39,7 @@ someone calls `destroy()`. So on a long-lived server the question is who calls i
 - **`@comvi/nuxt`: the module does.** Its Nitro plugin destroys every host the request built, once
   the request is answered — BOTH the app plugin's own host, the one your pages and components
   render against, and any host the server utilities built for `useTranslation()` /
-  `loadTranslations()`. Nothing to write.
+  `loadMessages()`. Nothing to write.
 - **Vue SSR, Solid, Svelte: your app does.** You build the instance in the request handler, so it is
   yours to tear down: `await i18n.destroy()` when the render is finished. The recipes below do it.
   Skip it only if you know your plugins hold nothing — the catalog is collected either way.
@@ -147,7 +147,7 @@ fallback is `close` after all: a response that ENDED is torn down immediately, a
 waits either for the response to end after all or for one macrotask, whichever comes first, so a
 handler whose remaining work is microtasks finishes first. **The residual race:** a handler that
 yields to a timer or to real I/O after an abort can still have its hosts destroyed under it. What it
-cannot do is get a silently half-dead host — the next `useTranslation()` / `loadTranslations()` on a
+cannot do is get a silently half-dead host — the next `useTranslation()` / `loadMessages()` on a
 torn-down request throws, naming the situation, because the response is gone and there is nothing
 left to translate for.
 
@@ -181,7 +181,7 @@ export async function render(localeFromRequest: string) {
   const i18n = createI18n({
     locale: "en",
     ssrLocale: localeFromRequest,
-    translation: { en: { greeting: "Hello" }, uk: { greeting: "Привіт" } },
+    messages: { en: { greeting: "Hello" }, uk: { greeting: "Привіт" } },
   });
 
   app.use(i18n);
@@ -198,7 +198,7 @@ export async function render(localeFromRequest: string) {
 
 ## Solid — a host per request, and no initialization on the server
 
-A catalog the host already holds — an inline `translation` map — renders during `renderToString`, and
+A catalog the host already holds — an inline `messages` map — renders during `renderToString`, and
 `ssrLocale` is how the server render and the hydrating client agree on which locale that is. Adopting
 the locale is a WRITE to `i18n.locale`, so the host is built inside the request handler.
 
@@ -222,7 +222,7 @@ export async function render(locale: string) {
   const i18n = createI18n({
     locale,
     compiler: icuCompiler,
-    translation: { "en:default": en, "uk:default": uk },
+    messages: { "en:default": en, "uk:default": uk },
   });
 
   try {
@@ -280,7 +280,7 @@ export const load: LayoutLoad = async ({ fetch }) => {
   // no hydration mismatch); the browser auto-init microtask would not complete in time.
   const i18n = createI18n({
     locale: data.locale,
-    translation: { [data.locale]: data.messages },
+    messages: { [data.locale]: data.messages },
   });
 
   setI18nContext(i18n);
@@ -299,7 +299,7 @@ or skip it knowingly, if your plugins hold nothing. See
 
 Prefer the runtime CDN/API loader for client navigation? Keep the per-request
 `createI18n(...).use(cdnLoader(...))` in `+layout.svelte` and `await i18n.init()` inside an
-`$effect` / `onMount` for the client, while still seeding `translation` from `load` data for the
+`$effect` / `onMount` for the client, while still seeding `messages` from `load` data for the
 initial server render. The rule is the same: only serializable data crosses `load`.
 
 ## React — two props, and the gate defaults open

@@ -102,7 +102,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     expect(i18n.t("hello")).toBe("Bonjour");
 
     store["fr:default"] = { hello: "Salut" };
-    await i18n.reloadTranslations();
+    await i18n.reloadMessages();
     expect(i18n.t("hello")).toBe("Salut");
 
     await i18n.destroy();
@@ -134,7 +134,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
       attachLoader(
         createI18n({
           locale: "en",
-          translation: { en: { hello: "Hello" }, fr: { hello: "Bonjour" } },
+          messages: { en: { hello: "Hello" }, fr: { hello: "Bonjour" } },
           exposeGlobal: false,
         }),
       ),
@@ -192,11 +192,11 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     const bare = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { nav: { home: "Home" } } },
+      messages: { en: { nav: { home: "Home" } } },
     });
     expect(bare.t("nav.home")).toBe("Home");
 
-    bare.addTranslations({ en: { menu: { about: "About" } } });
+    bare.addMessages({ en: { menu: { about: "About" } } });
     expect(bare.t("menu.about")).toBe("About");
 
     // The root still publishes the flattener, and it agrees with ingestion.
@@ -216,7 +216,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
 
     const loaded = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
-    loaded.addTranslations({ en: { nav: { home: "Home" } } });
+    loaded.addMessages({ en: { nav: { home: "Home" } } });
 
     expect(loaded.t("nav.home")).toBe("Home");
   });
@@ -233,7 +233,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { hello: "Hello" } },
+      messages: { en: { hello: "Hello" } },
     });
     await i18n.init();
 

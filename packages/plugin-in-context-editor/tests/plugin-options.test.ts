@@ -56,7 +56,7 @@ function makeI18n() {
   return createI18n({
     locale: "en",
     defaultNs: "default",
-    translation: { "en:default": { hello: "Hello" } },
+    messages: { "en:default": { hello: "Hello" } },
   });
 }
 
@@ -105,7 +105,7 @@ describe("collectContext / screenGroupResolver pass-through", () => {
     const result = activate({
       collectContext: false,
       screenGroupResolver: resolver,
-      refreshTranslations: false,
+      refreshMessages: false,
     });
     expect(result).not.toBeNull();
 
@@ -119,11 +119,11 @@ describe("collectContext / screenGroupResolver pass-through", () => {
     createI18n({
       locale: "en",
       defaultNs: "default",
-      translation: { "en:default": { hello: "Hello" } },
+      messages: { "en:default": { hello: "Hello" } },
       collectContext: false,
     });
 
-    const result = activate({ collectContext: true, refreshTranslations: false });
+    const result = activate({ collectContext: true, refreshMessages: false });
 
     expect(result?.collectContext).toBe(false);
     expect(lastCoreOptions().collectContext).toBe(false);
@@ -142,7 +142,7 @@ describe("standalone lifecycle notifications", () => {
     };
     window.addEventListener(EDITOR_LIFECYCLE_EVENT, listener);
 
-    const result = activate({ refreshTranslations: false, onLifecycle: callback });
+    const result = activate({ refreshMessages: false, onLifecycle: callback });
     expect(result).not.toBeNull();
     result?.stop();
     window.removeEventListener(EDITOR_LIFECYCLE_EVENT, listener);
@@ -165,7 +165,7 @@ describe("standalone lifecycle notifications", () => {
 
     const result = activate({
       apiKey: "must-not-appear-in-lifecycle",
-      refreshTranslations: false,
+      refreshMessages: false,
     });
     result?.stop();
     window.removeEventListener(EDITOR_LIFECYCLE_EVENT, listener);
@@ -181,7 +181,7 @@ describe("standalone lifecycle notifications", () => {
     const listener = vi.fn();
     window.addEventListener(EDITOR_LIFECYCLE_EVENT, listener);
 
-    activate({ refreshTranslations: false });
+    activate({ refreshMessages: false });
     window.ComviInContextEditor?.deactivate();
     window.removeEventListener(EDITOR_LIFECYCLE_EVENT, listener);
 
@@ -195,9 +195,9 @@ describe("standalone lifecycle notifications", () => {
   it("does not let an old returned stop function deactivate a newer activation", () => {
     makeI18n();
 
-    const first = activate({ refreshTranslations: false });
+    const first = activate({ refreshMessages: false });
     first?.stop();
-    const second = activate({ refreshTranslations: false });
+    const second = activate({ refreshMessages: false });
     first?.stop();
 
     expect(second).not.toBeNull();
@@ -207,7 +207,7 @@ describe("standalone lifecycle notifications", () => {
   it("fails closed when no Comvi i18n is present on the page", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    expect(activate({ refreshTranslations: false })).toBeNull();
+    expect(activate({ refreshMessages: false })).toBeNull();
 
     expect(error).toHaveBeenCalledExactlyOnceWith(
       "[ComviInContextEditor] No Comvi i18n found. Ensure @comvi/core is loaded on the page.",
@@ -219,7 +219,7 @@ describe("standalone lifecycle notifications", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     makeI18n();
 
-    expect(activate({ instanceId: "missing", refreshTranslations: false })).toBeNull();
+    expect(activate({ instanceId: "missing", refreshMessages: false })).toBeNull();
 
     expect(error).toHaveBeenCalledExactlyOnceWith(
       "[ComviInContextEditor] No i18n instance found.",
@@ -238,7 +238,7 @@ describe("standalone lifecycle notifications", () => {
       get: () => i18n,
     };
 
-    const result = activate({ refreshTranslations: false });
+    const result = activate({ refreshMessages: false });
 
     expect(result).not.toBeNull();
     expect(coreStartMock).toHaveBeenCalledTimes(1);
@@ -248,9 +248,9 @@ describe("standalone lifecycle notifications", () => {
     makeI18n();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    activate({ refreshTranslations: false });
+    activate({ refreshMessages: false });
 
-    expect(activate({ refreshTranslations: false })).toBeNull();
+    expect(activate({ refreshMessages: false })).toBeNull();
     expect(warn).toHaveBeenCalledExactlyOnceWith(
       "[ComviInContextEditor] Already active. Call deactivate() first.",
     );
@@ -265,7 +265,7 @@ describe("standalone lifecycle notifications", () => {
       get: () => i18n,
     };
 
-    const first = activate({ refreshTranslations: false });
+    const first = activate({ refreshMessages: false });
 
     expect(getStatus()).toEqual({
       active: true,
@@ -293,7 +293,7 @@ describe("standalone lifecycle notifications", () => {
     window.addEventListener(EDITOR_LIFECYCLE_EVENT, listener);
 
     const result = activate({
-      refreshTranslations: false,
+      refreshMessages: false,
       onLifecycle: () => {
         throw new Error("observer failed");
       },
@@ -310,7 +310,7 @@ describe("standalone lifecycle notifications", () => {
 
   it("refreshes translations through the scoped transport without leaking headers", async () => {
     const i18n = makeI18n();
-    const addTranslations = vi.spyOn(i18n, "addTranslations");
+    const addMessages = vi.spyOn(i18n, "addMessages");
     const transport = vi.fn<ApiTransport>(async () => new Response("{}", { status: 200 }));
     fetchApiTranslationsMock.mockImplementation(
       async (
@@ -341,7 +341,7 @@ describe("standalone lifecycle notifications", () => {
       apiBaseUrl: "https://api.comvi.io",
       collectContext: false,
     });
-    await vi.waitFor(() => expect(addTranslations).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(addMessages).toHaveBeenCalledTimes(2));
 
     expect(fetchApiTranslationsMock).toHaveBeenCalledWith(
       "",
@@ -365,7 +365,7 @@ describe("standalone lifecycle notifications", () => {
       { method: "GET" },
       { method: "PUT", body: JSON.stringify({ key: "hello" }), keepalive: true },
     ]);
-    expect(addTranslations).toHaveBeenCalledWith({ "en:default": { hello: "Updated" } });
+    expect(addMessages).toHaveBeenCalledWith({ "en:default": { hello: "Updated" } });
   });
 
   it("contains a failed translation refresh instead of failing activation", async () => {
@@ -387,7 +387,7 @@ describe("standalone lifecycle notifications", () => {
   it("warns instead of throwing when deactivate() is called twice", () => {
     makeI18n();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    activate({ refreshTranslations: false });
+    activate({ refreshMessages: false });
 
     deactivate();
     deactivate();

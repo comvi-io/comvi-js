@@ -13,7 +13,7 @@ describe("useI18n", () => {
 
   beforeEach(() => {
     fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({
+    fake.addMessages({
       en: { hello: "Hello", goodbye: "Bye" },
       "en:admin": { title: "Admin" },
       fr: { hello: "Bonjour", goodbye: "Au revoir" },
@@ -153,7 +153,7 @@ describe("useI18n", () => {
     expect(text("active-namespaces")).toBe("admin,common");
   });
 
-  it("reflects cache updates through addTranslations and clearTranslations", async () => {
+  it("reflects cache updates through addMessages and clearMessages", async () => {
     component = mount(UseI18nHarness, {
       target,
       props: { i18n: fake.asI18n() },
@@ -218,7 +218,7 @@ describe("useI18n", () => {
   });
 
   it("keeps namespaces apart — each useI18n(ns) translates in its own namespace", () => {
-    fake.addTranslations({ "en:billing": { title: "Billing" } });
+    fake.addMessages({ "en:billing": { title: "Billing" } });
 
     component = mount(StoreCacheHarness, {
       target,

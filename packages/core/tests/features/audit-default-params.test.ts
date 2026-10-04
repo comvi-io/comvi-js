@@ -5,7 +5,7 @@ const FORMALITY_SELECT = "{formality, select, formal {Ihre Bewertung} other {Dei
 
 function createInstance() {
   const i18n = new I18n({ locale: "de", defaultParams: { formality: "formal" } });
-  i18n.addTranslations({ de: { review: FORMALITY_SELECT } });
+  i18n.addMessages({ de: { review: FORMALITY_SELECT } });
   return i18n;
 }
 

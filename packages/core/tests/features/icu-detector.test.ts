@@ -82,7 +82,7 @@ describe("E_ICU_SYNTAX — what the detector must NOT claim", () => {
   it("leaves an apostrophe-quoted literal alone", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { quoted: "'{name, other}'" } },
+      messages: { en: { quoted: "'{name, other}'" } },
     });
 
     expect(i18n.t("quoted" as never)).toBe("{name, other}");
@@ -93,7 +93,7 @@ describe("E_ICU_SYNTAX — what the detector must NOT claim", () => {
     // compiler and the segment stays literal text.
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { broken: "x {count, plural" } },
+      messages: { en: { broken: "x {count, plural" } },
     });
 
     expect(i18n.t("broken" as never)).toBe("x {count, plural");
@@ -102,7 +102,7 @@ describe("E_ICU_SYNTAX — what the detector must NOT claim", () => {
   it("leaves plain {param} interpolation untouched", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greet: "Hello, {name}!" } },
+      messages: { en: { greet: "Hello, {name}!" } },
     });
 
     expect(i18n.t("greet" as never, { name: "Ada" } as never)).toBe("Hello, Ada!");
@@ -134,7 +134,7 @@ describe("E_ICU_SYNTAX — repetition and bypass", () => {
     const i18n = createI18n({
       locale: "en",
       compiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+      messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
     expect(i18n.t("items" as never, { count: 2 } as never)).toBe(expected);

@@ -23,12 +23,12 @@ describe("t() / tRaw()", () => {
 
   describe("key lookup", () => {
     it("should translate flat keys", () => {
-      i18n.addTranslations({ en: { hello: "Hello World" } });
+      i18n.addMessages({ en: { hello: "Hello World" } });
       expect(i18n.t("hello")).toBe("Hello World");
     });
 
     it("should translate nested keys", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           nav: {
             header: {
@@ -41,7 +41,7 @@ describe("t() / tRaw()", () => {
     });
 
     it("should preserve mixed flat and nested keys", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           "nav.header.title": "My App",
           nav: {
@@ -59,7 +59,7 @@ describe("t() / tRaw()", () => {
     it("normalizes already-flat translations added programmatically without mutating the input", () => {
       const flatTranslations = { "nav.header.title": "Original" };
 
-      i18n.addTranslations({ en: flatTranslations });
+      i18n.addMessages({ en: flatTranslations });
 
       expect(flatTranslations).toEqual({ "nav.header.title": "Original" });
       expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
@@ -67,7 +67,7 @@ describe("t() / tRaw()", () => {
     });
 
     it("keeps Object.prototype members out of lookups after a flat add", () => {
-      i18n.addTranslations({ en: { "nav.header.title": "Original" } });
+      i18n.addMessages({ en: { "nav.header.title": "Original" } });
 
       expect(i18n.hasTranslation("toString")).toBe(false);
     });
@@ -76,7 +76,7 @@ describe("t() / tRaw()", () => {
       const i18nWithPostProcess = new I18n({
         locale: "en",
         postProcess: (result) => (typeof result === "string" ? `[${result}]` : result),
-        translation: {
+        messages: {
           en: { hello: "Hello" },
         },
       });
@@ -87,24 +87,24 @@ describe("t() / tRaw()", () => {
 
   describe("parameter interpolation", () => {
     it("should interpolate named parameters", () => {
-      i18n.addTranslations({ en: { welcome: "Welcome, {name}!" } });
+      i18n.addMessages({ en: { welcome: "Welcome, {name}!" } });
       expect(i18n.t("welcome", { name: "Alice" })).toBe("Welcome, Alice!");
     });
 
     it("should interpolate multiple parameters", () => {
-      i18n.addTranslations({ en: { info: "{name} is {age} years old." } });
+      i18n.addMessages({ en: { info: "{name} is {age} years old." } });
       expect(i18n.t("info", { name: "Bob", age: 30 })).toBe("Bob is 30 years old.");
     });
 
     it("should handle number parameters", () => {
-      i18n.addTranslations({ en: { count: "Count: {n}" } });
+      i18n.addMessages({ en: { count: "Count: {n}" } });
       expect(i18n.t("count", { n: 0 })).toBe("Count: 0");
       expect(i18n.t("count", { n: 100 })).toBe("Count: 100");
       expect(i18n.t("count", { n: -5 })).toBe("Count: -5");
     });
 
     it("should handle boolean parameters (coerced to string)", () => {
-      i18n.addTranslations({ en: { status: "Active: {isActive}" } });
+      i18n.addMessages({ en: { status: "Active: {isActive}" } });
       expect(i18n.t("status", { isActive: true })).toBe("Active: true");
       expect(i18n.t("status", { isActive: false })).toBe("Active: false");
     });
@@ -116,13 +116,13 @@ describe("t() / tRaw()", () => {
       ['an undefined param as "Hello {name}!"', { name: undefined }, "Hello {name}!"],
       ['a null param as "Hello !"', { name: null }, "Hello !"],
     ])("renders %s (missingParam default)", (_label, params, expected) => {
-      i18n.addTranslations({ en: { greet: "Hello {name}!" } });
+      i18n.addMessages({ en: { greet: "Hello {name}!" } });
 
       expect(i18n.t("greet", params as never)).toBe(expected);
     });
 
     it("should allow whitespace in parameter placeholders", () => {
-      i18n.addTranslations({ en: { loose: "Hi { name }!" } });
+      i18n.addMessages({ en: { loose: "Hi { name }!" } });
       expect(i18n.t("loose", { name: "Trimmed" })).toBe("Hi Trimmed!");
     });
   });
@@ -184,7 +184,7 @@ describe("t() / tRaw()", () => {
     });
 
     it("should fallback to deep keys if parents are missing", () => {
-      i18n.addTranslations({ en: { a: "foo" } });
+      i18n.addMessages({ en: { a: "foo" } });
       expect(i18n.t("a.b")).toBe("a.b");
     });
 
@@ -193,7 +193,7 @@ describe("t() / tRaw()", () => {
         locale: "de",
         fallbackLocale: "en",
       });
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { greeting: "Hello" },
       });
       i18n.registerPostProcessor((result) =>
@@ -206,7 +206,7 @@ describe("t() / tRaw()", () => {
 
   describe("a per-call fallback parameter", () => {
     beforeEach(() => {
-      i18n.addTranslations({ en: { existing: "I exist" } });
+      i18n.addMessages({ en: { existing: "I exist" } });
     });
 
     it("should use fallback text if key is missing", () => {

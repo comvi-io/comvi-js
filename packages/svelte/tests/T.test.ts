@@ -11,7 +11,7 @@ import { attachPlugins } from "@comvi/core/plugins";
 import { createI18n } from "../src/index";
 
 const makeI18n = (translations: Record<string, Record<string, string>>) =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: translations });
+  createI18n({ locale: "en", exposeGlobal: false, messages: translations });
 
 // `onMissingKey` is a plugin-host member, so the handler cases compose that
 // capability rather than using the base preset.
@@ -19,7 +19,7 @@ const makeHandlerI18n = (translations: Record<string, Record<string, string>>) =
   const i18n = createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: translations,
+    messages: translations,
   }).use(attachPlugins);
   i18n.onMissingKey(() => "Handler Fallback");
   return i18n;

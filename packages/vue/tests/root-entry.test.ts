@@ -30,7 +30,7 @@ describe("@comvi/vue — the single root entry", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello, {name}!" } },
+      messages: { en: { greeting: "Hello, {name}!" } },
     });
 
     expect(i18n).toBeInstanceOf(VueI18n);
@@ -44,12 +44,12 @@ describe("@comvi/vue — the single root entry", () => {
     // The claim is that these members are ABSENT, so the two reads go through a
     // view that admits them — the base host's own type does not declare them.
     const bareCore = i18n.core as Partial<root.I18nLoaderApi & root.I18nPluginHostApi>;
-    expect(bareCore.reloadTranslations).toBeUndefined();
+    expect(bareCore.reloadMessages).toBeUndefined();
     expect(bareCore.onMissingKey).toBeUndefined();
     expect("registerLoader" in i18n.core).toBe(false);
     expect("instanceId" in i18n.core).toBe(false);
     // The eight dropped proxies stay dropped on the preset path too.
-    expect("reloadTranslations" in i18n).toBe(false);
+    expect("reloadMessages" in i18n).toBe(false);
     expect("registerPlugin" in i18n).toBe(false);
   });
 
@@ -58,7 +58,7 @@ describe("@comvi/vue — the single root entry", () => {
       locale: "en",
       ssrLocale: "fr",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello!" }, fr: { greeting: "Bonjour !" } },
+      messages: { en: { greeting: "Hello!" }, fr: { greeting: "Bonjour !" } },
     });
 
     expect(i18n.core.locale).toBe("fr");
@@ -70,7 +70,7 @@ describe("@comvi/vue — the single root entry", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello, {name}!" } },
+      messages: { en: { greeting: "Hello, {name}!" } },
     });
 
     const wrapper = mount(
@@ -101,7 +101,7 @@ describe("@comvi/vue — ICU, one shape, one specifier", () => {
       locale: "en",
       exposeGlobal: false,
       compiler: root.icuCompiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+      messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
@@ -119,7 +119,7 @@ describe("@comvi/vue — ICU, one shape, one specifier", () => {
     });
     const i18n = root.createI18nFromCore(core);
 
-    core.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
+    core.addMessages({ en: { items: "{count, plural, one {# item} other {# items}}" } });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
@@ -152,7 +152,7 @@ describe("@comvi/vue — the capability toolkit", () => {
     const i18n = root.createI18nFromCore(core);
 
     expect(i18n.core).toBe(core);
-    expect(typeof i18n.core.reloadTranslations).toBe("function");
+    expect(typeof i18n.core.reloadMessages).toBe("function");
     // Loader ATTACH is not loader CONFIG: the host has the API, and the app
     // registers its loader through it afterwards.
     expect(i18n.core.getLoader()).toBeUndefined();
@@ -206,7 +206,7 @@ describe("@comvi/vue — the capability toolkit", () => {
       { global: { plugins: [i18n] } },
     );
 
-    expect(typeof bag?.reloadTranslations).toBe("function");
+    expect(typeof bag?.reloadMessages).toBe("function");
     expect(typeof bag?.addActiveNamespace).toBe("function");
   });
 
@@ -266,7 +266,7 @@ describe("@comvi/vue — the export surface", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { msg: "a <b>c</b> d" } },
+      messages: { en: { msg: "a <b>c</b> d" } },
     });
 
     expect(i18n.t("msg" as never)).toBe("a <b>c</b> d");
@@ -283,7 +283,7 @@ describe("@comvi/vue — one entry, one injection key", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
 
     const wrapper = mount(

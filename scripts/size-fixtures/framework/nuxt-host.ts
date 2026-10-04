@@ -15,7 +15,7 @@ import {
 // The user's hostModule default export, inlined. Loader and plugin host exist
 // before the catalog is ingested; discovery attaches last.
 const host = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
-host.addTranslations({ en: { greeting: "Hello, {name}!" } });
+host.addMessages({ en: { greeting: "Hello, {name}!" } });
 host.use(definePlugin(() => undefined));
 host.use(devtools({ exposeGlobal: false }));
 

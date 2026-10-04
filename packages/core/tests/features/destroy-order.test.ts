@@ -66,7 +66,7 @@ describe("destroy ordering", () => {
 
   it("clears base state on a bare slim instance (no capabilities attached)", async () => {
     const i18n = createBaseI18n({ locale: "en", exposeGlobal: false });
-    i18n.addTranslations({ en: { hello: "Hello" } });
+    i18n.addMessages({ en: { hello: "Hello" } });
 
     expect(i18n.getActiveNamespaces()).toEqual(["default"]);
     expect(i18n.t("hello")).toBe("Hello");
@@ -74,7 +74,7 @@ describe("destroy ordering", () => {
     await i18n.destroy();
 
     expect(i18n.getActiveNamespaces()).toEqual([]);
-    expect(i18n.getTranslations()).toEqual({});
+    expect(i18n.getMessages()).toEqual({});
   });
 
   it("resets attached loader state on a composed slim instance", async () => {

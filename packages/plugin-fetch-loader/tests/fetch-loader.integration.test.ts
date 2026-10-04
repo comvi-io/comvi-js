@@ -343,7 +343,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
   });
 
   describe("Reload translations", () => {
-    it("should refetch API translations during reloadTranslations in dev mode", async () => {
+    it("should refetch API translations during reloadMessages in dev mode", async () => {
       const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: true });
       let requestCount = 0;
 
@@ -368,7 +368,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       await i18n.addActiveNamespace("default");
       expect(i18n.t("greeting")).toBe("Hello v1");
 
-      await i18n.reloadTranslations("en", "default");
+      await i18n.reloadMessages("en", "default");
 
       expect(requestCount).toBe(2);
       expect(i18n.t("greeting")).toBe("Hello v2");
@@ -509,7 +509,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
     });
   });
   /**
-   * `clearTranslations()` cancels the matching in-flight loads inside core
+   * `clearMessages()` cancels the matching in-flight loads inside core
    * before it announces the clear, so their results are already discarded. The
    * plugin follows that announcement to release the sockets too.
    */
@@ -523,7 +523,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const pendingLoad = i18n.getLoader()!("en", "default");
       await response.requested;
 
-      i18n.clearTranslations("en", "default");
+      i18n.clearMessages("en", "default");
 
       await expect(pendingLoad).rejects.toThrow(/aborted/i);
       expect(onLoadError).not.toHaveBeenCalled();
@@ -537,7 +537,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const pendingLoad = i18n.getLoader()!("fr", "dashboard");
       await response.requested;
 
-      i18n.clearTranslations();
+      i18n.clearMessages();
 
       await expect(pendingLoad).rejects.toThrow(/aborted/i);
     }, 2000);
@@ -550,7 +550,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const pendingLoad = i18n.getLoader()!("en", "default");
       await response.requested;
 
-      i18n.clearTranslations("fr", "default");
+      i18n.clearMessages("fr", "default");
 
       response.resolve({ key: "Hello" });
       await expect(pendingLoad).resolves.toEqual({ key: "Hello" });
@@ -564,7 +564,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const pendingLoad = i18n.getLoader()!("en", "default");
       await response.requested;
 
-      i18n.clearTranslations(undefined, "dashboard");
+      i18n.clearMessages(undefined, "dashboard");
 
       response.resolve({ key: "Hello" });
       await expect(pendingLoad).resolves.toEqual({ key: "Hello" });
@@ -585,7 +585,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const pendingLoad = i18n.getLoader()!("en", "default");
       await requested.promise;
 
-      i18n.clearTranslations("en", "default");
+      i18n.clearMessages("en", "default");
 
       await expect(pendingLoad).rejects.toThrow(/aborted/i);
       expect(onLoadError).not.toHaveBeenCalled();
@@ -601,7 +601,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const activation = i18n.addActiveNamespace("default");
       await response.requested;
 
-      i18n.clearTranslations("en", "default");
+      i18n.clearMessages("en", "default");
 
       await activation;
       expect(loadError).not.toHaveBeenCalled();
@@ -630,7 +630,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const activation = i18n.addActiveNamespaces(["default", "dashboard"]);
       await requested.promise;
 
-      i18n.clearTranslations("en", "default");
+      i18n.clearMessages("en", "default");
 
       answer.resolve(HttpResponse.json(createMockApiResponse(["en"], ["default", "dashboard"])));
       await activation;
@@ -649,7 +649,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       cleanup();
       await expect(pendingLoad).rejects.toThrow(/aborted/i);
 
-      expect(() => i18n.clearTranslations("en", "default")).not.toThrow();
+      expect(() => i18n.clearMessages("en", "default")).not.toThrow();
     }, 2000);
   });
 });

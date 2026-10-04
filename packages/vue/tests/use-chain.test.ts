@@ -22,16 +22,16 @@ describe("VueI18n.use()", () => {
   it("returns the same wrapper and widens its core in place", () => {
     const base = createI18n({ locale: "en", exposeGlobal: false });
     const core = base.core;
-    expect("reloadTranslations" in core).toBe(false);
+    expect("reloadMessages" in core).toBe(false);
 
     const composed = base.use(attachLoader).use(plugins());
 
     expect(composed).toBe(base);
     expect(composed.core).toBe(core);
-    expect(typeof composed.core.reloadTranslations).toBe("function");
+    expect(typeof composed.core.reloadMessages).toBe("function");
     expect(typeof composed.core.onMissingKey).toBe("function");
     // The wrapper's bound proxies still drive that one host.
-    composed.addTranslations({ en: { greeting: "Hello" } });
+    composed.addMessages({ en: { greeting: "Hello" } });
     expect(composed.t("greeting")).toBe("Hello");
   });
 
@@ -39,7 +39,7 @@ describe("VueI18n.use()", () => {
     // ICU is not composed: the option reaches the host the preset builds, so a
     // catalog ingested after construction still compiles under it.
     const i18n = createI18n({ locale: "en", exposeGlobal: false, compiler: icuCompiler });
-    i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
+    i18n.addMessages({ en: { items: "{count, plural, one {# item} other {# items}}" } });
     expect(i18n.t("items", { count: 1 })).toBe("1 item");
     expect(i18n.t("items", { count: 3 })).toBe("3 items");
   });
@@ -103,7 +103,7 @@ describe("VueI18n.use()", () => {
       const i18n = createI18n({
         locale: "en",
         exposeGlobal: false,
-        translation: { en: { greeting: "Hello" } },
+        messages: { en: { greeting: "Hello" } },
       });
       const wrapper = mount(defineComponent({ render: () => h("span") }), {
         global: { plugins: [i18n] },
@@ -138,7 +138,7 @@ describe("VueI18n.use()", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     })
       .use(attachLoader)
       .use(plugins());
@@ -147,7 +147,7 @@ describe("VueI18n.use()", () => {
     const Probe = defineComponent({
       setup() {
         const { t } = useI18n();
-        seen.loader = typeof useI18nLoader().reloadTranslations;
+        seen.loader = typeof useI18nLoader().reloadMessages;
         seen.plugins = typeof useI18nPlugins().onMissingKey;
         seen.text = t("greeting");
         return () => h("span", seen.text);

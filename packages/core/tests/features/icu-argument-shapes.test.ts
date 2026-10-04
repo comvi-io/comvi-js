@@ -4,14 +4,14 @@ import type { TranslationResult } from "../../src";
 
 function render(template: string, params: Record<string, unknown>): string | TranslationResult {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({ en: { k: template } });
+  i18n.addMessages({ en: { k: template } });
   return i18n.t("k", params as never);
 }
 
 /** Ingestion alone: development preflights every catalog string it is handed. */
 function ingest(template: string): void {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({ en: { k: template } });
+  i18n.addMessages({ en: { k: template } });
 }
 
 describe("arguments the ICU compiler does not treat as plural or select", () => {
@@ -56,7 +56,7 @@ describe("arguments the ICU compiler does not treat as plural or select", () => 
   it.each([["{a{x}, plural, other {'#'}}"], ["{'{'x, plural, other {'#'}}"]])(
     "does not open a hash scope for %s, whose parameter name holds a brace",
     (template) => {
-      const i18n = new I18n({ locale: "en", translation: { en: { k: template } } });
+      const i18n = new I18n({ locale: "en", messages: { en: { k: template } } });
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       expect(i18n.t("k", { a: 1 } as never)).toBe(template);
@@ -118,21 +118,18 @@ describe("arguments nested inside a plural or select branch", () => {
       "{n, plural, other {{g, select, other {{price, number}}}}}",
       "number",
     ],
-  ])(
-    "%s throws E_ICU_SYNTAX at ingestion via addTranslations",
-    (_label, template, argumentType) => {
-      expect(() => ingest(template)).toThrow(
-        expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType }),
-      );
-    },
-  );
+  ])("%s throws E_ICU_SYNTAX at ingestion via addMessages", (_label, template, argumentType) => {
+    expect(() => ingest(template)).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType }),
+    );
+  });
 
   it("an unsupported type inside a plural branch throws E_ICU_SYNTAX at construction via translation:", () => {
     expect(
       () =>
         new I18n({
           locale: "en",
-          translation: { en: { k: "{n, plural, other {{price, number}}}" } },
+          messages: { en: { k: "{n, plural, other {{price, number}}}" } },
         }),
     ).toThrow(expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "number" }));
   });

@@ -42,7 +42,7 @@ describe("the server pipeline's one crossing back to the host translator", () =>
       "ensureInitialized.ts",
       "getI18n.ts",
       "hostTypes.ts",
-      "loadTranslations.ts",
+      "loadMessages.ts",
     ]);
   });
 });

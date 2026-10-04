@@ -9,7 +9,7 @@ import type { ElementNode } from "../../src";
 // route — when a neighbouring one falls into it, segments are silently swallowed.
 
 const render = (template: string, params?: Record<string, unknown>) => {
-  const i18n = createI18n({ locale: "en", translation: { en: { msg: template } } });
+  const i18n = createI18n({ locale: "en", messages: { en: { msg: template } } });
   return i18n.t("msg" as never, params as never);
 };
 
@@ -67,7 +67,7 @@ describe("tRaw() — a node parameter", () => {
 
     const result = createI18n({
       locale: "en",
-      translation: { en: { msg: "{node} tail" } },
+      messages: { en: { msg: "{node} tail" } },
     }).tRaw("msg" as never, { node } as never);
 
     expect(result).toEqual([node, " tail"]);
@@ -78,7 +78,7 @@ describe("tRaw() — a node parameter", () => {
 
     const result = createI18n({
       locale: "en",
-      translation: { en: { msg: "head {node} tail" } },
+      messages: { en: { msg: "head {node} tail" } },
     }).tRaw("msg" as never, { node } as never);
 
     expect(result).toEqual(["head ", node, " tail"]);

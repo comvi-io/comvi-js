@@ -9,7 +9,7 @@ Three tree-shakeable additions to `@comvi/core`, free for non-importers:
   alias of it instead of a hand-copied overload block; inference is unchanged.
 - `subscribeToRevision(i18n, callback)` + `REVISION_EVENTS` — subscribes a callback to the
   canonical 7-event revision set (`localeChanged`, `namespaceLoaded`, `loadingStateChanged`,
-  `initialized`, `translationsCleared`, `defaultNamespaceChanged`, `configChanged`). The
+  `initialized`, `messagesCleared`, `defaultNamespaceChanged`, `configChanged`). The
   callback receives the event name, so a bridge with separate reactive axes can route
   without re-declaring the list.
 - `isVirtualNode` is exported from `@comvi/core` (previously `@comvi/core/tags` only), so

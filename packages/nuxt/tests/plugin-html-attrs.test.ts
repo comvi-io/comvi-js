@@ -60,7 +60,7 @@ let app: App | undefined;
 
 async function setupPlugin() {
   createComviI18n.mockImplementation((options: Record<string, unknown>) =>
-    createVueI18n({ ...options, translation: catalog, exposeGlobal: false } as never),
+    createVueI18n({ ...options, messages: catalog, exposeGlobal: false } as never),
   );
   const plugin = (await import("../src/runtime/plugin")).default;
   const { provide } = (await plugin.setup({

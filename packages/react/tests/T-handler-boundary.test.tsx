@@ -40,7 +40,7 @@ const renderMessage = async (
 ) => {
   const i18n = createI18n({
     locale: "en",
-    translation: { en: { msg: "Click <link>here</link>" } },
+    messages: { en: { msg: "Click <link>here</link>" } },
     onError,
   });
   await i18n.init();

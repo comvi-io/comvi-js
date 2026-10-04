@@ -51,7 +51,7 @@ export type _PresetCoreHasNoPluginApi = Expect<
 >;
 
 // @ts-expect-error -- the preset host has no loader capability, in types or at runtime
-preset.core.reloadTranslations();
+preset.core.reloadMessages();
 // @ts-expect-error -- ...and none of the plugin host either
 preset.core.onMissingKey(() => undefined);
 // @ts-expect-error -- the eight dropped proxies stay dropped on the preset path
@@ -59,7 +59,7 @@ preset.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- `use` left the class in 0.5.0 and does not come back here
 preset.use(() => undefined);
 
-preset.core.addTranslations({ en: { greeting: "Hello" } });
+preset.core.addMessages({ en: { greeting: "Hello" } });
 
 // The class behind `createCore` is the one the preset builds on: core
 // publishes ONE host and both construction paths reach it.
@@ -131,7 +131,7 @@ export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>
 // `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
 // @ts-expect-error -- flattenCatalog is not part of this entry
 void (rootEntry.flattenCatalog as unknown);
-createCore({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
+createCore({ locale: "en", messages: { en: { nav: { home: "Home" } } } });
 
 // `.use(installer)`: the generic host type flows THROUGH the pipe and comes
 // out widened, never decayed to `any`. Against a real `./uk.json`, so the
@@ -179,7 +179,7 @@ void createCore({ locale: "en" })
 void createCore({ locale: "en" })
   .use(attachPlugins)
   .registerPlugin(() => undefined);
-void createCore({ locale: "en" }).use(attachDevtools).addTranslations({ en: {} });
+void createCore({ locale: "en" }).use(attachDevtools).addMessages({ en: {} });
 
 // @ts-expect-error -- the factory is not an installer; it must be called
 createCore({ locale: "en" }).use(loader);

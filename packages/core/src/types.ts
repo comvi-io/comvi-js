@@ -43,7 +43,7 @@ export type I18nEvent =
   | "destroyed"
   | "localeChanged"
   | "defaultNamespaceChanged"
-  | "translationsCleared"
+  | "messagesCleared"
   | "loadingStateChanged"
   | "namespaceLoaded"
   | "missingKey"
@@ -55,7 +55,7 @@ export type I18nEventData = {
   destroyed: void;
   localeChanged: { from: string; to: string };
   defaultNamespaceChanged: { from: string; to: string };
-  translationsCleared: { locale?: string; namespace?: string };
+  messagesCleared: { locale?: string; namespace?: string };
   loadingStateChanged: { isLoading: boolean; isInitializing: boolean };
   namespaceLoaded: { namespace: string; locale: string };
   missingKey: { key: string; locale: string; namespace: string };
@@ -63,7 +63,7 @@ export type I18nEventData = {
   configChanged: {
     source:
       | "fallbackLocale"
-      | "translationsAdded"
+      | "messagesAdded"
       | "namespaceActivated"
       | "namespaceDeactivated"
       | "defaultParams";
@@ -663,7 +663,7 @@ export interface I18nBaseOptions {
    * (`{ nav: { home: "Home" } }`) and flat dotted keys (`{ "nav.home": "Home" }`)
    * are the same catalog: every host flattens on ingestion.
    */
-  translation?: Record<string, Record<string, TranslationValue>>;
+  messages?: Record<string, Record<string, TranslationValue>>;
   /** Tried in order when a key is missing in the active locale. */
   fallbackLocale?: string | string[];
   /** Applied to every translation result. */
@@ -881,7 +881,7 @@ export type InferKeys<
 
 export type TranslationValue = string | { [key: string]: TranslationValue };
 
-export type FlattenedTranslations = Record<string, string>;
+export type FlattenedMessages = Record<string, string>;
 
 export type TranslationCache = TranslationCacheClass;
 
@@ -929,9 +929,9 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 
   hasLocale: (locale: string, namespace?: string) => boolean;
 
-  addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
+  addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
 
-  getTranslations: (locale?: string, namespace?: string) => FlattenedTranslations;
+  getMessages: (locale?: string, namespace?: string) => FlattenedMessages;
 
   /**
    * Clear CONTENT. An omitted `locale` or `namespace` clears all of them.
@@ -939,7 +939,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
    * No form of this call changes which namespaces are ACTIVE — deactivation is
    * `removeActiveNamespace()` on the loader capability.
    */
-  clearTranslations: (locale?: string, namespace?: string) => void;
+  clearMessages: (locale?: string, namespace?: string) => void;
 
   /**
    * Translate a key in the current locale. ONE call signature, so a wrong call
@@ -1037,13 +1037,13 @@ export interface I18nLoaderApi {
    * An omitted `locale` reloads the current one plus its fallbacks; an omitted
    * `namespace` reloads every active namespace.
    */
-  reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
+  reloadMessages: (locale?: string, namespace?: string) => Promise<void>;
 
   /**
    * Activate a namespace and load it for the current locale.
    *
    * Activation only matters when something loads namespaces, so it belongs to
-   * the loader capability. Base hosts activate implicitly — `addTranslations`
+   * the loader capability. Base hosts activate implicitly — `addMessages`
    * self-activates the namespaces it carries.
    */
   addActiveNamespace: (namespace: string) => Promise<void>;
@@ -1060,7 +1060,7 @@ export interface I18nLoaderApi {
    *
    * Synchronous, and the mirror image of `addActiveNamespace` — it is INTENT
    * only. The catalog already in the cache stays there and keeps resolving;
-   * `clearTranslations(undefined, namespace)` is what drops the content.
+   * `clearMessages(undefined, namespace)` is what drops the content.
    */
   removeActiveNamespace: (namespace: string) => void;
 
@@ -1211,7 +1211,7 @@ export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreIn
   I18nPluginHostApi;
 
 /**
- * A COMPOSED host's shape. Only `reloadTranslations`, `setPluginData` and
+ * A COMPOSED host's shape. Only `reloadMessages`, `setPluginData` and
  * `getPluginData` of the capability APIs belong to it, so they are re-picked
  * one by one — inheriting the whole capability interfaces would silently widen
  * this exported type.
@@ -1222,5 +1222,5 @@ export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreIn
 export interface I18nInstance<D extends DefaultTranslationParams = {}>
   extends
     I18nCoreInstance<D>,
-    Pick<I18nLoaderApi, "reloadTranslations">,
+    Pick<I18nLoaderApi, "reloadMessages">,
     Pick<I18nPluginHostApi, "setPluginData" | "getPluginData"> {}

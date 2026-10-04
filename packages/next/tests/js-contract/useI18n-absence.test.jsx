@@ -25,15 +25,10 @@ const EXPECTED = {
     : "[comvi] missing plugins capability — attach @comvi/core/plugins",
 };
 
-const CAPABILITY_MEMBERS = [
-  "addActiveNamespace",
-  "reloadTranslations",
-  "onLoadError",
-  "onMissingKey",
-];
+const CAPABILITY_MEMBERS = ["addActiveNamespace", "reloadMessages", "onLoadError", "onMissingKey"];
 
 const baseHost = () =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
+  createI18n({ locale: "en", exposeGlobal: false, messages: { en: { greeting: "Hello" } } });
 
 const wrapperFor = (i18n) =>
   function Wrapper({ children }) {
@@ -52,12 +47,12 @@ describe.each([
   ["base + loader + plugins", () => attachPlugins(attachLoader(baseHost()))],
 ])("useI18n() through @comvi/next/client on a %s host", (_label, makeHost) => {
   it("does not expose the capability members under a pure destructure", () => {
-    const { reloadTranslations, addActiveNamespace, onLoadError } = renderUseI18n(makeHost());
+    const { reloadMessages, addActiveNamespace, onLoadError } = renderUseI18n(makeHost());
 
-    expect(reloadTranslations).toBeUndefined();
+    expect(reloadMessages).toBeUndefined();
     expect(addActiveNamespace).toBeUndefined();
     expect(onLoadError).toBeUndefined();
-    expect(() => reloadTranslations()).toThrow(TypeError);
+    expect(() => reloadMessages()).toThrow(TypeError);
   });
 
   it("keeps the common members working in a mixed destructure", () => {
@@ -68,7 +63,7 @@ describe.each([
   });
 
   it("does not expose them under an aliased destructure", () => {
-    const { reloadTranslations: reload } = renderUseI18n(makeHost());
+    const { reloadMessages: reload } = renderUseI18n(makeHost());
 
     expect(reload).toBeUndefined();
   });
@@ -112,7 +107,7 @@ describe(`capability acquisition through @comvi/next/client (${__COMVI_CORE_BUIL
       "addActiveNamespace",
       "addActiveNamespaces",
       "onLoadError",
-      "reloadTranslations",
+      "reloadMessages",
       "removeActiveNamespace",
       "removeActiveNamespaces",
     ]);
@@ -123,7 +118,7 @@ describe(`capability acquisition through @comvi/next/client (${__COMVI_CORE_BUIL
     // The other acquisition path: `.use(loader(map)).use(plugins())` instead of
     // the low-level `attach*` calls above.
     const wrapper = wrapperFor(
-      createI18n({ locale: "en", exposeGlobal: false, translation: { en: {} } })
+      createI18n({ locale: "en", exposeGlobal: false, messages: { en: {} } })
         .use(loaderInstaller({ en: async () => ({}) }))
         .use(pluginsInstaller()),
     );

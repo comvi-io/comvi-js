@@ -20,14 +20,14 @@ are core grammar and keep working everywhere.
 **Nested-catalog flattening is NOT one of them.** It briefly moved into the loader
 capability in 0.5.0 development, and it moved back: every host flattens a nested catalog
 itself, unconditionally, at the one place a catalog enters. `{ nav: { home } }` and
-`{ "nav.home": … }` are the same catalog in the constructor, in `addTranslations()` and in a
+`{ "nav.home": … }` are the same catalog in the constructor, in `addMessages()` and in a
 loader result:
 
 ```ts
 import { createI18n } from "@comvi/core";
 
 const i18n = createI18n({ locale: "en" });
-i18n.addTranslations({ en: { nav: { home: "Home" } } }); // -> "nav.home"
+i18n.addMessages({ en: { nav: { home: "Home" } } }); // -> "nav.home"
 ```
 
 A non-string leaf is coerced with `String()` and a `null`/`undefined` leaf is dropped, each

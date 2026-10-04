@@ -29,7 +29,7 @@ const countMapAllocations = () => {
 
 describe("<T> allocation behavior", () => {
   it("attributes zero extra Maps to <T> when `components` prop is undefined", async () => {
-    const i18nDiv = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const i18nDiv = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     await i18nDiv.init();
 
     const counter = countMapAllocations();
@@ -45,7 +45,7 @@ describe("<T> allocation behavior", () => {
     const divMaps = counter.n;
     divBaseline.unmount();
 
-    const i18nT = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const i18nT = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     await i18nT.init();
     counter.n = 0;
     render(
@@ -65,7 +65,7 @@ describe("<T> allocation behavior", () => {
   it("at least one Map IS allocated when `components` prop is provided", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello <bold>world</bold>" } },
+      messages: { en: { greeting: "Hello <bold>world</bold>" } },
     });
     await i18n.init();
 
@@ -80,7 +80,7 @@ describe("<T> allocation behavior", () => {
   });
 
   it("plain text rendering is unchanged for the common case (no components)", async () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     await i18n.init();
 
     const { container } = render(
@@ -94,7 +94,7 @@ describe("<T> allocation behavior", () => {
   it("tag-interpolation still works with components prop", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { rich: "Hello <bold>world</bold>" } },
+      messages: { en: { rich: "Hello <bold>world</bold>" } },
     });
     await i18n.init();
 

@@ -16,7 +16,7 @@ import type { SyntaxExtension } from "../../src/core/translate/syntax";
  */
 
 function render(template: string, params?: Record<string, unknown>): string {
-  const i18n = createI18n({ locale: "en", translation: { en: { msg: template } } });
+  const i18n = createI18n({ locale: "en", messages: { en: { msg: template } } });
   return i18n.t("msg" as never, params as never) as string;
 }
 
@@ -75,7 +75,7 @@ describe("offering a claimed character to the extension set", () => {
   function renderWith(extensions: SyntaxExtension[]): string {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "a&mark;b" } },
+      messages: { en: { msg: "a&mark;b" } },
       tagInterpolation: { extensions },
     });
     return i18n.t("msg" as never) as string;

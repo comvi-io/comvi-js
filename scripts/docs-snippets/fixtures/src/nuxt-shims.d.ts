@@ -43,7 +43,7 @@ declare global {
    * composables above and the same reason for being here.
    */
   const useTranslation: typeof import("@comvi/nuxt/runtime/server/utils/useTranslation.js").useTranslation;
-  const loadTranslations: typeof import("@comvi/nuxt/runtime/server/utils/loadTranslations.js").loadTranslations;
+  const loadMessages: typeof import("@comvi/nuxt/runtime/server/utils/loadMessages.js").loadMessages;
   const getRequestI18n: typeof import("@comvi/nuxt/runtime/server/utils/request-i18n.js").getRequestI18n;
   const getServerRuntimeConfig: typeof import("@comvi/nuxt/runtime/server/utils/runtime-config.js").getServerRuntimeConfig;
 

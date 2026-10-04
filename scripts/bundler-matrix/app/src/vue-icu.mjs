@@ -46,7 +46,7 @@ const i18n = createI18n({
   ssrLocale: "en",
   exposeGlobal: false,
   compiler: icuCompiler,
-  translation: {
+  messages: {
     en: {
       items: "{count, plural, one {# item} other {# items}}",
       msg: "a <b>c</b> d",
@@ -64,7 +64,7 @@ assertEqual(i18n.t("items", { count: 5 }), "5 items", "ICU plural selects the `o
 
 // The capabilities this row does NOT buy — the behavioral mirror of the
 // runner's module-graph absences.
-assert(typeof i18n.core.reloadTranslations === "undefined", "ICU host has no loader capability");
+assert(typeof i18n.core.reloadMessages === "undefined", "ICU host has no loader capability");
 assert(typeof i18n.core.onMissingKey === "undefined", "ICU host has no plugin capability");
 assert(typeof i18n.core.instanceId === "undefined", "ICU host has no devtools discovery");
 assertEqual(

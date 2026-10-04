@@ -13,10 +13,10 @@
  * Each row is data only. The adapter suites run every row through a thin
  * fixture:
  * - `packages/next/tests/ssr-fallback-contract.test.tsx` — `setRequestLocale`
- *   + `getI18n()`, then `loadTranslations()`, then `<I18nProvider messages>`
+ *   + `getI18n()`, then `loadMessages()`, then `<I18nProvider messages>`
  *   through `renderToString` and `hydrateRoot`;
  * - `packages/nuxt/tests/ssr-fallback-contract.test.ts` — the server
- *   `useTranslation()` and `loadTranslations()`, and the app plugin's SSR pass
+ *   `useTranslation()` and `loadMessages()`, and the app plugin's SSR pass
  *   (the row's namespace activated during the render, as a page does), its
  *   payload and client hydration.
  *
@@ -52,9 +52,9 @@ export const SSR_FALLBACK_CATALOGS: Readonly<Record<string, Readonly<Record<stri
 /**
  * `onError` reports per failed catalog load, counted against `loadError`
  * events. It is 2, not 1, because of core and not the adapters: a single-pair
- * `reloadTranslations(locale, ns)` that fails reports `E_ALL_NAMESPACES_FAILED`
+ * `reloadMessages(locale, ns)` that fails reports `E_ALL_NAMESPACES_FAILED`
  * from `_loadNs` and then `E_FAILED_RELOAD_TRANSLATIONS` from
- * `reloadTranslations` itself (`packages/core/src/core/loader.ts`), and core
+ * `reloadMessages` itself (`packages/core/src/core/loader.ts`), and core
  * exposes no non-reporting single-pair load. Both adapters assert this ratio,
  * so the day core reports once, this constant is the one place to change.
  */
@@ -181,7 +181,7 @@ export const SSR_FALLBACK_CASES: readonly SsrFallbackCase[] = [
     loadErrors: [],
   },
   {
-    name: "the direct server helper without a prior loadTranslations() → resolves through the chain",
+    name: "the direct server helper without a prior loadMessages() → resolves through the chain",
     defaultLocale: "en",
     fallbackLocale: "de",
     requests: [

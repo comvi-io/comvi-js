@@ -60,7 +60,7 @@ describe("fetchLoaderPlugin() in API mode", () => {
   it("reports success only for the namespaces the response carried", async () => {
     const i18n = devHost();
     const onLoadSuccess = vi.fn();
-    i18n.addTranslations({ "fr:dashboard": { title: "Tableau" } });
+    i18n.addMessages({ "fr:dashboard": { title: "Tableau" } });
     mockApiEchoingRequestedNamespaces({ default: { hello: "Hi" } });
 
     await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadSuccess })(i18n);
@@ -71,7 +71,7 @@ describe("fetchLoaderPlugin() in API mode", () => {
 
   it("loads the namespaces already active on the host rather than the default one", async () => {
     const i18n = devHost();
-    i18n.addTranslations({ "fr:dashboard": { title: "Tableau" } });
+    i18n.addMessages({ "fr:dashboard": { title: "Tableau" } });
     mockApiEchoingRequestedNamespaces({ dashboard: { title: "Dashboard" } });
 
     await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
@@ -81,7 +81,7 @@ describe("fetchLoaderPlugin() in API mode", () => {
 
   it("adds the namespaces the response carried and leaves out the ones it omitted", async () => {
     const i18n = devHost();
-    i18n.addTranslations({
+    i18n.addMessages({
       "fr:dashboard": { title: "Tableau" },
       "fr:default": { hello: "Salut" },
     });

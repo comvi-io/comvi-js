@@ -114,7 +114,7 @@ isolation.
 ## Deprecated surface, and when it goes
 
 Four members on `useI18n()` are declared as optional `never` in react, solid, svelte and vue, so
-`if (bag.reloadTranslations)` compiles and is always false. Acquire them from `useI18nLoader()` /
+`if (bag.reloadMessages)` compiles and is always false. Acquire them from `useI18nLoader()` /
 `useI18nPlugins()` instead. Those declarations, `<T raw>`, `allowedTags?: never` on svelte's `<T>`,
 `ssrInitialLocale` on `@comvi/react` and `CDN_BASE_URL` on `@comvi/plugin-fetch-loader` are all
 **removed in 0.6**. `CDN_BASE_URL` is the one that was never read: `cdnUrl` is a required option
@@ -123,8 +123,8 @@ ask. The hosted CDN default stays readable as `comviPreset.cdnBaseUrl`.
 
 ## Memory
 
-- **A catalog is never evicted.** Everything `addTranslations` and a loader merge into a host stays
-  in its translation cache until `clearTranslations()` or `destroy()`. The three caches that ARE
+- **A catalog is never evicted.** Everything `addMessages` and a loader merge into a host stays
+  in its translation cache until `clearMessages()` or `destroy()`. The three caches that ARE
   bounded — compiled templates, `Intl` formatters and plural rules — hold 1000 entries each, FIFO,
   and are shared by every host in the process; that is an ENTRY limit, not a byte limit, so 1000
   long messages cost more than 1000 short ones. A client app with a fixed set of languages therefore

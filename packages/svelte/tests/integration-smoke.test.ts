@@ -25,7 +25,7 @@ describe("svelte integration smoke", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       },

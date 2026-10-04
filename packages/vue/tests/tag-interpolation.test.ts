@@ -14,7 +14,7 @@ describe("<T /> component - Tag Interpolation", () => {
   const createI18n = (translations: Record<string, string>, options?: any) => {
     return createRootI18n({
       locale: "en",
-      translation: { en: translations },
+      messages: { en: translations },
       ...options,
     });
   };
@@ -180,7 +180,7 @@ describe("<T /> component - Tag Interpolation", () => {
     it("should render whitelisted HTML tags without handler", () => {
       const i18n = createRootI18n({
         locale: "en",
-        translation: { en: { msg: "This is <strong>bold</strong> text" } },
+        messages: { en: { msg: "This is <strong>bold</strong> text" } },
         tagInterpolation: {
           basicHtmlTags: ["strong", "em", "br"],
         },
@@ -198,7 +198,7 @@ describe("<T /> component - Tag Interpolation", () => {
     it("should render self-closing whitelisted tags", () => {
       const i18n = createRootI18n({
         locale: "en",
-        translation: { en: { msg: "Line 1<br/>Line 2" } },
+        messages: { en: { msg: "Line 1<br/>Line 2" } },
         tagInterpolation: {
           basicHtmlTags: ["br"],
         },
@@ -215,7 +215,7 @@ describe("<T /> component - Tag Interpolation", () => {
     it("should prioritize explicit handler over whitelist", () => {
       const i18n = createRootI18n({
         locale: "en",
-        translation: { en: { msg: "<strong>text</strong>" } },
+        messages: { en: { msg: "<strong>text</strong>" } },
         tagInterpolation: {
           basicHtmlTags: ["strong"],
         },
@@ -338,7 +338,7 @@ describe("<T /> component - Tag Interpolation", () => {
     it("should update when locale changes", async () => {
       const i18n = createRootI18n({
         locale: "en",
-        translation: {
+        messages: {
           en: { msg: "<bold>Hello</bold>" },
           fr: { msg: "<bold>Bonjour</bold>" },
         },

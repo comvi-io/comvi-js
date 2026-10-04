@@ -18,7 +18,7 @@ function warnings(spy: MockInstance<typeof console.warn>, fragment: string): str
 describe("_resetMissingParamWarnings()", () => {
   it("makes the same (template, param) pair warn again on the next render", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const i18n = createI18n({ locale: "en", translation: { en: { greet: "Hi {name}" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { greet: "Hi {name}" } } });
     i18n.t("greet" as never);
 
     _resetMissingParamWarnings();
@@ -32,7 +32,7 @@ describe("_resetMissingParamWarnings()", () => {
 
   it("leaves the pair deduped when it is not called", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const i18n = createI18n({ locale: "en", translation: { en: { greet: "Hi {name}" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { greet: "Hi {name}" } } });
 
     i18n.t("greet" as never);
     i18n.t("greet" as never);
@@ -48,7 +48,7 @@ describe("_resetTagWarnings()", () => {
   // cache has been cleared too — that is why both seams are called before the second render.
   it("makes the same template warn again on the next parse", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const i18n = createI18n({ locale: "en", translation: { en: { link: "click <b>here</b>" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { link: "click <b>here</b>" } } });
     i18n.t("link" as never);
 
     clearTemplateCache();
@@ -60,7 +60,7 @@ describe("_resetTagWarnings()", () => {
 
   it("leaves the template deduped when it is not called", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const i18n = createI18n({ locale: "en", translation: { en: { link: "click <b>here</b>" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { link: "click <b>here</b>" } } });
     i18n.t("link" as never);
 
     clearTemplateCache();

@@ -13,7 +13,7 @@ import type {
   TranslationParams,
   TranslationResult,
   NamespaceBoundTranslateFn,
-  FlattenedTranslations,
+  FlattenedMessages,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
   LocaleSource,
@@ -75,14 +75,14 @@ export interface UseI18nReturn<
   /** Resolves once translations for the new locale have loaded. */
   setLocale: Host["setLocale"];
 
-  addTranslations: Host["addTranslations"];
+  addMessages: Host["addMessages"];
 
   setFallbackLocale: Host["setFallbackLocale"];
 
   /** Replace instance-level interpolation defaults. */
   setDefaultParams: Host<D>["setDefaultParams"];
 
-  clearTranslations: Host["clearTranslations"];
+  clearMessages: Host["clearMessages"];
 
   hasLocale: Host["hasLocale"];
 
@@ -94,7 +94,7 @@ export interface UseI18nReturn<
 
   getDefaultNamespace: Host["getDefaultNamespace"];
 
-  getTranslationCache: () => ReadonlyMap<string, FlattenedTranslations>;
+  getTranslationCache: () => ReadonlyMap<string, FlattenedMessages>;
 
   /** Returns an unsubscribe function. */
   on: Host["on"];
@@ -136,8 +136,8 @@ export interface UseI18nReturn<
   // the object `useI18n()` returns never carries these keys, in any build.
   /** @deprecated Moved in 0.5. Acquire it: `const { addActiveNamespace } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.addActiveNamespace)` compiles and is always false. */
   addActiveNamespace?: never;
-  /** @deprecated Moved in 0.5. Acquire it: `const { reloadTranslations } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.reloadTranslations)` compiles and is always false. */
-  reloadTranslations?: never;
+  /** @deprecated Moved in 0.5. Acquire it: `const { reloadMessages } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.reloadMessages)` compiles and is always false. */
+  reloadMessages?: never;
   /** @deprecated Moved in 0.5. Acquire it: `const { onLoadError } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.onLoadError)` compiles and is always false. */
   onLoadError?: never;
   /** @deprecated Moved in 0.5. Acquire it: `const { onMissingKey } = useI18nPlugins()`. Optional only so the key can be absent: `if (bag.onMissingKey)` compiles and is always false. */
@@ -231,16 +231,16 @@ export function useI18n<
     // Dispatched through `ctx.i18n` on every call, so they follow a swapped
     // instance and survive destructuring.
     //
-    // `addActiveNamespace`, `reloadTranslations`, `onLoadError` and
+    // `addActiveNamespace`, `reloadMessages`, `onLoadError` and
     // `onMissingKey` are NOT here: they belong to capabilities a base host does
     // not have, and a closure over an absent member is a silent "undefined is
     // not a function" at CALL time. `useI18nLoader()` / `useI18nPlugins()`
     // acquire them instead, throwing one named error at the acquisition point.
     setLocale: (...args) => ctx.i18n.setLocale(...args),
-    addTranslations: (...args) => ctx.i18n.addTranslations(...args),
+    addMessages: (...args) => ctx.i18n.addMessages(...args),
     setFallbackLocale: (...args) => ctx.i18n.setFallbackLocale(...args),
     setDefaultParams: (params) => ctx.i18n.setDefaultParams(params as never),
-    clearTranslations: (...args) => ctx.i18n.clearTranslations(...args),
+    clearMessages: (...args) => ctx.i18n.clearMessages(...args),
     hasLocale: (...args) => ctx.i18n.hasLocale(...args),
     hasTranslation: (...args) => ctx.i18n.hasTranslation(...args),
     getLoadedLocales: () => ctx.i18n.getLoadedLocales(),

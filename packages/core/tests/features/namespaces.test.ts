@@ -7,7 +7,7 @@ const makeI18n = (options: Partial<I18nOptions> = {}) => new I18n({ locale: "en"
 describe("t() with an explicit namespace", () => {
   it("should support explicit namespace parameter", () => {
     const i18n = makeI18n();
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:ns1": { key: "Value 1" },
       "en:ns2": { key: "Value 2" },
     });
@@ -18,7 +18,7 @@ describe("t() with an explicit namespace", () => {
 
   it("should not fall back to default namespace when explicit ns is missing", () => {
     const i18n = makeI18n();
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:default": { key: "Default Value" },
       "en:admin": { other: "Admin Value" },
     });
@@ -30,7 +30,7 @@ describe("t() with an explicit namespace", () => {
 describe("t() with a colon in the key name", () => {
   it("resolves a literal colon-containing key in the default namespace", () => {
     const instance = makeI18n();
-    instance.addTranslations({
+    instance.addMessages({
       "en:default": { "foo:bar": "Value with colon" },
     });
 
@@ -39,7 +39,7 @@ describe("t() with a colon in the key name", () => {
 
   it("resolves a literal colon-containing key in a non-default namespace", () => {
     const instance = makeI18n();
-    instance.addTranslations({
+    instance.addMessages({
       "en:ui": { "a:b:c": "Deep colons" },
     });
 
@@ -48,7 +48,7 @@ describe("t() with a colon in the key name", () => {
 
   it("does not confuse a colon-containing key with namespace:key shorthand", () => {
     const instance = makeI18n();
-    instance.addTranslations({
+    instance.addMessages({
       "en:default": { "foo:bar": "Key in default ns" },
       "en:foo": { bar: "Key in foo ns" },
     });
@@ -61,7 +61,7 @@ describe("t() with a colon in the key name", () => {
 describe("new I18n({ defaultNs })", () => {
   it("should support configuring a default namespace", () => {
     const i18n = makeI18n({ defaultNs: "common" });
-    i18n.addTranslations({ "en:common": { key: "Common Value" } });
+    i18n.addMessages({ "en:common": { key: "Common Value" } });
 
     expect(i18n.t("key")).toBe("Common Value");
   });
@@ -70,7 +70,7 @@ describe("new I18n({ defaultNs })", () => {
 describe("setDefaultNamespace()", () => {
   it("emits defaultNamespaceChanged and switches lookups to the new namespace", () => {
     const i18n = makeI18n();
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:default": { key: "Default Value" },
       "en:admin": { key: "Admin Value" },
     });
@@ -96,21 +96,21 @@ describe("setDefaultNamespace()", () => {
   });
 });
 
-describe("clearTranslations() namespace scoping", () => {
+describe("clearMessages() namespace scoping", () => {
   it("should clear translations for a specific namespace", () => {
     const i18n = makeI18n();
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": { key: "Keep me" },
       "en:temp": { key: "Delete me" },
     });
 
-    i18n.clearTranslations("en", "temp");
+    i18n.clearMessages("en", "temp");
 
     expect(i18n.hasTranslation("key", "en", "common")).toBe(true);
     expect(i18n.hasTranslation("key", "en", "temp")).toBe(false);
   });
 
-  it("clearTranslations(ns) drops the content but keeps the namespace active, so a later locale switch reloads it (sequence)", async () => {
+  it("clearMessages(ns) drops the content but keeps the namespace active, so a later locale switch reloads it (sequence)", async () => {
     const i18n = makeI18n();
     const loaderCalls: string[] = [];
     i18n.registerLoader(async (lang, ns) => {
@@ -124,7 +124,7 @@ describe("clearTranslations() namespace scoping", () => {
     expect(i18n.t("key", { ns: "admin" })).toBe("en:admin");
     expect(i18n.getActiveNamespaces()).toContain("admin");
 
-    i18n.clearTranslations(undefined, "admin");
+    i18n.clearMessages(undefined, "admin");
 
     expect(i18n.t("key", { ns: "admin" })).toBe("key");
     expect(i18n.getActiveNamespaces()).toContain("admin");
@@ -135,7 +135,7 @@ describe("clearTranslations() namespace scoping", () => {
   });
 });
 
-describe("reloadTranslations(locale, namespace)", () => {
+describe("reloadMessages(locale, namespace)", () => {
   it("reloads only the requested locale and namespace, leaving the other scopes at their first version (sequence)", async () => {
     const i18n = makeI18n({ fallbackLocale: "fr", ns: [] });
 
@@ -158,7 +158,7 @@ describe("reloadTranslations(locale, namespace)", () => {
     expect(i18n.t("marker", { locale: "fr", ns: "common" })).toBe("fr:common:v1");
     expect(i18n.t("marker", { locale: "en", ns: "admin" })).toBe("en:admin:v1");
 
-    await i18n.reloadTranslations("fr", "admin");
+    await i18n.reloadMessages("fr", "admin");
 
     expect(loaderCalls).toEqual(["en:common", "en:admin", "fr:common", "fr:admin", "fr:admin"]);
     expect(i18n.t("marker", { locale: "fr", ns: "admin" })).toBe("fr:admin:v2");

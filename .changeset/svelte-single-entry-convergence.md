@@ -24,7 +24,7 @@ from `@comvi/svelte`, so each fix stays inside the one specifier you already hav
   import { createI18n, icuCompiler, loader, setI18nContext } from "@comvi/svelte";
 
   // INLINE — the constructor ingests the catalog.
-  setI18nContext(createI18n({ locale: "en", compiler: icuCompiler, translation }));
+  setI18nContext(createI18n({ locale: "en", compiler: icuCompiler, messages }));
   // REMOTE — the same option, in the same place.
   setI18nContext(createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap)));
 </script>

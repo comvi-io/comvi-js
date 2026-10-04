@@ -7,7 +7,7 @@ registered a tag extension.
 
 Adding a catalog with `"Hi <b>{name}</b>"` in it used to print
 `[i18n] Tag syntax in "…" is rendering as literal text: no tag extension claims "<". Render it
-with your framework's <T> component …` for every such entry, at `addTranslations` time. In an app
+with your framework's <T> component …` for every such entry, at `addMessages` time. In an app
 that renders those strings through `<T>` / `prepareTranslation` — which hands the tag grammar to
 core per call and registers nothing on the host — that advice was telling the user to do exactly
 what they were already doing, once per catalog entry, on every load. Because the warning dedupes

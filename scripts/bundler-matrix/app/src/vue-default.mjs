@@ -37,16 +37,16 @@ const i18n = createI18n({
   locale: "en",
   ssrLocale: "en",
   exposeGlobal: false,
-  translation: { en: { plain: "hello", msg: "a <b>c</b> d" } },
+  messages: { en: { plain: "hello", msg: "a <b>c</b> d" } },
 });
 
 // `I18n` is a TYPE from a binding root (P5), so the pin is structural.
 assert(typeof i18n.core.t === "function", "the preset's host is a core host");
 assert(typeof i18n.core.use === "function", "the pipe is on the preset's core host");
-assert(typeof i18n.core.reloadTranslations === "undefined", "the preset builds a BASE host");
+assert(typeof i18n.core.reloadMessages === "undefined", "the preset builds a BASE host");
 assert(typeof i18n.core.onMissingKey === "undefined", "default host has no plugin capability");
 assert(typeof i18n.core.instanceId === "undefined", "default host has no devtools discovery");
-assert("reloadTranslations" in i18n === false, "VueI18n does not proxy loader capabilities");
+assert("reloadMessages" in i18n === false, "VueI18n does not proxy loader capabilities");
 assert("registerPlugin" in i18n === false, "VueI18n does not proxy the plugin host either");
 // …but `use` IS on the wrapper: the composition verb is the wrapper's own.
 assert(typeof i18n.use === "function", "VueI18n has the composition verb");

@@ -119,7 +119,7 @@ function runtimeReading(template: string): { rejected: boolean; params: string[]
       locale: "en",
       exposeGlobal: false,
       compiler: icuCompiler,
-      translation: { en: { message: template } },
+      messages: { en: { message: template } },
       onError: () => undefined,
     });
   } catch (error) {

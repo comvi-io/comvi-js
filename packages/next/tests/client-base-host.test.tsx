@@ -47,7 +47,7 @@ describe("next client on the base host", () => {
   it("has no loader or plugin capability to bind", () => {
     const i18n = baseClientHost() as unknown as Record<string, unknown>;
 
-    expect(i18n.reloadTranslations).toBeUndefined();
+    expect(i18n.reloadMessages).toBeUndefined();
     expect(i18n.registerPlugin).toBeUndefined();
     // `use` IS there: the composition verb is the base host's own member.
     expect(typeof i18n.use).toBe("function");

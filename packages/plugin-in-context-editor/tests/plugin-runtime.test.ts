@@ -31,14 +31,14 @@ function installEditor(options?: EditorOptions): (i18n: ComposedHost) => () => v
 }
 
 function makeI18n(
-  overrides: { apiKey?: string; defaultNs?: string; translation?: Record<string, unknown> } = {},
+  overrides: { apiKey?: string; defaultNs?: string; messages?: Record<string, unknown> } = {},
 ): ComposedHost {
-  const { defaultNs = "default", translation, ...rest } = overrides;
+  const { defaultNs = "default", messages, ...rest } = overrides;
   return createI18n({
     locale: "en",
     defaultNs,
     exposeGlobal: false,
-    translation: (translation ?? { [`en:${defaultNs}`]: { hello: "Hello" } }) as never,
+    messages: (messages ?? { [`en:${defaultNs}`]: { hello: "Hello" } }) as never,
     ...rest,
   });
 }
@@ -201,7 +201,7 @@ describe("inContextEditorPlugin on a server runtime", () => {
     const i18n = makeI18n();
     vi.stubGlobal("window", undefined);
     const cleanup = installEditor()(i18n);
-    i18n.addTranslations({ "en:extra": { welcome: "Welcome" } });
+    i18n.addMessages({ "en:extra": { welcome: "Welcome" } });
 
     cleanup?.();
     i18n.t("hello");
@@ -217,7 +217,7 @@ describe("inContextEditorPlugin key enqueueing", () => {
     const i18n = makeI18n();
     const cleanup = installEditor()(i18n);
 
-    i18n.addTranslations({ "en:extra": { welcome: "Welcome" } });
+    i18n.addMessages({ "en:extra": { welcome: "Welcome" } });
     i18n.t("hello");
 
     expect(getKeyMappings()).toEqual({ "default:hello": 1, "extra:welcome": 2 });
@@ -227,7 +227,7 @@ describe("inContextEditorPlugin key enqueueing", () => {
 
   it("keeps every id it already assigned across a locale change", async () => {
     const i18n = makeI18n({
-      translation: { "en:default": { hello: "Hello" }, "de:default": { hello: "Hallo" } },
+      messages: { "en:default": { hello: "Hello" }, "de:default": { hello: "Hallo" } },
     });
     const cleanup = installEditor()(i18n);
     i18n.t("hello");
@@ -244,7 +244,7 @@ describe("inContextEditorPlugin key enqueueing", () => {
   it("assigns ids in sorted key order under a single-character namespace", () => {
     const i18n = makeI18n({
       defaultNs: "a",
-      translation: { "en:a": { zebra: "Zebra", apple: "Apple" } },
+      messages: { "en:a": { zebra: "Zebra", apple: "Apple" } },
     });
     const cleanup = installEditor()(i18n);
 
@@ -256,7 +256,7 @@ describe("inContextEditorPlugin key enqueueing", () => {
   });
 
   it("keeps the ids an earlier browser runtime assigned when a later one installs", () => {
-    const first = makeI18n({ translation: { "en:default": { b_key: "B", a_key: "A" } } });
+    const first = makeI18n({ messages: { "en:default": { b_key: "B", a_key: "A" } } });
     const cleanupFirst = installEditor()(first);
     first.t("a_key");
     cleanupFirst?.();
@@ -313,7 +313,7 @@ describe("inContextEditorPlugin API configuration", () => {
   it("stops flushing pending keys once the browser runtime is torn down", () => {
     const i18n = makeI18n();
     const cleanup = installEditor()(i18n);
-    i18n.addTranslations({ "en:extra": { welcome: "Welcome" } });
+    i18n.addMessages({ "en:extra": { welcome: "Welcome" } });
 
     cleanup?.();
     i18n.t("hello");

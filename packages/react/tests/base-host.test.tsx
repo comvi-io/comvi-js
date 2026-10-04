@@ -25,7 +25,7 @@ const makeHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: {
+    messages: {
       en: { greeting: "Hello, {name}!", rich: "Click <link>here</link>" },
       fr: { greeting: "Bonjour, {name} !", rich: "Cliquez <link>ici</link>" },
     },
@@ -40,13 +40,8 @@ const wrapperFor = (i18n: WrapperI18nHost) =>
     );
   };
 
-const HOST_SAFE_MEMBERS = ["t", "tRaw", "setLocale", "addTranslations", "on", "reportError"];
-const CAPABILITY_MEMBERS = [
-  "addActiveNamespace",
-  "reloadTranslations",
-  "onLoadError",
-  "onMissingKey",
-];
+const HOST_SAFE_MEMBERS = ["t", "tRaw", "setLocale", "addMessages", "on", "reportError"];
+const CAPABILITY_MEMBERS = ["addActiveNamespace", "reloadMessages", "onLoadError", "onMissingKey"];
 
 describe("react on a base host", () => {
   it("renders translations through useI18n()", () => {
@@ -125,7 +120,7 @@ describe("react on a base host", () => {
     const { result } = renderHook(() => useI18n(), { wrapper: wrapperFor(i18n) });
 
     act(() => {
-      result.current.addTranslations({ en: { late: "Late binding" } });
+      result.current.addMessages({ en: { late: "Late binding" } });
     });
 
     expect(result.current.t("late" as never)).toBe("Late binding");

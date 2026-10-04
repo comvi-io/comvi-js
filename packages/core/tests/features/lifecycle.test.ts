@@ -38,7 +38,7 @@ describe("destroy()", () => {
     };
 
     const i18n = new I18n({ locale: "en" }).registerPlugin(plugin);
-    i18n.addTranslations({ en: { hello: "Hello" } });
+    i18n.addMessages({ en: { hello: "Hello" } });
     await i18n.init();
 
     expect(i18n.getLoader()).toBe(loaderFn);

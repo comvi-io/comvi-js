@@ -29,7 +29,7 @@ function makeFull(mode?: Mode, translations?: Record<string, string>) {
   return createI18n({
     locale: "en",
     ...(mode ? { missingParam: mode } : {}),
-    translation: { en: translations ?? {} },
+    messages: { en: translations ?? {} },
   });
 }
 
@@ -108,7 +108,7 @@ describe("missingParam — path 4: tag interpolation (VirtualNode children)", ()
   it("literal: missing param inside tag children produces a literal-text child", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: translations },
+      messages: { en: translations },
       tagInterpolation: { basicHtmlTags: ["strong"] },
     });
 
@@ -121,7 +121,7 @@ describe("missingParam — path 4: tag interpolation (VirtualNode children)", ()
     const i18n = createI18n({
       locale: "en",
       missingParam: "drop",
-      translation: { en: translations },
+      messages: { en: translations },
       tagInterpolation: { basicHtmlTags: ["strong"] },
     });
 
@@ -136,7 +136,7 @@ describe("missingParam — path 5: slim compiler", () => {
     createBaseI18n({
       locale: "en",
       ...(mode ? { missingParam: mode } : {}),
-      translation: { en: { greet: "Hi {name}!" } },
+      messages: { en: { greet: "Hi {name}!" } },
     });
 
   it.each([

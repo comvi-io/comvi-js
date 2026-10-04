@@ -1,7 +1,7 @@
 /**
  * `removeActiveNamespace()` is the deactivation.
  *
- * `clearTranslations()` drops CONTENT in every form; intent moves only through
+ * `clearMessages()` drops CONTENT in every form; intent moves only through
  * the activation pair. Deactivating stops the namespace being refetched by a
  * reload or a locale switch and cancels whatever load is in flight for it, and
  * it emits the same `configChanged` event activation does so that a binding
@@ -42,13 +42,13 @@ describe("removeActiveNamespace()", () => {
     expect(i18n.t("key", { ns: "admin" })).toBe("en/admin");
   });
 
-  it("stops reloadTranslations() refetching it", async () => {
+  it("stops reloadMessages() refetching it", async () => {
     const { i18n, loads } = recordingHost();
     await i18n.addActiveNamespaces(["nav", "admin"]);
     loads.length = 0;
 
     i18n.removeActiveNamespace("admin");
-    await i18n.reloadTranslations();
+    await i18n.reloadMessages();
 
     expect(loads).toEqual(["en:nav"]);
   });
@@ -132,7 +132,7 @@ describe("removeActiveNamespace() and the default-namespace round trip", () => {
     await i18n.addActiveNamespace("default");
 
     i18n.removeActiveNamespace("default");
-    await i18n.reloadTranslations();
+    await i18n.reloadMessages();
 
     expect(i18n.t("key")).toBe("en/default");
     expect(i18n.getActiveNamespaces()).toEqual([]);
@@ -145,17 +145,17 @@ describe("removeActiveNamespace() and the default-namespace round trip", () => {
     loads.length = 0;
 
     i18n.removeActiveNamespace("admin");
-    await i18n.reloadTranslations();
+    await i18n.reloadMessages();
 
     expect(loads).toEqual(["en:default"]);
   });
 
-  it("comes back ACTIVE when addTranslations() carries it, because a merge self-activates", async () => {
+  it("comes back ACTIVE when addMessages() carries it, because a merge self-activates", async () => {
     const { i18n } = recordingHost();
     await i18n.addActiveNamespace("admin");
 
     i18n.removeActiveNamespace("admin");
-    i18n.addTranslations({ "en:admin": { key: "merged" } });
+    i18n.addMessages({ "en:admin": { key: "merged" } });
 
     expect(i18n.getActiveNamespaces()).toEqual(["admin"]);
   });

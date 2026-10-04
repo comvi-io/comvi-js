@@ -2,8 +2,8 @@
  * `@comvi/next` against the shared server fallback-chain contract
  * (`@comvi/test-utils/ssrFallbackContract`). Every row runs through one
  * fixture, twice: per request, either `setRequestLocale` + `getI18n()` or
- * `getI18n({ locale })` alone, with no prior `loadTranslations()`; then
- * `loadTranslations()` for the client `messages`, then `<I18nProvider
+ * `getI18n({ locale })` alone, with no prior `loadMessages()`; then
+ * `loadMessages()` for the client `messages`, then `<I18nProvider
  * messages>` through `renderToString` and `hydrateRoot`. Next-only assertions
  * follow the table.
  */
@@ -27,7 +27,7 @@ import { I18nProvider } from "../src/client/I18nProvider";
 import { createNextI18n } from "../src/createNextI18n";
 import { _resetServerI18n, setI18n } from "../src/server/cache";
 import { getI18n } from "../src/server/getI18n";
-import { loadTranslations } from "../src/server/loadTranslations";
+import { loadMessages } from "../src/server/loadMessages";
 import { setRequestLocale } from "../src/server/setRequestLocale";
 import { spyOnConsoleError } from "./helpers/consoleWarnings";
 
@@ -49,7 +49,7 @@ vi.mock("react", async (importOriginal) => ({
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-type Messages = Awaited<ReturnType<typeof loadTranslations>>;
+type Messages = Awaited<ReturnType<typeof loadMessages>>;
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
 /**
@@ -76,7 +76,7 @@ const createHost = (row: SsrFallbackCase) => {
 
 const createServerHost = (row: SsrFallbackCase) => {
   const { i18n, loader } = createHost(row);
-  if (row.cached) i18n.addTranslations(row.cached as Record<string, Record<string, string>>);
+  if (row.cached) i18n.addMessages(row.cached as Record<string, Record<string, string>>);
   const loadErrors: string[] = [];
   i18n.onLoadError((locale, ns) => loadErrors.push(`${locale}:${ns}`));
   const reports = vi.spyOn(i18n, "reportError");
@@ -155,7 +155,7 @@ describe("@comvi/next: the server fallback-chain contract", () => {
           const texts = Object.fromEntries(
             Object.keys(request.expect).map((key) => [key, (t as Translate)(key)]),
           );
-          const messages = await loadTranslations(request.locale, { namespaces: layoutNamespaces });
+          const messages = await loadMessages(request.locale, { namespaces: layoutNamespaces });
           return { locale, texts, messages };
         }),
       ),
@@ -202,7 +202,7 @@ describe("@comvi/next: the server fallback-chain contract", () => {
       if (index === 0 && row.navigation) {
         const { navigation } = row;
         const navKeys = Object.keys(navigation.expect);
-        const messages = await loadTranslations(navigation.locale, {
+        const messages = await loadMessages(navigation.locale, {
           namespaces: layoutNamespaces,
         });
         expect(pairsFor(messages, ns)).toEqual(navigation.clientCatalogs);
@@ -230,7 +230,7 @@ describe("@comvi/next: the server fallback-chain contract", () => {
     const [row] = SSR_FALLBACK_CASES;
     const { loader } = createServerHost(row);
 
-    await Promise.all([loadTranslations("fr"), loadTranslations("fr"), getI18n({ locale: "fr" })]);
+    await Promise.all([loadMessages("fr"), loadMessages("fr"), getI18n({ locale: "fr" })]);
 
     const fetched = loader.mock.calls.map(([locale, ns]) => `${locale}:${ns}`);
     expect(fetched.filter((pair) => pair === "fr:common")).toHaveLength(1);

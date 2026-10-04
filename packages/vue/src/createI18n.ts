@@ -20,7 +20,7 @@ import { VueI18n, type VueI18nOptions } from "./VueI18n";
  *
  * @example
  * ```ts
- * const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } });
+ * const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi" } } });
  * createApp(App).use(i18n).mount("#app");
  * ```
  *
@@ -28,7 +28,7 @@ import { VueI18n, type VueI18nOptions } from "./VueI18n";
  * ```ts
  * const i18n = createI18n({ locale: "en", compiler: icuCompiler })
  *   .use(fetchLoader({ cdnUrl }));
- * i18n.core.reloadTranslations(); // typed: `.use` widened `core`
+ * i18n.core.reloadMessages(); // typed: `.use` widened `core`
  * ```
  */
 export function createI18n<const D extends DefaultTranslationParams = {}>(

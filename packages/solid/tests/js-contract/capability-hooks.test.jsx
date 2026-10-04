@@ -43,7 +43,7 @@ const wrapperFor = (i18n) =>
   };
 
 const baseHost = () =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
+  createI18n({ locale: "en", exposeGlobal: false, messages: { en: { greeting: "Hello" } } });
 
 describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   it("throws the exact message on a base host — loader", () => {
@@ -71,7 +71,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
       "addActiveNamespace",
       "addActiveNamespaces",
       "onLoadError",
-      "reloadTranslations",
+      "reloadMessages",
       "removeActiveNamespace",
       "removeActiveNamespaces",
     ]);
@@ -159,7 +159,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     const loader = renderHook(useI18nLoader, { wrapper });
     const plugins = renderHook(useI18nPlugins, { wrapper });
 
-    expect(typeof loader.result.reloadTranslations).toBe("function");
+    expect(typeof loader.result.reloadMessages).toBe("function");
     const off = plugins.result.onMissingKey((key) => `[${key}]`);
     expect(host.t("nope")).toBe("[nope]");
     off();
@@ -173,7 +173,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     const b = renderHook(useI18nLoader, { wrapper });
 
     expect(b.result).toBe(a.result);
-    expect(b.result.reloadTranslations).toBe(a.result.reloadTranslations);
+    expect(b.result.reloadMessages).toBe(a.result.reloadMessages);
 
     const p1 = renderHook(useI18nPlugins, { wrapper });
     const p2 = renderHook(useI18nPlugins, { wrapper });
@@ -199,7 +199,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
 
     attachLoader(host);
     const { result } = renderHook(useI18nLoader, { wrapper });
-    expect(typeof result.reloadTranslations).toBe("function");
+    expect(typeof result.reloadMessages).toBe("function");
   });
 
   // ── B8: ONE canonical behaviour for a non-string `onMissingKey` result ──

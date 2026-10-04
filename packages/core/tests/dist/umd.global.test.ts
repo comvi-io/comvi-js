@@ -187,7 +187,7 @@ describe("UMD global build (A12)", () => {
     const i18n = new I18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { nav: { home: "Home" } } },
+      messages: { en: { nav: { home: "Home" } } },
     });
 
     expect(i18n.t("nav.home")).toBe("Home");
@@ -200,7 +200,7 @@ describe("UMD global build (A12)", () => {
     const i18n = new I18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { rich: "click <b>here</b> now" } },
+      messages: { en: { rich: "click <b>here</b> now" } },
     });
 
     let handled: unknown;
@@ -223,7 +223,7 @@ describe("UMD global build (A12)", () => {
       locale: "en",
       exposeGlobal: false,
       tagInterpolation: { basicHtmlTags: ["strong"] },
-      translation: { en: { rich: "read <strong>this</strong>" } },
+      messages: { en: { rich: "read <strong>this</strong>" } },
     });
 
     const parts = i18n.tRaw("rich");

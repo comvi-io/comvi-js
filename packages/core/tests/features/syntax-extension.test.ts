@@ -17,7 +17,7 @@ const linkHandler = ({ children }: { children: unknown }) => `[${children}]`;
 
 function makeInstance(tagInterpolation?: TagInterpolationOptions) {
   const i18n = new I18n({ locale: "en", exposeGlobal: false, tagInterpolation }, icuCompiler);
-  i18n.addTranslations({ en: { msg: TEMPLATE } });
+  i18n.addMessages({ en: { msg: TEMPLATE } });
   return i18n;
 }
 

@@ -16,7 +16,7 @@ import { MARK, makeMarkExtension } from "../helpers/extensions";
 const node = createElement("b", {}, ["bold"]);
 
 function renderRaw(template: string, params?: Record<string, unknown>) {
-  return createI18n({ locale: "en", translation: { en: { msg: template } } }).tRaw(
+  return createI18n({ locale: "en", messages: { en: { msg: template } } }).tRaw(
     "msg" as never,
     params as never,
   );
@@ -49,7 +49,7 @@ describe("a missing parameter next to a node parameter", () => {
   it("renders the placeholder under missingParam: literal", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "{node}{absent}" } },
+      messages: { en: { msg: "{node}{absent}" } },
     });
 
     expect(i18n.tRaw("msg" as never, { node } as never)).toEqual([node, "{absent}"]);
@@ -59,7 +59,7 @@ describe("a missing parameter next to a node parameter", () => {
     const i18n = createI18n({
       locale: "en",
       missingParam: "drop",
-      translation: { en: { msg: "{node}{absent}" } },
+      messages: { en: { msg: "{node}{absent}" } },
     });
 
     expect(i18n.tRaw("msg" as never, { node } as never)).toEqual([node]);
@@ -76,7 +76,7 @@ describe("a parameter beside a compiler argument token", () => {
   it("interpolates the parameter that follows a plural", () => {
     const i18n = createFullI18n({
       locale: "en",
-      translation: { en: { msg: "{n, plural, one{one} other{many}} for {who}" } },
+      messages: { en: { msg: "{n, plural, one{one} other{many}} for {who}" } },
     });
 
     expect(i18n.t("msg", { n: 2, who: "Ann" })).toBe("many for Ann");
@@ -86,7 +86,7 @@ describe("a parameter beside a compiler argument token", () => {
     const i18n = createFullI18n({
       locale: "en",
       missingParam: "drop",
-      translation: { en: { msg: "{n, plural, one{one} other{many}} for {who}" } },
+      messages: { en: { msg: "{n, plural, one{one} other{many}} for {who}" } },
     });
 
     expect(i18n.t("msg", { n: 2, who: "Ann" })).toBe("many for Ann");
@@ -99,7 +99,7 @@ describe("a parameter beside a compiler argument token", () => {
     const i18n = createI18n({
       locale: "en",
       compiler: argOnlyCompiler,
-      translation: { en: { msg: "a{x}b" } },
+      messages: { en: { msg: "a{x}b" } },
     });
 
     expect(i18n.t("msg" as never)).toBe("ab");

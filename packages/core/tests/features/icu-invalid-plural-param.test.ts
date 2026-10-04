@@ -6,7 +6,7 @@ const ORDINAL = "{count, selectordinal, one {#st} other {#th}}";
 
 function makeInstance(template: string) {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({ en: { k: template } });
+  i18n.addMessages({ en: { k: template } });
   return i18n;
 }
 

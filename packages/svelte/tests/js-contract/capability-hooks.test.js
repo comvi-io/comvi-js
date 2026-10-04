@@ -31,7 +31,7 @@ const EXPECTED = {
 };
 
 const baseHost = () =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
+  createI18n({ locale: "en", exposeGlobal: false, messages: { en: { greeting: "Hello" } } });
 
 describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   let target;
@@ -85,7 +85,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
       "addActiveNamespace",
       "addActiveNamespaces",
       "onLoadError",
-      "reloadTranslations",
+      "reloadMessages",
       "removeActiveNamespace",
       "removeActiveNamespaces",
     ]);
@@ -140,7 +140,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     const loader = acquire(host, useI18nLoader);
     const plugins = acquire(host, useI18nPlugins);
 
-    expect(typeof loader.reloadTranslations).toBe("function");
+    expect(typeof loader.reloadMessages).toBe("function");
     const off = plugins.onMissingKey((key) => `[${key}]`);
     expect(host.t("nope")).toBe("[nope]");
     off();
@@ -152,7 +152,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     const a = acquire(host, useI18nLoader);
     const b = acquire(host, useI18nLoader);
     expect(b).toBe(a);
-    expect(b.reloadTranslations).toBe(a.reloadTranslations);
+    expect(b.reloadMessages).toBe(a.reloadMessages);
 
     const p1 = acquire(host, useI18nPlugins);
     const p2 = acquire(host, useI18nPlugins);
@@ -172,7 +172,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     expect(() => acquire(host, useI18nLoader)).toThrow(EXPECTED.loader);
 
     attachLoader(host);
-    expect(typeof acquire(host, useI18nLoader).reloadTranslations).toBe("function");
+    expect(typeof acquire(host, useI18nLoader).reloadMessages).toBe("function");
   });
 
   it("returns plain bound functions, not stores (§3.2 svelte idiom)", () => {

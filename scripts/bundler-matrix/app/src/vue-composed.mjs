@@ -54,7 +54,7 @@ async function main() {
   const wrapped = createI18nFromCore(host, { ssrLocale: "en" });
 
   assert(wrapped.core === host, "createI18nFromCore exposes the piped core");
-  assert(typeof host.reloadTranslations === "function", "loader(map) composes the loader API");
+  assert(typeof host.reloadMessages === "function", "loader(map) composes the loader API");
   assert(typeof host.onMissingKey === "undefined", "loader(map) composes ONLY the loader API");
   assert(typeof host.getLoader() === "function", "loader(map) also REGISTERS the loader");
 
@@ -68,18 +68,18 @@ async function main() {
   const preset = createI18n({ locale: "en", exposeGlobal: false });
   assert(preset.core.use(attachLoader) === preset.core, "the pipe returns the preset's own host");
   assert(
-    typeof preset.core.reloadTranslations === "function",
+    typeof preset.core.reloadMessages === "function",
     "the preset host gains the capability it was piped",
   );
 
   // The low-level path stays supported and reaches the same capability.
   const manual = attachLoader(createCore({ locale: "en", exposeGlobal: false }));
-  assert(typeof manual.reloadTranslations === "function", "attachLoader composes the loader API");
+  assert(typeof manual.reloadMessages === "function", "attachLoader composes the loader API");
   assert(typeof manual.onMissingKey === "undefined", "attachLoader composes ONLY the loader API");
   // Nested catalogs are BASE behaviour (C1): no `flattenCatalog` hop, and the
   // binding root no longer re-exports one.
   const nested = createCore({ locale: "en", exposeGlobal: false });
-  nested.addTranslations({ en: { nav: { home: "Home" } } });
+  nested.addMessages({ en: { nav: { home: "Home" } } });
   assertEqual(nested.t("nav.home"), "Home", "a base host flattens a nested catalog");
 
   console.log("BUNDLER_MATRIX_OK vue-composed");

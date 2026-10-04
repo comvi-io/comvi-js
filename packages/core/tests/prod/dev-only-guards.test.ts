@@ -1,7 +1,7 @@
 /**
  * Guards the production build DROPS, and the one it keeps.
  *
- * Catalog shape: the top-level `translation` option is validated in both
+ * Catalog shape: the top-level `messages` option is validated in both
  * builds — a wrong type there is a programming error the host cannot recover
  * from — while the per-locale walk that inspects every entry is development
  * guidance and is folded out, so a malformed locale catalog is flattened as
@@ -16,17 +16,17 @@ import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
 
 describe("catalog shape validation", () => {
-  it("throws the bare E_TRANSLATION_NOT_OBJECT code when `translation` is not an object", () => {
+  it("throws the bare E_MESSAGES_NOT_OBJECT code when `messages` is not an object", () => {
     expect(() =>
-      createI18n({ locale: "en", exposeGlobal: false, translation: "nope" as never }),
-    ).toThrowError(expect.objectContaining({ message: "E_TRANSLATION_NOT_OBJECT" }));
+      createI18n({ locale: "en", exposeGlobal: false, messages: "nope" as never }),
+    ).toThrowError(expect.objectContaining({ message: "E_MESSAGES_NOT_OBJECT" }));
   });
 
   it("accepts a malformed locale catalog — the per-entry walk is development-only", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: "hi" as never },
+      messages: { en: "hi" as never },
     });
 
     // Flattened as best it can be: `Object.keys` over a string yields its
@@ -42,7 +42,7 @@ describe("missing parameters", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greet: "Hi, {name}!" } },
+      messages: { en: { greet: "Hi, {name}!" } },
     });
 
     expect(i18n.t("greet")).toBe("Hi, {name}!");
@@ -54,7 +54,7 @@ describe("missing parameters", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { repeat: "Bye, {name}!" } },
+      messages: { en: { repeat: "Bye, {name}!" } },
     });
 
     expect([i18n.t("repeat"), i18n.t("repeat")]).toEqual(["Bye, {name}!", "Bye, {name}!"]);

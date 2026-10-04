@@ -43,11 +43,11 @@ function lastCoreOptions(): CoreOptions {
 }
 
 function makeI18n(
-  translation: Record<string, Record<string, string>> = {
+  messages: Record<string, Record<string, string>> = {
     "en:default": { hello: "Hello" },
   },
 ): ComposedHost {
-  return createI18n({ locale: "en", defaultNs: "default", translation });
+  return createI18n({ locale: "en", defaultNs: "default", messages });
 }
 
 /**
@@ -111,7 +111,7 @@ describe("activate() defaults", () => {
   it("collects context and watches document.body when the caller asks for neither", () => {
     makeI18n();
 
-    const result = activate({ refreshTranslations: false });
+    const result = activate({ refreshMessages: false });
 
     expect(result?.collectContext).toBe(true);
     expect(lastCoreOptions()).toMatchObject({
@@ -124,7 +124,7 @@ describe("activate() defaults", () => {
     makeI18n();
     const target = document.createElement("section");
 
-    activate({ targetElement: target, refreshTranslations: false });
+    activate({ targetElement: target, refreshMessages: false });
 
     expect(lastCoreOptions().targetElement).toBe(target);
   });
@@ -132,7 +132,7 @@ describe("activate() defaults", () => {
   it("trims the api key before storing it in the runtime's configuration", () => {
     makeI18n();
 
-    const result = activate({ apiKey: "  padded-key  ", refreshTranslations: false });
+    const result = activate({ apiKey: "  padded-key  ", refreshMessages: false });
 
     expect(getApiConfig(result!.instanceId).apiKey).toBe("padded-key");
   });
@@ -140,7 +140,7 @@ describe("activate() defaults", () => {
   it("marks the page's translations so the DOM watcher can trace them back to keys", () => {
     const i18n = makeI18n();
 
-    activate({ refreshTranslations: false });
+    activate({ refreshMessages: false });
 
     expect(i18n.t("hello")).toContainInvisibleChars();
   });
@@ -149,7 +149,7 @@ describe("activate() defaults", () => {
     makeI18n();
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
-    activate({ refreshTranslations: false });
+    activate({ refreshMessages: false });
 
     expect(info).toHaveBeenCalledWith(
       `[ComviInContextEditor] Activated (instance: ${FIRST_MOCK_CORE_ID})`,
@@ -158,7 +158,7 @@ describe("activate() defaults", () => {
 
   it("announces the deactivation", () => {
     makeI18n();
-    const result = activate({ refreshTranslations: false });
+    const result = activate({ refreshMessages: false });
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     result?.stop();
@@ -168,20 +168,20 @@ describe("activate() defaults", () => {
 });
 
 describe("activate() translation refresh", () => {
-  it("skips the API round trip when refreshTranslations is false", async () => {
+  it("skips the API round trip when refreshMessages is false", async () => {
     makeI18n();
 
-    activate({ apiKey: "test-key", refreshTranslations: false });
+    activate({ apiKey: "test-key", refreshMessages: false });
     await settleRefresh();
 
     expect(fetchApiTranslationsMock).not.toHaveBeenCalled();
   });
 
-  it("performs the API round trip when refreshTranslations is explicitly true", async () => {
+  it("performs the API round trip when refreshMessages is explicitly true", async () => {
     makeI18n();
     fetchApiTranslationsMock.mockResolvedValue(new Map());
 
-    activate({ apiKey: "test-key", refreshTranslations: true });
+    activate({ apiKey: "test-key", refreshMessages: true });
     await settleRefresh();
 
     expect(fetchApiTranslationsMock).toHaveBeenCalledTimes(1);
@@ -198,54 +198,54 @@ describe("activate() translation refresh", () => {
 
   it("re-adds only the page's own catalog when the API returns nothing", async () => {
     const i18n = makeI18n();
-    const addTranslations = vi.spyOn(i18n, "addTranslations");
+    const addMessages = vi.spyOn(i18n, "addMessages");
     fetchApiTranslationsMock.mockResolvedValue(new Map());
 
     activate({ apiKey: "test-key" });
     await settleRefresh();
 
-    expect(addedCatalogs(addTranslations)).toEqual([{ "en:default": { hello: "Hello" } }]);
+    expect(addedCatalogs(addMessages)).toEqual([{ "en:default": { hello: "Hello" } }]);
   });
 
   it("leaves an empty loaded namespace out of the re-added catalog", async () => {
     const i18n = makeI18n({ "en:default": { hello: "Hello" }, "en:empty": {} });
-    const addTranslations = vi.spyOn(i18n, "addTranslations");
+    const addMessages = vi.spyOn(i18n, "addMessages");
     fetchApiTranslationsMock.mockResolvedValue(new Map());
 
     activate({ apiKey: "test-key" });
     await settleRefresh();
 
-    expect(addedCatalogs(addTranslations)).toEqual([{ "en:default": { hello: "Hello" } }]);
+    expect(addedCatalogs(addMessages)).toEqual([{ "en:default": { hello: "Hello" } }]);
   });
 
   it("pushes no update at all when the page has no translations loaded", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "default" });
-    const addTranslations = vi.spyOn(i18n, "addTranslations");
+    const addMessages = vi.spyOn(i18n, "addMessages");
 
     activate({ apiKey: "test-key" });
     await settleRefresh();
 
-    expect(addedCatalogs(addTranslations)).toEqual([]);
+    expect(addedCatalogs(addMessages)).toEqual([]);
   });
 
   it("drops a refresh that resolves after a newer activation replaced the runtime", async () => {
     const i18n = makeI18n();
-    const addTranslations = vi.spyOn(i18n, "addTranslations");
+    const addMessages = vi.spyOn(i18n, "addMessages");
     const inFlight = createDeferred<Map<string, unknown>>();
     fetchApiTranslationsMock.mockReturnValueOnce(inFlight.promise);
 
     const first = activate({ apiKey: "test-key" });
     first?.stop();
-    activate({ apiKey: "test-key", refreshTranslations: false });
+    activate({ apiKey: "test-key", refreshMessages: false });
     inFlight.resolve(new Map());
     await settleRefresh();
 
-    expect(addedCatalogs(addTranslations)).toEqual([]);
+    expect(addedCatalogs(addMessages)).toEqual([]);
   });
 
   it("drops a refresh that resolves after the runtime was stopped", async () => {
     const i18n = makeI18n();
-    const addTranslations = vi.spyOn(i18n, "addTranslations");
+    const addMessages = vi.spyOn(i18n, "addMessages");
     const inFlight = createDeferred<Map<string, unknown>>();
     fetchApiTranslationsMock.mockReturnValue(inFlight.promise);
 
@@ -254,12 +254,12 @@ describe("activate() translation refresh", () => {
     inFlight.resolve(new Map());
     await settleRefresh();
 
-    expect(addedCatalogs(addTranslations)).toEqual([]);
+    expect(addedCatalogs(addMessages)).toEqual([]);
   });
 
   it("RC review #11: drops a NON-EMPTY refresh that resolves after the runtime was stopped", async () => {
     const i18n = makeI18n();
-    const addTranslations = vi.spyOn(i18n, "addTranslations");
+    const addMessages = vi.spyOn(i18n, "addMessages");
     const inFlight = createDeferred<Map<string, unknown>>();
     fetchApiTranslationsMock.mockReturnValue(inFlight.promise);
 
@@ -271,7 +271,7 @@ describe("activate() translation refresh", () => {
     inFlight.resolve(new Map([["en:default", { hello: "Stale" }]]));
     await settleRefresh();
 
-    expect(addedCatalogs(addTranslations)).toEqual([]);
+    expect(addedCatalogs(addMessages)).toEqual([]);
   });
 });
 
@@ -314,7 +314,7 @@ describe("activate() proxy transport", () => {
 describe("deactivate() teardown", () => {
   it("clears the fetch-loader's project cache for the runtime's own scope", () => {
     makeI18n();
-    const result = activate({ refreshTranslations: false });
+    const result = activate({ refreshMessages: false });
 
     result?.stop();
 
@@ -326,7 +326,7 @@ describe("deactivate() teardown", () => {
     coreStopMock.mockImplementation(() => {
       throw new Error("core boom");
     });
-    const result = activate({ refreshTranslations: false });
+    const result = activate({ refreshMessages: false });
 
     expect(() => result?.stop()).toThrow("core boom");
 
@@ -337,7 +337,7 @@ describe("deactivate() teardown", () => {
   it("stays silent when a stale stop handle is called a second time", () => {
     makeI18n();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const result = activate({ refreshTranslations: false });
+    const result = activate({ refreshMessages: false });
 
     result?.stop();
     result?.stop();

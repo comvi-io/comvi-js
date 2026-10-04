@@ -29,7 +29,7 @@ import type { TranslationParams, TranslationResult } from "@comvi/core";
 /** A plugins host whose post-processor upper-cases anything not asked for raw. */
 const hostWithUppercasePostProcessor = () => {
   const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(plugins());
-  i18n.addTranslations({ "en:default": { greeting: "hello" } });
+  i18n.addMessages({ "en:default": { greeting: "hello" } });
   i18n.registerPostProcessor(
     (result: TranslationResult, _key: string, _ns: string, params: TranslationParams) => {
       if (params?.raw === true) {
@@ -128,7 +128,7 @@ describe("T.svelte deprecated raw prop warning", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "hello" } },
+      messages: { en: { greeting: "hello" } },
     });
 
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

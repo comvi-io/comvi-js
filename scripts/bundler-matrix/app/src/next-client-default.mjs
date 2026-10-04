@@ -45,9 +45,9 @@ assert(isComponent(I18nProvider), "@comvi/next/client exports I18nProvider");
 const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
 // The hydration path: the server-serialized catalog arrives as plain data.
-i18n.addTranslations({ "en:default": { msg: "a <b>c</b> d" } });
+i18n.addMessages({ "en:default": { msg: "a <b>c</b> d" } });
 
-assert(typeof i18n.reloadTranslations === "undefined", "default client host has no loader");
+assert(typeof i18n.reloadMessages === "undefined", "default client host has no loader");
 assert(typeof i18n.onMissingKey === "undefined", "default client host has no plugin host");
 assert(typeof i18n.instanceId === "undefined", "default client host has no devtools discovery");
 assertEqual(

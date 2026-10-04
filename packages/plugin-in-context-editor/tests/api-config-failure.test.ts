@@ -35,7 +35,7 @@ function makeI18n(): ComposedHost {
   return createI18n({
     locale: "en",
     defaultNs: "default",
-    translation: { "en:default": { hello: "Hello" } },
+    messages: { "en:default": { hello: "Hello" } },
   });
 }
 
@@ -72,7 +72,7 @@ describe("activate() startup failure", () => {
     makeI18n();
     failWith(initApiConfigMock, "bad config");
 
-    expect(() => activate({ refreshTranslations: false })).toThrow("bad config");
+    expect(() => activate({ refreshMessages: false })).toThrow("bad config");
 
     expect(coreStopMock).toHaveBeenCalledTimes(1);
     expect(isActive()).toBe(false);
@@ -82,7 +82,7 @@ describe("activate() startup failure", () => {
 describe("deactivate() teardown failure", () => {
   it("rethrows an API-config reset failure that is the only thing to go wrong", () => {
     makeI18n();
-    const result = activate({ refreshTranslations: false });
+    const result = activate({ refreshMessages: false });
     failWith(resetApiConfigMock, "reset boom");
 
     expect(() => result?.stop()).toThrow("reset boom");
@@ -90,7 +90,7 @@ describe("deactivate() teardown failure", () => {
 
   it("surfaces the FIRST failure when both the Core stop and the API reset fail", () => {
     makeI18n();
-    const result = activate({ refreshTranslations: false });
+    const result = activate({ refreshMessages: false });
     failWith(coreStopMock, "core boom");
     failWith(resetApiConfigMock, "reset boom");
 

@@ -121,7 +121,7 @@ describe("getRequestI18n", () => {
         defaultNs: "common",
         devMode: false,
         apiKey: "secret",
-        translation: undefined,
+        messages: undefined,
         tagInterpolation: undefined,
       });
     });
@@ -155,7 +155,7 @@ describe("getRequestI18n", () => {
         defaultNs: "common",
         devMode: false,
         apiKey: "secret",
-        translation: undefined,
+        messages: undefined,
         tagInterpolation: { basicHtmlTags: ["b", "i"] },
       });
     });
@@ -164,7 +164,7 @@ describe("getRequestI18n", () => {
       createComviCore.mockImplementation((options: Record<string, unknown>) =>
         createI18n({
           ...options,
-          translation: { "en:common": { hi: "Hello <b>world</b>" } },
+          messages: { "en:common": { hi: "Hello <b>world</b>" } },
         } as unknown as Parameters<typeof createI18n>[0]),
       );
 
@@ -179,7 +179,7 @@ describe("getRequestI18n", () => {
       ]);
     });
 
-    it("renders a key from comvi.translation on the request host", async () => {
+    it("renders a key from comvi.messages on the request host", async () => {
       // The SSR half of the two-line module-options floor: the same option, the
       // same key as the client plugin resolves, on a per-request host that has
       // no loader to fetch anything with.
@@ -188,12 +188,12 @@ describe("getRequestI18n", () => {
       );
 
       const host = await getRequestI18n(
-        createEvent({ defaultNs: "default", translation: { en: { greeting: "Hello" } } }),
+        createEvent({ defaultNs: "default", messages: { en: { greeting: "Hello" } } }),
         "en",
       );
 
       expect(createComviCore).toHaveBeenCalledWith(
-        expect.objectContaining({ translation: { en: { greeting: "Hello" } } }),
+        expect.objectContaining({ messages: { en: { greeting: "Hello" } } }),
       );
       expect(host.t("greeting")).toBe("Hello");
     });
@@ -205,19 +205,19 @@ describe("getRequestI18n", () => {
         createI18n(options as unknown as Parameters<typeof createI18n>[0]),
       );
 
-      await expect(getRequestI18n(createEvent({ translation: "" }), "en")).resolves.toBeDefined();
+      await expect(getRequestI18n(createEvent({ messages: "" }), "en")).resolves.toBeDefined();
 
       expect(createComviCore).toHaveBeenCalledWith(
-        expect.objectContaining({ translation: undefined }),
+        expect.objectContaining({ messages: undefined }),
       );
     });
 
     it("passes an empty translation object through unchanged", async () => {
       createComviCore.mockReturnValue(createHost());
 
-      await getRequestI18n(createEvent({ translation: {} }), "en");
+      await getRequestI18n(createEvent({ messages: {} }), "en");
 
-      expect(createComviCore).toHaveBeenCalledWith(expect.objectContaining({ translation: {} }));
+      expect(createComviCore).toHaveBeenCalledWith(expect.objectContaining({ messages: {} }));
     });
 
     it("prefers the configured fallbackLocale over defaultLocale and the request locale", async () => {

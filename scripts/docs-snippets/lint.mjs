@@ -1143,7 +1143,7 @@ const BANNED_RULES = [
 /**
  * Claims in English that stopped being true. Each is anchored on a present-tense
  * assertion, so MIGRATION.md's own past-tense narration of the same change
- * ("`clearTranslations(undefined, ns)` also DEACTIVATED the namespace") does not
+ * ("`clearMessages(undefined, ns)` also DEACTIVATED the namespace") does not
  * trip its own rule.
  */
 const PROSE_RULES = [
@@ -1159,7 +1159,7 @@ const PROSE_RULES = [
     id: "prose/capability-member-on-core",
     migration: "MIGRATION.md §1 and §2",
     pattern:
-      /(?:reloadTranslations|addActiveNamespace|onMissingKey|onLoadError)[^\n]{0,80}\bis (?:a|an) (?:method|member)\b/i,
+      /(?:reloadMessages|addActiveNamespace|onMissingKey|onLoadError)[^\n]{0,80}\bis (?:a|an) (?:method|member)\b/i,
     message:
       "false since 0.5.0: the loader and plugin members are not on the base host — they come " +
       "from useI18nLoader() / useI18nPlugins().",
@@ -1168,7 +1168,7 @@ const PROSE_RULES = [
     id: "prose/capability-member-from-use-i18n",
     migration: "MIGRATION.md §1 and §2 (the migration table)",
     pattern:
-      /\b(?:reloadTranslations|addActiveNamespaces?|onMissingKey|onLoadError)\b[^\n]{0,80}\bfrom\s+`?useI18n\(\)/i,
+      /\b(?:reloadMessages|addActiveNamespaces?|onMissingKey|onLoadError)\b[^\n]{0,80}\bfrom\s+`?useI18n\(\)/i,
     message:
       "useI18n() no longer returns loader or plugin members in 0.5.0 — use useI18nLoader() " +
       "or useI18nPlugins().",
@@ -1177,18 +1177,17 @@ const PROSE_RULES = [
     id: "prose/use-i18n-returns-capability",
     migration: "MIGRATION.md §1 and §2 (the migration table)",
     pattern:
-      /useI18n\(\)[^\n]{0,120}\b(?:returns?|provides?|includes?|exposes?)\b[^\n]{0,120}\b(?:reloadTranslations|addActiveNamespaces?|onMissingKey|onLoadError)\b/i,
+      /useI18n\(\)[^\n]{0,120}\b(?:returns?|provides?|includes?|exposes?)\b[^\n]{0,120}\b(?:reloadMessages|addActiveNamespaces?|onMissingKey|onLoadError)\b/i,
     message:
       "useI18n() no longer returns loader or plugin members in 0.5.0 — use useI18nLoader() " +
       "or useI18nPlugins().",
   },
   {
-    id: "prose/clear-translations-deactivates",
-    migration: "MIGRATION.md §7 (clearTranslations clears content, never intent)",
-    pattern:
-      /clearTranslations[^\n]{0,100}\b(?:deactivates|stops serving|removes the namespace)\b/i,
+    id: "prose/clear-messages-deactivates",
+    migration: "MIGRATION.md §7 (clearMessages clears content, never intent)",
+    pattern: /clearMessages[^\n]{0,100}\b(?:deactivates|stops serving|removes the namespace)\b/i,
     message:
-      "since 0.5.0 clearTranslations() clears CONTENT only — deactivation moved to " +
+      "since 0.5.0 clearMessages() clears CONTENT only — deactivation moved to " +
       "removeActiveNamespace(ns) on the loader capability.",
   },
 ];

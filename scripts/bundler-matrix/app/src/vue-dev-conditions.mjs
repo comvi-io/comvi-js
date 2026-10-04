@@ -27,7 +27,7 @@ assert(isComponent(T), "@comvi/vue exports T");
 const i18n = createI18n({
   locale: "en",
   exposeGlobal: false,
-  translation: { en: { msg: "hello" } },
+  messages: { en: { msg: "hello" } },
 });
 assert(i18n.t("msg") === "hello", "the host built from the resolved artifact translates");
 

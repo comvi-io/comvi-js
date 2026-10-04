@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { subscribeToRevision } from "@comvi/core";
-import type { AnyI18nHost, WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/core";
+import type { AnyI18nHost, WrapperI18nHost, FlattenedMessages, I18nEvent } from "@comvi/core";
 
 // Build-time flag, same shape the other bindings use: `undefined` under a
 // bundler that does not define it, never a bare reference that throws.
@@ -25,7 +25,7 @@ export type { AnyI18nHost };
 interface I18nContextValue {
   i18n: Host;
   locale: string;
-  translationCache: ReadonlyMap<string, FlattenedTranslations>;
+  translationCache: ReadonlyMap<string, FlattenedMessages>;
   isLoading: boolean;
   isInitializing: boolean;
 }
@@ -169,7 +169,7 @@ export interface I18nProviderProps {
  *
  * @example
  * ```tsx
- * const i18n = createI18n({ locale: 'en', translation: {...} });
+ * const i18n = createI18n({ locale: 'en', messages: {...} });
  * <I18nProvider i18n={i18n}><App /></I18nProvider>
  * ```
  */

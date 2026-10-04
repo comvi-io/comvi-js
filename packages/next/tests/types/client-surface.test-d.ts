@@ -39,14 +39,14 @@ export type _BaseHasNoPluginApi = Expect<
 >;
 
 // @ts-expect-error -- the client host has no loader capability; the server companion loads
-host.reloadTranslations();
+host.reloadMessages();
 // @ts-expect-error -- ...and none of the plugin host either
 host.onMissingKey(() => undefined);
 // @ts-expect-error -- ...and no loader registration of any shape
 void host.registerLoader(() => Promise.resolve({}));
 
 // The hydration path a client actually uses.
-host.addTranslations({ "en:default": { greeting: "Hello" } });
+host.addMessages({ "en:default": { greeting: "Hello" } });
 
 // ICU has ONE shape on this entry: the `compiler` option, for every catalog
 // source. It configures the host rather than widening it.
@@ -91,7 +91,7 @@ export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, BaseI18n
 // `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
 // @ts-expect-error -- flattenCatalog is not part of this entry
 void (clientEntry.flattenCatalog as unknown);
-createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
+createI18n({ locale: "en", messages: { en: { nav: { home: "Home" } } } });
 
 // `.use(installer)` — the composition pipe. The generic host type must flow
 // THROUGH it and come out widened, never decayed to `any`.

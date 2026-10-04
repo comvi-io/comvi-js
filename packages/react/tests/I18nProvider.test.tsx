@@ -342,7 +342,7 @@ describe("I18nProvider", () => {
       // Bump the cache revision the way a plugin mutating translations would,
       // then fire the only event the cache subscription sees here.
       fake.translationCache.set("en", "default", { greeting: "Hello" });
-      fake.emit("configChanged", { source: "translationsAdded" });
+      fake.emit("configChanged", { source: "messagesAdded" });
     });
 
     await waitFor(() => {

@@ -10,7 +10,7 @@ import {
 import type {
   I18n,
   I18nOptions,
-  FlattenedTranslations,
+  FlattenedMessages,
   TranslationResult,
   TranslationValue,
   I18nEvent,
@@ -82,7 +82,7 @@ export class VueI18n<
   private _cacheRevision: ShallowRef<number>;
   private _configRevision: ShallowRef<number>;
   private _defaultParamsComputed?: ComputedRef<DefaultParamsSnapshot<D>>;
-  private _translationCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
+  private _translationCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedMessages>>;
   private _unsubscribers: Array<() => void> = [];
   private _requestedLocale: string;
   private _localeQueue: Promise<void> = Promise.resolve();
@@ -95,8 +95,8 @@ export class VueI18n<
   private _warnedLateUse = false;
 
   // Declared here, assigned as bound proxies in the constructor.
-  declare addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
-  declare clearTranslations: (language?: string, namespace?: string) => void;
+  declare addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
+  declare clearMessages: (language?: string, namespace?: string) => void;
   declare on: <E extends I18nEvent>(
     event: E,
     callback: (payload: I18nEventData[E]) => void,
@@ -177,7 +177,7 @@ export class VueI18n<
             this._isInitialized.value = this.core.isInitialized;
             break;
           case "namespaceLoaded":
-          case "translationsCleared":
+          case "messagesCleared":
             syncCache();
             break;
           case "defaultNamespaceChanged":
@@ -194,8 +194,8 @@ export class VueI18n<
     );
 
     // Bound explicitly rather than through a proxy, so tests can spy on them.
-    this.addTranslations = core.addTranslations.bind(core);
-    this.clearTranslations = core.clearTranslations.bind(core);
+    this.addMessages = core.addMessages.bind(core);
+    this.clearMessages = core.clearMessages.bind(core);
     this.on = core.on.bind(core);
     this.setFallbackLocale = core.setFallbackLocale.bind(core);
     this.setDefaultParams = core.setDefaultParams.bind(core);
@@ -369,7 +369,7 @@ export class VueI18n<
     }
   }
 
-  get translationCache(): ComputedRef<ReadonlyMap<string, FlattenedTranslations>> {
+  get translationCache(): ComputedRef<ReadonlyMap<string, FlattenedMessages>> {
     if (!this._translationCacheComputed) {
       this._translationCacheComputed = computed(() => {
         void this._cacheRevision.value;
@@ -438,7 +438,7 @@ export class VueI18n<
    *
    * ```ts
    * const i18n = createI18n({ locale: "en" }).use(loader(importMap));
-   * i18n.core.reloadTranslations(); // typed: the loader is on `core`
+   * i18n.core.reloadMessages(); // typed: the loader is on `core`
    * ```
    *
    * The one ordering rule: compose BEFORE `app.use(i18n)` — Vue's own `use`,

@@ -2,7 +2,7 @@
 "@comvi/plugin-fetch-loader": patch
 ---
 
-**A request whose whole scope `clearTranslations()` drops is now aborted.**
+**A request whose whole scope `clearMessages()` drops is now aborted.**
 Clearing stops the host from waiting on the matching loads, but their HTTP
 requests kept running to completion — holding a connection open for an answer
 nobody would read. The editor-save and webhook-refresh flow (clear, then
@@ -10,9 +10,9 @@ reload) paid for every namespace twice.
 
 A request is abandoned only when the clear covers all of it:
 
-- `clearTranslations("en", "common")` aborts the request loading exactly that
+- `clearMessages("en", "common")` aborts the request loading exactly that
   namespace, and leaves requests for other locales and other namespaces alone.
-- `clearTranslations()` and `clearTranslations("en")` abort everything in
+- `clearMessages()` and `clearMessages("en")` abort everything in
   flight for that scope.
 - In API mode one request carries every active namespace. Clearing one of them
   leaves that request running, because the host is still waiting for the rest.

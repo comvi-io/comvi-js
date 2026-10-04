@@ -3,7 +3,7 @@
  * Suspense boundaries that read translations during a suspended render?
  *
  * A useI18n() child inside a <Suspense> boundary suspends; while it is
- * suspended an i18n event fires (addTranslations → configChanged), so on resume
+ * suspended an i18n event fires (addMessages → configChanged), so on resume
  * the deferred microtask callback would schedule a React update.
  *
  * NOTE: vitest.config.ts aliases @comvi/react → ../react/src/index.ts.
@@ -79,7 +79,7 @@ describe("OQ-A — Suspense + microtask deferral (pre-merge gate)", () => {
 
     // The deferred callback is queued while Consumer is not yet committed.
     await act(async () => {
-      fake.addTranslations(EN_UPDATED);
+      fake.addMessages(EN_UPDATED);
       await flushMicrotasks();
     });
 
@@ -113,8 +113,8 @@ describe("OQ-A — Suspense + microtask deferral (pre-merge gate)", () => {
     );
 
     await act(async () => {
-      fake.addTranslations(EN_V2);
-      fake.addTranslations(EN_V3);
+      fake.addMessages(EN_V2);
+      fake.addMessages(EN_V3);
       await flushMicrotasks();
     });
 

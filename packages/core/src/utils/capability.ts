@@ -51,7 +51,7 @@ export type CapabilityName = "loader" | "plugins";
 export const LOADER_MEMBERS = [
   "registerLoader",
   "getLoader",
-  "reloadTranslations",
+  "reloadMessages",
   "addActiveNamespace",
   "addActiveNamespaces",
   "removeActiveNamespace",

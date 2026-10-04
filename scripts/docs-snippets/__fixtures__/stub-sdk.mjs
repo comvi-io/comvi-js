@@ -30,7 +30,7 @@ export interface MessageCompiler {
 export interface I18nOptions {
   locale: string;
   fallbackLocale?: string | string[];
-  translation?: Record<string, Record<string, unknown>>;
+  messages?: Record<string, Record<string, unknown>>;
   compiler?: MessageCompiler;
 }
 
@@ -38,7 +38,7 @@ export interface I18n {
   t(key: AnyKey, params?: Record<string, unknown>): string;
   use<R>(installer: (i18n: this) => R): R;
   registerPlugin(plugin: (i18n: I18n) => unknown, options?: Record<string, unknown>): I18n;
-  reloadTranslations(locale?: string, namespace?: string): Promise<void>;
+  reloadMessages(locale?: string, namespace?: string): Promise<void>;
   locale: string;
 }
 

@@ -4,7 +4,7 @@ import { getConfiguredRouting, resolveServerI18n } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import { getLocale } from "./getLocale";
 import type { ServerTranslatingHost } from "./hostTypes";
-import { loadChain } from "./loadTranslations";
+import { loadChain } from "./loadMessages";
 import type {
   GetI18nOptions,
   RequestView,
@@ -74,7 +74,7 @@ const warnUnknownLocale = (locale: string): void => {
  * getI18n auto-loads one namespace, the default one or the one passed via
  * getI18n({ ns }), for the request locale and every locale of the host's
  * `fallbackLocale` chain. If you call t() with a different ns, ensure you
- * preloaded it via loadTranslations(locale, { namespaces: [...] }) in your layout
+ * preloaded it via loadMessages(locale, { namespaces: [...] }) in your layout
  * or metadata.
  */
 export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {

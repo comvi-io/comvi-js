@@ -19,8 +19,8 @@ import { prepareTranslation, childrenToArray } from "../../src/core/prepareTrans
 import { makeMarkExtension } from "../helpers/extensions";
 import type { TranslationResult } from "../../src/types";
 
-const makeHost = (translation: Record<string, Record<string, string>>) =>
-  createI18n({ locale: "en", translation });
+const makeHost = (messages: Record<string, Record<string, string>>) =>
+  createI18n({ locale: "en", messages });
 
 describe("prepareTranslation() reserved props", () => {
   const twoNamespaces = () =>
@@ -46,7 +46,7 @@ describe("prepareTranslation() reserved props", () => {
   });
 
   const twoLocales = () =>
-    createI18n({ locale: "en", translation: { en: { msg: "en" }, fr: { msg: "fr" } } });
+    createI18n({ locale: "en", messages: { en: { msg: "en" }, fr: { msg: "fr" } } });
 
   it("leaves a params-supplied locale in place when the prop is omitted", () => {
     const { content } = prepareTranslation(twoLocales(), {
@@ -83,7 +83,7 @@ describe("prepareTranslation() reserved props", () => {
     const withPostProcessor = () =>
       createI18n({
         locale: "en",
-        translation: { en: { msg: "text" } },
+        messages: { en: { msg: "text" } },
         postProcess: (result, _key, _ns, params) =>
           params.raw === true ? result : `${result as string}!`,
       });
@@ -146,7 +146,7 @@ describe("prepareTranslation() isMissing", () => {
     const i18n = createI18n({
       locale: "de",
       fallbackLocale: "en",
-      translation: { en: { ok: "ok" } },
+      messages: { en: { ok: "ok" } },
     });
 
     const { content, isMissing } = prepareTranslation(i18n, { i18nKey: "ok" });
@@ -166,7 +166,7 @@ describe("prepareTranslation() isMissing", () => {
   });
 
   it("is not missing when onMissingKey supplies the text", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: {} }, onMissingKey: () => "—" });
+    const i18n = createI18n({ locale: "en", messages: { en: {} }, onMissingKey: () => "—" });
 
     const { content, isMissing } = prepareTranslation(i18n, { i18nKey: "nope" });
 

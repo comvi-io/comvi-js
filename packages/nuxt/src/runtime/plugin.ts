@@ -23,7 +23,7 @@ import {
 const chainLoadingHosts = new WeakSet<object>();
 
 const I18N_EDITOR_MAPPINGS_STATE_KEY = "__comvi_ice_mappings__";
-const I18N_TRANSLATIONS_PAYLOAD_KEY = "__comvi_translations__";
+const I18N_MESSAGES_PAYLOAD_KEY = "__comvi_messages__";
 
 type TranslationsPayload = Record<string, Record<string, TranslationValue>>;
 
@@ -80,12 +80,12 @@ export default defineNuxtPlugin({
       devMode: import.meta.dev,
       apiKey: privateConfig?.apiKey,
       // Without a `hostModule` the generated host is core's BASE host and has
-      // no loader, so `comvi.translation` is the only catalog it ever gets.
+      // no loader, so `comvi.messages` is the only catalog it ever gets.
       // `||`, not the value as-is: runtime config turns an unset option into
-      // `""` (a `NUXT_PUBLIC_COMVI_TRANSLATION=` override does too), and core
+      // `""` (a `NUXT_PUBLIC_COMVI_MESSAGES=` override does too), and core
       // rejects a string catalog. `defaultParams` and `basicHtmlTags` below are
       // truthy-checked for the same reason.
-      translation: publicConfig.translation || undefined,
+      messages: publicConfig.messages || undefined,
       tagInterpolation: publicConfig.basicHtmlTags
         ? { basicHtmlTags: publicConfig.basicHtmlTags }
         : undefined,
@@ -127,7 +127,7 @@ export default defineNuxtPlugin({
 
         const cacheMap = i18n.translationCache.value;
         if (cacheMap.size > 0) {
-          nuxtApp.payload[I18N_TRANSLATIONS_PAYLOAD_KEY] = serializeTranslationCache(cacheMap);
+          nuxtApp.payload[I18N_MESSAGES_PAYLOAD_KEY] = serializeTranslationCache(cacheMap);
         }
       });
     }
@@ -138,11 +138,11 @@ export default defineNuxtPlugin({
           initialInContextEditorMappings;
       }
 
-      const ssrTranslations = nuxtApp.payload?.[I18N_TRANSLATIONS_PAYLOAD_KEY] as
+      const ssrTranslations = nuxtApp.payload?.[I18N_MESSAGES_PAYLOAD_KEY] as
         | TranslationsPayload
         | undefined;
       if (ssrTranslations) {
-        i18n.addTranslations(ssrTranslations);
+        i18n.addMessages(ssrTranslations);
       }
     }
 

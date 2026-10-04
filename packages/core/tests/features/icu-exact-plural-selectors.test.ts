@@ -10,13 +10,13 @@ import { I18n } from "../helpers/composedHost";
 
 function render(template: string, n: number): string {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({ en: { k: template } });
+  i18n.addMessages({ en: { k: template } });
   return i18n.t("k", { n } as never) as string;
 }
 
 function ingest(template: string): void {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({ en: { k: template } });
+  i18n.addMessages({ en: { k: template } });
 }
 
 const WITH_EXACT = (selector: string) =>
@@ -87,7 +87,7 @@ describe("an exact plural selector that is not a number", () => {
 
   it("leaves a select's literal selectors alone", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { k: "{g, select, =abc {odd} other {other}}" } });
+    i18n.addMessages({ en: { k: "{g, select, =abc {odd} other {other}}" } });
 
     expect(i18n.t("k", { g: "=abc" } as never)).toBe("odd");
   });

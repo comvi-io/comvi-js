@@ -11,7 +11,7 @@ array made the package's documented composition uncompilable:
 
 ```ts
 const routing = defineRouting({ locales: ["en", "de"], defaultLocale: "en" } as const);
-createNextI18n({ ...routing, translation }); // TS2345 before this release
+createNextI18n({ ...routing, messages }); // TS2345 before this release
 ```
 
 It also rejected the `as const` locale tuple `hasLocale(routing.locales, locale)` needs for

@@ -17,7 +17,7 @@ const mountFallbackHost = async () => {
   const i18n = createI18n({
     locale: "es",
     defaultNs: "common",
-    translation: { "fr:common": { hello: "Bonjour" } },
+    messages: { "fr:common": { hello: "Bonjour" } },
   }).use(attachPlugins);
 
   await i18n.init();
@@ -56,7 +56,7 @@ describe("useI18n", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         "en:admin": { title: "Admin Title" },
         "en:custom": { title: "Custom Title" },
       },
@@ -114,7 +114,7 @@ describe("useI18n", () => {
       // app asks, and this one asks in the same call.
       compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
-      translation: {
+      messages: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
       },
     });
@@ -181,7 +181,7 @@ describe("useI18n", () => {
     expect(revision.textContent).toBe("0");
 
     await fake.setLocale("fr");
-    fake.addTranslations({ fr: { greeting: "Bonjour" } });
+    fake.addMessages({ fr: { greeting: "Bonjour" } });
     fake.isInitialized = true;
     fake.emit("initialized", undefined);
     fake.emit("loadingStateChanged", { isLoading: false, isInitializing: false });
@@ -195,7 +195,7 @@ describe("useI18n", () => {
 
   it("changes language through the returned API and re-renders the subtree", async () => {
     const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({
+    fake.addMessages({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
     });
@@ -226,7 +226,7 @@ describe("useI18n", () => {
 
   it("exposes catalog metadata for what has been loaded", () => {
     const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({
+    fake.addMessages({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
     });
@@ -243,7 +243,7 @@ describe("useI18n", () => {
       </I18nProvider>
     ));
 
-    api.addTranslations({ fr: { farewell: "Au revoir" } });
+    api.addMessages({ fr: { farewell: "Au revoir" } });
 
     expect(api.hasLocale("fr", "common")).toBe(true);
     expect(api.hasTranslation("farewell", "fr", "common", true)).toBe(true);
@@ -258,7 +258,7 @@ describe("useI18n", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         "en:common": { title: commonTitle },
       },
       // `attachLoader` rather than `loader(map)`: this registers a raw `LoaderFn`.
@@ -302,7 +302,7 @@ describe("useI18n", () => {
     });
 
     commonTitle = "Common Title v2";
-    await loader.reloadTranslations("en", "common");
+    await loader.reloadMessages("en", "common");
     await vi.waitFor(() => {
       expect(container.textContent).toBe("Common Title v2|Admin Title v1");
     });
@@ -514,9 +514,9 @@ describe("useI18n", () => {
     expect(container.textContent).toBe("rtl");
   });
 
-  it("empties the host catalog through clearTranslations()", () => {
+  it("empties the host catalog through clearMessages()", () => {
     const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({ en: { greeting: "Hello" } });
+    fake.addMessages({ en: { greeting: "Hello" } });
 
     let api!: ReturnType<typeof useI18n>;
     const Probe = () => {
@@ -532,14 +532,14 @@ describe("useI18n", () => {
 
     expect(api.t("greeting" as never)).toBe("Hello");
 
-    api.clearTranslations();
+    api.clearMessages();
 
     expect(api.t("greeting" as never)).toBe("greeting");
   });
 
   it("exposes the host's loaded catalog through getTranslationCache()", () => {
     const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({ en: { greeting: "Hello" } });
+    fake.addMessages({ en: { greeting: "Hello" } });
 
     let api!: ReturnType<typeof useI18n>;
     const Probe = () => {

@@ -21,7 +21,7 @@ describe("init() with a locale detector", () => {
     const i18n = new I18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { hi: "Hi" } },
+      messages: { en: { hi: "Hi" } },
     });
     i18n.registerLoader((locale, namespace) => {
       const settler = createDeferred<Catalog>();

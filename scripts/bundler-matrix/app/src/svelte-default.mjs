@@ -47,7 +47,7 @@ assert(typeof useI18nHost === "function", "@comvi/svelte exports useI18nHost");
 const i18n = createI18n({
   locale: "en",
   exposeGlobal: false,
-  translation: { en: { msg: "a <b>c</b> d" } },
+  messages: { en: { msg: "a <b>c</b> d" } },
 });
 
 // `I18n` is a TYPE from a binding root (P5), so the pin is structural: a base
@@ -56,7 +56,7 @@ assert(
   typeof i18n.t === "function" && typeof i18n.use === "function",
   "createI18n builds a core host",
 );
-assert(typeof i18n.reloadTranslations === "undefined", "default host has no loader capability");
+assert(typeof i18n.reloadMessages === "undefined", "default host has no loader capability");
 assert(typeof i18n.onMissingKey === "undefined", "default host has no plugin capability");
 assert(typeof i18n.instanceId === "undefined", "default host has no devtools discovery");
 assertEqual(

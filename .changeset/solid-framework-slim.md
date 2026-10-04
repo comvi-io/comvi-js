@@ -6,11 +6,11 @@
 and the four loader/plugin members left `useI18n()` for two dedicated accessors — the same
 contract as `@comvi/react`.
 
-| 0.4.x                                                                       | 0.5.0                                                              |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `const { addActiveNamespace, reloadTranslations, onLoadError } = useI18n()` | the same names, plus `addActiveNamespaces`, from `useI18nLoader()` |
-| `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                        |
-| `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
+| 0.4.x                                                                   | 0.5.0                                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `const { addActiveNamespace, reloadMessages, onLoadError } = useI18n()` | the same names, plus `addActiveNamespaces`, from `useI18nLoader()` |
+| `const { onMissingKey } = useI18n()`                                    | `const { onMissingKey } = useI18nPlugins()`                        |
+| `const { t, reloadMessages } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
 
 **Why the members moved.** `useI18n()` used to close over them, so its return type promised
 methods a base host does not have and calling one produced a bare

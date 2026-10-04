@@ -38,7 +38,7 @@ export default defineNuxtConfig({
   comvi: {
     defaultLocale: "en",
     locales: ["en", "uk"],
-    translation: {
+    messages: {
       en: { greeting: "Hello, {name}!" },
       uk: { greeting: "Привіт, {name}!" },
     },
@@ -52,7 +52,7 @@ export default defineNuxtConfig({
 </template>
 ```
 
-`comvi.translation` is the inline catalog, nested or flat, and must stay JSON-serializable. The
+`comvi.messages` is the inline catalog, nested or flat, and must stay JSON-serializable. The
 module writes `<html lang dir>` from the active locale on the server and on every switch.
 
 ## Use in components
@@ -105,7 +105,7 @@ independent.
   installer `comvi.host.ts` needs (`createI18n`, `loader`, `icuCompiler`, `plugins`, `devtools`)
   comes from `@comvi/nuxt/host`, so the file resolves from `npm install @comvi/nuxt` alone.
 - In a Nitro route the server auto-imports are `useTranslation(event)`,
-  `loadTranslations(event, locale)`, `getRequestI18n(event, locale)` and
+  `loadMessages(event, locale)`, `getRequestI18n(event, locale)` and
   `getServerRuntimeConfig(event)`; the app-side composables do not exist there.
   `useTranslation(event)` resolves the locale in the route middleware's order: the path prefix,
   then `localeDetection.order`.

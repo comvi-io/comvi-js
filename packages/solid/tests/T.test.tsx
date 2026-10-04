@@ -431,7 +431,7 @@ describe("T.tsx", () => {
 
     expect(container.textContent).toBe("greeting");
 
-    fake.addTranslations({ en: { greeting: "Hello" } });
+    fake.addMessages({ en: { greeting: "Hello" } });
     await flushMicrotasks();
 
     expect(container.textContent).toBe("Hello");
@@ -503,7 +503,7 @@ describe("T.tsx", () => {
     // "ok" translates to the literal string "ok", so the resolved text alone
     // cannot tell present from missing — only the fallback-aware host check can.
     fake = new FakeI18n({ language: "de", defaultNamespace: "common" });
-    fake.addTranslations({ "en:common": { ok: "ok" } });
+    fake.addMessages({ "en:common": { ok: "ok" } });
     fake.setFallbackLocale("en");
 
     renderWithProvider(() => (
@@ -583,7 +583,7 @@ describe("<T /> markup without a components map (real core)", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { note: "Read the <b>fine</b> print" } },
+      messages: { en: { note: "Read the <b>fine</b> print" } },
     });
     await i18n.init();
 

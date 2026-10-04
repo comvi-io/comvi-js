@@ -9,14 +9,14 @@ const DEFAULT_NAMESPACE = undefined;
 const twoLocales = () =>
   createI18n({
     locale: "en",
-    translation: { en: { greeting: "Hello" }, de: { farewell: "Tschüss" } },
+    messages: { en: { greeting: "Hello" }, de: { farewell: "Tschüss" } },
   });
 
 const twoLocalesWithFallback = () =>
   createI18n({
     locale: "en",
     fallbackLocale: "de",
-    translation: { en: { greeting: "Hello" }, de: { farewell: "Tschüss" } },
+    messages: { en: { greeting: "Hello" }, de: { farewell: "Tschüss" } },
   });
 
 describe("hasTranslation() routing", () => {
@@ -54,7 +54,7 @@ describe("t() fallback-chain traversal", () => {
     const i18n = createI18n({
       locale: "en",
       fallbackLocale: "de",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
 
     expect(i18n.t("farewell")).toBe("farewell");
@@ -64,7 +64,7 @@ describe("t() fallback-chain traversal", () => {
   // `undefined` would hit the entry cached for the template "undefined", so the
   // first assertion is what puts that entry in the cache.
   it('does not resolve a missing key to a catalog entry whose value is the string "undefined"', () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { ghost: "undefined" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { ghost: "undefined" } } });
 
     expect(i18n.t("ghost")).toBe("undefined");
     expect(i18n.t("absent")).toBe("absent");
@@ -76,7 +76,7 @@ describe("primary-catalog memoization", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "nav",
-      translation: { "en:nav": { title: "Navigation" }, "en:footer": { title: "Footer" } },
+      messages: { "en:nav": { title: "Navigation" }, "en:footer": { title: "Footer" } },
     });
     // Primes the primary-catalog memo, which the namespace switch must invalidate.
     i18n.t("title");
@@ -88,7 +88,7 @@ describe("primary-catalog memoization", () => {
 
   it("resolves a catalog stored under an empty locale and an empty namespace", () => {
     const i18n = createI18n({ locale: "en", defaultNs: "" });
-    i18n.addTranslations({ "": { greeting: "Hello" } });
+    i18n.addMessages({ "": { greeting: "Hello" } });
 
     i18n.locale = "";
 

@@ -27,11 +27,11 @@ describe("SSR cross-request isolation — store-level", () => {
   it("two separate i18n instances have fully isolated locale state", async () => {
     const instanceA = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" }, fr: { greeting: "Bonjour" } },
+      messages: { en: { greeting: "Hello" }, fr: { greeting: "Bonjour" } },
     });
     const instanceB = createI18n({
       locale: "uk",
-      translation: { uk: { greeting: "Привіт" }, de: { greeting: "Hallo" } },
+      messages: { uk: { greeting: "Привіт" }, de: { greeting: "Hallo" } },
     });
 
     await Promise.all([instanceA.init(), instanceB.init()]);
@@ -51,11 +51,11 @@ describe("SSR cross-request isolation — store-level", () => {
   it("translation output from instance A never bleeds into instance B", async () => {
     const instanceA = createI18n({
       locale: "en",
-      translation: { en: { msg: "Request A message" } },
+      messages: { en: { msg: "Request A message" } },
     });
     const instanceB = createI18n({
       locale: "fr",
-      translation: { fr: { msg: "Message requête B" } },
+      messages: { fr: { msg: "Message requête B" } },
     });
 
     await Promise.all([instanceA.init(), instanceB.init()]);
@@ -70,11 +70,11 @@ describe("SSR cross-request isolation — store-level", () => {
   it("translation cache is isolated per instance (WeakMap keyed by instance)", async () => {
     const instanceA = createI18n({
       locale: "en",
-      translation: { en: { key: "Value A" } },
+      messages: { en: { key: "Value A" } },
     });
     const instanceB = createI18n({
       locale: "en",
-      translation: { en: { key: "Value B" } },
+      messages: { en: { key: "Value B" } },
     });
 
     await Promise.all([instanceA.init(), instanceB.init()]);
@@ -82,7 +82,7 @@ describe("SSR cross-request isolation — store-level", () => {
     expect(instanceA.t("key")).toBe("Value A");
     expect(instanceB.t("key")).toBe("Value B");
 
-    instanceA.addTranslations({ en: { extra: "Extra A" } });
+    instanceA.addMessages({ en: { extra: "Extra A" } });
 
     expect(instanceA.t("extra")).toBe("Extra A");
     // B falls back to the key: it never received "Extra A".
@@ -94,11 +94,11 @@ describe("SSR cross-request isolation — store-level", () => {
 
     const instanceA = createI18n({
       locale: "en",
-      translation: { en: { hi: "Hi A" }, es: { hi: "Hola A" } },
+      messages: { en: { hi: "Hi A" }, es: { hi: "Hola A" } },
     });
     const instanceB = createI18n({
       locale: "de",
-      translation: { de: { hi: "Hallo B" }, es: { hi: "Hola B" } },
+      messages: { de: { hi: "Hallo B" }, es: { hi: "Hola B" } },
     });
 
     await Promise.all([instanceA.init(), instanceB.init()]);
@@ -122,7 +122,7 @@ describe("svelte/server render() — SSR compilation constraint", () => {
     const { render } = await import("svelte/server");
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { hello: "Hello" } },
+      messages: { en: { hello: "Hello" } },
     });
     await i18n.init();
 
@@ -172,7 +172,7 @@ describe("hydration warning check", () => {
   it("NEGATIVE CONTROL — mismatched hydration HTML triggers a hydration warning", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { hello: "Hello" } },
+      messages: { en: { hello: "Hello" } },
     });
     await i18n.init();
 
@@ -191,7 +191,7 @@ describe("hydration warning check", () => {
   it("correct client mount produces zero hydration warnings", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { hello: "Hello" } },
+      messages: { en: { hello: "Hello" } },
     });
     await i18n.init();
 

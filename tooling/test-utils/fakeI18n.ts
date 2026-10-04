@@ -81,9 +81,9 @@ export class FakeI18n {
     await this.core.setLocale(locale);
   });
 
-  public readonly addTranslations = vi.fn(
+  public readonly addMessages = vi.fn(
     (translations: Record<string, Record<string, unknown>>): void => {
-      this.core.addTranslations(translations);
+      this.core.addMessages(translations);
     },
   );
 
@@ -91,9 +91,9 @@ export class FakeI18n {
     await this.core.addActiveNamespace(namespace);
   });
 
-  public readonly reloadTranslations = vi.fn(
+  public readonly reloadMessages = vi.fn(
     async (language?: string, namespace?: string): Promise<void> => {
-      await this.core.reloadTranslations(language, namespace);
+      await this.core.reloadMessages(language, namespace);
     },
   );
 
@@ -127,8 +127,8 @@ export class FakeI18n {
     return this.loader;
   });
 
-  public readonly clearTranslations = vi.fn((language?: string, namespace?: string): void => {
-    this.core.clearTranslations(language, namespace);
+  public readonly clearMessages = vi.fn((language?: string, namespace?: string): void => {
+    this.core.clearMessages(language, namespace);
   });
 
   public readonly setFallbackLanguage = vi.fn((fallback: string | string[]): void => {
@@ -237,8 +237,8 @@ export class FakeI18n {
     return this.core.getFallbackLocales();
   });
 
-  public readonly getTranslations = vi.fn((): Record<string, Record<string, unknown>> => {
-    return this.core.getTranslations();
+  public readonly getMessages = vi.fn((): Record<string, Record<string, unknown>> => {
+    return this.core.getMessages();
   });
 
   public readonly t = vi.fn((key: string, params?: TranslationParams): TranslationResult => {

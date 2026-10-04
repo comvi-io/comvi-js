@@ -25,7 +25,7 @@ const makeCoreHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: {
+    messages: {
       en: { greeting: "Hello, {name}!", rich: "Click <link>here</link>" },
       fr: { greeting: "Bonjour, {name} !", rich: "Cliquez <link>ici</link>" },
     },
@@ -80,13 +80,8 @@ describe("svelte on a base host", () => {
     const bag = render(makeHost());
 
     const members = bag as unknown as Record<string, unknown>;
-    const hostSafe = ["t", "tRaw", "setLocale", "addTranslations", "on", "reportError"];
-    const capabilityOnly = [
-      "addActiveNamespace",
-      "reloadTranslations",
-      "onLoadError",
-      "onMissingKey",
-    ];
+    const hostSafe = ["t", "tRaw", "setLocale", "addMessages", "on", "reportError"];
+    const capabilityOnly = ["addActiveNamespace", "reloadMessages", "onLoadError", "onMissingKey"];
 
     expect(hostSafe.filter((name) => members[name] === undefined)).toEqual([]);
     expect(capabilityOnly.filter((name) => name in members)).toEqual([]);

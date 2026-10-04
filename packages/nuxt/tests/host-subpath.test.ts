@@ -46,10 +46,10 @@ describe("@comvi/nuxt/host", () => {
       .use(host.attachLoader)
       .use(host.plugins());
 
-    i18n.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
+    i18n.addMessages({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
 
     expect(i18n.t("cart", { count: 2 })).toBe("2 items");
-    expect(typeof i18n.reloadTranslations).toBe("function");
+    expect(typeof i18n.reloadMessages).toBe("function");
     expect(typeof i18n.registerPlugin).toBe("function");
   });
 

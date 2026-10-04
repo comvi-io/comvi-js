@@ -31,7 +31,7 @@ import type { LoaderImportMap } from "../../src/core/importMapLoader";
 interface HostOptions {
   locale?: string;
   fallbackLocale?: string;
-  translation?: Record<string, Record<string, TranslationValue>>;
+  messages?: Record<string, Record<string, TranslationValue>>;
   defaultParams?: Record<string, unknown>;
   instanceId?: string;
   exposeGlobal?: boolean;
@@ -57,11 +57,11 @@ function makeComposite(options: HostOptions = {}): FullHost {
 
 /** The published recipe — base host + explicit capability imports. */
 function makeRecomposed(options: HostOptions = {}): FullHost {
-  const { importMap, instanceId, exposeGlobal, translation, ...rest } = options;
+  const { importMap, instanceId, exposeGlobal, messages, ...rest } = options;
   const host = createI18n({ locale: "en", compiler: icuCompiler, ...rest } as never)
     .use(importMap ? loader(importMap) : attachLoader)
     .use(plugins());
-  if (translation !== undefined) host.addTranslations(translation);
+  if (messages !== undefined) host.addMessages(messages);
   host.use(devtools({ instanceId, exposeGlobal }));
   return host as unknown as FullHost;
 }
@@ -123,7 +123,7 @@ describe("composite parity — translation semantics", () => {
     await parity(
       (make) => {
         const i18n = make({
-          translation: {
+          messages: {
             en: {
               items: "{count, plural, one {# item} other {# items}}",
               who: "{gender, select, male {he} female {she} other {they}}",
@@ -145,7 +145,7 @@ describe("composite parity — translation semantics", () => {
   it("plain {param} interpolation, present and missing", async () => {
     await parity(
       (make) => {
-        const i18n = make({ translation: { en: { g: "Hello, {name}!" } } });
+        const i18n = make({ messages: { en: { g: "Hello, {name}!" } } });
         return [i18n.t("g", { name: "world" }), i18n.t("g")];
       },
       { value: ["Hello, world!", "Hello, {name}!"] },
@@ -155,7 +155,7 @@ describe("composite parity — translation semantics", () => {
   it("ambient string-API tags, with and without a handler", async () => {
     await parity(
       (make) => {
-        const i18n = make({ translation: { en: { rich: "click <b>here</b> now" } } });
+        const i18n = make({ messages: { en: { rich: "click <b>here</b> now" } } });
         return [
           // No handler: the tag falls back to its inner text on both hosts.
           i18n.t("rich"),
@@ -170,7 +170,7 @@ describe("composite parity — translation semantics", () => {
     await parity(
       (make) => {
         const i18n = make({
-          translation: { en: { p: "{brand} says {msg}" } },
+          messages: { en: { p: "{brand} says {msg}" } },
           defaultParams: { brand: "Comvi" },
         });
         return [i18n.t("p", { msg: "hi" }), i18n.t("p", { brand: "Other", msg: "hi" })];
@@ -185,7 +185,7 @@ describe("composite parity — translation semantics", () => {
         const i18n = make({
           locale: "de",
           fallbackLocale: "en",
-          translation: { en: { only: "EN only" }, de: { d: "DE" } },
+          messages: { en: { only: "EN only" }, de: { d: "DE" } },
         });
         return [i18n.t("only"), i18n.t("d")];
       },
@@ -198,23 +198,23 @@ describe("composite parity — catalogs", () => {
   it("nested CONSTRUCTOR catalogs flatten (the ordering-sensitive scenario)", async () => {
     await parity(
       (make) => {
-        const i18n = make({ translation: { en: { nav: { home: "Home", deep: { x: "X" } } } } });
+        const i18n = make({ messages: { en: { nav: { home: "Home", deep: { x: "X" } } } } });
         return [
           i18n.t("nav.home"),
           i18n.t("nav.deep.x"),
-          Object.keys(i18n.getTranslations("en")).sort(),
+          Object.keys(i18n.getMessages("en")).sort(),
         ];
       },
       { value: ["Home", "X", ["nav.deep.x", "nav.home"]] },
     );
   });
 
-  it("nested addTranslations flattens", async () => {
+  it("nested addMessages flattens", async () => {
     await parity(
       (make) => {
         const i18n = make();
-        i18n.addTranslations({ en: { a: { b: "AB" } } });
-        return [i18n.t("a.b"), Object.keys(i18n.getTranslations("en")).sort()];
+        i18n.addMessages({ en: { a: { b: "AB" } } });
+        return [i18n.t("a.b"), Object.keys(i18n.getMessages("en")).sort()];
       },
       { value: ["AB", ["a.b"]] },
     );
@@ -224,8 +224,8 @@ describe("composite parity — catalogs", () => {
     await parity(
       (make) => {
         const i18n = make();
-        i18n.addTranslations({ en: flattenCatalog({ deep: { leaf: "L" } }) });
-        return [i18n.t("deep.leaf"), Object.keys(i18n.getTranslations("en"))];
+        i18n.addMessages({ en: flattenCatalog({ deep: { leaf: "L" } }) });
+        return [i18n.t("deep.leaf"), Object.keys(i18n.getMessages("en"))];
       },
       { value: ["L", ["deep.leaf"]] },
     );
@@ -235,11 +235,11 @@ describe("composite parity — catalogs", () => {
     await parity(
       (make) => {
         const seen: string[] = [];
-        const i18n = make({ translation: { en: { a: "A" } } });
+        const i18n = make({ messages: { en: { a: "A" } } });
         i18n.on("namespaceLoaded", (d) => seen.push(`${d!.locale}:${d!.namespace}`));
-        i18n.addTranslations({ en: { b: "B" } });
+        i18n.addMessages({ en: { b: "B" } });
         const before = [i18n.t("a"), i18n.t("b")];
-        i18n.clearTranslations("en");
+        i18n.clearMessages("en");
         return [before, i18n.t("a"), seen];
       },
       { value: [["A", "B"], "a", ["en:default"]] },
@@ -394,7 +394,7 @@ describe("composite parity — plugin host and discovery", () => {
   it("the public own-property SET is identical", async () => {
     await parity(
       (make) => {
-        const i18n = make({ instanceId: "reflect", translation: { en: { a: "A" } } });
+        const i18n = make({ instanceId: "reflect", messages: { en: { a: "A" } } });
         const keys = Object.keys(i18n)
           .filter((key) => !key.startsWith("_"))
           .sort();

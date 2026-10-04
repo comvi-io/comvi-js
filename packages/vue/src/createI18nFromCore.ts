@@ -12,8 +12,8 @@ import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
  *
  * The host's exact type is preserved as `VueI18n["core"]`, so a composed host
  * keeps its capabilities at the type level while a base host does not:
- * `createI18nFromCore(attachLoader(core)).core.reloadTranslations(...)`
- * compiles, `createI18nFromCore(baseCore).core.reloadTranslations(...)`
+ * `createI18nFromCore(attachLoader(core)).core.reloadMessages(...)`
+ * compiles, `createI18nFromCore(baseCore).core.reloadMessages(...)`
  * does not. {@link VueI18n.use} works on the result as well, widening from
  * whatever type came in.
  *

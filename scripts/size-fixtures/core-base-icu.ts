@@ -5,7 +5,7 @@ import { icuCompiler } from "@comvi/core/icu";
 
 const i18n = createI18n({
   locale: "en",
-  translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+  messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
   compiler: icuCompiler,
 } as never);
 

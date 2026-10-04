@@ -105,7 +105,7 @@ function toTypeImportSpecifier(path: string): string {
 /**
  * Nitro serializes runtime config and normalizes every `undefined` value to
  * `""`, so an unset option written as a key reaches the runtime as an empty
- * string. For `translation` that string fails core's catalog check and every
+ * string. For `messages` that string fails core's catalog check and every
  * SSR request answers 500, so unset options must be absent, not `undefined`.
  */
 function withoutUndefined<T extends Record<string, unknown>>(record: T): T {
@@ -307,7 +307,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       // Forwarded so BOTH construction paths — the client plugin and each
       // per-request server host — receive the same inline catalog, and so a
       // `hostModule` factory sees it in its resolved options.
-      translation: existingPublicRuntimeConfig.translation ?? options.translation,
+      messages: existingPublicRuntimeConfig.messages ?? options.messages,
       defaultNs: existingPublicRuntimeConfig.defaultNs ?? options.defaultNs ?? "default",
       ns: routing.ns,
       fallbackLocale:

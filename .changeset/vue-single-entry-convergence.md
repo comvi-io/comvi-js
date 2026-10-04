@@ -28,7 +28,7 @@ registration, so a plugin goes to `i18n.core.registerPlugin(…)`, or into the c
 
 ```ts
 // INLINE — the preset ingests the catalog.
-const inline = createI18n({ locale: "en", compiler: icuCompiler, translation });
+const inline = createI18n({ locale: "en", compiler: icuCompiler, messages });
 
 // REMOTE — the same option; the loader composes on the result.
 const remote = createI18n({ locale: "en", ssrLocale: "en", compiler: icuCompiler }).use(

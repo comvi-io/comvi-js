@@ -8,7 +8,7 @@ import { plugins } from "@comvi/core/plugins";
 import { devtools } from "@comvi/core/devtools";
 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
-i18n.addTranslations({ en: { greeting: "Hello, {name}!" } });
+i18n.addMessages({ en: { greeting: "Hello, {name}!" } });
 i18n.use(devtools());
 
 // Observable use keeps the whole instance graph live for the bundler.

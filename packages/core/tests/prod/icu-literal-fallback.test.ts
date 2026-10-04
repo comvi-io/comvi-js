@@ -24,12 +24,12 @@ import type { ErrorReportContext } from "../../src/types";
 
 const PLURAL = "{count, plural, one {# item} other {# items}}";
 
-function reportingHost(translation: Record<string, Record<string, string>>) {
+function reportingHost(messages: Record<string, Record<string, string>>) {
   const reports: Array<{ error: Error; context?: ErrorReportContext }> = [];
   const i18n = createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation,
+    messages,
     onError: (error, context) => void reports.push({ error, context }),
   });
   return { i18n, reports };
@@ -79,7 +79,7 @@ describe("an ICU argument reaching the default compiler", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { c: template } },
+      messages: { en: { c: template } },
     });
 
     expect(i18n.t("c", { n: 2 })).toBe(template);
@@ -107,7 +107,7 @@ describe("an ICU argument reaching the default compiler", () => {
       locale: "fr",
       fallbackLocale: "en",
       exposeGlobal: false,
-      translation: { en: { fb: template } },
+      messages: { en: { fb: template } },
       onError: (_error, context) => void reports.push(context),
     });
 
@@ -148,7 +148,7 @@ describe("hit accounting", () => {
       locale: "fr",
       fallbackLocale: "en",
       exposeGlobal: false,
-      translation: { en: { plain: "Hi, {name}!" } },
+      messages: { en: { plain: "Hi, {name}!" } },
       onError: (error) => void reports.push(error),
     });
 
@@ -181,7 +181,7 @@ describe("hit accounting", () => {
     const i18n: I18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { nested: template } },
+      messages: { en: { nested: template } },
       // The miss handler translates, so a whole compile-and-report cycle runs
       // INSIDE the outer lookup, before the outer call reads the pending hit.
       onMissingKey: () => i18n.t("nested", { n: 2 }),
@@ -214,13 +214,13 @@ describe("hit accounting", () => {
  * instead of quietly resolving to a missing parameter or an empty string.
  */
 describe("an argument the ICU compiler cannot compile", () => {
-  function icuHost(translation: Record<string, Record<string, string>>) {
+  function icuHost(messages: Record<string, Record<string, string>>) {
     const reports: Array<{ error: Error; context?: ErrorReportContext }> = [];
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
       compiler: icuCompiler,
-      translation,
+      messages,
       onError: (error, context) => void reports.push({ error, context }),
     });
     return { i18n, reports };

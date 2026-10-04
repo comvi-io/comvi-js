@@ -47,7 +47,7 @@ describe("the strict option", () => {
       locale: "de",
       fallbackLocale: "en",
       strict: "dev",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
 
     expect(i18n.t("greeting")).toBe("Hello");

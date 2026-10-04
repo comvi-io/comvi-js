@@ -108,7 +108,7 @@ export function useTranslations(
       return;
     }
 
-    // Use "lang:namespace" format as key, which addTranslations expects
+    // Use "lang:namespace" format as key, which addMessages expects
     const translationsToAdd: Record<string, Record<string, string>> = {};
 
     Object.entries(data.translations).forEach(([langCode, forms]) => {
@@ -146,7 +146,7 @@ export function useTranslations(
       }
     });
 
-    i18n.addTranslations(translationsToAdd);
+    i18n.addMessages(translationsToAdd);
   }
 
   async function saveTranslation(): Promise<TranslationData | null> {

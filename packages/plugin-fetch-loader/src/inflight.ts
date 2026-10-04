@@ -1,7 +1,7 @@
 /** The host surface this bookkeeping needs: the cleared-scope announcement. */
 export interface ClearedScopeHost {
   on(
-    event: "translationsCleared",
+    event: "messagesCleared",
     callback: (data: { locale?: string; namespace?: string }) => void,
   ): () => void;
 }
@@ -37,21 +37,21 @@ export interface InflightRequests {
 /**
  * The in-flight bookkeeping both request paths share: which scopes are loading,
  * whether the plugin is still alive, and the abort that follows the host's
- * `translationsCleared`.
+ * `messagesCleared`.
  *
- * `clearTranslations()` drops the matching pending loads inside core and only
+ * `clearMessages()` drops the matching pending loads inside core and only
  * then announces the clear, so by the time the listener runs their results
  * would be discarded anyway. Aborting releases the socket instead of letting an
  * answer nobody will read finish arriving — and because core is no longer
  * waiting on them, the abort surfaces no `loadError`.
  *
  * A request is only abandoned when the clear covers ALL of it. In API mode one
- * request carries every active namespace, while `clearTranslations` cancels the
+ * request carries every active namespace, while `clearMessages` cancels the
  * ONE namespace it names: aborting that shared request would fail the
  * namespaces core is still waiting for. A CDN request carries exactly one
  * namespace, so the same rule abandons it whenever its namespace is named. An
  * omitted locale or namespace means "every one", exactly as it does on
- * `clearTranslations`.
+ * `clearMessages`.
  */
 export function trackInflight(i18n: ClearedScopeHost, callbacks: LoadCallbacks): InflightRequests {
   // Read once, at install time, exactly as the plugin factories destructure the
@@ -61,7 +61,7 @@ export function trackInflight(i18n: ClearedScopeHost, callbacks: LoadCallbacks):
   const inflight = new Set<InflightRequest>();
   let stopped = false;
 
-  const unfollow = i18n.on("translationsCleared", ({ locale, namespace }) => {
+  const unfollow = i18n.on("messagesCleared", ({ locale, namespace }) => {
     for (const request of inflight) {
       if (
         (locale === undefined || request.locale === locale) &&

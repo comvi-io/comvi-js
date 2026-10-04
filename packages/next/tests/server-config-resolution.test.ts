@@ -116,13 +116,13 @@ describe("resolveServerI18n", () => {
     expect(resolveServerI18n()).toBe(i18n);
   });
 
-  it("getI18n and loadTranslations render through the aliased instance", async () => {
+  it("getI18n and loadMessages render through the aliased instance", async () => {
     const { i18n } = await host();
     const { getI18n } = await load({ i18n });
-    const { loadTranslations } = await import("../src/server/loadTranslations");
+    const { loadMessages } = await import("../src/server/loadMessages");
     const { t } = await getI18n({ locale: "uk" });
     expect(t("greeting" as never)).toBe("Привіт");
-    expect(await loadTranslations("en")).toEqual({ "en:default": { greeting: "Hello" } });
+    expect(await loadMessages("en")).toEqual({ "en:default": { greeting: "Hello" } });
   });
 });
 

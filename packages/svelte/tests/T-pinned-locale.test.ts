@@ -33,7 +33,7 @@ describe("T.svelte pinned locale does not follow the global locale", () => {
     target = document.createElement("div");
     document.body.appendChild(target);
     fake = new FakeI18n({ language: "en", defaultNamespace: "default" });
-    fake.addTranslations({
+    fake.addMessages({
       en: { probe: "Probe" },
       fr: { probe: "Sonde" },
       de: { probe: "Sonde-de" },
@@ -110,7 +110,7 @@ describe("T.svelte pinned locale does not follow the global locale", () => {
     await settle();
     const baseline = fake.tRaw.mock.calls.length;
 
-    fake.addTranslations({ de: { probe: "Neu" } });
+    fake.addMessages({ de: { probe: "Neu" } });
     await settle();
 
     expect(fake.tRaw.mock.calls.length).toBe(baseline + 1);
@@ -146,7 +146,7 @@ describe("T.svelte pinned locale — rendered output", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: {
+      messages: {
         en: { greeting: "Hello" },
         de: { greeting: "Hallo" },
         fr: { greeting: "Bonjour" },

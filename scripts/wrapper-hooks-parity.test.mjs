@@ -363,7 +363,7 @@ test("every binding's useI18n() formatters take the trailing locale override", (
 /** The four members the 0.4 `UseI18nReturn` had and the 0.5 one does not. */
 const RELOCATED_TOMBSTONES = {
   addActiveNamespace: "const { addActiveNamespace } = useI18nLoader()",
-  reloadTranslations: "const { reloadTranslations } = useI18nLoader()",
+  reloadMessages: "const { reloadMessages } = useI18nLoader()",
   onLoadError: "const { onLoadError } = useI18nLoader()",
   onMissingKey: "const { onMissingKey } = useI18nPlugins()",
 };
@@ -391,7 +391,7 @@ test("parseInterfaceMembers marks `name?: never` a tombstone and nothing else", 
         "  t: TranslateFn;",
         "  isLoading?: boolean;",
         "  never: () => void;",
-        "  reloadTranslations?: never;",
+        "  reloadMessages?: never;",
         "}",
       ].join("\n"),
       "UseI18nReturn",
@@ -405,7 +405,7 @@ test("parseInterfaceMembers marks `name?: never` a tombstone and nothing else", 
       ["t", false],
       ["isLoading", false],
       ["never", false],
-      ["reloadTranslations", true],
+      ["reloadMessages", true],
     ],
   );
 });

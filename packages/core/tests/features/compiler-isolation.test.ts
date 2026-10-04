@@ -14,7 +14,7 @@ const PLURAL_TEMPLATE = "{count, plural, one {# item} other {# items}}";
 
 function makeInstance(compiler: MessageCompiler) {
   const i18n = new I18n({ locale: "en", exposeGlobal: false }, compiler);
-  i18n.addTranslations({ en: { items: PLURAL_TEMPLATE } });
+  i18n.addMessages({ en: { items: PLURAL_TEMPLATE } });
   return i18n;
 }
 
@@ -33,7 +33,7 @@ describe("compiler isolation in the shared template cache", () => {
     const simple = new I18n({ locale: "en", exposeGlobal: false }, simpleCompiler);
 
     expect(icu.t("items" as never, { count: 2 } as never)).toBe("2 items");
-    expect(() => simple.addTranslations({ en: { items: PLURAL_TEMPLATE } })).toThrow(
+    expect(() => simple.addMessages({ en: { items: PLURAL_TEMPLATE } })).toThrow(
       expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
     );
     // The failed parse inserted nothing, and the ICU instance is untouched.

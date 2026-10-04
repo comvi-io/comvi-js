@@ -20,7 +20,7 @@ const baseHost = () =>
     locale: "en",
     exposeGlobal: false,
     defaultNs: "common",
-    translation: {
+    messages: {
       en: { greeting: "Hello, {name}!", tagged: "a <b>c</b> d" },
       fr: { greeting: "Bonjour, {name} !", tagged: "a <b>c</b> d" },
     },
@@ -62,7 +62,7 @@ describe("vue on a base host", () => {
   it("accepts runtime translations and reflects them in the cache refs", async () => {
     const i18n = createI18nFromCore(baseHost());
 
-    i18n.addTranslations({ "en:common": { late: "Late" } });
+    i18n.addMessages({ "en:common": { late: "Late" } });
     await nextTick();
 
     expect(i18n.t("late")).toBe("Late");

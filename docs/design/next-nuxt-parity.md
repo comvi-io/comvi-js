@@ -81,7 +81,7 @@ follow-up audit decides each one, and this record changes when it does.
   active set, `defaultNs` plus whatever a page activates during the render; neither framework
   forces either. The app-wide list is shared since 2026-10-04 (`ns` in both); per-layout scoping
   is a next capability nuxt has no counterpart for;
-- `loadTranslations` — public in both, but `(locale, { namespaces })` in next against
+- `loadMessages` — public in both, but `(locale, { namespaces })` in next against
   `(event, locale, options)` in nuxt; the `event` is forced, the argument order is not;
 - the cookie names, `NEXT_LOCALE` and `i18n_locale` — justified below by ecosystem habit, which is
   history, not a framework constraint; kept for migration, and listed here so it is not mistaken
@@ -191,7 +191,7 @@ divergence did not have.
 `tooling/test-utils/ssrFallbackContract.ts` is the second shared table: the nine rows of `SSR_FALLBACK_CASES`, from a
 cached primary with the fallback absent, through a namespace first needed during the render, to one
 catalog failing and two concurrent locales. Each adapter runs every row through a thin fixture of
-its own — next through `getI18n()`, `loadTranslations()` and `<I18nProvider messages>` rendered and
+its own — next through `getI18n()`, `loadMessages()` and `<I18nProvider messages>` rendered and
 hydrated; nuxt through the Nitro utils and the app plugin's SSR pass with its payload — and both
 assert that hydration fetches nothing and that `onError` fired exactly
 `SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD` times per `loadError`. Before the table existed, the same
@@ -294,7 +294,7 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
   `packages/nuxt/scripts/vendor-locale-routing.mjs`, `packages/nuxt/tests/vendor-parity.test.ts`
 - the shared tables — `tooling/test-utils/acceptLanguageTable.ts`, `tooling/test-utils/ssrFallbackContract.ts`,
   the latter run by `tests/ssr-fallback-contract.test.*` in `packages/next` and `packages/nuxt`
-- the chain loads — `loadChain` in `packages/next/src/server/loadTranslations.ts` (called from
+- the chain loads — `loadChain` in `packages/next/src/server/loadMessages.ts` (called from
   `getI18n.ts`); `loadCatalogs` in `packages/nuxt/src/runtime/utils/load-catalogs.ts` (called from
   `runtime/plugin.ts`, which also wraps `addActiveNamespaces` once per instance, and the Nitro utils)
 - locale resolution — `createMiddleware` in `packages/next/src/middleware/createMiddleware.ts`;

@@ -16,7 +16,7 @@ so a still-running render is never handed a destroyed host — which matters for
 writes its render into the cache. A bare h3 app with no Nitro plugin falls back to the response's
 `close` event, deferring on an abort until the response ends or one macrotask passes.
 
-Two smaller consequences. `useTranslation()` / `loadTranslations()` on a request whose hosts were
+Two smaller consequences. `useTranslation()` / `loadMessages()` on a request whose hosts were
 already destroyed now throws a named error instead of quietly building a host nothing will ever
 tear down. And a `destroy()` that fails is reported through the host's `onError` with the new
 `ErrorReportContext` source `"request-cleanup"` rather than thrown into a response that has already

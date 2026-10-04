@@ -10,7 +10,7 @@ import { countingCompiler } from "../helpers/compilers";
 /**
  * `compiler` is the ONE way to choose a message compiler, and it is a
  * constructor option — so it applies to every catalog this host ingests,
- * whatever the source: a constructor `translation`, an `addTranslations` call
+ * whatever the source: a constructor `messages`, an `addMessages` call
  * or a loader merge. There is no installer and no ordering rule.
  *
  * The cases below also pin the cache contract the option buys: compiled
@@ -29,16 +29,16 @@ describe("compiler option — every catalog source", () => {
     const i18n = createI18n({
       locale: "en",
       compiler: icuCompiler,
-      translation: { en: { items: PLURAL } },
+      messages: { en: { items: PLURAL } },
     });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
     expect(i18n.t("items" as never, { count: 5 } as never)).toBe("5 items");
   });
 
-  it("compiles ICU from an addTranslations catalog", () => {
+  it("compiles ICU from an addMessages catalog", () => {
     const i18n = createI18n({ locale: "en", compiler: icuCompiler });
-    i18n.addTranslations({ en: { items: PLURAL } });
+    i18n.addMessages({ en: { items: PLURAL } });
 
     expect(i18n.t("items" as never, { count: 2 } as never)).toBe("2 items");
   });
@@ -57,18 +57,18 @@ describe("compiler option — every catalog source", () => {
     await i18n.init();
 
     // Nothing locks: a second, later catalog compiles under the same compiler.
-    i18n.addTranslations({ en: { items: PLURAL } });
+    i18n.addMessages({ en: { items: PLURAL } });
     expect(i18n.t("items" as never, { count: 3 } as never)).toBe("3 items");
   });
 
-  it("survives a reloadTranslations() round-trip after a locale switch", async () => {
+  it("survives a reloadMessages() round-trip after a locale switch", async () => {
     const i18n = attachLoader(createI18n({ locale: "en", compiler: icuCompiler }));
     i18n.registerLoader(async (locale) => ({
       items: locale === "uk" ? "{count, plural, one {# річ} few {# речі} other {# речей}}" : PLURAL,
     }));
     await i18n.init();
     await i18n.setLocale("uk");
-    await i18n.reloadTranslations();
+    await i18n.reloadMessages();
     expect(i18n.t("items", { count: 3 })).toBe("3 речі");
     await i18n.setLocale("en");
     expect(i18n.t("items", { count: 1 })).toBe("1 item");
@@ -78,7 +78,7 @@ describe("compiler option — every catalog source", () => {
     const i18n = createI18n({
       locale: "en",
       compiler: countingCompiler().compiler,
-      translation: { en: { items: PLURAL } },
+      messages: { en: { items: PLURAL } },
     });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("«count»");
@@ -87,7 +87,7 @@ describe("compiler option — every catalog source", () => {
   it("defaults to the simple compiler, which stays loud about ICU syntax", () => {
     const i18n = createI18n({ locale: "en" });
 
-    expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrow(
+    expect(() => i18n.addMessages({ en: { items: PLURAL } })).toThrow(
       expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
     );
   });
@@ -100,10 +100,10 @@ describe("compiler option — the cache contract", () => {
     const customHost = createI18n({
       locale: "en",
       compiler: custom.compiler,
-      translation: { en: { plain: "a {x} b" } },
+      messages: { en: { plain: "a {x} b" } },
     });
     const icuHost = createI18n({ locale: "en", compiler: icuCompiler });
-    icuHost.addTranslations({ en: { plain: "a {x} b" } });
+    icuHost.addMessages({ en: { plain: "a {x} b" } });
 
     // The ICU host compiles the shared string FIRST. One entry keyed on the
     // string alone would then be handed to the custom host, which would render
@@ -120,7 +120,7 @@ describe("compiler option — the cache contract", () => {
     // A per-call `fallback` really does compile, so this proves a cache entry
     // EXISTS before the second host appears.
     const hostA = createI18n({ locale: "en", compiler: a.compiler });
-    hostA.addTranslations({ en: {} });
+    hostA.addMessages({ en: {} });
     expect(hostA.t("absent" as never, { fallback: "pre {x}" } as never)).toBe("pre «x»");
     const parsesAfterFirstRender = a.parses();
     expect(parsesAfterFirstRender).toBe(1);
@@ -129,7 +129,7 @@ describe("compiler option — the cache contract", () => {
     // an eviction or a rekey anywhere on that path would force host A to
     // re-parse.
     const hostB = createI18n({ locale: "en", compiler: icuCompiler });
-    hostB.addTranslations({ en: { items: PLURAL } });
+    hostB.addMessages({ en: { items: PLURAL } });
     expect(hostB.t("items" as never, { count: 3 } as never)).toBe("3 items");
 
     expect(hostA.t("absent" as never, { fallback: "pre {x}" } as never)).toBe("pre «x»");
@@ -142,8 +142,8 @@ describe("compiler option — the cache contract", () => {
 
     const hostA = createI18n({ locale: "en", compiler: a.compiler });
     const hostB = createI18n({ locale: "en", compiler: b.compiler });
-    hostA.addTranslations({ en: { items: PLURAL } });
-    hostB.addTranslations({ en: { items: PLURAL } });
+    hostA.addMessages({ en: { items: PLURAL } });
+    hostB.addMessages({ en: { items: PLURAL } });
 
     expect(hostA.t("items" as never, { count: 1 } as never)).toBe("«count»");
     expect(hostB.t("items" as never, { count: 1 } as never)).toBe("«count»");
@@ -151,15 +151,15 @@ describe("compiler option — the cache contract", () => {
     expect([a.parses(), b.parses()]).toEqual([1, 1]);
   });
 
-  it("clearTranslations leaves the compiler in place", () => {
+  it("clearMessages leaves the compiler in place", () => {
     const i18n = createI18n({
       locale: "en",
       compiler: icuCompiler,
-      translation: { en: { items: PLURAL } },
+      messages: { en: { items: PLURAL } },
     });
-    i18n.clearTranslations();
+    i18n.clearMessages();
 
-    i18n.addTranslations({ en: { items: PLURAL } });
+    i18n.addMessages({ en: { items: PLURAL } });
     expect(i18n.t("items" as never, { count: 7 } as never)).toBe("7 items");
   });
 });

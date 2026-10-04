@@ -10,7 +10,7 @@ import { I18N_INJECTION_KEY } from "../src/keys";
 
 describe("<T /> component", () => {
   it("renders simple translation", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { hello: "Hello" } } });
     const wrapper = mount(T, {
       props: { i18nKey: "hello" },
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
@@ -27,7 +27,7 @@ describe("<T /> component", () => {
   });
 
   it("renders with params", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { w: "Welcome {n}" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { w: "Welcome {n}" } } });
     const wrapper = mount(T, {
       props: { i18nKey: "w", params: { n: "John" } },
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
@@ -38,7 +38,7 @@ describe("<T /> component", () => {
   it("uses namespace override when provided", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { "en:dashboard": { title: "Dashboard" } },
+      messages: { "en:dashboard": { title: "Dashboard" } },
     });
     const wrapper = mount(T, {
       props: { i18nKey: "title", ns: "dashboard" },
@@ -50,7 +50,7 @@ describe("<T /> component", () => {
   it("renders fragment nodes from tag handlers", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { fragment: "Hello <wrap>world</wrap>" } },
+      messages: { en: { fragment: "Hello <wrap>world</wrap>" } },
     });
 
     const wrapper = mount(T, {
@@ -73,7 +73,7 @@ describe("<T /> component", () => {
   it("renders multi-root slot content", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { multiRoot: "Click <link>here</link>" } },
+      messages: { en: { multiRoot: "Click <link>here</link>" } },
     });
 
     const wrapper = mount(T, {
@@ -97,7 +97,7 @@ describe("<T /> component", () => {
   it("handles empty slot content", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { emptySlot: "Start <link></link> end" } },
+      messages: { en: { emptySlot: "Start <link></link> end" } },
     });
 
     const wrapper = mount(T, {
@@ -115,7 +115,7 @@ describe("<T /> component", () => {
     it("uses fallback with interpolation when translation is missing", () => {
       const i18n = createI18n({
         locale: "en",
-        translation: { en: { hello: "Hello" } },
+        messages: { en: { hello: "Hello" } },
       });
       const wrapper = mount(T, {
         props: {
@@ -131,7 +131,7 @@ describe("<T /> component", () => {
     it("ignores fallback when translation exists", () => {
       const i18n = createI18n({
         locale: "en",
-        translation: { en: { hello: "Hello" } },
+        messages: { en: { hello: "Hello" } },
       });
       const wrapper = mount(T, {
         props: { i18nKey: "hello", fallback: "Fallback text" },
@@ -143,8 +143,8 @@ describe("<T /> component", () => {
 
   // `registerPostProcessor` is a `@comvi/core/plugins` member, so every case
   // here wraps a host that composed the plugin capability.
-  const createPostProcessorI18n = (translation: Record<string, Record<string, string>>) =>
-    createI18nFromCore(createCore({ locale: "en", translation }).use(attachPlugins));
+  const createPostProcessorI18n = (messages: Record<string, Record<string, string>>) =>
+    createI18nFromCore(createCore({ locale: "en", messages }).use(attachPlugins));
 
   const upperCaseUnlessRaw = (
     result: TranslationResult,

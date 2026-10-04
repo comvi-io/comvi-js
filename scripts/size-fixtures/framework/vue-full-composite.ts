@@ -6,7 +6,7 @@ import { attachLoader, createI18n, devtools, icuCompiler, plugins, T, useI18n } 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler, ssrLocale: "en" })
   .use(attachLoader)
   .use(plugins());
-i18n.addTranslations({ en: { greeting: "Hello, <b>{name}</b>!" } });
+i18n.addMessages({ en: { greeting: "Hello, <b>{name}</b>!" } });
 i18n.use(devtools());
 
 // Observable use keeps the whole instance graph live for the bundler.

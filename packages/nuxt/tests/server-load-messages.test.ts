@@ -85,7 +85,7 @@ function createI18nStub(
     // No fallback chain: the chain is pinned with real hosts in
     // `ssr-fallback-contract.test.ts`.
     getFallbackLocales: vi.fn((): string[] => []),
-    getTranslations: vi.fn((locale: string, namespace = defaultNs) => {
+    getMessages: vi.fn((locale: string, namespace = defaultNs) => {
       const key = `${locale}:${namespace}`;
       return translations.get(key) ?? Object.create(null);
     }),
@@ -107,7 +107,7 @@ function createI18nStub(
     removeActiveNamespace: vi.fn(),
     removeActiveNamespaces: vi.fn(),
     onLoadError: vi.fn(() => () => {}),
-    reloadTranslations: vi.fn(async (locale: string, namespace: string) => {
+    reloadMessages: vi.fn(async (locale: string, namespace: string) => {
       const key = `${locale}:${namespace}`;
       if (reloadErrors.includes(key)) {
         throw new Error(`load failed for ${key}`);
@@ -124,12 +124,12 @@ function createI18nStub(
   return i18n;
 }
 
-async function importLoadTranslations() {
+async function importLoadMessages() {
   vi.resetModules();
-  return (await import("../src/runtime/server/utils/loadTranslations")).loadTranslations;
+  return (await import("../src/runtime/server/utils/loadMessages")).loadMessages;
 }
 
-describe("loadTranslations", () => {
+describe("loadMessages", () => {
   beforeEach(() => {
     createComviCore.mockReset();
     runComviSetup.mockReset();
@@ -145,8 +145,8 @@ describe("loadTranslations", () => {
     });
     createComviCore.mockReturnValue(i18n);
 
-    const loadTranslations = await importLoadTranslations();
-    const result = await loadTranslations(createEvent(), "en", {
+    const loadMessages = await importLoadMessages();
+    const result = await loadMessages(createEvent(), "en", {
       namespaces: ["common", "dashboard"],
     });
 
@@ -156,7 +156,7 @@ describe("loadTranslations", () => {
     });
     expect(runComviSetup).toHaveBeenCalledTimes(1);
     expect(i18n.init).toHaveBeenCalledTimes(1);
-    expect(i18n.reloadTranslations).toHaveBeenCalledTimes(2);
+    expect(i18n.reloadMessages).toHaveBeenCalledTimes(2);
   });
 
   it("returns cached namespaces without reloading", async () => {
@@ -167,13 +167,13 @@ describe("loadTranslations", () => {
     });
     createComviCore.mockReturnValue(i18n);
 
-    const loadTranslations = await importLoadTranslations();
-    const result = await loadTranslations(createEvent(), "en");
+    const loadMessages = await importLoadMessages();
+    const result = await loadMessages(createEvent(), "en");
 
     expect(result).toEqual({
       "en:default": { welcome: "Welcome" },
     });
-    expect(i18n.reloadTranslations).not.toHaveBeenCalled();
+    expect(i18n.reloadMessages).not.toHaveBeenCalled();
   });
 
   it("continues when one namespace fails to load", async () => {
@@ -186,8 +186,8 @@ describe("loadTranslations", () => {
     createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const loadTranslations = await importLoadTranslations();
-    const result = await loadTranslations(createEvent(), "en", {
+    const loadMessages = await importLoadMessages();
+    const result = await loadMessages(createEvent(), "en", {
       namespaces: ["common", "admin"],
     });
 
@@ -205,8 +205,8 @@ describe("loadTranslations", () => {
     createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const loadTranslations = await importLoadTranslations();
-    const result = await loadTranslations(createEvent(), "en");
+    const loadMessages = await importLoadMessages();
+    const result = await loadMessages(createEvent(), "en");
 
     expect(result).toEqual({});
     expect(warnSpy).toHaveBeenCalledWith(NO_LOADER_REGISTERED_MESSAGE);
@@ -217,11 +217,11 @@ describe("loadTranslations", () => {
     createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const loadTranslations = await importLoadTranslations();
+    const loadMessages = await importLoadMessages();
     const event = createEvent();
 
-    await loadTranslations(event, "en");
-    await loadTranslations(event, "en");
+    await loadMessages(event, "en");
+    await loadMessages(event, "en");
 
     const noLoaderWarnings = warnSpy.mock.calls.filter(
       ([message]) => String(message) === NO_LOADER_REGISTERED_MESSAGE,
@@ -237,8 +237,8 @@ describe("loadTranslations", () => {
     createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const loadTranslations = await importLoadTranslations();
-    const result = await loadTranslations(createEvent(), "en");
+    const loadMessages = await importLoadMessages();
+    const result = await loadMessages(createEvent(), "en");
 
     expect(result).toEqual({});
     const [message] = warnSpy.mock.lastCall ?? [];
@@ -251,7 +251,7 @@ describe("loadTranslations", () => {
 
   it("serves cached translations on a capability-less host without warning", async () => {
     // A base host is a legitimate configuration: `comvi.setup` can put a
-    // catalog in with addTranslations and SSR renders it. Nothing is missing,
+    // catalog in with addMessages and SSR renders it. Nothing is missing,
     // so nothing is said — and no absent member is ever called.
     const i18n = createI18nStub({
       loaderCapability: false,
@@ -260,8 +260,8 @@ describe("loadTranslations", () => {
     createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const loadTranslations = await importLoadTranslations();
-    const result = await loadTranslations(createEvent(), "en");
+    const loadMessages = await importLoadMessages();
+    const result = await loadMessages(createEvent(), "en");
 
     expect(result).toEqual({ "en:default": { welcome: "Welcome" } });
     expect(warnSpy).not.toHaveBeenCalled();
@@ -282,11 +282,11 @@ describe("loadTranslations", () => {
     });
     createComviCore.mockReturnValue(i18n);
 
-    const loadTranslations = await importLoadTranslations();
+    const loadMessages = await importLoadMessages();
     const event = createEvent();
 
-    const pendingA = loadTranslations(event, "en");
-    const pendingB = loadTranslations(event, "en");
+    const pendingA = loadMessages(event, "en");
+    const pendingB = loadMessages(event, "en");
     // While init is still gated, both calls are in flight: the second joined the
     // first rather than constructing a host of its own.
     await Promise.resolve();

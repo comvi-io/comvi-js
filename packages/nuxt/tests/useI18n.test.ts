@@ -36,11 +36,11 @@ function createI18nStub() {
     translationCache: computed(() => new Map()),
     isLoading: ref(false),
     isInitializing: ref(false),
-    addTranslations: vi.fn(),
+    addMessages: vi.fn(),
     setFallbackLocale: vi.fn(),
     defaultParams: computed(() => ({ formality: "formal" })),
     setDefaultParams: vi.fn(),
-    clearTranslations: vi.fn(),
+    clearMessages: vi.fn(),
     hasLocale: vi.fn(() => computed(() => true)),
     hasTranslation: vi.fn(() => computed(() => true)),
     loadedLocales: computed(() => ["en"]),
@@ -170,8 +170,8 @@ describe("useI18n composable", () => {
     api.setDefaultParams({ formality: "informal" });
     expect(i18n.setDefaultParams).toHaveBeenCalledWith({ formality: "informal" });
 
-    api.addTranslations({ "en:common": { greeting: "Hello" } });
-    expect(i18n.addTranslations).toHaveBeenCalledWith({ "en:common": { greeting: "Hello" } });
+    api.addMessages({ "en:common": { greeting: "Hello" } });
+    expect(i18n.addMessages).toHaveBeenCalledWith({ "en:common": { greeting: "Hello" } });
 
     expect(api.hasLocale("en", "common").value).toBe(true);
     expect(i18n.hasLocale).toHaveBeenCalledWith("en", "common");

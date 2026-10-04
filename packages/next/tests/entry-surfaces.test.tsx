@@ -39,14 +39,14 @@ describe("@comvi/next/client — createI18n", () => {
 
   it("builds a BARE client host that reads a hydrated catalog", () => {
     const i18n = client.createI18n({ locale: "en", exposeGlobal: false });
-    i18n.addTranslations({ "en:default": { greeting: "Hello, {name}!" } });
+    i18n.addMessages({ "en:default": { greeting: "Hello, {name}!" } });
 
     expect(i18n.t("greeting" as never, { name: "world" } as never)).toBe("Hello, world!");
     // The bare host omits these from its TYPE as well, so reading them at all
     // needs a widened view — the claim under test is that the runtime shape
     // agrees with the type.
-    const bare = i18n as { reloadTranslations?: unknown; onMissingKey?: unknown };
-    expect(bare.reloadTranslations).toBeUndefined();
+    const bare = i18n as { reloadMessages?: unknown; onMissingKey?: unknown };
+    expect(bare.reloadMessages).toBeUndefined();
     expect(bare.onMissingKey).toBeUndefined();
     expect("instanceId" in i18n).toBe(false);
   });
@@ -56,7 +56,7 @@ describe("@comvi/next/client — createI18n", () => {
       locale: "en",
       exposeGlobal: false,
       compiler: client.icuCompiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+      messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
@@ -71,7 +71,7 @@ describe("@comvi/next/client — createI18n", () => {
       exposeGlobal: false,
       compiler: client.icuCompiler,
     });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:default": { items: "{count, plural, one {# item} other {# items}}" },
     });
 
@@ -104,7 +104,7 @@ describe("@comvi/next/client — the capability toolkit", () => {
 
     const { result } = renderHook(() => client.useI18nLoader(), { wrapper: wrapperFor(i18n) });
 
-    expect(typeof result.current.reloadTranslations).toBe("function");
+    expect(typeof result.current.reloadMessages).toBe("function");
     // Loader ATTACH is not loader CONFIG: the host has the API, and the app
     // registers its loader through it afterwards.
     expect(i18n.getLoader()).toBeUndefined();
@@ -229,13 +229,13 @@ describe("@comvi/next/server — the same surface for the SSR half", () => {
             locale: "en",
             defaultNs: "common",
             exposeGlobal: false,
-            translation: { "en:common": { greeting: "Hello, {name}!" } },
+            messages: { "en:common": { greeting: "Hello, {name}!" } },
           }),
         ),
       { locales: ["en", "de"], defaultLocale: "en" },
     );
 
-    expect(typeof i18n.reloadTranslations).toBe("function");
+    expect(typeof i18n.reloadMessages).toBe("function");
     expect(i18n.t("greeting" as never, { name: "world" } as never)).toBe("Hello, world!");
   });
 });

@@ -11,7 +11,7 @@ const realInstance = async () => {
   const i18n = createI18n({
     locale: "en",
     defaultNs: "common",
-    translation: { en: { hello: "Hello" }, fr: { hello: "Bonjour" } },
+    messages: { en: { hello: "Hello" }, fr: { hello: "Bonjour" } },
   });
   await i18n.init();
   return i18n;
@@ -34,8 +34,8 @@ describe("subscribeToRevision", () => {
       "initialized",
       "loadingStateChanged",
       "localeChanged",
+      "messagesCleared",
       "namespaceLoaded",
-      "translationsCleared",
     ]);
   });
 

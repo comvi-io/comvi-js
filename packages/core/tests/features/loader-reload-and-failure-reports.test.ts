@@ -1,7 +1,7 @@
 /**
  * What a namespace-load failure REPORTS, and what a reload leaves behind.
  *
- * `reloadTranslations` documents that a total failure may leave the cache
+ * `reloadMessages` documents that a total failure may leave the cache
  * empty — it clears the scope BEFORE refetching, so a failed refetch is
  * observable as missing translations rather than as silently stale ones. The
  * error reports are the other half: `onError` receives one message per failure
@@ -16,7 +16,7 @@ function makeHost(onError?: (error: Error, context?: unknown) => void) {
   return attachLoader(createI18n({ locale: "en", ns: [], onError }));
 }
 
-describe("reloadTranslations()", () => {
+describe("reloadMessages()", () => {
   it("leaves the reloaded scope empty when the refetch fails", async () => {
     let attempt = 0;
     const i18n = makeHost();
@@ -27,7 +27,7 @@ describe("reloadTranslations()", () => {
     });
     await i18n.addActiveNamespace("x");
 
-    await expect(i18n.reloadTranslations()).rejects.toThrow(/Failed to reload translations/);
+    await expect(i18n.reloadMessages()).rejects.toThrow(/Failed to reload translations/);
 
     expect(i18n.t("key", { ns: "x" })).toBe("key");
   });
@@ -38,9 +38,9 @@ describe("reloadTranslations()", () => {
     i18n.registerLoader(async () => {
       throw new Error("network down");
     });
-    i18n.addTranslations({ "en:x": { key: "cached" } });
+    i18n.addMessages({ "en:x": { key: "cached" } });
 
-    await expect(i18n.reloadTranslations()).rejects.toThrow(/Failed to reload translations/);
+    await expect(i18n.reloadMessages()).rejects.toThrow(/Failed to reload translations/);
 
     expect(onError).toHaveBeenLastCalledWith(
       expect.objectContaining({ message: "[i18n] Failed to reload translations" }),

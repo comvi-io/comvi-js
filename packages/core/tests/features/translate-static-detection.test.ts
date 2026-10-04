@@ -33,7 +33,7 @@ describe("isStaticTemplate()", () => {
   });
 
   it("marks a text-only template that renders byte-equal to its source as static", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { amp: "Tom & Jerry" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { amp: "Tom & Jerry" } } });
     const [compilerId, extBits] = baseVariant();
     i18n.t("amp" as never);
 
@@ -43,7 +43,7 @@ describe("isStaticTemplate()", () => {
   });
 
   it("does not mark a quote-collapsing template as static, so a repeat render stays rendered", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { quoted: "Tom''s" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { quoted: "Tom''s" } } });
     const [compilerId, extBits] = baseVariant();
 
     expect(i18n.t("quoted" as never)).toBe("Tom's");
@@ -53,7 +53,7 @@ describe("isStaticTemplate()", () => {
   });
 
   it("does not mark a parametrized template as static", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { greet: "Hi {name}" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { greet: "Hi {name}" } } });
     const [compilerId, extBits] = baseVariant();
     i18n.t("greet" as never, { name: "Ann" } as never);
 
@@ -75,7 +75,7 @@ describe("a template consumed whole by a syntax extension", () => {
 
   it("renders through the extension when the token's payload equals the template", () => {
     registerSyntaxExtension(sourceEchoingExtension);
-    const i18n = createI18n({ locale: "en", translation: { en: { mark: MARK } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { mark: MARK } } });
     const [compilerId, extBits] = baseVariant();
 
     const rendered = i18n.t("mark" as never);
@@ -95,7 +95,7 @@ describe("a template made only of markup characters", () => {
   ])(
     "a per-call fallback equal to an already-rendered %s template still renders",
     (key, template) => {
-      const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
+      const i18n = createI18n({ locale: "en", messages: { en: { [key]: template } } });
       i18n.t(key as never);
 
       const fallback = i18n.t("absent" as never, { fallback: template } as never);
@@ -110,7 +110,7 @@ describe("t() — a lone opening brace", () => {
     // The spy goes in AFTER the catalog: development preflights ingestion, so
     // a spy installed before the host would also catch that parse and the
     // render-time one it is here for would not have to happen at all.
-    const i18n = createFullI18n({ locale: "en", translation: { en: { brace: "{" } } });
+    const i18n = createFullI18n({ locale: "en", messages: { en: { brace: "{" } } });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     expect(i18n.t("brace")).toBe("{");

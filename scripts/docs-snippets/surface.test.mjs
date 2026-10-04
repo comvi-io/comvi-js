@@ -364,7 +364,7 @@ test("a non-comvi specifier is never resolved, however wrong it looks", (t) => {
     fence(
       'import React, { useMemo } from "react";',
       'import clsx from "clsx";',
-      'import { loadTranslations } from "@/i18n/server";',
+      'import { loadMessages } from "@/i18n/server";',
       'import { flattenCatalog } from "@comvi/core/loader";',
     ),
     surface,

@@ -7,7 +7,7 @@ import {
   createI18n,
   createNextI18nFromHost,
   getI18n,
-  loadTranslations,
+  loadMessages,
   setRequestLocale,
 } from "@comvi/next/server";
 
@@ -15,7 +15,7 @@ const { i18n, routing } = createNextI18nFromHost(
   () =>
     createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello, {name}!" } },
+      messages: { en: { greeting: "Hello, {name}!" } },
     }).use(attachLoader),
   { locales: ["en", "de"], defaultLocale: "en" },
 );
@@ -24,6 +24,6 @@ console.log(
   i18n.t("greeting" as never, { name: "world" } as never),
   routing.defaultLocale,
   getI18n,
-  loadTranslations,
+  loadMessages,
   setRequestLocale,
 );

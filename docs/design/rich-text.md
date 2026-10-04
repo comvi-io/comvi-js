@@ -43,7 +43,7 @@ import { createI18n } from "@comvi/core";
 
 const i18n = createI18n({
   locale: "en",
-  translation: { en: { hi: "Hi, <b>{who}</b>!", legal: "a &lt;b&gt; &amp; c" } },
+  messages: { en: { hi: "Hi, <b>{who}</b>!", legal: "a &lt;b&gt; &amp; c" } },
 });
 
 i18n.t("hi", { who: "Alice" }); // "Hi, <b>Alice</b>!"  — with a tag extension: "Hi, Alice!"

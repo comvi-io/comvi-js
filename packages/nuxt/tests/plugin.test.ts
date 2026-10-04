@@ -176,12 +176,12 @@ describe("runtime plugin", () => {
     );
   });
 
-  it("renders a key from comvi.translation on a real client instance", async () => {
+  it("renders a key from comvi.messages on a real client instance", async () => {
     // The two-line module-options floor: no hostModule means the generated host
     // is core's BASE host and has no loader, so the instance this plugin hands
     // the app must already hold the catalog nuxt.config declared — otherwise
     // the app can never show a translation at all.
-    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).translation = {
+    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).messages = {
       en: { greeting: "Hello" },
     };
     createComviI18n.mockImplementation((options: Record<string, unknown>) =>
@@ -194,16 +194,16 @@ describe("runtime plugin", () => {
     };
 
     expect(createComviI18n).toHaveBeenCalledWith(
-      expect.objectContaining({ translation: { en: { greeting: "Hello" } } }),
+      expect.objectContaining({ messages: { en: { greeting: "Hello" } } }),
     );
     expect(result.provide.i18n.t("greeting")).toBe("Hello");
   });
 
   it("treats an empty-string translation from runtime config as no catalog", async () => {
     // Runtime config turns an unset option into `""` (and a
-    // `NUXT_PUBLIC_COMVI_TRANSLATION=` override does too). Forwarded as-is,
-    // core rejects it with E_TRANSLATION_NOT_OBJECT and every SSR page is a 500.
-    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).translation = "";
+    // `NUXT_PUBLIC_COMVI_MESSAGES=` override does too). Forwarded as-is,
+    // core rejects it with E_MESSAGES_NOT_OBJECT and every SSR page is a 500.
+    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).messages = "";
     createComviI18n.mockImplementation((options: Record<string, unknown>) =>
       createVueI18n({ ...options, exposeGlobal: false } as never),
     );
@@ -211,19 +211,17 @@ describe("runtime plugin", () => {
     const plugin = await importPlugin();
     await expect(plugin.setup(createNuxtAppStub())).resolves.toBeDefined();
 
-    expect(createComviI18n).toHaveBeenCalledWith(
-      expect.objectContaining({ translation: undefined }),
-    );
+    expect(createComviI18n).toHaveBeenCalledWith(expect.objectContaining({ messages: undefined }));
   });
 
   it("passes an empty translation object through unchanged", async () => {
-    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).translation = {};
+    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).messages = {};
     createComviI18n.mockReturnValue(createI18nStub("en"));
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
 
-    expect(createComviI18n).toHaveBeenCalledWith(expect.objectContaining({ translation: {} }));
+    expect(createComviI18n).toHaveBeenCalledWith(expect.objectContaining({ messages: {} }));
   });
 
   it("hands the comvi.setup hook the core host as `core`", async () => {
@@ -260,7 +258,7 @@ describe("runtime plugin", () => {
   });
 
   it("still runs setup hook when no inline catalog is configured", async () => {
-    nuxtAppMocks.mockRuntimeConfig.public.comvi.translation = undefined;
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.messages = undefined;
     const i18n = createI18nStub("en");
     createComviI18n.mockReturnValue(i18n);
 
@@ -348,7 +346,7 @@ describe("runtime plugin", () => {
 
   it("hydrates translations from SSR payload before init on client", async () => {
     const i18n = createI18nStub("en");
-    i18n.addTranslations = vi.fn();
+    i18n.addMessages = vi.fn();
     createComviI18n.mockReturnValue(i18n);
 
     const ssrTranslations = {
@@ -360,26 +358,26 @@ describe("runtime plugin", () => {
     await plugin.setup(
       createNuxtAppStub({
         payload: {
-          __comvi_translations__: ssrTranslations,
+          __comvi_messages__: ssrTranslations,
         },
       }),
     );
 
-    expect(i18n.addTranslations).toHaveBeenCalledWith(ssrTranslations);
-    expect(i18n.addTranslations.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(i18n.addMessages).toHaveBeenCalledWith(ssrTranslations);
+    expect(i18n.addMessages.mock.invocationCallOrder[0]).toBeLessThan(
       i18n.init.mock.invocationCallOrder[0],
     );
   });
 
   it("skips hydration when payload has no translations", async () => {
     const i18n = createI18nStub("en");
-    i18n.addTranslations = vi.fn();
+    i18n.addMessages = vi.fn();
     createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
 
-    expect(i18n.addTranslations).not.toHaveBeenCalled();
+    expect(i18n.addMessages).not.toHaveBeenCalled();
   });
 
   it("does not use cookie composable when browser language detection is disabled", async () => {
@@ -574,7 +572,7 @@ describe("runtime plugin", () => {
 
   it("rich translation content with VirtualNode shape survives JSON round-trip hydration", async () => {
     const i18n = createI18nStub("en");
-    i18n.addTranslations = vi.fn();
+    i18n.addMessages = vi.fn();
     createComviI18n.mockReturnValue(i18n);
 
     // Tag interpolation puts { tag, props, children } objects in the cache.
@@ -597,20 +595,20 @@ describe("runtime plugin", () => {
     await plugin.setup(
       createNuxtAppStub({
         payload: {
-          __comvi_translations__: serialized,
+          __comvi_messages__: serialized,
         },
       }),
     );
 
     // A literal, not `serialized` itself: comparing the payload to the object the
     // test handed in would pin nothing about surviving the round trip.
-    expect(i18n.addTranslations).toHaveBeenCalledWith({
+    expect(i18n.addMessages).toHaveBeenCalledWith({
       "en:default": {
         greeting: "Hello",
         highlighted: { tag: "strong", props: {}, children: ["important text"] },
       },
     });
-    expect(i18n.addTranslations.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(i18n.addMessages.mock.invocationCallOrder[0]).toBeLessThan(
       i18n.init.mock.invocationCallOrder[0],
     );
   });
@@ -695,7 +693,7 @@ describe("runtime plugin", () => {
       appRenderedHook(nuxtApp)();
 
       expect(nuxtApp.payload).toEqual({
-        __comvi_translations__: {
+        __comvi_messages__: {
           "en:default": { greeting: "Hello" },
           "en:common": { save: "Save" },
         },
@@ -714,7 +712,7 @@ describe("runtime plugin", () => {
       await plugin.setup(nuxtApp);
       appRenderedHook(nuxtApp)();
 
-      const payload = nuxtApp.payload.__comvi_translations__ as Record<string, unknown>;
+      const payload = nuxtApp.payload.__comvi_messages__ as Record<string, unknown>;
       expect(Object.getPrototypeOf(payload["en:default"])).toBe(Object.prototype);
     });
 
@@ -771,15 +769,15 @@ describe("runtime plugin", () => {
 
     it("does not hydrate from the payload it is about to write", async () => {
       const i18n = createI18nStub("en");
-      i18n.addTranslations = vi.fn();
+      i18n.addMessages = vi.fn();
       createComviI18n.mockReturnValue(i18n);
 
       const plugin = await importPlugin();
       await plugin.setup(
-        createServerNuxtAppStub({ __comvi_translations__: { "en:default": { a: "b" } } }),
+        createServerNuxtAppStub({ __comvi_messages__: { "en:default": { a: "b" } } }),
       );
 
-      expect(i18n.addTranslations).not.toHaveBeenCalled();
+      expect(i18n.addMessages).not.toHaveBeenCalled();
     });
   });
 });

@@ -23,7 +23,7 @@ describe("base + /loader composition", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
     expect((i18n as unknown as Record<string, unknown>).registerLoader).toBeUndefined();
-    expect((i18n as unknown as Record<string, unknown>).reloadTranslations).toBeUndefined();
+    expect((i18n as unknown as Record<string, unknown>).reloadMessages).toBeUndefined();
   });
 
   it("installs the capability as non-enumerable own properties", () => {
@@ -32,7 +32,7 @@ describe("base + /loader composition", () => {
     // `setLocale` is the race-machinery OVERRIDE: it shadows the base
     // prototype method and must carry the same class-method descriptor as every
     // other attached member.
-    for (const name of ["registerLoader", "getLoader", "reloadTranslations", "setLocale"]) {
+    for (const name of ["registerLoader", "getLoader", "reloadMessages", "setLocale"]) {
       const descriptor = Object.getOwnPropertyDescriptor(i18n, name);
       expect(descriptor, name).toBeDefined();
       expect(
@@ -77,14 +77,14 @@ describe("base + /loader composition", () => {
     expect(i18n.t("hello")).toBe("Bonjour");
 
     store["fr:default"] = { hello: "Salut" };
-    await i18n.reloadTranslations();
+    await i18n.reloadMessages();
     expect(i18n.t("hello")).toBe("Salut");
   });
 
   it("reports a missing loader on reload", async () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
-    await expect(i18n.reloadTranslations()).rejects.toThrow(
+    await expect(i18n.reloadMessages()).rejects.toThrow(
       "[i18n] No loader registered. Cannot reload translations.",
     );
   });
@@ -108,23 +108,23 @@ describe("base + /loader composition", () => {
     i18n.registerLoader(async () => pending.promise);
 
     const load = i18n.addActiveNamespaces(["default"]);
-    i18n.clearTranslations();
+    i18n.clearMessages();
     pending.resolve({ hello: "Hello" });
     await load;
 
     // The cancelled load must not repopulate the cache.
-    expect(i18n.getTranslations()).toEqual({});
+    expect(i18n.getMessages()).toEqual({});
   });
 
-  // Nested-catalog flattening is NOT a capability (C1): `_nsAddTranslations`
+  // Nested-catalog flattening is NOT a capability (C1): `_nsAddMessages`
   // in the base calls the flattener unconditionally. Attaching the loader must
-  // therefore leave `addTranslations` semantics untouched, not restore them.
-  it("leaves nested-catalog flattening on addTranslations unchanged", () => {
+  // therefore leave `addMessages` semantics untouched, not restore them.
+  it("leaves nested-catalog flattening on addMessages unchanged", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
     const bare = createI18n({ locale: "en", exposeGlobal: false });
 
     for (const host of [i18n, bare]) {
-      host.addTranslations({ en: { nav: { home: "Home", deep: { x: "X" } }, n: 7 } as never });
+      host.addMessages({ en: { nav: { home: "Home", deep: { x: "X" } }, n: 7 } as never });
 
       expect(host.t("nav.home" as never)).toBe("Home");
       expect(host.t("nav.deep.x" as never)).toBe("X");
@@ -132,48 +132,48 @@ describe("base + /loader composition", () => {
     }
   });
 
-  it("merges a nested addTranslations onto a nested LOADER result", async () => {
+  it("merges a nested addMessages onto a nested LOADER result", async () => {
     // Both ends of the ingestion path run the same flattener now: the loader's
-    // raw nested JSON and a nested `addTranslations` land in one namespace.
+    // raw nested JSON and a nested `addMessages` land in one namespace.
     const i18n = attachLoader(
       createI18n({
         locale: "en",
         exposeGlobal: false,
-        translation: { en: { nav: { home: "Home" } } },
+        messages: { en: { nav: { home: "Home" } } },
       }),
     );
     i18n.registerLoader(async () => ({ nav: { away: "Away" }, deep: { a: { b: "AB" } } }));
 
     // A namespace load REPLACES that namespace, so the constructor catalog is
     // gone; the loaded nested JSON must be flat in the cache all the same.
-    await i18n.reloadTranslations();
+    await i18n.reloadMessages();
     expect(i18n.t("nav.away" as never)).toBe("Away");
     expect(i18n.t("deep.a.b" as never)).toBe("AB");
 
     // And a nested merge on top of a loaded namespace keeps both sides flat.
-    i18n.addTranslations({ en: { nav: { home: "Home" } } });
+    i18n.addMessages({ en: { nav: { home: "Home" } } });
     expect(i18n.t("nav.home" as never)).toBe("Home");
     expect(i18n.t("nav.away" as never)).toBe("Away");
-    expect(Object.keys(i18n.getTranslations("en")).sort()).toEqual([
+    expect(Object.keys(i18n.getMessages("en")).sort()).toEqual([
       "deep.a.b",
       "nav.away",
       "nav.home",
     ]);
   });
 
-  it("flattens options.translation on the bare base constructor too", () => {
-    // `options.translation` is merged inside the base constructor, which is
+  it("flattens options.messages on the bare base constructor too", () => {
+    // `options.messages` is merged inside the base constructor, which is
     // exactly where a capability hook could not have reached it.
     const root = new I18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { nav: { home: "Home" } } as never },
+      messages: { en: { nav: { home: "Home" } } as never },
     });
     const composed = attachLoader(
       new I18n({
         locale: "en",
         exposeGlobal: false,
-        translation: { en: { nav: { home: "Home" } } },
+        messages: { en: { nav: { home: "Home" } } },
       }),
     );
 
@@ -315,7 +315,7 @@ describe("base + /plugins composition", () => {
       attachLoader(
         createI18n({
           locale: "en",
-          translation: { en: { hello: "Hello" }, fr: { hello: "Bonjour" } },
+          messages: { en: { hello: "Hello" }, fr: { hello: "Bonjour" } },
           exposeGlobal: false,
         }),
       ),
@@ -355,7 +355,7 @@ describe("base + /plugins composition", () => {
 
   it("chains registered post-processors FIFO", () => {
     const i18n = attachPlugins(
-      createI18n({ locale: "en", translation: { en: { hello: "Hello" } }, exposeGlobal: false }),
+      createI18n({ locale: "en", messages: { en: { hello: "Hello" } }, exposeGlobal: false }),
     );
 
     i18n.registerPostProcessor((r) => `${r as string}-a`);
@@ -710,7 +710,7 @@ describe(".use(loader(…)) — the configured loader installer", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(attachLoader);
 
     expect(typeof i18n.registerLoader).toBe("function");
-    expect(typeof i18n.reloadTranslations).toBe("function");
+    expect(typeof i18n.reloadMessages).toBe("function");
     expect(i18n.getLoader()).toBeUndefined();
   });
 
@@ -812,7 +812,7 @@ describe(".use(loader(…)) — the configured loader installer", () => {
 
     await Promise.all([piped.init(), manual.init()]);
 
-    expect(piped.getTranslations()).toEqual(manual.getTranslations());
+    expect(piped.getMessages()).toEqual(manual.getMessages());
   });
 });
 

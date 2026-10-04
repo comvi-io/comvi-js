@@ -47,7 +47,7 @@ describe("dev dist: missing-key warning", () => {
       locale: "uk",
       exposeGlobal: false,
       strict: "dev",
-      translation: { uk: { hello: "Привіт" } },
+      messages: { uk: { hello: "Привіт" } },
     });
 
     expect(i18n.t(KEY)).toBe(KEY);
@@ -61,7 +61,7 @@ describe("dev dist: missing-key warning", () => {
   it("stays silent by default, which is how every example is configured", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { createI18n } = await load("comvi-core.dev.js");
-    const i18n = createI18n({ locale: "en", exposeGlobal: false, translation: { en: {} } });
+    const i18n = createI18n({ locale: "en", exposeGlobal: false, messages: { en: {} } });
 
     expect(i18n.t(KEY)).toBe(KEY);
     expect(warn).not.toHaveBeenCalled();
@@ -76,7 +76,7 @@ describe("prod dist: missing-key warning", () => {
       locale: "uk",
       exposeGlobal: false,
       strict: "dev",
-      translation: { uk: { hello: "Привіт" } },
+      messages: { uk: { hello: "Привіт" } },
     });
 
     expect(i18n.t(KEY)).toBe(KEY);

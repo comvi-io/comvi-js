@@ -39,7 +39,7 @@ describe("@comvi/svelte — the single root entry", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello, {name}!" } },
+      messages: { en: { greeting: "Hello, {name}!" } },
     });
 
     expect(i18n.t("greeting" as never, { name: "world" } as never)).toBe("Hello, world!");
@@ -52,7 +52,7 @@ describe("@comvi/svelte — the single root entry", () => {
     // claim needs a view that admits them as optional to be readable at all.
     const bare = i18n as Partial<I18nLoaderApi & I18nPluginHostApi>;
 
-    expect(bare.reloadTranslations).toBeUndefined();
+    expect(bare.reloadMessages).toBeUndefined();
     expect(bare.onMissingKey).toBeUndefined();
     expect("registerLoader" in i18n).toBe(false);
     expect("instanceId" in i18n).toBe(false);
@@ -74,7 +74,7 @@ describe("@comvi/svelte — ICU, one shape, one specifier", () => {
       locale: "en",
       exposeGlobal: false,
       compiler: root.icuCompiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
+      messages: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
@@ -83,7 +83,7 @@ describe("@comvi/svelte — ICU, one shape, one specifier", () => {
 
   it("takes the same COMPILER option for a catalog that arrives later", () => {
     // One enable form for every catalog source: the option is read in the
-    // constructor, so an `addTranslations` or loader merge compiles under ICU
+    // constructor, so an `addMessages` or loader merge compiles under ICU
     // without anything being composed.
     const i18n = root.createI18n({
       locale: "en",
@@ -91,7 +91,7 @@ describe("@comvi/svelte — ICU, one shape, one specifier", () => {
       compiler: root.icuCompiler,
     });
 
-    i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
+    i18n.addMessages({ en: { items: "{count, plural, one {# item} other {# items}}" } });
 
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
@@ -139,7 +139,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
       root.createI18n({
         locale: "en",
         exposeGlobal: false,
-        translation: { en: { greeting: "Hello, {name}!" } },
+        messages: { en: { greeting: "Hello, {name}!" } },
       }),
     );
     let bag: UseI18nLoaderReturn | undefined;
@@ -150,7 +150,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
     });
 
     expect(target.querySelector('[data-testid="greeting"]')?.textContent).toBe("Hello, Ada!");
-    expect(typeof bag?.reloadTranslations).toBe("function");
+    expect(typeof bag?.reloadMessages).toBe("function");
     expect(typeof bag?.addActiveNamespace).toBe("function");
     // Loader ATTACH is not loader CONFIG: the host has the API, and the app
     // registers its loader through it afterwards.
@@ -183,7 +183,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
       props: { i18n, report: (b: UseI18nLoaderReturn) => (bag = b) },
     });
 
-    expect(typeof bag?.reloadTranslations).toBe("function");
+    expect(typeof bag?.reloadMessages).toBe("function");
     // Unlike bare `attachLoader`, this one is CONFIGURED.
     expect(typeof i18n.getLoader()).toBe("function");
 
@@ -198,7 +198,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greeting: "Hello, {name}!" } },
+      messages: { en: { greeting: "Hello, {name}!" } },
     });
 
     expect(() => mount(RootEntryHarness, { target, props: { i18n } })).toThrow(
@@ -209,7 +209,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
   it("attaching one capability does not smuggle in the other", () => {
     const i18n = root.attachLoader(root.createI18n({ locale: "en", exposeGlobal: false }));
 
-    expect(typeof i18n.reloadTranslations).toBe("function");
+    expect(typeof i18n.reloadMessages).toBe("function");
     // The plugin capability was never composed on, so its members are not
     // declared either — same optional view as the base-host probe above.
     expect((i18n as Partial<I18nPluginHostApi>).onMissingKey).toBeUndefined();
@@ -291,7 +291,7 @@ describe("@comvi/svelte — one entry, one context key", () => {
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { hello: "Hello" } },
+      messages: { en: { hello: "Hello" } },
     });
 
     // ContextHarness sets the context through `../src/context` and reads it

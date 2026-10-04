@@ -9,14 +9,14 @@
 
 A nested inline catalog now works on every host, and `flattenCatalog` stops being an escape hatch.
 
-`createI18n({ translation: { en: { nav: { home: "Home" } } } })` type-checked before, warned once in
+`createI18n({ messages: { en: { nav: { home: "Home" } } } })` type-checked before, warned once in
 development, and then resolved every key under `nav` as missing in production — because flattening
 was an optional capability hook (`_flattenNs`) that only a loader-bearing host installed, and a base
-host stored the nested object as if it were flat. `addTranslations()` had the same hole.
+host stored the nested object as if it were flat. `addMessages()` had the same hole.
 
 Flattening now happens in the BASE host, unconditionally, at the one place a catalog enters. Nested
 objects and flat dotted keys are the same catalog everywhere — in the constructor, in
-`addTranslations()`, and in a loader result — and a mixed object carrying both works too. With that,
+`addMessages()`, and in a loader result — and a mixed object carrying both works too. With that,
 two things are gone:
 
 - the dev warning that told you a base host "stores catalogs as given";
@@ -37,8 +37,8 @@ call can simply be deleted:
 -import { flattenCatalog } from "@comvi/react";
 +import { createI18n } from "@comvi/react";
 
--createI18n({ locale: "en", translation: { en: flattenCatalog({ nav: { home: "Home" } }) } });
-+createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
+-createI18n({ locale: "en", messages: { en: flattenCatalog({ nav: { home: "Home" } }) } });
++createI18n({ locale: "en", messages: { en: { nav: { home: "Home" } } } });
 ```
 
 If you still want the function itself — to inspect the keys a catalog will produce, or to merge

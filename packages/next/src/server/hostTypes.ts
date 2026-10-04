@@ -41,10 +41,10 @@ export type ServerI18nHost = Pick<
   | "getDefaultNamespace"
   | "hasLocale"
   | "hasTranslation"
-  | "getTranslations"
+  | "getMessages"
   | "getFallbackLocales"
 > &
-  Pick<I18nLoaderApi, "getLoader" | "reloadTranslations">;
+  Pick<I18nLoaderApi, "getLoader" | "reloadMessages">;
 
 /**
  * The single sanctioned crossing back to the host's translator.

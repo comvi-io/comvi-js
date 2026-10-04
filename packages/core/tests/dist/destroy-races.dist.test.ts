@@ -35,7 +35,7 @@ type Host = {
   addActiveNamespace(ns: string): Promise<void>;
   registerLoader(fn: (locale: string, ns: string) => unknown): void;
   registerPlugin(fn: (host: unknown) => unknown): unknown;
-  addTranslations(map: Record<string, Record<string, string>>): void;
+  addMessages(map: Record<string, Record<string, string>>): void;
   t(key: string, options?: Record<string, unknown>): string;
 };
 
@@ -140,7 +140,7 @@ describe.each([["prod", ""] as const, ["dev", ".dev"] as const])(
 
       const i18n = await composed({ locale: "en" });
       i18n.registerLoader(() => load);
-      i18n.addTranslations({ en: { hello: "Hello" } });
+      i18n.addMessages({ en: { hello: "Hello" } });
       await i18n.init();
 
       const switchPromise = i18n.setLocale("fr");

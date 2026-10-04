@@ -30,7 +30,7 @@ describe("svelte context", () => {
 
   beforeEach(() => {
     fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({
+    fake.addMessages({
       en: { hello: "Hello" },
       fr: { hello: "Bonjour" },
     });

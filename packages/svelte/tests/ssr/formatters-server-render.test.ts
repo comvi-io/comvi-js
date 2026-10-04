@@ -12,7 +12,7 @@ const eur = (locale: string) =>
 
 describe("svelte SSR — bound formatters", () => {
   it("formats in the instance locale", () => {
-    const i18n = createI18n({ locale: "de", exposeGlobal: false, translation: { de: {} } });
+    const i18n = createI18n({ locale: "de", exposeGlobal: false, messages: { de: {} } });
     const { body } = render(ReactiveFormattersHarness, { props: { i18n } });
     expect(body).toContain(`<span data-testid="currency">${eur("de")}</span>`);
   });

@@ -77,7 +77,7 @@ describe("cdnLoader() installer", () => {
 
     expect(messages).toHaveLength(1);
     expect(messages[0]).toContain(".use(plugins()) ran after init()");
-    expect(messages[0]).not.toContain("reloadTranslations()");
+    expect(messages[0]).not.toContain("reloadMessages()");
     expect(late.getLoader()).toBeUndefined();
 
     await late.destroy();
@@ -125,7 +125,7 @@ describe("cdnLoaderPlugin() plugin", () => {
 
   it("loads the namespaces already active on the host rather than the default one", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
-    i18n.addTranslations({ "fr:dashboard": { title: "Tableau" } });
+    i18n.addMessages({ "fr:dashboard": { title: "Tableau" } });
     server.use(
       http.get(`${TEST_CDN_URL}/dashboard/en.json`, () =>
         HttpResponse.json({ title: "Dashboard" }),
@@ -283,7 +283,7 @@ describe("cdnLoaderPlugin() SSR cache options", () => {
 });
 
 /**
- * J1: `clearTranslations()` drops the matching pending loads inside core before
+ * J1: `clearMessages()` drops the matching pending loads inside core before
  * it announces the clear, so the plugin releases exactly those sockets — and
  * only those.
  */
@@ -296,7 +296,7 @@ describe("cdnLoaderPlugin() and a cleared scope", () => {
     const pendingLoad = i18n.getLoader()!("en", "default");
     await response.requested;
 
-    i18n.clearTranslations("en", "default");
+    i18n.clearMessages("en", "default");
 
     await expect(pendingLoad).rejects.toThrow(/aborted/i);
     expect(onLoadError).not.toHaveBeenCalled();
@@ -309,7 +309,7 @@ describe("cdnLoaderPlugin() and a cleared scope", () => {
     const pendingLoad = i18n.getLoader()!("en", "default");
     await response.requested;
 
-    i18n.clearTranslations("fr", "default");
+    i18n.clearMessages("fr", "default");
 
     response.resolve({ greeting: "Hello" });
     await expect(pendingLoad).resolves.toEqual({ greeting: "Hello" });

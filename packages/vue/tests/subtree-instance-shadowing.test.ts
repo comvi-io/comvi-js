@@ -24,7 +24,7 @@ function createInstance(locale: string, formality?: string) {
   const options: VueI18nOptions = {
     locale,
     compiler: icuCompiler,
-    translation: REVIEW_SELECT,
+    messages: REVIEW_SELECT,
     ...(formality ? { defaultParams: { formality } } : {}),
   };
 

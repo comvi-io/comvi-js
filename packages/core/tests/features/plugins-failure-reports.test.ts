@@ -13,7 +13,7 @@ import { plugins } from "../../src/plugins";
 import { createDeferred } from "../helpers/deferred";
 
 const makeHost = (onError?: (error: Error, context?: unknown) => void) =>
-  createI18n({ locale: "en", onError, translation: { en: { hi: "Hi" } } }).use(plugins());
+  createI18n({ locale: "en", onError, messages: { en: { hi: "Hi" } } }).use(plugins());
 
 afterEach(() => {
   vi.useRealTimers();

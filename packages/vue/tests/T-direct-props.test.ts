@@ -20,7 +20,7 @@ describe("<T /> direct-prop params", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greet: "Hello {name}" } },
+      messages: { en: { greet: "Hello {name}" } },
     });
 
     const wrapper = mountT(i18n, { i18nKey: "greet", name: "Ada" });
@@ -32,7 +32,7 @@ describe("<T /> direct-prop params", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greet: "Hello {name}" } },
+      messages: { en: { greet: "Hello {name}" } },
     });
 
     const wrapper = mountT(i18n, {
@@ -48,7 +48,7 @@ describe("<T /> direct-prop params", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { order: "{count} for {name}" } },
+      messages: { en: { order: "{count} for {name}" } },
     });
 
     const wrapper = mountT(i18n, {
@@ -64,7 +64,7 @@ describe("<T /> direct-prop params", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { probe: "A {components} B" } },
+      messages: { en: { probe: "A {components} B" } },
     });
 
     const wrapper = mountT(i18n, {
@@ -79,7 +79,7 @@ describe("<T /> direct-prop params", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { probe: "English {name}" }, fr: { probe: "Français {name}" } },
+      messages: { en: { probe: "English {name}" }, fr: { probe: "Français {name}" } },
     });
 
     const wrapper = mountT(i18n, { i18nKey: "probe", locale: "fr", name: "Ada" });
@@ -91,7 +91,7 @@ describe("<T /> direct-prop params", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { probe: "C=[{class}] S=[{style}]" } },
+      messages: { en: { probe: "C=[{class}] S=[{style}]" } },
     });
 
     const wrapper = mountT(i18n, { i18nKey: "probe", class: "danger", style: "color: red" });
@@ -104,7 +104,7 @@ describe("<T /> direct-prop params", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { probe: "kebab=[{max-count}] camel=[{maxCount}]" } },
+      messages: { en: { probe: "kebab=[{max-count}] camel=[{maxCount}]" } },
     });
 
     const wrapper = mountT(i18n, { i18nKey: "probe", "max-count": 3 });
@@ -116,7 +116,7 @@ describe("<T /> direct-prop params", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { greet: "Hello {name}" } },
+      messages: { en: { greet: "Hello {name}" } },
     });
     const params = { name: "Ada" };
 

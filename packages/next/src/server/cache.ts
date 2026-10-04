@@ -74,9 +74,9 @@ const configurationConflict = (configured: CellState, incoming: string): Error =
  *
  * @param i18n - A loader-carrying host: the `i18n` from `createNextI18n`, or
  * any host you composed yourself. The server pipeline calls `getLoader` /
- * `reloadTranslations` on it, so the loader capability is part of the
+ * `reloadMessages` on it, so the loader capability is part of the
  * contract — a bare `@comvi/core` host is rejected at the type level rather
- * than failing inside `loadTranslations`.
+ * than failing inside `loadMessages`.
  *
  * @example
  * ```typescript

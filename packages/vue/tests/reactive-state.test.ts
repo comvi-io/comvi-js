@@ -31,7 +31,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -53,7 +53,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -81,7 +81,7 @@ describe("Reactive State Transitions", () => {
       const greeting = computed(() => i18n.t("hello"));
       expect(greeting.value).toBe("hello"); // Missing key
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
       });
 
@@ -89,7 +89,7 @@ describe("Reactive State Transitions", () => {
 
       expect(greeting.value).toBe("Hello");
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hi" },
       });
 
@@ -97,7 +97,7 @@ describe("Reactive State Transitions", () => {
 
       expect(greeting.value).toBe("Hi");
 
-      i18n.clearTranslations("en", "common");
+      i18n.clearMessages("en", "common");
       await nextTick();
 
       expect(greeting.value).toBe("hello");
@@ -144,7 +144,7 @@ describe("Reactive State Transitions", () => {
       expect(greeting.value).toBe("Hello");
 
       currentTranslations = { hello: "Hi" };
-      await i18n.core.reloadTranslations("en", "common");
+      await i18n.core.reloadMessages("en", "common");
       await nextTick();
 
       expect(greeting.value).toBe("Hi");
@@ -161,7 +161,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello", goodbye: "Goodbye" },
         fr: { hello: "Bonjour", goodbye: "Au revoir" },
       });
@@ -329,7 +329,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.loadedLocales.value).not.toContain("fr");
 
-      i18n.addTranslations({ fr: { hello: "Bonjour" } });
+      i18n.addMessages({ fr: { hello: "Bonjour" } });
       await nextTick();
 
       expect(i18n.loadedLocales.value).toContain("fr");
@@ -427,7 +427,7 @@ describe("Reactive State Transitions", () => {
       const has = i18n.hasTranslation("greeting");
       expect(has.value).toBe(false);
 
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await nextTick();
 
       expect(has.value).toBe(true);
@@ -441,13 +441,13 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await nextTick();
 
       const has = i18n.hasTranslation("greeting");
       expect(has.value).toBe(true);
 
-      i18n.clearTranslations("en", "common");
+      i18n.clearMessages("en", "common");
       await nextTick();
 
       expect(has.value).toBe(false);
@@ -466,7 +466,7 @@ describe("Reactive State Transitions", () => {
       const isUk = i18n.hasLocale("uk");
       expect(isUk.value).toBe(false);
 
-      i18n.addTranslations({ uk: { hello: "Привіт" } });
+      i18n.addMessages({ uk: { hello: "Привіт" } });
       await nextTick();
 
       expect(isUk.value).toBe(true);
@@ -480,13 +480,13 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ fr: { hello: "Bonjour" } });
+      i18n.addMessages({ fr: { hello: "Bonjour" } });
       await nextTick();
 
       const isFr = i18n.hasLocale("fr");
       expect(isFr.value).toBe(true);
 
-      i18n.clearTranslations("fr", "common");
+      i18n.clearMessages("fr", "common");
       await nextTick();
 
       expect(isFr.value).toBe(false);
@@ -538,7 +538,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
 
       const hasFoo = i18n.hasTranslation("foo", { checkFallbacks: true });
       expect(hasFoo.value).toBe(false);
@@ -557,7 +557,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
 
       const fallbackText = computed(() => i18n.t("foo"));
       expect(fallbackText.value).toBe("foo");
@@ -569,8 +569,8 @@ describe("Reactive State Transitions", () => {
     });
   });
 
-  describe("addTranslations programmatic reactivity", () => {
-    it("should update t() result after addTranslations", async () => {
+  describe("addMessages programmatic reactivity", () => {
+    it("should update t() result after addMessages", async () => {
       const i18n = createI18n({
         locale: "en",
         defaultNs: "common",
@@ -580,7 +580,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.t("foo")).toBe("foo");
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
       await nextTick();
 
       expect(i18n.t("foo")).toBe("bar");
@@ -625,7 +625,7 @@ describe("Reactive State Transitions", () => {
   });
 
   describe("defaultParams notification scope", () => {
-    it("notifies defaultParams watchers on setDefaultParams but not on clearTranslations", async () => {
+    it("notifies defaultParams watchers on setDefaultParams but not on clearMessages", async () => {
       const i18n = createI18n<{ name: string }>({
         locale: "en",
         defaultNs: "common",
@@ -634,11 +634,11 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       const watchSpy = vi.fn();
       watch(i18n.defaultParams, watchSpy);
 
-      i18n.clearTranslations("en", "common");
+      i18n.clearMessages("en", "common");
       await nextTick();
 
       expect(watchSpy).not.toHaveBeenCalled();
@@ -661,7 +661,7 @@ describe("Reactive State Transitions", () => {
 
       const ref1 = i18n.translationCache;
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
       await nextTick();
 
       expect(i18n.translationCache).toBe(ref1);
@@ -680,7 +680,7 @@ describe("Reactive State Transitions", () => {
       const ref1 = i18n.translationCache;
       expect(ref1.value.has("en:common")).toBe(false);
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
       await nextTick();
 
       expect(ref1.value.has("en:common")).toBe(true);
@@ -693,7 +693,7 @@ describe("hasLocale reactivity across a default-namespace change", () => {
   it("re-evaluates when the default namespace changes, agreeing with hasLocaleNow", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
     await i18n.init();
-    i18n.addTranslations({ "en:admin": { title: "Admin" } });
+    i18n.addMessages({ "en:admin": { title: "Admin" } });
 
     const has = i18n.hasLocale("en");
     expect(has.value).toBe(false);

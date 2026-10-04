@@ -29,7 +29,7 @@ describe("prod dist: the ICU literal with @comvi/core/tags loaded", () => {
     const reports: Array<{ argumentType?: unknown }> = [];
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { tagged: template } },
+      messages: { en: { tagged: template } },
       onError: (error: Error) => void reports.push(error),
     });
 
@@ -44,7 +44,7 @@ describe("prod dist: the ICU literal with @comvi/core/tags loaded", () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
     await import("../../dist/comvi-core-tags.js");
 
-    const tagged = createI18n({ locale: "en", translation: { en: { m: "a <b>b</b> c" } } });
+    const tagged = createI18n({ locale: "en", messages: { en: { m: "a <b>b</b> c" } } });
 
     expect(tagged.t("m", { b: () => "B" })).toBe("a B c");
   });

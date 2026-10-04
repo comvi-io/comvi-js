@@ -20,7 +20,7 @@ import { flushMicrotasks, renderWarnings, spyOnConsoleError } from "./helpers/co
 function makeProviderTree(locale: string, messages: Record<string, Record<string, string>>) {
   // createI18n requires SOMETHING valid; we pass placeholders and let the
   // provider sync locale + messages via the lazy initializer on render.
-  const i18n = createI18n({ locale: "placeholder", translation: { placeholder: {} } });
+  const i18n = createI18n({ locale: "placeholder", messages: { placeholder: {} } });
   return (
     <I18nProvider i18n={i18n} locale={locale} messages={messages} autoInit={false}>
       <span data-testid="greeting">
@@ -106,7 +106,7 @@ describe("Next <I18nProvider> SSR + hydration", () => {
 
     it("prop-only re-render after hydrateRoot with same messages reference emits no 'Cannot update a component' error", async () => {
       const messages = { fr: { greeting: "Bonjour" } };
-      const i18n = createI18n({ locale: "placeholder", translation: { placeholder: {} } });
+      const i18n = createI18n({ locale: "placeholder", messages: { placeholder: {} } });
       // The shared i18n + messages identity IS the scenario, so one element is
       // rendered on the server, hydrated, and re-rendered — React elements are
       // immutable, so reusing it changes nothing but the noise.
@@ -128,7 +128,7 @@ describe("Next <I18nProvider> SSR + hydration", () => {
       expect(container.textContent).toContain("Bonjour");
 
       // Same messages reference: the useIsomorphicLayoutEffect identity guard
-      // must skip addTranslations, so nothing is emitted.
+      // must skip addMessages, so nothing is emitted.
       await act(async () => {
         root.render(tree);
         await flushMicrotasks();
@@ -208,7 +208,7 @@ describe("Next <I18nProvider> on a host configured for a different locale", () =
   });
 
   it("renders and hydrates 'fr' on a host configured for 'en'", async () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     const tree = (
       <I18nProvider
         i18n={i18n}

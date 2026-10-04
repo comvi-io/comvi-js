@@ -22,7 +22,7 @@ const makeI18n = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: { en: { welcome: "Hello <strong>{name}</strong>!" } },
+    messages: { en: { welcome: "Hello <strong>{name}</strong>!" } },
   });
 
 describe("T.svelte server render — components map", () => {

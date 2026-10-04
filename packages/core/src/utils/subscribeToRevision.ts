@@ -10,7 +10,7 @@ export const REVISION_EVENTS = [
   "namespaceLoaded",
   "loadingStateChanged",
   "initialized",
-  "translationsCleared",
+  "messagesCleared",
   "defaultNamespaceChanged",
   "configChanged",
 ] as const satisfies readonly I18nEvent[];

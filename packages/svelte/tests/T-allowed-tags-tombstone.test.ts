@@ -16,7 +16,7 @@ import { createI18n } from "../src/index";
 
 const createFake = (): FakeI18n => {
   const fake = new FakeI18n({ language: "en", defaultNamespace: "default" });
-  fake.addTranslations({ en: { probe: "x" } });
+  fake.addMessages({ en: { probe: "x" } });
   return fake;
 };
 
@@ -103,7 +103,7 @@ describe("T.svelte allowedTags tombstone warning", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { probe: "x" } },
+      messages: { en: { probe: "x" } },
     });
 
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -143,7 +143,7 @@ describe("T.svelte allowedTags tombstone warning", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { probe: "x" } },
+      messages: { en: { probe: "x" } },
     });
 
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

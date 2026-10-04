@@ -43,7 +43,7 @@ beforeEach(() => {
 
 describe("unclaimed tag syntax — the development warning", () => {
   it("warns ONCE per template and names both fixes", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { rich: TAG_TEMPLATE } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { rich: TAG_TEMPLATE } } });
 
     const first = i18n.t("rich" as never);
     i18n.t("rich" as never);
@@ -61,15 +61,15 @@ describe("unclaimed tag syntax — the development warning", () => {
   });
 
   it("warns per TEMPLATE, not per instance or per key", () => {
-    const first = createI18n({ locale: "en", translation: { en: { a: TAG_TEMPLATE } } });
-    const second = createI18n({ locale: "en", translation: { en: { b: TAG_TEMPLATE } } });
+    const first = createI18n({ locale: "en", messages: { en: { a: TAG_TEMPLATE } } });
+    const second = createI18n({ locale: "en", messages: { en: { b: TAG_TEMPLATE } } });
 
     first.t("a" as never);
     second.t("b" as never);
     expect(tagWarnings()).toHaveLength(1);
 
     // A DIFFERENT template warns again — the dedupe is not a global latch.
-    second.addTranslations({ en: { c: OTHER_TAG_TEMPLATE } });
+    second.addMessages({ en: { c: OTHER_TAG_TEMPLATE } });
     second.t("c" as never);
     expect(tagWarnings()).toHaveLength(2);
   });
@@ -80,7 +80,7 @@ describe("unclaimed tag syntax — the development warning", () => {
     ["closing", "</ orphan"],
     ["entity", "&lt; stays literal"],
   ])("stays silent for a `<` that is not tag-like: %s", (key, template) => {
-    const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { [key]: template } } });
 
     const rendered = i18n.t(key as never);
 
@@ -94,7 +94,7 @@ describe("unclaimed tag syntax — the development warning", () => {
     ["a", " <alpha tail"],
     ["z", " <zulu tail"],
   ])("warns for a `<` followed by ASCII letter %s", (letter, template) => {
-    const i18n = createI18n({ locale: "en", translation: { en: { [letter]: template } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { [letter]: template } } });
 
     i18n.t(letter as never);
 
@@ -109,7 +109,7 @@ describe("unclaimed tag syntax — the development warning", () => {
     ["a digit", "digit", "y<1 tail"],
     ["the end of the template", "eot", "tail y<"],
   ])("stays silent for a `<` followed by %s", (_label, key, template) => {
-    const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { [key]: template } } });
 
     const rendered = i18n.t(key as never);
 
@@ -122,7 +122,7 @@ describe("unclaimed tag syntax — the development warning", () => {
     // up to the closing apostrophe is literal — including the `<`.
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { quoted: "'{count} <b>literal</b>'" } },
+      messages: { en: { quoted: "'{count} <b>literal</b>'" } },
     });
 
     expect(i18n.t("quoted" as never)).toBe("{count} <b>literal</b>");
@@ -133,7 +133,7 @@ describe("unclaimed tag syntax — the development warning", () => {
     // The extension claims the position, so the parser never reaches the
     // unclaimed branch the warning lives in.
     registerSyntaxExtension(tagSyntaxExtension);
-    const i18n = createI18n({ locale: "en", translation: { en: { rich: TAG_TEMPLATE } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { rich: TAG_TEMPLATE } } });
 
     const rendered = i18n.t(
       "rich" as never,
@@ -149,7 +149,7 @@ describe("unclaimed tag syntax — the development warning", () => {
   it("stays silent when the extension arrives per call instead of ambiently", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { rich: TAG_TEMPLATE } },
+      messages: { en: { rich: TAG_TEMPLATE } },
       tagInterpolation: { extensions: [tagSyntaxExtension] },
     });
 
@@ -164,7 +164,7 @@ describe("a tag the extension recognises but refuses — the development warning
 
   it("tells an app that already registered tag syntax that attributes are unsupported", () => {
     registerSyntaxExtension(tagSyntaxExtension);
-    const i18n = createI18n({ locale: "en", translation: { en: { link: ATTR_TEMPLATE } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { link: ATTR_TEMPLATE } } });
 
     const rendered = i18n.t("link" as never);
 
@@ -178,7 +178,7 @@ describe("a tag the extension recognises but refuses — the development warning
   });
 
   it("still tells an app with no tag extension to import the module", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { link: ATTR_TEMPLATE } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { link: ATTR_TEMPLATE } } });
 
     i18n.t("link" as never);
 
@@ -201,7 +201,7 @@ describe("a tag the extension recognises but refuses — the development warning
       parseHook: () => undefined,
       processHook: () => undefined,
     });
-    const i18n = createI18n({ locale: "en", translation: { en: { link: ATTR_TEMPLATE } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { link: ATTR_TEMPLATE } } });
 
     i18n.t("link" as never);
 
@@ -234,7 +234,7 @@ describe("a tag the extension recognises but refuses — the development warning
     ["9, the last digit name char", "edge9", "an <b9>unclosed tag"],
   ])("keeps the plain-tag advice for %s", (_label, key, template) => {
     registerSyntaxExtension(tagSyntaxExtension);
-    const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { [key]: template } } });
 
     i18n.t(key as never);
 
@@ -258,7 +258,7 @@ describe("a tag the extension recognises but refuses — the development warning
     [":, one above 9", "outColon", "an <b:x>unclosed tag"],
   ])("reports an attribute for a name ended by %s", (_label, key, template) => {
     registerSyntaxExtension(tagSyntaxExtension);
-    const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { [key]: template } } });
 
     i18n.t(key as never);
 

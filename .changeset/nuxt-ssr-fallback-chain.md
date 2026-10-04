@@ -9,7 +9,7 @@ raw key. The app plugin now loads the active namespaces for every fallback local
 and those catalogs reach the client in the payload. A namespace a page activates during the render
 with `useI18nLoader().addActiveNamespace()` loads its fallback catalogs too, before the awaited call
 resolves. An activation the page does not await still renders the raw key for a fallback-only
-key, as it already did for the request locale. The server `loadTranslations()` returns the
+key, as it already did for the request locale. The server `loadMessages()` returns the
 requested locale and its fallback chain, keyed `locale:namespace`, and `useTranslation()` loads the
 chain for its namespace even when the request locale is already cached. A fallback catalog that
 fails to load is reported through `loadError`, and `onError` fires as well; the render continues.

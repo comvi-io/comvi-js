@@ -37,7 +37,7 @@ function assertEqual(actual, expected, label) {
 const i18n = createI18n({
   locale: "en",
   exposeGlobal: false,
-  translation: { en: { msg: TEMPLATE } },
+  messages: { en: { msg: TEMPLATE } },
 });
 
 // The handler the ambient grammar would consume. With no grammar registered

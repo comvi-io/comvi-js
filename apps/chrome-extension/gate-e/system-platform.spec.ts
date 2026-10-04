@@ -388,7 +388,7 @@ test("real platform persists editor writes and SDK-configured context through th
             ) => {
               registeredLoader = loader;
             },
-            addTranslations: () => undefined,
+            addMessages: () => undefined,
           };
           await packed.fetchLoaderPlugin({ cdnUrl, loadOnInit: false })(i18n);
           if (!registeredLoader)

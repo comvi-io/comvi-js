@@ -22,10 +22,10 @@ with no locale against an instance whose `init()` throws reports `[@comvi/next] 
 rather than the initialization failure.
 
 Two writes still travel from a request to the shared instance, both unchanged and both
-deliberate: the server render's `addTranslations()`, which is additive and keyed by
+deliberate: the server render's `addMessages()`, which is additive and keyed by
 `locale:namespace`, and `init()`'s one-time default-namespace load at the instance's own locale.
 The package's tests now pin that no request writes the shared instance's locale or its active
 namespaces.
 
-No API change. `createNextI18n()`, `setI18n()`, `createNextI18nFromHost()`, `loadTranslations()`,
+No API change. `createNextI18n()`, `setI18n()`, `createNextI18nFromHost()`, `loadMessages()`,
 `setRequestLocale()` and `<I18nProvider>` all work exactly as before.

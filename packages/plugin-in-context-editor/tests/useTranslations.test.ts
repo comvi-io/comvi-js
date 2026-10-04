@@ -7,7 +7,7 @@ import type { Language, TranslationData } from "../src/types";
 const getTranslationMock = vi.fn();
 const saveTranslationMock = vi.fn();
 const getI18nInstanceMock = vi.fn();
-const addTranslationsMock = vi.fn();
+const addMessagesMock = vi.fn();
 
 vi.mock("../src/services/translationService", () => ({
   getTranslation: (...args: unknown[]) => getTranslationMock(...args),
@@ -70,9 +70,9 @@ describe("useTranslations", () => {
     getTranslationMock.mockReset();
     saveTranslationMock.mockReset();
     getI18nInstanceMock.mockReset();
-    addTranslationsMock.mockReset();
+    addMessagesMock.mockReset();
     getI18nInstanceMock.mockReturnValue({
-      addTranslations: addTranslationsMock,
+      addMessages: addMessagesMock,
     });
   });
 
@@ -91,7 +91,7 @@ describe("useTranslations", () => {
 
     expect(saved).not.toBeNull();
     expect(getI18nInstanceMock).toHaveBeenCalledWith("core-42");
-    expect(addTranslationsMock).toHaveBeenCalledWith({
+    expect(addMessagesMock).toHaveBeenCalledWith({
       "en:default": {
         "home.title": "Updated",
       },
@@ -281,7 +281,7 @@ describe("useTranslations", () => {
     const saved = await manager.saveTranslation();
 
     expect(saved).not.toBeNull();
-    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+    expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
       "en:default": {
         "inbox.messages":
           "{formality, select, " +
@@ -332,7 +332,7 @@ describe("useTranslations", () => {
     const successfulSave = await manager.saveTranslation();
 
     expect(successfulSave).not.toBeNull();
-    expect(addTranslationsMock).not.toHaveBeenCalled();
+    expect(addMessagesMock).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledExactlyOnceWith(
       "[InContextEditor] Cannot update runtime cache: i18n instance not available",
     );
@@ -654,7 +654,7 @@ describe("useTranslations", () => {
     await manager.loadTranslation("cart.items", "default");
     await manager.saveTranslation();
 
-    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+    expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
       "en:default": { "cart.items": "{n, plural, one {# item} other {# items}}" },
     });
   });
@@ -672,7 +672,7 @@ describe("useTranslations", () => {
     await manager.loadTranslation("cart.items", "default");
     await manager.saveTranslation();
 
-    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+    expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
       "en:default": { "cart.items": "{count, plural, one {# item} other {# items}}" },
     });
   });
@@ -690,7 +690,7 @@ describe("useTranslations", () => {
     await manager.loadTranslation("greeting", "default");
     await manager.saveTranslation();
 
-    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+    expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
       "en:default": { greeting: "{select, select, formal {Good evening} informal {Hey}}" },
     });
   });
@@ -707,7 +707,7 @@ describe("useTranslations", () => {
     await manager.loadTranslation("home.title", "default");
     await manager.saveTranslation();
 
-    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+    expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
       "en:default": { "home.title": "" },
     });
   });
@@ -726,7 +726,7 @@ describe("useTranslations", () => {
     await manager.loadTranslation("inbox.messages", "default");
     await manager.saveTranslation();
 
-    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+    expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
       "de:default": {
         "inbox.messages":
           "{formality, select, formal {{n, plural, one {1 Nachricht} other {# Nachrichten}}}}",
@@ -755,7 +755,7 @@ describe("useTranslations", () => {
     await manager.loadTranslation("inbox.messages", "default");
     await manager.saveTranslation();
 
-    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+    expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
       "ru:default": {
         "inbox.messages":
           "{formality, select, formal {{count, plural, one {# soobshchenie} " +

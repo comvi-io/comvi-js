@@ -2,7 +2,7 @@
  * Regression tests: React "Cannot update a component while rendering a different component" warning.
  *
  * Root cause (verified in packages/core/src/core/i18n.ts:438-448):
- *   render → addTranslations() → _emit("configChanged") [synchronous]
+ *   render → addMessages() → _emit("configChanged") [synchronous]
  *   → subscribe handler callback() [synchronous, inside React render]
  *   → scheduleUpdateOnFiber(SiblingFiber) while isRendering=true
  *   → console.error("Cannot update a component...")
@@ -11,7 +11,7 @@
  *   1. isRendering === true (we are inside a component's render body)
  *   2. root === workInProgressRoot (both components share the same React root)
  *
- * Condition 1 is reproduced by calling addTranslations() from a useState lazy
+ * Condition 1 is reproduced by calling addMessages() from a useState lazy
  * initializer (the Next I18nProvider's own pattern); condition 2 by keeping the
  * subscribed sibling in the same React root.
  *
@@ -56,7 +56,7 @@ function MutatingProvider({
   // The lazy initializer runs synchronously during the FIRST render, so the
   // configChanged it emits lands mid-render.
   useReactState(() => {
-    fake.addTranslations(messages);
+    fake.addMessages(messages);
     return null;
   });
   return (
@@ -265,7 +265,7 @@ describe("Test B — locale round-trip: mutating provider mounts 3 times (de→e
 });
 
 describe("Test C — out-of-render events still drive consumer re-renders", () => {
-  it("addTranslations outside a render triggers consumer re-render within one microtask tick", async () => {
+  it("addMessages outside a render triggers consumer re-render within one microtask tick", async () => {
     const fake = makeSharedI18n();
     const i18n = fake.asI18n();
 
@@ -286,7 +286,7 @@ describe("Test C — out-of-render events still drive consumer re-renders", () =
     const countAfterMount = renderCount;
 
     await act(async () => {
-      fake.addTranslations({ en: { greeting: "Updated" } });
+      fake.addMessages({ en: { greeting: "Updated" } });
       await flushMicrotasks();
     });
 

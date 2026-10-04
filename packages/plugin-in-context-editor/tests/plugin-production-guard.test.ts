@@ -22,7 +22,7 @@ function makeI18n() {
   return createI18n({
     locale: "en",
     defaultNs: "default",
-    translation: { "en:default": { hello: "Hello" } },
+    messages: { "en:default": { hello: "Hello" } },
   });
 }
 

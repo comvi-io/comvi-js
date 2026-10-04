@@ -29,7 +29,7 @@ fix stays inside the specifier you already import:
 
 ```tsx
 // INLINE — the constructor ingests the catalog.
-const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+const i18n = createI18n({ locale: "en", compiler: icuCompiler, messages });
 // LATER — a hydrated client catalog, or anything an SSR loader fetches: the same option.
 const host = createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap));
 ```

@@ -14,8 +14,8 @@ import type { UseI18nReturn, VueI18n } from "../../src/index";
 export function _tombstonesAreTypeErrors(bag: UseI18nReturn): void {
   // @ts-expect-error Moved in 0.5: `const { addActiveNamespace } = useI18nLoader()`.
   bag.addActiveNamespace("admin");
-  // @ts-expect-error Moved in 0.5: `const { reloadTranslations } = useI18nLoader()`.
-  bag.reloadTranslations();
+  // @ts-expect-error Moved in 0.5: `const { reloadMessages } = useI18nLoader()`.
+  bag.reloadMessages();
   // @ts-expect-error Moved in 0.5: `const { onLoadError } = useI18nLoader()`.
   bag.onLoadError(() => {});
   // @ts-expect-error Moved in 0.5: `const { onMissingKey } = useI18nPlugins()`.

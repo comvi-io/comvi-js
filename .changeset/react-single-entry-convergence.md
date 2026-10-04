@@ -23,7 +23,7 @@ from `@comvi/react`, so each fix stays inside the one specifier you already have
 import { createI18n, icuCompiler, loader } from "@comvi/react";
 
 // INLINE — the constructor ingests the catalog.
-const inline = createI18n({ locale: "en", compiler: icuCompiler, translation });
+const inline = createI18n({ locale: "en", compiler: icuCompiler, messages });
 // REMOTE — the same option, in the same place.
 const remote = createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap));
 ```

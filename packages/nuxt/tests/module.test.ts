@@ -163,7 +163,7 @@ describe("nuxt module setup", () => {
         defaultNs: "common",
         fallbackLocale: "en",
         defaultParams: { formality: "formal" },
-        translation: { en: { greeting: "Hello" } },
+        messages: { en: { greeting: "Hello" } },
         apiKey: "secret-key",
         setup: "./comvi.setup.ts",
         localeCookie: { name: "locale_cookie", maxAge: 60 },
@@ -182,7 +182,7 @@ describe("nuxt module setup", () => {
       },
       defaultLocale: "en",
       localePrefix: "as-needed",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
       defaultNs: "common",
       fallbackLocale: "en",
       defaultParams: { formality: "formal" },
@@ -685,11 +685,31 @@ describe("nuxt module setup", () => {
     });
   });
 
+  it("publishes the inline catalog as public runtime config `messages`, the key NUXT_PUBLIC_COMVI_MESSAGES overrides", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup(
+      { locales: ["en"], defaultLocale: "en", messages: { en: { greeting: "Hello" } } },
+      nuxt,
+    );
+
+    const publicComvi = nuxt.options.runtimeConfig.public.comvi as Record<string, unknown>;
+    expect(publicComvi.messages).toEqual({ en: { greeting: "Hello" } });
+    expect(publicComvi).not.toHaveProperty("translation");
+    // Nuxt maps `runtimeConfig.public.<a>.<b>` to the env var NUXT_PUBLIC_<A>_<B>.
+    const envNames = Object.keys(publicComvi).map(
+      (key) => `NUXT_PUBLIC_COMVI_${key.replace(/[A-Z]/g, (c) => `_${c}`).toUpperCase()}`,
+    );
+    expect(envNames).toContain("NUXT_PUBLIC_COMVI_MESSAGES");
+    expect(envNames).not.toContain("NUXT_PUBLIC_COMVI_TRANSLATION");
+  });
+
   it("merges existing public runtime config and preserves runtime-only overrides", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     nuxt.options.runtimeConfig.public.comvi = {
-      translation: { en: { greeting: "Runtime" } },
+      messages: { en: { greeting: "Runtime" } },
       defaultNs: "runtime-default",
       fallbackLocale: ["uk", "en"],
       basicHtmlTags: ["strong"],
@@ -701,7 +721,7 @@ describe("nuxt module setup", () => {
       {
         locales: ["en", "de"],
         defaultLocale: "en",
-        translation: { en: { greeting: "Module" } },
+        messages: { en: { greeting: "Module" } },
         defaultNs: "module-default",
         fallbackLocale: "en",
         basicHtmlTags: ["em"],
@@ -714,7 +734,7 @@ describe("nuxt module setup", () => {
       locales: ["en", "de"],
       defaultLocale: "en",
       localePrefix: "as-needed",
-      translation: { en: { greeting: "Runtime" } },
+      messages: { en: { greeting: "Runtime" } },
       defaultNs: "runtime-default",
       fallbackLocale: ["uk", "en"],
       basicHtmlTags: ["strong"],
@@ -785,7 +805,7 @@ describe("nuxt module setup", () => {
 
   it("leaves unset catalog options out of the public runtime config instead of writing undefined", async () => {
     // Nitro normalizes an `undefined` runtime-config value to `""`, and core
-    // rejects `translation: ""` — every SSR page of an app that loads its
+    // rejects `messages: ""` — every SSR page of an app that loads its
     // catalogs through a host loader answered 500. Absent keys stay absent.
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
@@ -793,7 +813,7 @@ describe("nuxt module setup", () => {
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
 
     const publicComvi = nuxt.options.runtimeConfig.public.comvi;
-    for (const key of ["translation", "defaultParams", "basicHtmlTags"]) {
+    for (const key of ["messages", "defaultParams", "basicHtmlTags"]) {
       expect(publicComvi).not.toHaveProperty(key);
     }
     expect(Object.values(publicComvi)).not.toContain(undefined);
@@ -802,11 +822,11 @@ describe("nuxt module setup", () => {
   it("drops an undefined value an existing public runtime config carries", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
-    nuxt.options.runtimeConfig.public.comvi = { translation: undefined };
+    nuxt.options.runtimeConfig.public.comvi = { messages: undefined };
 
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
 
-    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("translation");
+    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("messages");
   });
 
   it("keeps the app's own vite configuration while pre-bundling the wrappers", async () => {

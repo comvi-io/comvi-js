@@ -3,7 +3,7 @@ import { I18n, createBoundTranslation } from "../helpers/composedHost";
 
 const twoNamespaces = () => {
   const i18n = new I18n({ locale: "en" });
-  i18n.addTranslations({
+  i18n.addMessages({
     "en:common": { cancel: "Cancel", greeting: "Hello {name}" },
     "en:modal": { cancel: "Close Modal", greeting: "Modal {name}" },
   });
@@ -31,7 +31,7 @@ describe("createBoundTranslation", () => {
 
   it("treats nullish params as omitted params and keeps the bound namespace", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": { cancel: "Cancel" },
     });
 
@@ -43,7 +43,7 @@ describe("createBoundTranslation", () => {
 
   it("delegates to i18n.t behavior when no default namespace is bound", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:default": { hello: "Hello" },
       "en:admin": { hello: "Admin Hello" },
     });
@@ -56,7 +56,7 @@ describe("createBoundTranslation", () => {
 
   it("returns the bare key, not ns:key, when the bound namespace has no entry", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ "en:common": { cancel: "Cancel" } });
+    i18n.addMessages({ "en:common": { cancel: "Cancel" } });
 
     const t = createBoundTranslation(i18n, "common");
 
@@ -66,7 +66,7 @@ describe("createBoundTranslation", () => {
 
   it("does not leak post-processor mutations between no-params calls", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": { hello: "Hello" },
     });
 

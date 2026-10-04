@@ -2,7 +2,7 @@ import type {
   I18nOptions,
   I18nCoreInstance,
   I18nCoreExtraApi,
-  FlattenedTranslations,
+  FlattenedMessages,
   TranslationValue,
   TranslationResult,
   TranslationParams,
@@ -55,9 +55,9 @@ declare const __VERSION__: string | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 const ERR_LOCALE_NOT_SET = IS_DEV ? "@comvi/core: Locale is not set" : "E_LOCALE_NOT_SET";
-const ERR_TRANSLATION_NOT_OBJECT = IS_DEV
-  ? "@comvi/core: Translation is not an object"
-  : "E_TRANSLATION_NOT_OBJECT";
+const ERR_MESSAGES_NOT_OBJECT = IS_DEV
+  ? "@comvi/core: `messages` is not an object"
+  : "E_MESSAGES_NOT_OBJECT";
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
@@ -218,7 +218,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * with its own chaining applier on the first registration.
    */
   protected _postProcessor?: PostProcessFn;
-  private _primaryTranslations?: FlattenedTranslations;
+  private _primaryTranslations?: FlattenedMessages;
   private _primaryTranslationsRevision: number = -1;
   private _primaryTranslationsLocale: string = "";
   private _primaryTranslationsNamespace: string = "";
@@ -305,27 +305,27 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this._postProcessor = options.postProcess;
     }
 
-    if (options.translation !== undefined) {
+    if (options.messages !== undefined) {
       if (
-        typeof options.translation !== "object" ||
-        options.translation === null ||
-        Array.isArray(options.translation)
+        typeof options.messages !== "object" ||
+        options.messages === null ||
+        Array.isArray(options.messages)
       ) {
-        throw new Error(ERR_TRANSLATION_NOT_OBJECT);
+        throw new Error(ERR_MESSAGES_NOT_OBJECT);
       }
 
       if (IS_DEV) {
-        // Own keys, so this validates exactly the entries `_nsAddTranslations`
+        // Own keys, so this validates exactly the entries `_nsAddMessages`
         // will go on to ingest — no more and no less.
-        for (const key of Object.keys(options.translation)) {
-          const value = options.translation[key];
+        for (const key of Object.keys(options.messages)) {
+          const value = options.messages[key];
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
-            throw new Error(ERR_TRANSLATION_NOT_OBJECT);
+            throw new Error(ERR_MESSAGES_NOT_OBJECT);
           }
         }
       }
 
-      this._nsAddTranslations(options.translation);
+      this._nsAddMessages(options.messages);
     }
 
     this.apiKey = options.apiKey;
@@ -583,16 +583,16 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * an omitted `namespace` every namespace.
    *
    * This clears CONTENT, not intent — in EVERY form. The ACTIVE namespace set
-   * is left alone, so `reloadTranslations()` and a following locale switch
+   * is left alone, so `reloadMessages()` and a following locale switch
    * still know what to fetch; the editor-save and webhook-refresh flow is
    * exactly "drop everything, fetch it again".
    *
    * Deactivating a namespace is `removeActiveNamespace(ns)` on the loader
    * capability (`@comvi/core/loader`). The default namespace is always
    * reloadable — a reload with nothing active refetches its CONTENT — but the
-   * reload does not re-activate it; only `addTranslations()` does that.
+   * reload does not re-activate it; only `addMessages()` does that.
    */
-  clearTranslations(locale?: string, namespace?: string): void {
+  clearMessages(locale?: string, namespace?: string): void {
     // Cancel in-flight loads for the cleared scope so they don't repopulate it.
     (this as unknown as I18nInternal)._cancelNs?.(locale, namespace);
 
@@ -606,18 +606,18 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this.translationCache.clear();
     }
 
-    this._emit("translationsCleared", { locale, namespace });
+    this._emit("messagesCleared", { locale, namespace });
   }
 
   /**
    * Merge catalogs into the cache. Keys are `locale` or `"locale:namespace"`;
    * an empty map is a no-op. Emits `namespaceLoaded` per catalog.
    */
-  addTranslations(translations: Record<string, Record<string, TranslationValue>>) {
-    this._nsAddTranslations(translations);
+  addMessages(translations: Record<string, Record<string, TranslationValue>>) {
+    this._nsAddMessages(translations);
   }
 
-  getTranslations(locale: string = this._locale, namespace: string = this._cachedDefaultNs) {
+  getMessages(locale: string = this._locale, namespace: string = this._cachedDefaultNs) {
     return this.translationCache.get(locale, namespace) ?? {};
   }
 
@@ -769,7 +769,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return translationResultToString(this.tRaw(translationKey as any, ...(params as any)));
   }
 
-  private _getPrimaryTranslations(): FlattenedTranslations | undefined {
+  private _getPrimaryTranslations(): FlattenedMessages | undefined {
     const revision = this.translationCache.getRevision();
     if (
       this._primaryTranslationsRevision === revision &&
@@ -1006,7 +1006,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * capability hook, which made a nested inline catalog type-check and then
    * resolve as missing on a base host.
    */
-  private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
+  private _nsAddMessages(translations: Record<string, Record<string, TranslationValue>>): void {
     // OWN keys: `for...in` walked the prototype chain of the outer map, so a
     // map built on a prototype that carries locale entries had those adopted
     // as though the caller had passed them.
@@ -1033,7 +1033,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // Only a genuine MERGE copies again: `Object.assign` out of a
       // dictionary-mode (null-prototype) source has no V8 fast path and costs
       // ~130 ns PER KEY, so storing `flat` directly on the first write is what
-      // keeps `new I18n({ translation })` from being 2.5x slower.
+      // keeps `new I18n({ messages })` from being 2.5x slower.
       const existing = this.translationCache.get(loc, ns);
       this.translationCache.set(
         loc,
@@ -1097,7 +1097,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 }
 
-// Eager catalog preflight at both ingestion seams (`_nsAddTranslations` and
+// Eager catalog preflight at both ingestion seams (`_nsAddMessages` and
 // the loader's pre-merge call). In development a string the host's compiler
 // cannot compile throws `E_ICU_SYNTAX` at ingestion instead of at first render;
 // production stays lazy and reports on the compilation that hits it.

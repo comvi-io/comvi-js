@@ -123,7 +123,7 @@ describe("useI18n", () => {
     expect(result.current.isInitialized).toBe(true);
 
     await act(async () => {
-      fake.addTranslations({ en: { hello: "Hello" } });
+      fake.addMessages({ en: { hello: "Hello" } });
       await flushMicrotasks();
     });
     expect(result.current.cacheRevision).toBe(revisionBefore + 1);
@@ -149,7 +149,7 @@ describe("useI18n", () => {
     const i18n = createI18n({
       locale: "fr",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { fallbackOnly: "Fallback" },
       },
     });
@@ -180,7 +180,7 @@ describe("useI18n", () => {
       // app asks, and this one asks in the same call.
       compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
-      translation: {
+      messages: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
       },
     });
@@ -215,17 +215,17 @@ describe("useI18n", () => {
     expect(fake.setLocale).toHaveBeenCalledWith("fr");
   });
 
-  it("proxies addTranslations() and updates translation cache reference data", () => {
+  it("proxies addMessages() and updates translation cache reference data", () => {
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
 
     const revisionBefore = fake.translationCache.getRevision();
 
     act(() => {
-      result.current.addTranslations({ en: { hello: "Hello" } });
+      result.current.addMessages({ en: { hello: "Hello" } });
     });
 
-    expect(fake.addTranslations).toHaveBeenCalledWith({ en: { hello: "Hello" } });
+    expect(fake.addMessages).toHaveBeenCalledWith({ en: { hello: "Hello" } });
     expect(fake.translationCache.getRevision()).toBe(revisionBefore + 1);
     expect(result.current.translationCache.has("en:default")).toBe(true);
   });

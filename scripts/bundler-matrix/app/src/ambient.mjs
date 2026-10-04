@@ -19,7 +19,7 @@ function assertEqual(actual, expected, label) {
 const i18n = createI18n({
   locale: "en",
   compiler: icuCompiler,
-  translation: {
+  messages: {
     en: {
       msg: "Click <link>here</link> now",
       files: "{count, plural, one {<b>#</b> file} other {<b>#</b> files}}",

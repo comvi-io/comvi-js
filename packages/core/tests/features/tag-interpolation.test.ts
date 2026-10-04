@@ -11,7 +11,7 @@ import type { TagCallbackParams } from "../../src/types";
 describe("t() with tag interpolation", () => {
   it("parses nested tags and applies handlers", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { msg: "Click <a><b>here</b></a>" } });
+    i18n.addMessages({ en: { msg: "Click <a><b>here</b></a>" } });
 
     const result = i18n.t("msg", {
       a: ({ children }: TagCallbackParams) => `A(${children})`,
@@ -23,7 +23,7 @@ describe("t() with tag interpolation", () => {
 
   it("parses snake_case tag names", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { msg: "Click <this_link>this link</this_link> for a new one." },
     });
 
@@ -36,7 +36,7 @@ describe("t() with tag interpolation", () => {
 
   it("parses self-closing snake_case tags inside select branches", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         msg: "{formality, select, formal {Dear<line_break/>Sir} other {Hi<line_break/>there}}",
       },
@@ -52,7 +52,7 @@ describe("t() with tag interpolation", () => {
 
   it("flattens snake_case tags to inner text without a handler", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { msg: "Read our <help_article>help article</help_article>" },
     });
 
@@ -61,7 +61,7 @@ describe("t() with tag interpolation", () => {
 
   it("supports ICU params inside tags", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { msg: "<bold>Hello {name}</bold>" } });
+    i18n.addMessages({ en: { msg: "<bold>Hello {name}</bold>" } });
 
     const result = i18n.t("msg", {
       name: "Alice",
@@ -73,7 +73,7 @@ describe("t() with tag interpolation", () => {
 
   it("handles tags inside plural expressions", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         msg: "{count, plural, one {<b># item</b>} other {<b># items</b>}}",
       },
@@ -89,7 +89,7 @@ describe("t() with tag interpolation", () => {
 
   it("warns and degrades on mismatched nested tags", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { msg: "Click <a><b>here</a></b>" } });
+    i18n.addMessages({ en: { msg: "Click <a><b>here</a></b>" } });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = i18n.t("msg");
@@ -104,7 +104,7 @@ describe("t() with tag interpolation", () => {
         locale: "en",
         tagInterpolation: { strict: false },
       });
-      i18nNonStrict.addTranslations({ en: { msg: "Click <link>here</link>" } });
+      i18nNonStrict.addMessages({ en: { msg: "Click <link>here</link>" } });
 
       const result = i18nNonStrict.t("msg");
       expect(result).toBe("Click here");
@@ -117,7 +117,7 @@ describe("t() with tag interpolation", () => {
         tagInterpolation: { strict: "warn" },
         onError,
       });
-      i18nWarn.addTranslations({ en: { msg: "Click <link>here</link>" } });
+      i18nWarn.addMessages({ en: { msg: "Click <link>here</link>" } });
 
       const result = i18nWarn.t("msg");
 
@@ -134,7 +134,7 @@ describe("t() with tag interpolation", () => {
         locale: "en",
         tagInterpolation: { strict: true },
       });
-      i18nStrict.addTranslations({ en: { msg: "Click <link>here</link>" } });
+      i18nStrict.addMessages({ en: { msg: "Click <link>here</link>" } });
 
       expect(() => i18nStrict.t("msg")).toThrow(/missing.*handler.*link/i);
     });
@@ -146,7 +146,7 @@ describe("t() with tag interpolation", () => {
         locale: "en",
         tagInterpolation: { basicHtmlTags: ["strong"] },
       });
-      host.addTranslations({ en: { msg: "This is <strong>bold</strong>" } });
+      host.addMessages({ en: { msg: "This is <strong>bold</strong>" } });
       return host;
     };
 
@@ -174,7 +174,7 @@ describe("t() with tag interpolation", () => {
 
   it("returns an array when a handler returns a virtual node", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { msg: "Click <link>here</link>" } });
+    i18n.addMessages({ en: { msg: "Click <link>here</link>" } });
     const vnode = {
       type: "element" as const,
       tag: "a",
@@ -189,7 +189,7 @@ describe("t() with tag interpolation", () => {
 
   it("stringifies a handler-returned virtual node to its inner text through t()", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { msg: "Click <link>here</link>" } });
+    i18n.addMessages({ en: { msg: "Click <link>here</link>" } });
     const vnode = {
       type: "element" as const,
       tag: "a",

@@ -16,7 +16,7 @@ import * as nuxtAppMocks from "./mocks/nuxt-app";
 import { createComviCore, createComviI18n, resetComviHostMock } from "./mocks/comvi-host";
 import { resetComviSetupMock } from "./mocks/comvi-setup";
 import { nodeResponseStub } from "./mocks/node-response";
-import { loadTranslations } from "../src/runtime/server/utils/loadTranslations";
+import { loadMessages } from "../src/runtime/server/utils/loadMessages";
 import { useTranslation } from "../src/runtime/server/utils/useTranslation";
 import plugin from "../src/runtime/plugin";
 
@@ -25,7 +25,7 @@ import plugin from "../src/runtime/plugin";
  * (`@comvi/test-utils/ssrFallbackContract`). Every row runs through BOTH of
  * nuxt's SSR paths:
  * - the server utilities: `useTranslation()` with no prior
- *   `loadTranslations()`, then `loadTranslations()` for the client catalogs,
+ *   `loadMessages()`, then `loadMessages()` for the client catalogs,
  *   one request event per row request, concurrently;
  * - the app plugin: its SSR pass (plugin, then the middleware's locale switch),
  *   the payload it writes, and a client plugin hydrating from that payload.
@@ -103,7 +103,7 @@ describe("@comvi/nuxt server utilities: the server fallback-chain contract", () 
     createComviCore.mockImplementation((options: Record<string, unknown>) => {
       const host = attachLoader(createCoreI18n(options as never));
       host.registerLoader(loader);
-      if (row.cached) host.addTranslations(row.cached as Catalogs);
+      if (row.cached) host.addMessages(row.cached as Catalogs);
       observe(host, reports);
       return host;
     });
@@ -118,7 +118,7 @@ describe("@comvi/nuxt server utilities: the server fallback-chain contract", () 
         const texts = Object.fromEntries(
           Object.keys(request.expect).map((key) => [key, t(key as never)]),
         );
-        const messages = await loadTranslations(event, request.locale, { namespaces: [ns] });
+        const messages = await loadMessages(event, request.locale, { namespaces: [ns] });
         return { locale, texts, messages };
       }),
     );
@@ -146,8 +146,8 @@ describe("@comvi/nuxt server utilities: the server fallback-chain contract", () 
 
     await Promise.all([
       useTranslation(event, { locale: "fr" }),
-      loadTranslations(event, "fr"),
-      loadTranslations(event, "fr"),
+      loadMessages(event, "fr"),
+      loadMessages(event, "fr"),
     ]);
 
     const fetched = fetchedPairs(loader);
@@ -179,7 +179,7 @@ function serveAppHost(row: SsrFallbackCase, loader: Loader, server?: { reports: 
     const i18n = createVueI18n({ ...options, exposeGlobal: false } as never).use(attachLoader);
     i18n.core.registerLoader(loader);
     if (server) {
-      if (row.cached) i18n.core.addTranslations(row.cached as Catalogs);
+      if (row.cached) i18n.core.addMessages(row.cached as Catalogs);
       observe(i18n.core, server.reports);
     }
     return i18n;
@@ -233,7 +233,7 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
       (rendered![1] as () => void)();
       vi.stubGlobal("__COMVI_TEST_SERVER__", false);
 
-      const payload = serverApp.payload.__comvi_translations__ as Catalogs;
+      const payload = serverApp.payload.__comvi_messages__ as Catalogs;
       // The payload carries the whole SSR cache (the host's init locale too),
       // so it must CONTAIN the row's client catalogs and none that failed.
       expect(Object.keys(payload)).toEqual(expect.arrayContaining([...request.clientCatalogs]));
@@ -243,7 +243,7 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
       // single fetch.
       const clientLoader = createLoader(row);
       serveAppHost(row, clientLoader);
-      const client = await runPlugin(createNuxtApp({ __comvi_translations__: payload }));
+      const client = await runPlugin(createNuxtApp({ __comvi_messages__: payload }));
       expect(clientLoader).not.toHaveBeenCalled();
       await activateDuringRender(client, ns);
       expect(clientLoader).not.toHaveBeenCalled();

@@ -10,7 +10,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("should handle singular and plural forms", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           apples: "{count, plural, one {one apple} other {# apples}}",
         },
@@ -23,7 +23,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("should support exact matches (=0, =1)", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           messages: "{count, plural, =0 {No messages} one {1 message} other {# messages}}",
         },
@@ -42,7 +42,7 @@ describe("t() with ICU plural", () => {
 
     beforeEach(() => {
       i18n = new I18n({ locale: "uk" });
-      i18n.addTranslations({
+      i18n.addMessages({
         uk: {
           days: "{count, plural, one {# день} few {# дні} many {# днів} other {# дня}}",
         },
@@ -83,7 +83,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("should handle negative numbers", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           change: "{count, plural, =0 {no change} one {# change} other {# changes}}",
         },
@@ -94,7 +94,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("should allow nested interpolation inside plural options", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           found:
             "{count, plural, =0 {No items found in {folder}} other {# items found in {folder}}}",
@@ -108,7 +108,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("renders empty when no category matches and there is no other branch", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           partial: "{count, plural, one {# one}}",
         },
@@ -119,7 +119,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("ignores a branch named after an unknown plural category", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           bogus: "{count, plural, quux {# quux} other {# other}}",
         },
@@ -129,7 +129,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("treats quoted braces in plural options as literal text", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           literal: "{count, plural, one {'{count} literal item'} other {'{count} literal items'}}",
         },
@@ -148,7 +148,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("binds # to the nearest enclosing plural, not the outer one", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           msg:
             "{files, plural, " +
@@ -165,7 +165,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("does not replace a quoted # with the count", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           // The interpolation forces the branch through the template processor,
           // which is what unwraps the quoted literal.
@@ -177,7 +177,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("keeps # bound to the enclosing plural inside a nested select", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           msg:
             "{count, plural, " +
@@ -191,7 +191,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("rebinds # only for a plural nested inside a select inside a plural", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           msg:
             "{files, plural, other {{gender, select, " +

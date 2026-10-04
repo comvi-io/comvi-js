@@ -17,7 +17,7 @@ declare module "@comvi/core" {
 /** A plugins host whose post-processor upper-cases anything not asked for raw. */
 const hostWithUppercasePostProcessor = () => {
   const i18n = createI18n({ locale: "en" }).use(plugins());
-  i18n.addTranslations({ "en:default": { reserved: "English default" } });
+  i18n.addMessages({ "en:default": { reserved: "English default" } });
   i18n.registerPostProcessor((result, _key, _ns, params) => {
     if (params?.raw === true) {
       return result;
@@ -40,7 +40,7 @@ const renderWithI18n = async (i18n: I18n, ui: ReactElement) => {
 describe("<T /> behavior", () => {
   it("renders with direct props taking precedence over params", async () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:default": {
         farewell: "Goodbye {name}, see you {when}",
       },
@@ -97,7 +97,7 @@ describe("<T /> behavior", () => {
   // `isMissing` — so these three pin that check's locale/namespace defaults.
   it("renders a translation whose value equals its key instead of the children fallback", async () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ "en:default": { echo: "echo" } });
+    i18n.addMessages({ "en:default": { echo: "echo" } });
 
     const { container } = await renderWithI18n(i18n, <T i18nKey="echo">Children fallback</T>);
 
@@ -106,7 +106,7 @@ describe("<T /> behavior", () => {
 
   it("checks for the translation in the locale requested by the locale prop", async () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ "fr:default": { echo: "echo" } });
+    i18n.addMessages({ "fr:default": { echo: "echo" } });
 
     const { container } = await renderWithI18n(
       i18n,
@@ -120,7 +120,7 @@ describe("<T /> behavior", () => {
 
   it("checks for the translation in the namespace requested by the ns prop", async () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ "en:dashboard": { echo: "echo" } });
+    i18n.addMessages({ "en:dashboard": { echo: "echo" } });
 
     const { container } = await renderWithI18n(
       i18n,
@@ -147,7 +147,7 @@ describe("<T /> behavior", () => {
 
   it("renders the translation from the requested locale and namespace", async () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:default": { greeting: "Hello" },
       "fr:dashboard": { greeting: "Bonjour dashboard" },
     });
@@ -233,7 +233,7 @@ describe("<T /> behavior", () => {
     // `createI18n(...)` here starts with no warning history of its own,
     // regardless of what any other test already did with a DIFFERENT host.
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ "en:default": { greeting: "Hello" } });
+    i18n.addMessages({ "en:default": { greeting: "Hello" } });
     await i18n.init();
 
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -275,7 +275,7 @@ describe("<T /> behavior", () => {
     // different bound `reportError` functions and a WeakSet keyed on that one
     // warned twice for a single host.
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ "en:default": { greeting: "Hello" } });
+    i18n.addMessages({ "en:default": { greeting: "Hello" } });
 
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {

@@ -12,7 +12,7 @@ import {
 } from "@comvi/react";
 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
-i18n.addTranslations({ en: { greeting: "Hello, <b>{name}</b>!" } });
+i18n.addMessages({ en: { greeting: "Hello, <b>{name}</b>!" } });
 i18n.use(devtools());
 
 // Observable use keeps the whole instance graph live for the bundler.

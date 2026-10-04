@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { createI18n } from "../../src";
 
-describe("new I18n(options) — translation option validation", () => {
+describe("new I18n(options) — messages option validation", () => {
   it("rejects a translation map that is not an object", () => {
-    expect(() => createI18n({ locale: "en", translation: 42 as never })).toThrow(
-      /Translation is not an object/,
+    expect(() => createI18n({ locale: "en", messages: 42 as never })).toThrow(
+      /`messages` is not an object/,
     );
   });
 
@@ -13,8 +13,8 @@ describe("new I18n(options) — translation option validation", () => {
     ["null", null],
     ["an array", ["a"]],
   ])("rejects a locale catalog that is %s", (_shape, catalog) => {
-    expect(() => createI18n({ locale: "en", translation: { en: catalog } as never })).toThrow(
-      /Translation is not an object/,
+    expect(() => createI18n({ locale: "en", messages: { en: catalog } as never })).toThrow(
+      /`messages` is not an object/,
     );
   });
 });
@@ -54,7 +54,7 @@ describe("new I18n(options) — option defaults", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "ui",
-      translation: { en: { save: "Save" } },
+      messages: { en: { save: "Save" } },
     });
 
     expect(i18n.translationCache.get("en")).toEqual({ save: "Save" });

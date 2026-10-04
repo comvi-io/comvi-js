@@ -25,7 +25,7 @@ describe("icuCompiler.argOpensHashScope()", () => {
 describe("# substitution inside a plural branch", () => {
   it("substitutes # in branch text that merely reads like a nested plural", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { forms: "{count, plural, other {Nouns, plural, # forms}}" } });
+    i18n.addMessages({ en: { forms: "{count, plural, other {Nouns, plural, # forms}}" } });
 
     expect(i18n.t("forms", { count: 3 })).toBe("Nouns, plural, 3 forms");
   });
@@ -35,7 +35,7 @@ describe("# substitution inside a plural branch", () => {
   // to the wrong closing brace, which swallows the outer `#`.
   it("substitutes a trailing # after a nested plural whose branch escapes a brace as '#{'", () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { msg: "{files, plural, other {{folders, plural, other {a'#{'b}} #}}" },
     });
 

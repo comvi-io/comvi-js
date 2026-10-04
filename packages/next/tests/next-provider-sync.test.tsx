@@ -130,7 +130,7 @@ describe("Next <I18nProvider> instance sync", () => {
     );
 
     expect(screen.getByTestId("at-render").textContent).toBe("true");
-    expect(fake.addTranslations).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+    expect(fake.addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
   });
 
   it("does not re-add the same messages object on a later render", () => {
@@ -147,7 +147,7 @@ describe("Next <I18nProvider> instance sync", () => {
       </I18nProvider>,
     );
 
-    expect(fake.addTranslations).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+    expect(fake.addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
   });
 
   it("does not re-apply the messages when StrictMode renders the tree twice", () => {
@@ -161,7 +161,7 @@ describe("Next <I18nProvider> instance sync", () => {
       </React.StrictMode>,
     );
 
-    expect(fake.addTranslations).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+    expect(fake.addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
   });
 
   it("adds a different messages object handed over on a later render", () => {
@@ -179,7 +179,7 @@ describe("Next <I18nProvider> instance sync", () => {
       </I18nProvider>,
     );
 
-    expect(fake.addTranslations.mock.calls).toEqual([[MESSAGES], [moreMessages]]);
+    expect(fake.addMessages.mock.calls).toEqual([[MESSAGES], [moreMessages]]);
   });
 
   it("renders without messages instead of adding an empty catalog", () => {
@@ -192,7 +192,7 @@ describe("Next <I18nProvider> instance sync", () => {
     );
 
     expect(screen.getByTestId("child")).toBeDefined();
-    expect(fake.addTranslations).not.toHaveBeenCalled();
+    expect(fake.addMessages).not.toHaveBeenCalled();
   });
 
   it("initializes the instance on mount by default", async () => {
@@ -224,7 +224,7 @@ describe("Next <I18nProvider> instance sync", () => {
   });
 
   it("tells the server renderer that nothing is loading", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: {} }, exposeGlobal: false });
+    const i18n = createI18n({ locale: "en", messages: { en: {} }, exposeGlobal: false });
     const LoadingProbe = () => {
       const { isLoading, isInitializing } = useIsLoading();
       return <span>{`isLoading:${isLoading} isInitializing:${isInitializing}`}</span>;
@@ -286,7 +286,7 @@ describe("Next <I18nProvider> misconfiguration report", () => {
 
     expect(writes).toEqual([]);
     // The message catalog is independent of the locale guard: it still lands.
-    expect(fake.addTranslations).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+    expect(fake.addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
   });
 });
 

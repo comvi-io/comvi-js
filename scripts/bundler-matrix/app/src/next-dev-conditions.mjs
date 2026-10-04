@@ -41,7 +41,7 @@ assert(typeof createNextI18n === "function", "@comvi/next exports createNextI18n
 const { i18n, routing, use } = createNextI18n({
   locales: ["en", "de"],
   defaultLocale: "en",
-  translation: { en: { greeting: "Hello, {name}!" } },
+  messages: { en: { greeting: "Hello, {name}!" } },
 });
 assert(typeof i18n.t === "function", "createNextI18n builds a host");
 assert(typeof use === "function", "the composed root carries the composition verb");

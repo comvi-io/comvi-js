@@ -19,7 +19,7 @@ import { acquirePluginsApi, attachPlugins } from "../../src/plugins";
 import type { VirtualNode } from "../../src/virtualNode";
 
 const bareHost = () =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
+  createI18n({ locale: "en", exposeGlobal: false, messages: { en: { greeting: "Hello" } } });
 
 describe("the acquirers exist once, on the capability subpaths", () => {
   it("publishes each acquirer from its own subpath and from nowhere else", () => {
@@ -69,7 +69,7 @@ describe("acquireLoaderApi()", () => {
         "removeActiveNamespace",
         "removeActiveNamespaces",
         "onLoadError",
-        "reloadTranslations",
+        "reloadMessages",
       ].sort(),
     );
 
@@ -88,7 +88,7 @@ describe("acquireLoaderApi()", () => {
     const first = acquireLoaderApi(one);
 
     expect(acquireLoaderApi(one)).toBe(first);
-    expect(acquireLoaderApi(one).reloadTranslations).toBe(first.reloadTranslations);
+    expect(acquireLoaderApi(one).reloadMessages).toBe(first.reloadMessages);
     expect(acquireLoaderApi(two)).not.toBe(first);
   });
 
@@ -98,7 +98,7 @@ describe("acquireLoaderApi()", () => {
     expect(() => acquireLoaderApi(host)).toThrow("no loader capability");
 
     attachLoader(host);
-    expect(typeof acquireLoaderApi(host).reloadTranslations).toBe("function");
+    expect(typeof acquireLoaderApi(host).reloadMessages).toBe("function");
   });
 });
 

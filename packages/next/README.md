@@ -49,7 +49,7 @@ import { routing } from "./routing";
 
 export const { i18n } = createNextI18n({
   ...routing,
-  translation: {
+  messages: {
     en: { greeting: "Hello, {name}!" },
     uk: { greeting: "Привіт, {name}!" },
   },
@@ -166,7 +166,7 @@ i18n instance with `createNextI18nFromHost` in a server-only module, or hand one
 
 ## Next steps
 
-- [Next.js guide](https://comvi.io/docs/i18n/next): `withComvi`, `<ComviProvider>`, `loadTranslations()`, two runtimes, errors.
+- [Next.js guide](https://comvi.io/docs/i18n/next): `withComvi`, `<ComviProvider>`, `loadMessages()`, two runtimes, errors.
 - [Locale routing](https://comvi.io/docs/i18n/next/routing): `defineRouting`, the middleware and localized links.
 - [Next.js API reference](https://comvi.io/docs/i18n/api/next): every export of the seven entries.
 

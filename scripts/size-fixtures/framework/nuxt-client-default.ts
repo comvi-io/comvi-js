@@ -9,6 +9,6 @@ import { createI18n } from "@comvi/vue";
 const i18n = createI18n({ locale: "en", ssrLocale: "en" });
 
 // Hydration path: the SSR-serialized catalog arrives as plain data.
-i18n.addTranslations({ en: { greeting: "Hello, {name}!" } } as never);
+i18n.addMessages({ en: { greeting: "Hello, {name}!" } } as never);
 
 console.log(plugin, useI18n, i18n.t("greeting" as never, { name: "world" } as never));

@@ -29,9 +29,9 @@ export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   ns?: I18nOptions["ns"];
 
   /**
-   * Static translations to seed i18n cache (no loader required).
+   * Inline catalogs to seed the i18n cache (no loader required).
    */
-  translation?: I18nOptions["translation"];
+  messages?: I18nOptions["messages"];
 
   /**
    * Fallback locale when translation is missing
@@ -160,7 +160,7 @@ export interface CreateNextI18nResult<
  * setI18n(i18n);
  *
  * export { i18n, routing } from "./config";
- * export { getI18n, loadTranslations } from "@comvi/next/server";
+ * export { getI18n, loadMessages } from "@comvi/next/server";
  * ```
  */
 export function createNextI18n<const D extends DefaultTranslationParams = {}>(
@@ -170,7 +170,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
     defaultLocale,
     apiKey,
     ns,
-    translation,
+    messages,
     defaultParams,
     fallbackLocale = defaultLocale,
     defaultNs = "default",
@@ -190,7 +190,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
     fallbackLocale,
     defaultNs,
     ns,
-    translation,
+    messages,
     defaultParams,
     apiKey,
     devMode,

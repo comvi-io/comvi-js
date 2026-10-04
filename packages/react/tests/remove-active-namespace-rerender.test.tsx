@@ -16,7 +16,7 @@ import { useI18nLoader } from "../src/capabilityHooks";
 
 function loaderHost() {
   const i18n = attachLoader(
-    createI18n({ locale: "en", exposeGlobal: false, translation: { "en:nav": { home: "Home" } } }),
+    createI18n({ locale: "en", exposeGlobal: false, messages: { "en:nav": { home: "Home" } } }),
   );
   i18n.registerLoader(async () => ({ title: "Admin" }));
   return i18n;

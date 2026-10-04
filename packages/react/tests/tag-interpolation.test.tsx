@@ -15,7 +15,7 @@ describe("<T /> tag interpolation smoke", () => {
   it("renders nested handlers with real core parser", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "Click <link><bold>here</bold></link>" } },
+      messages: { en: { msg: "Click <link><bold>here</bold></link>" } },
     });
     await i18n.init();
 
@@ -39,7 +39,7 @@ describe("<T /> tag interpolation smoke", () => {
   it("renders React element params nested inside mapped tags", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "Hello <bold>{name}</bold>" } },
+      messages: { en: { msg: "Hello <bold>{name}</bold>" } },
     });
     await i18n.init();
 
@@ -63,7 +63,7 @@ describe("<T /> tag interpolation smoke", () => {
   it("renders a string-target config entry with its configured props", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "Click <link>here</link>" } },
+      messages: { en: { msg: "Click <link>here</link>" } },
     });
     await i18n.init();
 
@@ -79,7 +79,7 @@ describe("<T /> tag interpolation smoke", () => {
   it("merges configured props into a React element handler", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "Click <link>here</link>" } },
+      messages: { en: { msg: "Click <link>here</link>" } },
     });
     await i18n.init();
 
@@ -100,7 +100,7 @@ describe("<T /> tag interpolation smoke", () => {
   it("passes configured props to a function handler", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "Click <btn>here</btn>" } },
+      messages: { en: { msg: "Click <btn>here</btn>" } },
     });
     await i18n.init();
 
@@ -126,7 +126,7 @@ describe("<T /> tag interpolation smoke", () => {
   it("throws in strict mode when handler is missing", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "Click <link>here</link>" } },
+      messages: { en: { msg: "Click <link>here</link>" } },
       tagInterpolation: { strict: true },
     });
     await i18n.init();

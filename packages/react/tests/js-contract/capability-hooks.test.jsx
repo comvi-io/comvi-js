@@ -43,7 +43,7 @@ const wrapperFor = (i18n) =>
   };
 
 const baseHost = () =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
+  createI18n({ locale: "en", exposeGlobal: false, messages: { en: { greeting: "Hello" } } });
 
 describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   it("throws the exact message on a base host — loader", () => {
@@ -73,7 +73,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
       "addActiveNamespace",
       "addActiveNamespaces",
       "onLoadError",
-      "reloadTranslations",
+      "reloadMessages",
       "removeActiveNamespace",
       "removeActiveNamespaces",
     ]);
@@ -163,7 +163,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     const loader = renderHook(() => useI18nLoader(), { wrapper });
     const plugins = renderHook(() => useI18nPlugins(), { wrapper });
 
-    expect(typeof loader.result.current.reloadTranslations).toBe("function");
+    expect(typeof loader.result.current.reloadMessages).toBe("function");
     const off = plugins.result.current.onMissingKey((key) => `[${key}]`);
     expect(host.t("nope")).toBe("[nope]");
     off();
@@ -178,7 +178,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     const first = a.result.current;
 
     expect(b.result.current).toBe(first);
-    expect(b.result.current.reloadTranslations).toBe(first.reloadTranslations);
+    expect(b.result.current.reloadMessages).toBe(first.reloadMessages);
 
     a.rerender();
     expect(a.result.current).toBe(first);
@@ -207,7 +207,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
 
     attachLoader(host);
     const { result } = renderHook(() => useI18nLoader(), { wrapper });
-    expect(typeof result.current.reloadTranslations).toBe("function");
+    expect(typeof result.current.reloadMessages).toBe("function");
   });
 
   // ── B8: ONE canonical behaviour for a non-string `onMissingKey` result ──

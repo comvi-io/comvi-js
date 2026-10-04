@@ -40,7 +40,7 @@ export const WRAPPER_PARITY_FIXTURE = {
 } as const;
 
 const makeI18n = (translations: Record<string, string>) =>
-  createI18n({ locale: "en", translation: { en: translations } });
+  createI18n({ locale: "en", messages: { en: translations } });
 
 // `<T>` is multi-root, and @vue/test-utils trims each root fragment in text(),
 // eating inter-node whitespace. A single-root host keeps textContent honest.

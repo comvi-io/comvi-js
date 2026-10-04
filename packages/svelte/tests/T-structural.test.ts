@@ -43,7 +43,7 @@ export const WRAPPER_PARITY_FIXTURE = {
 } as const;
 
 const makeI18n = (translations: Record<string, string>) =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: { en: translations } });
+  createI18n({ locale: "en", exposeGlobal: false, messages: { en: translations } });
 
 describe("T.svelte structural render", () => {
   let target: HTMLElement;

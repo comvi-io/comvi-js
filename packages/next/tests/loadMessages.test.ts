@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { LoaderResult } from "@comvi/core/loader";
 import { createNextI18n } from "../src/createNextI18n";
-import { loadTranslations, setI18n } from "../src/server";
+import { loadMessages, setI18n } from "../src/server";
 import { _resetServerI18n } from "../src/server/cache";
 
 const makeHost = () =>
@@ -12,7 +12,7 @@ const makeHost = () =>
     devMode: false,
   }).i18n;
 
-describe("loadTranslations", () => {
+describe("loadMessages", () => {
   afterEach(() => {
     // The server i18n is a once-cell: a second setI18n with a different
     // instance throws instead of overwriting.
@@ -25,7 +25,7 @@ describe("loadTranslations", () => {
     const i18n = makeHost();
     setI18n(i18n);
 
-    const result = await loadTranslations("fr");
+    const result = await loadMessages("fr");
 
     expect(result).toEqual({});
     expect(warnSpy).toHaveBeenCalledWith(
@@ -41,8 +41,8 @@ describe("loadTranslations", () => {
     const i18n = makeHost();
     setI18n(i18n);
 
-    await loadTranslations("fr");
-    await loadTranslations("fr");
+    await loadMessages("fr");
+    await loadMessages("fr");
 
     const noLoaderWarnings = warnSpy.mock.calls.filter(([message]) =>
       String(message).includes("No loader registered"),
@@ -54,10 +54,10 @@ describe("loadTranslations", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const i18n = makeHost();
-    i18n.addTranslations({ "fr:common": { greeting: "Bonjour cached" } });
+    i18n.addMessages({ "fr:common": { greeting: "Bonjour cached" } });
     setI18n(i18n);
 
-    const result = await loadTranslations("fr");
+    const result = await loadMessages("fr");
 
     expect(result).toEqual({
       "fr:common": { greeting: "Bonjour cached" },
@@ -67,10 +67,10 @@ describe("loadTranslations", () => {
 
   it("returns plain serializable objects for Server->Client boundaries", async () => {
     const i18n = makeHost();
-    i18n.addTranslations({ "fr:common": { greeting: "Bonjour cached" } });
+    i18n.addMessages({ "fr:common": { greeting: "Bonjour cached" } });
     setI18n(i18n);
 
-    const result = await loadTranslations("fr");
+    const result = await loadMessages("fr");
 
     expect(Object.getPrototypeOf(result["fr:common"])).toBe(Object.prototype);
     expect(result["fr:common"]).toEqual({ greeting: "Bonjour cached" });
@@ -78,7 +78,7 @@ describe("loadTranslations", () => {
 
   it("loads requested namespaces via registered loader and caches loaded entries", async () => {
     const i18n = makeHost();
-    i18n.addTranslations({ "en:common": { __seed: "seed" } });
+    i18n.addMessages({ "en:common": { __seed: "seed" } });
 
     const loaderMock = vi.fn(async (language: string, namespace: string): Promise<LoaderResult> => {
       if (language === "fr" && namespace === "common") {
@@ -93,7 +93,7 @@ describe("loadTranslations", () => {
 
     setI18n(i18n);
 
-    const result = await loadTranslations("fr", {
+    const result = await loadMessages("fr", {
       namespaces: ["common", "admin"],
     });
 
@@ -113,7 +113,7 @@ describe("loadTranslations", () => {
 
   it("uses cache for already loaded namespaces and fetches only missing ones", async () => {
     const i18n = makeHost();
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": { __seed: "seed" },
       "fr:common": { greeting: "Bonjour cached" },
     });
@@ -129,7 +129,7 @@ describe("loadTranslations", () => {
     i18n.registerLoader(loaderMock);
     setI18n(i18n);
 
-    const result = await loadTranslations("fr", {
+    const result = await loadMessages("fr", {
       namespaces: ["common", "admin"],
     });
 
@@ -148,7 +148,7 @@ describe("loadTranslations", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const i18n = makeHost();
-    i18n.addTranslations({ "en:common": { __seed: "seed" } });
+    i18n.addMessages({ "en:common": { __seed: "seed" } });
 
     const loaderMock = vi.fn(async (_language: string, namespace: string) => {
       if (namespace === "common") {
@@ -160,7 +160,7 @@ describe("loadTranslations", () => {
 
     setI18n(i18n);
 
-    const result = await loadTranslations("fr", {
+    const result = await loadMessages("fr", {
       namespaces: ["common", "admin"],
     });
 
@@ -191,8 +191,8 @@ describe("loadTranslations", () => {
 
     setI18n(i18n);
 
-    const pendingA = loadTranslations("fr");
-    const pendingB = loadTranslations("fr");
+    const pendingA = loadMessages("fr");
+    const pendingB = loadMessages("fr");
     await Promise.resolve();
 
     expect(initSpy).toHaveBeenCalledTimes(1);
@@ -233,7 +233,7 @@ describe("loadTranslations", () => {
       i18n.registerLoader(loaderMock);
       setI18n(i18n);
 
-      const result = await loadTranslations("uk");
+      const result = await loadMessages("uk");
 
       expect(Object.keys(result)).toEqual(["uk:common", "de:common", "en:common"]);
       expect(result["en:common"]).toEqual(catalogs.en.common);
@@ -242,7 +242,7 @@ describe("loadTranslations", () => {
       // The real consequence: a client host seeded ONLY with this payload
       // resolves the fallback-only key exactly as the server did.
       const client = makeChainHost(["de", "en"]);
-      client.addTranslations(result);
+      client.addMessages(result);
       expect(client.t("only_en", { locale: "uk" })).toBe("Only en");
       expect(client.t("only_de", { locale: "uk" })).toBe("Nur de");
     });
@@ -252,7 +252,7 @@ describe("loadTranslations", () => {
       i18n.registerLoader(makeLoader());
       setI18n(i18n);
 
-      const result = await loadTranslations("uk");
+      const result = await loadMessages("uk");
 
       expect(result).toEqual({
         "uk:common": catalogs.uk.common,
@@ -266,7 +266,7 @@ describe("loadTranslations", () => {
       i18n.registerLoader(loaderMock);
       setI18n(i18n);
 
-      const result = await loadTranslations("en");
+      const result = await loadMessages("en");
 
       expect(result).toEqual({ "en:common": catalogs.en.common });
       expect(loaderMock.mock.calls.filter(([lang]) => lang === "en")).toHaveLength(1);
@@ -280,7 +280,7 @@ describe("loadTranslations", () => {
       i18n.registerLoader(loaderMock);
       setI18n(i18n);
 
-      const result = await loadTranslations("uk", { namespaces: ["admin"] });
+      const result = await loadMessages("uk", { namespaces: ["admin"] });
 
       expect(Object.keys(result).sort()).toEqual(["en:admin", "uk:admin"]);
       expect(loaderMock).not.toHaveBeenCalledWith("uk", "common");

@@ -75,7 +75,7 @@ function bigCatalog(): Record<string, string> {
 
 function makeHost(compiler: MessageCompiler, translations: Record<string, string>): I18n {
   const i18n = new I18n({ locale: "en", exposeGlobal: false }, compiler);
-  i18n.addTranslations({ en: translations });
+  i18n.addMessages({ en: translations });
   return i18n;
 }
 

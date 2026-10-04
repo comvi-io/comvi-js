@@ -31,7 +31,7 @@ describe("published createNextI18n — composed capabilities", () => {
   it("compiles ICU plural / select / selectordinal once the compiler is named", () => {
     const { i18n } = make({
       compiler: icuCompiler,
-      translation: {
+      messages: {
         en: {
           items: "{count, plural, one {# item} other {# items}}",
           who: "{gender, select, male {he} female {she} other {they}}",
@@ -47,7 +47,7 @@ describe("published createNextI18n — composed capabilities", () => {
   });
 
   it("parses ambient string-API tag syntax", () => {
-    const { i18n } = make({ translation: { en: { rich: "click <b>here</b> now" } } });
+    const { i18n } = make({ messages: { en: { rich: "click <b>here</b> now" } } });
 
     // The handler arrives through the PARAM channel and receives the tag's
     // props object, whose `children` is the inner text. The declared type is
@@ -60,7 +60,7 @@ describe("published createNextI18n — composed capabilities", () => {
   it("renders tags as virtual nodes through tRaw with basicHtmlTags", () => {
     const { i18n } = make({
       basicHtmlTags: ["strong"],
-      translation: { en: { rich: "read <strong>this</strong>" } },
+      messages: { en: { rich: "read <strong>this</strong>" } },
     });
 
     const parts = i18n.tRaw("rich");
@@ -71,7 +71,7 @@ describe("published createNextI18n — composed capabilities", () => {
   });
 
   it("flattens NESTED constructor catalogs (the ordering-sensitive claim)", () => {
-    const { i18n } = make({ translation: { en: { nav: { home: "Home", deep: { x: "X" } } } } });
+    const { i18n } = make({ messages: { en: { nav: { home: "Home", deep: { x: "X" } } } } });
 
     expect(i18n.t("nav.home")).toBe("Home");
     expect(i18n.t("nav.deep.x")).toBe("X");
@@ -79,7 +79,7 @@ describe("published createNextI18n — composed capabilities", () => {
 
   it("applies defaultParams and lets a call override them", () => {
     const { i18n } = make({
-      translation: { en: { p: "{brand} says {msg}" } },
+      messages: { en: { p: "{brand} says {msg}" } },
       defaultParams: { brand: "Comvi" },
     });
 
@@ -166,7 +166,7 @@ describe("published createNextI18n — composed capabilities", () => {
   });
 
   it("keeps instanceId as the FINAL public own property", () => {
-    const { i18n } = make({ translation: { en: { a: "A" } } });
+    const { i18n } = make({ messages: { en: { a: "A" } } });
 
     const publicKeys = Object.keys(i18n).filter((key) => !key.startsWith("_"));
 
@@ -232,7 +232,7 @@ describe("published createNextI18n — the result surface", () => {
       "onMissingKey",
       "registerLoader",
       "getLoader",
-      "reloadTranslations",
+      "reloadMessages",
       "addActiveNamespace",
       "addActiveNamespaces",
       "removeActiveNamespace",
@@ -278,27 +278,27 @@ describe("published createNextI18n — unchanged by the P4 direct-host convergen
     };
 
     const composed = outcome(() =>
-      make({ translation: { en: plural } }).i18n.t("items", { count: 3 }),
+      make({ messages: { en: plural } }).i18n.t("items", { count: 3 }),
     );
     const base = outcome(() =>
       baseCreateI18n({
         locale: "en",
         exposeGlobal: false,
-        translation: { en: plural },
+        messages: { en: plural },
       }).t("items" as never, { count: 3 } as never),
     );
 
     expect(composed).toEqual(base);
     // …and naming the compiler is what changes the answer, on both surfaces.
     expect(
-      make({ compiler: icuCompiler, translation: { en: plural } }).i18n.t("items", { count: 3 }),
+      make({ compiler: icuCompiler, messages: { en: plural } }).i18n.t("items", { count: 3 }),
     ).toBe("3 items");
     expect(
       baseCreateI18n({
         locale: "en",
         exposeGlobal: false,
         compiler: icuCompiler,
-        translation: { en: plural },
+        messages: { en: plural },
       }).t("items" as never, { count: 3 } as never),
     ).toBe("3 items");
   });
@@ -306,14 +306,14 @@ describe("published createNextI18n — unchanged by the P4 direct-host convergen
   it("hosts plugins and flattens nested catalogs where the base host does neither", () => {
     const nested = { nav: { home: "Home" } };
 
-    const composed = make({ translation: { en: nested } }).i18n;
+    const composed = make({ messages: { en: nested } }).i18n;
     expect(typeof composed.registerPlugin).toBe("function");
     expect(composed.t("nav.home")).toBe("Home");
 
     const base = baseCreateI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: nested },
+      messages: { en: nested },
     }) as unknown as Record<string, unknown>;
     expect(base.registerPlugin).toBeUndefined();
     expect(base.registerLoader).toBeUndefined();

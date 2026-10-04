@@ -183,7 +183,7 @@ describe("fetchLoader() wrong use", () => {
 
   /**
    * A late `.use(fetchLoader(…))` registers nothing, so the loader
-   * capability's recovery advice ("call reloadTranslations() or
+   * capability's recovery advice ("call reloadMessages() or
    * addActiveNamespace()") cannot work: the plugin that would have called
    * `registerLoader` has not run. The late-compose warning is once per host, so
    * the plugin capability's message — the accurate one — has to claim the slot.
@@ -199,12 +199,12 @@ describe("fetchLoader() wrong use", () => {
     expect(messages).toHaveLength(1);
     expect(messages[0]).toContain(".use(plugins()) ran after init()");
     expect(messages[0]).toContain("does not run until the next init()");
-    expect(messages[0]).not.toContain("reloadTranslations()");
+    expect(messages[0]).not.toContain("reloadMessages()");
 
     // Why the loader message would have been wrong: no loader was registered,
     // so neither advertised recovery does anything.
     expect(late.getLoader()).toBeUndefined();
-    await expect(late.reloadTranslations()).rejects.toThrow(/No loader registered/);
+    await expect(late.reloadMessages()).rejects.toThrow(/No loader registered/);
     await expect(late.addActiveNamespace("other")).resolves.toBeUndefined();
 
     await late.destroy();

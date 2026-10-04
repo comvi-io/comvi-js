@@ -13,8 +13,8 @@ describe("new I18n(options) — option validation", () => {
   });
 
   it("throws a validation error when translation is null", () => {
-    expect(() => new I18n({ locale: "en", translation: null as any })).toThrowError(
-      expect.objectContaining({ message: "@comvi/core: Translation is not an object" }),
+    expect(() => new I18n({ locale: "en", messages: null as any })).toThrowError(
+      expect.objectContaining({ message: "@comvi/core: `messages` is not an object" }),
     );
   });
 });
@@ -23,7 +23,7 @@ describe("new I18n(options) — initial translations", () => {
   it("should accept initial translations", () => {
     const i18n = new I18n({
       locale: "en",
-      translation: {
+      messages: {
         en: { key: "Value" },
       },
     });
@@ -34,7 +34,7 @@ describe("new I18n(options) — initial translations", () => {
   it("should flatten nested keys in initial translations", () => {
     const i18n = new I18n({
       locale: "en",
-      translation: {
+      messages: {
         en: {
           nested: {
             deep: "Value",
@@ -53,7 +53,7 @@ describe("new I18n(options) — initial translations", () => {
 
     const i18n = new I18n({
       locale: "en",
-      translation: {
+      messages: {
         en: flatTranslations,
       },
     });
@@ -71,7 +71,7 @@ describe("new I18n(options) — initial translations", () => {
 
     const i18n = new I18n({
       locale: "en",
-      translation: {
+      messages: {
         en: flatTranslations,
       },
     });
@@ -79,9 +79,9 @@ describe("new I18n(options) — initial translations", () => {
     expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
     expect(i18n.t("nested.deep")).toBe("Frozen");
     // A COPY, not the frozen object itself — otherwise the merge below throws.
-    expect(i18n.getTranslations()).not.toBe(flatTranslations);
+    expect(i18n.getMessages()).not.toBe(flatTranslations);
 
-    i18n.addTranslations({ en: { extra: "X" } });
+    i18n.addMessages({ en: { extra: "X" } });
 
     expect(i18n.t("extra")).toBe("X");
   });
@@ -136,7 +136,7 @@ describe("init()", () => {
     const i18n = new I18n({ locale: "en" });
     await i18n.init();
 
-    i18n.addTranslations({ "en:default": { testKey: "Found It" } });
+    i18n.addMessages({ "en:default": { testKey: "Found It" } });
 
     expect(i18n.t("testKey")).toBe("Found It");
   });

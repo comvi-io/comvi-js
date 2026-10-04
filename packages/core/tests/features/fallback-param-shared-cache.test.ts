@@ -8,7 +8,7 @@ describe("t() with params.fallback that equals an already-rendered static templa
   beforeEach(clearTemplateCache);
 
   it("renders the fallback text after the same text was rendered from the catalog → 'Hello world'", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { greet: "Hello world" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { greet: "Hello world" } } });
     i18n.t("greet");
 
     const rendered = i18n.t("missing", { fallback: "Hello world" });
@@ -17,7 +17,7 @@ describe("t() with params.fallback that equals an already-rendered static templa
   });
 
   it("renders the catalog value after the same text was used as a fallback first → 'Hello world'", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { greet: "Hello world" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { greet: "Hello world" } } });
     i18n.t("missing", { fallback: "Hello world" });
 
     const rendered = i18n.t("greet");
@@ -26,7 +26,7 @@ describe("t() with params.fallback that equals an already-rendered static templa
   });
 
   it("still interpolates a fallback template that has a parameter → 'Hi Ann'", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi {name}" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     i18n.t("hi", { name: "Bob" });
 
     const rendered = i18n.t("missing", { fallback: "Hi {name}", name: "Ann" });

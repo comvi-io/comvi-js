@@ -22,7 +22,7 @@ that renders correctly under that host renders literally under every other.
 - **No constructor in the repo enables ICU.** Not `createI18n`, not `createNextI18n`, and nuxt's
   `comvi.icu` defaults to `false`.
 - **One enable form: `compiler: icuCompiler` from `@comvi/core/icu`**, a constructor field held for
-  the instance's life, covering every catalog source — inline, `addTranslations`, a loader merge,
+  the instance's life, covering every catalog source — inline, `addMessages`, a loader merge,
   the CDN, the API.
 - **The CDN global is the one composed exception**, because a `<script src>` has no tree-shaking and
   therefore no byte choice to offer.
@@ -61,9 +61,9 @@ so `few` versus `many` is right without a table of your own:
 ```ts
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
-import translation from "./locales/messages.json";
+import messages from "./locales/messages.json";
 
-const i18n = createI18n({ locale: "uk", compiler: icuCompiler, translation });
+const i18n = createI18n({ locale: "uk", compiler: icuCompiler, messages });
 
 i18n.t("messages", { count: 22 }); // "22 повідомлення"  ← the "few" form, NOT the "many" form
 i18n.t("messages", { count: 5 }); // "5 повідомлень"     ← the "many" form
@@ -110,7 +110,7 @@ bare base host included.
 
 - **ICU on by default in the framework packages** — one host quietly compiling a grammar every other
   host refuses is a difference that only surfaces when a catalog moves between them.
-- **An `icu()` installer** — composable too late, after `translation` was walked, failing as a
+- **An `icu()` installer** — composable too late, after `messages` was walked, failing as a
   catalog that renders literally for reasons nothing in the chain shows.
 - **Two enable forms keyed on catalog source** (`compiler:` inline, `.use(icu())` remote,
   `E_COMPILER_LOCKED` when mixed) — a rule readers had to learn for no benefit.

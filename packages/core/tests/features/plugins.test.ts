@@ -117,7 +117,7 @@ describe("I18n#registerPlugin() — execution, ordering and failure", () => {
     };
 
     const i18n = new I18n({ locale: "en" }).registerPlugin(addPrefix).registerPlugin(addSuffix);
-    i18n.addTranslations({ en: { test: "value" } });
+    i18n.addMessages({ en: { test: "value" } });
     await i18n.init();
 
     expect(i18n.t("test")).toBe("[prefix]value[suffix]");
@@ -137,7 +137,7 @@ describe("I18n#registerPlugin() — execution, ordering and failure", () => {
     const i18n = new I18n({ locale: "en" })
       .registerPlugin(throwingPlugin)
       .registerPlugin(upperCasePlugin);
-    i18n.addTranslations({ en: { test: "hello" } });
+    i18n.addMessages({ en: { test: "hello" } });
     await i18n.init();
 
     expect(i18n.t("test")).toBe("HELLO");
@@ -148,7 +148,7 @@ describe("I18n#registerPlugin() — execution, ordering and failure", () => {
     i18n.registerPostProcessor(() => {
       throw new Error("single processor failed");
     });
-    i18n.addTranslations({ en: { test: "value" } });
+    i18n.addMessages({ en: { test: "value" } });
 
     await i18n.init();
 
@@ -163,7 +163,7 @@ describe("I18n#registerPlugin() — execution, ordering and failure", () => {
       locale: "en",
       postProcess: (val) => (typeof val === "string" ? `[option]${val}` : val),
     });
-    i18n.addTranslations({ en: { test: "value" } });
+    i18n.addMessages({ en: { test: "value" } });
 
     i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-a` : val));
     i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-b` : val));
@@ -180,7 +180,7 @@ describe("I18n#registerPlugin() — execution, ordering and failure", () => {
         throw new Error("option processor failed");
       },
     });
-    i18n.addTranslations({ en: { test: "value" } });
+    i18n.addMessages({ en: { test: "value" } });
 
     i18n.registerPostProcessor((val) => (typeof val === "string" ? val.toUpperCase() : val));
 
@@ -197,11 +197,11 @@ describe("I18n#registerPlugin() — execution, ordering and failure", () => {
   // destroyed host had.
   it("drops the registered chain on destroy, so a later registration starts fresh", async () => {
     const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({ en: { test: "value" } });
+    i18n.addMessages({ en: { test: "value" } });
     i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-before` : val));
 
     await i18n.destroy();
-    i18n.addTranslations({ en: { test: "value" } });
+    i18n.addMessages({ en: { test: "value" } });
     i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-after` : val));
 
     expect(i18n.t("test")).toBe("value-after");

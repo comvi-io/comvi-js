@@ -1,7 +1,7 @@
 /**
  * A CDN catalog whose JSON root is not an object is rejected with the same
  * error the API loader raises for the same shape. The CDN path used to hand an
- * array, a string or `null` straight to `addTranslations`, which turned a
+ * array, a string or `null` straight to `addMessages`, which turned a
  * string into per-character keys and `null` into an empty catalog instead of a
  * reported load failure. RC review, non-blocking "malformed CDN roots".
  */

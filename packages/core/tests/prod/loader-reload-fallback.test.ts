@@ -1,5 +1,5 @@
 /**
- * `reloadTranslations()` with no active namespace left reloads the DEFAULT
+ * `reloadMessages()` with no active namespace left reloads the DEFAULT
  * namespace. Development also says so in a warning; production must not — the
  * message is a development-only string and nothing should reach the console.
  */
@@ -17,14 +17,14 @@ function recordingHost() {
   return { i18n, loads };
 }
 
-describe("reloadTranslations() with no active namespace left", () => {
+describe("reloadMessages() with no active namespace left", () => {
   it("reloads the default namespace", async () => {
     const { i18n, loads } = recordingHost();
     await i18n.addActiveNamespace("default");
     loads.length = 0;
 
-    i18n.clearTranslations(undefined, "default");
-    await i18n.reloadTranslations();
+    i18n.clearMessages(undefined, "default");
+    await i18n.reloadMessages();
 
     expect(loads).toEqual(["en:default"]);
   });
@@ -34,8 +34,8 @@ describe("reloadTranslations() with no active namespace left", () => {
     const { i18n } = recordingHost();
     await i18n.addActiveNamespace("default");
 
-    i18n.clearTranslations(undefined, "default");
-    await i18n.reloadTranslations();
+    i18n.clearMessages(undefined, "default");
+    await i18n.reloadMessages();
 
     expect(warnSpy).not.toHaveBeenCalled();
   });

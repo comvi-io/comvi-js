@@ -12,7 +12,7 @@
   setI18nContext(i18n, { autoInit: false });
 
   const bag = useI18n();
-  const { t, locale, dir, setLocale, addTranslations, formatNumber, formatCurrency } = bag;
+  const { t, locale, dir, setLocale, addMessages, formatNumber, formatCurrency } = bag;
 
   report(bag);
 
@@ -21,7 +21,7 @@
   }
 
   function addLate(): void {
-    addTranslations({ en: { late: "Late binding" } });
+    addMessages({ en: { late: "Late binding" } });
   }
 </script>
 

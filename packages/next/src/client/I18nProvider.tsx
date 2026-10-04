@@ -26,12 +26,12 @@ export interface I18nProviderProps extends Omit<
   locale: string;
 
   /**
-   * Pre-loaded messages from loadTranslations().
+   * Pre-loaded messages from loadMessages().
    * These will be added to the i18n cache on mount.
    *
    * @example
    * ```tsx
-   * const messages = await loadTranslations(locale);
+   * const messages = await loadMessages(locale);
    * <I18nProvider i18n={i18n} locale={locale} messages={messages}>
    * ```
    */
@@ -85,7 +85,7 @@ function applyLocale(i18n: import("@comvi/core").WrapperI18nHost, locale: string
  *
  * Syncs the server locale onto the client i18n instance, preventing hydration
  * mismatches. Translations should be pre-loaded in the instance via the
- * `translation` option in `createI18n()`.
+ * `messages` option in `createI18n()`.
  *
  * Render it from a `"use client"` wrapper that imports the instance itself:
  * Next.js cannot pass a class instance from a Server Component to a Client
@@ -165,13 +165,13 @@ export function I18nProvider({
     if (validateLocale(i18n, locale, routing) && typeof window !== "undefined") {
       applyLocale(i18n, locale);
     }
-    // `addTranslations` stays on the server: it is additive and keyed
+    // `addMessages` stays on the server: it is additive and keyed
     // `locale:namespace`, so a concurrent request can only write what the other
     // would have loaded anyway, and after the first add per key it is a no-op
     // for the cache and for `getActiveNamespaces()`. The first add does emit
     // `namespaceLoaded` — accepted.
     if (messages && messages !== lastAddedMessagesRef.current) {
-      i18n.addTranslations(messages);
+      i18n.addMessages(messages);
       lastAddedMessagesRef.current = messages;
     }
     return null;
@@ -185,7 +185,7 @@ export function I18nProvider({
     }
 
     if (messages && messages !== lastAddedMessagesRef.current) {
-      i18n.addTranslations(messages);
+      i18n.addMessages(messages);
       lastAddedMessagesRef.current = messages;
     }
   }, [i18n, locale, messages, routing]);

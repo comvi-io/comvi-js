@@ -191,7 +191,7 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
             if (data) translations[`${loc}:${ns}`] = data;
           }
           if (Object.keys(translations).length > 0) {
-            i18n.addTranslations(translations);
+            i18n.addMessages(translations);
           }
         } catch {
           // Errors already reported via onLoadError

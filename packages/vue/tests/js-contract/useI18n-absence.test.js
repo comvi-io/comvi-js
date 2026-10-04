@@ -19,7 +19,7 @@ const baseHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
-    translation: { en: { greeting: "Hello" } },
+    messages: { en: { greeting: "Hello" } },
   });
 
 const composedHost = () => attachPlugins(attachLoader(baseHost()));
@@ -41,12 +41,7 @@ function inSetup(i18n, body) {
   if (thrown) throw thrown;
 }
 
-const CAPABILITY_MEMBERS = [
-  "addActiveNamespace",
-  "reloadTranslations",
-  "onLoadError",
-  "onMissingKey",
-];
+const CAPABILITY_MEMBERS = ["addActiveNamespace", "reloadMessages", "onLoadError", "onMissingKey"];
 
 // A capability-CARRYING host must behave exactly like the base one here: the
 // members are gone from `useI18n()` by absence, not by host sniffing.
@@ -58,10 +53,10 @@ describe.each([
 
   it("pure destructure yields undefined and calling it is a TypeError", () => {
     render((bag) => {
-      const { reloadTranslations } = bag;
+      const { reloadMessages } = bag;
 
-      expect(reloadTranslations).toBeUndefined();
-      expect(() => reloadTranslations()).toThrow(TypeError);
+      expect(reloadMessages).toBeUndefined();
+      expect(() => reloadMessages()).toThrow(TypeError);
     });
   });
 
@@ -76,7 +71,7 @@ describe.each([
 
   it("aliased destructure yields undefined", () => {
     render((bag) => {
-      const { reloadTranslations: r, addActiveNamespace: addNs } = bag;
+      const { reloadMessages: r, addActiveNamespace: addNs } = bag;
 
       expect(r).toBeUndefined();
       expect(addNs).toBeUndefined();
@@ -104,7 +99,7 @@ describe.each([
 // which is the wrapper's own member and takes an installer, not a plugin.
 const DROPPED_PROXIES = [
   "addActiveNamespace",
-  "reloadTranslations",
+  "reloadMessages",
   "registerLoader",
   "registerLocaleDetector",
   "registerPostProcessor",

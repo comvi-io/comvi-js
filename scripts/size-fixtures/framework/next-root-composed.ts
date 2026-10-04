@@ -14,7 +14,7 @@ const { i18n, routing } = createNextI18n({
   locales: ["en", "de"],
   defaultLocale: "en",
   compiler: icuCompiler,
-  translation: { en: { greeting: "Hello, {name}!" } },
+  messages: { en: { greeting: "Hello, {name}!" } },
 })
   .use(loader({ de: () => Promise.resolve({ default: { greeting: "Hallo, {name}!" } }) }))
   .use(nextPlugin(() => undefined, { runtime: "client" }));

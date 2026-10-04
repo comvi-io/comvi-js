@@ -46,7 +46,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
         // all, so SSR must construct with the same one the client does.
         // `||` treats the `""` that runtime config makes of an unset option as
         // no catalog, exactly as the app plugin does.
-        translation: publicConfig.translation || undefined,
+        messages: publicConfig.messages || undefined,
         // Symmetric with the app plugin (runtime/plugin.ts): a server route that
         // renders rich text off the request host keeps the same whitelist the
         // client render used. `ssrLocale` stays client-only.

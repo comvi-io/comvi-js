@@ -99,13 +99,13 @@
         apiKey: undefined,
         collectContext: false,
         // Keep one loaded locale/namespace so activation exercises the real
-        // refreshTranslations path through the extension proxy.
+        // refreshMessages path through the extension proxy.
         getLoadedLocales: () => ["en"],
-        getActiveNamespaces: () => ["translation"],
+        getActiveNamespaces: () => ["messages"],
         getDefaultNamespace: () => "translation",
         hasLocale: () => false,
-        getTranslations: () => ({}),
-        addTranslations: () => {},
+        getMessages: () => ({}),
+        addMessages: () => {},
         registerPostProcessor: () => {},
         on: () => () => {},
         off: () => {},

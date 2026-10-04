@@ -22,7 +22,7 @@ describe("basic-HTML whitelist", () => {
   it("renders a self-closing whitelisted tag as an element with NO children", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "a<br/>b" } },
+      messages: { en: { msg: "a<br/>b" } },
       tagInterpolation: { basicHtmlTags: ["br"] },
     });
 
@@ -36,7 +36,7 @@ describe("basic-HTML whitelist", () => {
 
 describe("missing tag handler", () => {
   it("stays silent by default and falls back to the inner text", () => {
-    const i18n = createI18n({ locale: "en", translation: RICH });
+    const i18n = createI18n({ locale: "en", messages: RICH });
 
     const result = i18n.t("msg");
 
@@ -45,7 +45,7 @@ describe("missing tag handler", () => {
   });
 
   it("warns on the console when strict is 'warn' and no reporter is configured", () => {
-    const i18n = createI18n({ locale: "en", translation: RICH });
+    const i18n = createI18n({ locale: "en", messages: RICH });
 
     const result = i18n.t("msg", { tagInterpolation: { strict: "warn" } });
 
@@ -55,7 +55,7 @@ describe("missing tag handler", () => {
 
   it("hands the tag name to onTagWarning instead of the console", () => {
     const onTagWarning = vi.fn();
-    const i18n = createI18n({ locale: "en", translation: RICH });
+    const i18n = createI18n({ locale: "en", messages: RICH });
 
     const result = i18n.t("msg", { tagInterpolation: { strict: "warn", onTagWarning } });
 
@@ -68,7 +68,7 @@ describe("missing tag handler", () => {
     const onError = vi.fn();
     const i18n = createI18n({
       locale: "en",
-      translation: RICH,
+      messages: RICH,
       tagInterpolation: { strict: "warn" },
       onError,
     });
@@ -84,7 +84,7 @@ describe("missing tag handler", () => {
   });
 
   it("falls back to the console warning when onTagWarning itself throws", () => {
-    const i18n = createI18n({ locale: "en", translation: RICH });
+    const i18n = createI18n({ locale: "en", messages: RICH });
 
     const result = i18n.t("msg", {
       tagInterpolation: {
@@ -104,7 +104,7 @@ describe("extension dispatch at render time", () => {
   it("the tag extension declines a token it did not produce, so the next one renders it", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { msg: "a&mark;b" } },
+      messages: { en: { msg: "a&mark;b" } },
       tagInterpolation: { extensions: [makeMarkerExtension()] },
     });
 

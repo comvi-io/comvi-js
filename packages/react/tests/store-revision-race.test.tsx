@@ -13,7 +13,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       // capability is an explicit `compiler:`, never an implicit default.
       compiler: icuCompiler,
       defaultParams: { formality: "formal" },
-      translation: {
+      messages: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
       },
     });
@@ -50,7 +50,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
     const i18n = createI18n({
       locale: "fr",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { fallbackOnly: "Fallback" },
       },
     });

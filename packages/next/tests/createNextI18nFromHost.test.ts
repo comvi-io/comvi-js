@@ -7,19 +7,19 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
-import { createNextI18nFromHost, getI18n, loadTranslations } from "../src/server";
+import { createNextI18nFromHost, getI18n, loadMessages } from "../src/server";
 import { _resetServerI18n, resolveServerI18n, setI18n } from "../src/server/cache";
 
 const ROUTING = { locales: ["en", "fr"], defaultLocale: "en" };
 
-const composedHost = (translation?: Record<string, Record<string, string>>) =>
+const composedHost = (messages?: Record<string, Record<string, string>>) =>
   attachLoader(
     createI18n({
       locale: "en",
       defaultNs: "common",
       exposeGlobal: false,
       devMode: false,
-      translation,
+      messages,
     }),
   );
 
@@ -48,7 +48,7 @@ describe("createNextI18nFromHost — eager construction", () => {
     const host = vi.fn(() => composedHost({ "fr:common": { greeting: "Bonjour" } }));
     createNextI18nFromHost(host, ROUTING);
 
-    const messages = await loadTranslations("fr", { namespaces: ["common"] });
+    const messages = await loadMessages("fr", { namespaces: ["common"] });
     const { t } = await getI18n({ locale: "fr" });
 
     expect(host).toHaveBeenCalledTimes(1);
@@ -63,7 +63,7 @@ describe("createNextI18nFromHost — eager construction", () => {
 
     const [renderA, renderB] = await Promise.all([
       getI18n({ locale: "en" }),
-      loadTranslations("en", { namespaces: ["common"] }),
+      loadMessages("en", { namespaces: ["common"] }),
     ]);
 
     expect(host).toHaveBeenCalledTimes(1);
@@ -102,7 +102,7 @@ describe("createNextI18nFromHost — server render on a base + loader host", () 
     );
     createNextI18nFromHost(hostWithLoader(loader), ROUTING);
 
-    const messages = await loadTranslations("fr", { namespaces: ["common"] });
+    const messages = await loadMessages("fr", { namespaces: ["common"] });
 
     expect(messages["fr:common"]).toEqual({ greeting: "Bonjour" });
     expect(loader).toHaveBeenCalledTimes(1);
@@ -113,8 +113,8 @@ describe("createNextI18nFromHost — server render on a base + loader host", () 
     const loader = vi.fn(async () => ({ greeting: "Bonjour" }));
     createNextI18nFromHost(hostWithLoader(loader), ROUTING);
 
-    const first = await loadTranslations("fr", { namespaces: ["common"] });
-    const second = await loadTranslations("fr", { namespaces: ["common"] });
+    const first = await loadMessages("fr", { namespaces: ["common"] });
+    const second = await loadMessages("fr", { namespaces: ["common"] });
 
     expect(first["fr:common"]).toEqual({ greeting: "Bonjour" });
     expect(second["fr:common"]).toEqual({ greeting: "Bonjour" });
@@ -124,7 +124,7 @@ describe("createNextI18nFromHost — server render on a base + loader host", () 
   it("serializes translations as plain objects for the client boundary", async () => {
     createNextI18nFromHost(() => composedHost({ "fr:common": { greeting: "Bonjour" } }), ROUTING);
 
-    const messages = await loadTranslations("fr", { namespaces: ["common"] });
+    const messages = await loadMessages("fr", { namespaces: ["common"] });
 
     expect(Object.getPrototypeOf(messages["fr:common"])).toBe(Object.prototype);
   });

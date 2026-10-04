@@ -1,7 +1,7 @@
 import type { JSX, ReactNode } from "react";
 import { ComviClientProvider } from "../client/ComviClientProvider";
 import { getConfiguredI18n, setRequestLocaleInternal } from "./cache";
-import { loadTranslations } from "./loadTranslations";
+import { loadMessages } from "./loadMessages";
 
 export interface ComviProviderProps {
   /** The locale this tree renders in, typically the `[locale]` param. */
@@ -54,7 +54,7 @@ export async function ComviProvider({
     );
   }
   setRequestLocaleInternal(locale);
-  const messages = await loadTranslations(locale, { namespaces });
+  const messages = await loadMessages(locale, { namespaces });
   return (
     <ComviClientProvider locale={locale} messages={messages}>
       {children}

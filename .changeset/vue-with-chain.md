@@ -9,7 +9,7 @@ const i18n = createI18n({ locale: "en", fallbackLocale: "en", compiler: icuCompi
   cdnLoader({ cdnUrl }),
 );
 
-i18n.core.reloadTranslations(); // typed: `.use` widened `core`
+i18n.core.reloadMessages(); // typed: `.use` widened `core`
 createApp(App).use(i18n).mount("#app");
 ```
 

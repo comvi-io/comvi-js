@@ -73,7 +73,7 @@ import { createI18n, I18nProvider, useI18n } from "@comvi/react";
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  translation: {
+  messages: {
     en: { greeting: "Hello, {name}!" },
     uk: { greeting: "Привіт, {name}!" },
   },

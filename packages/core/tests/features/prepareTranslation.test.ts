@@ -15,7 +15,7 @@ import type { ElementNode, VirtualNode } from "../../src/virtualNode";
 
 function makeInstance(translations: Record<string, string>) {
   const i18n = new I18n({ locale: "en", exposeGlobal: false }, icuCompiler);
-  i18n.addTranslations({ en: translations });
+  i18n.addMessages({ en: translations });
   return i18n;
 }
 
@@ -190,7 +190,7 @@ describe("prepareTranslation", () => {
         { locale: "de", fallbackLocale: "en", exposeGlobal: false },
         icuCompiler,
       );
-      i18n.addTranslations({ en: { msg: "english" } });
+      i18n.addMessages({ en: { msg: "english" } });
       const { content, isMissing } = prepareTranslation(i18n, { i18nKey: "msg" });
       expect(content).toBe("english");
       expect(isMissing).toBe(false);

@@ -34,7 +34,7 @@ describe("<T /> missing-key detection", () => {
       locale: "en",
       exposeGlobal: false,
       defaultNs: "common",
-      translation: { "en:common": { hello: "hello" } },
+      messages: { "en:common": { hello: "hello" } },
     });
 
     const wrapper = mountT(i18n, { i18nKey: "hello" }, { default: () => "Slot fallback" });
@@ -47,7 +47,7 @@ describe("<T /> missing-key detection", () => {
       locale: "en",
       exposeGlobal: false,
       defaultNs: "common",
-      translation: { "en:admin": { hello: "hello" } },
+      messages: { "en:admin": { hello: "hello" } },
     });
 
     const wrapper = mountT(
@@ -64,7 +64,7 @@ describe("<T /> missing-key detection", () => {
       locale: "en",
       exposeGlobal: false,
       defaultNs: "common",
-      translation: { "fr:common": { hello: "hello" } },
+      messages: { "fr:common": { hello: "hello" } },
     });
 
     const wrapper = mountT(
@@ -82,7 +82,7 @@ describe("<T /> missing-key detection", () => {
       exposeGlobal: false,
       fallbackLocale: "en",
       defaultNs: "common",
-      translation: { "en:common": { hello: "hello" } },
+      messages: { "en:common": { hello: "hello" } },
     });
 
     const wrapper = mountT(i18n, { i18nKey: "hello" }, { default: () => "Slot fallback" });
@@ -96,7 +96,7 @@ describe("<T /> tag handler resolution", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { msg: "a <wrap><bold>x</bold></wrap> b" } },
+      messages: { en: { msg: "a <wrap><bold>x</bold></wrap> b" } },
     });
     let received: unknown;
 
@@ -121,7 +121,7 @@ describe("<T /> tag handler resolution", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { msg: "go <tag>x</tag>" } },
+      messages: { en: { msg: "go <tag>x</tag>" } },
     });
     const Chosen = markRaw(
       defineComponent({ name: "Chosen", template: '<b class="chosen"><slot /></b>' }),
@@ -141,7 +141,7 @@ describe("<T /> tag handler resolution", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { msg: "go <link>here</link>" } },
+      messages: { en: { msg: "go <link>here</link>" } },
     });
     const Anchor = markRaw(
       defineComponent({
@@ -163,7 +163,7 @@ describe("<T /> tag handler resolution", () => {
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
-      translation: { en: { msg: "[<wrap></wrap>]" } },
+      messages: { en: { msg: "[<wrap></wrap>]" } },
     });
 
     const wrapper = mountT(i18n, { i18nKey: "msg" }, { wrap: () => [] });
@@ -177,7 +177,7 @@ describe("<T /> tag handler resolution", () => {
       locale: "en",
       exposeGlobal: false,
       onError,
-      translation: { en: { msg: "a <wrap>inner</wrap> b" } },
+      messages: { en: { msg: "a <wrap>inner</wrap> b" } },
     });
 
     const wrapper = mountT(
@@ -207,7 +207,7 @@ describe("<T /> VirtualNode conversion", () => {
       createI18n({
         locale: "en",
         exposeGlobal: false,
-        translation: { en: { msg: "[<wrap>inner</wrap>]" } },
+        messages: { en: { msg: "[<wrap>inner</wrap>]" } },
       }),
       { i18nKey: "msg", params: { wrap: callback } },
     );

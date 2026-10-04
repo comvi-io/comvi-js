@@ -16,7 +16,7 @@ function handlers(...names: string[]): TranslationParams {
 }
 
 function render(template: string, params: TranslationParams = {}): string {
-  const i18n = createI18n({ locale: "en", translation: { en: { msg: template } } });
+  const i18n = createI18n({ locale: "en", messages: { en: { msg: template } } });
   return i18n.t("msg", params) as string;
 }
 

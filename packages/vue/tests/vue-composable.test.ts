@@ -23,7 +23,7 @@ describe("useI18n composable", () => {
 
   it("provides reactive locale and translates through installed plugin", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { k: "v" },
       fr: { k: "valeur" },
     });
@@ -49,7 +49,7 @@ describe("useI18n composable", () => {
 
   it("re-renders formatter output when locale changes", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { k: "v" },
       de: { k: "w" },
     });
@@ -75,7 +75,7 @@ describe("useI18n composable", () => {
 
   it("exposes isInitialized and cacheRevision as reactive refs", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({ en: { k: "v" } });
+    i18n.addMessages({ en: { k: "v" } });
 
     const C = {
       template: "<div>{{ isInitialized }}:{{ cacheRevision }}</div>",
@@ -93,7 +93,7 @@ describe("useI18n composable", () => {
     await nextTick();
     expect(wrapper.text().startsWith("true:")).toBe(true);
 
-    i18n.addTranslations({ en: { k2: "v2" } });
+    i18n.addMessages({ en: { k2: "v2" } });
     await nextTick();
     expect(wrapper.text()).toBe(`true:${i18n.core.translationCache.getRevision()}`);
     expect(i18n.core.translationCache.getRevision()).toBeGreaterThan(revisionBefore);
@@ -101,7 +101,7 @@ describe("useI18n composable", () => {
 
   it("binds the requested namespace for translations", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": { key: "Common" },
       "en:admin": { key: "Admin" },
     });
@@ -125,7 +125,7 @@ describe("useI18n composable", () => {
       locale: "en",
       compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
-      translation: {
+      messages: {
         en: {
           review: "{formality, select, formal {Formal} other {Informal}}",
         },
@@ -160,7 +160,7 @@ describe("useI18n composable", () => {
       defaultNs: "common",
       tagInterpolation: { basicHtmlTags: ["strong"] },
     });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { rich: "Hello <strong>Alice</strong>!" },
     });
     await i18n.init();
@@ -187,7 +187,7 @@ describe("useI18n composable", () => {
       defaultNs: "common",
       onError: onError as never,
     });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
     });
@@ -249,7 +249,7 @@ describe("useI18n composable", () => {
 
   it("does not receive reactive updates after component unmount", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
     });

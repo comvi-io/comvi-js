@@ -47,11 +47,11 @@ export type _BareHasNoPluginApi = Expect<
 >;
 
 // @ts-expect-error -- the base host has no loader capability, in types or at runtime
-bare.reloadTranslations();
+bare.reloadMessages();
 // @ts-expect-error -- ...and none of the plugin host either
 bare.onMissingKey(() => undefined);
 
-bare.addTranslations({ en: { greeting: "Hello" } });
+bare.addMessages({ en: { greeting: "Hello" } });
 
 // ICU has ONE shape: the compiler option. It never changes the host type,
 // because it configures the host rather than widening it.
@@ -120,7 +120,7 @@ export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>
 // `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
 // @ts-expect-error -- flattenCatalog is not part of this entry
 void (rootEntry.flattenCatalog as unknown);
-createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
+createI18n({ locale: "en", messages: { en: { nav: { home: "Home" } } } });
 
 // `.use(installer)`: the generic host type flows THROUGH the pipe and comes
 // out widened, never decayed to `any`. The import map is spelled inline here —
@@ -168,7 +168,7 @@ void createI18n({ locale: "en" })
 void createI18n({ locale: "en" })
   .use(attachPlugins)
   .registerPlugin(() => undefined);
-void createI18n({ locale: "en" }).use(attachDevtools).addTranslations({ en: {} });
+void createI18n({ locale: "en" }).use(attachDevtools).addMessages({ en: {} });
 
 // @ts-expect-error -- the factory is not an installer; it must be called
 createI18n({ locale: "en" }).use(loader);

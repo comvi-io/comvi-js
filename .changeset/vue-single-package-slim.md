@@ -8,12 +8,12 @@ included — so an app names one package, where it used to take the host constru
 
 ```ts
 // one call: a VueI18n over a base host
-const plain = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } });
+const plain = createI18n({ locale: "en", messages: { en: { hi: "Hi" } } });
 createApp(App).use(plain).mount("#app");
 
 // composed: `.use(…)` runs the installer on the host and widens `i18n.core`
 const composed = createI18n({ locale: "en", ssrLocale: "en" }).use(loader(importMap));
-composed.core.reloadTranslations(); // typed: the loader is on `core`
+composed.core.reloadMessages(); // typed: the loader is on `core`
 
 // host built elsewhere: core's own constructor, imported from @comvi/core
 // (`import { createI18n as createCore } from "@comvi/core"`)

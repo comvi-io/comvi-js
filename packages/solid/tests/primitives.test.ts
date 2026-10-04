@@ -190,12 +190,12 @@ describe("Solid primitives", () => {
     const cacheRevision = createTestRoot(() => createCacheRevisionSignal(i18n));
 
     const before = cacheRevision();
-    i18n.addTranslations({ en: { hello: "Hello" } });
+    i18n.addMessages({ en: { hello: "Hello" } });
     const afterAdd = cacheRevision();
 
     expect(afterAdd).toBeGreaterThan(before);
 
-    i18n.clearTranslations();
+    i18n.clearMessages();
     const afterClear = cacheRevision();
     expect(afterClear).toBeGreaterThan(afterAdd);
   });
@@ -214,7 +214,7 @@ describe("Solid primitives", () => {
 
   it("cacheRevision signal is strictly monotonic across all tracked event types (no dropped update from sum collision)", async () => {
     // Pins the dropped re-render a summed `cacheRevision + configRevision`
-    // used to cause: `addTranslations` set 1+0, `setFallbackLocale` set 1+1,
+    // used to cause: `addMessages` set 1+0, `setFallbackLocale` set 1+1,
     // and then `initialized` re-read the unchanged cache and set 1+1 AGAIN —
     // the same value, so `from()`'s equality check swallowed the notification.
     // A single monotonic `++revision` strictly increases on every event.
@@ -226,7 +226,7 @@ describe("Solid primitives", () => {
     const v0 = cacheRevision();
 
     // "namespaceLoaded"
-    i18n.addTranslations({ en: { hello: "Hello" } });
+    i18n.addMessages({ en: { hello: "Hello" } });
     const v1 = cacheRevision();
     expect(v1).toBeGreaterThan(v0);
 
@@ -246,8 +246,8 @@ describe("Solid primitives", () => {
     const v4 = cacheRevision();
     expect(v4).toBeGreaterThan(v3);
 
-    // "translationsCleared"
-    i18n.clearTranslations();
+    // "messagesCleared"
+    i18n.clearMessages();
     const v5 = cacheRevision();
     expect(v5).toBeGreaterThan(v4);
   });

@@ -28,7 +28,7 @@ const EXPECTED = {
 };
 
 const baseHost = () =>
-  createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
+  createI18n({ locale: "en", exposeGlobal: false, messages: { en: { greeting: "Hello" } } });
 
 /** Calls `composable()` in a component's setup under an installed plugin. */
 function acquire(i18n, composable) {
@@ -79,7 +79,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
       "addActiveNamespace",
       "addActiveNamespaces",
       "onLoadError",
-      "reloadTranslations",
+      "reloadMessages",
       "removeActiveNamespace",
       "removeActiveNamespaces",
     ]);
@@ -132,7 +132,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     const host = attachPlugins(attachLoader(baseHost()));
     const i18n = createI18nFromCore(host);
 
-    expect(typeof acquire(i18n, useI18nLoader).bag.reloadTranslations).toBe("function");
+    expect(typeof acquire(i18n, useI18nLoader).bag.reloadMessages).toBe("function");
 
     const off = acquire(i18n, useI18nPlugins).bag.onMissingKey((key) => `[${key}]`);
     expect(host.t("nope")).toBe("[nope]");
@@ -146,7 +146,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     const b = acquire(i18n, useI18nLoader);
 
     expect(b.bag).toBe(a.bag);
-    expect(b.bag.reloadTranslations).toBe(a.bag.reloadTranslations);
+    expect(b.bag.reloadMessages).toBe(a.bag.reloadMessages);
 
     // The WeakMap keys on the host, never on the component, so a re-mount
     // under the same host gets the same bag.
@@ -182,7 +182,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     expect(() => acquire(i18n, useI18nLoader)).toThrow(EXPECTED.loader);
 
     attachLoader(host);
-    expect(typeof acquire(i18n, useI18nLoader).bag.reloadTranslations).toBe("function");
+    expect(typeof acquire(i18n, useI18nLoader).bag.reloadMessages).toBe("function");
   });
 
   it("throws the install error outside an installed app", () => {

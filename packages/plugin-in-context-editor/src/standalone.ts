@@ -62,7 +62,7 @@ export interface ActivateOptions extends EditorOptions {
    * Fetch fresh translations from the Comvi API before enabling click-to-edit.
    * Enabled by default for standalone/extension activation.
    */
-  refreshTranslations?: boolean;
+  refreshMessages?: boolean;
   /**
    * Observe standalone lifecycle changes without receiving API configuration
    * or credentials. Consumers must treat MAIN-world events as untrusted; a
@@ -99,7 +99,7 @@ function createScopedFetch(scopeId: string): typeof fetch {
   };
 }
 
-async function refreshTranslationsFromApi(
+async function refreshMessagesFromApi(
   i18n: EditorI18n,
   apiKey: string | undefined,
   scopeId: string,
@@ -148,13 +148,13 @@ async function refreshTranslationsFromApi(
     // The identity guard must sit immediately before the merge itself, not
     // only before the later render refresh: a replacement/teardown that
     // happens while this refresh is in flight must stop the stale catalog
-    // from ever reaching addTranslations, however non-empty it is.
+    // from ever reaching addMessages, however non-empty it is.
     if (signal.aborted) {
       return;
     }
 
     if (Object.keys(updates).length > 0) {
-      i18n.addTranslations(updates);
+      i18n.addMessages(updates);
     }
   } catch (error) {
     if (signal.aborted) {
@@ -176,10 +176,7 @@ function refreshRenderedTranslations(i18n: EditorI18n): void {
         continue;
       }
 
-      const translations = i18n.getTranslations(locale, namespace) as Record<
-        string,
-        TranslationValue
-      >;
+      const translations = i18n.getMessages(locale, namespace) as Record<string, TranslationValue>;
       if (Object.keys(translations).length > 0) {
         updates[`${locale}:${namespace}`] = translations;
       }
@@ -187,7 +184,7 @@ function refreshRenderedTranslations(i18n: EditorI18n): void {
   }
 
   if (Object.keys(updates).length > 0) {
-    i18n.addTranslations(updates);
+    i18n.addMessages(updates);
   }
 }
 
@@ -272,17 +269,15 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   notifyLifecycle({ state: "activated", instanceId });
   console.info(`[ComviInContextEditor] Activated (instance: ${instanceId})`);
 
-  if (options.refreshTranslations !== false) {
+  if (options.refreshMessages !== false) {
     const refreshController = new AbortController();
     activeRefreshController = refreshController;
-    void refreshTranslationsFromApi(i18n, apiKey, instanceId, refreshController.signal).finally(
-      () => {
-        if (activeCore === null || activeCore.getInstanceId() !== instanceId) {
-          return;
-        }
-        refreshRenderedTranslations(i18n);
-      },
-    );
+    void refreshMessagesFromApi(i18n, apiKey, instanceId, refreshController.signal).finally(() => {
+      if (activeCore === null || activeCore.getInstanceId() !== instanceId) {
+        return;
+      }
+      refreshRenderedTranslations(i18n);
+    });
   }
 
   return {
