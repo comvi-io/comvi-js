@@ -62,13 +62,28 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
 - [ ] Merging the release PR publishes through the `pack`, `verify` and `publish` jobs: the same
       three-job chain as the RC, with `--tag latest` and git tags pushed for each published
       package. A red `examples:e2e` on the candidate stops the publish before anything reaches npm;
-      its diagnostics are the `release-ga-examples-e2e` artifact. A failed `npm publish` does not
-      stop the others: the job tags what published, exits 1, and a re-run skips what is already on
-      npm. Then `.github/scripts/create-combined-release.mjs` creates the combined GitHub Release
-      from the published tarballs. The tag is the release train's version; independently
-      versioned packages appear in the notes and in `manifest.json` at their own version. If that step fails,
-      npm is already live: fix and re-run it (or run it by hand with `PUBLISHED_PACKAGES=…` and
-      `COMVI_RELEASE_TARBALLS_DIR=…`).
+      its diagnostics are the `release-ga-examples-e2e` artifact.
+- [ ] **The candidate is one transaction.** A failed `npm publish` does not stop the others, but
+      after the attempts the job asks npm about every tarball in `SHA256SUMS` and logs a table
+      (`on npm` / `MISSING` per package). Each version npm has gets its tag at the checked-out
+      release commit. Only when the whole set is on npm does the job also push `v<version>` at that
+      same commit and report `published=true` with the full set. Otherwise it reports
+      `published=false`, exits 1, and no GitHub Release is created. Note that the versions already
+      on npm are live under `latest` meanwhile, so finish the train promptly.
+- [ ] **To finish a partial or failed publish,** use "Re-run failed jobs" on the `publish` job. A
+      fresh workflow run does not work, because `pack` then finds nothing pending. The re-run
+      skips what npm has, publishes the rest, and pushes any missing tag, including the tag of a
+      version an earlier run published but never tagged. An existing tag at a different commit
+      stops the job with both SHAs: decide by hand, and never move a tag that names released bytes.
+- [ ] `.github/scripts/create-combined-release.mjs` then creates the combined GitHub Release from
+      the candidate tarballs. It refuses unless `v<version>` exists at the checked-out commit and
+      the published set is everything `SHA256SUMS` lists. It passes `--verify-tag` to
+      `gh release create`, so the tag is never created from the default branch's newer head. The
+      tag is the release train's version; independently versioned packages appear in the notes and in
+      `manifest.json` at their own version. If that step fails, npm is already live: re-run the
+      `publish` job, which reconciles everything and reaches the release step again. By hand, from
+      the release commit with the tags fetched, run it with `PUBLISHED_PACKAGES=<the full set>` and
+      `COMVI_RELEASE_TARBALLS_DIR=<the downloaded candidate>`.
 
 ## 4. After GA
 

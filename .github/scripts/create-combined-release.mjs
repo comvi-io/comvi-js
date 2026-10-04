@@ -73,6 +73,52 @@ if (!trainPackages.every((p) => p.version === version)) {
   process.exit(1);
 }
 
+// Provenance: the publish step pushed `tag` at the checked-out release commit
+// together with the package tags, after npm confirmed the whole candidate.
+// Refuse anything else — `gh release create` without an existing tag would
+// create one from the default branch's CURRENT head, which may be newer than
+// the bytes npm received.
+const git = (args) => spawnSync("git", args, { encoding: "utf8" });
+const head = git(["rev-parse", "HEAD"]).stdout.trim();
+const tagged = git(["rev-parse", "-q", "--verify", `refs/tags/${tag}^{commit}`]);
+if (tagged.status !== 0) {
+  console.error(
+    `Refusing to create the release: tag ${tag} does not exist in this checkout. ` +
+      "The publish step creates and pushes it at the release commit once every candidate is on npm.",
+  );
+  process.exit(1);
+}
+if (tagged.stdout.trim() !== head) {
+  console.error(
+    `Refusing to create the release: ${tag} points at ${tagged.stdout.trim()}, ` +
+      `but the checked-out release commit is ${head}.`,
+  );
+  process.exit(1);
+}
+
+// Completeness: the archive is the whole candidate or nothing. Every tarball
+// the pack job's SHA256SUMS lists must be in the published set, and nothing
+// else may be.
+const tarballsDir = process.env.COMVI_RELEASE_TARBALLS_DIR;
+const tarballFile = (pkg) => `${pkg.name.replace(/^@/, "").replace("/", "-")}-${pkg.version}.tgz`;
+if (tarballsDir) {
+  const listed = readFileSync(join(tarballsDir, "SHA256SUMS"), "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.split(/\s+/)[1]);
+  const publishedFiles = sorted.map(tarballFile);
+  const missing = listed.filter((file) => !publishedFiles.includes(file));
+  const extra = publishedFiles.filter((file) => !listed.includes(file));
+  if (missing.length > 0 || extra.length > 0) {
+    console.error(
+      `Refusing to create ${tag}: the published set is not the candidate.` +
+        (missing.length > 0 ? `\nin SHA256SUMS, not published: ${missing.join(", ")}` : "") +
+        (extra.length > 0 ? `\npublished, not in SHA256SUMS: ${extra.join(", ")}` : ""),
+    );
+    process.exit(1);
+  }
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     stdio: ["ignore", "pipe", "inherit"],
@@ -116,9 +162,8 @@ function createReleaseArchive() {
       // COMVI_RELEASE_TARBALLS_DIR: the release job's verified candidate (what
       // npm just received), copied rather than re-packed — the publishing job
       // has no install and no build to pack from.
-      const tarballsDir = process.env.COMVI_RELEASE_TARBALLS_DIR;
       if (tarballsDir) {
-        const file = `${pkg.name.replace(/^@/, "").replace("/", "-")}-${pkg.version}.tgz`;
+        const file = tarballFile(pkg);
         copyFileSync(join(tarballsDir, file), join(packagesDir, file));
       } else {
         run("pnpm", ["--dir", dir, "pack", "--pack-destination", packagesDir]);
@@ -223,7 +268,7 @@ if (process.env.COMVI_RELEASE_DRY_RUN === "1") {
 
 const result = spawnSync(
   "gh",
-  ["release", "create", tag, archiveAsset, "--title", tag, "--notes-file", "-"],
+  ["release", "create", tag, archiveAsset, "--verify-tag", "--title", tag, "--notes-file", "-"],
   {
     input: body,
     stdio: ["pipe", "inherit", "inherit"],

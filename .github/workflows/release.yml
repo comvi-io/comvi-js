@@ -43,7 +43,12 @@ permissions: {}
 #             SHA256SUMS hashes to pack's `sums`, that every listed tarball
 #             matches it and that the directory holds nothing else, reads each
 #             tarball's name and version from its own package.json, and runs
-#             `npm publish <tgz>` on exactly those bytes.
+#             `npm publish <tgz>` on exactly those bytes. The SHA256SUMS set
+#             is one transaction: GA reports `published=true` (and creates
+#             the GitHub Release) only once npm has EVERY candidate and every
+#             package tag plus `v<version>` names the checked-out commit.
+#             Anything less exits 1 with a status table, and "Re-run failed
+#             jobs" on `publish` completes it.
 #
 # All publish jobs live in this workflow file, so the npm trusted-publisher
 # binding (which names the workflow file) holds for GA and RC alike.
@@ -400,20 +405,28 @@ jobs:
           path: release-candidate
 
       # Publishes every tarball SHA256SUMS lists that npm does not have yet
-      # (core first), continuing past a failed one; tags and pushes exactly the
-      # ones that published, then exits 1 if any failed. A re-run skips what is
-      # already on npm.
+      # (core first), continuing past a failed one; then asks npm about EVERY
+      # candidate and logs the table. Tags each version npm has at this
+      # checkout's commit (also ones an earlier run published but never
+      # tagged) and, once the whole set is on npm, `v<version>` too; a tag
+      # already at another commit is refused. `published=true` with the whole
+      # set only when complete; otherwise `published=false` and exit 1.
+      # "Re-run failed jobs" skips what npm has and finishes the rest.
       - name: Publish the verified tarballs
         id: publish
         env:
           SUMS: ${{ needs.pack.outputs.sums }}
         run: node scripts/publish-candidate.mjs publish --dir release-candidate --expect-sums "$SUMS" --tag latest --git-tag --push-tags
 
-      # If it fails, npm is live but the GitHub Release is missing — re-run this
-      # job (published versions are skipped) or run
-      # `PUBLISHED_PACKAGES=… COMVI_RELEASE_TARBALLS_DIR=… node .github/scripts/create-combined-release.mjs`.
+      # Runs only after a complete publish (no `always()`: a partial train must
+      # not get an archive). It refuses unless `v<version>` exists at this
+      # commit and the published set is all of SHA256SUMS, and passes
+      # `--verify-tag` so gh never creates the tag from the default branch.
+      # If it fails, npm is live but the GitHub Release is missing: re-run this
+      # job (everything is skipped on npm, the tags are verified, the full set
+      # is emitted again).
       - name: Create combined GitHub Release
-        if: always() && steps.publish.outputs.published == 'true'
+        if: steps.publish.outputs.published == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLISHED_PACKAGES: ${{ steps.publish.outputs.publishedPackages }}

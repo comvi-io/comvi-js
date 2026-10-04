@@ -7,6 +7,7 @@
  * the tree, so `gh` is never reached and nothing is written to the repo.
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -38,8 +39,31 @@ function changelog(name, entries) {
   ].join("\n");
 }
 
-/** A minimal workspace: .changeset/config.json plus packable packages/*. */
-function makeFixture(t, packages) {
+function gitEnv(root) {
+  return {
+    ...process.env,
+    GIT_DIR: path.join(root, ".git"),
+    GIT_WORK_TREE: root,
+    GIT_AUTHOR_NAME: "t",
+    GIT_AUTHOR_EMAIL: "t@example.com",
+    GIT_COMMITTER_NAME: "t",
+    GIT_COMMITTER_EMAIL: "t@example.com",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+  };
+}
+
+function git(root, ...args) {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8", env: gitEnv(root) });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
+}
+
+/**
+ * A minimal workspace: .changeset/config.json plus packable packages/*, as one
+ * commit (the release SHA) carrying the release tag `tag` (null: no tag).
+ */
+function makeFixture(t, packages, { tag = "v0.5.0" } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-combined-release-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -60,18 +84,24 @@ function makeFixture(t, packages) {
     fs.writeFileSync(path.join(dir, "CHANGELOG.md"), changelog(pkg.name, pkg.changelog));
   }
 
+  git(root, "init", "-q");
+  git(root, "add", ".");
+  git(root, "commit", "-q", "-m", "release commit");
+  if (tag) git(root, "tag", tag);
+
   const archiveDir = path.join(root, "artifacts");
-  return { root, archiveDir };
+  return { root, archiveDir, head: git(root, "rev-parse", "HEAD") };
 }
 
-function runScript({ root, archiveDir, published, tarballsDir }) {
+function runScript({ root, archiveDir, published, tarballsDir, dryRun = true, env = {} }) {
   return spawnSync(process.execPath, [scriptPath], {
     cwd: root,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...gitEnv(root),
+      ...env,
       PUBLISHED_PACKAGES: JSON.stringify(published),
-      COMVI_RELEASE_DRY_RUN: "1",
+      ...(dryRun ? { COMVI_RELEASE_DRY_RUN: "1" } : {}),
       COMVI_RELEASE_ARCHIVE_DIR: archiveDir,
       ...(tarballsDir ? { COMVI_RELEASE_TARBALLS_DIR: tarballsDir } : {}),
     },
@@ -230,6 +260,7 @@ test("COMVI_RELEASE_TARBALLS_DIR: the archive holds the published tarballs byte 
   fs.mkdirSync(tarballsDir);
   fs.writeFileSync(path.join(tarballsDir, "comvi-core-0.5.0.tgz"), "the core bytes npm received");
   fs.writeFileSync(path.join(tarballsDir, "comvi-react-0.5.0.tgz"), "the react bytes npm received");
+  writeSums(tarballsDir, ["comvi-core-0.5.0.tgz", "comvi-react-0.5.0.tgz"]);
   const result = runScript({
     root,
     archiveDir,
@@ -245,4 +276,85 @@ test("COMVI_RELEASE_TARBALLS_DIR: the archive holds the published tarballs byte 
     fs.readFileSync(path.join(archiveRoot, "packages", "comvi-core-0.5.0.tgz"), "utf8"),
     "the core bytes npm received",
   );
+});
+
+/** SHA256SUMS for `files` in `dir`, in the format the pack job writes. */
+function writeSums(dir, files) {
+  const lines = files.map(
+    (file) =>
+      `${createHash("sha256")
+        .update(fs.readFileSync(path.join(dir, file)))
+        .digest("hex")}  ${file}`,
+  );
+  fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${lines.join("\n")}\n`);
+}
+
+const TRAIN = [
+  { name: "@comvi/core", version: "0.5.0" },
+  { name: "@comvi/react", version: "0.5.0" },
+];
+
+test("the release tag must exist: a missing v-tag is refused, not created on the default branch", (t) => {
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), { tag: null });
+  const result = runScript({ root, archiveDir, published: TRAIN });
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /v0\.5\.0 does not exist/);
+  assert.equal(fs.existsSync(archiveDir), false);
+});
+
+test("the release tag must point at the checked-out release SHA: both SHAs are named", (t) => {
+  const { root, archiveDir, head } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), { tag: null });
+  fs.writeFileSync(path.join(root, "later.txt"), "D");
+  git(root, "add", "later.txt");
+  git(root, "commit", "-q", "-m", "D");
+  const other = git(root, "rev-parse", "HEAD");
+  git(root, "tag", "v0.5.0");
+  git(root, "reset", "-q", "--hard", head);
+
+  const result = runScript({ root, archiveDir, published: TRAIN });
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, new RegExp(`v0\\.5\\.0 points at ${other}[\\s\\S]*${head}`));
+  assert.equal(fs.existsSync(archiveDir), false);
+});
+
+test("gh release create runs with --verify-tag, so gh never creates the tag itself", (t) => {
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+  const bin = path.join(root, "bin");
+  fs.mkdirSync(bin);
+  const argsFile = path.join(root, "gh-args.json");
+  fs.writeFileSync(
+    path.join(bin, "gh"),
+    `#!/usr/bin/env node\nrequire("node:fs").writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2)));\n`,
+    { mode: 0o755 },
+  );
+  const result = runScript({
+    root,
+    archiveDir,
+    published: TRAIN,
+    dryRun: false,
+    env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+  });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const args = JSON.parse(fs.readFileSync(argsFile, "utf8"));
+  assert.deepEqual(args.slice(0, 2), ["release", "create"]);
+  assert.equal(args[2], "v0.5.0");
+  assert.ok(args.includes("--verify-tag"), args.join(" "));
+});
+
+test("an incomplete candidate is refused: the published set must be every package SHA256SUMS lists", (t) => {
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+  const tarballsDir = path.join(root, "release-candidate");
+  fs.mkdirSync(tarballsDir);
+  fs.writeFileSync(path.join(tarballsDir, "comvi-core-0.5.0.tgz"), "core");
+  fs.writeFileSync(path.join(tarballsDir, "comvi-react-0.5.0.tgz"), "react");
+  writeSums(tarballsDir, ["comvi-core-0.5.0.tgz", "comvi-react-0.5.0.tgz"]);
+  const result = runScript({
+    root,
+    archiveDir,
+    tarballsDir,
+    published: [{ name: "@comvi/core", version: "0.5.0" }],
+  });
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /not published: comvi-react-0\.5\.0\.tgz/);
+  assert.equal(fs.existsSync(archiveDir), false);
 });

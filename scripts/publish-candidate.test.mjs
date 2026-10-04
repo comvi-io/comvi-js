@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -241,4 +241,206 @@ test("assertChecksums: a listed file that is missing, or a malformed line, fails
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ---------------------------------------------------------------------------
+// The release transaction, end to end: the CLI against a fake npm (a registry
+// that is a directory) and a throwaway git repository with a bare `origin`.
+// GIT_DIR/GIT_WORK_TREE pin every git call to that repository, so no test can
+// tag or push the checkout it runs from.
+
+const SCRIPT = path.join(path.dirname(new URL(import.meta.url).pathname), "publish-candidate.mjs");
+
+const FAKE_NPM = `#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+const [command, target] = process.argv.slice(2);
+const registry = process.env.FAKE_NPM_REGISTRY;
+fs.appendFileSync(path.join(registry, "calls.log"), process.argv.slice(2).join(" ") + "\\n");
+const key = (name, version) => name.replace(/^@/, "").replace("/", "-") + "-" + version;
+if (command === "view") {
+  const at = target.lastIndexOf("@");
+  const [name, version] = [target.slice(0, at), target.slice(at + 1)];
+  if (fs.existsSync(path.join(registry, key(name, version)))) {
+    process.stdout.write(JSON.stringify(version) + "\\n");
+    process.exit(0);
+  }
+  process.stderr.write("npm error code E404\\n404 Not Found\\n");
+  process.exit(1);
+}
+if (command === "publish") {
+  const id = path.basename(target, ".tgz");
+  const failing = (process.env.FAKE_NPM_FAIL || "").split(",").filter(Boolean);
+  if (failing.some((name) => id.startsWith(key(name, "")))) {
+    process.stderr.write("npm error code E503\\n503 Service Unavailable\\n");
+    process.exit(1);
+  }
+  fs.writeFileSync(path.join(registry, id), "");
+  process.exit(0);
+}
+process.exit(2);
+`;
+
+const git = (repo, ...args) =>
+  execFileSync("git", args, { cwd: repo, encoding: "utf8", env: gitEnv(repo) }).trim();
+
+function gitEnv(repo) {
+  return {
+    ...process.env,
+    GIT_DIR: path.join(repo, ".git"),
+    GIT_WORK_TREE: repo,
+    GIT_AUTHOR_NAME: "t",
+    GIT_AUTHOR_EMAIL: "t@example.com",
+    GIT_COMMITTER_NAME: "t",
+    GIT_COMMITTER_EMAIL: "t@example.com",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+  };
+}
+
+/**
+ * A release workspace: a checkout (one commit, the release SHA) whose
+ * `origin` is a bare repository, a fake npm, and a candidate of core + react.
+ */
+function releaseWorkspace(t, packages = ["core", "react"]) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-txn-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const bin = path.join(root, "bin");
+  const registry = path.join(root, "registry");
+  const origin = path.join(root, "origin.git");
+  const repo = path.join(root, "checkout");
+  const dir = path.join(root, "release-candidate");
+  for (const d of [bin, registry, repo, dir]) fs.mkdirSync(d);
+  fs.writeFileSync(path.join(bin, "npm"), FAKE_NPM, { mode: 0o755 });
+
+  execFileSync("git", ["init", "-q", "--bare", origin]);
+  git(repo, "init", "-q");
+  fs.mkdirSync(path.join(repo, ".changeset"));
+  fs.writeFileSync(
+    path.join(repo, ".changeset", "config.json"),
+    JSON.stringify({ fixed: [packages.map((p) => `@comvi/${p}`)] }),
+  );
+  git(repo, "add", ".");
+  git(repo, "commit", "-q", "-m", "release commit");
+  git(repo, "remote", "add", "origin", origin);
+  const head = git(repo, "rev-parse", "HEAD");
+
+  for (const p of packages) {
+    tarball(dir, `comvi-${p}-0.5.0.tgz`, { name: `@comvi/${p}`, version: "0.5.0" });
+  }
+  const recorded = checksums(packages.map((p) => path.join(dir, `comvi-${p}-0.5.0.tgz`)));
+  fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${recorded}\n`);
+  const sums = digest(path.join(dir, "SHA256SUMS"));
+
+  const run = ({ fail = [] } = {}) => {
+    const outputFile = path.join(root, `output-${Date.now()}-${Math.random()}`);
+    const result = spawnSyncNode(
+      [SCRIPT, "publish", "--dir", dir, "--expect-sums", sums, "--git-tag", "--push-tags"],
+      {
+        cwd: repo,
+        env: {
+          ...gitEnv(repo),
+          PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+          GITHUB_OUTPUT: outputFile,
+          FAKE_NPM_REGISTRY: registry,
+          FAKE_NPM_FAIL: fail.join(","),
+        },
+      },
+    );
+    const outputs = Object.fromEntries(
+      (fs.existsSync(outputFile) ? fs.readFileSync(outputFile, "utf8") : "")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+    );
+    return { ...result, outputs, log: `${result.stdout}\n${result.stderr}` };
+  };
+  const remoteTags = () =>
+    Object.fromEntries(
+      git(repo, "ls-remote", "--tags", "origin")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.split("\t").reverse())
+        .map(([ref, sha]) => [ref.replace("refs/tags/", ""), sha]),
+    );
+  const onNpm = (p) => fs.writeFileSync(path.join(registry, `comvi-${p}-0.5.0`), "");
+  const npmCalls = () =>
+    fs.existsSync(path.join(registry, "calls.log"))
+      ? fs.readFileSync(path.join(registry, "calls.log"), "utf8")
+      : "";
+  return { root, repo, origin, head, run, remoteTags, onNpm, npmCalls };
+}
+
+function spawnSyncNode(args, options) {
+  const result = spawnSync(process.execPath, args, { encoding: "utf8", ...options });
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+const FULL_SET = JSON.stringify([
+  { name: "@comvi/core", version: "0.5.0" },
+  { name: "@comvi/react", version: "0.5.0" },
+]);
+
+test("transaction: core publishes, react gets a 503 — exit 1, published=false, a status table, no v-tag", (t) => {
+  const ws = releaseWorkspace(t);
+  const result = ws.run({ fail: ["@comvi/react"] });
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.equal(result.outputs.publishedPackages, "[]");
+  assert.match(result.log, /@comvi\/core@0\.5\.0\s+on npm/);
+  assert.match(result.log, /@comvi\/react@0\.5\.0\s+MISSING/);
+  // What npm has is tagged (a re-run must not lose it); the release tag waits.
+  assert.deepEqual(ws.remoteTags(), { "@comvi/core@0.5.0": ws.head });
+});
+
+test("transaction: the re-run after a partial publish completes the set and tags everything at the release SHA", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.run({ fail: ["@comvi/react"] });
+  const result = ws.run();
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.equal(result.outputs.publishedPackages, FULL_SET);
+  assert.deepEqual(ws.remoteTags(), {
+    "@comvi/core@0.5.0": ws.head,
+    "@comvi/react@0.5.0": ws.head,
+    "v0.5.0": ws.head,
+  });
+  // Core was already on npm: it is not published twice.
+  assert.equal(ws.npmCalls().match(/^publish .*comvi-core/gm).length, 1);
+});
+
+test("transaction: everything already on npm but no tag pushed — the re-run reconciles tags and emits the full set", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core");
+  ws.onNpm("react");
+  const result = ws.run();
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.equal(result.outputs.publishedPackages, FULL_SET);
+  assert.doesNotMatch(ws.npmCalls(), /^publish /m);
+  assert.deepEqual(ws.remoteTags(), {
+    "@comvi/core@0.5.0": ws.head,
+    "@comvi/react@0.5.0": ws.head,
+    "v0.5.0": ws.head,
+  });
+});
+
+test("transaction: a release tag that already exists at another commit is refused, naming both SHAs", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core");
+  ws.onNpm("react");
+  // Someone (or `gh release create` without --verify-tag) put v0.5.0 on a newer main.
+  fs.writeFileSync(path.join(ws.repo, "later.txt"), "D");
+  git(ws.repo, "add", "later.txt");
+  git(ws.repo, "commit", "-q", "-m", "D");
+  const other = git(ws.repo, "rev-parse", "HEAD");
+  git(ws.repo, "push", "-q", "origin", `${other}:refs/tags/v0.5.0`);
+  git(ws.repo, "reset", "-q", "--hard", ws.head);
+
+  const result = ws.run();
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.equal(result.outputs.publishedPackages, "[]");
+  assert.match(result.log, new RegExp(`v0\\.5\\.0[\\s\\S]*${other}[\\s\\S]*${ws.head}`));
+  assert.equal(ws.remoteTags()["v0.5.0"], other);
 });
