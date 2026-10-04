@@ -420,12 +420,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // `init()` from there must join this attempt, not start a second one.
       // `_init()` itself still starts synchronously, so `isInitializing` is
       // true the moment `init()` returns.
+      // `_init()`'s `finally` clears the slot. That needs no identity check:
+      // the slot is only ever filled while empty, so it holds this attempt.
       let run!: (result: Promise<this>) => void;
-      const own = (this._initAttempt = attempt = new Promise((resolve) => (run = resolve)));
-      const clear = () => {
-        if (this._initAttempt === own) this._initAttempt = undefined;
-      };
-      own.then(clear, clear);
+      this._initAttempt = attempt = new Promise((resolve) => (run = resolve));
       run(this._init());
     }
     return attempt as Promise<this>;
@@ -513,6 +511,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     } finally {
       this._isInitializing = false;
       this._setLoadingState(false);
+      this._initAttempt = undefined;
     }
   }
 
