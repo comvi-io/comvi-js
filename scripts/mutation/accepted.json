@@ -7392,15 +7392,6 @@
     },
     {
       "package": "packages/cli",
-      "file": "src/core/ConfigLoader.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "await fs.writeFile(filePath, content, \"utf-8\");",
-      "lineHint": 265,
-      "kind": "equivalent",
-      "reason": "Node treats empty-string encoding as unset and defaults to utf8 for string data (verified by direct node probe; hand-applied: suite green)"
-    },
-    {
-      "package": "packages/cli",
       "file": "src/core/EnvLoader.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (value === undefined) continue;",
@@ -7866,10 +7857,10 @@
       "package": "packages/vite-plugin",
       "file": "src/index.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "await fs.writeFile(resolvedOutputPath, content, \"utf-8\");",
-      "lineHint": 100,
+      "snippet": "await fs.writeFile(tempPath, content, { encoding: \"utf-8\", flag: \"wx\" });",
+      "lineHint": 196,
       "kind": "equivalent",
-      "reason": "node writes a string as UTF-8 whether the encoding argument is `\"utf-8\"` or `\"\"`; probed on node 22, the file round-trips byte-identically for ASCII and non-ASCII content."
+      "reason": "the `\"utf-8\"` encoding only. node writes a string as UTF-8 whether the encoding is `\"utf-8\"` or `\"\"` (probed on node 22: \"é\" round-trips as c3a9). The `\"wx\"` flag on the same line is NOT equivalent (`\"\"` overwrites an existing file) and is killed by tests/atomic-write.test.ts."
     },
     {
       "package": "packages/vite-plugin",
