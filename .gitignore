@@ -98,3 +98,6 @@ release-candidate/
 
 # Local git worktrees used for parallel lots (never committed)
 .worktrees/
+
+# Review and build-proof artifacts live in .omc/reviews (ignored); docs/design holds the ADRs.
+docs/reviews/
