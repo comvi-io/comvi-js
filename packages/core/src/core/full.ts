@@ -13,10 +13,10 @@ import { icuCompiler } from "./translate/compile-icu";
  * `super(options, icuCompiler)`: `createNextI18n` composes no compiler at all.
  * A subclass rather
  * than a factory closure, so `new I18n(options)` keeps its single-argument
- * signature. This is the compatibility host, NOT the ESM root (that is the base
- * host in `src/index.ts`).
+ * signature. This is the compatibility instance, NOT the ESM root (that is the base
+ * instance in `src/index.ts`).
  *
- * The loader arrives through `extends`; the plugin host — which must NOT extend
+ * The loader arrives through `extends`; the plugin capability — which must NOT extend
  * the loader capability, or a base+plugins-only graph would drag the loader in
  * — and the discovery capability arrive as prototype descriptors installed just
  * below.
@@ -82,7 +82,7 @@ for (const capability of [I18nWithPlugins, I18nWithDevtools]) {
 
 /**
  * Create a fully composed instance: ICU plurals/selects, the loader, the
- * plugin host and discovery. Tag syntax is registered by whichever entry pulls
+ * plugin capability and discovery. Tag syntax is registered by whichever entry pulls
  * this in (`src/umd.ts` does; the ESM root does not).
  */
 export function createI18n<const D extends DefaultTranslationParams = {}>(

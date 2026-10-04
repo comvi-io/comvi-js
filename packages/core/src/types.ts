@@ -61,12 +61,7 @@ export type I18nEventData = {
   missingKey: { key: string; locale: string; namespace: string };
   loadError: { locale: string; namespace: string; error: Error };
   configChanged: {
-    source:
-      | "fallbackLocale"
-      | "messagesAdded"
-      | "namespaceActivated"
-      | "namespaceDeactivated"
-      | "defaultParams";
+    source: "fallbackLocale" | "namespaceActivated" | "namespaceDeactivated" | "defaultParams";
   };
 };
 
@@ -297,7 +292,7 @@ export type AcceptedKey<NS extends string | undefined = undefined, N extends Nam
  * the type alias so a diagnostic prints real keys (see {@link AcceptedKey}),
  * and it only works inline. But the rebuild cannot contain `N`: `N` is
  * unresolved while a SIGNATURE is compared to another signature — the `I18n`
- * class against `I18nCoreInstance`, a host against `AnyI18nHost` — and a
+ * class against `I18nCoreInstance`, an instance against `AnyI18nHost` — and a
  * mapped type over an unresolved parameter does not reduce, so neither side
  * relates and the class stops implementing its own interface.
  *
@@ -316,7 +311,7 @@ export type AcceptedKey<NS extends string | undefined = undefined, N extends Nam
  * which is where it always has, and it has to stay off this interface: `null`
  * is assignable to `string` in NEITHER direction, so a `null` in the key union
  * stops `WrapperI18nHost` satisfying the plain `(key: string, …)` shapes the
- * wrappers' internals pass it to — solid's `<T>` hands the host to
+ * wrappers' internals pass it to — solid's `<T>` hands the instance to
  * `prepareTranslation`, and that broke the moment `null` reached the interface.
  */
 export type AcceptedCoreKey<N extends Namespaces = never> = AcceptedKey<undefined, N>;
@@ -338,7 +333,7 @@ type BoundKeyOf<K, NS extends string | undefined> = [K] extends [string]
  * free of `D`.
  *
  * The route has to be decided without the default-params type, because the
- * host is compared bivariantly across different `D`s (see {@link AnyI18nHost}):
+ * instance is compared bivariantly across different `D`s (see {@link AnyI18nHost}):
  * with `D` inside the `extends` checks, `ArgsFor<K, NS, {}>` and `ArgsFor<K,
  * NS, D>` have different check types, TypeScript can relate neither direction,
  * and passing a `createI18n({ defaultParams })` instance to a provider stops
@@ -645,22 +640,27 @@ export interface I18nBaseOptions {
    * Namespaces to load during initialization. Omitted, only the default
    * namespace loads; pass `[]` to skip initial loading entirely.
    *
-   * LOADING is the loader capability's job, so on a host without it this
+   * LOADING is the loader capability's job, so on an instance without it this
    * option has nothing to do and `init()` says so in development.
    */
   ns?: string[];
   /**
    * Inline catalogs, keyed by `locale` or `"locale:namespace"`. Nested objects
    * (`{ nav: { home: "Home" } }`) and flat dotted keys (`{ "nav.home": "Home" }`)
-   * are the same catalog: every host flattens on ingestion.
+   * are the same catalog: every instance flattens on ingestion.
    */
-  messages?: Record<string, Record<string, TranslationValue>>;
+  messages?: MessagesMap;
   /** Tried in order when a key is missing in the active locale. */
   fallbackLocale?: string | readonly string[];
   /** Applied to every translation result. */
   postProcess?: PostProcessFn;
   /** Invoked when a key is missing, AFTER the fallback chain; a returned value overrides the key. */
   onMissingKey?: (info: MissingKeyInfo) => TranslationResult | void;
+  /**
+   * `"dev"` warns about every missing key (`Translation not found: "…"`). The
+   * warning is development-only: a production build logs nothing.
+   * @default "off"
+   */
   strict?: "dev" | "off";
   /** Plugins read it back off `i18n.apiKey` to authenticate with backend services. */
   apiKey?: string;
@@ -676,25 +676,27 @@ export interface I18nBaseOptions {
    */
   collectContext?: boolean;
   /**
-   * Discovery option for composed compatibility hosts (the CDN/UMD host and
-   * `@comvi/next`'s composed preset). The base `@comvi/core` host accepts this
-   * shared option shape but does not install discovery; base-host users compose
+   * Discovery option for composed compatibility instances (the CDN/UMD instance and
+   * `@comvi/next`'s composed preset). The base `@comvi/core` instance accepts this
+   * shared option shape but does not install discovery; base-instance users compose
    * `devtools({ exposeGlobal })` or call `attachDevtools`. Passing it without
    * that capability does nothing, and `init()` says so in development.
    * @default true when the devtools capability is installed in a browser
    */
   exposeGlobal?: boolean;
   /**
-   * Discovery identifier for composed compatibility hosts. Auto-generated
+   * Discovery identifier for composed compatibility instances. Auto-generated
    * when the devtools capability is installed and no value is provided. On a
-   * base host, pass it to `devtools({ instanceId })` or `attachDevtools`.
+   * base instance, pass it to `devtools({ instanceId })` or `attachDevtools`.
    */
   instanceId?: string;
   /** Enables `<tag>content</tag>` syntax in translation strings. */
   tagInterpolation?: TagInterpolationOptions;
   /**
-   * Read by plugins to pick behaviour (API vs CDN loading). Auto-detected when
-   * omitted: true under `import.meta.env.DEV` or `NODE_ENV !== "production"`.
+   * Exposed as `i18n.devMode` for plugins to read. When omitted, it follows
+   * the build flavour of the `@comvi/core` dist the bundler resolved: `true`
+   * under the `development` export condition, `false` otherwise. `NODE_ENV`
+   * is not read at runtime.
    */
   devMode?: boolean;
   /**
@@ -746,8 +748,8 @@ export interface ErrorReportContext {
     | "plugin"
     | "plugin-cleanup"
     /**
-     * A request-scoped host failed to tear down at the end of its request —
-     * `@comvi/nuxt`'s per-request Nitro host. The response is already written
+     * A request-scoped instance failed to tear down at the end of its request —
+     * `@comvi/nuxt`'s per-request Nitro instance. The response is already written
      * when this fires, so the error has nowhere else to go.
      */
     | "request-cleanup"
@@ -872,6 +874,12 @@ export type InferKeys<
 
 export type TranslationValue = string | { [key: string]: TranslationValue };
 
+/**
+ * Catalogs keyed `"locale"` or `"locale:namespace"`, the shape `addMessages()`
+ * and the `messages` option take.
+ */
+export type MessagesMap = Record<string, Record<string, TranslationValue>>;
+
 export type FlattenedMessages = Record<string, string>;
 
 export type MessagesCache = MessagesCacheClass;
@@ -891,7 +899,7 @@ export type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResu
  * Capability APIs live in `I18nLoaderApi` / `I18nPluginHostApi` below and
  * arrive from the `@comvi/core/loader` and `@comvi/core/plugins` subpaths. The
  * ROOT entry is this surface and nothing more. Note that `I18nInstance`
- * describes a COMPOSED host, not this one.
+ * describes a COMPOSED instance, not this one.
  */
 export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   get locale(): string;
@@ -920,7 +928,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 
   hasLocale: (locale: string, namespace?: string) => boolean;
 
-  addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
+  addMessages: (messages: MessagesMap) => void;
 
   getMessages: (locale?: string, namespace?: string) => FlattenedMessages;
 
@@ -942,6 +950,11 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
    * is written bare with its `ns`: `t('dashboard', { ns: 'admin' })`. There is
    * no `'admin:dashboard'` shorthand — a colon is part of a literal key in the
    * selected namespace. `null` is the documented no-op and returns `""`.
+   *
+   * A missing key or param never throws. The one exception is
+   * `tagInterpolation.strict: true`: a tag with no handler throws
+   * `[@comvi/core] Missing handler for tag: <…>` (`E_MISSING_TAG_HANDLER` in
+   * production).
    *
    * @example
    * ```typescript
@@ -1007,7 +1020,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 /**
  * Async-loading capability — `@comvi/core/loader`, composed on with
  * `.use(attachLoader)` / `.use(loader(map))`. Absent from the base root by module
- * graph; the internal composite and `@comvi/next`'s composed host carry it on
+ * graph; the internal composite and `@comvi/next`'s composed instance carry it on
  * their class surface.
  */
 export interface I18nLoaderApi {
@@ -1018,7 +1031,7 @@ export interface I18nLoaderApi {
    * configured installer `loader(map)`, or wrap it yourself with
    * `createImportMapLoader` — both from `@comvi/core/loader`. The two-overload
    * form (function OR import map) exists only on the composite and on
-   * `@comvi/next`'s published composed host.
+   * `@comvi/next`'s published composed instance.
    */
   registerLoader: (loader: LoaderFn) => void;
 
@@ -1034,7 +1047,7 @@ export interface I18nLoaderApi {
    * Activate a namespace and load it for the current locale.
    *
    * Activation only matters when something loads namespaces, so it belongs to
-   * the loader capability. Base hosts activate implicitly — `addMessages`
+   * the loader capability. Base instances activate implicitly — `addMessages`
    * self-activates the namespaces it carries.
    */
   addActiveNamespace: (namespace: string) => Promise<void>;
@@ -1067,7 +1080,7 @@ export interface I18nLoaderApi {
 }
 
 /**
- * Plugin-host capability — `@comvi/core/plugins`, composed on with
+ * Plugin capability — `@comvi/core/plugins`, composed on with
  * `.use(plugins())` / `attachPlugins`. Absent from the base root by module
  * graph. Constructor *options* (`postProcess`, `onMissingKey`) stay universal;
  * only the runtime registration APIs are a capability.
@@ -1162,41 +1175,41 @@ export type I18nMessagesView<D extends DefaultTranslationParams = {}> = Pick<
 
 /**
  * The instance surface a framework wrapper (react/solid/svelte/vue/next/nuxt)
- * requires of its host: reactive translation + lifecycle, and nothing else.
+ * requires of its instance: reactive translation + lifecycle, and nothing else.
  *
  * Structurally EXACTLY what `class I18n` declares it implements, so a bare
  * `@comvi/core` instance satisfies it with no capability attached.
  * Loader/plugin members are deliberately absent: wrappers acquire those through
  * their own capability hooks, which verify presence once and throw
- * {@link missingCapability} when the host has none.
+ * {@link missingCapability} when the instance has none.
  */
 export type WrapperI18nHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
   I18nCoreExtraApi;
 
 /**
- * A host with ANY default-params type — what a wrapper's provider / context
+ * An instance with ANY default-params type — what a wrapper's provider / context
  * setter accepts.
  *
  * `I18nCoreInstance` declares `setDefaultParams` as a PROPERTY rather than a
  * method, so `strictFunctionTypes` checks its parameter contravariantly and
- * the host is INVARIANT in `D`: an instance from `createI18n({ defaultParams })`
+ * the instance is INVARIANT in `D`: an instance from `createI18n({ defaultParams })`
  * was not assignable to `WrapperI18nHost<{}>` at all, so it could not be
  * passed in.
  *
  * Making the boundary generic over `D` does NOT fix it. Every `D` position in
- * the host is either a conditional type (`SetDefaultParamsArg<D>`,
+ * the instance is either a conditional type (`SetDefaultParamsArg<D>`,
  * `ParamsArg<K, D>`) or a bivariant method, so `D` has no inference site: it
  * silently falls back to the constraint and the call fails just the same.
  *
  * Widening the two members that carry the invariance is what actually works.
  * `setDefaultParams` is the source; `init()` re-imports it by returning the
- * host recursively. Every other `D` occurrence is a method (bivariant) or a
+ * instance recursively. Every other `D` occurrence is a method (bivariant) or a
  * return type (covariant), so nothing else has to move.
  *
  * Both are widened with METHOD syntax and `any` rather than `never` /
  * `unknown` on purpose: methods are bivariant, so the result stays assignable
  * to `WrapperI18nHost<{}>` in BOTH directions. Everything downstream that
- * expects the plain host keeps compiling, and no wrapper needs an internal
+ * expects the plain instance keeps compiling, and no wrapper needs an internal
  * cast.
  *
  * Declared ONCE here: react, solid and svelte re-export it as a type.
@@ -1208,7 +1221,7 @@ export type AnyI18nHost = Omit<WrapperI18nHost, "setDefaultParams" | "init"> & {
 
 /**
  * The instance surface a plugin may rely on. A plugin that calls loader APIs on
- * a base host needs `attachLoader` to have run first.
+ * a base instance needs `attachLoader` to have run first.
  */
 export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
   I18nCoreExtraApi &
@@ -1216,12 +1229,12 @@ export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreIn
   I18nPluginHostApi;
 
 /**
- * A COMPOSED host's shape. Only `reloadMessages`, `setPluginData` and
+ * A COMPOSED instance's shape. Only `reloadMessages`, `setPluginData` and
  * `getPluginData` of the capability APIs belong to it, so they are re-picked
  * one by one — inheriting the whole capability interfaces would silently widen
  * this exported type.
  *
- * A base `@comvi/core` host satisfies `I18nCoreInstance`, NOT this: it becomes
+ * A base `@comvi/core` instance satisfies `I18nCoreInstance`, NOT this: it becomes
  * assignable only once the loader and plugin capabilities are composed on.
  */
 export interface I18nInstance<D extends DefaultTranslationParams = {}>

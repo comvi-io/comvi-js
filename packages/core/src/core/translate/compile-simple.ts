@@ -14,7 +14,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
  *
  * Own fields are exactly `code` and `argumentType`. Locale, namespace, key and
  * catalog source are APPLICATION-supplied telemetry, never core-error fields:
- * they travel in the `ErrorReportContext` the host attaches.
+ * they travel in the `ErrorReportContext` the instance attaches.
  */
 export interface IcuSyntaxError extends Error {
   code: "E_ICU_SYNTAX";
@@ -23,7 +23,7 @@ export interface IcuSyntaxError extends Error {
 
 /**
  * The argument type of the most recent production ICU miss, waiting to be
- * read-and-cleared by the host. Production only: the compiler cannot see
+ * read-and-cleared by the instance. Production only: the compiler cannot see
  * key/locale/namespace, so `I18n._translate` picks the hit up immediately
  * after the `translate()` call that produced it and attaches the telemetry.
  * @internal
@@ -31,7 +31,7 @@ export interface IcuSyntaxError extends Error {
 export let icuHit: string | undefined;
 
 /**
- * Clear the pending production ICU miss, once the host has reported it.
+ * Clear the pending production ICU miss, once the instance has reported it.
  * @internal
  */
 export function clearIcuHit(): void {
@@ -55,7 +55,7 @@ export function setIcuHit(argumentType: string): void {
  * ingestion preflight. In production it returns `undefined`, so `parseTemplate`
  * emits one raw text token for the balanced brace group — the segment renders
  * literally and is never re-parsed by a tag extension — and records the
- * argument type for the host's best-effort `E_ICU_SYNTAX` report.
+ * argument type for the instance's best-effort `E_ICU_SYNTAX` report.
  */
 export const simpleCompiler: MessageCompiler = {
   cid: 1,

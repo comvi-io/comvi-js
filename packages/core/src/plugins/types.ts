@@ -7,11 +7,11 @@ export type PluginCleanup = () => void | Promise<void>;
  * A plugin receives the i18n instance and may register hooks, loaders and
  * detectors on it.
  *
- * The host type is the **composed full surface** (`I18nPluginHost`) — the base
- * host plus the loader and plugin capabilities. A plugin only ever runs on a
- * host that has the plugin capability (`@comvi/core/plugins`), and one that
+ * The instance type is the **composed full surface** (`I18nPluginHost`) — the base
+ * instance plus the loader and plugin capabilities. A plugin only ever runs on a
+ * instance that has the plugin capability (`@comvi/core/plugins`), and one that
  * calls loader APIs additionally requires `@comvi/core/loader` on that same
- * host. Both only have to be composed by `init()`, which is when plugins run,
+ * instance. Both only have to be composed by `init()`, which is when plugins run,
  * so their order relative to each other is free —
  * `createI18n({ … }).use(attachLoader).use(plugins())` and
  * `createI18n({ … }).use(plugins()).use(attachLoader)` are equivalent.

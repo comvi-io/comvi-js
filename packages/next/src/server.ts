@@ -30,7 +30,8 @@ export type {
 // The name `@comvi/nuxt` uses for the same function type; type-only, 0 B.
 export type { TranslationFunction as ServerTranslationFunction } from "./server/types";
 
-export type { LoadMessagesOptions, MessagesMap } from "./server/loadMessages";
+export type { LoadMessagesOptions } from "./server/loadMessages";
+export type { MessagesMap } from "@comvi/core";
 
 // One sentence, two installers: an import map → `loader(map)`; a plain
 // `LoaderFn` (or a host something else configures later) →

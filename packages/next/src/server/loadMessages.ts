@@ -1,4 +1,4 @@
-import type { TranslationValue } from "@comvi/core";
+import type { MessagesMap, TranslationValue } from "@comvi/core";
 import { resolveServerI18n, getRequestFailedLoads } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import type { ServerI18nHost } from "./hostTypes";
@@ -9,11 +9,6 @@ export interface LoadMessagesOptions {
    */
   namespaces?: string[];
 }
-
-/**
- * Translations result keyed by "locale:namespace"
- */
-export type MessagesMap = Record<string, Record<string, TranslationValue>>;
 
 const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));

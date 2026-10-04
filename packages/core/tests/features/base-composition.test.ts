@@ -569,7 +569,7 @@ describe(".use(installer) — the composition pipe", () => {
       } catch (error) {
         message = (error as Error).message;
       }
-      expect(message).toContain("returns the host it was given");
+      expect(message).toContain("returns the i18n instance it was given");
       expect(message).toContain(".use(definePlugin(f))");
       expect(message).toContain("registerPlugin(f)");
       // The two names no longer differ by letter case, so the sentence cannot

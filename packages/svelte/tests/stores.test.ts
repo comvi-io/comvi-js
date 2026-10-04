@@ -338,7 +338,7 @@ describe("Svelte stores", () => {
 
     // configChanged again — two consecutive config-only events must not
     // collide either.
-    fresh.emit("configChanged", { source: "messagesAdded" });
+    fresh.emit("configChanged", { source: "defaultParams" });
 
     // initialized
     fresh.emit("initialized", undefined);

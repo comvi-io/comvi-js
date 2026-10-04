@@ -22,7 +22,7 @@ import type { DefaultTranslationParams, I18nOptions } from "./types";
 import { I18n as I18nImpl } from "./core/i18n";
 
 /**
- * The published host. The runtime binding IS the base class; the annotation
+ * The published instance. The runtime binding IS the base class; the annotation
  * narrows the construct signature to the published one-argument contract, so
  * the internal compiler parameter never reaches the emitted declaration.
  */
@@ -31,7 +31,7 @@ export const I18n: new <const D extends DefaultTranslationParams = {}>(
 ) => I18nImpl<D> = I18nImpl;
 export type I18n<D extends DefaultTranslationParams = {}> = I18nImpl<D>;
 
-/** The base-host factory: `createI18n(options)` is `new I18n(options)`. */
+/** The base-instance factory: `createI18n(options)` is `new I18n(options)`. */
 export function createI18n<const D extends DefaultTranslationParams = {}>(
   options: I18nOptions<D>,
 ): I18nImpl<D> {
@@ -41,9 +41,9 @@ export function createI18n<const D extends DefaultTranslationParams = {}>(
 export { MessagesCache } from "./core/MessagesCache";
 
 /**
- * Flatten a nested catalog into the flat `{ "a.b": "…" }` shape a host stores.
+ * Flatten a nested catalog into the flat `{ "a.b": "…" }` shape an instance stores.
  * PURE, and NOT required: `options.messages` and `addMessages()` accept
- * nested objects on every host and flatten them themselves. Reach for this only
+ * nested objects on every instance and flatten them themselves. Reach for this only
  * to pre-flatten data by hand — to inspect the keys a catalog will produce, or
  * to merge several sources before handing one object over.
  *

@@ -16,13 +16,13 @@
 import { warn } from "../logger";
 
 /**
- * Hosts that have already been told. A `WeakSet` rather than a flag on the
+ * Instances that have already been told. A `WeakSet` rather than a flag on the
  * instance: an own property would show up in the reflective contracts that
- * assert exactly what a composed host carries.
+ * assert exactly what a composed instance carries.
  */
 const warned = /* @__PURE__ */ new WeakSet<object>();
 
-/** @internal Warn once per host. Guard the call site with `IS_DEV`. */
+/** @internal Warn once per instance. Guard the call site with `IS_DEV`. */
 export function warnLateCompose(host: object, message: string): void {
   if (warned.has(host)) return;
   warned.add(host);

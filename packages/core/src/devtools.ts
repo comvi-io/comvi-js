@@ -31,8 +31,8 @@ export type { ComviQueue, ComviQueueEntry, ComviHook } from "./types";
  * const i18n = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
  * ```
  *
- * Adds no public members — it populates `instanceId`, which the host already
- * declares — so the host type is returned unchanged. `.use(attachDevtools)`
+ * Adds no public members — it populates `instanceId`, which the instance already
+ * declares — so the instance type is returned unchanged. `.use(attachDevtools)`
  * is the unconfigured equivalent.
  *
  * Attaching is idempotent: a second `.use(devtools())`, or the composite

@@ -57,7 +57,7 @@ const ERR_LOADER_IMPORT_MAP = IS_DEV
 /**
  * The loader capability as a CONFIGURED `.use(…)` installer: attach +
  * `registerLoader(createImportMapLoader(map))`, where the default namespace is
- * read live off the host, so `setDefaultNamespace()` after composition still
+ * read live off the instance, so `setDefaultNamespace()` after composition still
  * applies.
  *
  * ```ts
@@ -70,7 +70,7 @@ const ERR_LOADER_IMPORT_MAP = IS_DEV
  * have a `LoaderFn` — attach-only, adapter-free, and then
  * `i18n.registerLoader(fn)`.
  *
- * Attaching is idempotent: on a host that already has the capability nothing is
+ * Attaching is idempotent: on an instance that already has the capability nothing is
  * installed and no own property shadows the inherited prototype member. The map
  * is still registered in that case — configuration is not installation.
  */
@@ -97,7 +97,7 @@ export function loader(
  *
  * Re-exported by `@comvi/react`, `@comvi/vue`, `@comvi/solid` and
  * `@comvi/svelte` as `UseI18nLoaderReturn`: it is the return of their
- * `useI18nLoader()`, which is {@link acquireLoaderApi} over the host in
+ * `useI18nLoader()`, which is {@link acquireLoaderApi} over the instance in
  * context.
  */
 export interface AcquiredLoaderApi {
@@ -116,7 +116,7 @@ export interface AcquiredLoaderApi {
 }
 
 /**
- * Identity contract: ONE bag per host, cached here rather than in a
+ * Identity contract: ONE bag per instance, cached here rather than in a
  * framework-local memo, so two components under one provider receive the same
  * function references.
  *
@@ -131,14 +131,14 @@ const loaderBags = /* @__PURE__ */ new WeakMap<WrapperI18nHost, AcquiredLoaderAp
  * {@link missingCapability | missingCapability("loader")}.
  *
  * ONE implementation, four bindings: `useI18nLoader()` in `@comvi/react`,
- * `@comvi/vue`, `@comvi/solid` and `@comvi/svelte` is this call over the host
+ * `@comvi/vue`, `@comvi/solid` and `@comvi/svelte` is this call over the instance
  * each of them reads from context, and nothing else. The four used to carry a
  * byte-identical copy pinned by a text-diff gate, which is how one of them
  * once drifted.
  *
  * The check is STRUCTURAL and it throws in dev AND in prod: there is no silent
- * no-op and no dev-only tombstone. A base `@comvi/core` instance is every host
- * nobody composed a loader onto, so compose it where the instance is created —
+ * no-op and no dev-only tombstone. A base `@comvi/core` instance is any i18n
+ * instance nobody composed a loader onto, so compose it where the instance is created —
  * `createI18n(...).use(attachLoader)` or `.use(loader(map))`.
  *
  * @example

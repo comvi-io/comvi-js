@@ -17,7 +17,8 @@ export { createI18n } from "@comvi/core";
 export type { I18n } from "@comvi/core";
 
 export { I18nProvider, useI18nHost, useLocale, useIsLoading } from "./I18nProvider";
-export type { I18nProviderProps, MessagesMap } from "./I18nProvider";
+export type { I18nProviderProps } from "./I18nProvider";
+export type { MessagesMap } from "@comvi/core";
 export { useI18n } from "./useI18n";
 export type { UseI18nReturn } from "./useI18n";
 export { useI18nLoader, useI18nPlugins } from "./capabilityHooks";
