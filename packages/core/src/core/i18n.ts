@@ -413,9 +413,22 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _initAttempt?: Promise<unknown>;
 
   public init(): Promise<this> {
-    return (this._initAttempt ??= this._init().finally(() => {
-      this._initAttempt = undefined;
-    })) as Promise<this>;
+    let attempt = this._initAttempt;
+    if (!attempt) {
+      // The slot is filled BEFORE `_init()` runs: `_init()` emits
+      // `loadingStateChanged` synchronously, and a listener that calls
+      // `init()` from there must join this attempt, not start a second one.
+      // `_init()` itself still starts synchronously, so `isInitializing` is
+      // true the moment `init()` returns.
+      let run!: (result: Promise<this>) => void;
+      const own = (this._initAttempt = attempt = new Promise((resolve) => (run = resolve)));
+      const clear = () => {
+        if (this._initAttempt === own) this._initAttempt = undefined;
+      };
+      own.then(clear, clear);
+      run(this._init());
+    }
+    return attempt as Promise<this>;
   }
 
   private async _init(): Promise<this> {
