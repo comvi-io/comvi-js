@@ -14,9 +14,13 @@ import {
   type InContextEditorMappings,
 } from "@comvi/core/editor-bridge";
 import { Core } from "./Core";
-import { addBeforeProcessHook, registerPostProcessorOnce } from "./postProcessor";
+import {
+  addBeforeProcessHook,
+  getOrCreatePostProcessorState,
+  registerPostProcessorOnce,
+} from "./postProcessor";
 import { initApiConfig, resetApiConfig } from "./config/api";
-import { getKeyMappings, loadKeyMappings, registerKey, resetEncoder } from "./translation";
+import { TranslationKeyEncoder, defaultEncoder } from "./encoding/TranslationKeyEncoder";
 import type { TranslationSystemOptions } from "./types";
 
 // Declare process for bundler replacement (webpack/turbopack/vite replace process.env.NODE_ENV at build time)
@@ -38,17 +42,16 @@ export interface EditorOptions extends Omit<TranslationSystemOptions, "targetEle
 
 let runtimeIdCounter = 0;
 const activeBrowserEditorRuntimes = new Set<number>();
+/** Live browser runtimes per host: the bridge goes only with the last one. */
+const bridgeUsers = new WeakMap<object, number>();
 
-function attachMappingsBridge(target: unknown): void {
-  if (!target || (typeof target !== "object" && typeof target !== "function")) {
-    return;
-  }
+function attachMappingsBridge(target: object, encoder: TranslationKeyEncoder): void {
   if (readEditorMappings(target)) {
     return;
   }
   (target as Record<string, unknown>)[EDITOR_MAPPINGS_GLOBAL] = {
-    getKeyMappings,
-    loadKeyMappings,
+    getKeyMappings: () => encoder.getMappings(),
+    loadKeyMappings: (mappings) => encoder.loadMappings(mappings),
   } satisfies InContextEditorMappings;
 }
 
@@ -77,7 +80,7 @@ function enqueueLoadedKeys(i18n: I18nPluginHost, pendingCombinedKeys: Set<string
   }
 }
 
-function flushPendingKeys(pendingCombinedKeys: Set<string>): void {
+function flushPendingKeys(pendingCombinedKeys: Set<string>, encoder: TranslationKeyEncoder): void {
   if (pendingCombinedKeys.size === 0) {
     return;
   }
@@ -92,7 +95,7 @@ function flushPendingKeys(pendingCombinedKeys: Set<string>): void {
     }
     const namespace = combinedKey.slice(0, separatorIndex);
     const key = combinedKey.slice(separatorIndex + 1);
-    registerKey(key, namespace);
+    encoder.registerKey(key, namespace);
   }
 }
 
@@ -137,9 +140,17 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
   return (i18n) => {
     const isBrowserRuntime = typeof window !== "undefined" && typeof document !== "undefined";
 
+    // The browser shares one page-wide encoder: the DOM scanner decodes every
+    // host's markers from the same page. A server host gets its own, so
+    // overlapping requests never share or reset each other's key ids.
+    const { encoder } = getOrCreatePostProcessorState(
+      i18n,
+      isBrowserRuntime ? defaultEncoder : new TranslationKeyEncoder(),
+    );
+
     // Expose mapping bridge on i18n for framework adapters (Nuxt/Next) to transfer
     // SSR key mappings to the client before hydration.
-    attachMappingsBridge(i18n);
+    attachMappingsBridge(i18n, encoder);
 
     const host = i18n as unknown as Record<string, unknown>;
     const initialMappings = toRecordOfNumbers(host[EDITOR_INITIAL_MAPPINGS_GLOBAL]);
@@ -147,16 +158,14 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
 
     if (initialMappings) {
       // Client hydration path: restore server key-id map before any translation work.
-      loadKeyMappings(initialMappings);
-    } else if (!isBrowserRuntime) {
-      // Keep encoder state request-scoped on server/SSR runtimes.
-      resetEncoder();
+      encoder.loadMappings(initialMappings);
     } else if (
+      isBrowserRuntime &&
       activeBrowserEditorRuntimes.size === 0 &&
-      Object.keys(getKeyMappings()).length === 0
+      Object.keys(encoder.getMappings()).length === 0
     ) {
       // First browser runtime on the page: start from a clean mapping.
-      resetEncoder();
+      encoder.reset();
     }
 
     const pendingCombinedKeys = new Set<string>();
@@ -173,7 +182,7 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     });
 
     const removeBeforeProcessHook = addBeforeProcessHook(i18n, () => {
-      flushPendingKeys(pendingCombinedKeys);
+      flushPendingKeys(pendingCombinedKeys, encoder);
     });
 
     // Register post-processor in all runtimes so SSR/client markup stays consistent.
@@ -226,6 +235,7 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     core.start();
     const runtimeId = ++runtimeIdCounter;
     activeBrowserEditorRuntimes.add(runtimeId);
+    bridgeUsers.set(i18n, (bridgeUsers.get(i18n) ?? 0) + 1);
 
     return () => {
       removeBeforeProcessHook();
@@ -234,9 +244,12 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
       core.stop();
       resetApiConfig(instanceId);
       activeBrowserEditorRuntimes.delete(runtimeId);
-      const host = i18n as unknown as Record<string, unknown>;
-      if (host[EDITOR_MAPPINGS_GLOBAL]) {
-        delete host[EDITOR_MAPPINGS_GLOBAL];
+      const users = (bridgeUsers.get(i18n) ?? 1) - 1;
+      if (users > 0) {
+        bridgeUsers.set(i18n, users);
+      } else {
+        bridgeUsers.delete(i18n);
+        delete (i18n as unknown as Record<string, unknown>)[EDITOR_MAPPINGS_GLOBAL];
       }
     };
   };

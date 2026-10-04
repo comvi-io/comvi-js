@@ -4,7 +4,7 @@
  */
 
 import type { TranslationParams, TranslationResult } from "@comvi/core";
-import { registerKey, encodeKeyToInvisible } from "./translation";
+import { defaultEncoder, type TranslationKeyEncoder } from "./encoding/TranslationKeyEncoder";
 
 export interface InvisibleCharPostProcessorOptions {
   /**
@@ -12,6 +12,8 @@ export interface InvisibleCharPostProcessorOptions {
    * Used by framework adapters/plugins to prepare deterministic key mappings.
    */
   beforeProcess?: () => void;
+  /** The key-id map this processor encodes with. Defaults to the page-wide one. */
+  encoder?: TranslationKeyEncoder;
 }
 
 type BeforeProcessHook = () => void;
@@ -19,6 +21,7 @@ type BeforeProcessHook = () => void;
 interface InContextPostProcessorState {
   registered: boolean;
   hooks: Set<BeforeProcessHook>;
+  encoder: TranslationKeyEncoder;
   processor: (
     result: TranslationResult,
     key: string,
@@ -43,9 +46,12 @@ type I18nWithPostProcessor = {
 /**
  * Returns a stable post-processor state object attached to the i18n instance.
  * Ensures the invisible-marker processor is registered at most once per i18n instance.
+ * `encoder` is used only when the state is created; afterwards the host keeps
+ * the encoder it started with.
  */
 export function getOrCreatePostProcessorState(
   i18n: I18nWithPostProcessor,
+  encoder: TranslationKeyEncoder = defaultEncoder,
 ): InContextPostProcessorState {
   const host = i18n as Record<string, unknown>;
   const existing = host[POST_PROCESSOR_STATE_KEY] as InContextPostProcessorState | undefined;
@@ -59,11 +65,13 @@ export function getOrCreatePostProcessorState(
     beforeProcess: () => {
       hooks.forEach((hook) => hook());
     },
+    encoder,
   });
 
   const state: InContextPostProcessorState = {
     registered: false,
     hooks,
+    encoder,
     processor,
   };
 
@@ -92,6 +100,7 @@ export function addBeforeProcessHook(
 }
 
 export function createInvisibleCharPostProcessor(options: InvisibleCharPostProcessorOptions = {}) {
+  const encoder = options.encoder ?? defaultEncoder;
   return (
     result: TranslationResult,
     key: string,
@@ -104,8 +113,7 @@ export function createInvisibleCharPostProcessor(options: InvisibleCharPostProce
       return result;
     }
 
-    const id = registerKey(key, ns);
-    const encodedKey = encodeKeyToInvisible(id);
+    const encodedKey = encoder.encode(encoder.registerKey(key, ns));
 
     if (typeof result === "string") {
       return `${result}${encodedKey}`;

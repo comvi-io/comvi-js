@@ -95,6 +95,19 @@ describe("inContextEditorPlugin mappings bridge", () => {
     first?.();
   });
 
+  it("keeps the bridge while another runtime on the same host is still live", () => {
+    const i18n = makeI18n();
+    const first = installEditor()(i18n);
+    const published = readEditorMappings(i18n);
+    const second = installEditor()(i18n);
+
+    second?.();
+    expect(readEditorMappings(i18n)).toBe(published);
+
+    first?.();
+    expect(readEditorMappings(i18n)).toBeUndefined();
+  });
+
   it("withdraws the bridge when the runtime is torn down", () => {
     const i18n = makeI18n();
     const cleanup = installEditor()(i18n);
@@ -173,16 +186,36 @@ describe("inContextEditorPlugin runtime detection", () => {
 });
 
 describe("inContextEditorPlugin on a server runtime", () => {
-  it("resets the encoder on install so ids stay request-scoped", () => {
+  it("starts each server host from an empty key-id map, whatever the page-wide encoder holds", () => {
     const i18n = makeI18n();
     registerKey("leftover");
     vi.stubGlobal("window", undefined);
 
     const cleanup = installEditor()(i18n);
 
-    expect(getKeyMappings()).toEqual({});
+    expect(readEditorMappings(i18n)?.getKeyMappings()).toEqual({});
 
     cleanup?.();
+  });
+
+  it("gives each server host its own key ids, so an overlapping host leaves the first one's bridge alone", () => {
+    vi.stubGlobal("window", undefined);
+    const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
+    const second = makeI18n({ messages: { "en:default": { beta: "Beta" } } });
+
+    const cleanupFirst = installEditor()(first);
+    first.t("alpha");
+    const firstBridge = readEditorMappings(first);
+    expect(firstBridge?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+
+    const cleanupSecond = installEditor()(second);
+    second.t("beta");
+
+    expect(firstBridge?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    expect(readEditorMappings(second)?.getKeyMappings()).toEqual({ "default:beta": 1 });
+
+    cleanupSecond?.();
+    cleanupFirst?.();
   });
 
   it("unsubscribes every host event it subscribed to when the runtime is torn down", () => {
@@ -208,7 +241,7 @@ describe("inContextEditorPlugin on a server runtime", () => {
 
     // Only the post-processor's own registration survives; the queued
     // "extra:welcome" is never flushed, so it is given no id.
-    expect(getKeyMappings()).toEqual({ "default:hello": 1 });
+    expect(readEditorMappings(i18n)?.getKeyMappings()).toEqual({ "default:hello": 1 });
   });
 });
 

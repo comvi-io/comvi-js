@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createI18n } from "./helpers/composedHost";
 import { inContextEditorPlugin } from "../src/index";
-import { getKeyMappings, resetEncoder } from "../src/translation";
+import { readEditorMappings } from "@comvi/core/editor-bridge";
+import { resetEncoder } from "../src/translation";
 
 // Declared out of sorted order on purpose: ids come from a sort of the pending
 // `namespace:key` set (`src/index.ts` flushPendingKeys), not from either the
@@ -27,6 +28,9 @@ async function createServerLikeI18n(
   return i18n;
 }
 
+/** The key ids a server host published for the client to adopt. */
+const hostMappings = (i18n: object) => readEditorMappings(i18n)?.getKeyMappings();
+
 describe("InContextEditor hydration stability", () => {
   beforeEach(() => {
     // Force the plugin's non-browser branch so no DOM watcher starts.
@@ -44,12 +48,12 @@ describe("InContextEditor hydration stability", () => {
     // in what order — cannot influence the ids. The catalog's order can, and is
     // what this pins: b_key is declared first but still gets the second id.
     firstRun.t("b_key");
-    const firstRunMappings = getKeyMappings();
+    const firstRunMappings = hostMappings(firstRun);
     await firstRun.destroy();
 
     const secondRun = await createServerLikeI18n();
     secondRun.t("a_key");
-    const secondRunMappings = getKeyMappings();
+    const secondRunMappings = hostMappings(secondRun);
     await secondRun.destroy();
 
     expect(firstRunMappings).toEqual({ "default:a_key": 1, "default:b_key": 2 });
@@ -59,14 +63,14 @@ describe("InContextEditor hydration stability", () => {
   it("gives a key that only exists in a later run its own id, never one already in use", async () => {
     const first = await createServerLikeI18n();
     first.t("a_key");
-    const firstRunMappings = getKeyMappings();
+    const firstRunMappings = hostMappings(first);
     await first.destroy();
 
     const second = await createServerLikeI18n({
       "en:default": { c_key: "C value", b_key: "B value", a_key: "A value" },
     });
     second.t("a_key");
-    const secondRunMappings = getKeyMappings();
+    const secondRunMappings = hostMappings(second);
     await second.destroy();
 
     expect(firstRunMappings).toEqual({ "default:a_key": 1, "default:b_key": 2 });
