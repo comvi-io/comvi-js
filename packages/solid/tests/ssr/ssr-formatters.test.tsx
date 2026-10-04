@@ -3,7 +3,7 @@
  * signal is seeded from the host (or `ssrLocale`), so `renderToString` must
  * paint the same text a plain call to the core formatter would.
  */
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import { createI18n } from "../../src";
 
 const host = () => createI18n({ locale: "en", messages: { en: {} }, exposeGlobal: false });
@@ -15,6 +15,13 @@ const eur = (locale: string) =>
   new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" }).format(1234.5);
 
 describe("solid SSR — bound formatters", () => {
+  // The server module graph is transformed on first import. Under a full-repo
+  // run that cold transform alone can exceed the 5 s test budget, so it is
+  // paid once here, outside any test.
+  beforeAll(async () => {
+    await import("./formatters.server");
+  }, 30_000);
+
   it("formats in the host locale", async () => {
     expect(await renderPrice()).toContain(eur("en"));
   });

@@ -8,7 +8,7 @@
  * that exact string from the browser build. Separate host instances per half,
  * because a server process and a browser never share one.
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeAll, describe, it, expect, beforeEach } from "vitest";
 import { render } from "@solidjs/testing-library";
 import { createI18n } from "../../src";
 import { App } from "./app";
@@ -24,6 +24,13 @@ const renderOnServer = async (props: Parameters<typeof App>[0]) =>
   (await import("./render.server")).renderApp(props);
 
 describe("solid SSR — ssrLocale", () => {
+  // The server module graph is transformed on first import. Under a full-repo
+  // run that cold transform alone can exceed the 5 s test budget, so it is
+  // paid once here, outside any test.
+  beforeAll(async () => {
+    await import("./render.server");
+  }, 30_000);
+
   beforeEach(() => {
     // What `generateHydrationScript()` puts in the document head; solid's
     // `hydrate()` reads it, and no test page runs that script.
