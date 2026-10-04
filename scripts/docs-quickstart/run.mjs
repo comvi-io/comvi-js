@@ -70,6 +70,7 @@ import {
   nonInteractive,
   splitCommands,
   DEFAULT_SCAFFOLDS,
+  SCAFFOLD_DELETES,
   planPage,
   renderTable,
   stripAnsi,
@@ -238,7 +239,10 @@ async function scaffoldOnce(step, options) {
 }
 
 /** Write the page's files, the local-tarball overrides and the install deps. */
-function prepareProject(dir, plan, packages, cdnUrl) {
+function prepareProject(dir, fw, plan, packages, cdnUrl) {
+  for (const rel of SCAFFOLD_DELETES[fw] ?? []) {
+    fs.rmSync(path.join(dir, rel), { force: true });
+  }
   for (const file of plan.files.values()) {
     const abs = path.join(dir, file.rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -487,7 +491,7 @@ async function runProject({ fw, page, plan, packages, cdn, options }) {
     copyTree(scaffolded.projectDir, dir);
     let declared;
     try {
-      declared = prepareProject(dir, plan, packages, page === "connect-comvi" ? cdn.url : null);
+      declared = prepareProject(dir, fw, plan, packages, page === "connect-comvi" ? cdn.url : null);
     } catch (error) {
       record("install", { status: 1, output: `error: ${error.message}` });
       return result;

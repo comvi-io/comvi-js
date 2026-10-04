@@ -220,6 +220,16 @@ export const DEFAULT_SCAFFOLDS = {
   vanilla: "npm create vite@latest my-app -- --template vanilla-ts",
 };
 
+/**
+ * Scaffold files the page tells the reader to delete, in prose rather than a
+ * fence. Next's quick start: "If your app still has a root `src/app/layout.tsx`
+ * and `src/app/page.tsx`, delete them". Left in place, the scaffold's layout
+ * (which writes `<html lang="en">`) wraps the docs layout and masks it.
+ */
+export const SCAFFOLD_DELETES = {
+  next: ["src/app/layout.tsx", "src/app/page.tsx"],
+};
+
 /** `npm create <name>[@v]`, `npm init <name>`, or `npx [create-]<name>[@v]`. */
 function isCreate(argv, name) {
   const pkgName = (spec) => spec?.replace(/@[^@/]*$/, "");

@@ -77,3 +77,52 @@ nuxt       ok     ok  ok  ok  ok  ok  ok  ok  skip  ok  ok  ok  skip  skip  skip
 framework  build  a   b   c   d   e   f   g   g2  h   i   j   k   k2  k3  l   m   n   o   p   q   r   s
 nuxt       ok     ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  ok  skip
 ```
+
+## After the rebase on 710d5ea6 (DX-Next landed)
+
+Platform docs `origin/develop` @ 3a2b77e3. The Next tab is as published. The Nuxt tabs are
+replaced by the proposed fences above; the Nuxt tabs upstream had not changed since e3b4ed6d.
+Next 16.3.8 (create-next-app scaffold). The probe now also checks Next's server HTML for
+`lang="en"` at `/`. It also deletes the scaffold's `src/app/layout.tsx` and `src/app/page.tsx`, as
+the quick start tells the reader to. Before that step the scaffold's own `<html lang="en">`
+wrapped the docs layout, and a red stub passed.
+
+```bash
+pnpm docs:quickstart --content <scratch>/next-red --only next --no-build --no-pack  # red: layout writes <html>
+pnpm docs:quickstart --content <scratch>/rebased --only next --no-build --no-pack   # green
+pnpm docs:quickstart --content <scratch>/rebased --only nuxt --no-build --no-pack   # green
+```
+
+### Next, red (`<html lang={locale}>` stubbed to `<html>` in the docs copy)
+
+```
+| framework | page          | scaffold | install | build | typecheck | render |
+|-----------|---------------|----------|---------|-------|-----------|--------|
+| next      | quick-start   | pass     | pass    | pass  | pass      | fail   |
+| next      | connect-comvi | pass     | pass    | pass  | pass      | fail   |
+
+First failing line per step:
+- next / quick-start / render: error: server HTML at http://localhost:61659/ has <html>, expected lang="en"
+- next / connect-comvi / render: error: server HTML at http://localhost:61626/ has <html>, expected lang="en"
+
+```
+
+### Next, green
+
+```
+| framework | page          | scaffold | install | build | typecheck | render |
+|-----------|---------------|----------|---------|-------|-----------|--------|
+| next      | quick-start   | pass     | pass    | pass  | pass      | pass   |
+| next      | connect-comvi | pass     | pass    | pass  | pass      | pass   |
+
+```
+
+### Nuxt, green
+
+```
+| framework | page          | scaffold | install | build | typecheck | render |
+|-----------|---------------|----------|---------|-------|-----------|--------|
+| nuxt      | quick-start   | pass     | pass    | pass  | pass      | pass   |
+| nuxt      | connect-comvi | pass     | pass    | pass  | pass      | pass   |
+
+```

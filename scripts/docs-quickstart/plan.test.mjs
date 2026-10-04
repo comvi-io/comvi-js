@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   CDN_PLACEHOLDER,
   DEFAULT_SCAFFOLDS,
+  SCAFFOLD_DELETES,
   FRAMEWORKS,
   QUIET_ENV,
   expectation,
@@ -371,4 +372,11 @@ test("DEFAULT_SCAFFOLDS: covers every framework and each command is understood",
     assert.ok(DEFAULT_SCAFFOLDS[fw.key], `no default scaffold for ${fw.key}`);
     assert.equal(nonInteractive(splitCommands([DEFAULT_SCAFFOLDS[fw.key]])[0]).dir, "my-app");
   }
+});
+
+test("SCAFFOLD_DELETES: Next's scaffold root layout and page go, as the quick start says", () => {
+  // The scaffold's own layout writes `<html lang="en">`; left in place it masks
+  // the docs layout, so a quick start that forgot `lang` would still pass.
+  assert.deepEqual(SCAFFOLD_DELETES.next, ["src/app/layout.tsx", "src/app/page.tsx"]);
+  assert.equal(SCAFFOLD_DELETES.nuxt, undefined);
 });
