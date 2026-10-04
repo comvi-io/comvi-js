@@ -1160,9 +1160,11 @@ export interface I18nCoreExtraApi {
 
   /**
    * A read view whose `t` / `tRaw` / `hasTranslation` read each key from
-   * `catalogs` first and from the cache otherwise. The i18n instance is not
-   * written. `catalogs` is keyed `"locale:namespace"` and holds flat catalogs
-   * (`flattenCatalog`).
+   * `catalogs` first and from the cache otherwise. The view has only those
+   * three methods. It never writes the i18n instance and never emits a
+   * publication event (`namespaceLoaded`, `localeChanged`); a missing key
+   * still emits `missingKey`, as for any `t()` call. `catalogs` is keyed
+   * `"locale:namespace"` and holds flat catalogs (`flattenCatalog`).
    */
   withMessages(catalogs: Readonly<Record<string, FlattenedMessages>>): I18nMessagesView;
 }

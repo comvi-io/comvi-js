@@ -5,7 +5,7 @@ import { attachPlugins } from "../../src/plugins";
 /**
  * `withMessages(catalogs)`: a read view whose `t` / `tRaw` / `hasTranslation`
  * resolve `catalogs` first, for that one call, and otherwise read the cache.
- * The i18n instance itself is never written.
+ * The i18n instance itself is never written and publishes nothing.
  */
 const host = () =>
   createI18n({
@@ -65,19 +65,36 @@ describe("withMessages() read view", () => {
     expect(i18n.hasTranslation("greeting", "de")).toBe(false);
   });
 
-  it("writes nothing to the i18n instance and emits nothing", () => {
+  it("writes nothing and publishes nothing; translation diagnostics still fire", () => {
     const i18n = host();
     const events: string[] = [];
-    i18n.on("namespaceLoaded", () => events.push("namespaceLoaded"));
+    for (const event of ["namespaceLoaded", "localeChanged", "missingKey"] as const) {
+      i18n.on(event, () => events.push(event));
+    }
     const revision = i18n.messagesCache.getRevision();
+    const view = i18n.withMessages({ ...DE, "de:admin": { title: "Konsole" } });
 
-    i18n.withMessages({ ...DE, "de:admin": { title: "Konsole" } }).t("greeting", { locale: "de" });
+    view.t("greeting", { locale: "de" });
+    view.t("absent");
 
     expect(i18n.hasLocale("de")).toBe(false);
     expect(i18n.getLoadedLocales()).toEqual(["en"]);
     expect(i18n.getActiveNamespaces()).toEqual(["default"]);
+    expect(i18n.locale).toBe("en");
     expect(i18n.messagesCache.getRevision()).toBe(revision);
-    expect(events).toEqual([]);
+    // No publication event; the missing key reports as for any `t()` call.
+    expect(events).toEqual(["missingKey"]);
+  });
+
+  it("exposes only the three read methods at runtime", () => {
+    const i18n = host();
+    const view = i18n.withMessages(DE) as unknown as Record<string, unknown>;
+
+    expect(Object.keys(view).sort()).toEqual(["hasTranslation", "t", "tRaw"]);
+    expect(view.addMessages).toBeUndefined();
+    expect(view.setLocale).toBeUndefined();
+    expect(view.locale).toBeUndefined();
+    expect(Object.getPrototypeOf(view)).toBe(Object.prototype);
   });
 
   it("applies only inside a view call: a plain t() afterwards reads the cache", () => {
@@ -132,7 +149,7 @@ describe("withMessages() read view", () => {
     expect(i18n.t("greeting")).toBe("Hey");
   });
 
-  it("grows no state of its own: the view's only own property is its catalogs", () => {
+  it("grows no state on the i18n instance, on any read path", () => {
     const i18n = host();
     const ownKeysBefore = Object.keys(i18n).sort();
     const view = i18n.withMessages(DE);
@@ -143,10 +160,8 @@ describe("withMessages() read view", () => {
     view.t("absent");
     view.hasTranslation("greeting", "de", undefined, true);
     i18n.addMessages({ en: { greeting: "Hey" } });
-    view.t("greeting");
+    expect(view.t("greeting")).toBe("Hey");
 
-    expect(Object.keys(view)).toHaveLength(1);
     expect(Object.keys(i18n).sort()).toEqual(ownKeysBefore);
-    expect(Object.getPrototypeOf(view)).toBe(i18n);
   });
 });
