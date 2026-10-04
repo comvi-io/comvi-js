@@ -26,7 +26,8 @@
     "translations"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

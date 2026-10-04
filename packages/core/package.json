@@ -32,7 +32,8 @@
     "server-components"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/comvi-core.js",
   "unpkg": "./dist/comvi-core.global.prod.js",

@@ -31,7 +31,8 @@
     "server-components"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/comvi-vue.js",
   "types": "./dist/index.d.ts",

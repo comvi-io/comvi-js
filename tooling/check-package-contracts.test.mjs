@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  checkLicensePacked,
+  checkPackedHashedChunks,
   checkDistForBrowserExternalShim,
   checkDistForPrivatePackageNames,
   checkNextPeerRangeDeclarations,
@@ -257,6 +259,73 @@ test("checkDistForBrowserExternalShim passes a dist that imports Node built-ins 
   const packageDir = path.join(root, "packages", "vite-plugin");
 
   assert.deepEqual(checkDistForBrowserExternalShim("@comvi/vite-plugin", packageDir), []);
+});
+
+/** Packed paths as `npm pack --dry-run` lists them: relative to the package dir. */
+function packedSetOf(dist) {
+  return new Set(["package.json", ...Object.keys(dist).map((file) => `dist/${file}`)]);
+}
+
+test("checkPackedHashedChunks reports a hashed chunk that no packed file references", (t) => {
+  const dist = {
+    "index.es.js": 'import("./EditModal-DvfvyyY-.js");',
+    "EditModal-DvfvyyY-.js": "export {};",
+    // A previous build's generation of the same chunk: nothing imports it.
+    "EditModal-DOhzZ7k3.js": "export {};",
+  };
+  const root = makeWorkspace(t, [{ dir: "editor", name: "@comvi/editor", dist }]);
+  const packageDir = path.join(root, "packages", "editor");
+
+  const errors = checkPackedHashedChunks("@comvi/editor", packageDir, packedSetOf(dist), [
+    "./dist/index.es.js",
+  ]);
+  assert.deepEqual(errors, [
+    "@comvi/editor: dist/EditModal-DOhzZ7k3.js is a hashed chunk that no other packed file " +
+      "references and no exports entry names; it is a stale build output (clean dist before building)",
+  ]);
+});
+
+test("checkPackedHashedChunks passes referenced chunks, export-named chunks and unhashed files", (t) => {
+  const dist = {
+    "index.js": 'import "./chunks/inflight-Ab3_xY9z.js";',
+    "chunks/inflight-Ab3_xY9z.js": "export {};",
+    "entry-Qw3rTy12.js": "export {};",
+    "comvi-react-T.js": "export {};",
+  };
+  const root = makeWorkspace(t, [{ dir: "loader", name: "@comvi/loader", dist }]);
+  const packageDir = path.join(root, "packages", "loader");
+
+  assert.deepEqual(
+    checkPackedHashedChunks("@comvi/loader", packageDir, packedSetOf(dist), [
+      "./dist/index.js",
+      "./dist/entry-Qw3rTy12.js",
+    ]),
+    [],
+  );
+});
+
+test("checkPackedHashedChunks does not count a chunk's own text as a reference to itself", (t) => {
+  const dist = {
+    "index.js": "export {};",
+    "Core-CycRPy7B.js":
+      '//# sourceMappingURL=Core-CycRPy7B.js.map\nexport const self = "./Core-CycRPy7B.js";',
+  };
+  const root = makeWorkspace(t, [{ dir: "editor", name: "@comvi/editor", dist }]);
+  const packageDir = path.join(root, "packages", "editor");
+
+  const errors = checkPackedHashedChunks("@comvi/editor", packageDir, packedSetOf(dist), [
+    "./dist/index.js",
+  ]);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /dist\/Core-CycRPy7B\.js is a hashed chunk/);
+});
+
+test("checkLicensePacked requires LICENSE in the tarball", () => {
+  assert.deepEqual(checkLicensePacked("@comvi/core", new Set(["package.json", "dist/index.js"])), [
+    "@comvi/core: LICENSE is not packed; the root LICENSE is copied into each package by " +
+      "tooling/copy-license.mjs (run by `pnpm build` and `pnpm pack:release`)",
+  ]);
+  assert.deepEqual(checkLicensePacked("@comvi/core", new Set(["package.json", "LICENSE"])), []);
 });
 
 test("parseCaretRange reads a caret union into version tuples, and rejects anything else", () => {

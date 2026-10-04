@@ -30,7 +30,8 @@
     "server-components"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/module.mjs",
   "exports": {

@@ -3,7 +3,9 @@
 // `npm pack --dry-run` actually includes: `files` covers `dist`, `sideEffects` is
 // `false` or an explicit list, every exports/main/module/types/bin target is packed,
 // bin targets are executable with a shebang, no `.DS_Store`/`.env*`/`.tsbuildinfo`
-// is shipped, and no built file names a workspace-private package (it must be
+// is shipped, LICENSE is packed, every hashed `dist/` chunk is referenced by
+// another packed file or an exports entry (a stale chunk from an earlier build
+// is not), and no built file names a workspace-private package (it must be
 // inlined/vendored instead — a private package resolves fine inside the workspace
 // but is unresolvable once published). It also checks one cross-file fact that is
 // not per-package: `@comvi/next`'s `next` peer range is written in four files, and
@@ -343,6 +345,46 @@ export function checkDistForBrowserExternalShim(packageName, packageDir) {
   return errors;
 }
 
+/**
+ * A bundler names a split chunk `<name>-<8-char hash>.js`. Every build makes a
+ * new hash, so a build that does not clean `dist/` first leaves the previous
+ * generation behind, and `npm pack` ships both (the editor once shipped five
+ * stale pairs, about 1 MB). A live chunk is always reachable: some other packed
+ * file imports it by name, or an exports entry names it.
+ */
+const HASHED_CHUNK = /-[A-Za-z0-9_-]{8}\.[cm]?js$/;
+const REFERENCE_SOURCES = /\.(?:[cm]?js|d\.[cm]?ts|css|json|html)$/;
+
+export function checkPackedHashedChunks(packageName, packageDir, packedFiles, exportTargets) {
+  const errors = [];
+  const named = new Set(exportTargets.map(normalizePackagePath));
+  const sources = [...packedFiles]
+    .filter((file) => REFERENCE_SOURCES.test(file))
+    .map((file) => ({ file, text: readFileSync(path.join(packageDir, file), "utf8") }));
+  for (const file of [...packedFiles].sort()) {
+    if (!file.startsWith("dist/") || !HASHED_CHUNK.test(file) || named.has(file)) continue;
+    const base = path.posix.basename(file);
+    const referenced = sources.some((source) => source.file !== file && source.text.includes(base));
+    if (!referenced) {
+      errors.push(
+        `${packageName}: ${file} is a hashed chunk that no other packed file references and no ` +
+          `exports entry names; it is a stale build output (clean dist before building)`,
+      );
+    }
+  }
+  return errors;
+}
+
+/** npm packs `LICENSE` only from the package directory, never from the repo root. */
+export function checkLicensePacked(packageName, packedFiles) {
+  return packedFiles.has("LICENSE")
+    ? []
+    : [
+        `${packageName}: LICENSE is not packed; the root LICENSE is copied into each package by ` +
+          "tooling/copy-license.mjs (run by `pnpm build` and `pnpm pack:release`)",
+      ];
+}
+
 export async function checkPackageContracts({ root = process.cwd(), log = console.log } = {}) {
   const packagesDir = path.join(root, "packages");
   const packageDirs = (await readdir(packagesDir, { withFileTypes: true }))
@@ -421,6 +463,13 @@ export async function checkPackageContracts({ root = process.cwd(), log = consol
     }
 
     packageErrors.push(
+      ...checkLicensePacked(packageName, packedFiles),
+      ...checkPackedHashedChunks(
+        packageName,
+        packageDir,
+        packedFiles,
+        manifest.exports ? collectExportTargets(manifest.exports) : [],
+      ),
       ...checkDistForPrivatePackageNames(packageName, packageDir, privatePackageNames),
       ...checkDistForBrowserExternalShim(packageName, packageDir),
     );

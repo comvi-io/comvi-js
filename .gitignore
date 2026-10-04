@@ -28,6 +28,8 @@ pnpm-debug.log*
 
 # Environment variables
 .env*
+# Tracked on purpose: `vite build --mode gate-e` reads it, and it holds only a local mock URL.
+!apps/chrome-extension/.env.gate-e
 
 # Comvi config (contains API keys)
 .comvirc.json
@@ -90,9 +92,11 @@ smithers.db-wal
 # perf reference builds (scripts/perf.mjs --compare-ref)
 .perf-ref/
 
-# tarballs from `pnpm pack:release` (scripts/docs-snippets/link-sdk.mjs packs all
-# fourteen so the docs gate can install them; they are build output, not source)
+# tarballs from `pnpm pack:release` (one per publishable package; the docs gate
+# installs them; they are build output, not source)
 packages/*/*.tgz
+# the root LICENSE, copied into each publishable package by tooling/copy-license.mjs
+packages/*/LICENSE
 # the release job's candidate (scripts/publish-candidate.mjs): packed, verified, published
 release-candidate/
 
