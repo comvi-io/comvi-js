@@ -1,6 +1,24 @@
 import { cache } from "react";
+// Resolves to the app's config module under `withComvi`, to an empty stub
+// without it. Kept external in the build so the APP's bundler applies the alias.
+import * as configModule from "@comvi/next/config";
+import type { RoutingConfig } from "../routing/types";
 import type { NextServerHost, ServerI18nHost } from "./hostTypes";
 import type { RequestStore } from "./types";
+
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+/**
+ * What the aliased module may export. Read through a value, never as named
+ * imports: the user module need not export `routing`, and a bundler warns on
+ * a named import that does not exist.
+ */
+interface ConfigModule {
+  readonly i18n?: ServerI18nHost;
+  readonly routing?: Pick<RoutingConfig, "locales">;
+}
+const config: ConfigModule = configModule;
 
 /**
  * React's cache() creates a per-request memoized value in Server Components, so
@@ -15,7 +33,7 @@ const getRequestStore = cache(
 /**
  * The server i18n once-cell. Two configuration sources feed it —
  * `setI18n(instance)` and `createNextI18nFromHost()`, which builds its host
- * EAGERLY, inside the call — and `getI18nInstance()` reads it.
+ * EAGERLY, inside the call — and `resolveServerI18n()` reads it.
  *
  * Module-local, deliberately NEVER anchored on `globalThis`: a Next dev
  * recompile re-evaluates this module and gets a fresh `empty` cell. A surviving
@@ -109,17 +127,47 @@ export function registerServerI18nHost<C extends ServerI18nHost>(build: () => C)
   return instance;
 }
 
+let warnedTwoSources = false;
+
 /**
- * The configured instance, or the not-configured error naming both sources.
+ * The server instance: the once-cell when a source filled it (the manual
+ * path), otherwise the `i18n` export of the module `withComvi` aliased to
+ * `@comvi/next/config`. Both read at call time, so an import cycle through the
+ * config module is harmless.
+ *
+ * The cell and the alias holding the same object is the plugin plus an old
+ * `setI18n(i18n)` from the same module, and is fine. Different objects is a
+ * programming error: development warns once naming both, the cell wins.
  * @internal
  */
-export function getI18nInstance(): ServerI18nHost {
+export function resolveServerI18n(): ServerI18nHost {
+  const aliased = config.i18n;
   if (cell.kind === "resolved") {
+    if (IS_DEV && aliased && aliased !== cell.instance && !warnedTwoSources) {
+      warnedTwoSources = true;
+      console.warn(
+        `[comvi/next] Two i18n instances: one from ${
+          cell.bySetI18n ? SOURCE_SET_I18N : SOURCE_FACTORY
+        }, another from the withComvi({ config }) module. Using the first; keep one source.`,
+      );
+    }
     return cell.instance;
   }
+  if (aliased) {
+    return aliased;
+  }
   throw new Error(
-    "[comvi/next] i18n not configured. Call setI18n(i18n) or createNextI18nFromHost(host, routing).",
+    "[comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
+      "or call setI18n(i18n) / createNextI18nFromHost(host, routing).",
   );
+}
+
+/**
+ * The `routing` export of the aliased config module, if there is one.
+ * @internal
+ */
+export function getConfiguredRouting(): ConfigModule["routing"] {
+  return config.routing;
 }
 
 /**
@@ -133,6 +181,7 @@ export function getI18nInstance(): ServerI18nHost {
  */
 export function _resetServerI18n(): void {
   cell = EMPTY;
+  warnedTwoSources = false;
 }
 
 /** @internal */

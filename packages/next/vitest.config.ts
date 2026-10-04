@@ -17,6 +17,12 @@ const REACT_SRC = resolve(
   "../src/index.ts",
 );
 const SRC_ALIAS = { find: "@", replacement: resolve(__dirname, "./src") };
+// What `@comvi/next/config` is without `withComvi`: the stub. The alias only
+// exists in a bundled Next graph; a test that needs a config module mocks it.
+const CONFIG_STUB_ALIAS = {
+  find: /^@comvi\/next\/config$/,
+  replacement: resolve(__dirname, "./src/config.ts"),
+};
 // `src/server.ts` imports `server-only`, whose default export condition THROWS
 // (only `react-server` resolves it to an empty module). Vitest is neither Next
 // nor a react-server graph, so the tests take the empty half: the same module
@@ -52,6 +58,7 @@ const jsContract = (suffix: "" | ".dev") => ({
   resolve: {
     alias: [
       SRC_ALIAS,
+      CONFIG_STUB_ALIAS,
       SERVER_ONLY_ALIAS,
       { find: /^@comvi\/react$/, replacement: REACT_SRC },
       ...coreBuild(suffix),
@@ -94,6 +101,7 @@ export default defineConfig({
         resolve: {
           alias: [
             SRC_ALIAS,
+            CONFIG_STUB_ALIAS,
             SERVER_ONLY_ALIAS,
             { find: /^@comvi\/react$/, replacement: REACT_SRC },
           ],

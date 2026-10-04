@@ -10,7 +10,8 @@
     "noEmit": true,
     "paths": {
       "@comvi/next": ["./src/index.ts"],
-      "@comvi/next/server": ["./src/server.ts"]
+      "@comvi/next/server": ["./src/server.ts"],
+      "@comvi/next/config": ["./src/config.ts"]
     }
   },
   "include": ["src/**/*", "tests/types/**/*.test-d.ts"],

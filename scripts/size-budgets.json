@@ -188,6 +188,19 @@
       "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(…)` composed through `.use`."
     },
     {
+      "name": "fw-next-plugin-node",
+      "entry": ["@comvi/next/plugin"],
+      "fixture": "framework/next-plugin-node.ts",
+      "external": ["next", "next/*", "node:*"],
+      "gzipBudgetBytes": 680,
+      "baseline": {
+        "minBytes": 1126,
+        "gzipBytes": 647,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated Next build plugin: `withComvi` from `@comvi/next/plugin`, Node only and never bundled into an app; guards against an accidental core or React import."
+    },
+    {
       "name": "fw-nuxt-full-composite",
       "entry": [
         "@comvi/nuxt/runtime/plugin.js",

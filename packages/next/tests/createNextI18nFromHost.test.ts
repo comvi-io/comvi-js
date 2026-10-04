@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { createNextI18nFromHost, getI18n, loadTranslations } from "../src/server";
-import { _resetServerI18n, getI18nInstance, setI18n } from "../src/server/cache";
+import { _resetServerI18n, resolveServerI18n, setI18n } from "../src/server/cache";
 
 const ROUTING = { locales: ["en", "fr"], defaultLocale: "en" };
 
@@ -52,7 +52,7 @@ describe("createNextI18nFromHost — eager construction", () => {
     const { t } = await getI18n({ locale: "fr" });
 
     expect(host).toHaveBeenCalledTimes(1);
-    expect(getI18nInstance()).toBe(host.mock.results[0]!.value);
+    expect(resolveServerI18n()).toBe(host.mock.results[0]!.value);
     expect(messages["fr:common"]).toEqual({ greeting: "Bonjour" });
     expect(t("greeting")).toBe("Bonjour");
   });
@@ -69,7 +69,7 @@ describe("createNextI18nFromHost — eager construction", () => {
     expect(host).toHaveBeenCalledTimes(1);
     expect(renderA.t("greeting")).toBe("Hello");
     expect(renderB["en:common"]).toEqual({ greeting: "Hello" });
-    expect(getI18nInstance()).toBe(result.i18n);
+    expect(resolveServerI18n()).toBe(result.i18n);
   });
 
   it("propagates a throwing host() and configures nothing", () => {
@@ -79,10 +79,10 @@ describe("createNextI18nFromHost — eager construction", () => {
       }, ROUTING),
     ).toThrow("host factory boom");
 
-    expect(() => getI18nInstance()).toThrow(/i18n not configured/);
+    expect(() => resolveServerI18n()).toThrow(/i18n not configured/);
     // The failed call left no trace: the corrected module registers cleanly.
     const result = createNextI18nFromHost(() => composedHost(), ROUTING);
-    expect(getI18nInstance()).toBe(result.i18n);
+    expect(resolveServerI18n()).toBe(result.i18n);
   });
 });
 
@@ -178,7 +178,7 @@ describe("createNextI18nFromHost — legacy setI18n interop", () => {
   });
 
   it("throws the not-configured error naming both configuration paths", () => {
-    expect(() => getI18nInstance()).toThrow(/i18n not configured/);
-    expect(() => getI18nInstance()).toThrow(/createNextI18nFromHost/);
+    expect(() => resolveServerI18n()).toThrow(/i18n not configured/);
+    expect(() => resolveServerI18n()).toThrow(/createNextI18nFromHost/);
   });
 });

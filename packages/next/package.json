@@ -65,6 +65,14 @@
       "types": "./dist/navigation.d.ts",
       "development": "./dist/navigation.dev.js",
       "default": "./dist/navigation.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "default": "./dist/plugin.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
     }
   },
   "engines": {

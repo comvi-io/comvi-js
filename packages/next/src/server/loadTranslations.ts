@@ -1,5 +1,5 @@
 import type { TranslationValue } from "@comvi/core";
-import { getI18nInstance, getRequestFailedLoads } from "./cache";
+import { resolveServerI18n, getRequestFailedLoads } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import type { ServerI18nHost } from "./hostTypes";
 
@@ -134,7 +134,7 @@ export async function loadTranslations(
   locale: string,
   options: LoadTranslationsOptions = {},
 ): Promise<TranslationsResult> {
-  const i18n = getI18nInstance();
+  const i18n = resolveServerI18n();
 
   // Auto-initialize so plugins can register loaders
   await ensureInitialized(i18n);

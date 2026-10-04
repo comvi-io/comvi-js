@@ -64,9 +64,12 @@ the bytes first, then decide whether they ship.
 
 `core-base`, `core-base-icu`, `core-full-composite`; per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-next-root-composed`, `fw-nuxt-client-default`,
+`fw-next-server-default-loader`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-host`; the platform
 path `plugin-fetch-loader-cdn`, `plugin-fetch-loader-cdn-lite`, `platform-path-react`.
+
+`fw-next-plugin-node` is no pair half: `@comvi/next/plugin` runs in Node from next.config and is
+never bundled into an app, so its row only catches a runtime import creeping into the plugin.
 
 Each framework pair is a floor (one specifier, base host) and a ceiling (every capability composed
 through that same specifier). The pair is the measurement — adding or removing one half turns the

@@ -72,6 +72,10 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       middleware: resolve(dir, "src/middleware.ts"),
       routing: resolve(dir, "src/routing.ts"),
       navigation: resolve(dir, "src/navigation.ts"),
+      // Node only: next.config imports it, no bundle ever does.
+      plugin: resolve(dir, "src/plugin.ts"),
+      // The stub `@comvi/next/config` resolves to without `withComvi`.
+      config: resolve(dir, "src/config.ts"),
     },
     formats: ["es" as const],
   },
@@ -90,6 +94,14 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       // the emitted `dist/server.js` keeps it verbatim for the APP's bundler to
       // resolve per condition; inlined, it would be either a throw or nothing.
       "server-only",
+      // The package's own config specifier stays a bare import, so the APP's
+      // bundler resolves it — to the user module under `withComvi`'s alias,
+      // to `dist/config.js` without it. Inlined, the alias could never apply.
+      "@comvi/next/config",
+      // `dist/plugin.js` runs in Node, from next.config.
+      "node:fs",
+      "node:module",
+      "node:path",
       // Every `@comvi/core` specifier this package names must be external,
       // or rolldown inlines a verbatim copy of core into `dist`. Kept in sync
       // by hand: `@comvi/next` does not use `createLibraryBuildOptions`, so it

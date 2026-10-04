@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
-import { _resetServerI18n, getI18nInstance, setI18n } from "../../src/server/cache";
+import { _resetServerI18n, resolveServerI18n, setI18n } from "../../src/server/cache";
 import { createNextI18nFromHost } from "../../src/server/createNextI18nFromHost";
 
 /* global __COMVI_CORE_BUILD__ */
@@ -24,7 +24,7 @@ const conflict = (configured, incoming) =>
   "Configure it once — only a same-instance setI18n() repeats.";
 
 const NOT_CONFIGURED =
-  "[comvi/next] i18n not configured. Call setI18n(i18n) or createNextI18nFromHost(host, routing).";
+  "[comvi/next] i18n not configured. Add withComvi({ config }) to next.config, or call setI18n(i18n) / createNextI18nFromHost(host, routing).";
 
 const host = () =>
   attachLoader(createI18n({ locale: "en", defaultNs: "common", exposeGlobal: false }));
@@ -45,7 +45,7 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
     const resolved = result.i18n;
 
     expect(() => setI18n(host())).toThrow(conflict(FACTORY, SET_I18N));
-    expect(getI18nInstance()).toBe(resolved);
+    expect(resolveServerI18n()).toBe(resolved);
   });
 
   it("rejects a second host registration WITHOUT building its host", () => {
@@ -66,7 +66,7 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
     const resolved = result.i18n;
 
     expect(() => setI18n(resolved)).not.toThrow();
-    expect(getI18nInstance()).toBe(resolved);
+    expect(resolveServerI18n()).toBe(resolved);
   });
 
   it("rejects a second setI18n with a DIFFERENT instance (was a silent overwrite in 0.4.x)", () => {
@@ -74,7 +74,7 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
     setI18n(first);
 
     expect(() => setI18n(host())).toThrow(conflict(SET_I18N, SET_I18N));
-    expect(getI18nInstance()).toBe(first);
+    expect(resolveServerI18n()).toBe(first);
   });
 
   it("accepts a repeated setI18n with the SAME instance", () => {
@@ -82,7 +82,7 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
     setI18n(only);
 
     expect(() => setI18n(only)).not.toThrow();
-    expect(getI18nInstance()).toBe(only);
+    expect(resolveServerI18n()).toBe(only);
   });
 });
 
@@ -94,7 +94,7 @@ describe(`server i18n once-cell — construction failures (${__COMVI_CORE_BUILD_
   it("a factory that reads the instance it is building sees the not-configured error", () => {
     expect(() =>
       createNextI18nFromHost(() => {
-        getI18nInstance();
+        resolveServerI18n();
         return host();
       }, ROUTING),
     ).toThrow(NOT_CONFIGURED);
@@ -107,10 +107,10 @@ describe(`server i18n once-cell — construction failures (${__COMVI_CORE_BUILD_
       }, ROUTING),
     ).toThrow("host factory boom");
 
-    expect(() => getI18nInstance()).toThrow(NOT_CONFIGURED);
+    expect(() => resolveServerI18n()).toThrow(NOT_CONFIGURED);
     // Nothing was configured, so either source may still configure it.
     const only = host();
     expect(() => setI18n(only)).not.toThrow();
-    expect(getI18nInstance()).toBe(only);
+    expect(resolveServerI18n()).toBe(only);
   });
 });

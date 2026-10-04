@@ -18,6 +18,7 @@
     "types": ["vitest/globals", "node"],
     "paths": {
       "@/*": ["./src/*"],
+      "@comvi/next/config": ["./src/config.ts"],
       // `@comvi/test-utils` reaches into core's SOURCE (fakeI18n.ts imports
       // ../../packages/core/src/utils/defaultParams), so core's src is in this
       // program either way. Pinning the package specifier to the same source

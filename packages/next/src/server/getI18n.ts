@@ -1,6 +1,6 @@
 import { createBoundTranslation, translationResultToString } from "@comvi/core";
 import type { TranslationParams, TranslationResult } from "@comvi/core";
-import { getI18nInstance } from "./cache";
+import { getConfiguredRouting, resolveServerI18n } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import { getLocale } from "./getLocale";
 import type { ServerTranslatingHost } from "./hostTypes";
@@ -13,11 +13,33 @@ import type {
   HasTranslationOptions,
 } from "./types";
 
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+/** Explicit locales already reported as missing from `routing.locales`. */
+const warnedLocales = new Set<string>();
+
+/**
+ * An explicit locale the config's `routing` does not list renders anyway (the
+ * catalog falls back); `notFound()` stays the app's job. Development says so
+ * once per locale. Without a `routing` export nothing is validated.
+ */
+const warnUnknownLocale = (locale: string): void => {
+  const locales = getConfiguredRouting()?.locales;
+  if (!locales || locales.includes(locale) || warnedLocales.has(locale)) return;
+  warnedLocales.add(locale);
+  console.warn(
+    `[comvi/next] getI18n({ locale: "${locale}" }): "${locale}" is not in routing.locales (${locales.join(", ")}). Call notFound() for an unknown locale before rendering.`,
+  );
+};
+
 /**
  * Get i18n for use in Server Components, Server Actions, and Route Handlers.
  *
- * Uses the global i18n instance (configured via setI18n) and reads the locale
- * from the request context (set by setRequestLocale or middleware).
+ * Uses the server i18n instance (the `withComvi({ config })` module, or the one
+ * registered with setI18n) and the locale you pass: `getI18n({ locale })`.
+ * Without one it reads the request context (set by setRequestLocale or
+ * middleware).
  *
  * @param options - Options object with `locale` and `ns`
  * @returns `{ t, hasTranslation, locale }` — the same shape `@comvi/nuxt`'s
@@ -56,14 +78,16 @@ import type {
  * or metadata.
  */
 export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
-  const i18n = getI18nInstance();
+  const i18n = resolveServerI18n();
 
   // The request view (`RequestView`) is resolved FIRST, before anything global
   // runs: `init()` loads the default namespace at the host's own, static locale
   // (`_nsAddActiveNamespaces`), so a request that cannot say which locale it is
   // must not be what triggers it.
   let locale: RequestView["locale"] | undefined = options?.locale;
-  if (!locale) {
+  if (locale) {
+    if (IS_DEV) warnUnknownLocale(locale);
+  } else {
     try {
       locale = await getLocale();
     } catch (e) {

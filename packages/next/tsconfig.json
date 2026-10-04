@@ -4,7 +4,12 @@
     "composite": true,
     "jsx": "react-jsx",
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // The package's own config specifier, resolved to the stub. `dist/` does
+    // not exist yet when `build` runs `tsc`, so the exports map cannot serve it.
+    "paths": {
+      "@comvi/next/config": ["./src/config.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
