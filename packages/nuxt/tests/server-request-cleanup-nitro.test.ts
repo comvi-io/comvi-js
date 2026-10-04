@@ -486,8 +486,9 @@ describe("Nitro server plugin", () => {
     let rounds = 0;
     let roundsAtTeardown = -1;
     const CHAIN = 120;
-    // Each link is paced by a timer and registers the next one only when it
-    // finishes, so the chain cannot outrun the wait: exactly one round of the
+    // Each link is paced by a macrotask (`setImmediate`, not `setTimeout(0)`:
+    // no 1 ms clamp per hop to stretch under load) and registers the next one
+    // only when it finishes, so the chain cannot outrun the wait: exactly one round of the
     // wait per link. A chain of plain microtasks cascades to its end inside a
     // single round and proves nothing. The gate lines the first link up with
     // the wait rather than the socket round trip.
@@ -500,7 +501,7 @@ describe("Nitro server plugin", () => {
       event.waitUntil(
         (async () => {
           await chainGate;
-          await new Promise((resolve) => setTimeout(resolve, 0));
+          await new Promise((resolve) => setImmediate(resolve));
           rounds += 1;
           if (rounds < CHAIN) registerNext(event);
         })(),
@@ -532,10 +533,11 @@ describe("Nitro server plugin", () => {
     expect(reported).toHaveLength(1);
     expect(reported[0].source).toBe("request-cleanup");
     expect(reported[0].message).toContain("100");
-    // It gave up rather than following the chain to its end.
+    // It gave up at the 100-round cap rather than following the chain to its end.
     expect(roundsAtTeardown).toBeGreaterThanOrEqual(100);
-    expect(roundsAtTeardown).toBeLessThan(CHAIN);
-  });
+    expect(roundsAtTeardown).toBeLessThanOrEqual(102);
+    // 100 sequential macrotask hops plus a socket round trip: generous so CPU starvation cannot time it out.
+  }, 20_000);
 
   it("reports a background task that rejected", async () => {
     // `allSettled` is what keeps a failed task from blocking the teardown, and
