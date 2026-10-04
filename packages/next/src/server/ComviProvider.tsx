@@ -17,8 +17,10 @@ export interface ComviProviderProps {
  * fallback chain) on the server and hands them to the client host from your
  * config module, so Client Components render translated on the first paint.
  *
- * It also sets the request locale, so the no-argument `getI18n()` and
- * `getLocale()` work inside its tree.
+ * It also records the request locale for the no-argument `getI18n()` and
+ * `getLocale()`. Pages should still pass the locale explicitly,
+ * `getI18n({ locale })`: a page can render before its layout, and the
+ * explicit form does not depend on that order.
  *
  * Without `withComvi` it throws: keep your own `"use client"` wrapper around
  * `<I18nProvider>` from `@comvi/next/client` instead (manual setup).

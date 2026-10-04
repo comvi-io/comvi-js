@@ -1,5 +1,6 @@
 {
   "name": "@test-apps/next",
+  "description": "Next.js test app on the MANUAL setup (setI18n + own I18nProvider wrapper); the standard withComvi + ComviProvider path lives in examples/next.",
   "version": "0.1.0",
   "private": true,
   "scripts": {
