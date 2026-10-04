@@ -1052,6 +1052,10 @@ for (const [step, first] of [
     const missing = { uk: ["fallback.only_en"], de: ["fallback.only_en"] };
     await cdn.mode({ hold: ["uk", "de"], missing });
     const pending = { uk: request.get(livePath("uk")), de: request.get(livePath("de")) };
+    // A second /uk render at the same time: on Next's module-scope instance,
+    // one render's `addMessages` must not cancel the other's load of the same
+    // catalog into a render without it.
+    const twin = request.get(livePath("uk"));
     // Both server renders are now waiting on their catalog at the same time.
     await cdn.inFlight("held", ["uk", "de"]);
 
@@ -1071,20 +1075,27 @@ for (const [step, first] of [
     const secondResponse = await within(pending[second], 15_000, `GET ${livePath(second)}`);
     expect(secondResponse.status(), `GET ${livePath(second)}`).toBe(200);
     html[second] = await secondResponse.text();
+    const twinResponse = await within(twin, 15_000, `the second GET ${livePath("uk")}`);
+    expect(twinResponse.status(), `the second GET ${livePath("uk")}`).toBe(200);
+    const twinHtml = await twinResponse.text();
 
     // Every response in its own locale: <html lang>, the plural, the en-only key.
-    for (const locale of ["uk", "de"] as const) {
+    for (const [label, locale, body] of [
+      ["uk", "uk", html.uk],
+      ["uk (the second request)", "uk", twinHtml],
+      ["de", "de", html.de],
+    ] as const) {
       const other = locale === "uk" ? "de" : "uk";
-      const visible = visibleText(html[locale]);
+      const visible = visibleText(body);
       expect
-        .soft(html[locale], `${locale}: <html lang>`)
+        .soft(body, `${label}: <html lang>`)
         .toMatch(new RegExp(`<html[^>]*\\blang="${locale}"`));
-      expect.soft(visible, `${locale}: the title`).toContain(message(locale, "app.title"));
-      expect.soft(visible, `${locale}: the greeting`).toContain(greeting(locale));
-      expect.soft(visible, `${locale}: the plural`).toContain(cart(locale, 2));
-      expect.soft(visible, `${locale}: the en-only key`).toContain(MARK + ONLY_EN.en);
-      expect.soft(visible, `${locale}: ${other}'s greeting`).not.toContain(GREETING[other]("Ada"));
-      expect.soft(rawKeysIn(visible), `${locale}: raw keys`).toEqual([]);
+      expect.soft(visible, `${label}: the title`).toContain(message(locale, "app.title"));
+      expect.soft(visible, `${label}: the greeting`).toContain(greeting(locale));
+      expect.soft(visible, `${label}: the plural`).toContain(cart(locale, 2));
+      expect.soft(visible, `${label}: the en-only key`).toContain(MARK + ONLY_EN.en);
+      expect.soft(visible, `${label}: ${other}'s greeting`).not.toContain(GREETING[other]("Ada"));
+      expect.soft(rawKeysIn(visible), `${label}: raw keys`).toEqual([]);
     }
 
     // …and each HTML, hydrated as served, stays in its own locale. The
