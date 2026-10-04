@@ -13,7 +13,7 @@ import {
   assertInterpolationDefaults,
   assertPreservesDefaultParamKeys,
 } from "../../packages/core/src/utils/defaultParams";
-import { FakeI18nCore, type FakeI18nCoreOptions, type FakeTranslationCache } from "./fakeI18nCore";
+import { FakeI18nCore, type FakeI18nCoreOptions, type FakeMessagesCache } from "./fakeI18nCore";
 
 type FakeI18nOptions = Pick<FakeI18nCoreOptions, "language" | "defaultNamespace"> & {
   defaultParams?: DefaultTranslationParams;
@@ -279,7 +279,7 @@ export class FakeI18n {
     return true;
   }
 
-  get messagesCache(): FakeTranslationCache {
+  get messagesCache(): FakeMessagesCache {
     return this.core.messagesCache;
   }
 

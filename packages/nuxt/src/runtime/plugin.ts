@@ -31,7 +31,7 @@ type TranslationsPayload = Record<string, Record<string, TranslationValue>>;
  * Keyed by "locale:namespace"; values must be plain (not null-prototype)
  * objects or JSON serialization drops them.
  */
-function serializeTranslationCache(
+function serializeMessagesCache(
   cacheMap: ReadonlyMap<string, Record<string, TranslationValue>>,
 ): TranslationsPayload {
   const result: TranslationsPayload = {};
@@ -127,7 +127,7 @@ export default defineNuxtPlugin({
 
         const cacheMap = i18n.messagesCache.value;
         if (cacheMap.size > 0) {
-          nuxtApp.payload[I18N_MESSAGES_PAYLOAD_KEY] = serializeTranslationCache(cacheMap);
+          nuxtApp.payload[I18N_MESSAGES_PAYLOAD_KEY] = serializeMessagesCache(cacheMap);
         }
       });
     }

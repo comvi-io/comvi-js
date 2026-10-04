@@ -30,7 +30,7 @@ const normalizeLanguageNamespace = (
   };
 };
 
-export class FakeTranslationCache {
+export class FakeMessagesCache {
   private revision = 0;
   private readonly cache = new Map<string, TranslationTable>();
 
@@ -99,7 +99,7 @@ export class FakeTranslationCache {
 export class FakeI18nCore {
   private readonly listeners = new Map<I18nEvent, Set<Listener>>();
   private readonly activeNamespaces: Set<string>;
-  private readonly cache = new FakeTranslationCache();
+  private readonly cache = new FakeMessagesCache();
   private _language: string;
   private _isLoading = false;
   private _isInitializing = false;
@@ -156,7 +156,7 @@ export class FakeI18nCore {
     this._isInitialized = value;
   }
 
-  get messagesCache(): FakeTranslationCache {
+  get messagesCache(): FakeMessagesCache {
     return this.cache;
   }
 
