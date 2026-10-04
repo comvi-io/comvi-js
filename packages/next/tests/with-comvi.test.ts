@@ -136,6 +136,14 @@ describe("withComvi: a missing config module", () => {
     );
   });
 
+  it("says where a relative path resolves from, and how to pass an absolute one", () => {
+    project("16.0.0");
+    expect(() => withComvi({ config: "./src/i18n/missing.ts" })).toThrow(
+      "A relative path resolves from the directory `next` runs in; in a monorepo pass an " +
+        "absolute one, e.g. path.resolve(import.meta.dirname, './src/i18n/config.ts').",
+    );
+  });
+
   it("says a config with server-only loaders stays on the manual setup", () => {
     project("16.0.0");
     expect(() => withComvi({ config: "./src/i18n/missing.ts" })).toThrow(

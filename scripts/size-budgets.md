@@ -32,6 +32,13 @@ loading, in-flight dedupe and the per-request failed set the contract requires);
 `fw-nuxt-client-default` measured 8330 B on the base and 8302 B after. A server utility a fixture
 imports directly is still counted.
 
+`fw-next-server-default-loader` was re-baselined on 2026-10-04 for the `withComvi` setup, from the
+09-12 baseline of 7372 B to 7816 B. Of the rise, 208 B is base drift: the base branch (85a85d47)
+already measured 7580 B. The rest is this lot: 117 B for the cell-then-alias lookup, the
+`@comvi/next/config` stub import and the longer not-configured error, 1 B for the server provider
+(tree-shaken from this fixture), and 118 B for the error's test-runner and `serverExternalPackages`
+clause. The provider itself is measured by `fw-next-server-provider`.
+
 Every row is gated. There is no informational tier: a row that gates nothing does not earn its
 measurement cost, and `size-check.mjs` throws on a row without a `gzipBudgetBytes`.
 

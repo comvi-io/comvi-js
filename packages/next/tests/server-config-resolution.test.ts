@@ -94,7 +94,10 @@ describe("resolveServerI18n", () => {
     const { resolveServerI18n } = await load({});
     expect(() => resolveServerI18n()).toThrow(
       "[comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
-        "or call setI18n(i18n) / createNextI18nFromHost(host, routing).",
+        "or call setI18n(i18n) / createNextI18nFromHost(host, routing). " +
+        "In a test runner the alias does not apply: alias `@comvi/next/config` to your config module " +
+        "(vitest `resolve.alias`, jest `moduleNameMapper`) or call setI18n(i18n) in test setup. " +
+        "`serverExternalPackages` containing @comvi/next is not supported.",
     );
   });
 

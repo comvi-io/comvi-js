@@ -87,12 +87,17 @@ export function withComvi(options: WithComviOptions): WithComvi {
     throw new Error(
       `[comvi/next] withComvi: the config module ${absolute} does not exist ` +
         `(config: "${options.config}", resolved against ${root}). ` +
+        "A relative path resolves from the directory `next` runs in; in a monorepo pass an " +
+        "absolute one, e.g. path.resolve(import.meta.dirname, './src/i18n/config.ts'). " +
         "It is imported by the server and the client build, so it must be client-safe: " +
         "a loader that needs server-only code stays on the manual setup " +
         "(createNextI18nFromHost plus your own client provider).",
     );
   }
-  // Project-relative and posix: Turbopack rejects absolute Windows paths.
+  // The two bundlers get the same file through different spellings: webpack
+  // takes the absolute path, Turbopack a project-relative posix one (it
+  // rejects absolute Windows paths and resolves relative ones from the project
+  // root, which is why `root` is the directory `next` runs in).
   const relative = `./${path.relative(root, absolute).split(path.sep).join("/")}`;
   const turbopackAlias = { [SPECIFIER]: relative };
   const topLevel = usesTopLevelTurbopack(root);

@@ -158,7 +158,12 @@ export function resolveServerI18n(): ServerI18nHost {
   }
   throw new Error(
     "[comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
-      "or call setI18n(i18n) / createNextI18nFromHost(host, routing).",
+      "or call setI18n(i18n) / createNextI18nFromHost(host, routing). " +
+      // The alias exists only in Next's own bundled graphs: a test runner, or
+      // a Next build that leaves this package unbundled, resolves the stub.
+      "In a test runner the alias does not apply: alias `@comvi/next/config` to your config module " +
+      "(vitest `resolve.alias`, jest `moduleNameMapper`) or call setI18n(i18n) in test setup. " +
+      "`serverExternalPackages` containing @comvi/next is not supported.",
   );
 }
 

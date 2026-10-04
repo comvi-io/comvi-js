@@ -91,6 +91,13 @@ to the library: `withComvi({ config })` from `@comvi/next/plugin`, in `next.conf
   `<I18nProvider>` keep working unchanged. A config whose loader needs server-only code stays on
   it, because the plugin's client half imports the config into the client graph.
 
+**Development reloads.** The server reads `i18n` off the `@comvi/next/config` namespace import at
+call time, never into a module-scope copy, so a re-evaluated `config.ts` is picked up on the next
+request. Per-host state (in-flight loads, the no-loader warning) is keyed by the host in a `WeakMap` or
+`WeakSet`, so a replaced host starts clean and the old one is collected. The `setI18n` cell keeps
+its existing behaviour: a re-run setup module that conflicts with a surviving cell throws, and the
+remedy is a dev-server restart.
+
 **Rejected: registering the instance from inside `createNextI18n`.**
 
 - _Reachability._ Nothing in the quick start imports the config module on the server: the layout

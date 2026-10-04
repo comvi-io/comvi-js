@@ -153,11 +153,11 @@
       "entry": ["@comvi/next/server"],
       "fixture": "framework/next-server-default-loader.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 7741,
+      "gzipBudgetBytes": 8207,
       "baseline": {
-        "minBytes": 20124,
-        "gzipBytes": 7372,
-        "measuredAt": "2026-09-12"
+        "minBytes": 21244,
+        "gzipBytes": 7816,
+        "measuredAt": "2026-10-04"
       },
       "note": "Gated Next server floor: the `@comvi/next/server` entry with the loader composed."
     },
@@ -199,10 +199,10 @@
         "@comvi/next/config",
         "*/client/ComviClientProvider.js"
       ],
-      "gzipBudgetBytes": 1878,
+      "gzipBudgetBytes": 1991,
       "baseline": {
-        "minBytes": 3808,
-        "gzipBytes": 1788,
+        "minBytes": 4053,
+        "gzipBytes": 1896,
         "measuredAt": "2026-10-04"
       },
       "note": "Gated Next server graph of the withComvi setup: `<ComviProvider>` and `getI18n` from `@comvi/next/server`, the provider's client half external as the client reference Next keeps."
@@ -212,10 +212,10 @@
       "entry": ["@comvi/next/plugin"],
       "fixture": "framework/next-plugin-node.ts",
       "external": ["next", "next/*", "node:*"],
-      "gzipBudgetBytes": 847,
+      "gzipBudgetBytes": 932,
       "baseline": {
-        "minBytes": 1401,
-        "gzipBytes": 806,
+        "minBytes": 1563,
+        "gzipBytes": 887,
         "measuredAt": "2026-10-04"
       },
       "note": "Gated Next build plugin: `withComvi` from `@comvi/next/plugin`, Node only and never bundled into an app; guards against an accidental core or React import."
