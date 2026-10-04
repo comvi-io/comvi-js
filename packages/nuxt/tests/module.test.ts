@@ -144,6 +144,7 @@ describe("nuxt module setup", () => {
       locales: [],
       defaultLocale: "en",
       localePrefix: "as-needed",
+      head: true,
       defaultNs: "default",
       icu: false,
       detectBrowserLanguage: {
@@ -178,11 +179,13 @@ describe("nuxt module setup", () => {
           redirectOnFirstVisit: false,
         },
         basicHtmlTags: ["strong", "em"],
+        head: false,
       },
       nuxt,
     );
 
     expect(nuxt.options.runtimeConfig.public.comvi).toMatchObject({
+      head: false,
       locales: ["en", "de"],
       localeObjects: {
         en: { code: "en" },

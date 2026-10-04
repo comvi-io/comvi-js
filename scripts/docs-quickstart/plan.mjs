@@ -336,7 +336,8 @@ export const CDN_CATALOG = {
  * Vanilla renders nothing — its page promises a `console.log` — so its text is
  * looked for in the console as well as on the page. Next's routes live under
  * `[locale]`: `/` reaches `/en` through the middleware rewrite, and the page's
- * Switch link must then render the Ukrainian greeting at `/uk`.
+ * Switch link must then render the Ukrainian greeting at `/uk`. `htmlAttrs`
+ * are read from the server's HTML, before any client script runs.
  */
 export function expectation(fw, page) {
   const cdn = page === "connect-comvi";
@@ -352,6 +353,10 @@ export function expectation(fw, page) {
     text: cdn ? "Hello from the CDN, Alice!" : "Hello, Alice!",
     where: "page text",
   };
+  // Nuxt owns `<html>` through the module (`comvi.head`, on by default), so the
+  // server-rendered document must already name the language. Next's root
+  // layout is the app's own file, and the SPA scaffolds ship a static one.
+  if (fw === "nuxt") return { ...want, htmlAttrs: { lang: "en", dir: "ltr" } };
   if (fw !== "next") return want;
   return {
     ...want,

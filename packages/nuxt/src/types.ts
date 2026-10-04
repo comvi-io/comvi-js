@@ -107,6 +107,17 @@ export interface NuxtI18nOptions {
   localePrefix?: LocalePrefixMode;
 
   /**
+   * Write `<html lang dir>` from the active locale: on the server render, and
+   * on every client locale switch in the same commit as the text. `lang` is
+   * the locale's `iso` (or its code); `dir` is the locale's declared `dir`, or
+   * the language's own direction. `useLocaleHead()` is still the place for
+   * canonical, hreflang and `og:locale`; calling it as well is safe, both
+   * write the same values. Set `false` to own `<html>` attributes yourself.
+   * @default true
+   */
+  head?: boolean;
+
+  /**
    * Credential forwarded to the host as `i18n.apiKey`, for a loader plugin that
    * authenticates against a backend (`@comvi/plugin-fetch-loader` reads it
    * there). This module loads NOTHING on your behalf — it neither contacts a
@@ -279,6 +290,7 @@ export interface NuxtI18nRuntimeConfig {
     defaultLocale: string;
     localePrefix: LocalePrefixMode;
     cookieName: string;
+    head?: boolean;
     translation?: I18nOptions["translation"];
     defaultNs: string;
     fallbackLocale: string | string[];

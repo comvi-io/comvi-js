@@ -375,7 +375,19 @@ async function render(dir, fw, page) {
             `page text: "${visible}"`,
         );
       }
-      const output = `HTTP ${response?.status()} ${url}: "${want.text}" found`;
+      let output = `HTTP ${response?.status()} ${url}: "${want.text}" found`;
+      if (want.htmlAttrs) {
+        // The server's document, not the live DOM: a client-side write would
+        // hide a server render that shipped `<html>` bare.
+        const html = (await response?.text()) ?? "";
+        const tag = html.match(/<html\b[^>]*>/i)?.[0] ?? "(no <html> tag)";
+        for (const [name, value] of Object.entries(want.htmlAttrs)) {
+          if (!new RegExp(`\\s${name}="${value}"`).test(tag)) {
+            return fail(`error: server HTML at ${url} has ${tag}, expected ${name}="${value}"`);
+          }
+        }
+        output += `; server ${tag}`;
+      }
       if (!want.switchTo) return { status: 0, output };
 
       const { link, path: switchPath, text } = want.switchTo;

@@ -196,6 +196,13 @@ test("expectation: connect pages look for the CDN wording, Vanilla also in the c
   assert.match(expectation("vanilla", "quick-start").where, /console/);
 });
 
+test("expectation: Nuxt's server-rendered <html> carries the default locale's lang and dir", () => {
+  for (const page of ["quick-start", "connect-comvi"]) {
+    assert.deepEqual(expectation("nuxt", page).htmlAttrs, { lang: "en", dir: "ltr" });
+  }
+  assert.equal(expectation("react", "quick-start").htmlAttrs, undefined);
+});
+
 test("QUIET_ENV: every telemetry opt-out the gate's tools read", () => {
   for (const name of ["DO_NOT_TRACK", "NEXT_TELEMETRY_DISABLED", "NUXT_TELEMETRY_DISABLED"]) {
     assert.equal(QUIET_ENV[name], "1");

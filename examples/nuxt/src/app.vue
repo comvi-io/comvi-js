@@ -1,10 +1,7 @@
-<script setup lang="ts">
-// `useLocaleHead()` is the one thing the module will NOT do for you: nothing in
-// @comvi/nuxt touches <html>, so `lang` and `dir` stay unset until this call.
-// A page that renders right but ships <html> with no `lang` is the symptom.
-useLocaleHead({ addLang: true, addDir: true });
-</script>
-
+<!--
+  No `useLocaleHead()` here: the module writes <html lang dir> from the active
+  locale (`comvi.head`, on by default). Call it for canonical and hreflang links.
+-->
 <template>
   <NuxtPage />
 </template>

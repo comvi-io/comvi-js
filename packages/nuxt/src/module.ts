@@ -107,6 +107,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     locales: [],
     defaultLocale: "en",
     localePrefix: "as-needed",
+    head: true,
     defaultNs: "default",
     icu: false,
     detectBrowserLanguage: DEFAULT_DETECT_BROWSER_LANGUAGE,
@@ -233,6 +234,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       defaultLocale: options.defaultLocale,
       localePrefix: options.localePrefix ?? "as-needed",
       cookieName,
+      head: existingPublicRuntimeConfig.head ?? options.head,
       // Forwarded so BOTH construction paths — the client plugin and each
       // per-request server host — receive the same inline catalog, and so a
       // `hostModule` factory sees it in its resolved options.

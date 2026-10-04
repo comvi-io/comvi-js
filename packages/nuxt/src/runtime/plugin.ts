@@ -11,6 +11,7 @@ import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./defaults";
 import { loadCatalogs } from "./utils/load-catalogs";
+import { useHtmlAttrs } from "./utils/html-attrs";
 import { hasLoaderApi } from "@comvi/core";
 import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "./request-hosts-key";
 import {
@@ -52,6 +53,12 @@ export default defineNuxtPlugin({
     const privateConfig = import.meta.server ? config.comvi : undefined;
 
     const localeState = useLocaleState(publicConfig.defaultLocale);
+
+    // Registered before the first `await`, while the plugin still runs inside
+    // the Nuxt app context `useHead` needs; the entry follows `localeState`.
+    if (publicConfig.head !== false) {
+      useHtmlAttrs(localeState, publicConfig.defaultLocale, publicConfig.localeObjects);
+    }
 
     const useCookieForLocale =
       publicConfig.detectBrowserLanguage !== false &&

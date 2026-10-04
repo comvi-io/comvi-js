@@ -182,6 +182,9 @@ describe("useLocaleHead: <html lang/dir> follow the rendered text in the same co
   });
 
   it("does not write an attribute its option turned off", async () => {
+    // The plugin's own `comvi.head` entry would write both; this case is about
+    // the composable's options alone.
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.head = false;
     const i18n = await setupPlugin();
     const Page = defineComponent({
       setup() {

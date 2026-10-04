@@ -23,8 +23,8 @@ export default defineNuxtConfig({
 
   comvi: {
     defaultLocale: "en",
-    // No `dir` on any of them: `useLocaleHead({ addDir: true })` derives the
-    // direction from the locale itself, so <html dir="ltr"> is written here and
+    // No `dir` on any of them: the module derives the direction from the
+    // locale itself, so <html dir="ltr"> is written here and
     // an Arabic locale added to this list would get "rtl" with no further
     // change. Declaring `dir` is for overriding that, not for enabling it.
     locales: [
