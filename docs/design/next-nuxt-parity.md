@@ -77,6 +77,17 @@ follow-up audit decides each one, and this record changes when it does.
   (cookie and detection options among them, where the names already partly agree on `cookieName`);
 - `<html lang dir>` — the module writes it, the layout writes it; the next integration cannot reach
   the root element, but nothing stops a shared helper or a shared option name;
+- `setRequestLocale()` and `getLocale()` in next, with no nuxt counterpart — nuxt's locale lives on
+  the per-request instance and `useTranslation(event)` detects it from the event; next needs a store
+  because a Server Component has no request, but the pair's names and its place in the public API
+  are a choice;
+- how namespaces are chosen for a render — `<ComviProvider namespaces>` in next against nuxt's
+  active set, `defaultNs` plus whatever a page activates during the render; neither framework
+  forces either;
+- `loadTranslations` — public in both, but `(locale, { namespaces })` in next against
+  `(event, locale, options)` in nuxt; the `event` is forced, the argument order is not;
+- error-message vocabulary — `[comvi/next]` against `[@comvi/nuxt]` prefixes, and the wording of
+  the "not configured" and "no loader" messages each package writes on its own;
 - the cookie names, `NEXT_LOCALE` and `i18n_locale` — justified below by ecosystem habit, which is
   history, not a framework constraint; kept for migration, and listed here so it is not mistaken
   for a forced difference.
@@ -152,7 +163,7 @@ cannot be changed for one framework without the other two going red. That is the
 divergence did not have.
 
 **One place to fix a fallback bug, and two suites that see it** (amended 2026-10-04).
-`tooling/test-utils/ssrFallbackContract.ts` is the second shared table: nine rows of data, from a
+`tooling/test-utils/ssrFallbackContract.ts` is the second shared table: the nine rows of `SSR_FALLBACK_CASES`, from a
 cached primary with the fallback absent, through a namespace first needed during the render, to one
 catalog failing and two concurrent locales. Each adapter runs every row through a thin fixture of
 its own — next through `getI18n()`, `loadTranslations()` and `<I18nProvider messages>` rendered and
