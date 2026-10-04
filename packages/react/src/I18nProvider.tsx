@@ -2,16 +2,31 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useCallback,
   useRef,
+  useState,
   useSyncExternalStore,
 } from "react";
-import { subscribeToRevision } from "@comvi/core";
-import type { AnyI18nHost, WrapperI18nHost, I18nEvent } from "@comvi/core";
+import { flattenCatalog, subscribeToRevision } from "@comvi/core";
+import type {
+  AnyI18nHost,
+  WrapperI18nHost,
+  I18nEvent,
+  I18nMessagesView,
+  FlattenedMessages,
+  TranslationValue,
+} from "@comvi/core";
 
 /** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
 type Host = WrapperI18nHost;
+
+/** Catalogs keyed `"locale"` or `"locale:namespace"`, as `addMessages` takes them. */
+export type MessagesMap = Record<string, Record<string, TranslationValue>>;
+
+// `useLayoutEffect` warns when it runs during a server render.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // `AnyI18nHost` is core's: the `strictFunctionTypes` invariance in `D` it
 // widens is documented there, once, for all three providers that accept it.
@@ -19,6 +34,8 @@ export type { AnyI18nHost };
 
 export interface I18nInstanceContextValue {
   i18n: Host;
+  /** What this tree translates through: the i18n instance, or a read view over `messages`. */
+  view: I18nMessagesView;
   isLoading: boolean;
   isInitializing: boolean;
 }
@@ -147,6 +164,21 @@ export interface I18nProviderProps {
    * keys.
    */
   targetLocale?: string;
+  /**
+   * Catalogs that arrive with the render, keyed `"locale"` or
+   * `"locale:namespace"` as `addMessages` takes them: a server's handover, or
+   * a route's own catalog. The children of the render that brings them
+   * translate from them at once, before the i18n instance holds them, and the
+   * provider adds them to the i18n instance when that render commits. A render
+   * React abandons therefore never writes the i18n instance, and a server
+   * render never does. A new object is added again; the same object is added
+   * once.
+   *
+   * Pair it with `targetLocale` to switch to a locale whose catalog comes with
+   * the switch: text in the new locale commits in the same render, and the
+   * i18n instance has the catalog before its locale moves, so no load starts.
+   */
+  messages?: MessagesMap;
   /** Initial loading state for SSR hydration. */
   ssrInitialIsLoading?: boolean;
   /** Initial initializing state for SSR hydration. */
@@ -172,6 +204,7 @@ export function I18nProvider({
   fallback,
   ssrLocale,
   targetLocale,
+  messages,
   ssrInitialIsLoading = false,
   ssrInitialIsInitializing = false,
   onError,
@@ -198,20 +231,51 @@ export function I18nProvider({
     () => ssrLocale ?? i18n.locale,
   );
 
-  // `targetLocale`: a handover from the render it changed in until the host's
-  // locale moves. Compared with the host's REAL locale, not the snapshot,
-  // which is `ssrLocale` while hydrating.
-  const lastTarget = useRef<string | undefined>(undefined);
-  const handover = useRef<{ target: string; from: string } | null>(null);
-  if (targetLocale !== lastTarget.current) {
-    lastTarget.current = targetLocale;
-    handover.current =
-      targetLocale !== undefined && targetLocale !== i18n.locale
-        ? { target: targetLocale, from: i18n.locale }
-        : null;
+  // `targetLocale`: a handover from the render it changed in until the i18n
+  // instance's locale moves. Derived state, keyed by the instance and the
+  // target — a setState in render, which React discards with an abandoned
+  // render, where a ref write would outlive it. `from` is the instance's REAL
+  // locale, not the snapshot, which is `ssrLocale` while hydrating; `null`
+  // once a render has seen it move, so a later switch back to `from` (a
+  // `setLocale` with no new target) is not mistaken for a handover.
+  const [committedHand, setHand] = useState<{
+    i18n: Host;
+    target: string | undefined;
+    from: string | null;
+  }>(() => ({ i18n, target: targetLocale, from: i18n.locale }));
+  let hand = committedHand;
+  if (hand.i18n !== i18n || hand.target !== targetLocale) {
+    setHand((hand = { i18n, target: targetLocale, from: i18n.locale }));
+  } else if (hand.from !== null && i18n.locale !== hand.from) {
+    setHand((hand = { ...hand, from: null }));
   }
-  if (handover.current && i18n.locale !== handover.current.from) handover.current = null;
-  const locale = handover.current ? handover.current.target : hostLocale;
+  const locale =
+    hand.target !== undefined && hand.target !== hand.from && i18n.locale === hand.from
+      ? hand.target
+      : hostLocale;
+
+  // `messages` reach the children through a read view until the i18n instance
+  // holds them, and the instance from the commit on, so a later `addMessages`
+  // (an editor save, a reload) wins again. The write is the layout effect's:
+  // children's layout effects run first, so a parent that moves the locale in
+  // its own (`@comvi/next`) finds the catalog cached and loads nothing.
+  const [published, setPublished] = useState<[Host, MessagesMap]>();
+  const view = useMemo(() => {
+    if (!messages || (published?.[0] === i18n && published[1] === messages)) return i18n;
+    const ns = i18n.getDefaultNamespace();
+    const catalogs: Record<string, FlattenedMessages> = {};
+    for (const key of Object.keys(messages)) {
+      catalogs[key.includes(":") ? key : `${key}:${ns}`] = flattenCatalog(messages[key] ?? {});
+    }
+    return i18n.withMessages(catalogs);
+  }, [i18n, messages, published]);
+  const added = useRef<[Host, MessagesMap]>(undefined);
+  useIsomorphicLayoutEffect(() => {
+    if (messages && (added.current?.[0] !== i18n || added.current[1] !== messages)) {
+      i18n.addMessages(messages);
+      setPublished((added.current = [i18n, messages]));
+    }
+  }, [i18n, messages]);
 
   const isLoading = useSyncExternalStore(
     subLoading,
@@ -236,8 +300,8 @@ export function I18nProvider({
   );
 
   const instanceValue = useMemo<I18nInstanceContextValue>(
-    () => ({ i18n, isLoading, isInitializing }),
-    [i18n, isLoading, isInitializing],
+    () => ({ i18n, view, isLoading, isInitializing }),
+    [i18n, view, isLoading, isInitializing],
   );
 
   // Both branches sit inside the providers, so the fallback may use the hooks.

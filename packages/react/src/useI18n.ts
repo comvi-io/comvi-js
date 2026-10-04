@@ -149,6 +149,10 @@ export interface UseI18nReturn<
   tRaw: NamespaceBoundTranslateFn<NS, D, TranslationResult>;
 
   locale: string;
+  /**
+   * The i18n instance's cache. Catalogs the provider's `messages` prop has
+   * not added yet are not in it, though `t` already reads them.
+   */
   messagesCache: ReadonlyMap<string, FlattenedMessages>;
   isLoading: boolean;
   isInitializing: boolean;
@@ -229,7 +233,7 @@ export function useI18n<
   D extends DefaultTranslationParams = {},
   NS extends string | undefined = undefined,
 >(ns?: NS): UseI18nReturn<D, NS> {
-  const { i18n, isLoading, isInitializing } = useI18nInstance();
+  const { i18n, view, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
   // Load-bearing: subscribes this component to re-render on the canonical
@@ -244,7 +248,7 @@ export function useI18n<
   // translations resolve against the render-time locale (not the mutable
   // instance locale). Explicit `params.locale` wins via spread order.
   const tRaw = useMemo(() => {
-    const bound = createBoundTranslation(i18n, ns) as (
+    const bound = createBoundTranslation(view, ns) as (
       key: string,
       params?: TranslationParams,
     ) => TranslationResult;
@@ -267,7 +271,7 @@ export function useI18n<
     const wrapper = (key: string, params?: TranslationParams): TranslationResult =>
       bound(key, params == null ? localeOnly : { locale, ...params });
     return wrapper as UseI18nReturn<D, NS>["tRaw"];
-  }, [i18n, ns, locale]);
+  }, [view, ns, locale]);
 
   const t = useMemo(
     () =>
@@ -299,11 +303,11 @@ export function useI18n<
   const hasTranslation = useMemo(
     () =>
       ((key: string, loc: string = locale, ns?: string, checkFallbacks?: boolean) =>
-        i18n.hasTranslation(key, loc, ns, checkFallbacks)) as UseI18nReturn<
+        view.hasTranslation(key, loc, ns, checkFallbacks)) as UseI18nReturn<
         D,
         NS
       >["hasTranslation"],
-    [i18n, locale],
+    [view, locale],
   );
 
   const formatters = useMemo(

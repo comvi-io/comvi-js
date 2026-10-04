@@ -113,9 +113,12 @@ independent, and either works without the other.
 ## Specific to React
 
 - `<I18nProvider>` takes `i18n`, `fallback`, `autoInit`, `ssrLocale`, `ssrInitialIsLoading`,
-  `ssrInitialIsInitializing` and `targetLocale`. Leave `fallback` off when a server render already
+  `ssrInitialIsInitializing`, `targetLocale` and `messages`. Leave `fallback` off when a server render already
   produced real text. `targetLocale` renders the tree in the locale you are switching the i18n
   instance to, until the i18n instance's locale moves, so text commits together with markup that comes with the switch.
+  `messages` are catalogs that arrive with the render: the children translate from them at once, and the provider
+  adds them to the i18n instance when the render commits, so a render React abandons, or a server render, never
+  writes the i18n instance.
 - `useLocale()` and `useIsLoading()` subscribe to one slice of the state, so namespace loads do not
   re-render a component that only shows the locale.
 - `useSetLocaleTransition()` wraps the switch in `useTransition`, so the old UI stays interactive

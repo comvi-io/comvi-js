@@ -255,6 +255,17 @@ export class FakeI18n {
     },
   );
 
+  /**
+   * A read view that delegates to the fake's own lookups: the catalogs are
+   * not consulted. A test that asserts text rendered from a provider's
+   * `messages` uses a real instance.
+   */
+  public readonly withMessages = vi.fn((_catalogs: unknown) => ({
+    t: this.t,
+    tRaw: this.tRaw,
+    hasTranslation: this.hasTranslation,
+  }));
+
   get language(): string {
     return this.core.language;
   }
