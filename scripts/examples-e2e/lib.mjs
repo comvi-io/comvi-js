@@ -569,8 +569,20 @@ export function collectFindings(results, mode) {
 /** The findings section printed under the table; empty when there are none. */
 export function renderFindings(findings) {
   const states = findings.mixedStates ?? [];
-  if (states.length === 0) return "";
+  const stalls = (findings.hydrationStall ?? []).map(
+    (entry) =>
+      `${entry.framework}/${entry.step} (${entry.phase}): ${entry.what} stalled after ` +
+      `${entry.afterMs} ms, hydrated=${entry.hydrated}; pending: ` +
+      (entry.pending
+        .map((request) => `${request.method} ${request.url} (${request.ageMs} ms)`)
+        .join(", ") || "none"),
+  );
+  const stallText = stalls.length
+    ? ["", "hydration stalls (each one failed its step):", ...stalls]
+    : [];
+  if (states.length === 0) return stallText.join("\n");
   return [
+    ...stallText,
     "",
     "mixed states (each one fails its step; painted = diagnostics only):",
     ...states.map(

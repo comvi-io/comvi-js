@@ -980,6 +980,53 @@ async function within<T>(promise: Promise<T>, ms: number, what: string): Promise
   }
 }
 
+/**
+ * `goto` + `ready`, bounded well inside the test timeout, and attributable
+ * when it stalls: every request the page started and never finished, with
+ * its age, and every console line, go to the report (`hydrationStalls`) and
+ * to the test's attachments before the failure is rethrown. Twice in full
+ * runs a t/t2 hydration never completed and the cause was not recorded.
+ */
+async function hydrateWithDiagnostics(tab: Page, target: string, what: string): Promise<void> {
+  const started = Date.now();
+  const pending = new Map<Request, number>();
+  const consoleLines: string[] = [];
+  tab.on("request", (request) => pending.set(request, Date.now()));
+  tab.on("requestfinished", (request) => pending.delete(request));
+  tab.on("requestfailed", (request) => pending.delete(request));
+  tab.on("console", (entry) => consoleLines.push(`${entry.type()}: ${entry.text()}`));
+  tab.setDefaultTimeout(15_000);
+  try {
+    await tab.goto(target, { waitUntil: "commit" });
+    await within(ready(tab), 15_000, `${what}: the page never hydrated`);
+  } catch (error) {
+    const diagnostics = {
+      what,
+      target,
+      afterMs: Date.now() - started,
+      pending: [...pending].map(([request, at]) => ({
+        method: request.method(),
+        url: request.url(),
+        resourceType: request.resourceType(),
+        ageMs: Date.now() - at,
+      })),
+      console: consoleLines,
+      hydrated: await tab
+        .evaluate(() => document.documentElement.dataset.hydrated ?? null)
+        .catch(() => "unreadable"),
+    };
+    test.info().annotations.push({
+      type: "finding:hydrationStall",
+      description: JSON.stringify(diagnostics),
+    });
+    await test.info().attach(`${what} stall`, {
+      body: JSON.stringify(diagnostics, null, 2),
+      contentType: "application/json",
+    });
+    throw error;
+  }
+}
+
 for (const [step, first] of [
   ["t", "uk"],
   ["t2", "de"],
@@ -993,6 +1040,8 @@ for (const [step, first] of [
   }) => {
     test.skip(!SSR, "client-rendered example: there is no server render to race");
     test.skip(!CDN_CONTROL, NEEDS_CDN);
+    // Two bounded hydrations after the race: room for their diagnostics.
+    test.setTimeout(90_000);
     // `fallback.only_en` is dropped from BOTH locales' CDN bundles, so each
     // render needs the en catalog too: the key present only in en.
     const missing = { uk: ["fallback.only_en"], de: ["fallback.only_en"] };
@@ -1062,8 +1111,7 @@ for (const [step, first] of [
       // Hydration is the readiness signal, not `load`: `load` also waits for
       // every prefetch hint, and twice in full runs one such request never
       // completed while the page itself had long hydrated.
-      await tab.goto(livePath(locale), { waitUntil: "commit" });
-      await ready(tab);
+      await hydrateWithDiagnostics(tab, livePath(locale), `${locale} hydration`);
       await expect
         .soft(tab.locator("html"), `${locale} hydrated: lang`)
         .toHaveAttribute("lang", locale);

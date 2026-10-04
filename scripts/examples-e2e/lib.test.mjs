@@ -904,6 +904,34 @@ test("stepFindings → collectFindings → renderFindings: mixed states are repo
   assert.equal(renderFindings(collectFindings([{ name: "react", findings: [] }], "cdn")), "");
 });
 
+test("renderFindings: a hydration stall lists the requests that never finished", () => {
+  const findings = collectFindings(
+    [
+      {
+        name: "next",
+        findings: [
+          {
+            kind: "hydrationStall",
+            step: "t",
+            phase: "cdn-t",
+            what: "de hydration",
+            afterMs: 15012,
+            hydrated: null,
+            pending: [{ method: "GET", url: "/_next/static/chunks/x.js", ageMs: 14990 }],
+          },
+        ],
+      },
+    ],
+    "cdn",
+  );
+  assert.equal(
+    renderFindings(findings),
+    "\nhydration stalls (each one failed its step):\n" +
+      "next/t (cdn-t): de hydration stalled after 15012 ms, hydrated=null; " +
+      "pending: GET /_next/static/chunks/x.js (14990 ms)",
+  );
+});
+
 // ── the candidate registry ─────────────────────────────────────────────────
 
 test("startCandidateRegistry: serves only the candidate's versions, and 404s the rest", async () => {
