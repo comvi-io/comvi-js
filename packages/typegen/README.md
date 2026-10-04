@@ -52,16 +52,21 @@ schema types are re-exported under the same names from both `@comvi/cli` and
   through `JSON.stringify`, so an apostrophe or a hyphen in either is safe.
   Options: `strictParams` (default `true`; `false` makes every param optional),
   `defaultNs` (default `"default"`; keys in that namespace lose their prefix)
-  and `generatedBy` (header line 3, verbatim — how each tool signs its output).
+  and `augment` (default `"@comvi/core"`; the module the declarations augment,
+  which must be a plain module specifier). The header is fixed and names no
+  tool: line 3 is the same `DO NOT EDIT` notice whichever tool wrote the file,
+  and no timestamp is stamped, so it is not a caller option.
   It throws for a schema it cannot express: a param whose `type` is neither
-  `"string"` nor `"number"`, and two keys that collide once `defaultNs` is
-  stripped (`default:title` and `title`).
+  `"string"` nor `"number"`, two keys that collide once `defaultNs` is
+  stripped (`default:title` and `title`), and an `augment` holding a quote,
+  backslash, whitespace or anything else outside a module specifier.
 - **`countKeyLines(content)`** — how many declaration lines a generated file
   already carries. Both quote styles count, so a file left by an older generator
   is measured correctly. Used for the "current N keys, expected M" check line.
 - **`normalizeGenerated(content)`** — drops what a regeneration is allowed to
-  change (today only the `Generated at:` header line `@comvi/cli` 0.4 stamped)
-  and trims, so two normalized strings decide whether a file is up to date.
+  change (the `Generated at:` line `@comvi/cli` 0.4 stamped, and header line 3
+  in every wording that has shipped) and trims, so two normalized strings
+  decide whether a file is up to date.
 
 ## The schema
 

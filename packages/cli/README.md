@@ -64,8 +64,9 @@ npx comvi init
 }
 ```
 
-`comvi init` writes `.comvirc.json` in the current directory without `locales`, `namespaces`,
-`push` or `pull`; add those by hand. The file is looked up by walking up from the working directory
+`comvi init` writes `.comvirc.json` in the current directory without `locales` or `namespaces`;
+add those by hand. It does write `push` and `pull` with their defaults, `"forceMode": "ask"` and
+`"emptyDir": false`. The file is looked up by walking up from the working directory
 and stopping at the first `package.json`, so in a monorepo a command run in `apps/web` does not
 inherit a config at the workspace root; point at it with `--config ../../.comvirc.json`.
 
