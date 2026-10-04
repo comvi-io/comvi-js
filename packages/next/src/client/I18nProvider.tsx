@@ -197,6 +197,9 @@ export function I18nProvider({
     }
   }, [i18n, locale, routing]);
 
+  // `targetLocale` only for a locale the instance will actually be switched
+  // to: a misrouted one is reported and never applied, so rendering in it
+  // would keep the tree in a locale the instance never reaches.
   // `autoInit` runs the React provider's `ensureInitialized` → `i18n.init()`,
   // which loads the default namespace at the HOST's configured locale. Since
   // the server render no longer writes that locale, it is now always the static
@@ -207,7 +210,7 @@ export function I18nProvider({
       i18n={i18n}
       autoInit={autoInit}
       ssrLocale={locale}
-      targetLocale={locale}
+      targetLocale={routing && !routing.locales.includes(locale) ? undefined : locale}
       ssrInitialIsLoading={false}
       ssrInitialIsInitializing={false}
       {...props}

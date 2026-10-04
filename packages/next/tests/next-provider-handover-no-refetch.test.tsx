@@ -100,6 +100,29 @@ describe("Next <I18nProvider> hands the server's catalog over", () => {
     expect(log.length).toBeGreaterThan(0);
   });
 
+  it("a locale outside routing.locales is reported, never applied, and never rendered in", async () => {
+    const { i18n } = createHost();
+    i18n.addMessages(handover("en"));
+    const reportError = vi.spyOn(i18n, "reportError");
+    const log: Rendered[] = [];
+    render(
+      <I18nProvider
+        i18n={i18n}
+        locale="zz"
+        routing={{ locales: ["en", "uk"], defaultLocale: "en" }}
+        messages={{ "zz:default": { greeting: "Zz" } }}
+        autoInit={false}
+      >
+        <Probe given="zz" log={log} />
+      </I18nProvider>,
+    );
+    await settle();
+    expect(reportError).toHaveBeenCalled();
+    expect(i18n.locale).toBe("en");
+    expect(log.map((entry) => entry.text)).toEqual(log.map(() => "Hello"));
+    expect(log.length).toBeGreaterThan(0);
+  });
+
   it("after the handover, a setLocale with no new prop still re-renders (localePrefix: never)", async () => {
     const { i18n } = createHost();
     i18n.addMessages({ ...handover("en"), ...handover("uk") });
