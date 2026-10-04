@@ -415,11 +415,14 @@ jobs:
       # (core first) under the candidate's staging dist-tag, continuing past a
       # failed one; then asks npm about EVERY candidate and logs the table.
       # Only a complete set moves `latest` (dist-tag add, per package, where
-      # it is not there yet), so users never resolve half a train. Tags each version npm has at this
+      # it is not there yet), so users never resolve half a train, and a
+      # dist-tag is never moved backwards. Tags each version npm has at this
       # checkout's commit (also ones an earlier run published but never
-      # tagged) and, once the whole set is on npm, `v<version>` too; a tag
-      # already at another commit is refused. `published=true` with the whole
-      # set only when complete; otherwise `published=false` and exit 1.
+      # tagged) and, once the whole set is on npm, `v<version>` too. A tag
+      # already at another commit is refused, and for versions already on
+      # npm that is checked BEFORE publishing, so a newer commit never
+      # completes an older train. `published=true` with the whole set only
+      # when complete; otherwise `published=false` and exit 1.
       # "Re-run failed jobs" skips what npm has and finishes the rest.
       - name: Publish the verified tarballs
         id: publish
@@ -430,7 +433,9 @@ jobs:
       # Runs only after a complete publish (no `always()`: a partial train must
       # not get an archive). It refuses unless `v<version>` exists at this
       # commit and the published set is all of SHA256SUMS, and passes
-      # `--verify-tag` so gh never creates the tag from the default branch.
+      # `--verify-tag` so gh never creates the tag from the default branch. If
+      # the release already exists (an earlier asset upload failed), the
+      # archive is re-uploaded with --clobber.
       # If it fails, npm is live but the GitHub Release is missing: re-run this
       # job (everything is skipped on npm, the tags are verified, the full set
       # is emitted again).

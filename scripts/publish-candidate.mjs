@@ -43,8 +43,14 @@
  *        published but never tagged — and, once the whole set is on npm, the
  *        release tag `v<train version>` too; `--push-tags` pushes the missing
  *        ones. An existing tag at any other commit is refused, naming both.
+ *        Before publishing, a version already on npm whose git tag names
+ *        another commit stops the run: a fresh run at a newer commit never
+ *        completes an older commit's train. A version this run published
+ *        that npm does not show yet is asked again with backoff (npm's
+ *        reads lag its writes).
  *        Only once npm has the whole set does `--tag` (latest, or next for an
- *        RC) move: `npm dist-tag add <name>@<version> <tag>` per package
+ *        RC) move, and never backwards (a newer version already on the tag
+ *        refuses the whole promotion): `npm dist-tag add <name>@<version> <tag>` per package
  *        whose tag is not there yet (so a re-run finishes a half-done
  *        promotion), then the staging tag is removed, best effort.
  *        GITHUB_OUTPUT gets `published=true` and `publishedPackages=<the
@@ -274,6 +280,35 @@ export function stagingTag(sums) {
 }
 
 /**
+ * Semver precedence of two versions: negative, 0 or positive. Build metadata
+ * is ignored; a prerelease sorts below its release, identifiers compare
+ * numerically when both are numbers, and numbers sort below words.
+ */
+export function compareVersions(a, b) {
+  const parse = (version) => {
+    const plain = version.split("+")[0];
+    const dash = plain.indexOf("-");
+    const core = (dash === -1 ? plain : plain.slice(0, dash)).split(".").map(Number);
+    return { core, pre: dash === -1 ? [] : plain.slice(dash + 1).split(".") };
+  };
+  const [x, y] = [parse(a), parse(b)];
+  for (let index = 0; index < 3; index++) {
+    if (x.core[index] !== y.core[index]) return x.core[index] - y.core[index];
+  }
+  if (x.pre.length === 0 || y.pre.length === 0) return y.pre.length - x.pre.length;
+  for (let index = 0; index < Math.max(x.pre.length, y.pre.length); index++) {
+    const [p, q] = [x.pre[index], y.pre[index]];
+    if (p === undefined || q === undefined) return p === undefined ? -1 : 1;
+    if (p === q) continue;
+    const [pn, qn] = [/^\d+$/.test(p), /^\d+$/.test(q)];
+    if (pn && qn) return Number(p) - Number(q);
+    if (pn !== qn) return pn ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
  * One line per candidate: on npm or MISSING, whether `tag` names it, and what
  * this run did about it.
  */
@@ -301,12 +336,12 @@ export function parseDistTags({ status, stdout, stderr }) {
 }
 
 /**
- * Make each tag in `tags` name `head`, locally and (with `push`) on origin.
- * Every tag is checked before any is created: one that already exists at
- * another commit stops the whole set, naming both SHAs. `git(args)` runs git
- * in the release checkout and returns `{ status, stdout, stderr }`.
+ * The read-only half of `reconcileTags`: where each tag is, locally and (with
+ * `push`) on origin. Throws, naming both SHAs, when any tag already exists at
+ * a commit other than `head`. `git(args)` runs git in the release checkout and
+ * returns `{ status, stdout, stderr }`.
  */
-export function reconcileTags(tags, { head, push, git }) {
+export function inspectTags(tags, { head, push, git }) {
   const commitOf = (args) => {
     const result = git(args);
     return result.status === 0 ? result.stdout.trim() : null;
@@ -344,6 +379,15 @@ export function reconcileTags(tags, { head, push, git }) {
       `refusing to move or reuse a tag (delete it only if that commit was never released):\n${[...new Set(wrong)].join("\n")}`,
     );
   }
+  return plan;
+}
+
+/**
+ * Make each tag in `tags` name `head`, locally and (with `push`) on origin.
+ * Every tag is checked (`inspectTags`) before any is created.
+ */
+export function reconcileTags(tags, { head, push, git }) {
+  const plan = inspectTags(tags, { head, push, git });
   for (const { tag, local } of plan) {
     if (local === null && git(["tag", tag, head]).status !== 0) {
       throw new Error(`git tag ${tag} failed`);
@@ -392,6 +436,20 @@ function output(values) {
 
 function distTagsOf(pkg) {
   return parseDistTags(sh("npm", ["view", pkg.name, "dist-tags", "--json"], { capture: true }));
+}
+
+/**
+ * Whether a version this run just published is visible yet. npm's reads can
+ * lag its writes, so a miss is asked again a few times, backing off from
+ * COMVI_PUBLISH_RECHECK_MS (2 s) and doubling: about 30 s in all.
+ */
+function visibleAfterPublish(pkg) {
+  const base = Number(process.env.COMVI_PUBLISH_RECHECK_MS ?? 2000);
+  for (let attempt = 0; ; attempt++) {
+    if (!notOnNpm(pkg)) return true;
+    if (attempt === 4) return false;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, base * 2 ** attempt);
+  }
 }
 
 function notOnNpm(pkg) {
@@ -499,7 +557,42 @@ function publish(options) {
     );
   }
 
+  // One train, one commit: a version already on npm must have been tagged at
+  // THIS commit. A fresh run at a newer commit after a partial publish would
+  // otherwise publish the rest from different sources and promote the mix.
+  if (tagging && skipped.length > 0) {
+    try {
+      inspectTags(
+        skipped.map((pkg) => `${pkg.name}@${pkg.version}`),
+        { head, push: options.pushTags, git },
+      );
+    } catch (error) {
+      output({ published: "false", publishedPackages: "[]" });
+      console.error(
+        `nothing was published or promoted: the versions already on npm belong to another ` +
+          `commit's run, and this candidate must not complete their train.\n${error.message}`,
+      );
+      return 1;
+    }
+  }
+
+  // npm gives a package's FIRST-EVER version `latest` whatever `--tag` says,
+  // so a brand-new name would be live before the train is complete. None of
+  // the 12 published names is new today; warn rather than fail if one is.
+  if (!options.dryRun) {
+    for (const pkg of pending) {
+      if (Object.keys(distTagsOf(pkg)).length === 0) {
+        console.warn(
+          `warning: ${pkg.name} has no dist-tags on npm, so npm will put its first-ever ` +
+            `version on \`latest\` at publish, ahead of the rest of the train`,
+        );
+      }
+    }
+  }
+
   const { published, failed } = publishAll(pending, (pkg) => {
+    // The staging tag keeps `latest`/`next` still until the whole set is on
+    // npm (except for a first-ever version: see the warning above).
     const args = ["publish", pkg.tarball, "--access", "public", "--tag", staging];
     if (options.dryRun) args.push("--dry-run");
     console.log(`publishing ${pkg.file} (sha256 ${fileDigest(pkg.tarball)})`);
@@ -520,7 +613,11 @@ function publish(options) {
           : "published by this run";
     let distTags = {};
     try {
-      onNpm = (options.dryRun && published.includes(pkg)) || !notOnNpm(pkg);
+      onNpm = options.dryRun
+        ? published.includes(pkg) || !notOnNpm(pkg)
+        : published.includes(pkg)
+          ? visibleAfterPublish(pkg)
+          : !notOnNpm(pkg);
       if (onNpm) distTags = distTagsOf(pkg);
     } catch (error) {
       onNpm = false;
@@ -533,7 +630,28 @@ function publish(options) {
 
   // Promotion: `--tag` moves only for a complete train, package by package,
   // and only where it is not there yet. The staging tag goes once all moved.
-  if (complete) {
+  // Never backwards: a stale re-run of an older train must not pull the tag
+  // down from a newer release.
+  const backwards = rows.filter(
+    (row) =>
+      row.distTags[options.tag] !== undefined &&
+      compareVersions(row.distTags[options.tag], row.version) > 0,
+  );
+  for (const row of backwards) {
+    row.note += `; ${options.tag} is already ${row.distTags[options.tag]}`;
+  }
+  if (complete && backwards.length > 0) {
+    console.error(
+      `refusing to move \`${options.tag}\` backwards, for any package:\n` +
+        backwards
+          .map(
+            (row) =>
+              `  ${row.name}: ${options.tag} is ${row.distTags[options.tag]}, newer than the candidate's ${row.version}`,
+          )
+          .join("\n"),
+    );
+  }
+  if (complete && backwards.length === 0) {
     for (const row of rows.filter((entry) => !entry.onTag)) {
       if (options.dryRun) {
         row.onTag = true;
@@ -591,7 +709,7 @@ function publish(options) {
         "Re-run this job: what npm has is skipped and tagged, the rest is published, and the " +
         "GitHub Release is created only once every candidate is on npm.",
     );
-  } else if (!promoted) {
+  } else if (!promoted && backwards.length === 0) {
     console.error(
       `every candidate is on npm, but not every one is on \`${options.tag}\` yet. Re-run this ` +
         `job: it moves \`${options.tag}\` for the rest and leaves the moved ones alone.`,

@@ -27,7 +27,11 @@ that path today.
       `release.yml`) has **Allow npm dist-tag** enabled. It is off by default, and without it the
       promotion step cannot move `latest` or `next`: the run then ends with everything on npm
       under the staging tag only and exits 1. The workflow installs npm 11.21.0, the first npm 11
-      whose OIDC token covers `npm dist-tag`.
+      whose OIDC token covers `npm dist-tag`. **Verify both facts against
+      [docs.npmjs.com/trusted-publishers](https://docs.npmjs.com/trusted-publishers) before GA**:
+      they were read there on 2026-10-04 and nothing in CI exercises them. Then run the RC rehearsal
+      (section 2) first. It uses the same staging-and-promotion code with `next`, so a green RC
+      proves the OIDC dist-tag path before GA depends on it.
 - [ ] Read the pending changesets. Note that **`changeset status` reports a version the cut will not
       produce**: on a branch whose plugin peer ranges still point at the previous major-minor,
       `pnpm exec changeset status --verbose` escalates the whole fixed group to `1.0.0`, because
@@ -83,19 +87,30 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
       `published=true` with the full set. Otherwise it reports `published=false`, exits 1, and no
       GitHub Release is created. A partial train is on npm only under the staging tag, so
       `npm i @comvi/<pkg>` keeps resolving to the previous release.
-- [ ] **To finish a partial or failed publish,** use "Re-run failed jobs" on the `publish` job. A
-      fresh workflow run does not work, because `pack` then finds nothing pending. The re-run
+- [ ] **To finish a partial or failed publish,** use "Re-run failed jobs" on the `publish` job. Do
+      not start a fresh workflow run. Once every version is on npm, a fresh run's `pack` finds
+      nothing pending and stops. After a partial publish it packs a new candidate from the current
+      commit, and the `publish` step refuses it before publishing or promoting anything when the
+      versions already on npm are tagged at the older commit. The re-run
       skips what npm has, publishes the rest, moves `latest` for every package not yet on it
       (including after a crash between publishing and promotion), and pushes any missing tag,
       including the tag of a version an earlier run published but never tagged. An existing tag at a different commit
       stops the job with both SHAs: decide by hand, and never move a tag that names released bytes.
+      Promotion never moves a dist-tag backwards. If `latest` (or `next`) already names a newer
+      version of any package, for example on a stale re-run of 0.5.0 after 0.5.1 shipped, the job
+      names both versions, moves nothing and exits 1. A version this run published that npm does
+      not show yet is asked again with backoff, for about 30 seconds, before it counts as
+      `MISSING`.
 - [ ] `.github/scripts/create-combined-release.mjs` then creates the combined GitHub Release from
       the candidate tarballs. It refuses unless `v<version>` exists at the checked-out commit and
       the published set is everything `SHA256SUMS` lists. It passes `--verify-tag` to
       `gh release create`, so the tag is never created from the default branch's newer head. The
       tag is the release train's version; independently versioned packages appear in the notes and in
       `manifest.json` at their own version. If that step fails, npm is already live: re-run the
-      `publish` job, which reconciles everything and reaches the release step again. By hand, from
+      `publish` job, which reconciles everything and reaches the release step again. If an earlier
+      attempt created the release but failed to upload the archive, the step finds the release with
+      `gh release view` and re-uploads the archive with `gh release upload --clobber` instead of
+      failing on "already exists". The release notes of the existing release are kept. By hand, from
       the release commit with the tags fetched, run it with `PUBLISHED_PACKAGES=<the full set>` and
       `COMVI_RELEASE_TARBALLS_DIR=<the downloaded candidate>`.
 
@@ -124,3 +139,13 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
 
 - The RC jobs run the browser suite on the candidate but no unit tests, package-contract or size
   gate.
+- **A crash between npm accepting a package and its tag push, followed by a fresh run at a newer
+  commit, is not caught.** The mixed-commit guard compares the git tags of the versions already
+  on npm with the checked-out commit, and here those versions have no tag yet. The fresh run would
+  publish the rest of the train from the newer commit and promote the mix. Closing this needs
+  byte-reproducible builds, so that npm's `dist.integrity` for an already-published version can be
+  compared with the candidate tarball's sha512. The operational rule is therefore: after any
+  partial or failed publish, use "Re-run failed jobs" on the same run, never a fresh run. The
+  re-run reuses the same candidate artifact. A fresh run at the same commit passes the tag check,
+  because its tags match. It repacks from the same sources, and its bytes are not compared with
+  what npm already has.

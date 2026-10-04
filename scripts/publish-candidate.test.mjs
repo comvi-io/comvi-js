@@ -11,6 +11,7 @@ import {
   assertVerifiedCandidate,
   candidatesFromSums,
   checksums,
+  compareVersions,
   isPublished,
   parseArgs,
   publishAll,
@@ -277,6 +278,11 @@ const e503 = () => {
 const [command, ...rest] = argv;
 if (command === "view" && rest[1] === "version") {
   const [name, version] = split(rest[0]);
+  if (state[name]?.lag) {
+    state[name].lag -= 1;
+    save();
+    e404();
+  }
   if (!state[name]?.versions.includes(version)) e404();
   process.stdout.write(JSON.stringify(version) + "\\n");
 } else if (command === "view" && rest[1] === "dist-tags") {
@@ -289,6 +295,8 @@ if (command === "view" && rest[1] === "version") {
   const tag = tagAt === -1 ? "latest" : rest[tagAt + 1];
   const pkg = (state[manifest.name] ??= { versions: [], tags: {} });
   pkg.versions.push(manifest.version);
+  // Read-after-write lag: the next lookup of this version still 404s.
+  if (listed("FAKE_NPM_LAG").includes(manifest.name)) pkg.lag = 1;
   pkg.tags[tag] = manifest.version;
   save();
 } else if (command === "dist-tag" && rest[0] === "add") {
@@ -368,7 +376,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
   const sums = digest(path.join(dir, "SHA256SUMS"));
 
   const staging = `release-${sums.slice(0, 12)}`;
-  const run = ({ fail = [], failPromote = [] } = {}) => {
+  const run = ({ fail = [], failPromote = [], lag = [] } = {}) => {
     const outputFile = path.join(root, `output-${Date.now()}-${Math.random()}`);
     const result = spawnSyncNode(
       [SCRIPT, "publish", "--dir", dir, "--expect-sums", sums, "--git-tag", "--push-tags"],
@@ -381,6 +389,8 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
           FAKE_NPM_REGISTRY: registry,
           FAKE_NPM_FAIL: fail.join(","),
           FAKE_NPM_FAIL_PROMOTE: failPromote.join(","),
+          FAKE_NPM_LAG: lag.join(","),
+          COMVI_PUBLISH_RECHECK_MS: "10",
         },
       },
     );
@@ -413,7 +423,25 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     fs.existsSync(path.join(registry, "calls.log"))
       ? fs.readFileSync(path.join(registry, "calls.log"), "utf8")
       : "";
-  return { root, repo, origin, head, staging, run, remoteTags, onNpm, distTags, npmCalls };
+  /** Edit one package's registry entry in place. */
+  const patch = (p, edit) => {
+    const next = state();
+    edit(next[`@comvi/${p}`]);
+    fs.writeFileSync(path.join(registry, "state.json"), JSON.stringify(next));
+  };
+  return {
+    root,
+    repo,
+    origin,
+    head,
+    staging,
+    run,
+    remoteTags,
+    onNpm,
+    distTags,
+    patch,
+    npmCalls,
+  };
 }
 
 function spawnSyncNode(args, options) {
@@ -556,4 +584,83 @@ test("promotion: one package failing to move `latest` fails the release and says
   assert.equal(retry.status, 0, retry.log);
   assert.equal(retry.outputs.published, "true");
   assert.deepEqual(ws.distTags("react"), { latest: "0.5.0" });
+});
+
+// ---------------------------------------------------------------------------
+// Guards against mixing trains and moving tags backwards.
+
+test("mixed train: a run at a newer commit after a partial publish at another one publishes and promotes nothing", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.run({ fail: ["@comvi/react"] });
+  // main moved on; a fresh workflow run packs and publishes from commit B.
+  fs.writeFileSync(path.join(ws.repo, "later.txt"), "B");
+  git(ws.repo, "add", "later.txt");
+  git(ws.repo, "commit", "-q", "-m", "B");
+  const b = git(ws.repo, "rev-parse", "HEAD");
+  const before = ws.npmCalls().length;
+
+  const result = ws.run();
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.equal(result.outputs.publishedPackages, "[]");
+  assert.match(
+    result.log,
+    new RegExp(`@comvi/core@0\\.5\\.0 points at ${ws.head}, not at the release commit ${b}`),
+  );
+  const calls = ws.npmCalls().slice(before);
+  assert.doesNotMatch(calls, /^publish /m);
+  assert.doesNotMatch(calls, /^dist-tag /m);
+  assert.equal(ws.distTags("core").latest, "0.4.1");
+});
+
+test("compareVersions: semver precedence, prereleases included", () => {
+  assert.equal(compareVersions("0.5.1", "0.5.0") > 0, true);
+  assert.equal(compareVersions("0.5.0", "0.5.0"), 0);
+  assert.equal(compareVersions("0.10.0", "0.9.9") > 0, true);
+  assert.equal(compareVersions("0.5.0", "0.5.0-rc.9") > 0, true);
+  assert.equal(compareVersions("0.5.0-rc.10", "0.5.0-rc.9") > 0, true);
+  assert.equal(compareVersions("0.5.0-rc.1", "0.5.0-rc.2") < 0, true);
+  assert.equal(compareVersions("0.5.0-rc.1", "0.5.0-rc.1.1") < 0, true);
+  assert.equal(compareVersions("0.5.0-alpha", "0.5.0-1") > 0, true);
+});
+
+test("backwards promotion: `latest` already on a newer version is refused, both versions named, nothing moved", (t) => {
+  const ws = releaseWorkspace(t);
+  // 0.5.1 shipped since; this is a stale re-run of the 0.5.0 publish job.
+  ws.patch("core", (pkg) => {
+    pkg.versions.push("0.5.1");
+    pkg.tags.latest = "0.5.1";
+  });
+  const result = ws.run();
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.equal(result.outputs.publishedPackages, "[]");
+  assert.match(result.log, /@comvi\/core: latest is 0\.5\.1, newer than the candidate's 0\.5\.0/);
+  assert.doesNotMatch(ws.npmCalls(), /^dist-tag add/m);
+  assert.equal(ws.distTags("core").latest, "0.5.1");
+  assert.equal(ws.distTags("react").latest, "0.4.1");
+  assert.equal(ws.remoteTags()["v0.5.0"], undefined);
+});
+
+test("read-after-write: a version this run published that npm does not show yet is asked again", (t) => {
+  const ws = releaseWorkspace(t);
+  const result = ws.run({ lag: ["@comvi/react"] });
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.equal(ws.npmCalls().match(/^view @comvi\/react@0\.5\.0 version/gm).length, 3);
+});
+
+test("first-ever version: a package with no dist-tags on npm gets a warning, and the run goes on", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.patch("react", (pkg) => {
+    pkg.versions = [];
+    pkg.tags = {};
+  });
+  const result = ws.run();
+  assert.equal(result.status, 0, result.log);
+  assert.match(
+    result.stderr,
+    /warning: @comvi\/react has no dist-tags on npm, so npm will put its first-ever version on `latest`/,
+  );
+  assert.doesNotMatch(result.stderr, /warning: @comvi\/core/);
 });

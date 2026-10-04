@@ -13,6 +13,8 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
+import { tarballName } from "../../scripts/examples-e2e/lib.mjs";
+
 const published = JSON.parse(process.env.PUBLISHED_PACKAGES ?? "[]");
 if (published.length === 0) {
   console.log("No packages were published — skipping combined release.");
@@ -100,13 +102,13 @@ if (tagged.stdout.trim() !== head) {
 // the pack job's SHA256SUMS lists must be in the published set, and nothing
 // else may be.
 const tarballsDir = process.env.COMVI_RELEASE_TARBALLS_DIR;
-const tarballFile = (pkg) => `${pkg.name.replace(/^@/, "").replace("/", "-")}-${pkg.version}.tgz`;
 if (tarballsDir) {
   const listed = readFileSync(join(tarballsDir, "SHA256SUMS"), "utf8")
     .split("\n")
     .filter(Boolean)
     .map((line) => line.split(/\s+/)[1]);
-  const publishedFiles = sorted.map(tarballFile);
+  // pnpm pack's file name, from the same function the pack and publish steps use.
+  const publishedFiles = sorted.map(tarballName);
   const missing = listed.filter((file) => !publishedFiles.includes(file));
   const extra = publishedFiles.filter((file) => !listed.includes(file));
   if (missing.length > 0 || extra.length > 0) {
@@ -163,7 +165,7 @@ function createReleaseArchive() {
       // npm just received), copied rather than re-packed — the publishing job
       // has no install and no build to pack from.
       if (tarballsDir) {
-        const file = tarballFile(pkg);
+        const file = tarballName(pkg);
         copyFileSync(join(tarballsDir, file), join(packagesDir, file));
       } else {
         run("pnpm", ["--dir", dir, "pack", "--pack-destination", packagesDir]);
@@ -264,6 +266,34 @@ const archiveAsset = `${archivePath}#${basename(archivePath)}`;
 if (process.env.COMVI_RELEASE_DRY_RUN === "1") {
   console.log(`Dry run enabled — would create ${tag} with asset ${archiveAsset}`);
   process.exit(0);
+}
+
+// Retry-safe: a run whose `gh release create` made the release but failed
+// uploading the asset leaves a release behind. The tag (verified above to be
+// this commit) is the same, so re-upload the archive to it instead of failing
+// on "already exists". Any gh failure other than "release not found" stops.
+const existing = spawnSync("gh", ["release", "view", tag, "--json", "tagName"], {
+  encoding: "utf8",
+});
+if (existing.status === 0) {
+  const { tagName } = JSON.parse(existing.stdout);
+  if (tagName !== tag) {
+    console.error(`gh release view ${tag} returned a release for ${tagName}`);
+    process.exit(1);
+  }
+  console.log(`${tag} already has a GitHub Release; re-uploading ${basename(archivePath)}`);
+  const upload = spawnSync("gh", ["release", "upload", tag, archiveAsset, "--clobber"], {
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+  if (upload.status !== 0) {
+    console.error(`gh release upload exited with code ${upload.status}`);
+    process.exit(upload.status ?? 1);
+  }
+  process.exit(0);
+}
+if (!/release not found/i.test(existing.stderr)) {
+  console.error(`gh release view ${tag} failed:\n${existing.stderr}`);
+  process.exit(existing.status ?? 1);
 }
 
 const result = spawnSync(

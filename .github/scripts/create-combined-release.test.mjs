@@ -317,28 +317,98 @@ test("the release tag must point at the checked-out release SHA: both SHAs are n
   assert.equal(fs.existsSync(archiveDir), false);
 });
 
-test("gh release create runs with --verify-tag, so gh never creates the tag itself", (t) => {
-  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+/**
+ * A fake `gh` on PATH that logs each call (one JSON array per line). `release
+ * view` succeeds when FAKE_GH_RELEASE_EXISTS=1, fails with gh's "release not
+ * found" otherwise, or with an auth error when FAKE_GH_VIEW_ERROR=1.
+ */
+function fakeGh(root) {
   const bin = path.join(root, "bin");
   fs.mkdirSync(bin);
-  const argsFile = path.join(root, "gh-args.json");
+  const log = path.join(root, "gh-calls.log");
   fs.writeFileSync(
     path.join(bin, "gh"),
-    `#!/usr/bin/env node\nrequire("node:fs").writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2)));\n`,
+    `#!/usr/bin/env node
+const args = process.argv.slice(2);
+require("node:fs").appendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + "\\n");
+if (args[0] === "release" && args[1] === "view") {
+  if (process.env.FAKE_GH_VIEW_ERROR === "1") {
+    process.stderr.write("HTTP 401: Bad credentials\\n");
+    process.exit(1);
+  }
+  if (process.env.FAKE_GH_RELEASE_EXISTS !== "1") {
+    process.stderr.write("release not found\\n");
+    process.exit(1);
+  }
+  process.stdout.write(JSON.stringify({ tagName: args[2] }) + "\\n");
+}
+`,
     { mode: 0o755 },
   );
+  return {
+    env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+    calls: () =>
+      fs.existsSync(log)
+        ? fs
+            .readFileSync(log, "utf8")
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => JSON.parse(line))
+        : [],
+  };
+}
+
+test("gh release create runs with --verify-tag, so gh never creates the tag itself", (t) => {
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+  const gh = fakeGh(root);
+  const result = runScript({ root, archiveDir, published: TRAIN, dryRun: false, env: gh.env });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const create = gh.calls().find((args) => args[1] === "create");
+  assert.ok(create, JSON.stringify(gh.calls()));
+  assert.equal(create[2], "v0.5.0");
+  assert.ok(create.includes("--verify-tag"), create.join(" "));
+});
+
+test("a release that already exists (asset upload failed last time) gets its asset re-uploaded, not a second create", (t) => {
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+  const gh = fakeGh(root);
   const result = runScript({
     root,
     archiveDir,
     published: TRAIN,
     dryRun: false,
-    env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+    env: { ...gh.env, FAKE_GH_RELEASE_EXISTS: "1" },
   });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  const args = JSON.parse(fs.readFileSync(argsFile, "utf8"));
-  assert.deepEqual(args.slice(0, 2), ["release", "create"]);
-  assert.equal(args[2], "v0.5.0");
-  assert.ok(args.includes("--verify-tag"), args.join(" "));
+  const calls = gh.calls();
+  assert.equal(
+    calls.some((args) => args[1] === "create"),
+    false,
+    JSON.stringify(calls),
+  );
+  const upload = calls.find((args) => args[1] === "upload");
+  assert.ok(upload, JSON.stringify(calls));
+  assert.equal(upload[2], "v0.5.0");
+  assert.match(upload[3], /comvi-v0\.5\.0\.tar\.gz#comvi-v0\.5\.0\.tar\.gz$/);
+  assert.ok(upload.includes("--clobber"));
+});
+
+test("a gh failure other than 'release not found' stops the step", (t) => {
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+  const gh = fakeGh(root);
+  const result = runScript({
+    root,
+    archiveDir,
+    published: TRAIN,
+    dryRun: false,
+    env: { ...gh.env, FAKE_GH_VIEW_ERROR: "1" },
+  });
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /gh release view v0\.5\.0 failed/);
+  assert.equal(
+    gh.calls().some((args) => args[1] === "create" || args[1] === "upload"),
+    false,
+  );
 });
 
 test("an incomplete candidate is refused: the published set must be every package SHA256SUMS lists", (t) => {
