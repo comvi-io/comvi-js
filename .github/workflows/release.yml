@@ -168,6 +168,26 @@ jobs:
       - name: Run examples:e2e against the candidate
         run: node scripts/publish-candidate.mjs verify --dir release-candidate
 
+      # The run's verdicts as data, kept on success too: which candidate (the
+      # sha256 of its SHA256SUMS), which tarballs, every step of every example.
+      - name: Upload the e2e report (bundled catalogs)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-rc-e2e-report-default-${{ needs.rc-pack.outputs.sums }}
+          path: test-results/examples-e2e/report.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload the e2e report (--cdn)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-rc-e2e-report-cdn-${{ needs.rc-pack.outputs.sums }}
+          path: test-results/examples-e2e/report-cdn.json
+          if-no-files-found: warn
+          retention-days: 90
+
       - name: Upload e2e diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -366,6 +386,26 @@ jobs:
 
       - name: Run examples:e2e against the candidate
         run: node scripts/publish-candidate.mjs verify --dir release-candidate
+
+      # The run's verdicts as data, kept on success too: which candidate (the
+      # sha256 of its SHA256SUMS), which tarballs, every step of every example.
+      - name: Upload the e2e report (bundled catalogs)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-ga-e2e-report-default-${{ needs.pack.outputs.sums }}
+          path: test-results/examples-e2e/report.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload the e2e report (--cdn)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-ga-e2e-report-cdn-${{ needs.pack.outputs.sums }}
+          path: test-results/examples-e2e/report-cdn.json
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Upload e2e diagnostics
         if: failure()
