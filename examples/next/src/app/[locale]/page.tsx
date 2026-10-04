@@ -1,4 +1,4 @@
-import { getI18n } from "@/i18n/server";
+import { getI18n } from "@comvi/next/server";
 import { Demo } from "./Demo";
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {

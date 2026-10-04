@@ -1,5 +1,5 @@
 import { Link } from "@comvi/next/navigation";
-import { getI18n } from "@/i18n/server";
+import { getI18n } from "@comvi/next/server";
 
 /**
  * The second page: a Server Component, translated through `getI18n()` like

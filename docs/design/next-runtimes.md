@@ -67,6 +67,43 @@ export const routing = defineRouting({
 });
 ```
 
+## Amendment (2026-10-04): the build plugin owns the instance hand-off
+
+The config module stays the one source, imported by both runtimes. What changes is who connects it
+to the library: `withComvi({ config })` from `@comvi/next/plugin`, in `next.config`, instead of a
+`setI18n()` module and a `"use client"` wrapper the app writes itself.
+
+- **The plugin aliases an internal specifier.** `@comvi/next/config` resolves to the app's config
+  module: an exact-match webpack `resolve.alias` to the absolute path, and a project-relative posix
+  Turbopack `resolveAlias` (under `turbopack` from Next 15.3, `experimental.turbo` below). Without
+  the plugin it resolves to a stub whose exports are `undefined`. A config path that does not exist
+  fails at `next.config` load, with the path.
+- **The server reads the cell first, the alias second.** `setI18n` and `createNextI18nFromHost`
+  still fill the once-cell, and it wins. Otherwise the server helpers use the alias's `i18n`, read
+  at call time. Neither is an error naming all three ways out.
+- **`<ComviProvider>` from `@comvi/next/server` replaces the app's wrapper.** It sets the request
+  locale, runs `loadTranslations(locale, { namespaces })` and renders a library `"use client"`
+  module that imports the same config through the alias. Only `locale` and the plain `messages`
+  cross the boundary, exactly as before.
+- **The page passes its locale: `getI18n({ locale })`.** An explicit locale reads and writes no
+  request store, so no render-order rule is left.
+- **The manual setup stays supported.** `setI18n`, `createNextI18nFromHost` and the client
+  `<I18nProvider>` keep working unchanged. A config whose loader needs server-only code stays on
+  it, because the plugin's client half imports the config into the client graph.
+
+**Rejected: registering the instance from inside `createNextI18n`.**
+
+- _Reachability._ Nothing in the quick start imports the config module on the server: the layout
+  imports `routing.ts` and the page imports only `@comvi/next/server`. Registration would need a
+  side-effect import, which is the import-order rule this removes.
+- _Layer duplication._ Next evaluates the config once in the RSC layer and once in the SSR layer
+  of one process. A cell reachable from the root entry would need a `globalThis` anchor, two
+  instances would register, and the conflict error fires. Last-wins would hide real conflicts.
+- _Bundle cost._ The root entry is client-reachable, and the cell module imports React's `cache`.
+
+The option is named `config`, unlike `@comvi/nuxt`'s per-instance factory option, because the
+meaning differs: Next takes a module that exports an instance.
+
 ## Alternatives rejected
 
 - **Handing the composed host from a Server Component to a Client Component** — Next cannot pass a
@@ -94,6 +131,10 @@ export const routing = defineRouting({
 - `defineRouting` — `packages/next/src/routing/defineRouting.ts`; `createMiddleware` —
   `packages/next/src/middleware.ts`; `nextPlugin` — `packages/next/src/index.ts`
 - `setI18n` / `getI18n` and the server host type — `packages/next/src/server.ts`
+- `withComvi` — `packages/next/src/plugin.ts`; the `@comvi/next/config` stub —
+  `packages/next/src/config.ts`; the cell-then-alias lookup — `packages/next/src/server/cache.ts`
+- `<ComviProvider>` — `packages/next/src/server/ComviProvider.tsx`, and its client half —
+  `packages/next/src/client/ComviClientProvider.tsx`
 
 ## Related
 
