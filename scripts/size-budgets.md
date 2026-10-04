@@ -89,6 +89,20 @@ rest is the fix itself (folding the `started` flag into an existing field fails 
 resets those fields before the late rejection arrives). `core-base` stays within its budget
 (5364 B of 5534 B). Lot H1 (commit-safe React/Next handover) is expected to touch this row again.
 
+`fw-react-default`, `fw-react-full-composite`, `fw-next-client-default`, `fw-nuxt-host` and
+`plugin-fetch-loader-api` were re-baselined on 2026-10-05 (merged feat @ ec7b713e, lot H1) to
+7369, 12262, 7766, 8415 and 11711 B. H1 removed the
+last render-phase writes from the React and Next providers (an abandoned Suspense/transition render
+could leave a stale `targetLocale` handover or publish a never-committed catalog to the shared
+instance). The bytes are the feature, measured module by module: core overlay read view
+`withMessages` with key-level fallthrough +43 B on every row that carries core (that alone is the
+nuxt-host and fetch-loader-api overflow, 10–15 B over rows that had 21–44 B of headroom left after
+H2); React `messages` prop + overlay view +105 B, publish-at-commit layout effect +114 B, derived
+handover state +13 B, `useI18n` reading through the view +10 B; the Next provider itself shrank by
+42 B. The Fable reviewer confirmed no byte sink remains that does not change behaviour (the one
+lever, moving catalog normalisation into core, would push bytes onto Vue/Solid/Svelte rows with
+2–31 B of headroom).
+
 ## How to re-baseline
 
 1. Build the dists the gate reads: `pnpm build`.
