@@ -1,8 +1,4 @@
 import { defineNuxtConfig } from "nuxt/config";
-// The type-only import is what pulls in the module's `NuxtConfig` augmentation,
-// so the `comvi` key below is type-checked. Nuxt's own generated types do this
-// for you once `nuxt dev` (or `nuxt prepare`) has run at least once.
-import type {} from "@comvi/nuxt";
 
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
@@ -40,11 +36,7 @@ export default defineNuxtConfig({
     // its route middleware pre-loads the catalog before the page renders.
     localePrefix: "always",
     fallbackLocale: "en",
-    // The file that decides what the host CAN do. `./comvi.host.*` under
-    // srcDir is picked up by convention (the module logs the path it chose),
-    // so this line is the explicit form of the default; without the file the
-    // module generates the base host — no ICU, no loader — and this demo has
-    // both.
-    hostModule: "./comvi.host.ts",
+    // No `hostModule`: `src/comvi.host.ts` decides what the host can do, and
+    // the module picks it up by convention (it logs the path it chose).
   },
 });

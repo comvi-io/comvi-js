@@ -1,4 +1,4 @@
-import { createI18n, icuCompiler, loader, type NuxtHostFactory } from "@comvi/nuxt/host";
+import { createI18n, defineComviHost, icuCompiler, loader } from "@comvi/nuxt/host";
 
 // The generated Nuxt default is deliberately the base host; this app renders ICU
 // catalogs and loads them on the server, so it composes both explicitly. This is
@@ -7,7 +7,7 @@ import { createI18n, icuCompiler, loader, type NuxtHostFactory } from "@comvi/nu
 // dependency the app did not install. `loader(map)` attaches the loader
 // capability AND registers the map; the catalogs live in `../../locales`,
 // shared by every test app.
-export default ((options) =>
+export default defineComviHost((options) =>
   createI18n({ ...options, compiler: icuCompiler }).use(
     loader({
       en: () => import("../../locales/en.json"),
@@ -23,4 +23,5 @@ export default ((options) =>
       "uk:admin": () => import("../../locales/admin/uk.json"),
       "ar:admin": () => import("../../locales/admin/ar.json"),
     }),
-  )) satisfies NuxtHostFactory;
+  ),
+);

@@ -26,7 +26,8 @@ export default defineNuxtConfig({
     defaultNs: "default",
     // No `hostModule`: `app/comvi.host.ts` is picked up by convention (srcDir,
     // then rootDir) and the module logs the path it resolved at build time.
-    // The nuxt 3 test app names it explicitly, so both paths stay exercised.
+    // Its host file keeps the `satisfies NuxtHostFactory` form; the nuxt 3 test
+    // app uses `defineComviHost`, so both typings stay exercised.
     fallbackLocale: "en",
     detectBrowserLanguage: {
       useCookie: true,

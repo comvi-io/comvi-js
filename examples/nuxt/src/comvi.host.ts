@@ -1,5 +1,4 @@
-import { createI18n, icuCompiler, loader } from "@comvi/nuxt/host";
-import type { NuxtHostFactory, NuxtServerLoaderHost } from "@comvi/nuxt";
+import { createI18n, defineComviHost, icuCompiler, loader } from "@comvi/nuxt/host";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { useRuntimeConfig } from "#imports";
 
@@ -9,7 +8,7 @@ import { useRuntimeConfig } from "#imports";
  * so nothing under `pages/` imports anything.
  *
  * A FRESH host per call: the factory runs once for the client plugin and once
- * per server request. It receives Nuxt's RESOLVED `comvi` options, so
+ * per server request (in development the module throws if it gets one twice). It receives Nuxt's RESOLVED `comvi` options, so
  * `nuxt.config.ts` stays in charge of configuration while this file stays in
  * charge of capabilities.
  *
@@ -19,7 +18,7 @@ import { useRuntimeConfig } from "#imports";
  * under pnpm's default layout. The opt-in CDN path adds one package of its own,
  * `@comvi/plugin-fetch-loader`.
  */
-export default ((options) => {
+export default defineComviHost((options) => {
   // Connect to Comvi, opt-in: `runtimeConfig.public.comviCdnUrl`, set through
   // `NUXT_PUBLIC_COMVI_CDN_URL`. Empty — the default, and what StackBlitz runs —
   // and the import map is the only loader.
@@ -52,4 +51,4 @@ export default ((options) => {
     // `compiler: icuCompiler` into `options` and this line is unnecessary.
     compiler: icuCompiler,
   }).use(catalogs);
-}) satisfies NuxtHostFactory<NuxtServerLoaderHost>;
+});

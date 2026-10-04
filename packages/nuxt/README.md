@@ -32,18 +32,12 @@ npm install @comvi/nuxt
 
 ```ts title="nuxt.config.ts" check=group=nuxt-app
 import { defineNuxtConfig } from "nuxt/config";
-import type {} from "@comvi/nuxt";
 
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
-
   comvi: {
     defaultLocale: "en",
-    locales: [
-      { code: "en", name: "English", iso: "en-US" },
-      { code: "uk", name: "Українська", iso: "uk-UA" },
-    ],
-    localePrefix: "as-needed",
+    locales: ["en", "uk"],
     translation: {
       en: { greeting: "Hello, {name}!" },
       uk: { greeting: "Привіт, {name}!" },
@@ -53,19 +47,15 @@ export default defineNuxtConfig({
 ```
 
 ```vue title="app.vue" check=group=nuxt-app
-<script setup lang="ts">
-useLocaleHead({ addLang: true, addDir: true });
-</script>
-
 <template>
   <NuxtPage />
 </template>
 ```
 
 `comvi.translation` is the inline catalog, nested or flat, and must stay JSON-serializable. The
-type-only import brings in the module's `NuxtConfig` augmentation before the first dev run. Call
-`useLocaleHead()` yourself: nothing in the module touches `<html>`, and without this call the page
-ships `<html>` with no `lang` and no `dir`.
+module writes `<html lang dir>` from the active locale on the server and on every switch; set
+`comvi.head: false` to write them yourself. Call `useLocaleHead()` for canonical, hreflang and
+`og:locale` tags.
 
 ## Use in components
 
@@ -91,18 +81,18 @@ npm install @comvi/plugin-fetch-loader
 ```
 
 ```ts title="comvi.host.ts" check=group=nuxt-cdn
-import { createI18n, type NuxtHostFactory } from "@comvi/nuxt/host";
+import { createI18n, defineComviHost } from "@comvi/nuxt/host";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-export default ((options) =>
-  createI18n(options).use(
-    cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }),
-  )) satisfies NuxtHostFactory;
+export default defineComviHost((options) =>
+  createI18n(options).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" })),
+);
 ```
 
 Add this file next to `nuxt.config.ts`. The module picks up `./comvi.host.*` by convention and
 logs the path; `comvi.hostModule` points at a file elsewhere. The default export receives the
-resolved `comvi` options and must return a fresh host on every call. The CDN URL is on
+resolved `comvi` options and must return a new instance from `createI18n` on every call; in
+development the module throws when it gets the same host twice. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), set `comvi.icu: true` or pass `compiler: icuCompiler` in the factory, as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are

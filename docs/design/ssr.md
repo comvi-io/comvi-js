@@ -69,6 +69,24 @@ runs in both bundles and adds `ssrLocale` so a server render and the hydrated cl
 render locale; the request-scoped Nitro host has no hydration to match and omits it — set it inside
 the factory if a server route needs it.
 
+**The fresh-host rule is checked in development.** `defineComviHost()` from `@comvi/nuxt/host`
+types the factory, and the generated host template keeps a `WeakSet` of the hosts it was handed: the
+same host a second time throws a named error asking for a new instance from `createI18n` on every
+call. The check is emitted at codegen only when `nuxt.options.dev` is set, so a production build
+carries neither the set nor the branch. Production still tolerates a shared host the way it always
+did; the rule is enforced where a developer can see it, not where a visitor would.
+
+**The module owns `<html lang dir>` (`comvi.head`, default `true`).** The plugin registers one head
+entry, derived from the locale state exactly as `useLocaleHead()` derives it (`iso` or the code for
+`lang`; the declared `dir`, else the language's direction), so the server render already names the
+language. On a client switch it patches both attributes in the same post-flush as the text, and only
+an attribute whose DOM value is still the one it wrote. An app that also calls `useLocaleHead()`
+registers a second entry with the same values; whichever watcher runs second finds the new value in
+place and writes nothing. It is a separate util rather than a call into `useLocaleHead()`, because
+that call pulls the route and request-URL helpers into the client floor (measured 9295 B gz against
+the util's 8483 B). Next does not do this: its root layout is the app's own file, so `<html lang>`
+stays explicit there; the Nuxt module owns the plugin and the middleware, so it can.
+
 SSR loading is the loader capability at work, so a server-rendered nuxt app composes a loader in
 `comvi.host.ts`. Without one, the server utilities say so once, by name, and render whatever the
 catalog already holds. They never call a member the host does not have.
