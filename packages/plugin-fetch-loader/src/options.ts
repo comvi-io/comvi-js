@@ -27,17 +27,17 @@ export interface CdnLayoutOptions {
   /**
    * Namespace stored directly at `{cdnUrl}/{locale}.json`.
    *
-   * When omitted, the i18n instance's `defaultNs` is used for backward
-   * compatibility. Set a namespace explicitly when the CDN root namespace
-   * differs from the consumer's `defaultNs`, or set `false` when every
-   * namespace is stored under its own folder.
+   * When omitted, the i18n instance's `defaultNs` is used. Set a namespace
+   * explicitly when the CDN root namespace differs from the consumer's
+   * `defaultNs`, or set `false` when every namespace is stored under its own
+   * folder.
    */
   rootNamespace?: string | false;
 }
 
 export interface FetchLoaderOptions {
   /**
-   * Full CDN URL for production mode requests.
+   * Full CDN URL, requested when the i18n instance has no `apiKey`.
    *
    * URL patterns are controlled by `cdnLayout`:
    * - Root namespace: {cdnUrl}/{lang}.json
@@ -51,12 +51,12 @@ export interface FetchLoaderOptions {
   cdnUrl: string;
 
   /**
-   * Explicit API base URL for dev mode requests — the documented way to point
-   * the loader at an API host. Takes precedence over the build-time environment overrides
-   * (`VITE_API_BASE_URL` / `NEXT_PUBLIC_COMVI_API_URL`).
+   * API base URL, used when the i18n instance has an `apiKey`. This option is
+   * the way to point the loader at a self-hosted or proxied API.
    *
-   * When absent, the environment overrides apply, then the Comvi platform
-   * preset (`comviPreset.apiBaseUrl`) as the final fallback.
+   * When absent, `process.env.NEXT_PUBLIC_COMVI_API_URL` applies on Next.js
+   * (Next inlines it into the app build), then the Comvi platform preset
+   * (`comviPreset.apiBaseUrl`, `https://api.comvi.io`).
    *
    * @example
    * ```typescript
@@ -143,10 +143,10 @@ export interface FetchLoaderOptions {
   cdnLayout?: CdnLayoutOptions;
 
   /**
-   * Cache options for SSR frameworks (Next.js, Nuxt, etc.)
+   * Next.js data-cache options, passed to `fetch()` as `next: { revalidate, tags }`.
    *
-   * These options are passed to fetch() for server-side caching.
-   * Works with Next.js fetch cache, Nuxt useFetch, and similar.
+   * Next.js only: Next's patched `fetch()` reads them. Other runtimes,
+   * Nuxt/Nitro included, ignore them.
    *
    * @example
    * ```typescript
@@ -171,7 +171,7 @@ export interface FetchLoaderOptions {
 
     /**
      * Cache tags for on-demand revalidation.
-     * Use with Next.js revalidateTag() or similar.
+     * Use with Next.js `revalidateTag()`.
      */
     tags?: string[];
   };
@@ -195,7 +195,7 @@ export function getFetchLoaderConfig(i18n: {
  * Comvi platform preset: the hosted API and CDN base URLs.
  *
  * Applied as the final fallback when neither the explicit `baseUrl` option nor
- * a build-time environment override is present. Platform
+ * `NEXT_PUBLIC_COMVI_API_URL` (Next.js) is present. Platform
  * users get these defaults without configuration; self-hosted or proxied
  * setups pass `baseUrl` explicitly.
  */
@@ -204,9 +204,10 @@ export const comviPreset = {
   cdnBaseUrl: "https://cdn.comvi.io",
 } as const;
 
-/** Production API base URL; the env overrides exist for local development. */
+/**
+ * API base URL when the `baseUrl` option is absent. `NEXT_PUBLIC_COMVI_API_URL`
+ * works on Next.js only, which inlines it into the app build.
+ */
 export const API_BASE_URL =
-  // @ts-expect-error - import.meta.env is Vite-specific
-  import.meta.env?.VITE_API_BASE_URL ||
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_COMVI_API_URL) ||
   comviPreset.apiBaseUrl;

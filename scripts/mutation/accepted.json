@@ -2037,22 +2037,6 @@
       "round": 4
     },
     {
-      "package": "packages/plugin-fetch-loader",
-      "file": "src/options.ts",
-      "mutators": [
-        "ConditionalExpression",
-        "EqualityOperator",
-        "LogicalOperator",
-        "OptionalChaining",
-        "StringLiteral"
-      ],
-      "snippet": "(typeof process !== \"undefined\" && process.env?.NEXT_PUBLIC_COMVI_API_URL) ||",
-      "lineHint": 196,
-      "kind": "gap:prod-build",
-      "reason": "unreachable under this package's vitest config, which `define`s import.meta.env.VITE_API_BASE_URL to a truthy value: the first operand of the || chain always wins, so the process.env override and the comviPreset fallback are never evaluated. Closable with a second vitest project that drops the `define`.",
-      "round": 4
-    },
-    {
       "package": "packages/plugin-locale-detector",
       "file": "src/index.ts",
       "mutators": ["ConditionalExpression"],

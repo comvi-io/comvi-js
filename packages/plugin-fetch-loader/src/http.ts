@@ -38,7 +38,7 @@ export function buildAuthHeaders(apiKey: string): Record<string, string> {
   return headers;
 }
 
-/** Build API export URL for dev mode */
+/** Build the API export URL (the loader's path when the i18n instance has an `apiKey`) */
 export function buildApiExportUrl(
   projectId: number | string,
   locale: string,
@@ -53,7 +53,7 @@ export function buildApiExportUrl(
   return `${stripSlash(customApiBaseUrl || API_BASE_URL)}/v1/projects/${projectId}/export?${params.toString()}`;
 }
 
-/** Build API translations URL for runtime/dev mode */
+/** Build the API runtime translations URL (the loader's path when the i18n instance has an `apiKey`) */
 export function buildApiTranslationsUrl(
   locale: string,
   namespaces: string[],
