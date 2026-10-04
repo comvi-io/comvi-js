@@ -93,7 +93,7 @@ describe("resolveServerI18n", () => {
   it("neither → the not-configured error names withComvi, setI18n and createNextI18nFromHost", async () => {
     const { resolveServerI18n } = await load({});
     expect(() => resolveServerI18n()).toThrow(
-      "[comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
+      "[@comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
         "or call setI18n(i18n) / createNextI18nFromHost(host, routing). " +
         "In a test runner the alias does not apply: alias `@comvi/next/config` to your config module " +
         "(vitest `resolve.alias`, jest `moduleNameMapper`) or call setI18n(i18n) in test setup. " +
@@ -143,8 +143,8 @@ describe("getI18n({ locale }) with a locale the routing does not list", () => {
       String(m).includes("is not in routing.locales"),
     );
     expect(unknown.map(([m]) => m)).toEqual([
-      '[comvi/next] getI18n({ locale: "xx" }): "xx" is not in routing.locales (en, uk). Call notFound() for an unknown locale before rendering.',
-      '[comvi/next] getI18n({ locale: "yy" }): "yy" is not in routing.locales (en, uk). Call notFound() for an unknown locale before rendering.',
+      '[@comvi/next] getI18n({ locale: "xx" }): "xx" is not in routing.locales (en, uk). Call notFound() for an unknown locale before rendering.',
+      '[@comvi/next] getI18n({ locale: "yy" }): "yy" is not in routing.locales (en, uk). Call notFound() for an unknown locale before rendering.',
     ]);
   });
 

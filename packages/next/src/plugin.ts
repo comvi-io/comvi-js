@@ -86,7 +86,7 @@ export function withComvi(options: WithComviOptions): WithComvi {
   const absolute = path.resolve(root, options.config.replace(/\\/g, "/"));
   if (!fs.existsSync(absolute)) {
     throw new Error(
-      `[comvi/next] withComvi: the config module ${absolute} does not exist ` +
+      `[@comvi/next] withComvi: the config module ${absolute} does not exist ` +
         `(config: "${options.config}", resolved against ${root}). ` +
         "A relative path resolves against process.cwd(), and Next does not chdir: run `next` " +
         "from the app directory or pass an absolute path, e.g. " +

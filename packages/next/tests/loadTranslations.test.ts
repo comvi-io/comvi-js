@@ -29,7 +29,7 @@ describe("loadTranslations", () => {
 
     expect(result).toEqual({});
     expect(warnSpy).toHaveBeenCalledWith(
-      "[comvi/next] No loader configured. " +
+      "[@comvi/next] No loader registered, so SSR loaded nothing. " +
         "Register one via i18n.registerLoader(...), or compose one onto the host: " +
         "createNextI18n(...).i18n.use(fetchLoader(...)).",
     );
@@ -45,7 +45,7 @@ describe("loadTranslations", () => {
     await loadTranslations("fr");
 
     const noLoaderWarnings = warnSpy.mock.calls.filter(([message]) =>
-      String(message).includes("No loader configured"),
+      String(message).includes("No loader registered"),
     );
     expect(noLoaderWarnings).toHaveLength(1);
   });
@@ -62,7 +62,7 @@ describe("loadTranslations", () => {
     expect(result).toEqual({
       "fr:common": { greeting: "Bonjour cached" },
     });
-    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("No loader configured"));
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("No loader registered"));
   });
 
   it("returns plain serializable objects for Server->Client boundaries", async () => {

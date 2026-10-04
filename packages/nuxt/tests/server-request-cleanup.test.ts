@@ -470,7 +470,7 @@ describe("request host teardown", () => {
     // for a locale it had not asked for yet. Silently building a host here is
     // the leak the teardown exists to close.
     await expect(getRequestI18n(captured!, "uk")).rejects.toThrow(
-      "[comvi/nuxt] useTranslation()/loadTranslations() after the response ended",
+      "[@comvi/nuxt] useTranslation()/loadTranslations() after the response ended",
     );
     await expect(getRequestI18n(captured!, "en")).rejects.toThrow(
       "the request host is already destroyed",

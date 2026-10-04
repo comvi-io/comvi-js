@@ -109,7 +109,7 @@ describe("server getI18n", () => {
 
     await expect(getI18n()).rejects.toMatchObject({
       message:
-        "[comvi/next] Locale not set. " +
+        "[@comvi/next] Locale not set. " +
         "Call setRequestLocale(locale) in your layout/page first, or configure middleware.",
       cause: expect.any(Error),
     });

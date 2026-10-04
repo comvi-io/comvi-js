@@ -50,7 +50,7 @@ export function claimRequestCleanup(): void {
 }
 
 const AFTER_RESPONSE_MESSAGE =
-  "[comvi/nuxt] useTranslation()/loadTranslations() after the response ended — the request " +
+  "[@comvi/nuxt] useTranslation()/loadTranslations() after the response ended — the request " +
   "host is already destroyed; translate before responding, or create your own host";
 
 export const getContextKey = (event: H3Event): object => {
@@ -217,7 +217,7 @@ async function settlePendingWork(event: H3Event, contextKey: object): Promise<vo
     if (round >= MAX_WAIT_ROUNDS) {
       reportRequestCleanup(
         contextKey,
-        `[comvi/nuxt] event.waitUntil() work was still registering more work after ${MAX_WAIT_ROUNDS} rounds; destroying this request's i18n hosts anyway`,
+        `[@comvi/nuxt] event.waitUntil() work was still registering more work after ${MAX_WAIT_ROUNDS} rounds; destroying this request's i18n hosts anyway`,
       );
       return;
     }
@@ -230,7 +230,7 @@ async function settlePendingWork(event: H3Event, contextKey: object): Promise<vo
         // capture. Say it here so it is not simply lost.
         reportRequestCleanup(
           contextKey,
-          `[comvi/nuxt] a background task of this request (event.waitUntil) rejected: ${String(result.reason)}`,
+          `[@comvi/nuxt] a background task of this request (event.waitUntil) rejected: ${String(result.reason)}`,
         );
       }
     }

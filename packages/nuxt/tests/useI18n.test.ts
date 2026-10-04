@@ -66,7 +66,7 @@ describe("useI18n composable", () => {
 
   it("throws when i18n plugin is not initialized", () => {
     expect(() => useI18n()).toThrow(
-      "[@comvi/nuxt] i18n not initialized. Make sure @comvi/nuxt module is configured in nuxt.config.ts",
+      '[@comvi/nuxt] i18n not configured. Add "@comvi/nuxt" to `modules` in nuxt.config.ts.',
     );
   });
 

@@ -569,7 +569,7 @@ describe("createNextI18n — `.use(installer)` is the composition pipe", () => {
       );
 
       await expect(nextI18n.i18n.init()).rejects.toThrow(
-        "[comvi/next] Invalid lazy plugin module. " +
+        "[@comvi/next] Invalid lazy plugin module. " +
           "Expected a plugin function or { default: pluginFunction }.",
       );
     });

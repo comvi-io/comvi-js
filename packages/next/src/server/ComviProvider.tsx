@@ -47,7 +47,7 @@ export async function ComviProvider({
 }: ComviProviderProps): Promise<JSX.Element> {
   if (!getConfiguredI18n()) {
     throw new Error(
-      "[comvi/next] <ComviProvider> needs withComvi({ config }) in next.config: " +
+      "[@comvi/next] <ComviProvider> needs withComvi({ config }) in next.config: " +
         "the client reads the i18n instance from that module. Add it, or keep your own " +
         '"use client" wrapper around <I18nProvider> from @comvi/next/client ' +
         "(the manual setup, also the one for a config whose loader needs server-only code).",

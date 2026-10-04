@@ -20,7 +20,7 @@ const toError = (error: unknown): Error =>
 
 const noLoaderWarnings = new WeakSet<ServerI18nHost>();
 const NO_LOADER_WARNING_MESSAGE =
-  "[comvi/next] No loader configured. " +
+  "[@comvi/next] No loader registered, so SSR loaded nothing. " +
   "Register one via i18n.registerLoader(...), or compose one onto the host: " +
   "createNextI18n(...).i18n.use(fetchLoader(...)).";
 
@@ -65,7 +65,7 @@ const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Prom
     load = i18n
       .reloadTranslations(locale, namespace)
       .catch((error: unknown) => {
-        console.warn(`[comvi/next] Failed to load ${key}:`, toError(error).message);
+        console.warn(`[@comvi/next] Failed to load ${key}:`, toError(error).message);
       })
       .finally(() => {
         loads.delete(key);

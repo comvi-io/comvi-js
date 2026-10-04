@@ -34,7 +34,7 @@ export async function getLocale(): Promise<string> {
   }
 
   throw new Error(
-    "[comvi/next] Unable to determine locale. " +
+    "[@comvi/next] Unable to determine locale. " +
       "Make sure to call setRequestLocale() in your layout/page or configure middleware.",
   );
 }

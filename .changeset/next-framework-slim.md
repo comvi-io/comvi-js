@@ -35,7 +35,7 @@ replace the instance, last write wins. It now throws, in development **and** pro
 naming both sources:
 
 ```
-[comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. Configure it once — only a same-instance setI18n() repeats.
+[@comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. Configure it once — only a same-instance setI18n() repeats.
 ```
 
 `setI18n(i18n)` keeps its exact signature and stays the supported way to configure a

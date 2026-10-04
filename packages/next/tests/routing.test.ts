@@ -292,7 +292,9 @@ describe("routing helpers", () => {
 
     expect(getPathname({ locale: "fr", href: "/about" })).toBe("/fr/about");
 
-    expect(warn).toHaveBeenCalledWith('[getPathname] Unknown locale "fr". Expected one of: en, de');
+    expect(warn).toHaveBeenCalledWith(
+      '[@comvi/next] getPathname: unknown locale "fr". Expected one of: en, de',
+    );
   });
 
   it("does not warn for a configured locale", () => {

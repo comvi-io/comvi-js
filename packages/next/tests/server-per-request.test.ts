@@ -128,7 +128,7 @@ describe("getI18n resolves every lookup against the request locale", () => {
     const initSpy = vi.spyOn(i18n, "init");
     getLocaleMock.mockRejectedValue(new Error("no locale"));
 
-    await expect(getI18n()).rejects.toThrow("[comvi/next] Locale not set.");
+    await expect(getI18n()).rejects.toThrow("[@comvi/next] Locale not set.");
 
     expect(initSpy).not.toHaveBeenCalled();
     expect(loader).not.toHaveBeenCalled();
@@ -142,7 +142,7 @@ describe("getI18n resolves every lookup against the request locale", () => {
 
     // Both would fail; the request is rejected on its own terms, and the
     // instance-wide failure never enters the picture.
-    await expect(getI18n()).rejects.toThrow("[comvi/next] Locale not set.");
+    await expect(getI18n()).rejects.toThrow("[@comvi/next] Locale not set.");
   });
 });
 

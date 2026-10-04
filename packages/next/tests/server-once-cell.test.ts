@@ -55,7 +55,7 @@ describe("server i18n once-cell", () => {
     const conflict = captureThrown(() => setI18n(composedHost()));
 
     expect(conflict.message).toBe(
-      `[comvi/next] i18n already configured by setI18n(); setI18n() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by setI18n(); setI18n() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 
@@ -65,7 +65,7 @@ describe("server i18n once-cell", () => {
     const conflict = captureThrown(() => setI18n(composedHost()));
 
     expect(conflict.message).toBe(
-      `[comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 
@@ -78,7 +78,7 @@ describe("server i18n once-cell", () => {
     const conflict = captureThrown(() => setI18n(composedHost()));
 
     expect(conflict.message).toBe(
-      `[comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 
@@ -88,7 +88,7 @@ describe("server i18n once-cell", () => {
     const conflict = captureThrown(() => createNextI18nFromHost(composedHost, ROUTING));
 
     expect(conflict.message).toBe(
-      `[comvi/next] i18n already configured by setI18n(); createNextI18nFromHost() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by setI18n(); createNextI18nFromHost() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 
@@ -98,7 +98,7 @@ describe("server i18n once-cell", () => {
     const conflict = captureThrown(() => createNextI18nFromHost(composedHost, ROUTING));
 
     expect(conflict.message).toBe(
-      `[comvi/next] i18n already configured by createNextI18nFromHost(); createNextI18nFromHost() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by createNextI18nFromHost(); createNextI18nFromHost() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 });

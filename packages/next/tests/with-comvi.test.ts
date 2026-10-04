@@ -132,7 +132,7 @@ describe("withComvi: a missing config module", () => {
   it("throws at next.config load, naming the resolved path", () => {
     const root = project("16.0.0");
     expect(() => withComvi({ config: "./src/i18n/missing.ts" })).toThrow(
-      `[comvi/next] withComvi: the config module ${path.join(root, "src/i18n/missing.ts")} does not exist`,
+      `[@comvi/next] withComvi: the config module ${path.join(root, "src/i18n/missing.ts")} does not exist`,
     );
   });
 

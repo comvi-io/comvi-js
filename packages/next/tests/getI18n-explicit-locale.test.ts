@@ -62,7 +62,7 @@ describe("getI18n({ locale })", () => {
     expect(t("greeting" as never)).toBe("Привіт");
     expect(storedLocale()).toBeUndefined();
     // Nothing else filled the store either: the no-arg form still has no locale.
-    await expect(getLocale()).rejects.toThrow("[comvi/next] Unable to determine locale");
+    await expect(getLocale()).rejects.toThrow("[@comvi/next] Unable to determine locale");
   });
 
   it("wins over the request store and does not modify it", async () => {

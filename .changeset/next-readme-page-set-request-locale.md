@@ -9,7 +9,7 @@ while the page fence beside it still went straight to `await getI18n()`. React c
 the page while the layout is still awaiting its own `params`, so the page reached `getI18n()` with
 React's per-request cache still empty — `packages/next/src/server/getI18n.ts` says so in a comment
 ("A page can render before its layout completes") and then throws
-`[comvi/next] Locale not set. Call setRequestLocale(locale) in your layout/page first, or configure
+`[@comvi/next] Locale not set. Call setRequestLocale(locale) in your layout/page first, or configure
 middleware.`
 
 Observed, not reasoned. The six quickstart fences extracted verbatim into a Next App Router app

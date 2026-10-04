@@ -68,8 +68,6 @@ adapters, two adapters. A row cannot be fixed for one adapter while the other fa
 Differences that exist today and are NOT forced by a framework. They are recorded, not resolved: a
 follow-up audit decides each one, and this record changes when it does.
 
-- the server helper names, `getI18n()` in next and `useTranslation(event)` in nuxt — the shape is
-  already shared; the `event` argument is forced, the verb is not;
 - the hand-off option names, `config` in next and `hostModule` in nuxt — the mechanisms are forced
   apart (instance module against factory), so the rule keeps the names apart today; whether both
   could take one name with one meaning is open;
@@ -85,8 +83,6 @@ follow-up audit decides each one, and this record changes when it does.
   is a next capability nuxt has no counterpart for;
 - `loadTranslations` — public in both, but `(locale, { namespaces })` in next against
   `(event, locale, options)` in nuxt; the `event` is forced, the argument order is not;
-- error-message vocabulary — `[comvi/next]` against `[@comvi/nuxt]` prefixes, and the wording of
-  the "not configured" and "no loader" messages each package writes on its own;
 - the cookie names, `NEXT_LOCALE` and `i18n_locale` — justified below by ecosystem habit, which is
   history, not a framework constraint; kept for migration, and listed here so it is not mistaken
   for a forced difference.
@@ -118,6 +114,11 @@ queryParam, headerName, resolveAcceptLanguage }`, with the same defaults except 
 - **App-wide namespaces** (amended 2026-10-04). `ns: string[]`, core's option, in
   `createNextI18n` and in the `comvi` module options, forwarded into every constructed host and a
   `hostModule` factory's options.
+- **Error-message vocabulary** (amended 2026-10-04). Every message starts with the package name,
+  `[@comvi/next]` or `[@comvi/nuxt]`, as every other comvi package does. Three stems are spelled
+  identically after it: `i18n not configured.`, `No loader registered, so SSR loaded nothing.` and
+  `Failed to load <locale>:<ns>:`. The one exception is next's `.use()` identity error, which keeps
+  `[i18n]` because `@comvi/vue` throws the same sentence for the same contract.
 - **Server helper vocabulary.** `ns`, the word core's `t(key, { ns })` already uses. Nuxt's 0.4
   `namespace` is a deprecated alias through 0.5 and is removed in 0.6; passing both takes `ns` and
   warns once in dev.
@@ -162,6 +163,11 @@ queryParam, headerName, resolveAcceptLanguage }`, with the same defaults except 
   has — next-intl writes `NEXT_LOCALE`, nuxt-i18n writes `i18n_locale` — and a shared third name
   would break every app migrating to us for the sake of a consistency no user can see. This is the
   one entry here justified by migration rather than by a framework; see "Open for alignment".
+- **Server helper names: framework idiom, deliberately different** (owner decision 2026-10-04).
+  `getI18n()` in next, `useTranslation(event)` in nuxt. Each follows its framework: an async Server
+  Component may not call a `use*` function, and a Nitro util is a `use*` composable taking the
+  event. The shape is shared, `{ t, hasTranslation, locale }`, and so are the options, `locale` and
+  `ns`; nuxt does not gain a `getI18n`, and `useTranslation` is not deprecated.
 - **Integration.** Next is a set of imports the app writes itself (`createMiddleware`,
   `defineRouting`, `getI18n`, `withComvi`); Nuxt is a module that generates files and auto-imports
   composables. There is no shared shape for "install the framework integration"; what the two
@@ -290,6 +296,8 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
 - `<html lang dir>` (nuxt side landing in 0.5) — the `head` option in `packages/nuxt/src/types.ts`,
   applied from `runtime/plugin.ts` through `runtime/utils/html-attrs.ts`; the layout in
   `packages/next/README.md`
+- the shared error stems — `tooling/test-utils/errorStems.ts`, asserted against each package's own
+  sources by `tests/error-stems.test.ts` in `packages/next` and `packages/nuxt`
 - the known difference, both halves — `packages/next/tests/parity-known-difference.test.ts`,
   `packages/nuxt/tests/parity-known-difference.test.ts`
 

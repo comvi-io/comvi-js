@@ -5,7 +5,7 @@
 **The README quickstart now calls `setRequestLocale(locale)`, without which it threw on first
 render.** Both quickstart layouts read `locale` from `params` and rendered, and the page then called
 `await getI18n()` — which reads the request locale from React's per-request cache and rejects with
-`[comvi/next] Locale not set. Call setRequestLocale(locale) in your layout/page first, or configure
+`[@comvi/next] Locale not set. Call setRequestLocale(locale) in your layout/page first, or configure
 middleware.` when nothing filled it. Step 1 has no middleware, so nothing did. The name appeared
 nowhere in the README, not even in the `/server` entry's export list, while
 `examples/next/src/app/[locale]/layout.tsx` has called it all along.

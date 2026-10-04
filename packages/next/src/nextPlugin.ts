@@ -45,7 +45,7 @@ const resolveLazyPlugin = (moduleOrPlugin: LazyPluginModule): I18nPlugin => {
     return moduleOrPlugin.default;
   }
   throw new Error(
-    "[comvi/next] Invalid lazy plugin module. " +
+    "[@comvi/next] Invalid lazy plugin module. " +
       "Expected a plugin function or { default: pluginFunction }.",
   );
 };

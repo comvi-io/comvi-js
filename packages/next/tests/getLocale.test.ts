@@ -40,7 +40,7 @@ describe("getLocale", () => {
     headersMock.mockResolvedValue(new Headers());
 
     await expect(getLocale()).rejects.toThrow(
-      "[comvi/next] Unable to determine locale. " +
+      "[@comvi/next] Unable to determine locale. " +
         "Make sure to call setRequestLocale() in your layout/page or configure middleware.",
     );
   });

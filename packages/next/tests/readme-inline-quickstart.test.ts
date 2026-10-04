@@ -9,7 +9,7 @@
  *   `default.greeting`, so `t("greeting")` rendered the literal key;
  * - a page fence that called `await getI18n()` with no locale and no
  *   `setRequestLocale(locale)` of its own served `/en` and `/uk` as HTTP 500
- *   ("[comvi/next] Locale not set…"). Observed on next@15.5.9 and
+ *   ("[@comvi/next] Locale not set…"). Observed on next@15.5.9 and
  *   next@16.3.5 with the fences extracted verbatim into an app, the layout's
  *   own call directly above. React can render the page before the layout has
  *   set the locale, so the page passes it: `getI18n({ locale })`.
@@ -192,7 +192,7 @@ describe("the README quick start, run on the server modules", () => {
   it("rejects without withComvi — why next.config.ts is part of the setup", async () => {
     // The layout's provider is the first to need the config module.
     await expect(serveReadme({ withComvi: false }, "en")).rejects.toThrow(
-      "[comvi/next] <ComviProvider> needs withComvi({ config }) in next.config",
+      "[@comvi/next] <ComviProvider> needs withComvi({ config }) in next.config",
     );
   });
 });

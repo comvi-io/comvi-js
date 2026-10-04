@@ -114,7 +114,7 @@ export function createGetPathname<T extends string>(
   return function getPathname({ locale, href }: GetPathnameOptions): string {
     if (!locales.includes(locale as T)) {
       console.warn(
-        `[getPathname] Unknown locale "${locale}". Expected one of: ${locales.join(", ")}`,
+        `[@comvi/next] getPathname: unknown locale "${locale}". Expected one of: ${locales.join(", ")}`,
       );
     }
 

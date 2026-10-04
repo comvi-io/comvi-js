@@ -18,7 +18,7 @@ cannot determine its locale â€” no `setRequestLocale()`, no middleware header â€
 having triggered the one-time `init()`, whose default-namespace load runs at the instance's own
 configured locale. Previously such a request initialized the instance as a side effect of failing.
 One consequence worth knowing: when both would have failed, the locale error now wins. A request
-with no locale against an instance whose `init()` throws reports `[comvi/next] Locale not set.`
+with no locale against an instance whose `init()` throws reports `[@comvi/next] Locale not set.`
 rather than the initialization failure.
 
 Two writes still travel from a request to the shared instance, both unchanged and both

@@ -42,7 +42,7 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
 
   if (!i18n) {
     throw new Error(
-      "[@comvi/nuxt] i18n not initialized. Make sure @comvi/nuxt module is configured in nuxt.config.ts",
+      '[@comvi/nuxt] i18n not configured. Add "@comvi/nuxt" to `modules` in nuxt.config.ts.',
     );
   }
 

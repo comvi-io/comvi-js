@@ -20,11 +20,11 @@ const SET_I18N = "setI18n()";
 const ROUTING = { locales: ["en", "fr"], defaultLocale: "en" };
 
 const conflict = (configured, incoming) =>
-  `[comvi/next] i18n already configured by ${configured}; ${incoming} is a second source. ` +
+  `[@comvi/next] i18n already configured by ${configured}; ${incoming} is a second source. ` +
   "Configure it once — only a same-instance setI18n() repeats.";
 
 const NOT_CONFIGURED =
-  "[comvi/next] i18n not configured. Add withComvi({ config }) to next.config, or call setI18n(i18n) / createNextI18nFromHost(host, routing). In a test runner the alias does not apply: alias `@comvi/next/config` to your config module (vitest `resolve.alias`, jest `moduleNameMapper`) or call setI18n(i18n) in test setup. `serverExternalPackages` containing @comvi/next is not supported.";
+  "[@comvi/next] i18n not configured. Add withComvi({ config }) to next.config, or call setI18n(i18n) / createNextI18nFromHost(host, routing). In a test runner the alias does not apply: alias `@comvi/next/config` to your config module (vitest `resolve.alias`, jest `moduleNameMapper`) or call setI18n(i18n) in test setup. `serverExternalPackages` containing @comvi/next is not supported.";
 
 const host = () =>
   attachLoader(createI18n({ locale: "en", defaultNs: "common", exposeGlobal: false }));

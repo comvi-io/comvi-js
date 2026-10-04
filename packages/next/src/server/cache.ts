@@ -60,7 +60,7 @@ let cell: CellState = EMPTY;
  */
 const configurationConflict = (configured: CellState, incoming: string): Error =>
   new Error(
-    `[comvi/next] i18n already configured by ${
+    `[@comvi/next] i18n already configured by ${
       configured.kind === "resolved" && configured.bySetI18n ? SOURCE_SET_I18N : SOURCE_FACTORY
     }; ${incoming} is a second source. Configure it once — only a same-instance setI18n() repeats.`,
   );
@@ -146,7 +146,7 @@ export function resolveServerI18n(): ServerI18nHost {
     if (IS_DEV && aliased && aliased !== cell.instance && !warnedTwoSources) {
       warnedTwoSources = true;
       console.warn(
-        `[comvi/next] Two i18n instances: one from ${
+        `[@comvi/next] Two i18n instances: one from ${
           cell.bySetI18n ? SOURCE_SET_I18N : SOURCE_FACTORY
         }, another from the withComvi({ config }) module. Using the first; keep one source.`,
       );
@@ -157,7 +157,7 @@ export function resolveServerI18n(): ServerI18nHost {
     return aliased;
   }
   throw new Error(
-    "[comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
+    "[@comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
       "or call setI18n(i18n) / createNextI18nFromHost(host, routing). " +
       // The alias exists only in Next's own bundled graphs: a test runner, or
       // a Next build that leaves this package unbundled, resolves the stub.

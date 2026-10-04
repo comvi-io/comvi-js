@@ -61,7 +61,7 @@ function validateLocale(
   if (routing && !routing.locales.includes(locale)) {
     i18n.reportError(
       new Error(
-        `[next-i18n-provider] Locale "${locale}" is not in routing.locales (${routing.locales.join(", ")}). Skipping locale sync.`,
+        `[@comvi/next] <I18nProvider>: locale "${locale}" is not in routing.locales (${routing.locales.join(", ")}). Skipping locale sync.`,
       ),
       { source: "init", locale },
     );

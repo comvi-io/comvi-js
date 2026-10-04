@@ -29,7 +29,7 @@ const warnUnknownLocale = (locale: string): void => {
   if (!locales || locales.includes(locale) || warnedLocales.has(locale)) return;
   warnedLocales.add(locale);
   console.warn(
-    `[comvi/next] getI18n({ locale: "${locale}" }): "${locale}" is not in routing.locales (${locales.join(", ")}). Call notFound() for an unknown locale before rendering.`,
+    `[@comvi/next] getI18n({ locale: "${locale}" }): "${locale}" is not in routing.locales (${locales.join(", ")}). Call notFound() for an unknown locale before rendering.`,
   );
 };
 
@@ -92,7 +92,7 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
       locale = await getLocale();
     } catch (e) {
       const err = new Error(
-        "[comvi/next] Locale not set. " +
+        "[@comvi/next] Locale not set. " +
           "Call setRequestLocale(locale) in your layout/page first, or configure middleware.",
       );
       (err as Error & { cause?: unknown }).cause = e;

@@ -142,7 +142,7 @@ describe("ComviProvider (server)", () => {
   it("throws without withComvi, naming the plugin and the manual wrapper", async () => {
     const server = await runtime({ withConfig: false });
     await expect(server.ComviProvider({ locale: "uk", children: null })).rejects.toThrow(
-      "[comvi/next] <ComviProvider> needs withComvi({ config }) in next.config: " +
+      "[@comvi/next] <ComviProvider> needs withComvi({ config }) in next.config: " +
         "the client reads the i18n instance from that module. Add it, or keep your own " +
         '"use client" wrapper around <I18nProvider> from @comvi/next/client ' +
         "(the manual setup, also the one for a config whose loader needs server-only code).",
@@ -195,7 +195,7 @@ describe("ComviClientProvider (client half)", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const client = await runtime({ withConfig: false });
     expect(() => renderToString(<client.ComviClientProvider locale="uk" messages={{}} />)).toThrow(
-      "[comvi/next] <ComviProvider> needs withComvi({ config }) in next.config",
+      "[@comvi/next] <ComviProvider> needs withComvi({ config }) in next.config",
     );
   });
 });

@@ -178,7 +178,7 @@ describe("Next <I18nProvider> reports a misrouted locale during a server render"
     expect(fake.reportError).toHaveBeenCalledWith(
       expect.objectContaining({
         message:
-          '[next-i18n-provider] Locale "zz" is not in routing.locales (en, fr, de). Skipping locale sync.',
+          '[@comvi/next] <I18nProvider>: locale "zz" is not in routing.locales (en, fr, de). Skipping locale sync.',
       }),
       { source: "init", locale: "zz" },
     );

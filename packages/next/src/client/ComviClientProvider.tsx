@@ -30,7 +30,7 @@ export function ComviClientProvider({ locale, messages, children }: ComviClientP
     // The server half checks first; this is the client graph built without
     // the alias (a next.config that dropped withComvi between builds).
     throw new Error(
-      "[comvi/next] <ComviProvider> needs withComvi({ config }) in next.config: " +
+      "[@comvi/next] <ComviProvider> needs withComvi({ config }) in next.config: " +
         "the client reads the i18n instance from that module.",
     );
   }
