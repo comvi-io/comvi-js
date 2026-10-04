@@ -56,7 +56,7 @@ build pass and one `Symbol("i18n")`: a plugin installed with `app.use(i18n)` and
 `useI18n()` in the same app always see each other. No 0.4.x import specifier changes.
 
 **Nine 0.4.x named VALUE exports go, though.** Replacing `export * from "@comvi/core"` with
-named re-exports plus `export type *` drops `TranslationCache`, `createBoundTranslation`,
+named re-exports plus `export type *` drops `MessagesCache`, `createBoundTranslation`,
 `translationResultToString`, `formatNumber`, `formatDate`, `formatCurrency`,
 `formatRelativeTime`, `getTextDirection` and `createElement` from this entry's value surface.
 Types are unaffected. `useI18n()` returns the four formatters and `dir` already bound to the

@@ -156,7 +156,7 @@ export class FakeI18nCore {
     this._isInitialized = value;
   }
 
-  get translationCache(): FakeTranslationCache {
+  get messagesCache(): FakeTranslationCache {
     return this.cache;
   }
 

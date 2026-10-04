@@ -14,4 +14,4 @@
 +i18n.registerPlugin(cdnLoaderPlugin({ cdnUrl }));
 ```
 
-`fetchLoader` and `cdnLoader` — the installers you pass to `.use(…)` — keep their names, and so does every option type (`FetchLoaderOptions`, `CdnLoaderOptions`), every installer type and `I18nPluginFactory`. Behaviour is unchanged on both names. No deprecated aliases: 0.5 is unpublished, so the old names are gone rather than soft-landed.
+`fetchLoader` and `cdnLoader` — the installers you pass to `.use(…)` — keep their names, and so does every option type (`FetchLoaderOptions`, `CdnLoaderOptions`), every installer type and `I18nPluginFactory`. Behaviour is unchanged on both names. The old names are removed, with no deprecated aliases.

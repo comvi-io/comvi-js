@@ -12,4 +12,4 @@
 +i18n.registerPlugin(inContextEditorPlugin({ debug: true }));
 ```
 
-Both export conditions are renamed — the default entry and the `production` no-op — and so is the property on the standalone bundle's global: `window.ComviInContextEditor.inContextEditorPlugin`. The `inContextEditor` installer, `EditorOptions`, `InContextEditorInstaller` and every other export keep their names, and behaviour is unchanged. No deprecated aliases: 0.5 is unpublished.
+Both export conditions are renamed — the default entry and the `production` no-op — and so is the property on the standalone bundle's global: `window.ComviInContextEditor.inContextEditorPlugin`. The `inContextEditor` installer, `EditorOptions`, `InContextEditorInstaller` and every other export keep their names, and behaviour is unchanged. The old names are removed, with no deprecated aliases.

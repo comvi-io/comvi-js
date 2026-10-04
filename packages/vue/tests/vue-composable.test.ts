@@ -86,7 +86,7 @@ describe("useI18n composable", () => {
     };
 
     const wrapper = mount(C, { global: { plugins: [i18n] } });
-    const revisionBefore = i18n.core.translationCache.getRevision();
+    const revisionBefore = i18n.core.messagesCache.getRevision();
     expect(wrapper.text()).toBe(`false:${revisionBefore}`);
 
     await i18n.init();
@@ -95,8 +95,8 @@ describe("useI18n composable", () => {
 
     i18n.addMessages({ en: { k2: "v2" } });
     await nextTick();
-    expect(wrapper.text()).toBe(`true:${i18n.core.translationCache.getRevision()}`);
-    expect(i18n.core.translationCache.getRevision()).toBeGreaterThan(revisionBefore);
+    expect(wrapper.text()).toBe(`true:${i18n.core.messagesCache.getRevision()}`);
+    expect(i18n.core.messagesCache.getRevision()).toBeGreaterThan(revisionBefore);
   });
 
   it("binds the requested namespace for translations", async () => {

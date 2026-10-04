@@ -82,7 +82,7 @@ export class VueI18n<
   private _cacheRevision: ShallowRef<number>;
   private _configRevision: ShallowRef<number>;
   private _defaultParamsComputed?: ComputedRef<DefaultParamsSnapshot<D>>;
-  private _translationCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedMessages>>;
+  private _messagesCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedMessages>>;
   private _unsubscribers: Array<() => void> = [];
   private _requestedLocale: string;
   private _localeQueue: Promise<void> = Promise.resolve();
@@ -150,10 +150,10 @@ export class VueI18n<
     this._isLoading = shallowRef(this.core.isLoading);
     this._isInitializing = shallowRef(this.core.isInitializing);
     this._isInitialized = shallowRef(this.core.isInitialized);
-    this._cacheRevision = shallowRef(this.core.translationCache.getRevision());
+    this._cacheRevision = shallowRef(this.core.messagesCache.getRevision());
     this._configRevision = shallowRef(0);
     const syncCache = () => {
-      this._cacheRevision.value = this.core.translationCache.getRevision();
+      this._cacheRevision.value = this.core.messagesCache.getRevision();
     };
 
     // Core's canonical revision event set: never hand-copy a subset here.
@@ -314,7 +314,7 @@ export class VueI18n<
     });
   }
 
-  /** Re-evaluates when the translation cache or the default namespace changes. */
+  /** Re-evaluates when the messages cache or the default namespace changes. */
   hasLocale(locale: string, namespace?: string): ComputedRef<boolean> {
     return computed(() => {
       void this._cacheRevision.value;
@@ -369,14 +369,14 @@ export class VueI18n<
     }
   }
 
-  get translationCache(): ComputedRef<ReadonlyMap<string, FlattenedMessages>> {
-    if (!this._translationCacheComputed) {
-      this._translationCacheComputed = computed(() => {
+  get messagesCache(): ComputedRef<ReadonlyMap<string, FlattenedMessages>> {
+    if (!this._messagesCacheComputed) {
+      this._messagesCacheComputed = computed(() => {
         void this._cacheRevision.value;
-        return this.core.translationCache.getInternalMap();
+        return this.core.messagesCache.getInternalMap();
       });
     }
-    return this._translationCacheComputed;
+    return this._messagesCacheComputed;
   }
 
   get isLoading(): Readonly<Ref<boolean>> {

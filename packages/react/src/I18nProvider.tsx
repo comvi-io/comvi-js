@@ -25,7 +25,7 @@ export type { AnyI18nHost };
 interface I18nContextValue {
   i18n: Host;
   locale: string;
-  translationCache: ReadonlyMap<string, FlattenedMessages>;
+  messagesCache: ReadonlyMap<string, FlattenedMessages>;
   isLoading: boolean;
   isInitializing: boolean;
 }
@@ -93,7 +93,7 @@ export function useStoreRevision(i18n: Host): string {
   // subscribe effect attaches is still detected on the post-subscribe read.
   const getSnapshot = useCallback(
     () =>
-      `${i18n.translationCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
+      `${i18n.messagesCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
       `${i18n.getDefaultNamespace()}:${i18n.getActiveNamespaces().join(",")}:` +
       `${i18n.getFallbackLocales().join(",")}:${i18n.configRevision}:` +
       `${i18n.locale}:${i18n.isLoading ? 1 : 0}:${i18n.isInitializing ? 1 : 0}`,
@@ -328,10 +328,10 @@ export function useI18nContext(): I18nContextValue {
   const locale = useContext(LocaleContext) ?? "";
 
   const storeRevision = useStoreRevision(i18n);
-  const translationCache = i18n.translationCache.getInternalMap();
+  const messagesCache = i18n.messagesCache.getInternalMap();
 
   return useMemo<I18nContextValue>(
-    () => ({ i18n, locale, translationCache, isLoading, isInitializing }),
-    [i18n, locale, translationCache, isLoading, isInitializing, storeRevision],
+    () => ({ i18n, locale, messagesCache, isLoading, isInitializing }),
+    [i18n, locale, messagesCache, isLoading, isInitializing, storeRevision],
   );
 }

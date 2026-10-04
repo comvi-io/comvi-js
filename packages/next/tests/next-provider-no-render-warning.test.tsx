@@ -332,7 +332,7 @@ describe("Test D — useStoreRevision re-renders on canonical events with real s
     // namespaceLoaded bumps the cache revision, so the 7th canonical event
     // re-renders too.
     await act(async () => {
-      fake.translationCache.set("en", "default", { extra: "v" });
+      fake.messagesCache.set("en", "default", { extra: "v" });
       fake.emit("namespaceLoaded", { locale: "en", namespace: "default" });
       await flushMicrotasks();
     });

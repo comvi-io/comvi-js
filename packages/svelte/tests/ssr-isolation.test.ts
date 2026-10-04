@@ -67,7 +67,7 @@ describe("SSR cross-request isolation — store-level", () => {
     expect(outputB).toBe("Message requête B");
   });
 
-  it("translation cache is isolated per instance (WeakMap keyed by instance)", async () => {
+  it("the messages cache is isolated per instance (WeakMap keyed by instance)", async () => {
     const instanceA = createI18n({
       locale: "en",
       messages: { en: { key: "Value A" } },

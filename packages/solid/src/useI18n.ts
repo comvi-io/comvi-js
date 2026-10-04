@@ -94,7 +94,7 @@ export interface UseI18nReturn<
 
   getDefaultNamespace: Host["getDefaultNamespace"];
 
-  getTranslationCache: () => ReadonlyMap<string, FlattenedMessages>;
+  getMessagesCache: () => ReadonlyMap<string, FlattenedMessages>;
 
   /** Returns an unsubscribe function. */
   on: Host["on"];
@@ -246,7 +246,7 @@ export function useI18n<
     getLoadedLocales: () => ctx.i18n.getLoadedLocales(),
     getActiveNamespaces: () => ctx.i18n.getActiveNamespaces(),
     getDefaultNamespace: () => ctx.i18n.getDefaultNamespace(),
-    getTranslationCache: () => ctx.i18n.translationCache.getInternalMap(),
+    getMessagesCache: () => ctx.i18n.messagesCache.getInternalMap(),
     on: (...args) => ctx.i18n.on(...args),
     reportError: (...args) => ctx.i18n.reportError(...args),
     formatNumber: (...args) => formatNumber(localeSource, ...args),

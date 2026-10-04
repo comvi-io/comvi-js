@@ -1,6 +1,7 @@
 import { describe, it, expectTypeOf } from "vitest";
 import type { NuxtI18nOptions, NuxtI18nRuntimeConfig } from "../src/types";
 import * as loadUtils from "../src/runtime/server/utils/loadMessages";
+import type { UseI18nReturn } from "../src/runtime/composables/useI18n";
 
 /**
  * 0.5 «first impression» renames on the Nuxt surface: the inline catalog is
@@ -28,5 +29,11 @@ describe("catalog vocabulary", () => {
     expectTypeOf(loadUtils.loadMessages).toBeFunction();
     // @ts-expect-error -- the util is `loadMessages`.
     void loadUtils.loadTranslations;
+  });
+
+  it("names the catalog cache `messagesCache`", () => {
+    expectTypeOf<UseI18nReturn>().toHaveProperty("messagesCache");
+    // @ts-expect-error -- renamed to `messagesCache`.
+    expectTypeOf<UseI18nReturn>().toHaveProperty("translationCache");
   });
 });

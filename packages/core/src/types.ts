@@ -1,6 +1,6 @@
 import type { VirtualNode } from "./virtualNode";
 import type { MessageCompiler, MissingParamMode, SyntaxExtension } from "./core/translate/syntax";
-import type { TranslationCache as TranslationCacheClass } from "./core/TranslationCache";
+import type { MessagesCache as MessagesCacheClass } from "./core/MessagesCache";
 import type { I18n } from "./core/i18n";
 import type { I18nPlugin, PluginOptions } from "./plugins/types";
 
@@ -883,7 +883,7 @@ export type TranslationValue = string | { [key: string]: TranslationValue };
 
 export type FlattenedMessages = Record<string, string>;
 
-export type TranslationCache = TranslationCacheClass;
+export type MessagesCache = MessagesCacheClass;
 
 export type TranslationResult = string | Array<string | VirtualNode>;
 
@@ -917,7 +917,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   /** Read by plugins to pick behaviour (API vs CDN loading). */
   get devMode(): boolean;
 
-  get translationCache(): TranslationCache;
+  get messagesCache(): MessagesCache;
 
   get isLoading(): boolean;
 

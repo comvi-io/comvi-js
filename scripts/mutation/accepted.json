@@ -13,16 +13,16 @@
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "private _primaryTranslationsLocale: string = \"\";",
+      "snippet": "private _primaryMessagesLocale: string = \"\";",
       "lineHint": 198,
       "kind": "equivalent",
-      "reason": "the memo's locale/namespace seeds are only ever read once `_primaryTranslationsRevision === revision`, which the -1 seed makes impossible."
+      "reason": "the memo's locale/namespace seeds are only ever read once `_primaryMessagesRevision === revision`, which the -1 seed makes impossible."
     },
     {
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "private _primaryTranslationsNamespace: string = \"\";",
+      "snippet": "private _primaryMessagesNamespace: string = \"\";",
       "lineHint": 200,
       "kind": "equivalent",
       "reason": "same seed — unreadable before the first recompute overwrites it."
@@ -1252,7 +1252,7 @@
       "snippet": "loc === this._locale && ns === this._cachedDefaultNs",
       "lineHint": 524,
       "kind": "equivalent",
-      "reason": "Routes the read through translationCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns translationCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs.",
+      "reason": "Routes the read through messagesCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns messagesCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs.",
       "round": 2
     },
     {
@@ -1309,7 +1309,7 @@
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "this._primaryTranslationsRevision === revision &&",
+      "snippet": "this._primaryMessagesRevision === revision &&",
       "lineHint": 666,
       "kind": "equivalent",
       "reason": "A forced miss in _getPrimaryTranslations re-reads the same (locale, namespace) entry out of the cache and re-seeds the memo with it, so the returned catalog - and therefore every t()/tRaw()/hasTranslation() result built on it - is identical. Only the number of cache reads changes.",
@@ -1332,7 +1332,7 @@
       "snippet": "locale === this._locale && namespace === this._cachedDefaultNs",
       "lineHint": 704,
       "kind": "equivalent",
-      "reason": "Routes the read through translationCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns translationCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs.",
+      "reason": "Routes the read through messagesCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns messagesCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs.",
       "round": 2
     },
     {

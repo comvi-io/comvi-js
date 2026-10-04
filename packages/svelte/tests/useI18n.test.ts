@@ -4,7 +4,7 @@ import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import UseI18nHarness from "./UseI18nHarness.test.svelte";
 import NoContextHarness from "./NoContextHarness.test.svelte";
 import StoreCacheHarness from "./StoreCacheHarness.test.svelte";
-import TranslationCacheHarness from "./TranslationCacheHarness.test.svelte";
+import MessagesCacheHarness from "./MessagesCacheHarness.test.svelte";
 
 describe("useI18n", () => {
   let fake: FakeI18n;
@@ -198,8 +198,8 @@ describe("useI18n", () => {
     expect(text("events")).toBe("en->fr");
   });
 
-  it("exposes the host's translation cache map, keyed by locale:namespace", () => {
-    component = mount(TranslationCacheHarness, {
+  it("exposes the host's messages cache map, keyed by locale:namespace", () => {
+    component = mount(MessagesCacheHarness, {
       target,
       props: { i18n: fake.asI18n() },
     });

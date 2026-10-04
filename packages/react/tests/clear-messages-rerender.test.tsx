@@ -1,7 +1,7 @@
 /**
  * A scopeless `clearMessages()` keeps the active namespace set, so the
  * provider's snapshot string no longer changes through `getActiveNamespaces()`.
- * `translationCache.getRevision()` is what has to carry the re-render — this
+ * `messagesCache.getRevision()` is what has to carry the re-render — this
  * proves the refetch fix was not traded for a staleness bug.
  */
 import { describe, it, expect } from "vitest";

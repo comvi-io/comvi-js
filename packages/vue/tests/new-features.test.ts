@@ -7,12 +7,12 @@ import { nextTick, isRef, effectScope, inject } from "vue";
 import { mount } from "@vue/test-utils";
 
 describe("New Features", () => {
-  describe("Cached translationCache computed", () => {
+  describe("Cached messagesCache computed", () => {
     it("should update cache ref when translations are added", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      const cache = i18n.translationCache;
+      const cache = i18n.messagesCache;
 
       expect(cache.value.size).toBe(0);
 
@@ -32,7 +32,7 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      const cache = i18n.translationCache;
+      const cache = i18n.messagesCache;
 
       i18n.addMessages({
         en: { hello: "Hello" },

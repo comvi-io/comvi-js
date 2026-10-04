@@ -40,7 +40,7 @@ type ComviCoreGlobal = Pick<
   | "I18n"
   | "createI18n"
   | "isVirtualNode"
-  | "TranslationCache"
+  | "MessagesCache"
   | "icuCompiler"
   | "flattenCatalog"
   | "translationResultToString"
@@ -112,7 +112,7 @@ describe("UMD global build (A12)", () => {
     ["icuCompiler", "object"],
     ["flattenCatalog", "function"],
     ["isVirtualNode", "function"],
-    ["TranslationCache", "function"],
+    ["MessagesCache", "function"],
     ["translationResultToString", "function"],
   ])("publishes %s on the context global, typeof %s", (member, kind) => {
     expect(typeof published[member as keyof ComviCoreGlobal]).toBe(kind);

@@ -279,8 +279,8 @@ export class FakeI18n {
     return true;
   }
 
-  get translationCache(): FakeTranslationCache {
-    return this.core.translationCache;
+  get messagesCache(): FakeTranslationCache {
+    return this.core.messagesCache;
   }
 
   get isLoading(): boolean {

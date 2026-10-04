@@ -89,7 +89,7 @@ const configurationConflict = (configured: CellState, incoming: string): Error =
  *   defaultLocale: 'en',
  *   locales: ['en'],
  *   defaultNs: 'default',
- *   translation: translations,
+ *   messages: translations,
  * });
  *
  * // Configure for server-side usage

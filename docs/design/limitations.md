@@ -124,7 +124,7 @@ ask. The hosted CDN default stays readable as `comviPreset.cdnBaseUrl`.
 ## Memory
 
 - **A catalog is never evicted.** Everything `addMessages` and a loader merge into a host stays
-  in its translation cache until `clearMessages()` or `destroy()`. The three caches that ARE
+  in its messages cache until `clearMessages()` or `destroy()`. The three caches that ARE
   bounded — compiled templates, `Intl` formatters and plural rules — hold 1000 entries each, FIFO,
   and are shared by every host in the process; that is an ENTRY limit, not a byte limit, so 1000
   long messages cost more than 1000 short ones. A client app with a fixed set of languages therefore

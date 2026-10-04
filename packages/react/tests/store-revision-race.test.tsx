@@ -68,7 +68,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       return null;
     }
 
-    const revisionBefore = i18n.translationCache.getRevision();
+    const revisionBefore = i18n.messagesCache.getRevision();
 
     const { getByTestId } = render(
       <I18nProvider i18n={i18n} autoInit={false}>
@@ -77,7 +77,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       </I18nProvider>,
     );
 
-    expect(i18n.translationCache.getRevision()).toBe(revisionBefore);
+    expect(i18n.messagesCache.getRevision()).toBe(revisionBefore);
 
     await waitFor(() => {
       expect(getByTestId("out").textContent).toBe("Fallback");

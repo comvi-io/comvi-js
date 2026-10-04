@@ -79,11 +79,11 @@ describe("clearMessages() with no scope", () => {
 
   it("bumps the cache revision exactly once, whatever the number of locales", () => {
     const i18n = twoLocalesTwoNamespaces();
-    const before = i18n.translationCache.getRevision();
+    const before = i18n.messagesCache.getRevision();
 
     i18n.clearMessages();
 
-    expect(i18n.translationCache.getRevision()).toBe(before + 1);
+    expect(i18n.messagesCache.getRevision()).toBe(before + 1);
   });
 });
 
@@ -99,11 +99,11 @@ describe("clearMessages() over a scope that holds nothing", () => {
 
   it("still bumps the cache revision for an unknown locale, so memoized reads re-read", () => {
     const i18n = twoLocalesTwoNamespaces();
-    const before = i18n.translationCache.getRevision();
+    const before = i18n.messagesCache.getRevision();
 
     i18n.clearMessages("xx");
 
-    expect(i18n.translationCache.getRevision()).toBe(before + 1);
+    expect(i18n.messagesCache.getRevision()).toBe(before + 1);
   });
 
   it("leaves every catalog and every active namespace in place for an unknown namespace", () => {

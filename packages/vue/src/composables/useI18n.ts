@@ -33,7 +33,7 @@ export interface UseI18nReturn<
   setLocale: (locale: string) => Promise<void>;
 
   /** Stable identity; re-evaluates on cache mutation. */
-  translationCache: ComputedRef<ReadonlyMap<string, FlattenedMessages>>;
+  messagesCache: ComputedRef<ReadonlyMap<string, FlattenedMessages>>;
 
   isLoading: Readonly<Ref<boolean>>;
 
@@ -71,7 +71,7 @@ export interface UseI18nReturn<
     opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
   ) => ComputedRef<boolean>;
 
-  /** Re-evaluates when the translation cache changes. */
+  /** Re-evaluates when the messages cache changes. */
   hasLocale: (locale: string, namespace?: string) => ComputedRef<boolean>;
 
   /** Returns an unsubscribe function. */
@@ -126,7 +126,7 @@ export interface UseI18nReturn<
 const PASSTHROUGH_KEYS = [
   "locale",
   "setLocale",
-  "translationCache",
+  "messagesCache",
   "isLoading",
   "isInitializing",
   "isInitialized",

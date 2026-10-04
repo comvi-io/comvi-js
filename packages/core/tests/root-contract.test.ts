@@ -104,7 +104,7 @@ const PROTOTYPE_ACCESSORS = [
  * Public own properties every instance assigns, in constructor-assignment
  * order (which IS declaration order for these four).
  */
-const PUBLIC_OWN_KEYS = ["translationCache", "apiKey", "collectContext", "devMode"] as const;
+const PUBLIC_OWN_KEYS = ["messagesCache", "apiKey", "collectContext", "devMode"] as const;
 
 /** Assigned only by the discovery capability, and only when exposure is on. */
 const DISCOVERY_OWN_KEY = "instanceId";

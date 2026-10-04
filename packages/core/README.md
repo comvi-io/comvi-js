@@ -93,7 +93,7 @@ independent, and either works without the other.
 
 ## Specific to core
 
-The root entry is the base host: text and `{param}` interpolation, the translation cache, events,
+The root entry is the base host: text and `{param}` interpolation, the messages cache, events,
 default params and the `.use(installer)` pipe. Everything else is a subpath you import, and a
 capability you never import never enters your bundle.
 

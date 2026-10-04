@@ -1,6 +1,7 @@
 // Type-level contract for the 0.5 «first impression» renames. 0.5 ships no
 // aliases: every old name must be rejected outright, not merely deprecated.
-import { createI18n, type WrapperI18nHost } from "@comvi/core";
+import * as core from "@comvi/core";
+import { createI18n, type MessagesCache, type WrapperI18nHost } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 
 declare const base: ReturnType<typeof createI18n>;
@@ -43,3 +44,11 @@ base.clearTranslations();
 void withLoader.reloadTranslations();
 // @ts-expect-error the `translationsCleared` event was renamed to `messagesCleared`.
 base.on("translationsCleared", () => {});
+
+// The catalog cache follows the same rule: `MessagesCache` / `messagesCache`.
+export const messagesCache: MessagesCache = base.messagesCache;
+export const MessagesCacheClass = core.MessagesCache;
+// @ts-expect-error renamed to `messagesCache` (no alias).
+void base.translationCache;
+// @ts-expect-error renamed to `MessagesCache` (no alias).
+void core.TranslationCache;

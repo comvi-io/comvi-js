@@ -114,7 +114,7 @@ describe("useI18n", () => {
 
     expect(result.current.isInitialized).toBe(false);
     const revisionBefore = result.current.cacheRevision;
-    expect(revisionBefore).toBe(fake.translationCache.getRevision());
+    expect(revisionBefore).toBe(fake.messagesCache.getRevision());
 
     await act(async () => {
       await fake.init();
@@ -159,7 +159,7 @@ describe("useI18n", () => {
       </I18nProvider>
     );
     const { result } = renderHook(() => useI18n(), { wrapper });
-    const revisionBefore = i18n.translationCache.getRevision();
+    const revisionBefore = i18n.messagesCache.getRevision();
 
     expect(result.current.t("fallbackOnly" as never)).toBe("fallbackOnly");
 
@@ -167,7 +167,7 @@ describe("useI18n", () => {
       i18n.setFallbackLocale("en");
     });
 
-    expect(i18n.translationCache.getRevision()).toBe(revisionBefore);
+    expect(i18n.messagesCache.getRevision()).toBe(revisionBefore);
     await waitFor(() => {
       expect(result.current.t("fallbackOnly" as never)).toBe("Fallback");
     });
@@ -215,19 +215,19 @@ describe("useI18n", () => {
     expect(fake.setLocale).toHaveBeenCalledWith("fr");
   });
 
-  it("proxies addMessages() and updates translation cache reference data", () => {
+  it("proxies addMessages() and updates messages cache reference data", () => {
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
 
-    const revisionBefore = fake.translationCache.getRevision();
+    const revisionBefore = fake.messagesCache.getRevision();
 
     act(() => {
       result.current.addMessages({ en: { hello: "Hello" } });
     });
 
     expect(fake.addMessages).toHaveBeenCalledWith({ en: { hello: "Hello" } });
-    expect(fake.translationCache.getRevision()).toBe(revisionBefore + 1);
-    expect(result.current.translationCache.has("en:default")).toBe(true);
+    expect(fake.messagesCache.getRevision()).toBe(revisionBefore + 1);
+    expect(result.current.messagesCache.has("en:default")).toBe(true);
   });
 
   it("exposes on() with unsubscribe behavior", () => {

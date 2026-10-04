@@ -537,7 +537,7 @@ describe("useI18n", () => {
     expect(api.t("greeting" as never)).toBe("greeting");
   });
 
-  it("exposes the host's loaded catalog through getTranslationCache()", () => {
+  it("exposes the host's loaded catalog through getMessagesCache()", () => {
     const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
     fake.addMessages({ en: { greeting: "Hello" } });
 
@@ -553,7 +553,7 @@ describe("useI18n", () => {
       </I18nProvider>
     ));
 
-    expect(api.getTranslationCache().get("en:common")).toEqual({ greeting: "Hello" });
+    expect(api.getMessagesCache().get("en:common")).toEqual({ greeting: "Hello" });
   });
 
   it("routes reportError() to the host's configured error handler", () => {

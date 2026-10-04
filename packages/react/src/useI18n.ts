@@ -149,7 +149,7 @@ export interface UseI18nReturn<
   tRaw: NamespaceBoundTranslateFn<NS, D, TranslationResult>;
 
   locale: string;
-  translationCache: ReadonlyMap<string, FlattenedMessages>;
+  messagesCache: ReadonlyMap<string, FlattenedMessages>;
   isLoading: boolean;
   isInitializing: boolean;
   isInitialized: boolean;
@@ -250,9 +250,9 @@ export function useI18n<
   // revision event set (return unused). The three reads below are render
   // snapshots of state that set is keyed on, so they are fresh per render.
   useStoreRevision(i18n);
-  const translationCache = i18n.translationCache.getInternalMap();
+  const messagesCache = i18n.messagesCache.getInternalMap();
   const isInitialized = i18n.isInitialized;
-  const cacheRevision = i18n.translationCache.getRevision();
+  const cacheRevision = i18n.messagesCache.getRevision();
 
   // Inject the React-tracked `locale` into every bound call so descendant
   // translations resolve against the render-time locale (not the mutable
@@ -346,7 +346,7 @@ export function useI18n<
     t,
     tRaw,
     locale,
-    translationCache,
+    messagesCache,
     isLoading,
     isInitializing,
     isInitialized,
@@ -360,7 +360,7 @@ export function useI18n<
       | "tRaw"
       | "hasTranslation"
       | "locale"
-      | "translationCache"
+      | "messagesCache"
       | "isLoading"
       | "isInitializing"
       | "isInitialized"

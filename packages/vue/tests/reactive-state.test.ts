@@ -650,7 +650,7 @@ describe("Reactive State Transitions", () => {
     });
   });
 
-  describe("translationCache Ref Identity", () => {
+  describe("messagesCache Ref Identity", () => {
     it("should return the same Ref instance across mutations", async () => {
       const i18n = createI18n({
         locale: "en",
@@ -659,12 +659,12 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      const ref1 = i18n.translationCache;
+      const ref1 = i18n.messagesCache;
 
       i18n.addMessages({ en: { foo: "bar" } });
       await nextTick();
 
-      expect(i18n.translationCache).toBe(ref1);
+      expect(i18n.messagesCache).toBe(ref1);
       expect(ref1.value.has("en:common")).toBe(true);
       expect(ref1.value.get("en:common")).toEqual({ foo: "bar" });
     });
@@ -677,14 +677,14 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      const ref1 = i18n.translationCache;
+      const ref1 = i18n.messagesCache;
       expect(ref1.value.has("en:common")).toBe(false);
 
       i18n.addMessages({ en: { foo: "bar" } });
       await nextTick();
 
       expect(ref1.value.has("en:common")).toBe(true);
-      expect(i18n.translationCache).toBe(ref1);
+      expect(i18n.messagesCache).toBe(ref1);
     });
   });
 });

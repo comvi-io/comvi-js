@@ -16,7 +16,7 @@ import type {
   LoaderFn,
   TranslationValue,
 } from "@comvi/core";
-import { createI18n, I18n, TranslationCache } from "@comvi/core";
+import { createI18n, I18n, MessagesCache } from "@comvi/core";
 import { attachLoader, loader, type LoaderImportMap } from "@comvi/core/loader";
 import { icuCompiler } from "@comvi/core/icu";
 import { plugins } from "@comvi/core/plugins";
@@ -34,7 +34,7 @@ type PreSplitKeySnapshot =
   | "apiKey"
   | "collectContext"
   | "devMode"
-  | "translationCache"
+  | "messagesCache"
   | "isLoading"
   | "isInitializing"
   | "isInitialized"
@@ -197,7 +197,7 @@ void icuByOption;
 
 // `getInternalMap()` hands back a ReadonlyMap: the runtime suite pins the
 // contents, and only the type level can pin that callers may not write to it.
-const internalMap = new TranslationCache().getInternalMap();
+const internalMap = new MessagesCache().getInternalMap();
 void internalMap.get("en:default");
 // @ts-expect-error — the snapshot is readonly at the type level
 internalMap.set("en:default", { hello: "Hello" });

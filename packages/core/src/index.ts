@@ -38,7 +38,7 @@ export function createI18n<const D extends DefaultTranslationParams = {}>(
   return new I18nImpl<D>(options);
 }
 
-export { TranslationCache } from "./core/TranslationCache";
+export { MessagesCache } from "./core/MessagesCache";
 
 /**
  * Flatten a nested catalog into the flat `{ "a.b": "…" }` shape a host stores.

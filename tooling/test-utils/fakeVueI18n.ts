@@ -31,7 +31,7 @@ export interface FakeVueI18n {
   language: Ref<string>;
   isLoading: Readonly<Ref<boolean>>;
   isInitializing: Readonly<Ref<boolean>>;
-  translationCache: Readonly<Ref<Readonly<TranslationMap>>>;
+  messagesCache: Readonly<Ref<Readonly<TranslationMap>>>;
   t: (key: string, params?: TranslationParams) => TranslationResult;
   setLanguage: (language: string) => Promise<void>;
   addMessages: (translations: Record<string, Record<string, unknown>>) => void;
@@ -83,8 +83,8 @@ export function createFakeVueI18n(options: FakeVueI18nOptions = {}): FakeVueI18n
   const language = ref(core.language);
   const isLoading = ref(core.isLoading);
   const isInitializing = ref(core.isInitializing);
-  const translationCacheRef: ShallowRef<Readonly<TranslationMap>> = shallowRef(
-    core.translationCache.getInternalMap(),
+  const messagesCacheRef: ShallowRef<Readonly<TranslationMap>> = shallowRef(
+    core.messagesCache.getInternalMap(),
   );
   const internalUnsubscribers: Unsubscribe[] = [];
 
@@ -100,10 +100,10 @@ export function createFakeVueI18n(options: FakeVueI18nOptions = {}): FakeVueI18n
       },
     ),
     core.on("namespaceLoaded", () => {
-      triggerRef(translationCacheRef);
+      triggerRef(messagesCacheRef);
     }),
     core.on("messagesCleared", () => {
-      triggerRef(translationCacheRef);
+      triggerRef(messagesCacheRef);
     }),
     core.on("initialized", () => {
       isInitializing.value = core.isInitializing;
@@ -114,7 +114,7 @@ export function createFakeVueI18n(options: FakeVueI18nOptions = {}): FakeVueI18n
     language,
     isLoading: readonly(isLoading),
     isInitializing: readonly(isInitializing),
-    translationCache: readonly(translationCacheRef),
+    messagesCache: readonly(messagesCacheRef),
     t: vi.fn((key: string, params?: TranslationParams) => core.t(key, params)),
     setLanguage: vi.fn(async (nextLanguage: string): Promise<void> => {
       await core.setLanguageAsync(nextLanguage);

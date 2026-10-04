@@ -23,7 +23,7 @@ function createI18nStub(initialLocale = "en") {
     // The wrapper's own host, reachable as `VueI18n.core`.
     core: { id: "core-host" },
     locale: ref(initialLocale),
-    translationCache: computed(() => new Map()),
+    messagesCache: computed(() => new Map()),
     isLoading: ref(false),
     isInitializing: ref(false),
     init: vi.fn().mockResolvedValue(undefined),
@@ -349,7 +349,7 @@ describe("runtime plugin", () => {
     i18n.addMessages = vi.fn();
     createComviI18n.mockReturnValue(i18n);
 
-    const ssrTranslations = {
+    const ssrMessages = {
       "en:default": { greeting: "Hello" },
       "en:common": { save: "Save" },
     };
@@ -358,12 +358,12 @@ describe("runtime plugin", () => {
     await plugin.setup(
       createNuxtAppStub({
         payload: {
-          __comvi_messages__: ssrTranslations,
+          __comvi_messages__: ssrMessages,
         },
       }),
     );
 
-    expect(i18n.addMessages).toHaveBeenCalledWith(ssrTranslations);
+    expect(i18n.addMessages).toHaveBeenCalledWith(ssrMessages);
     expect(i18n.addMessages.mock.invocationCallOrder[0]).toBeLessThan(
       i18n.init.mock.invocationCallOrder[0],
     );
@@ -581,7 +581,7 @@ describe("runtime plugin", () => {
       props: {},
       children: ["important text"],
     };
-    const ssrTranslations = {
+    const ssrMessages = {
       "en:default": {
         greeting: "Hello",
         highlighted: virtualNodeTranslation as unknown as string,
@@ -589,7 +589,7 @@ describe("runtime plugin", () => {
     };
 
     // The structure has to survive the JSON round-trip Nuxt payloads impose.
-    const serialized = JSON.parse(JSON.stringify(ssrTranslations));
+    const serialized = JSON.parse(JSON.stringify(ssrMessages));
 
     const plugin = await importPlugin();
     await plugin.setup(
@@ -676,9 +676,9 @@ describe("runtime plugin", () => {
       expect(runComviSetup).toHaveBeenCalledWith(expect.objectContaining({ runtime: "server" }));
     });
 
-    it("serializes the rendered translation cache into the Nuxt payload", async () => {
+    it("serializes the rendered messages cache into the Nuxt payload", async () => {
       const i18n = createI18nStub("en");
-      i18n.translationCache = computed(
+      i18n.messagesCache = computed(
         () =>
           new Map([
             ["en:default", { greeting: "Hello" }],
@@ -704,7 +704,7 @@ describe("runtime plugin", () => {
       const i18n = createI18nStub("en");
       // Core hands out null-prototype catalogs; Nuxt's payload serializer drops them.
       const catalog = Object.assign(Object.create(null), { greeting: "Hello" });
-      i18n.translationCache = computed(() => new Map([["en:default", catalog]]));
+      i18n.messagesCache = computed(() => new Map([["en:default", catalog]]));
       createComviI18n.mockReturnValue(i18n);
 
       const plugin = await importPlugin();

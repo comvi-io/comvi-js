@@ -384,7 +384,7 @@ describe("composite parity — plugin host and discovery", () => {
       },
       {
         value: [
-          ["translationCache", "apiKey", "collectContext", "devMode", "instanceId"],
+          ["messagesCache", "apiKey", "collectContext", "devMode", "instanceId"],
           "instanceId",
         ],
       },
@@ -400,7 +400,7 @@ describe("composite parity — plugin host and discovery", () => {
           .sort();
         return keys;
       },
-      { value: ["apiKey", "collectContext", "devMode", "instanceId", "translationCache"] },
+      { value: ["apiKey", "collectContext", "devMode", "instanceId", "messagesCache"] },
     );
   });
 });

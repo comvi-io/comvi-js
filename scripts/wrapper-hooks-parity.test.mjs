@@ -52,14 +52,14 @@ const DECLARATION_SOURCES = {
  * closed (the name reached all four) is stale and fails too.
  */
 const ALLOWED_MEMBER_DIFFERENCES = {
-  translationCache: {
+  messagesCache: {
     only: ["@comvi/react", "@comvi/vue"],
     reason:
-      "react/vue hand out the cache snapshot as a value; solid/svelte as `getTranslationCache()`",
+      "react/vue hand out the cache snapshot as a value; solid/svelte as `getMessagesCache()`",
   },
-  getTranslationCache: {
+  getMessagesCache: {
     only: ["@comvi/solid", "@comvi/svelte"],
-    reason: "the accessor half of the `translationCache` value/function split above",
+    reason: "the accessor half of the `messagesCache` value/function split above",
   },
   loadedLocales: {
     only: ["@comvi/vue"],

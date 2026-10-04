@@ -68,7 +68,7 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     tRaw,
     locale: i18n.locale,
     setLocale,
-    translationCache: i18n.translationCache,
+    messagesCache: i18n.messagesCache,
     isLoading: i18n.isLoading,
     isInitializing: i18n.isInitializing,
     isInitialized: i18n.isInitialized,

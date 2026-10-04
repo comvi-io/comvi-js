@@ -50,13 +50,13 @@ describe("new I18n(options) — option defaults", () => {
     expect(i18n.devMode).toBe(true);
   });
 
-  it("passes defaultNs to the translation cache, so a namespace-less cache read resolves it", () => {
+  it("passes defaultNs to the messages cache, so a namespace-less cache read resolves it", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "ui",
       messages: { en: { save: "Save" } },
     });
 
-    expect(i18n.translationCache.get("en")).toEqual({ save: "Save" });
+    expect(i18n.messagesCache.get("en")).toEqual({ save: "Save" });
   });
 });

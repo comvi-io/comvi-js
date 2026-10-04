@@ -1,7 +1,7 @@
 import type { FlattenedMessages } from "../types";
 
 /** Nested `Map<locale, Map<namespace, translations>>` storage. */
-export class TranslationCache {
+export class MessagesCache {
   private _cache = new Map<string, Map<string, FlattenedMessages>>();
   private _defaultNs: string;
   private _revision = 0;

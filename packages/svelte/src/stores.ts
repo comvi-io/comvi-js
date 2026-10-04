@@ -157,7 +157,7 @@ export function createInitializedStore<D extends DefaultTranslationParams = {}>(
 }
 
 /**
- * Tracks translation cache/config changes as a monotonic revision counter.
+ * Tracks messages cache/config changes as a monotonic revision counter.
  * Memoized per i18n instance.
  */
 export function createCacheRevisionStore<D extends DefaultTranslationParams = {}>(

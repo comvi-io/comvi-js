@@ -33,7 +33,7 @@ function createI18nStub() {
     setLocale: vi.fn(async (next: string) => {
       locale.value = next;
     }),
-    translationCache: computed(() => new Map()),
+    messagesCache: computed(() => new Map()),
     isLoading: ref(false),
     isInitializing: ref(false),
     addMessages: vi.fn(),

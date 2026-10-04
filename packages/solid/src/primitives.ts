@@ -128,7 +128,7 @@ export function createDefaultParamsState<D extends DefaultTranslationParams = {}
 }
 
 /**
- * Tracks translation cache/config changes as a monotonic revision counter.
+ * Tracks messages cache/config changes as a monotonic revision counter.
  * MUST be called within a reactive context (component or effect).
  */
 export function createCacheRevisionSignal(i18n: WrapperI18nHost): Accessor<number> {

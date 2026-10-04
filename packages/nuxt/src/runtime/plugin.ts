@@ -125,7 +125,7 @@ export default defineNuxtPlugin({
           nuxtApp.payload.state[I18N_EDITOR_MAPPINGS_STATE_KEY] = mappings;
         }
 
-        const cacheMap = i18n.translationCache.value;
+        const cacheMap = i18n.messagesCache.value;
         if (cacheMap.size > 0) {
           nuxtApp.payload[I18N_MESSAGES_PAYLOAD_KEY] = serializeTranslationCache(cacheMap);
         }
@@ -138,11 +138,11 @@ export default defineNuxtPlugin({
           initialInContextEditorMappings;
       }
 
-      const ssrTranslations = nuxtApp.payload?.[I18N_MESSAGES_PAYLOAD_KEY] as
+      const ssrMessages = nuxtApp.payload?.[I18N_MESSAGES_PAYLOAD_KEY] as
         | TranslationsPayload
         | undefined;
-      if (ssrTranslations) {
-        i18n.addMessages(ssrTranslations);
+      if (ssrMessages) {
+        i18n.addMessages(ssrMessages);
       }
     }
 

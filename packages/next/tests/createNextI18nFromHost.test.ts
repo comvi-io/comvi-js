@@ -109,7 +109,7 @@ describe("createNextI18nFromHost — server render on a base + loader host", () 
     expect(loader).toHaveBeenCalledWith("fr", "common");
   });
 
-  it("preserves the translation cache across requests", async () => {
+  it("preserves the messages cache across requests", async () => {
     const loader = vi.fn(async () => ({ greeting: "Bonjour" }));
     createNextI18nFromHost(hostWithLoader(loader), ROUTING);
 

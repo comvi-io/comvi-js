@@ -317,7 +317,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
         // Otherwise the reload could resolve to a request that started before
         // the cache was cleared.
         this._cancelNs(loc, ns);
-        this.translationCache.delete(loc, ns);
+        this.messagesCache.delete(loc, ns);
       }
     }
 
@@ -378,7 +378,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
           (this as unknown as I18nInternal)._preflightSimpleCatalog?.(
             normalizeTranslationObject(translations),
           );
-        this.translationCache.set(locale, namespace, normalizeTranslationObject(translations));
+        this.messagesCache.set(locale, namespace, normalizeTranslationObject(translations));
         this._emit("namespaceLoaded", { namespace, locale });
       } catch (error) {
         if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;
@@ -405,7 +405,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     if (!this._loader) return;
 
     const namespacesToLoad = skipLoaded
-      ? namespaces.filter((ns) => !this.translationCache.has(locale, ns))
+      ? namespaces.filter((ns) => !this.messagesCache.has(locale, ns))
       : namespaces;
 
     if (namespacesToLoad.length === 0) return;

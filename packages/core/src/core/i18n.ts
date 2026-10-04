@@ -31,7 +31,7 @@ import {
 import { translationResultToString } from "../utils/translationResultToString";
 import { normalizeTranslationObject } from "../utils";
 import { claimCoreInstance } from "./duplicateGuard";
-import { TranslationCache } from "./TranslationCache";
+import { MessagesCache } from "./MessagesCache";
 import { isStaticTemplate, translate, translateTemplate } from "./translate";
 import {
   clearIcuHit,
@@ -162,7 +162,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 {
   /** `protected`, not `private`: the capability subclasses in `core/loader.ts` / `core/plugins.ts` read it. */
   protected _locale: string;
-  public readonly translationCache: TranslationCache;
+  public readonly messagesCache: MessagesCache;
   private _isInitializing: boolean = false;
   private _isInitialized: boolean = false;
   /**
@@ -218,10 +218,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * with its own chaining applier on the first registration.
    */
   protected _postProcessor?: PostProcessFn;
-  private _primaryTranslations?: FlattenedMessages;
-  private _primaryTranslationsRevision: number = -1;
-  private _primaryTranslationsLocale: string = "";
-  private _primaryTranslationsNamespace: string = "";
+  private _primaryMessages?: FlattenedMessages;
+  private _primaryMessagesRevision: number = -1;
+  private _primaryMessagesLocale: string = "";
+  private _primaryMessagesNamespace: string = "";
 
   protected _activeNamespaces = new Set<string>();
 
@@ -266,7 +266,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const defaultNs = options.defaultNs ?? DEFAULT_NS;
     const initialNamespaces = options.ns;
     this._cachedDefaultNs = defaultNs;
-    this.translationCache = new TranslationCache({ defaultNs });
+    this.messagesCache = new MessagesCache({ defaultNs });
     this._initialNamespaces = initialNamespaces ? [...new Set(initialNamespaces)] : undefined;
 
     const fallbackLocale = options.fallbackLocale;
@@ -597,13 +597,13 @@ export class I18n<D extends DefaultTranslationParams = {}>
     (this as unknown as I18nInternal)._cancelNs?.(locale, namespace);
 
     if (locale) {
-      this.translationCache.delete(locale, namespace);
+      this.messagesCache.delete(locale, namespace);
     } else if (namespace) {
-      for (const loc of this.translationCache.getLocales()) {
-        this.translationCache.delete(loc, namespace);
+      for (const loc of this.messagesCache.getLocales()) {
+        this.messagesCache.delete(loc, namespace);
       }
     } else {
-      this.translationCache.clear();
+      this.messagesCache.clear();
     }
 
     this._emit("messagesCleared", { locale, namespace });
@@ -618,11 +618,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   getMessages(locale: string = this._locale, namespace: string = this._cachedDefaultNs) {
-    return this.translationCache.get(locale, namespace) ?? {};
+    return this.messagesCache.get(locale, namespace) ?? {};
   }
 
   hasLocale(locale: string, namespace?: string): boolean {
-    return this.translationCache.has(locale, namespace ?? this._cachedDefaultNs);
+    return this.messagesCache.has(locale, namespace ?? this._cachedDefaultNs);
   }
 
   hasTranslation(
@@ -636,14 +636,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const translations =
       loc === this._locale && ns === this._cachedDefaultNs
         ? this._getPrimaryTranslations()
-        : this.translationCache.get(loc, ns);
+        : this.messagesCache.get(loc, ns);
     if (translations !== undefined && translations[key] !== undefined) {
       return true;
     }
     if (checkFallbacks) {
       for (const fallbackLoc of this._fallbackLocales) {
         if (fallbackLoc === loc) continue;
-        const fallbackTranslations = this.translationCache.get(fallbackLoc, ns);
+        const fallbackTranslations = this.messagesCache.get(fallbackLoc, ns);
         if (fallbackTranslations !== undefined && fallbackTranslations[key] !== undefined) {
           return true;
         }
@@ -770,20 +770,20 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   private _getPrimaryTranslations(): FlattenedMessages | undefined {
-    const revision = this.translationCache.getRevision();
+    const revision = this.messagesCache.getRevision();
     if (
-      this._primaryTranslationsRevision === revision &&
-      this._primaryTranslationsLocale === this._locale &&
-      this._primaryTranslationsNamespace === this._cachedDefaultNs
+      this._primaryMessagesRevision === revision &&
+      this._primaryMessagesLocale === this._locale &&
+      this._primaryMessagesNamespace === this._cachedDefaultNs
     ) {
-      return this._primaryTranslations;
+      return this._primaryMessages;
     }
 
-    const translations = this.translationCache.get(this._locale, this._cachedDefaultNs);
-    this._primaryTranslations = translations;
-    this._primaryTranslationsRevision = revision;
-    this._primaryTranslationsLocale = this._locale;
-    this._primaryTranslationsNamespace = this._cachedDefaultNs;
+    const translations = this.messagesCache.get(this._locale, this._cachedDefaultNs);
+    this._primaryMessages = translations;
+    this._primaryMessagesRevision = revision;
+    this._primaryMessagesLocale = this._locale;
+    this._primaryMessagesNamespace = this._cachedDefaultNs;
     return translations;
   }
 
@@ -812,7 +812,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const translations =
       locale === this._locale && namespace === this._cachedDefaultNs
         ? this._getPrimaryTranslations()
-        : this.translationCache.get(locale, namespace);
+        : this.messagesCache.get(locale, namespace);
     const template = translations?.[translationKey];
     if (template !== undefined) {
       const result = translate(
@@ -834,7 +834,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
 
     for (const fallbackLoc of fallbackLocales) {
-      const fallbackTranslations = this.translationCache.get(fallbackLoc, namespace);
+      const fallbackTranslations = this.messagesCache.get(fallbackLoc, namespace);
       const fallbackTemplate = fallbackTranslations?.[translationKey];
       if (fallbackTemplate !== undefined) {
         const result = translate(
@@ -954,7 +954,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   /** Locale codes that currently have translations loaded. */
   public getLoadedLocales(): string[] {
-    return this.translationCache.getLocales();
+    return this.messagesCache.getLocales();
   }
 
   /**
@@ -1034,8 +1034,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // dictionary-mode (null-prototype) source has no V8 fast path and costs
       // ~130 ns PER KEY, so storing `flat` directly on the first write is what
       // keeps `new I18n({ messages })` from being 2.5x slower.
-      const existing = this.translationCache.get(loc, ns);
-      this.translationCache.set(
+      const existing = this.messagesCache.get(loc, ns);
+      this.messagesCache.set(
         loc,
         ns,
         existing ? Object.assign(Object.create(null), existing, flat) : flat,
@@ -1087,7 +1087,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._activeNamespaces.clear();
     this._postProcessor = undefined;
 
-    this.translationCache.clear();
+    this.messagesCache.clear();
 
     // Phase 3 — capability reset, after the `destroyed` listeners have seen the
     // still-live capability state.

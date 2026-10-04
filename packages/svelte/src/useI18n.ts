@@ -193,7 +193,7 @@ export interface UseI18nReturn<
 
   getDefaultNamespace: () => string;
 
-  getTranslationCache: () => ReadonlyMap<string, FlattenedMessages>;
+  getMessagesCache: () => ReadonlyMap<string, FlattenedMessages>;
 
   /** Returns an unsubscribe function. */
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
@@ -322,7 +322,7 @@ export function useI18n<
     getLoadedLocales: i18n.getLoadedLocales.bind(i18n),
     getActiveNamespaces: i18n.getActiveNamespaces.bind(i18n),
     getDefaultNamespace: i18n.getDefaultNamespace.bind(i18n),
-    getTranslationCache: () => i18n.translationCache.getInternalMap(),
+    getMessagesCache: () => i18n.messagesCache.getInternalMap(),
     on: i18n.on.bind(i18n),
     reportError: i18n.reportError.bind(i18n),
     formatNumber: (value, options, loc) => formatNumber(localeSource, value, options, loc),

@@ -7,9 +7,9 @@
 
   setI18nContext(i18n, { autoInit: false });
 
-  const { getTranslationCache } = useI18n();
+  const { getMessagesCache } = useI18n();
 
-  const cache = getTranslationCache();
+  const cache = getMessagesCache();
   const cacheKeys = [...cache.keys()].sort().join(",");
   const englishGreeting = String(cache.get("en:common")?.hello);
 </script>

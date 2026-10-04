@@ -324,9 +324,9 @@ describe("I18nProvider", () => {
     const renderSpy = vi.fn();
 
     const Wrapped = () => {
-      const { translationCache } = useI18nContext();
-      renderSpy(translationCache.size);
-      return <div data-testid="cache-size">{translationCache.size}</div>;
+      const { messagesCache } = useI18nContext();
+      renderSpy(messagesCache.size);
+      return <div data-testid="cache-size">{messagesCache.size}</div>;
     };
 
     render(
@@ -341,7 +341,7 @@ describe("I18nProvider", () => {
     act(() => {
       // Bump the cache revision the way a plugin mutating translations would,
       // then fire the only event the cache subscription sees here.
-      fake.translationCache.set("en", "default", { greeting: "Hello" });
+      fake.messagesCache.set("en", "default", { greeting: "Hello" });
       fake.emit("configChanged", { source: "messagesAdded" });
     });
 

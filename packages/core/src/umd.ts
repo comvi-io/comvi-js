@@ -10,7 +10,7 @@
 import "./register-tags";
 
 export { createI18n, I18n } from "./core/full";
-export { TranslationCache } from "./core/TranslationCache";
+export { MessagesCache } from "./core/MessagesCache";
 export { normalizeTranslationObject as flattenCatalog } from "./utils";
 export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";

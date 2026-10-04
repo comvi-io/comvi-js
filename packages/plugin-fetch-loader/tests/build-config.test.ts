@@ -12,7 +12,7 @@
  * whatever `dist/api.js` happened to be left behind — no error anywhere.
  */
 import { describe, it, expect } from "vitest";
-import { createPluginBuildOptions } from "@comvi/vite-config";
+import { comviDevConfig, createPluginBuildOptions } from "@comvi/vite-config";
 
 const ENTRY_MAP = { index: "/src/index.ts", api: "/src/api.ts" };
 
@@ -39,5 +39,23 @@ describe("createPluginBuildOptions() with a single entry", () => {
     const build = createPluginBuildOptions({ entry: "/src/index.ts" });
 
     expect(build.rolldownOptions?.output).toMatchObject([{ entryFileNames: "index.js" }]);
+  });
+});
+
+describe("comviDevConfig() source aliases", () => {
+  // Vite takes the FIRST alias whose key equals the id or prefixes it with "/",
+  // so the `/api` key must come before the root key or the root swallows it.
+  const resolveAlias = (aliases: Record<string, string>, id: string) =>
+    Object.entries(aliases).find(([key]) => id === key || id.startsWith(`${key}/`))?.[1];
+
+  it("resolves the root to src/index.ts and /api to src/api.ts", () => {
+    const aliases = comviDevConfig({ rootDir: "/repo" }).resolve?.alias as Record<string, string>;
+
+    expect(resolveAlias(aliases, "@comvi/plugin-fetch-loader")).toBe(
+      "/repo/packages/plugin-fetch-loader/src/index.ts",
+    );
+    expect(resolveAlias(aliases, "@comvi/plugin-fetch-loader/api")).toBe(
+      "/repo/packages/plugin-fetch-loader/src/api.ts",
+    );
   });
 });

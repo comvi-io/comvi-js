@@ -324,7 +324,7 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     const i18n = attachLoader(createI18n({ locale: "en" }));
     i18n.registerLoader(async () => ({ items: PLURAL }));
 
-    // The preflight runs on the loaded catalog BEFORE `translationCache.set`.
+    // The preflight runs on the loaded catalog BEFORE `messagesCache.set`.
     // A failed namespace surfaces through `loadError` rather than rejecting
     // `init()` — the shipped contract for ANY loader failure.
     const errors: Array<{ code?: unknown; argumentType?: unknown }> = [];
