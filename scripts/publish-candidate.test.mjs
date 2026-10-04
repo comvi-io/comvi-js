@@ -565,7 +565,7 @@ test("transaction: a fresh run (attempt 1) refuses versions on npm that have no 
   assert.equal(result.outputs.publishedPackages, "[]");
   assert.match(
     result.log,
-    /@comvi\/core@0\.5\.0 is on npm but has no tag: it was published by another run\. Re-run that run \('Re-run failed jobs'\), or tag it by hand at its commit before publishing from a fresh run\./,
+    /@comvi\/core@0\.5\.0 is on npm but has no tag: it was published by another run\. Re-run that run \('Re-run failed jobs'\), or dispatch a new version\./,
   );
   const calls = ws.npmCalls().slice(before);
   assert.doesNotMatch(calls, /^publish /m);

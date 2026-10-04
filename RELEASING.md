@@ -123,9 +123,12 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
       attempt created the release but failed to upload the archive, the step finds the release with
       `gh release view` and re-uploads the archive with `gh release upload --clobber` instead of
       failing on "already exists". The release notes of the existing release are kept. The
-      archive is reproducible, so the re-upload never changes the bytes of the asset: entries in
-      a fixed order, owner 0, fixed modes, every time and `manifest.json`'s `generatedAt` taken
-      from the release commit, and no gzip timestamp. By hand, from
+      archive is reproducible for a given Node build, so a re-upload from the same runner setup
+      does not change the bytes of the asset: entries in a fixed order, owner 0, fixed modes, every
+      time and `manifest.json`'s `generatedAt` taken from the release commit, and no gzip
+      timestamp. The gzip stream comes from Node's bundled zlib, so if `setup-node` resolves a
+      different Node patch release between the first attempt and a re-run, the archive bytes can
+      still differ; the tarballs inside and their `SHA256SUMS` cannot. By hand, from
       the release commit with the tags fetched, run it with `PUBLISHED_PACKAGES=<the full set>` and
       `COMVI_RELEASE_TARBALLS_DIR=<the downloaded candidate>`.
 
@@ -154,17 +157,19 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
 
 - The RC jobs run the browser suite on the candidate but no unit tests, package-contract or size
   gate.
-- **A crash between npm accepting a package and its tag push, followed by a fresh run at a newer
-  commit, is closed for CI only.** The mixed-commit guard compares the git tags of the versions
-  already on npm with the checked-out commit, and here those versions have no tag yet. So when
-  `--git-tag` is set and `GITHUB_RUN_ATTEMPT` is `1` (a fresh run), the publish step refuses, with
-  nothing published or promoted, if any version already on npm has neither a local nor a remote
-  tag. A re-run of the same run (attempt 2 or later) still reconciles the missing tags. The
-  residual gap is the by-hand path: once the original run's artifact has expired, nothing but a
-  hand-made tag at the original commit lets a fresh run proceed, and a byte comparison of npm's
-  `dist.integrity` with the candidate tarball's sha512 would need byte-reproducible builds. A fresh
-  run at the same commit passes the tag check, because its tags match. While anything is still to
-  publish, the staging-tag check closes that case: the versions already on npm carry the earlier
-  candidate's staging tag, not the fresh run's, so the run refuses. The residual gap is a version
-  whose staging tag is gone, which happens only after the whole set was on npm and promoted. Then
+- **A partial train can only be finished by the run that started it.** While anything is still to
+  publish, every version already on npm must carry the current candidate's staging tag, so ANY
+  fresh run is refused before publishing or promoting anything: in CI or by hand, with git tags or
+  without, at a newer commit or at the same one. (With `--git-tag`, a fresh CI run, attempt `1`,
+  that finds an untagged version on npm is refused earlier by the git-tag guard.) The recovery is
+  "Re-run failed jobs" on the original run; GitHub keeps re-runs for about 30 days. Once that run
+  can no longer be re-run, the by-hand escape hatch is to verify the stuck versions' bytes against
+  the new candidate's `SHA256SUMS` (compare npm's `dist.integrity` with the tarball's sha512), and
+  only if they match, run `npm dist-tag add <name>@<version> <current staging tag>` for each of
+  them before the fresh run. Otherwise bump the version. The residual gap is a version whose
+  staging tag is gone, which happens only after the whole set was on npm and promoted. Then
   nothing is published, and no bytes are compared with npm's `dist.integrity`.
+- **The staging-tag check can refuse falsely right after a publish.** It reads the version and the
+  dist-tags with two separate `npm view` calls, so a stale npm replica can show the version but not
+  yet its staging tag, and the refusal says `found none`. The check fails closed: nothing is
+  published or promoted, and a re-run of the same run passes once npm catches up.

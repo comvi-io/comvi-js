@@ -620,8 +620,7 @@ function publish(options) {
         if (untagged) {
           throw new Error(
             `${untagged.tag} is on npm but has no tag: it was published by another run. ` +
-              `Re-run that run ('Re-run failed jobs'), or tag it by hand at its commit before ` +
-              `publishing from a fresh run.`,
+              `Re-run that run ('Re-run failed jobs'), or dispatch a new version.`,
           );
         }
       }
