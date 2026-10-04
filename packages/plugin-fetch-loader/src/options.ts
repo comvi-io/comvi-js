@@ -194,8 +194,8 @@ export function getFetchLoaderConfig(i18n: {
 /**
  * Comvi platform preset: the hosted API and CDN base URLs.
  *
- * Applied as the final fallback when neither an explicit option (`baseUrl` /
- * `apiBaseUrl`) nor a build-time environment override is present. Platform
+ * Applied as the final fallback when neither the explicit `baseUrl` option nor
+ * a build-time environment override is present. Platform
  * users get these defaults without configuration; self-hosted or proxied
  * setups pass `baseUrl` explicitly.
  */
