@@ -1,8 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createI18n } from "./helpers/composedHost";
 import { inContextEditorPlugin } from "../src/index";
 import { readEditorMappings } from "@comvi/core/editor-bridge";
-import { resetEncoder } from "../src/translation";
 
 // Declared out of sorted order on purpose: ids come from a sort of the pending
 // `namespace:key` set (`src/index.ts` flushPendingKeys), not from either the
@@ -36,10 +35,6 @@ describe("InContextEditor hydration stability", () => {
     // Force the plugin's non-browser branch so no DOM watcher starts.
     vi.stubGlobal("window", undefined);
     vi.stubGlobal("document", undefined);
-  });
-
-  afterEach(() => {
-    resetEncoder();
   });
 
   it("assigns the same sorted-key-order ids on every server run, independent of the catalog's declaration order", async () => {

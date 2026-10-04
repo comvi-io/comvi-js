@@ -50,6 +50,8 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 - **The in-context editor needs a Comvi account.** `@comvi/plugin-in-context-editor` requires the
   [Comvi platform](https://comvi.io) and does not work standalone. Its production entry is a no-op
   installer, so a production build that composes it carries no editor bytes.
+- **The editor hydrates one host per page.** In the browser all editor hosts share one key-id map,
+  and each hydrating host loads its server ids over it, so a second host erases the first one's ids.
 - **The browser extension must be 0.5.0 or newer.** `window.__COMVI__` is protocol v2, and an older
   extension does not speak it. Discovery is opt-in either way: `.use(devtools())`. See
   [Devtools API](https://comvi.io/docs/i18n/api/core-devtools).

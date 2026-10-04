@@ -119,7 +119,8 @@ independent, and either works without the other.
 - `useSetLocaleTransition()` wraps the switch in `useTransition`, so the old UI stays interactive
   while the new catalog loads. The provider subscribes through `useSyncExternalStore`.
 - `<T>` maps each tag a translator wrote to a React element, a function component or an HTML tag
-  name; children render when the key is missing. Plain `t()` does not parse tags.
+  name; children render when the key is missing. Plain `t()` does not parse tags. Define handler
+  components outside render, as with any component.
 - `@comvi/react` ships no SSR adapter. On Next.js use [`@comvi/next`](https://comvi.io/docs/i18n/next).
 
 ## Next steps

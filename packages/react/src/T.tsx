@@ -130,11 +130,16 @@ interface TBaseProps {
   /**
    * Tag-name → handler map for tag interpolation.
    *
+   * A function handler is a component: define it outside render, as with any
+   * component, or its subtree remounts on every render.
+   *
    * @example
+   * const Button = ({ children }) => <button>{children}</button>;
+   *
    * {
    *   bold: <strong />,                    // React element - children injected
    *   link: <a href="/help" />,            // Props preserved
-   *   btn: ({ children }) => <button>{children}</button>  // Function handler
+   *   btn: Button,                         // Function component
    * }
    */
   components?: ComponentMap;

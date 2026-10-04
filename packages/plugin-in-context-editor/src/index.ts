@@ -188,7 +188,9 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     // Register post-processor in all runtimes so SSR/client markup stays consistent.
     registerPostProcessorOnce(i18n);
 
-    // Browser-only editor runtime: no-op during SSR/server execution.
+    // Browser-only editor runtime: no-op during SSR/server execution. The
+    // bridge ref-count below tracks browser runtimes only: a server host is
+    // discarded with its request, bridge and encoder included.
     if (!isBrowserRuntime) {
       return () => {
         removeBeforeProcessHook();
@@ -244,7 +246,7 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
       core.stop();
       resetApiConfig(instanceId);
       activeBrowserEditorRuntimes.delete(runtimeId);
-      const users = (bridgeUsers.get(i18n) ?? 1) - 1;
+      const users = (bridgeUsers.get(i18n) ?? 0) - 1;
       if (users > 0) {
         bridgeUsers.set(i18n, users);
       } else {
