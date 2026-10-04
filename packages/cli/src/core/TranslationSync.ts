@@ -459,9 +459,11 @@ export class TranslationSync {
       }
     }
 
+    // Any non-separator segment is captured, then judged by the same policy
+    // the write side applies: whatever `pull` can write, `push` must read back.
     const placeholders: Record<string, string> = {
-      "{languageTag}": "(?<locale>[A-Za-z0-9_-]+)",
-      "{namespace}": "(?<namespace>[A-Za-z0-9_-]+)",
+      "{languageTag}": "(?<locale>[^/]+)",
+      "{namespace}": "(?<namespace>[^/]+)",
       "{extension}": "[A-Za-z]+",
     };
 
@@ -473,7 +475,12 @@ export class TranslationSync {
     const regex = new RegExp(`^${regexPattern}$`);
     const match = relativePath.match(regex);
 
-    if (match?.groups?.locale && match.groups.namespace) {
+    if (
+      match?.groups?.locale &&
+      match.groups.namespace &&
+      unsafePathSegmentReason(match.groups.locale) === undefined &&
+      unsafePathSegmentReason(match.groups.namespace) === undefined
+    ) {
       return {
         locale: match.groups.locale,
         namespace: match.groups.namespace,
@@ -571,11 +578,21 @@ function hasControlCharacter(value: string): boolean {
  * actually is. A leading dot covers `.` and `..` along with hidden names.
  */
 function unusableSegmentReason(value: string): string | undefined {
+  if (value === "__proto__") return "it is a reserved JavaScript property name";
+  return unsafePathSegmentReason(value);
+}
+
+/**
+ * The path-shape half of `unusableSegmentReason`, shared with the read side so
+ * a name `pull` writes is a name `push` reads back. Reading does not need the
+ * `__proto__` refusal: its maps are null-prototype, so a `__proto__.json`
+ * file is just an entry.
+ */
+function unsafePathSegmentReason(value: string): string | undefined {
   if (value === "") return "it is empty";
   if (value.includes("/") || value.includes("\\")) return "it contains a path separator";
   if (hasControlCharacter(value)) return "it contains a control character";
   if (value.startsWith(".")) return "it starts with a dot";
-  if (value === "__proto__") return "it is a reserved JavaScript property name";
   return undefined;
 }
 
@@ -637,8 +654,9 @@ async function realPathOfExistingPrefix(target: string): Promise<string> {
 }
 
 function parseDefaultNamespaceFile(relativePath: string, format: "json"): string | null {
-  const regex = new RegExp(`^([A-Za-z0-9_-]+)\\.${escapeRegExp(format)}$`);
-  return relativePath.match(regex)?.[1] ?? null;
+  const regex = new RegExp(`^([^/]+)\\.${escapeRegExp(format)}$`);
+  const locale = relativePath.match(regex)?.[1];
+  return locale !== undefined && unsafePathSegmentReason(locale) === undefined ? locale : null;
 }
 
 /** An empty scope clears everything; any filter narrows it. */

@@ -176,6 +176,59 @@ describe("TranslationSync path containment", () => {
   });
 
   /**
+   * What `pull` writes, the next `push` has to read back. The read side used to
+   * match only `[A-Za-z0-9_-]+`, so `web app/en.json` was written and then
+   * silently left out of the upload.
+   */
+  describe("pull then push round-trip", () => {
+    const templates: Array<[label: string, template: string]> = [
+      ["the default layout", DEFAULT_FILE_TEMPLATE],
+      ["a locale-first layout", "{languageTag}/{namespace}.{extension}"],
+    ];
+
+    describe.each(templates)("with %s", (_layout, fileTemplate) => {
+      async function roundTrip(locale: string, namespace: string, defaultNamespace?: string) {
+        const root = await makeTempDir("comvi-cli-roundtrip");
+        const sync = new TranslationSync({
+          translationsPath: join(root, "locales"),
+          fileTemplate,
+          format: "json",
+        });
+
+        await sync.writeTranslations(responseFor(locale, namespace), { defaultNamespace });
+        return sync.readTranslations({ defaultNamespace });
+      }
+
+      it.each(usable)("reads back a namespace containing %s", async (_label, identifier) => {
+        const local = await roundTrip("en", identifier);
+
+        expect(local.locales).toEqual(["en"]);
+        expect(local.namespaces).toEqual([identifier]);
+        expect(local.translations.en?.[identifier]).toEqual(CATALOG);
+      });
+
+      it.each(usable)("reads back a locale containing %s", async (_label, identifier) => {
+        const local = await roundTrip(identifier, "common");
+
+        expect(local.locales).toEqual([identifier]);
+        expect(local.namespaces).toEqual(["common"]);
+        expect(local.translations[identifier]?.common).toEqual(CATALOG);
+      });
+
+      it.each(usable)(
+        "reads back a default-namespace locale containing %s",
+        async (_label, identifier) => {
+          const local = await roundTrip(identifier, "default");
+
+          expect(local.locales).toEqual([identifier]);
+          expect(local.namespaces).toEqual(["default"]);
+          expect(local.translations[identifier]?.default).toEqual(CATALOG);
+        },
+      );
+    });
+  });
+
+  /**
    * `pull --empty-dir` clears before it writes, so a rejection that fires
    * halfway through the response leaves the project with the namespaces sorted
    * before the offending one and nothing else. Either all of it or none of it.
