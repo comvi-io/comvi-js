@@ -43,7 +43,7 @@ async function select(code: string) {
   await navigateTo(switchLocalePath(code));
 }
 
-// Read on the CLIENT only. The module builds one host per server request and a
+// Read on the CLIENT only. The module builds one instance per server request and a
 // separate one in the browser, so the catalogs "fetched so far" is a fact about
 // this browser — rendering it during SSR would print one list on the server and
 // another after hydration.
@@ -90,7 +90,7 @@ watch([locale, isLoading], () => {
     </section>
 
     <!-- 3 — an ICU plural, live on a counter. The compiler was named in
-         `comvi.host.ts`; the module's own generated host would render the
+         `comvi.host.ts`; the module's own generated instance would render the
          braced segment literally. -->
     <section>
       <h2>plural</h2>

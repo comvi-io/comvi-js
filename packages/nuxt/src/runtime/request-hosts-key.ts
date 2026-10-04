@@ -1,10 +1,10 @@
 import type { WrapperI18nHost } from "@comvi/core";
 
 /**
- * Where the app plugin parks its per-request host for the Nitro teardown to
+ * Where the app plugin parks its per-request instance for the Nitro teardown to
  * find, and the one name both sides have to agree on.
  *
- * The host travels as DATA on the h3 event's context rather than through a
+ * The instance travels as DATA on the h3 event's context rather than through a
  * module's state, and that is the whole point of this file. The Vue app's
  * server bundle and the Nitro runtime are produced by different builds — it is
  * why nuxt's `impound` plugin refuses a `#build/*` alias on the nitro side at
@@ -13,5 +13,5 @@ import type { WrapperI18nHost } from "@comvi/core";
  */
 export const REQUEST_HOSTS_KEY = "__comviRequestHosts";
 
-/** All the teardown needs of a host, and what both host shapes have. */
+/** All the teardown needs of an instance, and what both instance shapes have. */
 export type RequestScopedHost = Pick<WrapperI18nHost, "destroy" | "reportError">;

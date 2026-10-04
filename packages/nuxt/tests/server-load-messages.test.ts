@@ -20,9 +20,9 @@ vi.mock("#build/comvi.setup", () => ({
 // attach-only composition is named, because `attachLoader` is the only one core
 // publishes — `loader(map)` requires its map and therefore always registers.
 const NO_LOADER_REGISTERED_MESSAGE =
-  "[@comvi/nuxt] No loader registered, so SSR loaded nothing. This i18n host has the loader " +
+  "[@comvi/nuxt] No loader registered, so SSR loaded nothing. This i18n instance has the loader " +
   "capability: pass the import map where you compose it — " +
-  "createI18n(options).use(loader(map)) in your `hostModule` factory — or, on a host " +
+  "createI18n(options).use(loader(map)) in your `hostModule` factory — or, on an instance " +
   "composed with .use(attachLoader), register a LoaderFn from " +
   "comvi.setup: (({ core }) => { core.registerLoader(fn); }).";
 

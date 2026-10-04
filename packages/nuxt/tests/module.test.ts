@@ -481,7 +481,7 @@ describe("nuxt module setup", () => {
     expect(message).toContain(`Found "${join(srcDir, "comvi.host.cjs")}"`);
     expect(message).toContain('could not resolve "./comvi.host"');
     expect(message).toContain(srcDir);
-    expect(message).toContain("the app runs on the BASE host");
+    expect(message).toContain("the app runs on the BASE instance");
     expect(message).toContain("`hostModule`");
   });
 
@@ -638,7 +638,7 @@ describe("nuxt module setup", () => {
     expect(contents).toContain("comvi hostModule must export a default function");
     // The guard names the import that FIXES it, and it is the module's own
     // subpath — @comvi/vue's createI18n is the wrapper the guard rejects.
-    expect(contents).toContain("must default-export a factory returning a core HOST");
+    expect(contents).toContain("must default-export a factory returning a core instance");
     expect(contents).toContain('createI18n from "@comvi/nuxt/host"');
     expect(contents).toContain("createI18n(options).use(loader(map))");
     // A composed host honours the same nuxt.config the default branch does.

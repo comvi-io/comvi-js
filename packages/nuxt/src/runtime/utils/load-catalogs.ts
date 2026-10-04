@@ -2,7 +2,7 @@ import { hasLoaderApi } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 
 /**
- * In-flight loads per host and `locale:namespace`. Core's `reloadMessages`
+ * In-flight loads per instance and `locale:namespace`. Core's `reloadMessages`
  * cancels and restarts a pair that is already loading, so concurrent callers
  * share the first one's promise here instead of fetching the pair twice.
  */
@@ -12,7 +12,7 @@ const toError = (error: unknown): Error =>
 const pendingLoads = new WeakMap<WrapperI18nHost, Record<string, Promise<void> | undefined>>();
 
 /**
- * Pairs whose load failed on a host. Every server host is the request's own,
+ * Pairs whose load failed on an instance. Every server instance is the request's own,
  * so this is per request: a failed pair is not retried before the request
  * ends, because the render already went without it and the payload must carry
  * what the render read.
@@ -21,16 +21,16 @@ const failedLoads = new WeakMap<WrapperI18nHost, Set<string>>();
 
 /**
  * Load `namespaces` (default: the active ones) for `locale` and every locale of
- * the host's `fallbackLocale` chain, in core's lookup order, skipping every
+ * the instance's `fallbackLocale` chain, in core's lookup order, skipping every
  * pair already in the cache. Without `locale`, the fallback chain minus the
- * host's current locale: core's own activation or locale switch loads that one,
+ * instance's current locale: core's own activation or locale switch loads that one,
  * and a reload here would cancel and refetch it.
  *
  * A failure has already reached `onError` and `loadError` through core; it is
  * logged here and swallowed, so the render continues without that catalog. The
  * payload then lacks it too, and SSR and the client agree.
  *
- * A host without the loader capability, or with none registered, has nothing
+ * An instance without the loader capability, or with none registered, has nothing
  * to load: whatever `comvi.setup` put in the catalog is already there.
  */
 export async function loadCatalogs(

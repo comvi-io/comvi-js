@@ -9,7 +9,7 @@ export default defineNuxtConfig({
 
   // Connect to Comvi, opt-in: empty by default, so `comvi.host.ts` composes the
   // local import map. `NUXT_PUBLIC_COMVI_CDN_URL` overrides it at runtime (Nuxt
-  // maps that variable onto this key), and the host then loads every catalog
+  // maps that variable onto this key), and the instance then loads every catalog
   // from the platform CDN instead, on the server and in the browser.
   runtimeConfig: {
     public: {
@@ -36,7 +36,7 @@ export default defineNuxtConfig({
     // its route middleware pre-loads the catalog before the page renders.
     localePrefix: "always",
     fallbackLocale: "en",
-    // No `hostModule`: `src/comvi.host.ts` decides what the host can do, and
+    // No `hostModule`: `src/comvi.host.ts` decides what the instance can do, and
     // the module picks it up by convention (it logs the path it chose).
   },
 });

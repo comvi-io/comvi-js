@@ -473,7 +473,7 @@ describe("request host teardown", () => {
       "[@comvi/nuxt] useTranslation()/loadMessages() after the response ended",
     );
     await expect(getRequestI18n(captured!, "en")).rejects.toThrow(
-      "the request host is already destroyed",
+      "the request instance is already destroyed",
     );
     expect(teardowns).toHaveLength(1);
   });

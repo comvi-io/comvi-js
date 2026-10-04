@@ -30,14 +30,14 @@ interface NitroAppLike {
 }
 
 /**
- * Destroys each request's i18n hosts once Nitro is done with the request.
+ * Destroys each request's i18n instances once Nitro is done with the request.
  *
  * It listens for `afterResponse` through `afterEach` rather than as a named
  * handler, because a named handler runs in the MIDDLE of the callHook:
  * another plugin's handler — or Nitro's own stale-while-revalidate
  * registration — sits after ours and calls `event.waitUntil()` there, which a
  * teardown that already read the pending-work array would miss and destroy the
- * host under. `afterEach` fires after every handler of that call has finished,
+ * instance under. `afterEach` fires after every handler of that call has finished,
  * so the array is complete when the wait starts.
  *
  * `afterResponse` means both "the handler returned" and "the response is
@@ -57,7 +57,7 @@ interface NitroAppLike {
  * Why it imports `../internal/request-hosts` and not the server util next to
  * it: nuxt's `impound` plugin refuses a `#build/*` alias anywhere in the nitro
  * runtime graph, and `../utils/request-i18n` imports two of them to build a
- * host. Pulling that module in here fails an app's `nitro` build outright —
+ * instance. Pulling that module in here fails an app's `nitro` build outright —
  * which is why `test-apps/nuxt` is built as part of this lot's gates.
  */
 export default function comviRequestCleanup(nitroApp: NitroAppLike): void {

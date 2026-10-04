@@ -7,7 +7,7 @@ import { useRuntimeConfig } from "#imports";
  * packages at all — `useI18n()`, `<T>` and `<NuxtLinkLocale>` are auto-imported,
  * so nothing under `pages/` imports anything.
  *
- * A FRESH host per call: the factory runs once for the client plugin and once
+ * A FRESH instance per call: the factory runs once for the client plugin and once
  * per server request (in development the module throws if it gets one twice). It receives Nuxt's RESOLVED `comvi` options, so
  * `nuxt.config.ts` stays in charge of configuration while this file stays in
  * charge of capabilities.

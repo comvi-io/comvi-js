@@ -25,7 +25,7 @@ export interface UseI18nReturn<
  *
  * <template>
  *   <div>{{ t('greeting') }}</div>
- *   <select @change="setLanguage($event.target.value)">
+ *   <select @change="setLocale($event.target.value)">
  *     <option v-for="locale in locales" :key="locale" :value="locale">
  *       {{ locale }}
  *     </option>

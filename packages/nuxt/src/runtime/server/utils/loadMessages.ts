@@ -24,7 +24,7 @@ const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 // `hostModule` factory. Naming the wrong one would send a reader to the wrong
 // file, so the capability probe below picks the message.
 const NO_LOADER_CAPABILITY_MESSAGE =
-  '[@comvi/nuxt] This i18n host has no loader capability, so SSR loaded nothing. The generated default host is core\'s base host — compose the loader in a `hostModule` factory: createI18n(options).use(loader(map)) from "@comvi/core" + "@comvi/core/loader", and set `comvi.hostModule` in nuxt.config.';
+  '[@comvi/nuxt] This i18n instance has no loader capability, so SSR loaded nothing. The generated default instance is core\'s base instance — compose the loader in a `hostModule` factory: createI18n(options).use(loader(map)) from "@comvi/core" + "@comvi/core/loader", and set `comvi.hostModule` in nuxt.config.';
 // The host HAS the loader capability here, so the fix is the REGISTRATION, not
 // the composition — and it may only name shapes the docs teach.
 // `registerPlugin(...)` is not one of them: the plugin host is a SEPARATE
@@ -35,9 +35,9 @@ const NO_LOADER_CAPABILITY_MESSAGE =
 // publishes — `loader(map)` requires its map and therefore always registers —
 // so it is the only one this sentence has to name.
 const NO_LOADER_REGISTERED_MESSAGE =
-  "[@comvi/nuxt] No loader registered, so SSR loaded nothing. This i18n host has the loader " +
+  "[@comvi/nuxt] No loader registered, so SSR loaded nothing. This i18n instance has the loader " +
   "capability: pass the import map where you compose it — " +
-  "createI18n(options).use(loader(map)) in your `hostModule` factory — or, on a host " +
+  "createI18n(options).use(loader(map)) in your `hostModule` factory — or, on an instance " +
   "composed with .use(attachLoader), register a LoaderFn from " +
   "comvi.setup: (({ core }) => { core.registerLoader(fn); }).";
 

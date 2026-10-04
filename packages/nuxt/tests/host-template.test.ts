@@ -352,7 +352,7 @@ export default (options) => {
 
     // Regression: a factory missing its `return` used to fail deep inside createI18nFromCore.
     expect(() => createComviCore()).toThrow(
-      "[@comvi/nuxt] comvi hostModule must default-export a factory returning a core HOST",
+      "[@comvi/nuxt] comvi hostModule must default-export a factory returning a core instance",
     );
   });
 
@@ -371,7 +371,7 @@ export default (options) => createI18n({ ...options, exposeGlobal: false });
     const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
 
     expect(() => createComviCore({ locale: "en" })).toThrow(
-      '[@comvi/nuxt] comvi hostModule must default-export a factory returning a core HOST, not a VueI18n. Use createI18n from "@comvi/nuxt/host", e.g. createI18n(options).use(loader(map)).',
+      '[@comvi/nuxt] comvi hostModule must default-export a factory returning a core instance, not a VueI18n. Use createI18n from "@comvi/nuxt/host", e.g. createI18n(options).use(loader(map)).',
     );
   });
 
@@ -507,7 +507,7 @@ export default (options) => {
     const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
 
     expect(() => createComviCore()).toThrow(
-      "[@comvi/nuxt] comvi hostModule must export a default function returning an i18n host.",
+      "[@comvi/nuxt] comvi hostModule must export a default function returning an i18n instance.",
     );
   });
 });
@@ -709,7 +709,7 @@ export default () => shared;
 
     createComviI18n({ locale: "en" });
     expect(() => createComviCore({ locale: "en" })).toThrow(
-      "[@comvi/nuxt] comvi hostModule returned a host it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
+      "[@comvi/nuxt] comvi hostModule returned an instance it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
     );
   });
 

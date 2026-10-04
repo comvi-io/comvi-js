@@ -19,7 +19,7 @@ import {
   readEditorMappings,
 } from "@comvi/core/editor-bridge";
 
-/** Server hosts whose `addActiveNamespaces` already loads the fallback chain. */
+/** Server instances whose `addActiveNamespaces` already loads the fallback chain. */
 const chainLoadingHosts = new WeakSet<object>();
 
 const I18N_EDITOR_MAPPINGS_STATE_KEY = "__comvi_ice_mappings__";

@@ -42,7 +42,7 @@ declare module "#app" {
     payload: NuxtPayload;
     /**
      * Server only, and the reason it is declared here: the app plugin hands its
-     * per-request host to the Nitro teardown through this event's context.
+     * per-request instance to the Nitro teardown through this event's context.
      * Nuxt's own type has `event` required; optional is the safer shim.
      */
     ssrContext?: { event?: import("h3").H3Event; [key: string]: unknown };

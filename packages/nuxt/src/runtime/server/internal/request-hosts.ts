@@ -3,7 +3,7 @@ import type { NuxtServerHost } from "../../../types";
 import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "../../request-hosts-key";
 
 /**
- * The per-request host registry and its teardown, kept apart from
+ * The per-request instance registry and its teardown, kept apart from
  * `../utils/request-i18n` for one build-time reason: that module imports
  * `#build/comvi.setup` and `#build/comvi.host`, and nuxt's `impound` plugin
  * refuses a Vue app alias anywhere in the NITRO runtime graph — which a server
@@ -22,15 +22,15 @@ export const requestI18nMap = new WeakMap<object, Map<string, Promise<NuxtServer
 
 /**
  * Contexts that already carry an end-of-response hook. The WeakMap above makes
- * the hosts COLLECTABLE, which is not the same as destroyed: a plugin's cleanup
+ * the instances COLLECTABLE, which is not the same as destroyed: a plugin's cleanup
  * (an interval, a socket, a subscription) runs only when someone calls
  * `destroy()`, and on the server nobody did.
  */
 const cleanupHooked = new WeakSet<object>();
 
 /**
- * Contexts whose hosts have been destroyed, so a LATER call is refused rather
- * than silently handed a host nothing will tear down: the hook has already
+ * Contexts whose instances have been destroyed, so a LATER call is refused rather
+ * than silently handed an instance nothing will tear down: the hook has already
  * fired, and `once("close", …)` on a closed response never fires again.
  */
 const tornDown = new WeakSet<object>();
@@ -40,7 +40,7 @@ const tornDown = new WeakSet<object>();
  * `afterResponse` runs after the HANDLER returned as well as after the response
  * was written, which the response's own `close` event cannot promise, so when
  * that plugin is installed it owns teardown outright and this module hooks
- * nothing: two mechanisms on one request is how a host gets destroyed twice.
+ * nothing: two mechanisms on one request is how an instance gets destroyed twice.
  */
 let nitroOwnsCleanup = false;
 
@@ -50,8 +50,8 @@ export function claimRequestCleanup(): void {
 }
 
 const AFTER_RESPONSE_MESSAGE =
-  "[@comvi/nuxt] useTranslation()/loadMessages() after the response ended — the request " +
-  "host is already destroyed; translate before responding, or create your own host";
+  "[@comvi/nuxt] useTranslation()/loadMessages() after the response ended: the request " +
+  "instance is already destroyed. Translate before responding, or create your own instance.";
 
 export const getContextKey = (event: H3Event): object => {
   if (event.context && typeof event.context === "object") {
@@ -60,7 +60,7 @@ export const getContextKey = (event: H3Event): object => {
   return event as unknown as object;
 };
 
-/** Throws when this request's hosts are already gone. */
+/** Throws when this request's instances are already gone. */
 export function assertRequestLive(contextKey: object): void {
   if (tornDown.has(contextKey)) {
     throw new Error(AFTER_RESPONSE_MESSAGE);
@@ -68,10 +68,10 @@ export function assertRequestLive(contextKey: object): void {
 }
 
 /**
- * Tear down every host this request built: the app plugin's SSR host and every
+ * Tear down every instance this request built: the app plugin's SSR instance and every
  * locale instance the server utilities made.
  *
- * A rejected creation promise has no host to destroy and is skipped — the
+ * A rejected creation promise has no instance to destroy and is skipped — the
  * rejection was already delivered to the caller that asked for that locale.
  */
 async function destroyRequestHosts(contextKey: object): Promise<void> {
@@ -108,7 +108,7 @@ async function destroyRequestHosts(contextKey: object): Promise<void> {
 }
 
 /**
- * A rejected `destroy()` is reported through the host's own error channel: the
+ * A rejected `destroy()` is reported through the instance's own error channel: the
  * response is written by now, so there is nowhere else for it to go, and
  * throwing here would surface as an unhandled rejection in the server process.
  */
@@ -139,9 +139,9 @@ const deferralArmed = new WeakSet<object>();
  * How many rounds of "work that registered more work" the teardown follows.
  *
  * The wait re-reads the array, so a background task that reschedules itself
- * would keep the loop — and with it the event and its hosts — alive forever,
- * which is the leak this whole mechanism exists to close. At the cap the hosts
- * are destroyed anyway and the host's `onError` is told, because at that point
+ * would keep the loop — and with it the event and its instances — alive forever,
+ * which is the leak this whole mechanism exists to close. At the cap the instances
+ * are destroyed anyway and the instance's `onError` is told, because at that point
  * something in the app is looping, not translating.
  */
 const MAX_WAIT_ROUNDS = 100;
@@ -152,7 +152,7 @@ interface NitroEventContext {
 }
 
 /**
- * Say something on the request's own error channel, through the first host it
+ * Say something on the request's own error channel, through the first instance it
  * built — the channel belongs to the request, not to one locale.
  */
 function reportRequestCleanup(contextKey: object, message: string): void {
@@ -217,7 +217,7 @@ async function settlePendingWork(event: H3Event, contextKey: object): Promise<vo
     if (round >= MAX_WAIT_ROUNDS) {
       reportRequestCleanup(
         contextKey,
-        `[@comvi/nuxt] event.waitUntil() work was still registering more work after ${MAX_WAIT_ROUNDS} rounds; destroying this request's i18n hosts anyway`,
+        `[@comvi/nuxt] event.waitUntil() work was still registering more work after ${MAX_WAIT_ROUNDS} rounds; destroying this request's i18n instances anyway`,
       );
       return;
     }
@@ -251,7 +251,7 @@ async function settlePendingWork(event: H3Event, contextKey: object): Promise<vo
  *
  * The residual race is stated in `docs/design/ssr.md`: a handler that yields to
  * a timer or real I/O AFTER an abort can still be torn down under, and its next
- * `getRequestI18n` then throws rather than returning a half-dead host.
+ * `getRequestI18n` then throws rather than returning a half-dead instance.
  */
 function scheduleTeardown(event: H3Event, contextKey: object): void {
   const res = event.node.res;
@@ -290,7 +290,7 @@ export async function destroyAfterResponse(event: H3Event): Promise<void> {
  * during that await, `close` has already fired by the time a later-armed
  * listener goes on, and a thrown handler never reaches `afterResponse` at all:
  * h3 1.15.11's catch runs `onError` first and returns on `event.handled`,
- * which Nitro's `errorHandler` has just set by sending the response. The host
+ * which Nitro's `errorHandler` has just set by sending the response. The instance
  * would be retained for the life of the process.
  *
  * Idempotent: `captureError` can fire many times on one request, and the
