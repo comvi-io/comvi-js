@@ -259,6 +259,23 @@ describe("I18nProvider messages", () => {
     expect(addMessages).toHaveBeenCalledExactlyOnceWith(messages);
   });
 
+  it("a partial messages catalog merges over the cached one, key by key", () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello", home: "Home" } },
+    });
+    const Both = () => {
+      const { t } = useI18n();
+      return <p>{`${t("greeting")}|${t("home")}`}</p>;
+    };
+    const html = renderToString(
+      <I18nProvider i18n={i18n} autoInit={false} messages={{ en: { greeting: "Hi" } }}>
+        <Both />
+      </I18nProvider>,
+    );
+    expect(html).toContain("Hi|Home");
+  });
+
   it("renderToString with messages never writes the instance", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     const html = renderToString(

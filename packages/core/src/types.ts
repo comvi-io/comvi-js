@@ -1146,8 +1146,8 @@ export interface I18nCoreExtraApi {
   getLoadedLocales: () => string[];
 
   /**
-   * A read view whose `t` / `tRaw` / `hasTranslation` resolve `catalogs`
-   * first, for each call, and the cache otherwise. The i18n instance is not
+   * A read view whose `t` / `tRaw` / `hasTranslation` read each key from
+   * `catalogs` first and from the cache otherwise. The i18n instance is not
    * written. `catalogs` is keyed `"locale:namespace"` and holds flat catalogs
    * (`flattenCatalog`).
    */

@@ -42,6 +42,19 @@ describe("withMessages() read view", () => {
     expect(view.t("farewell", { locale: "de" })).toBe("Bye");
   });
 
+  it("merges a partial catalog key by key over the cached one, as addMessages does", () => {
+    const i18n = host();
+    const missing: string[] = [];
+    i18n.on("missingKey", ({ key }) => missing.push(key));
+    const view = i18n.withMessages({ "en:default": { greeting: "Hi" } });
+
+    expect(view.t("greeting")).toBe("Hi");
+    expect(view.t("farewell")).toBe("Bye");
+    expect(view.tRaw("farewell")).toBe("Bye");
+    expect(view.hasTranslation("farewell")).toBe(true);
+    expect(missing).toEqual([]);
+  });
+
   it("answers hasTranslation from the catalogs", () => {
     const i18n = host();
     const view = i18n.withMessages(DE);

@@ -247,7 +247,7 @@ export function I18nProvider({
   let [, target, from] = hand;
   if (hand[0] !== i18n || target !== targetLocale) {
     setHand([i18n, (target = targetLocale), (from = i18n.locale)]);
-  } else if (from !== null && i18n.locale !== from) {
+  } else if (target !== undefined && from !== null && i18n.locale !== from) {
     setHand([i18n, target, (from = null)]);
   }
   const locale =

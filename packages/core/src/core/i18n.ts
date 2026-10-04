@@ -234,7 +234,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
   } = { _rev: -1, _loc: "", _ns: "" };
   /**
    * A `withMessages` view's catalogs, keyed `"locale:namespace"`. An own
-   * property of the view only, never of the instance. Read by `_catalog`
+   * property of the view only, never of the instance. Read by `_template`
    * (for `_translate` and `hasTranslation`) and by `tRaw`'s fast path, which
    * it turns off.
    */
@@ -688,15 +688,13 @@ export class I18n<D extends DefaultTranslationParams = {}>
   ): boolean {
     const loc = locale ?? this._locale;
     const ns = namespace ?? this._cachedDefaultNs;
-    const translations = this._catalog(loc, ns);
-    if (translations !== undefined && translations[key] !== undefined) {
+    if (this._template(loc, ns, key) !== undefined) {
       return true;
     }
     if (checkFallbacks) {
       for (const fallbackLoc of this._fallbackLocales) {
         if (fallbackLoc === loc) continue;
-        const fallbackTranslations = this._catalog(fallbackLoc, ns);
-        if (fallbackTranslations !== undefined && fallbackTranslations[key] !== undefined) {
+        if (this._template(fallbackLoc, ns, key) !== undefined) {
           return true;
         }
       }
@@ -823,15 +821,15 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * A read view of the instance: `t`, `tRaw` and `hasTranslation` that
-   * resolve a `locale:namespace` held in `catalogs` from there and everything
-   * else from the cache. The view inherits the instance through its prototype
-   * and holds `catalogs` as its only own property, so the i18n instance is
-   * not written — no cache entry, no active namespace, no event — and a view
-   * a caller drops leaves nothing behind. Later `addMessages` reach it through
-   * the cache, but a catalog `catalogs` holds keeps replacing the cached one
-   * for that `locale:namespace`. `catalogs` is keyed `"locale:namespace"` and
-   * holds flat catalogs, as `flattenCatalog` returns them.
+   * A read view of the instance: `t`, `tRaw` and `hasTranslation` that read
+   * each key from `catalogs` first and from the cache otherwise — the merge
+   * `addMessages(catalogs)` would make, without making it. The view inherits
+   * the instance through its prototype and holds `catalogs` as its only own
+   * property, so the i18n instance is not written — no cache entry, no active
+   * namespace, no event — and a view a caller drops leaves nothing behind.
+   * Later `addMessages` reach it through the cache for every key `catalogs`
+   * does not hold. `catalogs` is keyed `"locale:namespace"` and holds flat
+   * catalogs, as `flattenCatalog` returns them.
    */
   withMessages(catalogs: Readonly<Record<string, FlattenedMessages>>): I18nMessagesView<D> {
     const view = Object.create(this) as this;
@@ -839,13 +837,21 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return view;
   }
 
-  /** The catalog a lookup reads: the running `withMessages` view's, else the cache's. */
-  private _catalog(locale: string, namespace: string): FlattenedMessages | undefined {
+  /**
+   * The template a lookup reads, key by key: a `withMessages` view's catalog
+   * first, then the cache — the same merge `addMessages` would make, so a
+   * partial catalog never hides a cached key.
+   */
+  private _template(
+    locale: string,
+    namespace: string,
+    key: string,
+  ): FlattenedMessages[string] | undefined {
     return (
-      this._overlay?.[locale + ":" + namespace] ??
+      this._overlay?.[locale + ":" + namespace]?.[key] ??
       (locale === this._locale && namespace === this._cachedDefaultNs
         ? this._getPrimaryTranslations()
-        : this.messagesCache.get(locale, namespace))
+        : this.messagesCache.get(locale, namespace))?.[key]
     );
   }
 
@@ -890,8 +896,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
       params?.tagInterpolation,
     );
 
-    const translations = this._catalog(locale, namespace);
-    const template = translations?.[translationKey];
+    const template = this._template(locale, namespace, translationKey);
     if (template !== undefined) {
       const result = translate(
         template,
@@ -912,8 +917,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
 
     for (const fallbackLoc of fallbackLocales) {
-      const fallbackTranslations = this._catalog(fallbackLoc, namespace);
-      const fallbackTemplate = fallbackTranslations?.[translationKey];
+      const fallbackTemplate = this._template(fallbackLoc, namespace, translationKey);
       if (fallbackTemplate !== undefined) {
         const result = translate(
           fallbackTemplate,

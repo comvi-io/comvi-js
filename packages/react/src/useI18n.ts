@@ -158,7 +158,10 @@ export interface UseI18nReturn<
   isInitializing: boolean;
   isInitialized: boolean;
 
-  /** Core's translation-cache revision for this render; changes on cache mutation. */
+  /**
+   * The i18n instance's cache revision for this render; changes on cache
+   * mutation. It does not move when `messages` are only overlaid.
+   */
   cacheRevision: number;
 
   /** Change the current locale and wait for translations to load. */
