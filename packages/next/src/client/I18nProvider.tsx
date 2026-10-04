@@ -15,9 +15,12 @@ import { RoutingProvider } from "../routing/context";
  */
 export type MessagesMap = Record<string, Record<string, TranslationValue>>;
 
-// react's SSR render locale is omitted: this provider sets it from its own
-// `locale` prop, so `ssrLocale` passed here would be silently overridden.
-export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrLocale"> {
+// react's SSR render locale and switch target are omitted: this provider sets
+// both from its own `locale` prop, so passing them here would be overridden.
+export interface I18nProviderProps extends Omit<
+  ReactI18nProviderProps,
+  "ssrLocale" | "targetLocale"
+> {
   /** Locale passed from server (from params.locale) */
   locale: string;
 
@@ -150,50 +153,49 @@ export function I18nProvider({
   // don't re-apply the same messages object.
   const lastAddedMessagesRef = useRef<MessagesMap | undefined>(undefined);
 
-  // Sync locale + messages before the first commit.
+  // The handed-over catalog goes in DURING render, before the children, on
+  // the first render and on every later one that brings a new object (a
+  // client navigation). Two things depend on it:
+  //  • the children of this very render translate in `locale` (passed as
+  //    `targetLocale` below), so the text commits together with the
+  //    `<html lang>` the same server payload carries, never one render later;
+  //  • assigning the locale afterwards starts a guarded `setLocale` that loads
+  //    every active namespace not yet cached for it. With the catalog already
+  //    in, it loads nothing; added after, the browser fetched the catalog the
+  //    server had just delivered, and `isLoading` stayed up until that
+  //    duplicate answered.
+  // It runs on the server too: `addMessages` is additive and keyed
+  // `locale:namespace`, so a concurrent request can only write what the other
+  // would have loaded anyway, and after the first add per key it is a no-op
+  // for the cache and for `getActiveNamespaces()`. The first add does emit
+  // `namespaceLoaded` — accepted; subscribers are notified a microtask later,
+  // never during this render.
+  if (messages && messages !== lastAddedMessagesRef.current) {
+    i18n.addMessages(messages);
+    lastAddedMessagesRef.current = messages;
+  }
+
+  // Sync the host's locale before the first commit.
   useState(() => {
     // Validation runs on both sides so a misrouted locale is still reported
     // during SSR; only the WRITE is client-only. The App Router host lives at
     // module scope and is shared by every concurrent request in the server
     // process, so writing its locale during a server render leaks one
     // request's locale into another's tree. The request locale reaches the
-    // tree through `ssrLocale` below.
+    // tree through `ssrLocale` and `targetLocale` below.
     if (validateLocale(i18n, locale, routing) && typeof window !== "undefined") {
       applyLocale(i18n, locale);
-    }
-    // `addMessages` stays on the server: it is additive and keyed
-    // `locale:namespace`, so a concurrent request can only write what the other
-    // would have loaded anyway, and after the first add per key it is a no-op
-    // for the cache and for `getActiveNamespaces()`. The first add does emit
-    // `namespaceLoaded` — accepted.
-    if (messages && messages !== lastAddedMessagesRef.current) {
-      i18n.addMessages(messages);
-      lastAddedMessagesRef.current = messages;
     }
     return null;
   });
 
   // Subsequent renders (client navigation, HMR, prop updates). Effects never
   // run during a server render, so no guard is needed here.
-  //
-  // Messages BEFORE the locale, unlike the initializer above. Assigning a new
-  // locale starts a guarded `setLocale`, which loads every active namespace
-  // not yet cached for it: with the handed-over catalog added after, the
-  // browser fetched the catalog the RSC payload had just delivered, and
-  // `isLoading` stayed up until that duplicate answered (a full loader timeout
-  // against a hanging CDN). On the first mount the order is the other way
-  // round on purpose: no namespace is active yet, so the locale applies
-  // synchronously, before the children render, and nothing is loaded.
   useIsomorphicLayoutEffect(() => {
-    if (messages && messages !== lastAddedMessagesRef.current) {
-      i18n.addMessages(messages);
-      lastAddedMessagesRef.current = messages;
-    }
-
     if (validateLocale(i18n, locale, routing)) {
       applyLocale(i18n, locale);
     }
-  }, [i18n, locale, messages, routing]);
+  }, [i18n, locale, routing]);
 
   // `autoInit` runs the React provider's `ensureInitialized` → `i18n.init()`,
   // which loads the default namespace at the HOST's configured locale. Since
@@ -205,6 +207,7 @@ export function I18nProvider({
       i18n={i18n}
       autoInit={autoInit}
       ssrLocale={locale}
+      targetLocale={locale}
       ssrInitialIsLoading={false}
       ssrInitialIsInitializing={false}
       {...props}
