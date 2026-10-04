@@ -117,7 +117,7 @@ describe("<T />", () => {
     );
   });
 
-  it("reports and degrades when handler returns a non-element", () => {
+  it("renders nothing for a function component that returns null, like React does", () => {
     const reportError = vi.fn();
     const t = vi.fn((_key: string, params?: TranslationParams) => {
       const node = (params?.link as (args: { children: string; name: string }) => unknown)({
@@ -141,11 +141,8 @@ describe("<T />", () => {
       />,
     );
 
-    expect(container.textContent).toBe("Click here");
-    expect(reportError).toHaveBeenCalledWith(
-      expect.any(Error),
-      expect.objectContaining({ source: "translation", tagName: "link" }),
-    );
+    expect(container.textContent).toBe("Click ");
+    expect(reportError).not.toHaveBeenCalled();
   });
 
   it("keeps raw React nodes from translation result arrays", () => {

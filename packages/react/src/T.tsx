@@ -22,7 +22,7 @@ import {
 type ComponentTarget =
   | string // HTML tag name: "strong", "em", etc.
   | React.ReactElement // React element - children auto-injected
-  | ((params: { children: React.ReactNode }) => React.ReactElement); // Function handler
+  | ((params: { children: React.ReactNode }) => React.ReactElement); // Function component
 
 /**
  * A config entry's target. Looser than `ComponentTarget` on purpose: the
@@ -34,7 +34,7 @@ type ComponentTarget =
 type ComponentConfigTarget =
   | string // HTML tag name: "strong", "em", etc.
   | React.ReactElement // React element - `props` merged over its own
-  | ((props: any) => React.ReactElement); // Function handler fed from `props`
+  | ((props: any) => React.ReactElement); // Function component fed from `props`
 
 /**
  * Core's `{ tag | component, props }` entry form, narrowed to React targets.
@@ -78,10 +78,9 @@ interface TagBoundaryProps {
 
 /**
  * Every tag handler ends up as an element React renders AFTER `<T>` has
- * returned, so a throw inside it escapes the synchronous try/catch around
- * `resolvePending` — that catch only sees the handler CALL. React has no
- * hook-based boundary, so this class covers the render half: report the error
- * with the tag name as written, then render the tag's children instead.
+ * returned, so no try/catch in `<T>` can see a throw inside it. React has no
+ * hook-based boundary, so this class reports the error with the tag name as
+ * written, then renders the tag's children instead.
  *
  * Client-side only, by React's design: `renderToString` has no boundaries, so
  * a server render still throws (the same as the Svelte binding).
@@ -279,17 +278,14 @@ const TComponent = function T({
     });
   };
 
-  // Throws when a function handler returns a non-element; the caller reports it.
   const resolvePending = (
     pending: PendingHandler,
     convertedChildren: React.ReactNode[],
   ): React.ReactNode => {
     const handler = pending.handler;
 
-    // Anything React renders LATER — an element built from a handler, or the
-    // element a handler function returned — throws outside this function, so
-    // it needs the boundary. The handler CALL below stays inside the caller's
-    // try/catch, which a boundary cannot see.
+    // React renders the element LATER, outside this function, so a throw from
+    // the handler's own render needs the boundary.
     const guarded = (element: React.ReactNode) => (
       <TagBoundary tagName={pending.name} onTagError={reportTagError} fallback={convertedChildren}>
         {element}
@@ -302,17 +298,17 @@ const TComponent = function T({
       return guarded(React.createElement(handler.type, mergedProps, ...convertedChildren));
     }
 
+    // A function handler is a component: React renders it with its own hooks,
+    // never called here, where its hooks would belong to `<T>` and change with
+    // the translation's tags.
     if (typeof handler === "function") {
-      const result = (handler as (params: { children: React.ReactNode }) => React.ReactElement)({
-        ...(pending.props ?? {}),
-        children: <>{convertedChildren}</>,
-      });
-      if (!React.isValidElement(result)) {
-        throw new Error(
-          `[@comvi/react] Tag handler for "${pending.name}" must return a React element`,
-        );
-      }
-      return guarded(result);
+      return guarded(
+        React.createElement(
+          handler as React.FunctionComponent<Record<string, unknown>>,
+          pending.props ?? null,
+          ...convertedChildren,
+        ),
+      );
     }
 
     // Non-invokable opaque handler — degrade to the tag's children.
@@ -341,13 +337,9 @@ const TComponent = function T({
 
     const pending = pendingByMarker.get(tag);
     if (pending) {
-      try {
-        const result = resolvePending(pending, convertedChildren);
-        return <React.Fragment key={reactKey}>{result}</React.Fragment>;
-      } catch (error) {
-        reportTagError(error, pending.name);
-        return <React.Fragment key={`${keyString}-${index}`}>{convertedChildren}</React.Fragment>;
-      }
+      return (
+        <React.Fragment key={reactKey}>{resolvePending(pending, convertedChildren)}</React.Fragment>
+      );
     }
 
     return React.createElement(tag, { ...node.props, key: reactKey }, ...convertedChildren);

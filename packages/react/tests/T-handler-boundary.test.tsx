@@ -142,3 +142,40 @@ describe("<T /> component and element tag handlers that throw while rendering", 
     );
   });
 });
+
+describe("<T /> function component handlers", () => {
+  /** A real function component: it owns a hook, so React must render it as its own component. */
+  function Link({ children }: { children?: React.ReactNode }): React.ReactElement {
+    const [prefix] = React.useState("hook");
+    return (
+      <a>
+        {prefix}:{children}
+      </a>
+    );
+  }
+
+  it("renders a hook-using component when a tag appears and disappears across locales → no hook-order error", async () => {
+    const onError = vi.fn();
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { msg: "Rich" }, de: { msg: "<link>Rich</link>" } },
+      onError,
+    });
+    await i18n.init();
+
+    const view = (locale: string) => (
+      <I18nProvider i18n={i18n} autoInit={false}>
+        <T i18nKey="msg" locale={locale} components={{ link: Link }} />
+      </I18nProvider>
+    );
+    const { container, rerender } = render(view("en"));
+    expect(container.innerHTML).toBe("Rich");
+
+    rerender(view("de"));
+    expect(container.innerHTML).toBe("<a>hook:Rich</a>");
+
+    rerender(view("en"));
+    expect(container.innerHTML).toBe("Rich");
+    expect(onError).not.toHaveBeenCalled();
+  });
+});

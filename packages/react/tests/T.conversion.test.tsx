@@ -209,25 +209,4 @@ describe("<T /> handler resolution", () => {
     expect(reportError).toHaveBeenCalledTimes(2);
     expect(consoleError.mock.calls.flat().join(" ")).not.toContain("same key");
   });
-
-  it("names the offending tag in the error thrown for a non-element handler result", () => {
-    const reportError = vi.fn();
-    mockUseI18n.mockReturnValue(createHookStub({ t: invokeHandler("link", "here"), reportError }));
-
-    render(
-      <T
-        i18nKey="msg"
-        components={{
-          link: (() => null) as unknown as () => React.ReactElement,
-        }}
-      />,
-    );
-
-    expect(reportError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: '[@comvi/react] Tag handler for "link" must return a React element',
-      }),
-      { source: "translation", tagName: "link" },
-    );
-  });
 });
