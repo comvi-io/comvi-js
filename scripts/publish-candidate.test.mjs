@@ -12,6 +12,7 @@ import {
   candidatesFromSums,
   checksums,
   compareVersions,
+  coverageGaps,
   isPublished,
   parseArgs,
   publishAll,
@@ -137,6 +138,28 @@ test("unexercised: candidate packages no example install resolved", () => {
   assert.deepEqual(
     unexercised(["@comvi/cli", "@comvi/core", "@comvi/nuxt", "@comvi/vite-plugin"], reports),
     ["@comvi/cli", "@comvi/vite-plugin"],
+  );
+});
+
+test("coverageGaps: an uncovered package outside the allowlist fails, a stale entry fails", () => {
+  const reports = [{ results: [{ resolved: ["@comvi/core", "@comvi/react"] }] }];
+  const allowlist = { "@comvi/cli": "a CLI" };
+  assert.deepEqual(
+    coverageGaps(["@comvi/cli", "@comvi/core", "@comvi/react"], reports, allowlist),
+    {
+      uncovered: [],
+      stale: [],
+    },
+  );
+  // A binding that dropped out of every example is not silently published.
+  assert.deepEqual(coverageGaps(["@comvi/cli", "@comvi/core", "@comvi/vue"], reports, allowlist), {
+    uncovered: ["@comvi/vue"],
+    stale: [],
+  });
+  // An entry for a package an example now installs, or for no candidate, is stale.
+  assert.deepEqual(
+    coverageGaps(["@comvi/core"], reports, { "@comvi/core": "x", "@comvi/gone": "y" }),
+    { uncovered: [], stale: ["@comvi/core", "@comvi/gone"] },
   );
 });
 

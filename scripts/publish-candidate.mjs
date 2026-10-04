@@ -19,8 +19,9 @@
  *
  *   verify  (contents: read; downloads pack's artifact; writes NO outputs)
  *     checks every tarball against SHA256SUMS, runs `examples:e2e` in both
- *     modes with `--tarballs <dir>`, and says which candidate packages no
- *     example installed. Its only effect on publishing is its exit status.
+ *     modes with `--tarballs <dir>`, and fails when a candidate package no
+ *     example installed is missing from `BROWSER_UNCOVERED`. Its only effect
+ *     on publishing is its exit status.
  *
  *   publish (id-token: write [+ contents: write for GA tags]; no install,
  *            no build; downloads PACK's artifact, never verify's)
@@ -411,6 +412,37 @@ export function unexercised(candidates, reports) {
   return candidates.filter((name) => !resolved.has(name));
 }
 
+/**
+ * The publishable packages NO example installs, on purpose, each with the
+ * reason. Every other candidate must be resolved by some example's install in
+ * the browser suite, or `verify` fails: a binding that silently dropped out of
+ * every example would otherwise be published with no browser check at all.
+ *
+ * An entry is removed in the change that gives the package an example; an
+ * entry for a package an example DOES install, or for one that is no longer a
+ * candidate, fails `verify` as stale.
+ */
+export const BROWSER_UNCOVERED = {
+  "@comvi/cli": "a command-line tool; no browser runtime to exercise",
+  "@comvi/vite-plugin": "a build-time plugin; no example builds with it",
+  "@comvi/plugin-in-context-editor":
+    "the editor overlay needs a platform session; no example ships it",
+};
+
+/**
+ * What the browser-coverage check refuses: candidates neither installed by an
+ * example nor listed in `allowlist` (`uncovered`), and allowlist entries that
+ * are installed after all or are not candidates (`stale`).
+ */
+export function coverageGaps(candidates, reports, allowlist = BROWSER_UNCOVERED) {
+  const missed = unexercised(candidates, reports);
+  const listed = Object.keys(allowlist);
+  return {
+    uncovered: missed.filter((name) => !listed.includes(name)),
+    stale: listed.filter((name) => !missed.includes(name)),
+  };
+}
+
 function sh(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? REPO_ROOT,
@@ -513,16 +545,26 @@ function verify(options) {
   const reports = ["report.json", "report-cdn.json"].map((file) =>
     JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "test-results", "examples-e2e", file), "utf8")),
   );
-  const missed = unexercised(
+  const { uncovered, stale } = coverageGaps(
     candidatesFromSums(dir, recorded).map((pkg) => pkg.name),
     reports,
   );
-  if (missed.length > 0) {
-    console.log(
-      `not installed by any example, so published without a browser check: ${missed.join(", ")}`,
+  for (const [name, reason] of Object.entries(BROWSER_UNCOVERED)) {
+    if (!stale.includes(name)) console.log(`no browser check, by design: ${name} (${reason})`);
+  }
+  if (uncovered.length > 0) {
+    console.error(
+      `not installed by any example and not in BROWSER_UNCOVERED, so it would be published ` +
+        `without a browser check: ${uncovered.join(", ")}; nothing was published`,
     );
   }
-  return 0;
+  if (stale.length > 0) {
+    console.error(
+      `BROWSER_UNCOVERED lists ${stale.join(", ")}, which an example installs or which is no ` +
+        "candidate: remove the entry (scripts/publish-candidate.mjs)",
+    );
+  }
+  return uncovered.length > 0 || stale.length > 0 ? 1 : 0;
 }
 
 function publish(options) {
