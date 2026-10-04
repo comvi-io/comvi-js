@@ -7,7 +7,7 @@
  * client builds do. What crosses the boundary is `locale` and the `messages`
  * `loadTranslations` produced, nothing else.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { isValidElement, type ReactElement } from "react";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
@@ -79,6 +79,14 @@ async function runtime({ withConfig = true } = {}): Promise<Loaded> {
     loader,
   };
 }
+
+// The first test of a file pays the cold transform of the whole server graph
+// (react, next, core); the rest reload it from the transform cache in ms.
+// Under a loaded machine that cold load alone can pass the 5 s test budget, so
+// pay it here, in a hook with a budget of its own.
+beforeAll(async () => {
+  await runtime();
+}, 60_000);
 
 beforeEach(() => {
   vi.doUnmock("@comvi/next/config");

@@ -7,7 +7,7 @@
  * before it, and two calls in one request with different locales (a page and
  * its `generateMetadata`, alternate-language links) stay independent.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 
 // React's `cache()` only scopes per request inside a Server Component render.
 // Outside one, memoize once per module load, and reload the modules per test:
@@ -47,6 +47,14 @@ async function request() {
   server.setI18n(i18n);
   return { ...server, storedLocale: cache.getRequestLocaleFromCache, loader };
 }
+
+// The first test of a file pays the cold transform of the whole server graph
+// (react, next, core); the rest reload it from the transform cache in ms.
+// Under a loaded machine that cold load alone can pass the 5 s test budget, so
+// pay it here, in a hook with a budget of its own.
+beforeAll(async () => {
+  await request();
+}, 60_000);
 
 beforeEach(() => {
   vi.resetModules();

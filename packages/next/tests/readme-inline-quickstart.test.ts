@@ -23,7 +23,7 @@
  * the day the README drifts the test goes red instead of agreeing with a copy
  * of its own.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
@@ -122,9 +122,17 @@ const PAGE_CALLS = [...PAGE.matchAll(/\bt\("([^"]+)"(?:,\s*(\{[^}]*\}))?\)/g)].m
  * the page's `getI18n({ locale })`.
  */
 async function serveReadme({ withComvi }: { withComvi: boolean }, locale: string) {
+  const mine = epoch;
+  // A test that timed out leaves its request running; once the next test has
+  // begun, that orphan must not touch the shared module registry or the
+  // `@comvi/next/config` mock, or it hands this test a configured host.
+  const stillMine = () => {
+    if (epoch !== mine) throw new Error("serveReadme: the test that started this request is over");
+  };
   vi.resetModules();
   const { createNextI18n } = await import("../src/createNextI18n");
   const { defineRouting } = await import("../src/routing/defineRouting");
+  stillMine();
   // src/i18n/routing.ts and src/i18n/config.ts, with the README's own literals.
   const routing = defineRouting(README_ROUTING);
   const { i18n } = createNextI18n({ ...README_OPTIONS, devMode: false } as never);
@@ -132,13 +140,16 @@ async function serveReadme({ withComvi }: { withComvi: boolean }, locale: string
     withComvi ? { i18n, routing } : { i18n: undefined, routing: undefined },
   );
   const { ComviProvider, getI18n } = await import("../src/server");
+  stillMine();
 
   // src/app/[locale]/layout.tsx: `<ComviProvider locale={locale}>`.
   const layout = (await ComviProvider({ locale, children: null })) as {
     props: { messages: Record<string, Record<string, string>> };
   };
   // src/app/[locale]/page.tsx: `const { t } = await getI18n({ locale });`.
+  stillMine();
   const { t } = await getI18n({ locale });
+  stillMine();
   return {
     page: PAGE_CALLS.map(({ key, params }) =>
       (t as (k: string, p?: object) => string)(key, params),
@@ -147,10 +158,24 @@ async function serveReadme({ withComvi }: { withComvi: boolean }, locale: string
   };
 }
 
-beforeEach(() => {
+/** Bumped before every test: requests from an earlier test see it and stop. */
+let epoch = 0;
+
+// The first test of a file pays the cold transform of the whole server graph
+// (react, next, core); the rest reload it from the transform cache in ms.
+// Under a loaded machine that cold load alone can pass the 5 s test budget, so
+// pay it here, in a hook with a budget of its own.
+beforeAll(async () => {
+  await serveReadme({ withComvi: true }, "en");
+}, 60_000);
+
+function beginTest() {
+  epoch += 1;
   vi.resetModules();
   vi.doUnmock("@comvi/next/config");
-});
+}
+
+beforeEach(beginTest);
 
 describe("the README quick start, run on the server modules", () => {
   it("is exactly five files: next.config, routing, config, layout and page", () => {
@@ -187,6 +212,16 @@ describe("the README quick start, run on the server modules", () => {
         expect(i18n.hasTranslation(`default.${key}` as never, locale)).toBe(false);
       }
     }
+  });
+
+  it("a request orphaned by an earlier test cannot configure the next one", async () => {
+    // What a timed-out test leaves behind: a request still loading modules.
+    const orphan = serveReadme({ withComvi: true }, "en");
+    beginTest(); // the next test starts
+    await expect(orphan).rejects.toThrow("the test that started this request is over");
+    // The orphan never reached the config mock: the module is still the stub.
+    expect((await import("@comvi/next/config")).i18n).toBeUndefined();
+    await expect(serveReadme({ withComvi: false }, "en")).rejects.toThrow("needs withComvi");
   });
 
   it("rejects without withComvi — why next.config.ts is part of the setup", async () => {
