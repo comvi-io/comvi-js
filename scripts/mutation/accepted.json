@@ -12,20 +12,11 @@
     {
       "package": "packages/core",
       "file": "src/core/i18n.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "private _primaryMessagesLocale: string = \"\";",
-      "lineHint": 198,
+      "mutators": ["StringLiteral", "ObjectLiteral"],
+      "snippet": "} = { _rev: -1, _loc: \"\", _ns: \"\" };",
+      "lineHint": 234,
       "kind": "equivalent",
-      "reason": "the memo's locale/namespace seeds are only ever read once `_primaryMessagesRevision === revision`, which the -1 seed makes impossible."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/i18n.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "private _primaryMessagesNamespace: string = \"\";",
-      "lineHint": 200,
-      "kind": "equivalent",
-      "reason": "same seed — unreadable before the first recompute overwrites it."
+      "reason": "the memo's seeds are only ever read once `memo._rev === revision`, which the -1 seed makes impossible, and an empty seed object fails that same check on the first lookup. Hand-applied on 2026-10-04 (`{} as never`, and each `\"\"` seed replaced): core 1465/1465 green."
     },
     {
       "package": "packages/core",
@@ -1299,8 +1290,8 @@
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "this._primaryMessagesRevision === revision &&",
-      "lineHint": 666,
+      "snippet": "memo._rev === revision &&",
+      "lineHint": 838,
       "kind": "equivalent",
       "reason": "A forced miss in _getPrimaryTranslations re-reads the same (locale, namespace) entry out of the cache and re-seeds the memo with it, so the returned catalog - and therefore every t()/tRaw()/hasTranslation() result built on it - is identical. Only the number of cache reads changes.",
       "round": 2
@@ -8010,11 +8001,11 @@
     {
       "package": "packages/react",
       "file": "src/I18nProvider.tsx",
-      "mutators": ["ObjectLiteral"],
-      "snippet": "}>(() => ({ i18n, target: targetLocale, from: i18n.locale }));",
-      "lineHint": 245,
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "const [hand, setHand] = useState<[Host, string | undefined, string | null]>(() => [",
+      "lineHint": 242,
       "kind": "equivalent",
-      "reason": "the handover's initial state is also what the render-phase correction below builds: an empty seed fails `hand.i18n !== i18n` on the first render, so `setHand` rebuilds the same object before any child renders. Hand-applied (`({}) as never`): 294/294 react tests green."
+      "reason": "the handover's initial state is also what the render-phase correction below builds: an empty seed fails `hand[0] !== i18n` on the first render, so `setHand` rebuilds the same tuple before any child renders. Hand-applied (`[] as never`): 294/294 react tests green."
     }
   ]
 }

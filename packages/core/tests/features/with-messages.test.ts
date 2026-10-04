@@ -76,7 +76,7 @@ describe("withMessages() read view", () => {
     expect(i18n.hasTranslation("greeting", "de")).toBe(false);
   });
 
-  it("restores the instance when a call throws", () => {
+  it("leaves the instance as it was when a view call throws", () => {
     // `onMissingKey` is not wrapped, so its throw leaves `t()` mid-call.
     const i18n = createI18n({
       locale: "en",
@@ -93,17 +93,47 @@ describe("withMessages() read view", () => {
     expect(view.t("greeting")).toBe("Hi");
   });
 
-  it("restores the outer catalogs after a nested view call", () => {
+  it("keeps views independent: a call inside another view's call reads only its own catalogs", () => {
     const i18n = attachPlugins(host());
     const inner = i18n.withMessages({ "en:default": { greeting: "Inner" } });
-    // Runs inside the outer call: after the inner call, `probe` must still
-    // resolve from the outer catalogs.
+    // Runs inside the outer view's call: the inner view and the instance
+    // itself must not see the outer catalogs.
     i18n.registerPostProcessor((result, key) =>
       key === "outer" ? `${result}+${inner.t("greeting")}+${i18n.t("probe")}` : result,
     );
     const outer = i18n.withMessages({ "en:default": { outer: "O", probe: "P" } });
 
-    expect(outer.t("outer")).toBe("O+Inner+P");
-    expect(i18n.t("probe")).toBe("probe");
+    expect(outer.t("outer")).toBe("O+Inner+probe");
+    expect(outer.t("probe")).toBe("P");
+  });
+
+  it("a view made before a later addMessages still prefers its own catalog", () => {
+    const i18n = host();
+    const view = i18n.withMessages({ "en:default": { greeting: "Hi" } });
+
+    i18n.addMessages({ en: { greeting: "Hey" }, uk: { greeting: "Привіт" } });
+
+    expect(view.t("greeting")).toBe("Hi");
+    // A catalog the view does not hold comes from the cache, as it is now.
+    expect(view.t("greeting", { locale: "uk" })).toBe("Привіт");
+    expect(i18n.t("greeting")).toBe("Hey");
+  });
+
+  it("grows no state of its own: the view's only own property is its catalogs", () => {
+    const i18n = host();
+    const ownKeysBefore = Object.keys(i18n).sort();
+    const view = i18n.withMessages(DE);
+
+    // Every read path, including the primary-catalog memo the fast lookups refresh.
+    view.t("greeting");
+    view.tRaw("greeting", { locale: "de", name: "Ann" });
+    view.t("absent");
+    view.hasTranslation("greeting", "de", undefined, true);
+    i18n.addMessages({ en: { greeting: "Hey" } });
+    view.t("greeting");
+
+    expect(Object.keys(view)).toHaveLength(1);
+    expect(Object.keys(i18n).sort()).toEqual(ownKeysBefore);
+    expect(Object.getPrototypeOf(view)).toBe(i18n);
   });
 });

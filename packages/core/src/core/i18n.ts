@@ -220,14 +220,23 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * with its own chaining applier on the first registration.
    */
   protected _postProcessor?: PostProcessFn;
-  private _primaryMessages?: FlattenedMessages;
-  private _primaryMessagesRevision: number = -1;
-  private _primaryMessagesLocale: string = "";
-  private _primaryMessagesNamespace: string = "";
   /**
-   * The catalogs of the `withMessages` view whose call is running, keyed
-   * `"locale:namespace"`; `undefined` outside one. Set and restored around a
-   * single synchronous call, and read only by {@link I18n._catalog}.
+   * The primary-catalog memo, ONE object mutated in place and never
+   * reassigned: a `withMessages` view inherits this field through its
+   * prototype, so its lookups refresh the instance's memo instead of growing a
+   * divergent own copy on the view.
+   */
+  private _primary: {
+    _msgs?: FlattenedMessages;
+    _rev: number;
+    _loc: string;
+    _ns: string;
+  } = { _rev: -1, _loc: "", _ns: "" };
+  /**
+   * A `withMessages` view's catalogs, keyed `"locale:namespace"`. An own
+   * property of the view only, never of the instance. Read by `_catalog`
+   * (for `_translate` and `hasTranslation`) and by `tRaw`'s fast path, which
+   * it turns off.
    */
   private _overlay?: Readonly<Record<string, FlattenedMessages>>;
 
@@ -814,31 +823,20 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * A read view of the instance: `t`, `tRaw` and `hasTranslation` that, for
-   * the duration of each call, resolve a `locale:namespace` held in `catalogs`
-   * from there and everything else from the cache. The i18n instance is not
-   * written — no cache entry, no active namespace, no event — so a view a
-   * caller drops leaves nothing behind. `catalogs` is keyed
-   * `"locale:namespace"` and holds flat catalogs, as `flattenCatalog` returns
-   * them; a catalog it holds replaces the cached one for that call.
+   * A read view of the instance: `t`, `tRaw` and `hasTranslation` that
+   * resolve a `locale:namespace` held in `catalogs` from there and everything
+   * else from the cache. The view inherits the instance through its prototype
+   * and holds `catalogs` as its only own property, so the i18n instance is
+   * not written — no cache entry, no active namespace, no event — and a view
+   * a caller drops leaves nothing behind. Later `addMessages` reach it through
+   * the cache, but a catalog `catalogs` holds keeps replacing the cached one
+   * for that `locale:namespace`. `catalogs` is keyed `"locale:namespace"` and
+   * holds flat catalogs, as `flattenCatalog` returns them.
    */
   withMessages(catalogs: Readonly<Record<string, FlattenedMessages>>): I18nMessagesView<D> {
-    const call =
-      (name: keyof I18nMessagesView) =>
-      (...args: unknown[]): unknown => {
-        const outer = this._overlay;
-        this._overlay = catalogs;
-        try {
-          return (this[name] as (...a: unknown[]) => unknown)(...args);
-        } finally {
-          this._overlay = outer;
-        }
-      };
-    return {
-      t: call("t"),
-      tRaw: call("tRaw"),
-      hasTranslation: call("hasTranslation"),
-    } as I18nMessagesView<D>;
+    const view = Object.create(this) as this;
+    view._overlay = catalogs;
+    return view;
   }
 
   /** The catalog a lookup reads: the running `withMessages` view's, else the cache's. */
@@ -853,19 +851,20 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   private _getPrimaryTranslations(): FlattenedMessages | undefined {
     const revision = this.messagesCache.getRevision();
+    const memo = this._primary;
     if (
-      this._primaryMessagesRevision === revision &&
-      this._primaryMessagesLocale === this._locale &&
-      this._primaryMessagesNamespace === this._cachedDefaultNs
+      memo._rev === revision &&
+      memo._loc === this._locale &&
+      memo._ns === this._cachedDefaultNs
     ) {
-      return this._primaryMessages;
+      return memo._msgs;
     }
 
     const translations = this.messagesCache.get(this._locale, this._cachedDefaultNs);
-    this._primaryMessages = translations;
-    this._primaryMessagesRevision = revision;
-    this._primaryMessagesLocale = this._locale;
-    this._primaryMessagesNamespace = this._cachedDefaultNs;
+    memo._msgs = translations;
+    memo._rev = revision;
+    memo._loc = this._locale;
+    memo._ns = this._cachedDefaultNs;
     return translations;
   }
 
