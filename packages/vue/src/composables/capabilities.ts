@@ -21,11 +21,11 @@ import { I18N_INJECTION_KEY } from "../keys";
 /** What `useI18nLoader()` returns — core's acquired loader surface. */
 export type UseI18nLoaderReturn = AcquiredLoaderApi;
 
-/** What `useI18nPlugins()` returns — core's acquired plugin-host surface. */
+/** What `useI18nPlugins()` returns — core's acquired plugin surface. */
 export type UseI18nPluginsReturn = AcquiredPluginsApi;
 
 /**
- * The vue-specific half of the acquisition: the host is the injected
+ * The vue-specific half of the acquisition: the instance is the injected
  * instance's `core`, and a composable used outside an installed app has its
  * own error before any capability check can be meaningful.
  */
@@ -46,7 +46,7 @@ function injectHost(composable: string): WrapperI18nHost {
  * Acquire the loader capability of the installed i18n instance's core.
  *
  * Throws `missingCapability("loader")` — in dev and in prod — when the core is
- * a base `@comvi/core` instance, which is every host nobody composed a loader
+ * a base `@comvi/core` instance, which is every instance nobody composed a loader
  * onto. The capability ships in `@comvi/core/loader` and nowhere else, so
  * compose it where the instance is created: `createI18n(...).use(attachLoader)`,
  * or the lower-level `attachLoader(createI18n(...))`.
@@ -64,7 +64,7 @@ export function useI18nLoader(): UseI18nLoaderReturn {
 }
 
 /**
- * Acquire the plugin-host capability of the installed i18n instance's core.
+ * Acquire the plugin capability of the installed i18n instance's core.
  *
  * Throws `missingCapability("plugins")` — in dev and in prod — when the core
  * is a bare `@comvi/core` instance.

@@ -83,7 +83,7 @@ describe("VueI18n.use()", () => {
     } catch (error) {
       message = (error as Error).message;
     }
-    expect(message).toContain("must return the host it was given");
+    expect(message).toContain("must return the instance it was given");
     expect(message).toContain(".use(definePlugin(f))");
     expect(message).toContain("registerPlugin(f)");
     expect(message).toContain("localeDetector(), not localeDetectorPlugin()");

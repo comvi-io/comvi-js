@@ -35,7 +35,7 @@ const catalogs: ReturnType<typeof loader> = cdnUrl
   ? cdnLoader({ cdnUrl, fallback: localCatalogs })
   : loader(localCatalogs);
 
-// One call builds the base host, and each `.use(…)` composes a capability on
+// One call builds the base instance, and each `.use(…)` composes a capability on
 // it. The result is the same `VueI18n` instance throughout; `.use` only
 // widens the type of `i18n.core` by what it just composed.
 export const i18n = createI18n({
@@ -44,12 +44,12 @@ export const i18n = createI18n({
   // ICU is never on by default. Without this line `{count, plural, …}` in the
   // catalog is not syntax: the simple compiler renders the braced segment
   // literally. It goes in the constructor options, which is before any catalog
-  // can reach the host.
+  // can reach the instance.
   compiler: icuCompiler,
 })
   .use(catalogs)
   // The locale detector, through the package's own bare-name installer: it
-  // attaches the plugin host it needs and registers the detector, so an app
+  // attaches the plugin capability it needs and registers the detector, so an app
   // never touches the raw plugin queue. Composed on the WRAPPER, before
   // `app.use(i18n)` — vue's own `use`, which starts init().
   .use(

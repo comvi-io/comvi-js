@@ -63,7 +63,7 @@ export interface UseI18nReturn<
   defaultNamespace: ComputedRef<string>;
 
   /**
-   * Re-evaluates when locale or cache changes. Call inside `setup()` (or an
+   * Re-evaluates when locale, cache or config changes. Call inside `setup()` (or an
    * `effectScope`) so the underlying `computed()` disposes with the scope.
    */
   hasTranslation: (
@@ -92,7 +92,7 @@ export interface UseI18nReturn<
 
   dir: ComputedRef<"ltr" | "rtl">;
 
-  /** Resolves once the host's plugin cleanups have finished. */
+  /** Resolves once the instance's plugin cleanups have finished. */
   destroy: () => Promise<void>;
 }
 

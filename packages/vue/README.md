@@ -47,8 +47,8 @@ const i18n = createI18n({
 createApp(App).use(i18n).mount("#app");
 ```
 
-`createI18n` builds the host and `app.use(i18n)` installs the plugin and starts `init()`.
-`app.use(i18n)` is Vue's plugin verb; Comvi's `.use(installer)` composes a capability on the host.
+`createI18n` builds the i18n instance and `app.use(i18n)` installs the plugin and starts `init()`.
+`app.use(i18n)` is Vue's plugin verb; Comvi's `.use(installer)` composes a capability onto the instance.
 
 ## Use in components
 
@@ -104,7 +104,7 @@ const { t, isInitializing } = useI18n();
 ```
 
 `.use(cdnLoader())` fetches each locale from the CDN. Compose before `app.use(i18n)`: `init()`
-drains the plugin queue once, and an installer composed after it never runs. Vue has no `fallback`
+drains the plugin queue once, and a plugin queued after it waits for a second `init()` that never comes. Vue has no `fallback`
 prop, so `isInitializing` gates the first paint. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on

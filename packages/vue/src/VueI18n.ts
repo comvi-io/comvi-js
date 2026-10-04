@@ -42,7 +42,7 @@ export interface UseHostIdentityError extends Error {
 /**
  * Vue-layer options — the ones that do NOT configure the core.
  *
- * `createI18nFromCore` takes exactly these: the host it is handed is already
+ * `createI18nFromCore` takes exactly these: the instance it is handed is already
  * built, so every core option belongs to whoever built it.
  */
 export interface VueI18nCoreOptions {
@@ -57,10 +57,10 @@ export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOption
   VueI18nCoreOptions;
 
 /**
- * Vue reactivity and plugin installation around a core host.
+ * Vue reactivity and plugin installation around a core instance.
  *
- * The host stays reachable as {@link VueI18n.core}: everything the wrapper does
- * not proxy — including the loader and plugin-host capabilities, when the host
+ * The instance stays reachable as {@link VueI18n.core}: everything the wrapper does
+ * not proxy — including the loader and plugin capabilities, when the instance
  * has them — goes through it. Capabilities are composed with {@link VueI18n.use},
  * which returns this same instance with `core` retyped: assign the result,
  * since a discarded return leaves the binding's `C` unwidened. `C` is exact
@@ -96,7 +96,7 @@ export class VueI18n<
 
   // Declared here, assigned as bound proxies in the constructor.
   declare addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
-  declare clearMessages: (language?: string, namespace?: string) => void;
+  declare clearMessages: (locale?: string, namespace?: string) => void;
   declare on: <E extends I18nEvent>(
     event: E,
     callback: (payload: I18nEventData[E]) => void,
@@ -130,7 +130,7 @@ export class VueI18n<
     locale?: string,
   ) => string;
   /**
-   * @param core - The host this wrapper drives. Built for you by
+   * @param core - The instance this wrapper drives. Built for you by
    *   {@link createI18n}; injected as-is by `createI18nFromCore`.
    * @param options - Vue-layer options only (see {@link VueI18nCoreOptions}).
    */
@@ -411,9 +411,17 @@ export class VueI18n<
   >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D, N>): TranslationResult;
 
   tRaw(key: string, ...params: [import("@comvi/core").TranslationParams?]): TranslationResult {
-    void this._locale.value;
+    const renderLocale = this._locale.value;
     void this._cacheRevision.value;
     void this._configRevision.value;
+    // The ref equals `core.locale` except while an `ssrLocale` the core has
+    // not adopted yet is pending: a core with `@comvi/core/loader` composed
+    // and a namespace active moves its locale only after the (even cached)
+    // namespace load resolves. Only then is the render locale passed
+    // explicitly, so the first render is in `ssrLocale`.
+    if (renderLocale !== this.core.locale && params[0]?.locale === undefined) {
+      return this.core.tRaw(key as any, { ...params[0], locale: renderLocale } as any);
+    }
     return this.core.tRaw(key as any, ...(params as any));
   }
 
@@ -432,9 +440,9 @@ export class VueI18n<
   }
 
   /**
-   * Compose a capability onto the host and keep this wrapper: `use(f)` is
+   * Compose a capability onto the instance and keep this wrapper: `use(f)` is
    * `f(this.core)`, and the return value is this same instance retyped so
-   * `core` carries whatever the installer widened the host to.
+   * `core` carries whatever the installer widened the instance to.
    *
    * ```ts
    * const i18n = createI18n({ locale: "en" }).use(loader(importMap));
@@ -446,14 +454,14 @@ export class VueI18n<
    * drains the plugin queue, so a `plugins()` or `definePlugin(…)` composed
    * later does not run now: it waits for the next `init()`, which re-runs the
    * whole queue and accumulates another set of cleanups (development warns;
-   * the host's own late-compose guards do not see the synchronous start of
+   * the instance's own late-compose guards do not see the synchronous start of
    * `init()`). ICU is not composed at all: it is `compiler: icuCompiler` in
    * the options.
    *
-   * Installers widen the host IN PLACE and return it; the wrapper's bound
-   * proxies point at that one host, so an installer that hands back a
+   * Installers widen the instance IN PLACE and return it; the wrapper's bound
+   * proxies point at that one instance, so an installer that hands back a
    * different object is refused (`code: "E_USE_HOST_IDENTITY"`) instead of
-   * leaving the wrapper driving a host the app never sees. A raw ASYNC plugin
+   * leaving the wrapper driving an instance the app never sees. A raw ASYNC plugin
    * handed here has already run by the time the check fires, so its rejection
    * is swallowed and the identity error is the only thing the app sees — and
    * the development message names the ways out, exactly as core's does.
@@ -462,7 +470,7 @@ export class VueI18n<
     if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateUse) {
       this._warnedLateUse = true;
       console.warn(
-        "[@comvi/vue] .use(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. A plugin queued now does not run until the next init(), which re-runs the whole queue and accumulates a second set of cleanups — so nothing has changed on this host.",
+        "[@comvi/vue] .use(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. A plugin queued now does not run until the next init(), which re-runs the whole queue and accumulates a second set of cleanups — so nothing has changed on this instance.",
       );
     }
     const widened: unknown = installer(this.core);
@@ -477,7 +485,7 @@ export class VueI18n<
       }
       const error = new Error(
         IS_DEV
-          ? "[@comvi/vue] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
+          ? "[@comvi/vue] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
           : "E_USE_HOST_IDENTITY",
       ) as UseHostIdentityError;
       error.code = "E_USE_HOST_IDENTITY";
@@ -492,13 +500,13 @@ export class VueI18n<
   }
 
   /**
-   * Unsubscribe from the host, then tear the host down.
+   * Unsubscribe from the instance, then tear the instance down.
    *
    * Returns the cleanup's promise, so `await i18n.destroy()` means the plugin
    * cleanups have FINISHED — a test tearing an instance down between cases, or
-   * a request-scoped host on the server, has something to wait for. Every
+   * a request-scoped instance on the server, has something to wait for. Every
    * existing fire-and-forget caller keeps working: the promise RESOLVES even
-   * when the host's cleanup rejects, because a rejection nobody awaits is an
+   * when the instance's cleanup rejects, because a rejection nobody awaits is an
    * unhandled rejection, and the error already has its channel
    * (`onError`, source `plugin-cleanup`).
    *
@@ -556,8 +564,8 @@ export class VueI18n<
 
 /**
  * What ambient consumers see — `inject(I18N_INJECTION_KEY)` and `$i18n`. `D`
- * and the host type `C` are both erased: a component is written against
- * whatever the app installed, so it gets the capability-free host surface and
+ * and the instance type `C` are both erased: a component is written against
+ * whatever the app installed, so it gets the capability-free instance surface and
  * must acquire capabilities through `useI18nLoader()` / `useI18nPlugins()`.
  */
 export type AnyVueI18n = VueI18n<{}, WrapperI18nHost>;

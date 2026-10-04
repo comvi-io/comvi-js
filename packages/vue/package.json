@@ -26,9 +26,7 @@
     "type-safe",
     "comvi",
     "translation",
-    "ssr",
-    "ssg",
-    "server-components"
+    "ssr"
   ],
   "files": [
     "dist",
