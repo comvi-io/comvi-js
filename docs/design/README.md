@@ -23,6 +23,6 @@ is the one composition verb.
 | [rich-text.md](rich-text.md)               | `<T>` renders structurally; string-API tags are an ambient opt-in               |
 | [formatting.md](formatting.md)             | formatters are free functions, and every binding's formatters follow the locale |
 | [next-runtimes.md](next-runtimes.md)       | one shared config module per runtime, nothing composed on the Edge              |
-| [next-nuxt-parity.md](next-nuxt-parity.md) | what next and nuxt share, and what stays different                              |
+| [next-nuxt-parity.md](next-nuxt-parity.md) | one behaviour contract run against both adapters; what must match, what may differ |
 | [ssr.md](ssr.md)                           | the four module-scope rules side by side (user-facing)                          |
 | [limitations.md](limitations.md)           | everything the library does not do (user-facing)                                |
