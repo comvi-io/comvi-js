@@ -34,7 +34,9 @@ The owner replaced it with the contract below. Neither package is the reference 
 
 ### The parity contract (amended 2026-10-04)
 
-Same behaviour under the same configuration — yes. Same implementation or a 1:1 API — no.
+Same behaviour under the same settings — always. The public API converges too, wherever the
+framework itself does not force a difference. Every API difference that remains is named here and
+justified by a framework constraint, never by history. One implementation is not required.
 
 **Must match:** key fallback and the order locales are walked; namespace and fallback-chain
 loading, on the server and after hydration; detection precedence — URL, then query, then cookie,
@@ -42,10 +44,16 @@ then headers; redirects, under the same routing policy; cookie control, and disa
 altogether; the outcome of SSR, hydration and a locale change; behaviour when a catalog fails to
 load.
 
-**May differ:** how the i18n instance is created and how long it lives; a Nuxt module against a
-Next provider; composables against hooks; a Nuxt payload against Next `messages`; framework
-navigation; internal caching, as long as requests are isolated; how the integration meets the
-server request.
+**May differ, each because the framework forces it:** how the i18n instance is created and how long
+it lives — Next evaluates modules once per process, Nitro builds per request; a Nuxt module against
+a Next provider — Nuxt installs integrations as modules with codegen, Next has no module system and
+is wired by imports; composables against hooks — Vue's and React's own reactivity vocabulary; a Nuxt
+payload against Next `messages` — Nuxt serialises state through one payload, Next hands props across
+the Server-to-Client boundary; framework navigation — each router's own link component and router;
+internal caching, as long as requests are isolated; how the integration meets the server request —
+an H3 event against a request store, because Next exposes no request object to a Server Component.
+An item on this list is an exception that has to be re-justified when the framework changes, not a
+licence.
 
 **Shared options share names.** An option present in both has the same name, the same values and
 the same default; existing divergences migrate, they are not grandfathered. A capability present in
@@ -55,6 +63,24 @@ the meaning differs, and the record below says so where it applies.
 
 **How it is enforced:** one behaviour specification, one contract test matrix run against both
 adapters, two adapters. A row cannot be fixed for one adapter while the other fails.
+
+#### Open for alignment
+
+Differences that exist today and are NOT forced by a framework. They are recorded, not resolved: a
+follow-up audit decides each one, and this record changes when it does.
+
+- the server helper names, `getI18n()` in next and `useTranslation(event)` in nuxt — the shape is
+  already shared; the `event` argument is forced, the verb is not;
+- the hand-off option names, `config` in next and `hostModule` in nuxt — the mechanisms are forced
+  apart (instance module against factory), so the rule keeps the names apart today; whether both
+  could take one name with one meaning is open;
+- what the Next provider and middleware options and the Nuxt module options call the same things
+  (cookie and detection options among them, where the names already partly agree on `cookieName`);
+- `<html lang dir>` — the module writes it, the layout writes it; the next integration cannot reach
+  the root element, but nothing stops a shared helper or a shared option name;
+- the cookie names, `NEXT_LOCALE` and `i18n_locale` — justified below by ecosystem habit, which is
+  history, not a framework constraint; kept for migration, and listed here so it is not mistaken
+  for a forced difference.
 
 ### Shared, with one implementation
 
@@ -87,7 +113,7 @@ adapters, two adapters. A row cannot be fixed for one adapter while the other fa
   day core reports once. Shared here is the specification and the table, not the code: next's
   `loadChain` and nuxt's `loadCatalogs` are two implementations of one set of rows.
 
-### Deliberately different, and staying so
+### Deliberately different, each with the framework constraint that forces it
 
 - **Host lifetime.** Next has one shared host at module scope for the whole process, so the locale
   can never live on it ([next-runtimes.md](next-runtimes.md)); Nuxt builds a host per request and
@@ -101,8 +127,8 @@ adapters, two adapters. A row cannot be fixed for one adapter while the other fa
   instance — the client plugin and each server request — and required to return a fresh instance
   every call. Both are allowed: an instance module is what a process-wide instance wants, a factory
   is what a per-request instance wants, and the contract lets lifecycle differ. **The option names
-  differ on purpose.** `config` and `hostModule` take different things, and the shared-options rule
-  forbids one name for two meanings; a shared name waits for a shared meaning.
+  differ on purpose, today.** `config` and `hostModule` take different things, and the shared-options
+  rule forbids one name for two meanings; the names are listed under "Open for alignment".
 - **`<html lang dir>`** (amended 2026-10-04). Nuxt writes both attributes itself when the module
   option `head` is on, and it is on by default: the plugin owns the app's head and the route
   middleware owns the locale, so the module can. Next keeps `<html lang={locale}>` explicit in the
@@ -113,11 +139,12 @@ adapters, two adapters. A row cannot be fixed for one adapter while the other fa
   for.
 - **Cookie names.** `NEXT_LOCALE` and `i18n_locale`. Both are what an app in that ecosystem already
   has — next-intl writes `NEXT_LOCALE`, nuxt-i18n writes `i18n_locale` — and a shared third name
-  would break every app migrating to us for the sake of a consistency no user can see. Under the
-  contract this is a listed divergence in defaults, not an exemption.
+  would break every app migrating to us for the sake of a consistency no user can see. This is the
+  one entry here justified by migration rather than by a framework; see "Open for alignment".
 - **Integration.** Next is a set of imports the app writes itself (`createMiddleware`,
   `defineRouting`, `getI18n`, `withComvi`); Nuxt is a module that generates files and auto-imports
-  composables. There is no shared shape for "install the framework integration".
+  composables. There is no shared shape for "install the framework integration"; what the two
+  integrations call their options is a separate, open question.
 
 ## Consequences
 
