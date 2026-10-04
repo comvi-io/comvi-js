@@ -3,6 +3,8 @@ export class TypegenError extends Error {
     message: string,
     public readonly code: string,
     public readonly cause?: Error,
+    /** Structured context, e.g. the platform's `{ status, code, message, meta }` error body. */
+    public readonly details?: Readonly<Record<string, unknown>>,
   ) {
     super(message);
     this.name = "TypegenError";

@@ -90,18 +90,105 @@ interface RequestJsonOptions {
   forbidden?: string;
 }
 
-/** The error a non-2xx response that will not be retried turns into. */
-function httpError(response: Response, opts: RequestJsonOptions): TypegenError {
+/** Error bodies are read up to this many bytes; the rest is discarded. */
+const ERROR_BODY_LIMIT_BYTES = 64 * 1024;
+/** A platform message longer than this is cut, so one error stays one line. */
+const ERROR_MESSAGE_LIMIT_CHARS = 500;
+
+/**
+ * The error a non-2xx response that will not be retried turns into. The
+ * platform answers failures with `{ code, message, meta? }`; its `message` is
+ * the actionable part (which keys conflict, which locale is unknown), so it is
+ * read — under the caller's request timer — and appended to the status line.
+ * A body that is not that JSON shape falls back to the status line alone.
+ */
+async function httpError(response: Response, opts: RequestJsonOptions): Promise<TypegenError> {
   if (response.status === 401) {
     return new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
   }
   if (response.status === 403 && opts.forbidden) {
     return new TypegenError(opts.forbidden, ErrorCodes.API_AUTH_FAILED);
   }
-  return new TypegenError(
-    `${opts.failure}: ${response.status} ${response.statusText}`,
-    ErrorCodes.API_FETCH_FAILED,
-  );
+
+  const body = parseErrorBody(await readBoundedText(response));
+  const details: Record<string, unknown> = { status: response.status, ...body };
+  const statusLine = `${opts.failure}: ${response.status} ${response.statusText}`;
+  const message = body.message
+    ? `${statusLine}${body.code ? ` (${body.code})` : ""}: ${body.message}`
+    : statusLine;
+  return new TypegenError(message, ErrorCodes.API_FETCH_FAILED, undefined, details);
+}
+
+async function readBoundedText(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return typeof response.text === "function"
+      ? (await response.text()).slice(0, ERROR_BODY_LIMIT_BYTES)
+      : "";
+  }
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (size < ERROR_BODY_LIMIT_BYTES) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+    size += value.byteLength;
+  }
+  if (size >= ERROR_BODY_LIMIT_BYTES) {
+    await reader.cancel().catch(() => undefined);
+  }
+
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes.subarray(0, ERROR_BODY_LIMIT_BYTES));
+}
+
+function parseErrorBody(text: string): { code?: string; message?: string; meta?: unknown } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return {};
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return {};
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const result: { code?: string; message?: string; meta?: unknown } = {};
+  const message = oneLine(record.message);
+  if (message) {
+    result.message = message;
+  }
+  const code = oneLine(record.code);
+  if (code) {
+    result.code = code;
+  }
+  if (record.meta !== undefined) {
+    result.meta = record.meta;
+  }
+  return result;
+}
+
+/** A string field as one trimmed, bounded line; anything else is dropped. */
+function oneLine(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const line = value.replace(/[\p{Cc}\s]+/gu, " ").trim();
+  if (!line) {
+    return undefined;
+  }
+  return line.length > ERROR_MESSAGE_LIMIT_CHARS
+    ? `${line.slice(0, ERROR_MESSAGE_LIMIT_CHARS)}…`
+    : line;
 }
 
 const MAX_RETRIES = 2;
@@ -221,7 +308,7 @@ export class ApiClient {
 
           const retryable = retryTransient && (response.status === 429 || response.status >= 500);
           if (!(retryable && attempt < MAX_RETRIES)) {
-            throw httpError(response, opts);
+            throw await httpError(response, opts);
           }
           retryAfterMs = retryDelayMs(response, attempt + 1);
         }
