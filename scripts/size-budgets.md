@@ -79,6 +79,16 @@ whenever a source edit changes those hash characters, while the minified payload
 all. The core build is deterministic, so such a swing is neither flakiness nor weight — 5 % absorbs
 it, and only real regressions fire the gate.
 
+`fw-svelte-full-composite` was re-baselined on 2026-10-04 (merged feat @ fc046c3a) from the 09-12
+baseline of 11716 B to 12320 B. The row had 11 B of headroom left after the day's lots (strict
+step r Svelte init gate +21 B, R3-B-2) and lot H2 then added 29 B of core that every full
+composite carries: a shared promise published into the init slot BEFORE `_init()` runs (~17 B,
+the fix for re-entrant `init()` from a synchronous listener) and two destroy guards that end a
+mid-init teardown quietly (~10 B). Slimming inside the lot saved 12 B; the reviewer confirmed the
+rest is the fix itself (folding the `started` flag into an existing field fails because `destroy()`
+resets those fields before the late rejection arrives). `core-base` stays within its budget
+(5364 B of 5534 B). Lot H1 (commit-safe React/Next handover) is expected to touch this row again.
+
 ## How to re-baseline
 
 1. Build the dists the gate reads: `pnpm build`.

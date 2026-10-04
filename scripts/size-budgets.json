@@ -114,11 +114,11 @@
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-full-composite.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 12302,
+      "gzipBudgetBytes": 12936,
       "baseline": {
-        "minBytes": 33191,
-        "gzipBytes": 11716,
-        "measuredAt": "2026-09-12"
+        "minBytes": 34890,
+        "gzipBytes": 12320,
+        "measuredAt": "2026-10-04"
       },
       "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
     },
