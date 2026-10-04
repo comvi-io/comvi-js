@@ -48,9 +48,11 @@ export { MessagesCache } from "./core/MessagesCache";
  * to merge several sources before handing one object over.
  *
  * Non-string leaves are coerced with `String()` and `null`/`undefined` leaves
- * are dropped (with a dev warning). Input with a null prototype is assumed
- * already flat and passes through BY REFERENCE, unflattened, so a hand-built
- * null-prototype object with nested values stays nested.
+ * are dropped (with a dev warning). Input that already has the stored shape —
+ * a null prototype AND every own value a string — is returned BY REFERENCE,
+ * without a copy. Any other input, including a null-prototype object with
+ * nested values, is flattened into a new null-prototype object; the caller's
+ * object is never mutated.
  */
 export { normalizeTranslationObject as flattenCatalog } from "./utils";
 

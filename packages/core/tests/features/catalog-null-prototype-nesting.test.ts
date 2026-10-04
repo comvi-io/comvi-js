@@ -78,4 +78,16 @@ describe("an already-flat null-prototype catalog", () => {
 
     expect(flattenCatalog(flat)).toBe(flat);
   });
+
+  // The public JSDoc names this condition: a null prototype alone is not
+  // enough for the by-reference path, the leaves must all be strings.
+  it("is the only null-prototype input adopted; a nested one is flattened into a new object", () => {
+    const nested = Object.create(null) as Record<string, unknown>;
+    nested.nav = { home: "Home" };
+
+    const result = flattenCatalog(nested);
+
+    expect(result).not.toBe(nested);
+    expect({ ...result }).toEqual({ "nav.home": "Home" });
+  });
 });
