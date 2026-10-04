@@ -49,19 +49,24 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
   const { cdnUrl, defaultNs, timeout, cdnLayout, fallback } = config;
   // Destructured once: every member is read on each load, and a local binding
   // minifies where a cross-module property name cannot.
-  const { track, isStopped, reportSuccess, reportError } = requests;
+  const { track, generation, isStopped, reportSuccess, reportError } = requests;
   const cacheOpts = buildCacheOptions(config.cache);
-  const loading = new Map<string, Promise<Record<string, TranslationValue>>>();
+  // Each entry remembers the invalidation generation it started in: a load
+  // after a reload or clear must not join a request the host abandoned.
+  const loading = new Map<string, [number, Promise<Record<string, TranslationValue>>]>();
 
   const load = async (
     locale: string,
     namespace: string,
   ): Promise<Record<string, TranslationValue>> => {
     const ck = `${locale}:${namespace}`;
+    const gen = generation();
     const existing = loading.get(ck);
-    if (existing) return existing;
+    if (existing?.[0] === gen) return existing[1];
 
-    const promise = (async () => {
+    let promise!: Promise<Record<string, TranslationValue>>;
+    // eslint-disable-next-line prefer-const -- the finally compares against it
+    promise = (async () => {
       const { signal, release } = track(locale, [namespace]);
       const url = buildCdnUrl(cdnUrl, locale, namespace, defaultNs, cdnLayout);
       try {
@@ -106,11 +111,12 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
         throw err;
       } finally {
         release();
-        loading.delete(ck);
+        // Only this request's own entry: a newer one may have replaced it.
+        if (loading.get(ck)?.[1] === promise) loading.delete(ck);
       }
     })();
 
-    loading.set(ck, promise);
+    loading.set(ck, [gen, promise]);
     return promise;
   };
 

@@ -70,12 +70,16 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
     const shouldLoadImmediately = loadOnInit && !i18n.isInitializing;
 
     const requests = trackInflight(i18n, options);
-    const { track: trackRequest, isStopped, reportSuccess, reportError } = requests;
+    const { track: trackRequest, generation, isStopped, reportSuccess, reportError } = requests;
 
     if (apiKey) {
+      // Keyed by locale + namespace set, so loads of other namespaces in the
+      // same batch keep sharing one request; each entry also remembers its
+      // invalidation generation, so a load after a reload or clear starts a
+      // new request instead of joining the abandoned one.
       const pending = new Map<
         string,
-        Promise<{ store: TranslationStore; attemptedFallbacks: Set<string> }>
+        [number, Promise<{ store: TranslationStore; attemptedFallbacks: Set<string> }>]
       >();
 
       const fetchFromApi = async (
@@ -84,10 +88,13 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
       ): Promise<{ store: TranslationStore; attemptedFallbacks: Set<string> }> => {
         const requestedNamespaces = [...new Set(namespaces)];
         const key = `${locale}:${[...requestedNamespaces].sort().join(",")}`;
+        const gen = generation();
         const existing = pending.get(key);
-        if (existing) return existing;
+        if (existing?.[0] === gen) return existing[1];
 
-        const promise = (async () => {
+        let promise!: Promise<{ store: TranslationStore; attemptedFallbacks: Set<string> }>;
+        // eslint-disable-next-line prefer-const -- the finally compares against it
+        promise = (async () => {
           const store: TranslationStore = new Map();
           const attemptedFallbacks = new Set<string>();
           const { signal, release } = trackRequest(locale, requestedNamespaces);
@@ -136,13 +143,14 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
             }
           } finally {
             release();
-            pending.delete(key);
+            // Only this request's own entry: a newer one may have replaced it.
+            if (pending.get(key)?.[1] === promise) pending.delete(key);
           }
 
           return { store, attemptedFallbacks };
         })();
 
-        pending.set(key, promise);
+        pending.set(key, [gen, promise]);
         return promise;
       };
 

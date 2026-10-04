@@ -1,9 +1,10 @@
-/** The host surface this bookkeeping needs: the cleared-scope announcement. */
+/** The host surface this bookkeeping needs: the cleared-scope announcement and the cache revision. */
 export interface ClearedScopeHost {
   on(
     event: "messagesCleared",
     callback: (data: { locale?: string; namespace?: string }) => void,
   ): () => void;
+  readonly messagesCache: { getRevision(): number };
 }
 
 /** The two report hooks every loader option bag carries. */
@@ -24,6 +25,14 @@ export interface InflightRequests {
    * `release` unregisters it; a request started after `stop()` is born aborted.
    */
   track: (locale: string, namespaces: string[]) => { signal: AbortSignal; release: () => void };
+  /**
+   * The invalidation generation a request is joinable in. It moves whenever the
+   * host invalidates catalogs: every cache write or delete (`reloadMessages`,
+   * `clearMessages`, `addMessages`) bumps the cache revision, and every
+   * `messagesCleared` bumps it too, which covers a clear that found nothing
+   * cached. A dedup entry from an older generation is never joined.
+   */
+  generation: () => number;
   /** True once `stop()` has run — the plugin is torn down, discard everything. */
   isStopped: () => boolean;
   /** Reports through `onLoadSuccess` unless the plugin is torn down. */
@@ -60,8 +69,10 @@ export function trackInflight(i18n: ClearedScopeHost, callbacks: LoadCallbacks):
   const { onLoadSuccess, onLoadError } = callbacks;
   const inflight = new Set<InflightRequest>();
   let stopped = false;
+  let cleared = 0;
 
   const unfollow = i18n.on("messagesCleared", ({ locale, namespace }) => {
+    cleared++;
     for (const request of inflight) {
       if (
         (locale === undefined || request.locale === locale) &&
@@ -84,6 +95,8 @@ export function trackInflight(i18n: ClearedScopeHost, callbacks: LoadCallbacks):
         release: () => inflight.delete(request),
       };
     },
+    // Both counters only grow, so their sum moves whenever either does.
+    generation: () => cleared + i18n.messagesCache.getRevision(),
     isStopped: () => stopped,
     reportSuccess: (locale, namespace) => {
       if (!stopped) onLoadSuccess?.(locale, namespace);
