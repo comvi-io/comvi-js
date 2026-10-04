@@ -5,7 +5,7 @@
  */
 import React, { Suspense, startTransition, useState } from "react";
 import { flushSync } from "react-dom";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { act, render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { createI18n } from "../src";
@@ -69,6 +69,16 @@ describe("I18nProvider targetLocale", () => {
       await i18n.setLocale("en");
     });
     expect(log.slice(-2)).toEqual(["en:Hello", "en:Hello"]);
+  });
+
+  it("is no handover when the target is the instance's locale: the server snapshot renders", () => {
+    const i18n = createI18n({ locale: "en", messages });
+    const html = renderToString(
+      <I18nProvider i18n={i18n} autoInit={false} ssrLocale="uk" targetLocale="en">
+        <Probe log={[]} />
+      </I18nProvider>,
+    );
+    expect(html.replace(/<!-- -->/g, "")).toContain("uk:Привіт");
   });
 
   it("renders the target on the server, as ssrLocale does", () => {
@@ -183,6 +193,70 @@ describe("I18nProvider messages", () => {
     await act(async () => {});
     expect(i18n.hasLocale("de")).toBe(true);
     expect(view.container.textContent).toBe("de:Hallo");
+  });
+
+  it("hands over to the i18n instance at commit, so a later addMessages wins", async () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
+    const view = render(
+      <I18nProvider
+        i18n={i18n}
+        autoInit={false}
+        targetLocale="de"
+        messages={{ de: { greeting: "Hallo" } }}
+      >
+        <Probe log={[]} />
+      </I18nProvider>,
+    );
+    await act(async () => {});
+    // An editor save after the handover: the tree reads the instance again.
+    await act(async () => {
+      i18n.addMessages({ de: { greeting: "Servus" } });
+    });
+    expect(view.container.textContent).toBe("de:Servus");
+  });
+
+  it("a later render with a new messages object translates from it in that render", async () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
+    const log: string[] = [];
+    const navigate = (locale: string, greeting: string) => (
+      <I18nProvider
+        i18n={i18n}
+        autoInit={false}
+        targetLocale={locale}
+        messages={{ [locale]: { greeting } }}
+      >
+        <Probe log={log} />
+      </I18nProvider>
+    );
+    const view = render(navigate("de", "Hallo"));
+    await act(async () => {
+      await i18n.setLocale("de");
+    });
+    log.length = 0;
+    view.rerender(navigate("uk", "Привіт"));
+    expect(log[0]).toBe("uk:Привіт");
+    expect(i18n.hasLocale("uk")).toBe(true);
+  });
+
+  it("adds a messages object once, under StrictMode too", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
+    const addMessages = vi.spyOn(i18n, "addMessages");
+    const messages = { de: { greeting: "Hallo" } };
+    const view = render(
+      <React.StrictMode>
+        <I18nProvider i18n={i18n} autoInit={false} messages={messages}>
+          <Probe log={[]} />
+        </I18nProvider>
+      </React.StrictMode>,
+    );
+    view.rerender(
+      <React.StrictMode>
+        <I18nProvider i18n={i18n} autoInit={false} messages={messages}>
+          <Probe log={[]} />
+        </I18nProvider>
+      </React.StrictMode>,
+    );
+    expect(addMessages).toHaveBeenCalledExactlyOnceWith(messages);
   });
 
   it("renderToString with messages never writes the instance", () => {

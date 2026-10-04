@@ -8016,6 +8016,15 @@
       "lineHint": 63,
       "kind": "equivalent",
       "reason": "removing the early return only skips it: with no `#` the loop body never runs, so the function falls through to `\"\" + str.slice(0)`, which is the input string. The bail is kept because it measured ~6 ns/op on a branch with no `#`."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/I18nProvider.tsx",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "}>(() => ({ i18n, target: targetLocale, from: i18n.locale }));",
+      "lineHint": 245,
+      "kind": "equivalent",
+      "reason": "the handover's initial state is also what the render-phase correction below builds: an empty seed fails `hand.i18n !== i18n` on the first render, so `setHand` rebuilds the same object before any child renders. Hand-applied (`({}) as never`): 294/294 react tests green."
     }
   ]
 }
