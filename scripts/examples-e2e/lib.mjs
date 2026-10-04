@@ -79,7 +79,7 @@ export const STEP_LEGEND = {
   o: "SSR: the greeting text is right from first paint through hydration",
   p: "a missing parameter renders as its own placeholder",
   q: "an HTML-like parameter renders as text: no element, no handler run",
-  r: "DOM states during en → uk → de: never a raw key or a mixed-language frame",
+  r: "every DOM state (one per delivered mutation batch) during en → uk → de is one whole language: never a raw key or a mix",
   s: "F-15: defaultLocale uk, /uk renders the en value of an en-only key, SSR and hydrated",
   t: "--cdn SSR race: /uk and /de held in flight together, uk released first; each HTML and its hydration in its own locale",
   t2: "--cdn SSR race: the same, de released first",
@@ -520,11 +520,11 @@ export function stepResults(report) {
 }
 
 /**
- * Findings a test recorded without failing, out of Playwright's JSON report:
- * every annotation whose type is `finding:<kind>`, as
- * `{ kind, step, ...JSON.parse(description) }`. Step r records each
- * mixed-language or raw-key DOM state that was replaced before the next
- * animation frame this way (`subFrameMixedState`).
+ * Findings a test recorded, out of Playwright's JSON report: every annotation
+ * whose type is `finding:<kind>`, as `{ kind, step, ...JSON.parse(description) }`.
+ * Step r records each mixed-language or raw-key DOM state it failed on this
+ * way (`mixedState`), with whether a paint ran before the next state: that
+ * is diagnostics for the report, never part of the verdict.
  */
 export function stepFindings(report) {
   const out = [];
@@ -551,15 +551,15 @@ export function stepFindings(report) {
 
 /**
  * The run's findings, grouped by kind for the report file:
- * `{ subFrameMixedStates: [{ framework, mode, phase, step, … }] }`.
+ * `{ mixedStates: [{ framework, mode, phase, step, … }] }`.
  */
 export function collectFindings(results, mode) {
-  const findings = { subFrameMixedStates: [] };
+  const findings = { mixedStates: [] };
   for (const result of results) {
     for (const finding of result.findings ?? []) {
       const { kind, ...rest } = finding;
       const entry = { framework: result.name, mode, ...rest };
-      if (kind === "subFrameMixedState") findings.subFrameMixedStates.push(entry);
+      if (kind === "mixedState") findings.mixedStates.push(entry);
       else (findings[kind] ??= []).push(entry);
     }
   }
@@ -568,17 +568,16 @@ export function collectFindings(results, mode) {
 
 /** The findings section printed under the table; empty when there are none. */
 export function renderFindings(findings) {
-  const states = findings.subFrameMixedStates ?? [];
+  const states = findings.mixedStates ?? [];
   if (states.length === 0) return "";
   return [
     "",
-    "findings (recorded, not failed): a mixed-language or raw-key state that is replaced " +
-      "before the next animation frame is recorded, not failed",
+    "mixed states (each one fails its step; painted = diagnostics only):",
     ...states.map(
       (entry) =>
         `${entry.framework}/${entry.step} (${entry.phase}): ${entry.problem}; ` +
         `lang=${entry.lang}, greeting=${JSON.stringify(entry.text)}, ` +
-        `${entry.mutationBatches} mutation batch(es)`,
+        `painted=${entry.painted ? "yes" : "no"}`,
     ),
   ].join("\n");
 }

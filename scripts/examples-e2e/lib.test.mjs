@@ -853,12 +853,12 @@ test("assertCandidateIntegrity: the lockfile must name the candidate's file with
 
 // ── findings ───────────────────────────────────────────────────────────────
 
-test("stepFindings → collectFindings → renderFindings: sub-frame states are reported, not failed", () => {
+test("stepFindings → collectFindings → renderFindings: mixed states are reported with paint diagnostics", () => {
   const state = {
     problem: 'en text under <html lang="uk">',
     lang: "uk",
     text: "Hello",
-    mutationBatches: 1,
+    painted: false,
   };
   const report = {
     suites: [
@@ -869,14 +869,12 @@ test("stepFindings → collectFindings → renderFindings: sub-frame states are 
             tests: [
               {
                 // Playwright repeats a runtime annotation on the test itself.
-                annotations: [
-                  { type: "finding:subFrameMixedState", description: JSON.stringify(state) },
-                ],
+                annotations: [{ type: "finding:mixedState", description: JSON.stringify(state) }],
                 results: [
                   {
                     status: "passed",
                     annotations: [
-                      { type: "finding:subFrameMixedState", description: JSON.stringify(state) },
+                      { type: "finding:mixedState", description: JSON.stringify(state) },
                       { type: "note", description: "ignored" },
                     ],
                   },
@@ -889,19 +887,19 @@ test("stepFindings → collectFindings → renderFindings: sub-frame states are 
     ],
   };
   const found = stepFindings(report);
-  assert.deepEqual(found, [{ kind: "subFrameMixedState", step: "r", ...state }]);
+  assert.deepEqual(found, [{ kind: "mixedState", step: "r", ...state }]);
   const findings = collectFindings(
     [{ name: "next", findings: found.map((entry) => ({ ...entry, phase: "main" })) }],
     "default",
   );
-  assert.deepEqual(findings.subFrameMixedStates, [
+  assert.deepEqual(findings.mixedStates, [
     { framework: "next", mode: "default", step: "r", phase: "main", ...state },
   ]);
   const text = renderFindings(findings);
-  assert.match(text, /recorded, not failed/);
+  assert.match(text, /each one fails its step/);
   assert.match(
     text,
-    /next\/r \(main\): en text under <html lang="uk">; lang=uk, greeting="Hello", 1 mutation batch/,
+    /next\/r \(main\): en text under <html lang="uk">; lang=uk, greeting="Hello", painted=no/,
   );
   assert.equal(renderFindings(collectFindings([{ name: "react", findings: [] }], "cdn")), "");
 });

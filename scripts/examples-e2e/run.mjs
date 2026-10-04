@@ -47,11 +47,10 @@
  * (t, t2, u, v, v2) runs between main and cdn-down, against the main build on
  * a fresh server of its own. A skip outside `allowedSkips` fails its
  * step, and a failure is green only when `EXPECTED_FAILURES` lists it with a
- * reference. Step r follows one rule: a mixed-language or raw-key state that
- * is replaced before the next animation frame is recorded, not failed; such
- * states are printed under the table and written, with every result, to
- * `test-results/examples-e2e/report[-cdn].json` under
- * `findings.subFrameMixedStates`. On any failure the reports, console logs, server logs and
+ * reference. Step r judges every delivered mutation batch: a mixed-language
+ * or raw-key state fails it, and each one is also printed under the table and
+ * written, with every result, to `test-results/examples-e2e/report[-cdn].json`
+ * under `findings.mixedStates`, with paint diagnostics. On any failure the reports, console logs, server logs and
  * Playwright traces are copied to `test-results/examples-e2e/<example>[-cdn]/`,
  * `--keep` or not.
  *
@@ -291,23 +290,28 @@ async function startServer(kind, dir, extraEnv, logFile) {
  *     messages a dead CDN legitimately produces (the spec owns that list).
  *   - `f15` (next and nuxt, without `--cdn`): the copy edited by
  *     `F15_VARIANT` to `defaultLocale: "uk"`, running s alone.
- *   - `cdn-<step>` (`--cdn` only), one per `CDN_CONTROL_STEPS` step: the main
+ *   - `main-cdn` (`--cdn`): `main` without step r, which then runs in its own
+ *     `cdn-r` phase so it can hold each switch at the mock CDN.
+ *   - `cdn-<step>` (`--cdn` only), one per `CDN_STEERED` step: the main
  *     build, served by a FRESH server, running that step alone. The step
  *     steers the mock CDN (hold, hang, corrupt), and a server that already
  *     holds uk and de from an earlier step would have nothing left to race.
  *
  * `rename` maps a test's step id to the column its result fills.
  */
+const CDN_STEERED = ["r", ...CDN_CONTROL_STEPS];
+const mainPhase = (excluded) => ({
+  args: ["--grep-invert", `\\b(${["k2", "s", ...excluded].join("|")}): `],
+  expect: STEPS.filter((step) => !["k", "k2", "g2", "s", ...excluded].includes(step)),
+  rename: {},
+});
 const PHASES = {
-  main: {
-    args: ["--grep-invert", `\\b(${["k2", "s", ...CDN_CONTROL_STEPS].join("|")}): `],
-    expect: STEPS.filter((step) => !["k", "k2", "g2", "s", ...CDN_CONTROL_STEPS].includes(step)),
-    rename: {},
-  },
+  main: mainPhase(CDN_CONTROL_STEPS),
+  "main-cdn": mainPhase(CDN_STEERED),
   "cdn-down": { args: ["--grep", "\\b(k2|g): "], expect: ["k2", "g"], rename: { g: "g2" } },
   f15: { args: ["--grep", "\\bs: "], expect: ["s"], rename: {} },
   ...Object.fromEntries(
-    CDN_CONTROL_STEPS.map((step) => [
+    CDN_STEERED.map((step) => [
       `cdn-${step}`,
       { args: ["--grep", `\\b${step}: `], expect: [step], rename: {} },
     ]),
@@ -497,9 +501,10 @@ async function e2eExample(example, packages, options, cdn) {
       return result;
     }
 
-    // Phase 1: everything but k2 and s.
+    // Phase 1: everything but k2, s and (under --cdn) the steered steps.
+    const mainName = cdn ? "main-cdn" : "main";
     try {
-      Object.assign(result.steps, await buildServeRun(ctx, "main", cdn?.url));
+      Object.assign(result.steps, await buildServeRun(ctx, mainName, cdn?.url));
       result.build = { status: "pass" };
     } catch (error) {
       const built = !/^pnpm run build/.test(error.message);
@@ -510,7 +515,7 @@ async function e2eExample(example, packages, options, cdn) {
       // k3 would have skipped without --cdn; failing it for a server that never
       // came up would report a CDN problem nobody tested.
       failAll(
-        PHASES.main.expect.filter((step) => cdn || step !== "k3"),
+        PHASES[mainName].expect.filter((step) => cdn || step !== "k3"),
         error,
       );
       if (!cdn) result.steps.k3 = { status: "skip", message: "needs --cdn" };
@@ -524,7 +529,7 @@ async function e2eExample(example, packages, options, cdn) {
 
       // The steps that steer the mock: the main build, a fresh server each.
       if (result.build.status === "pass") {
-        for (const step of CDN_CONTROL_STEPS) {
+        for (const step of CDN_STEERED) {
           try {
             Object.assign(result.steps, await serveRun(ctx, `cdn-${step}`, cdn.url));
           } catch (error) {
@@ -656,8 +661,8 @@ async function main(argv) {
   const findings = collectFindings(results, mode);
   const findingsText = renderFindings(findings);
   if (findingsText) console.log(findingsText);
-  // The whole run as data: every step's verdict, and what was recorded
-  // without failing (step r's sub-frame states).
+  // The whole run as data: every step's verdict, and step r's mixed states
+  // with their paint diagnostics.
   fs.mkdirSync(RESULTS_DIR, { recursive: true });
   const reportFile = path.join(RESULTS_DIR, `report${options.cdn ? "-cdn" : ""}.json`);
   fs.writeFileSync(

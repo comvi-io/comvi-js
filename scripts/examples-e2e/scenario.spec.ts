@@ -721,16 +721,17 @@ type Frame = {
   link: string | null;
   lang: string | null;
   dir: string | null;
-  /** Animation frames run before this state was recorded. */
+  /** Diagnostics only: animation frames painted before this state was recorded. */
   paints: number;
-  /** Mutation batches observed before this state was recorded. */
+  /** Delivered mutation batches before and including this one. */
   batch: number;
 };
 
 /**
  * Which locales a frame's texts belong to. A text that is no locale's
  * expected value (a raw key, an empty string, a half-interpolated message)
- * is returned in `unknown`.
+ * is returned in `unknown`. An element that is not rendered at all is the
+ * documented loading state and belongs to no locale.
  */
 function classify(frame: Frame): { locales: Set<Shown>; unknown: string[] } {
   const locales = new Set<Shown>();
@@ -750,28 +751,44 @@ function classify(frame: Frame): { locales: Set<Shown>; unknown: string[] } {
   return { locales, unknown };
 }
 
-test("r: DOM states during en → uk → de are whole languages, never a key or a mix", async ({
+/** What is wrong with one observed state under the strict contract, or null. */
+function stateProblem(frame: Frame): string | null {
+  const { locales, unknown } = classify(frame);
+  if (unknown.length > 0) return `not any locale's text: ${unknown.join(", ")}`;
+  if (locales.size > 1) return `mixed languages ${[...locales].join("+")}`;
+  if (locales.size === 1) {
+    const [locale] = [...locales];
+    if (frame.lang !== locale) return `${locale} text under <html lang="${frame.lang}">`;
+    if (frame.dir !== null && frame.dir !== "ltr") {
+      return `${locale} text under <html dir="${frame.dir}">`;
+    }
+  }
+  return null;
+}
+
+test("r: every DOM state during en → uk → de is one whole language, never a key or a mix", async ({
   page,
 }) => {
-  // A DOM guarantee, not a visual one: a MutationObserver installed before
-  // the document exists records the watched elements and <html lang dir>
-  // after every batch of mutations, from the parser's first insert through
-  // both switches, with the number of animation frames run so far.
+  // The strict contract: every observed state is the old locale in full
+  // (text and <html lang> agree), the new locale in full, or the documented
+  // loading state (the watched elements not rendered). Anything else fails,
+  // however briefly it lasted.
   //
-  // The rule: a mixed-language or raw-key state that is replaced before the
-  // next animation frame is recorded, not failed. Only a state that survived
-  // across an animation frame — one a user could have seen — fails the step.
-  // Recorded states go into the report as findings (`subFrameMixedStates`).
+  // Observation rule: one state is one DELIVERED batch of DOM mutations (one
+  // MutationObserver callback, at one microtask checkpoint); operations made
+  // synchronously inside a batch are not separate states and are not judged.
+  //
+  // Under --cdn each switch is held at the mock CDN until the barrier sees its
+  // catalog in flight, so the state while the catalog is outstanding is
+  // observed every run, not when the timing happens to allow it. The paint
+  // counter (frames painted so far, per state) is diagnostics in the report
+  // and never part of the verdict.
   await page.addInitScript(() => {
     const frames: unknown[] = [];
     (window as unknown as { __frames: unknown[] }).__frames = frames;
     let last = "";
-    // How many frames have been PAINTED: a state recorded under the same count
-    // as the state that replaced it never reached a paint. The count moves
-    // after the frame, not at its first rAF callback: a MessageChannel task
-    // posted from rAF runs once the frame's rAF callbacks, style, layout and
-    // paint are done, so a mutation made by a later rAF callback of the same
-    // frame is still counted as painted.
+    // Painted frames so far: a MessageChannel task posted from rAF runs once
+    // the frame's callbacks, style, layout and paint are done.
     let paints = 0;
     let batch = 0;
     const channel = new MessageChannel();
@@ -807,65 +824,51 @@ test("r: DOM states during en → uk → de are whole languages, never a key or 
       attributeFilter: ["lang", "dir"],
     });
   });
-  await open(page);
+  const start = CDN_CONTROL ? livePath("en") : START;
+  await open(page, start);
   await ready(page);
-  await switchTo(page, "uk");
-  await switchTo(page, "de");
-  await expect(page.locator("html")).toHaveAttribute("lang", "de");
+  for (const target of ["uk", "de"] as const) {
+    if (CDN_CONTROL) await cdn.mode({ hold: [target] });
+    const button = page.getByTestId(`locale-${target}`);
+    await button.click();
+    if (CDN_CONTROL) {
+      await cdn.inFlight("held", [target]);
+      await cdn.release(target);
+    }
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("greeting")).toHaveText(greeting(target));
+    await expect(page.locator("html")).toHaveAttribute("lang", target);
+    const path = CDN_CONTROL ? livePath(target) : homePath(target);
+    if (SSR) await expect(page).toHaveURL(new RegExp(`${escapeRegExp(path)}$`));
+  }
   const frames = await page.evaluate(() => (window as unknown as { __frames: Frame[] }).__frames);
-  // The painted/sub-frame split means nothing in a page that never renders
-  // (a background tab, a throttled renderer): every bad state would turn
-  // into a finding. Fail instead.
-  expect(await page.evaluate(() => document.visibilityState), "the page is visible").toBe(
-    "visible",
-  );
-  expect(
-    frames.length > 1 && frames[frames.length - 1].paints > frames[0].paints,
-    "no rendering opportunities observed between the first and the last state",
-  ).toBe(true);
 
   const violations: string[] = [];
-  const findings: Array<Record<string, unknown>> = [];
   const order: Shown[] = [];
   for (const [index, frame] of frames.entries()) {
-    const next = frames[index + 1];
-    // The last state is still on screen; any other was painted if an
-    // animation frame ran before the state that replaced it.
-    const painted = !next || next.paints !== frame.paints;
-    const { locales, unknown } = classify(frame);
-    let problem: string | null = null;
-    if (unknown.length > 0) problem = `not any locale's text: ${unknown.join(", ")}`;
-    else if (locales.size > 1) problem = `mixed languages ${[...locales].join("+")}`;
-    else if (locales.size === 1) {
-      const [locale] = [...locales];
-      if (frame.lang !== locale) problem = `${locale} text under <html lang="${frame.lang}">`;
-      else if (frame.dir !== null && frame.dir !== "ltr") {
-        problem = `${locale} text under <html dir="${frame.dir}">`;
-      }
-    }
-    if (problem && painted) {
-      violations.push(`frame ${index}: ${problem} (lasted across an animation frame)`);
-    } else if (problem) {
-      findings.push({
-        problem,
-        lang: frame.lang,
-        text: frame.greeting,
-        mutationBatches: next.batch - frame.batch,
+    const problem = stateProblem(frame);
+    if (problem) {
+      violations.push(`state ${index}: ${problem}`);
+      // Diagnostics for the report: whether a paint ran before the next state.
+      const next = frames[index + 1];
+      test.info().annotations.push({
+        type: "finding:mixedState",
+        description: JSON.stringify({
+          problem,
+          lang: frame.lang,
+          text: frame.greeting,
+          painted: !next || next.paints !== frame.paints,
+        }),
       });
+      continue;
     }
-    // Only states a user could have seen make up the language sequence.
-    if (!problem && painted && locales.size === 1) {
+    const { locales } = classify(frame);
+    if (locales.size === 1) {
       const [locale] = [...locales];
       if (order[order.length - 1] !== locale) order.push(locale);
     }
   }
-  for (const finding of findings) {
-    test.info().annotations.push({
-      type: "finding:subFrameMixedState",
-      description: JSON.stringify(finding),
-    });
-  }
-  expect(violations, `${frames.length} frames:\n${JSON.stringify(frames, null, 1)}`).toEqual([]);
+  expect(violations, `${frames.length} states:\n${JSON.stringify(frames, null, 1)}`).toEqual([]);
   // The previous language until the switch lands, then the new one: never
   // back, never a detour through a third.
   expect(order, "the sequence of languages the watched elements showed").toEqual([

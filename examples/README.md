@@ -222,7 +222,7 @@ example is `skip`, and the reason is printed under the table:
 | o    | next, nuxt: from first paint through hydration the greeting is only ever the Ukrainian text             |
 | p    | a missing parameter renders as its own placeholder, `{name}`                                            |
 | q    | `?name=<img src=x onerror=…>` renders as text: no element is created and the handler never runs         |
-| r    | every painted DOM state during en → uk → de is one whole language matching `<html lang>`, never a key   |
+| r    | every DOM state during en → uk → de is one whole language matching `<html lang>`, never a key           |
 | s    | next, nuxt: a build with `defaultLocale: "uk"` serves `/uk` with the en value of an en-only key         |
 | t    | `--cdn`, next, nuxt: `/uk` and `/de` rendered at once, both catalogs held, uk released first            |
 | t2   | `--cdn`, next, nuxt: the same race, de released first                                                   |
@@ -265,11 +265,14 @@ same page under `force-dynamic`. Nuxt renders `/<locale>` per request already.
 instead of packing the workspace. The release workflow packs once, runs both
 modes this way and publishes the same files.
 
-Step r watches the DOM, not the screen, and follows one rule: a mixed-language or
-raw-key state that is replaced before the next animation frame is recorded, not
-failed. Recorded states are printed under the table and written to
-`test-results/examples-e2e/report.json` (`report-cdn.json` for `--cdn`) under
-`findings.subFrameMixedStates`, next to every step's verdict.
+Step r watches the DOM, not the screen. One state is one delivered batch of DOM
+mutations, and every state must be the old locale in full, the new locale in full,
+or the loading state. A mixed-language or raw-key state fails the step however
+briefly it lasted. Under `--cdn` each switch's catalog is held until the barrier
+sees it, so the in-between state is observed every run. Failing states are printed
+under the table and written to `test-results/examples-e2e/report.json`
+(`report-cdn.json` for `--cdn`) under `findings.mixedStates`, with whether a paint
+ran before the next state as diagnostics.
 
 Every install resolves the whole `@comvi` scope from the tarballs under test:
 `pnpm.overrides` pins each package, and the temp `.npmrc` points the scope at a
