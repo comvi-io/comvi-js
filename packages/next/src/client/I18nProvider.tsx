@@ -175,14 +175,23 @@ export function I18nProvider({
 
   // Subsequent renders (client navigation, HMR, prop updates). Effects never
   // run during a server render, so no guard is needed here.
+  //
+  // Messages BEFORE the locale, unlike the initializer above. Assigning a new
+  // locale starts a guarded `setLocale`, which loads every active namespace
+  // not yet cached for it: with the handed-over catalog added after, the
+  // browser fetched the catalog the RSC payload had just delivered, and
+  // `isLoading` stayed up until that duplicate answered (a full loader timeout
+  // against a hanging CDN). On the first mount the order is the other way
+  // round on purpose: no namespace is active yet, so the locale applies
+  // synchronously, before the children render, and nothing is loaded.
   useIsomorphicLayoutEffect(() => {
-    if (validateLocale(i18n, locale, routing)) {
-      applyLocale(i18n, locale);
-    }
-
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addMessages(messages);
       lastAddedMessagesRef.current = messages;
+    }
+
+    if (validateLocale(i18n, locale, routing)) {
+      applyLocale(i18n, locale);
     }
   }, [i18n, locale, messages, routing]);
 
