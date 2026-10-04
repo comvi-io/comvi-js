@@ -406,13 +406,11 @@ export class ConfigLoader {
     const content = JSON.stringify(configToWrite, null, 2);
 
     try {
-      // Write secrets to a new 0600 file and atomically replace the target so
-      // an existing permissive config never briefly exposes the new key.
-      if (config.apiKey) {
-        await atomicWriteFile(filePath, content, { mode: 0o600 });
-      } else {
-        await fs.writeFile(filePath, content, "utf-8");
-      }
+      // Always temp + rename: `init --force` replaces an existing config, and
+      // a plain write truncates it first, so a failure halfway would destroy
+      // the old file. With a secret, the new file is also 0600 from its first
+      // byte, so an existing permissive config never briefly exposes the key.
+      await atomicWriteFile(filePath, content, config.apiKey ? { mode: 0o600 } : {});
       return filePath;
     } catch (error) {
       if (error instanceof Error) {

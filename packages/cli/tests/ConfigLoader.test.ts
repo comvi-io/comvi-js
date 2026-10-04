@@ -608,6 +608,8 @@ describe("ConfigLoader", () => {
 
     it("passes through a non-Error write rejection unchanged", async () => {
       mockWriteFile.mockRejectedValueOnce("disk detached");
+      // The failed temp write is cleaned up; the real `unlink` returns a promise.
+      vi.mocked(fs.unlink).mockResolvedValueOnce(undefined);
 
       await expect(ConfigLoader.create({})).rejects.toBe("disk detached");
     });
