@@ -6,7 +6,7 @@ import type { LocalePrefixMode, RoutingConfig } from "./routing/types";
  *
  * Core-free by construction: nothing here imports `@comvi/core`, which is why
  * `createNextI18nFromHost` can share it without adding a core module the
- * caller's own composed host did not already bring.
+ * caller's own composed instance did not already bring.
  */
 export interface NextRoutingOptions {
   /**

@@ -115,7 +115,7 @@ const VUE_LATE_USE_WARNING = "ran after app.use(i18n) started init()";
  * instead, so this text is a development-artifact marker in the same way.
  * `next-dev-conditions.mjs` deliberately never quotes it.
  */
-const NEXT_USE_IDENTITY_HINT = ".use(installer) must return the host it was given";
+const NEXT_USE_IDENTITY_HINT = ".use(installer) must return the instance it was given";
 /**
  * Matrix cases. `sentinels` says what the bundler's module graph must look
  * like for core's tag-registration chunks (the `sideEffects` set):

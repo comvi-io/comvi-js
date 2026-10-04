@@ -32,10 +32,10 @@ export default async function LocaleLayout({
             a stylesheet, which is a build concern rather than an i18n one. */}
         <style dangerouslySetInnerHTML={{ __html: css }} />
         {/* Loads this locale's catalogs (and the fallback chain) on the
-            server and seeds the client host from `src/i18n/config.ts` with
+            server and seeds the client instance from `src/i18n/config.ts` with
             them, so the client components below render the right language on
             the first paint. Only the locale and the plain catalog cross to
-            the client, never the host. */}
+            the client, never the instance. */}
         <ComviProvider locale={locale}>{children}</ComviProvider>
       </body>
     </html>

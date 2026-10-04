@@ -16,7 +16,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
  */
 interface ConfigModule {
   readonly i18n?: ServerI18nHost;
-  readonly routing?: Pick<RoutingConfig, "locales">;
+  readonly routing?: Pick<RoutingConfig, "locales"> & Partial<Pick<RoutingConfig, "defaultLocale">>;
 }
 const config: ConfigModule = configModule;
 
@@ -32,7 +32,7 @@ const getRequestStore = cache(
 
 /**
  * The server i18n once-cell. Two configuration sources feed it —
- * `setI18n(instance)` and `createNextI18nFromHost()`, which builds its host
+ * `setI18n(instance)` and `createNextI18nFromHost()`, which builds its instance
  * EAGERLY, inside the call — and `resolveServerI18n()` reads it.
  *
  * Module-local, deliberately NEVER anchored on `globalThis`: a Next dev
@@ -72,10 +72,10 @@ const configurationConflict = (configured: CellState, incoming: string): Error =
  * more than once). Any other second configuration — a different instance, or a
  * `createNextI18nFromHost()` registration — throws.
  *
- * @param i18n - A loader-carrying host: the `i18n` from `createNextI18n`, or
- * any host you composed yourself. The server pipeline calls `getLoader` /
+ * @param i18n - A loader-carrying instance: the `i18n` from `createNextI18n`, or
+ * any instance you composed yourself. The server pipeline calls `getLoader` /
  * `reloadMessages` on it, so the loader capability is part of the
- * contract — a bare `@comvi/core` host is rejected at the type level rather
+ * contract — a bare `@comvi/core` instance is rejected at the type level rather
  * than failing inside `loadMessages`.
  *
  * @example
@@ -111,10 +111,10 @@ export function setI18n(i18n: NextServerHost): void {
 }
 
 /**
- * Build and register the host (the `createNextI18nFromHost` half).
+ * Build and register the instance (the `createNextI18nFromHost` half).
  *
  * The conflict check comes FIRST, so a second configuration source never
- * builds a host it cannot register; a `build()` that throws propagates and
+ * builds an instance it cannot register; a `build()` that throws propagates and
  * leaves the cell `empty`, exactly as if the call had never happened.
  * @internal
  */

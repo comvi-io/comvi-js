@@ -15,7 +15,7 @@ type AsyncPluginReturn = Promise<void> | Promise<Exclude<Awaited<PluginReturn>, 
 
 /**
  * Options for {@link nextPlugin} and {@link nextPluginLazy}: the plugin
- * options every host accepts (`required`, `timeout`, `onError`), plus the two
+ * options every instance accepts (`required`, `timeout`, `onError`), plus the two
  * Next scopes.
  */
 export interface NextPluginOptions extends PluginOptions {
@@ -120,13 +120,13 @@ const createScopedLazyPlugin = (
  *
  * `nextPlugin(fn)` is `attachPlugins(host).registerPlugin(scoped, rest)`
  * wrapped as an installer — `definePlugin(fn)` with the two Next scopes in
- * front of the queue — so it attaches the plugin host if the chain has not
+ * front of the queue — so it attaches the plugin capability if the chain has not
  * already, and sits anywhere in a `.use` chain before `init()`. A plugin
  * scoped out of the current runtime or environment is registered and skipped
  * at `init()`: nothing of it runs, and its own import is still in the graph
  * (see {@link nextPluginLazy} for the deferred import).
  *
- * The module-scope host behind `createNextI18n` is process-wide on the App
+ * The module-scope instance behind `createNextI18n` is process-wide on the App
  * Router, so a locale detector belongs here — `nextPlugin(localeDetectorPlugin(…),
  * { runtime: "client" })` — and never in `.use(localeDetector(…))`, which
  * would let the first request's headers pin the locale for every later render.

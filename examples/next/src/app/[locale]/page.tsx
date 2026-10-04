@@ -5,7 +5,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
 
   // The server side of the story. `getI18n({ locale })` returns `t`,
-  // `hasTranslation` and `locale`, bound to the locale passed here — the host
+  // `hasTranslation` and `locale`, bound to the locale passed here — the instance
   // lives at module scope and is shared by every concurrent request, so the
   // locale belongs to the request and never to the instance. Passing it
   // explicitly means the page does not depend on the layout rendering first.

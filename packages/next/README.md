@@ -92,7 +92,7 @@ registration module and no `"use client"` wrapper. `<ComviProvider>` loads the l
 catalogs on the server and hands them to the client's i18n instance, so Client Components render the right
 language on the first paint. `@comvi/next/server` guards itself: a Client Component that imports
 it fails `next build`. Without a `middleware.ts` the only routes are `/en` and `/uk`; see
-[Locale routing](https://comvi.io/docs/i18n/next/routing).
+[Locale routing](https://comvi.io/docs/i18n/guides/next-routing).
 
 ## Use in components
 
@@ -151,7 +151,7 @@ Seven entries: `@comvi/next`, `/client`, `/server`, `/navigation`, `/routing`, `
 evaluates it once, so it must be client-safe. Never compose a locale detector on this i18n instance: the config module is
 process-wide on the server, so the first request's headers would pin the locale for everyone.
 Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'client' })`; see
-[Plugin scoping](https://comvi.io/docs/i18n/next/server-client#plugin-scoping).
+[Plugin scoping](https://comvi.io/docs/i18n/guides/next-server-client#plugin-scoping).
 
 `createMiddleware` takes the same two locale options as `@comvi/nuxt`, with the same defaults
 except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
@@ -167,7 +167,7 @@ i18n instance with `createNextI18nFromHost` in a server-only module, or hand one
 ## Next steps
 
 - [Next.js guide](https://comvi.io/docs/i18n/next): `withComvi`, `<ComviProvider>`, `loadMessages()`, two runtimes, errors.
-- [Locale routing](https://comvi.io/docs/i18n/next/routing): `defineRouting`, the middleware and localized links.
+- [Locale routing](https://comvi.io/docs/i18n/guides/next-routing): `defineRouting`, the middleware and localized links.
 - [Next.js API reference](https://comvi.io/docs/i18n/api/next): every export of the seven entries.
 
 ## License

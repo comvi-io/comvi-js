@@ -14,11 +14,11 @@ export interface UseHostIdentityError extends Error {
 
 export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   /**
-   * Credential forwarded to the host as `i18n.apiKey`, for a loader plugin
+   * Credential forwarded to the instance as `i18n.apiKey`, for a loader plugin
    * that authenticates against a backend (`@comvi/plugin-fetch-loader` reads
    * it there). This factory loads NOTHING on its own — it neither contacts a
-   * CDN nor an API — so the key is inert until you compose `fetchLoader` or
-   * `cdnLoader`.
+   * CDN nor an API — so the key is inert until you compose `cdnLoader`, or
+   * `fetchLoader` from `@comvi/plugin-fetch-loader/api`.
    */
   apiKey?: string;
 
@@ -46,21 +46,22 @@ export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   defaultNs?: string;
 
   /**
-   * Forwarded to the host as `i18n.devMode`, where a fetch-loader plugin reads
+   * Forwarded to the instance as `i18n.devMode`, where a fetch-loader plugin reads
    * it to pick the API over the CDN. This factory loads nothing on its own, so
-   * the flag changes nothing until `fetchLoader` or `cdnLoader` is composed.
+   * the flag changes nothing until `cdnLoader`, or `fetchLoader` from
+   * `@comvi/plugin-fetch-loader/api`, is composed.
    * @default process.env.NODE_ENV === 'development'
    */
   devMode?: boolean;
 
   /**
-   * Message compiler for the host. Omitted, the host uses core's default
+   * Message compiler for the instance. Omitted, the instance uses core's default
    * `{param}` compiler, which does NOT render `plural`, `select` or
    * `selectordinal`: development throws `E_ICU_SYNTAX` at ingestion, and
    * production renders the braced message literally and reports it once (to
    * the console here — this factory forwards no `onError`). Pass
    * `compiler: icuCompiler` from `@comvi/core/icu` to compile
-   * ICU in every catalog the host ingests, whatever its source — the same rule
+   * ICU in every catalog the instance ingests, whatever its source — the same rule
    * as `createI18n` on `/client` and `/server`, and as every other
    * constructor in the repo. ICU is never enabled automatically.
    */
@@ -96,9 +97,9 @@ export interface CreateNextI18nResult<
   readonly routing: Required<RoutingConfig>;
 
   /**
-   * Compose a capability onto the host and keep this result: `use(f)` is
+   * Compose a capability onto the instance and keep this result: `use(f)` is
    * `f(this.i18n)`, and the return value is this same result retyped so
-   * `i18n` carries whatever the installer widened the host to. The one
+   * `i18n` carries whatever the installer widened the instance to. The one
    * composition verb, with the same contract as core's `i18n.use(…)`.
    *
    * ```ts
@@ -113,18 +114,18 @@ export interface CreateNextI18nResult<
    * is not composed at all and is never on by default: it is the `compiler`
    * option, `compiler: icuCompiler`.
    *
-   * Never compose `localeDetector()` on this host. It lives at module scope
+   * Never compose `localeDetector()` on this instance. It lives at module scope
    * and is process-wide on the App Router, so the detector would run once, at
-   * the host's `init()`, and the first request's headers would pin the locale
+   * the instance's `init()`, and the first request's headers would pin the locale
    * for every later render. Use
    * `nextPlugin(localeDetectorPlugin(…), { runtime: "client" })` instead: the
    * browser has exactly one visitor.
    *
-   * Installers widen the host IN PLACE and return it, and everything else in
+   * Installers widen the instance IN PLACE and return it, and everything else in
    * this result — `setI18n(i18n)`, the provider, the server helpers — holds
-   * that one host, so an installer that hands back a different object is
+   * that one instance, so an installer that hands back a different object is
    * refused with `code: "E_USE_HOST_IDENTITY"`, reported over `this.i18n`
-   * (the composed host), instead of leaving the app driving a host nothing
+   * (the composed instance), instead of leaving the app driving an instance nothing
    * else sees. A raw ASYNC plugin handed here has already run by the time the
    * check fires, so its rejection is swallowed and the identity error is the
    * only thing the app sees; the development message names the ways out,
@@ -217,7 +218,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
         }
         const error = new Error(
           IS_DEV
-            ? "[@comvi/next] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
+            ? "[@comvi/next] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
             : "E_USE_HOST_IDENTITY",
         ) as UseHostIdentityError;
         error.code = "E_USE_HOST_IDENTITY";

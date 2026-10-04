@@ -72,7 +72,7 @@ const warnUnknownLocale = (locale: string): void => {
  *
  * @remarks
  * getI18n auto-loads one namespace, the default one or the one passed via
- * getI18n({ ns }), for the request locale and every locale of the host's
+ * getI18n({ ns }), for the request locale and every locale of the instance's
  * `fallbackLocale` chain. If you call t() with a different ns, ensure you
  * preloaded it via loadMessages(locale, { namespaces: [...] }) in your layout
  * or metadata.
@@ -107,7 +107,7 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
   // A page can render before its layout completes, so the namespace may not be
   // in yet — for the request locale or for any locale of its fallback chain. A
   // cached primary catalog says nothing about the fallbacks, so each is checked.
-  await loadChain(i18n, [locale, ...i18n.getFallbackLocales()], [defaultNs]);
+  await loadChain(i18n, [...new Set([locale, ...i18n.getFallbackLocales()])], [defaultNs]);
 
   // The one place allowed to reach the host's translator: the shared host
   // contributes catalog and loader only, and `ServerI18nHost` has no `t`/`tRaw`

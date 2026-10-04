@@ -6,7 +6,7 @@ import { loadMessages } from "./loadMessages";
 export interface ComviProviderProps {
   /** The locale this tree renders in, typically the `[locale]` param. */
   locale: string;
-  /** Namespaces to ship to the client. Default: the host's default namespace. */
+  /** Namespaces to ship to the client. Default: the instance's default namespace. */
   namespaces?: string[];
   children: ReactNode;
 }
@@ -14,7 +14,7 @@ export interface ComviProviderProps {
 /**
  * The provider for an App Router layout, with `withComvi({ config })` in
  * next.config. It loads the locale's catalogs (and every locale of the
- * fallback chain) on the server and hands them to the client host from your
+ * fallback chain) on the server and hands them to the client instance from your
  * config module, so Client Components render translated on the first paint.
  *
  * It also records the request locale for the no-argument `getI18n()` and

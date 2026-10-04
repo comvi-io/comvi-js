@@ -11,13 +11,13 @@ export const locales = ["en", "uk", "de"] as const;
 export const rtlLocale = "ar";
 
 /**
- * The URL rules, and NOTHING else — no host, no loader, no catalogs.
+ * The URL rules, and NOTHING else — no instance, no loader, no catalogs.
  *
  * This file exists so `middleware.ts` has something core-free to import.
  * `middleware.ts` runs in the Edge runtime, and an Edge isolate ships and
  * EXECUTES every module its entry reaches on each cold start: importing the
- * composed host's module for one plain object pulled the whole i18n graph
- * (core, ICU, the loader, the plugin host, devtools, the tag grammar) into
+ * composed instance's module for one plain object pulled the whole i18n graph
+ * (core, ICU, the loader, the plugin capability, devtools, the tag grammar) into
  * middleware and ran `createNextI18n()` + `registerLoader()` there. Measured
  * with esbuild: 3.8 KB / 7 modules through this file, 30.3 KB / 25 modules
  * through the package root.

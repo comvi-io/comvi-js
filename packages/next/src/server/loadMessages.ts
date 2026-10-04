@@ -16,8 +16,8 @@ const toError = (error: unknown): Error =>
 const noLoaderWarnings = new WeakSet<ServerI18nHost>();
 const NO_LOADER_WARNING_MESSAGE =
   "[@comvi/next] No loader registered, so SSR loaded nothing. " +
-  "Register one via i18n.registerLoader(...), or compose one onto the host: " +
-  "createNextI18n(...).i18n.use(fetchLoader(...)).";
+  "Register one via i18n.registerLoader(...), or compose one on the createNextI18n(...) result: " +
+  ".use(cdnLoader({ cdnUrl })) or .use(loader(map)).";
 
 const toPlainObject = (
   value: Record<string, TranslationValue>,
@@ -35,7 +35,7 @@ const warnNoLoaderConfigured = (i18n: ServerI18nHost): void => {
 };
 
 /**
- * In-flight loads per host and `locale:namespace`. Core's `reloadMessages`
+ * In-flight loads per instance and `locale:namespace`. Core's `reloadMessages`
  * cancels and restarts a pair that is already loading, so concurrent requests
  * share the first one's promise here instead of fetching the pair twice.
  */
@@ -72,7 +72,7 @@ const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Prom
 
 /**
  * Load `namespaces` for `locales`, skipping every cached pair. Without a loader
- * there is nothing to load; that is said once per host when none of the pairs
+ * there is nothing to load; that is said once per instance when none of the pairs
  * is cached either. Nothing missing, nothing touched. A pair that failed earlier
  * in the same request is not retried: the render already went without it, and
  * the client must get the same catalogs the server read.
@@ -106,7 +106,7 @@ export const loadChain = async (
 /**
  * Load translations for a locale using the configured i18n loader.
  *
- * The result holds the requested locale AND every locale of the host's
+ * The result holds the requested locale AND every locale of the instance's
  * `fallbackLocale` chain, for each requested namespace, so a key the server
  * rendered from a fallback catalog resolves identically after hydration.
  *

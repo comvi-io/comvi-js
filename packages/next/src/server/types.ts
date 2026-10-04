@@ -60,11 +60,11 @@ export interface RequestStore {
 
 /**
  * The per-request half of a `getI18n()` call — everything a lookup needs that
- * the process-wide host must not supply.
+ * the process-wide instance must not supply.
  *
  * `getI18n` resolves both fields once and closes over them; `t` and
  * `hasTranslation` read nothing else request-shaped. Naming the shape keeps the
- * split visible: the shared host contributes catalog and loader only.
+ * split visible: the shared instance contributes catalog and loader only.
  *
  * @internal
  */

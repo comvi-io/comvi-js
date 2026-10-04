@@ -27,9 +27,9 @@ const catalogs: ReturnType<typeof loader> = cdnUrl
 
 /**
  * The composed root. `createNextI18n` is the batteries-included preset: it
- * composes the tag grammar, the loader and the plugin host INSIDE the package.
- * The other five examples name each capability by hand because their host is
- * core's bare base host — the difference is the preset, not the framework.
+ * composes the tag grammar, the loader and the plugin capability INSIDE the package.
+ * The other five examples name each capability by hand because their instance is
+ * core's bare base instance — the difference is the preset, not the framework.
  *
  * The compiler is NOT part of the preset. No constructor in the repo turns ICU
  * on by itself, so the plural in `locales/*.json` needs `compiler: icuCompiler`
@@ -39,11 +39,11 @@ const catalogs: ReturnType<typeof loader> = cdnUrl
  * middleware and the runtime cannot drift apart while `middleware.ts` keeps
  * importing the core-free file (see the comment there).
  *
- * `.use(installer)` is the one composition verb, here as on every host.
+ * `.use(installer)` is the one composition verb, here as on every instance.
  * `loader(map)` registers one dynamic `import()` per locale, so a catalog is
  * read the first time that locale is requested and never up front. A plugin
  * scoped to one runtime goes through `nextPlugin(...)` / `nextPluginLazy(...)`
- * from the same specifier — never `localeDetector()`: this host is process-wide
+ * from the same specifier — never `localeDetector()`: this instance is process-wide
  * on the App Router, and the first request's headers would pin the locale for
  * every later render.
  */

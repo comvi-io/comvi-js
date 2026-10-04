@@ -36,7 +36,7 @@ export function Demo() {
   const pathname = usePathname();
   const router = useLocalizedRouter();
 
-  // Read AFTER mount, on purpose. On the server the host is one module-scope
+  // Read AFTER mount, on purpose. On the server the instance is one module-scope
   // instance shared by every request, so its loaded-catalog set is a property of
   // the process rather than of this page — rendering it during SSR would print
   // one number on the server and a different one in the browser.
@@ -84,7 +84,7 @@ export function Demo() {
       </section>
 
       {/* 3 — an ICU plural, live on a counter. The compiler is named once, in
-          `src/i18n/config.ts`: no host enables ICU on its own. */}
+          `src/i18n/config.ts`: no instance enables ICU on its own. */}
       <section>
         <h2>plural</h2>
         <div className="row">

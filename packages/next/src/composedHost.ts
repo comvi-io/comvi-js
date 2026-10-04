@@ -21,8 +21,8 @@ import type {
 } from "@comvi/core";
 
 /**
- * The EXACT public host type `createNextI18n` exposes: the base host, the
- * loader API with BOTH `registerLoader` overloads, and the plugin host.
+ * The EXACT public instance type `createNextI18n` exposes: the base instance, the
+ * loader API with BOTH `registerLoader` overloads, and the plugin capability.
  */
 export type NextComposedI18n<D extends DefaultTranslationParams = {}> = I18n<D> &
   Omit<I18nLoaderApi, "registerLoader"> &

@@ -19,6 +19,7 @@ export type {
   CreateNextI18nFromHostOptions,
   CreateNextI18nFromHostResult,
 } from "./server/createNextI18nFromHost";
+export type { NextRoutingOptions } from "./nextI18nRouting";
 export type { NextServerHost } from "./server/hostTypes";
 
 export type {

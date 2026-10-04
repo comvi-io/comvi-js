@@ -1,4 +1,5 @@
 import { createNextI18n, icuCompiler, loader } from "@comvi/next";
+import { routing as routingRules } from "./routing";
 
 /**
  * Creates both the i18n instance and the routing config in one call, then
@@ -8,10 +9,7 @@ import { createNextI18n, icuCompiler, loader } from "@comvi/next";
  * `nextPlugin(...)` from the same specifier.
  */
 export const { i18n, routing } = createNextI18n({
-  locales: ["en", "de", "fr", "es", "uk", "ar"],
-  defaultLocale: "en",
-  localePrefix: "as-needed",
-
+  ...routingRules,
   compiler: icuCompiler,
   fallbackLocale: "en",
   defaultNs: "default",

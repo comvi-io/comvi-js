@@ -5,7 +5,7 @@
 import type { DefaultTranslationParams, I18nLoaderApi, WrapperI18nHost } from "@comvi/core";
 
 /**
- * The instance contract a Next.js server host must satisfy: the base host
+ * The instance contract a Next.js server instance must satisfy: the base instance
  * surface (`@comvi/core`) plus the loader capability, which comes from
  * `@comvi/core/loader` and nowhere else — the base root composes nothing, so
  * a plain `createI18n(...)` does NOT satisfy this type.
@@ -22,13 +22,13 @@ export type NextServerHost<D extends DefaultTranslationParams = {}> = WrapperI18
   I18nLoaderApi;
 
 /**
- * The members the server pipeline reads off its host — nothing else.
+ * The members the server pipeline reads off its instance — nothing else.
  *
- * The host lives at module scope and is shared by every concurrent request the
+ * The instance lives at module scope and is shared by every concurrent request the
  * App Router process handles, so its contribution to a request is the CATALOG
  * and the LOADER; the locale belongs to the request. `t`/`tRaw` are therefore
- * absent on purpose: a server helper that translated through the host would
- * resolve against the host's process-wide locale and leak one request's locale
+ * absent on purpose: a server helper that translated through the instance would
+ * resolve against the instance's process-wide locale and leak one request's locale
  * into another request's tree, and this type makes that a compile error rather
  * than a review note.
  *
@@ -47,10 +47,10 @@ export type ServerI18nHost = Pick<
   Pick<I18nLoaderApi, "getLoader" | "reloadMessages">;
 
 /**
- * The single sanctioned crossing back to the host's translator.
+ * The single sanctioned crossing back to the instance's translator.
  *
  * `getI18n` binds it once per request and passes an explicit `locale` in the
- * params of every call, so the lookup never falls back to the host's locale.
+ * params of every call, so the lookup never falls back to the instance's locale.
  * Nothing else under `src/server/` may name this type.
  *
  * @internal

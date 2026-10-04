@@ -30,8 +30,8 @@ describe("loadMessages", () => {
     expect(result).toEqual({});
     expect(warnSpy).toHaveBeenCalledWith(
       "[@comvi/next] No loader registered, so SSR loaded nothing. " +
-        "Register one via i18n.registerLoader(...), or compose one onto the host: " +
-        "createNextI18n(...).i18n.use(fetchLoader(...)).",
+        "Register one via i18n.registerLoader(...), or compose one on the createNextI18n(...) result: " +
+        ".use(cdnLoader({ cdnUrl })) or .use(loader(map)).",
     );
   });
 
