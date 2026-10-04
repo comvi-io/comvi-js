@@ -49,8 +49,8 @@
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["BlockStatement"],
-      "snippet": "if (userParams == null && !this._postProcessors.length) {",
-      "lineHint": 627,
+      "snippet": "if (userParams == null && !this._postProcessor && !this._overlay) {",
+      "lineHint": 757,
       "kind": "equivalent",
       "reason": "the fast path only short-circuits work `_translate` repeats below; skipping it changes no result."
     },
@@ -1249,16 +1249,6 @@
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "loc === this._locale && ns === this._cachedDefaultNs",
-      "lineHint": 524,
-      "kind": "equivalent",
-      "reason": "Routes the read through messagesCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns messagesCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/i18n.ts",
-      "mutators": ["ConditionalExpression"],
       "snippet": "if (fallbackLoc === loc) continue;",
       "lineHint": 532,
       "kind": "equivalent",
@@ -1269,10 +1259,10 @@
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (userParams == null && !this._postProcessors.length) {",
-      "lineHint": 622,
+      "snippet": "if (userParams == null && !this._postProcessor && !this._overlay) {",
+      "lineHint": 757,
       "kind": "equivalent",
-      "reason": "All four mutants only make tRaw's no-params fast path fall through into _translate, which recomputes the same value: the path is entered only with no user params, an empty post-processor list and a template isStaticTemplate() accepted, and a static template renders to itself for any locale and any tagInterpolation. Return value, events and reported errors are unchanged; only a compile-cache lookup is added.",
+      "reason": "All four mutants only make tRaw's no-params fast path fall through into _translate, which recomputes the same value: the path is entered only with no user params, an empty post-processor list and a template isStaticTemplate() accepted, and a static template renders to itself for any locale and any tagInterpolation. Return value, events and reported errors are unchanged; only a compile-cache lookup is added. The guard now also stays off during a `withMessages` view call; hand-applied as `if (false)` and as an emptied block on 2026-10-04: core 1463/1463 green.",
       "round": 2
     },
     {
@@ -1329,10 +1319,10 @@
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "locale === this._locale && namespace === this._cachedDefaultNs",
-      "lineHint": 704,
+      "snippet": "(locale === this._locale && namespace === this._cachedDefaultNs",
+      "lineHint": 830,
       "kind": "equivalent",
-      "reason": "Routes the read through messagesCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns messagesCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs.",
+      "reason": "Routes the read through messagesCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns messagesCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs. The ternary now lives in `_catalog`, which `_translate` and `hasTranslation` share (the separate hasTranslation entry was merged here); hand-applied as `(false` on 2026-10-04: core 1463/1463 green.",
       "round": 2
     },
     {
