@@ -161,7 +161,7 @@ async function refreshMessagesFromApi(
       return;
     }
     console.warn(
-      "[@comvi/plugin-in-context-editor] Failed to refresh translations from API.",
+      "[@comvi/plugin-in-context-editor] Failed to refresh messages from the API.",
       error,
     );
   }

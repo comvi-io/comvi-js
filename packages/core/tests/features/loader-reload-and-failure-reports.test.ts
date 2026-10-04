@@ -27,7 +27,7 @@ describe("reloadMessages()", () => {
     });
     await i18n.addActiveNamespace("x");
 
-    await expect(i18n.reloadMessages()).rejects.toThrow(/Failed to reload translations/);
+    await expect(i18n.reloadMessages()).rejects.toThrow(/Failed to reload messages/);
 
     expect(i18n.t("key", { ns: "x" })).toBe("key");
   });
@@ -40,10 +40,10 @@ describe("reloadMessages()", () => {
     });
     i18n.addMessages({ "en:x": { key: "cached" } });
 
-    await expect(i18n.reloadMessages()).rejects.toThrow(/Failed to reload translations/);
+    await expect(i18n.reloadMessages()).rejects.toThrow(/Failed to reload messages/);
 
     expect(onError).toHaveBeenLastCalledWith(
-      expect.objectContaining({ message: "[@comvi/core] Failed to reload translations" }),
+      expect.objectContaining({ message: "[@comvi/core] Failed to reload messages" }),
       { source: "namespace-load" },
     );
   });

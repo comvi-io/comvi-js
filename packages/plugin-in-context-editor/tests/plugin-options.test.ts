@@ -377,7 +377,7 @@ describe("standalone lifecycle notifications", () => {
 
     await vi.waitFor(() =>
       expect(warn).toHaveBeenCalledWith(
-        "[@comvi/plugin-in-context-editor] Failed to refresh translations from API.",
+        "[@comvi/plugin-in-context-editor] Failed to refresh messages from the API.",
         expect.any(Error),
       ),
     );

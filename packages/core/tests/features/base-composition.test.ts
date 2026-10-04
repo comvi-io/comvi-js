@@ -85,7 +85,7 @@ describe("base + /loader composition", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
     await expect(i18n.reloadMessages()).rejects.toThrow(
-      "[@comvi/core] No loader registered. Cannot reload translations.",
+      "[@comvi/core] No loader registered. Cannot reload messages.",
     );
   });
 

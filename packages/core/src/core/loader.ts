@@ -38,10 +38,10 @@ const ERR_LATE_LOADER = IS_DEV
   : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
-  ? "[@comvi/core] No loader registered. Cannot reload translations."
+  ? "[@comvi/core] No loader registered. Cannot reload messages."
   : "E_NO_LOADER_REGISTERED";
 const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
-  ? "[@comvi/core] Failed to reload translations"
+  ? "[@comvi/core] Failed to reload messages"
   : "E_FAILED_RELOAD_TRANSLATIONS";
 /**
  * A reload with nothing active still has a default namespace, and refetching it
