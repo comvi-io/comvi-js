@@ -7,7 +7,7 @@ import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import { loader } from "@comvi/core/loader";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 export const locales = ["en", "uk", "de"] as const;

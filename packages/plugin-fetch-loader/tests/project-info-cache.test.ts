@@ -4,7 +4,7 @@
  * clear does to a request that is still in flight.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { clearProjectInfoCache, fetchProjectInfo } from "../src/index";
+import { clearProjectInfoCache, fetchProjectInfo } from "../src/api";
 import { jsonResponse, pendingTransport, recordingTransport } from "./helpers/transport";
 
 const BASE = "https://api.example.com";

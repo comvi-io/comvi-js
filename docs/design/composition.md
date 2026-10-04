@@ -74,7 +74,7 @@ a second `loader(map)` on a composed host still registers its map.
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader";
 
 const i18n = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 i18n.registerPlugin(

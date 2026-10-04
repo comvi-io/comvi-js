@@ -1,6 +1,6 @@
 /**
- * The `/cdn` subpath is a SEPARATE module graph, not a tree-shaken view of the
- * full loader.
+ * The package root is a SEPARATE module graph from `./api`, not a tree-shaken
+ * view of the full loader.
  *
  * Its weight advantage comes from what it never imports: `cache.ts` (the
  * project-info cache and the legacy export chain), `retry.ts`, `http.ts` (the
@@ -16,10 +16,10 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "../src");
-const CDN_ENTRY = resolve(SRC, "cdn/index.ts");
+const CDN_ENTRY = resolve(SRC, "index.ts");
 
 /** Modules whose contents the CDN path must never carry into a consumer. */
-const API_ONLY_MODULES = ["cache.ts", "retry.ts", "http.ts", "options.ts", "loader.ts"];
+const API_ONLY_MODULES = ["api.ts", "cache.ts", "retry.ts", "http.ts", "options.ts", "loader.ts"];
 
 const withoutComments = (source: string): string =>
   source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
@@ -58,12 +58,12 @@ function reachableModules(entry: string): string[] {
   return [...seen].map((file) => relative(SRC, file));
 }
 
-describe("the @comvi/plugin-fetch-loader/cdn module graph", () => {
+describe("the @comvi/plugin-fetch-loader root module graph", () => {
   it("reaches its own entry and the shared CDN request path", () => {
     const modules = reachableModules(CDN_ENTRY);
 
     expect(modules).toEqual(
-      expect.arrayContaining(["cdn/index.ts", "cdn/loader.ts", "http-core.ts", "cdn-url.ts"]),
+      expect.arrayContaining(["index.ts", "cdn/loader.ts", "http-core.ts", "cdn-url.ts"]),
     );
   });
 

@@ -92,7 +92,7 @@ npm install @comvi/plugin-fetch-loader
 ```tsx title="src/index.tsx" check=group=solid-cdn
 import { render } from "solid-js/web";
 import { createI18n, I18nProvider } from "@comvi/solid";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import App from "./App";
 
 const i18n = createI18n({

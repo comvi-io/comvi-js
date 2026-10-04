@@ -48,7 +48,7 @@ const GATING_PROBLEM_KINDS = new Set(["InternalResolutionError", "NoResolution"]
 // attw is asked about `bundler` AND `node16`.
 //
 // node16 was previously excluded, and that single omission is what let
-// `@comvi/plugin-fetch-loader/cdn` ship `export * from './cdn/index'` — a specifier
+// a fetch-loader entry point ship `export * from './cdn/index'` — a specifier
 // node16 cannot resolve, leaving the entry point with ZERO exported members and every
 // consumer with `TS2305: ... has no exported member 'cdnLoader'`. attw reports it
 // perfectly well (10 × `InternalResolutionError` on that package alone); the report was

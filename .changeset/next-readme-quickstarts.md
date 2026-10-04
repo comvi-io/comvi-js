@@ -10,7 +10,7 @@ demoted to a mention in the export table rather than a coequal choice.
 
 Added the two missing quickstarts, each a complete, lint-checked App Router app:
 an inline-catalog app (`createNextI18n({ messages, compiler: icuCompiler })`,
-no loader) and a `@comvi/plugin-fetch-loader/cdn` remote app
+no loader) and a `@comvi/plugin-fetch-loader` remote app
 (`createNextI18n(...).use(cdnLoader({ cdnUrl }))`). The CDN quickstart spells
 out the actual mechanism behind client-side ICU and the loader: the shared
 `i18n/config.ts` module is evaluated once on the server and once again inside

@@ -74,7 +74,7 @@ npm install @comvi/plugin-fetch-loader
 
 ```ts title="src/i18n.ts" check=group=vanilla-cdn
 import { createI18n } from "@comvi/core";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 export const i18n = createI18n({
   locale: "en",

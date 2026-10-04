@@ -80,7 +80,7 @@ npm install @comvi/plugin-fetch-loader
 
 ```ts title="comvi.host.ts" check=group=nuxt-cdn
 import { createI18n, defineComviHost } from "@comvi/nuxt/host";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 export default defineComviHost((options) =>
   createI18n(options).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" })),

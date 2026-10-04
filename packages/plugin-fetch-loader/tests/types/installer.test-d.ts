@@ -6,7 +6,7 @@
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { fetchLoaderPlugin, fetchLoader, type FetchLoaderInstaller } from "../../src/index";
+import { fetchLoaderPlugin, fetchLoader, type FetchLoaderInstaller } from "../../src/api";
 
 const OPTIONS = { cdnUrl: "https://cdn.comvi.io/distribution" };
 

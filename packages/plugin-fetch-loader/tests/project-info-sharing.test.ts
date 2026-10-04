@@ -5,7 +5,7 @@
  * waiting on it.
  */
 import { describe, it, expect } from "vitest";
-import { fetchProjectInfo } from "../src/index";
+import { fetchProjectInfo } from "../src/api";
 import { pendingTransport } from "./helpers/transport";
 
 const BASE = "https://api.example.com";

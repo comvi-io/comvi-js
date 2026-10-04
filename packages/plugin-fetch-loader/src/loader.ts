@@ -23,7 +23,7 @@ export { resolveFallback } from "./fallback";
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/core';
- * import { fetchLoaderPlugin } from '@comvi/plugin-fetch-loader';
+ * import { fetchLoaderPlugin } from '@comvi/plugin-fetch-loader/api';
  *
  * const i18n = createI18n({
  *   locale: 'en',

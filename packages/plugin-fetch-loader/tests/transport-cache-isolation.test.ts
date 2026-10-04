@@ -8,7 +8,7 @@
  * explicit cacheScope (or not cached at all).
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { fetchApiTranslations, fetchProjectInfo, clearProjectInfoCache } from "../src/index";
+import { fetchApiTranslations, fetchProjectInfo, clearProjectInfoCache } from "../src/api";
 import { deferred } from "./helpers/deferred";
 import { asFetch, jsonResponse } from "./helpers/transport";
 

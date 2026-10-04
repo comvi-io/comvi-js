@@ -67,7 +67,7 @@ composition apart from the import specifier: ICU through the constructor's `comp
 
 ```ts title="src/i18n.ts"
 import { createI18n, icuCompiler, loader } from "@comvi/react";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 export const locales = ["en", "uk", "de"] as const;
@@ -122,7 +122,7 @@ framework middleware decides the locale before the host runs.
 
 Every example can read its catalogs from the platform CDN instead of the
 bundled JSON. Set one variable when you build, and the host composes
-`cdnLoader({ cdnUrl })` from `@comvi/plugin-fetch-loader/cdn` in place of the
+`cdnLoader({ cdnUrl })` from `@comvi/plugin-fetch-loader` in place of the
 import map:
 
 | example                            | variable                                                   |
@@ -169,7 +169,7 @@ only publishing settles that. Re-run the gate after the version bump.
 
 Every example can read its catalogs from the platform CDN instead of the
 bundled JSON. Set one variable when you build, and the host composes
-`cdnLoader({ cdnUrl })` from `@comvi/plugin-fetch-loader/cdn` in place of the
+`cdnLoader({ cdnUrl })` from `@comvi/plugin-fetch-loader` in place of the
 import map:
 
 | example                            | variable                                                   |

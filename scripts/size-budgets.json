@@ -296,32 +296,32 @@
       "note": "Gated `@comvi/nuxt/host` subpath: the one specifier a comvi.host.ts names, composing ICU + loader + plugin host + devtools through the module re-export instead of four app-declared @comvi/core subpaths."
     },
     {
-      "name": "plugin-fetch-loader-cdn",
-      "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
-      "fixture": "plugin-fetch-loader-cdn.ts",
+      "name": "plugin-fetch-loader-api",
+      "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader/api"],
+      "fixture": "plugin-fetch-loader-api.ts",
       "gzipBudgetBytes": 11696,
       "baseline": {
         "minBytes": 30912,
         "gzipBytes": 11139,
         "measuredAt": "2026-09-12"
       },
-      "note": "Gated platform CDN path: base host + ICU + `fetchLoader`, composed as the fetch-loader README quickstart. +233 B over the measurement at `831e739` (10861 B) \u2014 199 B for making the CDN request path ONE shared implementation both entries run, 34 B for the package-name error prefix; the recorded 03.09 baseline (10640 B) was already 221 B stale before this lot."
+      "note": "Gated API-aware path: base host + ICU + `fetchLoader` from `@comvi/plugin-fetch-loader/api`, composed as the fetch-loader README API recipe. Renamed from `plugin-fetch-loader-cdn` on 2026-10-04 (first-impression lot), same graph. +233 B over the measurement at `831e739` (10861 B) \u2014 199 B for making the CDN request path ONE shared implementation both entries run, 34 B for the package-name error prefix; the recorded 03.09 baseline (10640 B) was already 221 B stale before this lot."
     },
     {
-      "name": "plugin-fetch-loader-cdn-lite",
-      "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader/cdn"],
-      "fixture": "plugin-fetch-loader-cdn-lite.ts",
+      "name": "plugin-fetch-loader",
+      "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
+      "fixture": "plugin-fetch-loader.ts",
       "gzipBudgetBytes": 9632,
       "baseline": {
         "minBytes": 25124,
         "gzipBytes": 9173,
         "measuredAt": "2026-09-12"
       },
-      "note": "Gated CDN-ONLY path: base host + ICU + the `/cdn` subpath, composed as the fetch-loader README quickstart. Paired with `plugin-fetch-loader-cdn`: the difference between the two rows IS the API request path a CDN-only app no longer ships."
+      "note": "Gated CDN-ONLY path: base host + ICU + `cdnLoader` from the package root, composed as the fetch-loader README quickstart. Renamed from `plugin-fetch-loader-cdn-lite` on 2026-10-04 (first-impression lot), same graph. Paired with `plugin-fetch-loader-api`: the difference between the two rows IS the API request path a CDN-only app does not ship."
     },
     {
       "name": "platform-path-react",
-      "entry": ["@comvi/react", "@comvi/core/icu", "@comvi/plugin-fetch-loader/cdn"],
+      "entry": ["@comvi/react", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
       "fixture": "framework/react-platform.ts",
       "external": ["react", "react/*"],
       "gzipBudgetBytes": 11333,
@@ -330,7 +330,7 @@
         "gzipBytes": 10793,
         "measuredAt": "2026-09-12"
       },
-      "note": "Gated platform CDN path on React: `@comvi/react` base host + ICU + the CDN-only loader subpath, composed as the React README's CDN recipe; the number the README quotes for the React platform path."
+      "note": "Gated platform CDN path on React: `@comvi/react` base host + ICU + the CDN-only package root (`cdnLoader`), composed as the React README's CDN recipe; the number the README quotes for the React platform path."
     }
   ]
 }

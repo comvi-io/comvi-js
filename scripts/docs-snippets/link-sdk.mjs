@@ -9,8 +9,8 @@
  *   - **Symlinking the workspace.** Then the docs are checked against `src/`
  *     through the workspace's own tsconfig paths, not against the `exports` map
  *     and the `dist/*.d.ts` a reader gets. The one class of bug this gate found
- *     first — `@comvi/plugin-fetch-loader/cdn` re-exporting a directory index
- *     that node16 cannot resolve — lives entirely in that gap.
+ *     first — a fetch-loader entry point re-exporting a directory index that
+ *     node16 cannot resolve — lives entirely in that gap.
  *   - **Installing one tarball.** `pnpm pack` REWRITES `workspace:*` to a
  *     concrete version, so the packed `@comvi/react` depends on
  *     `@comvi/core@0.4.0` FROM THE REGISTRY. The install succeeds, the gate

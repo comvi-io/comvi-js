@@ -15,7 +15,7 @@
 
 ```ts
 import { createI18n, icuCompiler, definePlugin } from "@comvi/vue";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en", compiler: icuCompiler })

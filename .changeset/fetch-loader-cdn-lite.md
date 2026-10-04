@@ -2,15 +2,15 @@
 "@comvi/plugin-fetch-loader": minor
 ---
 
-New entry point `@comvi/plugin-fetch-loader/cdn`: `cdnLoader(options)` and
-`cdnLoaderPlugin(options)`, the CDN half of the fetch loader on its own.
+`cdnLoader(options)` and `cdnLoaderPlugin(options)`, the CDN half of the fetch loader on its
+own, are the package root: `import { cdnLoader } from "@comvi/plugin-fetch-loader"`.
 
 `fetchLoader()` decides between the CDN and the Comvi API at runtime, from the
-host's `apiKey`, so an app that only ever reads a public distribution still
+i18n instance's `apiKey`, so an app that only ever reads a public distribution still
 bundles the whole API request path — the project-info cache, the legacy export
-chain and the retry policy. The new entry does not contain that path at all.
+chain and the retry policy. The package root does not contain that path at all.
 Composed on the base host with ICU, it measures **9138 B min+gz against 11094 B**
-for the same composition through the package root: **1956 B smaller**.
+for the same composition through `fetchLoader`: **1956 B smaller**.
 
 Everything the CDN mode does, it still does: one request per `locale:namespace`
 with concurrent callers deduplicated, a timeout that covers the response body,
@@ -19,7 +19,7 @@ the host clears a scope that is still loading.
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 const i18n = createI18n({ locale: "en" }).use(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),

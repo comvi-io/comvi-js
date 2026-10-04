@@ -11,8 +11,8 @@
  * project-info lookup shares one sequence of attempts.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { fetchApiTranslations, fetchProjectInfo } from "../src/index";
-import type { ProjectInfo } from "../src/index";
+import { fetchApiTranslations, fetchProjectInfo } from "../src/api";
+import type { ProjectInfo } from "../src/api";
 import { asFetch, jsonResponse, pendingTransport } from "./helpers/transport";
 
 const BASE = "https://api.example.com";

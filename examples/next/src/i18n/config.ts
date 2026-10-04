@@ -1,5 +1,5 @@
 import { createNextI18n, icuCompiler, loader } from "@comvi/next";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { routing } from "./routing";
 
 export { locales, routing, rtlLocale } from "./routing";

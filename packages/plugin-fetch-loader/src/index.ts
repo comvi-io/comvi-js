@@ -1,35 +1,17 @@
 /**
  * @comvi/plugin-fetch-loader
  *
- * Two ways in, one lifecycle:
- * - `.use(fetchLoader(options))` — composes the loader and plugin
- *   capabilities, then registers the plugin. Start here.
- * - `registerPlugin(fetchLoaderPlugin(options))` — the plugin factory, for a host that
- *   already has both capabilities.
+ * Loads catalogs from the Comvi CDN. Two ways in, one lifecycle:
+ * - `.use(cdnLoader(options))` — composes the loader and plugin capabilities,
+ *   then registers the plugin. Start here.
+ * - `registerPlugin(cdnLoaderPlugin(options))` — the plugin factory, for an i18n
+ *   instance that already has both capabilities.
+ *
+ * Use `fetchLoader` from `@comvi/plugin-fetch-loader/api` instead when the app
+ * also reads the Comvi API (`createI18n({ apiKey })`): this entry never builds
+ * an API URL, so an `apiKey` on the i18n instance changes nothing here.
  */
-export type {
-  CdnLayoutOptions,
-  FallbackImport,
-  FallbackMap,
-  FetchLoaderOptions,
-  ProjectInfo,
-} from "./options";
-export {
-  API_BASE_URL,
-  CDN_BASE_URL,
-  FETCH_LOADER_PLUGIN_KEY,
-  comviPreset,
-  getFetchLoaderConfig,
-} from "./options";
-export type { FetchRequestOptions } from "./http";
-export {
-  buildApiExportUrl,
-  buildApiTranslationsUrl,
-  buildCdnUrl,
-  transformApiResponse,
-} from "./http";
-export { clearProjectInfoCache, fetchApiTranslations, fetchProjectInfo } from "./cache";
-export { fetchLoaderPlugin, resolveFallback } from "./loader";
-export { fetchLoader } from "./installer";
-export type { FetchLoaderInstaller } from "./installer";
-export type { ExportApiResponse, TranslationStore } from "./types";
+export type { CdnLoaderOptions } from "./cdn/options";
+export { cdnLoaderPlugin } from "./cdn/loader";
+export { cdnLoader } from "./cdn/installer";
+export type { CdnLoaderInstaller } from "./cdn/installer";

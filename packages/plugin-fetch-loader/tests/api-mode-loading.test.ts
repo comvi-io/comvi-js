@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { http, HttpResponse } from "msw";
-import { fetchLoaderPlugin } from "../src/index";
+import { fetchLoaderPlugin } from "../src/api";
 import type { TranslationValue } from "@comvi/core";
 import { I18n } from "./helpers/composedHost";
 import { deferred } from "./helpers/deferred";

@@ -34,7 +34,7 @@ npm install @comvi/plugin-in-context-editor
 
 ```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
 export const i18n = createI18n({
@@ -67,7 +67,7 @@ and every click opens one panel naming the key, with no translation list.
 
 ```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
 const editorEnabled = import.meta.env.DEV || import.meta.env.VITE_COMVI_EDITOR === "true";

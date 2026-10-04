@@ -1,10 +1,10 @@
 /**
- * `@comvi/plugin-fetch-loader/cdn` — the CDN-only installer.
+ * `@comvi/plugin-fetch-loader` (the root) — the CDN-only installer.
  *
  * Same CDN behaviour as `fetchLoader()` minus the API request path: the URL
  * shape, the body timeout, the fallback map and the cleared-scope abort are all
- * pinned here through the `/cdn` entry's own module graph, so a change that
- * quietly routes this subpath back through the full loader shows up as a
+ * pinned here through the root entry's own module graph, so a change that
+ * quietly routes this entry back through the full loader shows up as a
  * behaviour test, not only as a size row.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
@@ -12,8 +12,8 @@ import { http, HttpResponse } from "msw";
 import { createI18n, hasLoaderApi } from "@comvi/core";
 import type { I18nPlugin } from "@comvi/core";
 import { plugins } from "@comvi/core/plugins";
-import { cdnLoaderPlugin, cdnLoader, type CdnLoaderOptions } from "../src/cdn/index";
-import { FETCH_LOADER_PLUGIN_KEY } from "../src/index";
+import { cdnLoaderPlugin, cdnLoader, type CdnLoaderOptions } from "../src/index";
+import { FETCH_LOADER_PLUGIN_KEY } from "../src/api";
 import { I18n } from "./helpers/composedHost";
 import { asFetch } from "./helpers/transport";
 import {

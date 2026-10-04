@@ -86,7 +86,7 @@ the bytes first, then decide whether they ship.
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
 `fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-host`; the platform
-path `plugin-fetch-loader-cdn`, `plugin-fetch-loader-cdn-lite`, `platform-path-react`.
+path `plugin-fetch-loader`, `plugin-fetch-loader-api`, `platform-path-react`.
 
 `fw-next-server-provider` is the server graph of the `withComvi` setup: `<ComviProvider>` and
 `getI18n` with the provider's `"use client"` half and `@comvi/next/config` external, which is what
@@ -100,7 +100,12 @@ Each framework pair is a floor (one specifier, base host) and a ceiling (every c
 through that same specifier). The pair is the measurement — adding or removing one half turns the
 other from a delta into a bare number, so change them together.
 
-`plugin-fetch-loader-cdn` and `plugin-fetch-loader-cdn-lite` are a pair for the same reason: the
-same composition through the package root and through `@comvi/plugin-fetch-loader/cdn`. What
-separates them is the API request path the root entry reaches at runtime, so the two numbers are
-only meaningful side by side.
+`plugin-fetch-loader` and `plugin-fetch-loader-api` are a pair for the same reason: the same
+composition through the package root (`cdnLoader`) and through `@comvi/plugin-fetch-loader/api`
+(`fetchLoader`). What separates them is the API request path `/api` reaches at runtime, so the two
+numbers are only meaningful side by side.
+
+Renamed on 2026-10-04 (first-impression lot), when `cdnLoader` became the package root and
+`fetchLoader` moved to `/api`: `plugin-fetch-loader-cdn-lite` is now `plugin-fetch-loader` and
+`plugin-fetch-loader-cdn` is now `plugin-fetch-loader-api`. Both measure the same module graph as
+before the rename, so their budgets carry over unchanged.

@@ -126,7 +126,7 @@ npm install @comvi/plugin-fetch-loader
 
 ```ts title="src/i18n/config.ts" check=group=next-2
 import { createNextI18n } from "@comvi/next";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { routing } from "./routing";
 
 export const { i18n } = createNextI18n({ ...routing }).use(

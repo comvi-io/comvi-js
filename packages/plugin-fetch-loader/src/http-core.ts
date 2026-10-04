@@ -6,7 +6,7 @@
  * This module is deliberately free of endpoint knowledge. `http.ts` adds the
  * API URL builders and the response transform on top of it; `cdn-url.ts` adds
  * the CDN one. Keeping the two apart is what lets
- * `@comvi/plugin-fetch-loader/cdn` reach the request machinery without also
+ * the `@comvi/plugin-fetch-loader` root reach the request machinery without also
  * reaching the API path (`tests/cdn-graph.test.ts` asserts it).
  */
 import type { FetchLoaderOptions } from "./options";
@@ -38,7 +38,7 @@ export function buildCacheOptions(
 /**
  * Every error this package throws names the PACKAGE, not an export.
  * `[FetchLoader]` used to prefix them all, which reads as a bug report about a
- * symbol a `@comvi/plugin-fetch-loader/cdn` user never imported.
+ * symbol a `cdnLoader` user never imported.
  */
 export const ERROR_PREFIX = "[@comvi/plugin-fetch-loader]";
 

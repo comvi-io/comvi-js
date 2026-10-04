@@ -1,13 +1,13 @@
-// Type-level contract for the CDN-only subpath.
+// Type-level contract for the CDN-only package root.
 //
 // `CdnLoaderOptions` is the CDN SUBSET of `FetchLoaderOptions`: the options
 // that only mean something on the API request path are absent, so reaching for
 // one is a compile error rather than a silently ignored setting. The
-// installer/factory split mirrors the root entry's.
+// installer/factory split mirrors the `./api` entry.
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { cdnLoaderPlugin, cdnLoader, type CdnLoaderInstaller } from "../../src/cdn/index";
+import { cdnLoaderPlugin, cdnLoader, type CdnLoaderInstaller } from "../../src/index";
 
 const OPTIONS = { cdnUrl: "https://cdn.comvi.io/distribution" };
 

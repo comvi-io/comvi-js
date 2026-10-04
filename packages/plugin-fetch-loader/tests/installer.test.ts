@@ -4,7 +4,7 @@ import { createI18n, hasLoaderApi } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
-import { FETCH_LOADER_PLUGIN_KEY, fetchLoaderPlugin, fetchLoader } from "../src/index";
+import { FETCH_LOADER_PLUGIN_KEY, fetchLoaderPlugin, fetchLoader } from "../src/api";
 import { buildTestCdnUrl, mockCdnSuccessResponse, server, TEST_CDN_URL } from "./setup";
 
 /**

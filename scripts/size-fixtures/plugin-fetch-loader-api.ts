@@ -1,9 +1,9 @@
-// Size-gate fixture: THE PLATFORM CDN PATH — the base host, the ICU compiler and
-// the fetch loader, composed exactly as the @comvi/plugin-fetch-loader README
-// quickstart does.
+// Size-gate fixture: THE API-AWARE PATH — the base host, the ICU compiler and
+// `fetchLoader` from `@comvi/plugin-fetch-loader/api`, composed as the
+// @comvi/plugin-fetch-loader README API recipe does.
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { fetchLoader } from "@comvi/plugin-fetch-loader/api";
 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
   // Stale placeholder on purpose: this literal is measured, and no reader sees a fixture.

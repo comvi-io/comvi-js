@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { transformApiResponse } from "../src/index";
-import type { ExportApiResponse } from "../src/index";
+import { transformApiResponse } from "../src/api";
+import type { ExportApiResponse } from "../src/api";
 
 const INVALID_SHAPE =
   '[@comvi/plugin-fetch-loader] Invalid API response: "namespaces" must be an object';

@@ -10,7 +10,7 @@
  *
  * The tree mirrors the real repo only where the shape matters: `@comvi/core`
  * with a root and the `./loader` and `./icu` subpaths, `@comvi/plugin-fetch-loader`
- * with a root and `./cdn`, and `@comvi/nuxt` with a default export. Mirroring it
+ * with a root and `./api`, and `@comvi/nuxt` with a default export. Mirroring it
  * rather than using the live packages keeps these tests about the MECHANISM —
  * they must not start failing the next time a symbol legitimately moves. The
  * live surface is asserted separately, and narrowly, at the bottom.
@@ -47,8 +47,8 @@ function manifest(name, exported) {
  *
  * `@comvi/core`'s root exports `flattenCatalog` and its `./loader` does not —
  * the exact split that shipped broken — and `@comvi/plugin-fetch-loader` has it
- * the other way round: `cdnLoaderPlugin` lives on the `./cdn` subpath and not on the
- * root.
+ * the other way round: `fetchLoaderPlugin` lives on the `./api` subpath and not on
+ * the root.
  */
 function makeSurfaceRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "docs-snippets-surface-"));
@@ -108,17 +108,18 @@ function makeSurfaceRoot(t) {
     path.join(fetchLoader, "package.json"),
     manifest("@comvi/plugin-fetch-loader", {
       ".": { types: "./dist/index.d.ts", default: "./dist/index.js" },
-      "./cdn": { types: "./dist/cdn.d.ts", default: "./dist/cdn.js" },
+      "./api": { types: "./dist/api.d.ts", default: "./dist/api.js" },
     }),
   );
   write(
     path.join(fetchLoader, "src/index.ts"),
-    ["export class fetchLoaderPlugin {}", "export function fetchLoader() {}", ""].join("\n"),
-  );
-  // A directory index, the way `@comvi/plugin-fetch-loader/cdn` really is built.
-  write(
-    path.join(fetchLoader, "src/cdn/index.ts"),
     ["export class cdnLoaderPlugin {}", "export function cdnLoader() {}", ""].join("\n"),
+  );
+  // A directory index: the inversion must find `src/<name>/index.ts` as well as
+  // `src/<name>.ts`.
+  write(
+    path.join(fetchLoader, "src/api/index.ts"),
+    ["export class fetchLoaderPlugin {}", "export function fetchLoader() {}", ""].join("\n"),
   );
 
   const nuxt = path.join(root, "packages/nuxt");
@@ -198,13 +199,13 @@ test("the same split the other way round: a subpath export imported from the roo
   const surface = surfaceOf(t);
 
   const findings = importFindings(
-    fence('import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader";'),
+    fence('import { fetchLoaderPlugin } from "@comvi/plugin-fetch-loader";'),
     surface,
   );
 
   assert.equal(findings.length, 1);
-  assert.match(findings[0], /@comvi\/plugin-fetch-loader has no export named cdnLoaderPlugin/);
-  assert.match(findings[0], /exported from @comvi\/plugin-fetch-loader\/cdn/);
+  assert.match(findings[0], /@comvi\/plugin-fetch-loader has no export named fetchLoaderPlugin/);
+  assert.match(findings[0], /exported from @comvi\/plugin-fetch-loader\/api/);
 });
 
 test("a name no @comvi entry point exports → flagged, and says so rather than guessing", (t) => {
@@ -311,7 +312,7 @@ test("a subpath specifier resolves through its own entry source, index files inc
     importFindings(
       fence(
         'import { icuCompiler } from "@comvi/core/icu";',
-        'import { cdnLoader, cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";',
+        'import { fetchLoader, fetchLoaderPlugin } from "@comvi/plugin-fetch-loader/api";',
         'import { defineComviSetup } from "@comvi/nuxt/runtime/setup";',
       ),
       surface,
@@ -492,8 +493,8 @@ test("entrySourceFile inverts the build: dist target → src module, index or op
     path.join(root, "packages/nuxt/src/module.ts"),
   );
   assert.equal(
-    entrySourceFile(fetchLoader, "./dist/cdn.d.ts"),
-    path.join(fetchLoader, "src/cdn/index.ts"),
+    entrySourceFile(fetchLoader, "./dist/api.d.ts"),
+    path.join(fetchLoader, "src/api/index.ts"),
   );
   // A build infix is peeled off; a target nothing was built from is OPAQUE.
   assert.equal(entrySourceFile(core, "./dist/index.es.js"), path.join(core, "src/index.ts"));
@@ -585,8 +586,8 @@ test("whereIs names the entry points that export a symbol, its own package first
     ["@comvi/core"],
   );
   assert.deepEqual(
-    surface.whereIs("cdnLoaderPlugin", "@comvi/plugin-fetch-loader").map((hit) => hit.specifier),
-    ["@comvi/plugin-fetch-loader/cdn"],
+    surface.whereIs("fetchLoaderPlugin", "@comvi/plugin-fetch-loader").map((hit) => hit.specifier),
+    ["@comvi/plugin-fetch-loader/api"],
   );
   assert.deepEqual(surface.whereIs("nothingExportsThis", "@comvi/core"), []);
 });
@@ -673,7 +674,7 @@ test("the real repo surface reads every package, and every entry point is CLOSED
   // of the rule quietly going half-blind on that entry.
   const specifiers = surface.entrySpecifiers();
   assert.ok(specifiers.includes("@comvi/core/loader"));
-  assert.ok(specifiers.includes("@comvi/plugin-fetch-loader/cdn"));
+  assert.ok(specifiers.includes("@comvi/plugin-fetch-loader/api"));
 
   const unreadable = [];
   for (const specifier of specifiers) {

@@ -2,8 +2,8 @@ import { beforeAll, afterEach, afterAll, beforeEach } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import type { ExportApiResponse } from "../src/types";
-import type { ProjectInfo } from "../src/index";
-import { clearProjectInfoCache } from "../src/index";
+import type { ProjectInfo } from "../src/api";
+import { clearProjectInfoCache } from "../src/api";
 import { deferred } from "./helpers/deferred";
 
 export const server = setupServer();

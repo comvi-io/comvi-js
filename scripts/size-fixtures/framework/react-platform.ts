@@ -3,7 +3,7 @@
 // README's "From the Comvi CDN" recipe does.
 import { createI18n, I18nProvider, useI18n } from "@comvi/react";
 import { icuCompiler } from "@comvi/core/icu";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
   // Stale placeholder on purpose: this literal is measured, and no reader sees a fixture.

@@ -8,7 +8,7 @@ both in one call and then registers the plugin you already know.
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { fetchLoader } from "@comvi/plugin-fetch-loader/api";
 
 const i18n = createI18n({ locale: "en" }).use(fetchLoader({ cdnUrl }));
 await i18n.init();

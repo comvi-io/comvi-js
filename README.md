@@ -104,7 +104,7 @@ npm install @comvi/plugin-fetch-loader
 ```tsx title="src/main.tsx" check=group=connect-comvi-react-1
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import App from "./App";
 
 const i18n = createI18n({

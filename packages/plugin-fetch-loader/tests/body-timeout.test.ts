@@ -8,7 +8,7 @@
  * one request shape and asserts the timeout still lands.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { fetchLoaderPlugin, fetchApiTranslations, fetchProjectInfo } from "../src/index";
+import { fetchLoaderPlugin, fetchApiTranslations, fetchProjectInfo } from "../src/api";
 import { I18n } from "./helpers/composedHost";
 import { asFetch, jsonResponse } from "./helpers/transport";
 import { TEST_API_KEY, TEST_CDN_URL } from "./setup";

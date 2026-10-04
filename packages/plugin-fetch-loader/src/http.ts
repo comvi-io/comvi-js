@@ -4,7 +4,7 @@
  *
  * Those primitives are re-exported here so every existing `from "./http"`
  * import — this package's own modules and `@comvi/next` / `@comvi/nuxt` through
- * the root entry — keeps resolving to one name.
+ * the `./api` entry — keeps resolving to one name.
  */
 import type { ExportApiResponse, TranslationStore } from "./types";
 import { API_BASE_URL } from "./options";

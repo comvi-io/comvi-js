@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createI18n, hasPluginHostApi } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { fetchLoaderPlugin, FETCH_LOADER_PLUGIN_KEY } from "../src/index";
+import { fetchLoaderPlugin, FETCH_LOADER_PLUGIN_KEY } from "../src/api";
 import { mockCdnSuccessResponse, mockCdnErrorResponse, TEST_CDN_URL } from "./setup";
 
 /**
@@ -74,7 +74,7 @@ describe("published plugins on a composed slim host", () => {
 
     // The plugin registers its loader and core drives the initial namespace
     // load, so a total failure propagates out of init() exactly as it does on
-    // the root entry — composition changes the install path, not the contract.
+    // the `./api` entry — composition changes the install path, not the contract.
     await expect(i18n.init()).rejects.toThrow(/Failed to load all namespaces/);
 
     expect(onLoadError).toHaveBeenCalledOnce();

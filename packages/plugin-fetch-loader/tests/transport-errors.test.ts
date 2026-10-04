@@ -4,7 +4,7 @@
  * reaches the caller untouched.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { fetchApiTranslations, fetchProjectInfo } from "../src/index";
+import { fetchApiTranslations, fetchProjectInfo } from "../src/api";
 import { deferred } from "./helpers/deferred";
 import { asFetch, jsonResponse, pendingTransport } from "./helpers/transport";
 

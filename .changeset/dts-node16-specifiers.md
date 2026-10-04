@@ -21,10 +21,10 @@ verbatim from sources written for `moduleResolution: "bundler"`. Bundler resolut
 substitutes extensions; node16 does not, and it has no directory-index lookup either. The
 damage had two shapes, and only one of them was loud:
 
-- `@comvi/plugin-fetch-loader/cdn` shipped `dist/cdn.d.ts` as `export * from './cdn/index'`.
-  A star re-export from an unresolved module contributes no names, so the entry point had
-  **zero exported members**, and `import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn"`
-  failed with `TS2305 ... has no exported member 'cdnLoader'`. `@comvi/core` and
+- The `@comvi/plugin-fetch-loader` entry that carries `cdnLoader` was built as
+  `export * from './cdn/index'`. A star re-export from an unresolved module contributes no
+  names, so the entry point had **zero exported members**, and importing `cdnLoader` failed
+  with `TS2305 ... has no exported member 'cdnLoader'`. `@comvi/core` and
   `@comvi/plugin-in-context-editor` had the same shape on `export type * from './types'` and
   `export * from './entry-production'`.
 - Every other entry used named re-exports (`export { X } from './options'`). Those keep the

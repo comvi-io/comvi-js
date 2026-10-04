@@ -86,7 +86,7 @@ npm install @comvi/plugin-fetch-loader
 ```svelte title="src/routes/+layout.svelte" check=group=svelte-cdn
 <script lang="ts">
   import { createI18n, setI18nContext } from '@comvi/svelte';
-  import { cdnLoader } from '@comvi/plugin-fetch-loader/cdn';
+  import { cdnLoader } from '@comvi/plugin-fetch-loader';
   import type { Snippet } from 'svelte';
 
   const { children }: { children: Snippet } = $props();

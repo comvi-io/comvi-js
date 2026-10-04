@@ -17,8 +17,8 @@
 
 ---
 
-`@comvi/plugin-fetch-loader` fetches each locale's JSON over HTTP. The `/cdn` entry reads the
-public CDN and is the smaller one; the root entry also talks to the platform API. The full guide is
+`@comvi/plugin-fetch-loader` fetches each locale's JSON over HTTP. The package root reads the
+public CDN and is the smaller entry; `@comvi/plugin-fetch-loader/api` also talks to the platform API. The full guide is
 [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader) on the docs site.
 
 ## Install
@@ -33,7 +33,7 @@ npm install @comvi/plugin-fetch-loader
 ```tsx title="src/main.tsx" check=group=fetch-loader-1
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import App from "./App";
 
 const i18n = createI18n({
@@ -62,7 +62,7 @@ independent, and either works without the other.
 
 ```ts title="src/i18n.ts" check=group=fetch-loader-2
 import { createI18n } from "@comvi/core";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 export const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(
   cdnLoader({
@@ -85,7 +85,7 @@ key first, then the `'locale'` shorthand for the default namespace.
 
 ```ts title="src/i18n.server.ts" check=group=fetch-loader-3
 import { createI18n } from "@comvi/core";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { fetchLoader } from "@comvi/plugin-fetch-loader/api";
 
 export const i18n = createI18n({
   locale: "en",
@@ -100,7 +100,7 @@ export const i18n = createI18n({
 await i18n.init();
 ```
 
-`fetchLoader()` from the root entry reads the CDN, and switches to the platform API when the host
+`fetchLoader()` from `/api` reads the CDN, and switches to the platform API when the i18n instance
 carries an `apiKey`: draft translations and private projects are reachable. The key needs project
 read and translation read access. `cdnLoader()` never builds an API URL. API mode is server-side
 only: the `apiKey` is a credential, so compose `fetchLoader` with a key only in a server render, a
@@ -111,17 +111,17 @@ prerender, a CLI or a script; in the browser use `cdnLoader`.
 | Option          | Default                        | Entry | Behaviour                                                                              |
 | --------------- | ------------------------------ | ----- | -------------------------------------------------------------------------------------- |
 | `cdnUrl`        | required                       | both  | The CDN base URL from **Settings → Content Deploy**.                                   |
-| `baseUrl`       | `https://api.comvi.io`         | root  | The API host.                                                                          |
+| `baseUrl`       | `https://api.comvi.io`         | api   | The API host.                                                                          |
 | `fallback`      | none                           | both  | Import map served when a network load fails.                                           |
 | `onLoadError`   | none                           | both  | `(locale, namespace, error)` when a pair fails and no fallback produced data.          |
 | `onLoadSuccess` | none                           | both  | `(locale, namespace)` when a pair loads, including from `fallback`.                    |
 | `timeout`       | `10000`                        | both  | Per-request budget in milliseconds, covering the body.                                 |
-| `retry`         | `true`                         | root  | Retries the project-info request after a 429, 5xx or transport failure, twice at most. |
+| `retry`         | `true`                         | api   | Retries the project-info request after a 429, 5xx or transport failure, twice at most. |
 | `loadOnInit`    | `true`                         | both  | Whether the plugin loads at install time.                                              |
 | `cdnLayout`     | `{ rootNamespace: defaultNs }` | both  | Which namespace lives at `{cdnUrl}/{locale}.json`.                                     |
 | `cache`         | none                           | both  | `{ revalidate, tags }` forwarded to `fetch()` on Next.js and Nuxt.                     |
 
-Naming a root-only option on the `/cdn` entry is a compile error. Concurrent requests for one
+Naming an `/api`-only option on `cdnLoader` is a compile error. Concurrent requests for one
 `locale:namespace` are deduplicated, and `destroy()` aborts everything in flight.
 
 ## Next steps

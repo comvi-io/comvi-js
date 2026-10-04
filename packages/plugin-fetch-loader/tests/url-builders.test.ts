@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildApiExportUrl, buildApiTranslationsUrl } from "../src/index";
+import { buildApiExportUrl, buildApiTranslationsUrl } from "../src/api";
 import { buildLegacyApiExportUrl } from "../src/http";
 
 const API = "https://api.example.com";

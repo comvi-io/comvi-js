@@ -79,7 +79,7 @@ npm install @comvi/plugin-fetch-loader
 ```ts title="src/main.ts" check=group=vue-3
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import App from "./App.vue";
 
 const i18n = createI18n({

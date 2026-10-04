@@ -15,8 +15,7 @@
 //
 //   * `export * from './cdn/index'` — the star has no names to re-export, so the
 //     entry point ends up with ZERO exported members:
-//     `TS2305: Module '"@comvi/plugin-fetch-loader/cdn"' has no exported member
-//     'cdnLoader'`.
+//     `TS2305: Module '"<that entry>"' has no exported member 'cdnLoader'`.
 //   * `export { X } from './options'` — the name X is still declared, but bound
 //     to an unresolved module, so it silently degrades to `any`. With the
 //     `skipLibCheck: true` that virtually every app sets, the consumer sees no

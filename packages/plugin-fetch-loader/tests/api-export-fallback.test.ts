@@ -5,7 +5,7 @@
  * what each request carries.
  */
 import { describe, it, expect } from "vitest";
-import { fetchApiTranslations } from "../src/index";
+import { fetchApiTranslations } from "../src/api";
 import { jsonResponse, recordingTransport } from "./helpers/transport";
 
 const BASE = "https://api.example.com";

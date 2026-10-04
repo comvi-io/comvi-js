@@ -16,7 +16,7 @@ get a loader.
 ```ts
 // comvi.host.ts
 import { createI18n, type NuxtHostFactory } from "@comvi/nuxt/host";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 export default ((options) =>
   createI18n(options).use(

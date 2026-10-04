@@ -10,12 +10,12 @@ export default defineConfig({
     }),
   ],
   build: createPluginBuildOptions({
-    // Two entries, two module graphs: `./cdn` exists so a CDN-only app never
-    // bundles the API request path the root entry branches into at runtime.
-    // `[name].js` keeps each one at the file its exports-map key names.
+    // Two entries, two module graphs: the root is the CDN path alone, so a
+    // CDN-only app never bundles the API request path `./api` branches into at
+    // runtime. `[name].js` keeps each one at the file its exports-map key names.
     entry: {
       index: resolve(__dirname, "src/index.ts"),
-      cdn: resolve(__dirname, "src/cdn/index.ts"),
+      api: resolve(__dirname, "src/api.ts"),
     },
     name: "ComviFetchLoader",
     fileNames: { es: "[name].js" },

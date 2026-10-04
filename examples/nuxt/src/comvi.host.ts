@@ -1,5 +1,5 @@
 import { createI18n, defineComviHost, icuCompiler, loader } from "@comvi/nuxt/host";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { useRuntimeConfig } from "#imports";
 
 /**

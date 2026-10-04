@@ -6,9 +6,9 @@
 
 ```diff
 -import { FetchLoader } from "@comvi/plugin-fetch-loader";
--import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
-+import { fetchLoaderPlugin } from "@comvi/plugin-fetch-loader";
-+import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";
+-import { CdnLoader } from "@comvi/plugin-fetch-loader";
++import { fetchLoaderPlugin } from "@comvi/plugin-fetch-loader/api";
++import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader";
 
 -i18n.registerPlugin(CdnLoader({ cdnUrl }));
 +i18n.registerPlugin(cdnLoaderPlugin({ cdnUrl }));

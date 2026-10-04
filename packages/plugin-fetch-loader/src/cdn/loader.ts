@@ -23,7 +23,7 @@ import { ERROR_PREFIX } from "../http-core";
  * import { createI18n } from '@comvi/core';
  * import { loader } from '@comvi/core/loader';
  * import { plugins } from '@comvi/core/plugins';
- * import { cdnLoaderPlugin } from '@comvi/plugin-fetch-loader/cdn';
+ * import { cdnLoaderPlugin } from '@comvi/plugin-fetch-loader';
  *
  * const i18n = createI18n({ locale: 'en' }).use(attachLoader).use(plugins());
  *

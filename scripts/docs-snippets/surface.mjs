@@ -132,7 +132,7 @@ function exportsEntries(pkgJson) {
  * Textual inversion of the build: drop the `./`, drop the leading `dist/`, drop
  * the declaration or script extension, drop a build infix, then look for that
  * basename under `src/` as a module or as a directory index
- * (`@comvi/plugin-fetch-loader/cdn` is `src/cdn/index.ts`).
+ * (an entry built from `src/<name>/index.ts`).
  *
  * `null` is a first-class answer — the entry is OPAQUE and the rule will not
  * flag a single name against it. That is the correct verdict for

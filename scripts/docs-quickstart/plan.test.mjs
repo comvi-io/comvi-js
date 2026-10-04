@@ -264,7 +264,7 @@ test("projectPlan: connect-comvi layers its files and installs over the quick st
       "npm install @comvi/plugin-fetch-loader",
       "```",
       '```tsx title="src/main.tsx" check=group=connect-comvi-react-1',
-      "import { cdnLoader } from '@comvi/plugin-fetch-loader/cdn';",
+      "import { cdnLoader } from '@comvi/plugin-fetch-loader';",
       "```",
       "</TabItem>",
     ].join("\n"),

@@ -6,7 +6,7 @@
 // tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
 import { createI18n, icuCompiler } from "@comvi/vue";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 // `createI18n` builds the base host and each `.use(…)` composes a capability
 // on it, widening the type of `i18n.core` as it goes, so `i18n.core.use(…)`
@@ -17,11 +17,11 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 // loader's own capabilities (`/loader`, `/plugins`) are composed by the
 // installer itself.
 //
-// `cdnLoader` comes from `@comvi/plugin-fetch-loader/cdn`, the CDN-only entry:
+// `cdnLoader` comes from the `@comvi/plugin-fetch-loader` root, the CDN-only entry:
 // this app reads a public CDN endpoint and never the authenticated API, so it
 // has no reason to bundle the API request path. An app that does talk to the
-// API composes `fetchLoader` from the package root and passes `apiKey` as a
-// HOST option instead.
+// API composes `fetchLoader` from `@comvi/plugin-fetch-loader/api` and passes
+// `apiKey` as an i18n-instance option instead.
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
@@ -46,7 +46,7 @@ export default i18n;
 // one and set VITE_COMVI_API_KEY to exercise the authenticated request path,
 // which nothing else in this repo runs against a live server.
 //
-// import { fetchLoader } from "@comvi/plugin-fetch-loader";
+// import { fetchLoader } from "@comvi/plugin-fetch-loader/api";
 //
 // export const i18n = createI18n({
 //   locale: "en",
