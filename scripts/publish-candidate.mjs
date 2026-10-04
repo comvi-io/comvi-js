@@ -31,9 +31,11 @@
  *        version are read from `package/package.json` inside it, and the file
  *        name must be the one `pnpm pack` gives that name and version;
  *        `pending.json` is not read;
- *     3. `npm publish <tgz>` each one npm does not have yet, core first; a
- *        failure is reported and the loop CONTINUES (one 503 must not leave
- *        the rest of the train unattempted);
+ *     3. `npm publish <tgz> --tag release-<sums prefix>` each one npm does not
+ *        have yet, core first: a STAGING dist-tag of this candidate, so no
+ *        user resolves a half-published train through `--tag`. A failure is
+ *        reported and the loop CONTINUES (one 503 must not leave the rest of
+ *        the train unattempted);
  *     4. the SHA256SUMS set is the transaction: npm is asked again about
  *        EVERY candidate and a status table is logged. `--git-tag` makes the
  *        tag of every candidate npm has point at the checked-out commit
@@ -41,8 +43,13 @@
  *        published but never tagged — and, once the whole set is on npm, the
  *        release tag `v<train version>` too; `--push-tags` pushes the missing
  *        ones. An existing tag at any other commit is refused, naming both.
+ *        Only once npm has the whole set does `--tag` (latest, or next for an
+ *        RC) move: `npm dist-tag add <name>@<version> <tag>` per package
+ *        whose tag is not there yet (so a re-run finishes a half-done
+ *        promotion), then the staging tag is removed, best effort.
  *        GITHUB_OUTPUT gets `published=true` and `publishedPackages=<the
- *        whole set>` ONLY when every candidate is on npm and every tag holds;
+ *        whole set>` ONLY when every candidate is on npm under `--tag` and
+ *        every tag holds;
  *        otherwise `published=false`, `publishedPackages=[]` and exit 1. A
  *        re-run skips what npm has, reconciles the tags and, when the set is
  *        complete, reports it complete — so the release step can run.
@@ -257,15 +264,40 @@ export function trainVersion(candidates, fixedGroup) {
   return versions[0];
 }
 
-/** One line per candidate: on npm or MISSING, and what this run did about it. */
-export function statusTable(rows) {
+/**
+ * The dist-tag a candidate is published under before promotion: derived from
+ * the candidate (its SHA256SUMS digest), so a re-run of the same candidate
+ * reuses it and no other candidate shares it.
+ */
+export function stagingTag(sums) {
+  return `release-${sums.slice(0, 12)}`;
+}
+
+/**
+ * One line per candidate: on npm or MISSING, whether `tag` names it, and what
+ * this run did about it.
+ */
+export function statusTable(rows, tag) {
   const width = Math.max(...rows.map((row) => `${row.name}@${row.version}`.length));
+  const onTag = `on ${tag}`;
+  const notOnTag = `NOT on ${tag}`;
   return rows
     .map(
       (row) =>
-        `  ${`${row.name}@${row.version}`.padEnd(width)}  ${row.onNpm ? "on npm " : "MISSING"}  ${row.note}`,
+        `  ${`${row.name}@${row.version}`.padEnd(width)}  ${row.onNpm ? "on npm " : "MISSING"}  ` +
+        `${(row.onTag ? onTag : notOnTag).padEnd(notOnTag.length)}  ${row.note}`,
     )
     .join("\n");
+}
+
+/**
+ * `npm view <name> dist-tags --json`: the package's dist-tags, `{}` for a
+ * package npm does not know; any other failure throws.
+ */
+export function parseDistTags({ status, stdout, stderr }) {
+  if (status === 0) return stdout.trim() === "" ? {} : JSON.parse(stdout);
+  if (/E404|404 Not Found|is not in this registry/.test(`${stdout}\n${stderr}`)) return {};
+  throw new Error(`npm view dist-tags failed (${status}):\n${stderr || stdout}`);
 }
 
 /**
@@ -358,6 +390,10 @@ function output(values) {
   );
 }
 
+function distTagsOf(pkg) {
+  return parseDistTags(sh("npm", ["view", pkg.name, "dist-tags", "--json"], { capture: true }));
+}
+
 function notOnNpm(pkg) {
   const view = sh("npm", ["view", `${pkg.name}@${pkg.version}`, "version", "--json"], {
     capture: true,
@@ -440,6 +476,7 @@ function publish(options) {
   const checkout = process.cwd();
   const git = (args) => sh("git", args, { capture: true, cwd: checkout });
   const tagging = options.gitTag && !options.dryRun;
+  const staging = stagingTag(options.expectSums);
   let releaseTag = null;
   let head = null;
   if (tagging) {
@@ -463,7 +500,7 @@ function publish(options) {
   }
 
   const { published, failed } = publishAll(pending, (pkg) => {
-    const args = ["publish", pkg.tarball, "--access", "public", "--tag", options.tag];
+    const args = ["publish", pkg.tarball, "--access", "public", "--tag", staging];
     if (options.dryRun) args.push("--dry-run");
     console.log(`publishing ${pkg.file} (sha256 ${fileDigest(pkg.tarball)})`);
     sh("npm", args);
@@ -481,25 +518,56 @@ function publish(options) {
         : options.dryRun
           ? "published (dry run)"
           : "published by this run";
+    let distTags = {};
     try {
       onNpm = (options.dryRun && published.includes(pkg)) || !notOnNpm(pkg);
+      if (onNpm) distTags = distTagsOf(pkg);
     } catch (error) {
       onNpm = false;
       note += `; npm view failed: ${error.message.split("\n")[0]}`;
     }
-    return { ...pkg, onNpm, note };
+    return { ...pkg, onNpm, distTags, onTag: distTags[options.tag] === pkg.version, note };
   });
   const present = rows.filter((row) => row.onNpm);
   const complete = present.length === candidates.length;
+
+  // Promotion: `--tag` moves only for a complete train, package by package,
+  // and only where it is not there yet. The staging tag goes once all moved.
+  if (complete) {
+    for (const row of rows.filter((entry) => !entry.onTag)) {
+      if (options.dryRun) {
+        row.onTag = true;
+        row.note += `; would move ${options.tag}`;
+        continue;
+      }
+      const add = sh("npm", ["dist-tag", "add", `${row.name}@${row.version}`, options.tag], {
+        capture: true,
+      });
+      row.onTag = add.status === 0;
+      row.note += row.onTag
+        ? `; ${options.tag} moved`
+        : `; npm dist-tag add failed: ${(add.stderr || add.stdout).trim().split("\n")[0]}`;
+    }
+    if (rows.every((row) => row.onTag) && !options.dryRun) {
+      for (const row of rows.filter((entry) => entry.distTags[staging] !== undefined)) {
+        const rm = sh("npm", ["dist-tag", "rm", row.name, staging], { capture: true });
+        if (rm.status !== 0)
+          console.log(`(could not remove ${staging} from ${row.name}; harmless)`);
+      }
+    }
+  }
+  const promoted = rows.every((row) => row.onTag);
   console.log(
-    `release candidate: ${present.length} of ${candidates.length} on npm\n${statusTable(rows)}`,
+    `release candidate: ${present.length} of ${candidates.length} on npm, ` +
+      `${rows.filter((row) => row.onTag).length} on ${options.tag} ` +
+      `(staged as ${staging})\n${statusTable(rows, options.tag)}`,
   );
 
   let tagError = null;
   if (tagging) {
     const tags = present.map((pkg) => `${pkg.name}@${pkg.version}`);
-    // The release tag names the whole set, so it waits for the whole set.
-    if (complete) tags.push(releaseTag);
+    // The release tag names the whole, promoted set, so it waits for it.
+    if (complete && promoted) tags.push(releaseTag);
     try {
       reconcileTags(tags, { head, push: options.pushTags, git });
     } catch (error) {
@@ -509,7 +577,7 @@ function publish(options) {
     for (const pkg of published) console.log(`New tag: ${pkg.name}@${pkg.version}`);
   }
 
-  const done = complete && tagError === null;
+  const done = complete && promoted && tagError === null;
   output({
     published: String(done),
     publishedPackages: done
@@ -522,6 +590,11 @@ function publish(options) {
       `the release is INCOMPLETE: ${candidates.length - present.length} candidate(s) MISSING on npm. ` +
         "Re-run this job: what npm has is skipped and tagged, the rest is published, and the " +
         "GitHub Release is created only once every candidate is on npm.",
+    );
+  } else if (!promoted) {
+    console.error(
+      `every candidate is on npm, but not every one is on \`${options.tag}\` yet. Re-run this ` +
+        `job: it moves \`${options.tag}\` for the rest and leaves the moved ones alone.`,
     );
   }
   return done ? 0 : 1;

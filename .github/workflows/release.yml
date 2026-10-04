@@ -43,9 +43,12 @@ permissions: {}
 #             SHA256SUMS hashes to pack's `sums`, that every listed tarball
 #             matches it and that the directory holds nothing else, reads each
 #             tarball's name and version from its own package.json, and runs
-#             `npm publish <tgz>` on exactly those bytes. The SHA256SUMS set
-#             is one transaction: GA reports `published=true` (and creates
-#             the GitHub Release) only once npm has EVERY candidate and every
+#             `npm publish <tgz>` on exactly those bytes, under a staging
+#             dist-tag of that candidate (`release-<sums prefix>`). The
+#             SHA256SUMS set is one transaction: only once npm has EVERY
+#             candidate does `latest` (GA) or `next` (RC) move, package by
+#             package; GA then reports `published=true` (and creates the
+#             GitHub Release) only if every package is on `latest` and every
 #             package tag plus `v<version>` names the checked-out commit.
 #             Anything less exits 1 with a status table, and "Re-run failed
 #             jobs" on `publish` completes it.
@@ -195,9 +198,11 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # setup-node cannot pin npm itself; this is npm's own package at an exact
-      # version, the one install this job makes.
-      - name: Ensure npm 11.5.1+ for OIDC trusted publishing
-        run: npm install -g npm@11.11.0
+      # version, the one install this job makes. 11.21.0 is the first npm 11
+      # whose OIDC token also covers `npm dist-tag` (the promotion step); each
+      # package's trusted publisher must have "Allow npm dist-tag" enabled.
+      - name: Ensure npm 11.21.0+ for OIDC trusted publishing and dist-tags
+        run: npm install -g npm@11.21.0
 
       - name: Download the candidate (from rc-pack)
         uses: actions/download-artifact@v5
@@ -394,9 +399,11 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # setup-node cannot pin npm itself; this is npm's own package at an exact
-      # version, the one install this job makes.
-      - name: Ensure npm 11.5.1+ for OIDC trusted publishing
-        run: npm install -g npm@11.11.0
+      # version, the one install this job makes. 11.21.0 is the first npm 11
+      # whose OIDC token also covers `npm dist-tag` (the promotion step); each
+      # package's trusted publisher must have "Allow npm dist-tag" enabled.
+      - name: Ensure npm 11.21.0+ for OIDC trusted publishing and dist-tags
+        run: npm install -g npm@11.21.0
 
       - name: Download the candidate (from pack)
         uses: actions/download-artifact@v5
@@ -405,8 +412,10 @@ jobs:
           path: release-candidate
 
       # Publishes every tarball SHA256SUMS lists that npm does not have yet
-      # (core first), continuing past a failed one; then asks npm about EVERY
-      # candidate and logs the table. Tags each version npm has at this
+      # (core first) under the candidate's staging dist-tag, continuing past a
+      # failed one; then asks npm about EVERY candidate and logs the table.
+      # Only a complete set moves `latest` (dist-tag add, per package, where
+      # it is not there yet), so users never resolve half a train. Tags each version npm has at this
       # checkout's commit (also ones an earlier run published but never
       # tagged) and, once the whole set is on npm, `v<version>` too; a tag
       # already at another commit is refused. `published=true` with the whole
