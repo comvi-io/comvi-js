@@ -1,16 +1,18 @@
 /**
  * What the Next <I18nProvider> writes onto the instance, and when.
  *
- * The locale and the pre-loaded messages have to land BEFORE the first commit
- * (that is what keeps SSR and hydration in step), and neither may be re-applied
- * on a render that changed nothing.
+ * Nothing is written during render: a render React abandons, and every server
+ * render, must leave the shared instance as it was. The first client render
+ * still renders in the handed-over locale and translates from the handed-over
+ * catalog; the instance receives both at commit, and neither is re-applied on
+ * a render that changed nothing.
  */
 
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { createI18n, useIsLoading } from "@comvi/react";
+import { createI18n, useI18n, useIsLoading, useLocale } from "@comvi/react";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 import { I18nProvider } from "../src/client/I18nProvider";
@@ -37,9 +39,13 @@ const recordLocaleWrites = (fake: FakeI18n): string[] => {
 };
 
 describe("Next <I18nProvider> instance sync", () => {
-  it("applies the locale before the children render on the client", () => {
+  it("renders the first client render in the locale, and applies it at commit", () => {
     const fake = new FakeI18n({ language: "en" });
-    const LocaleAtRenderTime = () => <span data-testid="at-render">{fake.locale}</span>;
+    const atRender: string[] = [];
+    const LocaleAtRenderTime = () => {
+      atRender.push(`${useLocale()}/${fake.locale}`);
+      return null;
+    };
 
     render(
       <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
@@ -47,7 +53,9 @@ describe("Next <I18nProvider> instance sync", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByTestId("at-render").textContent).toBe("fr");
+    // The tree is in `fr` from its first render; the instance was not written by it.
+    expect(atRender[0]).toBe("fr/en");
+    expect(fake.locale).toBe("fr");
   });
 
   it("leaves the locale alone when the instance already carries it", () => {
@@ -76,9 +84,8 @@ describe("Next <I18nProvider> instance sync", () => {
     expect(writes).toEqual(["fr"]);
   });
 
-  // The useState initializer only runs on the first render, so client
-  // navigation to a different `[locale]` segment reaches the instance through
-  // the layout effect and nothing else.
+  // Client navigation to a different `[locale]` segment reaches the instance
+  // through the same layout effect as the first mount, and nothing else.
   it("applies a new locale handed over on a later render", () => {
     const fake = new FakeI18n({ language: "en" });
     const writes = recordLocaleWrites(fake);
@@ -117,20 +124,28 @@ describe("Next <I18nProvider> instance sync", () => {
     expect(writes).toEqual(["fr"]);
   });
 
-  it("adds pre-loaded messages once, before the children render", () => {
-    const fake = new FakeI18n({ language: "en" });
-    const MessagesAtRenderTime = () => (
-      <span data-testid="at-render">{String(fake.hasLocale("fr", "default"))}</span>
-    );
+  it("translates the first render from pre-loaded messages, and adds them once at commit", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: {} }, exposeGlobal: false });
+    const atRender: string[] = [];
+    const MessagesAtRenderTime = () => {
+      const { t } = useI18n();
+      atRender.push(`${t("greeting")}/${i18n.hasLocale("fr")}`);
+      return <span data-testid="at-render">{t("greeting")}</span>;
+    };
+    const addMessages = vi.spyOn(i18n, "addMessages");
 
     render(
-      <I18nProvider i18n={fake.asI18n()} locale="fr" messages={MESSAGES} autoInit={false}>
+      <I18nProvider i18n={i18n} locale="fr" messages={MESSAGES} autoInit={false}>
         <MessagesAtRenderTime />
       </I18nProvider>,
     );
 
-    expect(screen.getByTestId("at-render").textContent).toBe("true");
-    expect(fake.addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+    // The text came from the handover before the instance held it.
+    expect(atRender[0]).toBe("Bonjour/false");
+    expect(screen.getByTestId("at-render").textContent).toBe("Bonjour");
+    expect(i18n.hasLocale("fr")).toBe(true);
+    expect(i18n.locale).toBe("fr");
+    expect(addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
   });
 
   it("does not re-add the same messages object on a later render", () => {

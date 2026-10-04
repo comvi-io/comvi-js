@@ -1,32 +1,32 @@
 "use client";
 
-import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
+import React, { useLayoutEffect, useEffect } from "react";
 import { I18nProvider as ReactI18nProvider } from "@comvi/react";
 
 // useLayoutEffect warns when it runs during SSR.
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
-import type { I18nProviderProps as ReactI18nProviderProps } from "@comvi/react";
-import type { TranslationValue } from "@comvi/core";
+import type { I18nProviderProps as ReactI18nProviderProps, MessagesMap } from "@comvi/react";
 import type { RoutingConfig } from "../routing/types";
 import { RoutingProvider } from "../routing/context";
 
-/**
- * Translations result keyed by "locale:namespace"
- */
-export type MessagesMap = Record<string, Record<string, TranslationValue>>;
+export type { MessagesMap } from "@comvi/react";
 
 // react's SSR render locale and switch target are omitted: this provider sets
 // both from its own `locale` prop, so passing them here would be overridden.
+// `messages` is redeclared below with what it means here.
 export interface I18nProviderProps extends Omit<
   ReactI18nProviderProps,
-  "ssrLocale" | "targetLocale"
+  "ssrLocale" | "targetLocale" | "messages"
 > {
   /** Locale passed from server (from params.locale) */
   locale: string;
 
   /**
-   * Pre-loaded messages from loadMessages().
-   * These will be added to the i18n cache on mount.
+   * The catalogs the server loaded for `locale`, from `loadMessages()`. The
+   * render that receives them already translates in `locale`, and they are
+   * in the i18n instance before its locale moves, so the browser never
+   * fetches a catalog the server just delivered. A server render reads them
+   * without writing the shared i18n instance.
    *
    * @example
    * ```tsx
@@ -47,7 +47,7 @@ export interface I18nProviderProps extends Omit<
  * Reports through `i18n.reportError` on misconfiguration so devs get a
  * meaningful diagnostic instead of a silent fallback.
  *
- * Deliberately NOT behind the `typeof window` guard the assignment sits behind:
+ * Called in render on the server and from the layout effect in the browser:
  * a `[locale]` segment outside `routing.locales` is a server-side routing
  * mistake, and it should reach `onError` where the server logs are rather than
  * waiting for a browser to hydrate.
@@ -70,8 +70,8 @@ function validateLocale(
 }
 
 /**
- * The ONE place `i18n.locale` is assigned. Callers gate it on
- * `validateLocale` and on being off the server — see the call sites.
+ * The ONE place `i18n.locale` is assigned. Its one caller is the layout
+ * effect, gated on `validateLocale`; effects never run on the server.
  */
 function applyLocale(i18n: import("@comvi/core").WrapperI18nHost, locale: string): void {
   if (i18n.locale !== locale) {
@@ -149,68 +149,42 @@ export function I18nProvider({
   routing,
   ...props
 }: I18nProviderProps) {
-  // By-identity guard so StrictMode double-mount and stable-prop re-renders
-  // don't re-apply the same messages object.
-  const lastAddedMessagesRef = useRef<MessagesMap | undefined>(undefined);
+  // Nothing here writes the i18n instance during render. The App Router
+  // instance lives at module scope and is shared by every concurrent request
+  // in the server process, and a client render React abandons must leave it
+  // as it was. The request's locale and catalog reach the tree through the
+  // React provider instead: `ssrLocale` and `targetLocale` render in `locale`,
+  // `messages` translate before the i18n instance holds them.
+  //
+  // A locale outside `routing.locales` is reported, never applied and never
+  // rendered in: the tree stays in the i18n instance's locale on the server
+  // and on the client alike. The report runs in render on the server only, so
+  // a misrouted segment reaches `onError` where the server logs are; the
+  // browser reports it from the layout effect.
+  const routed = !routing || routing.locales.includes(locale);
+  if (typeof window === "undefined") validateLocale(i18n, locale, routing);
 
-  // The handed-over catalog goes in DURING render, before the children, on
-  // the first render and on every later one that brings a new object (a
-  // client navigation). Two things depend on it:
-  //  • the children of this very render translate in `locale` (passed as
-  //    `targetLocale` below), so the text commits together with the
-  //    `<html lang>` the same server payload carries, never one render later;
-  //  • assigning the locale afterwards starts a guarded `setLocale` that loads
-  //    every active namespace not yet cached for it. With the catalog already
-  //    in, it loads nothing; added after, the browser fetched the catalog the
-  //    server had just delivered, and `isLoading` stayed up until that
-  //    duplicate answered.
-  // It runs on the server too: `addMessages` is additive and keyed
-  // `locale:namespace`, so a concurrent request can only write what the other
-  // would have loaded anyway, and after the first add per key it is a no-op
-  // for the cache and for `getActiveNamespaces()`. The first add does emit
-  // `namespaceLoaded` — accepted; subscribers are notified a microtask later,
-  // never during this render.
-  if (messages && messages !== lastAddedMessagesRef.current) {
-    i18n.addMessages(messages);
-    lastAddedMessagesRef.current = messages;
-  }
-
-  // Sync the host's locale before the first commit.
-  useState(() => {
-    // Validation runs on both sides so a misrouted locale is still reported
-    // during SSR; only the WRITE is client-only. The App Router host lives at
-    // module scope and is shared by every concurrent request in the server
-    // process, so writing its locale during a server render leaks one
-    // request's locale into another's tree. The request locale reaches the
-    // tree through `ssrLocale` and `targetLocale` below.
-    if (validateLocale(i18n, locale, routing) && typeof window !== "undefined") {
-      applyLocale(i18n, locale);
-    }
-    return null;
-  });
-
-  // Subsequent renders (client navigation, HMR, prop updates). Effects never
-  // run during a server render, so no guard is needed here.
+  // The one locale write, at commit, on the first mount and on every new
+  // `locale` (client navigation, HMR). The React provider's layout effect is a
+  // child's, so it has added `messages` first: the guarded `setLocale` the
+  // write starts finds the catalog cached and loads nothing.
   useIsomorphicLayoutEffect(() => {
     if (validateLocale(i18n, locale, routing)) {
       applyLocale(i18n, locale);
     }
   }, [i18n, locale, routing]);
 
-  // `targetLocale` only for a locale the instance will actually be switched
-  // to: a misrouted one is reported and never applied, so rendering in it
-  // would keep the tree in a locale the instance never reaches.
   // `autoInit` runs the React provider's `ensureInitialized` → `i18n.init()`,
-  // which loads the default namespace at the HOST's configured locale. Since
-  // the server render no longer writes that locale, it is now always the static
-  // default from `createNextI18n()` rather than whichever request rendered
-  // first, so the first-request race is gone by construction.
+  // which loads the default namespace at the i18n instance's configured
+  // locale: the static default from `createNextI18n()`, since no render writes
+  // it.
   const content = (
     <ReactI18nProvider
       i18n={i18n}
       autoInit={autoInit}
-      ssrLocale={locale}
-      targetLocale={routing && !routing.locales.includes(locale) ? undefined : locale}
+      ssrLocale={routed ? locale : i18n.locale}
+      targetLocale={routed ? locale : undefined}
+      messages={messages}
       ssrInitialIsLoading={false}
       ssrInitialIsInitializing={false}
       {...props}

@@ -113,6 +113,33 @@ describe("Next <I18nProvider> server render does not write the shared host", () 
     expect([...i18n.getActiveNamespaces()].sort()).toEqual(namespacesAfterFirst);
   });
 
+  it("translates from the handed-over catalog without writing the shared instance", () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello" } },
+      exposeGlobal: false,
+    });
+    const loaded: string[] = [];
+    i18n.on("namespaceLoaded", ({ locale }) => loaded.push(locale));
+    const Greeting = () => <p>{useI18n().t("greeting")}</p>;
+
+    const html = renderToString(
+      <I18nProvider
+        i18n={i18n}
+        locale="fr"
+        messages={{ "fr:default": { greeting: "Bonjour" } }}
+        autoInit={false}
+      >
+        <Greeting />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("Bonjour");
+    expect(i18n.hasLocale("fr")).toBe(false);
+    expect(i18n.getActiveNamespaces()).toEqual(["default"]);
+    expect(loaded).toEqual([]);
+  });
+
   it("resolves useI18n().hasTranslation against the provider locale, not the host locale", () => {
     const i18n = createI18n({
       locale: "en",

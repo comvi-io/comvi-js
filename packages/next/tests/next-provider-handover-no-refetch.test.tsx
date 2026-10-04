@@ -16,10 +16,12 @@
  *    one delivered mutation batch).
  */
 
-import React from "react";
+import React, { Suspense, startTransition, useState } from "react";
+import { renderToString } from "react-dom/server";
 import { describe, it, expect, vi } from "vitest";
 import { act, render } from "@testing-library/react";
-import { useI18n } from "@comvi/react";
+import { useI18n, useLocale } from "@comvi/react";
+import type { MessagesMap } from "../src/client/I18nProvider";
 
 import { createNextI18n } from "../src/createNextI18n";
 import { I18nProvider } from "../src/client/I18nProvider";
@@ -133,5 +135,57 @@ describe("Next <I18nProvider> hands the server's catalog over", () => {
       await i18n.setLocale("en");
     });
     expect(log[log.length - 1].text).toBe("Hello");
+  });
+
+  it("a cancelled render with a refreshed catalog never reaches the committed tree", async () => {
+    const { i18n } = createHost();
+    const A: MessagesMap = { "en:default": { greeting: "A" } };
+    const B: MessagesMap = { "en:default": { greeting: "B" } };
+    const never = new Promise<never>(() => {});
+    const Suspends = () => {
+      throw never;
+    };
+    let navigate!: (next: { messages: MessagesMap; suspend: boolean }) => void;
+    const App = () => {
+      const [state, set] = useState({ messages: A, suspend: false });
+      navigate = set;
+      return (
+        <I18nProvider i18n={i18n} locale="en" messages={state.messages} autoInit={false}>
+          <Probe given="en" log={[]} />
+          <Suspense fallback={null}>{state.suspend ? <Suspends /> : null}</Suspense>
+        </I18nProvider>
+      );
+    };
+    const view = render(<App />);
+    await settle();
+    expect(view.container.textContent).toBe("A");
+    // An RSC refresh with catalog B whose render suspends and never commits.
+    await act(async () => {
+      startTransition(() => navigate({ messages: B, suspend: true }));
+    });
+    await settle();
+    expect(view.container.textContent).toBe("A");
+    expect(i18n.getMessages("en").greeting).toBe("A");
+  });
+
+  it("a locale outside routing.locales is not rendered on the server", () => {
+    const { i18n } = createHost();
+    i18n.addMessages(handover("en"));
+    const LocaleProbe = () => {
+      const { t } = useI18n();
+      return <p>{`${useLocale()}:${t("greeting")}`}</p>;
+    };
+    const html = renderToString(
+      <I18nProvider
+        i18n={i18n}
+        locale="zz"
+        routing={{ locales: ["en", "uk"], defaultLocale: "en" }}
+        messages={{ "zz:default": { greeting: "Zz" } }}
+        autoInit={false}
+      >
+        <LocaleProbe />
+      </I18nProvider>,
+    );
+    expect(html).toContain("en:Hello");
   });
 });
