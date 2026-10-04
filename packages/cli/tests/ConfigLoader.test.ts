@@ -236,6 +236,46 @@ describe("ConfigLoader", () => {
     });
   });
 
+  describe("known field value validation", () => {
+    const loadWith = async (extra: Record<string, unknown>) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    it("accepts the documented values", async () => {
+      const cfg = await loadWith({
+        apiBaseUrl: "http://localhost:3000/",
+        outputPath: "src/i18n.d.ts",
+        translationsPath: "./src/locales",
+        fileTemplate: "{namespace}/{languageTag}.json",
+        format: "json",
+      });
+      expect(cfg.format).toBe("json");
+    });
+
+    it.each([
+      ["format", "yaml", 'string "yaml"'],
+      ["format", 7, "number 7"],
+      ["translationsPath", 42, "number 42"],
+      ["translationsPath", "  ", 'string "  "'],
+      ["outputPath", ["a"], 'array ["a"]'],
+      ["outputPath", "", 'string ""'],
+      ["fileTemplate", false, "boolean false"],
+      ["fileTemplate", "", 'string ""'],
+      ["apiBaseUrl", 5, "number 5"],
+      ["apiBaseUrl", "not a url", 'string "not a url"'],
+      ["apiBaseUrl", "ftp://api.comvi.io", 'string "ftp://api.comvi.io"'],
+    ])("rejects %s = %j as CONFIG_INVALID naming the field", async (field, value, received) => {
+      const error = await rejectionOf(loadWith({ [field]: value }));
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain(`"${field}"`);
+      expect((error as TypegenError).message).toContain(`received ${received}`);
+    });
+  });
+
   describe("namespaces / locales filter validation", () => {
     const loadWith = async (extra: Record<string, unknown>) => {
       mockAccess.mockResolvedValueOnce(undefined);

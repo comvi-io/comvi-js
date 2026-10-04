@@ -3,6 +3,8 @@ import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { createPullCommand } from "../src/commands/pull";
 import { TranslationSync } from "../src/core/TranslationSync";
+import { ConfigLoader } from "../src/core/ConfigLoader";
+import { DEFAULT_FILE_TEMPLATE } from "../src/defaults";
 import {
   assertNoUnexpectedRequests,
   captureConsole,
@@ -498,6 +500,58 @@ describe("comvi pull", () => {
       "✗ Pull failed: Unknown namespaces: typo. Available in project: common.",
     );
     await expect(fs.access(localesDir)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("exits 4 without a request or a write when format is not json", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir, format: "yaml" });
+    http = stubFetch({});
+
+    const exitCode = await runPull(["-c", configPath]);
+
+    expect(exitCode).toBe(4);
+    expect(output.error[0]).toContain('"format"');
+    expect(http.requests).toEqual([]);
+    await expect(fs.access(localesDir)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("exits 4 without a request when translationsPath is not a string", async () => {
+    const configPath = await writeConfig({ translationsPath: 42 });
+    http = stubFetch({});
+
+    const exitCode = await runPull(["-c", configPath]);
+
+    expect(exitCode).toBe(4);
+    expect(output.error[0]).toContain('"translationsPath"');
+    expect(http.requests).toEqual([]);
+  });
+
+  it("round-trips a valid config: what pull writes, a later read sees in full", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir, format: "json" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: {
+          locales: ["en"],
+          namespaces: {
+            common: { en: { greeting: "Hello" } },
+            admin: { en: { title: "Admin" } },
+          },
+        },
+      },
+    });
+
+    expect(await runPull(["-c", configPath])).toBe(0);
+
+    const config = await ConfigLoader.load(configPath);
+    const sync = new TranslationSync({
+      translationsPath: config.translationsPath ?? localesDir,
+      fileTemplate: config.fileTemplate ?? DEFAULT_FILE_TEMPLATE,
+      format: config.format ?? "json",
+    });
+    const local = await sync.readTranslations({ defaultNamespace: "common" });
+    expect(local.translations).toEqual({
+      en: { common: { greeting: "Hello" }, admin: { title: "Admin" } },
+    });
   });
 
   it("exits 4 without calling the API when .comvirc.json is invalid", async () => {

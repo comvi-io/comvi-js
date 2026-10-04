@@ -181,6 +181,8 @@ export class ConfigLoader {
       );
     }
 
+    this.validateScalarFields(config);
+
     this.validateSwitches(config);
 
     // Filter fields: namespaces / locales.
@@ -206,6 +208,53 @@ export class ConfigLoader {
         );
       }
     }
+  }
+
+  /**
+   * The value of every known scalar field, checked before any command sends a
+   * request or touches the filesystem. TypeScript's types do not protect a
+   * hand-edited JSON file: `format: "yaml"` made `pull` write `en.yaml` beside
+   * `admin/en.json`, which the next read — filtering for `.yaml` — saw only
+   * half of, and `translationsPath: 42` failed later as a raw `TypeError`.
+   */
+  private static validateScalarFields(config: ComviConfig): void {
+    for (const key of ["outputPath", "translationsPath", "fileTemplate"] as const) {
+      this.assertOptionalNonEmptyString(config[key], key);
+    }
+
+    if (config.format !== undefined && config.format !== "json") {
+      throw new TypegenError(
+        `Invalid configuration: "format" must be "json", the only supported format, received ${describe(config.format)}`,
+        ErrorCodes.CONFIG_INVALID,
+      );
+    }
+
+    this.assertOptionalNonEmptyString(config.apiBaseUrl, "apiBaseUrl");
+    if (config.apiBaseUrl !== undefined) {
+      let protocol: string | undefined;
+      try {
+        protocol = new URL(config.apiBaseUrl).protocol;
+      } catch {
+        // Falls through to the same message as a non-http(s) URL.
+      }
+      if (protocol !== "http:" && protocol !== "https:") {
+        throw new TypegenError(
+          `Invalid configuration: "apiBaseUrl" must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
+          ErrorCodes.CONFIG_INVALID,
+        );
+      }
+    }
+  }
+
+  private static assertOptionalNonEmptyString(value: unknown, key: string): void {
+    if (value === undefined || (typeof value === "string" && value.trim() !== "")) {
+      return;
+    }
+
+    throw new TypegenError(
+      `Invalid configuration: "${key}" must be a non-empty string, received ${describe(value)}`,
+      ErrorCodes.CONFIG_INVALID,
+    );
   }
 
   /**
