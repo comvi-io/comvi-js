@@ -199,6 +199,16 @@ leaves bare specifiers alone — a workspace import there would ship unresolvabl
 regenerating (`pnpm --filter @comvi/nuxt vendor`) is never optional. The fallback table is test
 data, so it is a workspace-package export instead, like the `Accept-Language` table.
 
+**One place to fix a routing-policy bug, and two suites that see it** (amended 2026-10-04).
+`tooling/test-utils/routingPolicyContract.ts` is the third shared table: detection precedence
+(path, query, cookie, header, default; each source naming an unsupported locale; `q=0`; detection
+off), cookie control (every `localeCookie` attribute, `false`, development's `Secure`), and the
+server helper's result and `ns` rule. Each adapter runs every row through its middleware and its
+server helper, and both run the 45 `Accept-Language` rows end to end the same way. Run against the code it was written for, it failed
+on both adapters: next could not read a query, turn detection off, or take cookie attributes, and
+nuxt's `useTranslation(event)` ignored the URL, answering the cookie for `/de/about`. Prefixless
+non-root paths with a stored preference are left out: that is the known difference below.
+
 **The behavioural rows were already green when this work started.** By the time both packages had
 the `q=0` filter, the two matchers agreed on all 45 rows of the table — so no input changed its
 answer when the implementation was unified. Only the structural half of each test (no local parser,
@@ -288,8 +298,6 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
   `packages/next/src/middleware/types.ts` and `packages/nuxt/src/types.ts`; next resolves them in
   `createMiddleware`, nuxt at build time in `packages/nuxt/src/locale-options.ts`, which also emits
   `#build/comvi.detection`
-- the server helper shapes — `ServerI18n` in `packages/next/src/server/types.ts`,
-  `UseTranslationResult` in `packages/nuxt/src/runtime/server/utils/useTranslation.ts`
 - the instance hand-off (next side landing in 0.5) — `withComvi` in `packages/next/src/plugin.ts`,
   `resolveServerI18n` in `packages/next/src/server/cache.ts`, `packages/next/src/server/ComviProvider.tsx`;
   `hostModule` and `NuxtHostFactory` in `packages/nuxt/src/types.ts`
@@ -298,6 +306,11 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
   `packages/next/README.md`
 - the shared error stems — `tooling/test-utils/errorStems.ts`, asserted against each package's own
   sources by `tests/error-stems.test.ts` in `packages/next` and `packages/nuxt`
+- the routing-policy table — `tooling/test-utils/routingPolicyContract.ts`, run by
+  `tests/routing-policy-contract.test.ts` in `packages/next` and `packages/nuxt`
+- the shared server helper type names — `ServerI18n` and `ServerTranslationFunction` in both
+  (`packages/next/src/server.ts`, `packages/nuxt/src/runtime/server/utils/useTranslation.ts`),
+  next's `TranslationFunction` and nuxt's `UseTranslationResult` kept as the local names
 - the known difference, both halves — `packages/next/tests/parity-known-difference.test.ts`,
   `packages/nuxt/tests/parity-known-difference.test.ts`
 

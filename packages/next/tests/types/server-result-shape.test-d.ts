@@ -6,7 +6,11 @@
 // assertion lives in `packages/nuxt/tests/server-types.test-d.ts` and spells
 // the same three members, so neither package can drop one quietly.
 import { getI18n } from "@comvi/next/server";
-import type { ServerI18n } from "@comvi/next/server";
+import type {
+  ServerI18n,
+  ServerTranslationFunction,
+  TranslationFunction,
+} from "@comvi/next/server";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -44,3 +48,7 @@ async function destructuring() {
 
 export type { _keys, _localeType, _awaited };
 export { destructuring };
+
+// The shared names: `ServerI18n` and `ServerTranslationFunction` mean the same
+// types in both packages; `TranslationFunction` is next's own name for the latter.
+type _sharedFunctionName = Expect<Equal<ServerTranslationFunction, TranslationFunction>>;

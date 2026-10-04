@@ -109,6 +109,8 @@ independent.
 - In a Nitro route the server auto-imports are `useTranslation(event)`,
   `loadTranslations(event, locale)`, `getRequestI18n(event, locale)` and
   `getServerRuntimeConfig(event)`; the app-side composables do not exist there.
+  `useTranslation(event)` resolves the locale in the route middleware's order: the path prefix,
+  then `localeDetection.order`.
 - `<T>` is auto-imported. Each tag a translator wrote becomes a named slot, or an entry in the
   `components` prop. Never render a translation with `v-html`.
 

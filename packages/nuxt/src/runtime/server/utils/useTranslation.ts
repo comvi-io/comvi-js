@@ -7,6 +7,7 @@ import { getServerRuntimeConfig } from "./runtime-config";
 import { getRequestI18n } from "./request-i18n";
 import { loadCatalogs } from "../../utils/load-catalogs";
 import { resolveAcceptLanguage } from "../../utils/resolve-locale";
+import { extractLocaleFromPath } from "../../utils/locale-path";
 import { resolveAcceptLanguage as customResolveAcceptLanguage } from "#build/comvi.detection";
 
 export interface UseTranslationOptions {
@@ -68,10 +69,20 @@ export interface UseTranslationResult {
 }
 
 /**
+ * The name `@comvi/next` uses for the same result, `{ t, hasTranslation,
+ * locale }`; type-only, 0 B. See `docs/design/next-nuxt-parity.md`.
+ */
+export type ServerI18n = UseTranslationResult;
+
+/**
  * Server-side translation utility for API routes and server middleware.
  *
- * Locale precedence: the explicit `locale` option, then `localeDetection.order`
- * (the cookie, a configured header, Accept-Language), then `defaultLocale`.
+ * Locale precedence: the explicit `locale` option, then a locale prefix on the
+ * request path, then `localeDetection.order` (the query parameter, the cookie,
+ * a configured header, Accept-Language), then `defaultLocale` — the route
+ * middleware's order. A prefixless path is NOT read as the default locale here,
+ * as the middleware reads a page URL under `as-needed`: an API route has no
+ * locale prefix to omit.
  *
  * @example
  * ```typescript
@@ -128,14 +139,20 @@ export async function useTranslation(
   const fallbackLocale = (detectConfig && detectConfig.fallbackLocale) || defaultLocale;
   const resolvedFallbackLocale = locales.includes(fallbackLocale) ? fallbackLocale : defaultLocale;
 
-  let locale = options.locale;
-
-  const accept = (candidate: string | undefined): string | undefined =>
+  const accept = (candidate: string | null | undefined): string | undefined =>
     candidate && locales.includes(candidate) ? candidate : undefined;
+
+  // The URL first, as in the route middleware: a locale prefix on the path,
+  // then the sources in order. `event.path` carries the query string.
+  const url = new URL(event.path || "/", "http://localhost");
+  let locale = options.locale || extractLocaleFromPath(url.pathname, locales);
 
   for (const source of detectConfig ? detectConfig.order : []) {
     if (locale) break;
-    if (source === "cookie") {
+    if (source === "query") {
+      const queryParam = detectConfig ? detectConfig.queryParam : undefined;
+      locale = queryParam ? accept(url.searchParams.get(queryParam)) : undefined;
+    } else if (source === "cookie") {
       locale = cookieConfig ? accept(getCookie(event, cookieConfig.name)) : undefined;
     } else if (source === "header") {
       const headerName = detectConfig ? detectConfig.headerName : undefined;

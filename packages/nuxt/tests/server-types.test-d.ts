@@ -1,5 +1,6 @@
 import { describe, it, expectTypeOf } from "vitest";
 import type {
+  ServerI18n,
   UseTranslationOptions,
   UseTranslationResult,
 } from "../src/runtime/server/utils/useTranslation";
@@ -60,5 +61,11 @@ describe("useTranslation result", () => {
 
   it("satisfies the shared server-helper shape", () => {
     expectTypeOf<UseTranslationResult>().toExtend<SharedServerHelperShape>();
+  });
+});
+
+describe("the shared server helper type names", () => {
+  it("ServerI18n is the same type as UseTranslationResult", () => {
+    expectTypeOf<ServerI18n>().toEqualTypeOf<UseTranslationResult>();
   });
 });

@@ -10,6 +10,7 @@
     "./fakeI18n": "./fakeI18n.ts",
     "./fakeI18nCore": "./fakeI18nCore.ts",
     "./fakeVueI18n": "./fakeVueI18n.ts",
+    "./routingPolicyContract": "./routingPolicyContract.ts",
     "./ssrFallbackContract": "./ssrFallbackContract.ts"
   },
   "dependencies": {

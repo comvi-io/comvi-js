@@ -27,6 +27,8 @@ export type {
   TranslationFunction,
   HasTranslationOptions,
 } from "./server/types";
+// The name `@comvi/nuxt` uses for the same function type; type-only, 0 B.
+export type { TranslationFunction as ServerTranslationFunction } from "./server/types";
 
 export type { LoadTranslationsOptions, TranslationsResult } from "./server/loadTranslations";
 
