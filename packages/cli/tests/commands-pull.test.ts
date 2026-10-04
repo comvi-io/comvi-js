@@ -387,6 +387,79 @@ describe("comvi pull", () => {
     expect(await fs.readFile(join(localesDir, "fr.json"), "utf-8")).toBe("{}");
   });
 
+  /**
+   * The clear and the writes are one operation: an I/O failure partway through
+   * the writes (ENOSPC, a permission change) used to leave the old catalog
+   * deleted and only a prefix of the new one on disk.
+   */
+  describe("--empty-dir with a write that fails partway", () => {
+    const OLD = {
+      "en.json": '{"greeting":"Old hello"}',
+      "uk.json": '{"greeting":"Old pryvit"}',
+      "admin/en.json": '{"title":"Old admin"}',
+      "README.txt": "kept by hand",
+    };
+
+    async function seedOldCatalog(): Promise<void> {
+      for (const [file, content] of Object.entries(OLD)) {
+        await fs.mkdir(join(localesDir, file, ".."), { recursive: true });
+        await fs.writeFile(join(localesDir, file), content, "utf-8");
+      }
+    }
+
+    async function snapshot(): Promise<Record<string, string>> {
+      const entries = await fs.readdir(localesDir, { withFileTypes: true, recursive: true });
+      const files: Record<string, string> = {};
+      for (const entry of entries.filter((e) => e.isFile())) {
+        const path = join(entry.parentPath, entry.name);
+        files[path.slice(localesDir.length + 1)] = await fs.readFile(path, "utf-8");
+      }
+      return files;
+    }
+
+    /** The second translation file's rename fails, as a full disk would. */
+    function failSecondWrite(): void {
+      const realRename = fs.rename.bind(fs);
+      let writes = 0;
+      vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+        if (String(from).endsWith(".tmp") && ++writes === 2) {
+          throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" });
+        }
+        return realRename(from, to);
+      });
+    }
+
+    const response = {
+      locales: ["en", "uk"],
+      namespaces: {
+        common: { en: { greeting: "New hello" }, uk: { greeting: "New pryvit" } },
+        admin: { en: { title: "New admin" }, uk: { title: "New admin uk" } },
+      },
+    };
+
+    it.each([
+      ["a full clear", []],
+      ["a namespace-scoped clear", ["-n", "common,admin"]],
+      ["a locale-scoped clear", ["-l", "en,uk"]],
+    ])("restores the pre-pull catalog after %s", async (_label, filter) => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      await seedOldCatalog();
+      const before = await snapshot();
+      http = stubFetch({
+        ...DEFAULT_NAMESPACE_ROUTES,
+        [PATHS.translations]: { body: response },
+      });
+      failSecondWrite();
+
+      const exitCode = await runPull(["-c", configPath, "--empty-dir", ...filter]);
+      vi.restoreAllMocks();
+
+      expect(exitCode).toBe(1);
+      expect(output.stderr).toContain("ENOSPC");
+      expect(await snapshot()).toEqual(before);
+    });
+  });
+
   it("--ns common --empty-dir clears only the namespaces it pulls", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await fs.mkdir(join(localesDir, "admin"), { recursive: true });

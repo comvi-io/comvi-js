@@ -73,26 +73,21 @@ export function createPullCommand(): Command {
         // asked for, and only over the locales and namespaces being pulled: a
         // failed request, or one missing a requested namespace, must leave the
         // working copy exactly as it was.
-        if (options.emptyDir || config.pull?.emptyDir) {
-          const scope = {
-            locales: locs.value,
-            namespaces: nss.value,
-            defaultNamespace,
-          };
+        const emptyDir = Boolean(options.emptyDir || config.pull?.emptyDir);
+        const scope = {
+          locales: locs.value,
+          namespaces: nss.value,
+          defaultNamespace,
+        };
 
-          if (options.dryRun) {
+        if (options.dryRun) {
+          if (emptyDir) {
             const removable = await sync.previewClear(scope);
             console.log(`\n🗑️  [dry-run] Would remove ${removable.length} files:`);
             for (const file of removable) {
               console.log(`  ${file}`);
             }
-          } else {
-            console.log("🗑️  Clearing translations directory...");
-            await sync.clearDirectory(scope);
           }
-        }
-
-        if (options.dryRun) {
           const preview = sync.previewTranslations(translations, { defaultNamespace });
           console.log(`\n✓ [dry-run] Would write ${preview.files.length} files:`);
           for (const file of preview.files) {
@@ -101,8 +96,17 @@ export function createPullCommand(): Command {
           process.exit(0);
         }
 
-        console.log("📝 Writing translation files...");
-        const result = await sync.writeTranslations(translations, { defaultNamespace });
+        let result;
+        if (emptyDir) {
+          // Clear and write as one operation: a write that fails partway
+          // restores the catalog as it was before the pull.
+          console.log("🗑️  Clearing translations directory...");
+          console.log("📝 Writing translation files...");
+          result = await sync.replaceTranslations(translations, scope, { defaultNamespace });
+        } else {
+          console.log("📝 Writing translation files...");
+          result = await sync.writeTranslations(translations, { defaultNamespace });
+        }
 
         console.log(`\n✓ Pull complete!`);
         console.log(`  Locales: ${result.locales.join(", ")}`);

@@ -11,7 +11,7 @@ export function createAtomicTempPath(filePath: string): string {
 
 export async function atomicWriteFile(
   filePath: string,
-  content: string,
+  content: string | Uint8Array,
   options: AtomicWriteOptions = {},
 ): Promise<void> {
   const tempPath = createAtomicTempPath(filePath);

@@ -81,6 +81,78 @@ export class TranslationSync {
   }
 
   /**
+   * `pull --empty-dir`: clear `scope`, then write the response, as one
+   * operation. Each file write is atomic but the set is not, so an I/O failure
+   * partway (ENOSPC, a permission change) used to leave the old catalog
+   * deleted and only a prefix of the new one on disk. Every file the clear
+   * removes or a write replaces is read into memory first; on any failure the
+   * files this call created are removed and the snapshot is written back.
+   */
+  async replaceTranslations(
+    data: TranslationsResponse,
+    scope: ClearScope | undefined,
+    options: WriteTranslationsOptions = {},
+  ): Promise<PullResult> {
+    const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
+    await this.assertPlanContained(planned);
+
+    const snapshot = new Map<string, Buffer>();
+    const touched = new Set([
+      ...(await this.previewClear(scope)),
+      ...planned.map(({ filePath }) => filePath),
+    ]);
+    for (const filePath of touched) {
+      try {
+        snapshot.set(filePath, await fs.readFile(filePath));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw wrapError(error, `Failed to read ${filePath}`, ErrorCodes.FS_READ_FAILED);
+        }
+      }
+    }
+
+    try {
+      await this.clearDirectory(scope);
+      return await this.writeTranslations(data, options);
+    } catch (error) {
+      await this.restoreSnapshot(snapshot, planned, error);
+      throw error;
+    }
+  }
+
+  private async restoreSnapshot(
+    snapshot: Map<string, Buffer>,
+    planned: PlannedWrite[],
+    cause: unknown,
+  ): Promise<void> {
+    const unrestored: string[] = [];
+
+    for (const { filePath } of planned) {
+      if (!snapshot.has(filePath)) {
+        await fs.rm(filePath, { force: true }).catch(() => unrestored.push(filePath));
+      }
+    }
+    for (const [filePath, content] of snapshot) {
+      try {
+        await fs.mkdir(dirname(filePath), { recursive: true });
+        await atomicWriteFile(filePath, content);
+      } catch {
+        unrestored.push(filePath);
+      }
+    }
+    await this.removeEmptyDirectories(this.translationsPath, true).catch(() => undefined);
+
+    if (unrestored.length > 0) {
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new TypegenError(
+        `Pull failed (${reason}) and these files could not be restored: ${unrestored.join(", ")}`,
+        ErrorCodes.FS_WRITE_FAILED,
+        cause instanceof Error ? cause : undefined,
+      );
+    }
+  }
+
+  /**
    * Run every check `writeTranslations` performs, and write nothing.
    *
    * `pull --empty-dir` clears the translations directory before it writes, so
