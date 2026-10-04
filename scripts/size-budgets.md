@@ -52,6 +52,16 @@ for work only the middleware uses; it is declarative again, and `fw-next-root-co
 `fw-next-client-default` are back at 9807 B and 7450 B. `fw-nuxt-client-default` went from 8483 B on
 the base to 8369 B, because the module resolves the options at build time.
 
+`fw-next-root-composed`, `plugin-fetch-loader` and `platform-path-react` were re-baselined on
+2026-10-04 for the core and fetch-loader release-review fixes, each to the measured figure + 5 %, the
+headroom all three had at their previous baseline. Split per row, in bytes on the base branch
+(8b680133) → after the lifecycle fixes (fallback copy, `addMessages` invalidation, single-flight and
+transactional `init()`) → after the timed-out-plugin fix → after the loader dedup fix:
+`fw-next-root-composed` 9810 → 9863 → 9943 → 9943; `plugin-fetch-loader` 9501 → 9555 → 9633 → 9692;
+`platform-path-react` 11168 → 11227 → 11306 → 11353. The bytes buy late-cleanup capture for timed-out
+plugins in the plugin host and generation-aware request dedup in the loader. Every other row fit its
+budget and kept it.
+
 Every row is gated. There is no informational tier: a row that gates nothing does not earn its
 measurement cost, and `size-check.mjs` throws on a row without a `gzipBudgetBytes`.
 

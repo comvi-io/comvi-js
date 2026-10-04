@@ -179,11 +179,11 @@
       "entry": ["@comvi/next"],
       "fixture": "framework/next-root-composed.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 9923,
+      "gzipBudgetBytes": 10441,
       "baseline": {
-        "minBytes": 26612,
-        "gzipBytes": 9450,
-        "measuredAt": "2026-09-12"
+        "minBytes": 27832,
+        "gzipBytes": 9943,
+        "measuredAt": "2026-10-04"
       },
       "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(…)` composed through `.use`."
     },
@@ -311,11 +311,11 @@
       "name": "plugin-fetch-loader",
       "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
       "fixture": "plugin-fetch-loader.ts",
-      "gzipBudgetBytes": 9632,
+      "gzipBudgetBytes": 10177,
       "baseline": {
-        "minBytes": 25124,
-        "gzipBytes": 9173,
-        "measuredAt": "2026-09-12"
+        "minBytes": 26418,
+        "gzipBytes": 9692,
+        "measuredAt": "2026-10-04"
       },
       "note": "Gated CDN-ONLY path: base host + ICU + `cdnLoader` from the package root, composed as the fetch-loader README quickstart. Renamed from `plugin-fetch-loader-cdn-lite` on 2026-10-04 (first-impression lot), same graph. Paired with `plugin-fetch-loader-api`: the difference between the two rows IS the API request path a CDN-only app does not ship."
     },
@@ -324,11 +324,11 @@
       "entry": ["@comvi/react", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
       "fixture": "framework/react-platform.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 11333,
+      "gzipBudgetBytes": 11921,
       "baseline": {
-        "minBytes": 29883,
-        "gzipBytes": 10793,
-        "measuredAt": "2026-09-12"
+        "minBytes": 31323,
+        "gzipBytes": 11353,
+        "measuredAt": "2026-10-04"
       },
       "note": "Gated platform CDN path on React: `@comvi/react` base host + ICU + the CDN-only package root (`cdnLoader`), composed as the React README's CDN recipe; the number the README quotes for the React platform path."
     }
