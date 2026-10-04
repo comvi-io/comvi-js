@@ -107,9 +107,9 @@ function translationResultToString(result: TranslationResult): string {
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 /**
- * No loader or plugin-host member is here — `addActiveNamespace(s)`,
+ * No loader or plugin member is here — `addActiveNamespace(s)`,
  * `removeActiveNamespace(s)`, `reloadMessages`, `onLoadError` and
- * `onMissingKey` among them. They belong to capabilities a base host does not
+ * `onMissingKey` among them. They belong to capabilities a base instance does not
  * have, so binding them eagerly would crash at bind time. `useI18nLoader()` /
  * `useI18nPlugins()` acquire them instead.
  *
@@ -131,8 +131,8 @@ const BIND_METHODS = [
 ] as const;
 
 /**
- * The host-only translation surface. Loader and plugin-host members are not
- * part of it — they do not exist on a base host, so a type promising them
+ * The base-instance translation surface. Loader and plugin members are not
+ * part of it — they do not exist on a base instance, so a type promising them
  * would be lying; `useI18nLoader()` / `useI18nPlugins()` acquire those.
  *
  * `NS` is the namespace `useI18n(ns)` bound, and narrows `t` / `tRaw` through

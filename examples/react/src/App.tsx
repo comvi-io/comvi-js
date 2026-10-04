@@ -34,7 +34,7 @@ export function App() {
     setView(to);
   };
 
-  // `dir` is the binding's bound value; on a bare core host the free function
+  // `dir` is the binding's bound value; on a bare core instance the free function
   // `getTextDirection(locale)` from `@comvi/core` answers the same question.
   useEffect(() => {
     document.documentElement.lang = locale;

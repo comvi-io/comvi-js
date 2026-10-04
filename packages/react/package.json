@@ -27,8 +27,7 @@
     "comvi",
     "translation",
     "ssr",
-    "ssg",
-    "server-components"
+    "ssg"
   ],
   "files": [
     "dist",

@@ -106,12 +106,12 @@ export function useStoreRevision(i18n: Host): string {
 
 export interface I18nProviderProps {
   children: React.ReactNode;
-  /** Any host, whatever default-params type it carries. */
+  /** Any instance, whatever default-params type it carries. */
   i18n: AnyI18nHost;
   /** Auto-initialize the i18n instance on mount (default: true). */
   autoInit?: boolean;
   /**
-   * Rendered INSTEAD of `children` until the host is INITIALIZED, so no
+   * Rendered INSTEAD of `children` until the instance is INITIALIZED, so no
    * CLIENT paint is ever a flash of raw keys. Omit it and `children` render
    * throughout, exactly as before this prop existed.
    *
@@ -127,7 +127,7 @@ export interface I18nProviderProps {
    * afterwards on the client. To gate the server render too, pass
    * `ssrInitialIsInitializing={true}` alongside `fallback`: the server and the
    * hydration render both paint the fallback, and the children replace it once
-   * the client host initializes. (`@comvi/next`'s provider passes `false` for
+   * the client instance initializes. (`@comvi/next`'s provider passes `false` for
    * you, because its server render already has the catalog, so a `fallback`
    * there is a post-hydration gate only.)
    *
@@ -171,7 +171,10 @@ export interface I18nProviderProps {
    * provider adds them to the i18n instance when that render commits. A render
    * React abandons therefore never writes the i18n instance, and a server
    * render never does. A new object is added again; the same object is added
-   * once.
+   * once. Keep the object stable across renders (module scope, `useMemo`, or
+   * the server payload): an inline literal is a new object on every parent
+   * render, and each one re-merges the catalog and re-renders every
+   * `useI18n()` consumer.
    *
    * Pair it with `targetLocale` to switch to a locale whose catalog comes with
    * the switch: text in the new locale commits in the same render, and the
@@ -343,8 +346,8 @@ export function useI18nInstance(): I18nInstanceContextValue {
 }
 
 /**
- * The host the nearest `<I18nProvider>` holds, as a bare `WrapperI18nHost` —
- * THE name for "give me the host", the same in react, solid and svelte (vue's
+ * The instance the nearest `<I18nProvider>` holds, as a bare `WrapperI18nHost` —
+ * THE name for "give me the instance", the same in react, solid and svelte (vue's
  * equivalent is `inject(I18N_INJECTION_KEY).core`). Not reactive on its own:
  * pair it with `useI18n()` or a selector hook to re-render.
  *

@@ -1,13 +1,7 @@
 import React from "react";
 import { useI18n } from "./useI18n";
 import { isVirtualNode } from "@comvi/core";
-import type {
-  TranslationParams,
-  TranslationKeys,
-  VirtualNode,
-  PermissiveKey,
-  TranslationResult,
-} from "@comvi/core";
+import type { TranslationParams, TranslationKeys, VirtualNode, PermissiveKey } from "@comvi/core";
 // The PURE rich-text seam, NOT `@comvi/core/tags`: importing the tags entry
 // would register tag syntax AMBIENTLY, so every app rendering `<T>` would also
 // start parsing `<tag>` markup in plain string-API `t()`. `prepareTranslation`
@@ -196,18 +190,12 @@ const TComponent = function T({
   ...restProps
 }: TProps) {
   const {
-    t,
     tRaw,
     locale: currentLocale,
     hasTranslation,
     getDefaultNamespace,
     reportError,
   } = useI18n();
-
-  const translate =
-    tRaw ??
-    ((key: string, params?: TranslationParams) =>
-      t(key as never, params) as unknown as TranslationResult);
 
   // Peeled off restProps so it is never passed as a translation param.
   const { components: _, ...cleanRestProps } = restProps as {
@@ -227,9 +215,9 @@ const TComponent = function T({
   // extension per call.
   const { content, pendingHandlers, isMissing } = prepareTranslation(
     {
-      tRaw: translate,
+      tRaw,
       // Default the lookup to the React-tracked render locale / default
-      // namespace so missing-translation detection matches what `translate`
+      // namespace so missing-translation detection matches what `tRaw`
       // resolves against (not the mutable instance locale).
       hasTranslation: (key, lookupLocale, lookupNs, checkFallbacks) =>
         hasTranslation(

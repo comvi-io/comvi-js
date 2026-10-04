@@ -51,7 +51,7 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`createI18n` builds the host, the instance that holds the catalog, the current locale and `t()`.
+`createI18n` builds the i18n instance, which holds the catalog, the current locale and `t()`.
 `<I18nProvider>` initializes it on mount, so there is no `init()` call to write.
 
 ## Use in components
@@ -104,7 +104,7 @@ createRoot(document.getElementById("root")!).render(
 
 `.use(cdnLoader())` fetches each locale from the CDN. Compose inside the `createI18n` expression,
 because the provider calls `init()` for you. `fallback` renders in place of the children until the
-host is initialized, so raw keys never paint. The CDN URL is on
+i18n instance is initialized, so raw keys never paint. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
@@ -112,13 +112,15 @@ independent, and either works without the other.
 
 ## Specific to React
 
-- `<I18nProvider>` takes `i18n`, `fallback`, `autoInit`, `ssrLocale`, `ssrInitialIsLoading`,
+- `<I18nProvider>` takes `i18n`, `fallback`, `autoInit`, `onError`, `ssrLocale`, `ssrInitialIsLoading`,
   `ssrInitialIsInitializing`, `targetLocale` and `messages`. Leave `fallback` off when a server render already
   produced real text. `targetLocale` renders the tree in the locale you are switching the i18n
   instance to, until the i18n instance's locale moves, so text commits together with markup that comes with the switch.
   `messages` are catalogs that arrive with the render: the children translate from them at once, and the provider
   adds them to the i18n instance when the render commits, so a render React abandons, or a server render, never
-  writes the i18n instance.
+  writes the i18n instance. Keep the `messages` object stable across renders (module scope, `useMemo`,
+  or the server payload): an inline literal is a new object on every parent render, and each one is
+  added again and re-renders every `useI18n()` consumer.
 - `useLocale()` and `useIsLoading()` subscribe to one slice of the state, so namespace loads do not
   re-render a component that only shows the locale.
 - `useSetLocaleTransition()` wraps the switch in `useTransition`, so the old UI stays interactive

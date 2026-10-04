@@ -27,14 +27,21 @@ type UseI18nStub = {
   reportError: (error: unknown, context?: Record<string, unknown>) => void;
 };
 
-const createHookStub = (overrides: Partial<UseI18nStub> = {}): UseI18nStub => ({
-  t: ((key) => key) as UseI18nStub["t"],
-  locale: "en",
-  hasTranslation: () => true,
-  getDefaultNamespace: () => "default",
-  reportError: vi.fn(),
-  ...overrides,
-});
+// The real `useI18n()` always returns `tRaw` (its type is not optional), and
+// `<T>` translates through it alone; the stub's `t` doubles as `tRaw`.
+const createHookStub = (
+  overrides: Partial<UseI18nStub> = {},
+): UseI18nStub & { tRaw: UseI18nStub["t"] } => {
+  const stub: UseI18nStub = {
+    t: ((key) => key) as UseI18nStub["t"],
+    locale: "en",
+    hasTranslation: () => true,
+    getDefaultNamespace: () => "default",
+    reportError: vi.fn(),
+    ...overrides,
+  };
+  return { ...stub, tRaw: stub.t };
+};
 
 /** Fixes the host's raw result, then renders `<T i18nKey="msg" />`. */
 const renderResult = (raw: unknown) => {

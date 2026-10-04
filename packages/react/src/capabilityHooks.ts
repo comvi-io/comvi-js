@@ -19,14 +19,14 @@ import { useI18nHost } from "./I18nProvider";
 /** What `useI18nLoader()` returns — core's acquired loader surface. */
 export type UseI18nLoaderReturn = AcquiredLoaderApi;
 
-/** What `useI18nPlugins()` returns — core's acquired plugin-host surface. */
+/** What `useI18nPlugins()` returns — core's acquired plugin surface. */
 export type UseI18nPluginsReturn = AcquiredPluginsApi;
 
 /**
- * Acquire the loader capability of the host provided by `<I18nProvider>`.
+ * Acquire the loader capability of the instance provided by `<I18nProvider>`.
  *
- * Throws `missingCapability("loader")` — in dev and in prod — when the host is
- * a base `@comvi/core` instance, which is every host nobody composed a loader
+ * Throws `missingCapability("loader")` — in dev and in prod — when the instance is
+ * a base `@comvi/core` instance, which is every instance nobody composed a loader
  * onto. The capability ships in `@comvi/core/loader` and nowhere else, so
  * compose it where the instance is created: `createI18n(...).use(attachLoader)`,
  * or the lower-level `attachLoader(createI18n(...))`.
@@ -44,9 +44,9 @@ export function useI18nLoader(): UseI18nLoaderReturn {
 }
 
 /**
- * Acquire the plugin-host capability of the host provided by `<I18nProvider>`.
+ * Acquire the plugin capability of the instance provided by `<I18nProvider>`.
  *
- * Throws `missingCapability("plugins")` — in dev and in prod — when the host
+ * Throws `missingCapability("plugins")` — in dev and in prod — when the instance
  * is a bare `@comvi/core` instance.
  *
  * @example
