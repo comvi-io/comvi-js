@@ -51,6 +51,9 @@ const ERR_PLUGIN_INIT_RETURN = IS_DEV
   ? "[@comvi/core] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a bare-name installer, compose it with `.use(installer(…))` — `registerPlugin()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
   : "E_PLUGIN_INIT_RETURN";
 
+const noop = (): void => {};
+type Cleanup = () => void | Promise<void>;
+
 /** @internal Registered plugin tuple; owned by the plugin capability. */
 export type PluginEntry = [
   plugin: I18nPluginFn,
@@ -86,10 +89,12 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   declare protected _pluginInit?: boolean;
 
   /**
-   * Cleanup-queue length when the current `init()` attempt began: everything
-   * above it belongs to that attempt, and `_abortInit` runs exactly that.
+   * The current `init()` attempt. `mark` is the cleanup-queue length when it
+   * began: everything above it belongs to the attempt, and `_abortInit` runs
+   * exactly that. `failed` tells a timed-out plugin that settles later that
+   * its attempt is gone, so its cleanup must run at once.
    */
-  declare protected _initMark: number;
+  declare protected _initRecord: { mark: number; failed?: boolean };
 
   /** Called by the composite's constructor and by `attachPlugins`; this class declares none of its own. */
   protected _initPlugins(): void {
@@ -97,6 +102,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     this._pluginCleanups = [];
     this._pluginData = Object.create(null);
     this._missingKeyCallbacks = new Set();
+    // An init() rejected before the drain began (a destroyed host) still
+    // calls `_abortInit`; an empty record makes that a no-op.
+    this._initRecord = { mark: 0 };
   }
 
   /**
@@ -175,40 +183,54 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * the locale applies.
    */
   protected async _beforeInit(): Promise<void> {
-    this._initMark = this._pluginCleanups.length;
+    const attempt: { mark: number; failed?: boolean } = (this._initRecord = {
+      mark: this._pluginCleanups.length,
+    });
     for (const [plugin, required, timeout, onError] of this._plugins) {
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       // The guard window is exactly one plugin invocation: `ensureInstallable`
       // reads this flag, and the locale detector below is not a plugin.
       this._pluginInit = true;
       try {
-        const result: unknown = await Promise.race([
-          // `I18nPluginHost` is the `{}`-defaults host surface: an instance
-          // with constructor-guaranteed defaults narrows `setDefaultParams`,
-          // which the interface's property-style declaration checks strictly.
-          plugin(this as unknown as I18nPluginHost),
-          new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(
-              () =>
+        // `I18nPluginHost` is the `{}`-defaults host surface: an instance
+        // with constructor-guaranteed defaults narrows `setDefaultParams`,
+        // which the interface's property-style declaration checks strictly.
+        const run = plugin(this as unknown as I18nPluginHost);
+        // Only `undefined` and a cleanup function are legal. The two shapes
+        // this catches are an installer handing the host back and an
+        // expression-bodied arrow leaking its last value; both fail before a
+        // cleanup is registered or the plugin counts as initialized. A cleanup
+        // whose attempt failed, or whose host is gone, has nothing left to
+        // drain it, so it is released at once instead of queued.
+        const own = (result: unknown) => {
+          if (result !== undefined) {
+            if (typeof result !== "function") throw new Error(ERR_PLUGIN_INIT_RETURN);
+            if (this._isDestroyed || attempt.failed) return this._preDestroy([result as Cleanup]);
+            this._pluginCleanups.push(result as Cleanup);
+          }
+        };
+        await own(
+          await Promise.race([
+            run,
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(() => {
                 reject(
                   new Error(
                     IS_DEV
                       ? `[@comvi/core] Plugin initialization timed out after ${timeout}ms`
                       : "E_PLUGIN_INIT_TIMEOUT",
                   ),
-                ),
-              timeout,
-            );
-          }),
-        ]);
-        // Only `undefined` and a cleanup function are legal. The two shapes
-        // this catches are an installer handing the host back and an
-        // expression-bodied arrow leaking its last value; both fail HERE,
-        // before a cleanup is registered or the plugin counts as initialized.
-        if (result !== undefined) {
-          if (typeof result !== "function") throw new Error(ERR_PLUGIN_INIT_RETURN);
-          this._pluginCleanups.push(result as () => void | Promise<void>);
-        }
+                );
+                // The timeout bounds init latency, not the plugin: it keeps
+                // running, so what it returns later is still owned. Its late
+                // rejection was already reported as this timeout.
+                Promise.resolve(run)
+                  .then(own, noop)
+                  .catch((error: Error) => this.reportError(error, { source: "plugin" }));
+              }, timeout);
+            }),
+          ]),
+        );
       } catch (error) {
         const err =
           error instanceof Error
@@ -268,7 +290,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * Cleanups from an earlier successful `init()` stay queued for `destroy()`.
    */
   protected _abortInit(): Promise<void> {
-    return this._preDestroy(this._pluginCleanups.splice(this._initMark));
+    const attempt = this._initRecord;
+    attempt.failed = true;
+    return this._preDestroy(this._pluginCleanups.splice(attempt.mark));
   }
 
   /** Register a locale detector; `init()` consults it after the plugins have run. */
