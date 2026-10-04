@@ -9,7 +9,7 @@
  * `greeting="greeting.hello"`). While the auto-init is scheduled it now reads
  * true.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushSync, mount, tick, unmount } from "svelte";
 import { createI18n, loader } from "../src/index";
 import InitGateHarness from "./InitGateHarness.test.svelte";
@@ -54,15 +54,46 @@ describe("setI18nContext + the $isInitializing gate", () => {
     expect(seen.filter((text) => text.includes("greeting"))).toEqual([]);
   });
 
-  it("autoInit: false leaves the gate to the app: nothing is scheduled", () => {
+  it("autoInit: false leaves the gate to the app: nothing is scheduled", async () => {
     const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     target = document.createElement("div");
     document.body.appendChild(target);
-    // Initialized before the context is set: there is nothing to wait for.
-    return i18n.init().then(() => {
-      component = mount(InitGateHarness, { target, props: { i18n } });
-      flushSync();
-      expect(target.textContent?.trim()).toBe("Hello");
-    });
+    component = mount(InitGateHarness, { target, props: { i18n, options: { autoInit: false } } });
+    flushSync();
+    // Nothing scheduled, so the gate is open from the first render…
+    expect(target.textContent?.trim()).toBe("Hello");
+    await tick();
+    // …and stays so: no init was started on the app's behalf.
+    expect(i18n.isInitializing).toBe(false);
+    expect(i18n.isInitialized).toBe(false);
+    expect(target.textContent?.trim()).toBe("Hello");
+  });
+
+  it("an already-initialized instance: nothing is scheduled", async () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
+    await i18n.init();
+    target = document.createElement("div");
+    document.body.appendChild(target);
+    component = mount(InitGateHarness, { target, props: { i18n } });
+    flushSync();
+    expect(target.textContent?.trim()).toBe("Hello");
+  });
+
+  it("a destroyed instance: the gate opens once the scheduled init fails, and onError hears it", async () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
+    await i18n.destroy();
+    target = document.createElement("div");
+    document.body.appendChild(target);
+    const onError = vi.fn();
+    component = mount(InitGateHarness, { target, props: { i18n, options: { onError } } });
+    flushSync();
+    expect(target.textContent?.trim()).toBe("Loading…");
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    await tick();
+    // init() rejected before raising the flag, so no event came: the store
+    // was re-read, not left at the pending `true`.
+    expect(i18n.isInitializing).toBe(false);
+    expect(target.querySelector('[data-testid="gate"]')).toBeNull();
+    expect(String(onError.mock.calls[0][0].message)).toMatch(/destroy/);
   });
 });

@@ -27,6 +27,16 @@ type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
  * `loadingStateChanged` keeps the store true, so nothing has to be pushed.
  */
 export const autoInitPending = new WeakSet<object>();
+const initializingSet = new WeakMap<object, (value: boolean) => void>();
+
+/**
+ * @internal — `setI18nContext` calls this once the scheduled auto-init has
+ * started, or found nothing to start. An `init()` that never raised the flag
+ * (a destroyed instance rejects first) emits no `loadingStateChanged`, and
+ * without this re-read the store would keep the pending `true` forever.
+ */
+export const syncInitializing = (i18n: object & { isInitializing: boolean }) =>
+  initializingSet.get(i18n)?.(i18n.isInitializing);
 
 const storeCache = new WeakMap<
   object,
@@ -57,6 +67,7 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
         return unsubscribe;
       }),
       initializing: readable(false, (set) => {
+        initializingSet.set(i18n, set);
         set(i18n.isInitializing || autoInitPending.has(i18n));
         return i18n.on("loadingStateChanged", ({ isInitializing }) =>
           set(isInitializing || autoInitPending.has(i18n)),

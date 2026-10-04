@@ -1,6 +1,6 @@
 import { setContext, getContext } from "svelte";
 import type { AnyI18nHost, WrapperI18nHost } from "@comvi/core";
-import { autoInitPending } from "./stores.js";
+import { autoInitPending, syncInitializing } from "./stores.js";
 
 /**
  * Loader/plugin-host capabilities are acquired separately through
@@ -84,6 +84,7 @@ export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOption
           options?.onError?.(normalizeInitError(error));
         });
       autoInitPending.delete(i18n);
+      syncInitializing(i18n);
       return started;
     });
   }
