@@ -60,8 +60,11 @@ it needs:
    publishes those files with `npm publish <tgz>`. It uses the same two phases as GA: the files are
    published under the candidate's staging dist-tag, and `next` moves only once npm has the whole
    set. The difference is that npm keeps every version it accepted, so after a partial RC some
-   versions exist under the staging tag only. That is tolerable for a rehearsal: re-run
-   `rc-publish` to finish it, or dispatch the next rc number.
+   versions exist under the staging tag only. That is tolerable for a rehearsal: use "Re-run failed
+   jobs" on `rc-publish` to finish it, or dispatch the next rc number. Do not dispatch the same rc
+   number again: the new dispatch packs a new candidate with a new staging tag, and `rc-publish`
+   refuses it, publishing and promoting nothing, because the versions already on npm carry the
+   first candidate's staging tag instead.
 
 Dispatch it from a green ref: apart from that browser suite the jobs run no tests.
 
@@ -91,10 +94,19 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
       not start a fresh workflow run. Once every version is on npm, a fresh run's `pack` finds
       nothing pending and stops. After a partial publish it packs a new candidate from the current
       commit, and the `publish` step refuses it before publishing or promoting anything when the
-      versions already on npm are tagged at the older commit. The re-run
+      versions already on npm are tagged at the older commit, or when they do not carry the new
+      candidate's staging tag (see below). The re-run
       skips what npm has, publishes the rest, moves `latest` for every package not yet on it
       (including after a crash between publishing and promotion), and pushes any missing tag,
-      including the tag of a version an earlier run published but never tagged. An existing tag at a different commit
+      including the tag of a version an earlier run published but never tagged. **The staging tag
+      is the candidate's identity.** While anything is still to publish, every version already on
+      npm must carry the current candidate's staging tag, or the job refuses before publishing or
+      promoting anything. It names each package, the staging tag it expected and the one it found.
+      This holds with and without git tags, so it covers the RC job, and it catches a fresh run at
+      the same commit whose tarballs differ from the ones npm has. The recovery is "Re-run failed
+      jobs" on the run that published those versions, since only that run has the same candidate.
+      Once npm has every version there is nothing to mix, so the check is skipped: a retry after the
+      staging tag was removed still reaches the git-tag checks and reports the full set. An existing tag at a different commit
       stops the job with both SHAs: decide by hand, and never move a tag that names released bytes.
       Promotion never moves a dist-tag backwards. If `latest` (or `next`) already names a newer
       version of any package, for example on a stale re-run of 0.5.0 after 0.5.1 shipped, the job
@@ -110,7 +122,13 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
       `publish` job, which reconciles everything and reaches the release step again. If an earlier
       attempt created the release but failed to upload the archive, the step finds the release with
       `gh release view` and re-uploads the archive with `gh release upload --clobber` instead of
-      failing on "already exists". The release notes of the existing release are kept. By hand, from
+      failing on "already exists". The release notes of the existing release are kept. The
+      archive is reproducible for a given Node build, so a re-upload from the same runner setup
+      does not change the bytes of the asset: entries in a fixed order, owner 0, fixed modes, every
+      time and `manifest.json`'s `generatedAt` taken from the release commit, and no gzip
+      timestamp. The gzip stream comes from Node's bundled zlib, so if `setup-node` resolves a
+      different Node patch release between the first attempt and a re-run, the archive bytes can
+      still differ; the tarballs inside and their `SHA256SUMS` cannot. By hand, from
       the release commit with the tags fetched, run it with `PUBLISHED_PACKAGES=<the full set>` and
       `COMVI_RELEASE_TARBALLS_DIR=<the downloaded candidate>`.
 
@@ -139,14 +157,19 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
 
 - The RC jobs run the browser suite on the candidate but no unit tests, package-contract or size
   gate.
-- **A crash between npm accepting a package and its tag push, followed by a fresh run at a newer
-  commit, is closed for CI only.** The mixed-commit guard compares the git tags of the versions
-  already on npm with the checked-out commit, and here those versions have no tag yet. So when
-  `--git-tag` is set and `GITHUB_RUN_ATTEMPT` is `1` (a fresh run), the publish step refuses, with
-  nothing published or promoted, if any version already on npm has neither a local nor a remote
-  tag. A re-run of the same run (attempt 2 or later) still reconciles the missing tags. The
-  residual gap is the by-hand path: once the original run's artifact has expired, nothing but a
-  hand-made tag at the original commit lets a fresh run proceed, and a byte comparison of npm's
-  `dist.integrity` with the candidate tarball's sha512 would need byte-reproducible builds. A fresh
-  run at the same commit passes the tag check, because its tags match. It repacks from the same
-  sources, and its bytes are not compared with what npm already has.
+- **A partial train can only be finished by the run that started it.** While anything is still to
+  publish, every version already on npm must carry the current candidate's staging tag, so ANY
+  fresh run is refused before publishing or promoting anything: in CI or by hand, with git tags or
+  without, at a newer commit or at the same one. (With `--git-tag`, a fresh CI run, attempt `1`,
+  that finds an untagged version on npm is refused earlier by the git-tag guard.) The recovery is
+  "Re-run failed jobs" on the original run; GitHub keeps re-runs for about 30 days. Once that run
+  can no longer be re-run, the by-hand escape hatch is to verify the stuck versions' bytes against
+  the new candidate's `SHA256SUMS` (compare npm's `dist.integrity` with the tarball's sha512), and
+  only if they match, run `npm dist-tag add <name>@<version> <current staging tag>` for each of
+  them before the fresh run. Otherwise bump the version. The residual gap is a version whose
+  staging tag is gone, which happens only after the whole set was on npm and promoted. Then
+  nothing is published, and no bytes are compared with npm's `dist.integrity`.
+- **The staging-tag check can refuse falsely right after a publish.** It reads the version and the
+  dist-tags with two separate `npm view` calls, so a stale npm replica can show the version but not
+  yet its staging tag, and the refusal says `found none`. The check fails closed: nothing is
+  published or promoted, and a re-run of the same run passes once npm catches up.

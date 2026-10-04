@@ -428,3 +428,31 @@ test("an incomplete candidate is refused: the published set must be every packag
   assert.match(result.stderr, /not published: comvi-react-0\.5\.0\.tgz/);
   assert.equal(fs.existsSync(archiveDir), false);
 });
+
+test("the archive is reproducible: two builds from the same inputs have the same SHA-256", (t) => {
+  const { root } = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+  const tarballsDir = path.join(root, "release-candidate");
+  fs.mkdirSync(tarballsDir);
+  fs.writeFileSync(path.join(tarballsDir, "comvi-core-0.5.0.tgz"), "core");
+  fs.writeFileSync(path.join(tarballsDir, "comvi-react-0.5.0.tgz"), "react");
+  writeSums(tarballsDir, ["comvi-core-0.5.0.tgz", "comvi-react-0.5.0.tgz"]);
+  const build = (archiveDir) => {
+    const result = runScript({ root, archiveDir, tarballsDir, published: TRAIN });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const archive = path.join(archiveDir, "comvi-v0.5.0.tar.gz");
+    return createHash("sha256").update(fs.readFileSync(archive)).digest("hex");
+  };
+  const first = build(path.join(root, "artifacts-1"));
+  // A retry runs later, with fresh file times: they must not reach the bytes.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);
+  const second = build(path.join(root, "artifacts-2"));
+  assert.equal(second, first);
+
+  // The manifest's time is the release commit's, not the clock's.
+  const archiveRoot = extractArchive(t, path.join(root, "artifacts-1"), "comvi-v0.5.0");
+  const manifest = JSON.parse(fs.readFileSync(path.join(archiveRoot, "manifest.json"), "utf8"));
+  assert.equal(
+    manifest.generatedAt,
+    new Date(Number(git(root, "show", "-s", "--format=%ct", "HEAD")) * 1000).toISOString(),
+  );
+});

@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { gzipSync } from "node:zlib";
 
 import { tarballName } from "../../scripts/examples-e2e/lib.mjs";
 
@@ -98,6 +99,13 @@ if (tagged.stdout.trim() !== head) {
   process.exit(1);
 }
 
+// Every time in the archive is the release commit's committer time.
+const releaseEpoch = Number(git(["show", "-s", "--format=%ct", head]).stdout.trim());
+if (!Number.isInteger(releaseEpoch) || releaseEpoch <= 0) {
+  console.error(`cannot read the commit time of ${head}`);
+  process.exit(1);
+}
+
 // Completeness: the archive is the whole candidate or nothing. Every tarball
 // the pack job's SHA256SUMS lists must be in the published set, and nothing
 // else may be.
@@ -138,6 +146,59 @@ function sha256(filePath) {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
+/**
+ * A gzipped ustar archive of `root` (named `rootName` inside), byte for byte
+ * the same for the same files: entries in byte order of their paths, owner 0,
+ * mode 0755/0644, every mtime `epoch`, and no gzip timestamp. A retry that
+ * re-uploads the asset (`--clobber`) therefore re-uploads the same bytes.
+ * System `tar` cannot promise that portably (bsdtar has no `--sort`).
+ */
+function reproducibleTarGz(root, rootName, epoch) {
+  const blocks = [];
+  const header = (name, type, size) => {
+    if (Buffer.byteLength(name) > 100) throw new Error(`archive path too long: ${name}`);
+    const block = Buffer.alloc(512);
+    const field = (offset, length, value) => block.write(value, offset, length, "utf8");
+    const octal = (offset, length, value) =>
+      field(offset, length - 1, value.toString(8).padStart(length - 1, "0"));
+    field(0, 100, name);
+    octal(100, 8, type === "5" ? 0o755 : 0o644);
+    octal(108, 8, 0);
+    octal(116, 8, 0);
+    octal(124, 12, size);
+    octal(136, 12, epoch);
+    field(148, 8, " ".repeat(8));
+    field(156, 1, type);
+    field(257, 6, "ustar");
+    field(263, 2, "00");
+    let sum = 0;
+    for (const byte of block) sum += byte;
+    field(148, 7, `${sum.toString(8).padStart(6, "0")}\0`);
+    blocks.push(block);
+  };
+  const walk = (dir, name) => {
+    header(`${name}/`, "5", 0);
+    const entries = readdirSync(dir).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+    for (const entry of entries) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full, `${name}/${entry}`);
+        continue;
+      }
+      const data = readFileSync(full);
+      header(`${name}/${entry}`, "0", data.length);
+      blocks.push(data, Buffer.alloc((512 - (data.length % 512)) % 512));
+    }
+  };
+  walk(root, rootName);
+  blocks.push(Buffer.alloc(1024));
+  const gz = gzipSync(Buffer.concat(blocks), { level: 9 });
+  // The gzip header's MTIME is already 0; its OS byte is the build platform's
+  // (19 on macOS): pin it to Unix (3), as `gzip -n` writes it.
+  gz[9] = 3;
+  return gz;
+}
+
 function createReleaseArchive() {
   const tmpRoot = mkdtempSync(join(tmpdir(), "comvi-release-"));
   const archiveRootName = `comvi-v${version}`;
@@ -148,7 +209,9 @@ function createReleaseArchive() {
   const manifest = {
     name: "comvi",
     version,
-    generatedAt: new Date().toISOString(),
+    // The release commit's time, not the clock's: the archive must be the
+    // same bytes every time it is built for this release (see below).
+    generatedAt: new Date(releaseEpoch * 1000).toISOString(),
     packages: [],
   };
 
@@ -206,13 +269,10 @@ function createReleaseArchive() {
       ].join("\n"),
     );
 
-    const archivePath = join(tmpRoot, `${archiveRootName}.tar.gz`);
-    run("tar", ["-czf", archivePath, "-C", tmpRoot, archiveRootName]);
-
     const outputDir = process.env.COMVI_RELEASE_ARCHIVE_DIR ?? ".";
     mkdirSync(outputDir, { recursive: true });
     const finalPath = join(outputDir, `${archiveRootName}.tar.gz`);
-    copyFileSync(archivePath, finalPath);
+    writeFileSync(finalPath, reproducibleTarGz(archiveRoot, archiveRootName, releaseEpoch));
     console.log(`Created release archive ${finalPath}`);
     return finalPath;
   } finally {
