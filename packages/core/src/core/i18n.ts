@@ -403,7 +403,21 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return widened as T;
   }
 
-  public async init(): Promise<this> {
+  /**
+   * The in-flight init attempt. Concurrent callers join it; it is cleared once
+   * it settles, so a later sequential `init()` is a new attempt.
+   */
+  // `unknown`, not `this`: a `this`-typed private field changes how a host
+  // type intersects with the capability APIs.
+  private _initAttempt?: Promise<unknown>;
+
+  public init(): Promise<this> {
+    return (this._initAttempt ??= this._init().finally(() => {
+      this._initAttempt = undefined;
+    })) as Promise<this>;
+  }
+
+  private async _init(): Promise<this> {
     try {
       if (this._isDestroyed) {
         throw new Error(ERR_INSTANCE_DESTROYED);
@@ -413,8 +427,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // nothing quietly is what makes it cost an afternoon. Reported HERE
       // rather than in the constructor because both capabilities are legally
       // composed after construction and before `init()`. Once per SUCCESSFUL
-      // init: a second `init()` finds `_isInitialized` set (or, on a
-      // concurrent one, `_isInitializing`) and stays quiet. A first `init()`
+      // init: a second `init()` finds `_isInitialized` set and stays
+      // quiet (a concurrent one joins this attempt and never gets here). A first `init()`
       // that THREW leaves both flags clear, so the retry warns again — which
       // is right, the capability is still missing. A destroyed host never
       // reaches here at all; it throws above.
