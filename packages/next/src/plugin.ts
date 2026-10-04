@@ -107,14 +107,12 @@ export function withComvi(options: WithComviOptions): WithComvi {
 
   const apply = (nextConfig: NextConfig): NextConfig => {
     const userWebpack = nextConfig.webpack;
+    const arrayAlias = { name: SPECIFIER, alias: absolute, onlyModule: true };
     const addAlias = (webpackConfig: WebpackConfig): WebpackConfig => {
       const resolve = (webpackConfig.resolve ??= {});
       if (Array.isArray(resolve.alias)) {
-        if (
-          !resolve.alias.some((entry) => (entry as { name?: string } | null)?.name === SPECIFIER)
-        ) {
-          resolve.alias.push({ name: SPECIFIER, alias: absolute, onlyModule: true });
-        }
+        // One shared entry, so a hook that keeps the array does not get it twice.
+        if (!resolve.alias.includes(arrayAlias)) resolve.alias.push(arrayAlias);
       } else {
         // `$`: an exact match, so no other `@comvi/next/*` specifier is caught.
         resolve.alias = { ...resolve.alias, [`${SPECIFIER}$`]: absolute };
@@ -123,10 +121,8 @@ export function withComvi(options: WithComviOptions): WithComvi {
     };
     // Before the user's hook so it sees the alias, and again on what it
     // returns: a fresh object or a replaced `resolve.alias` would drop it.
-    const webpack: WebpackHook = (webpackConfig: WebpackConfig, context) => {
-      addAlias(webpackConfig);
-      return userWebpack ? addAlias(userWebpack(webpackConfig, context)) : webpackConfig;
-    };
+    const webpack: WebpackHook = (webpackConfig: WebpackConfig, context) =>
+      addAlias(userWebpack ? userWebpack(addAlias(webpackConfig), context) : webpackConfig);
 
     if (topLevel) {
       const turbopack = (nextConfig.turbopack ?? {}) as TurbopackOptions;
