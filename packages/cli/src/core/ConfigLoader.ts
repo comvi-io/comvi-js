@@ -4,6 +4,7 @@ import { DEFAULT_FILE_TEMPLATE } from "../defaults";
 import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
+import { isModuleSpecifier } from "@comvi/typegen";
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -187,8 +188,9 @@ export class ConfigLoader {
     config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
     config.locales = this.normalizeFilterField(config.locales, "locales");
 
-    // A non-string `augment` would reach the emitter and be interpolated into
-    // the generated `declare module`, producing a file TypeScript cannot parse.
+    // `augment` is interpolated into the generated `declare module`: a
+    // non-string, or one holding a quote or line break, would produce a file
+    // TypeScript cannot parse or one with injected declarations.
     if (config.augment !== undefined) {
       if (typeof config.augment !== "string" || config.augment.trim() === "") {
         throw new TypegenError(
@@ -197,6 +199,12 @@ export class ConfigLoader {
         );
       }
       config.augment = config.augment.trim();
+      if (!isModuleSpecifier(config.augment)) {
+        throw new TypegenError(
+          `Invalid configuration: "augment" must be a module specifier (letters, digits and @ # . / : ~ + - _), received ${JSON.stringify(config.augment)}`,
+          ErrorCodes.VALIDATION_FAILED,
+        );
+      }
     }
   }
 

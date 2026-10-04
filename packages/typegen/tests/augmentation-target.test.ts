@@ -170,3 +170,54 @@ describe("the module the emitter augments", () => {
     expect(output).toContain("declare module '@comvi/core' {");
   });
 });
+
+/**
+ * `augment` is pasted into the header comment, the side-effect import and the
+ * `declare module` line. A quote, backslash or line break in it used to close
+ * the string and inject declarations into the generated file.
+ */
+describe("augment must be a plain module specifier", () => {
+  const INJECTION = "wrapper';\ndeclare global { var injected: true }\n//";
+
+  const refused: Array<[label: string, value: string]> = [
+    ["a quote-and-newline injection", INJECTION],
+    ["a single quote", "a'b"],
+    ["a double quote", 'a"b'],
+    ["a backslash", "a\\b"],
+    ["a backtick", "a`b"],
+    ["a line feed", "a\nb"],
+    ["a line separator", "a b"],
+    ["a NUL", "a\u0000b"],
+    ["inner whitespace", "my wrapper"],
+    ["a comment closer", "a*/b"],
+  ];
+
+  const accepted = [
+    "@acme/i18n",
+    "acme-i18n",
+    "@acme/i18n/types",
+    "@my_org.x/pkg-1",
+    "#i18n",
+    "./wrapper",
+    "~/i18n",
+  ];
+
+  it.each(refused)("resolveAugmentationTarget refuses %s", (_label, value) => {
+    expect(() => resolveAugmentationTarget(appDir({}), value)).toThrow(
+      `\`augment\` must be a module specifier`,
+    );
+  });
+
+  it.each(refused)("emitDeclarations refuses %s", (_label, value) => {
+    expect(() => emitDeclarations({ keys: {} }, { augment: value })).toThrow(
+      `\`augment\` must be a module specifier`,
+    );
+  });
+
+  it.each(accepted)("accepts %s and emits it verbatim", (value) => {
+    expect(resolveAugmentationTarget(appDir({}), value)).toBe(value);
+    const output = emitDeclarations({ keys: {} }, { augment: value });
+    expect(output).toContain(`import '${value}';`);
+    expect(output).toContain(`declare module '${value}' {`);
+  });
+});

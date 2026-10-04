@@ -441,6 +441,34 @@ describe("ConfigLoader", () => {
     );
   });
 
+  describe("augment", () => {
+    const loadWith = async (augment: unknown) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", augment }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    it.each([
+      ["a quote-and-newline injection", "wrapper';\ndeclare global { var injected: true }\n//"],
+      ["a single quote", "a'b"],
+      ["a backslash", "a\\b"],
+      ["a newline", "a\nb"],
+      ["inner whitespace", "my wrapper"],
+    ])("refuses %s", async (_label, augment) => {
+      const error = await rejectionOf(loadWith(augment));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as TypegenError).message).toContain('"augment" must be a module specifier');
+    });
+
+    it.each([["@acme/i18n"], ["@acme/i18n/types"], ["acme-i18n"], ["  @acme/i18n  "]])(
+      "accepts %j",
+      async (augment) => {
+        await expect(loadWith(augment)).resolves.toMatchObject({ augment: augment.trim() });
+      },
+    );
+  });
+
   describe("toGeneratorOptions", () => {
     it("should convert config to generator options with defaults", () => {
       const config: ComviConfig = {

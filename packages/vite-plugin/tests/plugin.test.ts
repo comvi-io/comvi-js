@@ -329,6 +329,36 @@ describe("comviTypes plugin", () => {
       expect(await fs.readdir(path.dirname(outputPath(root)))).toEqual(["i18n.d.ts"]);
     });
 
+    it("refuses an augment option that would inject code, and writes nothing", async () => {
+      const root = await makeProject('{ "greeting": "Hello" }');
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const plugin = comviTypes({
+        translations: "./locales",
+        output: OUTPUT,
+        augment: "wrapper';\ndeclare global { var injected: true }\n//",
+      });
+      resolvePlugin(plugin, root, "build");
+
+      await expect(buildStart(plugin)).rejects.toThrow("`augment` must be a module specifier");
+      await expect(fs.access(outputPath(root))).rejects.toThrow(/ENOENT/);
+    });
+
+    it("emits a scoped private augment target verbatim", async () => {
+      const root = await makeProject('{ "greeting": "Hello" }');
+      const plugin = comviTypes({
+        translations: "./locales",
+        output: OUTPUT,
+        augment: "@acme/i18n",
+      });
+      resolvePlugin(plugin, root, "build");
+
+      await buildStart(plugin);
+
+      expect(await fs.readFile(outputPath(root), "utf-8")).toContain(
+        "declare module '@acme/i18n' {",
+      );
+    });
+
     it("should fail vite build when type generation fails", async () => {
       const root = await makeProject("{ invalid json");
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

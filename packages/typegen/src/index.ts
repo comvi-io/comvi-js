@@ -79,6 +79,31 @@ export function chooseAugmentationTarget(manifest: AppManifest): string | undefi
 }
 
 /**
+ * The characters a module specifier `augment` may use: package names (scoped
+ * or not), subpaths, `#` imports, `~/` aliases and relative paths. The value
+ * is interpolated between single quotes in the header comment, the side-effect
+ * import and the `declare module` line, so anything that could end the string
+ * or the comment (a quote, backslash, `*`, whitespace or a line terminator) is
+ * refused rather than escaped: escaping would change the bytes every existing
+ * file was generated with, and `--check` compares them literally.
+ */
+const MODULE_SPECIFIER = /^[A-Za-z0-9_@#./:~+-]+$/;
+
+/** Whether `value` is safe to emit as the augmented module's specifier. */
+export function isModuleSpecifier(value: string): boolean {
+  return MODULE_SPECIFIER.test(value);
+}
+
+function assertModuleSpecifier(value: string): void {
+  if (!isModuleSpecifier(value)) {
+    throw new Error(
+      `\`augment\` must be a module specifier (letters, digits and @ # . / : ~ + - _), ` +
+        `received ${JSON.stringify(value)}`,
+    );
+  }
+}
+
+/**
  * The module the app at `appRoot` has its generated types augment.
  *
  * `override` is the app's explicit choice (`augment` in the CLI config or the
@@ -95,7 +120,9 @@ export function resolveAugmentationTarget(appRoot: string, override?: string): s
           "or remove the option to use the one this app declares.",
       );
     }
-    return override.trim();
+    const target = override.trim();
+    assertModuleSpecifier(target);
+    return target;
   }
 
   const manifestPath = join(appRoot, "package.json");
@@ -186,6 +213,7 @@ export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {
     augment = DEFAULT_AUGMENTED_MODULE,
   } = options;
   const defaultPrefix = `${defaultNs}:`;
+  assertModuleSpecifier(augment);
 
   const lines: string[] = [
     "/**",
