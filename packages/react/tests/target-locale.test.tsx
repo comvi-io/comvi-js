@@ -155,6 +155,83 @@ describe("I18nProvider targetLocale across abandoned renders", () => {
     expect(log.at(-1)).toBe("en:Hello");
   });
 
+  it("ends the handover when the i18n instance moves, even if that render is discarded", async () => {
+    const i18n = createI18n({ locale: "en", messages });
+    let resolve!: () => void;
+    const pending = new Promise<void>((r) => (resolve = r));
+    const SuspendsInDe = () => {
+      if (useLocale() === "de") throw pending;
+      return null;
+    };
+    const view = render(
+      <Suspense fallback="loading">
+        <I18nProvider i18n={i18n} autoInit={false} targetLocale="uk">
+          <Probe log={[]} />
+          <SuspendsInDe />
+        </I18nProvider>
+      </Suspense>,
+    );
+    expect(view.container.textContent).toBe("uk:Привіт");
+    // The render that sees the instance at `de` suspends: React discards it.
+    await act(async () => {
+      await i18n.setLocale("de");
+    });
+    // The committed tree stays mounted, hidden, behind the fallback.
+    expect(view.container.textContent).toContain("loading");
+    await act(async () => {
+      await i18n.setLocale("en");
+    });
+    await act(async () => {
+      resolve();
+      await pending;
+    });
+    expect(view.container.textContent).toBe("en:Hello");
+  });
+
+  it("ends the handover when the instance moves away and back within one act", async () => {
+    const i18n = createI18n({ locale: "en", messages });
+    const view = render(tree(i18n, [], "uk"));
+    expect(view.container.textContent).toBe("uk:Привіт");
+    await act(async () => {
+      void i18n.setLocale("uk");
+      await i18n.setLocale("en");
+    });
+    expect(view.container.textContent).toBe("en:Hello");
+  });
+
+  it("ends the handover on a move made before the provider subscribed", async () => {
+    const i18n = createI18n({ locale: "en", messages });
+    // A layout effect runs before the provider's subscription attaches.
+    const MovesInLayoutEffect = () => {
+      React.useLayoutEffect(() => {
+        void i18n.setLocale("de");
+      }, []);
+      return null;
+    };
+    const view = render(
+      <I18nProvider i18n={i18n} autoInit={false} targetLocale="uk">
+        <Probe log={[]} />
+        <MovesInLayoutEffect />
+      </I18nProvider>,
+    );
+    await act(async () => {});
+    expect(view.container.textContent).toBe("de:Hallo");
+  });
+
+  it("a handover under StrictMode still renders the target, then follows the instance", async () => {
+    const i18n = createI18n({ locale: "en", messages });
+    const view = render(<React.StrictMode>{tree(i18n, [], "uk")}</React.StrictMode>);
+    expect(view.container.textContent).toBe("uk:Привіт");
+    await act(async () => {
+      await i18n.setLocale("uk");
+    });
+    expect(view.container.textContent).toBe("uk:Привіт");
+    await act(async () => {
+      await i18n.setLocale("en");
+    });
+    expect(view.container.textContent).toBe("en:Hello");
+  });
+
   it("a replacement instance with the same target renders the target", () => {
     const first = createI18n({ locale: "uk", messages: { uk: { greeting: "Привіт" } } });
     const replacement = createI18n({
@@ -274,6 +351,24 @@ describe("I18nProvider messages", () => {
       </I18nProvider>,
     );
     expect(html).toContain("Hi|Home");
+  });
+
+  it("merges catalogs that share a locale and namespace, in input order, as addMessages does", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Old" } } });
+    const Both = () => {
+      const { t } = useI18n();
+      return <p>{`${t("greeting")}|${t("home")}`}</p>;
+    };
+    const html = renderToString(
+      <I18nProvider
+        i18n={i18n}
+        autoInit={false}
+        messages={{ en: { greeting: "New" }, "en:default": { home: "Home" } }}
+      >
+        <Both />
+      </I18nProvider>,
+    );
+    expect(html).toContain("New|Home");
   });
 
   it("renderToString with messages never writes the instance", () => {
