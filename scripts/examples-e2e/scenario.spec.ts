@@ -1040,17 +1040,26 @@ for (const [step, first] of [
     for (const locale of ["uk", "de"] as const) {
       const tab = locale === "uk" ? page : await context.newPage();
       if (tab !== page) browserErrors.watch(tab);
+      // Routed for the whole test and answered only for the first document
+      // request: a `{ times: 1 }` route removes itself mid-load, and requests
+      // paused for interception at that moment were seen never to complete.
+      let served = false;
       await tab.route(
         (address) => address.pathname === livePath(locale),
-        (route) =>
-          route.fulfill({
+        (route) => {
+          if (served || !route.request().isNavigationRequest()) return route.continue();
+          served = true;
+          return route.fulfill({
             status: 200,
             contentType: "text/html; charset=utf-8",
             body: html[locale],
-          }),
-        { times: 1 },
+          });
+        },
       );
-      await tab.goto(livePath(locale));
+      // Hydration is the readiness signal, not `load`: `load` also waits for
+      // every prefetch hint, and twice in full runs one such request never
+      // completed while the page itself had long hydrated.
+      await tab.goto(livePath(locale), { waitUntil: "commit" });
       await ready(tab);
       await expect
         .soft(tab.locator("html"), `${locale} hydrated: lang`)
