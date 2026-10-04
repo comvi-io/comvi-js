@@ -64,6 +64,46 @@ describe("withComvi: webpack", () => {
     expect(result.resolve!.alias).toHaveProperty(["@comvi/next/config$"]);
   });
 
+  it("adds the alias to a fresh config the user's webpack function returns", () => {
+    const root = project("16.0.0");
+    const user = () => ({ resolve: { alias: { user: "kept" } } });
+    const config = withComvi({ config: "./src/i18n/config.ts" })({ webpack: user as never });
+    expect(runWebpack(config).resolve!.alias).toEqual({
+      user: "kept",
+      "@comvi/next/config$": path.join(root, "src/i18n/config.ts"),
+    });
+  });
+
+  it("adds the alias back when the user's webpack function overwrites resolve.alias", () => {
+    const root = project("16.0.0");
+    const user = (webpackConfig: WebpackConfig) => {
+      webpackConfig.resolve!.alias = { user: "kept" };
+      return webpackConfig;
+    };
+    const config = withComvi({ config: "./src/i18n/config.ts" })({ webpack: user as never });
+    expect(runWebpack(config).resolve!.alias).toEqual({
+      user: "kept",
+      "@comvi/next/config$": path.join(root, "src/i18n/config.ts"),
+    });
+  });
+
+  it("adds one array alias when the user's webpack function mutates in place", () => {
+    const root = project("16.0.0");
+    const seen: unknown[] = [];
+    const user = (webpackConfig: WebpackConfig) => {
+      seen.push(...(webpackConfig.resolve!.alias as unknown[]));
+      return webpackConfig;
+    };
+    const config = withComvi({ config: "./src/i18n/config.ts" })({ webpack: user as never });
+    const entry = {
+      name: "@comvi/next/config",
+      alias: path.join(root, "src/i18n/config.ts"),
+      onlyModule: true,
+    };
+    expect(runWebpack(config, { resolve: { alias: [] } }).resolve!.alias).toEqual([entry]);
+    expect(seen).toEqual([entry]);
+  });
+
   it("keeps the rest of next.config", () => {
     project("16.0.0");
     const config = withComvi({ config: "./src/i18n/config.ts" })({ reactStrictMode: true });

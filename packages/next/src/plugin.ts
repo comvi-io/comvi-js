@@ -107,15 +107,25 @@ export function withComvi(options: WithComviOptions): WithComvi {
 
   const apply = (nextConfig: NextConfig): NextConfig => {
     const userWebpack = nextConfig.webpack;
-    const webpack: WebpackHook = (webpackConfig: WebpackConfig, context) => {
+    const addAlias = (webpackConfig: WebpackConfig): WebpackConfig => {
       const resolve = (webpackConfig.resolve ??= {});
       if (Array.isArray(resolve.alias)) {
-        resolve.alias.push({ name: SPECIFIER, alias: absolute, onlyModule: true });
+        if (
+          !resolve.alias.some((entry) => (entry as { name?: string } | null)?.name === SPECIFIER)
+        ) {
+          resolve.alias.push({ name: SPECIFIER, alias: absolute, onlyModule: true });
+        }
       } else {
         // `$`: an exact match, so no other `@comvi/next/*` specifier is caught.
         resolve.alias = { ...resolve.alias, [`${SPECIFIER}$`]: absolute };
       }
-      return userWebpack ? userWebpack(webpackConfig, context) : webpackConfig;
+      return webpackConfig;
+    };
+    // Before the user's hook so it sees the alias, and again on what it
+    // returns: a fresh object or a replaced `resolve.alias` would drop it.
+    const webpack: WebpackHook = (webpackConfig: WebpackConfig, context) => {
+      addAlias(webpackConfig);
+      return userWebpack ? addAlias(userWebpack(webpackConfig, context)) : webpackConfig;
     };
 
     if (topLevel) {
