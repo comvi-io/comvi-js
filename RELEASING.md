@@ -122,7 +122,10 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
       `publish` job, which reconciles everything and reaches the release step again. If an earlier
       attempt created the release but failed to upload the archive, the step finds the release with
       `gh release view` and re-uploads the archive with `gh release upload --clobber` instead of
-      failing on "already exists". The release notes of the existing release are kept. By hand, from
+      failing on "already exists". The release notes of the existing release are kept. The
+      archive is reproducible, so the re-upload never changes the bytes of the asset: entries in
+      a fixed order, owner 0, fixed modes, every time and `manifest.json`'s `generatedAt` taken
+      from the release commit, and no gzip timestamp. By hand, from
       the release commit with the tags fetched, run it with `PUBLISHED_PACKAGES=<the full set>` and
       `COMVI_RELEASE_TARBALLS_DIR=<the downloaded candidate>`.
 
