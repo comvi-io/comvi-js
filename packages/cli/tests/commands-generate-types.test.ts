@@ -249,6 +249,33 @@ describe("comvi typegen", () => {
       expect(output.stderr).toContain('"locales" is an empty list');
     });
 
+    it.each([
+      ["a null config", "null", "expected a JSON object, received null"],
+      ["an array config", "[]", "expected a JSON object, received array"],
+      ["a pull typo", JSON.stringify({ apiKey: "k", pull: { emptyDr: true } }), '"pull.emptyDr"'],
+      [
+        "a push typo",
+        JSON.stringify({ apiKey: "k", push: { forceMod: "keep" } }),
+        '"push.forceMod"',
+      ],
+      [
+        "an invalid forceMode",
+        JSON.stringify({ apiKey: "k", push: { forceMode: "overide" } }),
+        '"push.forceMode" must be one of',
+      ],
+    ])("exits 4 for %s", async (_label, content, message) => {
+      const invalidConfigPath = join(dirname(configPath), "invalid.comvirc.json");
+      await nodeFs.writeFile(invalidConfigPath, content);
+
+      await expect(
+        createTypegenCommand().parseAsync(["-c", invalidConfigPath, "--check"], {
+          from: "user",
+        }),
+      ).rejects.toMatchObject({ exitCode: 4 });
+
+      expect(output.stderr).toContain(message);
+    });
+
     it("announces the check and tells the user how to update outdated types", async () => {
       await expect(
         createTypegenCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),

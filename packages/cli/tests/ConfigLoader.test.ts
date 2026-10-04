@@ -373,6 +373,74 @@ describe("ConfigLoader", () => {
     });
   });
 
+  /**
+   * `null`, an array or a scalar is valid JSON but not a config: it used to
+   * reach `Object.keys` and escape as a raw TypeError (exit 1, not 4).
+   */
+  describe("config root", () => {
+    it.each([
+      ["null", "null", "null"],
+      ["an array", "[]", "array"],
+      ["a string", '"apiKey"', "string"],
+      ["a number", "42", "number"],
+      ["a boolean", "true", "boolean"],
+    ])("refuses %s as the whole config", async (_label, content, type) => {
+      vi.stubEnv("COMVI_API_KEY", "from-env");
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(content);
+
+      const error = await rejectionOf(ConfigLoader.load("/project/.comvirc.json"));
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        `Invalid configuration in ${resolve("/project/.comvirc.json")}: expected a JSON object, received ${type}`,
+      );
+    });
+  });
+
+  /**
+   * The strict-field rule covers the `push` and `pull` sections too: a typo in
+   * a destructive switch must not leave the CLI quietly using the default.
+   */
+  describe("nested section fields", () => {
+    const loadWith = async (extra: Record<string, unknown>) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    it.each([
+      ["pull.emptyDr", { pull: { emptyDr: true } }],
+      ["push.forceMod", { push: { forceMod: "override" } }],
+      ["pull.forceMode", { pull: { forceMode: "keep" } }],
+    ])("refuses the unknown field %s", async (key, extra) => {
+      const error = await rejectionOf(loadWith(extra));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        `".comvirc.json" field "${key}" is not an option.`,
+      );
+    });
+
+    it.each([["overide"], ["OVERRIDE"], [""], [true], [null]])(
+      "refuses push.forceMode %j",
+      async (value) => {
+        const error = await rejectionOf(loadWith({ push: { forceMode: value } }));
+
+        expect((error as TypegenError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+        expect((error as TypegenError).message).toContain('"push.forceMode" must be one of');
+      },
+    );
+
+    it.each([["override"], ["keep"], ["ask"], ["abort"]])(
+      "accepts push.forceMode %s",
+      async (value) => {
+        await expect(loadWith({ push: { forceMode: value } })).resolves.toBeDefined();
+      },
+    );
+  });
+
   describe("toGeneratorOptions", () => {
     it("should convert config to generator options with defaults", () => {
       const config: ComviConfig = {

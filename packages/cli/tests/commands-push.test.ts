@@ -268,7 +268,10 @@ describe("comvi push", () => {
     const exitCode = await runPush(["-c", configPath]);
 
     expect(exitCode).toBe(4);
-    expect(output.error[0]).toBe("✗ Invalid force-mode: merge. Use: override, keep, ask, or abort");
+    // Refused while loading the config, before the push reads a file or opens a socket.
+    expect(output.error[0]).toBe(
+      '✗ Push failed: Invalid configuration: "push.forceMode" must be one of "override", "keep", "ask", "abort", received string "merge"',
+    );
     expect(http.requests).toEqual([]);
   });
 

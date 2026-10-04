@@ -50,6 +50,14 @@ const KNOWN_CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof ComviConfig>([
   "pull",
 ]);
 
+/** Every field the `push` and `pull` sections declare. */
+const KNOWN_SECTION_FIELDS: Readonly<Record<"push" | "pull", ReadonlySet<string>>> = {
+  push: new Set(["forceMode"]),
+  pull: new Set(["emptyDir"]),
+};
+
+const FORCE_MODES: readonly string[] = ["override", "keep", "ask", "abort"];
+
 /** What to write instead, for the fields people are likely to carry over. */
 const UNKNOWN_FIELD_HINTS: Record<string, string> = {
   languages: 'use "locales"',
@@ -112,7 +120,17 @@ export class ConfigLoader {
 
     try {
       const content = await fs.readFile(filePath, "utf-8");
-      const config = JSON.parse(content) as ComviConfig;
+      const parsed: unknown = JSON.parse(content);
+
+      // Valid JSON is not yet a config: `null` or `[]` would reach
+      // `Object.keys` and the env overrides as a raw TypeError (exit 1).
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        throw new TypegenError(
+          `Invalid configuration in ${filePath}: expected a JSON object, received ${typeNameOf(parsed)}`,
+          ErrorCodes.CONFIG_INVALID,
+        );
+      }
+      const config = parsed as ComviConfig;
 
       this.rejectUnknownFields(config);
 
@@ -192,8 +210,8 @@ export class ConfigLoader {
    * refused during `load`, which runs before any command opens a socket or
    * touches the translations directory.
    *
-   * `push.forceMode` is the other destructive switch; `push` itself validates
-   * it against the four allowed modes before it sends anything.
+   * `push.forceMode` is the other destructive switch, checked here against
+   * the four modes so a typo fails before any command runs.
    */
   private static validateSwitches(config: ComviConfig): void {
     this.assertOptionalBoolean(config.strictParams, "strictParams");
@@ -201,7 +219,14 @@ export class ConfigLoader {
     const pull = this.assertOptionalSection(config.pull, "pull");
     this.assertOptionalBoolean(pull?.emptyDir, "pull.emptyDir");
 
-    this.assertOptionalSection(config.push, "push");
+    const push = this.assertOptionalSection(config.push, "push");
+    const forceMode = push?.forceMode;
+    if (forceMode !== undefined && !FORCE_MODES.includes(forceMode as string)) {
+      throw new TypegenError(
+        `Invalid configuration: "push.forceMode" must be one of ${FORCE_MODES.map((mode) => `"${mode}"`).join(", ")}, received ${describe(forceMode)}`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
   }
 
   private static assertOptionalBoolean(value: unknown, key: string): void {
@@ -331,6 +356,19 @@ export class ConfigLoader {
         `".comvirc.json" field "${key}" is not an option${instead ? `: ${instead}` : ""}.`,
         ErrorCodes.CONFIG_INVALID,
       );
+    }
+
+    // A section that is not an object is reported by `validateSwitches`.
+    for (const section of ["push", "pull"] as const) {
+      const value: unknown = config[section];
+      if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+      for (const key of Object.keys(value)) {
+        if (KNOWN_SECTION_FIELDS[section].has(key)) continue;
+        throw new TypegenError(
+          `".comvirc.json" field "${section}.${key}" is not an option.`,
+          ErrorCodes.CONFIG_INVALID,
+        );
+      }
     }
   }
 
