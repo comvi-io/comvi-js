@@ -106,12 +106,12 @@ describe("comvi init", () => {
     await createInitCommand().parseAsync([], { from: "user" });
 
     expect(numberedSteps(output.stdout)).toEqual([
-      "1. Run 'comvi generate-types' to generate types",
+      "1. Run 'comvi typegen' to generate types",
       "2. Run 'comvi pull' to download translations",
       "3. Run 'comvi push' to upload translations",
     ]);
     expect(output.stdout).toContain("Next steps:");
-    expect(output.stdout).toContain("(or 'comvi generate-types --watch' for real-time updates)");
+    expect(output.stdout).toContain("(or 'comvi typegen --watch' for real-time updates)");
     expect(output.stdout).not.toContain("(undefined)");
   });
 
@@ -120,7 +120,7 @@ describe("comvi init", () => {
 
     expect(numberedSteps(output.stdout)).toEqual([
       "1. Set COMVI_API_KEY environment variable",
-      "2. Run 'comvi generate-types' to generate types",
+      "2. Run 'comvi typegen' to generate types",
       "3. Run 'comvi pull' to download translations",
       "4. Run 'comvi push' to upload translations",
     ]);

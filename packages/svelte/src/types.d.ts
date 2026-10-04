@@ -67,24 +67,10 @@ interface TBaseProps {
   fallback?: string;
   /** Skip the post-processors that honour it, for this call only. */
   skipPostProcess?: boolean;
-  /**
-   * @deprecated Renamed to `skipPostProcess` in 0.5. `raw` is still honored
-   * (a dev-only warning fires once per host) and will be removed in a future
-   * release.
-   */
-  raw?: boolean;
   /** Tag-name → handler map (see {@link ComponentMap}). */
   components?: ComponentMap;
   /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: Snippet;
-  /**
-   * @deprecated Removed in 0.5. `<T>` renders structurally now — there is no
-   * HTML-string sink left to allowlist tags for. Tag handlers come from
-   * {@link TBaseProps.components} instead. Delete this prop; a JS caller that
-   * still passes it gets it dropped (not forwarded as an interpolation
-   * param) with a one-time development warning.
-   */
-  allowedTags?: never;
 }
 
 /**

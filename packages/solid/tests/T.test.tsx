@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import type { JSX } from "solid-js";
 import { I18nProvider } from "../src/context";
 import { T } from "../src/T";
@@ -330,14 +330,6 @@ describe("T.tsx", () => {
     expect(container.textContent).toBe("Hello Alice");
   });
 
-  it("passes raw flag to skip post-processing", () => {
-    fake.tImplementation = (_key, params) => (params?.raw ? "raw content" : "processed content");
-
-    renderWithProvider(() => <T i18nKey={"msg" as never} raw />);
-
-    expect(container.textContent).toBe("raw content");
-  });
-
   it("passes skipPostProcess to skip post-processing", () => {
     fake.tImplementation = (_key, params) => (params?.raw ? "raw content" : "processed content");
 
@@ -346,67 +338,12 @@ describe("T.tsx", () => {
     expect(container.textContent).toBe("raw content");
   });
 
-  it("applies post-processing when neither skipPostProcess nor raw is set", () => {
+  it("applies post-processing when skipPostProcess is not set", () => {
     fake.tImplementation = (_key, params) => (params?.raw ? "raw content" : "processed content");
 
     renderWithProvider(() => <T i18nKey={"msg" as never} />);
 
     expect(container.textContent).toBe("processed content");
-  });
-
-  it("skipPostProcess wins over the deprecated raw prop when both are set", () => {
-    fake.tImplementation = (_key, params) => (params?.raw ? "raw content" : "processed content");
-
-    renderWithProvider(() => <T i18nKey={"msg" as never} raw={false} skipPostProcess={true} />);
-
-    expect(container.textContent).toBe("raw content");
-  });
-
-  it("warns once in development when the deprecated raw prop is used, and not for skipPostProcess", () => {
-    // `fake` is a host this test owns exclusively (fresh per `beforeEach`):
-    // the warn-once dedupe is keyed by host identity (`ctx.i18n` — see
-    // T.tsx), so its warning history starts empty regardless of what any
-    // other test already did with a DIFFERENT host.
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      renderWithProvider(() => <T i18nKey={"msg" as never} skipPostProcess />);
-      expect(warn).not.toHaveBeenCalled();
-
-      renderWithProvider(() => <T i18nKey={"msg" as never} raw />);
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0]![0]).toContain("<T raw>");
-      expect(warn.mock.calls[0]![0]).toContain("<T skipPostProcess>");
-
-      // A second use on the SAME host does not warn again.
-      renderWithProvider(() => <T i18nKey={"msg" as never} raw />);
-      expect(warn).toHaveBeenCalledTimes(1);
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it("warns again for a DIFFERENT host, even right after another host's warning", () => {
-    const first = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    const second = new FakeI18n({ language: "en", defaultNamespace: "common" });
-
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      renderSolid(() => (
-        <I18nProvider i18n={first.asI18n()} autoInit={false}>
-          <T i18nKey={"msg" as never} raw />
-        </I18nProvider>
-      ));
-      expect(warn).toHaveBeenCalledTimes(1);
-
-      renderSolid(() => (
-        <I18nProvider i18n={second.asI18n()} autoInit={false}>
-          <T i18nKey={"msg" as never} raw />
-        </I18nProvider>
-      ));
-      expect(warn).toHaveBeenCalledTimes(2);
-    } finally {
-      warn.mockRestore();
-    }
   });
 
   it("reactively updates when locale changes", async () => {

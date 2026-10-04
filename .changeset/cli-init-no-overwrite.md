@@ -14,5 +14,5 @@ numbered correctly.
 - **The "Next steps" list skipped a number.** With an API key configured — the common case —
   the steps printed as 1, 3, 4, 5, because the shared tail lines were hardcoded to 3-5 while
   the branch above them printed a single step 1. The list is now numbered contiguously in both
-  branches, and the `--watch` alternative is shown as a hint under the generate-types step
+  branches, and the `--watch` alternative is shown as a hint under the typegen step
   rather than as a step of its own.

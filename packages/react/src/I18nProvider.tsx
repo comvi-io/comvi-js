@@ -4,16 +4,10 @@ import {
   useEffect,
   useMemo,
   useCallback,
-  useRef,
   useSyncExternalStore,
 } from "react";
 import { subscribeToRevision } from "@comvi/core";
-import type { AnyI18nHost, WrapperI18nHost, FlattenedMessages, I18nEvent } from "@comvi/core";
-
-// Build-time flag, same shape the other bindings use: `undefined` under a
-// bundler that does not define it, never a bare reference that throws.
-declare const __DEV__: boolean | undefined;
-const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+import type { AnyI18nHost, WrapperI18nHost, I18nEvent } from "@comvi/core";
 
 /** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
 type Host = WrapperI18nHost;
@@ -21,14 +15,6 @@ type Host = WrapperI18nHost;
 // `AnyI18nHost` is core's: the `strictFunctionTypes` invariance in `D` it
 // widens is documented there, once, for all three providers that accept it.
 export type { AnyI18nHost };
-
-interface I18nContextValue {
-  i18n: Host;
-  locale: string;
-  messagesCache: ReadonlyMap<string, FlattenedMessages>;
-  isLoading: boolean;
-  isInitializing: boolean;
-}
 
 export interface I18nInstanceContextValue {
   i18n: Host;
@@ -141,18 +127,8 @@ export interface I18nProviderProps {
    */
   fallback?: React.ReactNode;
   /**
-   * Render locale for the server snapshot — react's original name for it.
-   * `ssrLocale` wins when both are passed: the canonical name should not lose
-   * to the alias it replaces.
-   *
-   * @deprecated Use `ssrLocale`, the cross-binding name; removed in 0.6.
-   */
-  ssrInitialLocale?: string;
-  /**
    * Render locale for the server snapshot, under the cross-binding name
-   * `@comvi/vue` and `@comvi/nuxt` also use. The canonical name — prefer it in
-   * new code, and it wins when {@link I18nProviderProps.ssrInitialLocale}, the
-   * legacy alias, is passed alongside it.
+   * `@comvi/vue` and `@comvi/nuxt` also use.
    */
   ssrLocale?: string;
   /** Initial loading state for SSR hydration. */
@@ -178,28 +154,11 @@ export function I18nProvider({
   i18n,
   autoInit = true,
   fallback,
-  ssrInitialLocale,
   ssrLocale,
   ssrInitialIsLoading = false,
   ssrInitialIsInitializing = false,
   onError,
 }: I18nProviderProps) {
-  // Once per provider instance, including the server render — where there are
-  // no effects and this is the only place a diagnostic can reach the logs.
-  const warnedAliasRef = useRef(false);
-  if (IS_DEV && ssrInitialLocale !== undefined && ssrLocale !== undefined) {
-    if (!warnedAliasRef.current) {
-      warnedAliasRef.current = true;
-      console.warn(
-        `[i18n] <I18nProvider> got both ssrInitialLocale="${ssrInitialLocale}" and ssrLocale="${ssrLocale}". ssrLocale wins; drop one. ssrLocale is the canonical cross-binding name (@comvi/vue, @comvi/nuxt); ssrInitialLocale is react's deprecated legacy alias, removed in 0.6.`,
-      );
-    }
-  }
-  // `ssrLocale` first: it is the canonical cross-binding name, and a
-  // deprecated alias that overrode it meant the fix for the deprecation warning
-  // silently changed which locale the server painted.
-  const serverLocale = ssrLocale ?? ssrInitialLocale;
-
   useEffect(() => {
     if (autoInit && !i18n.isInitialized && !i18n.isInitializing) {
       i18n.init().catch((err) => {
@@ -219,7 +178,7 @@ export function I18nProvider({
   const locale = useSyncExternalStore(
     subLang,
     () => i18n.locale,
-    () => serverLocale ?? i18n.locale,
+    () => ssrLocale ?? i18n.locale,
   );
 
   const isLoading = useSyncExternalStore(
@@ -283,22 +242,6 @@ export function useI18nHost(): WrapperI18nHost {
 }
 
 /**
- * {@link useI18nHost} without the throw: the host of the nearest
- * `<I18nProvider>`, or `null` when there is none.
- *
- * For a warn-once diagnostic keyed by host identity, which must not be the
- * reason a component crashes and must not need a provider the render path
- * already guarantees (`useI18n()` throws without one). The only renders that
- * reach the `null` branch are tests that mock `useI18n` — with no host, there
- * is no identity to dedupe on and nothing to warn about.
- *
- * @internal
- */
-export function useI18nHostOrNull(): WrapperI18nHost | null {
-  return useContext(I18nInstanceContext)?.i18n ?? null;
-}
-
-/**
  * Read the current locale. Subscribes only to locale changes — non-translation
  * consumers (e.g. `<Link>`, `usePathname()`) prefer this over `useI18n()` to
  * skip re-renders on namespace loads and loading-state changes.
@@ -314,24 +257,4 @@ export function useLocale(): string {
 export function useIsLoading(): { isLoading: boolean; isInitializing: boolean } {
   const { isLoading, isInitializing } = useI18nInstance();
   return { isLoading, isInitializing };
-}
-
-/**
- * Legacy combined-context shape. Re-renders on every reactive axis.
- *
- * @deprecated Use `useI18n()` or the per-axis selector hooks `useLocale()` /
- *   `useIsLoading()`; for the bare host, `useI18nHost()`. Scheduled for
- *   removal in the next major.
- */
-export function useI18nContext(): I18nContextValue {
-  const { i18n, isLoading, isInitializing } = useI18nInstance();
-  const locale = useContext(LocaleContext) ?? "";
-
-  const storeRevision = useStoreRevision(i18n);
-  const messagesCache = i18n.messagesCache.getInternalMap();
-
-  return useMemo<I18nContextValue>(
-    () => ({ i18n, locale, messagesCache, isLoading, isInitializing }),
-    [i18n, locale, messagesCache, isLoading, isInitializing, storeRevision],
-  );
 }

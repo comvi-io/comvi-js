@@ -24,23 +24,6 @@ import type {
 } from "@comvi/core";
 import type { ComponentMap } from "./types";
 
-declare const __DEV__: boolean | undefined;
-const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
-
-// Keyed by HOST identity, not one module-wide flag: a single boolean would
-// leak across unrelated hosts (two apps' worth on one page, or two test files
-// sharing a worker's module cache).
-const warnedRawProp = /* @__PURE__ */ new WeakSet<object>();
-
-function warnDeprecatedRawProp(host: object): void {
-  if (IS_DEV && !warnedRawProp.has(host)) {
-    warnedRawProp.add(host);
-    console.warn(
-      "[i18n] <T raw> is deprecated. Use <T skipPostProcess> instead — `raw` will be removed in a future release.",
-    );
-  }
-}
-
 type ReportTagError = (error: unknown, tagName: string) => void;
 
 /** Marker tag → JSX handler resolved from `pendingHandlers`. */
@@ -140,12 +123,6 @@ interface TBaseProps {
    * in-context editor injects.
    */
   skipPostProcess?: boolean;
-  /**
-   * @deprecated Renamed to `skipPostProcess` in 0.5. `raw` is still honored
-   * (a dev-only warning fires once per host) and will be removed in a future
-   * release.
-   */
-  raw?: boolean;
   /** Tag-name → handler map for tag interpolation. */
   components?: ComponentMap;
   /** Rendered when the key is missing and no `fallback` prop was given. */
@@ -167,7 +144,6 @@ const DECLARED_PROPS = [
   "locale",
   "fallback",
   "skipPostProcess",
-  "raw",
   "components",
   "children",
 ] as const;
@@ -231,13 +207,7 @@ export const T: Component<TProps> = (props) => {
       local.ns !== undefined ||
       local.locale !== undefined ||
       local.fallback !== undefined ||
-      local.skipPostProcess !== undefined ||
-      local.raw !== undefined;
-
-    if (local.raw !== undefined) {
-      warnDeprecatedRawProp(ctx.i18n);
-    }
-    const effectiveRaw = local.skipPostProcess ?? local.raw;
+      local.skipPostProcess !== undefined;
 
     // Fast path: a bare `tRaw` call keeps core's static-template cache hit
     // (zero per-render allocation) for the common shape — a plain-text template
@@ -269,7 +239,7 @@ export const T: Component<TProps> = (props) => {
       ns: local.ns,
       locale: local.locale,
       fallback: local.fallback,
-      raw: effectiveRaw,
+      raw: local.skipPostProcess,
       components: local.components,
     });
 

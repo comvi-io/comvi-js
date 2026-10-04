@@ -9,9 +9,8 @@ export {
   // `useI18nHost()` is THE name for "give me the host" in react, solid and
   // svelte; this entry is react's Next face, so it carries it too — a client
   // component that needs the bare host must not have to import `@comvi/react`
-  // beside this package. (`useI18nContext` is its deprecated spelling.)
+  // beside this package.
   useI18nHost,
-  useI18nContext,
   useI18nLoader,
   useI18nPlugins,
   useLocale,

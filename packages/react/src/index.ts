@@ -16,7 +16,7 @@ export { createI18n } from "@comvi/core";
 // object, so the class VALUE is `@comvi/core`'s to export, not a binding's.
 export type { I18n } from "@comvi/core";
 
-export { I18nProvider, useI18nHost, useI18nContext, useLocale, useIsLoading } from "./I18nProvider";
+export { I18nProvider, useI18nHost, useLocale, useIsLoading } from "./I18nProvider";
 export type { I18nProviderProps } from "./I18nProvider";
 export { useI18n } from "./useI18n";
 export type { UseI18nReturn } from "./useI18n";

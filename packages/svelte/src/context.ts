@@ -100,12 +100,3 @@ export function useI18nHost(): Host {
 
   return i18n;
 }
-
-/**
- * @deprecated Use `useI18nHost()` — the same host under the one name react,
- *   solid and svelte share (`use*`, not `get*`, so one grep finds it in all
- *   three). Scheduled for removal in the next major.
- */
-export function getI18nContext(): Host {
-  return useI18nHost();
-}

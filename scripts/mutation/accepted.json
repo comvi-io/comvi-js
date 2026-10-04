@@ -2072,22 +2072,6 @@
       "round": 4
     },
     {
-      "package": "packages/plugin-fetch-loader",
-      "file": "src/options.ts",
-      "mutators": [
-        "ConditionalExpression",
-        "EqualityOperator",
-        "LogicalOperator",
-        "OptionalChaining",
-        "StringLiteral"
-      ],
-      "snippet": "(typeof process !== \"undefined\" && process.env?.NEXT_PUBLIC_COMVI_CDN_URL) ||",
-      "lineHint": 203,
-      "kind": "gap:prod-build",
-      "reason": "same as VITE_API_BASE_URL: the vitest config `define`s import.meta.env.VITE_CDN_BASE_URL truthy, so neither the process.env override nor the preset fallback is ever evaluated.",
-      "round": 4
-    },
-    {
       "package": "packages/plugin-locale-detector",
       "file": "src/index.ts",
       "mutators": ["ConditionalExpression"],
@@ -5401,15 +5385,6 @@
     },
     {
       "package": "packages/react",
-      "file": "src/I18nProvider.tsx",
-      "mutators": ["StringLiteral"],
-      "snippet": "const locale = useContext(LocaleContext) ?? \"\";",
-      "lineHint": 212,
-      "kind": "equivalent",
-      "reason": "?? right side unreachable: useI18nInstance() throws first, the instance context is module-private, and I18nProvider always nests a string LocaleContext. Hand-applied sentinel; green; v8 shows the operand uncovered."
-    },
-    {
-      "package": "packages/react",
       "file": "src/useI18n.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const locale = useContext(LocaleContext) ?? \"\";",
@@ -7204,24 +7179,6 @@
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
       "lineHint": 57,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "program.addCommand(createGenerateTypesCommand()); // Verbose alias",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 58,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "program.addCommand(createGenerateCommand()); // Legacy alias",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 59,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"

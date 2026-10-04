@@ -215,11 +215,3 @@ export function useI18nContextValue(): I18nContextValue {
 export function useI18nHost(): WrapperI18nHost {
   return useI18nContextValue().i18n;
 }
-
-/**
- * @deprecated Use `useI18nHost()` — the same host under the one name react,
- *   solid and svelte share. Scheduled for removal in the next major.
- */
-export function useI18nContext(): WrapperI18nHost {
-  return useI18nHost();
-}

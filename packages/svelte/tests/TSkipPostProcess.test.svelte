@@ -9,11 +9,9 @@
   // explicit `false`), matching `TPropForwarding.test.svelte`'s pass*/value
   // split for the reserved props.
   export let skipPostProcess: boolean | undefined = undefined;
-  export let raw: boolean | undefined = undefined;
 
   $: forwarded = {
     ...(skipPostProcess === undefined ? {} : { skipPostProcess }),
-    ...(raw === undefined ? {} : { raw }),
   };
 
   setI18nContext(i18n);

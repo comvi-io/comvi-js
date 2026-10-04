@@ -90,10 +90,8 @@ export function cliAugmentationTarget(override?: string, appRoot: string = proce
 /**
  * The published, programmatic way to emit declarations from a schema.
  *
- * It is NOT deprecated: the 0.5 pre-release notes pointed callers at
- * `emitDeclarations` from a standalone typegen package, but that package stayed
- * workspace-private (its implementation is inlined into this build), so this
- * class and the `comvi typegen` command are the two supported entry points.
+ * This class and the `comvi typegen` command are the two supported entry
+ * points; the emitter itself is workspace-private and inlined into this build.
  */
 export class TypeEmitter {
   generate(schema: ProjectSchema, options: TypeEmitterOptions = {}): string {

@@ -45,8 +45,7 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
 
   const {
     cdnUrl,
-    baseUrl,
-    apiBaseUrl: legacyApiBaseUrl,
+    baseUrl: apiBaseUrl,
     fallback,
     timeout = 10000,
     retry,
@@ -55,10 +54,8 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
     cache,
   } = options;
 
-  // Explicit `baseUrl` wins over the legacy `apiBaseUrl` spelling; when both
-  // are absent, downstream URL builders fall back to the build-time env
-  // override / Comvi platform preset (API_BASE_URL).
-  const apiBaseUrl = baseUrl ?? legacyApiBaseUrl;
+  // When `baseUrl` is absent, downstream URL builders fall back to the
+  // build-time env override / Comvi platform preset (API_BASE_URL).
 
   const cacheOpts = buildCacheOptions(cache);
 

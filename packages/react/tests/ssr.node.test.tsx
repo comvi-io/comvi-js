@@ -1,7 +1,7 @@
 // @vitest-environment node
 /** Exercises the `getServerSnapshot` paths that happy-dom does not hit. */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import React from "react";
 import { renderToString } from "react-dom/server";
 
@@ -26,7 +26,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
     expect(html.replaceAll("<!-- -->", "")).toBe("Bonjour");
   });
 
-  it("ssrInitialLocale overrides the i18n.locale on the server snapshot path", () => {
+  it("ssrLocale overrides the i18n.locale on the server snapshot path", () => {
     const i18n = createI18n({
       locale: "en",
       messages: {
@@ -41,7 +41,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
     }
 
     const html = renderToString(
-      <I18nProvider i18n={i18n} autoInit={false} ssrInitialLocale="de">
+      <I18nProvider i18n={i18n} autoInit={false} ssrLocale="de">
         <Show />
       </I18nProvider>,
     );
@@ -122,7 +122,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
  * included, since it gates whether callers even ask for a string.
  */
 describe("@comvi/react SSR — useI18n().hasTranslation follows the provider locale", () => {
-  it("answers for ssrInitialLocale, not the instance locale", () => {
+  it("answers for ssrLocale, not the instance locale", () => {
     const i18n = createI18n({
       locale: "en",
       messages: { en: {}, fr: { greeting: "Bonjour" } },
@@ -131,7 +131,7 @@ describe("@comvi/react SSR — useI18n().hasTranslation follows the provider loc
     const Probe = () => <>{`has:${useI18n().hasTranslation("greeting")}`}</>;
 
     const html = renderToString(
-      <I18nProvider i18n={i18n} autoInit={false} ssrInitialLocale="fr">
+      <I18nProvider i18n={i18n} autoInit={false} ssrLocale="fr">
         <Probe />
       </I18nProvider>,
     );
@@ -148,7 +148,7 @@ describe("@comvi/react SSR — useI18n().hasTranslation follows the provider loc
     const Probe = () => <>{`has:${useI18n().hasTranslation("greeting")}`}</>;
 
     const html = renderToString(
-      <I18nProvider i18n={i18n} autoInit={false} ssrInitialLocale="fr">
+      <I18nProvider i18n={i18n} autoInit={false} ssrLocale="fr">
         <Probe />
       </I18nProvider>,
     );
@@ -186,11 +186,10 @@ describe("@comvi/react SSR — a throwing tag handler is NOT contained on the se
 });
 
 /**
- * W4/Q4 — `ssrLocale` is the cross-binding spelling of `ssrInitialLocale`
- * (`@comvi/vue` and `@comvi/nuxt` call the option that). Both are accepted, and
- * `ssrLocale` — the canonical name — wins when both are passed.
+ * `ssrLocale` is the render locale's one name across bindings (`@comvi/vue`
+ * and `@comvi/nuxt` use it too).
  */
-describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
+describe("@comvi/react SSR — ssrLocale", () => {
   const withGreeting = () =>
     createI18n({
       locale: "en",
@@ -203,7 +202,7 @@ describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
     return <span data-locale={locale}>{t("greeting" as never)}</span>;
   }
 
-  it("seeds the server snapshot locale on its own", () => {
+  it("seeds the server snapshot locale and the translations rendered in it", () => {
     const html = renderToString(
       <I18nProvider i18n={withGreeting()} autoInit={false} ssrLocale="de">
         <Show />
@@ -212,41 +211,6 @@ describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
 
     expect(html).toContain('data-locale="de"');
     expect(html.replaceAll("<!-- -->", "")).toContain("Hallo");
-  });
-
-  it("beats ssrInitialLocale when both are passed, and says so once", () => {
-    // The canonical name wins over the alias it replaces. It used to lose,
-    // which made the fix for the deprecation warning — adding `ssrLocale` —
-    // silently not change which locale the server painted.
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    const html = renderToString(
-      <I18nProvider i18n={withGreeting()} autoInit={false} ssrInitialLocale="en" ssrLocale="de">
-        <Show />
-      </I18nProvider>,
-    );
-
-    expect(html).toContain('data-locale="de"');
-    expect(html.replaceAll("<!-- -->", "")).toContain("Hallo");
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0]![0]).toContain("ssrLocale wins");
-  });
-
-  it("stays silent when only one of the two is passed", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    renderToString(
-      <I18nProvider i18n={withGreeting()} autoInit={false} ssrLocale="de">
-        <Show />
-      </I18nProvider>,
-    );
-    renderToString(
-      <I18nProvider i18n={withGreeting()} autoInit={false} ssrInitialLocale="de">
-        <Show />
-      </I18nProvider>,
-    );
-
-    expect(warn).not.toHaveBeenCalled();
   });
 });
 

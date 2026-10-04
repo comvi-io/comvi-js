@@ -1,13 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import {
-  I18nProvider,
-  useI18nContext,
-  useI18nHost,
-  useIsLoading,
-  useLocale,
-} from "../src/I18nProvider";
+import { I18nProvider, useI18nHost, useIsLoading, useLocale } from "../src/I18nProvider";
+import { useI18n } from "../src/useI18n";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushEffects } from "./test-utils";
 
@@ -23,7 +18,7 @@ describe("I18nProvider", () => {
     const fake = new FakeI18n();
 
     const Wrapped = () => {
-      const { locale } = useI18nContext();
+      const locale = useLocale();
       return <div data-testid="lang">{locale}</div>;
     };
 
@@ -225,7 +220,7 @@ describe("I18nProvider", () => {
     const fake = new FakeI18n();
 
     const Wrapped = () => {
-      const { locale } = useI18nContext();
+      const locale = useLocale();
       return <div data-testid="lang">{locale}</div>;
     };
 
@@ -254,7 +249,8 @@ describe("I18nProvider", () => {
     fake.isInitializing = false;
 
     const Probe = () => {
-      const { locale, isLoading, isInitializing } = useI18nContext();
+      const locale = useLocale();
+      const { isLoading, isInitializing } = useIsLoading();
       return (
         <div>
           {locale}|{String(isLoading)}|{String(isInitializing)}
@@ -266,7 +262,7 @@ describe("I18nProvider", () => {
       <I18nProvider
         i18n={fake.asI18n()}
         autoInit={false}
-        ssrInitialLocale="uk"
+        ssrLocale="uk"
         ssrInitialIsLoading={true}
         ssrInitialIsInitializing={true}
       >
@@ -282,7 +278,7 @@ describe("I18nProvider", () => {
     const renderSpy = vi.fn();
 
     const Wrapped = () => {
-      const { locale } = useI18nContext();
+      const locale = useLocale();
       renderSpy(locale);
       return <div data-testid="lang">{locale}</div>;
     };
@@ -324,7 +320,7 @@ describe("I18nProvider", () => {
     const renderSpy = vi.fn();
 
     const Wrapped = () => {
-      const { messagesCache } = useI18nContext();
+      const { messagesCache } = useI18n();
       renderSpy(messagesCache.size);
       return <div data-testid="cache-size">{messagesCache.size}</div>;
     };
@@ -351,42 +347,13 @@ describe("I18nProvider", () => {
     expect(renderSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("returns a fresh legacy context value when config changes without a cache revision change", async () => {
-    const fake = new FakeI18n();
-    const values: unknown[] = [];
-
-    const Wrapped = () => {
-      values.push(useI18nContext());
-      return <div data-testid="renders">{values.length}</div>;
-    };
-
-    render(
-      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
-        <Wrapped />
-      </I18nProvider>,
-    );
-
-    const firstValue = values[0];
-
-    act(() => {
-      fake.setFallbackLocale("de");
-      fake.emit("configChanged", { source: "fallbackLocale" });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("renders").textContent).toBe("2");
-    });
-    expect(values).toHaveLength(2);
-    expect(values[1]).not.toBe(firstValue);
-  });
-
   it("switches to the new i18n instance when the i18n prop changes", async () => {
     const first = new FakeI18n();
     const second = new FakeI18n();
     second.language = "fr";
 
     const Wrapped = () => {
-      const { locale } = useI18nContext();
+      const locale = useLocale();
       return <div data-testid="lang">{locale}</div>;
     };
     const Host = ({ fake }: { fake: FakeI18n }) => (
@@ -414,14 +381,12 @@ describe("I18nProvider", () => {
 });
 
 describe("useI18nHost", () => {
-  it("returns the provider's host — the same object useI18nContext().i18n hands back", () => {
+  it("returns the provider's host", () => {
     const fake = new FakeI18n({ language: "en" });
     let host: unknown;
-    let legacy: unknown;
 
     function Probe() {
       host = useI18nHost();
-      legacy = useI18nContext().i18n;
       return null;
     }
 
@@ -432,7 +397,6 @@ describe("useI18nHost", () => {
     );
 
     expect(host).toBe(fake.asI18n());
-    expect(legacy).toBe(host);
   });
 
   it("throws outside a provider", () => {

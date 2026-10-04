@@ -19,14 +19,9 @@ const CHECK_DESCRIPTION =
   "CI mode: verify the generated types are up to date " +
   "(exit 1 = outdated, 2 = check could not run, 4 = invalid config or a schema that cannot be emitted)";
 
-/**
- * `typegen` is the canonical name in the docs and `generate-types` is its
- * verbose spelling. Both are built here so their flags and behaviour cannot
- * drift apart.
- */
-function createTypeGenerationCommand(name: string, description: string): Command {
-  return new Command(name)
-    .description(description)
+export function createTypegenCommand(): Command {
+  return new Command("typegen")
+    .description("Generate TypeScript types from TMS")
     .option("-c, --config <path>", "Path to .comvirc.json file")
     .option("-w, --watch", "Watch for changes via SSE and regenerate types")
     .option("--check", CHECK_DESCRIPTION)
@@ -46,41 +41,6 @@ function createTypeGenerationCommand(name: string, description: string): Command
         } else {
           await runGenerateOnce(generator);
         }
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error(`✗ Error: ${error.message}`);
-        }
-        process.exit(exitCodeFor(error));
-      }
-    });
-}
-
-export function createGenerateTypesCommand(): Command {
-  return createTypeGenerationCommand("generate-types", "Generate TypeScript types from TMS");
-}
-
-export function createTypegenCommand(): Command {
-  return createTypeGenerationCommand(
-    "typegen",
-    "Generate TypeScript types from TMS (alias for generate-types)",
-  );
-}
-
-/** Legacy `generate` alias, kept for backward compatibility. */
-export function createGenerateCommand(): Command {
-  return new Command("generate")
-    .description("Generate TypeScript types from TMS (alias for generate-types)")
-    .option("-c, --config <path>", "Path to .comvirc.json file")
-    .action(async (options) => {
-      try {
-        console.log("🔄 Loading configuration...");
-
-        const config = await ConfigLoader.load(options.config);
-        const generatorOptions = ConfigLoader.toGeneratorOptions(config);
-
-        const generator = new TypeGenerator(generatorOptions);
-
-        await runGenerateOnce(generator);
       } catch (error) {
         if (error instanceof Error) {
           console.error(`✗ Error: ${error.message}`);

@@ -24,8 +24,8 @@ import type { I18nPluginHostApi } from "@comvi/core/plugins";
 // The `.js` extension the entry itself uses, so the identity assertions below
 // compare the SAME resolved module rather than two spellings of one path.
 import {
-  getI18nContext as deepGetI18nContext,
   setI18nContext as deepSetI18nContext,
+  useI18nHost as deepUseI18nHost,
 } from "../src/context.js";
 import { useI18n as deepUseI18n } from "../src/useI18n.js";
 import DeepT from "../src/T.svelte";
@@ -232,7 +232,6 @@ describe("@comvi/svelte — the export surface", () => {
     "createLocaleStore",
     "definePlugin",
     "devtools",
-    "getI18nContext",
     "icuCompiler",
     "loader",
     "plugins",
@@ -282,7 +281,7 @@ describe("@comvi/svelte — one entry, one context key", () => {
     // root re-exports the bindings THEMSELVES rather than wrapping them: a
     // wrapper would mint a second `getContext` key and introduce that hazard.
     expect(root.setI18nContext).toBe(deepSetI18nContext);
-    expect(root.getI18nContext).toBe(deepGetI18nContext);
+    expect(root.useI18nHost).toBe(deepUseI18nHost);
     expect(root.useI18n).toBe(deepUseI18n);
     expect(root.T).toBe(DeepT);
   });

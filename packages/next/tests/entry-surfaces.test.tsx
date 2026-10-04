@@ -125,7 +125,6 @@ describe("@comvi/next/client — the capability toolkit", () => {
     for (const name of [
       "useI18n",
       "useI18nHost",
-      "useI18nContext",
       "useI18nLoader",
       "useI18nPlugins",
       "useLocale",

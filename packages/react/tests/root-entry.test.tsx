@@ -141,7 +141,6 @@ describe("@comvi/react — the export surface", () => {
     "plugins",
     "useFormatters",
     "useI18n",
-    "useI18nContext",
     "useI18nHost",
     "useI18nLoader",
     "useI18nPlugins",
@@ -196,11 +195,11 @@ describe("@comvi/react — the export surface", () => {
     });
 
     const { result } = renderHook(
-      () => ({ context: root.useI18nContext(), bag: root.useI18n(), locale: root.useLocale() }),
+      () => ({ host: root.useI18nHost(), bag: root.useI18n(), locale: root.useLocale() }),
       { wrapper: wrapperFor(i18n) },
     );
 
-    expect(result.current.context.i18n).toBe(i18n);
+    expect(result.current.host).toBe(i18n);
     expect(result.current.locale).toBe("en");
     expect(result.current.bag.t("greeting" as never)).toBe("Hello");
   });

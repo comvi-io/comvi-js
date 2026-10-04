@@ -67,8 +67,6 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
     expect(listedCommands(run.stdout)).toEqual([
       "init",
       "typegen",
-      "generate-types",
-      "generate",
       "pull",
       "push",
       "help",

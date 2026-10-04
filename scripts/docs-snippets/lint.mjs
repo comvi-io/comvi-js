@@ -1116,7 +1116,7 @@ const BANNED_RULES = [
       return matches;
     },
     message:
-      "removed in 0.5.0: `<T>` renders structurally so allowedTags is a type error, " +
+      "removed in 0.5.0: `<T>` renders structurally and tag handlers come from `components`, " +
       "and createLanguageStore is replaced by createLocaleStore.",
   },
   {

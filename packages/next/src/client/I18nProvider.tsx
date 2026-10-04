@@ -15,13 +15,9 @@ import { RoutingProvider } from "../routing/context";
  */
 export type MessagesMap = Record<string, Record<string, TranslationValue>>;
 
-// Both spellings of react's SSR render locale are omitted: this provider sets
-// it from its own `locale` prop, so either one passed here would be silently
-// overridden.
-export interface I18nProviderProps extends Omit<
-  ReactI18nProviderProps,
-  "ssrInitialLocale" | "ssrLocale"
-> {
+// react's SSR render locale is omitted: this provider sets it from its own
+// `locale` prop, so `ssrLocale` passed here would be silently overridden.
+export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrLocale"> {
   /** Locale passed from server (from params.locale) */
   locale: string;
 

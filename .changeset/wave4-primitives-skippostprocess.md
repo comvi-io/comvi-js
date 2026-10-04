@@ -25,10 +25,8 @@ its write path, so `createDefaultNamespaceStore` and `createDefaultParamsStore` 
 `Writable`, their `set` / `update` calling the host. Every setter writes THROUGH to the host,
 which stays the source of truth; nothing assigns a local value. React and vue are unaffected.
 
-**`<T raw>` is renamed to `<T skipPostProcess>`, in all four bindings.** `raw` meant two unrelated
-things — `tRaw()` returns the structured result; `<T raw>` skips post-processors, notably the
-in-context editor's invisible markers — and only the `<T>` prop is renamed; `tRaw` is untouched.
-`raw` keeps working as a deprecated alias, removed in 0.6, with a one-time development warning
-(`<T raw>` is deprecated. Use `<T skipPostProcess>` instead); setting both props lets
-`skipPostProcess` win. Rename the prop wherever you render `<T>` — JSX and `.vue` / `.svelte`
-template markup alike.
+**BREAKING (breaking change on a 0.x minor): `<T raw>` is renamed to `<T skipPostProcess>`, in all
+four bindings.** `raw` meant two unrelated things — `tRaw()` returns the structured result; `<T raw>`
+skips post-processors, notably the in-context editor's invisible markers — and only the `<T>` prop
+is renamed; `tRaw` is untouched. Rename the prop wherever you render `<T>` — JSX and `.vue` /
+`.svelte` template markup alike.

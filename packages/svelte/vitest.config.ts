@@ -1,8 +1,7 @@
 import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "path";
+import { dirname } from "path";
 
 // Resolve core's dist through node_modules, not a relative path: inside a Stryker
 // sandbox (.stryker-tmp/sandbox-*) the package is copied, so "../core" does not
@@ -29,21 +28,6 @@ const coreBuild = (suffix: "" | ".dev") =>
     find: new RegExp(`^@comvi/core${entry === "" ? "" : `/${entry.slice(1)}`}$`),
     replacement: `${CORE_DIST}/comvi-core${entry}${suffix}.js`,
   }));
-
-/**
- * `#dev-warn` is resolved through the package.json `imports` map, whose
- * targets are `dist/` files — built by `svelte-package`, which these
- * source-level tests deliberately do not depend on. Alias it to the
- * DEVELOPMENT half: that is the one a consumer gets under the `development`
- * condition, and it is the half whose warning the `<T raw>` tests assert.
- * The production half is covered on the DIST, by the bundler-matrix
- * `*-dev-conditions` cases, and its export surface by tests/dev-warn.test.ts.
- */
-const DEV_WARN_ALIAS = {
-  find: "#dev-warn",
-  // Relative to THIS file, not the cwd: a Stryker sandbox runs from elsewhere.
-  replacement: resolve(dirname(fileURLToPath(import.meta.url)), "src/dev-warn.dev.ts"),
-};
 
 const shared = {
   plugins: [svelte({ compilerOptions: { dev: true } })],
@@ -82,7 +66,7 @@ export default defineConfig({
       {
         ...shared,
         define: freshDefine(),
-        resolve: { alias: [DEV_WARN_ALIAS], conditions: ["browser"] },
+        resolve: { conditions: ["browser"] },
         test: {
           name: "unit",
           environment: "happy-dom",
@@ -107,7 +91,7 @@ export default defineConfig({
         // vitest transforms in ssr mode.
         ...shared,
         define: freshDefine(),
-        resolve: { alias: [DEV_WARN_ALIAS], conditions: ["svelte", "node"] },
+        resolve: { conditions: ["svelte", "node"] },
         test: {
           name: "ssr",
           environment: "node",
@@ -118,13 +102,13 @@ export default defineConfig({
       },
       {
         ...shared,
-        resolve: { alias: [...coreBuild(".dev"), DEV_WARN_ALIAS], conditions: ["browser"] },
+        resolve: { alias: coreBuild(".dev"), conditions: ["browser"] },
         define: { ...freshDefine(), __COMVI_CORE_BUILD__: JSON.stringify("development") },
         test: { ...jsContract, name: "js-contract-dev" },
       },
       {
         ...shared,
-        resolve: { alias: [...coreBuild(""), DEV_WARN_ALIAS], conditions: ["browser"] },
+        resolve: { alias: coreBuild(""), conditions: ["browser"] },
         define: {
           __DEV__: JSON.stringify(false),
           __COMVI_CORE_BUILD__: JSON.stringify("production"),

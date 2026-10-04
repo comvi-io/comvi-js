@@ -5,15 +5,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "types": ["svelte"],
-    "verbatimModuleSyntax": true,
-    // `#dev-warn` is resolved at RUNTIME through the package.json `imports`
-    // map, whose targets are `dist/` files this project does not build (the
-    // publisher is `svelte-package`). Pointing tsc at the source half keeps
-    // `tsc --noEmit` independent of dist, and the two halves share one
-    // signature by contract (tests/dev-warn.test.ts).
-    "paths": {
-      "#dev-warn": ["./src/dev-warn.ts"]
-    }
+    "verbatimModuleSyntax": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]

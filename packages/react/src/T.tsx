@@ -1,6 +1,5 @@
 import React from "react";
 import { useI18n } from "./useI18n";
-import { useI18nHostOrNull } from "./I18nProvider";
 import { isVirtualNode } from "@comvi/core";
 import type {
   TranslationParams,
@@ -69,29 +68,6 @@ type ComponentHandler = ComponentTarget | ComponentConfig;
  */
 export type ComponentMap = Record<string, ComponentHandler>;
 
-declare const __DEV__: boolean | undefined;
-const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
-
-// Keyed by HOST identity, not one module-wide flag: a single boolean would
-// leak across unrelated hosts (two apps' worth on one page, or — the shape
-// that actually surfaced this during development, on svelte's port of this
-// same warning — two test files sharing a worker's module cache). The host
-// itself is the key, as in solid, svelte and vue: `useI18n()`'s bound
-// `reportError` is memoized per COMPONENT instance (`useMemo(…, [i18n])` runs
-// once per component, not once per host), so keying on it warned once per
-// sibling `<T raw>` instead of once per host. `/* @__PURE__ */` so the
-// allocation is not a side effect that pins the module (core's lateCompose).
-const warnedRawProp = /* @__PURE__ */ new WeakSet<object>();
-
-function warnDeprecatedRawProp(host: object): void {
-  if (IS_DEV && !warnedRawProp.has(host)) {
-    warnedRawProp.add(host);
-    console.warn(
-      "[i18n] <T raw> is deprecated. Use <T skipPostProcess> instead — `raw` will be removed in a future release.",
-    );
-  }
-}
-
 interface TagBoundaryProps {
   tagName: string;
   onTagError: (error: unknown, tagName: string) => void;
@@ -148,13 +124,6 @@ interface TBaseProps {
    * in-context editor injects.
    */
   skipPostProcess?: boolean;
-
-  /**
-   * @deprecated Renamed to `skipPostProcess` in 0.5. `raw` is still honored
-   * (a dev-only warning fires once per host) and will be removed in a future
-   * release.
-   */
-  raw?: boolean;
 
   /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: React.ReactNode;
@@ -218,7 +187,6 @@ const TComponent = function T({
   params = {},
   fallback,
   skipPostProcess,
-  raw,
   children,
   components,
   ...restProps
@@ -231,15 +199,6 @@ const TComponent = function T({
     getDefaultNamespace,
     reportError,
   } = useI18n();
-
-  // `OrNull`, not `useI18nHost()`: a real render always has a provider (the
-  // `useI18n()` above throws without one), and the null branch is only reached
-  // by tests that mock `useI18n` — where there is no host to key a warning on.
-  const warnHost = useI18nHostOrNull();
-  if (raw !== undefined && warnHost !== null) {
-    warnDeprecatedRawProp(warnHost);
-  }
-  const effectiveRaw = skipPostProcess ?? raw;
 
   const translate =
     tRaw ??
@@ -276,7 +235,15 @@ const TComponent = function T({
           checkFallbacks,
         ),
     },
-    { i18nKey: keyString, params: allParams, ns, locale, fallback, raw: effectiveRaw, components },
+    {
+      i18nKey: keyString,
+      params: allParams,
+      ns,
+      locale,
+      fallback,
+      raw: skipPostProcess,
+      components,
+    },
   );
 
   // Priority: translation (including a processed fallback/onMissing) > children

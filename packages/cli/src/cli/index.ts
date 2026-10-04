@@ -2,11 +2,7 @@
 
 import { Command } from "commander";
 import { createInitCommand } from "../commands/init";
-import {
-  createGenerateTypesCommand,
-  createGenerateCommand,
-  createTypegenCommand,
-} from "../commands/generate-types";
+import { createTypegenCommand } from "../commands/generate-types";
 import { createPullCommand } from "../commands/pull";
 import { createPushCommand } from "../commands/push";
 import { loadEnv, MissingEnvFileError } from "../core/EnvLoader";
@@ -55,8 +51,6 @@ program
 
 program.addCommand(createInitCommand());
 program.addCommand(createTypegenCommand());
-program.addCommand(createGenerateTypesCommand()); // Verbose alias
-program.addCommand(createGenerateCommand()); // Legacy alias
 program.addCommand(createPullCommand());
 program.addCommand(createPushCommand());
 

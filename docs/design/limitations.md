@@ -62,8 +62,6 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 
 - **There is no migration tool.** Moving from another library is a by-hand edit; the
   [migration guides](https://comvi.io/docs/i18n/guides/migrate-from-i18next) table the renames.
-- **Vue and Svelte template markup is edited by hand.** `<T raw>` inside a template is the rename
-  a reader has to make themselves.
 - **Typed keys are generated, not inferred.** `TranslationKeys` is a declaration-merging interface;
   `@comvi/cli` (from the platform) or `@comvi/vite-plugin` (from local JSON) writes it. Nothing
   infers key types from a runtime catalog.
@@ -110,16 +108,6 @@ isolation.
   is a closed union of your keys, and `string` is not one of them. Hand such a helper
   `t as (k: string) => string`. The two-argument shape
   `(key: string, params?: Record<string, unknown>) => string` never accepted `t` and still does not.
-
-## Deprecated surface, and when it goes
-
-Four members on `useI18n()` are declared as optional `never` in react, solid, svelte and vue, so
-`if (bag.reloadMessages)` compiles and is always false. Acquire them from `useI18nLoader()` /
-`useI18nPlugins()` instead. Those declarations, `<T raw>`, `allowedTags?: never` on svelte's `<T>`,
-`ssrInitialLocale` on `@comvi/react` and `CDN_BASE_URL` on `@comvi/plugin-fetch-loader` are all
-**removed in 0.6**. `CDN_BASE_URL` is the one that was never read: `cdnUrl` is a required option
-with no default and no environment override, so the constant answers a question the loader does not
-ask. The hosted CDN default stays readable as `comviPreset.cdnBaseUrl`.
 
 ## Memory
 

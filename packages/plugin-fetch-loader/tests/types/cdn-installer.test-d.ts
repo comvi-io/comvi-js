@@ -37,10 +37,6 @@ export const full = cdnLoader({
 // @ts-expect-error
 cdnLoader({ cdnUrl: "https://cdn.comvi.io/distribution", baseUrl: "https://api.comvi.io" });
 
-// WRONG — `apiBaseUrl`, the legacy spelling of the same API host.
-// @ts-expect-error
-cdnLoader({ cdnUrl: "https://cdn.comvi.io/distribution", apiBaseUrl: "https://api.comvi.io" });
-
 // WRONG — `retry` governs the project-info request, which is API-only.
 // @ts-expect-error
 cdnLoader({ cdnUrl: "https://cdn.comvi.io/distribution", retry: false });

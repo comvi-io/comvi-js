@@ -321,10 +321,9 @@ describe("New Features", () => {
       expect(isRef(imperativeResult)).toBe(false);
     });
 
-    // Q6 (wave 4). `hasTranslation` / `hasLocale` ARE the non-reactive form in
-    // react, solid and svelte, so `useI18n()` no longer carries a second
-    // spelling here: not in its type (a `?: never` tombstone) and not at
-    // runtime. The pair is the `VueI18n` class's, reachable through the
+    // `hasTranslation` / `hasLocale` ARE the non-reactive form in react, solid
+    // and svelte, so `useI18n()` carries no second spelling here: not in its
+    // type and not at runtime. The pair is the `VueI18n` class's, reachable through the
     // injection key.
     it("useI18n() does not return hasTranslationNow / hasLocaleNow, the class does", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });

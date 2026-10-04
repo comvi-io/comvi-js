@@ -1,13 +1,4 @@
 <script lang="ts">
-  // The dedupe-per-host warning lives in `#dev-warn`, NOT in a `<script
-  // module>` block here, and the reason is the published artifact rather than
-  // style: `svelte-package` copies this file to `dist/T.svelte` verbatim and
-  // substitutes no build-time defines, so a `__DEV__` guard written here ships
-  // unsubstituted and is false in every consumer, development included. Only
-  // the `imports` map can route this import through the `development`
-  // condition — see `src/dev-warn.ts` for the whole argument.
-  import { warnDeprecatedRawProp, warnDeprecatedAllowedTagsProp } from '#dev-warn';
-
   // The PURE rich-text seam, NOT '@comvi/core/tags': importing the tags entry
   // would register tag syntax AMBIENTLY, so every app rendering <T> would also
   // start parsing `<tag>` markup in plain string-API `t()`. prepareTranslation
@@ -29,22 +20,14 @@
     locale = undefined,
     fallback = undefined,
     skipPostProcess = undefined,
-    raw = undefined,
     components = undefined,
     children = undefined,
-    // 0.4 tombstone (`allowedTags?: never` in `TBaseProps`): pulled out here so
-    // it can never reach `directParams` below and be spread into `params` as
-    // an interpolation value — a JS caller ignoring the type error would
-    // otherwise silently leak it through. See `prepared` for the drop warning.
-    allowedTags = undefined,
     ...directParams
   }: TProps = $props();
 
   const i18n = useI18nHost();
   const languageStore = createLocaleStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
-
-  const effectiveRaw = $derived(skipPostProcess ?? raw);
 
   const prepared = $derived.by(() => {
     // This read IS the reactive dependency for the cache/config axis.
@@ -55,23 +38,6 @@
     // global locale change whose answer it cannot depend on.
     if (locale === undefined) {
       void $languageStore;
-    }
-
-    // Read (and side-effected on) INSIDE this derived, not a separate
-    // `$effect`: a plain top-level `if (raw !== undefined)` only reads the
-    // prop's INITIAL value (Svelte flags this — "state_referenced_locally"),
-    // and an `$effect` runs on its own microtask-scheduled flush instead of
-    // synchronously with render. A derived is evaluated synchronously the
-    // moment something reads `prepared` — exactly when this component first
-    // renders — so the warning is guaranteed to have fired before any caller
-    // observes the render's OUTPUT. Solid's `T.tsx` makes the same call
-    // inside its `createMemo` for the same reason.
-    if (raw !== undefined) {
-      warnDeprecatedRawProp(i18n);
-    }
-
-    if (allowedTags !== undefined) {
-      warnDeprecatedAllowedTagsProp(i18n);
     }
 
     // The spread is what SUBSCRIBES to each direct param, so it happens inside
@@ -85,7 +51,7 @@
       ns,
       locale,
       fallback,
-      raw: effectiveRaw,
+      raw: skipPostProcess,
       components,
     });
   });

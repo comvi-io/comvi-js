@@ -203,7 +203,6 @@ describe("@comvi/solid — the export surface", () => {
     "loader",
     "plugins",
     "useI18n",
-    "useI18nContext",
     "useI18nHost",
     "useI18nLoader",
     "useI18nPlugins",

@@ -52,8 +52,7 @@ export interface FetchLoaderOptions {
 
   /**
    * Explicit API base URL for dev mode requests — the documented way to point
-   * the loader at an API host. Takes precedence over the legacy `apiBaseUrl`
-   * option and over the build-time environment overrides
+   * the loader at an API host. Takes precedence over the build-time environment overrides
    * (`VITE_API_BASE_URL` / `NEXT_PUBLIC_COMVI_API_URL`).
    *
    * When absent, the environment overrides apply, then the Comvi platform
@@ -65,19 +64,6 @@ export interface FetchLoaderOptions {
    * ```
    */
   baseUrl?: string;
-
-  /**
-   * API base URL for dev mode requests.
-   * Required for Next.js/Nuxt because env vars aren't available in pre-built packages.
-   *
-   * Prefer `baseUrl`; when both are set, `baseUrl` wins.
-   *
-   * @example
-   * ```typescript
-   * apiBaseUrl: process.env.NEXT_PUBLIC_COMVI_API_URL || "https://api.comvi.io"
-   * ```
-   */
-  apiBaseUrl?: string;
 
   /**
    * Fallback imports when fetch fails (for offline/PWA scenarios)
@@ -224,16 +210,3 @@ export const API_BASE_URL =
   import.meta.env?.VITE_API_BASE_URL ||
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_COMVI_API_URL) ||
   comviPreset.apiBaseUrl;
-
-/**
- * Production CDN base URL; the env overrides exist for local development.
- *
- * @deprecated Unused since 0.5: `cdnUrl` is required and there is no
- * environment override for it, so nothing in the loader reads this constant.
- * Removed in 0.6. The hosted default lives on {@link comviPreset}.
- */
-export const CDN_BASE_URL =
-  // @ts-expect-error - import.meta.env is Vite-specific
-  import.meta.env?.VITE_CDN_BASE_URL ||
-  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_COMVI_CDN_URL) ||
-  comviPreset.cdnBaseUrl;

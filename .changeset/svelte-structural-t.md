@@ -15,13 +15,13 @@ their inner text.
   rendered content as its `children` snippet plus any `props` from the mapping. String and
   `{ tag: "a", props }` mappings work as before.
 - **`allowedTags` is removed.** There is no HTML-string rendering to allowlist; element
-  mappings come only from your `components` map. Passing the prop is now a type error.
+  mappings come only from your `components` map.
 - **No implicit attribute rewriting.** The old renderer injected `rel="noopener noreferrer"`
   on `<a target="_blank">`, forced `alt=""` on `<img>`, and stripped `on*` / `srcdoc` /
   `formaction` from mapping props. Mapping props are developer-owned and now pass through
   untouched (boolean `false` still omits the attribute). Set `rel` / `alt` explicitly where
   you relied on the injection.
-- Reserved-prop forwarding (`ns` / `locale` / `fallback` / `raw`) follows the shared rule: a
+- Reserved-prop forwarding (`ns` / `locale` / `fallback` / `skipPostProcess`) follows the shared rule: a
   prop overrides the same-named `params` key only when it is not `undefined`. Concrete-value
   behaviour is unchanged.
 - **The pipeline comes from a PURE seam**, so rendering `<T>` no longer switches plain

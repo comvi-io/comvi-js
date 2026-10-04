@@ -18,6 +18,3 @@
   `⚠ API key validation failed: Invalid API base URL: …` and the config was still created with
   the unusable URL. `init` now validates `--api-url` first, prints `✗ Invalid API base URL: …`
   and exits 4 without writing a config or calling the API.
-- Internal: `generate-types` and its `typegen` alias were byte-identical copies of the same
-  action and are now built from one implementation, so their flags and behaviour cannot drift.
-  The legacy `generate` alias keeps its reduced flag set.

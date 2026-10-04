@@ -49,12 +49,6 @@
       "default": "./dist/index.js"
     }
   },
-  "imports": {
-    "#dev-warn": {
-      "development": "./dist/dev-warn.dev.js",
-      "default": "./dist/dev-warn.js"
-    }
-  },
   "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",

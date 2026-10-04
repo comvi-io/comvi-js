@@ -3,7 +3,7 @@ import type { FetchLoaderOptions } from "../options";
 /**
  * The CDN subset of {@link FetchLoaderOptions}.
  *
- * `baseUrl`, `apiBaseUrl` and `retry` are absent because they only describe the
+ * `baseUrl` and `retry` are absent because they only describe the
  * API request path, which this entry does not contain: naming one is a compile
  * error here instead of a setting that silently does nothing.
  *

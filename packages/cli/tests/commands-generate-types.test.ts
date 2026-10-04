@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { promises as nodeFs } from "fs";
 import { dirname, join } from "path";
-import {
-  createGenerateTypesCommand,
-  createTypegenCommand,
-  createGenerateCommand,
-} from "../src/commands/generate-types";
+import { createTypegenCommand } from "../src/commands/generate-types";
 import type { ProjectSchema } from "../src/types";
 import {
   assertNoUnexpectedRequests,
@@ -53,7 +49,7 @@ const REJECTED_SCHEMA_ROUTES: Routes = {
   [PATHS.schema]: { status: 401, statusText: "Unauthorized" },
 };
 
-describe("comvi generate-types", () => {
+describe("comvi typegen", () => {
   let configPath: string;
   let outputPath: string;
   let projectDir: string;
@@ -96,13 +92,9 @@ describe("comvi generate-types", () => {
     assertNoUnexpectedRequests();
   });
 
-  it.each([
-    ["generate-types", createGenerateTypesCommand],
-    ["typegen", createTypegenCommand],
-    ["generate", createGenerateCommand],
-  ])("`comvi %s` writes the declaration file and exits 0", async (_name, createCommand) => {
+  it("`comvi typegen` writes the declaration file and exits 0", async () => {
     await expect(
-      createCommand().parseAsync(["-c", configPath], { from: "user" }),
+      createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
     ).rejects.toMatchObject({ exitCode: 0 });
 
     const written = await nodeFs.readFile(outputPath, "utf-8");
@@ -123,7 +115,7 @@ describe("comvi generate-types", () => {
     );
 
     await expect(
-      createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+      createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
     ).rejects.toMatchObject({ exitCode: 0 });
 
     expect(await nodeFs.readFile(outputPath, "utf-8")).toContain("declare module '@acme/i18n'");
@@ -136,7 +128,7 @@ describe("comvi generate-types", () => {
     await nodeFs.writeFile(join(projectDir, "package.json"), JSON.stringify({ name: "app" }));
 
     await expect(
-      createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+      createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
     ).rejects.toMatchObject({ exitCode: 1 });
 
     expect(output.stderr).toContain("@comvi/react");
@@ -145,7 +137,7 @@ describe("comvi generate-types", () => {
 
   it("reports the number of keys and the file it wrote", async () => {
     await expect(
-      createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+      createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
     ).rejects.toMatchObject({ exitCode: 0 });
 
     expect(output.stdout).toContain(`✓ Generated 2 keys → ${outputPath}`);
@@ -155,7 +147,7 @@ describe("comvi generate-types", () => {
     stubFetch(REJECTED_SCHEMA_ROUTES);
 
     await expect(
-      createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+      createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
     ).rejects.toMatchObject({ exitCode: 1 });
 
     expect(output.stderr).toContain("✗ Generation failed: Invalid API key");
@@ -165,79 +157,44 @@ describe("comvi generate-types", () => {
     const missing = join(dirname(configPath), "absent.json");
 
     await expect(
-      createGenerateTypesCommand().parseAsync(["-c", missing], { from: "user" }),
+      createTypegenCommand().parseAsync(["-c", missing], { from: "user" }),
     ).rejects.toMatchObject({ exitCode: 1 });
 
     expect(output.stderr).toContain(`✗ Error: Config file not found: ${missing}`);
   });
 
-  it("the typegen alias accepts the same flags as generate-types", () => {
-    expect(createTypegenCommand().options.map((option) => option.flags)).toEqual(
-      createGenerateTypesCommand().options.map((option) => option.flags),
-    );
-  });
+  it("`comvi typegen` registers under its own name with a summary", () => {
+    const command = createTypegenCommand();
 
-  it("the legacy generate alias accepts --config only", () => {
-    expect(createGenerateCommand().options.map((option) => option.long)).toEqual(["--config"]);
-  });
-
-  it.each([
-    ["generate-types", createGenerateTypesCommand, "Generate TypeScript types from TMS"],
-    ["typegen", createTypegenCommand, "alias for generate-types"],
-    ["generate", createGenerateCommand, "alias for generate-types"],
-  ])("`comvi %s` registers under its own name with a summary", (name, createCommand, summary) => {
-    const command = createCommand();
-
-    expect(command.name()).toBe(name);
-    expect(command.description()).toContain(summary);
+    expect(command.name()).toBe("typegen");
+    expect(command.description()).toContain("Generate TypeScript types from TMS");
   });
 
   it("documents the config and watch flags in the option help", () => {
-    const options = createGenerateTypesCommand().options;
+    const options = createTypegenCommand().options;
     const byLong = (long: string) => options.find((option) => option.long === long);
 
     expect(byLong("--config")?.description).toContain(".comvirc.json");
     expect(byLong("--watch")?.description).toContain("Watch for changes via SSE");
-    expect(
-      createGenerateCommand().options.find((option) => option.long === "--config")?.description,
-    ).toContain(".comvirc.json");
   });
 
   it("narrates configuration loading and the schema fetch", async () => {
     await expect(
-      createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+      createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
     ).rejects.toMatchObject({ exitCode: 0 });
 
     expect(output.stdout).toContain("Loading configuration");
     expect(output.stdout).toContain("Fetching schema from TMS");
   });
 
-  it("the legacy generate alias narrates configuration loading", async () => {
-    await expect(
-      createGenerateCommand().parseAsync(["-c", configPath], { from: "user" }),
-    ).rejects.toMatchObject({ exitCode: 0 });
-
-    expect(output.stdout).toContain("Loading configuration");
-  });
-
-  it("the legacy generate alias reports the error and exits 1 when the config is missing", async () => {
-    const missing = join(dirname(configPath), "absent.json");
-
-    await expect(
-      createGenerateCommand().parseAsync(["-c", missing], { from: "user" }),
-    ).rejects.toMatchObject({ exitCode: 1 });
-
-    expect(output.stderr).toContain(`✗ Error: Config file not found: ${missing}`);
-  });
-
   describe("--check", () => {
     it("exits 0 when it checks the file a preceding generate wrote", async () => {
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+        createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
       ).rejects.toMatchObject({ exitCode: 0 });
 
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+        createTypegenCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
       ).rejects.toMatchObject({ exitCode: 0 });
 
       expect(output.stdout).toContain("✓ Types are up to date (2 keys)");
@@ -245,7 +202,7 @@ describe("comvi generate-types", () => {
 
     it("exits 1 and counts no current keys when the file has never been generated", async () => {
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+        createTypegenCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
       ).rejects.toMatchObject({ exitCode: 1 });
 
       expect(output.stderr).toContain("✗ Types are outdated!");
@@ -258,7 +215,7 @@ describe("comvi generate-types", () => {
       await nodeFs.writeFile(outputPath, "  interface TranslationKeys {\n    'x': never;\n  }\n");
 
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+        createTypegenCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
       ).rejects.toMatchObject({ exitCode: 1 });
 
       expect(output.stderr).toContain("Current: 1 keys");
@@ -269,7 +226,7 @@ describe("comvi generate-types", () => {
       stubFetch(REJECTED_SCHEMA_ROUTES);
 
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+        createTypegenCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
       ).rejects.toMatchObject({ exitCode: 2 });
 
       expect(output.stderr).toContain("✗ Check could not run: Invalid API key");
@@ -284,7 +241,7 @@ describe("comvi generate-types", () => {
       );
 
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", invalidConfigPath, "--check"], {
+        createTypegenCommand().parseAsync(["-c", invalidConfigPath, "--check"], {
           from: "user",
         }),
       ).rejects.toMatchObject({ exitCode: 4 });
@@ -294,7 +251,7 @@ describe("comvi generate-types", () => {
 
     it("announces the check and tells the user how to update outdated types", async () => {
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+        createTypegenCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
       ).rejects.toMatchObject({ exitCode: 1 });
 
       expect(output.stdout).toContain("Checking if types are up to date");
@@ -314,7 +271,7 @@ describe("comvi generate-types", () => {
       });
 
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+        createTypegenCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
       ).rejects.toMatchObject({ exitCode: 4 });
 
       expect(output.stderr).toContain("✗ Error: Translation key collision");
@@ -323,8 +280,7 @@ describe("comvi generate-types", () => {
 
     it("documents the exit codes in the --check flag help", async () => {
       vi.resetModules();
-      const { createGenerateTypesCommand: freshCommand } =
-        await import("../src/commands/generate-types");
+      const { createTypegenCommand: freshCommand } = await import("../src/commands/generate-types");
 
       const checkOption = freshCommand().options.find((option) => option.long === "--check");
 
@@ -336,8 +292,7 @@ describe("comvi generate-types", () => {
 
     it("exits 2 for a TMS auth failure even on a freshly loaded module", async () => {
       vi.resetModules();
-      const { createGenerateTypesCommand: freshCommand } =
-        await import("../src/commands/generate-types");
+      const { createTypegenCommand: freshCommand } = await import("../src/commands/generate-types");
       stubFetch(REJECTED_SCHEMA_ROUTES);
 
       await expect(
@@ -372,7 +327,7 @@ describe("comvi generate-types", () => {
       }) as never);
       const resume = vi.spyOn(process.stdin, "resume").mockReturnValue(process.stdin);
 
-      const { createGenerateTypesCommand: createCommand } =
+      const { createTypegenCommand: createCommand } =
         await import("../src/commands/generate-types");
       await createCommand().parseAsync(["-c", configPath, "--watch"], { from: "user" });
 
@@ -454,7 +409,7 @@ describe("comvi generate-types", () => {
       stubFetch(REJECTED_SCHEMA_ROUTES);
 
       await expect(
-        createGenerateTypesCommand().parseAsync(["-c", configPath, "--watch"], { from: "user" }),
+        createTypegenCommand().parseAsync(["-c", configPath, "--watch"], { from: "user" }),
       ).rejects.toMatchObject({ exitCode: 1 });
 
       expect(output.stderr).toContain("✗ Initial generation failed: Invalid API key");

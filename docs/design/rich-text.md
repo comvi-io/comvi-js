@@ -60,8 +60,7 @@ this: `'{literal}'` and `''` are core grammar and work on every graph.
 always returns a string, coercing the parts, and `tRaw()` preserves them as a parts array.
 
 **`<T skipPostProcess>` skips post-processors for one call**, notably the in-context editor's
-invisible markers. `raw` is the same prop under its 0.4 name: deprecated, one development warning,
-removed in 0.6 — and in Vue and Svelte template markup it is a by-hand rename.
+invisible markers.
 
 ## Alternatives rejected
 

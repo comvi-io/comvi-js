@@ -10,7 +10,7 @@ has.
 ```
 
 Anything that is not one of `<T>`'s own props (`i18nKey`, `params`, `ns`, `locale`, `fallback`,
-`raw`, `skipPostProcess`, `components`) is passed to the translation as a param, so a one-value message no longer
+`skipPostProcess`, `components`) is passed to the translation as a param, so a one-value message no longer
 needs a `:params="{ … }"` object. `params` still works and can be combined with attributes; on a
 name collision the attribute wins, matching react.
 

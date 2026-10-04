@@ -34,6 +34,28 @@ function describe(value: unknown): string {
   return value === null ? "null" : `${typeNameOf(value)} ${JSON.stringify(value)}`;
 }
 
+/** Every top-level field `ComviConfig` declares. */
+const KNOWN_CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof ComviConfig>([
+  "apiKey",
+  "apiBaseUrl",
+  "outputPath",
+  "strictParams",
+  "augment",
+  "translationsPath",
+  "fileTemplate",
+  "format",
+  "namespaces",
+  "locales",
+  "push",
+  "pull",
+]);
+
+/** What to write instead, for the fields people are likely to carry over. */
+const UNKNOWN_FIELD_HINTS: Record<string, string> = {
+  languages: 'use "locales"',
+  defaultNsName: "the default namespace is read from the TMS, so delete it",
+};
+
 export class ConfigLoader {
   private static readonly CONFIG_FILENAME = ".comvirc.json";
 
@@ -92,7 +114,7 @@ export class ConfigLoader {
       const content = await fs.readFile(filePath, "utf-8");
       const config = JSON.parse(content) as ComviConfig;
 
-      this.stripLegacyDefaultNamespace(config);
+      this.rejectUnknownFields(config);
 
       this.applyEnvironmentOverrides(config);
 
@@ -126,8 +148,6 @@ export class ConfigLoader {
 
   private static validateConfig(config: ComviConfig): void {
     const errors: string[] = [];
-
-    this.warnOnLegacyLanguages(config);
 
     // apiKey is required, but can come from env var (already applied in applyEnvironmentOverrides)
     if (!config.apiKey || typeof config.apiKey !== "string" || config.apiKey.trim() === "") {
@@ -282,8 +302,6 @@ export class ConfigLoader {
 
   /** Only valid after validation, which is what guarantees `apiKey` is set. */
   static toGeneratorOptions(config: ComviConfig): GeneratorOptions {
-    this.stripLegacyDefaultNamespace(config);
-
     if (!config.apiKey) {
       throw new TypegenError(
         "API key is required. Set COMVI_API_KEY environment variable.",
@@ -300,29 +318,20 @@ export class ConfigLoader {
     };
   }
 
-  /** Warn once when `.comvirc.json` uses the legacy `languages` field (renamed to `locales`). */
-  private static warnOnLegacyLanguages(config: ComviConfig): void {
-    const legacyConfig = config as ComviConfig & { languages?: unknown };
-    if (legacyConfig.languages === undefined) {
-      return;
+  /**
+   * A `.comvirc.json` is hand-edited JSON the type checker never sees, so a
+   * field the config does not have fails here, by name, instead of being
+   * ignored. Where a field has a current equivalent, the message names it.
+   */
+  private static rejectUnknownFields(config: ComviConfig): void {
+    for (const key of Object.keys(config)) {
+      if (KNOWN_CONFIG_FIELDS.has(key)) continue;
+      const instead = UNKNOWN_FIELD_HINTS[key];
+      throw new TypegenError(
+        `".comvirc.json" field "${key}" is not an option${instead ? `: ${instead}` : ""}.`,
+        ErrorCodes.CONFIG_INVALID,
+      );
     }
-
-    console.warn(
-      '[comvi] Ignoring deprecated ".comvirc.json" field "languages"; it was renamed to "locales".',
-    );
-    delete legacyConfig.languages;
-  }
-
-  private static stripLegacyDefaultNamespace(config: ComviConfig): void {
-    const legacyConfig = config as ComviConfig & { defaultNsName?: unknown };
-    if (legacyConfig.defaultNsName === undefined) {
-      return;
-    }
-
-    console.warn(
-      '[comvi] Ignoring deprecated ".comvirc.json" field "defaultNsName"; default namespace is read from the TMS.',
-    );
-    delete legacyConfig.defaultNsName;
   }
 
   /** Where `create()` writes when the caller gives no explicit output path. */

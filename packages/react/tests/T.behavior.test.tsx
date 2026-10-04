@@ -182,7 +182,7 @@ describe("<T /> behavior", () => {
         locale="fr"
         ns="dashboard"
         fallback="Fallback text"
-        raw={false}
+        skipPostProcess={false}
         params={{ locale: "en", ns: "default", fallback: "param fallback", raw: true }}
       />,
     );
@@ -207,113 +207,5 @@ describe("<T /> behavior", () => {
     );
 
     expect(container.textContent).toBe("ENGLISH DEFAULT");
-  });
-
-  it("the deprecated raw prop still skips post-processing", async () => {
-    const { container } = await renderWithI18n(
-      hostWithUppercasePostProcessor(),
-      <T i18nKey="reserved" raw />,
-    );
-
-    expect(container.textContent).toBe("English default");
-  });
-
-  it("skipPostProcess wins over the deprecated raw prop when both are set", async () => {
-    const { container } = await renderWithI18n(
-      hostWithUppercasePostProcessor(),
-      <T i18nKey="reserved" raw={false} skipPostProcess={true} />,
-    );
-
-    expect(container.textContent).toBe("English default");
-  });
-
-  it("warns once in development when the deprecated raw prop is used, and not when only skipPostProcess is used", async () => {
-    // A host this test owns exclusively: the warn-once dedupe is keyed by
-    // host identity (`reportError`, stable per host — see T.tsx), so a fresh
-    // `createI18n(...)` here starts with no warning history of its own,
-    // regardless of what any other test already did with a DIFFERENT host.
-    const i18n = createI18n({ locale: "en" });
-    i18n.addMessages({ "en:default": { greeting: "Hello" } });
-    await i18n.init();
-
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const { rerender, unmount } = render(
-        <I18nProvider i18n={i18n} autoInit={false}>
-          <T i18nKey={"greeting" as never} skipPostProcess />
-        </I18nProvider>,
-      );
-      expect(warn).not.toHaveBeenCalled();
-
-      rerender(
-        <I18nProvider i18n={i18n} autoInit={false}>
-          <T i18nKey={"greeting" as never} raw />
-        </I18nProvider>,
-      );
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0]![0]).toContain("<T raw>");
-      expect(warn.mock.calls[0]![0]).toContain("<T skipPostProcess>");
-
-      // A second use on the SAME host does not warn again.
-      rerender(
-        <I18nProvider i18n={i18n} autoInit={false}>
-          <T i18nKey={"greeting" as never} raw />
-        </I18nProvider>,
-      );
-      expect(warn).toHaveBeenCalledTimes(1);
-
-      unmount();
-      await i18n.destroy();
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it("warns once for TWO sibling <T raw> under one provider", async () => {
-    // The dedupe key must be the HOST, not anything `useI18n()` memoizes:
-    // `useMemo` runs once per COMPONENT instance, so two siblings hold two
-    // different bound `reportError` functions and a WeakSet keyed on that one
-    // warned twice for a single host.
-    const i18n = createI18n({ locale: "en" });
-    i18n.addMessages({ "en:default": { greeting: "Hello" } });
-
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const { container, unmount } = await renderWithI18n(
-        i18n,
-        <>
-          <T i18nKey={"greeting" as never} raw />
-          <T i18nKey={"greeting" as never} raw />
-        </>,
-      );
-
-      expect(container.textContent).toBe("HelloHello");
-      expect(warn).toHaveBeenCalledTimes(1);
-
-      unmount();
-      await i18n.destroy();
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it("warns again for a DIFFERENT host, even right after another host's warning", async () => {
-    const first = createI18n({ locale: "en" });
-    const second = createI18n({ locale: "en" });
-
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const { unmount: unmountFirst } = await renderWithI18n(
-        first,
-        <T i18nKey={"greeting" as never} raw />,
-      );
-      expect(warn).toHaveBeenCalledTimes(1);
-      unmountFirst();
-
-      await renderWithI18n(second, <T i18nKey={"greeting" as never} raw />);
-      expect(warn).toHaveBeenCalledTimes(2);
-    } finally {
-      warn.mockRestore();
-    }
   });
 });

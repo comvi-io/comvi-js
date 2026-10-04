@@ -1,15 +1,16 @@
 // The DEV-CONDITIONS case for `@comvi/vue`: does a dev-only diagnostic
-// actually reach a consumer who defines NOTHING? See
-// `react-dev-conditions.mjs` for the full argument — this is the same claim on
-// the vue binding, which carries TWO `IS_DEV` diagnostics (the `<T raw>`
-// deprecation in the T chunk and the late-compose warning in the entry). The
-// late-compose one predates wave 4 and was dead for exactly the same reason.
+// actually reach a consumer who defines NOTHING?
 //
-// `T` is only REFERENCED, not rendered — rendering needs a renderer. The
-// reference is load-bearing all the same: an absence assertion on a module
-// nobody imported would pass for the wrong reason, which is why the runner
-// also asserts the T chunk is present in the module graph.
-import { createI18n, T, useI18n } from "@comvi/vue";
+// `__DEV__` is a build-time define of OUR build, never of the app's, so the
+// only thing that can make an `IS_DEV`-guarded warning reachable is the
+// package publishing a second artifact behind the `"development"` export
+// condition. This app therefore defines no `__DEV__` (neither bundler config
+// does) and lets the runner assert the late-compose warning's TEXT: present in
+// the development bundle, absent in the production one. The warning lives on
+// `VueI18n.use`, so building a host is what keeps it in the graph; the runner
+// also asserts the root module is present, since an absence assertion on a
+// module nobody imported would pass for the wrong reason.
+import { createI18n, useI18n } from "@comvi/vue";
 
 function assert(condition, label) {
   if (!condition) {
@@ -18,11 +19,8 @@ function assert(condition, label) {
   }
 }
 
-const isComponent = (component) =>
-  typeof component === "function" || (typeof component === "object" && component !== null);
 assert(typeof createI18n === "function", "@comvi/vue exports createI18n");
 assert(typeof useI18n === "function", "@comvi/vue exports useI18n");
-assert(isComponent(T), "@comvi/vue exports T");
 
 const i18n = createI18n({
   locale: "en",

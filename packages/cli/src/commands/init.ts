@@ -115,8 +115,8 @@ export function createInitCommand(): Command {
         const steps: Array<{ text: string; hint?: string }> = [
           ...(apiKey ? [] : [{ text: "Set COMVI_API_KEY environment variable" }]),
           {
-            text: "Run 'comvi generate-types' to generate types",
-            hint: "or 'comvi generate-types --watch' for real-time updates",
+            text: "Run 'comvi typegen' to generate types",
+            hint: "or 'comvi typegen --watch' for real-time updates",
           },
           { text: "Run 'comvi pull' to download translations" },
           { text: "Run 'comvi push' to upload translations" },

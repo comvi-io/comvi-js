@@ -12,17 +12,10 @@ export default defineConfig({
     }),
     addUseClient,
   ],
-  build: reactBuild(__dirname, ""),
+  build: reactBuild(__dirname),
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
     },
-  },
-  define: {
-    // The published comvi-react.js is always the PROD artifact — `vite build`
-    // pins NODE_ENV=production, so reading it here only ever produced `false`.
-    // The dev-only diagnostics ship in comvi-react.dev.js
-    // (vite.config.dev.ts), reachable via the "development" export condition.
-    __DEV__: JSON.stringify(false),
   },
 });

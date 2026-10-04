@@ -126,7 +126,7 @@ Naming an `/api`-only option on `cdnLoader` is a compile error. Concurrent reque
 
 ## Next steps
 
-- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the CDN layout, every option in full, `apiBaseUrl`.
+- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the CDN layout, every option in full, `baseUrl`.
 - [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi): the CDN URL, the status filter and the first plural.
 - [Loading translations](https://comvi.io/docs/i18n/loading-translations): import maps, custom loaders and namespaces.
 - [Loader API](https://comvi.io/docs/i18n/api/core-loader): every member the loader capability adds.

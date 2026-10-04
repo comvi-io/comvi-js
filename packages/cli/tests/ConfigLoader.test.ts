@@ -68,45 +68,33 @@ describe("ConfigLoader", () => {
       expect(mockReadFile).toHaveBeenCalledWith(resolve(configPath), "utf-8");
     });
 
-    it("warns and ignores legacy defaultNsName from config files", async () => {
-      const configPath = "/project/.comvirc.json";
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it.each([
+      [
+        "languages",
+        ["en", "uk"],
+        '".comvirc.json" field "languages" is not an option: use "locales".',
+      ],
+      [
+        "defaultNsName",
+        "common",
+        '".comvirc.json" field "defaultNsName" is not an option: the default namespace is read from the TMS, so delete it.',
+      ],
+      ["outputDir", "src/types", '".comvirc.json" field "outputDir" is not an option.'],
+    ])(
+      "refuses the unknown field %s and names what to write instead",
+      async (key, value, message) => {
+        const configPath = "/project/.comvirc.json";
 
-      mockAccess.mockResolvedValueOnce(undefined);
-      mockReadFile.mockResolvedValueOnce(
-        JSON.stringify({
-          ...mockConfig,
-          defaultNsName: "common",
-        }),
-      );
+        mockAccess.mockResolvedValueOnce(undefined);
+        mockReadFile.mockResolvedValueOnce(JSON.stringify({ ...mockConfig, [key]: value }));
 
-      const result = await ConfigLoader.load(configPath);
+        const error = await ConfigLoader.load(configPath).catch((e: unknown) => e);
 
-      expect(warn).toHaveBeenCalledWith(
-        '[comvi] Ignoring deprecated ".comvirc.json" field "defaultNsName"; default namespace is read from the TMS.',
-      );
-      expect("defaultNsName" in result).toBe(false);
-    });
-
-    it("warns and ignores legacy languages field from config files", async () => {
-      const configPath = "/project/.comvirc.json";
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      mockAccess.mockResolvedValueOnce(undefined);
-      mockReadFile.mockResolvedValueOnce(
-        JSON.stringify({
-          ...mockConfig,
-          languages: ["en", "uk"],
-        }),
-      );
-
-      const result = await ConfigLoader.load(configPath);
-
-      expect(warn).toHaveBeenCalledWith(
-        '[comvi] Ignoring deprecated ".comvirc.json" field "languages"; it was renamed to "locales".',
-      );
-      expect("languages" in result).toBe(false);
-    });
+        expect(error).toBeInstanceOf(TypegenError);
+        expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+        expect((error as TypegenError).message).toBe(message);
+      },
+    );
 
     it("does not warn about languages when only locales is present", async () => {
       const configPath = "/project/.comvirc.json";
@@ -432,18 +420,6 @@ describe("ConfigLoader", () => {
       expect(() => ConfigLoader.toGeneratorOptions({} as ComviConfig)).toThrow(
         "API key is required",
       );
-    });
-
-    it("warns about legacy defaultNsName when converting directly", () => {
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const legacyConfig: ComviConfig & { defaultNsName?: string } = {
-        apiKey: "k",
-        defaultNsName: "common",
-      };
-
-      ConfigLoader.toGeneratorOptions(legacyConfig);
-
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"defaultNsName"'));
     });
   });
 

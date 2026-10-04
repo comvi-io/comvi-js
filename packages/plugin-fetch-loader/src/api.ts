@@ -21,7 +21,6 @@ export type {
 } from "./options";
 export {
   API_BASE_URL,
-  CDN_BASE_URL,
   FETCH_LOADER_PLUGIN_KEY,
   comviPreset,
   getFetchLoaderConfig,

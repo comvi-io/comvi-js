@@ -71,14 +71,14 @@ inherit a config at the workspace root; point at it with `--config ../../.comvir
 
 ## Commands
 
-| Command                 | What it does                                                                                     |
-| ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `comvi init`            | Writes `.comvirc.json`.                                                                          |
-| `comvi pull`            | Downloads the project's translations into local JSON files.                                      |
-| `comvi push`            | Uploads local JSON files to the project.                                                         |
-| `comvi typegen`         | Writes the `TranslationKeys` declaration from the project's keys. Also spelled `generate-types`. |
-| `comvi typegen --watch` | Generates once, then regenerates on every schema change over Server-Sent Events.                 |
-| `comvi typegen --check` | Writes nothing; exits `1` when the file on disk is outdated. For CI.                             |
+| Command                 | What it does                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `comvi init`            | Writes `.comvirc.json`.                                                          |
+| `comvi pull`            | Downloads the project's translations into local JSON files.                      |
+| `comvi push`            | Uploads local JSON files to the project.                                         |
+| `comvi typegen`         | Writes the `TranslationKeys` declaration from the project's keys.                |
+| `comvi typegen --watch` | Generates once, then regenerates on every schema change over Server-Sent Events. |
+| `comvi typegen --check` | Writes nothing; exits `1` when the file on disk is outdated. For CI.             |
 
 ```bash title="Terminal"
 npx comvi pull

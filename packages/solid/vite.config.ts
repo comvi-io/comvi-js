@@ -11,17 +11,10 @@ export default defineConfig({
       insertTypesEntry: true,
     }),
   ],
-  build: solidBuild(__dirname, ""),
+  build: solidBuild(__dirname),
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
     },
-  },
-  define: {
-    // The published comvi-solid.js is always the PROD artifact — `vite build`
-    // pins NODE_ENV=production, so reading it here only ever produced `false`.
-    // The dev-only diagnostics ship in comvi-solid.dev.js
-    // (vite.config.dev.ts), reachable via the "development" export condition.
-    __DEV__: JSON.stringify(false),
   },
 });

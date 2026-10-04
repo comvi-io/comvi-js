@@ -2,6 +2,8 @@
 
 Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 single-entry convergence and the
 one-verb rule; ICU as a constructor option, D1 29.08.2026, reaffirmed 14.09.2026
+Amended 2026-10-04: one artifact for `@comvi/react`, `@comvi/solid` and `@comvi/svelte` (no
+`development` build); see the last paragraph of Consequences.
 
 ## Context
 
@@ -88,6 +90,18 @@ attached. `.use(cdnLoaderPlugin(…))` throws
 `E_USE_NOT_INSTALLER` — and `.use` calls the function before it checks, so an async plugin runs
 outside `init()`'s drain loop and hands back a promise nobody awaits. The queue is what gives a
 plugin `required`, `timeout`, `onError` and cleanup.
+
+**`@comvi/react`, `@comvi/solid` and `@comvi/svelte` publish one artifact.** Each binding used to
+ship a second build behind the `development` export condition (svelte through a `#dev-warn`
+package import), and the only thing it carried was the `<T raw>` rename warning plus react's
+`ssrInitialLocale` clash warning. 0.5 has no aliases, so both warnings went with the names, and a
+development artifact with no development-only code is a byte-identical copy that only costs a build
+and an exports-map entry. `@comvi/core`, `@comvi/vue` and `@comvi/next` keep theirs: each carries
+real development-only diagnostics (core's readable errors, vue's late-`.use` warning, next's
+readable `.use` identity error), and the bundler matrix proves each one reaches a development
+bundle and stays out of a production one. A binding gets its development build back the day it
+gains a genuine binding-level diagnostic that must not ship to production, together with a
+bundler-matrix `*-dev-conditions` case asserting that diagnostic's text.
 
 ## Alternatives rejected
 

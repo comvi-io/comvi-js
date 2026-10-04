@@ -17,14 +17,14 @@ A server process handles concurrent requests. The host holds a mutable `locale`.
 depends on whether a request ever WRITES that locale, and each framework's SSR entry point answers
 differently.
 
-| framework   | host at module scope on the server | why                                                                                                               | how the request locale arrives                      |
-| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| **Next.js** | **required**                       | `setI18n()` registers one instance per process and `getI18n()` resolves it; no request writes the locale          | passed explicitly to every `getI18n()` lookup       |
-| **Nuxt**    | **forbidden**                      | the module builds a FRESH host per request through the host factory, and destroys it once the request is answered | nuxt's resolved `locale` option, per request        |
-| **Solid**   | **forbidden**                      | adopting `ssrLocale` is a WRITE to `i18n.locale`, and `renderToString` runs it in the server process              | `ssrLocale` on `<I18nProvider>`                     |
-| **Svelte**  | **forbidden**                      | a per-request instance built in `+layout.svelte` from `load` data; a `load` return value is serialized            | `data.locale` from the `load` function              |
-| **React**   | either, if nothing writes          | plain react has no SSR entry of its own; the rule is the host framework's                                         | `ssrLocale` (or `ssrInitialLocale`) on the provider |
-| **Vue**     | **forbidden**                      | a module-scope `createI18n(...)` is a singleton whose reactive `locale` ref moves under every concurrent render   | `ssrLocale` in the constructor options              |
+| framework   | host at module scope on the server | why                                                                                                               | how the request locale arrives                |
+| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| **Next.js** | **required**                       | `setI18n()` registers one instance per process and `getI18n()` resolves it; no request writes the locale          | passed explicitly to every `getI18n()` lookup |
+| **Nuxt**    | **forbidden**                      | the module builds a FRESH host per request through the host factory, and destroys it once the request is answered | nuxt's resolved `locale` option, per request  |
+| **Solid**   | **forbidden**                      | adopting `ssrLocale` is a WRITE to `i18n.locale`, and `renderToString` runs it in the server process              | `ssrLocale` on `<I18nProvider>`               |
+| **Svelte**  | **forbidden**                      | a per-request instance built in `+layout.svelte` from `load` data; a `load` return value is serialized            | `data.locale` from the `load` function        |
+| **React**   | either, if nothing writes          | plain react has no SSR entry of its own; the rule is the host framework's                                         | `ssrLocale` on the provider                   |
+| **Vue**     | **forbidden**                      | a module-scope `createI18n(...)` is a singleton whose reactive `locale` ref moves under every concurrent render   | `ssrLocale` in the constructor options        |
 
 Read that column again if you are porting an app between frameworks: **Next requires the shared
 module-scope host that Solid, Svelte, Vue and Nuxt forbid.** It is the one place in this library
@@ -307,12 +307,9 @@ initial server render. The rule is the same: only serializable data crosses `loa
 React has no SSR entry of its own; whichever framework renders it sets the module-scope rule. What
 react contributes is the pair of props that make a server render and its hydration agree.
 
-- **`ssrLocale`** is the locale the server snapshot renders in. `ssrInitialLocale` is react's
-  original name for the same prop, kept as a legacy alias: when both are passed `ssrLocale` wins —
-  the canonical name should not lose to the alias it replaces — and a development build warns that
-  it did. Prefer `ssrLocale` — it is the name `@comvi/vue`,
+- **`ssrLocale`** is the locale the server snapshot renders in. It is the name `@comvi/vue`,
   `@comvi/solid` and `@comvi/nuxt` use, so one shared SSR layer passes one name to every binding.
-  `@comvi/next` takes the render locale from its own `locale` prop and accepts neither.
+  `@comvi/next` takes the render locale from its own `locale` prop and does not accept it.
 - **`ssrInitialIsInitializing`** decides whether the server render is gated by `fallback`, and it is
   `false` by default. A server render is therefore never gated, and because the hydration render
   reads that same snapshot, the hydrated markup matches before the gate re-applies on the client.

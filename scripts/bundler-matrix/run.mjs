@@ -33,8 +33,8 @@ import { execFileSync, spawnSync } from "node:child_process";
  *
  * Wrapper <T> rendering is NOT exercised (needs a DOM/renderer); wrapper
  * tarballs are still packed, installed, and bundled (app/src/wrappers.mjs).
- * Each `*-dev-conditions` case imports whichever module carries its binding's
- * dev-only diagnostic — `T` for the four wrappers, `createNextI18n` for
+ * Each `*-dev-conditions` case imports whichever module carries its package's
+ * dev-only diagnostic — the root entry for `@comvi/vue`, `createNextI18n` for
  * `@comvi/next` — so that module is in the graph under both conditions.
  */
 
@@ -89,18 +89,13 @@ const EDITOR_MODAL_CHUNK = [
   `@comvi${path.sep}plugin-in-context-editor${path.sep}dist${path.sep}EditModal-`,
 ];
 /**
- * The `<T>` module of each binding, as a module-ID fragment. The `.dev`
- * artifact's chunk carries the same fragment, so one entry covers both
- * conditions. Used by the `*-dev-conditions` cases as the POSITIVE half of
- * their claim: a warning missing from the production bundle only means
- * something if the module that would have carried it is in the graph.
+ * `@comvi/vue`'s root module, the one that carries its `IS_DEV` diagnostic
+ * (`VueI18n.use`). The `.dev` artifact carries the same fragment, so one
+ * entry covers both conditions — the POSITIVE half of the claim: a warning
+ * missing from the production bundle only means something if the module that
+ * would have carried it is in the graph.
  */
-const BINDING_T_MODULE = {
-  react: [`@comvi${path.sep}react${path.sep}dist${path.sep}chunks${path.sep}comvi-react-T`],
-  solid: [`@comvi${path.sep}solid${path.sep}dist${path.sep}chunks${path.sep}comvi-solid-T`],
-  svelte: [`@comvi${path.sep}svelte${path.sep}dist${path.sep}T.svelte`],
-  vue: [`@comvi${path.sep}vue${path.sep}dist${path.sep}chunks${path.sep}comvi-vue-T`],
-};
+const VUE_ROOT_MODULE = [`@comvi${path.sep}vue${path.sep}dist${path.sep}comvi-vue`];
 /**
  * `@comvi/next`'s composed-root module, the one that carries its `IS_DEV`
  * diagnostic. `preserveModules` names it per module rather than per chunk, and
@@ -108,13 +103,11 @@ const BINDING_T_MODULE = {
  */
 const NEXT_COMPOSED_ROOT_MODULE = [`@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n`];
 /**
- * The `<T raw>` deprecation, verbatim and identical in all four bindings. It
- * is guarded by each binding's `IS_DEV`, so it is in the DEVELOPMENT artifact
- * only — which is the whole point: before the `development` export condition
- * (and, for svelte, the `#dev-warn` imports entry) existed, this string was in
- * NO artifact a consumer could resolve, in any mode.
+ * `@comvi/vue`'s late-compose warning (`.use(installer)` after `app.use(i18n)`
+ * started init), quoted without its prefix. It is guarded by `IS_DEV`, so it
+ * is in the DEVELOPMENT artifact only.
  */
-const T_RAW_DEPRECATION = "<T raw> is deprecated";
+const VUE_LATE_USE_WARNING = "ran after app.use(i18n) started init()";
 /**
  * `@comvi/next`'s one `IS_DEV` diagnostic: the readable half of the
  * `E_USE_HOST_IDENTITY` error `createNextI18n(…).use` throws when an installer
@@ -154,9 +147,8 @@ const NEXT_USE_IDENTITY_HINT = ".use(installer) must return the host it was give
  * right instrument here and only here: the question is literally "did this
  * warning ship".
  *
- * `bundlers` narrows a case to a subset of the matrix legs. Only
- * `svelte-dev-conditions` uses it: it imports `T`, and the webpack leg has no
- * svelte loader on purpose (every other svelte case relies on webpack pruning
+ * `bundlers` narrows a case to a subset of the matrix legs (the webpack leg
+ * has no svelte loader on purpose: every svelte case relies on webpack pruning
  * the `T.svelte` re-export WITHOUT resolving it).
  *
  * `packages` are the workspace tarballs the case needs, `deps` the framework
@@ -315,48 +307,21 @@ const CASES = [
     deps: ["react", "next"],
   },
   // ---------------------------------------------------------------------
-  // The DEV-CONDITIONS recipes: one per binding, each importing `T` from the
-  // one published root and defining NO `__DEV__` anywhere (neither bundler
-  // config does). `devOnlyText` then asserts the `<T raw>` deprecation is in
-  // the development bundle and out of the production one.
+  // The DEV-CONDITIONS recipes: one per package that ships an `IS_DEV`
+  // diagnostic, each defining NO `__DEV__` anywhere (neither bundler config
+  // does). `devOnlyText` then asserts the diagnostic is in the development
+  // bundle and out of the production one.
   //
-  // These four are THE gate for "the dev-only diagnostics are reachable at
-  // all". Every binding used to bake `__DEV__: false` into its single
-  // artifact, so the warnings were dead in the published packages in BOTH
-  // modes — a defect no existing case could see, because the module graph is
-  // identical either way and only the resolved artifact's text differs.
-  {
-    name: "react-dev-conditions",
-    sentinels: "absent",
-    devOnlyText: [T_RAW_DEPRECATION],
-    presentModules: BINDING_T_MODULE.react,
-    packages: ["@comvi/core", "@comvi/react"],
-    deps: ["react"],
-  },
-  {
-    name: "solid-dev-conditions",
-    sentinels: "absent",
-    devOnlyText: [T_RAW_DEPRECATION],
-    presentModules: BINDING_T_MODULE.solid,
-    packages: ["@comvi/core", "@comvi/solid"],
-    deps: ["solid-js"],
-  },
-  {
-    // Vite only: this case imports `T`, and the webpack leg has no svelte
-    // loader by design — see the fixture's header.
-    name: "svelte-dev-conditions",
-    bundlers: ["vite"],
-    sentinels: "absent",
-    devOnlyText: [T_RAW_DEPRECATION],
-    presentModules: BINDING_T_MODULE.svelte,
-    packages: ["@comvi/core", "@comvi/svelte"],
-    deps: ["svelte"],
-  },
+  // These are THE gate for "the dev-only diagnostics are reachable at all". A
+  // package that bakes `__DEV__: false` into its single artifact ships its
+  // warnings dead in BOTH modes — a defect no other case can see, because the
+  // module graph is identical either way and only the resolved artifact's
+  // text differs.
   {
     name: "vue-dev-conditions",
     sentinels: "absent",
-    devOnlyText: [T_RAW_DEPRECATION],
-    presentModules: BINDING_T_MODULE.vue,
+    devOnlyText: [VUE_LATE_USE_WARNING],
+    presentModules: VUE_ROOT_MODULE,
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
   },

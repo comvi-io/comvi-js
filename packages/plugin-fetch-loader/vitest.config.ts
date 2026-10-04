@@ -4,7 +4,6 @@ import { resolve } from "path";
 export default defineConfig({
   define: {
     "import.meta.env.VITE_API_BASE_URL": JSON.stringify("http://localhost:3000"),
-    "import.meta.env.VITE_CDN_BASE_URL": JSON.stringify("https://cdn.thebestfrontend.com"),
   },
   test: {
     environment: "happy-dom",

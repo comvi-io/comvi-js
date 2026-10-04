@@ -1,6 +1,6 @@
 // The DEV-CONDITIONS case for `@comvi/next`: does a dev-only diagnostic
 // actually reach a consumer who defines NOTHING? See
-// `react-dev-conditions.mjs` for the full argument — `@comvi/next` had the
+// `vue-dev-conditions.mjs` for the full argument — `@comvi/next` had the
 // same defect, with `__DEV__: false` baked into its only artifact family.
 //
 // The ROOT entry, not `/client`: the package's one `IS_DEV` diagnostic is the
