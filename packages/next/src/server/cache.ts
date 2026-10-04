@@ -163,6 +163,14 @@ export function resolveServerI18n(): ServerI18nHost {
 }
 
 /**
+ * The `i18n` export of the aliased config module, if `withComvi` set one.
+ * @internal
+ */
+export function getConfiguredI18n(): ConfigModule["i18n"] {
+  return config.i18n;
+}
+
+/**
  * The `routing` export of the aliased config module, if there is one.
  * @internal
  */

@@ -8,6 +8,9 @@ export { getI18n } from "./server/getI18n";
 export { getLocale } from "./server/getLocale";
 export { setI18n } from "./server/cache";
 export { loadTranslations } from "./server/loadTranslations";
+// The layout provider for apps with `withComvi({ config })` in next.config.
+export { ComviProvider } from "./server/ComviProvider";
+export type { ComviProviderProps } from "./server/ComviProvider";
 
 // Exported here and nowhere else: a server loader reached through the host
 // factory can then never leak into the client graph.

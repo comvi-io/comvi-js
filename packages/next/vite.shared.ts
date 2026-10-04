@@ -34,6 +34,9 @@ const isWatchMode = process.argv.includes("--watch");
 const CLIENT_MODULES = [
   "client",
   "client/I18nProvider",
+  // Rendered by the server `ComviProvider`: a relative import from
+  // `server/ComviProvider.js`, which Next turns into a client reference.
+  "client/ComviClientProvider",
   "navigation",
   "routing/Link",
   "routing/hooks",

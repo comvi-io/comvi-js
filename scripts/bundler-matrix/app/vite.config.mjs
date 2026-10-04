@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defaultClientConditions, defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { clientReference } from "./client-references.mjs";
 
 export default defineConfig(({ mode }) => {
   const entry = process.env.BM_ENTRY;
@@ -42,6 +43,17 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       svelte(),
+      // A Next SERVER layer turns `"use client"` modules into client references
+      // (see client-references.mjs); modelled only where the case models it.
+      conditions.includes("react-server") && {
+        name: "bm-client-references",
+        enforce: "pre",
+        transform(code, id) {
+          if (!/node_modules[\\/]@comvi[\\/]/.test(id)) return null;
+          const proxy = clientReference(code, id);
+          return proxy === null ? null : { code: proxy, map: null };
+        },
+      },
       {
         name: "bm-module-ids",
         generateBundle(_options, bundle) {

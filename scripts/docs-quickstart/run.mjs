@@ -5,6 +5,7 @@
  *
  *   pnpm docs:quickstart --content <dir> [--only react,vue] [--sdk-root <dir>]
  *                        [--no-build] [--no-pack] [--fresh] [--keep] [--jobs N]
+ *                        [--next-webpack]
  *
  *     --content   the docs directory holding quick-start.mdx and connect-comvi.mdx
  *                 (the www app's src/content/docs/docs/i18n)
@@ -14,6 +15,9 @@
  *     --fresh     re-run the scaffolders instead of using the cached scaffolds
  *     --keep      leave each project directory in place for inspection
  *     --jobs      projects built in parallel (default 3)
+ *     --next-webpack  build the Next projects with `next build --webpack` instead of
+ *                 the scaffold's `build` script (Turbopack on Next 16), so the
+ *                 webpack graph of the same files is proven too
  *
  * Per framework and page:
  *
@@ -85,6 +89,7 @@ export function parseArgs(argv) {
     fresh: false,
     keep: false,
     jobs: 3,
+    nextWebpack: false,
   };
   const value = (flag, index) => {
     const next = argv[index];
@@ -100,6 +105,7 @@ export function parseArgs(argv) {
     else if (arg === "--no-pack") options.pack = false;
     else if (arg === "--fresh") options.fresh = true;
     else if (arg === "--keep") options.keep = true;
+    else if (arg === "--next-webpack") options.nextWebpack = true;
     else if (arg === "--jobs") options.jobs = Math.max(1, Number(value(arg, ++index)) || 1);
     else throw new Error(`unknown argument "${arg}"`);
   }
@@ -489,7 +495,8 @@ async function runProject({ fw, page, plan, packages, cdn, options }) {
     if (!record("install", install)) return result;
 
     const tools = TOOLCHAIN[fw];
-    const built = record("build", await exec("pnpm", tools.build, { cwd: dir }));
+    const build = fw === "next" && options.nextWebpack ? tools.webpackBuild : tools.build;
+    const built = record("build", await exec("pnpm", build, { cwd: dir }));
     record("typecheck", await exec("pnpm", tools.typecheck, { cwd: dir }));
     if (built) record("render", await render(dir, fw, page));
     return result;

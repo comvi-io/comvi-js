@@ -383,6 +383,9 @@ export const TOOLCHAIN = {
   },
   next: {
     build: ["run", "build"],
+    // `--next-webpack`: the same project through webpack. Next 16 builds with
+    // Turbopack by default; `--webpack` is its documented opt-out.
+    webpackBuild: ["exec", "next", "build", "--webpack"],
     typecheck: ["exec", "tsc", "--noEmit"],
     // Not 127.0.0.1: Next's NextURL renames loopback IPs to `localhost`
     // (next/dist/server/web/next-url.js parseURL), so a middleware rewrite comes

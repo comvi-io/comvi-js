@@ -10,6 +10,7 @@
 // ModuleConcatenationPlugin nests in production.
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const webpack = require("webpack");
@@ -30,6 +31,19 @@ export default (env, argv) => {
     target: "node18",
     devtool: false,
     ...(conditions.length > 0 && { resolve: { conditionNames: [...conditions, "..."] } }),
+    // A Next SERVER layer turns `"use client"` modules into client references
+    // (see client-references.mjs); modelled only where the case models it.
+    ...(conditions.includes("react-server") && {
+      module: {
+        rules: [
+          {
+            test: /\.m?js$/,
+            include: /node_modules[\\/]@comvi[\\/]/,
+            use: fileURLToPath(new URL("./client-references.mjs", import.meta.url)),
+          },
+        ],
+      },
+    }),
     output: {
       path: path.dirname(out),
       filename: path.basename(out),

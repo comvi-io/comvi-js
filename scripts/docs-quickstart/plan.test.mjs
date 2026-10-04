@@ -278,6 +278,8 @@ test("parseArgs: --content is required and --only must name known frameworks", (
   const options = parseArgs(["--content", "x", "--only", "react,vue", "--jobs", "2"]);
   assert.deepEqual(options.only, ["react", "vue"]);
   assert.equal(options.jobs, 2);
+  assert.equal(options.nextWebpack, false);
+  assert.equal(parseArgs(["--content", "x", "--next-webpack"]).nextWebpack, true);
 });
 
 test("planPage: a Terminal fence outside every tab applies to each framework on the page", () => {
