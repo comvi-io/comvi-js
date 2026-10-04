@@ -40,10 +40,12 @@
  * which every run checks, candidate or not, against whichever tarballs it
  * installed.
  *
- * Each example runs up to three phases, each a fresh build of the same copy:
- * `main` (every step but k2 and s), `cdn-down` under `--cdn` (k2, and g again
- * as g2), and `f15` for next and nuxt without `--cdn` (step s, against the
- * `F15_VARIANT` edit of the copy). A skip outside `allowedSkips` fails its
+ * Each example runs up to three builds of the same copy: `main` (every step
+ * but k2, s and the CDN-steering steps), `cdn-down` under `--cdn` (k2, and g
+ * again as g2), and `f15` for next and nuxt without `--cdn` (step s, against
+ * the `F15_VARIANT` edit of the copy). Under `--cdn` each CDN-steering step
+ * (t, t2, u, v, v2) runs between main and cdn-down, against the main build on
+ * a fresh server of its own. A skip outside `allowedSkips` fails its
  * step, and a failure is green only when `EXPECTED_FAILURES` lists it with a
  * reference. Step r follows one rule: a mixed-language or raw-key state that
  * is replaced before the next animation frame is recorded, not failed; such
@@ -93,6 +95,7 @@ import {
   withOverrides,
 } from "../examples-verify.mjs";
 import {
+  CDN_CONTROL_STEPS,
   CDN_MARK,
   F15_VARIANT,
   STEPS,
@@ -288,21 +291,38 @@ async function startServer(kind, dir, extraEnv, logFile) {
  *     messages a dead CDN legitimately produces (the spec owns that list).
  *   - `f15` (next and nuxt, without `--cdn`): the copy edited by
  *     `F15_VARIANT` to `defaultLocale: "uk"`, running s alone.
+ *   - `cdn-<step>` (`--cdn` only), one per `CDN_CONTROL_STEPS` step: the main
+ *     build, served by a FRESH server, running that step alone. The step
+ *     steers the mock CDN (hold, hang, corrupt), and a server that already
+ *     holds uk and de from an earlier step would have nothing left to race.
  *
  * `rename` maps a test's step id to the column its result fills.
  */
 const PHASES = {
   main: {
-    args: ["--grep-invert", "\\b(k2|s): "],
-    expect: STEPS.filter((step) => !["k", "k2", "g2", "s"].includes(step)),
+    args: ["--grep-invert", `\\b(${["k2", "s", ...CDN_CONTROL_STEPS].join("|")}): `],
+    expect: STEPS.filter((step) => !["k", "k2", "g2", "s", ...CDN_CONTROL_STEPS].includes(step)),
     rename: {},
   },
   "cdn-down": { args: ["--grep", "\\b(k2|g): "], expect: ["k2", "g"], rename: { g: "g2" } },
   f15: { args: ["--grep", "\\bs: "], expect: ["s"], rename: {} },
+  ...Object.fromEntries(
+    CDN_CONTROL_STEPS.map((step) => [
+      `cdn-${step}`,
+      { args: ["--grep", `\\b${step}: `], expect: [step], rename: {} },
+    ]),
+  ),
 };
 
 /** One Playwright run of the scenario against a served example. */
-async function runScenario(example, kind, baseUrl, workDir, options, { phase, cdnUrl }) {
+async function runScenario(
+  example,
+  kind,
+  baseUrl,
+  workDir,
+  options,
+  { phase, cdnUrl, controlUrl },
+) {
   const reportFile = path.join(workDir, `e2e-report-${phase}.json`);
   const consoleLog = path.join(workDir, `e2e-console-${phase}.log`);
   fs.rmSync(reportFile, { force: true });
@@ -335,6 +355,7 @@ async function runScenario(example, kind, baseUrl, workDir, options, { phase, cd
       E2E_OUTPUT_DIR: path.join(workDir, `e2e-artifacts-${phase}`),
       E2E_PHASE: phase,
       E2E_CDN_URL: cdnUrl ?? "",
+      E2E_CDN_CONTROL: controlUrl ?? "",
       E2E_CDN_MARK: CDN_MARK,
       E2E_CATALOG_CHUNKS: JSON.stringify(chunks),
     }),
@@ -361,10 +382,19 @@ async function runScenario(example, kind, baseUrl, workDir, options, { phase, cd
 
 /** Install once, then build → serve → run one phase; builds again for each later phase. */
 async function buildServeRun(ctx, phase, cdnUrl) {
+  const { kind, target, log } = ctx;
+  log(`build${cdnUrl ? ` (catalogs from ${cdnUrl})` : ""}…`);
+  await runOrThrow("pnpm", KINDS[kind].build, {
+    cwd: target,
+    env: childEnv(kind, cdnUrl ? cdnEnv(kind, cdnUrl) : {}),
+  });
+  return serveRun(ctx, phase, cdnUrl);
+}
+
+/** Serve the copy as last built, on a fresh server, and run one phase against it. */
+async function serveRun(ctx, phase, cdnUrl) {
   const { example, kind, target, options, log } = ctx;
   const extraEnv = cdnUrl ? cdnEnv(kind, cdnUrl) : {};
-  log(`build${cdnUrl ? ` (catalogs from ${cdnUrl})` : ""}…`);
-  await runOrThrow("pnpm", KINDS[kind].build, { cwd: target, env: childEnv(kind, extraEnv) });
   const server = await startServer(
     kind,
     target,
@@ -376,6 +406,7 @@ async function buildServeRun(ctx, phase, cdnUrl) {
     const result = await runScenario(example, kind, server.baseUrl, target, options, {
       phase,
       cdnUrl,
+      controlUrl: ctx.controlUrl,
     });
     if (Object.values(result.steps).some((entry) => entry.status === "fail")) {
       console.error(
@@ -413,6 +444,7 @@ async function e2eExample(example, packages, options, cdn) {
   const result = { name: example.name, dir: target, build: null, steps: {}, findings: [] };
   const started = Date.now();
   const log = (message) => console.error(`examples-e2e: ${example.name}: ${message}`);
+  cdn?.reset();
   const firstRequest = cdn ? cdn.requests.length : 0;
   const failAll = (steps, error) => {
     // The server never came up, or Playwright never reported: every step is a
@@ -437,7 +469,15 @@ async function e2eExample(example, packages, options, cdn) {
       path.join(target, ".npmrc"),
       EXAMPLE_NPMRC + scopeRegistryLine(options.registryUrl),
     );
-    const ctx = { example, kind, target, options, log, findings: result.findings };
+    const ctx = {
+      example,
+      kind,
+      target,
+      options,
+      log,
+      findings: result.findings,
+      controlUrl: cdn?.controlUrl,
+    };
 
     try {
       log("install…");
@@ -482,6 +522,20 @@ async function e2eExample(example, packages, options, cdn) {
         ? { status: "pass" }
         : { status: "fail", message: verdict.message };
 
+      // The steps that steer the mock: the main build, a fresh server each.
+      if (result.build.status === "pass") {
+        for (const step of CDN_CONTROL_STEPS) {
+          try {
+            Object.assign(result.steps, await serveRun(ctx, `cdn-${step}`, cdn.url));
+          } catch (error) {
+            failAll([step], error);
+          } finally {
+            // The mode a step set must not reach the next step or example.
+            cdn.reset();
+          }
+        }
+      }
+
       // Phase 2: the same app, rebuilt against a CDN that is down.
       try {
         const deadUrl = `http://127.0.0.1:${await freePort()}/cdn/e2e`;
@@ -491,7 +545,7 @@ async function e2eExample(example, packages, options, cdn) {
       }
       result.steps.s = { status: "skip", message: "the F-15 variant runs in the bundled mode" };
     } else {
-      for (const step of ["k", "k2", "g2"])
+      for (const step of ["k", "k2", "g2", ...CDN_CONTROL_STEPS])
         result.steps[step] = { status: "skip", message: "needs --cdn" };
       if (F15_VARIANT[kind]) {
         // Phase 3: the same copy with defaultLocale uk, rebuilt. Last, because

@@ -42,7 +42,20 @@ export const STEPS = [
   "q",
   "r",
   "s",
+  "t",
+  "t2",
+  "u",
+  "v",
+  "v2",
 ];
+
+/**
+ * The steps that steer the mock CDN (`--cdn` only). Each runs in its own
+ * Playwright run against a FRESH server of the main build: Next's host is
+ * process-wide and keeps every catalog it ever loaded, so a second race on
+ * the same server would find uk and de cached and race nothing.
+ */
+export const CDN_CONTROL_STEPS = ["t", "t2", "u", "v", "v2"];
 
 /** What each step asserts, printed under the table so a column id is never a riddle. */
 export const STEP_LEGEND = {
@@ -68,6 +81,11 @@ export const STEP_LEGEND = {
   q: "an HTML-like parameter renders as text: no element, no handler run",
   r: "DOM states during en → uk → de: never a raw key or a mixed-language frame",
   s: "F-15: defaultLocale uk, /uk renders the en value of an en-only key, SSR and hydrated",
+  t: "--cdn SSR race: /uk and /de held in flight together, uk released first; each HTML and its hydration in its own locale",
+  t2: "--cdn SSR race: the same, de released first",
+  u: "--cdn client race: en → uk → de with uk's catalog answered LAST (vue, nuxt: their binding queues switches, so de is requested only after uk); the UI stays de",
+  v: "--cdn: uk's catalog request hangs → after the loader's timeout the bundled uk renders",
+  v2: "--cdn: uk's catalog is corrupt JSON → the bundled uk renders",
 };
 
 export function parseArgs(argv) {
@@ -201,8 +219,8 @@ export const CDN_MARK = "[CDN] ";
 export const CDN_MISSING = { uk: ["fallback.only_en"] };
 
 /** The catalog the mock CDN serves: the bundled one, marked, minus `CDN_MISSING`. */
-export function cdnCatalog(catalog, locale) {
-  const missing = new Set(CDN_MISSING[locale] ?? []);
+export function cdnCatalog(catalog, locale, missingKeys = CDN_MISSING) {
+  const missing = new Set(missingKeys[locale] ?? []);
   const visit = (node, prefix) => {
     const out = {};
     for (const [key, value] of Object.entries(node)) {
@@ -215,6 +233,12 @@ export function cdnCatalog(catalog, locale) {
   return visit(catalog, "");
 }
 
+/** What a corrupt catalog response carries: a body that is not JSON at all. */
+export const CORRUPT_BODY = '{"greeting": {"hello": "[CDN] cut off';
+
+/** Where the mock CDN's control surface lives, outside the catalog layout. */
+export const CONTROL_PATH = "/__e2e";
+
 /**
  * A server for `examples/locales` in the platform CDN layout, every message
  * marked by `cdnCatalog`.
@@ -224,32 +248,127 @@ export function cdnCatalog(catalog, locale) {
  * env var silently did not apply would otherwise pass on the bundled import
  * map. CORS is open because the Vite examples fetch it cross-origin, exactly
  * as a browser fetches the real CDN.
+ *
+ * The tests steer it through `{origin}/__e2e` (never part of the layout):
+ *
+ *   - `POST /__e2e/mode` with `{ hold, hang, corrupt, missing }` sets what
+ *     happens to catalog requests ARRIVING from now on: a `hold` locale's
+ *     response is withheld until released; a `hang` locale's never comes; a
+ *     `corrupt` locale gets `CORRUPT_BODY`; `missing` replaces `CDN_MISSING`.
+ *     It also drops whatever the previous mode left held or hanging.
+ *   - `GET /__e2e/state` answers `{ held, hanging }`: the locales of the
+ *     requests in flight right now, in arrival order. A test waits on it
+ *     until every request it races is provably in flight (the barrier).
+ *   - `POST /__e2e/release?locale=uk` answers every held uk request, and
+ *     itself answers once those responses are written: `{ released }`, or
+ *     409 when nothing was held for that locale.
  */
 export async function startMockCdn({ localesDir, base = "/cdn/e2e", host = "127.0.0.1" }) {
   const requests = [];
+  const headers = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "*",
+    "cache-control": "no-store",
+  };
+  const empty = () => ({ hold: [], hang: [], corrupt: [], missing: CDN_MISSING });
+  let mode = empty();
+  /** `{ locale, send, res }` per withheld response, in arrival order. */
+  let held = [];
+  /** `{ locale, res }` per response that will never come. */
+  let hanging = [];
+  const json = (res, status, body) =>
+    res
+      .writeHead(status, { ...headers, "content-type": "application/json" })
+      .end(JSON.stringify(body));
+  const drop = () => {
+    for (const { res } of [...held, ...hanging]) res.destroy();
+    held = [];
+    hanging = [];
+  };
+
+  const control = (req, res, pathname, search) => {
+    const action = pathname.slice(CONTROL_PATH.length + 1);
+    if (req.method === "GET" && action === "state") {
+      json(res, 200, {
+        held: held.map((entry) => entry.locale),
+        hanging: hanging.map((entry) => entry.locale),
+      });
+      return;
+    }
+    if (req.method === "POST" && action === "release") {
+      const locale = search.get("locale");
+      const releasing = held.filter((entry) => entry.locale === locale);
+      held = held.filter((entry) => entry.locale !== locale);
+      if (releasing.length === 0) {
+        json(res, 409, { released: 0, error: `nothing held for ${locale}` });
+        return;
+      }
+      Promise.all(releasing.map((entry) => entry.send())).then(() =>
+        json(res, 200, { released: releasing.length }),
+      );
+      return;
+    }
+    if (req.method === "POST" && action === "mode") {
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        drop();
+        const next = body ? JSON.parse(body) : {};
+        mode = { ...empty(), ...next, missing: next.missing ?? CDN_MISSING };
+        json(res, 200, mode);
+      });
+      return;
+    }
+    json(res, 404, { error: `no control action ${req.method} ${action}` });
+  };
+
   const server = http.createServer((req, res) => {
-    const pathname = new URL(req.url ?? "/", "http://mock").pathname;
+    const address = new URL(req.url ?? "/", "http://mock");
+    const pathname = address.pathname;
+    if (pathname.startsWith(`${CONTROL_PATH}/`)) {
+      control(req, res, pathname, address.searchParams);
+      return;
+    }
     const route = cdnRoute(pathname, base);
     const file = route ? catalogFile(localesDir, route) : null;
-    const headers = {
-      "access-control-allow-origin": "*",
-      "access-control-allow-headers": "*",
-      "cache-control": "no-store",
-    };
     if (req.method === "OPTIONS") {
       res.writeHead(204, headers).end();
       return;
     }
     const found = file !== null && fs.existsSync(file);
-    requests.push({ pathname, status: found ? 200 : 404, route });
+    const entry = { pathname, status: found ? 200 : 404, route };
+    requests.push(entry);
     if (!found) {
       res.writeHead(404, { ...headers, "content-type": "text/plain" }).end("not found");
       return;
     }
-    const catalog = cdnCatalog(JSON.parse(fs.readFileSync(file, "utf8")), route.locale);
-    res
-      .writeHead(200, { ...headers, "content-type": "application/json; charset=utf-8" })
-      .end(JSON.stringify(catalog));
+    const { locale } = route;
+    if (mode.hang.includes(locale)) {
+      entry.status = "hang";
+      hanging.push({ locale, res });
+      res.on("close", () => (hanging = hanging.filter((other) => other.res !== res)));
+      return;
+    }
+    const body = mode.corrupt.includes(locale)
+      ? CORRUPT_BODY
+      : JSON.stringify(cdnCatalog(JSON.parse(fs.readFileSync(file, "utf8")), locale, mode.missing));
+    if (mode.corrupt.includes(locale)) entry.corrupt = true;
+    const send = () =>
+      new Promise((resolve) => {
+        if (res.destroyed) return resolve();
+        entry.status = 200;
+        res
+          .writeHead(200, { ...headers, "content-type": "application/json; charset=utf-8" })
+          .end(body, resolve);
+      });
+    if (mode.hold.includes(locale)) {
+      entry.status = "held";
+      held.push({ locale, send, res });
+      res.on("close", () => (held = held.filter((other) => other.res !== res)));
+      return;
+    }
+    send();
   });
   const port = await freePort(host);
   await new Promise((resolve, reject) => {
@@ -258,8 +377,19 @@ export async function startMockCdn({ localesDir, base = "/cdn/e2e", host = "127.
   });
   return {
     url: `http://${host}:${port}${base}`,
+    controlUrl: `http://${host}:${port}${CONTROL_PATH}`,
     requests,
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    /** Back to plain serving: no mode, nothing held or hanging. The runner calls it around every steering step. */
+    reset: () => {
+      drop();
+      mode = empty();
+    },
+    close: () =>
+      new Promise((resolve) => {
+        drop();
+        server.closeAllConnections?.();
+        server.close(() => resolve());
+      }),
   };
 }
 
@@ -567,15 +697,17 @@ export function allPassed(results) {
  * would otherwise print "skip" and leave the run green.
  *
  *   - vite (the five client-rendered examples): f, i and o read server HTML or
- *     a locale in the URL; s is an SSR-only run variant.
- *   - without --cdn: k, k2, k3 and g2 are about the mock CDN.
+ *     a locale in the URL; s is an SSR-only run variant; t and t2 race two
+ *     server renders.
+ *   - without --cdn: k, k2, k3, g2 and the CDN-steering steps (t, t2, u, v,
+ *     v2) are about the mock CDN.
  *   - with --cdn: s is not run (the F-15 variant runs in the bundled mode).
  */
 export function allowedSkips({ kind, cdn }) {
   const allowed = new Set();
-  if (kind === "vite") for (const step of ["f", "i", "o", "s"]) allowed.add(step);
+  if (kind === "vite") for (const step of ["f", "i", "o", "s", "t", "t2"]) allowed.add(step);
   if (cdn) allowed.add("s");
-  else for (const step of ["k", "k2", "k3", "g2"]) allowed.add(step);
+  else for (const step of ["k", "k2", "k3", "g2", ...CDN_CONTROL_STEPS]) allowed.add(step);
   return allowed;
 }
 

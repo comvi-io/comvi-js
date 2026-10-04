@@ -48,12 +48,17 @@ const START = env("E2E_START_PATH");
 const LOCALES_DIR = env("E2E_LOCALES_DIR");
 const CONSOLE_LOG = env("E2E_CONSOLE_LOG");
 const BASE_URL = env("E2E_BASE_URL");
-/** `main`; `cdn-down` for the build against an unreachable CDN; `f15` for the defaultLocale-uk build. */
+/**
+ * `main`; `cdn-down` for the build against an unreachable CDN; `f15` for the
+ * defaultLocale-uk build; `cdn-<step>` for a CDN-steering step on a fresh server.
+ */
 const PHASE = env("E2E_PHASE");
 /** The CDN the app was built against; empty when it reads its bundled catalogs. */
 const CDN_URL = env("E2E_CDN_URL");
+/** The mock CDN's control surface (lib.mjs `startMockCdn`); empty without `--cdn`. */
+const CDN_CONTROL = process.env.E2E_CDN_CONTROL ?? "";
 /** What the mock CDN prepends to every message; expected only when the CDN is up. */
-const MARK = PHASE === "main" && CDN_URL ? env("E2E_CDN_MARK") : "";
+const MARK = PHASE !== "cdn-down" && CDN_URL ? env("E2E_CDN_MARK") : "";
 const SSR = KIND !== "vite";
 /** Nuxt only: each locale's hash-named catalog chunk, from the build's manifest. */
 const CATALOG_CHUNKS = JSON.parse(process.env.E2E_CATALOG_CHUNKS || "{}") as Record<string, string>;
@@ -899,6 +904,308 @@ test("s: F-15 — defaultLocale uk, /uk renders the en value of an en-only key",
   await expect(page.getByTestId("greeting")).toHaveText(GREETING.uk("Ada"));
   await expect(page.getByTestId("fallback")).toHaveText(ONLY_EN.en);
 });
+
+// ── steering the mock CDN (t, t2, u, v, v2) ───────────────────────────────
+
+type CdnState = { held: string[]; hanging: string[] };
+
+/** The mock CDN's control surface: what to do with catalog requests from now on. */
+const cdn = {
+  async mode(mode: {
+    hold?: string[];
+    hang?: string[];
+    corrupt?: string[];
+    missing?: Record<string, string[]>;
+  }): Promise<void> {
+    const response = await fetch(`${CDN_CONTROL}/mode`, {
+      method: "POST",
+      body: JSON.stringify(mode),
+    });
+    expect(response.status, "the mock CDN took the mode").toBe(200);
+  },
+  async state(): Promise<CdnState> {
+    return (await (await fetch(`${CDN_CONTROL}/state`)).json()) as CdnState;
+  },
+  /**
+   * The barrier: resolves once a request for every one of `locales` is
+   * provably in flight at the mock (withheld or hanging), and fails with what
+   * WAS in flight otherwise. Well under the loader's 10 s timeout, so a
+   * barrier that never closes cannot turn into a quiet fallback.
+   */
+  async inFlight(kind: keyof CdnState, locales: string[], timeoutMs = 8_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let state: CdnState = { held: [], hanging: [] };
+    while (Date.now() < deadline) {
+      state = await cdn.state();
+      if (locales.every((locale) => state[kind].includes(locale))) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(
+      `barrier: ${locales.join(" and ")} never all ${kind} at the mock CDN within ` +
+        `${timeoutMs / 1000}s (${kind}: [${state[kind].join(", ")}])`,
+    );
+  },
+  /** Answers every withheld request for `locale`; resolves once the answers are written. */
+  async release(locale: string): Promise<void> {
+    const response = await fetch(`${CDN_CONTROL}/release?locale=${locale}`, { method: "POST" });
+    expect(response.status, `the mock CDN held a request for ${locale} to release`).toBe(200);
+  },
+};
+
+/**
+ * Where the CDN-steering steps run: a page the SERVER renders per request.
+ * Next's `[locale]` pages are prerendered, so its runtime server never loads a
+ * catalog for them; `/<locale>/live` is the same page under `force-dynamic`.
+ * Nuxt renders every request (nothing in the example is prerendered), so its
+ * own `/<locale>` is that page. The five Vite examples have one page, `/`.
+ */
+const livePath = (locale: Shown) =>
+  KIND === "next" ? `/${locale}/live` : SSR ? `/${locale}` : "/";
+
+/** `promise`, or a failure that says what never happened. */
+async function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${what} within ${ms / 1000}s`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+for (const [step, first] of [
+  ["t", "uk"],
+  ["t2", "de"],
+] as const) {
+  const second: Shown = first === "uk" ? "de" : "uk";
+  test(`${step}: SSR race — /uk and /de held in flight together, ${first} released first`, async ({
+    page,
+    browser,
+    request,
+    browserErrors,
+  }) => {
+    test.skip(!SSR, "client-rendered example: there is no server render to race");
+    test.skip(!CDN_CONTROL, NEEDS_CDN);
+    // `fallback.only_en` is dropped from BOTH locales' CDN bundles, so each
+    // render needs the en catalog too: the key present only in en.
+    const missing = { uk: ["fallback.only_en"], de: ["fallback.only_en"] };
+    await cdn.mode({ hold: ["uk", "de"], missing });
+    const pending = { uk: request.get(livePath("uk")), de: request.get(livePath("de")) };
+    // Both server renders are now waiting on their catalog at the same time.
+    await cdn.inFlight("held", ["uk", "de"]);
+
+    const html = {} as Record<"uk" | "de", string>;
+    await cdn.release(first);
+    const firstResponse = await within(
+      pending[first],
+      15_000,
+      `GET ${livePath(first)} did not answer while ${second}'s catalog was still held`,
+    );
+    expect(firstResponse.status(), `GET ${livePath(first)}`).toBe(200);
+    html[first] = await firstResponse.text();
+    expect((await cdn.state()).held, `${second} is still held after ${first} rendered`).toContain(
+      second,
+    );
+    await cdn.release(second);
+    const secondResponse = await within(pending[second], 15_000, `GET ${livePath(second)}`);
+    expect(secondResponse.status(), `GET ${livePath(second)}`).toBe(200);
+    html[second] = await secondResponse.text();
+
+    // Every response in its own locale: <html lang>, the plural, the en-only key.
+    for (const locale of ["uk", "de"] as const) {
+      const other = locale === "uk" ? "de" : "uk";
+      const visible = visibleText(html[locale]);
+      expect
+        .soft(html[locale], `${locale}: <html lang>`)
+        .toMatch(new RegExp(`<html[^>]*\\blang="${locale}"`));
+      expect.soft(visible, `${locale}: the title`).toContain(message(locale, "app.title"));
+      expect.soft(visible, `${locale}: the greeting`).toContain(greeting(locale));
+      expect.soft(visible, `${locale}: the plural`).toContain(cart(locale, 2));
+      expect.soft(visible, `${locale}: the en-only key`).toContain(MARK + ONLY_EN.en);
+      expect.soft(visible, `${locale}: ${other}'s greeting`).not.toContain(GREETING[other]("Ada"));
+      expect.soft(rawKeysIn(visible), `${locale}: raw keys`).toEqual([]);
+    }
+
+    // …and each HTML, hydrated as served, stays in its own locale. The
+    // document is answered with the raced response itself; everything after
+    // it (scripts, a later catalog) comes from the server and the mock.
+    await cdn.mode({ missing });
+    // A browser context per locale: nothing shared between the two pages,
+    // not even the HTTP cache.
+    const context = await browser.newContext({ baseURL: BASE_URL });
+    for (const locale of ["uk", "de"] as const) {
+      const tab = locale === "uk" ? page : await context.newPage();
+      if (tab !== page) browserErrors.watch(tab);
+      await tab.route(
+        (address) => address.pathname === livePath(locale),
+        (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "text/html; charset=utf-8",
+            body: html[locale],
+          }),
+        { times: 1 },
+      );
+      await tab.goto(livePath(locale));
+      await ready(tab);
+      await expect
+        .soft(tab.locator("html"), `${locale} hydrated: lang`)
+        .toHaveAttribute("lang", locale);
+      await expect
+        .soft(tab.getByTestId("greeting"), `${locale} hydrated`)
+        .toHaveText(greeting(locale));
+      await expect.soft(tab.getByTestId("cart"), `${locale} hydrated`).toHaveText(cart(locale, 2));
+      await expect
+        .soft(tab.getByTestId("fallback"), `${locale} hydrated`)
+        .toHaveText(MARK + ONLY_EN.en);
+    }
+    await context.close();
+  });
+}
+
+/**
+ * The examples whose binding queues locale switches (`@comvi/vue`'s
+ * `setLocale` runs one switch after the other): vue, and nuxt on top of it.
+ */
+const QUEUED_SWITCHES = ["vue", "nuxt"].includes(env("E2E_FRAMEWORK"));
+
+test("u: client race — en → uk → de with uk's catalog answered last stays de", async ({ page }) => {
+  test.skip(!CDN_CONTROL, NEEDS_CDN);
+  // Every greeting text and <html lang> the page ever shows, in order.
+  await page.addInitScript(() => {
+    const seen: Array<{ greeting: string | null; lang: string | null }> = [];
+    (window as unknown as { __seen: typeof seen }).__seen = seen;
+    new MutationObserver(() => {
+      const state = {
+        greeting: document.querySelector('[data-testid="greeting"]')?.textContent ?? null,
+        lang: document.documentElement.getAttribute("lang"),
+      };
+      const last = seen[seen.length - 1];
+      if (!last || last.greeting !== state.greeting || last.lang !== state.lang) seen.push(state);
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["lang"],
+    });
+  });
+  await open(page, livePath("en"));
+  await ready(page);
+
+  // Next's browser never fetches a catalog: a switch is a navigation whose
+  // RSC request the server answers after loading the catalog from the CDN.
+  // Seeing that request settle is how the test knows the stale answer landed.
+  const staleRsc = new Promise<void>((resolve) => {
+    const settled = (request: Request) => {
+      if (/\/uk\/live\?_rsc=/.test(request.url())) resolve();
+    };
+    page.on("requestfinished", settled);
+    page.on("requestfailed", settled);
+  });
+
+  await cdn.mode({ hold: ["uk", "de"] });
+  await page.getByTestId("locale-uk").click();
+  await cdn.inFlight("held", ["uk"]);
+  await page.getByTestId("locale-de").click();
+
+  if (QUEUED_SWITCHES) {
+    // The Vue binding queues `setLocale`: de's catalog is not even requested
+    // while uk's is outstanding, so uk cannot be answered after de. Proven,
+    // not assumed: a second later only uk is in flight. uk then applies in
+    // its turn and de replaces it, which is what the checks below hold.
+    await page.waitForTimeout(1_000);
+    expect((await cdn.state()).held, "requests in flight while uk is held").toEqual(["uk"]);
+    await cdn.release("uk");
+    await cdn.inFlight("held", ["de"]);
+    await cdn.release("de");
+    await expect(page.getByTestId("greeting")).toHaveText(greeting("de"));
+  } else {
+    await cdn.inFlight("held", ["uk", "de"]);
+    await cdn.release("de");
+    await expect(page.getByTestId("greeting")).toHaveText(greeting("de"));
+    if (SSR) await expect(page).toHaveURL(new RegExp(`${escapeRegExp(livePath("de"))}$`));
+    // uk's answer arrives LAST, after de is on screen.
+    await cdn.release("uk");
+  }
+  if (KIND === "next") {
+    await within(staleRsc, 10_000, "the stale /uk/live RSC request never settled");
+  } else {
+    // The client loader stores the late catalog (it is a valid uk catalog),
+    // and only the locale switch it belonged to is discarded: the "fetched"
+    // line listing uk is the proof the stale answer was received and handled.
+    await expect(page.getByTestId("fetched")).toHaveText(/\buk\b/);
+  }
+  // Two animation frames and a beat: room for a stale answer to repaint.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 300))),
+      ),
+  );
+
+  await expect(page.getByTestId("greeting")).toHaveText(greeting("de"));
+  await expect(page.locator("html")).toHaveAttribute("lang", "de");
+  await expect(page.getByTestId("locale-de")).toHaveAttribute("aria-pressed", "true");
+  if (SSR) await expect(page).toHaveURL(new RegExp(`${escapeRegExp(livePath("de"))}$`));
+  const seen = await page.evaluate(
+    () =>
+      (window as unknown as { __seen: Array<{ greeting: string | null; lang: string | null }> })
+        .__seen,
+  );
+  const firstDe = seen.findIndex((state) => state.greeting === greeting("de"));
+  expect(
+    seen.slice(firstDe).filter((state) => state.greeting === greeting("uk") || state.lang === "uk"),
+    `uk shown after de was: ${JSON.stringify(seen)}`,
+  ).toEqual([]);
+});
+
+for (const [step, fault] of [
+  ["v", "hang"],
+  ["v2", "corrupt"],
+] as const) {
+  test(`${step}: CDN ${fault === "hang" ? "hangs" : "answers corrupt JSON"} for uk — the bundled uk renders`, async ({
+    page,
+  }) => {
+    test.skip(!CDN_CONTROL, NEEDS_CDN);
+    // The loader's timeout is 10 s; the hang has to outlast it.
+    test.setTimeout(60_000);
+    await open(page, livePath("en"));
+    await ready(page);
+    await cdn.mode({ [fault]: ["uk"] });
+    await page.getByTestId("locale-uk").click();
+    if (fault === "hang") {
+      // The hang is real: uk's request is open at the mock, and a second later
+      // the page is still English.
+      await cdn.inFlight("hanging", ["uk"]);
+      await page.waitForTimeout(1_000);
+      await expect(page.getByTestId("greeting")).toHaveText(greeting("en"));
+    }
+    // The documented state: the CDN load failed, so the bundled `fallback`
+    // import serves uk. Unmarked texts, so neither the CDN's uk nor en match.
+    await expect(page.getByTestId("greeting")).toHaveText(GREETING.uk("Ada"), {
+      timeout: 25_000,
+    });
+    await expect(page.getByTestId("cart")).toHaveText(CART.uk[2]);
+    if (SSR) await expect(page).toHaveURL(new RegExp(`${escapeRegExp(livePath("uk"))}$`));
+    // …and out of loading: no "Loading…" in any form, no raw key.
+    const loading = [flat.en["app.loading"], flat.uk["app.loading"]];
+    await expect
+      .poll(
+        async () => {
+          const text = await pageText(page);
+          return loading.filter((value) => text.includes(value));
+        },
+        { message: "a loading indicator is still on the page" },
+      )
+      .toEqual([]);
+    expect(rawKeysIn(await pageText(page))).toEqual([]);
+  });
+}
 
 // g's verdict is its own pass: since every test fails on its own browser
 // errors, g is the dedicated "nothing logged an error" step a reader can find

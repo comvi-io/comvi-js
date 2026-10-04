@@ -224,6 +224,11 @@ example is `skip`, and the reason is printed under the table:
 | q    | `?name=<img src=x onerror=…>` renders as text: no element is created and the handler never runs         |
 | r    | every painted DOM state during en → uk → de is one whole language matching `<html lang>`, never a key   |
 | s    | next, nuxt: a build with `defaultLocale: "uk"` serves `/uk` with the en value of an en-only key         |
+| t    | `--cdn`, next, nuxt: `/uk` and `/de` rendered at once, both catalogs held, uk released first            |
+| t2   | `--cdn`, next, nuxt: the same race, de released first                                                   |
+| u    | `--cdn`: en → uk → de with uk's catalog answered last (vue, nuxt queue switches); the page stays German |
+| v    | `--cdn`: uk's catalog request hangs; after the loader's timeout the bundled uk renders                  |
+| v2   | `--cdn`: uk's catalog is corrupt JSON; the bundled uk renders                                           |
 
 The critical texts (the greeting, the plural branches, `<T>`, the fallback row and
 the placeholder) are written out literally in the spec, so a catalog that goes
@@ -246,6 +251,15 @@ silently failed to apply would pass on the bundled import map. Each example is
 then built a second time against a port where nothing listens, and `k2` and
 `g` (as `g2`) run against that build, where the refused connections to the CDN
 address are the only console errors allowed.
+
+Steps t, t2, u, v and v2 steer that server, each on a fresh start of the
+main build, so no catalog is cached from an earlier step. It can withhold a
+locale's catalog until the test releases it, never answer, or answer with a
+body that is not JSON. In t and t2 both server renders are provably waiting on
+their catalogs before either is released. Every response must carry its own
+`<html lang>`, plural and en-only key, and must hydrate in that locale. Next's
+`[locale]` pages are prerendered, so these steps use `/<locale>/live`, the
+same page under `force-dynamic`. Nuxt renders `/<locale>` per request already.
 
 `--tarballs <dir>` runs the suite against a release candidate's packed files
 instead of packing the workspace. The release workflow packs once, runs both

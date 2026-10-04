@@ -8,10 +8,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import {
+  CDN_CONTROL_STEPS,
   CDN_MARK,
+  CORRUPT_BODY,
   EXPECTED_FAILURES,
   F15_VARIANT,
   STEPS,
+  STEP_LEGEND,
   allPassed,
   allowedSkips,
   applyExpectedFailures,
@@ -198,6 +201,90 @@ test("startMockCdn: serves the catalogs with CORS, 404s the rest, and logs both"
   }
 });
 
+test("startMockCdn: hold withholds until released, in the order the test chooses", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-lib-"));
+  for (const locale of ["en", "uk", "de"]) {
+    fs.writeFileSync(path.join(dir, `${locale}.json`), JSON.stringify({ a: locale }));
+  }
+  const cdn = await startMockCdn({ localesDir: dir });
+  const control = (action, init) => fetch(`${cdn.controlUrl}/${action}`, init);
+  const post = (action, body) =>
+    control(action, { method: "POST", body: body && JSON.stringify(body) });
+  try {
+    await post("mode", { hold: ["uk", "de"] });
+    const arrived = [];
+    const uk = fetch(`${cdn.url}/uk.json`).then(async (r) => (arrived.push("uk"), r.json()));
+    const de = fetch(`${cdn.url}/de.json`).then(async (r) => (arrived.push("de"), r.json()));
+    // en is not held: it is answered while uk and de wait.
+    assert.deepEqual(await (await fetch(`${cdn.url}/en.json`)).json(), { a: `${CDN_MARK}en` });
+    let state;
+    for (let i = 0; i < 50; i++) {
+      state = await (await control("state")).json();
+      if (state.held.length === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.deepEqual([...state.held].sort(), ["de", "uk"]);
+    assert.deepEqual(arrived, []);
+    assert.deepEqual(cdn.requests.map((entry) => `${entry.route.locale}:${entry.status}`).sort(), [
+      "de:held",
+      "en:200",
+      "uk:held",
+    ]);
+    // de first: its response is written before the release call returns.
+    assert.deepEqual(await (await post("release?locale=de")).json(), { released: 1 });
+    assert.deepEqual(await de, { a: `${CDN_MARK}de` });
+    assert.deepEqual((await (await control("state")).json()).held, ["uk"]);
+    assert.deepEqual(await (await post("release?locale=uk")).json(), { released: 1 });
+    assert.deepEqual(await uk, { a: `${CDN_MARK}uk` });
+    assert.deepEqual(arrived, ["de", "uk"]);
+    // Nothing held: a release is a 409, not a silent no-op.
+    assert.equal((await post("release?locale=uk")).status, 409);
+    assert.ok(cdn.requests.every((entry) => entry.status === 200));
+  } finally {
+    await cdn.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("startMockCdn: hang never answers, corrupt is not JSON, missing overrides CDN_MISSING", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-lib-"));
+  fs.writeFileSync(path.join(dir, "uk.json"), '{"a":"b"}');
+  fs.writeFileSync(path.join(dir, "de.json"), '{"a":"b","fallback":{"only_en":"x"}}');
+  const cdn = await startMockCdn({ localesDir: dir });
+  const post = (action, body) =>
+    fetch(`${cdn.controlUrl}/${action}`, { method: "POST", body: JSON.stringify(body) });
+  try {
+    await post("mode", { hang: ["uk"], missing: { de: ["fallback.only_en"] } });
+    const hung = await fetch(`${cdn.url}/uk.json`, { signal: AbortSignal.timeout(300) }).catch(
+      (error) => error.name,
+    );
+    assert.equal(hung, "TimeoutError");
+    assert.equal(cdn.requests.at(-1).status, "hang");
+    assert.deepEqual(await (await fetch(`${cdn.url}/de.json`)).json(), {
+      a: `${CDN_MARK}b`,
+      fallback: {},
+    });
+
+    // A new mode drops what the old one left hanging, and resets `missing`.
+    await post("mode", { corrupt: ["uk"] });
+    assert.deepEqual((await (await fetch(`${cdn.controlUrl}/state`)).json()).hanging, []);
+    const corrupt = await fetch(`${cdn.url}/uk.json`);
+    assert.equal(corrupt.status, 200);
+    assert.equal(await corrupt.text(), CORRUPT_BODY);
+    assert.throws(() => JSON.parse(CORRUPT_BODY));
+    assert.equal(cdn.requests.at(-1).corrupt, true);
+    assert.deepEqual((await (await fetch(`${cdn.url}/de.json`)).json()).fallback, {
+      only_en: `${CDN_MARK}x`,
+    });
+    // reset() is plain serving again: the corrupt mode does not outlive the step.
+    cdn.reset();
+    assert.deepEqual(await (await fetch(`${cdn.url}/uk.json`)).json(), { a: `${CDN_MARK}b` });
+  } finally {
+    await cdn.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("cdnVerdict: ok only when every locale came from the mock and nothing 404'd", () => {
   const hit = (locale, status = 200) => ({
     pathname: `/cdn/e2e/${locale}.json`,
@@ -356,7 +443,9 @@ test("STEPS: a column per scenario, k2/k3 beside k, g2 beside g", () => {
     "l",
   ]);
   assert.equal(STEPS[STEPS.indexOf("g") + 1], "g2");
-  assert.deepEqual(STEPS.slice(-3), ["q", "r", "s"]);
+  assert.deepEqual(STEPS.slice(STEPS.indexOf("q")), ["q", "r", "s", ...CDN_CONTROL_STEPS]);
+  assert.deepEqual(CDN_CONTROL_STEPS, ["t", "t2", "u", "v", "v2"]);
+  for (const step of STEPS) assert.ok(STEP_LEGEND[step], `a legend line for ${step}`);
 });
 
 test("renderTable: a row per framework; failures and skip reasons listed once per message", () => {
@@ -483,9 +572,32 @@ test("allowedSkips: SSR-only steps for vite, CDN steps without --cdn, s with --c
     "k3",
     "o",
     "s",
+    "t",
+    "t2",
+    "u",
+    "v",
+    "v2",
+  ]);
+  assert.deepEqual([...allowedSkips({ kind: "vite", cdn: true })].sort(), [
+    "f",
+    "i",
+    "o",
+    "s",
+    "t",
+    "t2",
   ]);
   assert.deepEqual([...allowedSkips({ kind: "next", cdn: true })], ["s"]);
-  assert.deepEqual([...allowedSkips({ kind: "nuxt", cdn: false })].sort(), ["g2", "k", "k2", "k3"]);
+  assert.deepEqual([...allowedSkips({ kind: "nuxt", cdn: false })].sort(), [
+    "g2",
+    "k",
+    "k2",
+    "k3",
+    "t",
+    "t2",
+    "u",
+    "v",
+    "v2",
+  ]);
 });
 
 test("enforceSkipMatrix: an unlisted skip fails its step, a listed one stays a skip", () => {
@@ -550,7 +662,11 @@ test("EXPECTED_FAILURES: each entry has a reference and a message to match", () 
 test("renderTable / allPassed: an xfail is listed with its reference and keeps the run green", () => {
   const steps = { ...allSteps(pass), s: { status: "xfail", message: "F-15 (r): boom" } };
   const text = renderTable([{ name: "nuxt", build: pass, steps }]);
-  assert.match(text.split("\n")[2], /\sxfail$/);
+  // s's cell, followed by the CDN-steering columns.
+  assert.match(
+    text.split("\n")[2],
+    new RegExp(`\\sxfail${"\\s+ok".repeat(CDN_CONTROL_STEPS.length)}$`),
+  );
   assert.ok(text.includes("expected failures:\nnuxt/s: F-15 (r): boom"));
   assert.equal(allPassed([{ name: "nuxt", build: pass, steps }]), true);
 });
