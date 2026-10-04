@@ -104,9 +104,11 @@ const ERROR_MESSAGE_LIMIT_CHARS = 500;
  */
 async function httpError(response: Response, opts: RequestJsonOptions): Promise<TypegenError> {
   if (response.status === 401) {
+    await discardBody(response);
     return new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
   }
   if (response.status === 403 && opts.forbidden) {
+    await discardBody(response);
     return new TypegenError(opts.forbidden, ErrorCodes.API_AUTH_FAILED);
   }
 
@@ -117,6 +119,19 @@ async function httpError(response: Response, opts: RequestJsonOptions): Promise<
     ? `${statusLine}${body.code ? ` (${body.code})` : ""}: ${body.message}`
     : statusLine;
   return new TypegenError(message, ErrorCodes.API_FETCH_FAILED, undefined, details);
+}
+
+/**
+ * Releases a body the client will not read. The request timer stops when the
+ * attempt ends, so a server that keeps streaming would otherwise hold the
+ * socket open indefinitely.
+ */
+async function discardBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Already closed or errored: nothing left to release.
+  }
 }
 
 async function readBoundedText(response: Response): Promise<string> {
@@ -311,6 +326,7 @@ export class ApiClient {
             throw await httpError(response, opts);
           }
           retryAfterMs = retryDelayMs(response, attempt + 1);
+          await discardBody(response);
         }
       } finally {
         clearTimeout(timeoutId);

@@ -103,3 +103,69 @@ describe("ApiClient request timeout covers the response body", () => {
     await settled;
   });
 });
+
+/**
+ * A non-2xx response whose headers arrive at once and whose body never ends.
+ * `cancel` is the only way the client can tell the transport to let it go.
+ */
+function stalledBodyResponse(status: number, headers: Record<string, string> = {}) {
+  const cancel = vi.fn();
+  const body = new ReadableStream<Uint8Array>({ pull: () => new Promise(() => {}), cancel });
+  const response = new Response(body, { status, headers });
+  return { response, cancel };
+}
+
+describe("ApiClient cancels response bodies it does not read", () => {
+  let fetchMock: MockedFunction<typeof fetch>;
+  let client: ApiClient;
+
+  beforeEach(() => {
+    fetchMock = vi.fn() as MockedFunction<typeof fetch>;
+    vi.stubGlobal("fetch", fetchMock);
+    client = new ApiClient({ apiKey: "k", apiBaseUrl: "https://api.test.com", timeout: 1000 });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("cancels the stalled body of each retried 503 before the next attempt", async () => {
+    const first = stalledBodyResponse(503, { "Retry-After": "0" });
+    const second = stalledBodyResponse(503, { "Retry-After": "0" });
+    fetchMock
+      .mockResolvedValueOnce(first.response)
+      .mockResolvedValueOnce(second.response)
+      .mockResolvedValueOnce({ ok: true, json: async () => projectInfo } as Response);
+
+    await expect(client.validateApiKey()).resolves.toEqual(projectInfo);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(first.cancel).toHaveBeenCalledTimes(1);
+    expect(second.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the body of a 401 without retrying", async () => {
+    const stalled = stalledBodyResponse(401);
+    fetchMock.mockResolvedValueOnce(stalled.response);
+
+    await expect(client.validateApiKey()).rejects.toMatchObject({
+      code: ErrorCodes.API_AUTH_FAILED,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(stalled.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the body of a command-specific 403 without retrying", async () => {
+    const project = { ok: true, json: async () => projectInfo } as Response;
+    const stalled = stalledBodyResponse(403);
+    fetchMock.mockResolvedValueOnce(project).mockResolvedValueOnce(stalled.response);
+
+    await expect(client.fetchSchema()).rejects.toMatchObject({
+      code: ErrorCodes.API_AUTH_FAILED,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(stalled.cancel).toHaveBeenCalledTimes(1);
+  });
+});
