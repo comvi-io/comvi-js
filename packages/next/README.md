@@ -85,7 +85,9 @@ export default async function LocaleLayout({
 ```
 
 `createNextI18n` builds the host, and `withComvi` points the library at the module that exports
-it. The server helpers and `<ComviProvider>` read the host from there, so you write no
+it. The relative `config` path resolves from the directory Next runs in, and an absolute path
+works too. `withComvi` loads from `next.config.ts`, `.mjs` and `.js` alike, and it wraps an
+object or a function config. The server helpers and `<ComviProvider>` read the host from there, so you write no
 registration module and no `"use client"` wrapper. `<ComviProvider>` loads the locale's
 catalogs on the server and hands them to the client host, so Client Components render the right
 language on the first paint. `@comvi/next/server` guards itself: a Client Component that imports

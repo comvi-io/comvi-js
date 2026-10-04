@@ -15,13 +15,28 @@ import type { NextConfig } from "next";
 export interface WithComviOptions {
   /**
    * Path to the module that exports `i18n` (required) and `routing`
-   * (optional), relative to the project root. The module is evaluated in the
-   * server and in the client build, so it must be client-safe: a loader that
-   * needs server-only code stays on the manual setup (`createNextI18nFromHost`
-   * plus your own client provider).
+   * (optional). A relative path resolves from the directory Next runs in (the
+   * project root); an absolute path is used as is, for example
+   * `fileURLToPath(new URL("./src/i18n/config.ts", import.meta.url))`.
+   *
+   * The module is evaluated in the server and in the client build, so it must
+   * be client-safe: a loader that needs server-only code stays on the manual
+   * setup (`createNextI18nFromHost` plus your own client provider).
    * @example "./src/i18n/config.ts"
    */
   config: string;
+}
+
+/** The function form of next.config: Next calls it with the phase, sync or async. */
+export type NextConfigFn = (
+  phase: string,
+  context: { defaultConfig: NextConfig },
+) => NextConfig | Promise<NextConfig>;
+
+/** What `withComvi(options)` returns: it keeps the shape of the config it wraps. */
+export interface WithComvi {
+  (nextConfig?: NextConfig): NextConfig;
+  (nextConfig: NextConfigFn): NextConfigFn;
 }
 
 const SPECIFIER = "@comvi/next/config";
@@ -64,14 +79,17 @@ function usesTopLevelTurbopack(root: string): boolean {
  * export default withComvi({ config: "./src/i18n/config.ts" })({});
  * ```
  */
-export function withComvi(options: WithComviOptions): (nextConfig?: NextConfig) => NextConfig {
+export function withComvi(options: WithComviOptions): WithComvi {
   const root = process.cwd();
   // Accept Windows separators on every platform: Turbopack wants a posix path.
   const absolute = path.resolve(root, options.config.replace(/\\/g, "/"));
   if (!fs.existsSync(absolute)) {
     throw new Error(
       `[comvi/next] withComvi: the config module ${absolute} does not exist ` +
-        `(config: "${options.config}", resolved against ${root}).`,
+        `(config: "${options.config}", resolved against ${root}). ` +
+        "It is imported by the server and the client build, so it must be client-safe: " +
+        "a loader that needs server-only code stays on the manual setup " +
+        "(createNextI18nFromHost plus your own client provider).",
     );
   }
   // Project-relative and posix: Turbopack rejects absolute Windows paths.
@@ -79,7 +97,7 @@ export function withComvi(options: WithComviOptions): (nextConfig?: NextConfig) 
   const turbopackAlias = { [SPECIFIER]: relative };
   const topLevel = usesTopLevelTurbopack(root);
 
-  return (nextConfig: NextConfig = {}): NextConfig => {
+  const apply = (nextConfig: NextConfig): NextConfig => {
     const userWebpack = nextConfig.webpack;
     const webpack: WebpackHook = (webpackConfig: WebpackConfig, context) => {
       const resolve = (webpackConfig.resolve ??= {});
@@ -116,4 +134,14 @@ export function withComvi(options: WithComviOptions): (nextConfig?: NextConfig) 
       } as NextConfig["experimental"],
     };
   };
+
+  function wrap(nextConfig?: NextConfig): NextConfig;
+  function wrap(nextConfig: NextConfigFn): NextConfigFn;
+  function wrap(nextConfig: NextConfig | NextConfigFn = {}): NextConfig | NextConfigFn {
+    if (typeof nextConfig === "function") {
+      return async (phase, context) => apply(await nextConfig(phase, context));
+    }
+    return apply(nextConfig);
+  }
+  return wrap;
 }

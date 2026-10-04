@@ -135,4 +135,60 @@ describe("withComvi: a missing config module", () => {
       `[comvi/next] withComvi: the config module ${path.join(root, "src/i18n/missing.ts")} does not exist`,
     );
   });
+
+  it("says a config with server-only loaders stays on the manual setup", () => {
+    project("16.0.0");
+    expect(() => withComvi({ config: "./src/i18n/missing.ts" })).toThrow(
+      "It is imported by the server and the client build, so it must be client-safe: " +
+        "a loader that needs server-only code stays on the manual setup " +
+        "(createNextI18nFromHost plus your own client provider).",
+    );
+  });
+});
+
+describe("withComvi: the config path", () => {
+  it("accepts an absolute path, and still aliases Turbopack project-relative", () => {
+    const root = project("16.0.0");
+    const absolute = path.join(root, "src/i18n/config.ts");
+    const config = withComvi({ config: absolute })({});
+    expect(config.turbopack!.resolveAlias).toEqual({
+      "@comvi/next/config": "./src/i18n/config.ts",
+    });
+    expect(runWebpack(config).resolve!.alias).toEqual({ "@comvi/next/config$": absolute });
+  });
+});
+
+describe("withComvi: next.config as a function", () => {
+  type ConfigFn = (phase: string, ctx: { defaultConfig: NextConfig }) => Promise<NextConfig>;
+  const CTX = { defaultConfig: {} as NextConfig };
+
+  it("an object stays an object", () => {
+    project("16.0.0");
+    const config = withComvi({ config: "./src/i18n/config.ts" })({ reactStrictMode: true });
+    expect(typeof config).toBe("object");
+    expect(config.reactStrictMode).toBe(true);
+  });
+
+  it("a sync function becomes a function that applies the alias to its result", async () => {
+    project("16.0.0");
+    const user = vi.fn((phase: string) => ({ distDir: `out-${phase}` }) as NextConfig);
+    const wrapped = withComvi({ config: "./src/i18n/config.ts" })(user) as unknown as ConfigFn;
+    expect(typeof wrapped).toBe("function");
+    const config = await wrapped("phase-production-build", CTX);
+    expect(user).toHaveBeenCalledWith("phase-production-build", CTX);
+    expect(config.distDir).toBe("out-phase-production-build");
+    expect(config.turbopack!.resolveAlias).toEqual({
+      "@comvi/next/config": "./src/i18n/config.ts",
+    });
+    expect(runWebpack(config).resolve!.alias).toHaveProperty(["@comvi/next/config$"]);
+  });
+
+  it("an async function is awaited", async () => {
+    project("16.0.0");
+    const user = async () => ({ basePath: "/docs" }) as NextConfig;
+    const wrapped = withComvi({ config: "./src/i18n/config.ts" })(user) as unknown as ConfigFn;
+    const config = await wrapped("phase-development-server", CTX);
+    expect(config.basePath).toBe("/docs");
+    expect(config.turbopack!.resolveAlias).toHaveProperty(["@comvi/next/config"]);
+  });
 });

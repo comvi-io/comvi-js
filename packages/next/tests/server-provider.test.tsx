@@ -109,6 +109,18 @@ describe("ComviProvider (server)", () => {
     ]);
   });
 
+  it("hands over plain objects: Next cannot serialize a null-prototype catalog", async () => {
+    const server = await runtime();
+    const element = (await server.ComviProvider({ locale: "uk", children: null })) as ReactElement<{
+      messages: Record<string, object>;
+    }>;
+    const { messages } = element.props;
+    expect(Object.getPrototypeOf(messages)).toBe(Object.prototype);
+    for (const catalog of Object.values(messages)) {
+      expect(Object.getPrototypeOf(catalog)).toBe(Object.prototype);
+    }
+  });
+
   it("defaults to the host's default namespace", async () => {
     const server = await runtime();
     const element = (await server.ComviProvider({ locale: "uk", children: null })) as ReactElement<{
@@ -132,7 +144,8 @@ describe("ComviProvider (server)", () => {
     await expect(server.ComviProvider({ locale: "uk", children: null })).rejects.toThrow(
       "[comvi/next] <ComviProvider> needs withComvi({ config }) in next.config: " +
         "the client reads the i18n instance from that module. Add it, or keep your own " +
-        '"use client" wrapper around <I18nProvider> from @comvi/next/client.',
+        '"use client" wrapper around <I18nProvider> from @comvi/next/client ' +
+        "(the manual setup, also the one for a config whose loader needs server-only code).",
     );
   });
 });

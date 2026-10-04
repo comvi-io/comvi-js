@@ -64,9 +64,14 @@ the bytes first, then decide whether they ship.
 
 `core-base`, `core-base-icu`, `core-full-composite`; per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-nuxt-client-default`,
+`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-host`; the platform
 path `plugin-fetch-loader-cdn`, `plugin-fetch-loader-cdn-lite`, `platform-path-react`.
+
+`fw-next-server-provider` is the server graph of the `withComvi` setup: `<ComviProvider>` and
+`getI18n` with the provider's `"use client"` half and `@comvi/next/config` external, which is what
+Next keeps on the server (a client reference, and the app's own config module). Measured with the
+client half inlined instead, the row is 2737 B, so the external is what the row is about.
 
 `fw-next-plugin-node` is no pair half: `@comvi/next/plugin` runs in Node from next.config and is
 never bundled into an app, so its row only catches a runtime import creeping into the plugin.
