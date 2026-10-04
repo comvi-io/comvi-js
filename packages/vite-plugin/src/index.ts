@@ -20,6 +20,7 @@
  */
 
 import type { Plugin } from "vite";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveAugmentationTarget } from "@comvi/typegen";
@@ -128,10 +129,12 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
 
       // Skipping the unchanged write avoids a TS re-check storm in dev.
       if (content === lastContent) return;
-      lastContent = content;
 
       await fs.mkdir(path.dirname(resolvedOutputPath), { recursive: true });
-      await fs.writeFile(resolvedOutputPath, content, "utf-8");
+      await writeAtomically(resolvedOutputPath, content);
+      // Only once the file has landed: a failed write remembered as written
+      // would make the identical retry skip, and the file would never appear.
+      lastContent = content;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[@comvi/vite-plugin] Failed to generate types: ${message}`);
@@ -180,6 +183,22 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
       server.watcher.on("unlink", triggerGenerate);
     },
   };
+}
+
+/**
+ * Write a sibling temp file (`wx`: never one that already exists) and rename it
+ * over the target, so a failure partway never truncates the declarations the
+ * editor is already using. The temp file is removed when anything fails.
+ */
+async function writeAtomically(filePath: string, content: string): Promise<void> {
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await fs.writeFile(tempPath, content, { encoding: "utf-8", flag: "wx" });
+    await fs.rename(tempPath, filePath);
+  } catch (error) {
+    await fs.rm(tempPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export type { ProjectSchema, SchemaParam, KeySchema } from "./extract";

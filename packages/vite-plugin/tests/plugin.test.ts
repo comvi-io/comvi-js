@@ -13,6 +13,8 @@ const realFs = {
   readFile: fs.readFile,
   mkdir: fs.mkdir,
   writeFile: fs.writeFile,
+  rename: fs.rename,
+  rm: fs.rm,
 } as const;
 
 type TrackedCall = keyof typeof realFs;
@@ -20,7 +22,7 @@ type TrackedCall = keyof typeof realFs;
 interface FsWork {
   readdir: MockInstance;
   writeFile: MockInstance;
-  /** Arm before acting; resolves when the next `writeFile` has finished writing. */
+  /** Arm before acting; resolves when the next output has landed (its temp file renamed over it). */
   nextWrite(): Promise<void>;
   /** Resolves once every fs operation started so far has settled. */
   settle(): Promise<void>;
@@ -43,7 +45,7 @@ function trackFsWork(): FsWork {
       const promise = real(...args);
       pending.add(promise);
       void promise.catch(() => undefined).finally(() => pending.delete(promise));
-      if (name === "writeFile" && writeWaiters.length > 0) {
+      if (name === "rename" && writeWaiters.length > 0) {
         const waiters = writeWaiters;
         writeWaiters = [];
         for (const resolve of waiters) resolve(promise);
@@ -280,6 +282,51 @@ describe("comviTypes plugin", () => {
 
       const written = await fs.readFile(outputPath(root), "utf-8");
       expect(written).toContain('"farewell": never;');
+    });
+
+    /**
+     * A failed write must not be remembered as written: the content used to be
+     * cached before the write, so an identical regeneration after a transient
+     * failure (EACCES, a full disk) returned early and never wrote the file.
+     */
+    it("writes an unchanged generation after the previous write failed", async () => {
+      const root = await makeProject('{ "greeting": "Hello" }');
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
+      resolvePlugin(plugin, root, "serve");
+      fsWork.writeFile.mockImplementationOnce(async () => {
+        throw Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+      });
+
+      await buildStart(plugin);
+      await expect(fs.access(outputPath(root))).rejects.toThrow(/ENOENT/);
+
+      await buildStart(plugin);
+      expect(await fs.readFile(outputPath(root), "utf-8")).toContain('"greeting": never;');
+    });
+
+    it("keeps the existing declarations intact when a write fails partway", async () => {
+      const root = await makeProject('{ "greeting": "Hello" }');
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
+      resolvePlugin(plugin, root, "serve");
+      await buildStart(plugin);
+      const before = await fs.readFile(outputPath(root), "utf-8");
+
+      await fs.writeFile(
+        path.join(root, "locales", "en.json"),
+        '{ "greeting": "Hello", "farewell": "Bye" }',
+        "utf-8",
+      );
+      // The disk fills mid-write: a prefix lands, then the write fails.
+      fsWork.writeFile.mockImplementationOnce(async (file, data, options) => {
+        await realFs.writeFile(file as string, String(data).slice(0, 10), options as never);
+        throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" });
+      });
+      await buildStart(plugin);
+
+      expect(await fs.readFile(outputPath(root), "utf-8")).toBe(before);
+      expect(await fs.readdir(path.dirname(outputPath(root)))).toEqual(["i18n.d.ts"]);
     });
 
     it("should fail vite build when type generation fails", async () => {
