@@ -85,6 +85,12 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    */
   declare protected _pluginInit?: boolean;
 
+  /**
+   * Cleanup-queue length when the current `init()` attempt began: everything
+   * above it belongs to that attempt, and `_abortInit` runs exactly that.
+   */
+  declare protected _initMark: number;
+
   /** Called by the composite's constructor and by `attachPlugins`; this class declares none of its own. */
   protected _initPlugins(): void {
     this._plugins = [];
@@ -109,10 +115,10 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * hang on a slow plugin, and it does not wait for `init()`. Await the
    * `init()` promise too if a test or a request teardown needs both.
    */
-  protected async _preDestroy(): Promise<void> {
-    while (this._pluginCleanups.length) {
+  protected async _preDestroy(cleanups = this._pluginCleanups): Promise<void> {
+    while (cleanups.length) {
       try {
-        await this._pluginCleanups.pop()!();
+        await cleanups.pop()!();
       } catch (error) {
         this.reportError(error instanceof Error ? error : new Error(String(error)), {
           source: "plugin-cleanup",
@@ -169,6 +175,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * the locale applies.
    */
   protected async _beforeInit(): Promise<void> {
+    this._initMark = this._pluginCleanups.length;
     for (const [plugin, required, timeout, onError] of this._plugins) {
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       // The guard window is exactly one plugin invocation: `ensureInstallable`
@@ -253,6 +260,15 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
         await this.setLocale(detectedLocale);
       }
     }
+  }
+
+  /**
+   * @internal `_abortInit` hook — `init()` failed, so run only the cleanups
+   * this attempt registered, LIFO, through the destroy drain's reporting.
+   * Cleanups from an earlier successful `init()` stay queued for `destroy()`.
+   */
+  protected _abortInit(): Promise<void> {
+    return this._preDestroy(this._pluginCleanups.splice(this._initMark));
   }
 
   /** Register a locale detector; `init()` consults it after the plugins have run. */

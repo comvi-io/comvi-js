@@ -124,6 +124,7 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   _loadNs?: (locale: string, namespaces: string[], skipLoaded: boolean) => Promise<void>;
   _cancelNs?: (locale?: string, namespace?: string) => void;
   _beforeInit?: () => Promise<void>;
+  _abortInit?: () => Promise<void>;
   _missHook?: (key: string, locale: string, namespace: string) => TranslationResult | undefined;
 
   /**
@@ -486,6 +487,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
       return this;
     } catch (error) {
       this.reportError(error as Error, { source: "init" });
+      // Transactional: release what this attempt's plugins acquired before
+      // rejecting, so a rejected or retried host holds nothing extra.
+      await (this as unknown as I18nInternal)._abortInit?.();
       throw error;
     } finally {
       this._isInitializing = false;
