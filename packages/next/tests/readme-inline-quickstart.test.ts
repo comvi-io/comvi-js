@@ -7,13 +7,12 @@
  * defects this file exists for passed every one of those gates:
  * - a catalog shaped `{ en: { default: { greeting } } }` defined the key
  *   `default.greeting`, so `t("greeting")` rendered the literal key;
- * - a page fence that called `await getI18n()` without its own
- *   `setRequestLocale(locale)` served `/en` and `/uk` as HTTP 500
+ * - a page fence that called `await getI18n()` with no locale and no
+ *   `setRequestLocale(locale)` of its own served `/en` and `/uk` as HTTP 500
  *   ("[comvi/next] Locale not set…"). Observed on next@15.5.9 and
  *   next@16.3.5 with the four fences extracted verbatim into an app, the
- *   layout's own call directly above; adding the page's call turned both
- *   routes into 200s rendering "Hello, Alice!" / "Привіт, Alice!". React can
- *   render the page before the layout has set the locale.
+ *   layout's own call directly above. React can render the page before the
+ *   layout has set the locale, so the page passes it: `getI18n({ locale })`.
  *
  * Everything below is read out of the README fences rather than restated, so
  * the day the README drifts the test goes red instead of agreeing with a copy
@@ -98,18 +97,18 @@ const PAGE_CALLS = [...PAGE.matchAll(/\bt\("([^"]+)"(?:,\s*(\{[^}]*\}))?\)/g)].m
 }));
 
 /** What the README's own fences produce for one request, run on the real server modules. */
-async function serveReadme({ pageSetsLocale }: { pageSetsLocale: boolean }, locale: string) {
+async function serveReadme({ pagePassesLocale }: { pagePassesLocale: boolean }, locale: string) {
   vi.resetModules();
   const { createNextI18n } = await import("../src/createNextI18n");
-  const { setI18n, setRequestLocale, getI18n } = await import("../src/server");
+  const { setI18n, getI18n } = await import("../src/server");
 
   // src/i18n.ts, with the README's own options object.
   const { i18n } = createNextI18n({ ...README_OPTIONS, devMode: false } as never);
   // src/i18n.server.ts, imported by the layout for its side effect.
   setI18n(i18n);
-  // src/app/[locale]/page.tsx: `const { locale } = await params; setRequestLocale(locale);`
-  if (pageSetsLocale) setRequestLocale(locale);
-  const { t } = await getI18n();
+  // src/app/[locale]/page.tsx: `const { locale } = await params; … getI18n({ locale })`.
+  // The layout's `setRequestLocale` is not modelled: the page can render first.
+  const { t } = await getI18n(pagePassesLocale ? { locale } : undefined);
   return PAGE_CALLS.map(({ key, params }) => (t as (k: string, p?: object) => string)(key, params));
 }
 
@@ -124,8 +123,8 @@ describe("the README quick start, run on the server modules", () => {
 
   it("renders every key the page asks for, in every locale the config declares", async () => {
     expect(README_OPTIONS.locales).toEqual(["en", "uk"]);
-    expect(await serveReadme({ pageSetsLocale: true }, "en")).toEqual(["Hello, Alice!"]);
-    expect(await serveReadme({ pageSetsLocale: true }, "uk")).toEqual(["Привіт, Alice!"]);
+    expect(await serveReadme({ pagePassesLocale: true }, "en")).toEqual(["Hello, Alice!"]);
+    expect(await serveReadme({ pagePassesLocale: true }, "uk")).toEqual(["Привіт, Alice!"]);
   });
 
   it("defines the keys at the top level, not under a namespace segment", async () => {
@@ -139,10 +138,10 @@ describe("the README quick start, run on the server modules", () => {
     }
   });
 
-  it("rejects without the page's own setRequestLocale — why the page fence pins it", async () => {
+  it("rejects when the page passes no locale — why the page fence passes it", async () => {
     // Nothing else fills the request locale in this quick start: there is no
     // middleware, and the layout's call is not guaranteed to run first.
-    await expect(serveReadme({ pageSetsLocale: false }, "en")).rejects.toThrow(
+    await expect(serveReadme({ pagePassesLocale: false }, "en")).rejects.toThrow(
       "[comvi/next] Locale not set",
     );
   });
@@ -188,21 +187,20 @@ describe("src/app/[locale]/layout.tsx", () => {
 });
 
 describe("src/app/[locale]/page.tsx", () => {
-  it("awaits its locale param and calls setRequestLocale(locale) before it awaits getI18n()", () => {
+  it("awaits its locale param and passes it to getI18n({ locale })", () => {
     const awaited = PAGE.indexOf("const { locale } = await params;");
-    const call = PAGE.indexOf("setRequestLocale(locale)");
-    const getI18n = PAGE.indexOf("await getI18n()");
+    const getI18n = PAGE.indexOf("await getI18n({ locale })");
 
     expect(PAGE).toContain("params: Promise<{ locale: string }>");
     expect(awaited).toBeGreaterThan(-1);
-    expect(call).toBeGreaterThan(awaited);
-    expect(getI18n).toBeGreaterThan(call);
+    expect(getI18n).toBeGreaterThan(awaited);
   });
 
-  it("imports both calls from @comvi/next/server", () => {
-    const lines = importsOf(PAGE, "setRequestLocale");
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatch(/\bgetI18n\b/);
-    expect(lines[0]).toContain('from "@comvi/next/server"');
+  it("needs no setRequestLocale of its own", () => {
+    expect(PAGE).not.toContain("setRequestLocale");
+  });
+
+  it("imports getI18n from @comvi/next/server", () => {
+    expect(importsOf(PAGE, "getI18n")).toEqual(['import { getI18n } from "@comvi/next/server";']);
   });
 });

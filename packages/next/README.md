@@ -80,19 +80,18 @@ export default async function LocaleLayout({
 the server helpers, and the layout imports it for the side effect. `@comvi/next/server` guards
 itself: a Client Component that imports it, directly or through this file, fails `next build`, so
 you do not install or import `server-only` yourself. `setRequestLocale()` puts the locale where
-`getI18n()` reads it. Without a `middleware.ts` the only routes are `/en` and `/uk`; see
+the no-argument `getI18n()` reads it. Without a `middleware.ts` the only routes are `/en` and `/uk`; see
 [Locale routing](https://comvi.io/docs/i18n/next/routing).
 
 ## Use in components
 
 ```tsx title="src/app/[locale]/page.tsx" check=group=quick-start-next-1
 import Link from "next/link";
-import { getI18n, setRequestLocale } from "@comvi/next/server";
+import { getI18n } from "@comvi/next/server";
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  setRequestLocale(locale);
-  const { t } = await getI18n();
+  const { t } = await getI18n({ locale });
 
   return (
     <div>
@@ -103,9 +102,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 }
 ```
 
-In a Server Component `getI18n()` returns `t`, `hasTranslation` and `locale`, bound to the
-request. The page calls `setRequestLocale()` too: Next can render it before the layout has set the
-locale. In a Client Component `useI18n()`, `<T>` and the other React hooks come from
+In a Server Component `getI18n({ locale })` returns `t`, `hasTranslation` and `locale`, bound to
+the locale you pass. Pass it explicitly: Next can render the page before the layout has set the
+request locale. In a Client Component `useI18n()`, `<T>` and the other React hooks come from
 `@comvi/next/client`, under the `"use client"` provider on the guide's [Setup](https://comvi.io/docs/i18n/next#setup).
 
 ## Load from Comvi

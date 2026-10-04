@@ -1,5 +1,5 @@
 import { Link } from "@comvi/next/navigation";
-import { getI18n, setRequestLocale } from "@/i18n/server";
+import { getI18n } from "@/i18n/server";
 
 /**
  * The second page: a Server Component, translated through `getI18n()` like
@@ -8,8 +8,7 @@ import { getI18n, setRequestLocale } from "@/i18n/server";
  */
 export default async function AboutPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  setRequestLocale(locale);
-  const { t } = await getI18n();
+  const { t } = await getI18n({ locale });
 
   return (
     <main>

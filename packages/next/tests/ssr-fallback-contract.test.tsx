@@ -1,10 +1,11 @@
 /**
  * `@comvi/next` against the shared server fallback-chain contract
  * (`@comvi/test-utils/ssrFallbackContract`). Every row runs through one
- * fixture: per request, `setRequestLocale` + `getI18n()` with no prior
- * `loadTranslations()`, then `loadTranslations()` for the client `messages`,
- * then `<I18nProvider messages>` through `renderToString` and `hydrateRoot`.
- * Next-only assertions follow the table.
+ * fixture, twice: per request, either `setRequestLocale` + `getI18n()` or
+ * `getI18n({ locale })` alone, with no prior `loadTranslations()`; then
+ * `loadTranslations()` for the client `messages`, then `<I18nProvider
+ * messages>` through `renderToString` and `hydrateRoot`. Next-only assertions
+ * follow the table.
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -116,7 +117,25 @@ describe("@comvi/next: the server fallback-chain contract", () => {
     document.body.innerHTML = "";
   });
 
-  it.each(SSR_FALLBACK_CASES.map((row) => [row.name, row] as const))("%s", async (_name, row) => {
+  /**
+   * How a page reaches `getI18n`: the request store, or the locale passed
+   * explicitly with nothing set beforehand (the documented primary form).
+   */
+  const SERVER_CALLS = {
+    "setRequestLocale + getI18n()": (locale: string, ns: string | undefined) => {
+      setRequestLocale(locale);
+      return getI18n(ns ? { ns } : undefined);
+    },
+    "getI18n({ locale })": (locale: string, ns: string | undefined) => getI18n({ locale, ns }),
+  } as const;
+
+  const rows = SSR_FALLBACK_CASES.flatMap((row) =>
+    (Object.keys(SERVER_CALLS) as (keyof typeof SERVER_CALLS)[]).map(
+      (call) => [`${row.name} [${call}]`, row, call] as const,
+    ),
+  );
+
+  it.each(rows)("%s", async (_name, row, call) => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const errorSpy = spyOnConsoleError();
     const ns = row.ns ?? SSR_FALLBACK_DEFAULT_NS;
@@ -129,8 +148,10 @@ describe("@comvi/next: the server fallback-chain contract", () => {
     const served = await Promise.all(
       row.requests.map((request) =>
         requests.run(new Map(), async () => {
-          setRequestLocale(request.locale);
-          const { t, locale } = await getI18n(ns === SSR_FALLBACK_DEFAULT_NS ? undefined : { ns });
+          const { t, locale } = await SERVER_CALLS[call](
+            request.locale,
+            ns === SSR_FALLBACK_DEFAULT_NS ? undefined : ns,
+          );
           const texts = Object.fromEntries(
             Object.keys(request.expect).map((key) => [key, (t as Translate)(key)]),
           );

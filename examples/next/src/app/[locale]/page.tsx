@@ -1,15 +1,15 @@
-import { getI18n, setRequestLocale } from "@/i18n/server";
+import { getI18n } from "@/i18n/server";
 import { Demo } from "./Demo";
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  setRequestLocale(locale);
 
-  // The server side of the story. `getI18n()` is exactly two members, `t` and
-  // `hasTranslation`, bound once to THIS request's locale — the host lives at
-  // module scope and is shared by every concurrent request, so the locale
-  // belongs to the request and never to the instance.
-  const { t } = await getI18n();
+  // The server side of the story. `getI18n({ locale })` returns `t`,
+  // `hasTranslation` and `locale`, bound to the locale passed here — the host
+  // lives at module scope and is shared by every concurrent request, so the
+  // locale belongs to the request and never to the instance. Passing it
+  // explicitly means the page does not depend on the layout rendering first.
+  const { t } = await getI18n({ locale });
 
   return (
     <main>
