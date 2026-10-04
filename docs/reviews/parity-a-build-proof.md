@@ -107,19 +107,44 @@ Removed source, lines deleted / added at 754ac9fd against cb7e9686:
 The e2e shards and the docs probe were re-run on 754ac9fd with the same results as above: all
 four shards exit 0, and every probe step passes.
 
+## Lot A7: review fixes
+
+- **Header names match whatever their case.** Nuxt's `useRequestHeaders` keys its result in lower
+  case, so the route middleware never read `localeDetection.headerName: "X-Locale"`, while next and
+  nuxt's `useTranslation(event)` match case-insensitively. A new contract row, "a configured
+  header name matches whatever its case", failed on nuxt first, on the middleware only:
+  `expected { middleware: 'de', helper: 'uk' } to deeply equal { middleware: 'uk', helper: 'uk' }`.
+  The test mock now lowercases keys as Nuxt does, and the middleware reads the lower-case name.
+  The table now has 33 rows; 78 cases per adapter pass.
+- **`defineRouting` is declarative again.** Only `createMiddleware` reads `localeCookie`, and it
+  normalizes it through the shared schema. The client rows are back at the base figures.
+- **Smaller fixes.** There is one `NEXT_LOCALE_COOKIE` constant. Nuxt checks for unknown keys in
+  BOTH `comvi` and `runtimeConfig.public.comvi`, each named in its own error. App config's
+  `cookieName` is `false` when no cookie is kept. The page-cloning code reuses the normalized
+  `localePrefix`. The ADR records that `useTranslation(event)` does not read a prefixless path as
+  the default locale.
+- **Re-run on A7:** all four e2e shards (next and nuxt, default and `--cdn`) exit 0 with every step
+  ok, and the docs probe passes every step for next and nuxt.
+- **Left as is:** a `NUXT_PUBLIC_COMVI_LOCALE_COOKIE` environment value over `localeCookie: false`
+  reaches the runtime as a bare string, which the plugin and middleware read as an object with no
+  `name`. A guard that maps the string onto a name needs the cookie defaults at runtime, so it is not
+  a one-line change. Set `localeCookie` in `nuxt.config` instead, or override
+  `NUXT_PUBLIC_COMVI_LOCALE_COOKIE_NAME` on a cookie that is on.
+
 ## Size (`node scripts/size-check.mjs`, min+gz)
 
-| row                             | base e93168ca | A2–A5 (cb7e9686) | rework (754ac9fd) | budget  |
-| ------------------------------- | ------------- | ---------------- | ----------------- | ------- |
-| `fw-next-middleware-edge` (new) | 1695 B        | 1911 B           | 1997 B            | 2097 B  |
-| `fw-next-root-composed`         | 9807 B        | 9807 B           | 9911 B            | 9923 B  |
-| `fw-next-client-default`        | 7446 B        | 7450 B           | 7548 B            | 7722 B  |
-| `fw-next-server-default-loader` | 7816 B        | 7835 B           | 7938 B            | 8207 B  |
-| `fw-nuxt-client-default`        | 8483 B        | 8369 B           | 8369 B            | 8718 B  |
-| `fw-nuxt-full-composite`        | 12829 B       | 12798 B          | 12935 B           | 13270 B |
+| row                             | base e93168ca | A2–A5 (cb7e9686) | rework (754ac9fd) | A7      | budget  |
+| ------------------------------- | ------------- | ---------------- | ----------------- | ------- | ------- |
+| `fw-next-middleware-edge` (new) | 1695 B        | 1911 B           | 1997 B            | 1999 B  | 2097 B  |
+| `fw-next-root-composed`         | 9807 B        | 9807 B           | 9911 B            | 9807 B  | 9923 B  |
+| `fw-next-client-default`        | 7446 B        | 7450 B           | 7548 B            | 7450 B  | 7722 B  |
+| `fw-next-server-default-loader` | 7816 B        | 7835 B           | 7938 B            | 7835 B  | 8207 B  |
+| `fw-nuxt-client-default`        | 8483 B        | 8369 B           | 8369 B            | 8369 B  | 8718 B  |
+| `fw-nuxt-full-composite`        | 12829 B       | 12798 B          | 12935 B           | 12935 B | 13270 B |
 
 The edge row was observed red once at a 1 B budget. Its budget is measured + 5 % of the rework's
 1997 B. On a first try the rework took `fw-next-root-composed` to 10071 B, over budget, because
 `defineRouting` pulled the whole normalizer into client bundles. The normalizer was split per
-option, and `defineRouting` calls only `normalizeLocaleCookie`. That row has 12 B of headroom left. The +19 B and +17 B on the two Next server rows are the longer `[@comvi/next]` prefix
+option, and `defineRouting` calls only `normalizeLocaleCookie`. Lot A7 then made `defineRouting` declarative again, so it calls nothing from the schema and the
+client rows are back at their base figures. The +19 B and +17 B on the two Next server rows are the longer `[@comvi/next]` prefix
 and the reworded no-loader message.

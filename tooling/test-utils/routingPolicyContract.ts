@@ -130,6 +130,12 @@ export const DETECTION_PRECEDENCE_CASES: readonly DetectionCase[] = [
     expected: "uk",
   },
   {
+    why: "a configured header name matches whatever its case",
+    settings: { localeDetection: { order: ["header", "cookie"], headerName: "X-Locale" } },
+    request: { path: "/", cookies: { [DEFAULT_COOKIE]: "de" }, headers: { "x-locale": "uk" } },
+    expected: "uk",
+  },
+  {
     why: "Accept-Language wins over the cookie where the order puts it first",
     settings: { localeDetection: { order: ["accept-language", "cookie"] } },
     request: {

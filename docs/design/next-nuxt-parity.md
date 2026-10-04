@@ -124,6 +124,10 @@ headerName, resolveAcceptLanguage }`. The URL path always comes first, the defau
   `[i18n]` because `@comvi/vue` throws the same sentence for the same contract.
 - **Server helper vocabulary.** `ns`, the word core's `t(key, { ns })` already uses, and no other
   spelling; an empty `ns` counts as not given in both.
+- **Server helper locale.** Nuxt's `useTranslation(event)` resolves the locale in its route
+  middleware's order: a locale prefix on the path, then `localeDetection.order`. One rule is the
+  helper's own: a prefixless path is NOT read as the default locale, as the middleware reads a page
+  URL under `as-needed`, because an API route has no locale prefix to omit.
 - **Server helper result shape.** `{ t, hasTranslation, locale }` from both `getI18n()` and
   `useTranslation(event)`, with `locale` being the same binding `t` closes over.
 - **Server fallback-chain loading** (amended 2026-10-04). Before the server translates, the

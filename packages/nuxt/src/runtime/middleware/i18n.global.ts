@@ -93,9 +93,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
       // Request headers exist on the server only.
       if (source === "header") {
         const headerName = detectConfig ? detectConfig.headerName : undefined;
-        detectedLocale = headerName
-          ? accept(useRequestHeaders([headerName])[headerName])
-          : undefined;
+        // Nuxt keys the result in lower case, whatever case was asked for.
+        const header = headerName?.toLowerCase();
+        detectedLocale = header ? accept(useRequestHeaders([header])[header]) : undefined;
       } else {
         // The matcher's answer is taken as-is, as in `@comvi/next`: one outside
         // `locales` ends detection and falls back below.

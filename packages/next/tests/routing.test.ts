@@ -308,21 +308,24 @@ describe("routing helpers", () => {
 });
 
 describe("defineRouting: the shared options schema", () => {
-  it("returns exactly what normalizeRoutingOptions decides for the same input", async () => {
+  it("normalizes, through the shared schema, to what the middleware gets from the raw input", async () => {
     const { normalizeRoutingOptions } = await import("@comvi/locale-routing");
+    const { defineRouting, NEXT_LOCALE_COOKIE } = await import("../src/routing/defineRouting");
+    const input = { locales: ["en", "de"], defaultLocale: "en" } as const;
+    const options = { cookieNameDefault: NEXT_LOCALE_COOKIE };
+
+    expect(normalizeRoutingOptions(defineRouting(input), options)).toEqual(
+      normalizeRoutingOptions(input, options),
+    );
+  });
+
+  it("names the shared default prefix mode and next's cookie, and normalizes nothing", async () => {
+    const { DEFAULT_LOCALE_PREFIX } = await import("@comvi/locale-routing");
     const { defineRouting } = await import("../src/routing/defineRouting");
-    const input = {
-      locales: ["en", "de"],
-      defaultLocale: "en",
-      localeCookie: { maxAge: 60 },
-    } as const;
 
-    const routing = defineRouting(input);
-    const normalized = normalizeRoutingOptions(input, { cookieNameDefault: "NEXT_LOCALE" });
+    const routing = defineRouting({ locales: ["en"], defaultLocale: "en" });
 
-    expect({ localePrefix: routing.localePrefix, localeCookie: routing.localeCookie }).toEqual({
-      localePrefix: normalized.localePrefix,
-      localeCookie: normalized.localeCookie,
-    });
+    expect(routing.localePrefix).toBe(DEFAULT_LOCALE_PREFIX);
+    expect(routing.localeCookie).toBe("NEXT_LOCALE");
   });
 });

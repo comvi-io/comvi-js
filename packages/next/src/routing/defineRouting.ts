@@ -1,9 +1,8 @@
-import {
-  buildLocalizedPath,
-  DEFAULT_LOCALE_PREFIX,
-  normalizeLocaleCookie,
-} from "@comvi/locale-routing";
+import { buildLocalizedPath, DEFAULT_LOCALE_PREFIX } from "@comvi/locale-routing";
 import type { RoutingConfig } from "./types";
+
+/** next's default locale cookie name, what next-intl apps already have. */
+export const NEXT_LOCALE_COOKIE = "NEXT_LOCALE";
 
 /**
  * Define routing configuration for your app: used by both the middleware and
@@ -26,13 +25,12 @@ import type { RoutingConfig } from "./types";
 export function defineRouting<T extends string>(
   config: RoutingConfig<T>,
 ): Required<RoutingConfig<T>> {
-  // The shared schema decides the defaults, as it does for `@comvi/nuxt`: the
-  // routing half of `normalizeRoutingOptions`, which this client-side helper
-  // calls piecewise so the detection half stays out of client bundles.
+  // Declarative on purpose: only `createMiddleware` reads `localeCookie`, and
+  // it normalizes it through the shared schema there.
   return {
     ...config,
     localePrefix: config.localePrefix ?? DEFAULT_LOCALE_PREFIX,
-    localeCookie: normalizeLocaleCookie(config.localeCookie, "NEXT_LOCALE"),
+    localeCookie: config.localeCookie ?? NEXT_LOCALE_COOKIE,
     pathnames: config.pathnames ?? {},
   };
 }

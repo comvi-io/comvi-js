@@ -195,12 +195,20 @@ export function useRequestURL() {
   return new URL("https://example.com/");
 }
 
+/**
+ * As Nuxt's own (`app/composables/ssr.js`): the request's headers are matched
+ * case-insensitively, and the returned object is keyed in LOWER case, whatever
+ * case the caller asked in.
+ */
 export function useRequestHeaders(keys?: string[]) {
-  if (!keys) return mockRequestHeaders;
+  const headers = Object.fromEntries(
+    Object.entries(mockRequestHeaders).map(([name, value]) => [name.toLowerCase(), value]),
+  );
+  if (!keys) return headers;
   const result: Record<string, string> = {};
-  for (const key of keys) {
-    if (mockRequestHeaders[key]) {
-      result[key] = mockRequestHeaders[key];
+  for (const key of keys.map((name) => name.toLowerCase())) {
+    if (headers[key]) {
+      result[key] = headers[key];
     }
   }
   return result;

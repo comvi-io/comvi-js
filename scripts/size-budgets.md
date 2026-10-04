@@ -46,10 +46,10 @@ vocabulary: `createMiddleware` from `@comvi/next/middleware`, the graph an app's
 ships to the Edge runtime. It measured 1695 B on the base branch (e93168ca), 1902 B with the
 vocabulary (the `query` source, the cookie attributes, `localeDetection: false`), 1911 B with the
 `[@comvi/next]` prefix, and 1997 B once the options went through the ONE shared
-`normalizeRoutingOptions` that `@comvi/nuxt` calls too; the budget is that last figure + 5 %. The
-same rework took `fw-next-root-composed` from 9807 B to 9911 B (12 B under its 9923 B budget):
-`defineRouting` now takes its cookie default from the shared `normalizeLocaleCookie`, the detection
-half being split off so client bundles do not carry it. `fw-nuxt-client-default` went from 8483 B on
+`normalizeRoutingOptions` that `@comvi/nuxt` calls too; the budget is that last figure + 5 %.
+For one commit `defineRouting` normalized the cookie as well, which cost the client rows ~100 B
+for work only the middleware uses; it is declarative again, and `fw-next-root-composed` and
+`fw-next-client-default` are back at 9807 B and 7450 B. `fw-nuxt-client-default` went from 8483 B on
 the base to 8369 B, because the module resolves the options at build time.
 
 Every row is gated. There is no informational tier: a row that gates nothing does not earn its

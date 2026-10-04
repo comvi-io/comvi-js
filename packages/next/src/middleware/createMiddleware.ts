@@ -5,14 +5,12 @@ import {
   resolveAcceptLanguage,
 } from "@comvi/locale-routing";
 import type { MiddlewareConfig, LocaleDetectionSource } from "./types";
-import { createGetPathname } from "../routing/defineRouting";
+import { createGetPathname, NEXT_LOCALE_COOKIE } from "../routing/defineRouting";
 import type { RoutingConfig } from "../routing/types";
 import { getCanonicalPathname, stripLocalePrefix } from "../routing/utils";
 
 // Passes the resolved locale to Server Components.
 const LOCALE_HEADER = "x-comvi-locale";
-
-const DEFAULT_COOKIE_NAME = "NEXT_LOCALE";
 
 /**
  * Creates i18n middleware for Next.js.
@@ -47,7 +45,7 @@ export function createMiddleware(config: MiddlewareConfig) {
     localePrefix,
     localeCookie: cookie,
     localeDetection: detection,
-  } = normalizeRoutingOptions(config, { cookieNameDefault: DEFAULT_COOKIE_NAME });
+  } = normalizeRoutingOptions(config, { cookieNameDefault: NEXT_LOCALE_COOKIE });
   const { detectLocale: customDetector } = config;
 
   const detectionOrder = detection ? detection.order : [];

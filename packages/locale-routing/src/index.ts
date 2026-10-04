@@ -410,8 +410,7 @@ export function normalizeLocaleCookie(
   if (cookie === false) return false;
   const { name, maxAge, secure, sameSite, domain }: LocaleCookieOptions =
     typeof cookie === "string" ? { name: cookie } : cookie || {};
-  // Written out rather than through `definedOnly`: next's client bundle carries
-  // this function, and an unset `domain` simply stays absent.
+  // An unset `domain` stays absent rather than `undefined`.
   const resolved: ResolvedLocaleCookie = {
     name: name ?? cookieNameDefault,
     maxAge: maxAge ?? DEFAULT_COOKIE_MAX_AGE,
@@ -439,8 +438,7 @@ export function normalizeLocaleDetection(
  * The shared routing options with every default applied — the one place a
  * name or a default is decided. `cookieNameDefault` is the framework's own
  * cookie name (`NEXT_LOCALE`, `i18n_locale`), the only input that differs.
- * Built from the two per-option normalizers above, which a graph that needs
- * only one of them (next's client-side `defineRouting`) calls directly.
+ * Built from the two per-option normalizers above.
  */
 export function normalizeRoutingOptions(
   input: RoutingOptions,

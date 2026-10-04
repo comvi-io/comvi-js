@@ -251,7 +251,8 @@ export interface ResolvedRoutingConfig {
   localeObjects: Record<string, LocaleObject>;
   defaultLocale: string;
   localePrefix: LocalePrefixMode;
-  cookieName: string;
+  /** The locale cookie's name, or `false` when `localeCookie: false` persists nothing. */
+  cookieName: string | false;
 }
 
 /**

@@ -247,13 +247,21 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     const localeCookieInput = existingPublicRuntimeConfig.localeCookie ?? options.localeCookie;
     const localeDetectionInput =
       existingPublicRuntimeConfig.localeDetection ?? options.localeDetection;
-    for (const { key, use } of findUnknownRoutingOptionKeys({
-      localeCookie: localeCookieInput,
-      localeDetection: localeDetectionInput,
-    })) {
-      throw new Error(
-        `[@comvi/nuxt] \`comvi.${key}\` is not an option` + (use ? `: use \`comvi.${use}\`.` : "."),
-      );
+    // Both sources, each under its own name: a stale key in runtime config is
+    // as wrong as one in `comvi`, even when the other side would win.
+    for (const [where, input] of [
+      ["comvi", options],
+      ["runtimeConfig.public.comvi", existingPublicRuntimeConfig],
+    ] as const) {
+      for (const { key, use } of findUnknownRoutingOptionKeys({
+        localeCookie: input.localeCookie as NuxtI18nOptions["localeCookie"],
+        localeDetection: input.localeDetection as NuxtI18nOptions["localeDetection"],
+      })) {
+        throw new Error(
+          `[@comvi/nuxt] \`${where}.${key}\` is not an option` +
+            (use ? `: use \`${where}.${use}\`.` : "."),
+        );
+      }
     }
 
     // The ONE schema `@comvi/next` normalizes through too, so a name or a
@@ -279,7 +287,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       ({ resolveAcceptLanguage, ...localeDetection } = routing.localeDetection);
     }
 
-    const cookieName = routing.localeCookie ? routing.localeCookie.name : DEFAULT_COOKIE_NAME;
+    const cookieName = routing.localeCookie ? routing.localeCookie.name : false;
 
     const routingConfig: ResolvedRoutingConfig = {
       locales: localeCodes,
@@ -584,7 +592,7 @@ ${check}`;
     nuxt.options.vite.optimizeDeps.include = nuxt.options.vite.optimizeDeps.include || [];
     nuxt.options.vite.optimizeDeps.include.push("@comvi/vue", "@comvi/core");
 
-    const localePrefix = options.localePrefix ?? "as-needed";
+    const localePrefix = routing.localePrefix;
     const defaultLocale = options.defaultLocale;
 
     if (localePrefix !== "never") {

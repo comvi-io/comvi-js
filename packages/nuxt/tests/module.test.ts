@@ -747,7 +747,7 @@ describe("nuxt module setup", () => {
     });
   });
 
-  it("keeps the cookie and detection off and uses the default cookie name in app config", async () => {
+  it("keeps the cookie and detection off, and app config names no cookie", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
 
@@ -758,7 +758,7 @@ describe("nuxt module setup", () => {
 
     expect(nuxt.options.runtimeConfig.public.comvi.localeDetection).toBe(false);
     expect(nuxt.options.runtimeConfig.public.comvi.localeCookie).toBe(false);
-    expect(nuxt.options.appConfig.comvi.routing.cookieName).toBe("i18n_locale");
+    expect(nuxt.options.appConfig.comvi.routing.cookieName).toBe(false);
   });
 
   it("carries an explicit localePrefix into the routing app config", async () => {
@@ -1115,6 +1115,16 @@ describe("nuxt module setup", () => {
         { localeCookie: { cookieMaxAge: 60 } },
         undefined,
         "[@comvi/nuxt] `comvi.localeCookie.cookieMaxAge` is not an option: use `comvi.localeCookie.maxAge`.",
+      ],
+      [
+        {},
+        { localeDetection: { cookieName: "x" } },
+        "[@comvi/nuxt] `runtimeConfig.public.comvi.localeDetection.cookieName` is not an option: use `runtimeConfig.public.comvi.localeCookie.name`.",
+      ],
+      [
+        { localeCookie: "LANG" },
+        { localeCookie: { cookieSecure: true } },
+        "[@comvi/nuxt] `runtimeConfig.public.comvi.localeCookie.cookieSecure` is not an option: use `runtimeConfig.public.comvi.localeCookie.secure`.",
       ],
       [
         { localeDetection: { redirectOnFirstVisit: false } },
