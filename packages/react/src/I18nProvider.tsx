@@ -238,21 +238,20 @@ export function I18nProvider({
   // locale, not the snapshot, which is `ssrLocale` while hydrating; `null`
   // once a render has seen it move, so a later switch back to `from` (a
   // `setLocale` with no new target) is not mistaken for a handover.
-  const [committedHand, setHand] = useState<{
-    i18n: Host;
-    target: string | undefined;
-    from: string | null;
-  }>(() => ({ i18n, target: targetLocale, from: i18n.locale }));
-  let hand = committedHand;
-  if (hand.i18n !== i18n || hand.target !== targetLocale) {
-    setHand((hand = { i18n, target: targetLocale, from: i18n.locale }));
-  } else if (hand.from !== null && i18n.locale !== hand.from) {
-    setHand((hand = { ...hand, from: null }));
+  // `[i18n, target, from]`: a tuple, which minifies smaller than named keys.
+  const [hand, setHand] = useState<[Host, string | undefined, string | null]>(() => [
+    i18n,
+    targetLocale,
+    i18n.locale,
+  ]);
+  let [, target, from] = hand;
+  if (hand[0] !== i18n || target !== targetLocale) {
+    setHand([i18n, (target = targetLocale), (from = i18n.locale)]);
+  } else if (from !== null && i18n.locale !== from) {
+    setHand([i18n, target, (from = null)]);
   }
   const locale =
-    hand.target !== undefined && hand.target !== hand.from && i18n.locale === hand.from
-      ? hand.target
-      : hostLocale;
+    target !== undefined && target !== from && i18n.locale === from ? target : hostLocale;
 
   // `messages` reach the children through a read view until the i18n instance
   // holds them, and the instance from the commit on, so a later `addMessages`
