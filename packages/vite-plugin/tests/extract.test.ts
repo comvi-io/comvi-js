@@ -412,3 +412,63 @@ describe("extractSchema", () => {
     });
   });
 });
+
+/**
+ * A translation key named `__proto__` is legal JSON and a legal catalog key.
+ * Flattening into `{}` used to hit Object.prototype's setter and drop it
+ * silently; `constructor` and `prototype` must stay ordinary keys too.
+ */
+describe("extractSchema with object-member key names", () => {
+  const roots: string[] = [];
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
+  });
+
+  async function schemaFor(files: Record<string, string>): Promise<ProjectSchema> {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "comvi-extract-proto-"));
+    roots.push(root);
+    for (const [file, content] of Object.entries(files)) {
+      await fs.mkdir(path.dirname(path.join(root, file)), { recursive: true });
+      await fs.writeFile(path.join(root, file), content, "utf-8");
+    }
+    return extractSchema({ translationsPath: root });
+  }
+
+  // Raw JSON text: JSON.parse makes `__proto__` an own key, as a real file does.
+  const catalog =
+    '{"__proto__":"lost {name}","constructor":"c","prototype":"p","ok":"kept",' +
+    '"nested":{"__proto__":"n","constructor":"nc","prototype":"np"}}';
+
+  const expectedKeys = (ns: string) =>
+    [
+      `${ns}:__proto__`,
+      `${ns}:constructor`,
+      `${ns}:nested.__proto__`,
+      `${ns}:nested.constructor`,
+      `${ns}:nested.prototype`,
+      `${ns}:ok`,
+      `${ns}:prototype`,
+    ].sort();
+
+  it("keeps them in a root default-namespace file", async () => {
+    const schema = await schemaFor({ "en.json": catalog });
+
+    expect(Object.keys(schema.keys).sort()).toEqual(expectedKeys("default"));
+    expect(Object.getOwnPropertyDescriptor(schema.keys, "default:__proto__")?.value).toEqual({
+      params: [{ name: "name", type: "string" }],
+    });
+  });
+
+  it("keeps them in a namespace file", async () => {
+    const schema = await schemaFor({ "admin/en.json": catalog });
+
+    expect(Object.keys(schema.keys).sort()).toEqual(expectedKeys("admin"));
+  });
+
+  it("leaves Object.prototype untouched", async () => {
+    await schemaFor({ "en.json": catalog });
+
+    expect(Object.prototype).not.toHaveProperty("nested");
+    expect(({} as Record<string, unknown>).ok).toBeUndefined();
+  });
+});

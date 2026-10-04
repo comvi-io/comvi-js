@@ -249,3 +249,28 @@ describe("emitDeclarations", () => {
     expect(keyLinesOf(result)).toEqual(['"admin:Zed": never;', '"admin:apple": never;']);
   });
 });
+
+describe("emitDeclarations with object-member key names", () => {
+  it("declares __proto__, constructor and prototype as ordinary quoted members", async () => {
+    const { extractSchema } = await import("../src/extract");
+    const fsp = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), "comvi-emit-proto-"));
+    try {
+      await fsp.writeFile(
+        path.join(root, "en.json"),
+        '{"__proto__":"P","constructor":"C","prototype":"T"}',
+        "utf-8",
+      );
+      const output = emitDeclarations(await extractSchema({ translationsPath: root }));
+
+      expect(output).toContain('    "__proto__": never;');
+      expect(output).toContain('    "constructor": never;');
+      expect(output).toContain('    "prototype": never;');
+      expect(syntacticDiagnosticsOf(output)).toEqual([]);
+    } finally {
+      await fsp.rm(root, { recursive: true, force: true });
+    }
+  });
+});

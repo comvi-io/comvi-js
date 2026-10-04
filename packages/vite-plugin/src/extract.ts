@@ -87,17 +87,22 @@ async function discoverFiles(
  * { common: { greeting: "Hello {name}" } } → { "common.greeting": "Hello {name}" }
  */
 function flattenObject(obj: Record<string, unknown>, prefix = ""): Record<string, string> {
-  const result: Record<string, string> = {};
+  // Null prototype: a key literally named `__proto__` has to land as data, not
+  // hit Object.prototype's setter and vanish from the generated types.
+  const result: Record<string, string> = Object.create(null) as Record<string, string>;
 
-  for (const [key, value] of Object.entries(obj)) {
-    const fullKey = prefix ? `${prefix}.${key}` : key;
-    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-      Object.assign(result, flattenObject(value as Record<string, unknown>, fullKey));
-    } else if (typeof value === "string") {
-      result[fullKey] = value;
+  const visit = (node: Record<string, unknown>, path: string): void => {
+    for (const [key, value] of Object.entries(node)) {
+      const fullKey = path ? `${path}.${key}` : key;
+      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+        visit(value as Record<string, unknown>, fullKey);
+      } else if (typeof value === "string") {
+        result[fullKey] = value;
+      }
     }
-  }
+  };
 
+  visit(obj, prefix);
   return result;
 }
 
@@ -453,7 +458,9 @@ export async function extractSchema(options: {
     onIssue,
   } = options;
 
-  const keys: Record<string, KeySchema> = {};
+  // Keyed by `namespace:key` names from the project's files, so null-prototype
+  // as well: `keys[fullKey]` must never find an inherited member.
+  const keys: Record<string, KeySchema> = Object.create(null) as Record<string, KeySchema>;
 
   function paramsFor(value: string, fullKey: string, filePath: string): SchemaParam[] {
     const { params, unsupported } = extractParams(value);
