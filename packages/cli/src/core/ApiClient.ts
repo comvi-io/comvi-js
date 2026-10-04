@@ -81,6 +81,29 @@ interface BulkImportResponse {
   errors?: Array<{ key: string; namespace: string; message: string }>;
 }
 
+interface RequestJsonOptions {
+  /** Retry 429/5xx/network failures. Defaults to true; the commit POST opts out. */
+  retryTransient?: boolean;
+  /** Prefix of a non-2xx failure message, e.g. "Failed to fetch schema". */
+  failure: string;
+  /** Message for a 403; without it a 403 reports like any other failure. */
+  forbidden?: string;
+}
+
+/** The error a non-2xx response that will not be retried turns into. */
+function httpError(response: Response, opts: RequestJsonOptions): TypegenError {
+  if (response.status === 401) {
+    return new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
+  }
+  if (response.status === 403 && opts.forbidden) {
+    return new TypegenError(opts.forbidden, ErrorCodes.API_AUTH_FAILED);
+  }
+  return new TypegenError(
+    `${opts.failure}: ${response.status} ${response.statusText}`,
+    ErrorCodes.API_FETCH_FAILED,
+  );
+}
+
 const MAX_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_AFTER_CAP_MS = 30_000;
@@ -159,46 +182,55 @@ export class ApiClient {
   }
 
   /**
-   * Run a fetch with timeout and bounded retry.
-   * Retries 429, 5xx, and network errors only when `retryTransient` is set.
-   * Mutation requests opt out because a failed-after-send commit may already
-   * have been applied server-side.
+   * Fetch, check the status, and parse the JSON body under ONE timeout: the
+   * timer starts before `fetch` and is cleared only after the body is read, so
+   * a server that sends headers promptly and then stalls the body still times
+   * out. Retries 429, 5xx, and network errors only when `retryTransient` is
+   * set. Mutation requests opt out because a failed-after-send commit may
+   * already have been applied server-side. A timeout is never retried.
    */
-  private async request(
+  private async requestJson<T>(
     url: string,
     init: RequestInit,
-    opts: { retryTransient?: boolean } = {},
-  ): Promise<Response> {
+    opts: RequestJsonOptions,
+  ): Promise<T> {
     const retryTransient = opts.retryTransient ?? true;
     let attempt = 0;
 
     for (;;) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      let retryAfterMs: number | undefined;
 
-      let response: Response;
       try {
-        response = await fetch(url, { ...init, signal: controller.signal });
-      } catch (error) {
-        const isAbort = error instanceof Error && error.name === "AbortError";
-        if (retryTransient && !isAbort && attempt < MAX_RETRIES) {
-          attempt++;
-          await delay(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
-          continue;
+        let response: Response | undefined;
+        try {
+          response = await fetch(url, { ...init, signal: controller.signal });
+        } catch (error) {
+          const isAbort = error instanceof Error && error.name === "AbortError";
+          if (!(retryTransient && !isAbort && attempt < MAX_RETRIES)) {
+            throw error;
+          }
+          retryAfterMs = RETRY_BASE_DELAY_MS * 2 ** attempt;
         }
-        throw error;
+
+        if (response) {
+          if (response.ok) {
+            return (await response.json()) as T;
+          }
+
+          const retryable = retryTransient && (response.status === 429 || response.status >= 500);
+          if (!(retryable && attempt < MAX_RETRIES)) {
+            throw httpError(response, opts);
+          }
+          retryAfterMs = retryDelayMs(response, attempt + 1);
+        }
       } finally {
         clearTimeout(timeoutId);
       }
 
-      const retryable = retryTransient && (response.status === 429 || response.status >= 500);
-      if (retryable && attempt < MAX_RETRIES) {
-        attempt++;
-        await delay(retryDelayMs(response, attempt));
-        continue;
-      }
-
-      return response;
+      attempt++;
+      await delay(retryAfterMs ?? 0);
     }
   }
 
@@ -217,22 +249,11 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.project}`;
 
     try {
-      const response = await this.request(url, {
-        method: "GET",
-        headers: this.authHeaders(),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to validate API key: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      const projectInfo = (await response.json()) as ProjectInfo;
+      const projectInfo = await this.requestJson<ProjectInfo>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to validate API key" },
+      );
       this.projectInfo = projectInfo;
       return projectInfo;
     } catch (error) {
@@ -259,25 +280,11 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectSchema(project.id)}`;
 
     try {
-      const response = await this.request(url, {
-        method: "GET",
-        headers: this.authHeaders(),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        if (response.status === 403) {
-          throw new TypegenError("Access denied to this project", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to fetch schema: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      return (await response.json()) as ProjectSchema;
+      return await this.requestJson<ProjectSchema>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to fetch schema", forbidden: "Access denied to this project" },
+      );
     } catch (error) {
       if (error instanceof TypegenError) {
         throw error;
@@ -311,25 +318,12 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.translations}${queryString ? `?${queryString}` : ""}`;
 
     try {
-      const response = await this.request(url, {
-        method: "GET",
-        headers: this.authHeaders(),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        if (response.status === 403) {
-          throw new TypegenError("Access denied to this project", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to fetch translations: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      return normalizeTranslationsResponse((await response.json()) as ApiTranslationsResponse);
+      const body = await this.requestJson<ApiTranslationsResponse>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to fetch translations", forbidden: "Access denied to this project" },
+      );
+      return normalizeTranslationsResponse(body);
     } catch (error) {
       if (error instanceof TypegenError) {
         throw error;
@@ -354,25 +348,11 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectNamespaces(project.id)}`;
 
     try {
-      const response = await this.request(url, {
-        method: "GET",
-        headers: this.authHeaders(),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        if (response.status === 403) {
-          throw new TypegenError("Access denied to project namespaces", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to fetch namespaces: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      const namespaces = (await response.json()) as NamespaceInfo[];
+      const namespaces = await this.requestJson<NamespaceInfo[]>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to fetch namespaces", forbidden: "Access denied to project namespaces" },
+      );
       if (!Array.isArray(namespaces)) {
         throw new TypegenError(
           "Invalid namespaces response: expected an array",
@@ -445,7 +425,7 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectImportCommit(project.id)}`;
     try {
       // retryTransient: false — a commit that failed after send may already be applied
-      const response = await this.request(
+      const body = await this.requestJson<BulkImportResponse>(
         url,
         {
           method: "POST",
@@ -459,23 +439,12 @@ export class ApiClient {
             },
           }),
         },
-        { retryTransient: false },
+        {
+          retryTransient: false,
+          failure: "Failed to push translations",
+          forbidden: "Access denied to this project",
+        },
       );
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        if (response.status === 403) {
-          throw new TypegenError("Access denied to this project", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to push translations: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      const body = (await response.json()) as BulkImportResponse;
       if (!body.success) {
         const firstError = body.errors?.[0];
         throw new TypegenError(
