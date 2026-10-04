@@ -162,6 +162,14 @@ describe("comvi init", () => {
     expect(output.stderr).not.toContain("API key validation failed");
   });
 
+  it("exits 4 when --api-url is a URL that is not http(s)", async () => {
+    await expect(
+      createInitCommand().parseAsync(["--api-url", "ftp://api.comvi.io"], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 4 });
+
+    expect(output.stderr).toContain("✗ Invalid API base URL: ftp://api.comvi.io");
+  });
+
   it("writes no config file when --api-url is not a URL", async () => {
     await expect(
       createInitCommand().parseAsync(["--api-url", "nonsense"], { from: "user" }),

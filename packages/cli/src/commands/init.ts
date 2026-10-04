@@ -1,3 +1,4 @@
+import { isHttpUrl } from "../core/apiBaseUrl";
 import { Command } from "commander";
 import { promises as fs } from "fs";
 import { ConfigLoader } from "../core/ConfigLoader";
@@ -9,15 +10,6 @@ import type { ComviConfig } from "../types";
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function isValidUrl(value: string): boolean {
-  try {
-    new URL(value);
     return true;
   } catch {
     return false;
@@ -38,7 +30,7 @@ export function createInitCommand(): Command {
       // ApiClient rejects a malformed URL from inside the key-validation block,
       // where it read as "API key validation failed" — and the bad value was
       // written to the config anyway.
-      if (!isValidUrl(options.apiUrl)) {
+      if (!isHttpUrl(options.apiUrl)) {
         console.error(`✗ Invalid API base URL: ${options.apiUrl}`);
         process.exit(EXIT_VALIDATION);
       }

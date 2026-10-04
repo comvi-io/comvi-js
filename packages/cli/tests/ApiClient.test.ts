@@ -748,3 +748,11 @@ describe("ApiClient", () => {
     });
   });
 });
+
+describe("ApiClient base URL policy", () => {
+  it("refuses a base URL that is not http(s)", () => {
+    expect(() => new ApiClient({ apiKey: "k", apiBaseUrl: "ftp://api.test.com" })).toThrow(
+      "Invalid API base URL: ftp://api.test.com",
+    );
+  });
+});

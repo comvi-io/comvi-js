@@ -4,6 +4,7 @@ import { DEFAULT_FILE_TEMPLATE } from "../defaults";
 import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
+import { isHttpUrl } from "./apiBaseUrl";
 import { isModuleSpecifier } from "@comvi/typegen";
 
 async function fileExists(path: string): Promise<boolean> {
@@ -230,19 +231,32 @@ export class ConfigLoader {
     }
 
     this.assertOptionalNonEmptyString(config.apiBaseUrl, "apiBaseUrl");
-    if (config.apiBaseUrl !== undefined) {
-      let protocol: string | undefined;
-      try {
-        protocol = new URL(config.apiBaseUrl).protocol;
-      } catch {
-        // Falls through to the same message as a non-http(s) URL.
-      }
-      if (protocol !== "http:" && protocol !== "https:") {
-        throw new TypegenError(
-          `Invalid configuration: "apiBaseUrl" must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
-          ErrorCodes.CONFIG_INVALID,
-        );
-      }
+    if (config.apiBaseUrl !== undefined && !isHttpUrl(config.apiBaseUrl)) {
+      throw new TypegenError(
+        `Invalid configuration: "apiBaseUrl" must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
+        ErrorCodes.CONFIG_INVALID,
+      );
+    }
+
+    this.validateFileTemplate(config.fileTemplate);
+  }
+
+  /**
+   * The template decides where every namespace and locale lives and which files
+   * the reader picks back up. One that lacks a placeholder maps several
+   * catalogs onto one file; one that does not end in `.json` is written but
+   * never read, so a later push sees an empty catalog.
+   */
+  private static validateFileTemplate(template: string | undefined): void {
+    if (template === undefined) return;
+
+    const count = (placeholder: string) => template.split(placeholder).length - 1;
+    const endsInJson = template.endsWith(".json") || template.endsWith(".{extension}");
+    if (count("{languageTag}") !== 1 || count("{namespace}") !== 1 || !endsInJson) {
+      throw new TypegenError(
+        `Invalid configuration: "fileTemplate" must contain exactly one {languageTag} and one {namespace} and end in ".json" (or ".{extension}"), received ${describe(template)}`,
+        ErrorCodes.CONFIG_INVALID,
+      );
     }
   }
 

@@ -20,6 +20,7 @@ import type {
   ForceMode,
 } from "../types";
 import { wrapError, ErrorCodes, TypegenError } from "../utils/errors";
+import { isHttpUrl } from "./apiBaseUrl";
 import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
 export interface ApiClientOptions {
@@ -263,9 +264,7 @@ export class ApiClient {
       );
     }
 
-    try {
-      new URL(options.apiBaseUrl);
-    } catch {
+    if (!isHttpUrl(options.apiBaseUrl)) {
       throw new TypegenError(
         `Invalid API base URL: ${options.apiBaseUrl}`,
         ErrorCodes.INVALID_INPUT,

@@ -255,6 +255,15 @@ describe("ConfigLoader", () => {
     });
 
     it.each([
+      "{namespace}/{languageTag}.json",
+      "{languageTag}/{namespace}.{extension}",
+      "{namespace}.{languageTag}.json",
+    ])("accepts the file template %s", async (fileTemplate) => {
+      const cfg = await loadWith({ fileTemplate });
+      expect(cfg.fileTemplate).toBe(fileTemplate);
+    });
+
+    it.each([
       ["format", "yaml", 'string "yaml"'],
       ["format", 7, "number 7"],
       ["translationsPath", 42, "number 42"],
@@ -263,6 +272,14 @@ describe("ConfigLoader", () => {
       ["outputPath", "", 'string ""'],
       ["fileTemplate", false, "boolean false"],
       ["fileTemplate", "", 'string ""'],
+      ["fileTemplate", "{namespace}/{languageTag}.yaml", 'string "{namespace}/{languageTag}.yaml"'],
+      ["fileTemplate", "{languageTag}.json", 'string "{languageTag}.json"'],
+      ["fileTemplate", "{namespace}.json", 'string "{namespace}.json"'],
+      [
+        "fileTemplate",
+        "{namespace}/{namespace}/{languageTag}.json",
+        'string "{namespace}/{namespace}/{languageTag}.json"',
+      ],
       ["apiBaseUrl", 5, "number 5"],
       ["apiBaseUrl", "not a url", 'string "not a url"'],
       ["apiBaseUrl", "ftp://api.comvi.io", 'string "ftp://api.comvi.io"'],
