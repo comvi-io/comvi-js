@@ -126,7 +126,7 @@ jobs:
           name: release-candidate
           path: release-candidate/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
 
   rc-verify:
     needs: rc-pack
