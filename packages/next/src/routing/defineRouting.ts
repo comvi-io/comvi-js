@@ -1,4 +1,8 @@
-import { buildLocalizedPath } from "@comvi/locale-routing";
+import {
+  buildLocalizedPath,
+  DEFAULT_LOCALE_PREFIX,
+  normalizeLocaleCookie,
+} from "@comvi/locale-routing";
 import type { RoutingConfig } from "./types";
 
 /**
@@ -22,10 +26,13 @@ import type { RoutingConfig } from "./types";
 export function defineRouting<T extends string>(
   config: RoutingConfig<T>,
 ): Required<RoutingConfig<T>> {
+  // The shared schema decides the defaults, as it does for `@comvi/nuxt`: the
+  // routing half of `normalizeRoutingOptions`, which this client-side helper
+  // calls piecewise so the detection half stays out of client bundles.
   return {
     ...config,
-    localePrefix: config.localePrefix ?? "as-needed",
-    localeCookie: config.localeCookie ?? "NEXT_LOCALE",
+    localePrefix: config.localePrefix ?? DEFAULT_LOCALE_PREFIX,
+    localeCookie: normalizeLocaleCookie(config.localeCookie, "NEXT_LOCALE"),
     pathnames: config.pathnames ?? {},
   };
 }

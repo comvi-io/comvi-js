@@ -100,17 +100,20 @@ follow-up audit decides each one, and this record changes when it does.
   `*` is not expanded; the CONFIGURED spelling is what comes back.
 - **Locale semantics.** Which string is "the locale" for a request, and that it is passed explicitly
   into every lookup rather than being set on a host.
-- **Locale cookie and detection options** (amended 2026-10-04). One vocabulary in
-  `createMiddleware` / `defineRouting` and in the `comvi` module options: `localeCookie: false |
-string | { name, maxAge, secure, sameSite, domain }` and `localeDetection: false | { order,
-queryParam, headerName, resolveAcceptLanguage }`, with the same defaults except the cookie name.
-  The URL path always comes first; the default order is `query`, `cookie`, `accept-language`, and
-  `query` and `header` are inert until their names are set. `false` on either turns that half off
-  and leaves the other alone. The 0.4 spellings (next's `localeDetection.cookieName` /
-  `cookieSecure`, nuxt's `detectBrowserLanguage`) map onto the new shape through 0.5 and warn once
-  in development; given beside a new spelling, the new one wins. Nuxt resolves the options at build
-  time and copies `resolveAcceptLanguage` into the build as source, because runtime config carries
-  JSON only, so there it must be self-contained.
+- **The routing options schema** (amended 2026-10-04). One implementation,
+  `normalizeRoutingOptions(input, { cookieNameDefault })` in the locale-routing source, decides the
+  names, shapes and defaults of `locales`, `defaultLocale`, `localePrefix`, `localeCookie`,
+  `localeDetection` and `ns`. Next's `defineRouting` and `createMiddleware` call it; nuxt's module
+  calls the vendored copy at build time and writes the result into runtime config. The cookie
+  name's default is the only input that differs. `localeCookie` is `false`, a name, or `{ name,
+maxAge, secure, sameSite, domain }`; `localeDetection` is `false` or `{ order, queryParam,
+headerName, resolveAcceptLanguage }`. The URL path always comes first, the default order is
+  `query`, `cookie`, `accept-language`, and `query` and `header` do nothing until their names are
+  set. `false` on either turns that half off and leaves the other alone. There are no aliases: 0.5
+  is a new library with no 0.4 users. The types reject the old spellings, and nuxt's module setup
+  fails on one, naming the key to write (`findUnknownRoutingOptionKeys`, in the same source). Nuxt
+  copies `resolveAcceptLanguage` into the build as source, because runtime config carries JSON
+  only, so there it must be self-contained.
 - **App-wide namespaces** (amended 2026-10-04). `ns: string[]`, core's option, in
   `createNextI18n` and in the `comvi` module options, forwarded into every constructed host and a
   `hostModule` factory's options.
@@ -119,9 +122,8 @@ queryParam, headerName, resolveAcceptLanguage }`, with the same defaults except 
   identically after it: `i18n not configured.`, `No loader registered, so SSR loaded nothing.` and
   `Failed to load <locale>:<ns>:`. The one exception is next's `.use()` identity error, which keeps
   `[i18n]` because `@comvi/vue` throws the same sentence for the same contract.
-- **Server helper vocabulary.** `ns`, the word core's `t(key, { ns })` already uses. Nuxt's 0.4
-  `namespace` is a deprecated alias through 0.5 and is removed in 0.6; passing both takes `ns` and
-  warns once in dev.
+- **Server helper vocabulary.** `ns`, the word core's `t(key, { ns })` already uses, and no other
+  spelling; an empty `ns` counts as not given in both.
 - **Server helper result shape.** `{ t, hasTranslation, locale }` from both `getI18n()` and
   `useTranslation(event)`, with `locale` being the same binding `t` closes over.
 - **Server fallback-chain loading** (amended 2026-10-04). Before the server translates, the
@@ -294,10 +296,12 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
 - locale resolution — `createMiddleware` in `packages/next/src/middleware/createMiddleware.ts`;
   `packages/nuxt/src/runtime/utils/resolve-locale.ts`, used by `runtime/middleware/i18n.global.ts`
   and the Nitro utils
-- the cookie and detection options — `LocaleCookieConfig` / `LocaleDetectionConfig` in
-  `packages/next/src/middleware/types.ts` and `packages/nuxt/src/types.ts`; next resolves them in
-  `createMiddleware`, nuxt at build time in `packages/nuxt/src/locale-options.ts`, which also emits
-  `#build/comvi.detection`
+- the routing options schema — `normalizeRoutingOptions` and `findUnknownRoutingOptionKeys` in
+  `packages/locale-routing/src/index.ts`, called by `packages/next/src/routing/defineRouting.ts`,
+  `packages/next/src/middleware/createMiddleware.ts` and `packages/nuxt/src/module.ts`; the
+  same-keys type tests `packages/next/tests/types/routing-options.test-d.ts` and
+  `packages/nuxt/tests/routing-options.test-d.ts`; `#build/comvi.detection` from
+  `packages/nuxt/src/locale-options.ts`
 - the instance hand-off (next side landing in 0.5) — `withComvi` in `packages/next/src/plugin.ts`,
   `resolveServerI18n` in `packages/next/src/server/cache.ts`, `packages/next/src/server/ComviProvider.tsx`;
   `hostModule` and `NuxtHostFactory` in `packages/nuxt/src/types.ts`

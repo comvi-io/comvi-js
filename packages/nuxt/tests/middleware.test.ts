@@ -13,9 +13,8 @@ import {
   mockRuntimeConfig,
   getMockCookieOptions,
   getMockCookieWrites,
-  setDetectBrowserLanguage,
+  setLocaleOptions,
 } from "./mocks/nuxt-app";
-import type { DetectBrowserLanguageOptions } from "../src/types";
 import { setCustomResolveAcceptLanguage } from "./mocks/comvi-detection";
 import { useCookie, useState } from "#app";
 import { isServer } from "../src/runtime/utils/runtime";
@@ -33,24 +32,6 @@ interface RouteStub {
 // `params` is what makes the stub a real route shape; the middleware never
 // reads it.
 const runMiddleware = (route: RouteStub) => middleware({ params: {}, ...route });
-
-type DetectConfig = DetectBrowserLanguageOptions;
-
-const DETECT_SKELETON = {
-  useCookie: true,
-  cookieName: "i18n_locale",
-  cookieMaxAge: 31536000,
-  redirectOnFirstVisit: true,
-} as const;
-
-/** The mock's default detection config, with only the fields a test varies. */
-const withDetect = (overrides: Record<string, unknown> = {}) => {
-  setDetectBrowserLanguage({
-    ...DETECT_SKELETON,
-    fallbackLocale: "en",
-    ...overrides,
-  } as DetectConfig);
-};
 
 describe("i18n middleware", () => {
   beforeEach(() => {
@@ -117,7 +98,7 @@ describe("i18n middleware", () => {
   });
 
   it("ignores cookies when useCookie is false", async () => {
-    withDetect({ useCookie: false });
+    setLocaleOptions({ localeCookie: false });
     setMockCookie("i18n_locale", "de");
 
     const result = await runMiddleware({
@@ -188,26 +169,9 @@ describe("i18n middleware", () => {
     expect(localeState.value).toBe("de");
   });
 
-  it("does not redirect when redirectOnFirstVisit is false and locale detected from header", async () => {
-    setServerMode(true);
-    withDetect({ useCookie: false, redirectOnFirstVisit: false });
-    setMockRequestHeaders({
-      "accept-language": "de-DE,de;q=0.9,en;q=0.8",
-    });
-
-    const result = await runMiddleware({
-      path: "/",
-      fullPath: "/",
-    });
-
-    expect(result).toBeUndefined();
-    const localeState = useState<string>("i18n-locale");
-    expect(localeState.value).toBe("de");
-  });
-
   it("redirects root to detected Accept-Language locale in as-needed mode", async () => {
     setServerMode(true);
-    withDetect({ useCookie: false });
+    setLocaleOptions({ localeCookie: false });
     setMockRequestHeaders({
       "accept-language": "uk,en;q=0.8",
     });
@@ -228,7 +192,7 @@ describe("i18n middleware", () => {
     // carries the other). A refused `uk` leaves nothing to match, so detection
     // yields the fallback and the root path is not redirected to `/uk`.
     setServerMode(true);
-    withDetect({ useCookie: false });
+    setLocaleOptions({ localeCookie: false });
     setMockRequestHeaders({
       "accept-language": "uk;q=0",
     });
@@ -245,7 +209,7 @@ describe("i18n middleware", () => {
 
   it("does not use Accept-Language for non-root paths in as-needed mode", async () => {
     setServerMode(true);
-    withDetect({ useCookie: false });
+    setLocaleOptions({ localeCookie: false });
     setMockRequestHeaders({
       "accept-language": "uk,en;q=0.8",
     });
@@ -260,8 +224,8 @@ describe("i18n middleware", () => {
     expect(localeState.value).toBe("en");
   });
 
-  it("redirects to detected locale when redirectOnFirstVisit is true and cookie has locale", async () => {
-    withDetect({ useCookie: true, redirectOnFirstVisit: true });
+  it("redirects the root path to the locale the cookie holds", async () => {
+    setLocaleOptions();
     setMockCookie("i18n_locale", "uk");
 
     const result = await runMiddleware({
@@ -272,31 +236,6 @@ describe("i18n middleware", () => {
     expect(result).toEqual({ path: "/uk", redirectCode: 302 });
     const localeState = useState<string>("i18n-locale");
     expect(localeState.value).toBe("uk");
-  });
-
-  it("falls back to default locale when fallbackLocale is unsupported", async () => {
-    withDetect({ useCookie: false, fallbackLocale: "es" });
-
-    await runMiddleware({
-      path: "/about",
-      fullPath: "/about",
-    });
-
-    const localeState = useState<string>("i18n-locale");
-    expect(localeState.value).toBe("en");
-  });
-
-  it("uses the first supported fallback locale when fallbackLocale is an array", async () => {
-    withDetect({ useCookie: false, fallbackLocale: ["es", "de"] });
-
-    const result = await runMiddleware({
-      path: "/",
-      fullPath: "/",
-    });
-
-    expect(result).toEqual({ path: "/de", redirectCode: 302 });
-    const localeState = useState<string>("i18n-locale");
-    expect(localeState.value).toBe("de");
   });
 
   it("redirects root to locale prefix in always mode", async () => {
@@ -332,8 +271,8 @@ describe("i18n middleware", () => {
     expect(result).toBeUndefined();
   });
 
-  it("handles detectBrowserLanguage set to false", async () => {
-    setDetectBrowserLanguage(false);
+  it("handles the cookie and detection both turned off", async () => {
+    setLocaleOptions({ localeCookie: false, localeDetection: false });
     setMockCookie("i18n_locale", "uk");
 
     const result = await runMiddleware({
@@ -535,11 +474,8 @@ describe("i18n middleware", () => {
 
   describe("locale cookie attributes", () => {
     it("writes the cookie with the attributes the detection config asks for", async () => {
-      withDetect({
-        cookieMaxAge: 600,
-        sameSite: "strict",
-        domain: ".example.com",
-        cookieSecure: false,
+      setLocaleOptions({
+        localeCookie: { maxAge: 600, sameSite: "strict", domain: ".example.com", secure: false },
       });
 
       await runMiddleware({ path: "/", fullPath: "/" });
@@ -554,7 +490,7 @@ describe("i18n middleware", () => {
     });
 
     it("writes a year-long secure lax cookie when detection configures no attributes", async () => {
-      setDetectBrowserLanguage({ useCookie: true } as DetectConfig);
+      setLocaleOptions();
 
       await runMiddleware({ path: "/", fullPath: "/" });
 
@@ -569,7 +505,7 @@ describe("i18n middleware", () => {
 
     it("drops the secure flag in a dev build so localhost HTTP keeps the cookie", async () => {
       vi.stubGlobal("__COMVI_TEST_DEV__", true);
-      withDetect({ cookieSecure: true });
+      setLocaleOptions({ localeCookie: { secure: true } });
 
       await runMiddleware({ path: "/", fullPath: "/" });
 
@@ -577,7 +513,7 @@ describe("i18n middleware", () => {
     });
 
     it("creates no cookie at all when browser detection is disabled", async () => {
-      setDetectBrowserLanguage(false);
+      setLocaleOptions({ localeCookie: false, localeDetection: false });
       setMockCookie("i18n_locale", "uk");
 
       const result = await runMiddleware({ path: "/", fullPath: "/" });
@@ -588,7 +524,7 @@ describe("i18n middleware", () => {
     });
 
     it("ignores a stored preference at the root path when useCookie is disabled", async () => {
-      withDetect({ useCookie: false });
+      setLocaleOptions({ localeCookie: false });
       setMockCookie("i18n_locale", "uk");
 
       const result = await runMiddleware({ path: "/", fullPath: "/" });
@@ -624,7 +560,7 @@ describe("i18n middleware", () => {
 
     it("skips header detection entirely when browser detection is disabled", async () => {
       setServerMode(true);
-      setDetectBrowserLanguage(false);
+      setLocaleOptions({ localeCookie: false, localeDetection: false });
       setMockRequestHeaders({ "accept-language": "uk" });
 
       const result = await runMiddleware({ path: "/", fullPath: "/" });
@@ -635,32 +571,12 @@ describe("i18n middleware", () => {
 
     it("resolves the fallback locale when the request sends no Accept-Language header", async () => {
       setServerMode(true);
-      withDetect({ useCookie: false });
+      setLocaleOptions({ localeCookie: false });
 
       const result = await runMiddleware({ path: "/", fullPath: "/" });
 
       expect(result).toBeUndefined();
       expect(useState<string>("i18n-locale").value).toBe("en");
-    });
-
-    it("redirects to the fallback locale when the header matched nothing and first-visit redirects are off", async () => {
-      setServerMode(true);
-      withDetect({ useCookie: false, redirectOnFirstVisit: false, fallbackLocale: "de" });
-      setMockRequestHeaders({ "accept-language": "ja" });
-
-      const result = await runMiddleware({ path: "/", fullPath: "/" });
-
-      expect(result).toEqual({ path: "/de", redirectCode: 302 });
-      expect(useState<string>("i18n-locale").value).toBe("de");
-    });
-
-    it("still redirects a cookie-detected locale when first-visit redirects are off", async () => {
-      withDetect({ useCookie: true, redirectOnFirstVisit: false });
-      setMockCookie("i18n_locale", "uk");
-
-      const result = await runMiddleware({ path: "/", fullPath: "/" });
-
-      expect(result).toEqual({ path: "/uk", redirectCode: 302 });
     });
   });
 
@@ -702,14 +618,11 @@ describe("i18n middleware", () => {
   });
 
   describe("query parameter detection", () => {
-    // Deliberately not via `withDetect`: these tests never read `fallbackLocale`.
-    const withQueryParam = (overrides: Record<string, unknown> = {}) => {
-      setDetectBrowserLanguage({
-        ...DETECT_SKELETON,
-        useCookie: false,
-        queryParam: "lang",
-        ...overrides,
-      } as DetectConfig);
+    const withQueryParam = ({ cookie = false }: { cookie?: boolean } = {}) => {
+      setLocaleOptions({
+        ...(cookie ? {} : { localeCookie: false }),
+        localeDetection: { queryParam: "lang" },
+      });
     };
 
     it("uses the query locale in never mode without redirecting (forest-page shape)", async () => {
@@ -730,7 +643,7 @@ describe("i18n middleware", () => {
     });
 
     it("prefers the query locale over the cookie", async () => {
-      withQueryParam({ useCookie: true });
+      withQueryParam({ cookie: true });
       setMockCookie("i18n_locale", "de");
 
       const result = await runMiddleware({
@@ -818,7 +731,7 @@ describe("i18n middleware", () => {
     });
 
     it("ignores query values outside the locale allowlist", async () => {
-      withQueryParam({ useCookie: true });
+      withQueryParam({ cookie: true });
       setMockCookie("i18n_locale", "de");
 
       const result = await runMiddleware({
@@ -854,7 +767,7 @@ describe("i18n middleware", () => {
     });
 
     it("updates the cookie to the query-selected locale instead of preserving the stored one", async () => {
-      withQueryParam({ useCookie: true });
+      withQueryParam({ cookie: true });
       setMockCookie("i18n_locale", "uk");
 
       const result = await runMiddleware({

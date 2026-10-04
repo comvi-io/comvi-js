@@ -20,28 +20,13 @@ export interface UseTranslationOptions {
    * two server helpers no longer differ by vocabulary alone. See
    * `docs/design/next-nuxt-parity.md`.
    *
-   * An empty string counts as NOT GIVEN: `ns: ""` falls through to `namespace`
-   * if you passed one, and otherwise to `defaultNs`.
+   * An empty string counts as NOT GIVEN: `ns: ""` falls back to `defaultNs`.
    */
   ns?: string;
-
-  /**
-   * @deprecated Renamed in 0.5: use `ns`. Removed in 0.6.
-   *
-   * Ignored when `ns` is given as a non-empty string.
-   */
-  namespace?: string;
 
   /** Overrides detection. */
   locale?: string;
 }
-
-/**
- * The both-options warning is once per process, not once per request: a server
- * helper is called on every request, and a call site that passes both passes
- * both every time.
- */
-let warnedAboutBothNamespaceOptions = false;
 
 /**
  * ONE signature, keyed through core's `AcceptedKey` / `ArgsFor` pair exactly as
@@ -117,27 +102,8 @@ export async function useTranslation(
     localeCookie: cookieConfig,
     localeDetection: detectConfig,
   } = publicConfig;
-  // An EMPTY `ns` counts as not given, not as "the empty namespace": `""` has
-  // always fallen through to the next option, and the one rule has to hold in
-  // both places or the warning below would claim `ns` won a fight the `||`
-  // chain then gave to `namespace`.
-  const nsGiven = options.ns !== undefined && options.ns !== "";
-
-  if (import.meta.dev && !warnedAboutBothNamespaceOptions && nsGiven && options.namespace) {
-    warnedAboutBothNamespaceOptions = true;
-    console.warn(
-      `[@comvi/nuxt] useTranslation() was passed both \`ns\` ("${options.ns}") and the ` +
-        `deprecated \`namespace\` ("${options.namespace}"). \`ns\` wins. Drop \`namespace\`: ` +
-        "it is removed in 0.6.",
-    );
-  }
-
-  // `||`, not `??`: an empty string has always fallen back to `defaultNs`, and
-  // the rename is not the place to change that.
-  const namespace = options.ns || options.namespace || defaultNs;
-
-  const fallbackLocale = (detectConfig && detectConfig.fallbackLocale) || defaultLocale;
-  const resolvedFallbackLocale = locales.includes(fallbackLocale) ? fallbackLocale : defaultLocale;
+  // `||`, not `??`: an empty `ns` counts as not given, as in `@comvi/next`.
+  const namespace = options.ns || defaultNs;
 
   const accept = (candidate: string | null | undefined): string | undefined =>
     candidate && locales.includes(candidate) ? candidate : undefined;
@@ -169,7 +135,7 @@ export async function useTranslation(
     }
   }
 
-  const resolvedLocale = locale || resolvedFallbackLocale;
+  const resolvedLocale = locale || defaultLocale;
 
   const i18n = await getRequestI18n(event, resolvedLocale);
 

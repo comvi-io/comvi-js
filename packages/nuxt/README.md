@@ -53,9 +53,7 @@ export default defineNuxtConfig({
 ```
 
 `comvi.translation` is the inline catalog, nested or flat, and must stay JSON-serializable. The
-module writes `<html lang dir>` from the active locale on the server and on every switch; set
-`comvi.head: false` to write them yourself. Call `useLocaleHead()` for canonical, hreflang and
-`og:locale` tags.
+module writes `<html lang dir>` from the active locale on the server and on every switch.
 
 ## Use in components
 
@@ -127,9 +125,13 @@ the URL should change too.
 Two options control it, with the same names, values and defaults as `@comvi/next`'s middleware
 except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
 or `false` to persist nothing. `localeDetection` takes `{ order, queryParam, headerName,
-resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge. The 0.4
-`detectBrowserLanguage` still works through 0.5 and warns in development. `comvi.ns` lists the
+resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge. `comvi.ns` lists the
 namespaces to load besides `defaultNs`, as core's `ns` does.
+
+### Advanced
+
+Set `comvi.head: false` to write the `<html lang dir>` attributes yourself, and call
+`useLocaleHead()` for canonical, hreflang and `og:locale` tags.
 
 ## Next steps
 

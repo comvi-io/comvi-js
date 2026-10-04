@@ -37,7 +37,12 @@ describe("createNextI18nFromHost — eager construction", () => {
     expect(host).toHaveBeenCalledTimes(1);
     expect(result.i18n).toBe(built);
     expect(result.routing.defaultLocale).toBe("en");
-    expect(result.routing.localeCookie).toBe("NEXT_LOCALE");
+    expect(result.routing.localeCookie).toEqual({
+      name: "NEXT_LOCALE",
+      maxAge: 31536000,
+      secure: true,
+      sameSite: "lax",
+    });
     // `i18n` is a plain data field, not a getter: reading it runs nothing.
     expect(Object.getOwnPropertyDescriptor(result, "i18n")).toMatchObject({ value: built });
     expect(result.i18n).toBe(built);

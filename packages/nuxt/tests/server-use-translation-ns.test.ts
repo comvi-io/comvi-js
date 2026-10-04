@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nodeResponseStub } from "./mocks/node-response";
-import { fromDetectBrowserLanguage } from "./mocks/locale-options";
+import { runtimeLocaleKeys } from "./mocks/locale-options";
 
 /**
  * `useTranslation`'s namespace option is `ns`, the word core's `t(key, { ns })`
- * and next's `getI18n({ ns })` already use. `namespace` is the 0.4 spelling,
- * kept as a deprecated alias for 0.5 and removed in 0.6. See
- * `docs/design/next-nuxt-parity.md` for why the vocabulary is shared even
- * though the adapters are not.
+ * and next's `getI18n({ ns })` use. There is no other spelling: 0.5 has no
+ * aliases, and the type test in `server-types.test-d.ts` rejects `namespace`.
+ * See `docs/design/next-nuxt-parity.md`.
  */
 
 const getCookie = vi.fn();
@@ -29,7 +28,7 @@ function createEvent() {
             locales: ["en", "de"],
             defaultLocale: "en",
             defaultNs: "common",
-            ...fromDetectBrowserLanguage({ useCookie: true, fallbackLocale: "en" }),
+            ...runtimeLocaleKeys(),
           },
         },
         comvi: {},
@@ -97,20 +96,6 @@ describe("useTranslation namespace vocabulary", () => {
     expect(i18n.addActiveNamespace).toHaveBeenCalledWith("admin");
   });
 
-  it("still honours the deprecated `namespace` alias on its own", async () => {
-    const i18n = createI18nStub();
-    createComviCore.mockReturnValue(i18n);
-    const useTranslation = await importUseTranslation();
-
-    const { t } = await useTranslation(createEvent(), { locale: "de", namespace: "admin" });
-    t("hello");
-
-    expect(i18n.t).toHaveBeenCalledWith(
-      "hello",
-      expect.objectContaining({ locale: "de", ns: "admin" }),
-    );
-  });
-
   it("answers hasTranslation against `ns` too", async () => {
     const i18n = createI18nStub();
     createComviCore.mockReturnValue(i18n);
@@ -120,53 +105,6 @@ describe("useTranslation namespace vocabulary", () => {
     hasTranslation("hello");
 
     expect(i18n.hasTranslation).toHaveBeenCalledWith("hello", "de", "admin");
-  });
-
-  it("lets `ns` win when both are passed", async () => {
-    const i18n = createI18nStub();
-    createComviCore.mockReturnValue(i18n);
-    const useTranslation = await importUseTranslation();
-
-    const { t } = await useTranslation(createEvent(), {
-      locale: "de",
-      ns: "admin",
-      namespace: "legacy",
-    });
-    t("hello");
-
-    expect(i18n.t).toHaveBeenCalledWith(
-      "hello",
-      expect.objectContaining({ locale: "de", ns: "admin" }),
-    );
-  });
-
-  it("treats an empty `ns` as not given, leaving `namespace` in charge", async () => {
-    const i18n = createI18nStub();
-    createComviCore.mockReturnValue(i18n);
-    const useTranslation = await importUseTranslation();
-
-    const { t } = await useTranslation(createEvent(), {
-      locale: "de",
-      ns: "",
-      namespace: "admin",
-    });
-    t("hello");
-
-    expect(i18n.t).toHaveBeenCalledWith(
-      "hello",
-      expect.objectContaining({ locale: "de", ns: "admin" }),
-    );
-  });
-
-  it("does not claim `ns` won when an empty `ns` was not given at all", async () => {
-    vi.stubGlobal("__COMVI_TEST_DEV__", true);
-    createComviCore.mockReturnValue(createI18nStub());
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const useTranslation = await importUseTranslation();
-
-    await useTranslation(createEvent(), { locale: "de", ns: "", namespace: "admin" });
-
-    expect(warn).not.toHaveBeenCalled();
   });
 
   it("falls back to defaultNs when an empty `ns` is the only option given", async () => {
@@ -181,47 +119,5 @@ describe("useTranslation namespace vocabulary", () => {
       "hello",
       expect.objectContaining({ locale: "de", ns: "common" }),
     );
-  });
-
-  it("warns once in dev when both are passed, naming which one won", async () => {
-    vi.stubGlobal("__COMVI_TEST_DEV__", true);
-    const i18n = createI18nStub();
-    createComviCore.mockReturnValue(i18n);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const useTranslation = await importUseTranslation();
-
-    await useTranslation(createEvent(), { locale: "de", ns: "admin", namespace: "legacy" });
-    await useTranslation(createEvent(), { locale: "de", ns: "admin", namespace: "legacy" });
-
-    expect(warn).toHaveBeenCalledTimes(1);
-    const message = String(warn.mock.calls[0]?.[0]);
-    expect(message).toContain("[@comvi/nuxt]");
-    expect(message).toContain("ns");
-    expect(message).toContain("namespace");
-  });
-
-  it("stays silent when only one of the two is passed", async () => {
-    vi.stubGlobal("__COMVI_TEST_DEV__", true);
-    createComviCore.mockReturnValue(createI18nStub());
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const useTranslation = await importUseTranslation();
-
-    await useTranslation(createEvent(), { ns: "admin" });
-    await useTranslation(createEvent(), { namespace: "admin" });
-    await useTranslation(createEvent(), {});
-
-    expect(warn).not.toHaveBeenCalled();
-  });
-
-  it("says nothing in production, where the warning would only cost bytes on the wire", async () => {
-    // `__COMVI_TEST_DEV__` left unstubbed: the vitest seam for `import.meta.dev`
-    // defaults to undefined, which is what a production build evaluates to.
-    createComviCore.mockReturnValue(createI18nStub());
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const useTranslation = await importUseTranslation();
-
-    await useTranslation(createEvent(), { locale: "de", ns: "admin", namespace: "legacy" });
-
-    expect(warn).not.toHaveBeenCalled();
   });
 });

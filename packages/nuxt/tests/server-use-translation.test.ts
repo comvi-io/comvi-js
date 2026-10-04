@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hasLoaderApi } from "@comvi/core";
 import { nodeResponseStub } from "./mocks/node-response";
-import { fromDetectBrowserLanguage, resolveDetectOverride } from "./mocks/locale-options";
+import { runtimeLocaleKeys } from "./mocks/locale-options";
 
 const getCookie = vi.fn();
 const getHeader = vi.fn();
@@ -34,11 +34,8 @@ function createEvent(comviOverrides: Record<string, unknown> = {}) {
             defaultNs: "common",
             fallbackLocale: "en",
             defaultParams: { formality: "formal" },
-            ...fromDetectBrowserLanguage({
-              useCookie: true,
-              fallbackLocale: "en",
-            }),
-            ...resolveDetectOverride(comviOverrides),
+            ...runtimeLocaleKeys(),
+            ...comviOverrides,
           },
         },
         comvi: {},
@@ -112,7 +109,7 @@ describe("useTranslation (server)", () => {
 
     const { t, locale, hasTranslation } = await useTranslation(createEvent(), {
       locale: "de",
-      namespace: "admin",
+      ns: "admin",
     });
 
     expect(locale).toBe("de");
@@ -155,7 +152,7 @@ describe("useTranslation (server)", () => {
 
     const { t, locale } = await useTranslation(createEvent(), {
       locale: "de",
-      namespace: "admin",
+      ns: "admin",
     });
 
     expect(locale).toBe("de");
@@ -198,7 +195,6 @@ describe("useTranslation (server)", () => {
         locales: ["en-US", "de-DE"],
         defaultLocale: "en-US",
         fallbackLocale: "en-US",
-        detectBrowserLanguage: { useCookie: true, fallbackLocale: "en-US" },
       }),
     );
 
@@ -213,7 +209,10 @@ describe("useTranslation (server)", () => {
     const useTranslation = await importUseTranslation();
 
     const { locale } = await useTranslation(
-      createEvent({ locales: ["en", "de"], detectBrowserLanguage: false }),
+      createEvent({
+        locales: ["en", "de"],
+        ...runtimeLocaleKeys({ localeCookie: false, localeDetection: false }),
+      }),
     );
 
     expect(locale).toBe("en");
@@ -292,8 +291,8 @@ describe("useTranslation (server)", () => {
     const event = createEvent();
 
     const [enResult, deResult] = await Promise.all([
-      useTranslation(event, { locale: "en", namespace: "common" }),
-      useTranslation(event, { locale: "de", namespace: "common" }),
+      useTranslation(event, { locale: "en", ns: "common" }),
+      useTranslation(event, { locale: "de", ns: "common" }),
     ]);
 
     expect(createComviCore).toHaveBeenCalledTimes(2);
@@ -327,25 +326,10 @@ describe("useTranslation (server)", () => {
     const useTranslation = await importUseTranslation();
 
     const { locale } = await useTranslation(
-      createEvent({ detectBrowserLanguage: { useCookie: false } }),
+      createEvent(runtimeLocaleKeys({ localeCookie: false })),
     );
 
     expect(locale).toBe("en");
-  });
-
-  it("uses the detection fallbackLocale when neither cookie nor header resolves", async () => {
-    const i18n = createI18nStub("de");
-    createComviCore.mockReturnValue(i18n);
-    const useTranslation = await importUseTranslation();
-
-    const { locale } = await useTranslation(
-      createEvent({
-        defaultLocale: "en",
-        detectBrowserLanguage: { useCookie: false, fallbackLocale: "de" },
-      }),
-    );
-
-    expect(locale).toBe("de");
   });
 
   it("ignores a cookie carrying a locale that is not configured", async () => {
@@ -400,7 +384,7 @@ describe("useTranslation (server)", () => {
     createComviCore.mockReturnValue(i18n);
     const useTranslation = await importUseTranslation();
 
-    await useTranslation(createEvent(), { locale: "en", namespace: "admin" });
+    await useTranslation(createEvent(), { locale: "en", ns: "admin" });
 
     expect(i18n.addActiveNamespace).not.toHaveBeenCalled();
   });
@@ -410,7 +394,7 @@ describe("useTranslation (server)", () => {
     createComviCore.mockReturnValue(i18n);
     const useTranslation = await importUseTranslation();
 
-    await useTranslation(createEvent(), { locale: "en", namespace: "admin" });
+    await useTranslation(createEvent(), { locale: "en", ns: "admin" });
 
     expect(i18n.setLocaleAsync).not.toHaveBeenCalled();
     expect(i18n.addActiveNamespace).toHaveBeenCalledWith("admin");
@@ -453,7 +437,7 @@ describe("useTranslation (server)", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const useTranslation = await importUseTranslation();
 
-    const { t } = await useTranslation(createEvent(), { locale: "de", namespace: "admin" });
+    const { t } = await useTranslation(createEvent(), { locale: "de", ns: "admin" });
 
     expect(t("hello")).toBe("translated-value");
     expect(warnSpy).toHaveBeenCalledWith(

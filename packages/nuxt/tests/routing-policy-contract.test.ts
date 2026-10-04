@@ -3,8 +3,8 @@
  * (`@comvi/test-utils/routingPolicyContract`). Every row runs through the
  * global route middleware on the server, and through `useTranslation(event)`
  * on an event carrying the same URL, cookies and headers. Settings go through
- * the module's own resolver (`resolveLocaleOptions`), so a row tests what an
- * app writing those options in `nuxt.config` gets.
+ * the shared `normalizeRoutingOptions`, as the module's do, so a row tests what
+ * an app writing those options in `nuxt.config` gets.
  * `packages/next/tests/routing-policy-contract.test.ts` runs the same rows
  * through next.
  */
@@ -38,7 +38,7 @@ import { useState } from "#app";
 import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
 import { resetComviSetupMock } from "./mocks/comvi-setup";
 import { nodeResponseStub } from "./mocks/node-response";
-import { resolveLocaleOptions } from "../src/locale-options";
+import { runtimeLocaleKeys } from "./mocks/locale-options";
 import middleware from "../src/runtime/middleware/i18n.global";
 import { useTranslation } from "../src/runtime/server/utils/useTranslation";
 import type { NuxtI18nRuntimeConfig } from "../src/types";
@@ -71,7 +71,7 @@ const runtimeComvi = (
   settings: RoutingPolicySettings,
   locales: readonly string[] = POLICY_LOCALES,
 ): NuxtI18nRuntimeConfig["comvi"] => {
-  const { localeCookie, localeDetection } = resolveLocaleOptions(settings);
+  const { localeCookie, localeDetection } = runtimeLocaleKeys(settings);
   return {
     locales: [...locales],
     localeObjects: {},

@@ -6,10 +6,8 @@ import type {
 } from "../src/runtime/server/utils/useTranslation";
 
 /**
- * The server helper's vocabulary, at the type level. `ns` is canonical and
- * `namespace` is the deprecated 0.4 alias — both must still compile through
- * 0.5, which is the whole point of keeping the alias. See
- * `docs/design/next-nuxt-parity.md`.
+ * The server helper's vocabulary, at the type level. `ns` is the one name;
+ * `namespace` does not compile. See `docs/design/next-nuxt-parity.md`.
  */
 describe("useTranslation options", () => {
   it("takes `ns`, the canonical name", () => {
@@ -17,13 +15,10 @@ describe("useTranslation options", () => {
     expectTypeOf({ ns: "admin" }).toExtend<UseTranslationOptions>();
   });
 
-  it("still takes the deprecated `namespace` alias", () => {
-    expectTypeOf<UseTranslationOptions>().toExtend<{ namespace?: string }>();
-    expectTypeOf({ namespace: "admin" }).toExtend<UseTranslationOptions>();
-  });
-
-  it("takes both together, which is what the runtime warning is for", () => {
-    expectTypeOf({ ns: "admin", namespace: "legacy" }).toExtend<UseTranslationOptions>();
+  it("rejects `namespace`, a name 0.5 does not have", () => {
+    // @ts-expect-error -- the option is `ns`.
+    const options: UseTranslationOptions = { namespace: "admin" };
+    void options;
   });
 
   it("takes neither", () => {

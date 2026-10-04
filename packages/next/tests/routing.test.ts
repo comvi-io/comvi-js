@@ -306,3 +306,23 @@ describe("routing helpers", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 });
+
+describe("defineRouting: the shared options schema", () => {
+  it("returns exactly what normalizeRoutingOptions decides for the same input", async () => {
+    const { normalizeRoutingOptions } = await import("@comvi/locale-routing");
+    const { defineRouting } = await import("../src/routing/defineRouting");
+    const input = {
+      locales: ["en", "de"],
+      defaultLocale: "en",
+      localeCookie: { maxAge: 60 },
+    } as const;
+
+    const routing = defineRouting(input);
+    const normalized = normalizeRoutingOptions(input, { cookieNameDefault: "NEXT_LOCALE" });
+
+    expect({ localePrefix: routing.localePrefix, localeCookie: routing.localeCookie }).toEqual({
+      localePrefix: normalized.localePrefix,
+      localeCookie: normalized.localeCookie,
+    });
+  });
+});

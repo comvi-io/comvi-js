@@ -117,14 +117,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     detectedSource = "path";
   }
 
-  const fallbackLocale = (detectConfig && detectConfig.fallbackLocale) || defaultLocale;
-  const resolvedFallbackLocale = Array.isArray(fallbackLocale)
-    ? (fallbackLocale.find((locale) => locales.includes(locale)) ?? defaultLocale)
-    : locales.includes(fallbackLocale)
-      ? fallbackLocale
-      : defaultLocale;
   const locale =
-    detectedLocale && locales.includes(detectedLocale) ? detectedLocale : resolvedFallbackLocale;
+    detectedLocale && locales.includes(detectedLocale) ? detectedLocale : defaultLocale;
 
   // Prefix modes are applied against the locale that actually rendered.
   const getRedirectPathForLocale = (targetLocale: string): string | null => {
@@ -166,14 +160,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
     localeCookie.value = renderedLocale;
   }
 
-  // `redirectOnFirstVisit` only gates redirects triggered by header detection.
-  // Path-based redirects and route normalization should still happen regardless.
-  const allowHeaderDetectionRedirect =
-    detectConfig === false || detectConfig.redirectOnFirstVisit !== false;
-  const allowFirstVisitRedirect = detectedSource !== "header" || allowHeaderDetectionRedirect;
   const redirectPath = getRedirectPathForLocale(renderedLocale);
 
-  if (redirectPath && redirectPath !== pathname && (pathLocale || allowFirstVisitRedirect)) {
+  if (redirectPath && redirectPath !== pathname) {
     const redirectSuffix =
       pathLocale && queryParam && hasQueryParam
         ? setQueryParamInSuffix(suffix, queryParam, renderedLocale)

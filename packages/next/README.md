@@ -148,9 +148,7 @@ independent, and either works without the other.
 Seven entries: `@comvi/next`, `/client`, `/server`, `/navigation`, `/routing`, `/middleware` and
 `/plugin`. `/routing` and `/middleware` carry no i18n instance, and `/plugin` runs only in next.config.
 `src/i18n/config.ts` is bundled into the server build and into the client build, and each build
-evaluates it once, so it must be client-safe. A loader that needs server-only code stays on the
-manual setup: `createNextI18nFromHost` in a server-only module and your own `"use client"` wrapper
-around `<I18nProvider>`. Never compose a locale detector on this i18n instance: the config module is
+evaluates it once, so it must be client-safe. Never compose a locale detector on this i18n instance: the config module is
 process-wide on the server, so the first request's headers would pin the locale for everyone.
 Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'client' })`; see
 [Plugin scoping](https://comvi.io/docs/i18n/next/server-client#plugin-scoping).
@@ -158,8 +156,13 @@ Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'c
 `createMiddleware` takes the same two locale options as `@comvi/nuxt`, with the same defaults
 except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
 or `false` to persist nothing. `localeDetection` takes `{ order, queryParam, headerName,
-resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge. The 0.4
-`localeDetection.cookieName` and `cookieSecure` still work through 0.5 and warn in development.
+resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge.
+
+### Advanced
+
+A loader that needs server-only code cannot live in the client-safe config module. Build that
+i18n instance with `createNextI18nFromHost` in a server-only module, or hand one over with
+`setI18n(i18n)`, and wrap `<I18nProvider>` in your own `"use client"` component.
 
 ## Next steps
 

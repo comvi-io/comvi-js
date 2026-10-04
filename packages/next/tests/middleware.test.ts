@@ -307,12 +307,12 @@ describe("middleware locale cookie persistence", () => {
     expect(response.cookies.get("NEXT_LOCALE")?.secure).toBe(true);
   });
 
-  it("honours an explicit cookieSecure: false", () => {
+  it("honours an explicit localeCookie secure: false", () => {
     const insecureCookie = createMiddleware({
       locales: ["en", "fr"],
       defaultLocale: "en",
       localePrefix: "as-needed",
-      localeDetection: { cookieSecure: false },
+      localeCookie: { secure: false },
     });
 
     const request = new NextRequest("https://example.com/about", {
@@ -337,12 +337,13 @@ describe("middleware locale cookie persistence", () => {
     expect(response.headers.get("x-middleware-rewrite")).toBeNull();
   });
 
-  it("honours a custom cookie name from localeDetection", () => {
+  it("honours a custom cookie name from localeCookie", () => {
     const customCookie = createMiddleware({
       locales: ["en", "fr"],
       defaultLocale: "en",
       localePrefix: "as-needed",
-      localeDetection: { order: ["accept-language"], cookieName: "MY_LOCALE" },
+      localeCookie: "MY_LOCALE",
+      localeDetection: { order: ["accept-language"] },
     });
 
     const request = new NextRequest("https://example.com/about", {
@@ -853,43 +854,5 @@ describe("middleware: localeCookie and localeDetection, the shared vocabulary", 
 
     expect(response.headers.get("x-comvi-locale")).toBe("de");
     expect(response.headers.get("location")).toBe("https://example.com/de");
-  });
-
-  it("maps the deprecated localeDetection.cookieName onto the cookie and warns", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const middleware = createMiddleware({
-      ...base,
-      localeDetection: { cookieName: "OLD", cookieSecure: false },
-    });
-
-    const response = middleware(new NextRequest("https://example.com/fr"));
-
-    expect(response.cookies.get("OLD")).toMatchObject({ value: "fr", secure: false });
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toContain(
-      "[@comvi/next] `localeDetection.cookieName`/`cookieSecure` are deprecated.",
-    );
-  });
-
-  it("keeps localeCookie over the deprecated alias when both are given, and warns", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const middleware = createMiddleware({
-      ...base,
-      localeCookie: "NEW",
-      localeDetection: { cookieName: "OLD" },
-    });
-
-    const response = middleware(new NextRequest("https://example.com/fr"));
-
-    expect(response.cookies.get("NEW")?.value).toBe("fr");
-    expect(response.cookies.get("OLD")).toBeUndefined();
-    expect(String(warn.mock.calls[0]?.[0])).toContain("`localeCookie` wins");
-  });
-
-  it("does not warn when no deprecated key is used", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    createMiddleware({ ...base, localeCookie: { name: "LANG" }, localeDetection: { order: [] } });
-
-    expect(warn).not.toHaveBeenCalled();
   });
 });

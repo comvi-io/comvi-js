@@ -27,7 +27,12 @@ describe("createNextI18n", () => {
     expect(routing.locales).toEqual(["en", "fr"]);
     expect(routing.defaultLocale).toBe("en");
     expect(routing.localePrefix).toBe("as-needed");
-    expect(routing.localeCookie).toBe("NEXT_LOCALE");
+    expect(routing.localeCookie).toEqual({
+      name: "NEXT_LOCALE",
+      maxAge: 31536000,
+      secure: true,
+      sameSite: "lax",
+    });
     expect(routing.pathnames).toEqual({});
   });
 

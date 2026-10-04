@@ -161,17 +161,12 @@ describe("nuxt module setup", () => {
         defaultLocale: "en",
         localePrefix: "as-needed",
         defaultNs: "common",
-        fallbackLanguage: "en",
+        fallbackLocale: "en",
         defaultParams: { formality: "formal" },
         translation: { en: { greeting: "Hello" } },
         apiKey: "secret-key",
         setup: "./comvi.setup.ts",
-        detectBrowserLanguage: {
-          useCookie: true,
-          cookieName: "locale_cookie",
-          cookieMaxAge: 60,
-          redirectOnFirstVisit: false,
-        },
+        localeCookie: { name: "locale_cookie", maxAge: 60 },
         basicHtmlTags: ["strong", "em"],
         head: false,
       },
@@ -193,13 +188,8 @@ describe("nuxt module setup", () => {
       defaultParams: { formality: "formal" },
       basicHtmlTags: ["strong", "em"],
       localeCookie: { name: "locale_cookie", maxAge: 60, secure: true, sameSite: "lax" },
-      localeDetection: {
-        order: ["query", "cookie", "accept-language"],
-        redirectOnFirstVisit: false,
-      },
+      localeDetection: { order: ["query", "cookie", "accept-language"] },
     });
-    // The 0.4 keys are resolved, not carried: the runtime reads only the two above.
-    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("detectBrowserLanguage");
     expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("cookieName");
     // Both were documented with CDN examples and read by no runtime code; the
     // module loads nothing on the app's behalf, so they are gone rather than
@@ -703,12 +693,7 @@ describe("nuxt module setup", () => {
       defaultNs: "runtime-default",
       fallbackLocale: ["uk", "en"],
       basicHtmlTags: ["strong"],
-      detectBrowserLanguage: {
-        useCookie: true,
-        cookieName: "runtime_locale",
-        cookieMaxAge: 30,
-        redirectOnFirstVisit: false,
-      },
+      localeCookie: { name: "runtime_locale", maxAge: 30 },
       extraPublicField: "keep-me",
     };
 
@@ -718,14 +703,9 @@ describe("nuxt module setup", () => {
         defaultLocale: "en",
         translation: { en: { greeting: "Module" } },
         defaultNs: "module-default",
-        fallbackLanguage: "en",
+        fallbackLocale: "en",
         basicHtmlTags: ["em"],
-        detectBrowserLanguage: {
-          useCookie: true,
-          cookieName: "module_locale",
-          cookieMaxAge: 60,
-          redirectOnFirstVisit: true,
-        },
+        localeCookie: { name: "module_locale", maxAge: 60 },
       },
       nuxt,
     );
@@ -739,32 +719,24 @@ describe("nuxt module setup", () => {
       fallbackLocale: ["uk", "en"],
       basicHtmlTags: ["strong"],
       localeCookie: { name: "runtime_locale", maxAge: 30, secure: true, sameSite: "lax" },
-      localeDetection: {
-        order: ["query", "cookie", "accept-language"],
-        redirectOnFirstVisit: false,
-      },
+      localeDetection: { order: ["query", "cookie", "accept-language"] },
       extraPublicField: "keep-me",
     });
     expect(nuxt.options.appConfig.comvi.routing.cookieName).toBe("runtime_locale");
   });
 
-  it("falls back to module detectBrowserLanguage when runtime config leaves it undefined", async () => {
+  it("falls back to the module's localeCookie when runtime config leaves it undefined", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     nuxt.options.runtimeConfig.public.comvi = {
-      detectBrowserLanguage: undefined,
+      localeCookie: undefined,
     };
 
     await moduleDefinition.setup(
       {
         locales: ["en", "de"],
         defaultLocale: "en",
-        detectBrowserLanguage: {
-          useCookie: true,
-          cookieName: "module_locale",
-          cookieMaxAge: 60,
-          redirectOnFirstVisit: false,
-        },
+        localeCookie: { name: "module_locale", maxAge: 60 },
       },
       nuxt,
     );
@@ -773,17 +745,14 @@ describe("nuxt module setup", () => {
       name: "module_locale",
       maxAge: 60,
     });
-    expect(nuxt.options.runtimeConfig.public.comvi.localeDetection).toMatchObject({
-      redirectOnFirstVisit: false,
-    });
   });
 
-  it("keeps browser detection off and uses the default cookie name when it is disabled", async () => {
+  it("keeps the cookie and detection off and uses the default cookie name in app config", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
 
     await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", detectBrowserLanguage: false },
+      { locales: ["en"], defaultLocale: "en", localeCookie: false, localeDetection: false },
       nuxt,
     );
 
@@ -1098,78 +1067,85 @@ describe("nuxt module setup", () => {
         "[@comvi/nuxt] `localeDetection.resolveAcceptLanguage` could not be copied into the build.",
       );
     });
+  });
 
-    it("warns once in dev when the deprecated detectBrowserLanguage is used", async () => {
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  describe("0.5 has no aliases: a removed key fails setup, naming its replacement", () => {
+    const setupFails = async (
+      options: Record<string, unknown>,
+      runtime?: Record<string, unknown>,
+    ) => {
+      const moduleDefinition = await importModule();
+      const nuxt = createNuxtStub();
+      if (runtime) nuxt.options.runtimeConfig.public.comvi = runtime;
+      return moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", ...options }, nuxt);
+    };
 
-      await setupWith({ detectBrowserLanguage: { cookieName: "old" } }, true);
-
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn).toHaveBeenCalledWith(
-        "[@comvi/nuxt] `detectBrowserLanguage` is deprecated. Use `localeCookie` and `localeDetection`: the old option is removed in 0.6.",
-      );
+    it.each([
+      [
+        { detectBrowserLanguage: { cookieName: "x" } },
+        undefined,
+        "[@comvi/nuxt] `comvi.detectBrowserLanguage` is not an option: use `localeCookie` and `localeDetection`.",
+      ],
+      [
+        { detectBrowserLanguage: false },
+        undefined,
+        "[@comvi/nuxt] `comvi.detectBrowserLanguage` is not an option: use `localeCookie` and `localeDetection`.",
+      ],
+      [
+        { fallbackLanguage: "en" },
+        undefined,
+        "[@comvi/nuxt] `comvi.fallbackLanguage` is not an option: use `fallbackLocale`.",
+      ],
+      [
+        {},
+        { cookieName: "x" },
+        "[@comvi/nuxt] `runtimeConfig.public.comvi.cookieName` is not an option: use `localeCookie`.",
+      ],
+      [
+        {},
+        { detectBrowserLanguage: {} },
+        "[@comvi/nuxt] `runtimeConfig.public.comvi.detectBrowserLanguage` is not an option: use `localeCookie` and `localeDetection`.",
+      ],
+      [
+        { localeDetection: { cookieName: "x" } },
+        undefined,
+        "[@comvi/nuxt] `comvi.localeDetection.cookieName` is not an option: use `comvi.localeCookie.name`.",
+      ],
+      [
+        { localeCookie: { cookieMaxAge: 60 } },
+        undefined,
+        "[@comvi/nuxt] `comvi.localeCookie.cookieMaxAge` is not an option: use `comvi.localeCookie.maxAge`.",
+      ],
+      [
+        { localeDetection: { redirectOnFirstVisit: false } },
+        undefined,
+        "[@comvi/nuxt] `comvi.localeDetection.redirectOnFirstVisit` is not an option.",
+      ],
+    ])("%j %j", async (options, runtime, message) => {
+      await expect(setupFails(options, runtime)).rejects.toThrow(message);
     });
+  });
 
-    it("does not warn about the alias outside dev", async () => {
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("writes exactly what the shared normalizeRoutingOptions decides for the same input", async () => {
+    const { normalizeRoutingOptions } = await import("../src/runtime/_vendor/locale-routing");
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    const input = {
+      locales: ["en", "de"],
+      defaultLocale: "en",
+      localePrefix: "always" as const,
+      localeCookie: { maxAge: 60 },
+      localeDetection: { queryParam: "lang" },
+      ns: ["common"],
+    };
 
-      await setupWith({ detectBrowserLanguage: { cookieName: "old" } }, false);
+    await moduleDefinition.setup(input, nuxt);
 
-      expect(warn).not.toHaveBeenCalled();
-    });
-
-    it("keeps the canonical options over the alias when both are given, and warns", async () => {
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      const comvi = await setupWith(
-        {
-          localeCookie: "NEW",
-          localeDetection: { order: ["cookie"] },
-          detectBrowserLanguage: { cookieName: "OLD", queryParam: "lang", useCookie: false },
-        },
-        true,
-      );
-
-      expect(comvi.localeCookie).toMatchObject({ name: "NEW" });
-      expect(comvi.localeDetection).toEqual({ order: ["cookie"] });
-      expect(String(warn.mock.calls[0]?.[0])).toContain("`localeCookie` and `localeDetection` win");
-    });
-
-    it("maps detectBrowserLanguage: false onto both halves", async () => {
-      const comvi = await setupWith({ detectBrowserLanguage: false });
-
-      expect(comvi.localeCookie).toBe(false);
-      expect(comvi.localeDetection).toBe(false);
-    });
-
-    it("maps every alias field onto its canonical place", async () => {
-      const comvi = await setupWith({
-        detectBrowserLanguage: {
-          cookieName: "old",
-          cookieMaxAge: 60,
-          cookieSecure: false,
-          sameSite: "none",
-          domain: ".example.com",
-          queryParam: "lang",
-          redirectOnFirstVisit: false,
-          fallbackLocale: "de",
-        },
-      });
-
-      expect(comvi.localeCookie).toEqual({
-        name: "old",
-        maxAge: 60,
-        secure: false,
-        sameSite: "none",
-        domain: ".example.com",
-      });
-      expect(comvi.localeDetection).toEqual({
-        order: ["query", "cookie", "accept-language"],
-        queryParam: "lang",
-        redirectOnFirstVisit: false,
-        fallbackLocale: "de",
-      });
-    });
+    const { locales, defaultLocale, localePrefix, localeCookie, localeDetection, ns } =
+      nuxt.options.runtimeConfig.public.comvi;
+    expect({ locales, defaultLocale, localePrefix, localeCookie, localeDetection, ns }).toEqual(
+      normalizeRoutingOptions(input, { cookieNameDefault: "i18n_locale" }),
+    );
   });
 
   it("forwards comvi.ns into public runtime config", async () => {

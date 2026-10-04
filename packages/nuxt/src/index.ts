@@ -4,7 +4,6 @@ export type {
   NuxtI18nOptions,
   LocaleObject,
   LocalePrefixMode,
-  DetectBrowserLanguageOptions,
   LocaleCookieConfig,
   LocaleCookieOptions,
   LocaleDetectionConfig,

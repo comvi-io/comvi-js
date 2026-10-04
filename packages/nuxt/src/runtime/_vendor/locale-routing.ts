@@ -299,3 +299,201 @@ export function buildLocalizedPath(
 
   return `/${locale}${normalizedPath}`;
 }
+
+// ---------------------------------------------------------------------------
+// The routing options both framework integrations take — ONE schema.
+//
+// Names, shapes and defaults live here and nowhere else: next normalizes its
+// `defineRouting` / `createMiddleware` options through `normalizeRoutingOptions`,
+// nuxt normalizes its module options through the same function at build time.
+// The only per-framework input is the default cookie name. See
+// `docs/design/next-nuxt-parity.md`.
+// ---------------------------------------------------------------------------
+
+/**
+ * A detection source. The URL path is always consulted first and is not one of
+ * these. `query` reads `queryParam`, `header` reads `headerName`; each is inert
+ * until its name is set.
+ */
+export type LocaleDetectionSource = "query" | "cookie" | "header" | "accept-language";
+
+/** Custom `Accept-Language` resolution: return a configured locale, or `undefined`. */
+export type ResolveAcceptLanguage = (
+  acceptLanguage: string,
+  locales: readonly string[],
+  defaultLocale: string,
+) => string | undefined;
+
+/** The locale cookie's attributes. */
+export interface LocaleCookieOptions {
+  /** Default: the framework's own name. */
+  name?: string;
+  /** Lifetime in seconds. Default: one year. */
+  maxAge?: number;
+  /** The Secure flag. Default: `true`; always off in development. */
+  secure?: boolean;
+  /** Default: `"lax"`. */
+  sameSite?: "lax" | "strict" | "none";
+  /** Send the cookie to this domain and its subdomains. Unset: the host only. */
+  domain?: string;
+}
+
+/**
+ * Where the locale preference is persisted: `false` writes and reads no cookie,
+ * a string is the cookie name, an object sets its attributes.
+ */
+export type LocaleCookieConfig = false | string | LocaleCookieOptions;
+
+export interface LocaleDetectionConfig {
+  /** Default: `["query", "cookie", "accept-language"]`. The URL path always comes first. */
+  order?: LocaleDetectionSource[];
+  /** Query parameter to read an explicit locale from. Unset: not read. */
+  queryParam?: string;
+  /** Request header read when `"header"` is in `order`. */
+  headerName?: string;
+  /** Replaces the built-in `Accept-Language` matcher. */
+  resolveAcceptLanguage?: ResolveAcceptLanguage;
+}
+
+/** The shared routing options, as an app writes them. */
+export interface RoutingOptions {
+  locales: readonly string[];
+  defaultLocale: string;
+  localePrefix?: LocalePrefixMode;
+  localeCookie?: LocaleCookieConfig;
+  localeDetection?: false | LocaleDetectionConfig;
+  /** Namespaces loaded at init besides `defaultNs`. */
+  ns?: string[];
+}
+
+export type ResolvedLocaleCookie = Required<Omit<LocaleCookieOptions, "domain">> &
+  Pick<LocaleCookieOptions, "domain">;
+
+export interface ResolvedLocaleDetection {
+  order: LocaleDetectionSource[];
+  queryParam?: string;
+  headerName?: string;
+  resolveAcceptLanguage?: ResolveAcceptLanguage;
+}
+
+/** {@link RoutingOptions} with every default applied and nothing unset left as `undefined`. */
+export interface NormalizedRoutingOptions {
+  locales: string[];
+  defaultLocale: string;
+  localePrefix: LocalePrefixMode;
+  localeCookie: ResolvedLocaleCookie | false;
+  localeDetection: ResolvedLocaleDetection | false;
+  ns?: string[];
+}
+
+export const DEFAULT_LOCALE_PREFIX: LocalePrefixMode = "as-needed";
+/** `query` is inert until `queryParam` is set, so this reads the cookie, then Accept-Language. */
+export const DEFAULT_DETECTION_ORDER: readonly LocaleDetectionSource[] = [
+  "query",
+  "cookie",
+  "accept-language",
+];
+/** One year, in seconds. */
+export const DEFAULT_COOKIE_MAX_AGE = 31_536_000;
+
+/**
+ * Drop `undefined` values: nuxt's runtime config turns one into `""`, and a
+ * normalized shape should say "unset" one way only.
+ */
+function definedOnly<T extends object>(record: T): T {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined)) as T;
+}
+
+/** `localeCookie` with its defaults applied, or `false` for no cookie at all. */
+export function normalizeLocaleCookie(
+  cookie: LocaleCookieConfig | undefined,
+  cookieNameDefault: string,
+): ResolvedLocaleCookie | false {
+  if (cookie === false) return false;
+  const { name, maxAge, secure, sameSite, domain }: LocaleCookieOptions =
+    typeof cookie === "string" ? { name: cookie } : cookie || {};
+  // Written out rather than through `definedOnly`: next's client bundle carries
+  // this function, and an unset `domain` simply stays absent.
+  const resolved: ResolvedLocaleCookie = {
+    name: name ?? cookieNameDefault,
+    maxAge: maxAge ?? DEFAULT_COOKIE_MAX_AGE,
+    secure: secure ?? true,
+    sameSite: sameSite ?? "lax",
+  };
+  if (domain !== undefined) resolved.domain = domain;
+  return resolved;
+}
+
+/** `localeDetection` with its defaults applied, or `false` for detection off. */
+export function normalizeLocaleDetection(
+  detection: false | LocaleDetectionConfig | undefined,
+): ResolvedLocaleDetection | false {
+  if (detection === false) return false;
+  return definedOnly({
+    order: [...(detection?.order ?? DEFAULT_DETECTION_ORDER)],
+    queryParam: detection?.queryParam,
+    headerName: detection?.headerName,
+    resolveAcceptLanguage: detection?.resolveAcceptLanguage,
+  });
+}
+
+/**
+ * The shared routing options with every default applied — the one place a
+ * name or a default is decided. `cookieNameDefault` is the framework's own
+ * cookie name (`NEXT_LOCALE`, `i18n_locale`), the only input that differs.
+ * Built from the two per-option normalizers above, which a graph that needs
+ * only one of them (next's client-side `defineRouting`) calls directly.
+ */
+export function normalizeRoutingOptions(
+  input: RoutingOptions,
+  { cookieNameDefault }: { cookieNameDefault: string },
+): NormalizedRoutingOptions {
+  return definedOnly({
+    locales: [...input.locales],
+    defaultLocale: input.defaultLocale,
+    localePrefix: input.localePrefix ?? DEFAULT_LOCALE_PREFIX,
+    localeCookie: normalizeLocaleCookie(input.localeCookie, cookieNameDefault),
+    localeDetection: normalizeLocaleDetection(input.localeDetection),
+    ns: input.ns ? [...input.ns] : undefined,
+  });
+}
+
+const COOKIE_KEYS = ["name", "maxAge", "secure", "sameSite", "domain"];
+const DETECTION_KEYS = ["order", "queryParam", "headerName", "resolveAcceptLanguage"];
+/** Spellings an older release used, and the key that replaced each. */
+const REPLACED_KEYS: Record<string, string> = {
+  "localeDetection.cookieName": "localeCookie.name",
+  "localeDetection.cookieSecure": "localeCookie.secure",
+  "localeCookie.cookieName": "localeCookie.name",
+  "localeCookie.cookieMaxAge": "localeCookie.maxAge",
+  "localeCookie.cookieSecure": "localeCookie.secure",
+};
+
+/**
+ * Every key inside `localeCookie` / `localeDetection` (and every `order` entry)
+ * the schema does not have, each with the key to use instead where one exists.
+ * For integrations that read options from JavaScript the type checker never
+ * saw — nuxt's `nuxt.config` and runtime config.
+ */
+export function findUnknownRoutingOptionKeys(
+  input: Pick<RoutingOptions, "localeCookie" | "localeDetection">,
+): Array<{ key: string; use?: string }> {
+  const unknown: Array<{ key: string; use?: string }> = [];
+  const check = (group: string, value: unknown, known: string[]) => {
+    if (typeof value !== "object" || value === null) return;
+    for (const key of Object.keys(value)) {
+      if (!known.includes(key)) {
+        unknown.push({ key: `${group}.${key}`, use: REPLACED_KEYS[`${group}.${key}`] });
+      }
+    }
+  };
+  check("localeCookie", input.localeCookie, COOKIE_KEYS);
+  check("localeDetection", input.localeDetection, DETECTION_KEYS);
+  const order = input.localeDetection ? input.localeDetection.order : undefined;
+  for (const source of order ?? []) {
+    if (!DEFAULT_DETECTION_ORDER.includes(source) && source !== "header") {
+      unknown.push({ key: `localeDetection.order: "${String(source)}"` });
+    }
+  }
+  return unknown;
+}

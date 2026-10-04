@@ -94,17 +94,6 @@ export interface LocaleDetectionConfig {
    * @default Built-in simple parser
    */
   resolveAcceptLanguage?: ResolveAcceptLanguage;
-
-  /**
-   * @deprecated Use `localeCookie: "NAME"` or `localeCookie: { name }`.
-   * Removed in 0.6.
-   */
-  cookieName?: string;
-
-  /**
-   * @deprecated Use `localeCookie: { secure }`. Removed in 0.6.
-   */
-  cookieSecure?: boolean;
 }
 
 export interface MiddlewareConfig extends RoutingConfig {

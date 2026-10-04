@@ -225,10 +225,10 @@
       "entry": ["@comvi/next/middleware"],
       "fixture": "framework/next-middleware-edge.ts",
       "external": ["next", "next/*"],
-      "gzipBudgetBytes": 1998,
+      "gzipBudgetBytes": 2097,
       "baseline": {
-        "minBytes": 4363,
-        "gzipBytes": 1902,
+        "minBytes": 4740,
+        "gzipBytes": 1997,
         "measuredAt": "2026-10-04"
       },
       "note": "Gated Next Edge graph: `createMiddleware` from `@comvi/next/middleware`, what an app's middleware.ts ships to the Edge runtime."

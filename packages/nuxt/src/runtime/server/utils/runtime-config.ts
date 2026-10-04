@@ -1,6 +1,7 @@
 import type { H3Event } from "h3";
 import type { NuxtI18nRuntimeConfig, NuxtI18nPrivateRuntimeConfig } from "../../../types";
-import { DEFAULT_DETECTION_ORDER, DEFAULT_LOCALE_COOKIE } from "../../defaults";
+import { DEFAULT_COOKIE_NAME } from "../../defaults";
+import { normalizeLocaleCookie, normalizeLocaleDetection } from "../../_vendor/locale-routing";
 
 /** The Nuxt RuntimeConfig subset Comvi needs. */
 export interface ComviServerRuntimeConfig {
@@ -22,8 +23,8 @@ const EMPTY_CONFIG: ComviServerRuntimeConfig = {
       localePrefix: "as-needed",
       defaultNs: "default",
       fallbackLocale: "en",
-      localeCookie: { ...DEFAULT_LOCALE_COOKIE },
-      localeDetection: { order: [...DEFAULT_DETECTION_ORDER] },
+      localeCookie: normalizeLocaleCookie(undefined, DEFAULT_COOKIE_NAME),
+      localeDetection: normalizeLocaleDetection(undefined),
     },
   },
   comvi: {},

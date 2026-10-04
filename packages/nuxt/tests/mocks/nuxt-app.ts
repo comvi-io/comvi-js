@@ -1,10 +1,11 @@
 import { ref, reactive, computed, customRef } from "vue";
 import type {
-  DetectBrowserLanguageOptions,
+  LocaleCookieConfig,
+  LocaleDetectionConfig,
   NuxtI18nPrivateRuntimeConfig,
   NuxtI18nRuntimeConfig,
 } from "../../src/types";
-import { fromDetectBrowserLanguage } from "./locale-options";
+import { runtimeLocaleKeys } from "./locale-options";
 
 const stateStore = new Map<string, any>();
 
@@ -30,13 +31,7 @@ const defaultRuntimeConfig: {
       defaultNs: "default",
       fallbackLocale: "en",
       basicHtmlTags: ["strong", "em"],
-      ...fromDetectBrowserLanguage({
-        useCookie: true,
-        cookieName: "i18n_locale",
-        cookieMaxAge: 31536000,
-        redirectOnFirstVisit: true,
-        fallbackLocale: "en",
-      }),
+      ...runtimeLocaleKeys(),
     },
   },
   comvi: {
@@ -240,9 +235,14 @@ export function setMockRoute(partial: Partial<typeof routeState>) {
   Object.assign(routeState, partial);
 }
 
-/** What the module writes for a 0.4 `detectBrowserLanguage` value. */
-export function setDetectBrowserLanguage(value: DetectBrowserLanguageOptions | false) {
-  Object.assign(mockRuntimeConfig.public.comvi, fromDetectBrowserLanguage(value));
+/** What the module writes into runtime config for these options. */
+export function setLocaleOptions(
+  settings: {
+    localeCookie?: LocaleCookieConfig;
+    localeDetection?: false | LocaleDetectionConfig;
+  } = {},
+) {
+  Object.assign(mockRuntimeConfig.public.comvi, runtimeLocaleKeys(settings));
 }
 
 function resetRuntimeConfig() {

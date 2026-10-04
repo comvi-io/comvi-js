@@ -60,7 +60,7 @@ const result = createNextI18nFromHost(
 // Construction is EAGER (N2): `host()` runs exactly once, inside the call, and
 // `i18n` is the instance it returned — a plain field, not a resolving getter.
 assertEqual(hostCalls, 1, "host factory runs exactly once, inside createNextI18nFromHost");
-assertEqual(result.routing.localeCookie, "NEXT_LOCALE", "routing defaults are applied");
+assertEqual(result.routing.localeCookie.name, "NEXT_LOCALE", "routing defaults are applied");
 
 const i18n = result.i18n;
 assert(result.i18n === i18n, "the host is a plain field");

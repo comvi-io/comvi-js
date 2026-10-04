@@ -43,12 +43,14 @@ clause. The provider itself is measured by `fw-next-server-provider`.
 
 `fw-next-middleware-edge` was added on 2026-10-04 with the shared `localeCookie` / `localeDetection`
 vocabulary: `createMiddleware` from `@comvi/next/middleware`, the graph an app's `middleware.ts`
-ships to the Edge runtime. It measured 1695 B on the base branch (e93168ca) and 1902 B with the
-vocabulary: 207 B for the `query` source, the resolved cookie object with its `maxAge`,
-`sameSite` and `domain`, `localeDetection: false`, and the dev-only alias warning. The same lot
-took `fw-nuxt-client-default` from 8483 B to 8370 B and `fw-nuxt-full-composite` from 12829 B to
-12806 B: the module now resolves the cookie and detection options at build time, so the plugin
-reads one finished object instead of merging defaults.
+ships to the Edge runtime. It measured 1695 B on the base branch (e93168ca), 1902 B with the
+vocabulary (the `query` source, the cookie attributes, `localeDetection: false`), 1911 B with the
+`[@comvi/next]` prefix, and 1997 B once the options went through the ONE shared
+`normalizeRoutingOptions` that `@comvi/nuxt` calls too; the budget is that last figure + 5 %. The
+same rework took `fw-next-root-composed` from 9807 B to 9911 B (12 B under its 9923 B budget):
+`defineRouting` now takes its cookie default from the shared `normalizeLocaleCookie`, the detection
+half being split off so client bundles do not carry it. `fw-nuxt-client-default` went from 8483 B on
+the base to 8369 B, because the module resolves the options at build time.
 
 Every row is gated. There is no informational tier: a row that gates nothing does not earn its
 measurement cost, and `size-check.mjs` throws on a row without a `gzipBudgetBytes`.
