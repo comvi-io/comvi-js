@@ -23,12 +23,11 @@ from having written the code twice.
 The distinction this record first drew was **semantics versus adapter**: what the library decides,
 against how a framework is told about it.
 
-**Amended 2026-10-04.** The second drift was the server fallback chain. Next's `getI18n()` loaded
-only the default namespace of the request locale and skipped the chain whenever the primary catalog
-was cached; nuxt's SSR plugin, `loadTranslations()` and `useTranslation()` each loaded one locale and
-never the chain. Both suites were green, and a key present only in a fallback catalog rendered as
-the raw key in both packages. "Semantics versus adapter" was right but could not be tested against.
-The owner replaced it with the contract below. Neither package is the reference implementation.
+**Amended 2026-10-04.** The second drift was the server fallback chain: next's `getI18n()` skipped
+it whenever the primary catalog was cached, nuxt's SSR plugin and Nitro utils never loaded it, both
+suites were green, and a key present only in a fallback catalog rendered raw in both packages.
+"Semantics versus adapter" could not be tested against. The owner replaced it with the contract
+below. Neither package is the reference implementation.
 
 ## Decision
 
@@ -104,14 +103,13 @@ follow-up audit decides each one, and this record changes when it does.
   namespace it needs is loaded for the request locale AND for every locale of the `fallbackLocale`
   chain, in the order core's lookup walks it. A primary catalog already in the cache does not skip
   the fallback loads. What the server could read for the render is what reaches the client, so
-  hydration renders the same text and fetches nothing. A catalog that fails to load is reported
-  through `loadError`, never thrown; the render continues and server and client agree on the raw
-  key. Two constants belong to the contract, not to an adapter: a failed pair is attempted once per
-  request (next keeps the set in the request store, nuxt on the per-request instance), and
-  `onError` fires twice per failed load, because core reports a failing single-pair reload twice and
-  offers no quieter load; `SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD = 2` is the one place to change the
-  day core reports once. Shared here is the specification and the table, not the code: next's
-  `loadChain` and nuxt's `loadCatalogs` are two implementations of one set of rows.
+  hydration renders the same text and fetches nothing. A failed load is reported through
+  `loadError`, never thrown; the render continues and server and client agree on the raw key. Two
+  constants belong to the contract, not to an adapter: a failed pair is attempted once per request
+  (next in the request store, nuxt on the per-request instance), and `onError` fires twice per
+  failed load, because core reports a failing single-pair reload twice and offers no quieter load —
+  `SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD = 2` is the one place to change the day it reports once.
+  Shared is the specification and the table, not the code.
 
 ### Deliberately different, each with the framework constraint that forces it
 
@@ -122,13 +120,12 @@ follow-up audit decides each one, and this record changes when it does.
 - **Instance hand-off** (amended 2026-10-04). Next: `withComvi({ config })` in `next.config` points
   the library at a module that exports an instance; the server helpers read that export at call
   time, after the `setI18n` cell, and `<ComviProvider>` from `@comvi/next/server` loads the chain and
-  hands `locale` and plain `messages` to a library client half that imports the same module. Nuxt:
+  hands `locale` and plain `messages` to a library client half importing the same module. Nuxt:
   `hostModule` names a module whose default export is a factory, called once per constructed
-  instance — the client plugin and each server request — and required to return a fresh instance
-  every call. Both are allowed: an instance module is what a process-wide instance wants, a factory
-  is what a per-request instance wants, and the contract lets lifecycle differ. **The option names
-  differ on purpose, today.** `config` and `hostModule` take different things, and the shared-options
-  rule forbids one name for two meanings; the names are listed under "Open for alignment".
+  instance and required to return a fresh one. An instance module is what a process-wide instance
+  wants, a factory what a per-request one wants; the lifecycle row allows both. **The option names
+  differ on purpose, today:** they take different things, and the shared-options rule forbids one
+  name for two meanings. Listed under "Open for alignment".
 - **`<html lang dir>`** (amended 2026-10-04). Nuxt writes both attributes itself when the module
   option `head` is on, and it is on by default: the plugin owns the app's head and the route
   middleware owns the locale, so the module can. Next keeps `<html lang={locale}>` explicit in the
@@ -177,8 +174,7 @@ the `q=0` filter, the two matchers agreed on all 45 rows of the table — so no 
 answer when the implementation was unified. Only the structural half of each test (no local parser,
 the shared import present) was ever red. This is worth stating plainly: identical behaviour today is
 not the same thing as one implementation, and it was identical behaviour that let the duplication
-survive a release. The fallback table is the counter-example: both packages were wrong in the same
-way, and only a shared specification showed it.
+survive a release. The fallback table is the counter-example: both packages were wrong the same way.
 
 ### The one behavioural difference that remains
 
@@ -240,37 +236,32 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
   failed-pair set lives in a request store in next and on the instance in nuxt, and only nuxt has to
   intercept a namespace activated during the render. Same rows, a third lifetime abstraction to
   share the code.
-- **One name, `config`, for the instance module and the factory module** (amended 2026-10-04). A
-  reader moving between the two would pass an instance where a factory is required, or the reverse.
+- **One name, `config`, for an instance module and a factory module** (amended 2026-10-04). A reader
+  moving between the two would pass an instance where a factory is required, or the reverse.
 - **Writing `<html lang>` from next's `<ComviProvider>`** (amended 2026-10-04). It renders inside
-  `<body>`; the attribute sits on the element the app's root layout returns. Owning that element
-  means owning the layout, the shared-integration abstraction rejected above.
+  `<body>`; owning the root element means owning the layout, rejected above.
 
 ## Where it lives
 
 - the shared primitives and `resolveAcceptLanguage`, with its rules — `packages/locale-routing/src/index.ts`
 - the vendored copy and its parity gate — `packages/nuxt/src/runtime/_vendor/locale-routing.ts`,
   `packages/nuxt/scripts/vendor-locale-routing.mjs`, `packages/nuxt/tests/vendor-parity.test.ts`
-- the shared tables — `tooling/test-utils/acceptLanguageTable.ts` and
-  `tooling/test-utils/ssrFallbackContract.ts`, the latter run by `tests/ssr-fallback-contract.test.*`
-  in `packages/next` and `packages/nuxt`
-- next's chain load — `loadChain` in `packages/next/src/server/loadTranslations.ts`, called from
-  `getI18n.ts`; nuxt's — `loadCatalogs` in `runtime/utils/load-catalogs.ts`, called from
-  `runtime/plugin.ts` (which also wraps `addActiveNamespaces` once per instance) and from the two
-  Nitro utils under `runtime/server/utils/`
-- next's locale resolution — `createMiddleware` in `packages/next/src/middleware/createMiddleware.ts`
-- nuxt's locale resolution — `resolveAcceptLanguage` re-export in
-  `packages/nuxt/src/runtime/utils/resolve-locale.ts`, used by the route middleware
-  (`runtime/middleware/i18n.global.ts`) and the Nitro utils
+- the shared tables — `tooling/test-utils/acceptLanguageTable.ts`, `tooling/test-utils/ssrFallbackContract.ts`,
+  the latter run by `tests/ssr-fallback-contract.test.*` in `packages/next` and `packages/nuxt`
+- the chain loads — `loadChain` in `packages/next/src/server/loadTranslations.ts` (called from
+  `getI18n.ts`); `loadCatalogs` in `packages/nuxt/src/runtime/utils/load-catalogs.ts` (called from
+  `runtime/plugin.ts`, which also wraps `addActiveNamespaces` once per instance, and the Nitro utils)
+- locale resolution — `createMiddleware` in `packages/next/src/middleware/createMiddleware.ts`;
+  `packages/nuxt/src/runtime/utils/resolve-locale.ts`, used by `runtime/middleware/i18n.global.ts`
+  and the Nitro utils
 - the server helper shapes — `ServerI18n` in `packages/next/src/server/types.ts`,
   `UseTranslationResult` in `packages/nuxt/src/runtime/server/utils/useTranslation.ts`
-- the instance hand-off, next (landing in 0.5) — `withComvi` in `packages/next/src/plugin.ts`,
-  `resolveServerI18n` in `packages/next/src/server/cache.ts`, `<ComviProvider>` in
-  `packages/next/src/server/ComviProvider.tsx`; nuxt — `hostModule` and `NuxtHostFactory` in
-  `packages/nuxt/src/types.ts`
-- `<html lang dir>`, nuxt (landing in 0.5) — the `head` option in `packages/nuxt/src/types.ts`, applied
-  from `runtime/plugin.ts` through `runtime/utils/html-attrs.ts`; next — the layout in
-  `packages/next/README.md` and the `<ComviProvider>` doc comment
+- the instance hand-off (next side landing in 0.5) — `withComvi` in `packages/next/src/plugin.ts`,
+  `resolveServerI18n` in `packages/next/src/server/cache.ts`, `packages/next/src/server/ComviProvider.tsx`;
+  `hostModule` and `NuxtHostFactory` in `packages/nuxt/src/types.ts`
+- `<html lang dir>` (nuxt side landing in 0.5) — the `head` option in `packages/nuxt/src/types.ts`,
+  applied from `runtime/plugin.ts` through `runtime/utils/html-attrs.ts`; the layout in
+  `packages/next/README.md`
 - the known difference, both halves — `packages/next/tests/parity-known-difference.test.ts`,
   `packages/nuxt/tests/parity-known-difference.test.ts`
 
