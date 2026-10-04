@@ -269,9 +269,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this.messagesCache = new MessagesCache({ defaultNs });
     this._initialNamespaces = initialNamespaces ? [...new Set(initialNamespaces)] : undefined;
 
-    const fallbackLocale = options.fallbackLocale;
-    this._fallbackLocales =
-      typeof fallbackLocale === "string" ? [fallbackLocale] : (fallbackLocale ?? []);
+    // `concat` copies: the chain is host-owned, so a caller mutating the array
+    // it passed cannot change output behind `configChanged`.
+    this._fallbackLocales = ([] as string[]).concat(options.fallbackLocale ?? []);
 
     this._fallbackOnMissingKey = options.onMissingKey;
     this._onError = options.onError;
@@ -552,8 +552,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._emit("localeChanged", { from: oldLocale, to: value });
   }
 
-  setFallbackLocale(fallback: string | string[]) {
-    this._fallbackLocales = typeof fallback === "string" ? [fallback] : fallback;
+  setFallbackLocale(fallback: string | readonly string[]) {
+    // Copied, as in the constructor.
+    this._fallbackLocales = ([] as string[]).concat(fallback);
     this._emit("configChanged", { source: "fallbackLocale" });
   }
 

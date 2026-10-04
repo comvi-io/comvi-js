@@ -665,7 +665,7 @@ export interface I18nBaseOptions {
    */
   messages?: Record<string, Record<string, TranslationValue>>;
   /** Tried in order when a key is missing in the active locale. */
-  fallbackLocale?: string | string[];
+  fallbackLocale?: string | readonly string[];
   /** Applied to every translation result. */
   postProcess?: PostProcessFn;
   /** Invoked when a key is missing, AFTER the fallback chain; a returned value overrides the key. */
@@ -989,7 +989,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   ) => boolean;
 
   /** Update fallback locales at runtime */
-  setFallbackLocale: (fallback: string | string[]) => void;
+  setFallbackLocale: (fallback: string | readonly string[]) => void;
 
   /**
    * Replace the instance-level default translation params at runtime.
