@@ -25,6 +25,9 @@ export default defineNuxtConfig({
     defaultLocale: "en",
     localePrefix: "as-needed",
     defaultNs: "default",
+    // Explicit on purpose: nuxt4 relies on the `./comvi.host.*` convention, so
+    // this app keeps the `hostModule` path exercised by a real build.
+    hostModule: "./comvi.host.ts",
     fallbackLocale: "en",
     detectBrowserLanguage: {
       useCookie: true,

@@ -354,12 +354,15 @@ export function expectation(fw, page) {
     where: "page text",
   };
   // Nuxt owns `<html>` through the module (`comvi.head`, on by default), so the
-  // server-rendered document must already name the language. Next's root
-  // layout is the app's own file, and the SPA scaffolds ship a static one.
+  // server-rendered document must already name the language. The SPA
+  // scaffolds ship a static one.
   if (fw === "nuxt") return { ...want, htmlAttrs: { lang: "en", dir: "ltr" } };
   if (fw !== "next") return want;
+  // The quick-start root layout writes `<html lang={locale}>`; `/` is `en`
+  // through the middleware rewrite.
   return {
     ...want,
+    htmlAttrs: { lang: "en" },
     switchTo: {
       link: "Switch",
       path: "/uk",

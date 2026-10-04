@@ -196,9 +196,12 @@ test("expectation: connect pages look for the CDN wording, Vanilla also in the c
   assert.match(expectation("vanilla", "quick-start").where, /console/);
 });
 
-test("expectation: Nuxt's server-rendered <html> carries the default locale's lang and dir", () => {
+test("expectation: Nuxt's and Next's server-rendered <html> carry the default locale", () => {
   for (const page of ["quick-start", "connect-comvi"]) {
     assert.deepEqual(expectation("nuxt", page).htmlAttrs, { lang: "en", dir: "ltr" });
+  }
+  for (const page of ["quick-start", "connect-comvi"]) {
+    assert.deepEqual(expectation("next", page).htmlAttrs, { lang: "en" });
   }
   assert.equal(expectation("react", "quick-start").htmlAttrs, undefined);
 });

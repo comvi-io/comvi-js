@@ -92,7 +92,7 @@ export default defineComviHost((options) =>
 Add this file next to `nuxt.config.ts`. The module picks up `./comvi.host.*` by convention and
 logs the path; `comvi.hostModule` points at a file elsewhere. The default export receives the
 resolved `comvi` options and must return a new instance from `createI18n` on every call; in
-development the module throws when it gets the same host twice. The CDN URL is on
+development the module throws when it gets the same instance twice. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), set `comvi.icu: true` or pass `compiler: icuCompiler` in the factory, as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are

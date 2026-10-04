@@ -30,7 +30,9 @@ to the 12638 B recorded now from the 09-12 baseline of 12099 B, 392 B is base dr
 SSR fallback-chain loader that the fixture's server `loadTranslations` import pulls in (chain
 loading, in-flight dedupe and the per-request failed set the contract requires);
 `fw-nuxt-client-default` measured 8330 B on the base and 8302 B after. A server utility a fixture
-imports directly is still counted.
+imports directly is still counted. The `comvi.head` util (`runtime/utils/html-attrs.ts`, which
+writes `<html lang dir>`) then added 174 B to the floor and 183 B to the ceiling: they now measure
+8483 B (235 B under the 8718 B budget) and 12829 B (441 B under 13270 B).
 
 `fw-next-server-default-loader` was re-baselined on 2026-10-04 for the `withComvi` setup, from the
 09-12 baseline of 7372 B to 7816 B. Of the rise, 208 B is base drift: the base branch (85a85d47)
