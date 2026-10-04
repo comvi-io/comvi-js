@@ -83,8 +83,9 @@ language. On a client switch it patches both attributes in the same post-flush a
 an attribute whose DOM value is still the one it wrote. An app that also calls `useLocaleHead()`
 registers a second entry with the same values; whichever watcher runs second finds the new value in
 place and writes nothing. It is a separate util rather than a call into `useLocaleHead()`, because
-that call pulls the route and request-URL helpers into the client floor (measured 9295 B gz against
-the util's 8483 B). Next does not do this: its root layout is the app's own file, so `<html lang>`
+that call pulls the route and request-URL helpers into the client floor, over both Nuxt runtime
+budgets (`fw-nuxt-client-default`, 9295 B against 8718 B, by `node scripts/size-check.mjs` with the
+plugin calling it). Next does not do this: its root layout is the app's own file, so `<html lang>`
 stays explicit there; the Nuxt module owns the plugin and the middleware, so it can.
 
 SSR loading is the loader capability at work, so a server-rendered nuxt app composes a loader in
