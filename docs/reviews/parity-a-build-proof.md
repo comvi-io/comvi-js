@@ -1,4 +1,4 @@
-# Next/Nuxt API parity, lots A2–A5 build proof
+# Next/Nuxt API parity, lots A2–A5 build proof (with the A2 rework)
 
 Branch `feat/parity-a`, base `feat/weight-refactor-0.5` @ e93168ca. Recorded 2026-10-04. Plan:
 `.omc/plans/next-nuxt-api-parity-audit.md`, with the owner decisions of 2026-10-04.
@@ -77,16 +77,49 @@ Every shard exited 0. The skips are the runner's own: `g2` and `k` to `k3` need 
 | nuxt      | connect-comvi | pass     | pass    | pass  | pass      | pass   |
 ```
 
+## The A2 rework (754ac9fd): zero aliases, one options normalizer
+
+Owner decision of 2026-10-04, applied after A3. Every alias is gone: next's
+`localeDetection.cookieName` and `cookieSecure`; nuxt's `detectBrowserLanguage` with its
+`redirectOnFirstVisit` and `fallbackLocale`; nuxt's `fallbackLanguage`; and `useTranslation`'s
+`namespace`, along with every alias warning. `normalizeRoutingOptions` in the locale-routing source
+decides every name and default, and both packages call it.
+
+Red, then green:
+
+| test                                         | against                        | red text                                                                                     |
+| -------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------- |
+| next `tests/types/routing-options.test-d.ts` | cb7e9686 `middleware/types.ts` | `Type 'false' does not satisfy the constraint 'true'`, `Unused '@ts-expect-error' directive` |
+| nuxt `tests/routing-options.test-d.ts`       | cb7e9686 `types.ts`            | `Unused '@ts-expect-error' directive` (×2)                                                   |
+
+Removed source, lines deleted / added at 754ac9fd against cb7e9686:
+
+| file                                                  | −   | +   |
+| ----------------------------------------------------- | --- | --- |
+| next `middleware/createMiddleware.ts`                 | 68  | 18  |
+| next `middleware/types.ts`                            | 11  | 0   |
+| nuxt `locale-options.ts` (the alias resolver)         | 104 | 1   |
+| nuxt `types.ts`                                       | 166 | 27  |
+| nuxt `runtime/server/utils/useTranslation.ts`         | 38  | 4   |
+| nuxt `runtime/middleware/i18n.global.ts`              | 13  | 2   |
+| locale-routing `src/index.ts` (the shared normalizer) | 0   | 198 |
+
+The e2e shards and the docs probe were re-run on 754ac9fd with the same results as above: all
+four shards exit 0, and every probe step passes.
+
 ## Size (`node scripts/size-check.mjs`, min+gz)
 
-| row                             | base e93168ca | after A2–A5 | budget  |
-| ------------------------------- | ------------- | ----------- | ------- |
-| `fw-next-middleware-edge` (new) | 1695 B        | 1911 B      | 1998 B  |
-| `fw-nuxt-client-default`        | 8483 B        | 8369 B      | 8718 B  |
-| `fw-nuxt-full-composite`        | 12829 B       | 12798 B     | 13270 B |
-| `fw-next-server-default-loader` | 7816 B        | 7835 B      | 8207 B  |
-| `fw-next-server-provider`       | 1896 B        | 1913 B      | 1991 B  |
+| row                             | base e93168ca | A2–A5 (cb7e9686) | rework (754ac9fd) | budget  |
+| ------------------------------- | ------------- | ---------------- | ----------------- | ------- |
+| `fw-next-middleware-edge` (new) | 1695 B        | 1911 B           | 1997 B            | 2097 B  |
+| `fw-next-root-composed`         | 9807 B        | 9807 B           | 9911 B            | 9923 B  |
+| `fw-next-client-default`        | 7446 B        | 7450 B           | 7548 B            | 7722 B  |
+| `fw-next-server-default-loader` | 7816 B        | 7835 B           | 7938 B            | 8207 B  |
+| `fw-nuxt-client-default`        | 8483 B        | 8369 B           | 8369 B            | 8718 B  |
+| `fw-nuxt-full-composite`        | 12829 B       | 12798 B          | 12935 B           | 13270 B |
 
-The edge row was observed red once at a 1 B budget, then set to measured + 5 % (from 1902 B at
-lot A2). The +19 B and +17 B on the two Next server rows are the longer `[@comvi/next]` prefix
+The edge row was observed red once at a 1 B budget. Its budget is measured + 5 % of the rework's
+1997 B. On a first try the rework took `fw-next-root-composed` to 10071 B, over budget, because
+`defineRouting` pulled the whole normalizer into client bundles. The normalizer was split per
+option, and `defineRouting` calls only `normalizeLocaleCookie`. That row has 12 B of headroom left. The +19 B and +17 B on the two Next server rows are the longer `[@comvi/next]` prefix
 and the reworded no-loader message.
