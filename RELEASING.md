@@ -140,12 +140,13 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
 - The RC jobs run the browser suite on the candidate but no unit tests, package-contract or size
   gate.
 - **A crash between npm accepting a package and its tag push, followed by a fresh run at a newer
-  commit, is not caught.** The mixed-commit guard compares the git tags of the versions already
-  on npm with the checked-out commit, and here those versions have no tag yet. The fresh run would
-  publish the rest of the train from the newer commit and promote the mix. Closing this needs
-  byte-reproducible builds, so that npm's `dist.integrity` for an already-published version can be
-  compared with the candidate tarball's sha512. The operational rule is therefore: after any
-  partial or failed publish, use "Re-run failed jobs" on the same run, never a fresh run. The
-  re-run reuses the same candidate artifact. A fresh run at the same commit passes the tag check,
-  because its tags match. It repacks from the same sources, and its bytes are not compared with
-  what npm already has.
+  commit, is closed for CI only.** The mixed-commit guard compares the git tags of the versions
+  already on npm with the checked-out commit, and here those versions have no tag yet. So when
+  `--git-tag` is set and `GITHUB_RUN_ATTEMPT` is `1` (a fresh run), the publish step refuses, with
+  nothing published or promoted, if any version already on npm has neither a local nor a remote
+  tag. A re-run of the same run (attempt 2 or later) still reconciles the missing tags. The
+  residual gap is the by-hand path: once the original run's artifact has expired, nothing but a
+  hand-made tag at the original commit lets a fresh run proceed, and a byte comparison of npm's
+  `dist.integrity` with the candidate tarball's sha512 would need byte-reproducible builds. A fresh
+  run at the same commit passes the tag check, because its tags match. It repacks from the same
+  sources, and its bytes are not compared with what npm already has.

@@ -376,23 +376,24 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
   const sums = digest(path.join(dir, "SHA256SUMS"));
 
   const staging = `release-${sums.slice(0, 12)}`;
-  const run = ({ fail = [], failPromote = [], lag = [] } = {}) => {
+  // `attempt` is GITHUB_RUN_ATTEMPT; unset (the default) is a run outside CI.
+  const run = ({ fail = [], failPromote = [], lag = [], attempt } = {}) => {
     const outputFile = path.join(root, `output-${Date.now()}-${Math.random()}`);
+    const env = {
+      ...gitEnv(repo),
+      PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+      GITHUB_OUTPUT: outputFile,
+      FAKE_NPM_REGISTRY: registry,
+      FAKE_NPM_FAIL: fail.join(","),
+      FAKE_NPM_FAIL_PROMOTE: failPromote.join(","),
+      FAKE_NPM_LAG: lag.join(","),
+      COMVI_PUBLISH_RECHECK_MS: "10",
+    };
+    delete env.GITHUB_RUN_ATTEMPT;
+    if (attempt !== undefined) env.GITHUB_RUN_ATTEMPT = String(attempt);
     const result = spawnSyncNode(
       [SCRIPT, "publish", "--dir", dir, "--expect-sums", sums, "--git-tag", "--push-tags"],
-      {
-        cwd: repo,
-        env: {
-          ...gitEnv(repo),
-          PATH: `${bin}${path.delimiter}${process.env.PATH}`,
-          GITHUB_OUTPUT: outputFile,
-          FAKE_NPM_REGISTRY: registry,
-          FAKE_NPM_FAIL: fail.join(","),
-          FAKE_NPM_FAIL_PROMOTE: failPromote.join(","),
-          FAKE_NPM_LAG: lag.join(","),
-          COMVI_PUBLISH_RECHECK_MS: "10",
-        },
-      },
+      { cwd: repo, env },
     );
     const outputs = Object.fromEntries(
       (fs.existsSync(outputFile) ? fs.readFileSync(outputFile, "utf8") : "")
@@ -486,7 +487,7 @@ test("transaction: everything already on npm but no tag pushed — the re-run re
   const ws = releaseWorkspace(t);
   ws.onNpm("core");
   ws.onNpm("react");
-  const result = ws.run();
+  const result = ws.run({ attempt: 2 });
   assert.equal(result.status, 0, result.log);
   assert.equal(result.outputs.published, "true");
   assert.equal(result.outputs.publishedPackages, FULL_SET);
@@ -496,6 +497,33 @@ test("transaction: everything already on npm but no tag pushed — the re-run re
     "@comvi/react@0.5.0": ws.head,
     "v0.5.0": ws.head,
   });
+});
+
+test("transaction: a fresh run (attempt 1) refuses versions on npm that have no tag, and publishes and promotes nothing", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core", {});
+  const before = ws.npmCalls().length;
+  const result = ws.run({ attempt: 1 });
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.equal(result.outputs.publishedPackages, "[]");
+  assert.match(
+    result.log,
+    /@comvi\/core@0\.5\.0 is on npm but has no tag: it was published by another run\. Re-run that run \('Re-run failed jobs'\), or tag it by hand at its commit before publishing from a fresh run\./,
+  );
+  const calls = ws.npmCalls().slice(before);
+  assert.doesNotMatch(calls, /^publish /m);
+  assert.doesNotMatch(calls, /^dist-tag /m);
+  assert.deepEqual(ws.remoteTags(), {});
+});
+
+test("transaction: the same untagged state outside CI (no GITHUB_RUN_ATTEMPT) reconciles", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core");
+  ws.onNpm("react");
+  const result = ws.run();
+  assert.equal(result.status, 0, result.log);
+  assert.equal(ws.remoteTags()["v0.5.0"], ws.head);
 });
 
 test("transaction: a release tag that already exists at another commit is refused, naming both SHAs", (t) => {

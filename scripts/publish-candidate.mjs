@@ -562,10 +562,23 @@ function publish(options) {
   // otherwise publish the rest from different sources and promote the mix.
   if (tagging && skipped.length > 0) {
     try {
-      inspectTags(
+      const plan = inspectTags(
         skipped.map((pkg) => `${pkg.name}@${pkg.version}`),
         { head, push: options.pushTags, git },
       );
+      // A fresh run (attempt 1) never owns an untagged version on npm: only a
+      // re-run of the run that published it may reconcile its tag. Outside CI
+      // the variable is unset and the guard is off.
+      if (process.env.GITHUB_RUN_ATTEMPT === "1") {
+        const untagged = plan.find(({ local, remote }) => local === null && remote === null);
+        if (untagged) {
+          throw new Error(
+            `${untagged.tag} is on npm but has no tag: it was published by another run. ` +
+              `Re-run that run ('Re-run failed jobs'), or tag it by hand at its commit before ` +
+              `publishing from a fresh run.`,
+          );
+        }
+      }
     } catch (error) {
       output({ published: "false", publishedPackages: "[]" });
       console.error(
