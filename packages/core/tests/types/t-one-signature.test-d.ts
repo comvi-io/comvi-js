@@ -98,9 +98,17 @@ t("dashboard");
 // @ts-expect-error a generated param keeps its value type
 t("greeting", { formality: "nope", name: "Eugene" });
 
-// Core's own extras, which a wrapper's `t` does not take.
+// `"ns:key"` is a registry spelling, not a call spelling: at runtime a colon is
+// part of a literal key (tests/features/namespaces.test.ts), so the type must
+// not accept a call that renders as a missing key.
+// @ts-expect-error the qualified spelling is not a lookup form
 t("admin:dashboard");
+// @ts-expect-error the qualified spelling is not a lookup form
 t("admin:settings", { count: 1 });
+// @ts-expect-error the qualified spelling is not a lookup form
+i18n.tRaw("admin:dashboard");
+
+// Core's own extra, which a wrapper's `t` does not take.
 t(null);
 i18n.tRaw("greeting", { formality: "formal", name: "Eugene" });
 
@@ -119,14 +127,16 @@ i18n.tRaw("greeting", { formality: "formal", name: "Eugene" });
 declare const cond: boolean;
 t(cond ? "greeting" : "farewell");
 t(cond ? "greeting" : "farewell", { totally: "bogus" });
-t(cond ? "admin:settings" : "shop:checkout");
 t(cond ? "greeting" : "farewell", { formality: "formal", name: "Eugene" });
-t(cond ? "farewell" : "admin:dashboard");
 
 // What a union key must NOT do is widen the key set: an arm that is not a key
 // at all is still rejected, on the key.
 // @ts-expect-error `greting` is not a key on either arm
 t(cond ? "greting" : "farewell");
+// @ts-expect-error a qualified `"ns:key"` arm is not a lookup form
+t(cond ? "admin:settings" : "shop:checkout");
+// @ts-expect-error a qualified `"ns:key"` arm is not a lookup form
+t(cond ? "farewell" : "admin:dashboard");
 
 // `createBoundTranslation(i18n, ns)` narrows to `ns`'s keys, which is what its
 // own `@example` documents. The namespace has to be a literal TypeScript can

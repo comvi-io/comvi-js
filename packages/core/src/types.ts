@@ -250,9 +250,6 @@ export type NamespacedParamsArg<
     ? [params: { ns: NS } & TranslationParams]
     : [params: { ns: NS } & CallParams<NamespacedKeyParams<NS, K>, D>];
 
-/** @internal Registry entries written with a `"ns:key"` prefix. */
-type QualifiedKeys = Extract<keyof TranslationKeys, `${string}:${string}`>;
-
 /**
  * Every key `t()` accepts, as ONE union: the default namespace's keys, the
  * bare keys of the namespace in scope, and — while `TranslationKeys` is empty
@@ -310,9 +307,10 @@ export type AcceptedKey<NS extends string | undefined = undefined, N extends Nam
  * vanishes from a union).
  */
 /**
- * The keys the CORE surface accepts: everything a wrapper accepts, plus the
- * fully-qualified `"ns:key"` spelling. A wrapper's `t` takes only
- * {@link AcceptedKey}.
+ * The keys the CORE surface accepts: exactly what a wrapper accepts. The
+ * registry's `"ns:key"` entries are NOT a call spelling — at runtime a colon is
+ * part of a literal key in the selected namespace — so a namespaced key is
+ * written bare with its `{ ns }`.
  *
  * The `null` no-op is NOT part of it. `null` lives on the `I18n` CLASS alone,
  * which is where it always has, and it has to stay off this interface: `null`
@@ -321,9 +319,7 @@ export type AcceptedKey<NS extends string | undefined = undefined, N extends Nam
  * wrappers' internals pass it to — solid's `<T>` hands the host to
  * `prepareTranslation`, and that broke the moment `null` reached the interface.
  */
-export type AcceptedCoreKey<N extends Namespaces = never> =
-  | AcceptedKey<undefined, N>
-  | QualifiedKeys;
+export type AcceptedCoreKey<N extends Namespaces = never> = AcceptedKey<undefined, N>;
 
 /**
  * @internal The qualified key a bound namespace makes a BARE key mean:
@@ -338,7 +334,7 @@ type BoundKeyOf<K, NS extends string | undefined> = [K] extends [string]
   : never;
 
 /**
- * @internal WHICH of the four ways a key is reachable applies. Deliberately
+ * @internal WHICH of the three ways a key is reachable applies. Deliberately
  * free of `D`.
  *
  * The route has to be decided without the default-params type, because the
@@ -368,9 +364,7 @@ type KeyRoute<K, NS extends string | undefined> = [K] extends [never]
       ? [BoundKeyOf<K, NS>] extends [never]
         ? K extends DefaultNsKeys
           ? "default"
-          : K extends QualifiedKeys
-            ? "qualified"
-            : "explicit-ns"
+          : "explicit-ns"
         : "bound"
       : "loose";
 
@@ -384,9 +378,8 @@ type KeyRoute<K, NS extends string | undefined> = [K] extends [never]
  *
  * The precedence in {@link KeyRoute} is deliberate too: the namespace
  * `useI18n(ns)` bound wins, because that is the namespace the call site is
- * written in; then the key's own spelling (a bare default-namespace key, or the
- * qualified `"ns:key"` form); then the bare key of some other namespace, which
- * has to name that namespace in `ns`.
+ * written in; then a bare default-namespace key; then the bare key of some
+ * other namespace, which has to name that namespace in `ns`.
  */
 /**
  * @internal True when `K` is a union of more than one member.
@@ -428,11 +421,9 @@ type ArgsForKey<
       ? ParamsArg<BoundKeyOf<K, NS> & keyof TranslationKeys, D>
       : KeyRoute<K, NS> extends "default"
         ? ParamsArg<K & DefaultNsKeys & keyof TranslationKeys, D>
-        : KeyRoute<K, NS> extends "qualified"
-          ? ParamsArg<K & QualifiedKeys & keyof TranslationKeys, D>
-          : KeyRoute<K, NS> extends "explicit-ns"
-            ? ExplicitNsArgs<K, D, N>
-            : [params?: TranslationParams];
+        : KeyRoute<K, NS> extends "explicit-ns"
+          ? ExplicitNsArgs<K, D, N>
+          : [params?: TranslationParams];
 
 /**
  * @internal A bare namespaced key, which has to name its namespace in `ns`.
@@ -948,9 +939,9 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
    * params on the key that was passed.
    *
    * A key of the default namespace is written bare. A key of another namespace
-   * is written bare with its `ns`, or fully qualified — `t('admin:dashboard')`
-   * and `t('dashboard', { ns: 'admin' })` are the same lookup. `null` is the
-   * documented no-op and returns `""`.
+   * is written bare with its `ns`: `t('dashboard', { ns: 'admin' })`. There is
+   * no `'admin:dashboard'` shorthand — a colon is part of a literal key in the
+   * selected namespace. `null` is the documented no-op and returns `""`.
    *
    * @example
    * ```typescript
