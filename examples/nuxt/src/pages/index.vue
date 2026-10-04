@@ -24,14 +24,22 @@ const name = computed(() => (typeof route.query.name === "string" ? route.query.
 const rtlLocale = "ar";
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
+// The newest click, so an older switch that resolves later never navigates.
+let latestSelect = 0;
+
 async function select(code: string) {
   if (code === locale.value) return;
+  const request = ++latestSelect;
   // `setLocale` first so the switch is instant — it loads the catalog and
   // advances the locale state the page is already bound to, rather than waiting
   // for the navigation to land. The route middleware would set the same locale
   // from the new URL anyway, so this is about the moment of the change, not
   // about correctness.
   await setLocale(code);
+  // Clicked uk, then de before uk's catalog arrived: uk's switch still
+  // resolves, and navigating to /uk then would leave a German page at the
+  // Ukrainian address. Only the newest click navigates.
+  if (request !== latestSelect) return;
   await navigateTo(switchLocalePath(code));
 }
 
