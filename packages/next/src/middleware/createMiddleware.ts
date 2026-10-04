@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractLocaleFromPath, resolveAcceptLanguage } from "@comvi/locale-routing";
-import type { MiddlewareConfig, LocaleDetectionSource } from "./types";
+import type { MiddlewareConfig, LocaleDetectionSource, LocaleCookieOptions } from "./types";
 import { createGetPathname } from "../routing/defineRouting";
 import type { RoutingConfig } from "../routing/types";
 import { getCanonicalPathname, stripLocalePrefix } from "../routing/utils";
@@ -8,7 +8,13 @@ import { getCanonicalPathname, stripLocalePrefix } from "../routing/utils";
 // Passes the resolved locale to Server Components.
 const LOCALE_HEADER = "x-comvi-locale";
 
-const DEFAULT_DETECTION_ORDER: LocaleDetectionSource[] = ["cookie", "accept-language"];
+// `query` is inert until `queryParam` is set, so apps that set nothing read
+// the cookie, then Accept-Language, exactly as before it was a source.
+const DEFAULT_DETECTION_ORDER: LocaleDetectionSource[] = ["query", "cookie", "accept-language"];
+const DEFAULT_COOKIE_NAME = "NEXT_LOCALE";
+
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /**
  * Creates i18n middleware for Next.js.
@@ -27,10 +33,10 @@ const DEFAULT_DETECTION_ORDER: LocaleDetectionSource[] = ["cookie", "accept-lang
  * // middleware.ts - Custom detection order
  * export default createMiddleware({
  *   ...routing,
+ *   localeCookie: 'MY_LOCALE',
  *   localeDetection: {
  *     order: ['header', 'cookie', 'accept-language'],
  *     headerName: 'x-user-locale',
- *     cookieName: 'MY_LOCALE',
  *   },
  * });
  * ```
@@ -40,25 +46,26 @@ export function createMiddleware(config: MiddlewareConfig) {
     locales,
     defaultLocale,
     localePrefix = "as-needed",
-    localeCookie = "NEXT_LOCALE",
     detectLocale: customDetector,
     localeDetection,
   } = config;
 
-  const detectionOrder = localeDetection?.order ?? DEFAULT_DETECTION_ORDER;
-  const cookieName = localeDetection?.cookieName ?? localeCookie;
-  const cookieSecureConfig = localeDetection?.cookieSecure ?? true;
+  const detection = localeDetection === false ? undefined : localeDetection;
+  const detectionOrder =
+    localeDetection === false ? [] : (detection?.order ?? DEFAULT_DETECTION_ORDER);
+  const cookie = resolveLocaleCookie(config.localeCookie, detection);
   const isDev = process.env.NODE_ENV === "development";
-  const headerName = localeDetection?.headerName;
+  const headerName = detection?.headerName;
+  const queryParam = detection?.queryParam;
   // The shared matcher from the workspace locale-routing package, which
   // `@comvi/nuxt` vendors the same source of. Its rules are documented there,
   // once, for both frameworks — see `docs/design/next-nuxt-parity.md`.
-  const resolveHeader = localeDetection?.resolveAcceptLanguage ?? resolveAcceptLanguage;
+  const resolveHeader = detection?.resolveAcceptLanguage ?? resolveAcceptLanguage;
   const routing = {
     locales,
     defaultLocale,
     localePrefix,
-    localeCookie,
+    localeCookie: config.localeCookie ?? DEFAULT_COOKIE_NAME,
     pathnames: config.pathnames ?? {},
   } satisfies Required<RoutingConfig>;
   const getPathname = createGetPathname(routing);
@@ -100,8 +107,9 @@ export function createMiddleware(config: MiddlewareConfig) {
           source,
           locales,
           defaultLocale,
-          cookieName,
+          cookie ? cookie.name : undefined,
           headerName,
+          queryParam,
           resolveHeader,
         );
         if (detected) {
@@ -148,14 +156,14 @@ export function createMiddleware(config: MiddlewareConfig) {
 
     response.headers.set(LOCALE_HEADER, locale);
 
-    const existingCookie = request.cookies.get(cookieName)?.value;
-    if (existingCookie !== locale) {
-      response.cookies.set(cookieName, locale, {
+    if (cookie && request.cookies.get(cookie.name)?.value !== locale) {
+      response.cookies.set(cookie.name, locale, {
         path: "/",
-        maxAge: 365 * 24 * 60 * 60, // 1 year
-        sameSite: "lax",
+        maxAge: cookie.maxAge,
+        sameSite: cookie.sameSite,
         // Secure in production, disabled in dev so localhost HTTP works
-        secure: isDev ? false : cookieSecureConfig,
+        secure: isDev ? false : cookie.secure,
+        ...(cookie.domain === undefined ? {} : { domain: cookie.domain }),
       });
     }
 
@@ -168,8 +176,9 @@ function detectFromSource(
   source: LocaleDetectionSource,
   locales: readonly string[],
   defaultLocale: string,
-  cookieName: string,
+  cookieName: string | undefined,
   headerName: string | undefined,
+  queryParam: string | undefined,
   resolveHeader: (
     header: string,
     locales: readonly string[],
@@ -177,7 +186,16 @@ function detectFromSource(
   ) => string | undefined,
 ): string | undefined {
   switch (source) {
+    case "query": {
+      if (!queryParam) return undefined;
+      const queryValue = request.nextUrl.searchParams.get(queryParam);
+      if (queryValue && locales.includes(queryValue)) {
+        return queryValue;
+      }
+      return undefined;
+    }
     case "cookie": {
+      if (!cookieName) return undefined;
       const cookieValue = request.cookies.get(cookieName)?.value;
       if (cookieValue && locales.includes(cookieValue)) {
         return cookieValue;
@@ -200,6 +218,54 @@ function detectFromSource(
     default:
       return undefined;
   }
+}
+
+type ResolvedLocaleCookie = Required<Omit<LocaleCookieOptions, "domain">> &
+  Pick<LocaleCookieOptions, "domain">;
+
+/**
+ * `localeCookie` in its one resolved shape, or `false` for no cookie at all.
+ *
+ * `localeDetection.cookieName` / `.cookieSecure` are the 0.4 spellings, kept as
+ * aliases through 0.5. `defineRouting` fills `localeCookie` with the default
+ * name, so a default-valued `localeCookie` does not count as given: the alias
+ * still applies there, as it always has. Anything else given beside an alias
+ * wins, and development says so.
+ */
+function resolveLocaleCookie(
+  localeCookie: MiddlewareConfig["localeCookie"],
+  detection: Exclude<MiddlewareConfig["localeDetection"], false>,
+): ResolvedLocaleCookie | false {
+  const aliasName = detection?.cookieName;
+  const aliasSecure = detection?.cookieSecure;
+  const aliasUsed = aliasName !== undefined || aliasSecure !== undefined;
+  const canonicalGiven = localeCookie !== undefined && localeCookie !== DEFAULT_COOKIE_NAME;
+
+  if (IS_DEV && aliasUsed) {
+    console.warn(
+      canonicalGiven
+        ? "[@comvi/next] Both `localeCookie` and the deprecated `localeDetection.cookieName`/`cookieSecure` are set. `localeCookie` wins. Drop the `localeDetection` cookie keys: they are removed in 0.6."
+        : "[@comvi/next] `localeDetection.cookieName`/`cookieSecure` are deprecated. Use `localeCookie: { name, secure }`: the old keys are removed in 0.6.",
+    );
+  }
+
+  if (localeCookie === false) return false;
+
+  const options: LocaleCookieOptions =
+    typeof localeCookie === "string"
+      ? { name: localeCookie }
+      : typeof localeCookie === "object"
+        ? localeCookie
+        : {};
+  const useAlias = aliasUsed && !canonicalGiven;
+
+  return {
+    name: (useAlias ? aliasName : undefined) ?? options.name ?? DEFAULT_COOKIE_NAME,
+    maxAge: options.maxAge ?? 365 * 24 * 60 * 60, // 1 year
+    secure: (useAlias ? aliasSecure : undefined) ?? options.secure ?? true,
+    sameSite: options.sameSite ?? "lax",
+    domain: options.domain,
+  };
 }
 
 /**

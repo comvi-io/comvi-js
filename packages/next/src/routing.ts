@@ -5,3 +5,4 @@ export { defineRouting, hasLocale, createGetPathname } from "./routing/defineRou
 export type { GetPathnameOptions } from "./routing/defineRouting";
 
 export type { RoutingConfig, LocalePrefixMode } from "./routing/types";
+export type { LocaleCookieConfig, LocaleCookieOptions } from "./middleware/types";

@@ -73,8 +73,6 @@ follow-up audit decides each one, and this record changes when it does.
 - the hand-off option names, `config` in next and `hostModule` in nuxt — the mechanisms are forced
   apart (instance module against factory), so the rule keeps the names apart today; whether both
   could take one name with one meaning is open;
-- what the Next provider and middleware options and the Nuxt module options call the same things
-  (cookie and detection options among them, where the names already partly agree on `cookieName`);
 - `<html lang dir>` — the module writes it, the layout writes it; the next integration cannot reach
   the root element, but nothing stops a shared helper or a shared option name;
 - `setRequestLocale()` and `getLocale()` in next, with no nuxt counterpart — nuxt's locale lives on
@@ -83,7 +81,8 @@ follow-up audit decides each one, and this record changes when it does.
   are a choice;
 - how namespaces are chosen for a render — `<ComviProvider namespaces>` in next against nuxt's
   active set, `defaultNs` plus whatever a page activates during the render; neither framework
-  forces either;
+  forces either. The app-wide list is shared since 2026-10-04 (`ns` in both); per-layout scoping
+  is a next capability nuxt has no counterpart for;
 - `loadTranslations` — public in both, but `(locale, { namespaces })` in next against
   `(event, locale, options)` in nuxt; the `event` is forced, the argument order is not;
 - error-message vocabulary — `[comvi/next]` against `[@comvi/nuxt]` prefixes, and the wording of
@@ -105,6 +104,20 @@ follow-up audit decides each one, and this record changes when it does.
   `*` is not expanded; the CONFIGURED spelling is what comes back.
 - **Locale semantics.** Which string is "the locale" for a request, and that it is passed explicitly
   into every lookup rather than being set on a host.
+- **Locale cookie and detection options** (amended 2026-10-04). One vocabulary in
+  `createMiddleware` / `defineRouting` and in the `comvi` module options: `localeCookie: false |
+string | { name, maxAge, secure, sameSite, domain }` and `localeDetection: false | { order,
+queryParam, headerName, resolveAcceptLanguage }`, with the same defaults except the cookie name.
+  The URL path always comes first; the default order is `query`, `cookie`, `accept-language`, and
+  `query` and `header` are inert until their names are set. `false` on either turns that half off
+  and leaves the other alone. The 0.4 spellings (next's `localeDetection.cookieName` /
+  `cookieSecure`, nuxt's `detectBrowserLanguage`) map onto the new shape through 0.5 and warn once
+  in development; given beside a new spelling, the new one wins. Nuxt resolves the options at build
+  time and copies `resolveAcceptLanguage` into the build as source, because runtime config carries
+  JSON only, so there it must be self-contained.
+- **App-wide namespaces** (amended 2026-10-04). `ns: string[]`, core's option, in
+  `createNextI18n` and in the `comvi` module options, forwarded into every constructed host and a
+  `hostModule` factory's options.
 - **Server helper vocabulary.** `ns`, the word core's `t(key, { ns })` already uses. Nuxt's 0.4
   `namespace` is a deprecated alias through 0.5 and is removed in 0.6; passing both takes `ns` and
   warns once in dev.
@@ -265,6 +278,10 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
 - locale resolution — `createMiddleware` in `packages/next/src/middleware/createMiddleware.ts`;
   `packages/nuxt/src/runtime/utils/resolve-locale.ts`, used by `runtime/middleware/i18n.global.ts`
   and the Nitro utils
+- the cookie and detection options — `LocaleCookieConfig` / `LocaleDetectionConfig` in
+  `packages/next/src/middleware/types.ts` and `packages/nuxt/src/types.ts`; next resolves them in
+  `createMiddleware`, nuxt at build time in `packages/nuxt/src/locale-options.ts`, which also emits
+  `#build/comvi.detection`
 - the server helper shapes — `ServerI18n` in `packages/next/src/server/types.ts`,
   `UseTranslationResult` in `packages/nuxt/src/runtime/server/utils/useTranslation.ts`
 - the instance hand-off (next side landing in 0.5) — `withComvi` in `packages/next/src/plugin.ts`,

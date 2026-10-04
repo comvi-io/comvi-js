@@ -122,6 +122,13 @@ The route middleware detects the locale, persists it in the `i18n_locale` cookie
 that locale's catalog before the page renders. Pair a switcher with `useSwitchLocalePath()` when
 the URL should change too.
 
+Two options control it, with the same names, values and defaults as `@comvi/next`'s middleware
+except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
+or `false` to persist nothing. `localeDetection` takes `{ order, queryParam, headerName,
+resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge. The 0.4
+`detectBrowserLanguage` still works through 0.5 and warns in development. `comvi.ns` lists the
+namespaces to load besides `defaultNs`, as core's `ns` does.
+
 ## Next steps
 
 - [Nuxt guide](https://comvi.io/docs/i18n/nuxt): rich text, SSR, locale routing.

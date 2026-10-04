@@ -55,10 +55,10 @@ const comviConfig = (row: Pick<SsrFallbackCase, "defaultLocale" | "fallbackLocal
   localeObjects: {},
   defaultLocale: row.defaultLocale,
   localePrefix: "as-needed" as const,
-  cookieName: "i18n_locale",
   defaultNs: SSR_FALLBACK_DEFAULT_NS,
   fallbackLocale: row.fallbackLocale as string,
-  detectBrowserLanguage: false as const,
+  localeCookie: false as const,
+  localeDetection: false as const,
 });
 
 /** What every server host reported, across the hosts a row built. */

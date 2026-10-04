@@ -126,6 +126,24 @@ describe("getRequestI18n", () => {
       });
     });
 
+    it("forwards comvi.ns into each request host's options, as the app plugin does", async () => {
+      createComviCore.mockReturnValue(createHost());
+
+      await getRequestI18n(createEvent({ ns: ["common", "nav"] }), "de");
+
+      expect(createComviCore).toHaveBeenCalledWith(
+        expect.objectContaining({ ns: ["common", "nav"] }),
+      );
+    });
+
+    it("drops the empty string runtime config makes of an unset ns", async () => {
+      createComviCore.mockReturnValue(createHost());
+
+      await getRequestI18n(createEvent({ ns: "" }), "de");
+
+      expect(createComviCore.mock.calls[0]?.[0]?.ns).toBeUndefined();
+    });
+
     it("forwards tagInterpolation from basicHtmlTags, exactly as the app plugin does", async () => {
       createComviCore.mockReturnValue(createHost());
 

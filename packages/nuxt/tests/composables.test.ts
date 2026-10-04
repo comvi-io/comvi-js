@@ -292,8 +292,9 @@ describe("useSwitchLocalePath", () => {
   });
 
   const enableQueryParamDetection = () => {
-    mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
-      ...mockRuntimeConfig.public.comvi.detectBrowserLanguage,
+    const detection = mockRuntimeConfig.public.comvi.localeDetection;
+    mockRuntimeConfig.public.comvi.localeDetection = {
+      ...(detection || { order: [] }),
       queryParam: "lang",
     };
   };

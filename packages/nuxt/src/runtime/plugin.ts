@@ -9,7 +9,6 @@ import { watch } from "vue";
 import { createComviI18n } from "#build/comvi.host";
 import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
-import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./defaults";
 import { loadCatalogs } from "./utils/load-catalogs";
 import { useHtmlAttrs } from "./utils/html-attrs";
 import { hasLoaderApi } from "@comvi/core";
@@ -60,25 +59,15 @@ export default defineNuxtPlugin({
       useHtmlAttrs(localeState, publicConfig.defaultLocale, publicConfig.localeObjects);
     }
 
-    const useCookieForLocale =
-      publicConfig.detectBrowserLanguage !== false &&
-      (typeof publicConfig.detectBrowserLanguage !== "object" ||
-        publicConfig.detectBrowserLanguage.useCookie !== false);
-
-    const detectCfg =
-      typeof publicConfig.detectBrowserLanguage === "object"
-        ? publicConfig.detectBrowserLanguage
-        : undefined;
-    const cookieSecure = detectCfg?.cookieSecure ?? true;
-
-    const localeCookie = useCookieForLocale
-      ? useCookie(publicConfig.cookieName, {
-          maxAge: detectCfg?.cookieMaxAge ?? DEFAULT_DETECT_BROWSER_LANGUAGE.cookieMaxAge,
+    const cookieConfig = publicConfig.localeCookie;
+    const localeCookie = cookieConfig
+      ? useCookie(cookieConfig.name, {
+          maxAge: cookieConfig.maxAge,
           path: "/",
-          sameSite: detectCfg?.sameSite ?? "lax",
-          domain: detectCfg?.domain,
+          sameSite: cookieConfig.sameSite,
+          domain: cookieConfig.domain,
           // Secure in production, disabled in dev so localhost HTTP works
-          secure: import.meta.dev ? false : cookieSecure,
+          secure: import.meta.dev ? false : cookieConfig.secure,
         })
       : null;
 
@@ -86,6 +75,8 @@ export default defineNuxtPlugin({
       locale: localeState.value,
       fallbackLocale: publicConfig.fallbackLocale,
       defaultNs: publicConfig.defaultNs,
+      // `||` for the same `""` runtime config makes of an unset option.
+      ns: publicConfig.ns || undefined,
       devMode: import.meta.dev,
       apiKey: privateConfig?.apiKey,
       // Without a `hostModule` the generated host is core's BASE host and has

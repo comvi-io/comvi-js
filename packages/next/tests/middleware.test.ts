@@ -761,3 +761,135 @@ describe("middleware internal pathname", () => {
     expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/en");
   });
 });
+
+describe("middleware: localeCookie and localeDetection, the shared vocabulary", () => {
+  const base = { locales: ["en", "fr", "de"], defaultLocale: "en" } as const;
+
+  it("reads the locale from the query parameter when queryParam is set", () => {
+    const middleware = createMiddleware({ ...base, localeDetection: { queryParam: "lang" } });
+    const request = new NextRequest("https://example.com/?lang=fr");
+    request.cookies.set("NEXT_LOCALE", "de");
+
+    const response = middleware(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
+    expect(response.headers.get("location")).toBe("https://example.com/fr?lang=fr");
+  });
+
+  it("ignores a query value outside locales and falls through to the cookie", () => {
+    const middleware = createMiddleware({ ...base, localeDetection: { queryParam: "lang" } });
+    const request = new NextRequest("https://example.com/?lang=zz");
+    request.cookies.set("NEXT_LOCALE", "de");
+
+    expect(middleware(request).headers.get("x-comvi-locale")).toBe("de");
+  });
+
+  it("does not read the query without queryParam", () => {
+    const middleware = createMiddleware(base);
+    const request = new NextRequest("https://example.com/?lang=fr");
+
+    expect(middleware(request).headers.get("x-comvi-locale")).toBe("en");
+  });
+
+  it("localeCookie: false neither writes nor reads a cookie", () => {
+    const middleware = createMiddleware({ ...base, localeCookie: false });
+    const request = new NextRequest("https://example.com/", {
+      headers: { "accept-language": "fr" },
+    });
+    request.cookies.set("NEXT_LOCALE", "de");
+
+    const response = middleware(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("localeDetection: false leaves the path and defaultLocale only", () => {
+    const middleware = createMiddleware({ ...base, localeDetection: false });
+    const request = new NextRequest("https://example.com/?lang=fr", {
+      headers: { "accept-language": "fr" },
+    });
+    request.cookies.set("NEXT_LOCALE", "de");
+
+    const response = middleware(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("en");
+    expect(
+      middleware(new NextRequest("https://example.com/de/about")).headers.get("x-comvi-locale"),
+    ).toBe("de");
+  });
+
+  it("writes the cookie with every attribute of the localeCookie object", () => {
+    const middleware = createMiddleware({
+      ...base,
+      localeCookie: {
+        name: "LANG",
+        maxAge: 600,
+        sameSite: "strict",
+        domain: ".example.com",
+        secure: false,
+      },
+    });
+
+    const response = middleware(new NextRequest("https://example.com/fr/about"));
+
+    expect(response.cookies.get("LANG")).toMatchObject({
+      value: "fr",
+      path: "/",
+      maxAge: 600,
+      sameSite: "strict",
+      domain: ".example.com",
+      secure: false,
+    });
+    expect(response.cookies.get("NEXT_LOCALE")).toBeUndefined();
+  });
+
+  it("reads and writes the cookie a localeCookie string names", () => {
+    const middleware = createMiddleware({ ...base, localeCookie: "LANG" });
+    const request = new NextRequest("https://example.com/");
+    request.cookies.set("LANG", "de");
+
+    const response = middleware(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("de");
+    expect(response.headers.get("location")).toBe("https://example.com/de");
+  });
+
+  it("maps the deprecated localeDetection.cookieName onto the cookie and warns", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const middleware = createMiddleware({
+      ...base,
+      localeDetection: { cookieName: "OLD", cookieSecure: false },
+    });
+
+    const response = middleware(new NextRequest("https://example.com/fr"));
+
+    expect(response.cookies.get("OLD")).toMatchObject({ value: "fr", secure: false });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain(
+      "[@comvi/next] `localeDetection.cookieName`/`cookieSecure` are deprecated.",
+    );
+  });
+
+  it("keeps localeCookie over the deprecated alias when both are given, and warns", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const middleware = createMiddleware({
+      ...base,
+      localeCookie: "NEW",
+      localeDetection: { cookieName: "OLD" },
+    });
+
+    const response = middleware(new NextRequest("https://example.com/fr"));
+
+    expect(response.cookies.get("NEW")?.value).toBe("fr");
+    expect(response.cookies.get("OLD")).toBeUndefined();
+    expect(String(warn.mock.calls[0]?.[0])).toContain("`localeCookie` wins");
+  });
+
+  it("does not warn when no deprecated key is used", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    createMiddleware({ ...base, localeCookie: { name: "LANG" }, localeDetection: { order: [] } });
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+});

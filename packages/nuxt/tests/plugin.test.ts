@@ -164,6 +164,18 @@ describe("runtime plugin", () => {
     });
   });
 
+  it("forwards comvi.ns into the client host's options", async () => {
+    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).ns = ["common", "nav"];
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(createComviI18n).toHaveBeenCalledWith(
+      expect.objectContaining({ ns: ["common", "nav"] }),
+    );
+  });
+
   it("renders a key from comvi.translation on a real client instance", async () => {
     // The two-line module-options floor: no hostModule means the generated host
     // is core's BASE host and has no loader, so the instance this plugin hands
@@ -371,7 +383,7 @@ describe("runtime plugin", () => {
   });
 
   it("does not use cookie composable when browser language detection is disabled", async () => {
-    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = false;
+    nuxtAppMocks.setDetectBrowserLanguage(false);
     const useCookieSpy = vi.spyOn(nuxtAppMocks, "useCookie");
 
     const i18n = createI18nStub("en");
@@ -384,9 +396,9 @@ describe("runtime plugin", () => {
   });
 
   it("does not create a locale cookie when detection opts out of the cookie", async () => {
-    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+    nuxtAppMocks.setDetectBrowserLanguage({
       useCookie: false,
-    } as never;
+    } as never);
     const useCookieSpy = vi.spyOn(nuxtAppMocks, "useCookie");
     createComviI18n.mockReturnValue(createI18nStub("en"));
 
@@ -397,13 +409,13 @@ describe("runtime plugin", () => {
   });
 
   it("creates the locale cookie with the attributes the detection config asks for", async () => {
-    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+    nuxtAppMocks.setDetectBrowserLanguage({
       useCookie: true,
       cookieMaxAge: 600,
       sameSite: "strict",
       domain: ".example.com",
       cookieSecure: false,
-    } as never;
+    } as never);
     createComviI18n.mockReturnValue(createI18nStub("en"));
 
     const plugin = await importPlugin();
@@ -419,9 +431,9 @@ describe("runtime plugin", () => {
   });
 
   it("creates a year-long secure lax cookie when detection configures no attributes", async () => {
-    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+    nuxtAppMocks.setDetectBrowserLanguage({
       useCookie: true,
-    } as never;
+    } as never);
     createComviI18n.mockReturnValue(createI18nStub("en"));
 
     const plugin = await importPlugin();
@@ -468,7 +480,7 @@ describe("runtime plugin", () => {
   });
 
   it("syncs localeChanged to the locale state when no cookie is configured", async () => {
-    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = false;
+    nuxtAppMocks.setDetectBrowserLanguage(false);
     const i18n = createI18nStub("en");
     createComviI18n.mockReturnValue(i18n);
 
@@ -482,10 +494,10 @@ describe("runtime plugin", () => {
 
   it("drops the secure cookie flag in a dev build so localhost HTTP keeps it", async () => {
     vi.stubGlobal("__COMVI_TEST_DEV__", true);
-    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+    nuxtAppMocks.setDetectBrowserLanguage({
       useCookie: true,
       cookieSecure: true,
-    } as never;
+    } as never);
     createComviI18n.mockReturnValue(createI18nStub("en"));
 
     const plugin = await importPlugin();

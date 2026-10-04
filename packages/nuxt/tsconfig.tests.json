@@ -15,6 +15,7 @@
     "paths": {
       "#app": ["./tests/mocks/nuxt-app.ts"],
       "#build/comvi.setup": ["./tests/mocks/comvi-setup.ts"],
+      "#build/comvi.detection": ["./tests/mocks/comvi-detection.ts"],
       "#build/comvi.host": ["./tests/mocks/comvi-host.ts"],
       "#components": ["./tests/mocks/nuxt-components.ts"]
     }

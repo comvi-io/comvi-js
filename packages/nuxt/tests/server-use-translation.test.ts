@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hasLoaderApi } from "@comvi/core";
 import { nodeResponseStub } from "./mocks/node-response";
+import { fromDetectBrowserLanguage, resolveDetectOverride } from "./mocks/locale-options";
 
 const getCookie = vi.fn();
 const getHeader = vi.fn();
@@ -30,15 +31,14 @@ function createEvent(comviOverrides: Record<string, unknown> = {}) {
           comvi: {
             locales: ["en", "de", "uk"],
             defaultLocale: "en",
-            cookieName: "i18n_locale",
             defaultNs: "common",
             fallbackLocale: "en",
             defaultParams: { formality: "formal" },
-            detectBrowserLanguage: {
+            ...fromDetectBrowserLanguage({
               useCookie: true,
               fallbackLocale: "en",
-            },
-            ...comviOverrides,
+            }),
+            ...resolveDetectOverride(comviOverrides),
           },
         },
         comvi: {},
@@ -460,5 +460,77 @@ describe("useTranslation (server)", () => {
       "[@comvi/nuxt] Failed to load de:admin:",
       expect.any(Error),
     );
+  });
+
+  describe("localeCookie and localeDetection, the shared vocabulary", () => {
+    const headers = (values: Record<string, string>) =>
+      getHeader.mockImplementation((_event: unknown, name: string) => values[name]);
+
+    it("walks localeDetection.order: Accept-Language before the cookie when asked", async () => {
+      createComviCore.mockReturnValue(createI18nStub("en"));
+      getCookie.mockReturnValue("de");
+      headers({ "accept-language": "uk" });
+      const useTranslation = await importUseTranslation();
+
+      const { locale } = await useTranslation(
+        createEvent({ localeDetection: { order: ["accept-language", "cookie"] } }),
+      );
+
+      expect(locale).toBe("uk");
+    });
+
+    it("reads the locale from headerName when header is in the order", async () => {
+      createComviCore.mockReturnValue(createI18nStub("en"));
+      getCookie.mockReturnValue("de");
+      headers({ "x-locale": "uk" });
+      const useTranslation = await importUseTranslation();
+
+      const { locale } = await useTranslation(
+        createEvent({ localeDetection: { order: ["header", "cookie"], headerName: "x-locale" } }),
+      );
+
+      expect(locale).toBe("uk");
+    });
+
+    it("reads the cookie a localeCookie object names", async () => {
+      createComviCore.mockReturnValue(createI18nStub("en"));
+      getCookie.mockImplementation((_event: unknown, name: string) =>
+        name === "LANG" ? "de" : undefined,
+      );
+      const useTranslation = await importUseTranslation();
+
+      const { locale } = await useTranslation(
+        createEvent({
+          localeCookie: { name: "LANG", maxAge: 1, secure: true, sameSite: "lax" },
+        }),
+      );
+
+      expect(locale).toBe("de");
+    });
+
+    it("reads no cookie with localeCookie: false", async () => {
+      createComviCore.mockReturnValue(createI18nStub("en"));
+      getCookie.mockReturnValue("de");
+      const useTranslation = await importUseTranslation();
+
+      const { locale } = await useTranslation(createEvent({ localeCookie: false }));
+
+      expect(locale).toBe("en");
+      expect(getCookie).not.toHaveBeenCalled();
+    });
+
+    it("uses the app's resolveAcceptLanguage with the default locale", async () => {
+      createComviCore.mockReturnValue(createI18nStub("en"));
+      headers({ "accept-language": "uk" });
+      const custom = vi.fn(() => "de");
+      vi.doMock("#build/comvi.detection", () => ({ resolveAcceptLanguage: custom }));
+      const useTranslation = await importUseTranslation();
+
+      const { locale } = await useTranslation(createEvent());
+
+      vi.doUnmock("#build/comvi.detection");
+      expect(custom).toHaveBeenCalledWith("uk", ["en", "de", "uk"], "en");
+      expect(locale).toBe("de");
+    });
   });
 });

@@ -22,6 +22,86 @@ export interface LocaleObject {
   iso?: string;
 }
 
+/**
+ * The locale cookie's attributes. The same object, with the same defaults
+ * except the name, is `@comvi/next`'s `localeCookie`.
+ */
+export interface LocaleCookieOptions {
+  /** @default "i18n_locale" */
+  name?: string;
+  /**
+   * Lifetime in seconds.
+   * @default 31536000 (one year)
+   */
+  maxAge?: number;
+  /**
+   * Set the Secure flag, so the cookie is only sent over HTTPS. Always off in
+   * dev mode (`import.meta.dev`), so localhost over HTTP keeps it.
+   * @default true
+   */
+  secure?: boolean;
+  /** @default "lax" */
+  sameSite?: "lax" | "strict" | "none";
+  /** Send the cookie to this domain and its subdomains. Unset: the host only. */
+  domain?: string;
+}
+
+/**
+ * Where the locale preference is persisted: `false` writes and reads no cookie,
+ * a string is the cookie name, an object sets its attributes.
+ */
+export type LocaleCookieConfig = false | string | LocaleCookieOptions;
+
+/**
+ * A detection source. The URL path is always consulted first and is not one of
+ * these. `query` reads `queryParam`, `header` reads `headerName`; each is inert
+ * until its name is set.
+ */
+export type LocaleDetectionSource = "query" | "cookie" | "header" | "accept-language";
+
+/** Custom `Accept-Language` resolution: return a configured locale, or `undefined`. */
+export type ResolveAcceptLanguage = (
+  acceptLanguage: string,
+  locales: readonly string[],
+  defaultLocale: string,
+) => string | undefined;
+
+export interface LocaleDetectionConfig {
+  /**
+   * Detection order. The URL path is always checked first; `query` and
+   * `header` do nothing until `queryParam` and `headerName` are set.
+   * `header` and `accept-language` are read on the server only.
+   * @default ["query", "cookie", "accept-language"]
+   */
+  order?: LocaleDetectionSource[];
+
+  /**
+   * Query parameter to read an explicit locale from (`"lang"` reads `?lang=de`).
+   * Values outside `locales` are ignored.
+   * @default undefined (not checked)
+   */
+  queryParam?: string;
+
+  /**
+   * Request header a proxy sets the locale in, read when `"header"` is in
+   * `order`. Values outside `locales` are ignored.
+   */
+  headerName?: string;
+
+  /**
+   * Replaces the built-in `Accept-Language` matcher.
+   *
+   * It reaches the runtime as SOURCE: the module copies the function into the
+   * build, because a function cannot travel through runtime config. It must be
+   * self-contained, so it cannot use an import or a variable from
+   * `nuxt.config`.
+   */
+  resolveAcceptLanguage?: ResolveAcceptLanguage;
+}
+
+/**
+ * @deprecated Use `localeCookie` and `localeDetection`. Removed in 0.6.
+ */
 export interface DetectBrowserLanguageOptions {
   /**
    * Use cookie to persist language preference
@@ -156,6 +236,13 @@ export interface NuxtI18nOptions {
   defaultNs?: string;
 
   /**
+   * Namespaces to load at init besides `defaultNs` — core's `ns` option,
+   * forwarded into both constructed hosts and a `hostModule` factory's options.
+   * @example ["common", "nav"]
+   */
+  ns?: I18nOptions["ns"];
+
+  /**
    * Fallback locale when translation is missing
    * @default same as defaultLocale
    */
@@ -254,9 +341,22 @@ export interface NuxtI18nOptions {
   hostModule?: string;
 
   /**
-   * Browser language detection options
-   * Set to false to disable
-   * @default { useCookie: true, cookieName: 'i18n_locale' }
+   * The locale cookie: a name, its attributes, or `false` to persist nothing.
+   * @default "i18n_locale"
+   */
+  localeCookie?: LocaleCookieConfig;
+
+  /**
+   * Where the locale comes from after the URL path. `false` turns detection
+   * off: the path decides, otherwise `defaultLocale`.
+   * @default { order: ["query", "cookie", "accept-language"] }
+   */
+  localeDetection?: false | LocaleDetectionConfig;
+
+  /**
+   * @deprecated Use `localeCookie` and `localeDetection`; removed in 0.6.
+   * `false` maps to `localeDetection: false` plus `localeCookie: false`.
+   * When both spellings are given, `localeCookie` and `localeDetection` win.
    */
   detectBrowserLanguage?: DetectBrowserLanguageOptions | false;
 
@@ -283,20 +383,38 @@ export interface ResolvedRoutingConfig {
   cookieName: string;
 }
 
+/** `localeCookie` as the module resolves it into runtime config. */
+export type ResolvedLocaleCookie = Required<Omit<LocaleCookieOptions, "domain">> &
+  Pick<LocaleCookieOptions, "domain">;
+
+/**
+ * `localeDetection` as the module resolves it into runtime config.
+ * `redirectOnFirstVisit` and `fallbackLocale` come from the deprecated
+ * `detectBrowserLanguage` only: they have no canonical spelling.
+ */
+export interface ResolvedLocaleDetection {
+  order: LocaleDetectionSource[];
+  queryParam?: string;
+  headerName?: string;
+  redirectOnFirstVisit?: boolean;
+  fallbackLocale?: string;
+}
+
 export interface NuxtI18nRuntimeConfig {
   comvi: {
     locales: string[];
     localeObjects: Record<string, LocaleObject>;
     defaultLocale: string;
     localePrefix: LocalePrefixMode;
-    cookieName: string;
     head?: boolean;
     translation?: I18nOptions["translation"];
     defaultNs: string;
+    ns?: I18nOptions["ns"];
     fallbackLocale: string | string[];
     defaultParams?: NuxtDefaultTranslationParams;
     basicHtmlTags?: string[];
-    detectBrowserLanguage: DetectBrowserLanguageOptions | false;
+    localeCookie: ResolvedLocaleCookie | false;
+    localeDetection: ResolvedLocaleDetection | false;
   };
 }
 
@@ -366,6 +484,8 @@ export type NuxtHostFactoryOptions<D extends DefaultTranslationParams = {}> = {
   locale: string;
   fallbackLocale?: string | string[];
   defaultNs?: string;
+  /** `comvi.ns` verbatim: namespaces loaded at init besides `defaultNs`. */
+  ns?: I18nOptions["ns"];
   devMode?: boolean;
   apiKey?: string;
   /** `comvi.translation` verbatim; a factory that spreads `options` keeps it. */

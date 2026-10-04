@@ -69,6 +69,7 @@ export default defineConfig({
       "#app": resolve(__dirname, "./tests/mocks/nuxt-app.ts"),
       "#build/comvi.setup": resolve(__dirname, "./tests/mocks/comvi-setup.ts"),
       "#build/comvi.host": resolve(__dirname, "./tests/mocks/comvi-host.ts"),
+      "#build/comvi.detection": resolve(__dirname, "./tests/mocks/comvi-detection.ts"),
       "#components": resolve(__dirname, "./tests/mocks/nuxt-components.ts"),
     },
   },

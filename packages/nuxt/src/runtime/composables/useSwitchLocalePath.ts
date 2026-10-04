@@ -29,11 +29,8 @@ import {
  */
 export function useSwitchLocalePath() {
   const config = useRuntimeConfig();
-  const { locales, defaultLocale, localePrefix, detectBrowserLanguage } = config.public.comvi;
-  const queryParam =
-    detectBrowserLanguage && typeof detectBrowserLanguage === "object"
-      ? detectBrowserLanguage.queryParam
-      : undefined;
+  const { locales, defaultLocale, localePrefix, localeDetection } = config.public.comvi;
+  const queryParam = localeDetection ? localeDetection.queryParam : undefined;
   const route = useRoute();
 
   /**

@@ -30,11 +30,7 @@ export default defineNuxtConfig({
     // Its host file keeps the `satisfies NuxtHostFactory` form; the nuxt 3 test
     // app uses `defineComviHost`, so both typings stay exercised too.
     fallbackLocale: "en",
-    detectBrowserLanguage: {
-      useCookie: true,
-      cookieName: "i18n_locale",
-      redirectOnFirstVisit: true,
-    },
+    localeCookie: "i18n_locale",
     basicHtmlTags: ["strong", "em", "a", "br"],
   },
 

@@ -41,6 +41,15 @@ already measured 7580 B. The rest is this lot: 117 B for the cell-then-alias loo
 (tree-shaken from this fixture), and 118 B for the error's test-runner and `serverExternalPackages`
 clause. The provider itself is measured by `fw-next-server-provider`.
 
+`fw-next-middleware-edge` was added on 2026-10-04 with the shared `localeCookie` / `localeDetection`
+vocabulary: `createMiddleware` from `@comvi/next/middleware`, the graph an app's `middleware.ts`
+ships to the Edge runtime. It measured 1695 B on the base branch (e93168ca) and 1902 B with the
+vocabulary: 207 B for the `query` source, the resolved cookie object with its `maxAge`,
+`sameSite` and `domain`, `localeDetection: false`, and the dev-only alias warning. The same lot
+took `fw-nuxt-client-default` from 8483 B to 8370 B and `fw-nuxt-full-composite` from 12829 B to
+12806 B: the module now resolves the cookie and detection options at build time, so the plugin
+reads one finished object instead of merging defaults.
+
 Every row is gated. There is no informational tier: a row that gates nothing does not earn its
 measurement cost, and `size-check.mjs` throws on a row without a `gzipBudgetBytes`.
 
@@ -73,7 +82,7 @@ the bytes first, then decide whether they ship.
 
 `core-base`, `core-base-icu`, `core-full-composite`; per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-nuxt-client-default`,
+`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-host`; the platform
 path `plugin-fetch-loader-cdn`, `plugin-fetch-loader-cdn-lite`, `platform-path-react`.
 

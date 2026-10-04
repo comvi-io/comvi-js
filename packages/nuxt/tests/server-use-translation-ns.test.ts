@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nodeResponseStub } from "./mocks/node-response";
+import { fromDetectBrowserLanguage } from "./mocks/locale-options";
 
 /**
  * `useTranslation`'s namespace option is `ns`, the word core's `t(key, { ns })`
@@ -27,9 +28,8 @@ function createEvent() {
           comvi: {
             locales: ["en", "de"],
             defaultLocale: "en",
-            cookieName: "i18n_locale",
             defaultNs: "common",
-            detectBrowserLanguage: { useCookie: true, fallbackLocale: "en" },
+            ...fromDetectBrowserLanguage({ useCookie: true, fallbackLocale: "en" }),
           },
         },
         comvi: {},

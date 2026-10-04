@@ -1,3 +1,5 @@
+import type { LocaleCookieConfig } from "../middleware/types";
+
 export type LocalePrefixMode = "always" | "as-needed" | "never";
 
 /**
@@ -15,10 +17,10 @@ export interface RoutingConfig<T extends string = string> {
    */
   localePrefix?: LocalePrefixMode;
   /**
-   * Cookie name for storing locale preference
+   * The locale cookie: a name, its attributes, or `false` to persist nothing.
    * @default 'NEXT_LOCALE'
    */
-  localeCookie?: string;
+  localeCookie?: LocaleCookieConfig;
   /**
    * A different URL path per locale.
    * @example { '/about': { en: '/about', de: '/ueber-uns' } }

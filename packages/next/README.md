@@ -155,6 +155,12 @@ process-wide on the server, so the first request's headers would pin the locale 
 Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'client' })`; see
 [Plugin scoping](https://comvi.io/docs/i18n/next/server-client#plugin-scoping).
 
+`createMiddleware` takes the same two locale options as `@comvi/nuxt`, with the same defaults
+except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
+or `false` to persist nothing. `localeDetection` takes `{ order, queryParam, headerName,
+resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge. The 0.4
+`localeDetection.cookieName` and `cookieSecure` still work through 0.5 and warn in development.
+
 ## Next steps
 
 - [Next.js guide](https://comvi.io/docs/i18n/next): `withComvi`, `<ComviProvider>`, `loadTranslations()`, two runtimes, errors.

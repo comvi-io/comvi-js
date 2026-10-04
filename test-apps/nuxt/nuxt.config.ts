@@ -29,11 +29,7 @@ export default defineNuxtConfig({
     // this app keeps the `hostModule` path exercised by a real build.
     hostModule: "./comvi.host.ts",
     fallbackLocale: "en",
-    detectBrowserLanguage: {
-      useCookie: true,
-      cookieName: "i18n_locale",
-      redirectOnFirstVisit: true,
-    },
+    localeCookie: "i18n_locale",
     basicHtmlTags: ["strong", "em", "a", "br"],
   },
 

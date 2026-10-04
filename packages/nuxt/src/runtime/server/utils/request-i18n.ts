@@ -38,6 +38,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
         locale: locale,
         fallbackLocale: publicConfig.fallbackLocale || publicConfig.defaultLocale || locale,
         defaultNs: publicConfig.defaultNs || "default",
+        ns: publicConfig.ns || undefined,
         devMode: process.env.NODE_ENV === "development",
         apiKey: privateConfig?.apiKey,
         // Symmetric with the app plugin: the inline catalog is what makes an

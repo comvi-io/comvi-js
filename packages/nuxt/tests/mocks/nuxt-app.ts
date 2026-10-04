@@ -1,12 +1,17 @@
 import { ref, reactive, computed, customRef } from "vue";
-import type { NuxtI18nPrivateRuntimeConfig, NuxtI18nRuntimeConfig } from "../../src/types";
+import type {
+  DetectBrowserLanguageOptions,
+  NuxtI18nPrivateRuntimeConfig,
+  NuxtI18nRuntimeConfig,
+} from "../../src/types";
+import { fromDetectBrowserLanguage } from "./locale-options";
 
 const stateStore = new Map<string, any>();
 
 /**
  * Typed as the module's own runtime-config shape, not inferred from the literal:
- * tests reassign `localePrefix` and `detectBrowserLanguage` across their full
- * unions, which a literal-inferred type would pin to these defaults.
+ * tests reassign `localePrefix`, `localeCookie` and `localeDetection` across
+ * their full unions, which a literal-inferred type would pin to these defaults.
  */
 const defaultRuntimeConfig: {
   public: { comvi: NuxtI18nRuntimeConfig["comvi"] };
@@ -22,17 +27,16 @@ const defaultRuntimeConfig: {
       },
       defaultLocale: "en",
       localePrefix: "as-needed",
-      cookieName: "i18n_locale",
       defaultNs: "default",
       fallbackLocale: "en",
       basicHtmlTags: ["strong", "em"],
-      detectBrowserLanguage: {
+      ...fromDetectBrowserLanguage({
         useCookie: true,
         cookieName: "i18n_locale",
         cookieMaxAge: 31536000,
         redirectOnFirstVisit: true,
         fallbackLocale: "en",
-      },
+      }),
     },
   },
   comvi: {
@@ -234,6 +238,11 @@ export function setMockCookie(name: string, value: string | undefined) {
 
 export function setMockRoute(partial: Partial<typeof routeState>) {
   Object.assign(routeState, partial);
+}
+
+/** What the module writes for a 0.4 `detectBrowserLanguage` value. */
+export function setDetectBrowserLanguage(value: DetectBrowserLanguageOptions | false) {
+  Object.assign(mockRuntimeConfig.public.comvi, fromDetectBrowserLanguage(value));
 }
 
 function resetRuntimeConfig() {

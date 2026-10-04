@@ -221,6 +221,19 @@
       "note": "Gated Next build plugin: `withComvi` from `@comvi/next/plugin`, Node only and never bundled into an app; guards against an accidental core or React import."
     },
     {
+      "name": "fw-next-middleware-edge",
+      "entry": ["@comvi/next/middleware"],
+      "fixture": "framework/next-middleware-edge.ts",
+      "external": ["next", "next/*"],
+      "gzipBudgetBytes": 1998,
+      "baseline": {
+        "minBytes": 4363,
+        "gzipBytes": 1902,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated Next Edge graph: `createMiddleware` from `@comvi/next/middleware`, what an app's middleware.ts ships to the Edge runtime."
+    },
+    {
       "name": "fw-nuxt-full-composite",
       "entry": [
         "@comvi/nuxt/runtime/plugin.js",

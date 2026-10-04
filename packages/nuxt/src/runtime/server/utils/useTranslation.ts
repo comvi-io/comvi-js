@@ -7,7 +7,7 @@ import { getServerRuntimeConfig } from "./runtime-config";
 import { getRequestI18n } from "./request-i18n";
 import { loadCatalogs } from "../../utils/load-catalogs";
 import { resolveAcceptLanguage } from "../../utils/resolve-locale";
-import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../../defaults";
+import { resolveAcceptLanguage as customResolveAcceptLanguage } from "#build/comvi.detection";
 
 export interface UseTranslationOptions {
   /**
@@ -70,8 +70,8 @@ export interface UseTranslationResult {
 /**
  * Server-side translation utility for API routes and server middleware.
  *
- * Locale precedence: the explicit `locale` option, then the cookie, then the
- * Accept-Language header, then `defaultLocale`.
+ * Locale precedence: the explicit `locale` option, then `localeDetection.order`
+ * (the cookie, a configured header, Accept-Language), then `defaultLocale`.
  *
  * @example
  * ```typescript
@@ -102,9 +102,9 @@ export async function useTranslation(
   const {
     locales = [],
     defaultLocale = "en",
-    cookieName = DEFAULT_DETECT_BROWSER_LANGUAGE.cookieName,
     defaultNs = "default",
-    detectBrowserLanguage,
+    localeCookie: cookieConfig,
+    localeDetection: detectConfig,
   } = publicConfig;
   // An EMPTY `ns` counts as not given, not as "the empty namespace": `""` has
   // always fallen through to the next option, and the one rule has to hold in
@@ -125,33 +125,30 @@ export async function useTranslation(
   // the rename is not the place to change that.
   const namespace = options.ns || options.namespace || defaultNs;
 
-  const detectConfig =
-    detectBrowserLanguage === false
-      ? false
-      : {
-          ...DEFAULT_DETECT_BROWSER_LANGUAGE,
-          ...(typeof detectBrowserLanguage === "object" ? detectBrowserLanguage : {}),
-        };
-  const useCookieForDetection = detectConfig !== false && detectConfig.useCookie === true;
-  const fallbackLocale =
-    detectConfig && "fallbackLocale" in detectConfig && detectConfig.fallbackLocale
-      ? detectConfig.fallbackLocale
-      : defaultLocale;
+  const fallbackLocale = (detectConfig && detectConfig.fallbackLocale) || defaultLocale;
   const resolvedFallbackLocale = locales.includes(fallbackLocale) ? fallbackLocale : defaultLocale;
 
   let locale = options.locale;
 
-  if (!locale && useCookieForDetection) {
-    const cookieLocale = getCookie(event, cookieName);
-    if (cookieLocale && locales.includes(cookieLocale)) {
-      locale = cookieLocale;
-    }
-  }
+  const accept = (candidate: string | undefined): string | undefined =>
+    candidate && locales.includes(candidate) ? candidate : undefined;
 
-  if (!locale && detectConfig !== false) {
-    const acceptLanguage = getHeader(event, "accept-language");
-    if (acceptLanguage) {
-      locale = resolveAcceptLanguage(acceptLanguage, locales);
+  for (const source of detectConfig ? detectConfig.order : []) {
+    if (locale) break;
+    if (source === "cookie") {
+      locale = cookieConfig ? accept(getCookie(event, cookieConfig.name)) : undefined;
+    } else if (source === "header") {
+      const headerName = detectConfig ? detectConfig.headerName : undefined;
+      locale = headerName ? accept(getHeader(event, headerName)) : undefined;
+    } else if (source === "accept-language") {
+      const acceptLanguage = getHeader(event, "accept-language");
+      locale = acceptLanguage
+        ? (customResolveAcceptLanguage ?? resolveAcceptLanguage)(
+            acceptLanguage,
+            locales,
+            defaultLocale,
+          )
+        : undefined;
     }
   }
 

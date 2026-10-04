@@ -1,7 +1,12 @@
 import type { NextRequest } from "next/server";
 import type { RoutingConfig } from "../routing/types";
 
-export type LocaleDetectionSource = "cookie" | "header" | "accept-language";
+/**
+ * A detection source. The URL path is always consulted first and is not one of
+ * these. `query` reads `queryParam`, `header` reads `headerName`; each is inert
+ * until its name is set.
+ */
+export type LocaleDetectionSource = "query" | "cookie" | "header" | "accept-language";
 
 /**
  * Function type for custom Accept-Language resolution.
@@ -29,26 +34,50 @@ export type ResolveAcceptLanguage = (
   defaultLocale: string,
 ) => string | undefined;
 
+/**
+ * The locale cookie's attributes. The same object, with the same defaults
+ * except the name, is `@comvi/nuxt`'s `localeCookie`.
+ */
+export interface LocaleCookieOptions {
+  /** @default 'NEXT_LOCALE' */
+  name?: string;
+  /**
+   * Lifetime in seconds.
+   * @default 31536000 (one year)
+   */
+  maxAge?: number;
+  /**
+   * Set the Secure flag, so the cookie is only sent over HTTPS. Always off in
+   * development (`NODE_ENV=development`), so localhost over HTTP keeps it.
+   * @default true
+   */
+  secure?: boolean;
+  /** @default 'lax' */
+  sameSite?: "lax" | "strict" | "none";
+  /** Send the cookie to this domain and its subdomains. Unset: the host only. */
+  domain?: string;
+}
+
+/**
+ * Where the locale preference is persisted: `false` writes and reads no cookie,
+ * a string is the cookie name, an object sets its attributes.
+ */
+export type LocaleCookieConfig = false | string | LocaleCookieOptions;
+
 export interface LocaleDetectionConfig {
   /**
-   * Detection order (URL path is always checked first)
-   * @default ['cookie', 'accept-language']
+   * Detection order. The URL path is always checked first; `query` and
+   * `header` do nothing until `queryParam` and `headerName` are set.
+   * @default ['query', 'cookie', 'accept-language']
    */
   order?: LocaleDetectionSource[];
 
   /**
-   * Cookie name for storing locale preference
-   * @default 'NEXT_LOCALE'
+   * Query parameter to read an explicit locale from (`"lang"` reads `?lang=de`).
+   * Values outside `locales` are ignored.
+   * @default undefined (not checked)
    */
-  cookieName?: string;
-
-  /**
-   * Set the Secure flag on the locale cookie.
-   * When true, the cookie is only sent over HTTPS.
-   * Automatically disabled in development (NODE_ENV=development) regardless of this setting.
-   * @default true
-   */
-  cookieSecure?: boolean;
+  queryParam?: string;
 
   /**
    * Custom header name to read locale from
@@ -65,6 +94,17 @@ export interface LocaleDetectionConfig {
    * @default Built-in simple parser
    */
   resolveAcceptLanguage?: ResolveAcceptLanguage;
+
+  /**
+   * @deprecated Use `localeCookie: "NAME"` or `localeCookie: { name }`.
+   * Removed in 0.6.
+   */
+  cookieName?: string;
+
+  /**
+   * @deprecated Use `localeCookie: { secure }`. Removed in 0.6.
+   */
+  cookieSecure?: boolean;
 }
 
 export interface MiddlewareConfig extends RoutingConfig {
@@ -75,5 +115,9 @@ export interface MiddlewareConfig extends RoutingConfig {
    */
   detectLocale?: (request: NextRequest) => string | undefined;
 
-  localeDetection?: LocaleDetectionConfig;
+  /**
+   * Where the locale comes from after the URL path. `false` turns detection
+   * off: the path decides, otherwise `defaultLocale`.
+   */
+  localeDetection?: false | LocaleDetectionConfig;
 }
