@@ -968,6 +968,10 @@ const livePath = (locale: Shown) =>
 /** `promise`, or a failure that says what never happened. */
 async function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // If the timer wins, `promise` may still reject later (a Playwright wait
+  // hitting its own timeout): handled here, or the runner reports it as an
+  // unhandled rejection on top of the real failure.
+  promise.catch(() => {});
   try {
     return await Promise.race([
       promise,
@@ -995,7 +999,8 @@ async function hydrateWithDiagnostics(tab: Page, target: string, what: string): 
   tab.on("requestfinished", (request) => pending.delete(request));
   tab.on("requestfailed", (request) => pending.delete(request));
   tab.on("console", (entry) => consoleLines.push(`${entry.type()}: ${entry.text()}`));
-  tab.setDefaultTimeout(15_000);
+  // Longer than the 15 s bound below, so the bound's message is the one reported.
+  tab.setDefaultTimeout(20_000);
   try {
     await tab.goto(target, { waitUntil: "commit" });
     await within(ready(tab), 15_000, `${what}: the page never hydrated`);
