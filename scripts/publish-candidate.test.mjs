@@ -176,6 +176,8 @@ function tarball(dir, file, manifest) {
 }
 
 const digest = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+const sri = (file) =>
+  `sha512-${crypto.createHash("sha512").update(fs.readFileSync(file)).digest("base64")}`;
 
 /** A packed candidate: core only, with its SHA256SUMS and pending.json. */
 function packedCandidate() {
@@ -275,9 +277,12 @@ test("assertChecksums: a listed file that is missing, or a malformed line, fails
 
 const SCRIPT = path.join(path.dirname(new URL(import.meta.url).pathname), "publish-candidate.mjs");
 
-// The registry is `state.json`: { [name]: { versions: [...], tags: { [tag]: version } } }.
+// The registry is `state.json`:
+// { [name]: { versions: [...], tags: { [tag]: version }, integrity: { [version]: sri } } }.
 // FAKE_NPM_FAIL makes `npm publish` of those names 503; FAKE_NPM_FAIL_PROMOTE
-// does the same to `npm dist-tag add`.
+// does the same to `npm dist-tag add`. Like npm, a version is published once:
+// publishing it again is refused (E403), and its integrity is the sha512 of
+// the bytes that were published.
 const FAKE_NPM = `#!/usr/bin/env node
 const fs = require("node:fs");
 const path = require("node:path");
@@ -299,7 +304,18 @@ const e503 = () => {
   process.exit(1);
 };
 const [command, ...rest] = argv;
-if (command === "view" && rest[1] === "version") {
+if (command === "view" && rest[1] === "dist.integrity") {
+  const [name, version] = split(rest[0]);
+  if (!state[name]?.versions.includes(version)) e404();
+  // A stale replica: the version is there, its integrity not yet.
+  if (state[name].integrityLag) {
+    state[name].integrityLag -= 1;
+    save();
+    process.exit(0);
+  }
+  const sri = state[name].integrity?.[version];
+  if (sri) process.stdout.write(JSON.stringify(sri) + "\\n");
+} else if (command === "view" && rest[1] === "version") {
   const [name, version] = split(rest[0]);
   if (state[name]?.lag) {
     state[name].lag -= 1;
@@ -317,7 +333,12 @@ if (command === "view" && rest[1] === "version") {
   const tagAt = rest.indexOf("--tag");
   const tag = tagAt === -1 ? "latest" : rest[tagAt + 1];
   const pkg = (state[manifest.name] ??= { versions: [], tags: {} });
+  if (pkg.versions.includes(manifest.version)) {
+    process.stderr.write("npm error code E403\\n403 Forbidden - You cannot publish over the previously published versions: " + manifest.version + ".\\n");
+    process.exit(1);
+  }
   pkg.versions.push(manifest.version);
+  pkg.integrity = { ...pkg.integrity, [manifest.version]: "sha512-" + require("node:crypto").createHash("sha512").update(fs.readFileSync(rest[0])).digest("base64") };
   // Read-after-write lag: the next lookup of this version still 404s.
   if (listed("FAKE_NPM_LAG").includes(manifest.name)) pkg.lag = 1;
   pkg.tags[tag] = manifest.version;
@@ -454,10 +475,16 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     );
   const state = () => JSON.parse(fs.readFileSync(path.join(registry, "state.json"), "utf8"));
   const distTags = (p) => state()[`@comvi/${p}`].tags;
-  /** Put `p@0.5.0` on the fake registry with exactly `tags` added. */
-  const onNpm = (p, tags = { latest: "0.5.0" }) => {
+  /** The SRI integrity of the local candidate's tarball of `p`. */
+  const integrity = (p) => sri(path.join(dir, `comvi-${p}-0.5.0.tgz`));
+  /**
+   * Put `p@0.5.0` on the fake registry with exactly `tags` added, holding the
+   * bytes whose integrity is `bytes` (by default the local candidate's).
+   */
+  const onNpm = (p, tags = { latest: "0.5.0" }, bytes = integrity(p)) => {
     const next = state();
     next[`@comvi/${p}`].versions.push("0.5.0");
+    next[`@comvi/${p}`].integrity = { "0.5.0": bytes };
     Object.assign(next[`@comvi/${p}`].tags, tags);
     fs.writeFileSync(path.join(registry, "state.json"), JSON.stringify(next));
   };
@@ -498,6 +525,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     patch,
     npmCalls,
     repack,
+    integrity,
   };
 }
 
@@ -757,18 +785,31 @@ test("mixed candidate (GA): a fresh run at the SAME commit with other bytes publ
   assert.equal(ws.remoteTags()["@comvi/react@0.5.0"], undefined);
 });
 
-test("mixed candidate: a version on npm with no staging tag at all is refused while others are pending", (t) => {
+test("mixed candidate: a version on npm with no staging tag and other bytes is refused while others are pending", (t) => {
   const ws = releaseWorkspace(t);
-  ws.onNpm("core", {});
+  const foreign = `sha512-${"B".repeat(86)}==`;
+  ws.onNpm("core", {}, foreign);
   const result = ws.run({ tagging: false, tag: "next" });
   assert.equal(result.status, 1, result.log);
   assert.match(
     result.log,
     new RegExp(
-      `@comvi/core@0\\.5\\.0 is on npm from another candidate: expected dist-tag ${ws.staging}, found none`,
+      `@comvi/core@0\\.5\\.0 is on npm from another candidate: expected dist-tag ${ws.staging}, found none; ` +
+        `expected integrity ${ws.integrity("core").replace(/[+/]/g, "\\$&")}, found ${foreign}`,
     ),
   );
   assert.doesNotMatch(ws.npmCalls(), /^publish /m);
+});
+
+test("mixed candidate: a version on npm with no staging tag but THIS candidate's bytes is not foreign", (t) => {
+  // A retry after the staging tag was cleaned up whose first read of another
+  // version was a stale 404: identical bytes are this candidate's.
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core", {});
+  const result = ws.run({ tagging: false, tag: "next" });
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.deepEqual(ws.distTags("react"), { latest: "0.4.1", next: "0.5.0" });
 });
 
 test("mixed candidate: an RC re-run of the same candidate finishes the train", (t) => {
@@ -831,4 +872,155 @@ test("first-ever version: a package with no dist-tags on npm gets a warning, and
     /warning: @comvi\/react has no dist-tags on npm, so npm will put its first-ever version on `latest`/,
   );
   assert.doesNotMatch(result.stderr, /warning: @comvi\/core/);
+});
+
+// ---------------------------------------------------------------------------
+// Byte identity: whatever this run did (published, skipped, failed because
+// the version exists, or found everything present), npm's `dist.integrity`
+// of every candidate must be the sha512 of the candidate's own tarball
+// before anything is promoted or git-tagged.
+
+const MODES = [
+  { mode: "GA", flags: { tagging: true, tag: "latest" } },
+  { mode: "RC", flags: { tagging: false, tag: "next" } },
+];
+
+/** The refusal, pinned: package, expected and found integrity, recovery. */
+function assertBytesRefusal(result, staging, lines) {
+  assert.ok(
+    result.stderr.includes(
+      `refusing to promote or tag anything: npm does not hold this candidate's bytes (${staging}).\n` +
+        `${lines.join("\n")}\n` +
+        "A version on npm can never be replaced. If one other run published all of these, finish " +
+        "its train with 'Re-run failed jobs' on that run; if they mix candidates, no run can " +
+        "finish them: dispatch a new version.",
+    ),
+    result.log,
+  );
+}
+
+for (const { mode, flags } of MODES) {
+  test(`byte identity (${mode}, Codex sequence 1): a stale 404, a publish refused because the version exists, another candidate's core — nothing promoted or tagged`, (t) => {
+    const ws = releaseWorkspace(t);
+    // Candidate A: core published, react 503s.
+    const partial = ws.run({ ...flags, fail: ["@comvi/react"], attempt: 1 });
+    assert.equal(partial.status, 1, partial.log);
+    const coreA = ws.integrity("core");
+    const remoteBefore = ws.remoteTags();
+
+    // Candidate B, same versions, same commit (GA) or another ref (RC).
+    const stagingB = ws.repack("candidate B");
+    const coreB = ws.integrity("core");
+    assert.notEqual(coreA, coreB);
+    // B's first read of core is a stale 404, so core counts as pending.
+    ws.patch("core", (pkg) => {
+      pkg.lag = 1;
+    });
+    const before = ws.npmCalls().length;
+
+    const result = ws.run({ ...flags, attempt: 1 });
+    assert.equal(result.status, 1, result.log);
+    assert.equal(result.outputs.published, "false");
+    assert.equal(result.outputs.publishedPackages, "[]");
+    const calls = ws.npmCalls().slice(before);
+    // Core's publish was attempted and refused; react's went through.
+    assert.match(calls, /^publish .*comvi-core-0\.5\.0\.tgz/m);
+    assert.match(result.log, /You cannot publish over the previously published versions/);
+    assert.doesNotMatch(calls, /^dist-tag add/m);
+    assert.equal(ws.distTags("core")[flags.tag], flags.tag === "latest" ? "0.4.1" : undefined);
+    assert.equal(ws.distTags("react")[flags.tag], flags.tag === "latest" ? "0.4.1" : undefined);
+    // No git tag for B's react and no release tag.
+    assert.deepEqual(ws.remoteTags(), remoteBefore);
+    assertBytesRefusal(result, stagingB, [
+      `  @comvi/core@0.5.0: expected ${coreB}, found ${coreA}`,
+    ]);
+  });
+
+  test(`byte identity (${mode}, Codex sequence 2): every version present with another candidate's bytes — nothing promoted or tagged`, (t) => {
+    const ws = releaseWorkspace(t);
+    // Candidate A published the whole set and crashed before promotion.
+    const a = ws.run({ ...flags, failPromote: ["@comvi/core", "@comvi/react"], attempt: 1 });
+    assert.equal(a.status, 1, a.log);
+    const [coreA, reactA] = [ws.integrity("core"), ws.integrity("react")];
+    const remoteBefore = ws.remoteTags();
+
+    const stagingB = ws.repack("candidate B");
+    const before = ws.npmCalls().length;
+    const result = ws.run({ ...flags, attempt: 1 });
+    assert.equal(result.status, 1, result.log);
+    assert.equal(result.outputs.published, "false");
+    assert.equal(result.outputs.publishedPackages, "[]");
+    const calls = ws.npmCalls().slice(before);
+    assert.doesNotMatch(calls, /^publish /m);
+    assert.doesNotMatch(calls, /^dist-tag /m);
+    assert.deepEqual(ws.remoteTags(), remoteBefore);
+    assertBytesRefusal(result, stagingB, [
+      `  @comvi/core@0.5.0: expected ${ws.integrity("core")}, found ${coreA}`,
+      `  @comvi/react@0.5.0: expected ${ws.integrity("react")}, found ${reactA}`,
+    ]);
+  });
+}
+
+test("byte identity: the same candidate after a stale 404 and a publish refused as existing completes", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.run({ fail: ["@comvi/react"], attempt: 1 });
+  ws.patch("core", (pkg) => {
+    pkg.lag = 1;
+  });
+  const result = ws.run({ attempt: 2 });
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.equal(result.outputs.publishedPackages, FULL_SET);
+  assert.equal(ws.remoteTags()["v0.5.0"], ws.head);
+});
+
+test("byte identity: a GA retry after full promotion and staging cleanup re-emits the set", (t) => {
+  const ws = releaseWorkspace(t);
+  assert.equal(ws.run({ attempt: 1 }).status, 0);
+  assert.deepEqual(ws.distTags("core"), { latest: "0.5.0" });
+  const before = ws.npmCalls().length;
+  const retry = ws.run({ attempt: 2 });
+  assert.equal(retry.status, 0, retry.log);
+  assert.equal(retry.outputs.published, "true");
+  assert.equal(retry.outputs.publishedPackages, FULL_SET);
+  const calls = ws.npmCalls().slice(before);
+  assert.doesNotMatch(calls, /^publish /m);
+  assert.doesNotMatch(calls, /^dist-tag /m);
+  assert.match(calls, /^view @comvi\/core@0\.5\.0 dist\.integrity/m);
+});
+
+test("byte identity: a re-run after a crash between promotion and staging cleanup completes and cleans up", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core", { latest: "0.5.0", [ws.staging]: "0.5.0" });
+  ws.onNpm("react", { latest: "0.5.0", [ws.staging]: "0.5.0" });
+  const result = ws.run({ attempt: 2 });
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.deepEqual(ws.distTags("core"), { latest: "0.5.0" });
+  assert.deepEqual(ws.distTags("react"), { latest: "0.5.0" });
+});
+
+test("byte identity: a stale integrity read (missing, then right) is asked again and passes", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.patch("react", (pkg) => {
+    pkg.integrityLag = 1;
+  });
+  const result = ws.run();
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.equal(ws.npmCalls().match(/^view @comvi\/react@0\.5\.0 dist\.integrity/gm).length, 2);
+});
+
+test("byte identity: an integrity npm never shows is refused as missing", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core", { [ws.staging]: "0.5.0" }, null);
+  ws.onNpm("react", { [ws.staging]: "0.5.0" });
+  const result = ws.run({ attempt: 2 });
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.equal(result.outputs.publishedPackages, "[]");
+  assert.doesNotMatch(ws.npmCalls(), /^dist-tag add/m);
+  assertBytesRefusal(result, ws.staging, [
+    `  @comvi/core@0.5.0: expected ${ws.integrity("core")}, found none`,
+  ]);
 });

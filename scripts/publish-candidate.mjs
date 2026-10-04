@@ -48,11 +48,16 @@
  *        another commit stops the run: a fresh run at a newer commit never
  *        completes an older commit's train. And whenever something is still
  *        to publish, every version npm already has must carry THIS
- *        candidate's staging tag (git-tagged or not, RC or GA): a version
- *        from another candidate stops the run before anything is published
- *        or promoted. A version this run published
- *        that npm does not show yet is asked again with backoff (npm's
- *        reads lag its writes).
+ *        candidate's staging tag or THIS candidate's bytes (git-tagged or
+ *        not, RC or GA): a version from another candidate stops the run
+ *        before anything is published. That check is an early, cheap one and
+ *        authorises nothing. What authorises promotion and git tags is BYTE
+ *        IDENTITY: npm's `dist.integrity` of every candidate on npm, however
+ *        it got there (published now, skipped, refused as already
+ *        published, or all present), must be the sha512 of this candidate's
+ *        own tarball, or nothing is promoted or tagged. A version this run
+ *        published that npm does not show yet, and an integrity npm does not
+ *        show yet, are asked again with backoff (npm's reads lag its writes).
  *        Only once npm has the whole set does `--tag` (latest, or next for an
  *        RC) move, and never backwards (a newer version already on the tag
  *        refuses the whole promotion): `npm dist-tag add <name>@<version> <tag>` per package
@@ -72,6 +77,7 @@
  *                                      [--push-tags] [--dry-run]
  */
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
@@ -142,6 +148,30 @@ export function isPublished({ status, stdout, stderr }, version) {
   }
   if (/E404|404 Not Found|is not in this registry/.test(`${stdout}\n${stderr}`)) return false;
   throw new Error(`npm view failed (${status}):\n${stderr || stdout}`);
+}
+
+/**
+ * The Subresource Integrity string npm records as `dist.integrity` for a
+ * tarball: `sha512-<base64 of the sha512 of its bytes>`.
+ */
+export function tarballIntegrity(file) {
+  return `sha512-${crypto.createHash("sha512").update(fs.readFileSync(file)).digest("base64")}`;
+}
+
+/**
+ * `npm view <name>@<version> dist.integrity --json`: the integrity string,
+ * or null when npm shows none (no such version yet, or a replica that has
+ * the version but not its metadata). Any other failure throws.
+ */
+export function parseIntegrity({ status, stdout, stderr }) {
+  if (status === 0) {
+    const text = stdout.trim();
+    if (text === "") return null;
+    const value = JSON.parse(text);
+    return typeof value === "string" && value !== "" ? value : null;
+  }
+  if (/E404|404 Not Found|is not in this registry/.test(`${stdout}\n${stderr}`)) return null;
+  throw new Error(`npm view dist.integrity failed (${status}):\n${stderr || stdout}`);
 }
 
 /** `<sha256>  <file>` lines, sorted by file name: the `sha256sum` format. */
@@ -475,17 +505,40 @@ function distTagsOf(pkg) {
 }
 
 /**
- * Whether a version this run just published is visible yet. npm's reads can
- * lag its writes, so a miss is asked again a few times, backing off from
- * COMVI_PUBLISH_RECHECK_MS (2 s) and doubling: about 30 s in all.
+ * `read()` until `settled(value)`, and return the last value. npm's reads can
+ * lag its writes, so an observation that is not settled yet is asked again a
+ * few times, backing off from COMVI_PUBLISH_RECHECK_MS (2 s) and doubling:
+ * about 30 s in all.
  */
-function visibleAfterPublish(pkg) {
+function askAgain(read, settled) {
   const base = Number(process.env.COMVI_PUBLISH_RECHECK_MS ?? 2000);
   for (let attempt = 0; ; attempt++) {
-    if (!notOnNpm(pkg)) return true;
-    if (attempt === 4) return false;
+    const value = read();
+    if (settled(value) || attempt === 4) return value;
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, base * 2 ** attempt);
   }
+}
+
+/** Whether a version this run just published is visible yet. */
+function visibleAfterPublish(pkg) {
+  return askAgain(() => !notOnNpm(pkg), Boolean);
+}
+
+/**
+ * npm's `dist.integrity` of the candidate's version, or null. A missing value
+ * is asked again (a stale replica); a present one is final, because npm never
+ * lets a published version's bytes change.
+ */
+function registryIntegrity(pkg) {
+  return askAgain(
+    () =>
+      parseIntegrity(
+        sh("npm", ["view", `${pkg.name}@${pkg.version}`, "dist.integrity", "--json"], {
+          capture: true,
+        }),
+      ),
+    (found) => found !== null,
+  );
 }
 
 function notOnNpm(pkg) {
@@ -574,7 +627,11 @@ function verify(options) {
 function publish(options) {
   const dir = path.resolve(REPO_ROOT, options.dir);
   const recorded = assertVerifiedCandidate(dir, options.expectSums);
-  const candidates = publishOrder(candidatesFromSums(dir, recorded));
+  // The integrity of each tarball is taken from the bytes SHA256SUMS pins.
+  const candidates = publishOrder(candidatesFromSums(dir, recorded)).map((pkg) => ({
+    ...pkg,
+    integrity: tarballIntegrity(pkg.tarball),
+  }));
   // Git and the changeset config are read from the release checkout (the
   // current directory), whose HEAD is the commit every tag must name.
   const checkout = process.cwd();
@@ -634,25 +691,27 @@ function publish(options) {
     }
   }
 
-  // One train, one candidate: when this run is about to publish, every
-  // version npm already has must carry THIS candidate's staging tag, which a
-  // partial train keeps until it is promoted. A git tag proves the commit,
-  // not the bytes, and the RC job sets no git tags at all; without this a
-  // fresh dispatch of the same versions would complete another candidate's
-  // train with its own bytes. When npm has the whole set (pending is empty)
-  // there is nothing to mix, and a GA retry after the staging tag was removed
-  // must still reach its tag checks and re-emit the set.
+  // One train, one candidate, checked early: before this run publishes
+  // anything, every version npm already has must carry THIS candidate's
+  // staging tag (which a partial train keeps until it is promoted) or, when
+  // the tag is gone, THIS candidate's bytes. A git tag proves the commit, not
+  // the bytes, and the RC job sets no git tags at all. Passing here
+  // authorises nothing: the byte-identity check after publishing decides,
+  // for every candidate, including the all-present case this one skips.
   if (pending.length > 0 && skipped.length > 0) {
     try {
       const foreign = skipped.flatMap((pkg) => {
         const distTags = distTagsOf(pkg);
         if (distTags[staging] === pkg.version) return [];
+        const bytes = registryIntegrity(pkg);
+        if (bytes === pkg.integrity) return [];
         const found = Object.entries(distTags)
           .filter(([tag, version]) => tag.startsWith("release-") && version === pkg.version)
           .map(([tag]) => tag);
         return [
           `  ${pkg.name}@${pkg.version} is on npm from another candidate: expected dist-tag ` +
-            `${staging}, found ${found.length > 0 ? found.join(", ") : "none"}`,
+            `${staging}, found ${found.length > 0 ? found.join(", ") : "none"}; ` +
+            `expected integrity ${pkg.integrity}, found ${bytes ?? "none"}`,
         ];
       });
       if (foreign.length > 0) throw new Error(foreign.join("\n"));
@@ -719,6 +778,38 @@ function publish(options) {
   });
   const present = rows.filter((row) => row.onNpm);
   const complete = present.length === candidates.length;
+
+  // Byte identity, the invariant that authorises promotion and git tags:
+  // every candidate npm has must hold this candidate's bytes, whatever this
+  // run did about it. A stale 404 can send a version another candidate
+  // published to `npm publish`, which then fails because it exists; a run can
+  // find every version present from another candidate. Neither may promote.
+  // A dry run's own "publishes" are not on npm, so they are not compared.
+  const foreignBytes = present
+    .filter((row) => !(options.dryRun && published.some((pkg) => pkg.name === row.name)))
+    .flatMap((row) => {
+      let found;
+      try {
+        found = registryIntegrity(row);
+      } catch (error) {
+        found = `none (${error.message.split("\n")[0]})`;
+      }
+      return found === row.integrity
+        ? []
+        : [`  ${row.name}@${row.version}: expected ${row.integrity}, found ${found ?? "none"}`];
+    });
+  if (foreignBytes.length > 0) {
+    output({ published: "false", publishedPackages: "[]" });
+    console.log(`release candidate (staged as ${staging})\n${statusTable(rows, options.tag)}`);
+    console.error(
+      `refusing to promote or tag anything: npm does not hold this candidate's bytes (${staging}).\n` +
+        `${foreignBytes.join("\n")}\n` +
+        "A version on npm can never be replaced. If one other run published all of these, finish " +
+        "its train with 'Re-run failed jobs' on that run; if they mix candidates, no run can " +
+        "finish them: dispatch a new version.",
+    );
+    return 1;
+  }
 
   // Promotion: `--tag` moves only for a complete train, package by package,
   // and only where it is not there yet. The staging tag goes once all moved.
