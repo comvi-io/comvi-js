@@ -212,10 +212,10 @@
       "entry": ["@comvi/next/plugin"],
       "fixture": "framework/next-plugin-node.ts",
       "external": ["next", "next/*", "node:*"],
-      "gzipBudgetBytes": 932,
+      "gzipBudgetBytes": 984,
       "baseline": {
-        "minBytes": 1563,
-        "gzipBytes": 887,
+        "minBytes": 1664,
+        "gzipBytes": 937,
         "measuredAt": "2026-10-04"
       },
       "note": "Gated Next build plugin: `withComvi` from `@comvi/next/plugin`, Node only and never bundled into an app; guards against an accidental core or React import."

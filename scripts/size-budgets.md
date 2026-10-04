@@ -95,6 +95,8 @@ client half inlined instead, the row is 2737 B, so the external is what the row 
 
 `fw-next-plugin-node` is no pair half: `@comvi/next/plugin` runs in Node from next.config and is
 never bundled into an app, so its row only catches a runtime import creeping into the plugin.
+Re-baselined 2026-10-04 to 937 B (budget 984 B, +5 %): the bytes re-apply the alias to the config
+a user's webpack hook returns. The row catches an accidental core import; it does not pin bytes.
 
 Each framework pair is a floor (one specifier, base host) and a ceiling (every capability composed
 through that same specifier). The pair is the measurement — adding or removing one half turns the
