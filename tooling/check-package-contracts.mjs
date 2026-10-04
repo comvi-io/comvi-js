@@ -320,6 +320,29 @@ export function checkDistForPrivatePackageNames(packageName, packageDir, private
   return errors;
 }
 
+/**
+ * Vite replaces a Node built-in that the build did not list as `external`
+ * with a browser shim whose every export is `undefined`. The bundle still
+ * builds, so only a consumer sees the failure, at the first call:
+ * `(0 , import___vite_browser_external.randomUUID) is not a function`.
+ * Shipped files must never carry that shim.
+ */
+export function checkDistForBrowserExternalShim(packageName, packageDir) {
+  const errors = [];
+  const distDir = path.join(packageDir, "dist");
+  for (const file of collectDistFiles(distDir)) {
+    const content = readFileSync(file, "utf8");
+    if (content.includes("__vite_browser_external")) {
+      const relativePath = path.relative(distDir, file).split(path.sep).join("/");
+      errors.push(
+        `${packageName}: dist/${relativePath} bundles Vite's browser shim for a Node built-in; ` +
+          `add the missing "node:*" specifier to the build's external list`,
+      );
+    }
+  }
+  return errors;
+}
+
 export async function checkPackageContracts({ root = process.cwd(), log = console.log } = {}) {
   const packagesDir = path.join(root, "packages");
   const packageDirs = (await readdir(packagesDir, { withFileTypes: true }))
@@ -399,6 +422,7 @@ export async function checkPackageContracts({ root = process.cwd(), log = consol
 
     packageErrors.push(
       ...checkDistForPrivatePackageNames(packageName, packageDir, privatePackageNames),
+      ...checkDistForBrowserExternalShim(packageName, packageDir),
     );
 
     const failed = packageErrors.length > 0;

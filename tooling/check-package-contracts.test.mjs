@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  checkDistForBrowserExternalShim,
   checkDistForPrivatePackageNames,
   checkNextPeerRangeDeclarations,
   collectDistFiles,
@@ -223,6 +224,40 @@ function makePeerRangeTree(t, overrides = {}) {
 
   return root;
 }
+
+test("checkDistForBrowserExternalShim reports a dist that bundles Vite's browser shim for a Node built-in", (t) => {
+  const root = makeWorkspace(t, [
+    {
+      dir: "vite-plugin",
+      name: "@comvi/vite-plugin",
+      dist: {
+        "index.js":
+          "var import___vite_browser_external = {};\nimport___vite_browser_external.randomUUID();",
+        "index.d.ts": "export {};",
+      },
+    },
+  ]);
+  const packageDir = path.join(root, "packages", "vite-plugin");
+
+  const errors = checkDistForBrowserExternalShim("@comvi/vite-plugin", packageDir);
+  assert.deepEqual(errors, [
+    "@comvi/vite-plugin: dist/index.js bundles Vite's browser shim for a Node built-in; " +
+      'add the missing "node:*" specifier to the build\'s external list',
+  ]);
+});
+
+test("checkDistForBrowserExternalShim passes a dist that imports Node built-ins as externals", (t) => {
+  const root = makeWorkspace(t, [
+    {
+      dir: "vite-plugin",
+      name: "@comvi/vite-plugin",
+      dist: { "index.js": 'import { randomUUID } from "node:crypto";\nrandomUUID();' },
+    },
+  ]);
+  const packageDir = path.join(root, "packages", "vite-plugin");
+
+  assert.deepEqual(checkDistForBrowserExternalShim("@comvi/vite-plugin", packageDir), []);
+});
 
 test("parseCaretRange reads a caret union into version tuples, and rejects anything else", () => {
   assert.deepEqual(parseCaretRange("^15.0.0 || ^16.0.0"), [

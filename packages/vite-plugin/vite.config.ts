@@ -22,6 +22,6 @@ export default defineConfig({
     name: "ComviVitePlugin",
     // `@comvi/typegen` is deliberately absent: workspace-private, so the
     // emitter is inlined into this bundle.
-    external: ["vite", "node:fs", "node:fs/promises", "node:path"],
+    external: ["vite", "node:crypto", "node:fs", "node:fs/promises", "node:path"],
   }),
 });
