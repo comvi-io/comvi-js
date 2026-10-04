@@ -73,6 +73,51 @@ describe("init() racing destroy()", () => {
   });
 });
 
+describe("init() failing after destroy()", () => {
+  it("resolves quietly when a required plugin rejects after destroy()", async () => {
+    const gate = createDeferred<void>();
+    const onError = vi.fn();
+    const pluginOnError = vi.fn();
+    const i18n = new I18n({ locale: "en", ns: [], exposeGlobal: false, onError });
+    i18n.registerPlugin(async () => gate.promise, { required: true, onError: pluginOnError });
+
+    const initPromise = i18n.init();
+    await flushMicrotasks();
+    await i18n.destroy();
+    gate.reject(new Error("late plugin failure"));
+
+    await expect(initPromise).resolves.toBe(i18n);
+    expect(i18n.isInitialized).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+    expect(pluginOnError).not.toHaveBeenCalled();
+  });
+
+  it("resolves quietly when the locale detector rejects after destroy()", async () => {
+    const detected = createDeferred<string>();
+    const onError = vi.fn();
+    const i18n = new I18n({ locale: "en", ns: [], exposeGlobal: false, onError });
+    i18n.registerLocaleDetector(() => detected.promise);
+
+    const initPromise = i18n.init();
+    await flushMicrotasks();
+    await i18n.destroy();
+    detected.reject(new Error("late detector failure"));
+
+    await expect(initPromise).resolves.toBe(i18n);
+    expect(i18n.isInitialized).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("still rejects init() on a host destroyed before it started", async () => {
+    const onError = vi.fn();
+    const i18n = new I18n({ locale: "en", ns: [], exposeGlobal: false, onError });
+    await i18n.destroy();
+
+    await expect(i18n.init()).rejects.toThrow();
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("plugin cleanups racing destroy()", () => {
   it("runs a cleanup that arrives after the destroy drain", async () => {
     const gate = createDeferred<void>();
