@@ -21,8 +21,9 @@ export type CdnLoaderInstaller = <T extends I18n<any>>(
  * first so a late compose reports the plugin queue rather than the loader's
  * unreachable recovery advice — around `cdnLoaderPlugin(options)` instead of
  * `fetchLoaderPlugin(options)`. Reach for
- * `fetchLoader` from the package root when the app also talks to the Comvi API
- * (`createI18n({ apiKey })`); this entry has no API request path at all.
+ * `fetchLoader` from `@comvi/plugin-fetch-loader/api` when the app also talks to
+ * the Comvi API (`createI18n({ apiKey })`); this entry has no API request path
+ * at all.
  *
  * `options` is required here even though `cdnLoaderPlugin(options?)` accepts
  * `undefined`: `cdnUrl` has no default, and the throw stays at COMPOSITION

@@ -21,7 +21,7 @@ import { ERROR_PREFIX } from "../http-core";
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/core';
- * import { loader } from '@comvi/core/loader';
+ * import { attachLoader } from '@comvi/core/loader';
  * import { plugins } from '@comvi/core/plugins';
  * import { cdnLoaderPlugin } from '@comvi/plugin-fetch-loader';
  *
