@@ -15,6 +15,19 @@ type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
  * `D`-erased, and `createDefaultParamsStore` re-applies the caller's `D` on
  * the way out.
  */
+/**
+ * Hosts whose `setI18nContext` auto-init is scheduled but not started yet.
+ *
+ * The auto-init runs a microtask after `setI18nContext` (so a manual
+ * `i18n.init()` in the same setup still runs first), while the component
+ * renders synchronously before it. Until it starts, `isInitializing` reads
+ * true, so the documented `{#if $isInitializing}` gate is closed from the
+ * first render instead of letting the raw keys through for one batch. The
+ * mark is cleared only after `init()` has raised the real flag, whose own
+ * `loadingStateChanged` keeps the store true, so nothing has to be pushed.
+ */
+export const autoInitPending = new WeakSet<object>();
+
 const storeCache = new WeakMap<
   object,
   {
@@ -43,12 +56,11 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
         const unsubscribe = i18n.on("loadingStateChanged", ({ isLoading }) => set(isLoading));
         return unsubscribe;
       }),
-      initializing: readable(i18n.isInitializing, (set) => {
-        set(i18n.isInitializing);
-        const unsubscribe = i18n.on("loadingStateChanged", ({ isInitializing }) =>
-          set(isInitializing),
+      initializing: readable(false, (set) => {
+        set(i18n.isInitializing || autoInitPending.has(i18n));
+        return i18n.on("loadingStateChanged", ({ isInitializing }) =>
+          set(isInitializing || autoInitPending.has(i18n)),
         );
-        return unsubscribe;
       }),
       initialized: readable(i18n.isInitialized, (set) => {
         const syncInitializedState = () => set(i18n.isInitialized);

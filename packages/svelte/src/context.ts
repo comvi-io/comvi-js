@@ -1,5 +1,6 @@
 import { setContext, getContext } from "svelte";
 import type { AnyI18nHost, WrapperI18nHost } from "@comvi/core";
+import { autoInitPending } from "./stores.js";
 
 /**
  * Loader/plugin-host capabilities are acquired separately through
@@ -70,12 +71,20 @@ export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOption
   setContext(I18N_CONTEXT_KEY, i18n);
 
   if ((options?.autoInit ?? true) && !i18n.isInitialized && !i18n.isInitializing) {
+    // `isInitializing` reads true from now until the init below starts (or a
+    // manual one already has): the first render is inside the gate.
+    autoInitPending.add(i18n);
     void Promise.resolve().then(() => {
-      if (!i18n.isInitialized && !i18n.isInitializing) {
-        return i18n.init().catch((error: unknown) => {
+      // `init()` raises `isInitializing` synchronously, before its first
+      // await, so dropping the mark after the call never opens the gate.
+      const started =
+        !i18n.isInitialized &&
+        !i18n.isInitializing &&
+        i18n.init().catch((error: unknown) => {
           options?.onError?.(normalizeInitError(error));
         });
-      }
+      autoInitPending.delete(i18n);
+      return started;
     });
   }
 }
