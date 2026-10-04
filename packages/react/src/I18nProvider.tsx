@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
   useSyncExternalStore,
 } from "react";
 import { subscribeToRevision } from "@comvi/core";
@@ -131,6 +132,21 @@ export interface I18nProviderProps {
    * `@comvi/vue` and `@comvi/nuxt` also use.
    */
   ssrLocale?: string;
+  /**
+   * The locale the caller is switching the i18n instance to, when the switch
+   * arrives with markup of its own: a route parameter, whose new `<html lang>`
+   * React commits in the same render. From the render in which `targetLocale`
+   * changes until the i18n instance's locale next changes, the tree renders in
+   * it, so the translated text commits together with that markup instead of
+   * one asynchronous `setLocale` later. After that the tree follows the i18n
+   * instance again, so a `setLocale` with no new `targetLocale` still
+   * re-renders.
+   *
+   * Only rendering moves: the caller still sets the i18n instance's locale,
+   * and the target's catalog must already be cached, or the tree renders its
+   * keys.
+   */
+  targetLocale?: string;
   /** Initial loading state for SSR hydration. */
   ssrInitialIsLoading?: boolean;
   /** Initial initializing state for SSR hydration. */
@@ -155,6 +171,7 @@ export function I18nProvider({
   autoInit = true,
   fallback,
   ssrLocale,
+  targetLocale,
   ssrInitialIsLoading = false,
   ssrInitialIsInitializing = false,
   onError,
@@ -175,11 +192,26 @@ export function I18nProvider({
   const subLang = useSubscribe(i18n, "localeChanged", "initialized", "configChanged");
   const subLoading = useSubscribe(i18n, "loadingStateChanged", "initialized");
 
-  const locale = useSyncExternalStore(
+  const hostLocale = useSyncExternalStore(
     subLang,
     () => i18n.locale,
     () => ssrLocale ?? i18n.locale,
   );
+
+  // `targetLocale`: a handover from the render it changed in until the host's
+  // locale moves. Compared with the host's REAL locale, not the snapshot,
+  // which is `ssrLocale` while hydrating.
+  const lastTarget = useRef<string | undefined>(undefined);
+  const handover = useRef<{ target: string; from: string } | null>(null);
+  if (targetLocale !== lastTarget.current) {
+    lastTarget.current = targetLocale;
+    handover.current =
+      targetLocale !== undefined && targetLocale !== i18n.locale
+        ? { target: targetLocale, from: i18n.locale }
+        : null;
+  }
+  if (handover.current && i18n.locale !== handover.current.from) handover.current = null;
+  const locale = handover.current ? handover.current.target : hostLocale;
 
   const isLoading = useSyncExternalStore(
     subLoading,
