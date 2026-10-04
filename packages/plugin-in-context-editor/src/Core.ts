@@ -114,6 +114,7 @@ export class Core {
               if (!this.stopped) showModal(selectedKey, selectedNs, this.instanceId);
             },
             this.defaultNs,
+            this.instanceId,
           );
         })
         .catch((error: unknown) => {
@@ -195,9 +196,10 @@ export class Core {
     this.translationRegistry.destroy();
     this.eventBus.removeAllListeners();
 
-    // Cleanup UI only when its lazy chunk has been loaded.
-    editModalModule?.cleanup();
-    keySelectorModule?.cleanup();
+    // Cleanup UI only when its lazy chunk has been loaded, and only the UI
+    // this instance opened: another active Core may own what is on screen.
+    editModalModule?.cleanup(this.instanceId);
+    keySelectorModule?.cleanup(this.instanceId);
 
     unregisterI18nInstance(this.instanceId);
   }

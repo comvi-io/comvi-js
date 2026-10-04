@@ -9,10 +9,19 @@ import { createShadowDomContainer } from "./utils/shadowDom";
 
 let container: HTMLElement | null = null;
 let app: VueApp | null = null;
+/** The Core instance whose click opened the selector. */
+let ownerInstanceId: string | undefined;
 
 const isOpen = ref(false);
 
-export function cleanup() {
+/**
+ * Unmounts the selector. With `instanceId`, only when that instance owns it: a
+ * stopping Core must not tear down the selector another active Core opened.
+ */
+export function cleanup(instanceId?: string) {
+  if (instanceId !== undefined && ownerInstanceId !== undefined) {
+    if (ownerInstanceId !== instanceId) return;
+  }
   if (app) {
     app.unmount();
     app = null;
@@ -22,6 +31,7 @@ export function cleanup() {
     container = null;
   }
   isOpen.value = false;
+  ownerInstanceId = undefined;
 }
 
 function calculatePosition(element: Element): { top: number; left: number } {
@@ -56,8 +66,10 @@ function mountApp(
   element: Element,
   onSelect: (key: string, ns: string) => void,
   defaultNs?: string,
+  instanceId?: string,
 ) {
   cleanup();
+  ownerInstanceId = instanceId;
 
   const { container: newContainer, mountPoint } = createShadowDomContainer();
   container = newContainer;
@@ -92,8 +104,9 @@ export function showKeySelector(
   element: Element,
   onSelect: (key: string, ns: string) => void,
   defaultNs?: string,
+  instanceId?: string,
 ) {
-  mountApp(keysWithData, element, onSelect, defaultNs);
+  mountApp(keysWithData, element, onSelect, defaultNs, instanceId);
 }
 
 export function closeKeySelector() {

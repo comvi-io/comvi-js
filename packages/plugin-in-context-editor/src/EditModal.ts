@@ -12,7 +12,14 @@ const currentKey = ref<string>("");
 const currentNs = ref<string>("");
 const currentInstanceId = ref<string | undefined>(undefined);
 
-export function cleanup() {
+/**
+ * Unmounts the modal. With `instanceId`, only when that instance owns it: a
+ * stopping Core must not tear down the modal another active Core opened.
+ */
+export function cleanup(instanceId?: string) {
+  if (instanceId !== undefined && currentInstanceId.value !== undefined) {
+    if (currentInstanceId.value !== instanceId) return;
+  }
   if (app) {
     app.unmount();
     app = null;
