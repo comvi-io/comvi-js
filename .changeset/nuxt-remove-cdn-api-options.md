@@ -24,8 +24,8 @@ export default ((options) =>
   )) satisfies NuxtHostFactory;
 ```
 
-…and points `comvi.hostModule` at it. `apiBaseUrl` moves the same way, into the loader plugin's
-own options.
+…and points `comvi.hostModule` at it. `apiBaseUrl` moves the same way, into the loader plugin's own `baseUrl`
+option.
 
 `comvi.apiKey` STAYS: it is forwarded to the host as `i18n.apiKey`, where a loader plugin such as
 `@comvi/plugin-fetch-loader` reads it. Its doc comment no longer implies this module does CDN or

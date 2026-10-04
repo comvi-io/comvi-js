@@ -25,8 +25,8 @@ callers deduplicated, a timeout that covers the response body, the `fallback` im
 `cdnLayout`, SSR `cache` options, and the abort when the i18n instance clears a scope that is still
 loading.
 
-`CdnLoaderOptions` is the CDN subset of `FetchLoaderOptions`: `baseUrl`, `apiBaseUrl` and `retry`
-only describe the API request path, so naming one here is a compile error rather than a setting
+`CdnLoaderOptions` is the CDN subset of `FetchLoaderOptions`: `baseUrl` and `retry` only
+describe the API request path, so naming one here is a compile error rather than a setting
 that quietly does nothing.
 
 Import `fetchLoader()` and `fetchLoaderPlugin()` (0.4's `FetchLoader()`) from

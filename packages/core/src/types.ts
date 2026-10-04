@@ -868,8 +868,8 @@ type AddPrefix<
  * ```
  *
  * Parameter types are NOT inferred from translation values — every key gets
- * `never` params (so params are optional). Use the CLI `generate-types`
- * command for full parameter typing.
+ * `never` params (so params are optional). Use `comvi typegen` for full
+ * parameter typing.
  */
 export type InferKeys<
   T extends Record<string, unknown>,

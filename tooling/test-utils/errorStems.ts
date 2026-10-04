@@ -50,6 +50,13 @@ export const MESSAGE_PREFIX = /["'`](\[[^\]\s"'`]+\]) /g;
 /** `[i18n]` opening a string literal, with or without a following space. */
 export const ANONYMOUS_PREFIX = /["'`]\[i18n\]/;
 
+/**
+ * A package name opening a string literal WITHOUT the brackets, as a message
+ * (`"@comvi/core: …"`, `"@comvi/core …"`). An import specifier is followed by
+ * its closing quote or a `/`, so it never matches.
+ */
+export const UNBRACKETED_PREFIX = /["'`]@comvi\/[a-z-]+[: ]/;
+
 /** Every source file under `dir` (`.ts`, `.tsx`, `.vue`, `.svelte`), concatenated. */
 export function readSources(dir: string): string {
   return readdirSync(dir, { withFileTypes: true })

@@ -54,9 +54,9 @@ declare const __DEV__: boolean | undefined;
 declare const __VERSION__: string | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-const ERR_LOCALE_NOT_SET = IS_DEV ? "@comvi/core: Locale is not set" : "E_LOCALE_NOT_SET";
+const ERR_LOCALE_NOT_SET = IS_DEV ? "[@comvi/core] Locale is not set" : "E_LOCALE_NOT_SET";
 const ERR_MESSAGES_NOT_OBJECT = IS_DEV
-  ? "@comvi/core: `messages` is not an object"
+  ? "[@comvi/core] `messages` is not an object"
   : "E_MESSAGES_NOT_OBJECT";
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[@comvi/core] Cannot call init() after destroy(). Create a new i18n instance."

@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ANONYMOUS_PREFIX,
+  UNBRACKETED_PREFIX,
   SHARED_ERROR_STEMS,
   errorPrefix,
   messagePrefixes,
@@ -19,5 +20,6 @@ describe("error messages: the stems @comvi/next and @comvi/nuxt share", () => {
   it("uses no prefix but the package name", () => {
     expect(messagePrefixes(all).filter((p) => p !== prefix)).toEqual([]);
     expect(all).not.toMatch(ANONYMOUS_PREFIX);
+    expect(all).not.toMatch(UNBRACKETED_PREFIX);
   });
 });

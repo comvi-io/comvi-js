@@ -3,10 +3,11 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // `@comvi/test-utils/errorStems` holds this rule for every other package; core
-// cannot import it (that package depends on core), so the two patterns below
+// cannot import it (that package depends on core), so the three patterns below
 // are spelled out here and must match the ones there.
 const MESSAGE_PREFIX = /["'`](\[[^\]\s"'`]+\]) /g;
 const ANONYMOUS_PREFIX = /["'`]\[i18n\]/;
+const UNBRACKETED_PREFIX = /["'`]@comvi\/[a-z-]+[: ]/;
 
 const readSources = (dir: string): string =>
   readdirSync(dir, { withFileTypes: true })
@@ -29,5 +30,9 @@ describe("error messages: the @comvi/core prefix", () => {
 
   it("never writes the anonymous [i18n] prefix", () => {
     expect(all).not.toMatch(ANONYMOUS_PREFIX);
+  });
+
+  it("never writes the package name without its brackets", () => {
+    expect(all).not.toMatch(UNBRACKETED_PREFIX);
   });
 });

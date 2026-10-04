@@ -5395,7 +5395,7 @@
     {
       "file": "src/core/i18n.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "const ERR_LOCALE_NOT_SET = IS_DEV ? \"@comvi/core: Locale is not set\" : \"E_LOCALE_NOT_SET\";",
+      "snippet": "const ERR_LOCALE_NOT_SET = IS_DEV ? \"[@comvi/core] Locale is not set\" : \"E_LOCALE_NOT_SET\";",
       "package": "packages/core",
       "lineHint": 55,
       "reason": "module-scope constant: Stryker reports NoCoverage because the value is computed at module load, outside any test. BOTH arms are asserted and hand-probed against the full suite: the dev arm (\"@comvi/core: Locale is not set\") is killed by tests/features/initialization.test.ts (probe n3), the prod arm (\"E_LOCALE_NOT_SET\") by tests/prod/host-error-codes.test.ts (probe n9). Do NOT close this with a vi.resetModules() re-import test: that gives module init per-test coverage for the WHOLE src graph and un-ignores 61 static mutants across 9 files (measured).",

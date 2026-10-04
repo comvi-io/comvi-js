@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ANONYMOUS_PREFIX,
+  UNBRACKETED_PREFIX,
   errorPrefix,
   messagePrefixes,
   readSources,
@@ -18,5 +19,6 @@ describe("error messages: the @comvi/react prefix", () => {
 
   it("never writes the anonymous [i18n] prefix", () => {
     expect(all).not.toMatch(ANONYMOUS_PREFIX);
+    expect(all).not.toMatch(UNBRACKETED_PREFIX);
   });
 });
