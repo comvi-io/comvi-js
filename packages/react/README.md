@@ -102,7 +102,7 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`.use(cdnLoader())` fetches each locale from the CDN. Compose inside the `createI18n` expression,
+`.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN. Compose inside the `createI18n` expression,
 because the provider calls `init()` for you. `fallback` renders in place of the children until the
 i18n instance is initialized, so raw keys never paint. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU

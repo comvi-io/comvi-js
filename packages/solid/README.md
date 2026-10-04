@@ -110,7 +110,7 @@ render(
 );
 ```
 
-Compose `.use(cdnLoader())` inside the `createI18n` expression, because the provider calls `init()`
+Compose `.use(cdnLoader({ cdnUrl }))` inside the `createI18n` expression, because the provider calls `init()`
 for you. `fallback` renders in place of the children until the i18n instance is initialized. The CDN URL is
 on [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on

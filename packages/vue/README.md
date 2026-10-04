@@ -103,7 +103,7 @@ const { t, isInitializing } = useI18n();
 </template>
 ```
 
-`.use(cdnLoader())` fetches each locale from the CDN. Compose before `app.use(i18n)`: `init()`
+`.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN. Compose before `app.use(i18n)`: `init()`
 drains the plugin queue once, and a plugin queued after it waits for a second `init()` that never comes. Vue has no `fallback`
 prop, so `isInitializing` gates the first paint. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU

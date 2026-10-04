@@ -116,7 +116,7 @@ npm install @comvi/plugin-fetch-loader
 {/if}
 ```
 
-Compose `.use(cdnLoader())` inside the `createI18n` expression, because `setI18nContext` calls
+Compose `.use(cdnLoader({ cdnUrl }))` inside the `createI18n` expression, because `setI18nContext` calls
 `init()` for you. With a catalog in flight during the first paint, `$isInitializing` is the gate:
 there is no provider component and no `fallback` prop. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU

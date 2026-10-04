@@ -46,10 +46,9 @@ export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   defaultNs?: string;
 
   /**
-   * Forwarded to the instance as `i18n.devMode`, where a fetch-loader plugin reads
-   * it to pick the API over the CDN. This factory loads nothing on its own, so
-   * the flag changes nothing until `cdnLoader`, or `fetchLoader` from
-   * `@comvi/plugin-fetch-loader/api`, is composed.
+   * Forwarded to the instance as `i18n.devMode`, for plugins to read. No
+   * Comvi loader reads it: `@comvi/plugin-fetch-loader` picks the API over the
+   * CDN by `apiKey`, not by this flag.
    * @default process.env.NODE_ENV === 'development'
    */
   devMode?: boolean;
