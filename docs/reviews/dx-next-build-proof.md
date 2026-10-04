@@ -231,3 +231,18 @@ next/r (main): uk text under <html lang="de">; lang=de, greeting="[CDN] Прив
 
 report: test-results/examples-e2e/report-cdn.json
 ```
+
+## Observed and unexplained: `--cdn --no-build --no-pack` integrity failure
+
+Once, on 27128a54, `pnpm examples:e2e --only next --cdn --no-build --no-pack`, run right after a
+default `pnpm examples:e2e --only next` that had built and packed, failed before the build step
+with:
+
+```text
+next/build: @comvi/react: the lockfile's integrity sha512-cKjdGOIZ+NBOYBVwfFHcDuoWG0XnAsBzpxBU+uo+idwkuAScPHoK7fnT/U8rZYhvjek3gk5+69949Vq4ZZYkCg== is not the candidate tarball's sha512-9O82CHLFeW0o4yQQvRujokhrzIp/OCu6QxTDwXGtLqiRPfuoLSnYFjHv0WMW1fITIwhDQovCVMlg6DcPk1yTJQ==
+```
+
+No source changed between the two runs. The same `--cdn` run with its own build and pack passed
+at once. The same `--no-build --no-pack` sequence had passed on 0f4030b0. The cause is not
+known: reusing tarballs across runs, and how the runner's registry serves them, is where to look.
+The `--cdn` result above comes from a run with its own build and pack.
