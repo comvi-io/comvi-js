@@ -95,6 +95,7 @@ const PROTOTYPE_ACCESSORS = [
   { name: "locale", writableAccessor: true },
   { name: "defaultParams", writableAccessor: false },
   { name: "configRevision", writableAccessor: false },
+  { name: "localeRevision", writableAccessor: false },
   { name: "isLoading", writableAccessor: false },
   { name: "isInitializing", writableAccessor: false },
   { name: "isInitialized", writableAccessor: false },

@@ -205,6 +205,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _defaultParams?: DefaultTranslationParams;
   private _guaranteedDefaultParamKeys: readonly string[];
   private _configRevision = 0;
+  /**
+   * Counts every assignment of `_locale` after construction: here in
+   * `setLocale` and in the loader's override, the only two. `protected` for
+   * that override.
+   */
+  protected _localeRevision = 0;
   private _tagInterpolation?: TagInterpolationOptions;
   private _missingParam: MissingParamMode;
   protected _compiler: MessageCompiler;
@@ -601,6 +607,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     const oldLocale = this._locale;
     this._locale = value;
+    this._localeRevision++;
     this._emit("localeChanged", { from: oldLocale, to: value });
   }
 
@@ -625,6 +632,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   get configRevision(): number {
     return this._configRevision;
+  }
+
+  get localeRevision(): number {
+    return this._localeRevision;
   }
 
   private _withDefaultParams(userParams?: TranslationParams): TranslationParams | undefined {

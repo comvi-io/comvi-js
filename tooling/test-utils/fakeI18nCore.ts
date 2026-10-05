@@ -329,7 +329,13 @@ export class FakeI18nCore {
     };
   }
 
+  /** As core counts it: once per `localeChanged`, before the listeners run. */
+  localeRevision = 0;
+
   emit<E extends I18nEvent>(event: E, payload: I18nEventData[E]): void {
+    if (event === "localeChanged") {
+      this.localeRevision++;
+    }
     const callbacks = this.listeners.get(event);
     if (!callbacks) {
       return;

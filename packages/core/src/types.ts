@@ -1007,6 +1007,13 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   /** Monotonic revision for runtime configuration updates. */
   readonly configRevision: number;
 
+  /**
+   * For framework bindings: how many times the locale has changed. It moves
+   * with every real change, before `localeChanged` listeners run, so a locale
+   * that left and came back is still told apart from one that never moved.
+   */
+  readonly localeRevision: number;
+
   /** Update default namespace at runtime */
   setDefaultNamespace: (namespace: string) => void;
 
