@@ -155,6 +155,10 @@ export class FakeI18n {
     return this.currentConfigRevision;
   }
 
+  get localeRevision(): number {
+    return this.core.localeRevision;
+  }
+
   public readonly onMissingKey = vi.fn(
     (
       callback: (key: string, language: string, namespace: string) => TranslationResult | void,

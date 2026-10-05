@@ -53,9 +53,16 @@ The two recorded states became failures and were fixed in their adapters:
 
 - `@comvi/react` gained `<I18nProvider targetLocale>`: the tree renders in the locale a caller is
   switching the i18n instance to, from the render in which it changes until the i18n instance's
-  locale next moves. `@comvi/next`'s provider adds the handed-over catalog during render and
-  passes its `locale` as `targetLocale`. The translated text now commits in the same React commit
-  as the new `<html lang>`, and the browser no longer re-fetches the catalog the server sent.
+  locale next moves. Any move of the i18n instance's locale ends the handover. The instance counts
+  its own moves (`localeRevision`), so a move no render or listener of the provider saw still ends it. `@comvi/next`'s
+  provider passes the handed-over catalog as `messages` and its `locale` as `targetLocale`. The
+  translated text now commits in the same React commit as the new `<html lang>`, and the browser
+  no longer re-fetches the catalog the server sent.
+- Until it commits, `messages` reaches the children through core's `withMessages` read view: only
+  `t`, `tRaw` and `hasTranslation`. The view never writes catalogs, the locale or the active
+  namespaces, and never emits `namespaceLoaded` or `localeChanged`. Translation diagnostics still
+  fire as for any `t()` call: a missing key emits `missingKey`, and a throwing post-processor
+  reaches `onError`.
 - `@comvi/svelte`'s `isInitializing` reads `true` while the auto-init that `setI18nContext`
   scheduled has not started, so the documented gate is closed from the first render.
 

@@ -205,6 +205,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _defaultParams?: DefaultTranslationParams;
   private _guaranteedDefaultParamKeys: readonly string[];
   private _configRevision = 0;
+  /**
+   * Counts every assignment of `_locale` after construction: here in
+   * `setLocale` and in the loader's override, the only two. `protected` for
+   * that override.
+   */
+  protected _localeRevision = 0;
   private _tagInterpolation?: TagInterpolationOptions;
   private _missingParam: MissingParamMode;
   protected _compiler: MessageCompiler;
@@ -601,6 +607,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     const oldLocale = this._locale;
     this._locale = value;
+    this._localeRevision++;
     this._emit("localeChanged", { from: oldLocale, to: value });
   }
 
@@ -625,6 +632,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   get configRevision(): number {
     return this._configRevision;
+  }
+
+  get localeRevision(): number {
+    return this._localeRevision;
   }
 
   private _withDefaultParams(userParams?: TranslationParams): TranslationParams | undefined {
@@ -823,18 +834,26 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /**
    * A read view of the instance: `t`, `tRaw` and `hasTranslation` that read
    * each key from `catalogs` first and from the cache otherwise — the merge
-   * `addMessages(catalogs)` would make, without making it. The view inherits
-   * the instance through its prototype and holds `catalogs` as its only own
-   * property, so the i18n instance is not written — no cache entry, no active
-   * namespace, no event — and a view a caller drops leaves nothing behind.
-   * Later `addMessages` reach it through the cache for every key `catalogs`
-   * does not hold. `catalogs` is keyed `"locale:namespace"` and holds flat
+   * `addMessages(catalogs)` would make, without making it. The view never
+   * writes the i18n instance — no cache entry, no locale, no active namespace —
+   * and never emits a publication event (`namespaceLoaded`, `localeChanged`),
+   * so a view a caller drops leaves nothing behind. Translation diagnostics
+   * are not publication: a missing key emits `missingKey`, and a throwing
+   * post-processor reaches `onError`, as for any `t()` call. Later
+   * `addMessages` reach it through the cache for every key `catalogs` does
+   * not hold. `catalogs` is keyed `"locale:namespace"` and holds flat
    * catalogs, as `flattenCatalog` returns them.
    */
   withMessages(catalogs: Readonly<Record<string, FlattenedMessages>>): I18nMessagesView<D> {
+    // The receiver inherits the instance and holds `catalogs` as its only own
+    // property; it stays private, so only the three reads reach the caller.
     const view = Object.create(this) as this;
     view._overlay = catalogs;
-    return view;
+    return {
+      t: view.t.bind(view),
+      tRaw: view.tRaw.bind(view),
+      hasTranslation: view.hasTranslation.bind(view),
+    } as I18nMessagesView<D>;
   }
 
   /**

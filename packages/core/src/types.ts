@@ -1007,6 +1007,13 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   /** Monotonic revision for runtime configuration updates. */
   readonly configRevision: number;
 
+  /**
+   * For framework bindings: how many times the locale has changed. It moves
+   * with every real change, before `localeChanged` listeners run, so a locale
+   * that left and came back is still told apart from one that never moved.
+   */
+  readonly localeRevision: number;
+
   /** Update default namespace at runtime */
   setDefaultNamespace: (namespace: string) => void;
 
@@ -1160,9 +1167,11 @@ export interface I18nCoreExtraApi {
 
   /**
    * A read view whose `t` / `tRaw` / `hasTranslation` read each key from
-   * `catalogs` first and from the cache otherwise. The i18n instance is not
-   * written. `catalogs` is keyed `"locale:namespace"` and holds flat catalogs
-   * (`flattenCatalog`).
+   * `catalogs` first and from the cache otherwise. The view has only those
+   * three methods. It never writes the i18n instance and never emits a
+   * publication event (`namespaceLoaded`, `localeChanged`); a missing key
+   * still emits `missingKey`, as for any `t()` call. `catalogs` is keyed
+   * `"locale:namespace"` and holds flat catalogs (`flattenCatalog`).
    */
   withMessages(catalogs: Readonly<Record<string, FlattenedMessages>>): I18nMessagesView;
 }

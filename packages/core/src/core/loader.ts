@@ -135,11 +135,11 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    *  • a `changeId` suppresses both the result and the error of a request
    *    that a newer one superseded, including the "revert to the current
    *    locale mid-flight" cancellation (the early-exit bump below);
-   *  • the loading refcount brackets the whole attempt.
+   *  • the loading refcount brackets the attempt, except one that a
+   *    registered loader has nothing to fetch for.
    *
    * The base emits `localeChanged` synchronously and emits no loading
-   * transition at all; this override is what makes a locale switch an
-   * observable loading operation.
+   * transition at all; so does this override on such a full cache hit.
    */
   public override async setLocale(value: string): Promise<void> {
     // The early exit must compare against the LAST REQUESTED locale, not the
@@ -156,15 +156,23 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     this._requestedLocale = value;
     const changeId = ++this._currentLocaleChangeId;
 
-    this._setLoadingState(true);
+    // `_loadNs`'s own "nothing to fetch" test, asked first: with a loader
+    // registered and every active namespace of the target cached, the switch
+    // happens INSIDE this call — no await before the assignment below, and no
+    // loading transition for a load that never starts. The changeId bump above
+    // still supersedes a switch in flight. With NO loader registered the
+    // switch is as synchronous, and keeps the loading pair it always emitted.
+    const namespaces = [...this._activeNamespaces];
+    const mustLoad = this._loader && namespaces.some((ns) => !this.messagesCache.has(value, ns));
+    const bracket = !this._loader || mustLoad;
+
+    if (bracket) this._setLoadingState(true);
 
     try {
       // Load the active namespaces BEFORE the locale applies, so the UI never
-      // flashes untranslated. Probe `_loader`, not `_loadNs`: with no loader
-      // registered nothing must be awaited, or `i18n.locale = "fr"` would stop
-      // applying synchronously (one extra microtask tick).
-      if (this._loader && this._activeNamespaces.size > 0) {
-        await this._loadNs(value, [...this._activeNamespaces], true);
+      // flashes untranslated.
+      if (mustLoad) {
+        await this._loadNs(value, namespaces, true);
       }
 
       // Staleness must be re-checked after EVERY await — and `destroy()` is a
@@ -180,6 +188,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 
       const oldLocale = this._locale;
       this._locale = value;
+      this._localeRevision++;
       this._emit("localeChanged", { from: oldLocale, to: value });
     } catch (error) {
       // A superseded request must not surface its error either — only the
@@ -189,8 +198,8 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
       }
       throw error;
     } finally {
-      // Unconditional, to match the unconditional increment above.
-      this._setLoadingState(false);
+      // Paired with the increment above.
+      if (bracket) this._setLoadingState(false);
     }
   }
 

@@ -227,28 +227,40 @@ export function I18nProvider({
     () => i18n.locale,
     () => ssrLocale ?? i18n.locale,
   );
+  // A locale that left and came back between two renders leaves the snapshot
+  // above unchanged; the i18n instance's locale REVISION still moved, and this
+  // re-renders for it. The same number on the server and while hydrating.
+  const getRevision = () => i18n.localeRevision;
+  useSyncExternalStore(subLang, getRevision, getRevision);
 
   // `targetLocale`: a handover from the render it changed in until the i18n
   // instance's locale moves. Derived state, keyed by the instance and the
   // target — a setState in render, which React discards with an abandoned
-  // render, where a ref write would outlive it. `from` is the instance's REAL
-  // locale, not the snapshot, which is `ssrLocale` while hydrating; `null`
-  // once a render has seen it move, so a later switch back to `from` (a
-  // `setLocale` with no new target) is not mistaken for a handover.
-  // `[i18n, target, from]`: a tuple, which minifies smaller than named keys.
-  const [hand, setHand] = useState<[Host, string | undefined, string | null]>(() => [
+  // render, where a ref write would outlive it. It records the instance's
+  // REAL locale (not the snapshot, which is `ssrLocale` while hydrating) and
+  // its locale revision; any later move ends it, whether or not a render or a
+  // listener of this provider saw the move, so a switch back to that locale
+  // (a `setLocale` with no new target) is not mistaken for a handover.
+  // `[i18n, target, from, revision]`: a tuple, which minifies smaller than named keys.
+  const [hand, setHand] = useState<[Host, string | undefined, string, number]>(() => [
     i18n,
     targetLocale,
     i18n.locale,
+    i18n.localeRevision,
   ]);
-  let [, target, from] = hand;
+  let [, target, from, revision] = hand;
   if (hand[0] !== i18n || target !== targetLocale) {
-    setHand([i18n, (target = targetLocale), (from = i18n.locale)]);
-  } else if (target !== undefined && from !== null && i18n.locale !== from) {
-    setHand([i18n, target, (from = null)]);
+    setHand([
+      i18n,
+      (target = targetLocale),
+      (from = i18n.locale),
+      (revision = i18n.localeRevision),
+    ]);
   }
   const locale =
-    target !== undefined && target !== from && i18n.locale === from ? target : hostLocale;
+    target !== undefined && target !== from && revision === i18n.localeRevision
+      ? target
+      : hostLocale;
 
   // `messages` reach the children through a read view until the i18n instance
   // holds them, and the instance from the commit on, so a later `addMessages`
@@ -260,8 +272,15 @@ export function I18nProvider({
     if (!messages || (published?.[0] === i18n && published[1] === messages)) return i18n;
     const ns = i18n.getDefaultNamespace();
     const catalogs: Record<string, FlattenedMessages> = {};
+    // Keys naming one catalog (`en` and `en:default`) merge in input order,
+    // key by key, last write wins — as `addMessages` merges them. Into a new
+    // null-prototype object: `flattenCatalog` may hand back the caller's own,
+    // and an inherited `constructor` is not a translation.
     for (const key of Object.keys(messages)) {
-      catalogs[key.includes(":") ? key : `${key}:${ns}`] = flattenCatalog(messages[key] ?? {});
+      Object.assign(
+        (catalogs[key.includes(":") ? key : `${key}:${ns}`] ??= Object.create(null)),
+        flattenCatalog(messages[key] ?? {}),
+      );
     }
     return i18n.withMessages(catalogs);
   }, [i18n, messages, published]);

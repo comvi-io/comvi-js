@@ -50,6 +50,7 @@ type PreSplitKeySnapshot =
   | "setDefaultParams"
   | "defaultParams"
   | "configRevision"
+  | "localeRevision"
   | "setDefaultNamespace"
   | "on"
   | "setPluginData"
