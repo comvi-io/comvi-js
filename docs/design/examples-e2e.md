@@ -53,8 +53,8 @@ The two recorded states became failures and were fixed in their adapters:
 
 - `@comvi/react` gained `<I18nProvider targetLocale>`: the tree renders in the locale a caller is
   switching the i18n instance to, from the render in which it changes until the i18n instance's
-  locale next moves. Any move of the i18n instance's locale ends the handover, counted by its
-  listener rather than by a render, so a render React discards loses no move. `@comvi/next`'s
+  locale next moves. Any move of the i18n instance's locale ends the handover. The instance counts
+  its own moves (`localeRevision`), so a move no render or listener of the provider saw still ends it. `@comvi/next`'s
   provider passes the handed-over catalog as `messages` and its `locale` as `targetLocale`. The
   translated text now commits in the same React commit as the new `<html lang>`, and the browser
   no longer re-fetches the catalog the server sent.
