@@ -93,6 +93,18 @@ describe("fetchLoaderPlugin Plugin", () => {
   });
 
   describe("Input validation", () => {
+    it.each(["en", "pt-BR", "zh-Hans-CN"])(
+      'puts the locale "%s" in the path unchanged',
+      (locale) => {
+        expect(buildCdnUrl(TEST_CDN_URL, locale, "default", "default")).toBe(
+          `${TEST_CDN_URL}/${locale}.json`,
+        );
+        expect(buildCdnUrl(TEST_CDN_URL, locale, "admin", "default")).toBe(
+          `${TEST_CDN_URL}/admin/${locale}.json`,
+        );
+      },
+    );
+
     it("should reject locale with path traversal characters", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "../etc", "default", "default")).toThrow(
         '[@comvi/plugin-fetch-loader] Invalid locale: "../etc"',

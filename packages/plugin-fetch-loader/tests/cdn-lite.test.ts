@@ -161,6 +161,26 @@ describe("cdnLoaderPlugin() plugin", () => {
     await expect(i18n.getLoader()!("en", "default")).resolves.toEqual({ title: "Shop" });
   });
 
+  // An app-provided locale (a decoded `[locale]` route segment) reaches the
+  // loader as-is. It is refused before any URL is built, so nothing is fetched.
+  it.each(["../x", "..%2Fx", "en/../x", "en?x=1", "en#x", ".."])(
+    'rejects the locale "%s" without issuing a request',
+    async (locale) => {
+      const requested: string[] = [];
+      server.use(
+        http.get(/.*/, ({ request }) => {
+          requested.push(request.url);
+          return HttpResponse.json({});
+        }),
+      );
+      const i18n = new I18n({ locale: "en", devMode: false });
+      await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+
+      await expect(i18n.getLoader()!(locale, "default")).rejects.toThrow("Invalid locale");
+      expect(requested).toEqual([]);
+    },
+  );
+
   it("rejects a namespace that is not a safe URL path segment", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
 
