@@ -55,14 +55,16 @@
  *        IDENTITY: npm's `dist.integrity` of every candidate on npm, however
  *        it got there (published now, skipped, refused as already
  *        published, or all present), must be the sha512 of this candidate's
- *        own tarball, or nothing is promoted or tagged. A version this run
+ *        own tarball, or nothing is promoted or tagged. A dry run also
+ *        refuses on foreign bytes already on npm. A version this run
  *        published that npm does not show yet, and an integrity npm does not
  *        show yet, are asked again with backoff (npm's reads lag its writes).
  *        Only once npm has the whole set does `--tag` (latest, or next for an
  *        RC) move, and never backwards (a newer version already on the tag
  *        refuses the whole promotion): `npm dist-tag add <name>@<version> <tag>` per package
  *        whose tag is not there yet (so a re-run finishes a half-done
- *        promotion), then the staging tag is removed, best effort.
+ *        promotion), then every `release-*` tag naming the promoted version
+ *        is removed, best effort.
  *        GITHUB_OUTPUT gets `published=true` and `publishedPackages=<the
  *        whole set>` ONLY when every candidate is on npm under `--tag` and
  *        every tag holds;
@@ -508,15 +510,25 @@ function distTagsOf(pkg) {
  * `read()` until `settled(value)`, and return the last value. npm's reads can
  * lag its writes, so an observation that is not settled yet is asked again a
  * few times, backing off from COMVI_PUBLISH_RECHECK_MS (2 s) and doubling:
- * about 30 s in all.
+ * about 30 s in all. A read that throws (a transient registry error) is asked
+ * again the same way; the last attempt's error is rethrown.
  */
-function askAgain(read, settled) {
+function askAgain(read, settled = () => true) {
   const base = Number(process.env.COMVI_PUBLISH_RECHECK_MS ?? 2000);
   for (let attempt = 0; ; attempt++) {
-    const value = read();
-    if (settled(value) || attempt === 4) return value;
+    try {
+      const value = read();
+      if (settled(value) || attempt === 4) return value;
+    } catch (error) {
+      if (attempt === 4) throw error;
+    }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, base * 2 ** attempt);
   }
+}
+
+/** The last non-empty line of an error message: where npm puts the cause. */
+function lastLine(message) {
+  return message.trim().split("\n").at(-1).trim();
 }
 
 /** Whether a version this run just published is visible yet. */
@@ -699,9 +711,10 @@ function publish(options) {
   // authorises nothing: the byte-identity check after publishing decides,
   // for every candidate, including the all-present case this one skips.
   if (pending.length > 0 && skipped.length > 0) {
+    let foreign;
     try {
-      const foreign = skipped.flatMap((pkg) => {
-        const distTags = distTagsOf(pkg);
+      foreign = skipped.flatMap((pkg) => {
+        const distTags = askAgain(() => distTagsOf(pkg));
         if (distTags[staging] === pkg.version) return [];
         const bytes = registryIntegrity(pkg);
         if (bytes === pkg.integrity) return [];
@@ -714,12 +727,20 @@ function publish(options) {
             `expected integrity ${pkg.integrity}, found ${bytes ?? "none"}`,
         ];
       });
-      if (foreign.length > 0) throw new Error(foreign.join("\n"));
     } catch (error) {
+      // Not knowing is not "foreign": the recovery is to ask npm again.
+      output({ published: "false", publishedPackages: "[]" });
+      console.error(
+        `nothing was published or promoted: could not read npm, re-run this job.\n` +
+          lastLine(error.message),
+      );
+      return 1;
+    }
+    if (foreign.length > 0) {
       output({ published: "false", publishedPackages: "[]" });
       console.error(
         `nothing was published or promoted: this candidate (${staging}) must not complete ` +
-          `a train another candidate started.\n${error.message}\n` +
+          `a train another candidate started.\n${foreign.join("\n")}\n` +
           `Finish that train with 'Re-run failed jobs' on the run that published it, ` +
           `or dispatch a new version.`,
       );
@@ -784,29 +805,43 @@ function publish(options) {
   // run did about it. A stale 404 can send a version another candidate
   // published to `npm publish`, which then fails because it exists; a run can
   // find every version present from another candidate. Neither may promote.
-  // A dry run's own "publishes" are not on npm, so they are not compared.
-  const foreignBytes = present
+  // A dry run's own "publishes" are not on npm, so they are not compared;
+  // what npm already has is, so a dry run refuses on foreign bytes too.
+  const unverified = present
     .filter((row) => !(options.dryRun && published.some((pkg) => pkg.name === row.name)))
     .flatMap((row) => {
-      let found;
+      let found = null;
+      let seen = "none";
       try {
         found = registryIntegrity(row);
+        if (found !== null) seen = found;
       } catch (error) {
-        found = `none (${error.message.split("\n")[0]})`;
+        seen = `none (${lastLine(error.message)})`;
       }
       return found === row.integrity
         ? []
-        : [`  ${row.name}@${row.version}: expected ${row.integrity}, found ${found ?? "none"}`];
+        : [
+            {
+              differs: found !== null,
+              line: `  ${row.name}@${row.version}: expected ${row.integrity}, found ${seen}`,
+            },
+          ];
     });
-  if (foreignBytes.length > 0) {
+  if (unverified.length > 0) {
     output({ published: "false", publishedPackages: "[]" });
     console.log(`release candidate (staged as ${staging})\n${statusTable(rows, options.tag)}`);
+    const lines = unverified.map((entry) => entry.line).join("\n");
+    // An integrity npm does not show (yet) is not a foreign one: only a
+    // different sha512 means another candidate's bytes.
     console.error(
-      `refusing to promote or tag anything: npm does not hold this candidate's bytes (${staging}).\n` +
-        `${foreignBytes.join("\n")}\n` +
-        "A version on npm can never be replaced. If one other run published all of these, finish " +
-        "its train with 'Re-run failed jobs' on that run; if they mix candidates, no run can " +
-        "finish them: dispatch a new version.",
+      unverified.some((entry) => entry.differs)
+        ? `refusing to promote or tag anything: npm does not hold this candidate's bytes (${staging}).\n` +
+            `${lines}\n` +
+            "A version on npm can never be replaced. If one other run published all of these, finish " +
+            "its train with 'Re-run failed jobs' on that run; if they mix candidates, no run can " +
+            "finish them: dispatch a new version."
+        : `could not verify this candidate's bytes on npm (${staging}):\n${lines}\n` +
+            "npm does not show the integrity yet. Re-run this job; nothing was promoted or tagged.",
     );
     return 1;
   }
@@ -850,10 +885,17 @@ function publish(options) {
         : `; npm dist-tag add failed: ${(add.stderr || add.stdout).trim().split("\n")[0]}`;
     }
     if (rows.every((row) => row.onTag) && !options.dryRun) {
-      for (const row of rows.filter((entry) => entry.distTags[staging] !== undefined)) {
-        const rm = sh("npm", ["dist-tag", "rm", row.name, staging], { capture: true });
-        if (rm.status !== 0)
-          console.log(`(could not remove ${staging} from ${row.name}; harmless)`);
+      // Every staging tag that names the promoted version goes: this
+      // candidate's, and an older candidate's with the same bytes that a
+      // fresh-run recovery completed.
+      for (const row of rows) {
+        const stale = Object.entries(row.distTags)
+          .filter(([tag, version]) => tag.startsWith("release-") && version === row.version)
+          .map(([tag]) => tag);
+        for (const tag of stale) {
+          const rm = sh("npm", ["dist-tag", "rm", row.name, tag], { capture: true });
+          if (rm.status !== 0) console.log(`(could not remove ${tag} from ${row.name}; harmless)`);
+        }
       }
     }
   }

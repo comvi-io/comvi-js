@@ -306,6 +306,13 @@ const e503 = () => {
 const [command, ...rest] = argv;
 if (command === "view" && rest[1] === "dist.integrity") {
   const [name, version] = split(rest[0]);
+  // A transient registry failure: FAKE_NPM_FAIL_INTEGRITY always, integrityFail N times.
+  if (listed("FAKE_NPM_FAIL_INTEGRITY").includes(name)) e503();
+  if (state[name]?.integrityFail) {
+    state[name].integrityFail -= 1;
+    save();
+    e503();
+  }
   if (!state[name]?.versions.includes(version)) e404();
   // A stale replica: the version is there, its integrity not yet.
   if (state[name].integrityLag) {
@@ -330,6 +337,7 @@ if (command === "view" && rest[1] === "dist.integrity") {
 } else if (command === "publish") {
   const manifest = JSON.parse(execFileSync("tar", ["-xOzf", rest[0], "package/package.json"], { encoding: "utf8" }));
   if (listed("FAKE_NPM_FAIL").includes(manifest.name)) e503();
+  if (rest.includes("--dry-run")) process.exit(0);
   const tagAt = rest.indexOf("--tag");
   const tag = tagAt === -1 ? "latest" : rest[tagAt + 1];
   const pkg = (state[manifest.name] ??= { versions: [], tags: {} });
@@ -426,6 +434,8 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     fail = [],
     failPromote = [],
     lag = [],
+    failIntegrity = [],
+    dryRun = false,
     attempt,
     tagging = true,
     tag = "latest",
@@ -439,6 +449,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
       FAKE_NPM_FAIL: fail.join(","),
       FAKE_NPM_FAIL_PROMOTE: failPromote.join(","),
       FAKE_NPM_LAG: lag.join(","),
+      FAKE_NPM_FAIL_INTEGRITY: failIntegrity.join(","),
       COMVI_PUBLISH_RECHECK_MS: "10",
     };
     delete env.GITHUB_RUN_ATTEMPT;
@@ -454,6 +465,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
         "--tag",
         tag,
         ...(tagging ? ["--git-tag", "--push-tags"] : []),
+        ...(dryRun ? ["--dry-run"] : []),
       ],
       { cwd: repo, env },
     );
@@ -885,6 +897,19 @@ const MODES = [
   { mode: "RC", flags: { tagging: false, tag: "next" } },
 ];
 
+/** The refusal when no integrity differs but some cannot be seen, pinned. */
+function assertBytesUnseen(result, staging, lines) {
+  assert.ok(
+    result.stderr.includes(
+      `could not verify this candidate's bytes on npm (${staging}):\n` +
+        `${lines.join("\n")}\n` +
+        "npm does not show the integrity yet. Re-run this job; nothing was promoted or tagged.",
+    ),
+    result.log,
+  );
+  assert.doesNotMatch(result.stderr, /can never be replaced/);
+}
+
 /** The refusal, pinned: package, expected and found integrity, recovery. */
 function assertBytesRefusal(result, staging, lines) {
   assert.ok(
@@ -907,6 +932,7 @@ for (const { mode, flags } of MODES) {
     assert.equal(partial.status, 1, partial.log);
     const coreA = ws.integrity("core");
     const remoteBefore = ws.remoteTags();
+    const localBefore = git(ws.repo, "tag", "-l");
 
     // Candidate B, same versions, same commit (GA) or another ref (RC).
     const stagingB = ws.repack("candidate B");
@@ -929,8 +955,9 @@ for (const { mode, flags } of MODES) {
     assert.doesNotMatch(calls, /^dist-tag add/m);
     assert.equal(ws.distTags("core")[flags.tag], flags.tag === "latest" ? "0.4.1" : undefined);
     assert.equal(ws.distTags("react")[flags.tag], flags.tag === "latest" ? "0.4.1" : undefined);
-    // No git tag for B's react and no release tag.
+    // No git tag for B's react and no release tag, on origin or locally.
     assert.deepEqual(ws.remoteTags(), remoteBefore);
+    assert.equal(git(ws.repo, "tag", "-l"), localBefore);
     assertBytesRefusal(result, stagingB, [
       `  @comvi/core@0.5.0: expected ${coreB}, found ${coreA}`,
     ]);
@@ -1020,7 +1047,99 @@ test("byte identity: an integrity npm never shows is refused as missing", (t) =>
   assert.equal(result.outputs.published, "false");
   assert.equal(result.outputs.publishedPackages, "[]");
   assert.doesNotMatch(ws.npmCalls(), /^dist-tag add/m);
-  assertBytesRefusal(result, ws.staging, [
+  assertBytesUnseen(result, ws.staging, [
     `  @comvi/core@0.5.0: expected ${ws.integrity("core")}, found none`,
   ]);
+});
+
+test("byte identity: a mismatch next to an unseen integrity keeps the mismatch message", (t) => {
+  const ws = releaseWorkspace(t);
+  const foreign = `sha512-${"B".repeat(86)}==`;
+  ws.onNpm("core", { [ws.staging]: "0.5.0" }, null);
+  ws.onNpm("react", { [ws.staging]: "0.5.0" }, foreign);
+  const result = ws.run({ attempt: 2 });
+  assert.equal(result.status, 1, result.log);
+  assertBytesRefusal(result, ws.staging, [
+    `  @comvi/core@0.5.0: expected ${ws.integrity("core")}, found none`,
+    `  @comvi/react@0.5.0: expected ${ws.integrity("react")}, found ${foreign}`,
+  ]);
+});
+
+test("byte identity: a registry error on the integrity read is asked again, and one 503 passes", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.patch("react", (pkg) => {
+    pkg.integrityFail = 1;
+  });
+  const result = ws.run();
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.equal(ws.npmCalls().match(/^view @comvi\/react@0\.5\.0 dist\.integrity/gm).length, 2);
+});
+
+test("byte identity: an integrity read that always fails refuses, naming the error's last line", (t) => {
+  const ws = releaseWorkspace(t);
+  const result = ws.run({ failIntegrity: ["@comvi/react"] });
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.equal(result.outputs.publishedPackages, "[]");
+  assert.doesNotMatch(ws.npmCalls(), /^dist-tag add/m);
+  assert.equal(ws.npmCalls().match(/^view @comvi\/react@0\.5\.0 dist\.integrity/gm).length, 5);
+  assertBytesUnseen(result, ws.staging, [
+    `  @comvi/react@0.5.0: expected ${ws.integrity("react")}, found none (503 Service Unavailable)`,
+  ]);
+});
+
+test("early check: a failed npm read says to re-run, not that another candidate owns the version", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core", {});
+  const result = ws.run({ tagging: false, tag: "next", failIntegrity: ["@comvi/core"] });
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.ok(
+    result.stderr.includes(
+      "nothing was published or promoted: could not read npm, re-run this job.\n" +
+        "503 Service Unavailable",
+    ),
+    result.log,
+  );
+  assert.doesNotMatch(result.log, /another candidate/);
+  assert.doesNotMatch(ws.npmCalls(), /^publish /m);
+});
+
+test("dry run: one version skipped, one pending — the dry publish is not compared and the run passes", (t) => {
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core", { [ws.staging]: "0.5.0" });
+  const result = ws.run({ dryRun: true });
+  assert.equal(result.status, 0, result.log);
+  assert.match(ws.npmCalls(), /^publish .*comvi-react-0\.5\.0\.tgz .*--dry-run$/m);
+  assert.match(ws.npmCalls(), /^view @comvi\/core@0\.5\.0 dist\.integrity/m);
+  assert.doesNotMatch(ws.npmCalls(), /^view @comvi\/react@0\.5\.0 dist\.integrity/m);
+  assert.doesNotMatch(ws.npmCalls(), /^dist-tag /m);
+  assert.deepEqual(ws.remoteTags(), {});
+});
+
+test("dry run: foreign bytes already on npm are refused, and only that version is named", (t) => {
+  const ws = releaseWorkspace(t);
+  const foreign = `sha512-${"B".repeat(86)}==`;
+  ws.onNpm("core", { [ws.staging]: "0.5.0" }, foreign);
+  const result = ws.run({ dryRun: true });
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assertBytesRefusal(result, ws.staging, [
+    `  @comvi/core@0.5.0: expected ${ws.integrity("core")}, found ${foreign}`,
+  ]);
+});
+
+test("promotion: every release-* dist-tag naming the promoted version is removed, others stay", (t) => {
+  // A fresh-run recovery: core carries an older candidate's staging tag, same bytes.
+  const ws = releaseWorkspace(t);
+  ws.onNpm("core", { "release-000000000000": "0.5.0", "release-111111111111": "0.4.1" });
+  const result = ws.run({ tagging: false, tag: "next" });
+  assert.equal(result.status, 0, result.log);
+  assert.deepEqual(ws.distTags("core"), {
+    latest: "0.4.1",
+    "release-111111111111": "0.4.1",
+    next: "0.5.0",
+  });
+  assert.deepEqual(ws.distTags("react"), { latest: "0.4.1", next: "0.5.0" });
 });
