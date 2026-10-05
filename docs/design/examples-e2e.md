@@ -115,13 +115,17 @@ and its browser fetches nothing, so there the switch is observed unheld.
 
 **The activation lives in the component that needs it, and the rows wait for it to settle.** The
 five client-rendered examples call `addActiveNamespace("account")` when the second view mounts and
-render its rows only afterwards. Activating from an effect while rendering the scoped `t()` at once
-commits one state of raw keys before `isLoading` turns true, which step x fails.
+render its rows only afterwards, because a namespace that is not in yet renders its keys as
+themselves. The rows do not gate on `isLoading`: it is also true during a locale switch, and the
+rows would blank then instead of keeping the old language until the new one is in. Rendering the
+rows without waiting fails step x with a raw-key state.
 
 One limit is documented, not tested as a failure: in the browser, core loads a namespace for the
 active locale only. The en-only row shows English when `account/en.json` is already cached (the
 path x takes: open in en, then switch) and the key when the second page is first opened in another
-locale. Next and Nuxt load the fallback chain on the server, which y asserts.
+locale, in the five client-rendered examples and on a client-side navigation in Nuxt. The first
+page's `fallback.only_en` row has the same limit after a reload in uk. A server render loads the
+fallback chain, which y asserts for Next and Nuxt.
 
 ## Where it lives
 

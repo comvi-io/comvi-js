@@ -621,7 +621,7 @@ export function renderFindings(findings) {
     ...states.map(
       (entry) =>
         `${entry.framework}/${entry.step} (${entry.phase}): ${entry.problem}; ` +
-        `lang=${entry.lang}, greeting=${JSON.stringify(entry.text)}, ` +
+        `lang=${entry.lang}, ${entry.field ?? "greeting"}=${JSON.stringify(entry.text)}, ` +
         `painted=${entry.painted ? "yes" : "no"}`,
     ),
   ].join("\n");

@@ -992,6 +992,11 @@ test("stepFindings → collectFindings → renderFindings: mixed states are repo
     text,
     /next\/r \(main\): en text under <html lang="uk">; lang=uk, greeting="Hello", painted=no/,
   );
+  // A step that watches other elements names the one it quotes.
+  assert.match(
+    renderFindings({ mixedStates: [{ ...findings.mixedStates[0], field: "account-signed-in" }] }),
+    /lang=uk, account-signed-in="Hello", painted=no/,
+  );
   assert.equal(renderFindings(collectFindings([{ name: "react", findings: [] }], "cdn")), "");
 });
 

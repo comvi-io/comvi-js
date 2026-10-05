@@ -142,11 +142,11 @@ lists `account` in `ns`, so the first page never loads it.
 An activated namespace stays active: a locale switch on the second page fetches `account` for the
 new locale together with the default namespace, and applies the locale only when both are in.
 
-In the five client-rendered examples the browser loads a namespace for the active locale only. The
-en-only row therefore shows its English text once `account/en.json` has been loaded, which is the
-case when the page was opened in English, and shows the key when the page is first opened in
-another locale. `next` and `nuxt` load the fallback chain on the server, so there the row is
-English on a direct request for `/uk/about`.
+In the browser, a namespace is loaded for the active locale only. The en-only row therefore shows
+its English text once `account/en.json` has been loaded, which is the case when the page was opened
+in English, and shows the key when the page is first opened in another locale. That covers the five
+client-rendered examples and a client-side navigation in `nuxt`. A server render loads the fallback
+chain too: a direct request for `/uk/about` in `next` or `nuxt` shows the English text.
 
 ## Connect to Comvi (opt-in)
 

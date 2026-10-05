@@ -882,6 +882,7 @@ function judgeStates(
         description: JSON.stringify({
           problem,
           lang: frame.lang,
+          field: sample,
           text: frame.texts[sample],
           painted: !next || next.paints !== frame.paints,
         }),
