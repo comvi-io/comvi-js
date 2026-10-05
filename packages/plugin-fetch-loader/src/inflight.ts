@@ -1,4 +1,4 @@
-/** The host surface this bookkeeping needs: the cleared-scope announcement and the cache revision. */
+/** The instance surface this bookkeeping needs: the cleared-scope announcement and the cache revision. */
 export interface ClearedScopeHost {
   on(
     event: "messagesCleared",
@@ -27,7 +27,7 @@ export interface InflightRequests {
   track: (locale: string, namespaces: string[]) => { signal: AbortSignal; release: () => void };
   /**
    * The invalidation generation a request is joinable in. It moves whenever the
-   * host invalidates catalogs: every cache write or delete (`reloadMessages`,
+   * instance invalidates catalogs: every cache write or delete (`reloadMessages`,
    * `clearMessages`, `addMessages`) bumps the cache revision, and every
    * `messagesCleared` bumps it too, which covers a clear that found nothing
    * cached. A dedup entry from an older generation is never joined.
@@ -45,13 +45,13 @@ export interface InflightRequests {
   reportSuccess: (locale: string, namespace: string) => void;
   /** Reports through `onLoadError` unless the plugin is torn down. */
   reportError: (locale: string, namespace: string, error: Error) => void;
-  /** Stops following the host, aborts every in-flight request, and stays stopped. */
+  /** Stops following the instance, aborts every in-flight request, and stays stopped. */
   stop: () => void;
 }
 
 /**
  * The in-flight bookkeeping both request paths share: which scopes are loading,
- * whether the plugin is still alive, and the abort that follows the host's
+ * whether the plugin is still alive, and the abort that follows the instance's
  * `messagesCleared`.
  *
  * `clearMessages()` drops the matching pending loads inside core and only

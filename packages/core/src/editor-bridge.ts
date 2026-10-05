@@ -12,13 +12,13 @@
  */
 
 /**
- * Host property under which the editor plugin exposes the mappings bridge
+ * Instance property under which the editor plugin exposes the mappings bridge
  * (written by the editor plugin, read by SSR framework adapters).
  */
 export const EDITOR_MAPPINGS_GLOBAL = "__comviInContextEditorMappings" as const;
 
 /**
- * Host property under which SSR framework adapters hand the server-rendered
+ * Instance property under which SSR framework adapters hand the server-rendered
  * key mappings to the editor plugin before hydration (written by the adapter,
  * consumed once by the editor plugin).
  */
@@ -36,7 +36,7 @@ export interface InContextEditorMappings {
 }
 
 /**
- * Validate an untrusted value (SSR payload state, host property) as a
+ * Validate an untrusted value (SSR payload state, instance property) as a
  * key → finite-number record. Returns `undefined` when any entry fails.
  */
 export function toRecordOfNumbers(value: unknown): Record<string, number> | undefined {
@@ -55,9 +55,9 @@ export function toRecordOfNumbers(value: unknown): Record<string, number> | unde
 }
 
 /**
- * Read a well-formed mappings bridge from a host object (the i18n instance,
+ * Read a well-formed mappings bridge from an instance object (the i18n instance,
  * or any object the editor plugin attached it to). Returns `undefined` when
- * the host carries no bridge or the bridge is malformed.
+ * the instance carries no bridge or the bridge is malformed.
  */
 export function readEditorMappings(host: unknown): InContextEditorMappings | undefined {
   if (!host || (typeof host !== "object" && typeof host !== "function")) {

@@ -3,7 +3,9 @@
 // `npm pack --dry-run` actually includes: `files` covers `dist`, `sideEffects` is
 // `false` or an explicit list, every exports/main/module/types/bin target is packed,
 // bin targets are executable with a shebang, no `.DS_Store`/`.env*`/`.tsbuildinfo`
-// is shipped, and no built file names a workspace-private package (it must be
+// is shipped, LICENSE is packed, every packed script under `dist/` is reachable
+// from a manifest entry point (a stale chunk from an earlier build is not), and
+// no built file names a workspace-private package (it must be
 // inlined/vendored instead — a private package resolves fine inside the workspace
 // but is unresolvable once published). It also checks one cross-file fact that is
 // not per-package: `@comvi/next`'s `next` peer range is written in four files, and
@@ -343,6 +345,89 @@ export function checkDistForBrowserExternalShim(packageName, packageDir) {
   return errors;
 }
 
+/**
+ * Every build gives a split chunk a new content hash, so a build that does not
+ * clean `dist/` first leaves the previous generation behind and `npm pack`
+ * ships both (the editor once shipped five stale pairs, about 1 MB).
+ *
+ * "Some packed file mentions it" does not catch that: the chunks of one stale
+ * generation import each other. So this is a REACHABILITY walk. It starts at
+ * every file the manifest names (exports with all nested conditions, main,
+ * module, types, unpkg, jsdelivr, bin), follows every relative specifier
+ * through the packed script files, and reports each packed script under
+ * `dist/` it never arrived at.
+ *
+ * A specifier is any quoted string that starts with `./` or `../`. That covers
+ * `import`, `export … from`, `import()` and `require()`, and also a path handed
+ * to a resolver as a plain string, which is how a Nuxt module names its runtime
+ * files. A string that resolves to nothing packed is ignored.
+ */
+const SCRIPT_FILE = /\.(?:[cm]?js|svelte)$/;
+const RELATIVE_SPECIFIER = /(["'`])(\.{1,2}\/[^"'`\n]*)\1/g;
+const RESOLVE_SUFFIXES = ["", ".js", ".mjs", ".cjs", "/index.js", "/index.mjs"];
+
+function manifestTargets(manifest) {
+  const targets = collectExportTargets(manifest.exports ?? {});
+  for (const field of ["main", "module", "types", "unpkg", "jsdelivr"]) {
+    if (typeof manifest[field] === "string") targets.push(manifest[field]);
+  }
+  if (typeof manifest.bin === "string") targets.push(manifest.bin);
+  else collectExportTargets(manifest.bin ?? {}, targets);
+  return targets.map(normalizePackagePath);
+}
+
+export function checkPackedJsReachable(packageName, packageDir, packedFiles, manifest) {
+  const queue = [];
+  for (const target of manifestTargets(manifest)) {
+    if (!isGlobTarget(target)) {
+      queue.push(target);
+      continue;
+    }
+    const [prefix, suffix] = [
+      target.slice(0, target.indexOf("*")),
+      target.slice(target.lastIndexOf("*") + 1),
+    ];
+    for (const file of packedFiles) {
+      if (file.startsWith(prefix) && file.endsWith(suffix)) queue.push(file);
+    }
+  }
+
+  const reached = new Set();
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (reached.has(file) || !packedFiles.has(file)) continue;
+    reached.add(file);
+    if (!SCRIPT_FILE.test(file)) continue;
+    const text = readFileSync(path.join(packageDir, file), "utf8");
+    for (const match of text.matchAll(RELATIVE_SPECIFIER)) {
+      const base = path.posix.join(path.posix.dirname(file), match[2]);
+      for (const suffix of RESOLVE_SUFFIXES) {
+        if (packedFiles.has(base + suffix)) queue.push(base + suffix);
+      }
+    }
+  }
+
+  return [...packedFiles]
+    .filter((file) => file.startsWith("dist/") && /\.[cm]?js$/.test(file) && !reached.has(file))
+    .sort()
+    .map(
+      (file) =>
+        `${packageName}: ${file} is packed but no manifest entry point reaches it through an ` +
+        "import; it is a stale build output (clean dist before building) or an entry missing " +
+        "from the manifest",
+    );
+}
+
+/** npm packs `LICENSE` only from the package directory, never from the repo root. */
+export function checkLicensePacked(packageName, packedFiles) {
+  return packedFiles.has("LICENSE")
+    ? []
+    : [
+        `${packageName}: LICENSE is not packed; the root LICENSE is copied into each package by ` +
+          "tooling/copy-license.mjs (run by `pnpm build` and `pnpm pack:release`)",
+      ];
+}
+
 export async function checkPackageContracts({ root = process.cwd(), log = console.log } = {}) {
   const packagesDir = path.join(root, "packages");
   const packageDirs = (await readdir(packagesDir, { withFileTypes: true }))
@@ -421,6 +506,8 @@ export async function checkPackageContracts({ root = process.cwd(), log = consol
     }
 
     packageErrors.push(
+      ...checkLicensePacked(packageName, packedFiles),
+      ...checkPackedJsReachable(packageName, packageDir, packedFiles, manifest),
       ...checkDistForPrivatePackageNames(packageName, packageDir, privatePackageNames),
       ...checkDistForBrowserExternalShim(packageName, packageDir),
     );

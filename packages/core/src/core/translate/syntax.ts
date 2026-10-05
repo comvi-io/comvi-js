@@ -41,7 +41,7 @@ export interface MessageCompiler {
    * Returning `undefined` makes the whole braced segment flow through as
    * literal text. On an argument neither shipped compiler can compile they
    * THROW `E_ICU_SYNTAX` in development and return `undefined` in production,
-   * where the host then reports `E_ICU_SYNTAX` for the segment it rendered
+   * where the instance then reports `E_ICU_SYNTAX` for the segment it rendered
    * literally.
    */
   makeArgToken(content: string, hashIsSyntax: boolean, template: string): ParsedToken | undefined;

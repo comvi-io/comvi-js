@@ -267,7 +267,7 @@ export function findMatchingBraceEnd(
  * dev unclaimed-tag warning, and nothing else reads it. The preflight parses
  * every ingested string, but a catalog entry carrying `<b>` is only a mistake
  * once a `t()` call renders it literally — an app that renders it through `<T>`
- * hands the tag grammar in per call and never registers it on the host, so
+ * hands the tag grammar in per call and never registers it on the instance, so
  * warning at ingestion is a false positive AND, because the warning dedupes per
  * template, it pre-empts the truthful one from the render path. Read only
  * inside the `IS_DEV` branch below, so production folds it away.

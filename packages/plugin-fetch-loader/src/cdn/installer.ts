@@ -4,7 +4,7 @@ import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 import type { CdnLoaderOptions } from "./options";
 import { cdnLoaderPlugin } from "./loader";
 
-/** The host surface `cdnLoader` guarantees on the way out. */
+/** The instance surface `cdnLoader` guarantees on the way out. */
 export type CdnLoaderInstaller = <T extends I18n<any>>(
   i18n: T,
 ) => T & I18nLoaderApi & I18nPluginHostApi;

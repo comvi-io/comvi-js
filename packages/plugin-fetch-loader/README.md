@@ -48,7 +48,7 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`.use(cdnLoader())` adds HTTP loading to the instance; nothing else is needed. `fallback` paints
+`.use(cdnLoader({ cdnUrl }))` adds HTTP loading to the instance; nothing else is needed. `fallback` paints
 until the first catalog is in. Omitting `cdnUrl` throws at composition time with
 `[@comvi/plugin-fetch-loader] cdnUrl is required`. On Vue the same `.use()` goes on the wrapper
 `createI18n` returns; on Nuxt it goes in the `comvi.host.ts` factory. The CDN URL comes from
@@ -102,7 +102,7 @@ await i18n.init();
 
 `fetchLoader()` from `/api` reads the CDN, and switches to the platform API when the i18n instance
 carries an `apiKey`: draft translations and private projects are reachable. The key needs project
-read and translation read access. `cdnLoader()` never builds an API URL. API mode is server-side
+read and translation read access. `cdnLoader` never builds an API URL. API mode is server-side
 only: the `apiKey` is a credential, so compose `fetchLoader` with a key only in a server render, a
 prerender, a CLI or a script; in the browser use `cdnLoader`.
 
@@ -111,7 +111,7 @@ prerender, a CLI or a script; in the browser use `cdnLoader`.
 | Option          | Default                        | Entry | Behaviour                                                                              |
 | --------------- | ------------------------------ | ----- | -------------------------------------------------------------------------------------- |
 | `cdnUrl`        | required                       | both  | The CDN base URL from **Settings → Content Deploy**.                                   |
-| `baseUrl`       | `https://api.comvi.io`         | api   | The API host.                                                                          |
+| `baseUrl`       | `https://api.comvi.io`         | api   | The API host. `NEXT_PUBLIC_COMVI_API_URL` replaces the default; see below.             |
 | `fallback`      | none                           | both  | Import map served when a network load fails.                                           |
 | `onLoadError`   | none                           | both  | `(locale, namespace, error)` when a pair fails and no fallback produced data.          |
 | `onLoadSuccess` | none                           | both  | `(locale, namespace)` when a pair loads, including from `fallback`.                    |
@@ -119,10 +119,13 @@ prerender, a CLI or a script; in the browser use `cdnLoader`.
 | `retry`         | `true`                         | api   | Retries the project-info request after a 429, 5xx or transport failure, twice at most. |
 | `loadOnInit`    | `true`                         | both  | Whether the plugin loads at install time.                                              |
 | `cdnLayout`     | `{ rootNamespace: defaultNs }` | both  | Which namespace lives at `{cdnUrl}/{locale}.json`.                                     |
-| `cache`         | none                           | both  | `{ revalidate, tags }` forwarded to `fetch()` on Next.js and Nuxt.                     |
+| `cache`         | none                           | both  | `{ revalidate, tags }` for the Next.js data cache; other runtimes ignore it.           |
 
 Naming an `/api`-only option on `cdnLoader` is a compile error. Concurrent requests for one
 `locale:namespace` are deduplicated, and `destroy()` aborts everything in flight.
+
+`NEXT_PUBLIC_COMVI_API_URL` is read from `process.env` on the server; the name follows Next's
+convention, and only Next can inline it into a browser bundle. Anywhere else, pass `baseUrl`.
 
 ## Next steps
 

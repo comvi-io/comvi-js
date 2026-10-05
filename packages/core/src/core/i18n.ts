@@ -4,7 +4,7 @@ import type {
   I18nCoreExtraApi,
   I18nMessagesView,
   FlattenedMessages,
-  TranslationValue,
+  MessagesMap,
   TranslationResult,
   TranslationParams,
   PostProcessFn,
@@ -72,7 +72,7 @@ const ERR_INSTANCE_DESTROYED = IS_DEV
  * the bare code and then drops this function entirely.
  */
 const useNotInstallerMessage = (widened: unknown): string =>
-  `[@comvi/core] .use(f) expects an installer that returns the host it was given, but f returned ${
+  `[@comvi/core] .use(f) expects an installer that returns the i18n instance it was given, but f returned ${
     widened === null
       ? "null"
       : typeof widened === "object" && typeof (widened as { then?: unknown }).then === "function"
@@ -156,7 +156,7 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
 }
 
 /**
- * The base i18n host: locale state, catalogs, translation and events.
+ * The base i18n instance: locale state, catalogs, translation and events.
  * Loading, plugins and devtools are opt-in capabilities layered on top.
  */
 export class I18n<D extends DefaultTranslationParams = {}>
@@ -176,7 +176,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /**
    * The one teardown attempt, stored so a repeat `destroy()` is the same
    * attempt rather than a resolved promise that lies about being finished.
-   * Optional and never initialized, so a host that was never destroyed does
+   * Optional and never initialized, so an instance that was never destroyed does
    * not carry it as an own property. It does NOT replace `_isDestroyed`: the
    * flag has to be readable SYNCHRONOUSLY, because `init()`, `_beforeInit` and
    * `setLocale` re-read it right after their own awaits.
@@ -211,7 +211,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
   protected _compilerId: number;
   /**
    * The ONE universal post-processor: the `postProcess` constructor option.
-   * No field initializer, so a host that was not given one has no own property
+   * No field initializer, so an instance that was not given one has no own property
    * for it — and `!this._postProcessor` is a sound emptiness test, because the
    * slot only ever holds a function or nothing.
    *
@@ -257,8 +257,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
     namespace: string;
   }) => TranslationResult | void;
   private _onError?: (error: Error, context?: ErrorReportContext) => void;
-  /** Errors this host already reported. Per instance, so a shared or rethrown
-   * error still reaches every other host, and the caller's object is not
+  /** Errors this instance already reported. Per instance, so a shared or rethrown
+   * error still reaches every other instance, and the caller's object is not
    * mutated. */
   private _reported = new WeakSet<Error>();
 
@@ -375,7 +375,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
    * ```
    *
-   * An installer widens the host IN PLACE and returns IT: `use(f)` calls
+   * An installer widens the instance IN PLACE and returns IT: `use(f)` calls
    * `f(this)` and hands back `this`, retyped to whatever the installer's return
    * type says it widened to. No registry, no ordering, no capability semantics.
    * `attachLoader` / `attachPlugins` / `attachDevtools` are themselves valid
@@ -384,7 +384,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    *
    * Anything else is refused with `code: "E_USE_NOT_INSTALLER"`. Identity —
    * rather than a shape probe — is what makes ONE verb safe: a raw plugin is
-   * also a function of the host, and an ASYNC one returns a Promise, which any
+   * also a function of the instance, and an ASYNC one returns a Promise, which any
    * "is it an object?" test would wave through and then leave running at
    * composition time with its rejection unhandled. A raw plugin goes through
    * `.use(definePlugin(f))` or `registerPlugin(f)` instead.
@@ -470,14 +470,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
         if (this._initialNamespaces?.length && internal._loadNs === undefined) {
           warn(
             `[@comvi/core] options.ns (${this._initialNamespaces.join(", ")}) needs the loader ` +
-              `capability; this host has none, so init() loads nothing. Compose it: ` +
+              `capability; this i18n instance has none, so init() loads nothing. Compose it: ` +
               `createI18n(options).use(loader(map)).`,
           );
         }
         if (this._devDiscoveryOptions && internal._initDevtools === undefined) {
           warn(
             `[@comvi/core] options.instanceId / options.exposeGlobal need the discovery ` +
-              `capability; this host has none, so neither does anything. Compose it: ` +
+              `capability; this i18n instance has none, so neither does anything. Compose it: ` +
               `createI18n(options).use(devtools({ instanceId })).`,
           );
         }
@@ -668,8 +668,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * Merge catalogs into the cache. Keys are `locale` or `"locale:namespace"`;
    * an empty map is a no-op. Emits `namespaceLoaded` per catalog.
    */
-  addMessages(translations: Record<string, Record<string, TranslationValue>>) {
-    this._nsAddMessages(translations);
+  addMessages(messages: MessagesMap) {
+    this._nsAddMessages(messages);
   }
 
   getMessages(locale: string = this._locale, namespace: string = this._cachedDefaultNs) {
@@ -1042,7 +1042,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /**
    * Report to the configured `onError` handler, or `warn()` in dev when there
    * is none. Remembers the error on THIS instance so a rethrow cannot report it
-   * twice to the same host; another host still sees it.
+   * twice to the same instance; another instance still sees it.
    */
   public reportError(error: unknown, context?: ErrorReportContext): void {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -1083,12 +1083,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * Merge a `{ locale | "locale:ns": catalog }` map into the cache.
    *
    * Flattening is UNCONDITIONAL and lives here, in the base: `{ nav: { home } }`
-   * and `{ "nav.home": … }` are the same catalog on every host, whether or not
+   * and `{ "nav.home": … }` are the same catalog on every instance, whether or not
    * anything is composed onto it. It used to be an optional `_flattenNs`
    * capability hook, which made a nested inline catalog type-check and then
-   * resolve as missing on a base host.
+   * resolve as missing on a base instance.
    */
-  private _nsAddMessages(translations: Record<string, Record<string, TranslationValue>>): void {
+  private _nsAddMessages(translations: MessagesMap): void {
     // OWN keys: `for...in` walked the prototype chain of the outer map, so a
     // map built on a prototype that carries locale entries had those adopted
     // as though the caller had passed them.
@@ -1138,7 +1138,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * resolved promise: `await i18n.destroy()` means the plugin cleanups have
    * FINISHED even for a caller who arrived while the first call was still
    * awaiting them. Two callers is the normal case — a binding unmounting twice,
-   * a request host torn down by both the response hook and an error path — and
+   * a request instance torn down by both the response hook and an error path — and
    * the old early `return` told the second one that cleanup was done before it
    * had begun to finish.
    */

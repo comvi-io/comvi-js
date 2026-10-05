@@ -106,7 +106,7 @@ come from ICU syntax: a bare `{name}` is `string`, a `plural` or `selectordinal`
 `number`, a `select` variable is `string`. The declaration augments `@comvi/core` when
 `package.json` declares it, otherwise the first framework binding it declares. Types and the
 compiler are two decisions: the `items` key above needs `compiler: icuCompiler` from
-`@comvi/core/icu` on the host, or it throws at ingestion in development and renders its braces in
+`@comvi/core/icu` on the i18n instance, or it throws at ingestion in development and renders its braces in
 production; see [Plurals and ICU](https://comvi.io/docs/i18n/pluralization).
 
 ## Dev and build

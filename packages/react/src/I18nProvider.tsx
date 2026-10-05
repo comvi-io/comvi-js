@@ -16,14 +16,11 @@ import type {
   I18nEvent,
   I18nMessagesView,
   FlattenedMessages,
-  TranslationValue,
+  MessagesMap,
 } from "@comvi/core";
 
 /** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
 type Host = WrapperI18nHost;
-
-/** Catalogs keyed `"locale"` or `"locale:namespace"`, as `addMessages` takes them. */
-export type MessagesMap = Record<string, Record<string, TranslationValue>>;
 
 // `useLayoutEffect` warns when it runs during a server render.
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;

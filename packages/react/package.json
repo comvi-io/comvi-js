@@ -31,7 +31,8 @@
     "server-components"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/comvi-react.js",
   "types": "./dist/index.d.ts",

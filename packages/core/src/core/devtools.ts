@@ -74,7 +74,7 @@ export interface DevtoolsOptions {
 
 /**
  * The discovery capability. Not exported from any entry point: the composite
- * installs its prototype descriptors in `core/full.ts`, a base host gets
+ * installs its prototype descriptors in `core/full.ts`, a base instance gets
  * them from `attachDevtools`.
  */
 export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I18nBase<D> {
@@ -167,7 +167,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
 }
 
 /**
- * Make a base host discoverable by browser devtools extensions.
+ * Make a base instance discoverable by browser devtools extensions.
  *
  * ```ts
  * import { createI18n } from "@comvi/core";
@@ -178,7 +178,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
  * ```
  *
  * `instanceId` / `exposeGlobal` are passed HERE, not to `createI18n`: the base
- * host has no discovery code to configure, so those two constructor options are
+ * instance has no discovery code to configure, so those two constructor options are
  * inert until this capability is composed on. The composite installs it in its
  * constructor and therefore still reads both options off `I18nOptions`.
  *
@@ -188,7 +188,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
  * only the public `instanceId`.
  *
  * IDEMPOTENCY IS PER EXPOSURE, NOT PER INSTALL. `_initDevtools` returns early
- * on `exposeGlobal: false`, so an install-only probe would let a host that
+ * on `exposeGlobal: false`, so an install-only probe would let an instance that
  * opted out — the SSR construct — stay unexposed forever once the client
  * flipped `exposeGlobal` back on:
  *
@@ -206,13 +206,13 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
  * call under SSR, reassigning the id and bumping the instance counter. Opting
  * out assigns no id, which is exactly what makes this probe the right one.
  *
- * A host exposed WITHOUT a window therefore stays quiet even if a `window`
+ * An instance exposed WITHOUT a window therefore stays quiet even if a `window`
  * appears later: it has an id, so it is done. That is deliberate — the client
- * constructs its own host rather than re-attaching the server's. The
+ * constructs its own instance rather than re-attaching the server's. The
  * flip-it-on case above works because opting out never assigned an id at all.
  *
  * Once exposed, every later call is a true no-op: the `instanceId` assigned
- * first wins, nothing is pushed twice, and a `destroy()`d host (which clears
+ * first wins, nothing is pushed twice, and a `destroy()`d instance (which clears
  * `_globalEntry` but keeps its id) is not resurrected.
  */
 export function attachDevtools<T extends I18nBase<any>>(i18n: T, options?: DevtoolsOptions): T {

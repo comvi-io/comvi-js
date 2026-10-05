@@ -33,11 +33,11 @@ import type {
 declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-/** The capability subpaths a host can be composed with. */
+/** The capability subpaths an instance can be composed with. */
 export type CapabilityName = "loader" | "plugins";
 
 /**
- * Every public member of `I18nLoaderApi`. Attach is all-or-nothing, so a host
+ * Every public member of `I18nLoaderApi`. Attach is all-or-nothing, so an instance
  * that carries all of them carries the whole bag.
  *
  * ONE list, TWO readers: `hasLoaderApi` probes it and `attachPlugins` installs
@@ -63,7 +63,7 @@ export const LOADER_MEMBERS = [
  * Every public member of `I18nPluginHostApi`.
  *
  * Probe-only, unlike {@link LOADER_MEMBERS}: nothing stands in for a missing
- * plugin host, because a host without the capability has no `registerPlugin()`
+ * plugin capability, because an instance without the capability has no `registerPlugin()`
  * to hand a plugin the instance in the first place.
  *
  * @internal
@@ -79,13 +79,13 @@ export const PLUGIN_MEMBERS = [
 ] as const satisfies readonly (keyof I18nPluginHostApi)[];
 
 /**
- * The error every wrapper throws when a capability was requested from a host
+ * The error every wrapper throws when a capability was requested from an instance
  * that does not have it. One factory, one wording, four wrappers.
  *
  * The two capabilities name DIFFERENT installers, because their surfaces
  * differ: `plugins()` takes no configuration, so the factory and
  * `attachPlugins` are interchangeable, while `loader(map)` REQUIRES the import
- * map — so the spelling a host missing the capability needs FIRST is
+ * map — so the spelling an instance missing the capability needs FIRST is
  * `attachLoader`, and `loader(map)` is the alternative for a reader who has a
  * map. Both halves stay parameterised rather than written out twice: the
  * sentence is dev-only text, and two full copies of it cost every wrapper
@@ -109,18 +109,18 @@ export function missingCapability(name: CapabilityName): Error {
 }
 
 /**
- * A callable stand-in for one member of a capability the host does not have.
+ * A callable stand-in for one member of a capability the instance does not have.
  * DEV-ONLY — `attachPlugins` installs these behind its own `IS_DEV` fold, so
  * nothing here survives into a production build.
  *
  * The `comviShim` brand is what keeps the stand-ins honest: they ARE
  * functions, so an unbranded probe would report the capability as PRESENT on a
- * host that cannot load anything — flipping `useI18nLoader()` from a loud
+ * instance that cannot load anything — flipping `useI18nLoader()` from a loud
  * throw to a bag of throwing methods, and `@comvi/nuxt`'s server-side
  * `hasLoaderApi` feature detect from "skip, there is nothing to load" to a
  * per-namespace failure. Rejecting the brand is what makes the two builds
  * AGREE: prod has no shims to reject, dev rejects the ones it installs, and
- * both answer `false` for a plugins-only host.
+ * both answer `false` for a plugins-only instance.
  *
  * The brand is a PUBLIC property name (never `_`-prefixed) because it is read
  * across the core/wrapper bundle boundary, where the shared terser nameCache

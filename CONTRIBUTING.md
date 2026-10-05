@@ -369,8 +369,8 @@ Open an issue at <https://github.com/comvi-io/comvi-js/issues>. A good report ha
 exact reproduction steps or a minimal repository, the expected behaviour, the actual behaviour,
 and the versions of the Comvi packages, the framework, and Node.
 
-Security issues should not go in a public issue. See `SECURITY-AUDIT.md` for the audit trail and
-contact the maintainers privately at <hello@comvi.io>.
+Security issues should not go in a public issue. Report them privately as described in
+[`.github/SECURITY.md`](.github/SECURITY.md).
 
 ## A note on `.omc/` and `.omp/`
 

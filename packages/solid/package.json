@@ -27,7 +27,8 @@
     "reactive"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/comvi-solid.js",
   "types": "./dist/index.d.ts",

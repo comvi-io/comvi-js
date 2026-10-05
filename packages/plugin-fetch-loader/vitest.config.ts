@@ -2,9 +2,6 @@ import { defineConfig } from "vitest/config";
 import { resolve } from "path";
 
 export default defineConfig({
-  define: {
-    "import.meta.env.VITE_API_BASE_URL": JSON.stringify("http://localhost:3000"),
-  },
   test: {
     environment: "happy-dom",
     include: ["tests/**/*.test.ts"],

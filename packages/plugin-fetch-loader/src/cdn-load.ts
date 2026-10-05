@@ -1,4 +1,4 @@
-import type { TranslationValue } from "@comvi/core";
+import type { MessagesMap, TranslationValue } from "@comvi/core";
 import type { CdnLayoutOptions, FallbackMap, FetchLoaderOptions } from "./options";
 import type { InflightRequests } from "./inflight";
 import {
@@ -41,7 +41,7 @@ export interface CdnLoad {
  *
  * Cancellation is not this module's decision. It asks `requests` for a signal,
  * and every point where a result could still be published re-checks it: a load
- * whose scope the host cleared, or whose plugin was torn down, rejects as
+ * whose scope the instance cleared, or whose plugin was torn down, rejects as
  * aborted and reports nothing — core stopped waiting for it before the clear
  * was even announced.
  */
@@ -123,15 +123,15 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
   return { load, clear: () => loading.clear() };
 }
 
-/** The host surface the install-time load needs. */
+/** The instance surface the install-time load needs. */
 export interface InitialLoadHost {
   readonly locale: string;
   getActiveNamespaces(): string[];
-  addMessages(translations: Record<string, Record<string, TranslationValue>>): void;
+  addMessages(messages: MessagesMap): void;
 }
 
 /**
- * The catalogs to fetch at install time: whatever the host has already
+ * The catalogs to fetch at install time: whatever the instance has already
  * activated, or the default namespace when it has activated nothing yet. Errors
  * are swallowed because `onLoadError` has already reported them — throwing here
  * would fail the plugin install over a CDN that is merely down.

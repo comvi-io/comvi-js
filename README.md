@@ -31,7 +31,7 @@
 ---
 
 Comvi i18n puts translated text on screen from a catalog in your source or from the Comvi platform
-over a CDN. `createI18n()` returns the host, the instance that holds the catalog, the current
+over a CDN. `createI18n()` returns the i18n instance, which holds the catalog, the current
 locale and `t()`; a binding hands it to your framework. ICU plurals, async loading, locale
 detection and the in-context editor are opt-in: you compose them with `.use()`, and an app carries
 only what it names.
@@ -91,7 +91,7 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`createI18n` builds the host, `<I18nProvider>` initializes it, and `useI18n()` gives your
+`createI18n` builds the i18n instance, `<I18nProvider>` initializes it, and `useI18n()` gives your
 components `t()`, the current locale and `setLocale()`. The same five minutes in every framework:
 [Quick start](https://comvi.io/docs/i18n/quick-start).
 
@@ -119,7 +119,7 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`.use(cdnLoader())` fetches each locale from the CDN, so a wording change ships when a translator
+`.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN, so a wording change ships when a translator
 saves it, without a redeploy. The CDN URL comes from **Settings → Content Deploy** in the Comvi
 project; the walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your
 keys use ICU (`{count, plural, …}`), add `compiler: icuCompiler` as on

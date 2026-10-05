@@ -157,14 +157,3 @@ const baseTextClasses =
     />
   </div>
 </template>
-
-<style scoped>
-textarea::placeholder {
-  color: hsl(var(--muted-foreground));
-  opacity: 1;
-}
-
-textarea::selection {
-  background-color: hsl(var(--primary) / 0.25);
-}
-</style>

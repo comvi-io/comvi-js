@@ -2,7 +2,7 @@ import type { CdnLayoutOptions } from "./options";
 import { stripSlash, validateId } from "./http-core";
 
 /**
- * Build CDN URL for production mode
+ * Build the CDN URL the loader requests when the i18n instance has no `apiKey`
  * - Root namespace: {cdnUrl}/{locale}.json
  * - Other namespaces: {cdnUrl}/{ns}/{locale}.json
  */

@@ -84,9 +84,9 @@ await i18n.init();
 ```
 
 Two things already keep the editor out of a production build: the package's `production` export
-condition resolves to an entry whose installer is `(host) => host`, with no editor bytes, and
+condition resolves to an entry whose installer is `(i18n) => i18n`, with no editor bytes, and
 `inContextEditorPlugin()` returns a no-op when `process.env.NODE_ENV` is `"production"`. Gate it
-yourself to choose where it runs, such as a preview deployment. The installer returns the host type
+yourself to choose where it runs, such as a preview deployment. The installer returns the i18n instance type
 unchanged, so both branches of the ternary have the same type. On a live site a translator uses the
 browser extension instead: it injects the standalone editor runtime, and the key never enters the
 page.

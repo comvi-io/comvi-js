@@ -40,7 +40,7 @@ const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
  * strings — and the WeakSet with them.
  */
 const ERR_LATE_PLUGINS = IS_DEV
-  ? "[@comvi/core] .use(plugins()) ran after init(): compose capabilities before init(). A plugin queued now does not run until the next init(), which re-runs the WHOLE queue and accumulates a second set of cleanups — so this host is unchanged. Create the host, compose it, then init()."
+  ? "[@comvi/core] .use(plugins()) ran after init(): compose capabilities before init(). A plugin queued now does not run until the next init(), which re-runs the WHOLE queue and accumulates a second set of cleanups — so this i18n instance is unchanged. Create the i18n instance, compose it, then init()."
   : "";
 
 const ERR_LATE_REGISTER_PLUGIN = IS_DEV
@@ -48,7 +48,7 @@ const ERR_LATE_REGISTER_PLUGIN = IS_DEV
   : "";
 
 const ERR_PLUGIN_INIT_RETURN = IS_DEV
-  ? "[@comvi/core] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a bare-name installer, compose it with `.use(installer(…))` — `registerPlugin()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
+  ? "[@comvi/core] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a bare-name installer, compose it with `.use(installer(…))` — `registerPlugin()` runs it as a plugin and it hands the i18n instance back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
   : "E_PLUGIN_INIT_RETURN";
 
 const noop = (): void => {};
@@ -63,8 +63,8 @@ export type PluginEntry = [
 ];
 
 /**
- * The plugin-host capability. Not exported from any entry point: the composite
- * installs it on its prototype, a base host gets it via `attachPlugins`.
+ * The plugin capability. Not exported from any entry point: the composite
+ * installs it on its prototype, a base instance gets it via `attachPlugins`.
  *
  * Members are reached through `this`, never through a local alias: aliasing
  * shrinks the minified size but WORSENS the gzipped size, so `protected
@@ -83,7 +83,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   /**
    * TRANSIENT: true only while `_beforeInit` has a plugin function on the
    * stack. It is the whole state behind `ensureInstallable` below, and it is
-   * deliberately NOT created by `_initPlugins` — a host that never ran `init()`
+   * deliberately NOT created by `_initPlugins` — an instance that never ran `init()`
    * has no own property for it.
    */
   declare protected _pluginInit?: boolean;
@@ -352,9 +352,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   }
 
   /**
-   * The CHAIN — array and loop both live here, so a base host that only ever
+   * The CHAIN — array and loop both live here, so a base instance that only ever
    * got the `postProcess` constructor option carries neither. Created on the
-   * first registration, never by `_initPlugins`: a composed host that
+   * first registration, never by `_initPlugins`: a composed instance that
    * registers nothing keeps `_postProcessor` empty, which is what arms the
    * paramless fast path in `tRaw()`.
    */
@@ -419,9 +419,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
 }
 
 /**
- * Add the plugin-host capability to a base host.
+ * Add the plugin capability to a base instance.
  *
- * MUST run BEFORE `init()`, which is where the plugin queue is drained — a host
+ * MUST run BEFORE `init()`, which is where the plugin queue is drained — an instance
  * composed afterwards has a `registerPlugin()` whose plugins sit in the queue
  * until the next `init()`.
  *
@@ -474,14 +474,14 @@ interface PluginInitProbe {
  * The FIRST ensure-step of a plugin-package installer — the
  * plugins-only installer-as-plugin guard.
  *
- * An installer is a function of the host, and so is a plugin: nothing brands
+ * An installer is a function of the instance, and so is a plugin: nothing brands
  * them apart, so `registerPlugin(fetchLoader(…))` is a type error that would
  * otherwise RUN, letting the installer attach capabilities and queue a second
  * plugin from inside the drain loop. This throws instead, at the installer's
  * innermost expression — before anything is attached — so a rejected install
- * leaves the host exactly as it was.
+ * leaves the instance exactly as it was.
  *
- * Outside plugin initialization it returns the host untouched, which is what
+ * Outside plugin initialization it returns the instance untouched, which is what
  * makes it safe as the first line of every installer.
  */
 export function ensureInstallable<T>(i18n: T, installer: string): T {

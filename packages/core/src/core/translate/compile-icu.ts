@@ -132,7 +132,7 @@ export function parsePluralChoices(
  * the simple compiler: development throws `E_ICU_SYNTAX` (at the ingestion
  * preflight, or at the first render of a template that never passed through a
  * catalog), production returns `undefined` so the braced segment renders
- * literally and records the type for the host's one best-effort report.
+ * literally and records the type for the instance's one best-effort report.
  *
  * `malformedChoices` carries the offending choice list, and is `undefined`
  * when the argument itself is the problem — an unknown type, or a known one
@@ -192,7 +192,7 @@ const EXACT_VALUE = /^-?\d+(\.\d+)?$/;
  * to, and that is the value it is stored as.
  *
  * A selector outside the grammar returns `undefined` through `failIcuArg`:
- * `E_ICU_SYNTAX` in development, a literal segment plus one host report in
+ * `E_ICU_SYNTAX` in development, a literal segment plus one instance report in
  * production, rather than a branch that silently can never be chosen.
  */
 function canonicalizeExactSelectors(
@@ -386,7 +386,7 @@ function processSelect(
 /**
  * The full ICU message compiler: `{param}`, `plural`, `selectordinal`,
  * `select`. Reachable ONLY through the pure `@comvi/core/icu` subpath and the
- * composite; pass it as `compiler` to get ICU behaviour on a base host.
+ * composite; pass it as `compiler` to get ICU behaviour on a base instance.
  */
 export const icuCompiler: MessageCompiler = {
   cid: 2,

@@ -43,14 +43,14 @@ export type { I18nPluginHostApi, I18nPluginHost } from "./types";
 export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/types";
 
 /**
- * The plugin host as a `.use(…)` installer.
+ * The plugin capability as a `.use(…)` installer.
  *
  * ```ts
  * const i18n = createI18n({ locale: "en" }).use(plugins());
  * i18n.registerPlugin(myPlugin);
  * ```
  *
- * The host takes no configuration today, so `plugins()` is `attachPlugins`
+ * The capability takes no configuration today, so `plugins()` is `attachPlugins`
  * under the pipe's calling convention — it exists so every capability reads the
  * same way in a `.use` chain, and so options can arrive later without a
  * call-shape migration. `.use(attachPlugins)` is equally valid.
@@ -75,7 +75,7 @@ export function plugins(): <T extends I18n<any>>(i18n: T) => T & I18nPluginHostA
  * ```
  *
  * `definePlugin(fn)` is `attachPlugins(host).registerPlugin(fn)` wrapped as an
- * installer, so it attaches the plugin host if the chain has not already, and
+ * installer, so it attaches the plugin capability if the chain has not already, and
  * it can appear anywhere in a `.use` chain before `init()`. A plugin PACKAGE
  * ships its own bare-name installer (`fetchLoader()`, `localeDetector()`) —
  * those go straight into `.use(…)` and must NOT be wrapped here.
@@ -99,14 +99,14 @@ export function definePlugin(
  *
  * Re-exported by `@comvi/react`, `@comvi/vue`, `@comvi/solid` and
  * `@comvi/svelte` as `UseI18nPluginsReturn`: it is the return of their
- * `useI18nPlugins()`, which is {@link acquirePluginsApi} over the host in
+ * `useI18nPlugins()`, which is {@link acquirePluginsApi} over the instance in
  * context.
  */
 export interface AcquiredPluginsApi {
   /**
    * Register a callback for missing keys. Returns an unsubscribe function.
    *
-   * The member is the bound host method — nothing wraps it, so a callback may
+   * The member is the bound instance method — nothing wraps it, so a callback may
    * return the full `TranslationResult` core accepts: a string, or the
    * `Array<string | VirtualNode>` a rich-text fallback needs. Core runs every
    * callback and the first defined result wins. A wrapper-side coercion would
@@ -117,7 +117,7 @@ export interface AcquiredPluginsApi {
 }
 
 /**
- * Identity contract: ONE bag per host, cached here rather than in a
+ * Identity contract: ONE bag per instance, cached here rather than in a
  * framework-local memo, so two components under one app receive the same
  * function references.
  *
@@ -128,16 +128,16 @@ export interface AcquiredPluginsApi {
 const pluginBags = /* @__PURE__ */ new WeakMap<WrapperI18nHost, AcquiredPluginsApi>();
 
 /**
- * Acquire the plugin-host capability of `host`, or throw
+ * Acquire the plugin capability of `host`, or throw
  * {@link missingCapability | missingCapability("plugins")}.
  *
  * ONE implementation, four bindings: `useI18nPlugins()` in `@comvi/react`,
- * `@comvi/vue`, `@comvi/solid` and `@comvi/svelte` is this call over the host
+ * `@comvi/vue`, `@comvi/solid` and `@comvi/svelte` is this call over the instance
  * each of them reads from context, and nothing else.
  *
  * The check is STRUCTURAL and it throws in dev AND in prod: there is no silent
  * no-op and no dev-only tombstone. A bare `@comvi/core` instance has no plugin
- * host, so compose it where the instance is created — `.use(plugins())`.
+ * capability, so compose it where the instance is created — `.use(plugins())`.
  *
  * @example
  * ```ts

@@ -32,7 +32,7 @@ export interface I18nTranslatable<D extends DefaultTranslationParams = {}> {
 
 /**
  * A translation function with an optional namespace bound in. Prefers `tRaw`
- * when the host has one, so structured results survive.
+ * when the instance has one, so structured results survive.
  *
  * The namespace is threaded into the RETURN type, so the result narrows to
  * that namespace's keys exactly as a wrapper's `useI18n(ns)` does — it is the

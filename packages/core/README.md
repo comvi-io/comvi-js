@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/core</h1>
 
-<p align="center">The framework-agnostic runtime behind Comvi i18n: the host, <code>t()</code>, and the capability pipe.</p>
+<p align="center">The framework-agnostic runtime behind Comvi i18n: the i18n instance, <code>t()</code>, and the capability pipe.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/core"><img src="https://img.shields.io/npm/v/@comvi/core?color=blue" alt="npm"></a>
@@ -17,7 +17,7 @@
 
 ---
 
-`@comvi/core` is the host every binding builds on. Use it directly for Web Components, static
+`@comvi/core` is the i18n instance every binding builds on. Use it directly for Web Components, static
 sites, server-side scripts, or anywhere a framework would be more than you need. With
 `@comvi/react`, `@comvi/vue`, `@comvi/next`, `@comvi/nuxt`, `@comvi/svelte` or `@comvi/solid` you
 already have it. The full guide is [Vanilla JavaScript](https://comvi.io/docs/i18n/vanilla) on the
@@ -32,7 +32,7 @@ npm install @comvi/core
 
 The package is ESM. A `<script src>` global build exists too, as `ComviCore.I18n`, fully composed.
 
-## Create the host
+## Create the i18n instance
 
 ```ts title="src/i18n.ts" check=group=vanilla-2
 import { createI18n } from "@comvi/core";
@@ -51,7 +51,7 @@ await i18n.init();
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 ```
 
-`init()` readies the host before the first `t()` and resolves to the instance. `t()` always
+`init()` readies the i18n instance before the first `t()` and resolves to it. `t()` always
 returns a string; `tRaw()` returns the structured result when a translation carries tags.
 
 ## Switch the locale
@@ -84,7 +84,7 @@ export const i18n = createI18n({
 await i18n.init();
 ```
 
-Compose `.use(cdnLoader())` before `init()`: the first fetch happens inside `await init()`, so
+Compose `.use(cdnLoader({ cdnUrl }))` before `init()`: the first fetch happens inside `await init()`, so
 there is no gate to write. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` from `@comvi/core/icu` as on
@@ -93,7 +93,7 @@ independent, and either works without the other.
 
 ## Specific to core
 
-The root entry is the base host: text and `{param}` interpolation, the messages cache, events,
+The root entry is the base instance: text and `{param}` interpolation, the messages cache, events,
 default params and the `.use(installer)` pipe. Everything else is a subpath you import, and a
 capability you never import never enters your bundle.
 
@@ -101,7 +101,7 @@ capability you never import never enters your bundle.
 | ------------------------------------- | ------------------------------------------------------ | --------------------------- |
 | ICU `plural`/`select`/`selectordinal` | `icuCompiler` from `@comvi/core/icu`                   | `compiler: icuCompiler`     |
 | Async or remote loading               | `loader` or `attachLoader` from `@comvi/core/loader`   | `.use(loader(map))`         |
-| The plugin host, post-processors      | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
+| Plugins, post-processors              | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
 | Browser-extension discovery           | `devtools` from `@comvi/core/devtools`                 | `.use(devtools())`          |
 | `<tag>` markup inside plain `t()`     | `@comvi/core/tags`                                     | `import "@comvi/core/tags"` |
 | The rich-text toolbox                 | `prepareTranslation` from `@comvi/core/rich-text`      | `prepareTranslation(…)`     |
@@ -110,7 +110,7 @@ Without a framework's reactivity, events are how you learn that state changed: `
 `initialized`, `destroyed`, `localeChanged`, `defaultNamespaceChanged`, `messagesCleared`,
 `loadingStateChanged`, `namespaceLoaded`, `missingKey`, `loadError` and `configChanged`, and returns
 an unsubscribe function. `destroy()` tears the instance down; a destroyed instance cannot be
-re-initialized. On a server, build a fresh host per request. Never assign a translation to
+re-initialized. On a server, build a fresh instance per request. Never assign a translation to
 `innerHTML`; use `textContent` or build real nodes with `prepareTranslation`.
 
 ## Next steps

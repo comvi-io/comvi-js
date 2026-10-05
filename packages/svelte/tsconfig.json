@@ -3,6 +3,9 @@
   "compilerOptions": {
     "composite": true,
     "outDir": "./dist",
+    // A map points at ../src, which is not packed: it would only send "go to
+    // source" nowhere.
+    "declarationMap": false,
     "rootDir": "./src",
     "types": ["svelte"],
     "verbatimModuleSyntax": true

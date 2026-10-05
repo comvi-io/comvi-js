@@ -227,7 +227,8 @@ export function clearProjectInfoCache(cacheScope?: string): void {
 /**
  * Fetch translations from the Comvi API runtime endpoint.
  *
- * This is the same API path used by fetchLoaderPlugin in dev mode. It is exported so
+ * This is the same API path fetchLoaderPlugin uses when the i18n instance has an
+ * `apiKey`. It is exported so
  * tooling such as the browser extension can refresh active namespaces without
  * duplicating translation URL logic.
  */

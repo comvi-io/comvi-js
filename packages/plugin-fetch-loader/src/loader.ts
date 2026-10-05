@@ -1,4 +1,4 @@
-import type { I18nPlugin, I18nPluginFactory, TranslationValue } from "@comvi/core";
+import type { I18nPlugin, I18nPluginFactory, MessagesMap } from "@comvi/core";
 import type { TranslationStore } from "./types";
 import type { FetchLoaderOptions } from "./options";
 import { FETCH_LOADER_PLUGIN_KEY } from "./plugin-key";
@@ -17,8 +17,8 @@ import { fetchApiTranslations } from "./cache";
 export { resolveFallback } from "./fallback";
 
 /**
- * Loads translations from Comvi's backend API in development mode and from the
- * CDN in production mode.
+ * Loads translations from Comvi's API when the i18n instance has an `apiKey`,
+ * and from the CDN when it has none.
  *
  * @example
  * ```typescript
@@ -27,7 +27,7 @@ export { resolveFallback } from "./fallback";
  * import { plugins } from '@comvi/core/plugins';
  * import { fetchLoaderPlugin } from '@comvi/plugin-fetch-loader/api';
  *
- * // The plugin factory needs a host with both capabilities composed;
+ * // The plugin factory needs an i18n instance with both capabilities composed;
  * // `.use(fetchLoader(options))` does this composition for you.
  * const i18n = createI18n({ locale: 'en', apiKey: 'your-api-key' })
  *   .use(attachLoader)
@@ -59,7 +59,7 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
   } = options;
 
   // When `baseUrl` is absent, downstream URL builders fall back to the
-  // build-time env override / Comvi platform preset (API_BASE_URL).
+  // `NEXT_PUBLIC_COMVI_API_URL` from `process.env` / Comvi platform preset (API_BASE_URL).
 
   const cacheOpts = buildCacheOptions(cache);
 
@@ -194,7 +194,7 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
         const nss = active.length > 0 ? active : [defaultNs];
         try {
           const { store } = await fetchFromApi(loc, nss);
-          const translations: Record<string, Record<string, TranslationValue>> = {};
+          const translations: MessagesMap = {};
           for (const ns of nss) {
             const data = store.get(`${loc}:${ns}`);
             if (data) translations[`${loc}:${ns}`] = data;

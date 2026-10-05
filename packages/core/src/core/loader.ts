@@ -28,7 +28,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /**
  * `init()` loads the initial namespaces. A loader composed after it has run is
- * not asked for them, so the host looks composed and stays empty until
+ * not asked for them, so the instance looks composed and stays empty until
  * something else (`addActiveNamespace`, `reloadMessages`, a locale switch,
  * another `init()`) happens to trigger a load. Empty in prod so terser drops
  * the string.
@@ -85,7 +85,7 @@ function createAllNamespacesFailedError(locale: string, failedNamespaces: string
 
 /**
  * The loader capability. Not exported from any entry point: the composite
- * (`core/full.ts`) extends this class, any other host gets it from
+ * (`core/full.ts`) extends this class, any other instance gets it from
  * `.use(attachLoader)` / `.use(loader(map))`.
  *
  * Members are reached through `this`, never through a local alias: `this.x` is
@@ -223,7 +223,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * Activate a namespace and load it for the current locale.
    *
    * Namespace ACTIVATION only matters when something loads namespaces, so it
-   * lives with the loader. A base host activates implicitly: `addMessages`
+   * lives with the loader. A base instance activates implicitly: `addMessages`
    * self-activates every namespace it carries.
    */
   public async addActiveNamespace(namespace: string): Promise<void> {
@@ -459,7 +459,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 }
 
 /**
- * Add the async-loading capability to a base host.
+ * Add the async-loading capability to a base instance.
  *
  * ```ts
  * const i18n = attachLoader(createI18n({ locale: "en" }));
@@ -475,7 +475,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
  * string key (see the mangling contract above). The members land as
  * non-enumerable own properties, so `Object.keys(i18n)` and spread copies are
  * unaffected. They also overwrite the throwing stand-ins `attachPlugins`
- * installs on a plugins-only host, which is why the two attach orders end up
+ * installs on a plugins-only instance, which is why the two attach orders end up
  * identical.
  */
 export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderApi {
