@@ -246,7 +246,14 @@ export class VueI18n<
       this._localeComputed = computed({
         get: () => this._locale.value,
         set: (newLocale: string) => {
-          if (this._requestedLocale !== newLocale) {
+          // The second half covers a request the core dropped without an
+          // event (superseded by a direct `core.setLocale`): asking for the
+          // same locale again must not be a no-op. While this wrapper's own
+          // queue is still working on it, it is.
+          if (
+            this._requestedLocale !== newLocale ||
+            (this._isLocaleQueueIdle && this.core.locale !== newLocale)
+          ) {
             this.setLocale(newLocale).catch((error) => {
               this.core.reportError(error, { source: "setLocale" });
             });
@@ -361,9 +368,14 @@ export class VueI18n<
 
   async setLocale(locale: string): Promise<void> {
     const target = locale;
+    // Another target is still outstanding (a pending `ssrLocale` load, say).
+    // The request is then forwarded even when the core is already at
+    // `target`: the core's own early exit is what cancels the switch in
+    // flight, so the last request wins.
+    const supersedes = this._requestedLocale !== this.core.locale;
     this._requestedLocale = target;
     const run = async () => {
-      if (this.core.locale !== target) {
+      if (supersedes || this.core.locale !== target) {
         await this.core.setLocale(target);
       }
     };

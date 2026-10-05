@@ -9,7 +9,7 @@
  * that locale's catalogs are already loaded; otherwise the first render is in
  * the core's current locale and nothing runs ahead of it.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createSSRApp, defineComponent, h, nextTick } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { mount } from "@vue/test-utils";
@@ -152,6 +152,53 @@ describe("vue — ssrLocale with the loader composed", () => {
 
       expect(core.locale).toBe("en");
       expect(view.read()).toEqual(allIn("en"));
+    });
+
+    it("is superseded by the wrapper's own setLocale('en')", async () => {
+      let deliver!: (catalog: Record<string, string>) => void;
+      const core = await coreAtEn(() => new Promise((resolve) => (deliver = resolve)));
+      const i18n = createI18nFromCore(core, { ssrLocale: "uk" });
+      const wrapper = mount(View, { global: { plugins: [i18n] } });
+
+      await i18n.setLocale("en");
+      deliver(catalogs.uk);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await nextTick();
+
+      expect(core.locale).toBe("en");
+      expect(i18n.locale.value).toBe("en");
+      expect(wrapper.find('[data-part="t"]').text()).toBe("Hello");
+    });
+
+    it("is superseded by assigning the locale ref", async () => {
+      let deliver!: (catalog: Record<string, string>) => void;
+      const core = await coreAtEn(() => new Promise((resolve) => (deliver = resolve)));
+      const i18n = createI18nFromCore(core, { ssrLocale: "uk" });
+
+      i18n.locale.value = "en";
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      deliver(catalogs.uk);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(core.locale).toBe("en");
+      expect(i18n.locale.value).toBe("en");
+    });
+
+    it("lets the ref ask for ssrLocale again after the core superseded it", async () => {
+      // A detector plugin calling `core.setLocale("en")` over the pending
+      // switch cancels it without any event the wrapper could hear.
+      let deliver!: (catalog: Record<string, string>) => void;
+      const core = await coreAtEn(() => new Promise((resolve) => (deliver = resolve)));
+      const i18n = createI18nFromCore(core, { ssrLocale: "uk" });
+      await core.setLocale("en");
+      expect(core.locale).toBe("en");
+
+      i18n.locale.value = "uk";
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      deliver(catalogs.uk);
+
+      await vi.waitFor(() => expect(core.locale).toBe("uk"));
+      expect(i18n.locale.value).toBe("uk");
     });
   });
 });
