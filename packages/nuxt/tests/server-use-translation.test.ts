@@ -463,6 +463,18 @@ describe("useTranslation (server)", () => {
       expect(locale).toBe("uk");
     });
 
+    it("ignores an unknown order entry instead of reading Accept-Language for it", async () => {
+      createComviCore.mockReturnValue(createI18nStub("en"));
+      headers({ "accept-language": "uk" });
+      const useTranslation = await importUseTranslation();
+
+      const { locale } = await useTranslation(
+        createEvent({ localeDetection: { order: ["bogus"] } }),
+      );
+
+      expect(locale).toBe("en");
+    });
+
     it("reads the locale from headerName when header is in the order", async () => {
       createComviCore.mockReturnValue(createI18nStub("en"));
       getCookie.mockReturnValue("de");

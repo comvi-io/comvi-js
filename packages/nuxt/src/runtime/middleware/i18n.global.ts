@@ -96,9 +96,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
         // Nuxt keys the result in lower case, whatever case was asked for.
         const header = headerName?.toLowerCase();
         detectedLocale = header ? accept(useRequestHeaders([header])[header]) : undefined;
-      } else {
+      } else if (source === "accept-language") {
         // The matcher's answer is taken as-is, as in `@comvi/next`: one outside
-        // `locales` ends detection and falls back below.
+        // `locales` ends detection and falls back below. An unknown entry in
+        // `order` is ignored, as the server `useTranslation` ignores it.
         const acceptLanguage = useRequestHeaders(["accept-language"])["accept-language"];
         detectedLocale = acceptLanguage
           ? (customResolveAcceptLanguage ?? resolveAcceptLanguage)(

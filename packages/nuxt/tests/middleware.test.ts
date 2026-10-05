@@ -820,6 +820,15 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
     expect(useState<string>("i18n-locale").value).toBe("uk");
   });
 
+  it("ignores an unknown order entry instead of reading Accept-Language for it", async () => {
+    detection({ order: ["bogus"] });
+    setMockRequestHeaders({ "accept-language": "uk" });
+
+    await runMiddleware({ path: "/", fullPath: "/" });
+
+    expect(useState<string>("i18n-locale").value).toBe("en");
+  });
+
   it("reads the locale from headerName when header is in the order", async () => {
     detection({ order: ["header", "cookie"], headerName: "x-locale" });
     setMockCookie("i18n_locale", "de");
