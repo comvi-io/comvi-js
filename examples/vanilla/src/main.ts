@@ -24,6 +24,25 @@ window.addEventListener("popstate", () => {
   render();
 });
 
+// A second namespace, `account`, fetched the first time the second view is
+// shown. `addActiveNamespace` loads it for the current locale and keeps it
+// active, so a later `setLocale` brings `account` along with the default
+// namespace before the new locale applies. Until it settles its keys would
+// render as themselves, so the rows wait. Settle, not succeed: a load that
+// failed has already reached `onError`, and the keys then show as they would
+// for any missing translation.
+let accountRequested = false;
+let accountReady = false;
+function activateAccount(): void {
+  if (accountRequested) return;
+  accountRequested = true;
+  const done = () => {
+    accountReady = true;
+    render();
+  };
+  i18n.addActiveNamespace("account").then(done, done);
+}
+
 function navLink(to: View, label: string, testId: string): HTMLAnchorElement {
   const link = document.createElement("a");
   link.href = to === "about" ? "/about" : "/";
@@ -169,11 +188,35 @@ function render(): void {
     const back = document.createElement("p");
     back.append(navLink("home", i18n.t("nav.home"), "nav-home"));
     about.append(back);
+    // 10 — a second namespace. There is no `useI18n("account")` without a
+    // framework: every call names the namespace in `{ ns }`.
+    activateAccount();
+    let account: HTMLElement;
+    if (accountReady) {
+      account = section(
+        "namespace",
+        i18n.t("profile.signed_in", { ns: "account", name }),
+        "account-signed-in",
+      );
+      const devices = document.createElement("p");
+      devices.dataset.testid = "account-devices";
+      devices.textContent = i18n.t("profile.devices", { ns: "account", count: 3 });
+      // Only `account/en.json` has this key: the fallback chain is walked
+      // inside the same namespace, once that namespace's en catalog is in.
+      const onlyEn = document.createElement("p");
+      onlyEn.dataset.testid = "account-only-en";
+      onlyEn.textContent = i18n.t("profile.only_en", { ns: "account" });
+      account.append(devices, onlyEn);
+    } else {
+      account = document.createElement("p");
+      account.textContent = "Loading…";
+    }
     root.replaceChildren(
       title,
       // 1 — locale switcher
       controlSection(i18n.t("app.language"), ...switcher),
       about,
+      account,
     );
     return;
   }

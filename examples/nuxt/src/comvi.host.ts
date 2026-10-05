@@ -36,6 +36,13 @@ export default defineComviHost((options) => {
     uk: () => import("./locales/uk.json"),
     de: () => import("./locales/de.json"),
     ar: () => import("./locales/ar.json"),
+    // A second namespace, `account`. A map key is `locale` for the default
+    // namespace or `locale:namespace` for another one. Nothing lists `account` in
+    // `ns`, so `init()` does not load it: the second page activates it.
+    "en:account": () => import("./locales/account/en.json"),
+    "uk:account": () => import("./locales/account/uk.json"),
+    "de:account": () => import("./locales/account/de.json"),
+    "ar:account": () => import("./locales/account/ar.json"),
   };
 
   const catalogs: ReturnType<typeof loader> = cdnUrl

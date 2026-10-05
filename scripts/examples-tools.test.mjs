@@ -21,7 +21,10 @@ function fixture(examples) {
     const dir = path.join(root, "examples", name, "src", "locales");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(root, "examples", name, "package.json"), "{}\n");
-    for (const catalog of catalogs) fs.writeFileSync(path.join(dir, catalog), "{}\n");
+    for (const catalog of catalogs) {
+      fs.mkdirSync(path.dirname(path.join(dir, catalog)), { recursive: true });
+      fs.writeFileSync(path.join(dir, catalog), "{}\n");
+    }
   }
   return root;
 }
@@ -29,7 +32,10 @@ function fixture(examples) {
 /** The shared `examples/locales`, as its own directory so it can be varied. */
 function source(catalogs) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-examples-source-"));
-  for (const catalog of catalogs) fs.writeFileSync(path.join(dir, catalog), "{}\n");
+  for (const catalog of catalogs) {
+    fs.mkdirSync(path.dirname(path.join(dir, catalog)), { recursive: true });
+    fs.writeFileSync(path.join(dir, catalog), "{}\n");
+  }
   return dir;
 }
 
@@ -117,4 +123,19 @@ test("strays ignores files that are not catalogs", () => {
   );
 
   assert.deepEqual(strays(root, source(["en.json"])), []);
+});
+
+test("strays looks inside namespace folders, in both directions", () => {
+  // A namespace is `<namespace>/<locale>.json`. A shared one is not a stray;
+  // one an example grew on its own is, and so is a locale added to a shared
+  // namespace in one example only.
+  const root = fixture({
+    react: ["en.json", "account/en.json", "account/fr.json", "billing/en.json"],
+    vue: ["en.json", "account/en.json"],
+  });
+
+  assert.deepEqual(strays(root, source(["en.json", "account/en.json"])), [
+    path.join("examples", "react", "src", "locales", "account", "fr.json"),
+    path.join("examples", "react", "src", "locales", "billing", "en.json"),
+  ]);
 });

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watchEffect } from "vue";
 import { T, useI18n } from "@comvi/vue";
+import Account from "./Account.vue";
 import { locales, rtlLocale } from "./i18n";
 
 // `locale`, `dir` and `isLoading` are refs, so the template re-renders on a
@@ -73,13 +74,17 @@ watchEffect(() => {
       </div>
     </section>
 
-    <section v-if="view === 'about'">
-      <h2>navigation</h2>
-      <p data-testid="about-body">{{ t("about.body") }}</p>
-      <p>
-        <a data-testid="nav-home" href="/" @click.prevent="go('home')">{{ t("nav.home") }}</a>
-      </p>
-    </section>
+    <template v-if="view === 'about'">
+      <section>
+        <h2>navigation</h2>
+        <p data-testid="about-body">{{ t("about.body") }}</p>
+        <p>
+          <a data-testid="nav-home" href="/" @click.prevent="go('home')">{{ t("nav.home") }}</a>
+        </p>
+      </section>
+      <!-- 10 — a second namespace, fetched when this view is first shown -->
+      <Account :name="name" />
+    </template>
     <template v-else>
       <!-- 2 — a string with a parameter -->
       <section>

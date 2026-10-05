@@ -1,6 +1,6 @@
 # Comvi examples
 
-Seven small apps, each a demo page plus a second page, that demonstrate the same six things
+Seven small apps, each a demo page plus a second page, that demonstrate the same seven things
 through seven different bindings. Open one in the browser, switch the language, and watch the
 plural change.
 
@@ -53,7 +53,10 @@ The same scenario everywhere, in the same order down the page:
 6. **A lazy loader:** each catalog is a dynamic `import()`, so a locale's JSON is fetched the first
    time you select it.
 
-Three more rows sit under those six, mainly for the browser suite (see "Running the scenario in
+7. **A second namespace:** `account`, on the second page. No `ns` list names it, so its catalog
+   is fetched the first time that page is shown. See "The second namespace" below.
+
+Three more rows sit under the first six, mainly for the browser suite (see "Running the scenario in
 a browser"): a link to a **second page** (`/about`, a real route in `next` and `nuxt`, a
 `history.pushState` view in the other five), a **fallback** row (`fallback.only_en` is missing
 from `uk.json` on purpose, `fallback.nowhere` is in no catalog), and a **missing parameter** row
@@ -80,6 +83,10 @@ const localCatalogs = {
   uk: () => import("./locales/uk.json"),
   de: () => import("./locales/de.json"),
   ar: () => import("./locales/ar.json"),
+  "en:account": () => import("./locales/account/en.json"),
+  "uk:account": () => import("./locales/account/uk.json"),
+  "de:account": () => import("./locales/account/de.json"),
+  "ar:account": () => import("./locales/account/ar.json"),
 };
 
 const catalogs: ReturnType<typeof loader> = cdnUrl
@@ -118,6 +125,29 @@ The three that depart from it:
 Neither SSR example composes a locale detector: the URL is the source of truth there, and the
 framework middleware decides the locale before the host runs.
 
+## The second namespace
+
+The second page renders three rows from a namespace of its own, `account`: a parameter
+(`profile.signed_in`), a plural (`profile.devices`) and a key only `account/en.json` has
+(`profile.only_en`). The import map names each catalog by its `locale:namespace` key, and nothing
+lists `account` in `ns`, so the first page never loads it.
+
+| example                   | how the second page gets `account`                                                                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| react, vue, svelte, solid | `src/Account.*`: `useI18n("account")` scopes `t()`, `useI18nLoader().addActiveNamespace("account")` loads it, and the rows wait for that to settle                               |
+| vanilla                   | `i18n.addActiveNamespace("account")` when the view is first shown, then `t(key, { ns: "account" })` on every call                                                                |
+| next                      | `about/layout.tsx` renders `<ComviProvider namespaces={["default", "account"]}>`; the page calls `getI18n({ locale, ns: "account" })`, the client component `useI18n("account")` |
+| nuxt                      | `pages/about.vue` awaits `useI18nLoader().addActiveNamespace("account")` in its setup and reads through `useI18n("account")`                                                     |
+
+An activated namespace stays active: a locale switch on the second page fetches `account` for the
+new locale together with the default namespace, and applies the locale only when both are in.
+
+In the five client-rendered examples the browser loads a namespace for the active locale only. The
+en-only row therefore shows its English text once `account/en.json` has been loaded, which is the
+case when the page was opened in English, and shows the key when the page is first opened in
+another locale. `next` and `nuxt` load the fallback chain on the server, so there the row is
+English on a direct request for `/uk/about`.
+
 ## Connect to Comvi (opt-in)
 
 Every example can read its catalogs from the platform CDN instead of the
@@ -139,8 +169,10 @@ the default namespace and `{cdnUrl}/{namespace}/{locale}.json` for the rest.
 
 ## The catalogs
 
-`examples/locales/{en,uk,de}.json` is the single source. StackBlitz opens one directory out of the
-tree, so the catalogs are copied into `examples/<framework>/src/locales/` rather than symlinked.
+`examples/locales` is the single source: `{en,uk,de,ar}.json` are the default namespace, and
+`account/{en,uk,de,ar}.json` is the `account` namespace, the layout the CDN serves. StackBlitz
+opens one directory out of the tree, so the catalogs are copied into
+`examples/<framework>/src/locales/` rather than symlinked.
 Edit the shared copy, then:
 
 ```bash
@@ -229,6 +261,10 @@ example is `skip`, and the reason is printed under the table:
 | u    | `--cdn`: en → uk → de with uk's catalog answered last (vue, nuxt queue switches); the page stays German |
 | v    | `--cdn`: uk's catalog request hangs; after the loader's timeout the bundled uk renders                  |
 | v2   | `--cdn`: uk's catalog is corrupt JSON; the bundled uk renders                                           |
+| w    | the first page never requests the `account` namespace; opening the second page loads it once            |
+| x    | every DOM state of the second page during en → uk → de is one whole language, `account` rows included   |
+| y    | next, nuxt: plain-HTTP `GET /uk/about` carries the `account` text and hydrates without refetching it    |
+| z    | `--cdn`: in the dead-CDN build the bundled `locale:account` imports serve the namespace                 |
 
 The critical texts (the greeting, the plural branches, `<T>`, the fallback row and
 the placeholder) are written out literally in the spec, so a catalog that goes
@@ -248,7 +284,7 @@ to Comvi" variable pointing at it. The prefix is how the suite tells a text the
 app read from the CDN from the same text out of its bundled `fallback` imports.
 Column `k` reads that server's request log. Without it, a variable that
 silently failed to apply would pass on the bundled import map. Each example is
-then built a second time against a port where nothing listens, and `k2` and
+then built a second time against a port where nothing listens, and `k2`, `z` and
 `g` (as `g2`) run against that build, where the refused connections to the CDN
 address are the only console errors allowed.
 
@@ -261,14 +297,25 @@ their catalogs before either is released. Every response must carry its own
 `[locale]` pages are prerendered, so these steps use `/<locale>/live`, the
 same page under `force-dynamic`. Nuxt renders `/<locale>` per request already.
 
+The server names a catalog as an import map does: `uk` is the default
+namespace's file and `uk:account` the namespace's, so a step can hold one and
+answer the other. Step x under `--cdn` holds both of the target locale's files,
+answers the default namespace's first, and checks that the page is still the
+old locale in full before it releases `account`'s. That applies where the
+browser fetches the catalogs, in the five Vite examples and in `nuxt`. Next's
+second page is prerendered and its browser fetches no catalog, so its switch
+runs unheld.
+
 `--tarballs <dir>` runs the suite against a release candidate's packed files
 instead of packing the workspace. The release workflow packs once, runs both
 modes this way and publishes the same files.
 
-Step r watches the DOM, not the screen. One state is one delivered batch of DOM
+Steps r and x watch the DOM, not the screen. One state is one delivered batch of DOM
 mutations, and every state must be the old locale in full, the new locale in full,
 or the loading state. A mixed-language or raw-key state fails the step however
-briefly it lasted. Under `--cdn` each switch's catalog is held until the barrier
+briefly it lasted. Step x watches the second page's default-namespace text and
+its three `account` rows together, so a locale applied before the namespace
+arrived is a mixed state. Under `--cdn` each switch's catalog is held until the barrier
 sees it, so the in-between state is observed every run. Failing states are printed
 under the table and written to `test-results/examples-e2e/report.json`
 (`report-cdn.json` for `--cdn`) under `findings.mixedStates`, with whether a paint
