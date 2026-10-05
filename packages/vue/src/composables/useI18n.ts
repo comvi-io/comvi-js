@@ -7,7 +7,7 @@ import type {
   TranslationResult,
   NamespaceBoundTranslateFn,
   FlattenedMessages,
-  TranslationValue,
+  MessagesMap,
   I18nEvent,
   I18nEventData,
   DefaultTranslationParams,
@@ -44,7 +44,7 @@ export interface UseI18nReturn<
   /** Core's translation-cache revision, reactive; read it to depend on cache changes. */
   cacheRevision: Readonly<Ref<number>>;
 
-  addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
+  addMessages: (messages: MessagesMap) => void;
 
   setFallbackLocale: (locales: string | string[]) => void;
 

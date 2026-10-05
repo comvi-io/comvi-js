@@ -12,7 +12,7 @@ import type {
   I18nOptions,
   FlattenedMessages,
   TranslationResult,
-  TranslationValue,
+  MessagesMap,
   I18nEvent,
   I18nEventData,
   DefaultTranslationParams,
@@ -100,7 +100,7 @@ export class VueI18n<
   private _warnedLateUse = false;
 
   // Declared here, assigned as bound proxies in the constructor.
-  declare addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
+  declare addMessages: (messages: MessagesMap) => void;
   declare clearMessages: (locale?: string, namespace?: string) => void;
   declare on: <E extends I18nEvent>(
     event: E,
