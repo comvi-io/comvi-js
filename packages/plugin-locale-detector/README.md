@@ -60,9 +60,9 @@ match, then shorter prefixes (`zh-Hant-TW`, `zh-Hant`, `zh`), then a regional va
 language (`de` to `de-DE`). A tag that matches nothing is skipped and the scan continues. When
 nothing matches, the locale is `fallbackLocale`, and that result is not cached.
 
-Without `supportedLocales`, every detected and cached tag is shortened to its lowercased base
-language: `pt-BR` becomes `pt`, `de-DE` becomes `de`. An app with a regional locale such as
-`pt-BR` must list its locales in `supportedLocales`, or the next visit asks for `pt`.
+Without `supportedLocales` or `convertDetectedLocale`, every detected and cached tag is shortened
+to its base language; every visit resolves `pt-BR` to `pt`. An app with a regional locale such as
+`pt-BR` must list its locales in `supportedLocales`.
 
 ## Options
 

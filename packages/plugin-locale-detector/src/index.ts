@@ -85,9 +85,9 @@ export interface LocaleDetectorOptions {
    *   2. Base language match: "de-DE" → "de"
    *   3. Regional variant match: "de" → "de-DE" (if only regional variant is supported)
    *
-   * When not provided, every detected AND cached tag is shortened to its
-   * lowercased base language ("pt-BR" → "pt", "de-DE" → "de"). An app with a
-   * regional locale such as `pt-BR` must list it here.
+   * Without `supportedLocales` or `convertDetectedLocale`, every detected and
+   * cached tag is shortened to its base language; every visit resolves `pt-BR`
+   * to `pt`. An app with a regional locale such as `pt-BR` must list it here.
    *
    * @example
    * ```typescript
