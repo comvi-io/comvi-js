@@ -80,7 +80,7 @@ export function createNextI18nFromHost<
   C extends NextServerHost<D> = NextServerHost<D>,
 >(host: () => C, options: CreateNextI18nFromHostOptions): CreateNextI18nFromHostResult<D, C> {
   const routing = resolveRouting(options);
-  const i18n = registerServerI18nHost(host as () => ServerI18nHost) as C;
+  const i18n = registerServerI18nHost(host as () => ServerI18nHost, routing) as C;
 
   return { i18n, routing };
 }

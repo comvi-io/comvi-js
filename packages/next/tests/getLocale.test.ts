@@ -90,6 +90,44 @@ describe("getLocale", () => {
       await expect(getLocale()).resolves.toBe("en");
     });
 
+    it("matches routing.locales exactly: a case-mismatched header is ignored", async () => {
+      getConfiguredRoutingMock.mockReturnValue({ locales: ["en", "uk"], defaultLocale: "en" });
+      headersMock.mockResolvedValue(new Headers([["x-comvi-locale", "UK"]]));
+
+      await expect(getLocale()).resolves.toBe("en");
+    });
+
+    it("throws for an ignored header when the routing has no defaultLocale", async () => {
+      getConfiguredRoutingMock.mockReturnValue({ locales: ["en", "uk"] });
+      headersMock.mockResolvedValue(new Headers([["x-comvi-locale", "zz"]]));
+
+      await expect(getLocale()).rejects.toThrow("Unable to determine locale");
+    });
+
+    it("rejects an underscore separator", async () => {
+      headersMock.mockResolvedValue(new Headers([["x-comvi-locale", "pt_BR"]]));
+
+      await expect(getLocale()).rejects.toThrow("Unable to determine locale");
+    });
+
+    it("warns about an ignored header once per process, not per request", async () => {
+      vi.resetModules();
+      const { getLocale: freshGetLocale } = await import("../src/server/getLocale");
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      getConfiguredRoutingMock.mockReturnValue({ locales: ["en", "uk"], defaultLocale: "en" });
+      headersMock.mockResolvedValue(new Headers([["x-comvi-locale", "zz"]]));
+
+      await freshGetLocale();
+      await freshGetLocale();
+      headersMock.mockResolvedValue(new Headers([["x-comvi-locale", "../evil"]]));
+      await freshGetLocale();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        '[@comvi/next] Ignored the x-comvi-locale header "zz": it is not in routing.locales (en, uk).',
+      );
+    });
+
     it("honours a header listed in routing.locales", async () => {
       getConfiguredRoutingMock.mockReturnValue({ locales: ["en", "uk"], defaultLocale: "en" });
       headersMock.mockResolvedValue(new Headers([["x-comvi-locale", "uk"]]));

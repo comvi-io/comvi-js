@@ -42,7 +42,13 @@ const getRequestStore = cache(
  */
 type CellState =
   | { readonly kind: "empty" }
-  | { readonly kind: "resolved"; readonly instance: ServerI18nHost; readonly bySetI18n: boolean };
+  | {
+      readonly kind: "resolved";
+      readonly instance: ServerI18nHost;
+      readonly bySetI18n: boolean;
+      /** The routing `createNextI18nFromHost(host, routing)` was given. */
+      readonly routing?: ConfigModule["routing"];
+    };
 
 const SOURCE_FACTORY = "createNextI18nFromHost()";
 const SOURCE_SET_I18N = "setI18n()";
@@ -118,12 +124,15 @@ export function setI18n(i18n: NextServerHost): void {
  * leaves the cell `empty`, exactly as if the call had never happened.
  * @internal
  */
-export function registerServerI18nHost<C extends ServerI18nHost>(build: () => C): C {
+export function registerServerI18nHost<C extends ServerI18nHost>(
+  build: () => C,
+  routing?: ConfigModule["routing"],
+): C {
   if (cell.kind !== "empty") {
     throw configurationConflict(cell, SOURCE_FACTORY);
   }
   const instance = build();
-  cell = { kind: "resolved", instance, bySetI18n: false };
+  cell = { kind: "resolved", instance, bySetI18n: false, routing };
   return instance;
 }
 
@@ -176,11 +185,13 @@ export function getConfiguredI18n(): ConfigModule["i18n"] {
 }
 
 /**
- * The `routing` export of the aliased config module, if there is one.
+ * The routing in force: the one `createNextI18nFromHost(host, routing)`
+ * registered (the manual setup), otherwise the `routing` export of the aliased
+ * config module, if there is one.
  * @internal
  */
 export function getConfiguredRouting(): ConfigModule["routing"] {
-  return config.routing;
+  return (cell.kind === "resolved" ? cell.routing : undefined) ?? config.routing;
 }
 
 /**

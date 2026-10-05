@@ -12,6 +12,10 @@ const LOCALE_HEADER = "x-comvi-locale";
 // lookup locale a loader builds its request from.
 const LOCALE_CODE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 
+// Once per process: the header is per request, and a crawler sending a bad
+// one must not fill the log.
+let warnedIgnoredHeader = false;
+
 /**
  * Get the current request locale, from — in order — the request cache (set by
  * setRequestLocale) and the x-comvi-locale header (set by middleware).
@@ -51,7 +55,8 @@ export async function getLocale(): Promise<string> {
     if (accepted) {
       return localeFromHeader;
     }
-    if (IS_DEV) {
+    if (IS_DEV && !warnedIgnoredHeader) {
+      warnedIgnoredHeader = true;
       console.warn(
         `[@comvi/next] Ignored the x-comvi-locale header ${JSON.stringify(localeFromHeader)}: ` +
           (routing?.locales
