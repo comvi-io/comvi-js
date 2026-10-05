@@ -154,7 +154,9 @@ export interface I18nProviderProps {
    * it, so the translated text commits together with that markup instead of
    * one asynchronous `setLocale` later. After that the tree follows the i18n
    * instance again, so a `setLocale` with no new `targetLocale` still
-   * re-renders.
+   * re-renders. A switch that never sets the locale (a load that fails or is
+   * cancelled) does not end it: the tree stays in `targetLocale` until the
+   * i18n instance's locale actually moves.
    *
    * Only rendering moves: the caller still sets the i18n instance's locale,
    * and the target's catalog must already be cached, or the tree renders its

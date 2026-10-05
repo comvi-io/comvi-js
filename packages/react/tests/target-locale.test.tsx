@@ -10,6 +10,7 @@ import { act, render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { createI18n } from "../src";
+import { attachLoader } from "@comvi/core/loader";
 import { I18nProvider, useLocale } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 
@@ -318,6 +319,78 @@ describe("I18nProvider targetLocale across abandoned renders", () => {
     });
     const view = render(tree(first, [], "uk"));
     view.rerender(tree(replacement, [], "uk"));
+    expect(view.container.textContent).toBe("uk:Привіт");
+  });
+});
+
+/**
+ * A loader-composed instance whose target catalog is cached switches inside
+ * the `setLocale` call, so a parent that moves it in a layout effect (the
+ * `@comvi/next` shape) is done before the provider's subscription attaches.
+ */
+describe("I18nProvider targetLocale with a loader-composed instance", () => {
+  const loaderBacked = () => {
+    const i18n = attachLoader(createI18n({ locale: "en", messages }));
+    const answers: Record<string, () => void> = {};
+    const loader = vi.fn(
+      (locale: string) =>
+        new Promise<Record<string, string>>((resolve) => {
+          answers[locale] = () => resolve({ greeting: locale });
+        }),
+    );
+    i18n.registerLoader(loader);
+    return { i18n, loader, answers };
+  };
+
+  it("a parent's layout-effect switch to a cached target commits the target once, then follows the instance", async () => {
+    const { i18n, loader } = loaderBacked();
+    expect(i18n.getActiveNamespaces()).toEqual(["default"]);
+    const log: string[] = [];
+    const loading: boolean[] = [];
+    i18n.on("loadingStateChanged", ({ isLoading }) => loading.push(isLoading));
+    const Parent = () => {
+      React.useLayoutEffect(() => {
+        void i18n.setLocale("uk");
+      }, []);
+      return tree(i18n, log, "uk");
+    };
+
+    const view = render(<Parent />);
+
+    // The switch happened inside the layout effect: nothing was fetched or awaited.
+    expect(i18n.locale).toBe("uk");
+    expect(view.container.textContent).toBe("uk:Привіт");
+    await act(async () => {});
+    expect(view.container.textContent).toBe("uk:Привіт");
+    // No render in the old locale, before or after the handover ended.
+    expect(log.length).toBeGreaterThan(0);
+    expect(log.every((entry) => entry === "uk:Привіт")).toBe(true);
+    expect(loader).not.toHaveBeenCalled();
+    expect(loading).toEqual([]);
+
+    // The handover is over: the unchanged target no longer holds the tree.
+    await act(async () => {
+      await i18n.setLocale("en");
+    });
+    expect(view.container.textContent).toBe("en:Hello");
+  });
+
+  it("a switch that never assigns does not end the handover", async () => {
+    const { i18n, answers } = loaderBacked();
+    const view = render(tree(i18n, [], "uk"));
+    expect(view.container.textContent).toBe("uk:Привіт");
+
+    // `fr` must be fetched; going back to `en` cancels it before it assigns.
+    await act(async () => {
+      const toFr = i18n.setLocale("fr");
+      await Promise.resolve();
+      const back = i18n.setLocale("en");
+      answers.fr();
+      await Promise.all([toFr, back]);
+    });
+
+    expect(i18n.locale).toBe("en");
+    expect(i18n.localeRevision).toBe(0);
     expect(view.container.textContent).toBe("uk:Привіт");
   });
 });
