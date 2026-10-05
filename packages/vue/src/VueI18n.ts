@@ -49,6 +49,11 @@ export interface VueI18nCoreOptions {
   /**
    * Render locale for SSR: set it when the server renders in a locale the
    * client would not detect, or hydration mismatches.
+   *
+   * It paints on the first render when that locale's catalogs are already
+   * available (inline `messages`, or loaded earlier). Otherwise the first
+   * render is in the instance's current locale, and the switch lands when the
+   * load completes.
    */
   ssrLocale?: string;
 }
@@ -137,16 +142,31 @@ export class VueI18n<
   constructor(core: C, options: VueI18nCoreOptions = {}) {
     this.core = core;
 
-    // `ssrLocale` is the render locale and the host follows it, so the ref and
-    // `core.locale` cannot disagree at construction time. (A no-op on the
-    // `createI18n` path, where the core was already built with it.)
+    // `ssrLocale` is written to the core, and the ref MIRRORS the core: it is
+    // seeded from `core.locale` after the write, never from the option. The
+    // core adopts the locale at once when its catalogs are available, and
+    // otherwise when their load completes (`localeChanged` then moves the
+    // ref), so the ref never reports a locale the instance is not in. (A
+    // no-op on the `createI18n` path, where the core was built with it.)
     const initialLocale = options.ssrLocale ?? core.locale;
+    this._requestedLocale = initialLocale;
     if (core.locale !== initialLocale) {
       core.locale = initialLocale;
+      if (core.locale !== initialLocale) {
+        // Still pending. If the load fails, the setter reports `loadError`:
+        // forget the request, so the same locale can be asked for again.
+        const off = core.on("loadError", ({ locale, namespace }) => {
+          if (namespace !== "locale-change" || locale !== initialLocale) return;
+          off();
+          if (this._requestedLocale === initialLocale) {
+            this._requestedLocale = this.core.locale;
+          }
+        });
+        this._unsubscribers.push(off);
+      }
     }
 
-    this._locale = shallowRef(initialLocale);
-    this._requestedLocale = initialLocale;
+    this._locale = shallowRef(core.locale);
     this._isLoading = shallowRef(this.core.isLoading);
     this._isInitializing = shallowRef(this.core.isInitializing);
     this._isInitialized = shallowRef(this.core.isInitialized);
@@ -411,17 +431,9 @@ export class VueI18n<
   >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D, N>): TranslationResult;
 
   tRaw(key: string, ...params: [import("@comvi/core").TranslationParams?]): TranslationResult {
-    const renderLocale = this._locale.value;
+    void this._locale.value;
     void this._cacheRevision.value;
     void this._configRevision.value;
-    // The ref equals `core.locale` except while an `ssrLocale` the core has
-    // not adopted yet is pending: a core with `@comvi/core/loader` composed
-    // and a namespace active moves its locale only after the (even cached)
-    // namespace load resolves. Only then is the render locale passed
-    // explicitly, so the first render is in `ssrLocale`.
-    if (renderLocale !== this.core.locale && params[0]?.locale === undefined) {
-      return this.core.tRaw(key as any, { ...params[0], locale: renderLocale } as any);
-    }
     return this.core.tRaw(key as any, ...(params as any));
   }
 

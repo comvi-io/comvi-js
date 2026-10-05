@@ -123,7 +123,7 @@ independent, and either works without the other.
 - For server-side rendering, build one instance per request, pass the request locale as
   `ssrLocale`, and await `i18n.init()` before `renderToString`, because `app.use(i18n)` starts it
   fire-and-forget. On Nuxt, [`@comvi/nuxt`](https://comvi.io/docs/i18n/nuxt) does all three per
-  request.
+  request. `ssrLocale` paints on the first render when that locale's catalogs are already available (inline `messages`, or loaded earlier); otherwise the first render is in the instance's current locale and the switch lands when the load completes.
 
 ## Next steps
 
