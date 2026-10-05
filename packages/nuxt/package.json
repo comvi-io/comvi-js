@@ -58,7 +58,7 @@
   "sideEffects": false,
   "scripts": {
     "dev": "nuxt-module-build build --stub && nuxt-module-build prepare",
-    "build": "nuxt-module-build build && tsc -p tsconfig.runtime.json && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "build": "node ../../tooling/clean-dist.mjs && nuxt-module-build build && tsc -p tsconfig.runtime.json && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "vendor": "node scripts/vendor-locale-routing.mjs",
     "typecheck": "tsc -p tsconfig.typecheck.json && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",

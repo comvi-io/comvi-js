@@ -89,7 +89,7 @@
   ],
   "scripts": {
     "dev": "vite build --watch",
-    "build": "tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist && esbuild src/plugin.ts --bundle --platform=node --format=cjs --target=node18 --external:next --log-level=warning --outfile=dist/plugin.cjs",
+    "build": "node ../../tooling/clean-dist.mjs && tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist && esbuild src/plugin.ts --bundle --platform=node --format=cjs --target=node18 --external:next --log-level=warning --outfile=dist/plugin.cjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",
     "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-closed.json && tsc --noEmit -p tsconfig.keys-via-binding.json",

@@ -2,6 +2,9 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
+      // A cache HIT restores these files over the existing `dist/` and deletes
+      // nothing, so files of earlier builds survive it. `pnpm build` therefore
+      // removes every dist before turbo runs (tooling/clean-dist.mjs --all).
       "outputs": ["dist/**"],
       "dependsOn": ["^build"],
       // Every package's `build` ends in tooling/qualify-dts-specifiers.mjs, which lives

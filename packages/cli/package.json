@@ -39,7 +39,7 @@
   },
   "sideEffects": false,
   "scripts": {
-    "build": "tsc && vite build && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "build": "node ../../tooling/clean-dist.mjs && tsc && vite build && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run",
     "test:watch": "vitest",
