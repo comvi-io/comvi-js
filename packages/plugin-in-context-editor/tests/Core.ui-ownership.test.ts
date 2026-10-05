@@ -61,6 +61,10 @@ vi.mock("../src/collector/Collector", () => ({
 
 import { Core, type EditorI18n } from "../src/Core";
 
+// The editor UI is a lazy import. `vi.waitFor` gives up after 1 s by default,
+// which a cold module transform on a busy runner can exceed.
+const UI_IMPORT_TIMEOUT = { timeout: 10_000 };
+
 const HOST = { getDefaultNamespace: () => "default" } as unknown as EditorI18n;
 
 /** The reactive props `createApp` received on its `index`-th call. */
@@ -89,7 +93,7 @@ describe("Core: editor UI owned by another active Core", () => {
     });
 
     mocks.clickHandlers[1]!(document.createElement("div"));
-    await vi.waitFor(() => expect(mocks.createApp).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mocks.createApp).toHaveBeenCalled(), UI_IMPORT_TIMEOUT);
     coreA.stop();
 
     expect(mocks.unmount).not.toHaveBeenCalled();
@@ -113,7 +117,7 @@ describe("Core: editor UI owned by another active Core", () => {
     });
 
     mocks.clickHandlers[1]!(document.createElement("div"));
-    await vi.waitFor(() => expect(mocks.createApp).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mocks.createApp).toHaveBeenCalled(), UI_IMPORT_TIMEOUT);
     coreA.stop();
 
     expect(mocks.unmount).not.toHaveBeenCalled();
