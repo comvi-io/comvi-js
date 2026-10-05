@@ -85,7 +85,8 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
       `latest`. A failed `npm publish` does not stop the others. After the attempts the job asks npm
       about every tarball in `SHA256SUMS` and logs a table: `on npm` or `MISSING`, and `on latest`
       or `NOT on latest`, per package. Only when the whole set is on npm does it move `latest`,
-      with `npm dist-tag add` for each package not already there, and then remove the staging tag.
+      with `npm dist-tag add` for each package not already there, and then remove every `release-*`
+      dist-tag that names the promoted version.
       Each version npm has gets its git tag at the checked-out release commit. Only when every
       package is on `latest` does the job also push `v<version>` at that same commit and report
       `published=true` with the full set. Otherwise it reports `published=false`, exits 1, and no
@@ -170,28 +171,32 @@ Dispatch it from a green ref: apart from that browser suite the jobs run no test
   anything is promoted or tagged: in CI or by hand, with git tags or without, at a newer commit or
   at the same one. The recovery is "Re-run failed jobs" on the original run. GitHub keeps re-runs
   for about 30 days, and both candidate artifacts are kept for 30 days. Once that run can no
-  longer be re-run, a fresh run is possible only if it rebuilds the same bytes. With `--git-tag`
-  (GA), two guards run in this order, and both must pass:
-  1. **The git-tag guard runs first.** A fresh CI run, attempt `1`, refuses any version on npm
-     that has no package git tag, and any package git tag at a commit other than the one it checked
-     out. So first push the tag `<name>@<version>` of every stuck version at the release commit,
-     and dispatch the fresh run from that same commit.
-  2. **Byte identity authorises the rest.** The fresh run packs a new candidate. If npm's
-     `dist.integrity` of each stuck version equals the sha512 of the new tarball, the run publishes
-     what is missing, promotes and tags. No `npm dist-tag add` of the staging tag is needed. You
-     can check this beforehand, per stuck version, against the new candidate's tarball. The two
-     lines must be equal:
+  longer be re-run, a fresh run is possible only if it rebuilds the same bytes. By hand, for GA,
+  in this order:
+  1. **Compare the bytes first.** Pack the candidate at the release commit and, for every stuck
+     version, check that these two lines are equal. If any differ, stop here and bump the version:
+     no run can finish this train.
 
      ```sh
      npm view <name>@<version> dist.integrity
      node -p "'sha512-' + require('node:crypto').createHash('sha512').update(require('node:fs').readFileSync('<tgz>')).digest('base64')"
      ```
 
-  If the bytes differ, the run refuses and names both integrities: bump the version. The RC job
-  has no git tags, so for it only the byte check applies.
+  2. **Push the package git tag** `<name>@<version>` of every stuck version at the release commit.
+  3. **Dispatch the fresh run** from that same commit.
+
+  The fresh run applies two guards, in this order. The git-tag guard runs first: a fresh CI run,
+  attempt `1`, refuses any version on npm that has no package git tag, and any package git tag at
+  a commit other than the one it checked out. That is why step 2 comes before step 3. Byte
+  identity then authorises the rest: if npm's `dist.integrity` of each stuck version equals the
+  sha512 of the newly packed tarball, the run publishes what is missing, promotes and tags. No
+  `npm dist-tag add` of the staging tag is needed, and after promotion the run removes every
+  `release-*` dist-tag that names the promoted version, the older candidate's included. If the
+  bytes differ after all, the run refuses and names both integrities. The RC job has no git tags,
+  so for it only the byte check applies.
 
 - **An integrity or staging-tag read can still be stale for longer than the retries.** Missing
   values are asked again with backoff for about 30 seconds, and a version missing its staging tag
-  falls back to the byte check. If npm still shows no integrity after that, the job refuses with
-  `found none`. It fails closed: nothing is promoted or tagged, and a re-run of the same run passes
+  falls back to the byte check. A failed read is asked again the same way. If npm still shows no
+  integrity after that, the job refuses with `found none` and says to re-run. It fails closed: nothing is promoted or tagged, and a re-run of the same run passes
   once npm catches up.
