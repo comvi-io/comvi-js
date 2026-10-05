@@ -6,7 +6,7 @@ import test from "node:test";
 
 import {
   checkLicensePacked,
-  checkPackedHashedChunks,
+  checkPackedJsReachable,
   checkDistForBrowserExternalShim,
   checkDistForPrivatePackageNames,
   checkNextPeerRangeDeclarations,
@@ -266,58 +266,108 @@ function packedSetOf(dist) {
   return new Set(["package.json", ...Object.keys(dist).map((file) => `dist/${file}`)]);
 }
 
-test("checkPackedHashedChunks reports a hashed chunk that no packed file references", (t) => {
+const orphanMessage = (name, file) =>
+  `${name}: ${file} is packed but no manifest entry point reaches it through an import; ` +
+  "it is a stale build output (clean dist before building) or an entry missing from the manifest";
+
+test("checkPackedJsReachable flags a stale generation whose chunks import each other", (t) => {
   const dist = {
-    "index.es.js": 'import("./EditModal-DvfvyyY-.js");',
-    "EditModal-DvfvyyY-.js": "export {};",
-    // A previous build's generation of the same chunk: nothing imports it.
-    "EditModal-DOhzZ7k3.js": "export {};",
+    "index.es.js": 'export const load = () => import("./Core-vogj2dVW.js");',
+    "Core-vogj2dVW.js": 'import { m } from "./EditModal-DvfvyyY-.js";\nexport { m };',
+    "EditModal-DvfvyyY-.js": 'export const m = () => import("./Core-vogj2dVW.js");',
+    // The previous build's pair. Each names the other, so "some packed file
+    // mentions it" is true of both; neither is reachable from the entry.
+    "Core-OLD00001.js": 'import { m } from "./EditModal-OLD00001.js";\nexport { m };',
+    "EditModal-OLD00001.js": 'export const m = () => import("./Core-OLD00001.js");',
   };
   const root = makeWorkspace(t, [{ dir: "editor", name: "@comvi/editor", dist }]);
   const packageDir = path.join(root, "packages", "editor");
 
-  const errors = checkPackedHashedChunks("@comvi/editor", packageDir, packedSetOf(dist), [
-    "./dist/index.es.js",
-  ]);
+  const errors = checkPackedJsReachable("@comvi/editor", packageDir, packedSetOf(dist), {
+    exports: { ".": { types: "./dist/index.d.ts", import: "./dist/index.es.js" } },
+  });
   assert.deepEqual(errors, [
-    "@comvi/editor: dist/EditModal-DOhzZ7k3.js is a hashed chunk that no other packed file " +
-      "references and no exports entry names; it is a stale build output (clean dist before building)",
+    orphanMessage("@comvi/editor", "dist/Core-OLD00001.js"),
+    orphanMessage("@comvi/editor", "dist/EditModal-OLD00001.js"),
   ]);
 });
 
-test("checkPackedHashedChunks passes referenced chunks, export-named chunks and unhashed files", (t) => {
+test("checkPackedJsReachable follows static, dynamic, re-export and extensionless specifiers", (t) => {
   const dist = {
-    "index.js": 'import "./chunks/inflight-Ab3_xY9z.js";',
-    "chunks/inflight-Ab3_xY9z.js": "export {};",
-    "entry-Qw3rTy12.js": "export {};",
-    "comvi-react-T.js": "export {};",
+    "index.js":
+      'import "./side-effect.js";\nimport { a } from "./chunks/inflight-Ab3_xY9z.js";\n' +
+      'export * from "./reexported";\nexport const lazy = () => import("./lazy/panel.js");\n' +
+      "export { a };",
+    "side-effect.js": "globalThis.x = 1;",
+    "chunks/inflight-Ab3_xY9z.js": 'import { b } from "../shared.js";\nexport const a = b;',
+    "shared.js": "export const b = 1;",
+    "reexported.js": "export const c = 1;",
+    "lazy/panel.js": 'import { d } from "./dir";\nexport { d };',
+    "lazy/dir/index.js": "export const d = 1;",
+    // An unhashed name is no excuse: nothing reaches it.
+    "comvi-core-devtools.js": "export {};",
   };
   const root = makeWorkspace(t, [{ dir: "loader", name: "@comvi/loader", dist }]);
   const packageDir = path.join(root, "packages", "loader");
 
   assert.deepEqual(
-    checkPackedHashedChunks("@comvi/loader", packageDir, packedSetOf(dist), [
-      "./dist/index.js",
-      "./dist/entry-Qw3rTy12.js",
-    ]),
+    checkPackedJsReachable("@comvi/loader", packageDir, packedSetOf(dist), {
+      exports: { ".": "./dist/index.js" },
+    }),
+    [orphanMessage("@comvi/loader", "dist/comvi-core-devtools.js")],
+  );
+});
+
+test("checkPackedJsReachable seeds from every manifest target, not only exports", (t) => {
+  const dist = {
+    "index.js": "export {};",
+    "index.dev.js": 'import "./dev-only.js";',
+    "dev-only.js": "export {};",
+    "legacy.cjs": "module.exports = {};",
+    "module.mjs": "export {};",
+    "comvi.global.prod.js": "var Comvi = {};",
+    "cdn.js": "var Comvi = {};",
+    "cli.js": 'import "./commands.js";',
+    "commands.js": "export {};",
+    "runtime/a.js": 'import "./b.js";',
+    "runtime/b.js": "export {};",
+  };
+  const root = makeWorkspace(t, [{ dir: "core", name: "@comvi/core", dist }]);
+  const packageDir = path.join(root, "packages", "core");
+
+  assert.deepEqual(
+    checkPackedJsReachable("@comvi/core", packageDir, packedSetOf(dist), {
+      exports: {
+        ".": { import: { development: "./dist/index.dev.js", default: "./dist/index.js" } },
+        "./runtime/*": "./dist/runtime/*",
+      },
+      main: "./dist/legacy.cjs",
+      module: "./dist/module.mjs",
+      types: "./dist/index.d.ts",
+      unpkg: "./dist/comvi.global.prod.js",
+      jsdelivr: "dist/cdn.js",
+      bin: { comvi: "./dist/cli.js" },
+    }),
     [],
   );
 });
 
-test("checkPackedHashedChunks does not count a chunk's own text as a reference to itself", (t) => {
-  const dist = {
-    "index.js": "export {};",
-    "Core-CycRPy7B.js":
-      '//# sourceMappingURL=Core-CycRPy7B.js.map\nexport const self = "./Core-CycRPy7B.js";',
-  };
-  const root = makeWorkspace(t, [{ dir: "editor", name: "@comvi/editor", dist }]);
-  const packageDir = path.join(root, "packages", "editor");
+test("checkPackedJsReachable ignores bare specifiers and files outside dist", (t) => {
+  const dist = { "index.js": 'import "@comvi/core";\nimport fs from "node:fs";\nexport {};' };
+  const root = makeWorkspace(t, [{ dir: "cli", name: "@comvi/cli", dist }]);
+  const packageDir = path.join(root, "packages", "cli");
+  fs.mkdirSync(path.join(packageDir, "bin"));
+  fs.writeFileSync(path.join(packageDir, "bin", "comvi.js"), 'import "../dist/index.js";');
 
-  const errors = checkPackedHashedChunks("@comvi/editor", packageDir, packedSetOf(dist), [
-    "./dist/index.js",
-  ]);
-  assert.equal(errors.length, 1);
-  assert.match(errors[0], /dist\/Core-CycRPy7B\.js is a hashed chunk/);
+  assert.deepEqual(
+    checkPackedJsReachable(
+      "@comvi/cli",
+      packageDir,
+      new Set([...packedSetOf(dist), "bin/comvi.js"]),
+      { bin: "./bin/comvi.js" },
+    ),
+    [],
+  );
 });
 
 test("checkLicensePacked requires LICENSE in the tarball", () => {
