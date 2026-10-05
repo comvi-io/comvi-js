@@ -12,11 +12,11 @@
         "@comvi/core/devtools"
       ],
       "fixture": "core-full-composite.ts",
-      "gzipBudgetBytes": 9318,
+      "gzipBudgetBytes": 9859,
       "baseline": {
-        "minBytes": 25061,
-        "gzipBytes": 8874,
-        "measuredAt": "2026-09-12"
+        "minBytes": 26260,
+        "gzipBytes": 9389,
+        "measuredAt": "2026-10-05"
       },
       "note": "Gated core ceiling: all six core subpaths recomposed with `.use(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
     },
@@ -36,11 +36,11 @@
       "name": "core-base-icu",
       "entry": ["@comvi/core", "@comvi/core/icu"],
       "fixture": "core-base-icu.ts",
-      "gzipBudgetBytes": 6493,
+      "gzipBudgetBytes": 6828,
       "baseline": {
-        "minBytes": 16749,
-        "gzipBytes": 6183,
-        "measuredAt": "2026-09-12"
+        "minBytes": 17354,
+        "gzipBytes": 6502,
+        "measuredAt": "2026-10-05"
       },
       "note": "Gated: base host + the ICU compiler as a constructor option."
     },
@@ -88,11 +88,11 @@
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-full-composite.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 11692,
+      "gzipBudgetBytes": 12310,
       "baseline": {
-        "minBytes": 32163,
-        "gzipBytes": 11135,
-        "measuredAt": "2026-09-12"
+        "minBytes": 33623,
+        "gzipBytes": 11723,
+        "measuredAt": "2026-10-05"
       },
       "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier."
     },
@@ -101,11 +101,11 @@
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-default.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 7035,
+      "gzipBudgetBytes": 7421,
       "baseline": {
-        "minBytes": 18583,
-        "gzipBytes": 6700,
-        "measuredAt": "2026-09-12"
+        "minBytes": 19592,
+        "gzipBytes": 7067,
+        "measuredAt": "2026-10-05"
       },
       "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings \u2014 the anchor the Svelte ceiling row is read against."
     },
@@ -140,11 +140,11 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 12381,
+      "gzipBudgetBytes": 13010,
       "baseline": {
-        "minBytes": 35429,
-        "gzipBytes": 11791,
-        "measuredAt": "2026-09-12"
+        "minBytes": 37111,
+        "gzipBytes": 12390,
+        "measuredAt": "2026-10-05"
       },
       "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier."
     },
@@ -199,11 +199,11 @@
         "@comvi/next/config",
         "*/client/ComviClientProvider.js"
       ],
-      "gzipBudgetBytes": 1991,
+      "gzipBudgetBytes": 2128,
       "baseline": {
-        "minBytes": 4053,
-        "gzipBytes": 1896,
-        "measuredAt": "2026-10-04"
+        "minBytes": 4319,
+        "gzipBytes": 2026,
+        "measuredAt": "2026-10-05"
       },
       "note": "Gated Next server graph of the withComvi setup: `<ComviProvider>` and `getI18n` from `@comvi/next/server`, the provider's client half external as the client reference Next keeps."
     },
@@ -253,11 +253,11 @@
         "import.meta.client": "true",
         "import.meta.dev": "false"
       },
-      "gzipBudgetBytes": 13270,
+      "gzipBudgetBytes": 13940,
       "baseline": {
-        "minBytes": 37660,
-        "gzipBytes": 12638,
-        "measuredAt": "2026-10-03"
+        "minBytes": 39123,
+        "gzipBytes": 13276,
+        "measuredAt": "2026-10-05"
       },
       "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."
     },

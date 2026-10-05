@@ -103,6 +103,19 @@ handover state +13 B, `useI18n` reading through the view +10 B; the Next provide
 lever, moving catalog normalisation into core, would push bytes onto Vue/Solid/Svelte rows with
 2–31 B of headroom).
 
+`core-full-composite`, `core-base-icu`, `fw-solid-full-composite`, `fw-svelte-default`,
+`fw-vue-full-composite`, `fw-nuxt-full-composite` and `fw-next-server-provider` were re-baselined on
+2026-10-05 (merged feat @ a40ad6fb) to 9389, 6502, 11723, 7067, 12390, 13276 and 2026 B. Six
+of the seven rows carry only core's growth from lot H1b on rows that had 2–35 B of headroom left:
+`withMessages()` returning three bound read methods instead of the prototype receiver (+24…30 B),
+the `localeRevision` counter and the synchronous `setLocale()` on a full cache hit, which removed
+the binding-side `ssrLocale` workarounds (+42…73 B on rows with the loader; `core-base` stays within
+budget at 5446 B of 5534). Vue adds 45 B for the locale ref that mirrors the
+instance after a failed or superseded switch. `fw-next-server-provider` grew 113 B from 1913 B: the
+`x-comvi-locale` header is now checked against `routing.locales` (or a BCP-47 shape without a
+routing config), with the routing registered on the manual setup path too, and the no-loader
+warning names the remedy in full.
+
 ## How to re-baseline
 
 1. Build the dists the gate reads: `pnpm build`.
