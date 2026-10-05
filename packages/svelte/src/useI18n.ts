@@ -21,7 +21,7 @@ import type {
   WrapperI18nHost,
   TranslationParams,
   TranslationResult,
-  TranslationValue,
+  MessagesMap,
   NamespaceBoundTranslateFn,
   FlattenedMessages,
   I18nEvent,
@@ -169,7 +169,7 @@ export interface UseI18nReturn<
   /** Resolves once translations for the new locale have loaded. */
   setLocale: Host["setLocale"];
 
-  addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
+  addMessages: (messages: MessagesMap) => void;
 
   setFallbackLocale: (locales: string | string[]) => void;
 

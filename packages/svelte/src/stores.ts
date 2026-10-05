@@ -58,7 +58,7 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
     stores = {
       locale: readable(i18n.locale, (set) => {
         set(i18n.locale);
-        const unsubscribe = i18n.on("localeChanged", ({ to }) => set(to));
+        const unsubscribe = i18n.on("localeChanged", () => set(i18n.locale));
         return unsubscribe;
       }),
       loading: readable(i18n.isLoading, (set) => {
