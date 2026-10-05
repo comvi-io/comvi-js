@@ -1,4 +1,4 @@
-import type { I18nPlugin, I18nPluginFactory, TranslationValue } from "@comvi/core";
+import type { I18nPlugin, I18nPluginFactory, MessagesMap } from "@comvi/core";
 import type { TranslationStore } from "./types";
 import type { FetchLoaderOptions } from "./options";
 import { FETCH_LOADER_PLUGIN_KEY } from "./plugin-key";
@@ -194,7 +194,7 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
         const nss = active.length > 0 ? active : [defaultNs];
         try {
           const { store } = await fetchFromApi(loc, nss);
-          const translations: Record<string, Record<string, TranslationValue>> = {};
+          const translations: MessagesMap = {};
           for (const ns of nss) {
             const data = store.get(`${loc}:${ns}`);
             if (data) translations[`${loc}:${ns}`] = data;

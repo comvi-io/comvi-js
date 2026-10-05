@@ -1,4 +1,4 @@
-import type { TranslationValue } from "@comvi/core";
+import type { MessagesMap, TranslationValue } from "@comvi/core";
 import type { CdnLayoutOptions, FallbackMap, FetchLoaderOptions } from "./options";
 import type { InflightRequests } from "./inflight";
 import {
@@ -127,7 +127,7 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
 export interface InitialLoadHost {
   readonly locale: string;
   getActiveNamespaces(): string[];
-  addMessages(translations: Record<string, Record<string, TranslationValue>>): void;
+  addMessages(messages: MessagesMap): void;
 }
 
 /**
