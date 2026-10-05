@@ -47,6 +47,10 @@ export const STEPS = [
   "u",
   "v",
   "v2",
+  "w",
+  "x",
+  "y",
+  "z",
 ];
 
 /**
@@ -86,6 +90,10 @@ export const STEP_LEGEND = {
   u: "--cdn client race: en → uk → de with uk's catalog answered LAST (vue, nuxt: their binding queues switches, so de is requested only after uk); the UI stays de",
   v: "--cdn: uk's catalog request hangs → after the loader's timeout the bundled uk renders",
   v2: "--cdn: uk's catalog is corrupt JSON → the bundled uk renders",
+  w: "namespace: the first page never requests `account`; the second page loads `en:account` once and renders it",
+  x: "namespace: every DOM state of the second page during en → uk → de is one whole language, `account` included; its en-only key renders en",
+  y: "SSR: plain-HTTP /uk/about already carries the `account` text, then hydrates without changing it or refetching the catalog",
+  z: "--cdn: CDN unreachable → the bundled `locale:account` fallback imports serve the namespace",
 };
 
 export function parseArgs(argv) {
@@ -184,9 +192,9 @@ export function cdnRoute(pathname, base, defaultNs = "default") {
 /**
  * Where a routed catalog lives in `examples/locales`.
  *
- * The shared catalogs are the default namespace (`en.json`, `uk.json`,
- * `de.json`); a namespace `ns` would live in `ns/<locale>.json`, mirroring the
- * CDN, so adding one needs no change here.
+ * The catalogs at the root are the default namespace (`en.json`, `uk.json`,
+ * `de.json`); a namespace lives in `<namespace>/<locale>.json`, as `account`
+ * does, mirroring the CDN.
  */
 export function catalogFile(localesDir, route, defaultNs = "default") {
   return route.namespace === defaultNs
@@ -233,6 +241,16 @@ export function cdnCatalog(catalog, locale, missingKeys = CDN_MISSING) {
   return visit(catalog, "");
 }
 
+/**
+ * A routed catalog under the name an import map gives it: `uk` for the default
+ * namespace, `uk:account` for any other. The mock's modes, its state and its
+ * release are all keyed this way, so a test can steer one namespace's file and
+ * leave the same locale's default catalog alone.
+ */
+export function catalogKey(route, defaultNs = "default") {
+  return route.namespace === defaultNs ? route.locale : `${route.locale}:${route.namespace}`;
+}
+
 /** What a corrupt catalog response carries: a body that is not JSON at all. */
 export const CORRUPT_BODY = '{"greeting": {"hello": "[CDN] cut off';
 
@@ -251,17 +269,20 @@ export const CONTROL_PATH = "/__e2e";
  *
  * The tests steer it through `{origin}/__e2e` (never part of the layout):
  *
+ * A catalog is named by its `catalogKey`: `uk` is the default namespace's uk
+ * file, `uk:account` the `account` namespace's.
+ *
  *   - `POST /__e2e/mode` with `{ hold, hang, corrupt, missing }` sets what
- *     happens to catalog requests ARRIVING from now on: a `hold` locale's
- *     response is withheld until released; a `hang` locale's never comes; a
- *     `corrupt` locale gets `CORRUPT_BODY`; `missing` replaces `CDN_MISSING`.
+ *     happens to catalog requests ARRIVING from now on: a `hold` catalog's
+ *     response is withheld until released; a `hang` catalog's never comes; a
+ *     `corrupt` catalog gets `CORRUPT_BODY`; `missing` replaces `CDN_MISSING`.
  *     It also drops whatever the previous mode left held or hanging.
- *   - `GET /__e2e/state` answers `{ held, hanging }`: the locales of the
+ *   - `GET /__e2e/state` answers `{ held, hanging }`: the keys of the
  *     requests in flight right now, in arrival order. A test waits on it
  *     until every request it races is provably in flight (the barrier).
- *   - `POST /__e2e/release?locale=uk` answers every held uk request, and
- *     itself answers once those responses are written: `{ released }`, or
- *     409 when nothing was held for that locale.
+ *   - `POST /__e2e/release?key=uk` answers every held request for that
+ *     catalog, and itself answers once those responses are written:
+ *     `{ released }`, or 409 when nothing was held under that key.
  */
 export async function startMockCdn({ localesDir, base = "/cdn/e2e", host = "127.0.0.1" }) {
   const requests = [];
@@ -272,9 +293,9 @@ export async function startMockCdn({ localesDir, base = "/cdn/e2e", host = "127.
   };
   const empty = () => ({ hold: [], hang: [], corrupt: [], missing: CDN_MISSING });
   let mode = empty();
-  /** `{ locale, send, res }` per withheld response, in arrival order. */
+  /** `{ key, send, res }` per withheld response, in arrival order. */
   let held = [];
-  /** `{ locale, res }` per response that will never come. */
+  /** `{ key, res }` per response that will never come. */
   let hanging = [];
   const json = (res, status, body) =>
     res
@@ -290,17 +311,17 @@ export async function startMockCdn({ localesDir, base = "/cdn/e2e", host = "127.
     const action = pathname.slice(CONTROL_PATH.length + 1);
     if (req.method === "GET" && action === "state") {
       json(res, 200, {
-        held: held.map((entry) => entry.locale),
-        hanging: hanging.map((entry) => entry.locale),
+        held: held.map((entry) => entry.key),
+        hanging: hanging.map((entry) => entry.key),
       });
       return;
     }
     if (req.method === "POST" && action === "release") {
-      const locale = search.get("locale");
-      const releasing = held.filter((entry) => entry.locale === locale);
-      held = held.filter((entry) => entry.locale !== locale);
+      const key = search.get("key");
+      const releasing = held.filter((entry) => entry.key === key);
+      held = held.filter((entry) => entry.key !== key);
       if (releasing.length === 0) {
-        json(res, 409, { released: 0, error: `nothing held for ${locale}` });
+        json(res, 409, { released: 0, error: `nothing held for ${key}` });
         return;
       }
       Promise.all(releasing.map((entry) => entry.send())).then(() =>
@@ -352,16 +373,17 @@ export async function startMockCdn({ localesDir, base = "/cdn/e2e", host = "127.
       return;
     }
     const { locale } = route;
-    if (mode.hang.includes(locale)) {
+    const key = catalogKey(route);
+    if (mode.hang.includes(key)) {
       entry.status = "hang";
-      hanging.push({ locale, res });
+      hanging.push({ key, res });
       res.on("close", () => (hanging = hanging.filter((other) => other.res !== res)));
       return;
     }
-    const body = mode.corrupt.includes(locale)
+    const body = mode.corrupt.includes(key)
       ? CORRUPT_BODY
       : JSON.stringify(cdnCatalog(JSON.parse(fs.readFileSync(file, "utf8")), locale, mode.missing));
-    if (mode.corrupt.includes(locale)) entry.corrupt = true;
+    if (mode.corrupt.includes(key)) entry.corrupt = true;
     const send = () =>
       new Promise((resolve) => {
         if (res.destroyed) return resolve();
@@ -370,9 +392,9 @@ export async function startMockCdn({ localesDir, base = "/cdn/e2e", host = "127.
           .writeHead(200, { ...headers, "content-type": "application/json; charset=utf-8" })
           .end(body, resolve);
       });
-    if (mode.hold.includes(locale)) {
+    if (mode.hold.includes(key)) {
       entry.status = "held";
-      held.push({ locale, send, res });
+      held.push({ key, send, res });
       res.on("close", () => (held = held.filter((other) => other.res !== res)));
       return;
     }
@@ -470,7 +492,9 @@ export function cdnEnv(kind, cdnUrl) {
 }
 
 /**
- * The URL path of each locale's catalog chunk, read off Nuxt's client manifest.
+ * The URL path of each catalog's chunk, read off Nuxt's client manifest, under
+ * the catalog's import-map key: `uk` for `locales/uk.json`, `uk:account` for
+ * `locales/account/uk.json`.
  *
  * Vite names a dynamic `import("./locales/uk.json")` chunk `uk-<hash>.js`, so
  * the spec can match it by name; Nuxt names chunks by hash alone, so the only
@@ -480,8 +504,9 @@ export function cdnEnv(kind, cdnUrl) {
 export function nuxtCatalogChunks(manifest) {
   const out = {};
   for (const [key, chunk] of Object.entries(manifest ?? {})) {
-    const match = /(?:^|\/)locales\/([A-Za-z0-9_-]+)\.json$/.exec(key);
-    if (match && chunk?.file) out[match[1]] = `/_nuxt/${chunk.file}`;
+    const match = /(?:^|\/)locales\/(?:([A-Za-z0-9_-]+)\/)?([A-Za-z0-9_-]+)\.json$/.exec(key);
+    if (!match || !chunk?.file) continue;
+    out[match[1] ? `${match[2]}:${match[1]}` : match[2]] = `/_nuxt/${chunk.file}`;
   }
   return out;
 }
@@ -715,18 +740,18 @@ export function allPassed(results) {
  * condition went wrong — an env var the runner forgot, a kind it misread —
  * would otherwise print "skip" and leave the run green.
  *
- *   - vite (the five client-rendered examples): f, i and o read server HTML or
- *     a locale in the URL; s is an SSR-only run variant; t and t2 race two
+ *   - vite (the five client-rendered examples): f, i, o and y read server HTML
+ *     or a locale in the URL; s is an SSR-only run variant; t and t2 race two
  *     server renders.
- *   - without --cdn: k, k2, k3, g2 and the CDN-steering steps (t, t2, u, v,
+ *   - without --cdn: k, k2, k3, g2, z and the CDN-steering steps (t, t2, u, v,
  *     v2) are about the mock CDN.
  *   - with --cdn: s is not run (the F-15 variant runs in the bundled mode).
  */
 export function allowedSkips({ kind, cdn }) {
   const allowed = new Set();
-  if (kind === "vite") for (const step of ["f", "i", "o", "s", "t", "t2"]) allowed.add(step);
+  if (kind === "vite") for (const step of ["f", "i", "o", "s", "t", "t2", "y"]) allowed.add(step);
   if (cdn) allowed.add("s");
-  else for (const step of ["k", "k2", "k3", "g2", ...CDN_CONTROL_STEPS]) allowed.add(step);
+  else for (const step of ["k", "k2", "k3", "g2", "z", ...CDN_CONTROL_STEPS]) allowed.add(step);
   return allowed;
 }
 
