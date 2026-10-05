@@ -127,7 +127,7 @@ independent, and either works without the other.
 - `<I18nProvider>` initializes from a `createEffect`, and effects do not run during Solid's server
   render, so a loader fetches nothing there. Load the messages in a server function with a fresh
   instance per request, render through `<I18nProvider autoInit={false}>`, and pass `ssrLocale` on both
-  sides. Never share a module-level instance across SSR requests; one is fine for a client-only app.
+  sides. Never share a module-level instance across SSR requests; one is fine for a client-only app. `ssrLocale` paints on the first render when that locale's catalogs are already available (inline `messages`, or loaded earlier); otherwise the first render is in the instance's current locale and the switch lands when the load completes.
 
 ## Next steps
 

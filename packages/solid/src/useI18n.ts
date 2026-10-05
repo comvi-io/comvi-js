@@ -160,13 +160,7 @@ export function useI18n<
     // does not depend on the active locale, and tracking it there would
     // recompute on every unrelated global locale change.
     if (params?.locale === undefined) {
-      // The render locale is the signal. It equals `ctx.i18n.locale` except
-      // while an `ssrLocale` the instance has not adopted yet is pending (see
-      // the provider); only then is it passed explicitly.
-      const renderLocale = ctx.signals.locale();
-      if (renderLocale !== ctx.i18n.locale) {
-        params = { ...params, locale: renderLocale };
-      }
+      ctx.signals.locale();
     }
     ctx.signals.cacheRevision();
     if (ns === undefined) {

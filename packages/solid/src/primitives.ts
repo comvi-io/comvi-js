@@ -16,23 +16,13 @@ import type {
 // (`defaultNamespace`, `defaultParams`). A setter always writes THROUGH to the
 // host; nothing here holds a local value the host does not have.
 
-/**
- * The locale signal starting at `seed` instead of `i18n.locale`, until the
- * next `localeChanged`. Not re-exported: the provider seeds it from a pending
- * `ssrLocale`.
- * @internal
- */
-export function createSeededLocaleSignal(i18n: WrapperI18nHost, seed: string): Accessor<string> {
+/** MUST be called within a reactive context (component or effect). */
+export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
   const signal = from<string>((set) => {
-    set(seed);
+    set(i18n.locale);
     return i18n.on("localeChanged", ({ to }) => set(to));
   });
   return signal as Accessor<string>;
-}
-
-/** MUST be called within a reactive context (component or effect). */
-export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
-  return createSeededLocaleSignal(i18n, i18n.locale);
 }
 
 /**

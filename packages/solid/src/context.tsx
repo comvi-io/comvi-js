@@ -11,7 +11,6 @@ import {
 import type { AnyI18nHost, WrapperI18nHost } from "@comvi/core";
 import {
   createLocaleSignal,
-  createSeededLocaleSignal,
   createDefaultNamespaceSignal,
   createLoadingSignal,
   createInitializingSignal,
@@ -70,13 +69,15 @@ export interface I18nProviderProps {
    */
   fallback?: JSX.Element;
   /**
-   * Render locale for SSR, under the name `@comvi/vue` uses: the instance adopts
-   * it during the render phase and the locale signal is seeded from it, so
-   * `renderToString` and the hydrating client agree on the first paint — also
-   * on an instance with `@comvi/core/loader` composed, whose `setLocale`
-   * settles a microtask later. Set it
-   * when the server renders in a locale the client would not detect on its
-   * own.
+   * Render locale for SSR, under the name `@comvi/vue` uses: the provider
+   * writes it to the instance during the render phase, so `renderToString` and
+   * the hydrating client agree on the first paint. Set it when the server
+   * renders in a locale the client would not detect on its own.
+   *
+   * It paints on the first render when that locale's catalogs are already
+   * available (inline `messages`, or loaded earlier). Otherwise the first
+   * render is in the instance's current locale, and the switch lands when the
+   * load completes.
    *
    * **The instance must be per request.** This is a WRITE to `i18n.locale`, and
    * during `renderToString` it happens in the server process: an instance built at
@@ -98,26 +99,16 @@ export interface I18nProviderProps {
 
 export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
   // Read once, in the component body — the RENDER phase, `renderToString`
-  // included, not an effect: `ssrLocale` is the render locale, the same
-  // contract vue's option of that name has, and the host is the ONE place that
-  // locale can live — `t()` resolves against `i18n.locale`, so seeding only
-  // the signal would leave the text and the locale disagreeing. Before
-  // `signalsMemo` below, so the first paint already reads it. The write is why
-  // an SSR app must hand this provider a PER-REQUEST host; see the prop's doc.
+  // included, not an effect. This is a WRITE to `i18n.locale`, which is why an
+  // SSR app must hand this provider a PER-REQUEST instance; see the prop's doc.
+  // The instance decides when the write lands: at once when that locale's
+  // catalogs are already available, otherwise when their load completes. The
+  // signals below mirror the instance and never run ahead of it, so `t()`,
+  // `locale()` and the formatters always agree.
   const ssrLocale = props.ssrLocale;
   if (ssrLocale !== undefined && props.i18n.locale !== ssrLocale) {
     props.i18n.locale = ssrLocale;
   }
-  // The write above lands synchronously on a base instance. With
-  // `@comvi/core/loader` composed and a namespace active, the loader's
-  // `setLocale` awaits the namespace (even on a cache hit) before `locale`
-  // moves, so the instance still reports the OLD locale here. The locale
-  // signal is then seeded from `ssrLocale` instead, and `t()` resolves against
-  // the signal, so the first render — `renderToString` and the hydrating
-  // client alike — paints `ssrLocale`. The seed is for this instance only.
-  const seededInstance = props.i18n;
-  const seededLocale =
-    ssrLocale !== undefined && seededInstance.locale !== ssrLocale ? ssrLocale : undefined;
 
   // `isInitialized`/`isInitializing` are plain non-reactive getters, read here
   // only as a re-entry guard: the effect re-runs on `props.i18n` /
@@ -137,10 +128,7 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
   // detaches their cleanups from the memo's owner and leaks the core event
   // subscriptions whenever `props.i18n` is swapped.
   const signalsMemo = createMemo(() => ({
-    locale:
-      seededLocale !== undefined && props.i18n === seededInstance
-        ? createSeededLocaleSignal(props.i18n, seededLocale)
-        : createLocaleSignal(props.i18n),
+    locale: createLocaleSignal(props.i18n),
     defaultNamespace: createDefaultNamespaceSignal(props.i18n),
     isLoading: createLoadingSignal(props.i18n),
     isInitializing: createInitializingSignal(props.i18n),
