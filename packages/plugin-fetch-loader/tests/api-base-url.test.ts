@@ -22,6 +22,16 @@ describe("API_BASE_URL", () => {
     expect(await loadApiBaseUrl()).toBe("https://api.self-hosted.example");
   });
 
+  it("is the preset where `process` does not exist (a browser, an edge runtime)", async () => {
+    vi.stubGlobal("process", undefined);
+    expect(await loadApiBaseUrl()).toBe("https://api.comvi.io");
+  });
+
+  it("is the preset where `process` has no `env`", async () => {
+    vi.stubGlobal("process", {});
+    expect(await loadApiBaseUrl()).toBe("https://api.comvi.io");
+  });
+
   it("ignores VITE_API_BASE_URL: the published dist cannot read a consumer's Vite env", async () => {
     vi.stubEnv("NEXT_PUBLIC_COMVI_API_URL", "");
     vi.stubEnv("VITE_API_BASE_URL", "https://api.vite.example");

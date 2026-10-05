@@ -59,7 +59,7 @@ export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options
   } = options;
 
   // When `baseUrl` is absent, downstream URL builders fall back to the
-  // `NEXT_PUBLIC_COMVI_API_URL` (Next.js) / Comvi platform preset (API_BASE_URL).
+  // `NEXT_PUBLIC_COMVI_API_URL` from `process.env` / Comvi platform preset (API_BASE_URL).
 
   const cacheOpts = buildCacheOptions(cache);
 

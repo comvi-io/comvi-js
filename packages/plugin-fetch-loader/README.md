@@ -111,7 +111,7 @@ prerender, a CLI or a script; in the browser use `cdnLoader`.
 | Option          | Default                        | Entry | Behaviour                                                                              |
 | --------------- | ------------------------------ | ----- | -------------------------------------------------------------------------------------- |
 | `cdnUrl`        | required                       | both  | The CDN base URL from **Settings → Content Deploy**.                                   |
-| `baseUrl`       | `https://api.comvi.io`         | api   | The API host. On Next.js, `NEXT_PUBLIC_COMVI_API_URL` replaces the default.            |
+| `baseUrl`       | `https://api.comvi.io`         | api   | The API host. `NEXT_PUBLIC_COMVI_API_URL` replaces the default; see below.             |
 | `fallback`      | none                           | both  | Import map served when a network load fails.                                           |
 | `onLoadError`   | none                           | both  | `(locale, namespace, error)` when a pair fails and no fallback produced data.          |
 | `onLoadSuccess` | none                           | both  | `(locale, namespace)` when a pair loads, including from `fallback`.                    |
@@ -123,6 +123,9 @@ prerender, a CLI or a script; in the browser use `cdnLoader`.
 
 Naming an `/api`-only option on `cdnLoader` is a compile error. Concurrent requests for one
 `locale:namespace` are deduplicated, and `destroy()` aborts everything in flight.
+
+`NEXT_PUBLIC_COMVI_API_URL` is read from `process.env` on the server; the name follows Next's
+convention, and only Next can inline it into a browser bundle. Anywhere else, pass `baseUrl`.
 
 ## Next steps
 

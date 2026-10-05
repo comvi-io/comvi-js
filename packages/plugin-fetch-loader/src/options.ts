@@ -54,9 +54,10 @@ export interface FetchLoaderOptions {
    * API base URL, used when the i18n instance has an `apiKey`. This option is
    * the way to point the loader at a self-hosted or proxied API.
    *
-   * When absent, `process.env.NEXT_PUBLIC_COMVI_API_URL` applies on Next.js
-   * (Next inlines it into the app build), then the Comvi platform preset
-   * (`comviPreset.apiBaseUrl`, `https://api.comvi.io`).
+   * When absent, `NEXT_PUBLIC_COMVI_API_URL` applies: it is read from
+   * `process.env` on the server; the name follows Next's convention, and only
+   * Next can inline it into a browser bundle. The final fallback is the Comvi
+   * platform preset (`comviPreset.apiBaseUrl`, `https://api.comvi.io`).
    *
    * @example
    * ```typescript
@@ -195,7 +196,7 @@ export function getFetchLoaderConfig(i18n: {
  * Comvi platform preset: the hosted API and CDN base URLs.
  *
  * Applied as the final fallback when neither the explicit `baseUrl` option nor
- * `NEXT_PUBLIC_COMVI_API_URL` (Next.js) is present. Platform
+ * the `NEXT_PUBLIC_COMVI_API_URL` environment variable is present. Platform
  * users get these defaults without configuration; self-hosted or proxied
  * setups pass `baseUrl` explicitly.
  */
@@ -206,7 +207,9 @@ export const comviPreset = {
 
 /**
  * API base URL when the `baseUrl` option is absent. `NEXT_PUBLIC_COMVI_API_URL`
- * works on Next.js only, which inlines it into the app build.
+ * is read from `process.env` on the server; the name follows Next's convention,
+ * and only Next can inline it into a browser bundle. Where `process` does not
+ * exist (a browser, an edge runtime) this is the preset.
  */
 export const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_COMVI_API_URL) ||
