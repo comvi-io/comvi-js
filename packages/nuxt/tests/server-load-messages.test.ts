@@ -245,6 +245,10 @@ describe("loadMessages", () => {
     expect(message).toContain("has no loader capability");
     expect(message).toContain("hostModule");
     expect(message).toContain("use(loader(map))");
+    // A Nuxt app has no direct @comvi/core dependency: the entry is the
+    // package's own `/host` subpath.
+    expect(message).toContain('"@comvi/nuxt/host"');
+    expect(message).not.toContain("@comvi/core");
     // The capability-less message must not send a reader to comvi.setup.
     expect(message).not.toContain("registerLoader");
   });

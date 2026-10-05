@@ -24,7 +24,7 @@ const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 // `hostModule` factory. Naming the wrong one would send a reader to the wrong
 // file, so the capability probe below picks the message.
 const NO_LOADER_CAPABILITY_MESSAGE =
-  '[@comvi/nuxt] This i18n instance has no loader capability, so SSR loaded nothing. The generated default instance is core\'s base instance — compose the loader in a `hostModule` factory: createI18n(options).use(loader(map)) from "@comvi/core" + "@comvi/core/loader", and set `comvi.hostModule` in nuxt.config.';
+  '[@comvi/nuxt] This i18n instance has no loader capability, so SSR loaded nothing. The generated default instance is core\'s base instance — compose the loader in comvi.host.ts (or the file `comvi.hostModule` names): createI18n(options).use(loader(map)), both imported from "@comvi/nuxt/host".';
 // The host HAS the loader capability here, so the fix is the REGISTRATION, not
 // the composition — and it may only name shapes the docs teach.
 // `registerPlugin(...)` is not one of them: the plugin host is a SEPARATE
