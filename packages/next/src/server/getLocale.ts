@@ -7,10 +7,10 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 // Set by the middleware to pass the locale to Server Components.
 const LOCALE_HEADER = "x-comvi-locale";
 
-// A BCP-47-shaped code: a 2–3 letter language, then subtags of 2–8
-// alphanumerics. Enough to keep a path, a URL or a header injection out of the
+// A BCP-47-shaped code: a 2–3 letter language, then subtags of 1–8
+// alphanumerics (singletons included: `en-u-ca-gregory`, `de-x-foo`). Enough to keep a path, a URL or a header injection out of the
 // lookup locale a loader builds its request from.
-const LOCALE_CODE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+const LOCALE_CODE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/;
 
 // Once per process: the header is per request, and a crawler sending a bad
 // one must not fill the log.

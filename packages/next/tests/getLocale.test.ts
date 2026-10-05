@@ -76,6 +76,24 @@ describe("getLocale", () => {
       await expect(getLocale()).resolves.toBe("pt-BR");
     });
 
+    it.each(["en-u-ca-gregory", "de-x-foo", "zh-Hans-CN"])(
+      'accepts "%s" when there is no routing',
+      async (code) => {
+        headersMock.mockResolvedValue(new Headers([["x-comvi-locale", code]]));
+
+        await expect(getLocale()).resolves.toBe(code);
+      },
+    );
+
+    it.each(["en-", "en--US", "e", "english", "en-abcdefghi"])(
+      'ignores the malformed code "%s" when there is no routing',
+      async (code) => {
+        headersMock.mockResolvedValue(new Headers([["x-comvi-locale", code]]));
+
+        await expect(getLocale()).rejects.toThrow("Unable to determine locale");
+      },
+    );
+
     it("ignores a locale outside routing.locales and falls back to the default", async () => {
       getConfiguredRoutingMock.mockReturnValue({ locales: ["en", "uk"], defaultLocale: "en" });
       headersMock.mockResolvedValue(new Headers([["x-comvi-locale", "zz"]]));
