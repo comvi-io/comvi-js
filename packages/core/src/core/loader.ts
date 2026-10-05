@@ -156,14 +156,15 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     this._requestedLocale = value;
     const changeId = ++this._currentLocaleChangeId;
 
-    // `_loadNs`'s own "nothing to fetch" test, asked first: with a loader
-    // registered and every active namespace of the target cached, the switch
-    // happens INSIDE this call — no await before the assignment below, and no
-    // loading transition for a load that never starts. The changeId bump above
-    // still supersedes a switch in flight. With NO loader registered the
-    // switch is as synchronous, and keeps the loading pair it always emitted.
+    // `_missingNs` is the "what would be fetched" test `_loadNs` applies, asked
+    // first: with a loader registered and every active namespace of the target
+    // cached, the switch happens INSIDE this call — no await before the
+    // assignment below, and no loading transition for a load that never
+    // starts. The changeId bump above still supersedes a switch in flight.
+    // With NO loader registered the switch is as synchronous, and keeps the
+    // loading pair it always emitted.
     const namespaces = [...this._activeNamespaces];
-    const mustLoad = this._loader && namespaces.some((ns) => !this.messagesCache.has(value, ns));
+    const mustLoad = this._loader && this._missingNs(value, namespaces).length > 0;
     const bracket = !this._loader || mustLoad;
 
     if (bracket) this._setLoadingState(true);
@@ -405,6 +406,11 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     return guarded;
   }
 
+  /** The namespaces of `locale` the cache does not hold: what a `skipLoaded` load fetches. */
+  protected _missingNs(locale: string, namespaces: string[]): string[] {
+    return namespaces.filter((ns) => !this.messagesCache.has(locale, ns));
+  }
+
   /** @internal `_loadNs` hook — load the given namespaces for one locale. */
   protected async _loadNs(
     locale: string,
@@ -413,9 +419,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   ): Promise<void> {
     if (!this._loader) return;
 
-    const namespacesToLoad = skipLoaded
-      ? namespaces.filter((ns) => !this.messagesCache.has(locale, ns))
-      : namespaces;
+    const namespacesToLoad = skipLoaded ? this._missingNs(locale, namespaces) : namespaces;
 
     if (namespacesToLoad.length === 0) return;
 

@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+// The COMPOSITE host (`src/core/full.ts`), imported directly as locale-race does.
+import { I18n } from "../../src/core/full";
 import { createI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
 
@@ -7,30 +9,37 @@ import { attachLoader } from "../../src/loader";
  * namespace of it is cached — switches inside the call. One that must fetch
  * stays the asynchronous, loading-bracketed switch.
  */
-const setup = async (cached: Record<string, Record<string, string>> = {}) => {
-  const answers: Record<string, () => void> = {};
-  const requested: string[] = [];
-  const i18n = attachLoader(
-    createI18n({ locale: "en", ns: [], exposeGlobal: false, onError: () => {} }),
-  );
-  i18n.registerLoader((locale) => {
-    requested.push(locale);
-    return locale === "en"
-      ? Promise.resolve({ greeting: "en" })
-      : new Promise((resolve) => (answers[locale] = () => resolve({ greeting: locale })));
-  });
-  await i18n.addActiveNamespace("common");
-  for (const locale of Object.keys(cached)) {
-    i18n.addMessages({ [`${locale}:common`]: cached[locale] });
-  }
-  requested.length = 0;
-  const events: string[] = [];
-  i18n.on("localeChanged", ({ from, to }) => events.push(`locale ${from}>${to}`));
-  i18n.on("loadingStateChanged", ({ isLoading }) => events.push(`loading ${isLoading}`));
-  return { i18n, answers, requested, events };
-};
+const OPTIONS = { locale: "en", ns: [], exposeGlobal: false, onError: () => {} };
 
-describe("loader setLocale() on a cached target", () => {
+describe.each([
+  ["composed host", () => new I18n(OPTIONS)],
+  ["slim + attachLoader", () => attachLoader(createI18n(OPTIONS))],
+] as const)("loader setLocale() on a cached target (%s)", (_label, make) => {
+  const trace = (i18n: ReturnType<typeof make>) => {
+    const events: string[] = [];
+    i18n.on("localeChanged", ({ from, to }) => events.push(`locale ${from}>${to}`));
+    i18n.on("loadingStateChanged", ({ isLoading }) => events.push(`loading ${isLoading}`));
+    return events;
+  };
+
+  const setup = async (cached: Record<string, Record<string, string>> = {}) => {
+    const answers: Record<string, () => void> = {};
+    const requested: string[] = [];
+    const i18n = make();
+    i18n.registerLoader((locale) => {
+      requested.push(locale);
+      return locale === "en"
+        ? Promise.resolve({ greeting: "en" })
+        : new Promise((resolve) => (answers[locale] = () => resolve({ greeting: locale })));
+    });
+    await i18n.addActiveNamespace("common");
+    for (const locale of Object.keys(cached)) {
+      i18n.addMessages({ [`${locale}:common`]: cached[locale] });
+    }
+    requested.length = 0;
+    return { i18n, answers, requested, events: trace(i18n) };
+  };
+
   it("switches inside the call: no load, no loading state, one localeChanged", async () => {
     const { i18n, requested, events } = await setup({ uk: { greeting: "Привіт" } });
 
@@ -136,5 +145,55 @@ describe("loader setLocale() on a cached target", () => {
 
     expect(i18n.locale).toBe("en");
     expect(events).toEqual([]);
+  });
+
+  it("a cached switch followed at once by one that must fetch ends at the fetched target", async () => {
+    const { i18n, answers, requested, events } = await setup({ uk: { greeting: "Привіт" } });
+
+    const toUk = i18n.setLocale("uk");
+    const toFr = i18n.setLocale("fr");
+
+    expect(i18n.locale).toBe("uk");
+    expect(events).toEqual(["locale en>uk", "loading true"]);
+    await Promise.resolve();
+    answers.fr();
+    await Promise.all([toUk, toFr]);
+
+    expect(requested).toEqual(["fr"]);
+    expect(i18n.locale).toBe("fr");
+    expect(i18n.localeRevision).toBe(2);
+    expect(i18n.isLoading).toBe(false);
+    expect(events).toEqual(["locale en>uk", "loading true", "locale uk>fr", "loading false"]);
+  });
+
+  it("keeps the loading pair when no loader is registered at all", async () => {
+    const i18n = make();
+    const events = trace(i18n);
+
+    const switching = i18n.setLocale("uk");
+
+    // As synchronous as a cache hit; the pair is the capability's old contract.
+    expect(i18n.locale).toBe("uk");
+    await switching;
+    expect(events).toEqual(["loading true", "locale en>uk", "loading false"]);
+  });
+
+  it("re-entrant: a listener's switch lands, and its nested event reaches later listeners before the outer one", async () => {
+    const { i18n } = await setup({ uk: { greeting: "Привіт" }, de: { greeting: "Hallo" } });
+    i18n.on("localeChanged", ({ to }) => {
+      if (to === "uk") void i18n.setLocale("de");
+    });
+    // Registered second: what a later listener (a binding, say) is delivered.
+    const delivered: string[] = [];
+    i18n.on("localeChanged", ({ from, to }) =>
+      delivered.push(`${from}>${to} at ${i18n.locale}#${i18n.localeRevision}`),
+    );
+
+    await i18n.setLocale("uk");
+
+    expect(i18n.locale).toBe("de");
+    expect(i18n.localeRevision).toBe(2);
+    // The payloads arrive out of order; `i18n.locale` read in the listener is right both times.
+    expect(delivered).toEqual(["uk>de at de#2", "en>uk at de#2"]);
   });
 });
