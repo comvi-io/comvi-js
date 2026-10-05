@@ -193,10 +193,14 @@ export default defineNuxtPlugin({
       }
     }
 
-    const unsubLocaleChanged = i18n.on("localeChanged", ({ to }) => {
-      localeState.value = to;
+    // Reads the instance, not the payload: a listener registered earlier (a
+    // `comvi.setup` hook's) may switch again synchronously, and its nested
+    // event is then delivered BEFORE this outer one, whose `to` is stale.
+    const unsubLocaleChanged = i18n.on("localeChanged", () => {
+      const current = i18n.locale.value;
+      localeState.value = current;
       if (localeCookie) {
-        localeCookie.value = to;
+        localeCookie.value = current;
       }
     });
 

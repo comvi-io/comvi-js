@@ -70,6 +70,7 @@ export type {
   I18nLoaderApi,
   LoaderFn,
 } from "./types";
+export type { MessagesMap } from "@comvi/core";
 
 function normalizeLocales(locales: (string | LocaleObject)[]): {
   codes: string[];

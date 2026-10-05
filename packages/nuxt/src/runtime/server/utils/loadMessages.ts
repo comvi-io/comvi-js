@@ -1,5 +1,5 @@
 import { hasLoaderApi } from "@comvi/core";
-import type { TranslationValue } from "@comvi/core";
+import type { MessagesMap, TranslationValue } from "@comvi/core";
 import type { NuxtServerHost } from "../../../types";
 import type { H3Event } from "h3";
 import { getRequestI18n } from "./request-i18n";
@@ -10,10 +10,8 @@ export interface LoadMessagesOptions {
   namespaces?: string[];
 }
 
-/**
- * Translations result keyed by "locale:namespace"
- */
-export type MessagesMap = Record<string, Record<string, TranslationValue>>;
+// One `MessagesMap`, @comvi/core's: the same shape `addMessages()` takes.
+export type { MessagesMap };
 
 const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 

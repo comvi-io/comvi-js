@@ -6,6 +6,7 @@ import { EDITOR_INITIAL_MAPPINGS_GLOBAL, EDITOR_MAPPINGS_GLOBAL } from "@comvi/c
 // A REAL instance, for the one case that has to prove a key renders rather
 // than that an option was forwarded; every other case keeps the stub.
 import { createI18n as createVueI18n } from "@comvi/vue";
+import { loader as coreLoader } from "@comvi/core/loader";
 import { REQUEST_HOSTS_KEY } from "../src/runtime/request-hosts-key";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
@@ -277,12 +278,44 @@ describe("runtime plugin", () => {
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
 
+    // As the real instance does: the locale moves, then the event fires.
+    i18n.locale.value = "de";
     i18n.emit("localeChanged", { to: "de" });
 
     const localeState = nuxtAppMocks.useState<string>("i18n-locale");
     const localeCookie = nuxtAppMocks.useCookie("i18n_locale");
     expect(localeState.value).toBe("de");
     expect(localeCookie.value).toBe("de");
+  });
+
+  it("ends on the instance's locale when an earlier listener switches again", async () => {
+    // Core's `setLocale` is synchronous when the target's catalogs are loaded,
+    // so a listener registered BEFORE the plugin's (a `comvi.setup` hook's)
+    // that switches again delivers the nested event first; the plugin must
+    // not end on the outer event's stale payload.
+    const i18n = createVueI18n({ locale: "en", exposeGlobal: false } as never).use(
+      coreLoader({
+        en: async () => ({ k: "en" }),
+        uk: async () => ({ k: "uk" }),
+        de: async () => ({ k: "de" }),
+      }),
+    );
+    i18n.on("localeChanged", ({ to }) => {
+      if (to === "uk") void i18n.core.setLocale("de");
+    });
+    createComviI18n.mockReturnValue(i18n);
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+    await i18n.core.reloadMessages("uk");
+    await i18n.core.reloadMessages("de");
+
+    await i18n.core.setLocale("uk");
+    await flushWatchers();
+
+    expect(i18n.core.locale).toBe("de");
+    expect(nuxtAppMocks.useState<string>("i18n-locale").value).toBe("de");
+    expect(nuxtAppMocks.useCookie("i18n_locale").value).toBe("de");
+    await i18n.destroy();
   });
 
   it("updates i18n locale when locale state changes externally", async () => {
@@ -477,6 +510,7 @@ describe("runtime plugin", () => {
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
 
+    i18n.locale.value = "de";
     i18n.emit("localeChanged", { to: "de" });
 
     expect(nuxtAppMocks.useState<string>("i18n-locale").value).toBe("de");
@@ -549,6 +583,7 @@ describe("runtime plugin", () => {
 
     const localeState = nuxtAppMocks.useState<string>("i18n-locale");
     // The localeChanged listener is gone: an event no longer reaches the state.
+    i18n.locale.value = "de";
     i18n.emit("localeChanged", { to: "de" });
     expect(localeState.value).toBe("en");
 
