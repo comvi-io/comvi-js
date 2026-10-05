@@ -15,7 +15,7 @@ import type {
   NamespaceBoundTranslateFn,
   VirtualNode,
   FlattenedMessages,
-  TranslationValue,
+  MessagesMap,
   I18nEvent,
   I18nEventData,
   WrapperI18nHost,
@@ -166,7 +166,7 @@ export interface UseI18nReturn<
 
   /** Change the current locale and wait for translations to load. */
   setLocale: (locale: string) => Promise<void>;
-  addMessages: (translations: Record<string, Record<string, TranslationValue>>) => void;
+  addMessages: (messages: MessagesMap) => void;
 
   setFallbackLocale: (locales: string | string[]) => void;
   /** Current interpolation defaults for this render (shallow snapshot). */

@@ -158,6 +158,10 @@ export interface I18nProviderProps {
    * cancelled) does not end it: the tree stays in `targetLocale` until the
    * i18n instance's locale actually moves.
    *
+   * A switch that never assigns (a cancelled or failed load) does not end the
+   * handover; the tree stays on `targetLocale` until the instance's locale
+   * actually moves.
+   *
    * Only rendering moves: the caller still sets the i18n instance's locale,
    * and the target's catalog must already be cached, or the tree renders its
    * keys.
