@@ -20,7 +20,7 @@ import type {
 export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
   const signal = from<string>((set) => {
     set(i18n.locale);
-    return i18n.on("localeChanged", ({ to }) => set(to));
+    return i18n.on("localeChanged", () => set(i18n.locale));
   });
   return signal as Accessor<string>;
 }
