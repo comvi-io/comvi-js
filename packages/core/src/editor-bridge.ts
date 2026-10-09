@@ -59,11 +59,11 @@ export function toRecordOfNumbers(value: unknown): Record<string, number> | unde
  * or any object the editor plugin attached it to). Returns `undefined` when
  * the instance carries no bridge or the bridge is malformed.
  */
-export function readEditorMappings(host: unknown): InContextEditorMappings | undefined {
-  if (!host || (typeof host !== "object" && typeof host !== "function")) {
+export function readEditorMappings(instance: unknown): InContextEditorMappings | undefined {
+  if (!instance || (typeof instance !== "object" && typeof instance !== "function")) {
     return undefined;
   }
-  const bridge = (host as Record<string, unknown>)[EDITOR_MAPPINGS_GLOBAL];
+  const bridge = (instance as Record<string, unknown>)[EDITOR_MAPPINGS_GLOBAL];
   if (!bridge || typeof bridge !== "object") {
     return undefined;
   }

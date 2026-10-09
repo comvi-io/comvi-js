@@ -29,15 +29,15 @@ export { attachLoader, loader } from "@comvi/core/loader";
 export { definePlugin, plugins } from "@comvi/core/plugins";
 export { devtools } from "@comvi/core/devtools";
 
-import type { DefaultTranslationParams, WrapperI18nHost } from "@comvi/core";
-import type { NuxtHostFactoryOptions } from "../types";
+import type { DefaultTranslationParams, WrapperI18nInstance } from "@comvi/core";
+import type { NuxtInstanceFactoryOptions } from "../types";
 
-export type { NuxtHostFactory } from "../types";
+export type { NuxtInstanceFactory } from "../types";
 
 /**
  * Types a `comvi.host.ts` default export: `options` is the resolved options
  * nuxt passes, and the factory comes back unchanged, so the composed instance's
- * type still reaches `comvi.setup`. It replaces `satisfies NuxtHostFactory`.
+ * type still reaches `comvi.setup`. It replaces `satisfies NuxtInstanceFactory`.
  *
  * The factory runs once per instance (the client, and each server request),
  * so it must return a new instance from `createI18n` on every call; in
@@ -49,8 +49,10 @@ export type { NuxtHostFactory } from "../types";
  * ```
  */
 export function defineComviHost<
-  C extends WrapperI18nHost<D>,
+  C extends WrapperI18nInstance<D>,
   D extends DefaultTranslationParams = {},
->(factory: (options: NuxtHostFactoryOptions<D>) => C): (options: NuxtHostFactoryOptions<D>) => C {
+>(
+  factory: (options: NuxtInstanceFactoryOptions<D>) => C,
+): (options: NuxtInstanceFactoryOptions<D>) => C {
   return factory;
 }

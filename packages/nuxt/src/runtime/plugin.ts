@@ -12,7 +12,7 @@ import type { TranslationValue } from "@comvi/core";
 import { loadCatalogs } from "./utils/load-catalogs";
 import { useHtmlAttrs } from "./utils/html-attrs";
 import { hasLoaderApi } from "@comvi/core";
-import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "./request-hosts-key";
+import { REQUEST_HOSTS_KEY, type RequestScopedInstance } from "./request-hosts-key";
 import {
   EDITOR_INITIAL_MAPPINGS_GLOBAL,
   toRecordOfNumbers,
@@ -20,7 +20,7 @@ import {
 } from "@comvi/core/editor-bridge";
 
 /** Server instances whose `addActiveNamespaces` already loads the fallback chain. */
-const chainLoadingHosts = new WeakSet<object>();
+const chainLoadingInstances = new WeakSet<object>();
 
 const I18N_EDITOR_MAPPINGS_STATE_KEY = "__comvi_ice_mappings__";
 const I18N_MESSAGES_PAYLOAD_KEY = "__comvi_messages__";
@@ -79,7 +79,7 @@ export default defineNuxtPlugin({
       ns: publicConfig.ns || undefined,
       devMode: import.meta.dev,
       apiKey: privateConfig?.apiKey,
-      // Without a `hostModule` the generated host is core's BASE host and has
+      // Without a `hostModule` the generated instance is core's BASE instance and has
       // no loader, so `comvi.messages` is the only catalog it ever gets.
       // `||`, not the value as-is: runtime config turns an unset option into
       // `""` (a `NUXT_PUBLIC_COMVI_MESSAGES=` override does too), and core
@@ -100,19 +100,19 @@ export default defineNuxtPlugin({
     );
 
     if (import.meta.server) {
-      // This host is per-request on the server, and until now nothing destroyed
+      // This instance is per-request on the server, and until now nothing destroyed
       // it: `destroy()` ran only from the HMR dispose below, so a plugin
-      // installed on the SSR host never cleaned up. Park it where the Nitro
-      // server plugin's teardown looks, so the request's app host and the
-      // server utilities' hosts go together, after the response.
+      // installed on the SSR instance never cleaned up. Park it where the Nitro
+      // server plugin's teardown looks, so the request's app instance and the
+      // server utilities' instances go together, after the response.
       const requestEvent = nuxtApp.ssrContext?.event;
       if (requestEvent) {
         const context = requestEvent.context as Record<string, unknown>;
         const parked = context[REQUEST_HOSTS_KEY];
         if (Array.isArray(parked)) {
-          (parked as RequestScopedHost[]).push(i18n);
+          (parked as RequestScopedInstance[]).push(i18n);
         } else {
-          context[REQUEST_HOSTS_KEY] = [i18n] satisfies RequestScopedHost[];
+          context[REQUEST_HOSTS_KEY] = [i18n] satisfies RequestScopedInstance[];
         }
       }
 
@@ -178,14 +178,14 @@ export default defineNuxtPlugin({
       // .addActiveNamespace(ns)`) loads for the current locale only. The render
       // waits for what a component awaits, not for anything collected before
       // `app:rendered` (by then the HTML already holds the raw key), so the
-      // activation itself resolves only once the chain is in. This host is the
+      // activation itself resolves only once the chain is in. This instance is the
       // request's own, so the override never leaves the request; a `hostModule`
-      // factory that returns one shared host anyway gets it wrapped once, not
+      // factory that returns one shared instance anyway gets it wrapped once, not
       // once per request. One path still bypasses it: an `addActiveNamespaces`
       // reference taken inside `comvi.setup`, which runs before this line, and
       // called later. A `useI18nLoader()` bag acquired there is the same case.
-      if (hasLoaderApi(core) && !chainLoadingHosts.has(core)) {
-        chainLoadingHosts.add(core);
+      if (hasLoaderApi(core) && !chainLoadingInstances.has(core)) {
+        chainLoadingInstances.add(core);
         const activate = core.addActiveNamespaces.bind(core);
         core.addActiveNamespaces = async (namespaces: string[]) => {
           await Promise.all([activate(namespaces), loadCatalogs(core, namespaces)]);
@@ -221,7 +221,7 @@ export default defineNuxtPlugin({
         unsubLocaleChanged();
         unwatchLocale();
         // `dispose` is synchronous and HMR does not wait: fire-and-forget is
-        // the contract here, and `destroy()` resolves even when the host's
+        // the contract here, and `destroy()` resolves even when the instance's
         // cleanup fails, so nothing can reach this as an unhandled rejection.
         void i18n.destroy();
       });
@@ -238,7 +238,7 @@ export default defineNuxtPlugin({
 });
 
 // `$i18n` is an ambient channel — a component cannot know how the app composed
-// its host — so the core is seen capability-free there; capabilities come from
+// its instance — so the core is seen capability-free there; capabilities come from
 // `useI18nLoader()` / `useI18nPlugins()`, which verify them.
 declare module "#app" {
   interface NuxtApp {

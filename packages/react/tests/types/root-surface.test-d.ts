@@ -7,9 +7,9 @@ import type {
   DefaultTranslationParams,
   I18n,
   I18nLoaderApi,
-  I18nPluginHostApi,
+  I18nPluginApi,
   I18nProviderProps,
-  WrapperI18nHost,
+  WrapperI18nInstance,
 } from "../../src/index";
 import {
   attachLoader,
@@ -37,12 +37,14 @@ type Expect<T extends true> = T;
 const bare = createI18n({ locale: "en" });
 
 export type _BareIsBaseI18n = Expect<Equal<typeof bare, I18n<{}>>>;
-export type _BareIsAHost = Expect<Equal<typeof bare extends WrapperI18nHost ? true : false, true>>;
+export type _BareIsAInstance = Expect<
+  Equal<typeof bare extends WrapperI18nInstance ? true : false, true>
+>;
 export type _BareHasNoLoaderApi = Expect<
   Equal<typeof bare extends I18nLoaderApi ? true : false, false>
 >;
 export type _BareHasNoPluginApi = Expect<
-  Equal<typeof bare extends I18nPluginHostApi ? true : false, false>
+  Equal<typeof bare extends I18nPluginApi ? true : false, false>
 >;
 
 // @ts-expect-error -- the base host has no loader capability, in types or at runtime
@@ -55,7 +57,7 @@ bare.addMessages({ en: { greeting: "Hello" } });
 // ICU has ONE shape: the compiler option. It never changes the host type,
 // because it configures the host rather than widening it.
 const _withIcu = createI18n({ locale: "en", compiler: icuCompiler });
-export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcu, I18n<{}>>>;
+export type _IcuInstanceIsStillBase = Expect<Equal<typeof _withIcu, I18n<{}>>>;
 
 // …and there is no installer beside it: `icu` is gone from the entry.
 export type _NoIcuInstaller = Expect<
@@ -73,9 +75,9 @@ export type _NoAttachDevtoolsExport = Expect<
 >;
 
 // The host the entry builds is the host its provider accepts: one entry, one
-// `WrapperI18nHost`, no cross-entry structural drift.
+// `WrapperI18nInstance`, no cross-entry structural drift.
 
-export type _BaseHostFitsTheProvider = Expect<
+export type _BaseInstanceFitsTheProvider = Expect<
   Equal<typeof bare extends I18nProviderProps["i18n"] ? true : false, true>
 >;
 
@@ -97,7 +99,7 @@ export type _LoaderWidens = Expect<
   Equal<typeof withLoader extends I18nLoaderApi ? true : false, true>
 >;
 export type _LoaderDoesNotWidenPlugins = Expect<
-  Equal<typeof withLoader extends I18nPluginHostApi ? true : false, false>
+  Equal<typeof withLoader extends I18nPluginApi ? true : false, false>
 >;
 void withLoader.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- attachLoader composes ONLY the loader capability
@@ -105,13 +107,13 @@ withLoader.registerPostProcessor((result) => result);
 
 const _withPlugins = attachPlugins(createI18n({ locale: "en" }));
 export type _PluginsWiden = Expect<
-  Equal<typeof _withPlugins extends I18nPluginHostApi ? true : false, true>
+  Equal<typeof _withPlugins extends I18nPluginApi ? true : false, true>
 >;
 void _withPlugins.registerPlugin(() => undefined);
 
 // Devtools installs discovery without changing the host type.
 const _withDevtools = attachDevtools(createI18n({ locale: "en" }), { exposeGlobal: false });
-export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>>>;
+export type _DevtoolsKeepsInstanceType = Expect<Equal<typeof _withDevtools, I18n<{}>>>;
 
 // Nested catalogs are BASE behaviour, so this root no longer re-exports
 // `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
@@ -128,7 +130,7 @@ const piped = createI18n({ locale: "en", compiler: icuCompiler }).use(
 export type _PipedIsWidened = Expect<
   Equal<typeof piped extends I18nLoaderApi ? true : false, true>
 >;
-export type _PipedIsStillTheHost = Expect<Equal<typeof piped, I18n<{}> & I18nLoaderApi>>;
+export type _PipedIsStillTheInstance = Expect<Equal<typeof piped, I18n<{}> & I18nLoaderApi>>;
 void piped.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- loader(map) composes ONLY the loader capability
 piped.registerPlugin(() => undefined);
@@ -136,7 +138,7 @@ piped.registerPlugin(() => undefined);
 // Chaining compounds the widenings.
 const _both = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 export type _ChainCompounds = Expect<
-  Equal<typeof _both extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
+  Equal<typeof _both extends I18nLoaderApi & I18nPluginApi ? true : false, true>
 >;
 void _both.registerPlugin(() => undefined).registerLoader(() => Promise.resolve({}));
 
@@ -151,7 +153,7 @@ export type _PipeKeepsExactDefaults = Expect<
 
 // devtools() adds no public members, so the host type is unchanged.
 const _pipedDevtools = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
-export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, I18n<{}>>>;
+export type _DevtoolsPipeKeepsInstanceType = Expect<Equal<typeof _pipedDevtools, I18n<{}>>>;
 
 // The low-level attaches are installers too — the factories only add config.
 void createI18n({ locale: "en" })
@@ -172,8 +174,8 @@ createI18n({ locale: "en" }).use(loader({ uk: "./uk.json" }));
 // the runtime surface test. `plugins()` attaches the plugin HOST;
 // `definePlugin(fn)` registers ONE plugin on it, and both flow through `.use`.
 const _withDefinedPlugin = createI18n({ locale: "en" }).use(definePlugin(() => {}));
-export type _DefinePluginWidensToThePluginHost = Expect<
-  Equal<typeof _withDefinedPlugin extends I18nPluginHostApi ? true : false, true>
+export type _DefinePluginWidensToThePluginInstance = Expect<
+  Equal<typeof _withDefinedPlugin extends I18nPluginApi ? true : false, true>
 >;
 void _withDefinedPlugin.registerPlugin(() => {});
 // @ts-expect-error -- definePlugin takes a PLUGIN, not an installer

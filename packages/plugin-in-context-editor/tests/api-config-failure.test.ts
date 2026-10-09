@@ -9,7 +9,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { asPluginHost, createI18n, type ComposedHost } from "./helpers/composedHost";
+import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedHost";
 
 const { coreStopMock, mockCoreModule, resetCoreMocks } = await vi.hoisted(
   () => import("./helpers/mockCore"),
@@ -31,7 +31,7 @@ import { inContextEditorPlugin } from "../src/index";
 import { activate, deactivate, isActive } from "../src/standalone";
 import { resetEncoder } from "../src/translation";
 
-function makeI18n(): ComposedHost {
+function makeI18n(): ComposedInstance {
   return createI18n({
     locale: "en",
     defaultNs: "default",

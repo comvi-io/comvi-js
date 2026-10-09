@@ -21,12 +21,12 @@ asynchronously, the migration path. (`icu: true` is the one exception — see
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import { loader } from "@comvi/core/loader";
-import type { NuxtHostFactory } from "@comvi/nuxt";
+import type { NuxtInstanceFactory } from "@comvi/nuxt";
 
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler }).use(
     loader({ de: () => import("./locales/de.json") }),
-  )) satisfies NuxtHostFactory;
+  )) satisfies NuxtInstanceFactory;
 ```
 
 Add `.use(plugins())` and `.use(devtools())` as the app needs them; their order among
@@ -38,12 +38,12 @@ client, request locale on the server), `fallbackLocale`, `defaultNs`, `defaultPa
 `tagInterpolation` from `basicHtmlTags`, `devMode` and `apiKey` — so spreading `options`
 into `createI18n` preserves every existing configuration and request-locale contract. A
 factory written earlier in 0.5.0 development that accepts no argument still works.
-`NuxtHostFactory` / `NuxtHostFactoryOptions` are public types for it. The branch stays
+`NuxtInstanceFactory` / `NuxtInstanceFactoryOptions` are public types for it. The branch stays
 build-time, and the factory is called once for the client plugin and once per
 request-scoped server instance.
 
-**Server host types now tell the truth.** `NuxtServerHost` is the base `WrapperI18nHost` the
-server utilities accept; `NuxtServerLoaderHost` is that host plus `I18nLoaderApi`, the shape
+**Server host types now tell the truth.** `NuxtServerInstance` is the base `WrapperI18nInstance` the
+server utilities accept; `NuxtServerLoaderInstance` is that host plus `I18nLoaderApi`, the shape
 SSR loading needs. Utilities narrow with `hasLoaderApi` before driving the loader, so a base
 host with cached or setup-provided translations renders them, a base host with an empty
 catalog warns once naming the `hostModule` + `.use(loader(map))` fix, and no path calls an

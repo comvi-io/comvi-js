@@ -2,7 +2,7 @@
  * `setDefaultParams` is reached through the wrapper's `Host` alias, so it is
  * the one member of `UseI18nReturn<D>` that can lose `D` to a non-generic
  * alias without any other signature noticing. It did: the alias was declared
- * as `WrapperI18nHost` (default `D = {}`), which accepts ANY replacement bag.
+ * as `WrapperI18nInstance` (default `D = {}`), which accepts ANY replacement bag.
  * These directives are the gate — the negatives must stay errors.
  */
 import type { UseI18nReturn } from "../../src/index";

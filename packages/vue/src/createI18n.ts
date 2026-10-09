@@ -3,7 +3,7 @@
 // a real function rather than a rename of core's constructor.
 //
 // Its own module because it is the only one that constructs a core: an app
-// composing its own host and calling `createI18nFromCore` never runs it.
+// composing its own instance and calling `createI18nFromCore` never runs it.
 import { I18n } from "@comvi/core";
 import type { DefaultTranslationParams, I18nOptions } from "@comvi/core";
 import { VueI18n, type VueI18nOptions } from "./VueI18n";

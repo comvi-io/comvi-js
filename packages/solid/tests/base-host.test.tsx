@@ -1,5 +1,5 @@
 /**
- * `@comvi/solid` on the BASE host — a host that implements `WrapperI18nHost`
+ * `@comvi/solid` on the BASE host — a host that implements `WrapperI18nInstance`
  * and nothing more. Nothing the wrapper does at render time may touch a
  * loader/plugin member: one capability closure reached from the returned bag
  * would blow up here.
@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { attachLoader, createI18n } from "../src/index";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { T } from "../src/T";
@@ -25,7 +25,7 @@ const makeHost = () =>
     },
   });
 
-function mount(i18n: WrapperI18nHost, Probe: () => unknown) {
+function mount(i18n: WrapperI18nInstance, Probe: () => unknown) {
   return renderSolid(() => (
     <I18nProvider i18n={i18n} autoInit={false}>
       {Probe() as never}
@@ -33,7 +33,7 @@ function mount(i18n: WrapperI18nHost, Probe: () => unknown) {
   ));
 }
 
-function useI18nUnder(i18n: WrapperI18nHost) {
+function useI18nUnder(i18n: WrapperI18nInstance) {
   let api!: ReturnType<typeof useI18n>;
   const container = mount(i18n, () => {
     const Probe = () => {

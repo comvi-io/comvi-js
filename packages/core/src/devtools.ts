@@ -1,4 +1,4 @@
-// @comvi/core/devtools — browser-extension discovery, composed onto the host.
+// @comvi/core/devtools — browser-extension discovery, composed onto the instance.
 //
 // Pure subpath (never listed in package.json `sideEffects`): importing it has
 // no effect until you compose an instance.
@@ -12,9 +12,9 @@
 //
 // The capability assigns `instanceId` and publishes the instance on the
 // `window.__COMVI__` discovery queue (protocol v2, mixed-version safe), then
-// removes it again on `destroy()`. Configure it HERE: the base host carries no
+// removes it again on `destroy()`. Configure it HERE: the base instance carries no
 // discovery code, so the `instanceId` / `exposeGlobal` CONSTRUCTOR options are
-// inert on it. The composite and `@comvi/next`'s host do read both off
+// inert on it. The composite and `@comvi/next`'s instance do read both off
 // `I18nOptions`, because they compose this capability in the constructor.
 import type { I18n } from "./core/i18n";
 import type { DevtoolsOptions } from "./core/devtools";

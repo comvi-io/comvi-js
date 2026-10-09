@@ -292,7 +292,7 @@ export type AcceptedKey<NS extends string | undefined = undefined, N extends Nam
  * the type alias so a diagnostic prints real keys (see {@link AcceptedKey}),
  * and it only works inline. But the rebuild cannot contain `N`: `N` is
  * unresolved while a SIGNATURE is compared to another signature — the `I18n`
- * class against `I18nCoreInstance`, an instance against `AnyI18nHost` — and a
+ * class against `I18nCoreInstance`, an instance against `AnyI18nInstance` — and a
  * mapped type over an unresolved parameter does not reduce, so neither side
  * relates and the class stops implementing its own interface.
  *
@@ -310,7 +310,7 @@ export type AcceptedKey<NS extends string | undefined = undefined, N extends Nam
  * The `null` no-op is NOT part of it. `null` lives on the `I18n` CLASS alone,
  * which is where it always has, and it has to stay off this interface: `null`
  * is assignable to `string` in NEITHER direction, so a `null` in the key union
- * stops `WrapperI18nHost` satisfying the plain `(key: string, …)` shapes the
+ * stops `WrapperI18nInstance` satisfying the plain `(key: string, …)` shapes the
  * wrappers' internals pass it to — solid's `<T>` hands the instance to
  * `prepareTranslation`, and that broke the moment `null` reached the interface.
  */
@@ -333,7 +333,7 @@ type BoundKeyOf<K, NS extends string | undefined> = [K] extends [string]
  * free of `D`.
  *
  * The route has to be decided without the default-params type, because the
- * instance is compared bivariantly across different `D`s (see {@link AnyI18nHost}):
+ * instance is compared bivariantly across different `D`s (see {@link AnyI18nInstance}):
  * with `D` inside the `extends` checks, `ArgsFor<K, NS, {}>` and `ArgsFor<K,
  * NS, D>` have different check types, TypeScript can relate neither direction,
  * and passing a `createI18n({ defaultParams })` instance to a provider stops
@@ -896,7 +896,7 @@ export type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResu
  * The always-present instance surface: everything the base `I18n` class keeps
  * in every graph, the pure `@comvi/core` entry included.
  *
- * Capability APIs live in `I18nLoaderApi` / `I18nPluginHostApi` below and
+ * Capability APIs live in `I18nLoaderApi` / `I18nPluginApi` below and
  * arrive from the `@comvi/core/loader` and `@comvi/core/plugins` subpaths. The
  * ROOT entry is this surface and nothing more. Note that `I18nInstance`
  * describes a COMPOSED instance, not this one.
@@ -1092,7 +1092,7 @@ export interface I18nLoaderApi {
  * graph. Constructor *options* (`postProcess`, `onMissingKey`) stay universal;
  * only the runtime registration APIs are a capability.
  */
-export interface I18nPluginHostApi {
+export interface I18nPluginApi {
   /**
    * Register a raw plugin. Chainable. MUST be called before `init()`, which is
    * the only thing that drains the queue: a plugin registered afterwards does
@@ -1192,7 +1192,7 @@ export type I18nMessagesView<D extends DefaultTranslationParams = {}> = Pick<
  * their own capability hooks, which verify presence once and throw
  * {@link missingCapability} when the instance has none.
  */
-export type WrapperI18nHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
+export type WrapperI18nInstance<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
   I18nCoreExtraApi;
 
 /**
@@ -1202,7 +1202,7 @@ export type WrapperI18nHost<D extends DefaultTranslationParams = {}> = I18nCoreI
  * `I18nCoreInstance` declares `setDefaultParams` as a PROPERTY rather than a
  * method, so `strictFunctionTypes` checks its parameter contravariantly and
  * the instance is INVARIANT in `D`: an instance from `createI18n({ defaultParams })`
- * was not assignable to `WrapperI18nHost<{}>` at all, so it could not be
+ * was not assignable to `WrapperI18nInstance<{}>` at all, so it could not be
  * passed in.
  *
  * Making the boundary generic over `D` does NOT fix it. Every `D` position in
@@ -1217,13 +1217,13 @@ export type WrapperI18nHost<D extends DefaultTranslationParams = {}> = I18nCoreI
  *
  * Both are widened with METHOD syntax and `any` rather than `never` /
  * `unknown` on purpose: methods are bivariant, so the result stays assignable
- * to `WrapperI18nHost<{}>` in BOTH directions. Everything downstream that
+ * to `WrapperI18nInstance<{}>` in BOTH directions. Everything downstream that
  * expects the plain instance keeps compiling, and no wrapper needs an internal
  * cast.
  *
  * Declared ONCE here: react, solid and svelte re-export it as a type.
  */
-export type AnyI18nHost = Omit<WrapperI18nHost, "setDefaultParams" | "init"> & {
+export type AnyI18nInstance = Omit<WrapperI18nInstance, "setDefaultParams" | "init"> & {
   setDefaultParams(params: any): void;
   init(): Promise<any>;
 };
@@ -1232,10 +1232,10 @@ export type AnyI18nHost = Omit<WrapperI18nHost, "setDefaultParams" | "init"> & {
  * The instance surface a plugin may rely on. A plugin that calls loader APIs on
  * a base instance needs `attachLoader` to have run first.
  */
-export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
+export type PluginI18nInstance<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
   I18nCoreExtraApi &
   I18nLoaderApi &
-  I18nPluginHostApi;
+  I18nPluginApi;
 
 /**
  * A COMPOSED instance's shape. Only `reloadMessages`, `setPluginData` and
@@ -1250,4 +1250,4 @@ export interface I18nInstance<D extends DefaultTranslationParams = {}>
   extends
     I18nCoreInstance<D>,
     Pick<I18nLoaderApi, "reloadMessages">,
-    Pick<I18nPluginHostApi, "setPluginData" | "getPluginData"> {}
+    Pick<I18nPluginApi, "setPluginData" | "getPluginData"> {}

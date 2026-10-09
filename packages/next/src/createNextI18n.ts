@@ -8,7 +8,7 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /** Thrown by {@link CreateNextI18nResult.use} when an installer hands back a different object. */
-export interface UseHostIdentityError extends Error {
+export interface UseInstanceIdentityError extends Error {
   code: "E_USE_HOST_IDENTITY";
 }
 
@@ -183,7 +183,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
   // Statically analysable in Next.js: the bundler replaces process.env.NODE_ENV at build time.
   const devMode = devModeOption ?? process.env.NODE_ENV === "development";
 
-  // Built through Next's own composed-host builder so the published `i18n` is a
+  // Built through Next's own composed-instance builder so the published `i18n` is a
   // `NextComposedI18n`, never core's base root instance.
   const i18n = createComposedNextI18n<D>({
     locale: defaultLocale,
@@ -219,7 +219,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
           IS_DEV
             ? "[@comvi/next] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
             : "E_USE_HOST_IDENTITY",
-        ) as UseHostIdentityError;
+        ) as UseInstanceIdentityError;
         error.code = "E_USE_HOST_IDENTITY";
         throw error;
       }

@@ -16,7 +16,7 @@
   factory receives — as the last key, so a factory that writes `createI18n({ ...options })` gets
   ICU and one that writes `createI18n({ ...options, compiler: mine })` keeps its own. With
   `icu: false` the generated module imports nothing from `@comvi/core/icu`, on both branches.
-  `NuxtHostFactoryOptions` gained the matching `compiler?: MessageCompiler`.
+  `NuxtInstanceFactoryOptions` gained the matching `compiler?: MessageCompiler`.
 - **`I18nLoaderApi` and `LoaderFn` are re-exported (type-only) from the `@comvi/nuxt` root**, so a
   hook typed `NuxtI18nSetup<I18n & I18nLoaderApi>` imports all three types from `@comvi/nuxt`,
   the package the app declared, instead of `@comvi/core` and `@comvi/core/loader`, which it did
@@ -33,7 +33,7 @@ registers the map. Move the map into `comvi.host.ts` and delete the setup file:
 
 ```ts
 // comvi.host.ts
-import { createI18n, loader, type NuxtHostFactory } from "@comvi/nuxt/host";
+import { createI18n, loader, type NuxtInstanceFactory } from "@comvi/nuxt/host";
 
 export default ((options) =>
   createI18n(options).use(
@@ -41,7 +41,7 @@ export default ((options) =>
       en: () => import("./locales/en.json"),
       "en:admin": () => import("./locales/admin/en.json"),
     }),
-  )) satisfies NuxtHostFactory;
+  )) satisfies NuxtInstanceFactory;
 ```
 
 That file needs no dependency the app did not install; the old setup file resolved

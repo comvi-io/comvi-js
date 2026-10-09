@@ -78,9 +78,9 @@ describe("exports map smoke (F0b)", () => {
     expect(typeof pkg.createI18n).toBe("function");
   });
 
-  it("dist/index.js exports setI18nContext and useI18nHost", () => {
+  it("dist/index.js exports setI18nContext and useI18nInstance", () => {
     expect(typeof pkg.setI18nContext).toBe("function");
-    expect(typeof pkg.useI18nHost).toBe("function");
+    expect(typeof pkg.useI18nInstance).toBe("function");
   });
 
   it("dist/index.js exports store factories", () => {

@@ -1,8 +1,8 @@
-// `ServerI18nHost` is a `Pick`, not an alias of `NextServerHost`, so that BOTH
-// `@comvi/next`'s own composed host (`NextComposedI18n`, any `D`) and every
-// `NextServerHost<D>` satisfy it structurally. It is never re-exported from
+// `ServerI18nInstance` is a `Pick`, not an alias of `NextServerInstance`, so that BOTH
+// `@comvi/next`'s own composed instance (`NextComposedI18n`, any `D`) and every
+// `NextServerInstance<D>` satisfy it structurally. It is never re-exported from
 // `@comvi/next/server`.
-import type { DefaultTranslationParams, I18nLoaderApi, WrapperI18nHost } from "@comvi/core";
+import type { DefaultTranslationParams, I18nLoaderApi, WrapperI18nInstance } from "@comvi/core";
 
 /**
  * The instance contract a Next.js server instance must satisfy: the base instance
@@ -18,7 +18,7 @@ import type { DefaultTranslationParams, I18nLoaderApi, WrapperI18nHost } from "@
  * const host = () => attachLoader(createI18n({ locale: "en" }));
  * ```
  */
-export type NextServerHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D> &
+export type NextServerInstance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D> &
   I18nLoaderApi;
 
 /**
@@ -34,8 +34,8 @@ export type NextServerHost<D extends DefaultTranslationParams = {}> = WrapperI18
  *
  * @internal
  */
-export type ServerI18nHost = Pick<
-  WrapperI18nHost,
+export type ServerI18nInstance = Pick<
+  WrapperI18nInstance,
   | "isInitialized"
   | "init"
   | "getDefaultNamespace"
@@ -55,4 +55,5 @@ export type ServerI18nHost = Pick<
  *
  * @internal
  */
-export type ServerTranslatingHost = ServerI18nHost & Pick<WrapperI18nHost, "t" | "tRaw">;
+export type ServerTranslatingInstance = ServerI18nInstance &
+  Pick<WrapperI18nInstance, "t" | "tRaw">;

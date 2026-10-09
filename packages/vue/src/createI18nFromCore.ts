@@ -1,6 +1,6 @@
 // Constructs nothing itself, so vue's one-call preset (`createI18n.ts`) stays
-// out of the graph of an app that is handed a host built elsewhere.
-import type { DefaultTranslationParams, WrapperI18nHost } from "@comvi/core";
+// out of the graph of an app that is handed an instance built elsewhere.
+import type { DefaultTranslationParams, WrapperI18nInstance } from "@comvi/core";
 import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
 
 /**
@@ -25,16 +25,16 @@ import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
  *
  * @example
  * ```ts
- * import { createI18n as createCoreHost } from "@comvi/core";
+ * import { createI18n as createCoreInstance } from "@comvi/core";
  * import { attachLoader, createI18nFromCore } from "@comvi/vue";
  *
- * const i18n = createI18nFromCore(attachLoader(createCoreHost({ locale: "en" })));
+ * const i18n = createI18nFromCore(attachLoader(createCoreInstance({ locale: "en" })));
  * i18n.core.registerLoader(myLoader);
  * ```
  */
 export function createI18nFromCore<
   D extends DefaultTranslationParams = {},
-  C extends WrapperI18nHost<D> = WrapperI18nHost<D>,
+  C extends WrapperI18nInstance<D> = WrapperI18nInstance<D>,
 >(core: C, options: VueI18nCoreOptions = {}): VueI18n<D, C> {
   return new VueI18n<D, C>(core, options);
 }

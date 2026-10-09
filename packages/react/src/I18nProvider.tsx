@@ -11,8 +11,8 @@ import {
 } from "react";
 import { flattenCatalog, subscribeToRevision } from "@comvi/core";
 import type {
-  AnyI18nHost,
-  WrapperI18nHost,
+  AnyI18nInstance,
+  WrapperI18nInstance,
   I18nEvent,
   I18nMessagesView,
   FlattenedMessages,
@@ -20,17 +20,17 @@ import type {
 } from "@comvi/core";
 
 /** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
-type Host = WrapperI18nHost;
+type Instance = WrapperI18nInstance;
 
 // `useLayoutEffect` warns when it runs during a server render.
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
-// `AnyI18nHost` is core's: the `strictFunctionTypes` invariance in `D` it
+// `AnyI18nInstance` is core's: the `strictFunctionTypes` invariance in `D` it
 // widens is documented there, once, for all three providers that accept it.
-export type { AnyI18nHost };
+export type { AnyI18nInstance };
 
 export interface I18nInstanceContextValue {
-  i18n: Host;
+  i18n: Instance;
   /** What this tree translates through: the i18n instance, or a read view over `messages`. */
   view: I18nMessagesView;
   isLoading: boolean;
@@ -44,7 +44,7 @@ export const LocaleContext = createContext<string | null>(null);
 const I18nInstanceContext = createContext<I18nInstanceContextValue | null>(null);
 
 /** @internal — exported for unit tests, not in the package index. */
-export function useSubscribe(i18n: Host, ...events: I18nEvent[]) {
+export function useSubscribe(i18n: Instance, ...events: I18nEvent[]) {
   const eventsKey = events.join("|");
   return useCallback(
     (callback: () => void) => {
@@ -71,7 +71,7 @@ export function useSubscribe(i18n: Host, ...events: I18nEvent[]) {
 }
 
 /** @internal — exported for unit tests, not in the package index. */
-export function useStoreRevision(i18n: Host): string {
+export function useStoreRevision(i18n: Instance): string {
   const subscribe = useCallback(
     (callback: () => void) => {
       let disposed = false;
@@ -107,7 +107,7 @@ export function useStoreRevision(i18n: Host): string {
 export interface I18nProviderProps {
   children: React.ReactNode;
   /** Any instance, whatever default-params type it carries. */
-  i18n: AnyI18nHost;
+  i18n: AnyI18nInstance;
   /** Auto-initialize the i18n instance on mount (default: true). */
   autoInit?: boolean;
   /**
@@ -227,7 +227,7 @@ export function I18nProvider({
   const subLang = useSubscribe(i18n, "localeChanged", "initialized", "configChanged");
   const subLoading = useSubscribe(i18n, "loadingStateChanged", "initialized");
 
-  const hostLocale = useSyncExternalStore(
+  const instanceLocale = useSyncExternalStore(
     subLang,
     () => i18n.locale,
     () => ssrLocale ?? i18n.locale,
@@ -247,7 +247,7 @@ export function I18nProvider({
   // listener of this provider saw the move, so a switch back to that locale
   // (a `setLocale` with no new target) is not mistaken for a handover.
   // `[i18n, target, from, revision]`: a tuple, which minifies smaller than named keys.
-  const [hand, setHand] = useState<[Host, string | undefined, string, number]>(() => [
+  const [hand, setHand] = useState<[Instance, string | undefined, string, number]>(() => [
     i18n,
     targetLocale,
     i18n.locale,
@@ -265,14 +265,14 @@ export function I18nProvider({
   const locale =
     target !== undefined && target !== from && revision === i18n.localeRevision
       ? target
-      : hostLocale;
+      : instanceLocale;
 
   // `messages` reach the children through a read view until the i18n instance
   // holds them, and the instance from the commit on, so a later `addMessages`
   // (an editor save, a reload) wins again. The write is the layout effect's:
   // children's layout effects run first, so a parent that moves the locale in
   // its own (`@comvi/next`) finds the catalog cached and loads nothing.
-  const [published, setPublished] = useState<[Host, MessagesMap]>();
+  const [published, setPublished] = useState<[Instance, MessagesMap]>();
   const view = useMemo(() => {
     if (!messages || (published?.[0] === i18n && published[1] === messages)) return i18n;
     const ns = i18n.getDefaultNamespace();
@@ -289,7 +289,7 @@ export function I18nProvider({
     }
     return i18n.withMessages(catalogs);
   }, [i18n, messages, published]);
-  const added = useRef<[Host, MessagesMap]>(undefined);
+  const added = useRef<[Instance, MessagesMap]>(undefined);
   useIsomorphicLayoutEffect(() => {
     if (messages && (added.current?.[0] !== i18n || added.current[1] !== messages)) {
       i18n.addMessages(messages);
@@ -307,7 +307,7 @@ export function I18nProvider({
     () => i18n.isInitializing,
     () => ssrInitialIsInitializing,
   );
-  // The `fallback` gate's axis. Same host field `useI18n().isInitialized`
+  // The `fallback` gate's axis. Same instance field `useI18n().isInitialized`
   // reads and the same subscription the two above use — `initialized` is in
   // it, and that is the event that flips this. On the server it is the
   // negation of the initializing snapshot, so the SSR contract is unchanged:
@@ -337,7 +337,7 @@ export function I18nProvider({
 I18nProvider.displayName = "I18nProvider";
 
 /** @internal */
-export function useI18nInstance(): I18nInstanceContextValue {
+export function useI18nInstanceContext(): I18nInstanceContextValue {
   const instance = useContext(I18nInstanceContext);
   if (!instance) {
     throw new Error("[@comvi/react] Hooks must be used within an I18nProvider.");
@@ -346,15 +346,15 @@ export function useI18nInstance(): I18nInstanceContextValue {
 }
 
 /**
- * The instance the nearest `<I18nProvider>` holds, as a bare `WrapperI18nHost` —
+ * The instance the nearest `<I18nProvider>` holds, as a bare `WrapperI18nInstance` —
  * THE name for "give me the instance", the same in react, solid and svelte (vue's
  * equivalent is `inject(I18N_INJECTION_KEY).core`). Not reactive on its own:
  * pair it with `useI18n()` or a selector hook to re-render.
  *
  * @throws if called outside an `<I18nProvider>`.
  */
-export function useI18nHost(): WrapperI18nHost {
-  return useI18nInstance().i18n;
+export function useI18nInstance(): WrapperI18nInstance {
+  return useI18nInstanceContext().i18n;
 }
 
 /**
@@ -371,6 +371,6 @@ export function useLocale(): string {
 }
 
 export function useIsLoading(): { isLoading: boolean; isInitializing: boolean } {
-  const { isLoading, isInitializing } = useI18nInstance();
+  const { isLoading, isInitializing } = useI18nInstanceContext();
   return { isLoading, isInitializing };
 }

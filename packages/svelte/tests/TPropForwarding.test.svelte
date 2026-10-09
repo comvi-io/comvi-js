@@ -1,9 +1,9 @@
 <script lang="ts">
   import { setI18nContext } from "../src/context";
   import T from "../src/T.svelte";
-  import type { WrapperI18nHost } from "@comvi/core";
+  import type { WrapperI18nInstance } from "@comvi/core";
 
-  export let i18n: WrapperI18nHost;
+  export let i18n: WrapperI18nInstance;
   export let i18nKey: string;
   export let params: Record<string, unknown> = {};
   // Each `pass*` flag decides whether the matching prop reaches <T> AT ALL —

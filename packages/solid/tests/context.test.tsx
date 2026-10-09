@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "solid-js/web";
 import { createSignal } from "solid-js";
-import { I18nProvider, useI18nHost } from "../src/context";
+import { I18nProvider, useI18nInstance } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushMicrotasks, renderSolid } from "./test-utils";
@@ -10,7 +10,7 @@ describe("solid context", () => {
   it("throws when context is requested outside provider", () => {
     const container = document.createElement("div");
     const Bad = () => {
-      useI18nHost();
+      useI18nInstance();
       return null;
     };
 
@@ -19,12 +19,12 @@ describe("solid context", () => {
     );
   });
 
-  it("useI18nHost returns the provider's host", () => {
+  it("useI18nInstance returns the provider's host", () => {
     const fake = new FakeI18n({ language: "en" });
     let host: unknown;
 
     const Probe = () => {
-      host = useI18nHost();
+      host = useI18nInstance();
       return null;
     };
 
@@ -37,10 +37,10 @@ describe("solid context", () => {
     expect(host).toBe(fake.asI18n());
   });
 
-  it("useI18nHost throws outside a provider", () => {
+  it("useI18nInstance throws outside a provider", () => {
     const container = document.createElement("div");
     const Bad = () => {
-      useI18nHost();
+      useI18nInstance();
       return null;
     };
     expect(() => render(() => <Bad />, container)).toThrow(

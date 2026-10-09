@@ -55,14 +55,14 @@ export type {
   NuxtI18nSetupEvent,
   NuxtI18nSetupRuntimeConfig,
   NuxtDefaultTranslationParams,
-  ComviNuxtHostRegistry,
-  ResolvedNuxtHost,
-  RegisteredNuxtHost,
+  ComviNuxtInstanceRegistry,
+  ResolvedNuxtInstance,
+  RegisteredNuxtInstance,
   CheckedNuxtI18nSetup,
-  NuxtServerHost,
-  NuxtServerLoaderHost,
-  NuxtHostFactory,
-  NuxtHostFactoryOptions,
+  NuxtServerInstance,
+  NuxtServerLoaderInstance,
+  NuxtInstanceFactory,
+  NuxtInstanceFactoryOptions,
   TranslationParams,
   TranslationResult,
   TranslationKeys,
@@ -161,7 +161,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
 
     // An auto-detect MISS is otherwise the quietest failure the module has: the
     // setup template degrades to an empty `runComviSetup()` and the app boots
-    // with none of its hooks; a missed host file builds the BASE host and every
+    // with none of its hooks; a missed host file builds the BASE instance and every
     // capability the file composed is absent. A file that merely does not
     // RESOLVE (an extension Nuxt does not try, a typo after the prefix) is the
     // reachable shape, so it is looked for by name, at build time only. The
@@ -205,7 +205,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
 
     // Same convention as the setup hook: `hostModule` is the explicit override,
     // and unset means `./comvi.host.*` under srcDir then rootDir. The detected
-    // path is logged so a stray file that changed the host is visible at build
+    // path is logged so a stray file that changed the instance is visible at build
     // time rather than at the first `useI18nLoader()` that throws.
     const resolvedHostModulePath = await findUserModule(options.hostModule ?? "./comvi.host");
     if (options.hostModule && !resolvedHostModulePath) {
@@ -311,7 +311,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       localePrefix: routing.localePrefix,
       head: existingPublicRuntimeConfig.head ?? options.head,
       // Forwarded so BOTH construction paths — the client plugin and each
-      // per-request server host — receive the same inline catalog, and so a
+      // per-request server instance — receive the same inline catalog, and so a
       // `hostModule` factory sees it in its resolved options.
       messages: existingPublicRuntimeConfig.messages ?? options.messages,
       defaultNs: existingPublicRuntimeConfig.defaultNs ?? options.defaultNs ?? "default",
@@ -372,9 +372,9 @@ export async function runComviSetup(context) {
       },
     });
 
-    // The host is decided HERE, at codegen: the same branch taken at runtime
+    // The instance is decided HERE, at codegen: the same branch taken at runtime
     // would keep BOTH paths alive in every bundle. The default branch builds the
-    // BASE host — ICU is the one capability with a module option, because it is
+    // BASE instance — ICU is the one capability with a module option, because it is
     // a constructor argument rather than something `.use()` can pipe on. Every
     // other capability arrives through `hostModule`, which is why that branch
     // forwards nuxt's RESOLVED options into the factory — `icu: true` included,
@@ -479,16 +479,16 @@ export function createComviCore(options) {
       },
     });
 
-    // The type-level counterpart of the host template above, and the only place
-    // the two user files are compared. `comvi.setup`'s host used to be an
+    // The type-level counterpart of the instance template above, and the only place
+    // the two user files are compared. `comvi.setup`'s instance used to be an
     // ASSERTION about a different file reached by a string path — a hook typed
     // `NuxtI18nSetup<I18n & I18nLoaderApi>` compiled whether or not
-    // `comvi.host` ever composed the loader, and a base host gets no capability
+    // `comvi.host` ever composed the loader, and a base instance gets no capability
     // shim, so `core.registerLoader(...)` threw a raw `TypeError` on the first
-    // call. This template reads the host type OFF the factory
+    // call. This template reads the instance type OFF the factory
     // (`ReturnType<typeof import("./comvi.host").default>`), publishes it
-    // through `ComviNuxtHostRegistry` so `NuxtI18nSetup`'s DEFAULT type
-    // argument is the real host, and puts the hook through
+    // through `ComviNuxtInstanceRegistry` so `NuxtI18nSetup`'s DEFAULT type
+    // argument is the real instance, and puts the hook through
     // `CheckedNuxtI18nSetup`, which does not compile when the hook names a
     // capability the factory did not compose.
     //
@@ -522,8 +522,8 @@ export function createComviCore(options) {
  * \`comvi.host\` actually returns, so a hook that reaches for a capability the
  * factory never composed fails HERE instead of throwing on its first call.
  */
-export type ComviSetupMatchesHost = import("@comvi/nuxt").CheckedNuxtI18nSetup<
-  ComviResolvedHost,
+export type ComviSetupMatchesInstance = import("@comvi/nuxt").CheckedNuxtI18nSetup<
+  ComviResolvedInstance,
   typeof import(${JSON.stringify(toTypeImportSpecifier(resolvedSetupPath))}).default
 >;
 `
@@ -533,11 +533,11 @@ export type ComviSetupMatchesHost = import("@comvi/nuxt").CheckedNuxtI18nSetup<
 export {};
 
 /** The instance \`#build/comvi.host\` really builds, read off the factory. */
-type ComviResolvedHost = ${hostType};
+type ComviResolvedInstance = ${hostType};
 
 declare module "@comvi/nuxt" {
-  interface ComviNuxtHostRegistry {
-    host: ComviResolvedHost;
+  interface ComviNuxtInstanceRegistry {
+    instance: ComviResolvedInstance;
   }
 }
 ${check}`;
@@ -577,7 +577,7 @@ ${check}`;
 
     addServerImportsDir(resolve("./runtime/server/utils"));
 
-    // Owns the per-request host teardown: Nitro's `afterResponse` fires after
+    // Owns the per-request instance teardown: Nitro's `afterResponse` fires after
     // the handler returned AND after the response was written, which the
     // response's `close` event cannot promise on a client abort. Registering it
     // also tells `getRequestI18n` to stop hooking the response itself.

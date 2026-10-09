@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createI18n, hasLoaderApi, hasPluginHostApi, missingCapability } from "../../src";
+import { createI18n, hasLoaderApi, hasPluginApi, missingCapability } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { attachPlugins } from "../../src/plugins";
 
@@ -19,15 +19,15 @@ describe("hasLoaderApi()", () => {
   });
 });
 
-describe("hasPluginHostApi()", () => {
+describe("hasPluginApi()", () => {
   it("accepts a host the plugin API was attached to", () => {
-    expect(hasPluginHostApi(attachPlugins(makeBareHost()))).toBe(true);
+    expect(hasPluginApi(attachPlugins(makeBareHost()))).toBe(true);
   });
 
   it("rejects a host carrying only part of the plugin surface", () => {
     const partial = { use: () => {} };
 
-    expect(hasPluginHostApi(partial as never)).toBe(false);
+    expect(hasPluginApi(partial as never)).toBe(false);
   });
 });
 

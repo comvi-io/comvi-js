@@ -1,4 +1,4 @@
-// Plugin-host capability — the implementation half of `@comvi/core/plugins`.
+// Plugin capability — the implementation half of `@comvi/core/plugins`.
 //
 // ONE implementation, TWO install surfaces, exactly as `core/loader.ts`:
 // `core/full.ts` copies this prototype's own descriptors onto `I18n.prototype`
@@ -14,8 +14,8 @@
 // never install or read a `_` member through a string.
 import type {
   DefaultTranslationParams,
-  I18nPluginHost,
-  I18nPluginHostApi,
+  PluginI18nInstance,
+  I18nPluginApi,
   PostProcessFn,
   TranslationParams,
   TranslationResult,
@@ -102,7 +102,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     this._pluginCleanups = [];
     this._pluginData = Object.create(null);
     this._missingKeyCallbacks = new Set();
-    // An init() rejected before the drain began (a destroyed host) still
+    // An init() rejected before the drain began (a destroyed instance) still
     // calls `_abortInit`; an empty record makes that a no-op.
     this._initRecord = { mark: 0 };
   }
@@ -192,15 +192,15 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
       // reads this flag, and the locale detector below is not a plugin.
       this._pluginInit = true;
       try {
-        // `I18nPluginHost` is the `{}`-defaults host surface: an instance
+        // `PluginI18nInstance` is the `{}`-defaults instance surface: an instance
         // with constructor-guaranteed defaults narrows `setDefaultParams`,
         // which the interface's property-style declaration checks strictly.
-        const run = plugin(this as unknown as I18nPluginHost);
+        const run = plugin(this as unknown as PluginI18nInstance);
         // Only `undefined` and a cleanup function are legal. The two shapes
-        // this catches are an installer handing the host back and an
+        // this catches are an installer handing the instance back and an
         // expression-bodied arrow leaking its last value; both fail before a
         // cleanup is registered or the plugin counts as initialized. A cleanup
-        // whose attempt failed, or whose host is gone, has nothing left to
+        // whose attempt failed, or whose instance is gone, has nothing left to
         // drain it, so it is released at once instead of queued. A late
         // cleanup whose attempt was followed by a newer one goes BELOW that
         // attempt's mark, so the newer attempt's rollback cannot release it.
@@ -281,7 +281,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
       //    drained the queue, and phase 3's `_resetPlugins()` throws the array
       //    away — so it would never run and never report. Drain it here, which
       //    reuses phase 1's own reporting (`plugin-cleanup`) verbatim.
-      //  • No further plugin may START. A plugin whose `plugin(host)` call had
+      //  • No further plugin may START. A plugin whose `plugin(instance)` call had
       //    not begun when destroy landed does not run at all, and the locale
       //    detector below does not run either.
       if (this._isDestroyed) return this._preDestroy();
@@ -373,7 +373,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
       // Seed with the constructor option, if there was one — it is the head of
       // the chain — then take the base's single slot over with the applier
       // below. `_chainPostProcess` is stored UNBOUND on purpose: the base calls
-      // it as `this._postProcessor(...)`, so the receiver is this host.
+      // it as `this._postProcessor(...)`, so the receiver is this instance.
       this._postProcessors = this._postProcessor ? [this._postProcessor] : [];
       this._postProcessor = this._chainPostProcess;
     }
@@ -436,7 +436,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
  * Idempotent via a dot-access probe on an installed hook — never `in`, never a
  * string key (see the mangling contract above).
  */
-export function attachPlugins<T extends I18nBase<any>>(i18n: T): T & I18nPluginHostApi {
+export function attachPlugins<T extends I18nBase<any>>(i18n: T): T & I18nPluginApi {
   const i = i18n as unknown as I18nInternal;
   if (i._beforeInit === undefined) {
     const { constructor: _ctor, ...api } = Object.getOwnPropertyDescriptors(
@@ -462,7 +462,7 @@ export function attachPlugins<T extends I18nBase<any>>(i18n: T): T & I18nPluginH
 
     if (IS_DEV && i18n.isInitialized) warnLateCompose(i18n, ERR_LATE_PLUGINS);
   }
-  return i18n as T & I18nPluginHostApi;
+  return i18n as T & I18nPluginApi;
 }
 
 /** @internal Structural view of the transient flag, for the guard below. */

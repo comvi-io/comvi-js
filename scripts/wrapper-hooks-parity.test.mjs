@@ -197,7 +197,7 @@ export function resolveMemberType(type) {
 
 /**
  * Drop comments so a prose mention of a pattern cannot masquerade as code: a
- * provider whose comment still DISCUSSES `type AnyI18nHost =` must not read as
+ * provider whose comment still DISCUSSES `type AnyI18nInstance =` must not read as
  * one that declares it, and a brace in prose must not unbalance the interface
  * walk above.
  */
@@ -346,7 +346,7 @@ test("no binding's UseI18nReturn declares a `?: never` placeholder", () => {
 });
 
 // ---------------------------------------------------------------------------
-// P8 — `AnyI18nHost` lives in `@comvi/core`. Each provider used to carry its
+// P8 — `AnyI18nInstance` lives in `@comvi/core`. Each provider used to carry its
 // own copy with the same 25-line comment; a copy is where drift starts.
 // ---------------------------------------------------------------------------
 
@@ -356,18 +356,18 @@ const PROVIDER_SOURCES = {
   "@comvi/svelte": "packages/svelte/src/context.ts",
 };
 
-test("no wrapper declares AnyI18nHost locally — it is core's, re-exported", () => {
+test("no wrapper declares AnyI18nInstance locally — it is core's, re-exported", () => {
   const local = Object.entries(PROVIDER_SOURCES).filter(([, relativePath]) =>
-    /\btype AnyI18nHost\s*=/.test(stripComments(readSource(relativePath))),
+    /\btype AnyI18nInstance\s*=/.test(stripComments(readSource(relativePath))),
   );
   assert.deepEqual(
     local.map(([pkg]) => pkg),
     [],
-    'AnyI18nHost must be `import type { AnyI18nHost } from "@comvi/core"`, never a local declaration',
+    'AnyI18nInstance must be `import type { AnyI18nInstance } from "@comvi/core"`, never a local declaration',
   );
   assert.match(
     stripComments(readSource("packages/core/src/types.ts")),
-    /export type AnyI18nHost\s*=/,
-    "core must declare AnyI18nHost",
+    /export type AnyI18nInstance\s*=/,
+    "core must declare AnyI18nInstance",
   );
 });

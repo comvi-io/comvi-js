@@ -1,4 +1,4 @@
-// @comvi/core — the BASE host: text + `{param}` interpolation, the translation
+// @comvi/core — the BASE instance: text + `{param}` interpolation, the translation
 // cache, events, default params and the `.use(installer)` composition pipe.
 // A capability is absent because its module never entered your bundle, never
 // because a runtime flag turned it off. Each one is a subpath import:
@@ -60,7 +60,7 @@ export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";
 export { subscribeToRevision, REVISION_EVENTS } from "./utils/subscribeToRevision";
 export type { RevisionEvent, RevisionEventSource } from "./utils/subscribeToRevision";
-export { missingCapability, hasLoaderApi, hasPluginHostApi } from "./utils/capability";
+export { missingCapability, hasLoaderApi, hasPluginApi } from "./utils/capability";
 export type { CapabilityName } from "./utils/capability";
 
 export {
@@ -85,5 +85,5 @@ export type {
 
 export { createElement, isVirtualNode } from "./virtualNode";
 
-// Plugin authoring is types-only from the root: the host itself is a capability.
+// Plugin authoring is types-only from the root: the instance itself is a capability.
 export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/types";

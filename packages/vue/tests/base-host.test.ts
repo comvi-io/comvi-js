@@ -1,5 +1,5 @@
 // `@comvi/vue`'s bindings on the BASE host — a host that implements
-// `WrapperI18nHost` and nothing more. Nothing the wrapper does at render time
+// `WrapperI18nInstance` and nothing more. Nothing the wrapper does at render time
 // may touch a loader/plugin member: a single eager `.bind()` of an absent
 // capability would crash every case below. The composed-host parity check at
 // the end keeps the two configurations from drifting into different

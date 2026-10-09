@@ -9,7 +9,7 @@ string path: it compiled whether or not `comvi.host.ts` ever composed the loader
 carries no capability shim, so `core.registerLoader(...)` threw a raw `TypeError` on the first
 call. The module now generates `.nuxt/types/comvi-host.ts`, which declares the host as
 `ReturnType<typeof import("<your comvi.host>").default>` and publishes it through the new
-`ComviNuxtHostRegistry` interface, so `NuxtI18nSetup` / `NuxtI18nSetupContext` default to the host
+`ComviNuxtInstanceRegistry` interface, so `NuxtI18nSetup` / `NuxtI18nSetupContext` default to the host
 your factory actually returns — write the hook with no type argument at all and the capabilities you
 composed are the ones that compile. Naming the host by hand stays supported for a factory this
 package cannot see, and the generated file cross-checks that claim through the new

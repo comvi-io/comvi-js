@@ -101,8 +101,8 @@ export declare const icuCompiler: MessageCompiler;
  * A miniature `@comvi/nuxt`, for the one relationship the registry emulation
  * turns on.
  *
- * `ComviNuxtHostRegistry` is EMPTY here, exactly as it is in the real package:
- * this package compiles without any app, and `ResolvedNuxtHost` therefore falls
+ * `ComviNuxtInstanceRegistry` is EMPTY here, exactly as it is in the real package:
+ * this package compiles without any app, and `ResolvedNuxtInstance` therefore falls
  * back to core's base `I18n` — which has no `registerLoader`. The module's
  * codegen is what fills the slot, by reading the host type off the app's
  * `comvi.host` factory, and `typecheck.mjs` emits the same declaration for a
@@ -124,33 +124,33 @@ export interface I18nLoaderApi {
   registerLoader(load: LoaderFn): void;
 }
 
-export interface ComviNuxtHostRegistry {}
+export interface ComviNuxtInstanceRegistry {}
 
-export type RegisteredNuxtHost<Fallback extends I18n> = ComviNuxtHostRegistry extends {
-  host: infer H;
+export type RegisteredNuxtInstance<Fallback extends I18n> = ComviNuxtInstanceRegistry extends {
+  instance: infer H;
 }
   ? H extends I18n
     ? H
     : Fallback
   : Fallback;
 
-export type ResolvedNuxtHost = RegisteredNuxtHost<I18n>;
+export type ResolvedNuxtInstance = RegisteredNuxtInstance<I18n>;
 
-export interface NuxtI18nSetupContext<C extends I18n = ResolvedNuxtHost> {
+export interface NuxtI18nSetupContext<C extends I18n = ResolvedNuxtInstance> {
   core: C;
 }
 
-export type NuxtI18nSetup<C extends I18n = ResolvedNuxtHost> = (
+export type NuxtI18nSetup<C extends I18n = ResolvedNuxtInstance> = (
   context: NuxtI18nSetupContext<C>,
 ) => void | Promise<void>;
 
-export type NuxtHostFactory = (options: { locale: string }) => I18n;
+export type NuxtInstanceFactory = (options: { locale: string }) => I18n;
 `;
 
 const NUXT_HOST = `
 import type { I18n } from "@comvi/core";
 import type { I18nLoaderApi } from "@comvi/nuxt";
-export type { NuxtHostFactory, LoaderFn } from "@comvi/nuxt";
+export type { NuxtInstanceFactory, LoaderFn } from "@comvi/nuxt";
 export declare function createI18n(options: { locale: string }): I18n;
 export declare function loader(
   map: Record<string, () => Promise<unknown>>,

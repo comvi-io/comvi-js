@@ -4,9 +4,9 @@
   // and threw on a base host before this component could render at all.
   import { setI18nContext } from "../src/context";
   import { useI18n } from "../src/useI18n";
-  import type { WrapperI18nHost } from "@comvi/core";
+  import type { WrapperI18nInstance } from "@comvi/core";
 
-  export let i18n: WrapperI18nHost;
+  export let i18n: WrapperI18nInstance;
   export let report: (bag: ReturnType<typeof useI18n>) => void = () => {};
 
   setI18nContext(i18n, { autoInit: false });

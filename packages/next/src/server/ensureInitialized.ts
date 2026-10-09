@@ -1,12 +1,12 @@
-import type { ServerI18nHost } from "./hostTypes";
+import type { ServerI18nInstance } from "./hostTypes";
 
-const initPromises = new WeakMap<ServerI18nHost, Promise<void>>();
+const initPromises = new WeakMap<ServerI18nInstance, Promise<void>>();
 
 /**
  * Ensure i18n instance is initialized, deduplicating concurrent calls.
  * @internal
  */
-export const ensureInitialized = async (i18n: ServerI18nHost): Promise<void> => {
+export const ensureInitialized = async (i18n: ServerI18nInstance): Promise<void> => {
   if (i18n.isInitialized) {
     return;
   }

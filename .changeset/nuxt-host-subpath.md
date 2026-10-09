@@ -10,7 +10,7 @@ The documented host recipe composed `createI18n` from `@comvi/core` plus `@comvi
 package — so under pnpm's default layout the recipe did not resolve from a clean install, and the
 error arrived as a module-resolution failure rather than a missing install. The new subpath
 re-exports exactly the composition surface: `createI18n`, `icuCompiler`, `loader`,
-`attachLoader`, `plugins`, `devtools`, `definePlugin`, and the `NuxtHostFactory` type. The
+`attachLoader`, `plugins`, `devtools`, `definePlugin`, and the `NuxtInstanceFactory` type. The
 low-level `attachPlugins` / `attachDevtools` pair is NOT on it, the same call the binding roots
 made: `plugins()` / `devtools()` are the configured installers a host file writes, and the pair
 stays on `@comvi/core/plugins` / `@comvi/core/devtools`. `attachLoader` is not a synonym of
@@ -18,12 +18,12 @@ stays on `@comvi/core/plugins` / `@comvi/core/devtools`. `attachLoader` is not a
 
 ```ts
 // comvi.host.ts
-import { createI18n, icuCompiler, loader, type NuxtHostFactory } from "@comvi/nuxt/host";
+import { createI18n, icuCompiler, loader, type NuxtInstanceFactory } from "@comvi/nuxt/host";
 
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler }).use(
     loader({ de: () => import("./locales/de.json") }),
-  )) satisfies NuxtHostFactory;
+  )) satisfies NuxtInstanceFactory;
 ```
 
 Named re-exports only, one hop straight from `@comvi/core` or one of its pure subpaths, and the

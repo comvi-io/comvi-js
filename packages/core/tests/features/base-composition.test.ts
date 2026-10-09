@@ -10,7 +10,7 @@ import { createI18n } from "../../src";
 import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
 import { attachPlugins, definePlugin, plugins } from "../../src/plugins";
 import { attachDevtools, devtools } from "../../src/devtools";
-import { hasLoaderApi, hasPluginHostApi } from "../../src/utils/capability";
+import { hasLoaderApi, hasPluginApi } from "../../src/utils/capability";
 import { createDeferred } from "../helpers/deferred";
 
 /**
@@ -258,7 +258,7 @@ it("reports both capabilities as absent on a bare host", () => {
   const bare = createI18n({ locale: "en", exposeGlobal: false });
 
   expect(hasLoaderApi(bare)).toBe(false);
-  expect(hasPluginHostApi(bare)).toBe(false);
+  expect(hasPluginApi(bare)).toBe(false);
 });
 
 describe("base + /plugins composition", () => {
@@ -615,7 +615,7 @@ describe(".use(installer) — the composition pipe", () => {
       ).toThrow(expect.objectContaining({ code: "E_USE_NOT_INSTALLER" }));
 
       expect(Object.getOwnPropertyNames(i18n)).toEqual(before);
-      expect(hasPluginHostApi(i18n)).toBe(false);
+      expect(hasPluginApi(i18n)).toBe(false);
     });
 
     it("accepts every installer core itself ships — they all return the host", () => {
@@ -649,7 +649,7 @@ describe(".use(definePlugin(fn)) — an app's own inline plugin", () => {
     const composed = i18n.use(definePlugin(() => {}));
 
     expect(composed).toBe(i18n);
-    expect(hasPluginHostApi(composed)).toBe(true);
+    expect(hasPluginApi(composed)).toBe(true);
     expect(typeof composed.registerPlugin).toBe("function");
   });
 

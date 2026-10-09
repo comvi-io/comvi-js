@@ -39,7 +39,7 @@ createApp(App).use(i18n).mount("#app"); // vue's own `use`, unchanged
 | `host.use(plugin, options)` | `host.registerPlugin(plugin, options)` | the deferred plugin queue, on the plugin-host capability |
 | —                           | `definePlugin(fn, options?)`           | NEW: registers your own inline plugin through `.use`     |
 | `E_WITH_HOST_IDENTITY`      | `E_USE_HOST_IDENTITY`                  | vue: the installer returned a different object           |
-| `WithHostIdentityError`     | `UseHostIdentityError`                 | the exported type for that error                         |
+| `WithHostIdentityError`     | `UseInstanceIdentityError`             | the exported type for that error                         |
 | `E_INSTALLER_NESTED_USE`    | `E_INSTALLER_AS_PLUGIN`                | an installer was registered as a plugin                  |
 | —                           | `E_USE_NOT_INSTALLER`                  | NEW: `.use(f)` got something that is not an installer    |
 
@@ -47,7 +47,7 @@ createApp(App).use(i18n).mount("#app"); // vue's own `use`, unchanged
 
 `E_USE_NOT_INSTALLER` is what makes one verb safe. The rule is IDENTITY: **an installer widens the host in place and returns the host it was given**, so `.use(f)` throws unless `f` handed back that same object. A shape probe ("did it return an object?") would not have been enough — `fetchLoaderPlugin(…)` and friends are async functions, so calling one returns a Promise, which is an object; the plugin would have run at composition time with its rejection unhandled. Identity catches sync and async raw plugins alike, and `.use` — core's and vue's alike — also swallows the rejection an already-invoked async plugin left behind, so the actionable error is the only thing you see. In development the message states the rule, NAMES what came back (`typeof`, and whether an object was thenable — which is what separates "you passed an async plugin" from "you passed nothing"), and names both ways out; in production it is the bare code. This is the same rule vue's wrapper has always enforced over `i18n.core`, reported there under the wrapper's own code and with the same development wording, so the branchable `code` set is now three: `E_ICU_SYNTAX`, `E_USE_HOST_IDENTITY`, `E_USE_NOT_INSTALLER`.
 
-The rule is also stated in the TYPE: `use<T extends this>(installer: (host: this) => T): T`, so all three misuses — a derived object, an async installer, an installer that returns nothing — are compile errors, while every widening installer still infers and widens. The runtime guard stays for JS and `any`-typed callers. Vue's `use` keeps its `T extends WrapperI18nHost<D>` bound, which already refuses the same three shapes.
+The rule is also stated in the TYPE: `use<T extends this>(installer: (host: this) => T): T`, so all three misuses — a derived object, an async installer, an installer that returns nothing — are compile errors, while every widening installer still infers and widens. The runtime guard stays for JS and `any`-typed callers. Vue's `use` keeps its `T extends WrapperI18nInstance<D>` bound, which already refuses the same three shapes.
 
 One consequence for hand-written installers: a step that returned a DERIVED object (`.use((i18n) => ({ i18n, dispose }))`) is no longer a valid installer. Widen in place and return the host, and keep whatever else you built beside the chain.
 

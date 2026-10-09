@@ -1470,7 +1470,7 @@
       "package": "packages/core",
       "file": "src/editor-bridge.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (!host || (typeof host !== \"object\" && typeof host !== \"function\")) {",
+      "snippet": "if (!instance || (typeof instance !== \"object\" && typeof instance !== \"function\")) {",
       "lineHint": 63,
       "kind": "equivalent",
       "reason": "Leaves `!host` as the only guard, so a truthy primitive host (string, number, boolean, symbol, bigint) reaches the property read host[EDITOR_MAPPINGS_GLOBAL]. That read is undefined on a primitive, and the very next guard returns undefined for it - the same result the removed test produced.",
@@ -5514,7 +5514,7 @@
       "package": "packages/next",
       "file": "src/composedHost.ts",
       "mutators": ["ObjectLiteral"],
-      "snippet": "attachDevtools(host, { instanceId, exposeGlobal });",
+      "snippet": "attachDevtools(instance, { instanceId, exposeGlobal });",
       "lineHint": 82,
       "kind": "equivalent",
       "reason": "createNextI18n is the only caller and never supplies either option, so both are always undefined — same as {}. Hand-applied; green."

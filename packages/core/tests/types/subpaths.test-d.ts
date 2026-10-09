@@ -10,11 +10,11 @@ import {
   isVirtualNode as baseIsVirtualNode,
   missingCapability,
   hasLoaderApi,
-  hasPluginHostApi,
+  hasPluginApi,
   type RevisionEvent,
   type RevisionEventSource,
   type CapabilityName,
-  type WrapperI18nHost,
+  type WrapperI18nInstance,
 } from "@comvi/core";
 import {
   acquireLoaderApi,
@@ -41,7 +41,7 @@ import {
   plugins,
   type AcquiredPluginsApi,
   type I18nPlugin,
-  type I18nPluginHostApi,
+  type I18nPluginApi,
 } from "@comvi/core/plugins";
 import { icuCompiler, type MessageCompiler } from "@comvi/core/icu";
 import {
@@ -241,7 +241,7 @@ if (baseIsVirtualNode(maybeNode)) {
 }
 
 // The host alias reaches /slim consumers, and bare slim satisfies it.
-const slimHost: WrapperI18nHost = slim;
+const slimHost: WrapperI18nInstance = slim;
 void slimHost;
 
 // The structural guards narrow a host to the capability surface.
@@ -254,13 +254,13 @@ if (hasLoaderApi(slimHost)) {
   void slimHost.addActiveNamespaces(["common"]);
   slimHost.removeActiveNamespaces(["common"]);
 }
-if (hasPluginHostApi(slimHost)) {
+if (hasPluginApi(slimHost)) {
   slimHost.registerPostProcessor((result) => result);
   slimHost.setPluginData("cfg", 1);
 }
 
 // A composed host is still a wrapper host — the alias never narrows away.
-const composedHost: WrapperI18nHost = composed;
+const composedHost: WrapperI18nInstance = composed;
 void composedHost;
 
 // ── /devtools: the discovery capability ──────────────────────────────────
@@ -335,7 +335,7 @@ const pipedBoth = createBaseI18n({ locale: "en" }).use(attachLoader).use(plugins
 pipedBoth.registerLoader(loaderFn);
 pipedBoth.registerPlugin(fetchLoaderShaped).t("count", { count: 1 });
 pipedBoth.registerPostProcessor((result) => result);
-const pipedBothHost: WrapperI18nHost = pipedBoth;
+const pipedBothHost: WrapperI18nInstance = pipedBoth;
 void pipedBothHost;
 
 // Order is the caller's; the type compounds either way.
@@ -396,20 +396,18 @@ type Expect<T extends true> = T;
 // `use` is NOT on that API: the queue and the composition verb are two
 // different members with two different contracts (`use` is on the BASE host).
 export type _RegisterPluginIsOnTheApi = Expect<
-  Equal<"registerPlugin" extends keyof I18nPluginHostApi ? true : false, true>
+  Equal<"registerPlugin" extends keyof I18nPluginApi ? true : false, true>
 >;
 export type _RegisterPluginArg = Expect<
-  Equal<Parameters<I18nPluginHostApi["registerPlugin"]>[0], I18nPlugin>
+  Equal<Parameters<I18nPluginApi["registerPlugin"]>[0], I18nPlugin>
 >;
-export type _ApiHasNoUse = Expect<
-  Equal<"use" extends keyof I18nPluginHostApi ? true : false, false>
->;
+export type _ApiHasNoUse = Expect<Equal<"use" extends keyof I18nPluginApi ? true : false, false>>;
 
 // `definePlugin(fn)` is an installer, so it satisfies `.use`'s parameter and
 // widens the host by exactly the plugin-host API.
 const withDefinedPlugin = createBaseI18n({ locale: "en" }).use(definePlugin(() => {}));
-export type _DefinePluginWidensToThePluginHost = Expect<
-  Equal<typeof withDefinedPlugin extends I18nPluginHostApi ? true : false, true>
+export type _DefinePluginWidensToThePluginInstance = Expect<
+  Equal<typeof withDefinedPlugin extends I18nPluginApi ? true : false, true>
 >;
 withDefinedPlugin.registerPlugin(() => {});
 // It takes the same options the queue does.
@@ -493,7 +491,7 @@ export type _AcquiredPluginsIsTheAcquirersReturn = Expect<
 // Every member is core's own declaration, indexed straight off the capability
 // API — never a re-typed copy.
 export type _OnMissingKeyIsCoresType = Expect<
-  Equal<AcquiredPluginsApi["onMissingKey"], I18nPluginHostApi["onMissingKey"]>
+  Equal<AcquiredPluginsApi["onMissingKey"], I18nPluginApi["onMissingKey"]>
 >;
 export type _LoaderMembersAreCoresTypes = Expect<
   Equal<AcquiredLoaderApi, Pick<I18nLoaderApi, keyof AcquiredLoaderApi>>
@@ -519,6 +517,6 @@ export type _NoRegisterPluginOnTheBag = Expect<
 
 // A bare host is refused at the CALL only at runtime — the parameter is the
 // wrapper host type, so every binding can hand its context host straight in.
-declare const anyWrapperHost: WrapperI18nHost;
+declare const anyWrapperHost: WrapperI18nInstance;
 void acquireLoaderApi(anyWrapperHost);
 void acquirePluginsApi(anyWrapperHost);

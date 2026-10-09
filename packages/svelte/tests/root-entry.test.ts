@@ -20,12 +20,12 @@ import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, loader } from "@comvi/core/loader";
 import type { I18nLoaderApi } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import type { I18nPluginHostApi } from "@comvi/core/plugins";
+import type { I18nPluginApi } from "@comvi/core/plugins";
 // The `.js` extension the entry itself uses, so the identity assertions below
 // compare the SAME resolved module rather than two spellings of one path.
 import {
   setI18nContext as deepSetI18nContext,
-  useI18nHost as deepUseI18nHost,
+  useI18nInstance as deepUseI18nHost,
 } from "../src/context.js";
 import { useI18n as deepUseI18n } from "../src/useI18n.js";
 import DeepT from "../src/T.svelte";
@@ -50,7 +50,7 @@ describe("@comvi/svelte — the single root entry", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
     // A base host does not DECLARE the capability members, so the absence
     // claim needs a view that admits them as optional to be readable at all.
-    const bare = i18n as Partial<I18nLoaderApi & I18nPluginHostApi>;
+    const bare = i18n as Partial<I18nLoaderApi & I18nPluginApi>;
 
     expect(bare.reloadMessages).toBeUndefined();
     expect(bare.onMissingKey).toBeUndefined();
@@ -212,7 +212,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
     expect(typeof i18n.reloadMessages).toBe("function");
     // The plugin capability was never composed on, so its members are not
     // declared either — same optional view as the base-host probe above.
-    expect((i18n as Partial<I18nPluginHostApi>).onMissingKey).toBeUndefined();
+    expect((i18n as Partial<I18nPluginApi>).onMissingKey).toBeUndefined();
   });
 });
 
@@ -237,7 +237,7 @@ describe("@comvi/svelte — the export surface", () => {
     "plugins",
     "setI18nContext",
     "useI18n",
-    "useI18nHost",
+    "useI18nInstance",
     "useI18nLoader",
     "useI18nPlugins",
   ];
@@ -281,7 +281,7 @@ describe("@comvi/svelte — one entry, one context key", () => {
     // root re-exports the bindings THEMSELVES rather than wrapping them: a
     // wrapper would mint a second `getContext` key and introduce that hazard.
     expect(root.setI18nContext).toBe(deepSetI18nContext);
-    expect(root.useI18nHost).toBe(deepUseI18nHost);
+    expect(root.useI18nInstance).toBe(deepUseI18nHost);
     expect(root.useI18n).toBe(deepUseI18n);
     expect(root.T).toBe(DeepT);
   });

@@ -15,13 +15,13 @@ get a loader.
 
 ```ts
 // comvi.host.ts
-import { createI18n, type NuxtHostFactory } from "@comvi/nuxt/host";
+import { createI18n, type NuxtInstanceFactory } from "@comvi/nuxt/host";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 export default ((options) =>
   createI18n(options).use(
     cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
-  )) satisfies NuxtHostFactory;
+  )) satisfies NuxtInstanceFactory;
 ```
 
 …and points `comvi.hostModule` at it. `apiBaseUrl` moves the same way, into the loader plugin's own `baseUrl`

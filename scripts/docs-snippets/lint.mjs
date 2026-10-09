@@ -126,7 +126,7 @@ const LOADER_TOKENS = [
   // a host that does NOT have it, and would have vouched for the very
   // `registerLoader` call the rule exists to catch.
   /&\s*I18nLoaderApi\b/,
-  /[&:<]\s*NuxtServerLoaderHost\b/,
+  /[&:<]\s*NuxtServerLoaderInstance\b/,
 ];
 
 /**

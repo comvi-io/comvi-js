@@ -5,7 +5,7 @@ import type { NextComposedI18n, NextPluginOptions } from "@comvi/next";
 import { createNextI18n, definePlugin, loader, nextPlugin, nextPluginLazy } from "@comvi/next";
 import { defineRouting } from "../../src/routing";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
-import type { I18n, I18nLoaderApi, I18nPlugin, I18nPluginHostApi, LoaderFn } from "@comvi/core";
+import type { I18n, I18nLoaderApi, I18nPlugin, I18nPluginApi, LoaderFn } from "@comvi/core";
 import type { LoaderImportMap } from "@comvi/core/loader";
 
 type Equal<X, Y> =
@@ -13,17 +13,19 @@ type Equal<X, Y> =
 type Expect<T extends true> = T;
 
 // The published type IS the result's `i18n` field — no drift possible.
-export type _ResultHostIsTheExportedType = Expect<
+export type _ResultInstanceIsTheExportedType = Expect<
   Equal<CreateNextI18nResult["i18n"], NextComposedI18n>
 >;
-export type _ResultHostIsTheExportedTypeGeneric = Expect<
+export type _ResultInstanceIsTheExportedTypeGeneric = Expect<
   Equal<CreateNextI18nResult<{ brand: string }>["i18n"], NextComposedI18n<{ brand: string }>>
 >;
 
 // It carries the base host, the loader API and the plugin host.
-export type _CarriesBaseHost = Expect<Equal<NextComposedI18n extends I18n ? true : false, true>>;
-export type _CarriesPluginHost = Expect<
-  Equal<NextComposedI18n extends I18nPluginHostApi ? true : false, true>
+export type _CarriesBaseInstance = Expect<
+  Equal<NextComposedI18n extends I18n ? true : false, true>
+>;
+export type _CarriesPluginInstance = Expect<
+  Equal<NextComposedI18n extends I18nPluginApi ? true : false, true>
 >;
 export type _CarriesLoaderApi = Expect<
   Equal<NextComposedI18n extends I18nLoaderApi ? true : false, true>
@@ -58,10 +60,10 @@ export type _PipeKeepsTheResultShape = Expect<
 // The composed host already carries both capabilities, so these installers
 // widen it to itself: `i18n` stays the published type, and the pipe is still
 // exact rather than `any`.
-export type _PipeWidensToTheComposedHost = Expect<
-  Equal<typeof _piped.i18n, NextComposedI18n & I18nLoaderApi & I18nPluginHostApi>
+export type _PipeWidensToTheComposedInstance = Expect<
+  Equal<typeof _piped.i18n, NextComposedI18n & I18nLoaderApi & I18nPluginApi>
 >;
-export type _PipeIsStillTheComposedHost = Expect<
+export type _PipeIsStillTheComposedInstance = Expect<
   Equal<typeof _piped.i18n extends NextComposedI18n ? true : false, true>
 >;
 export type _PipeRoutingUnchanged = Expect<

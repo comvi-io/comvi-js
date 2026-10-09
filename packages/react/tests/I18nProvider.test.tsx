@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { I18nProvider, useI18nHost, useIsLoading, useLocale } from "../src/I18nProvider";
+import { I18nProvider, useI18nInstance, useIsLoading, useLocale } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushEffects } from "./test-utils";
@@ -380,13 +380,13 @@ describe("I18nProvider", () => {
   });
 });
 
-describe("useI18nHost", () => {
+describe("useI18nInstance", () => {
   it("returns the provider's host", () => {
     const fake = new FakeI18n({ language: "en" });
     let host: unknown;
 
     function Probe() {
-      host = useI18nHost();
+      host = useI18nInstance();
       return null;
     }
 
@@ -402,7 +402,7 @@ describe("useI18nHost", () => {
   it("throws outside a provider", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     function Probe() {
-      useI18nHost();
+      useI18nInstance();
       return null;
     }
     expect(() => render(<Probe />)).toThrow(

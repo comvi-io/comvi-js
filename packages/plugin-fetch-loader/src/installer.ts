@@ -1,4 +1,4 @@
-import type { I18n, I18nLoaderApi, I18nPluginHostApi } from "@comvi/core";
+import type { I18n, I18nLoaderApi, I18nPluginApi } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 import type { FetchLoaderOptions } from "./options";
@@ -7,7 +7,7 @@ import { fetchLoaderPlugin } from "./loader";
 /** The instance surface `fetchLoader` guarantees on the way out. */
 export type FetchLoaderInstaller = <T extends I18n<any>>(
   i18n: T,
-) => T & I18nLoaderApi & I18nPluginHostApi;
+) => T & I18nLoaderApi & I18nPluginApi;
 
 /**
  * The fetch loader as a `.use(…)` installer.
@@ -33,7 +33,7 @@ export type FetchLoaderInstaller = <T extends I18n<any>>(
  * message claims the slot.
  *
  * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
- * not re-implemented here; they keep running inside `I18nPluginHost`, because
+ * not re-implemented here; they keep running inside `PluginI18nInstance`, because
  * the last thing this installer does is call `registerPlugin`.
  *
  * `options` is required here even though `fetchLoaderPlugin(options?)` accepts
@@ -46,8 +46,8 @@ export type FetchLoaderInstaller = <T extends I18n<any>>(
  */
 export function fetchLoader(options: FetchLoaderOptions): FetchLoaderInstaller {
   return (i18n) => {
-    const host = attachLoader(attachPlugins(ensureInstallable(i18n, "fetchLoader")));
-    host.registerPlugin(fetchLoaderPlugin(options));
-    return host;
+    const instance = attachLoader(attachPlugins(ensureInstallable(i18n, "fetchLoader")));
+    instance.registerPlugin(fetchLoaderPlugin(options));
+    return instance;
   };
 }

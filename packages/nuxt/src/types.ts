@@ -5,7 +5,7 @@ import type {
   I18nLoaderApi,
   I18nOptions,
   MessageCompiler,
-  WrapperI18nHost,
+  WrapperI18nInstance,
 } from "@comvi/core";
 import type { VueI18n } from "@comvi/vue";
 
@@ -172,8 +172,8 @@ export interface NuxtI18nOptions {
   icu?: boolean;
 
   /**
-   * Path to a module whose DEFAULT export is a {@link NuxtHostFactory} —
-   * `(options) => WrapperI18nHost` — used INSTEAD of `@comvi/vue`'s own
+   * Path to a module whose DEFAULT export is a {@link NuxtInstanceFactory} —
+   * `(options) => WrapperI18nInstance` — used INSTEAD of `@comvi/vue`'s own
    * constructor.
    *
    * This is how a nuxt app gets any capability at all. Unset (the default),
@@ -321,16 +321,16 @@ export interface NuxtI18nSetupEvent extends H3Event {
  * for the capability with core's `hasLoaderApi` and say so once, by name, when
  * it is absent, rather than calling a member the instance does not have.
  */
-export type NuxtServerHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
+export type NuxtServerInstance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D>;
 
 /**
- * A {@link NuxtServerHost} whose `hostModule` factory composed
+ * A {@link NuxtServerInstance} whose `hostModule` factory composed
  * `@comvi/core/loader`. This is the shape SSR translation loading actually
  * needs, and the one the server utilities narrow to before driving
  * `reloadMessages` / `addActiveNamespace`.
  */
-export type NuxtServerLoaderHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D> &
-  I18nLoaderApi;
+export type NuxtServerLoaderInstance<D extends DefaultTranslationParams = {}> =
+  WrapperI18nInstance<D> & I18nLoaderApi;
 
 /**
  * The resolved options nuxt hands a `hostModule` factory: every core option
@@ -342,7 +342,7 @@ export type NuxtServerLoaderHost<D extends DefaultTranslationParams = {}> = Wrap
  * forwards it into `createI18n` is constructed correct rather than corrected
  * afterwards.
  */
-export type NuxtHostFactoryOptions<D extends DefaultTranslationParams = {}> = {
+export type NuxtInstanceFactoryOptions<D extends DefaultTranslationParams = {}> = {
   locale: string;
   fallbackLocale?: string | string[];
   defaultNs?: string;
@@ -367,11 +367,11 @@ export type NuxtHostFactoryOptions<D extends DefaultTranslationParams = {}> = {
  * The `hostModule` default export: a factory returning a FRESH instance per call.
  *
  * `C` is the instance the app composed, and it flows all the way through — a
- * factory typed `NuxtHostFactory<I18n & I18nLoaderApi>` is what makes
+ * factory typed `NuxtInstanceFactory<I18n & I18nLoaderApi>` is what makes
  * `NuxtI18nSetup<I18n & I18nLoaderApi>` the matching hook signature.
  */
-export type NuxtHostFactory<C = WrapperI18nHost, D extends DefaultTranslationParams = {}> =
-  C extends WrapperI18nHost<D> ? (options: NuxtHostFactoryOptions<D>) => C : never;
+export type NuxtInstanceFactory<C = WrapperI18nInstance, D extends DefaultTranslationParams = {}> =
+  C extends WrapperI18nInstance<D> ? (options: NuxtInstanceFactoryOptions<D>) => C : never;
 
 /**
  * The one slot the module's generated `#build` declaration writes the app's
@@ -382,26 +382,27 @@ export type NuxtHostFactory<C = WrapperI18nHost, D extends DefaultTranslationPar
  * `NuxtI18nSetup<I18n & I18nLoaderApi>` compiled whether or not
  * `comvi.host.ts` ever composed the loader, and a base instance has no capability
  * shim, so `core.registerLoader(...)` threw a raw `TypeError` on the first
- * call. Codegen augments this interface, which makes {@link ResolvedNuxtHost}
+ * call. Codegen augments this interface, which makes {@link ResolvedNuxtInstance}
  * — and therefore `NuxtI18nSetup`'s DEFAULT type argument — the instance the
  * factory actually returns.
  *
  * An app never writes to it by hand. Empty here on purpose: this package
  * compiles without any app, and the fallbacks below are what that means.
  */
-export interface ComviNuxtHostRegistry {}
+export interface ComviNuxtInstanceRegistry {}
 
 /**
- * {@link ComviNuxtHostRegistry}'s `host` when codegen wrote one, `Fallback`
+ * {@link ComviNuxtInstanceRegistry}'s `instance` when codegen wrote one, `Fallback`
  * otherwise — the seam the two audiences need different answers from.
  */
-export type RegisteredNuxtHost<Fallback extends WrapperI18nHost> = ComviNuxtHostRegistry extends {
-  host: infer H;
-}
-  ? H extends WrapperI18nHost
-    ? H
-    : Fallback
-  : Fallback;
+export type RegisteredNuxtInstance<Fallback extends WrapperI18nInstance> =
+  ComviNuxtInstanceRegistry extends {
+    instance: infer H;
+  }
+    ? H extends WrapperI18nInstance
+      ? H
+      : Fallback
+    : Fallback;
 
 /**
  * The instance this app runs on: the `comvi.host` factory's return type when the
@@ -412,37 +413,37 @@ export type RegisteredNuxtHost<Fallback extends WrapperI18nHost> = ComviNuxtHost
  * `satisfies NuxtI18nSetup` — no type argument at all — is typed from the
  * factory rather than from a claim about it.
  */
-export type ResolvedNuxtHost = RegisteredNuxtHost<I18n>;
+export type ResolvedNuxtInstance = RegisteredNuxtInstance<I18n>;
 
 /**
  * The cross-check the module's generated `#build` declaration applies to
  * `comvi.setup`'s default export: `Hook` is returned unchanged when it matches
- * `Host`, and is a COMPILE error when it asks for a capability `Host` does not
+ * `Instance`, and is a COMPILE error when it asks for a capability `Instance` does not
  * have.
  *
  * The generated declaration passes `ReturnType<typeof
- * import("./comvi.host").default>` as `Host` and `typeof
+ * import("./comvi.host").default>` as `Instance` and `typeof
  * import("./comvi.setup").default` as `Hook`, so a hook that calls
  * `core.registerLoader(...)` against a factory that never composed the loader
  * fails at build time, by name, instead of at the first call.
  */
 export type CheckedNuxtI18nSetup<
-  Host extends WrapperI18nHost,
-  Hook extends NuxtI18nSetup<Host>,
+  Instance extends WrapperI18nInstance,
+  Hook extends NuxtI18nSetup<Instance>,
 > = Hook;
 
 /**
  * Context passed to `comvi.setup` hook.
  *
  * `C` is the instance the app runs on, and it defaults to
- * {@link ResolvedNuxtHost}: the `comvi.host` factory's return type when the
+ * {@link ResolvedNuxtInstance}: the `comvi.host` factory's return type when the
  * module's generated declaration is in the program, core's base `I18n` — the
  * no-`hostModule` configuration — otherwise. An app MAY still name its own
- * instance type (`NuxtI18nSetup<MyHost>`) and get exactly the capabilities it
+ * instance type (`NuxtI18nSetup<MyInstance>`) and get exactly the capabilities it
  * names; codegen then cross-checks that claim against the factory. Capability
  * calls live on `i18n.core.*` on the plugin side.
  */
-export interface NuxtI18nSetupContext<C extends WrapperI18nHost = ResolvedNuxtHost> {
+export interface NuxtI18nSetupContext<C extends WrapperI18nInstance = ResolvedNuxtInstance> {
   /**
    * i18n instance for current runtime.
    * - VueI18n in Nuxt app plugin — capability APIs live on `i18n.core`
@@ -484,7 +485,7 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nHost = ResolvedNuxtHo
 /**
  * Signature for a `comvi.setup` default export.
  *
- * The default type parameter is {@link ResolvedNuxtHost} — inside an app, the
+ * The default type parameter is {@link ResolvedNuxtInstance} — inside an app, the
  * `comvi.host` factory's own return type, read from the file rather than
  * claimed about it; with no `hostModule` (and in this package's own
  * compilation) the BASE instance, so capability calls do not compile by accident.
@@ -516,7 +517,7 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nHost = ResolvedNuxtHo
  * }) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
  * ```
  */
-export type NuxtI18nSetup<C extends WrapperI18nHost = ResolvedNuxtHost> = (
+export type NuxtI18nSetup<C extends WrapperI18nInstance = ResolvedNuxtInstance> = (
   context: NuxtI18nSetupContext<C>,
 ) => void | Promise<void>;
 

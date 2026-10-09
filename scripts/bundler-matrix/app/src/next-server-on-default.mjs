@@ -1,6 +1,6 @@
 // A Next.js SERVER app on a composed BASE + `attachLoader` host, built from a
 // SINGLE package: every specifier is `@comvi/next/server`, the capability
-// toolkit included, because `NextServerHost = WrapperI18nHost & I18nLoaderApi`
+// toolkit included, because `NextServerInstance = WrapperI18nInstance & I18nLoaderApi`
 // makes the loader mandatory for SSR.
 //
 // The runner asserts, from the bundler's own module graph, that core's

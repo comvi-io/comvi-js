@@ -1,9 +1,9 @@
 <script lang="ts">
   import { setI18nContext } from "../src/context";
   import { useI18n } from "../src/useI18n";
-  import type { WrapperI18nHost } from "@comvi/core";
+  import type { WrapperI18nInstance } from "@comvi/core";
 
-  let { i18n }: { i18n: WrapperI18nHost } = $props();
+  let { i18n }: { i18n: WrapperI18nInstance } = $props();
 
   // The host is fixed for the component's lifetime.
   // svelte-ignore state_referenced_locally

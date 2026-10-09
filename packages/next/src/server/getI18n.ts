@@ -3,7 +3,7 @@ import type { TranslationParams, TranslationResult } from "@comvi/core";
 import { getConfiguredRouting, resolveServerI18n } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import { getLocale } from "./getLocale";
-import type { ServerTranslatingHost } from "./hostTypes";
+import type { ServerTranslatingInstance } from "./hostTypes";
 import { loadChain } from "./loadMessages";
 import type {
   GetI18nOptions,
@@ -81,7 +81,7 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
   const i18n = resolveServerI18n();
 
   // The request view (`RequestView`) is resolved FIRST, before anything global
-  // runs: `init()` loads the default namespace at the host's own, static locale
+  // runs: `init()` loads the default namespace at the instance's own, static locale
   // (`_nsAddActiveNamespaces`), so a request that cannot say which locale it is
   // must not be what triggers it.
   let locale: RequestView["locale"] | undefined = options?.locale;
@@ -109,11 +109,11 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
   // cached primary catalog says nothing about the fallbacks, so each is checked.
   await loadChain(i18n, [...new Set([locale, ...i18n.getFallbackLocales()])], [defaultNs]);
 
-  // The one place allowed to reach the host's translator: the shared host
-  // contributes catalog and loader only, and `ServerI18nHost` has no `t`/`tRaw`
+  // The one place allowed to reach the instance's translator: the shared instance
+  // contributes catalog and loader only, and `ServerI18nInstance` has no `t`/`tRaw`
   // so no other server helper can translate. Every call below names the request
   // locale explicitly.
-  const translate = createBoundTranslation(i18n as ServerTranslatingHost, defaultNs) as (
+  const translate = createBoundTranslation(i18n as ServerTranslatingInstance, defaultNs) as (
     key: string,
     params?: TranslationParams,
   ) => TranslationResult;

@@ -1,10 +1,10 @@
 import type { H3Event } from "h3";
 import { runComviSetup } from "#build/comvi.setup";
 // Same build-time branch as the client plugin: with `hostModule` set, the
-// generated template returns the app's own composed host and nuxt's default
+// generated template returns the app's own composed instance and nuxt's default
 // `@comvi/vue` construction path is not in the server graph.
 import { createComviCore } from "#build/comvi.host";
-import type { NuxtServerHost } from "../../../types";
+import type { NuxtServerInstance } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
 // The registry and its teardown live outside this file so the Nitro server
 // plugin can import them: nuxt's `impound` plugin refuses the `#build/*`
@@ -17,12 +17,12 @@ import {
 } from "../internal/request-hosts";
 
 /** Keyed by event context in a WeakMap, so cleanup is automatic. */
-export async function getRequestI18n(event: H3Event, locale: string): Promise<NuxtServerHost> {
+export async function getRequestI18n(event: H3Event, locale: string): Promise<NuxtServerInstance> {
   const contextKey = getContextKey(event);
   assertRequestLive(contextKey);
   let localeInstances = requestI18nMap.get(contextKey);
   if (!localeInstances) {
-    localeInstances = new Map<string, Promise<NuxtServerHost>>();
+    localeInstances = new Map<string, Promise<NuxtServerInstance>>();
     requestI18nMap.set(contextKey, localeInstances);
   }
 
@@ -48,7 +48,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
         // no catalog, exactly as the app plugin does.
         messages: publicConfig.messages || undefined,
         // Symmetric with the app plugin (runtime/plugin.ts): a server route that
-        // renders rich text off the request host keeps the same whitelist the
+        // renders rich text off the request instance keeps the same whitelist the
         // client render used. `ssrLocale` stays client-only.
         tagInterpolation: publicConfig.basicHtmlTags
           ? { basicHtmlTags: publicConfig.basicHtmlTags }
@@ -62,7 +62,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
       // default branch constructs core with it, and a `hostModule` factory is
       // handed the same resolved options — so this is a no-op for any factory
       // that forwards them. It stays because the factory is free to ignore
-      // them, and a host on the wrong locale would load the wrong catalog:
+      // them, and an instance on the wrong locale would load the wrong catalog:
       // corrected here, before init(), so the first load is already right.
       if (i18n.locale !== locale) {
         i18n.locale = locale;
@@ -70,7 +70,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
 
       await runComviSetup({
         i18n,
-        // The server utility's `i18n` IS the host.
+        // The server utility's `i18n` IS the instance.
         core: i18n,
         event,
         runtime: "server",
@@ -87,7 +87,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
     hookRequestCleanup(event, contextKey);
   }
 
-  let i18n: NuxtServerHost;
+  let i18n: NuxtServerInstance;
   try {
     i18n = await instancePromise;
   } catch (error) {

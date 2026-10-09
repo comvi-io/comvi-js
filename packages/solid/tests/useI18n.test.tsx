@@ -3,7 +3,7 @@ import { createMemo } from "solid-js";
 import { render } from "solid-js/web";
 import { attachLoader, createI18n, icuCompiler } from "../src/index";
 import { attachPlugins } from "@comvi/core/plugins";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 import type { LoaderResult } from "@comvi/core/loader";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
@@ -128,12 +128,12 @@ describe("useI18n", () => {
         </div>
       );
     };
-    // `I18nProvider`'s `i18n` prop is `WrapperI18nHost<{}>`, not
-    // `WrapperI18nHost<D>`, and `setDefaultParams` makes the host invariant in
+    // `I18nProvider`'s `i18n` prop is `WrapperI18nInstance<{}>`, not
+    // `WrapperI18nInstance<D>`, and `setDefaultParams` makes the host invariant in
     // `D`, so no `createI18n({ defaultParams })` instance is assignable to it.
     // The cast stands in until the prop is generic over the defaults type.
     const container = renderSolid(() => (
-      <I18nProvider i18n={i18n as unknown as WrapperI18nHost} autoInit={false}>
+      <I18nProvider i18n={i18n as unknown as WrapperI18nInstance} autoInit={false}>
         <Probe />
       </I18nProvider>
     ));

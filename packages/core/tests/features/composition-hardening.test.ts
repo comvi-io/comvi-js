@@ -7,7 +7,7 @@
  *    initial namespace load already happened. Nothing warned. (A later
  *    `init()` would drain the queue again — see `plugins.test.ts` — which is
  *    why the warning says "not now", not "never".)
- *  • A plugins-only host hands every plugin an `I18nPluginHost`, whose type
+ *  • A plugins-only host hands every plugin an `PluginI18nInstance`, whose type
  *    promises the loader API. Calling `registerLoader` on one died with a bare
  *    `TypeError: … is not a function` instead of the actionable
  *    `missingCapability("loader")` every wrapper throws.

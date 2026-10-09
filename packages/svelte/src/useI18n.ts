@@ -1,5 +1,5 @@
 import { derived, fromStore, type Readable } from "svelte/store";
-import { useI18nHost } from "./context.js";
+import { useI18nInstance } from "./context.js";
 import {
   createLocaleStore,
   createLoadingStore,
@@ -18,7 +18,7 @@ import {
   getTextDirection,
 } from "@comvi/core";
 import type {
-  WrapperI18nHost,
+  WrapperI18nInstance,
   TranslationParams,
   TranslationResult,
   MessagesMap,
@@ -32,7 +32,7 @@ import type {
 } from "@comvi/core";
 
 /** Loader/plugin members are NOT part of it — see `capabilities.ts`. */
-type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
+type Instance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D>;
 
 const DEFAULT_NS_CACHE_KEY = Symbol("comvi-default-ns");
 type TranslationStoreCacheKey = string | symbol;
@@ -60,7 +60,7 @@ type CachedTextTranslationStore = TextTranslationStore<{}>;
  * One derived store per (instance, namespace), so repeated `useI18n()` calls
  * get stable store references.
  *
- * Keyed by object IDENTITY: `WrapperI18nHost<D>` is INVARIANT in `D`
+ * Keyed by object IDENTITY: `WrapperI18nInstance<D>` is INVARIANT in `D`
  * (`init(): Promise<this>` recurses back through the `D`-typed
  * `setDefaultParams`), so there is no instance type every instance widens to. The
  * cached stores are `D`-erased and re-typed per caller on the way out.
@@ -75,7 +75,7 @@ const textTranslationStoreCache = new WeakMap<
 >();
 
 function getOrCreateRawTranslationStore<D extends DefaultTranslationParams>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
   ns?: string,
 ): RawTranslationStore<D> {
   let storesByNamespace = rawTranslationStoreCache.get(i18n);
@@ -102,7 +102,7 @@ function getOrCreateRawTranslationStore<D extends DefaultTranslationParams>(
 }
 
 function getOrCreateTextTranslationStore<D extends DefaultTranslationParams>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
   ns?: string,
 ): TextTranslationStore<D> {
   let storesByNamespace = textTranslationStoreCache.get(i18n);
@@ -167,14 +167,14 @@ export interface UseI18nReturn<
   defaultParams: Readable<DefaultParamsSnapshot<D>>;
 
   /** Resolves once translations for the new locale have loaded. */
-  setLocale: Host["setLocale"];
+  setLocale: Instance["setLocale"];
 
   addMessages: (messages: MessagesMap) => void;
 
   setFallbackLocale: (locales: string | string[]) => void;
 
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: Host<D>["setDefaultParams"];
+  setDefaultParams: Instance<D>["setDefaultParams"];
 
   clearMessages: (locale?: string, namespace?: string) => void;
 
@@ -199,7 +199,7 @@ export interface UseI18nReturn<
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
 
   /** Routes to the configured `onError` handler. */
-  reportError: Host["reportError"];
+  reportError: Instance["reportError"];
 
   // The formatters below are plain functions, not stores, and follow the
   // locale: markup and `$derived` that call them re-run on a switch. A
@@ -250,9 +250,9 @@ export function useI18n<
   NS extends string | undefined = undefined,
 >(ns?: NS): UseI18nReturn<D, NS> {
   // Svelte context is type-erased — one fixed key — so `D` can only come from
-  // the call site, and `WrapperI18nHost<D>` is invariant in `D`: hence the
+  // the call site, and `WrapperI18nInstance<D>` is invariant in `D`: hence the
   // two-step assertion.
-  const i18n = useI18nHost() as unknown as Host<D>;
+  const i18n = useI18nInstance() as unknown as Instance<D>;
 
   const locale = createLocaleStore(i18n);
   const isLoading = createLoadingStore(i18n);
@@ -293,15 +293,15 @@ export function useI18n<
     defaultParams,
 
     // `addActiveNamespace`, `reloadMessages`, `onLoadError` and
-    // `onMissingKey` are NOT here: they belong to capabilities a base host does
+    // `onMissingKey` are NOT here: they belong to capabilities a base instance does
     // not have, and `.bind()` on an absent member throws EAGERLY — this very
-    // object literal used to crash `useI18n()` on such a host.
+    // object literal used to crash `useI18n()` on such an instance.
     // `useI18nLoader()` / `useI18nPlugins()` acquire them instead, throwing one
     // named error at the acquisition point.
     setLocale: i18n.setLocale.bind(i18n),
     addMessages: i18n.addMessages.bind(i18n),
     setFallbackLocale: i18n.setFallbackLocale.bind(i18n),
-    setDefaultParams: i18n.setDefaultParams.bind(i18n) as Host<D>["setDefaultParams"],
+    setDefaultParams: i18n.setDefaultParams.bind(i18n) as Instance<D>["setDefaultParams"],
     clearMessages: i18n.clearMessages.bind(i18n),
     hasLocale: i18n.hasLocale.bind(i18n),
     hasTranslation: i18n.hasTranslation.bind(i18n),

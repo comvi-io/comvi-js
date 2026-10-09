@@ -6,7 +6,7 @@
  * deterministic walk of the tree, so sharing the source is what makes the two
  * paints comparable at all.
  */
-import type { AnyI18nHost } from "@comvi/core";
+import type { AnyI18nInstance } from "@comvi/core";
 import { I18nProvider } from "../../src/context";
 import { useI18n } from "../../src/useI18n";
 
@@ -16,7 +16,7 @@ const Greeting = () => {
 };
 
 export interface AppProps {
-  i18n: AnyI18nHost;
+  i18n: AnyI18nInstance;
   ssrLocale?: string;
 }
 

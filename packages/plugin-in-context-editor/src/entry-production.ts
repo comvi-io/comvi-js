@@ -14,11 +14,11 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (): I18nP
   return () => undefined;
 };
 
-/** The host surface `inContextEditor` guarantees on the way out. */
+/** The instance surface `inContextEditor` guarantees on the way out. */
 export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
 
 /**
- * Production `.use(…)` installer: host identity, and nothing else.
+ * Production `.use(…)` installer: instance identity, and nothing else.
  *
  * The type is IDENTICAL to the default entry's `inContextEditor`, so the same
  * chain type-checks under both conditions. The body is not: no discovery, no
@@ -27,7 +27,7 @@ export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
  * zero capability bytes.
  *
  * `registerPlugin(inContextEditor(…))` is a type error, and here nothing guards it at
- * runtime: the identity function hands the host back and the plugin host's
+ * runtime: the identity function hands the instance back and the plugin capability's
  * return-shape guard rejects that at `init()`, registering nothing.
  */
 export function inContextEditor(_options?: EditorOptions): InContextEditorInstaller {

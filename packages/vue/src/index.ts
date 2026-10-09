@@ -17,13 +17,13 @@
 // ambient tag registration in every graph.
 
 // Vue is the one binding whose preset is a REAL function — there is a `VueI18n`
-// to build around the host, and `ssrLocale` has to reach the core before the
+// to build around the instance, and `ssrLocale` has to reach the core before the
 // reactive ref is seeded — so `createI18n` here is vue's own factory, not a
 // rename of core's. Capabilities are composed on its result with
 // `.use(installer)`, which runs on `i18n.core` and retypes it.
 //
-// `createI18nFromCore` wraps a host built somewhere other than next to the app
-// (nuxt's `hostModule`, or one host shared with non-Vue code). That host is
+// `createI18nFromCore` wraps an instance built somewhere other than next to the app
+// (nuxt's `hostModule`, or one instance shared with non-Vue code). That instance is
 // built with `createI18n` from `@comvi/core` directly — it is elsewhere by
 // definition, so crossing the import boundary is more honest than a local
 // alias, and no `createCore` is re-exported here. `I18n` is a TYPE from this
@@ -45,13 +45,13 @@ export type {
   VueI18nOptions,
   VueI18nCoreOptions,
   AnyVueI18n,
-  UseHostIdentityError,
+  UseInstanceIdentityError,
 } from "./VueI18n";
 
 // The capability toolkit. Each is a named binding under `sideEffects: false`,
 // so the subpaths an app never calls stay out of its graph. `loader(map)` /
 // `plugins()` / `devtools()` are the configured installers for `i18n.use(…)`
-// (and for `host.use(…)`, one level down); the `attach*` functions are
+// (and for `instance.use(…)`, one level down); the `attach*` functions are
 // themselves installers, so `.use(attachLoader)` works too.
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";

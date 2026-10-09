@@ -1,6 +1,6 @@
 /**
  * `@comvi/svelte`'s bindings on the BASE host — a host that implements
- * `WrapperI18nHost` and nothing more. Svelte is the wrapper where promising
+ * `WrapperI18nInstance` and nothing more. Svelte is the wrapper where promising
  * capability members crashed EAGERLY: `useI18n()` `.bind()`s its members in
  * the object literal it returns, so a base host threw "Cannot read properties
  * of undefined (reading 'bind')" before a single translation rendered.
@@ -13,7 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import { attachLoader, createI18n } from "../src/index";
-import type { WrapperI18nHost } from "../src/index";
+import type { WrapperI18nInstance } from "../src/index";
 import type { UseI18nReturn } from "../src/useI18n";
 import BaseHostHarness from "./BaseHostHarness.test.svelte";
 import TInterpolationWrapper from "./TInterpolationWrapper.test.svelte";
@@ -31,7 +31,7 @@ const makeCoreHost = () =>
     },
   });
 
-const makeHost = (): WrapperI18nHost => makeCoreHost();
+const makeHost = (): WrapperI18nInstance => makeCoreHost();
 
 describe("svelte on a base host", () => {
   let target: HTMLElement;
@@ -59,7 +59,7 @@ describe("svelte on a base host", () => {
     (target.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement | null)?.click();
   }
 
-  function render(i18n: WrapperI18nHost): UseI18nReturn {
+  function render(i18n: WrapperI18nInstance): UseI18nReturn {
     let bag!: UseI18nReturn;
     component = mount(BaseHostHarness, {
       target,

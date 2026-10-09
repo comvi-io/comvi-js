@@ -3,9 +3,9 @@
   // auto-init in a microtask, and this component starts init() before that
   // microtask runs.
   import { setI18nContext } from "../src/context";
-  import type { WrapperI18nHost } from "@comvi/core";
+  import type { WrapperI18nInstance } from "@comvi/core";
 
-  export let i18n: WrapperI18nHost;
+  export let i18n: WrapperI18nInstance;
 
   setI18nContext(i18n);
   void i18n.init();

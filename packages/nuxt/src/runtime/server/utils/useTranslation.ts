@@ -2,7 +2,7 @@ import type { H3Event } from "h3";
 import { getCookie, getHeader } from "h3";
 import { hasLoaderApi } from "@comvi/core";
 import type { TranslationParams } from "@comvi/core";
-import type { NuxtServerHost } from "../../../types";
+import type { NuxtServerInstance } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
 import { getRequestI18n } from "./request-i18n";
 import { loadCatalogs } from "../../utils/load-catalogs";
@@ -141,7 +141,7 @@ export async function useTranslation(
 
   // The fallback chain too, whether or not the primary catalog was cached:
   // otherwise a key present only in a fallback catalog renders as the raw key.
-  // The host is already on `resolvedLocale`, which the chain load leaves to the
+  // The instance is already on `resolvedLocale`, which the chain load leaves to the
   // primary path, so the two run in parallel without touching the same pair.
   await Promise.all([
     i18n.hasLocale(resolvedLocale, namespace)
@@ -182,7 +182,7 @@ export async function useTranslation(
  * returns instead of calling a member the instance does not have.
  */
 async function loadMessagesForLocale(
-  i18n: NuxtServerHost,
+  i18n: NuxtServerInstance,
   locale: string,
   namespaces: string[],
 ): Promise<void> {

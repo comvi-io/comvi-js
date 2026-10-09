@@ -3,12 +3,12 @@
 // tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
 import { createI18n, icuCompiler, loader } from "@comvi/svelte";
-import type { I18n, I18nLoaderApi, I18nPluginHostApi } from "@comvi/svelte";
+import type { I18n, I18nLoaderApi, I18nPluginApi } from "@comvi/svelte";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 const supportedLocales = ["en", "de", "fr", "es", "uk", "ar"] as const;
 
-export const i18n: I18n & I18nLoaderApi & I18nPluginHostApi = createI18n({
+export const i18n: I18n & I18nLoaderApi & I18nPluginApi = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,

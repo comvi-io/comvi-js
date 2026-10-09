@@ -2,7 +2,7 @@
 
 // Internal: rendered only by the server `ComviProvider` (`@comvi/next/server`),
 // never exported. It is the library's copy of the `"use client"` wrapper an app
-// used to write itself: the host cannot cross the RSC boundary, so it is
+// used to write itself: the instance cannot cross the RSC boundary, so it is
 // imported HERE, in the client graph, from the module `withComvi({ config })`
 // aliased to `@comvi/next/config`. The server hands over only `locale` and the
 // plain `messages` it loaded.

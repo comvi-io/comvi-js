@@ -11,7 +11,7 @@
  *     landing on a page where the new editor already swapped still attaches —
  *     its legacy code path calls `register(id, instance)`)
  */
-import type { ComviQueueEntry as CoreQueueEntry, I18nPluginHostApi } from "@comvi/core";
+import type { ComviQueueEntry as CoreQueueEntry, I18nPluginApi } from "@comvi/core";
 
 /**
  * What the core discovery queue carries: `@comvi/core`'s published BASE `I18n`,
@@ -22,13 +22,13 @@ type QueueI18n = CoreQueueEntry["i"];
 
 /**
  * The instance type the editor DRIVES. It registers a post-processor on every
- * instance it edits, so it only ever works with a host that has the
- * plugin-host surface composed onto it — `@comvi/core/plugins`
+ * instance it edits, so it only ever works with an instance that has the
+ * plugin surface composed onto it — `@comvi/core/plugins`
  * (`attachPlugins` / `.use(plugins())`), or a framework builder that composes
- * it for you. A bare base host may still be pushed onto the queue — it is
+ * it for you. A bare base instance may still be pushed onto the queue — it is
  * tracked and counted, it is simply not editable.
  */
-type I18n = QueueI18n & I18nPluginHostApi;
+type I18n = QueueI18n & I18nPluginApi;
 
 /** v2 queue entry envelope pushed by new core */
 export interface ComviQueueEntry {

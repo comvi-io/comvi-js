@@ -46,15 +46,15 @@ type I18nWithPostProcessor = {
 /**
  * Returns a stable post-processor state object attached to the i18n instance.
  * Ensures the invisible-marker processor is registered at most once per i18n instance.
- * `encoder` is used only when the state is created; afterwards the host keeps
+ * `encoder` is used only when the state is created; afterwards the instance keeps
  * the encoder it started with.
  */
 export function getOrCreatePostProcessorState(
   i18n: I18nWithPostProcessor,
   encoder: TranslationKeyEncoder = defaultEncoder,
 ): InContextPostProcessorState {
-  const host = i18n as Record<string, unknown>;
-  const existing = host[POST_PROCESSOR_STATE_KEY] as InContextPostProcessorState | undefined;
+  const instance = i18n as Record<string, unknown>;
+  const existing = instance[POST_PROCESSOR_STATE_KEY] as InContextPostProcessorState | undefined;
 
   if (existing) {
     return existing;
@@ -75,7 +75,7 @@ export function getOrCreatePostProcessorState(
     processor,
   };
 
-  host[POST_PROCESSOR_STATE_KEY] = state;
+  instance[POST_PROCESSOR_STATE_KEY] = state;
   return state;
 }
 

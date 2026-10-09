@@ -24,7 +24,7 @@
 // a mutant stops being `Ignored` and is run against those covering tests only,
 // where a test watching `console.warn` cannot kill it, so it reports
 // `Survived`. That cost 49 phantom survivors across the package when the guard
-// lived in `i18n.ts` and its tests re-imported the host.
+// lived in `i18n.ts` and its tests re-imported the instance.
 import { warn } from "../logger";
 
 const VERSION_KEY = Symbol.for("comvi.core.version");

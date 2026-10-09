@@ -9,7 +9,7 @@ import { icuCompiler } from "../../src/icu";
 import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
 import { plugins } from "../../src/plugins";
 import { devtools } from "../../src/devtools";
-import type { I18nPluginHost, LoaderFn, TranslationValue } from "../../src/types";
+import type { PluginI18nInstance, LoaderFn, TranslationValue } from "../../src/types";
 import type { LoaderImportMap } from "../../src/core/importMapLoader";
 
 /**
@@ -28,7 +28,7 @@ import type { LoaderImportMap } from "../../src/core/importMapLoader";
  * longer depends on the order: the base host flattens nested catalogs itself.)
  */
 
-interface HostOptions {
+interface InstanceOptions {
   locale?: string;
   fallbackLocale?: string;
   messages?: Record<string, Record<string, TranslationValue>>;
@@ -39,34 +39,34 @@ interface HostOptions {
 }
 
 /** What both makers produce: the fully composed surface. */
-type FullHost = I18nPluginHost & {
+type FullInstance = PluginI18nInstance & {
   registerLoader(loader: LoaderFn): void;
   t(key: string, params?: Record<string, unknown>): string;
   // `use(f)` is `f(this)`; the installers this harness pipes through it are
   // the low-level attaches, which install in place and hand the host back.
-  use(installer: (host: never) => unknown): FullHost;
+  use(installer: (host: never) => unknown): FullInstance;
 };
 
 /** The internal composite — one constructor call, 0.4 semantics. */
-function makeComposite(options: HostOptions = {}): FullHost {
+function makeComposite(options: InstanceOptions = {}): FullInstance {
   const { importMap, instanceId, exposeGlobal, ...rest } = options;
   const host = new ComposedI18n({ locale: "en", instanceId, exposeGlobal, ...rest } as never);
   if (importMap) host.registerLoader(importMap);
-  return host as unknown as FullHost;
+  return host as unknown as FullInstance;
 }
 
 /** The published recipe — base host + explicit capability imports. */
-function makeRecomposed(options: HostOptions = {}): FullHost {
+function makeRecomposed(options: InstanceOptions = {}): FullInstance {
   const { importMap, instanceId, exposeGlobal, messages, ...rest } = options;
   const host = createI18n({ locale: "en", compiler: icuCompiler, ...rest } as never)
     .use(importMap ? loader(importMap) : attachLoader)
     .use(plugins());
   if (messages !== undefined) host.addMessages(messages);
   host.use(devtools({ instanceId, exposeGlobal }));
-  return host as unknown as FullHost;
+  return host as unknown as FullInstance;
 }
 
-type Maker = (options?: HostOptions) => FullHost;
+type Maker = (options?: InstanceOptions) => FullInstance;
 
 const HOSTS: Record<string, Maker> = {
   "internal composite": makeComposite,

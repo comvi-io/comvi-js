@@ -1,10 +1,10 @@
 <script lang="ts">
   import { setI18nContext } from "../src/context";
-  import type { WrapperI18nHost } from "@comvi/core";
+  import type { WrapperI18nInstance } from "@comvi/core";
 
   // `onError` is passed through as given, so `undefined` is the
   // no-handler case rather than a different call shape.
-  export let i18n: WrapperI18nHost;
+  export let i18n: WrapperI18nInstance;
   export let onError: ((error: Error) => void) | undefined = undefined;
   // `omitOptions` calls the one-argument form, which is a different call shape
   // from `{ onError: undefined }` — the subject of the no-options case.

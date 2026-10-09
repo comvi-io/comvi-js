@@ -1,4 +1,4 @@
-import type { I18nPluginHost } from "../types";
+import type { PluginI18nInstance } from "../types";
 
 /** Returned by a plugin to release its resources when the instance is destroyed. */
 export type PluginCleanup = () => void | Promise<void>;
@@ -7,7 +7,7 @@ export type PluginCleanup = () => void | Promise<void>;
  * A plugin receives the i18n instance and may register hooks, loaders and
  * detectors on it.
  *
- * The instance type is the **composed full surface** (`I18nPluginHost`) — the base
+ * The instance type is the **composed full surface** (`PluginI18nInstance`) — the base
  * instance plus the loader and plugin capabilities. A plugin only ever runs on a
  * instance that has the plugin capability (`@comvi/core/plugins`), and one that
  * calls loader APIs additionally requires `@comvi/core/loader` on that same
@@ -33,7 +33,7 @@ export type PluginCleanup = () => void | Promise<void>;
  * ```
  */
 export type I18nPlugin = (
-  i18n: I18nPluginHost,
+  i18n: PluginI18nInstance,
 ) => void | Promise<void> | PluginCleanup | Promise<PluginCleanup>;
 
 /**

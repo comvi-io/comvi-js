@@ -52,7 +52,7 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
   const { track, generation, isStopped, reportSuccess, reportError } = requests;
   const cacheOpts = buildCacheOptions(config.cache);
   // Each entry remembers the invalidation generation it started in: a load
-  // after a reload or clear must not join a request the host abandoned.
+  // after a reload or clear must not join a request the instance abandoned.
   const loading = new Map<string, [number, Promise<Record<string, TranslationValue>>]>();
 
   const load = async (
@@ -124,7 +124,7 @@ export function createCdnLoad(config: CdnLoadConfig, requests: InflightRequests)
 }
 
 /** The instance surface the install-time load needs. */
-export interface InitialLoadHost {
+export interface InitialLoadInstance {
   readonly locale: string;
   getActiveNamespaces(): string[];
   addMessages(messages: MessagesMap): void;
@@ -137,7 +137,7 @@ export interface InitialLoadHost {
  * would fail the plugin install over a CDN that is merely down.
  */
 export async function loadInitialFromCdn(
-  i18n: InitialLoadHost,
+  i18n: InitialLoadInstance,
   defaultNs: string,
   load: CdnLoad["load"],
 ): Promise<void> {

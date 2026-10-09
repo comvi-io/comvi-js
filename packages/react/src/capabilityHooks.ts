@@ -1,20 +1,20 @@
-// `useI18n()` is type-honest by ABSENCE: the loader/plugin-host members are
+// `useI18n()` is type-honest by ABSENCE: the loader/plugin members are
 // not on its return, in types or at runtime, in any build. They are acquired
-// here instead, behind one call per capability that verifies the host
+// here instead, behind one call per capability that verifies the instance
 // STRUCTURALLY and throws when the capability was never attached — in dev AND
 // in prod. There is no silent no-op and no dev-only tombstone.
 //
 // The acquisition itself is CORE's: `acquireLoaderApi` / `acquirePluginsApi`
 // on `@comvi/core/loader` / `@comvi/core/plugins`, one implementation the four
-// bindings share, including the identity contract (one bag per host, cached in
+// bindings share, including the identity contract (one bag per instance, cached in
 // a module-level `WeakMap` in core, deliberately NOT a react-local `useMemo`,
 // so two components under one provider receive the same function references).
-// Only the host acquisition below is react's.
+// Only the instance acquisition below is react's.
 import { acquireLoaderApi } from "@comvi/core/loader";
 import { acquirePluginsApi } from "@comvi/core/plugins";
 import type { AcquiredLoaderApi } from "@comvi/core/loader";
 import type { AcquiredPluginsApi } from "@comvi/core/plugins";
-import { useI18nHost } from "./I18nProvider";
+import { useI18nInstance } from "./I18nProvider";
 
 /** What `useI18nLoader()` returns — core's acquired loader surface. */
 export type UseI18nLoaderReturn = AcquiredLoaderApi;
@@ -40,7 +40,7 @@ export type UseI18nPluginsReturn = AcquiredPluginsApi;
  * ```
  */
 export function useI18nLoader(): UseI18nLoaderReturn {
-  return acquireLoaderApi(useI18nHost());
+  return acquireLoaderApi(useI18nInstance());
 }
 
 /**
@@ -58,5 +58,5 @@ export function useI18nLoader(): UseI18nLoaderReturn {
  * ```
  */
 export function useI18nPlugins(): UseI18nPluginsReturn {
-  return acquirePluginsApi(useI18nHost());
+  return acquirePluginsApi(useI18nInstance());
 }

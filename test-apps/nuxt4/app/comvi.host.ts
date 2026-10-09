@@ -1,4 +1,4 @@
-import { createI18n, icuCompiler, loader, type NuxtHostFactory } from "@comvi/nuxt/host";
+import { createI18n, icuCompiler, loader, type NuxtInstanceFactory } from "@comvi/nuxt/host";
 
 // The generated Nuxt default is deliberately the base host; this app renders ICU
 // catalogs and loads them on the server, so it composes both explicitly. This is
@@ -23,4 +23,4 @@ export default ((options) =>
       "uk:admin": () => import("../../locales/admin/uk.json"),
       "ar:admin": () => import("../../locales/admin/ar.json"),
     }),
-  )) satisfies NuxtHostFactory;
+  )) satisfies NuxtInstanceFactory;

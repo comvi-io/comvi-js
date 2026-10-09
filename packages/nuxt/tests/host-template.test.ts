@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hasLoaderApi } from "@comvi/core";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 
 type NuxtTemplateStub = { filename: string; write?: boolean; getContents: () => string };
 type ResolvedTemplateStub = { filename: string; dst: string };
@@ -179,7 +179,7 @@ describe("generated #build/comvi.host template", () => {
     expect(core.reloadMessages).toBeUndefined();
     expect(core.getLoader).toBeUndefined();
     // The wrapper seam agrees, so the absence is loud instead of a TypeError later.
-    expect(hasLoaderApi(core as unknown as WrapperI18nHost)).toBe(false);
+    expect(hasLoaderApi(core as unknown as WrapperI18nInstance)).toBe(false);
   });
 
   it("carries the ICU detector on the default branch", async () => {
@@ -581,14 +581,14 @@ describe("generated types/comvi-host.ts declaration", () => {
     // imports, so the two cannot drift. A hand-written wrapper type here would
     // be the same unverified assertion, one file further along.
     expect(contents).toContain(
-      'type ComviResolvedHost = ReturnType<typeof import("/app/comvi.host").default>;',
+      'type ComviResolvedInstance = ReturnType<typeof import("/app/comvi.host").default>;',
     );
     // …published through the registry, so `NuxtI18nSetup`'s DEFAULT type
     // argument is the real host and the bare `satisfies NuxtI18nSetup` is typed
     // rather than merely accepted.
     expect(contents).toContain('declare module "@comvi/nuxt" {');
-    expect(contents).toContain("interface ComviNuxtHostRegistry {");
-    expect(contents).toContain("host: ComviResolvedHost;");
+    expect(contents).toContain("interface ComviNuxtInstanceRegistry {");
+    expect(contents).toContain("instance: ComviResolvedInstance;");
   });
 
   it("names core's BASE host when there is no host module", async () => {
@@ -596,7 +596,7 @@ describe("generated types/comvi-host.ts declaration", () => {
 
     // The default branch builds core's base host, and saying so is what makes a
     // hook that calls a capability on it a compile error instead of a TypeError.
-    expect(contents).toContain('type ComviResolvedHost = import("@comvi/nuxt").I18n;');
+    expect(contents).toContain('type ComviResolvedInstance = import("@comvi/nuxt").I18n;');
     expect(contents).not.toContain("ReturnType<typeof import(");
   });
 
@@ -622,9 +622,9 @@ describe("generated types/comvi-host.ts declaration", () => {
     });
 
     expect(contents).toContain(
-      'export type ComviSetupMatchesHost = import("@comvi/nuxt").CheckedNuxtI18nSetup<',
+      'export type ComviSetupMatchesInstance = import("@comvi/nuxt").CheckedNuxtI18nSetup<',
     );
-    expect(contents).toContain("  ComviResolvedHost,");
+    expect(contents).toContain("  ComviResolvedInstance,");
     expect(contents).toContain('  typeof import("/app/comvi.setup").default');
   });
 
@@ -633,7 +633,7 @@ describe("generated types/comvi-host.ts declaration", () => {
 
     // Nothing to check, and naming a file that is not there would be a
     // "cannot find module" reported against generated code.
-    expect(contents).not.toContain("ComviSetupMatchesHost");
+    expect(contents).not.toContain("ComviSetupMatchesInstance");
     expect(contents).not.toContain("comvi.setup");
   });
 

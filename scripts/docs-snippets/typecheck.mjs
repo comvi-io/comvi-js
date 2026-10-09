@@ -104,7 +104,7 @@ export const NUXT_HOST_REGISTRY_FILE = ".nuxt/types/comvi-host.ts";
  * Copied, shape for shape, from the `types/comvi-host.ts` template in
  * `packages/nuxt/src/module.ts`: the host type is read OFF the factory with
  * `ReturnType<typeof import(...).default>` and published through
- * `ComviNuxtHostRegistry`, which is what makes `NuxtI18nSetup`'s DEFAULT type
+ * `ComviNuxtInstanceRegistry`, which is what makes `NuxtI18nSetup`'s DEFAULT type
  * argument the real host instead of core's base `I18n`.
  *
  * Without it, a group that shows `comvi.host.ts` and `comvi.setup.ts` together
@@ -126,11 +126,11 @@ export function nuxtHostRegistrySource(hostModule) {
 export {};
 
 /** The host \`#build/comvi.host\` really builds, read off the factory. */
-type ComviResolvedHost = ReturnType<typeof import(${JSON.stringify(specifier)}).default>;
+type ComviResolvedInstance = ReturnType<typeof import(${JSON.stringify(specifier)}).default>;
 
 declare module "@comvi/nuxt" {
-  interface ComviNuxtHostRegistry {
-    host: ComviResolvedHost;
+  interface ComviNuxtInstanceRegistry {
+    instance: ComviResolvedInstance;
   }
 }
 `;
@@ -298,7 +298,7 @@ export function createHostFactory(ts, { sdkRoot, mode, nodeTypes = false }) {
       // declaration `@comvi/nuxt`'s codegen generates for an app with a
       // `hostModule`. Served only to a project that has a `comvi.host` fence to
       // read the host type off, so nothing else in the corpus gains a
-      // `ComviNuxtHostRegistry` it would not have.
+      // `ComviNuxtInstanceRegistry` it would not have.
       if (project.nuxtHostModule && rel === NUXT_HOST_REGISTRY_FILE) {
         const value = nuxtHostRegistrySource(project.nuxtHostModule);
         synthetic.set(name, value);

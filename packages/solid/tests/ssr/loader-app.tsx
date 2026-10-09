@@ -3,7 +3,7 @@
  * every way a component reads the locale, side by side, so a disagreement
  * between them shows up in one string.
  */
-import type { AnyI18nHost } from "@comvi/core";
+import type { AnyI18nInstance } from "@comvi/core";
 import { I18nProvider } from "../../src/context";
 import { useI18n } from "../../src/useI18n";
 import { T } from "../../src/T";
@@ -22,7 +22,7 @@ const View = () => {
 };
 
 export interface LoaderAppProps {
-  i18n: AnyI18nHost;
+  i18n: AnyI18nInstance;
   ssrLocale?: string;
 }
 

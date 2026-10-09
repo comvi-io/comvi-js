@@ -1,6 +1,6 @@
 import type { H3Event } from "h3";
-import type { NuxtServerHost } from "../../../types";
-import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "../../request-hosts-key";
+import type { NuxtServerInstance } from "../../../types";
+import { REQUEST_HOSTS_KEY, type RequestScopedInstance } from "../../request-hosts-key";
 
 /**
  * The per-request instance registry and its teardown, kept apart from
@@ -18,7 +18,7 @@ import { REQUEST_HOSTS_KEY, type RequestScopedHost } from "../../request-hosts-k
 // Keep one i18n instance per locale within a single request.
 // This costs more than a single shared request instance, but it preserves
 // SSR correctness when server code resolves multiple locales concurrently.
-export const requestI18nMap = new WeakMap<object, Map<string, Promise<NuxtServerHost>>>();
+export const requestI18nMap = new WeakMap<object, Map<string, Promise<NuxtServerInstance>>>();
 
 /**
  * Contexts that already carry an end-of-response hook. The WeakMap above makes
@@ -74,9 +74,9 @@ export function assertRequestLive(contextKey: object): void {
  * A rejected creation promise has no instance to destroy and is skipped — the
  * rejection was already delivered to the caller that asked for that locale.
  */
-async function destroyRequestHosts(contextKey: object): Promise<void> {
+async function destroyRequestInstances(contextKey: object): Promise<void> {
   // Marked BEFORE the first await: anything that asks while the teardown is in
-  // flight would otherwise create a host the loop below has already walked past.
+  // flight would otherwise create an instance the loop below has already walked past.
   tornDown.add(contextKey);
 
   const localeInstances = requestI18nMap.get(contextKey);
@@ -84,26 +84,26 @@ async function destroyRequestHosts(contextKey: object): Promise<void> {
   const pending = localeInstances ? [...localeInstances.values()] : [];
   localeInstances?.clear();
 
-  // The app plugin's own SSR host, parked on the event context because the app
+  // The app plugin's own SSR instance, parked on the event context because the app
   // bundle and the nitro bundle do not share module state (see
   // `runtime/request-hosts-key.ts`).
   const context = contextKey as Record<string, unknown>;
   const parked = context[REQUEST_HOSTS_KEY];
   if (Array.isArray(parked)) {
     delete context[REQUEST_HOSTS_KEY];
-    for (const i18n of parked as RequestScopedHost[]) {
-      await destroyHost(i18n);
+    for (const i18n of parked as RequestScopedInstance[]) {
+      await destroyInstance(i18n);
     }
   }
 
   for (const instancePromise of pending) {
-    let i18n: NuxtServerHost;
+    let i18n: NuxtServerInstance;
     try {
       i18n = await instancePromise;
     } catch {
       continue;
     }
-    await destroyHost(i18n);
+    await destroyInstance(i18n);
   }
 }
 
@@ -112,7 +112,7 @@ async function destroyRequestHosts(contextKey: object): Promise<void> {
  * response is written by now, so there is nowhere else for it to go, and
  * throwing here would surface as an unhandled rejection in the server process.
  */
-async function destroyHost(i18n: RequestScopedHost): Promise<void> {
+async function destroyInstance(i18n: RequestScopedInstance): Promise<void> {
   try {
     await i18n.destroy();
   } catch (error) {
@@ -167,21 +167,23 @@ function reportRequestCleanup(contextKey: object, message: string): void {
     return;
   }
 
-  // A plain page render builds ONLY the app plugin's host, so that is the whole
+  // A plain page render builds ONLY the app plugin's instance, so that is the whole
   // error channel this request has. Looking in the locale registry alone loses
   // the report.
   const parked = (contextKey as Record<string, unknown>)[REQUEST_HOSTS_KEY];
-  const appHost = Array.isArray(parked) ? (parked[0] as RequestScopedHost | undefined) : undefined;
-  if (appHost) {
+  const appInstance = Array.isArray(parked)
+    ? (parked[0] as RequestScopedInstance | undefined)
+    : undefined;
+  if (appInstance) {
     try {
-      appHost.reportError(new Error(message), { source: "request-cleanup" });
+      appInstance.reportError(new Error(message), { source: "request-cleanup" });
     } catch {
       // A reporter that throws must not take the teardown with it.
     }
     return;
   }
 
-  // Neither host exists — a request that never translated. Silent in
+  // Neither instance exists — a request that never translated. Silent in
   // production on purpose: there is no app error handler to route this to.
   if (process.env.NODE_ENV === "development") {
     console.error(message);
@@ -247,7 +249,7 @@ async function settlePendingWork(event: H3Event, contextKey: object): Promise<vo
  *    route would then WRITE INTO THE CACHE and serve to everyone. So wait for
  *    the response to end after all, or — if it never does — for one macrotask,
  *    by which time a handler whose remaining work is microtasks has finished.
- *    Whichever comes first wins; `destroyRequestHosts` is idempotent.
+ *    Whichever comes first wins; `destroyRequestInstances` is idempotent.
  *
  * The residual race is stated in `docs/design/ssr.md`: a handler that yields to
  * a timer or real I/O AFTER an abort can still be torn down under, and its next
@@ -256,13 +258,13 @@ async function settlePendingWork(event: H3Event, contextKey: object): Promise<vo
 function scheduleTeardown(event: H3Event, contextKey: object): void {
   const res = event.node.res;
   if (res.writableEnded) {
-    void destroyRequestHosts(contextKey);
+    void destroyRequestInstances(contextKey);
     return;
   }
   if (deferralArmed.has(contextKey)) return;
   deferralArmed.add(contextKey);
   const run = (): void => {
-    void destroyRequestHosts(contextKey);
+    void destroyRequestInstances(contextKey);
   };
   res.once("finish", run);
   setTimeout(run, 0);

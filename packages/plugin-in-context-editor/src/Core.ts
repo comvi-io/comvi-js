@@ -11,7 +11,7 @@ import { TAG_ATTRIBUTES } from "./constants";
 /**
  * The public instance surface the editor needs. Instances arrive from both
  * directions — the discovery queue hands over base `@comvi/core` instances,
- * the plugin entry hands over a composed host — and both satisfy this.
+ * the plugin entry hands over a composed instance — and both satisfy this.
  */
 export type EditorI18n = I18nCoreInstance & I18nCoreExtraApi;
 

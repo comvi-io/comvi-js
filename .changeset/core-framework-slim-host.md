@@ -4,10 +4,10 @@
 
 Core enablers for framework bindings running on the base `@comvi/core` host.
 
-- **`WrapperI18nHost<D>`** — the instance surface a framework binding asks of its host
+- **`WrapperI18nInstance<D>`** — the instance surface a framework binding asks of its host
   (`I18nCoreInstance<D> & I18nCoreExtraApi`, exactly what `class I18n` implements). A base
   host satisfies it with nothing composed. It is a type, so it costs nothing.
-- **`missingCapability(name)`, `hasLoaderApi(host)`, `hasPluginHostApi(host)`** — the
+- **`missingCapability(name)`, `hasLoaderApi(host)`, `hasPluginApi(host)`** — the
   shared, loud boundary for an absent capability. The guards are structural and read public
   member names only, so property mangling cannot fool them. `missingCapability` builds the
   error a binding throws at a capability-acquisition call, in development **and** production,

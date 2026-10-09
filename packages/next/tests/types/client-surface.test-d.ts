@@ -4,7 +4,7 @@
 // `@comvi/next/client` exports exactly ONE host constructor, `createI18n`, and
 // it is core's BASE host: every capability member is absent from its type until
 // something composes it.
-import type { I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
+import type { I18nLoaderApi, I18nPluginApi, WrapperI18nInstance } from "@comvi/core";
 import type { I18n as BaseI18n } from "@comvi/core";
 import * as clientEntry from "../../src/client";
 import {
@@ -27,7 +27,7 @@ type Expect<T extends true> = T;
 
 const host = createI18n({ locale: "en" });
 
-export type _HostIsBaseI18n = Expect<Equal<typeof host, BaseI18n<{}>>>;
+export type _InstanceIsBaseI18n = Expect<Equal<typeof host, BaseI18n<{}>>>;
 export type _RetiredNameIsGone = Expect<
   Equal<Extract<keyof typeof clientEntry, "createSlimI18n">, never>
 >;
@@ -35,7 +35,7 @@ export type _BaseHasNoLoaderApi = Expect<
   Equal<typeof host extends I18nLoaderApi ? true : false, false>
 >;
 export type _BaseHasNoPluginApi = Expect<
-  Equal<typeof host extends I18nPluginHostApi ? true : false, false>
+  Equal<typeof host extends I18nPluginApi ? true : false, false>
 >;
 
 // @ts-expect-error -- the client host has no loader capability; the server companion loads
@@ -52,7 +52,7 @@ host.addMessages({ "en:default": { greeting: "Hello" } });
 // source. It configures the host rather than widening it.
 
 const _withIcuCompiler = createI18n({ locale: "en", compiler: icuCompiler });
-export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcuCompiler, BaseI18n<{}>>>;
+export type _IcuInstanceIsStillBase = Expect<Equal<typeof _withIcuCompiler, BaseI18n<{}>>>;
 
 // …and no installer beside it.
 export type _NoIcuInstaller = Expect<Equal<Extract<keyof typeof clientEntry, "icu">, never>>;
@@ -81,11 +81,11 @@ withLoader.registerPostProcessor((result) => result);
 
 const _withPlugins = attachPlugins(createI18n({ locale: "en" }));
 export type _PluginsWiden = Expect<
-  Equal<typeof _withPlugins extends I18nPluginHostApi ? true : false, true>
+  Equal<typeof _withPlugins extends I18nPluginApi ? true : false, true>
 >;
 
 const _withDevtools = attachDevtools(createI18n({ locale: "en" }), { exposeGlobal: false });
-export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, BaseI18n<{}>>>;
+export type _DevtoolsKeepsInstanceType = Expect<Equal<typeof _withDevtools, BaseI18n<{}>>>;
 
 // Nested catalogs are BASE behaviour, so this root no longer re-exports
 // `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
@@ -106,7 +106,7 @@ piped.registerPlugin(() => undefined);
 
 const _pipedBoth = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 export type _ChainCompounds = Expect<
-  Equal<typeof _pipedBoth extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
+  Equal<typeof _pipedBoth extends I18nLoaderApi & I18nPluginApi ? true : false, true>
 >;
 
 // The pipe is on the base class. The import-map form is the configured
@@ -123,7 +123,7 @@ void _hostPiped.registerPlugin(() => undefined);
 
 // devtools() adds no public members, so the host type is unchanged.
 const _pipedDevtools = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
-export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, BaseI18n<{}>>>;
+export type _DevtoolsPipeKeepsInstanceType = Expect<Equal<typeof _pipedDevtools, BaseI18n<{}>>>;
 
 // @ts-expect-error -- the factory is not an installer; it must be called
 createI18n({ locale: "en" }).use(loader);
@@ -132,8 +132,8 @@ createI18n({ locale: "en" }).use(loader);
 // entries beside `plugins`. Pinned here so an entry that dropped it fails the
 // type gate.
 const _withDefinedPlugin = createI18n({ locale: "en" }).use(definePlugin(() => {}));
-export type _DefinePluginWidensToThePluginHost = Expect<
-  Equal<typeof _withDefinedPlugin extends I18nPluginHostApi ? true : false, true>
+export type _DefinePluginWidensToThePluginInstance = Expect<
+  Equal<typeof _withDefinedPlugin extends I18nPluginApi ? true : false, true>
 >;
 void _withDefinedPlugin.registerPlugin(() => {});
 export type _ServerEntryAlsoPublishesIt = Expect<
@@ -145,15 +145,15 @@ export type _ServerEntryAlsoPublishesIt = Expect<
 // @ts-expect-error -- definePlugin takes a PLUGIN, not an installer
 createI18n({ locale: "en" }).use(definePlugin(attachLoader));
 
-// React's 0.5 surface, whole: `useI18nHost` is the bare-host reader every SPA
+// React's 0.5 surface, whole: `useI18nInstance` is the bare-host reader every SPA
 // binding publishes under that name, and `ComponentMap` is the type a typed
 // `<T components={…}>` map needs. Both are pinned to react's own declarations,
 // so a re-export that drifted would fail here.
-export type _UseI18nHostIsReacts = Expect<
-  Equal<typeof clientEntry.useI18nHost, typeof import("@comvi/react").useI18nHost>
+export type _UseI18nInstanceIsReacts = Expect<
+  Equal<typeof clientEntry.useI18nInstance, typeof import("@comvi/react").useI18nInstance>
 >;
-export type _HostReaderReturnsTheBareHost = Expect<
-  Equal<ReturnType<typeof clientEntry.useI18nHost>, WrapperI18nHost<{}>>
+export type _InstanceReaderReturnsTheBareInstance = Expect<
+  Equal<ReturnType<typeof clientEntry.useI18nInstance>, WrapperI18nInstance<{}>>
 >;
 export type _ComponentMapIsReacts = Expect<
   Equal<clientEntry.ComponentMap, import("@comvi/react").ComponentMap>

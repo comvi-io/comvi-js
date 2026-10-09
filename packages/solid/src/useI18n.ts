@@ -9,7 +9,7 @@ import {
 } from "@comvi/core";
 import { useI18nContextValue } from "./context";
 import type {
-  WrapperI18nHost,
+  WrapperI18nInstance,
   TranslationParams,
   TranslationResult,
   NamespaceBoundTranslateFn,
@@ -20,7 +20,7 @@ import type {
 } from "@comvi/core";
 
 /** Loader/plugin members are NOT part of it — see `capabilityHooks`. */
-type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
+type Instance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D>;
 
 // The namespace-bound narrowing is core's `NamespaceBoundTranslateFn`, shared
 // by all four wrappers, so `useI18n("admin").t("dashboard")` reads the same in
@@ -73,34 +73,34 @@ export interface UseI18nReturn<
   defaultParams: Accessor<DefaultParamsSnapshot<D>>;
 
   /** Resolves once translations for the new locale have loaded. */
-  setLocale: Host["setLocale"];
+  setLocale: Instance["setLocale"];
 
-  addMessages: Host["addMessages"];
+  addMessages: Instance["addMessages"];
 
-  setFallbackLocale: Host["setFallbackLocale"];
+  setFallbackLocale: Instance["setFallbackLocale"];
 
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: Host<D>["setDefaultParams"];
+  setDefaultParams: Instance<D>["setDefaultParams"];
 
-  clearMessages: Host["clearMessages"];
+  clearMessages: Instance["clearMessages"];
 
-  hasLocale: Host["hasLocale"];
+  hasLocale: Instance["hasLocale"];
 
-  hasTranslation: Host["hasTranslation"];
+  hasTranslation: Instance["hasTranslation"];
 
   getLoadedLocales: () => string[];
 
-  getActiveNamespaces: Host["getActiveNamespaces"];
+  getActiveNamespaces: Instance["getActiveNamespaces"];
 
-  getDefaultNamespace: Host["getDefaultNamespace"];
+  getDefaultNamespace: Instance["getDefaultNamespace"];
 
   getMessagesCache: () => ReadonlyMap<string, FlattenedMessages>;
 
   /** Returns an unsubscribe function. */
-  on: Host["on"];
+  on: Instance["on"];
 
   /** Routes to the configured `onError` handler. */
-  reportError: Host["reportError"];
+  reportError: Instance["reportError"];
 
   // The formatters below default to the current locale and are reactive: a
   // trailing `locale` argument overrides it.
@@ -218,7 +218,7 @@ export function useI18n<
     // instance and survive destructuring.
     //
     // `addActiveNamespace`, `reloadMessages`, `onLoadError` and
-    // `onMissingKey` are NOT here: they belong to capabilities a base host does
+    // `onMissingKey` are NOT here: they belong to capabilities a base instance does
     // not have, and a closure over an absent member is a silent "undefined is
     // not a function" at CALL time. `useI18nLoader()` / `useI18nPlugins()`
     // acquire them instead, throwing one named error at the acquisition point.

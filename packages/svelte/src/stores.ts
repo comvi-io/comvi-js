@@ -1,14 +1,18 @@
 import { readable, writable, type Readable, type Writable } from "svelte/store";
 import { subscribeToRevision } from "@comvi/core";
-import type { WrapperI18nHost, DefaultTranslationParams, DefaultParamsSnapshot } from "@comvi/core";
+import type {
+  WrapperI18nInstance,
+  DefaultTranslationParams,
+  DefaultParamsSnapshot,
+} from "@comvi/core";
 
-type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
+type Instance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D>;
 
 /**
  * One store set per instance, so repeated `useI18n()` / `<T>` calls do not
  * build duplicates.
  *
- * Keyed by object IDENTITY, not by an instance type: `WrapperI18nHost<D>` is
+ * Keyed by object IDENTITY, not by an instance type: `WrapperI18nInstance<D>` is
  * INVARIANT in `D` (`init(): Promise<this>` recurses back through the
  * `D`-typed `setDefaultParams`), so there is no single instance type every instance
  * widens to. Nothing here reads `D` — every store below is `D`-free or
@@ -51,7 +55,7 @@ const storeCache = new WeakMap<
   }
 >();
 
-function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
+function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Instance<D>) {
   let stores = storeCache.get(i18n);
 
   if (!stores) {
@@ -101,7 +105,7 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
           }
         });
       }),
-      // Writable for the same reason `defaultNamespace` below is: the host
+      // Writable for the same reason `defaultNamespace` below is: the instance
       // stays the source of truth — `set` writes THROUGH to
       // `setDefaultParams`, it does not assign the local value — so the axis
       // solid can write through `createDefaultParamsState`'s setter is
@@ -126,7 +130,7 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
           ) => i18n.setDefaultParams(updater(i18n.defaultParams) as never),
         };
       })(),
-      // Writable, not readable: the host is still the source of truth (`set`
+      // Writable, not readable: the instance is still the source of truth (`set`
       // writes THROUGH to `setDefaultNamespace`, it does not assign the local
       // value directly), but callers may assign into this one. Solid's
       // counterpart on this axis is `createDefaultNamespaceState`, which
@@ -153,28 +157,28 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
 
 /** Memoized per i18n instance. */
 export function createLocaleStore<D extends DefaultTranslationParams = {}>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
 ): Readable<string> {
   return getOrCreateStores(i18n).locale;
 }
 
 /** Memoized per i18n instance. */
 export function createLoadingStore<D extends DefaultTranslationParams = {}>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
 ): Readable<boolean> {
   return getOrCreateStores(i18n).loading;
 }
 
 /** Memoized per i18n instance. */
 export function createInitializingStore<D extends DefaultTranslationParams = {}>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
 ): Readable<boolean> {
   return getOrCreateStores(i18n).initializing;
 }
 
 /** True once initialization finishes successfully. Memoized per instance. */
 export function createInitializedStore<D extends DefaultTranslationParams = {}>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
 ): Readable<boolean> {
   return getOrCreateStores(i18n).initialized;
 }
@@ -184,7 +188,7 @@ export function createInitializedStore<D extends DefaultTranslationParams = {}>(
  * Memoized per i18n instance.
  */
 export function createCacheRevisionStore<D extends DefaultTranslationParams = {}>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
 ): Readable<number> {
   return getOrCreateStores(i18n).cacheRevision;
 }
@@ -198,7 +202,7 @@ export function createCacheRevisionStore<D extends DefaultTranslationParams = {}
  * beside the accessor instead (its `create*Signal` half reads only).
  */
 export function createDefaultParamsStore<D extends DefaultTranslationParams = {}>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
 ): Writable<DefaultParamsSnapshot<D>> {
   return getOrCreateStores(i18n).defaultParams as Writable<DefaultParamsSnapshot<D>>;
 }
@@ -211,7 +215,7 @@ export function createDefaultParamsStore<D extends DefaultTranslationParams = {}
  * returns the same axis as a signal + setter tuple.
  */
 export function createDefaultNamespaceStore<D extends DefaultTranslationParams = {}>(
-  i18n: Host<D>,
+  i18n: Instance<D>,
 ): Writable<string> {
   return getOrCreateStores(i18n).defaultNamespace;
 }

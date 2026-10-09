@@ -3,14 +3,14 @@
 // tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
 import { createI18n, icuCompiler, loader } from "@comvi/solid";
-import type { I18n, I18nLoaderApi, I18nPluginHostApi } from "@comvi/solid";
+import type { I18n, I18nLoaderApi, I18nPluginApi } from "@comvi/solid";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 const supportedLocales = ["en", "de", "fr", "es", "uk", "ar"] as const;
 
 // Annotated because the composed host is an intersection the compiler cannot
 // name portably from this app's tsconfig (TS2883).
-export const i18n: I18n & I18nLoaderApi & I18nPluginHostApi = createI18n({
+export const i18n: I18n & I18nLoaderApi & I18nPluginApi = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,

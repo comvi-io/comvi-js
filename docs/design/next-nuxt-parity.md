@@ -308,7 +308,7 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
   `packages/nuxt/src/locale-options.ts`
 - the instance hand-off (next side landing in 0.5) — `withComvi` in `packages/next/src/plugin.ts`,
   `resolveServerI18n` in `packages/next/src/server/cache.ts`, `packages/next/src/server/ComviProvider.tsx`;
-  `hostModule` and `NuxtHostFactory` in `packages/nuxt/src/types.ts`
+  `hostModule` and `NuxtInstanceFactory` in `packages/nuxt/src/types.ts`
 - `<html lang dir>` (nuxt side landing in 0.5) — the `head` option in `packages/nuxt/src/types.ts`,
   applied from `runtime/plugin.ts` through `runtime/utils/html-attrs.ts`; the layout in
   `packages/next/README.md`

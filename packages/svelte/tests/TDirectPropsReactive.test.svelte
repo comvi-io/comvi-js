@@ -3,9 +3,9 @@
   // direct prop change after mount, which is the whole subject of the case.
   import { setI18nContext } from "../src/context";
   import T from "../src/T.svelte";
-  import type { WrapperI18nHost } from "@comvi/core";
+  import type { WrapperI18nInstance } from "@comvi/core";
 
-  let { i18n }: { i18n: WrapperI18nHost } = $props();
+  let { i18n }: { i18n: WrapperI18nInstance } = $props();
 
   let name = $state("Ada");
 

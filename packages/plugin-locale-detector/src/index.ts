@@ -1,4 +1,4 @@
-import type { I18n, I18nPlugin, I18nPluginFactory, I18nPluginHostApi } from "@comvi/core";
+import type { I18n, I18nPlugin, I18nPluginFactory, I18nPluginApi } from "@comvi/core";
 import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 
 export type DetectorType =
@@ -287,7 +287,7 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
 };
 
 /** The i18n instance surface `localeDetector` guarantees on the way out. */
-export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi;
+export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18nPluginApi;
 
 /**
  * The locale detector as a `.use(…)` installer.
@@ -306,7 +306,7 @@ export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18n
  * namespaces through whatever loading the i18n instance already has.
  *
  * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
- * not re-implemented here; they keep running inside `I18nPluginHost`, because
+ * not re-implemented here; they keep running inside `PluginI18nInstance`, because
  * the last thing this installer does is call `registerPlugin`.
  *
  * `registerPlugin(localeDetector(…))` is a type error, and at runtime fails at
@@ -315,9 +315,9 @@ export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18n
  */
 export function localeDetector(options?: LocaleDetectorOptions): LocaleDetectorInstaller {
   return (i18n) => {
-    const host = attachPlugins(ensureInstallable(i18n, "localeDetector"));
-    host.registerPlugin(localeDetectorPlugin(options));
-    return host;
+    const instance = attachPlugins(ensureInstallable(i18n, "localeDetector"));
+    instance.registerPlugin(localeDetectorPlugin(options));
+    return instance;
   };
 }
 

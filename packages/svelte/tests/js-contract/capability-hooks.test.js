@@ -183,7 +183,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   });
 
   // ONE canonical behaviour for a non-string `onMissingKey` result:
-  // PASS-THROUGH. Core's `I18nPluginHostApi["onMissingKey"]` declares the
+  // PASS-THROUGH. Core's `I18nPluginApi["onMissingKey"]` declares the
   // callback returns `TranslationResult | void`, and `_missHook` takes it
   // as-is. React once coerced it with `String(result)`, flattening a rich
   // fallback to `"rich-,[object Object]"` in one wrapper alone.

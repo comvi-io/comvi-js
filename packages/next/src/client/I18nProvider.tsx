@@ -53,7 +53,7 @@ export interface I18nProviderProps extends Omit<
  * waiting for a browser to hydrate.
  */
 function validateLocale(
-  i18n: import("@comvi/core").WrapperI18nHost,
+  i18n: import("@comvi/core").WrapperI18nInstance,
   locale: string,
   routing: RoutingConfig | undefined,
 ): boolean {
@@ -73,7 +73,7 @@ function validateLocale(
  * The ONE place `i18n.locale` is assigned. Its one caller is the layout
  * effect, gated on `validateLocale`; effects never run on the server.
  */
-function applyLocale(i18n: import("@comvi/core").WrapperI18nHost, locale: string): void {
+function applyLocale(i18n: import("@comvi/core").WrapperI18nInstance, locale: string): void {
   if (i18n.locale !== locale) {
     i18n.locale = locale;
   }

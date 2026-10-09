@@ -12,7 +12,7 @@ type MovedOffUseI18n = "addActiveNamespace" | "reloadMessages" | "onLoadError" |
 // `useI18nLoader()` / `useI18nPlugins()` own these; `UseI18nReturn` declares none of them.
 export type _NoMovedKeys = Expect<Equal<Extract<keyof UseI18nReturn, MovedOffUseI18n>, never>>;
 
-// The host is `useI18nHost()`, the one name react, solid and svelte share.
+// The host is `useI18nInstance()`, the one name react, solid and svelte share.
 export type _NoGetI18nContext = Expect<
   Equal<"getI18nContext" extends keyof typeof rootEntry ? true : false, false>
 >;

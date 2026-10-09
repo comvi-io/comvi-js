@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EDITOR_INITIAL_MAPPINGS_GLOBAL, readEditorMappings } from "@comvi/core/editor-bridge";
-import { asPluginHost, createI18n, type ComposedHost } from "./helpers/composedHost";
+import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedHost";
 
 const { coreCtorMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = await vi.hoisted(
   () => import("./helpers/mockCore"),
@@ -25,14 +25,14 @@ import { getKeyMappings, registerKey, resetEncoder } from "../src/translation";
  * other plugins use. Naming the concrete shape once here keeps every
  * `cleanup?.()` below callable without re-narrowing at each site.
  */
-function installEditor(options?: EditorOptions): (i18n: ComposedHost) => () => void {
+function installEditor(options?: EditorOptions): (i18n: ComposedInstance) => () => void {
   const plugin = inContextEditorPlugin(options);
-  return (i18n: ComposedHost) => plugin(asPluginHost(i18n)) as () => void;
+  return (i18n: ComposedInstance) => plugin(asPluginHost(i18n)) as () => void;
 }
 
 function makeI18n(
   overrides: { apiKey?: string; defaultNs?: string; messages?: Record<string, unknown> } = {},
-): ComposedHost {
+): ComposedInstance {
   const { defaultNs = "default", messages, ...rest } = overrides;
   return createI18n({
     locale: "en",
@@ -47,7 +47,7 @@ function makeI18n(
  * Wraps `i18n.on` so the unsubscribe handles it hands back become observable —
  * a teardown that forgets one is otherwise invisible from outside the host.
  */
-function watchSubscriptions(i18n: ComposedHost) {
+function watchSubscriptions(i18n: ComposedInstance) {
   const events: string[] = [];
   const unsubscribes: Array<ReturnType<typeof vi.fn>> = [];
   const realOn = i18n.on.bind(i18n);

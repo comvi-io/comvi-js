@@ -1,12 +1,12 @@
 // The two Next-specific installers: a plugin scoped to one runtime and/or one
 // build environment, eager or lazily imported. Scoping lives on the PLUGIN
-// form on purpose — a runtime-scoped INSTALLER cannot widen the host type
+// form on purpose — a runtime-scoped INSTALLER cannot widen the instance type
 // soundly, because the capability would exist in one graph only.
 //
-// Imports nothing but the plugin host, so `/client` and `/server` can carry
-// both names without reaching the composed-host builder behind `createNextI18n`.
+// Imports nothing but the plugin capability, so `/client` and `/server` can carry
+// both names without reaching the composed-instance builder behind `createNextI18n`.
 import { attachPlugins } from "@comvi/core/plugins";
-import type { I18n, I18nPlugin, I18nPluginHostApi, PluginOptions } from "@comvi/core";
+import type { I18n, I18nPlugin, I18nPluginApi, PluginOptions } from "@comvi/core";
 
 type PluginRuntimeTarget = "client" | "server";
 type PluginEnvironment = "all" | "development" | "production";
@@ -118,7 +118,7 @@ const createScopedLazyPlugin = (
  *   .use(nextPlugin(Metrics(), { environment: "production", required: false }));
  * ```
  *
- * `nextPlugin(fn)` is `attachPlugins(host).registerPlugin(scoped, rest)`
+ * `nextPlugin(fn)` is `attachPlugins(instance).registerPlugin(scoped, rest)`
  * wrapped as an installer — `definePlugin(fn)` with the two Next scopes in
  * front of the queue — so it attaches the plugin capability if the chain has not
  * already, and sits anywhere in a `.use` chain before `init()`. A plugin
@@ -134,11 +134,11 @@ const createScopedLazyPlugin = (
 export function nextPlugin(
   plugin: I18nPlugin,
   options: NextPluginOptions = {},
-): <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi {
+): <T extends I18n<any>>(i18n: T) => T & I18nPluginApi {
   const { runtime, environment = "all", ...rest } = options;
   return (i18n) => {
     attachPlugins(i18n).registerPlugin(createScopedPlugin(plugin, runtime, environment), rest);
-    return i18n as typeof i18n & I18nPluginHostApi;
+    return i18n as typeof i18n & I18nPluginApi;
   };
 }
 
@@ -160,10 +160,10 @@ export function nextPlugin(
 export function nextPluginLazy(
   load: LazyPluginLoader,
   options: NextPluginOptions = {},
-): <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi {
+): <T extends I18n<any>>(i18n: T) => T & I18nPluginApi {
   const { runtime, environment = "all", ...rest } = options;
   return (i18n) => {
     attachPlugins(i18n).registerPlugin(createScopedLazyPlugin(load, runtime, environment), rest);
-    return i18n as typeof i18n & I18nPluginHostApi;
+    return i18n as typeof i18n & I18nPluginApi;
   };
 }

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { useI18nHost } from "../src/context";
+  import { useI18nInstance } from "../src/context";
   import { useI18n } from "../src/useI18n";
   import T from "../src/T.svelte";
 
-  const i18n = useI18nHost();
+  const i18n = useI18nInstance();
   const { t, locale, isInitialized } = useI18n();
 
   let contextLanguage: string;

@@ -3,7 +3,7 @@ import { cache } from "react";
 // without it. Kept external in the build so the APP's bundler applies the alias.
 import * as configModule from "@comvi/next/config";
 import type { RoutingConfig } from "../routing/types";
-import type { NextServerHost, ServerI18nHost } from "./hostTypes";
+import type { NextServerInstance, ServerI18nInstance } from "./hostTypes";
 import type { RequestStore } from "./types";
 
 declare const __DEV__: boolean | undefined;
@@ -15,7 +15,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
  * a named import that does not exist.
  */
 interface ConfigModule {
-  readonly i18n?: ServerI18nHost;
+  readonly i18n?: ServerI18nInstance;
   readonly routing?: Pick<RoutingConfig, "locales"> & Partial<Pick<RoutingConfig, "defaultLocale">>;
 }
 const config: ConfigModule = configModule;
@@ -44,7 +44,7 @@ type CellState =
   | { readonly kind: "empty" }
   | {
       readonly kind: "resolved";
-      readonly instance: ServerI18nHost;
+      readonly instance: ServerI18nInstance;
       readonly bySetI18n: boolean;
       /** The routing `createNextI18nFromHost(host, routing)` was given. */
       readonly routing?: ConfigModule["routing"];
@@ -102,10 +102,10 @@ const configurationConflict = (configured: CellState, incoming: string): Error =
  * setI18n(i18n);
  * ```
  */
-export function setI18n(i18n: NextServerHost): void {
-  // The pipeline only ever touches the `ServerI18nHost` subset; narrowing here
+export function setI18n(i18n: NextServerInstance): void {
+  // The pipeline only ever touches the `ServerI18nInstance` subset; narrowing here
   // keeps the internal type out of the published signature.
-  const instance: ServerI18nHost = i18n;
+  const instance: ServerI18nInstance = i18n;
   if (cell.kind === "empty") {
     cell = { kind: "resolved", instance, bySetI18n: true };
     return;
@@ -124,7 +124,7 @@ export function setI18n(i18n: NextServerHost): void {
  * leaves the cell `empty`, exactly as if the call had never happened.
  * @internal
  */
-export function registerServerI18nHost<C extends ServerI18nHost>(
+export function registerServerI18nHost<C extends ServerI18nInstance>(
   build: () => C,
   routing?: ConfigModule["routing"],
 ): C {
@@ -149,7 +149,7 @@ let warnedTwoSources = false;
  * programming error: development warns once naming both, the cell wins.
  * @internal
  */
-export function resolveServerI18n(): ServerI18nHost {
+export function resolveServerI18n(): ServerI18nInstance {
   const aliased = config.i18n;
   if (cell.kind === "resolved") {
     if (IS_DEV && aliased && aliased !== cell.instance && !warnedTwoSources) {

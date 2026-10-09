@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useI18nInstance } from "./I18nProvider";
+import { useI18nInstanceContext } from "./I18nProvider";
 
 export interface UseSetLocaleTransitionReturn {
   isPending: boolean;
@@ -24,7 +24,7 @@ export interface UseSetLocaleTransitionReturn {
  * }
  */
 export function useSetLocaleTransition(): UseSetLocaleTransitionReturn {
-  const { i18n } = useI18nInstance();
+  const { i18n } = useI18nInstanceContext();
   const [isTransitionPending, startTransition] = useTransition();
   const [isAsyncPending, setIsAsyncPending] = useState(false);
   // Starts true, not false: layout effects run BEFORE this hook's passive

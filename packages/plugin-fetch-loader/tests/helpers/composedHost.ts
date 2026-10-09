@@ -11,13 +11,13 @@ import {
   I18n as CoreI18n,
   type I18nLoaderApi,
   type I18nOptions,
-  type I18nPluginHostApi,
+  type I18nPluginApi,
 } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
 
 /** Base host + `@comvi/core/loader` + `@comvi/core/plugins`. */
-export type ComposedHost = CoreI18n & I18nLoaderApi & I18nPluginHostApi;
+export type ComposedInstance = CoreI18n & I18nLoaderApi & I18nPluginApi;
 
 /**
  * `new I18n(options)` with both capabilities already composed on. A function
@@ -25,6 +25,6 @@ export type ComposedHost = CoreI18n & I18nLoaderApi & I18nPluginHostApi;
  */
 export const I18n = function I18n(options: I18nOptions) {
   return attachPlugins(attachLoader(new CoreI18n(options)));
-} as unknown as new (options: I18nOptions) => ComposedHost;
+} as unknown as new (options: I18nOptions) => ComposedInstance;
 
-export type I18n = ComposedHost;
+export type I18n = ComposedInstance;

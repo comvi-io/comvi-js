@@ -3,7 +3,7 @@
  * drives the in-browser visual editor over them.
  */
 
-import type { I18n, I18nPlugin, I18nPluginFactory, I18nPluginHost } from "@comvi/core";
+import type { I18n, I18nPlugin, I18nPluginFactory, PluginI18nInstance } from "@comvi/core";
 import { attachDevtools } from "@comvi/core/devtools";
 import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 import {
@@ -42,7 +42,7 @@ export interface EditorOptions extends Omit<TranslationSystemOptions, "targetEle
 
 let runtimeIdCounter = 0;
 const activeBrowserEditorRuntimes = new Set<number>();
-/** Live browser runtimes per host: the bridge goes only with the last one. */
+/** Live browser runtimes per instance: the bridge goes only with the last one. */
 const bridgeUsers = new WeakMap<object, number>();
 
 function attachMappingsBridge(target: object, encoder: TranslationKeyEncoder): void {
@@ -56,7 +56,7 @@ function attachMappingsBridge(target: object, encoder: TranslationKeyEncoder): v
 }
 
 function enqueueNamespaceKeys(
-  i18n: I18nPluginHost,
+  i18n: PluginI18nInstance,
   pendingCombinedKeys: Set<string>,
   locale: string,
   namespace: string,
@@ -71,7 +71,7 @@ function enqueueNamespaceKeys(
   }
 }
 
-function enqueueLoadedKeys(i18n: I18nPluginHost, pendingCombinedKeys: Set<string>): void {
+function enqueueLoadedKeys(i18n: PluginI18nInstance, pendingCombinedKeys: Set<string>): void {
   const namespaces = new Set<string>([i18n.getDefaultNamespace(), ...i18n.getActiveNamespaces()]);
   for (const locale of i18n.getLoadedLocales()) {
     for (const namespace of namespaces) {
@@ -141,7 +141,7 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     const isBrowserRuntime = typeof window !== "undefined" && typeof document !== "undefined";
 
     // The browser shares one page-wide encoder: the DOM scanner decodes every
-    // host's markers from the same page. A server host gets its own, so
+    // instance's markers from the same page. A server instance gets its own, so
     // overlapping requests never share or reset each other's key ids.
     const { encoder } = getOrCreatePostProcessorState(
       i18n,
@@ -152,9 +152,9 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     // SSR key mappings to the client before hydration.
     attachMappingsBridge(i18n, encoder);
 
-    const host = i18n as unknown as Record<string, unknown>;
-    const initialMappings = toRecordOfNumbers(host[EDITOR_INITIAL_MAPPINGS_GLOBAL]);
-    delete host[EDITOR_INITIAL_MAPPINGS_GLOBAL];
+    const instance = i18n as unknown as Record<string, unknown>;
+    const initialMappings = toRecordOfNumbers(instance[EDITOR_INITIAL_MAPPINGS_GLOBAL]);
+    delete instance[EDITOR_INITIAL_MAPPINGS_GLOBAL];
 
     if (initialMappings) {
       // Client hydration path: restore server key-id map before any translation work.
@@ -189,7 +189,7 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     registerPostProcessorOnce(i18n);
 
     // Browser-only editor runtime: no-op during SSR/server execution. The
-    // bridge ref-count below tracks browser runtimes only: a server host is
+    // bridge ref-count below tracks browser runtimes only: a server instance is
     // discarded with its request, bridge and encoder included.
     if (!isBrowserRuntime) {
       return () => {
@@ -201,7 +201,7 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
 
     // Context collection is ON by default. The site's `createI18n` option is
     // the single developer-level opt-out and always wins: `collectContext:
-    // false` on the host cannot be re-enabled by the plugin option. Otherwise
+    // false` on the instance cannot be re-enabled by the plugin option. Otherwise
     // the plugin option decides, and leaving it unset keeps Core's default.
     const collectContext = i18n.collectContext === false ? false : options?.collectContext;
 
@@ -257,7 +257,7 @@ export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
   };
 };
 
-/** The host surface `inContextEditor` guarantees on the way out. */
+/** The instance surface `inContextEditor` guarantees on the way out. */
 export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
 
 /**
@@ -269,29 +269,29 @@ export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
  * ```
  *
  * Devtools is ensured BEFORE plugins on purpose: the editor's whole point is
- * being driven from outside the page, so an editor-enabled host announces
+ * being driven from outside the page, so an editor-enabled instance announces
  * itself on the `window.__COMVI__` queue without a second `.use(devtools())`.
- * Both attaches are idempotent — an already-composed host keeps its
+ * Both attaches are idempotent — an already-composed instance keeps its
  * `instanceId`, its queue entry and every registered plugin.
  *
  * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
- * not re-implemented here; they keep running inside `I18nPluginHost`, because
+ * not re-implemented here; they keep running inside `PluginI18nInstance`, because
  * the last thing this installer does is call `registerPlugin`.
  *
- * The host type comes back UNCHANGED, deliberately: the package's `production`
- * condition ships this same signature with `(host) => host`, attaching nothing.
- * Promising `I18nPluginHostApi` here would type a member present in dev and
+ * The instance type comes back UNCHANGED, deliberately: the package's `production`
+ * condition ships this same signature with `(instance) => instance`, attaching nothing.
+ * Promising `I18nPluginApi` here would type a member present in dev and
  * absent in production. Need `registerPlugin` yourself? Compose `.use(plugins())`.
  *
  * `.use(inContextEditor(…))` is a type error. Under this entry it fails at
  * `init()` on `ensureInstallable`; under the `production` condition the
- * identity no-op hands the host back and the plugin host's return-shape guard
+ * identity no-op hands the instance back and the plugin capability's return-shape guard
  * rejects it — a plugin may only return nothing or a cleanup function.
  */
 export function inContextEditor(options?: EditorOptions): InContextEditorInstaller {
   return (i18n) => {
-    const host = attachPlugins(attachDevtools(ensureInstallable(i18n, "inContextEditor")));
-    host.registerPlugin(inContextEditorPlugin(options));
+    const instance = attachPlugins(attachDevtools(ensureInstallable(i18n, "inContextEditor")));
+    instance.registerPlugin(inContextEditorPlugin(options));
     return i18n;
   };
 }

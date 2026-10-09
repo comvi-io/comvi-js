@@ -1017,12 +1017,12 @@ test("@comvi/vue does not count as a rival, because Nuxt is Vue", () => {
 /** The two fences `packages/nuxt/README.md` pools under `check=group=nuxt-app`. */
 const NUXT_HOST_FENCE = [
   "```ts title='comvi.host.ts' check=group=nuxt-app",
-  "import { createI18n, loader, type NuxtHostFactory } from '@comvi/nuxt/host';",
+  "import { createI18n, loader, type NuxtInstanceFactory } from '@comvi/nuxt/host';",
   "",
   "export default ((options) =>",
   "  createI18n(options).use(",
   "    loader({ uk: () => import('./uk.json') }),",
-  "  )) satisfies NuxtHostFactory;",
+  "  )) satisfies NuxtInstanceFactory;",
   "```",
 ];
 
@@ -1110,7 +1110,7 @@ test("only a project with a comvi.host fence gets the registry as a root", () =>
 
 test("the emitted registry is the declaration the Nuxt module generates", () => {
   // The emulation is only worth anything while it matches. If the module's
-  // template stops publishing the host through `ComviNuxtHostRegistry` — a
+  // template stops publishing the host through `ComviNuxtInstanceRegistry` — a
   // different interface, a different property — the gate would go on vouching
   // for a link that no longer exists, and the fence it vouches for would fail
   // in a reader's `nuxi typecheck` while passing here.

@@ -1,7 +1,7 @@
 import type { MessagesMap, TranslationValue } from "@comvi/core";
 import { resolveServerI18n, getRequestFailedLoads } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
-import type { ServerI18nHost } from "./hostTypes";
+import type { ServerI18nInstance } from "./hostTypes";
 
 export interface LoadMessagesOptions {
   /**
@@ -13,7 +13,7 @@ export interface LoadMessagesOptions {
 const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
 
-const noLoaderWarnings = new WeakSet<ServerI18nHost>();
+const noLoaderWarnings = new WeakSet<ServerI18nInstance>();
 const NO_LOADER_WARNING_MESSAGE =
   "[@comvi/next] No loader registered, so SSR loaded nothing. " +
   "Register one via i18n.registerLoader(...), or compose one on the createNextI18n(...) result: " +
@@ -26,7 +26,7 @@ const toPlainObject = (
   return Object.fromEntries(Object.entries(value)) as Record<string, TranslationValue>;
 };
 
-const warnNoLoaderConfigured = (i18n: ServerI18nHost): void => {
+const warnNoLoaderConfigured = (i18n: ServerI18nInstance): void => {
   if (noLoaderWarnings.has(i18n)) {
     return;
   }
@@ -39,9 +39,9 @@ const warnNoLoaderConfigured = (i18n: ServerI18nHost): void => {
  * cancels and restarts a pair that is already loading, so concurrent requests
  * share the first one's promise here instead of fetching the pair twice.
  */
-const pendingLoads = new WeakMap<ServerI18nHost, Map<string, Promise<void>>>();
+const pendingLoads = new WeakMap<ServerI18nInstance, Map<string, Promise<void>>>();
 
-const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Promise<void> => {
+const loadPair = (i18n: ServerI18nInstance, locale: string, namespace: string): Promise<void> => {
   if (i18n.hasLocale(locale, namespace)) {
     return Promise.resolve();
   }
@@ -80,7 +80,7 @@ const loadPair = (i18n: ServerI18nHost, locale: string, namespace: string): Prom
  * @internal Shared by `loadMessages()` and `getI18n()`.
  */
 export const loadChain = async (
-  i18n: ServerI18nHost,
+  i18n: ServerI18nInstance,
   locales: readonly string[],
   namespaces: readonly string[],
 ): Promise<void> => {

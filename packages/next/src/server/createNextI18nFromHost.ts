@@ -1,13 +1,13 @@
 // Unlike `createNextI18n` — permanently bound to `@comvi/core` plus the
-// capability subpaths its composed-host builder needs — this companion takes
-// the host as a FACTORY, so the only core modules in the graph are the ones the
+// capability subpaths its composed-instance builder needs — this companion takes
+// the instance as a FACTORY, so the only core modules in the graph are the ones the
 // app itself composed. Nothing here imports `createI18n` or any other core
 // value, and it is exported ONLY from `@comvi/next/server`, never from the root
 // or client entry.
 import { resolveRouting } from "../nextI18nRouting";
 import type { NextRoutingOptions } from "../nextI18nRouting";
 import { registerServerI18nHost } from "./cache";
-import type { NextServerHost, ServerI18nHost } from "./hostTypes";
+import type { NextServerInstance, ServerI18nInstance } from "./hostTypes";
 import type { DefaultTranslationParams } from "@comvi/core";
 import type { RoutingConfig } from "../routing/types";
 
@@ -30,7 +30,7 @@ export type CreateNextI18nFromHostOptions = NextRoutingOptions;
  */
 export interface CreateNextI18nFromHostResult<
   D extends DefaultTranslationParams = {},
-  C extends NextServerHost<D> = NextServerHost<D>,
+  C extends NextServerInstance<D> = NextServerInstance<D>,
 > {
   /** The instance `host()` returned, built inside `createNextI18nFromHost`. */
   readonly i18n: C;
@@ -55,7 +55,7 @@ export interface CreateNextI18nFromHostResult<
  * BEFORE `host()` runs, so a conflicting registration builds nothing.
  *
  * @param host - Factory returning the composed instance; the server always needs
- *   the loader capability, so the contract is `NextServerHost`
+ *   the loader capability, so the contract is `NextServerInstance`
  * @param options - Routing configuration; everything else belongs to the instance
  *
  * @example
@@ -67,9 +67,9 @@ export interface CreateNextI18nFromHostResult<
  *
  * export const { i18n, routing } = createNextI18nFromHost(
  *   () => {
- *     const host = attachLoader(createI18n({ locale: "en", defaultNs: "default" }));
- *     host.registerLoader(myLoader);
- *     return host;
+ *     const instance = attachLoader(createI18n({ locale: "en", defaultNs: "default" }));
+ *     instance.registerLoader(myLoader);
+ *     return instance;
  *   },
  *   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
  * );
@@ -77,10 +77,10 @@ export interface CreateNextI18nFromHostResult<
  */
 export function createNextI18nFromHost<
   D extends DefaultTranslationParams = {},
-  C extends NextServerHost<D> = NextServerHost<D>,
+  C extends NextServerInstance<D> = NextServerInstance<D>,
 >(host: () => C, options: CreateNextI18nFromHostOptions): CreateNextI18nFromHostResult<D, C> {
   const routing = resolveRouting(options);
-  const i18n = registerServerI18nHost(host as () => ServerI18nHost, routing) as C;
+  const i18n = registerServerI18nHost(host as () => ServerI18nInstance, routing) as C;
 
   return { i18n, routing };
 }

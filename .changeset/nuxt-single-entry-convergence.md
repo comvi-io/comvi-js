@@ -25,8 +25,8 @@ application import, and composition happens in `comvi.host.ts` — an ordinary a
 names `createI18n` plus `icuCompiler` / `loader` / `plugins` / `devtools` from core's own
 pure subpaths directly. Relaying them through the module entry would put the whole toolkit
 in the build-time graph of every app, including the ones that compose nothing. What
-`@comvi/nuxt` does publish for that file is the type vocabulary: `NuxtHostFactory`,
-`NuxtHostFactoryOptions`, `NuxtServerHost` and `NuxtServerLoaderHost`.
+`@comvi/nuxt` does publish for that file is the type vocabulary: `NuxtInstanceFactory`,
+`NuxtInstanceFactoryOptions`, `NuxtServerInstance` and `NuxtServerLoaderInstance`.
 
 **Vue's convergence rides through.** Nuxt's rendering layer is `@comvi/vue`: `comvi.setup`
 receives a `VueI18n`, and the auto-imported `<T>` is vue's component verbatim. Vue's `<T>`

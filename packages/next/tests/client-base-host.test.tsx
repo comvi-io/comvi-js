@@ -12,15 +12,15 @@ import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { act, renderHook } from "@testing-library/react";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 import { createI18n, useI18n } from "../src/client";
 import { I18nProvider } from "../src/client/I18nProvider";
 import type { MessagesMap } from "../src/client/I18nProvider";
 
-const baseClientHost = (): WrapperI18nHost => createI18n({ locale: "en", exposeGlobal: false });
+const baseClientHost = (): WrapperI18nInstance => createI18n({ locale: "en", exposeGlobal: false });
 
 const hydrated = (
-  i18n: WrapperI18nHost,
+  i18n: WrapperI18nInstance,
   locale: string,
   messages: MessagesMap,
   children: React.ReactNode,

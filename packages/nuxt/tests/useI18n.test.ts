@@ -17,7 +17,7 @@ const { createBoundTranslation, boundT } = vi.hoisted(() => {
 });
 
 // The composable takes `createBoundTranslation` from the SLIM entry: it runs on
-// a bare WrapperI18nHost, which is all `$i18n` promises.
+// a bare WrapperI18nInstance, which is all `$i18n` promises.
 vi.mock("@comvi/core", async (importOriginal) => ({
   ...(await importOriginal<typeof ComviCore>()),
   createBoundTranslation,

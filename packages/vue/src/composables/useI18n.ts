@@ -12,7 +12,7 @@ import type {
   I18nEventData,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
-  WrapperI18nHost,
+  WrapperI18nInstance,
 } from "@comvi/core";
 
 /**
@@ -52,7 +52,7 @@ export interface UseI18nReturn<
   defaultParams: ComputedRef<DefaultParamsSnapshot<D>>;
 
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: WrapperI18nHost<D>["setDefaultParams"];
+  setDefaultParams: WrapperI18nInstance<D>["setDefaultParams"];
 
   clearMessages: (locale?: string, namespace?: string) => void;
 
@@ -78,7 +78,7 @@ export interface UseI18nReturn<
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
 
   /** Routes to the configured `onError` handler. */
-  reportError: WrapperI18nHost["reportError"];
+  reportError: WrapperI18nInstance["reportError"];
 
   // The formatters below follow the current locale.
   formatNumber: VueI18n["formatNumber"];
@@ -99,7 +99,7 @@ export interface UseI18nReturn<
 /**
  * Copied from the i18n instance as direct references. Capability members are
  * NOT here — they live behind `useI18nLoader()` / `useI18nPlugins()` — so this
- * loop only ever touches members a bare `WrapperI18nHost` really has.
+ * loop only ever touches members a bare `WrapperI18nInstance` really has.
  */
 const PASSTHROUGH_KEYS = [
   "locale",
@@ -149,7 +149,7 @@ export function useI18n<
     );
   }
 
-  const i18n = injected as unknown as VueI18n<D, WrapperI18nHost<D>>;
+  const i18n = injected as unknown as VueI18n<D, WrapperI18nInstance<D>>;
 
   const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn<D, NS>["tRaw"];
   const t = ((key: string, params?: TranslationParams) =>

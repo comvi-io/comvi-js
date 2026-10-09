@@ -39,6 +39,6 @@ compiler identity and the effective syntax-extension set, so hosts with differen
 in one process never poison each other.
 
 **Scope note:** the base host is what every framework binding runs on in this release — all
-six accept `WrapperI18nHost`, so a binding's own graph no longer drags ambient tag
+six accept `WrapperI18nInstance`, so a binding's own graph no longer drags ambient tag
 registration into your bundle. The price is that the loader/plugin members left `useI18n()`
 for `useI18nLoader()` / `useI18nPlugins()`; see each binding's own entry.

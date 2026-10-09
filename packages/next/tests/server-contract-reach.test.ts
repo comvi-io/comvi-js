@@ -1,11 +1,11 @@
 // @vitest-environment node
 /**
- * `ServerTranslatingHost` is the one sanctioned way back to the host's
+ * `ServerTranslatingInstance` is the one sanctioned way back to the host's
  * translator, and "one" is the whole point of it.
  *
  * `tests/types/server-host.test-d.ts` pins the type's SHAPE — that it adds
- * exactly `t | tRaw` to `ServerI18nHost`. Nothing pins its REACH. A second
- * server helper that wrote the same `i18n as ServerTranslatingHost` would
+ * exactly `t | tRaw` to `ServerI18nInstance`. Nothing pins its REACH. A second
+ * server helper that wrote the same `i18n as ServerTranslatingInstance` would
  * translate against whatever locale it happened to have, and every gate would
  * stay green, because a widening that two call sites may use is no longer a
  * contract — it is an escape hatch with a comment on it.
@@ -30,13 +30,13 @@ const filesNaming = (identifier: string): string[] =>
 
 describe("the server pipeline's one crossing back to the host translator", () => {
   it("is named in exactly the file that declares it and the file that uses it", () => {
-    expect(filesNaming("ServerTranslatingHost")).toEqual(["getI18n.ts", "hostTypes.ts"]);
+    expect(filesNaming("ServerTranslatingInstance")).toEqual(["getI18n.ts", "hostTypes.ts"]);
   });
 
   it("control: the probe reports every file that names the host type itself", () => {
-    // `ServerI18nHost` is the pipeline-wide type, so a scan that found only two
+    // `ServerI18nInstance` is the pipeline-wide type, so a scan that found only two
     // files for it would mean the probe above is reading the wrong directory.
-    expect(filesNaming("ServerI18nHost")).toEqual([
+    expect(filesNaming("ServerI18nInstance")).toEqual([
       "cache.ts",
       "createNextI18nFromHost.ts",
       "ensureInitialized.ts",

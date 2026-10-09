@@ -124,8 +124,8 @@ bundler-matrix `*-dev-conditions` case asserting that diagnostic's text.
 - `loader`, `attachLoader`, `createImportMapLoader`, `acquireLoaderApi` — `.../src/loader.ts`;
   `plugins`, `definePlugin`, `attachPlugins`, `acquirePluginsApi` — `.../src/plugins.ts`;
   `devtools`, `attachDevtools` — `packages/core/src/devtools.ts`
-- `WrapperI18nHost` — `packages/core/src/types.ts`; `missingCapability`, `hasLoaderApi`,
-  `hasPluginHostApi` — `packages/core/src/utils/capability.ts`
+- `WrapperI18nInstance` — `packages/core/src/types.ts`; `missingCapability`, `hasLoaderApi`,
+  `hasPluginApi` — `packages/core/src/utils/capability.ts`
 - `warnLateCompose` and its `warned` WeakSet — `packages/core/src/utils/lateCompose.ts`; the fully
   composed global — `packages/core/src/umd.ts`; `cdnLoader` / `cdnLoaderPlugin` —
   `packages/plugin-fetch-loader/src/cdn/installer.ts` and `.../cdn/loader.ts`

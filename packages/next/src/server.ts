@@ -12,7 +12,7 @@ export { loadMessages } from "./server/loadMessages";
 export { ComviProvider } from "./server/ComviProvider";
 export type { ComviProviderProps } from "./server/ComviProvider";
 
-// Exported here and nowhere else: a server loader reached through the host
+// Exported here and nowhere else: a server loader reached through the instance
 // factory can then never leak into the client graph.
 export { createNextI18nFromHost } from "./server/createNextI18nFromHost";
 export type {
@@ -20,7 +20,7 @@ export type {
   CreateNextI18nFromHostResult,
 } from "./server/createNextI18nFromHost";
 export type { NextRoutingOptions } from "./nextI18nRouting";
-export type { NextServerHost } from "./server/hostTypes";
+export type { NextServerInstance } from "./server/hostTypes";
 
 export type {
   GetI18nOptions,
@@ -35,7 +35,7 @@ export type { LoadMessagesOptions } from "./server/loadMessages";
 export type { MessagesMap } from "@comvi/core";
 
 // One sentence, two installers: an import map → `loader(map)`; a plain
-// `LoaderFn` (or a host something else configures later) →
+// `LoaderFn` (or an instance something else configures later) →
 // `.use(attachLoader)` + `registerLoader(fn)`. The map is required, so there is
 // no third form to choose between.
 //

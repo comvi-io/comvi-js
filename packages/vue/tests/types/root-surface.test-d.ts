@@ -8,9 +8,9 @@
 import type {
   I18n,
   I18nLoaderApi,
-  I18nPluginHostApi,
+  I18nPluginApi,
   VueI18n,
-  WrapperI18nHost,
+  WrapperI18nInstance,
 } from "../../src/index";
 import { createI18n as createCore } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";
@@ -40,14 +40,14 @@ const preset = createI18n({ locale: "en", ssrLocale: "en" });
 
 export type _PresetIsVueI18nOverBase = Expect<Equal<typeof preset, VueI18n<{}, I18n<{}>>>>;
 export type _PresetCoreIsBase = Expect<Equal<(typeof preset)["core"], I18n<{}>>>;
-export type _PresetCoreIsAHost = Expect<
-  Equal<(typeof preset)["core"] extends WrapperI18nHost ? true : false, true>
+export type _PresetCoreIsAInstance = Expect<
+  Equal<(typeof preset)["core"] extends WrapperI18nInstance ? true : false, true>
 >;
 export type _PresetCoreHasNoLoaderApi = Expect<
   Equal<(typeof preset)["core"] extends I18nLoaderApi ? true : false, false>
 >;
 export type _PresetCoreHasNoPluginApi = Expect<
-  Equal<(typeof preset)["core"] extends I18nPluginHostApi ? true : false, false>
+  Equal<(typeof preset)["core"] extends I18nPluginApi ? true : false, false>
 >;
 
 // @ts-expect-error -- the preset host has no loader capability, in types or at runtime
@@ -113,19 +113,19 @@ export type _ComposedCoreHasLoaderApi = Expect<
   Equal<(typeof fromLoader)["core"] extends I18nLoaderApi ? true : false, true>
 >;
 export type _ComposedCoreHasNoPluginApi = Expect<
-  Equal<(typeof fromLoader)["core"] extends I18nPluginHostApi ? true : false, false>
+  Equal<(typeof fromLoader)["core"] extends I18nPluginApi ? true : false, false>
 >;
 void fromLoader.core.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- attachLoader composes ONLY the loader capability
 fromLoader.core.registerPostProcessor((result) => result);
 
-const _pluginHost = attachPlugins(createCore({ locale: "en" }));
+const _pluginInstance = attachPlugins(createCore({ locale: "en" }));
 export type _PluginsWiden = Expect<
-  Equal<typeof _pluginHost extends I18nPluginHostApi ? true : false, true>
+  Equal<typeof _pluginInstance extends I18nPluginApi ? true : false, true>
 >;
 
 const _withDevtools = attachDevtools(createCore({ locale: "en" }), { exposeGlobal: false });
-export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>>>;
+export type _DevtoolsKeepsInstanceType = Expect<Equal<typeof _withDevtools, I18n<{}>>>;
 
 // Nested catalogs are BASE behaviour, so this root no longer re-exports
 // `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
@@ -142,7 +142,7 @@ const piped = createCore({ locale: "en", compiler: icuCompiler }).use(
 export type _PipedIsWidened = Expect<
   Equal<typeof piped extends I18nLoaderApi ? true : false, true>
 >;
-export type _PipedIsStillTheHost = Expect<Equal<typeof piped, I18n<{}> & I18nLoaderApi>>;
+export type _PipedIsStillTheInstance = Expect<Equal<typeof piped, I18n<{}> & I18nLoaderApi>>;
 void piped.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- loader(map) composes ONLY the loader capability
 piped.registerPlugin(() => undefined);
@@ -150,12 +150,14 @@ piped.registerPlugin(() => undefined);
 // The preset's own host takes the pipe too, at `i18n.core` — vue's factory
 // returns a wrapper rather than the host itself.
 const _presetPiped = createI18n({ locale: "en" }).core.use(attachLoader);
-export type _PresetHostTakesThePipe = Expect<Equal<typeof _presetPiped, I18n<{}> & I18nLoaderApi>>;
+export type _PresetInstanceTakesThePipe = Expect<
+  Equal<typeof _presetPiped, I18n<{}> & I18nLoaderApi>
+>;
 
 // Chaining compounds the widenings.
 const _both = createCore({ locale: "en" }).use(attachLoader).use(plugins());
 export type _ChainCompounds = Expect<
-  Equal<typeof _both extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
+  Equal<typeof _both extends I18nLoaderApi & I18nPluginApi ? true : false, true>
 >;
 void _both.registerPlugin(() => undefined).registerLoader(() => Promise.resolve({}));
 
@@ -170,7 +172,7 @@ export type _PipeKeepsExactDefaults = Expect<
 
 // devtools() adds no public members, so the host type is unchanged.
 const _pipedDevtools = createCore({ locale: "en" }).use(devtools({ exposeGlobal: false }));
-export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, I18n<{}>>>;
+export type _DevtoolsPipeKeepsInstanceType = Expect<Equal<typeof _pipedDevtools, I18n<{}>>>;
 
 // The low-level attaches are installers too — the factories only add config.
 void createCore({ locale: "en" })
@@ -191,8 +193,8 @@ createCore({ locale: "en" }).use(loader({ uk: "./uk.json" }));
 // the runtime surface test. `plugins()` attaches the plugin HOST;
 // `definePlugin(fn)` registers ONE plugin on it, and both flow through `.use`.
 const _withDefinedPlugin = createCore({ locale: "en" }).use(definePlugin(() => {}));
-export type _DefinePluginWidensToThePluginHost = Expect<
-  Equal<typeof _withDefinedPlugin extends I18nPluginHostApi ? true : false, true>
+export type _DefinePluginWidensToThePluginInstance = Expect<
+  Equal<typeof _withDefinedPlugin extends I18nPluginApi ? true : false, true>
 >;
 void _withDefinedPlugin.registerPlugin(() => {});
 // @ts-expect-error -- definePlugin takes a PLUGIN, not an installer

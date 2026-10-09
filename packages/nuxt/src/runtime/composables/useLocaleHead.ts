@@ -1,7 +1,7 @@
 import { useHead, useRuntimeConfig, useRoute, useRequestURL } from "#app";
-// A pure function of the locale string — no host, no capability, no state. The
+// A pure function of the locale string — no instance, no capability, no state. The
 // runtime already imports values from `@comvi/core`'s root (useI18n.ts), so
-// this adds no package edge and nothing that could pull the base host in.
+// this adds no package edge and nothing that could pull the base instance in.
 import { getTextDirection } from "@comvi/core";
 import { useLocaleState } from "../utils/locale-state";
 import type { ComputedRef } from "vue";

@@ -292,7 +292,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this.messagesCache = new MessagesCache({ defaultNs });
     this._initialNamespaces = initialNamespaces ? [...new Set(initialNamespaces)] : undefined;
 
-    // `concat` copies: the chain is host-owned, so a caller mutating the array
+    // `concat` copies: the chain is instance-owned, so a caller mutating the array
     // it passed cannot change output behind `configChanged`.
     this._fallbackLocales = ([] as string[]).concat(options.fallbackLocale ?? []);
 
@@ -367,7 +367,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     // capability never arrives.
     //
     // `exposeGlobal: false` is deliberately NOT a request: it asks for the
-    // absence a base host already delivers, so there is nothing to report and
+    // absence a base instance already delivers, so there is nothing to report and
     // no reason to flag the 0.4 boilerplate that carries it.
     if (IS_DEV && (options.instanceId !== undefined || options.exposeGlobal === true)) {
       this._devDiscoveryOptions = true;
@@ -405,7 +405,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * Vue's wrapper enforces the same rule one level up, over `i18n.core`, and
    * reports it under the wrapper's own code `E_USE_HOST_IDENTITY`.
    */
-  public use<T extends this>(installer: (host: this) => T): T {
+  public use<T extends this>(installer: (instance: this) => T): T {
     const widened: unknown = installer(this);
     if (widened !== this) {
       // The function already RAN, so a raw ASYNC plugin has a live promise
@@ -430,7 +430,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * The in-flight init attempt. Concurrent callers join it; it is cleared once
    * it settles, so a later sequential `init()` is a new attempt.
    */
-  // `unknown`, not `this`: a `this`-typed private field changes how a host
+  // `unknown`, not `this`: a `this`-typed private field changes how an instance
   // type intersects with the capability APIs.
   private _initAttempt?: Promise<unknown>;
 
@@ -453,7 +453,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   private async _init(): Promise<this> {
     // Set once this attempt has started: a destroy() after that point ends the
-    // attempt quietly, while init() on an already-destroyed host still throws.
+    // attempt quietly, while init() on an already-destroyed instance still throws.
     let started = false;
     try {
       if (this._isDestroyed) {
@@ -467,7 +467,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // init: a second `init()` finds `_isInitialized` set and stays
       // quiet (a concurrent one joins this attempt and never gets here). A first `init()`
       // that THREW leaves both flags clear, so the retry warns again — which
-      // is right, the capability is still missing. A destroyed host never
+      // is right, the capability is still missing. A destroyed instance never
       // reaches here at all; it throws above.
       // DEV-only — a missing capability is not a boundary violation, so
       // production stays fail-soft and silent.
@@ -497,12 +497,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
       await (this as unknown as I18nInternal)._beforeInit?.();
 
       // `destroy()` can land during EVERY await in this method, so the flag is
-      // re-read after each one. A host destroyed mid-init RESOLVES QUIETLY:
+      // re-read after each one. An instance destroyed mid-init RESOLVES QUIETLY:
       // `this` back, `isInitialized` still false, no `initialized` emit, no
       // `reportError`. The normal producer of this race is a binding whose
       // component unmounted while its fire-and-forget `init()` was in flight
       // (react/solid/svelte providers, vue's `install()`, next's
-      // `ensureInitialized`, nuxt's request host) — turning every unmount into
+      // `ensureInitialized`, nuxt's request instance) — turning every unmount into
       // a reported error would be worse than a resolve whose `isInitialized`
       // honestly reads false. Pinned by tests/features/destroy-races.test.ts.
       //
@@ -527,7 +527,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
       if (started && this._isDestroyed) return this;
       this.reportError(error as Error, { source: "init" });
       // Transactional: release what this attempt's plugins acquired before
-      // rejecting, so a rejected or retried host holds nothing extra.
+      // rejecting, so a rejected or retried instance holds nothing extra.
       await (this as unknown as I18nInternal)._abortInit?.();
       throw error;
     } finally {
@@ -902,7 +902,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
   ): TranslationResult {
     // Drop any ICU hit left behind by a compile this call did not make (a
     // `translate()` that threw before its read-and-clear, or a compile outside
-    // the host). This is what makes every read below attributable to THIS call.
+    // the instance). This is what makes every read below attributable to THIS call.
     if (!IS_DEV) clearIcuHit();
     const hasParams = params != null;
     const locale = hasParams && params.locale !== undefined ? params.locale : currentLocale;
@@ -1202,7 +1202,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 }
 
 // Eager catalog preflight at both ingestion seams (`_nsAddMessages` and
-// the loader's pre-merge call). In development a string the host's compiler
+// the loader's pre-merge call). In development a string the instance's compiler
 // cannot compile throws `E_ICU_SYNTAX` at ingestion instead of at first render;
 // production stays lazy and reports on the compilation that hits it.
 // The whole block is folded out of production builds by `__DEV__`.
@@ -1215,7 +1215,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 // passes `silenceUnclaimedTagWarning` on every parse. Whether a `<b>` in the
 // catalog is a mistake depends on how the string is rendered, which ingestion
 // cannot know: an app whose `<T>` supplies the tag grammar per call renders it
-// correctly with no extension on the host. Only the render path knows, and it
+// correctly with no extension on the instance. Only the render path knows, and it
 // warns there.
 if (IS_DEV) {
   (I18n.prototype as unknown as I18nInternal)._preflightSimpleCatalog = function (
@@ -1224,7 +1224,7 @@ if (IS_DEV) {
   ): void {
     const compiler = this._compiler;
     if (compiler.preflight !== true) return;
-    // The EFFECTIVE extension set, not an empty one: a host whose app imported
+    // The EFFECTIVE extension set, not an empty one: an instance whose app imported
     // `@comvi/core/tags` really does claim `<`, and only then does the parse
     // descend into tag children — where a broken argument still has to be found.
     const extensions = effectiveExtensions(this._tagInterpolation?.extensions);

@@ -16,7 +16,7 @@ next app no longer names `@comvi/core` to build a host on either side of the bou
 `DevtoolsOptions` comes with them as a type. `attachPlugins` / `attachDevtools` are not on
 these entries: they are the low-level pair `plugins()` / `devtools()` already configure, and they
 stay on `@comvi/core/plugins` and `@comvi/core/devtools` (see `roots-drop-attach-pair.md`). The server entry carries the toolkit because
-`NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader **mandatory** for SSR —
+`NextServerInstance = WrapperI18nInstance & I18nLoaderApi` makes the loader **mandatory** for SSR —
 the one host an app cannot avoid composing should not take a second package to compose.
 
 One constructor name on two entries: the client/server split is a RUNTIME split — which

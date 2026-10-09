@@ -16,17 +16,17 @@
 import { describe, it, expect } from "vitest";
 import { render } from "solid-js/web";
 import { createI18n as coreCreateI18n, I18n as CoreI18n } from "@comvi/core";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 import { devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, loader } from "@comvi/core/loader";
 import type { I18nLoaderApi } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import type { I18nPluginHostApi } from "@comvi/core/plugins";
+import type { I18nPluginApi } from "@comvi/core/plugins";
 import { I18nProvider as DeepI18nProvider } from "../src/context";
 import * as root from "../src/index";
 
-function underProvider<R>(i18n: WrapperI18nHost, use: () => R) {
+function underProvider<R>(i18n: WrapperI18nInstance, use: () => R) {
   let api!: R;
   const container = document.createElement("div");
   const dispose = render(
@@ -65,7 +65,7 @@ describe("@comvi/solid — the single root entry", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
     // A base host does not DECLARE the capability members, so the absence
     // claim needs a view that admits them as optional to be readable at all.
-    const bare = i18n as Partial<I18nLoaderApi & I18nPluginHostApi>;
+    const bare = i18n as Partial<I18nLoaderApi & I18nPluginApi>;
 
     expect(bare.reloadMessages).toBeUndefined();
     expect(bare.onMissingKey).toBeUndefined();
@@ -203,7 +203,7 @@ describe("@comvi/solid — the export surface", () => {
     "loader",
     "plugins",
     "useI18n",
-    "useI18nHost",
+    "useI18nInstance",
     "useI18nLoader",
     "useI18nPlugins",
   ];

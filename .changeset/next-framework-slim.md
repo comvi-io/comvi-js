@@ -20,7 +20,7 @@ export const { i18n, routing } = createNextI18nFromHost(
 );
 ```
 
-`NextServerHost<D> = WrapperI18nHost<D> & I18nLoaderApi` — the server always needs the
+`NextServerInstance<D> = WrapperI18nInstance<D> & I18nLoaderApi` — the server always needs the
 loader; ICU and tag interpolation enter the graph only if your factory names them.
 Options are **routing only**; locale, fallback, namespaces, translations, API key, tags/ICU,
 loader and plugins belong to the host factory and do not exist on the options type. The

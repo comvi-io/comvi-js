@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import type { JSX } from "solid-js";
 import { createI18n } from "../src/index";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 import { I18nProvider } from "../src/context";
 import { T } from "../src/T";
 import type { ComponentMap } from "../src/types";
@@ -51,7 +51,7 @@ const makeI18n = async (translations: Record<string, string>) => {
 };
 
 describe("<T /> structural render (real core)", () => {
-  const renderT = (i18n: WrapperI18nHost, ui: () => JSX.Element) =>
+  const renderT = (i18n: WrapperI18nInstance, ui: () => JSX.Element) =>
     renderSolid(() => (
       <I18nProvider i18n={i18n} autoInit={false}>
         {ui()}

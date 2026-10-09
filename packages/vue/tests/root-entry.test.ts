@@ -43,7 +43,7 @@ describe("@comvi/vue — the single root entry", () => {
 
     // The claim is that these members are ABSENT, so the two reads go through a
     // view that admits them — the base host's own type does not declare them.
-    const bareCore = i18n.core as Partial<root.I18nLoaderApi & root.I18nPluginHostApi>;
+    const bareCore = i18n.core as Partial<root.I18nLoaderApi & root.I18nPluginApi>;
     expect(bareCore.reloadMessages).toBeUndefined();
     expect(bareCore.onMissingKey).toBeUndefined();
     expect("registerLoader" in i18n.core).toBe(false);

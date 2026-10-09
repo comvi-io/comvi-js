@@ -1,5 +1,5 @@
 // Type-level contract for the capability split: `I18nInstance` is
-// `I18nCoreInstance` + `I18nLoaderApi` + `I18nPluginHostApi` recomposed with an
+// `I18nCoreInstance` + `I18nLoaderApi` + `I18nPluginApi` recomposed with an
 // exact-member Pick. These tests prove the recomposition neither widened nor
 // narrowed the root-exported surface, and that the class overloads the
 // framework wrappers derive their public types from are unchanged.
@@ -8,9 +8,9 @@ import type {
   I18nCoreInstance,
   I18nCoreExtraApi,
   I18nLoaderApi,
-  I18nPluginHostApi,
-  I18nPluginHost,
-  WrapperI18nHost,
+  I18nPluginApi,
+  PluginI18nInstance,
+  WrapperI18nInstance,
   I18nPlugin,
   PluginOptions,
   LoaderFn,
@@ -79,7 +79,7 @@ export type _LoaderApiKeys = Expect<
 >;
 export type _PluginApiKeys = Expect<
   Equal<
-    keyof I18nPluginHostApi,
+    keyof I18nPluginApi,
     | "registerPlugin"
     | "registerLocaleDetector"
     | "getLanguageDetector"
@@ -90,19 +90,19 @@ export type _PluginApiKeys = Expect<
   >
 >;
 export type _CoreHasNoCapabilities = Expect<
-  Equal<Extract<keyof I18nCoreInstance, keyof I18nLoaderApi | keyof I18nPluginHostApi>, never>
+  Equal<Extract<keyof I18nCoreInstance, keyof I18nLoaderApi | keyof I18nPluginApi>, never>
 >;
 
 // The shapes a framework binding sees once the capabilities are composed on:
 // interface-merge resolution drifting here would slip past the wrapper
 // zero-diff gate. Derived from the COMPOSED host, because the base root
 // deliberately has neither member.
-type ComposedHost = I18nPluginHost & I18nLoaderApi & I18nCoreInstance;
+type ComposedInstance = PluginI18nInstance & I18nLoaderApi & I18nCoreInstance;
 export type _RegisterLoaderArg = Expect<
-  Equal<Parameters<ComposedHost["registerLoader"]>[0], LoaderFn>
+  Equal<Parameters<ComposedInstance["registerLoader"]>[0], LoaderFn>
 >;
 export type _RegisterPluginOptionsArg = Expect<
-  Equal<Parameters<ComposedHost["registerPlugin"]>[1], PluginOptions | undefined>
+  Equal<Parameters<ComposedInstance["registerPlugin"]>[1], PluginOptions | undefined>
 >;
 // The published import-map shape survives as `@comvi/next`'s composed host and
 // as the configured installer's argument — pinned here for the installer.
@@ -127,7 +127,7 @@ void notAnInstance;
 
 // A fetch-loader-shaped plugin (the real `@comvi/plugin-fetch-loader` shape:
 // `setPluginData` + `registerLoader` through the host param) compiles against
-// the composed `I18nPluginHost`.
+// the composed `PluginI18nInstance`.
 const fetchLoaderShaped: I18nPlugin = (i18n) => {
   i18n.setPluginData("fetchLoader", { cdnUniqueId: "abc", projectId: 1 });
   const cfg = i18n.getPluginData<{ cdnUniqueId: string }>("fetchLoader");
@@ -141,33 +141,36 @@ const fetchLoaderShaped: I18nPlugin = (i18n) => {
 void fetchLoaderShaped;
 
 // The host alias really is the composed full surface.
-export type _HostIsComposed = Expect<
-  Equal<I18nPluginHost, I18nCoreInstance & I18nCoreExtraApi & I18nLoaderApi & I18nPluginHostApi>
+export type _InstanceIsComposed = Expect<
+  Equal<PluginI18nInstance, I18nCoreInstance & I18nCoreExtraApi & I18nLoaderApi & I18nPluginApi>
 >;
 
 // The wrapper host alias must stay EXACTLY the pair of interfaces `class I18n`
 // declares it implements. If a member is added to the class outside those two,
 // or a capability leaks into either, this pin fails before any wrapper retypes
 // against a host a bare instance cannot satisfy.
-export type _WrapperHostIsWhatI18nImplements = Expect<
-  Equal<WrapperI18nHost, I18nCoreInstance & I18nCoreExtraApi>
+export type _WrapperInstanceIsWhatI18nImplements = Expect<
+  Equal<WrapperI18nInstance, I18nCoreInstance & I18nCoreExtraApi>
 >;
-export type _WrapperHostIsWhatI18nImplementsGeneric = Expect<
-  Equal<WrapperI18nHost<{ brand: string }>, I18nCoreInstance<{ brand: string }> & I18nCoreExtraApi>
+export type _WrapperInstanceIsWhatI18nImplementsGeneric = Expect<
+  Equal<
+    WrapperI18nInstance<{ brand: string }>,
+    I18nCoreInstance<{ brand: string }> & I18nCoreExtraApi
+  >
 >;
 
 // Type honesty by absence: no loader/plugin member is reachable on the host.
-export type _WrapperHostHasNoCapabilities = Expect<
-  Equal<Extract<keyof WrapperI18nHost, keyof I18nLoaderApi | keyof I18nPluginHostApi>, never>
+export type _WrapperInstanceHasNoCapabilities = Expect<
+  Equal<Extract<keyof WrapperI18nInstance, keyof I18nLoaderApi | keyof I18nPluginApi>, never>
 >;
 
 // The plugin host is exactly the wrapper host plus both capabilities.
-export type _PluginHostExtendsWrapperHost = Expect<
-  Equal<I18nPluginHost, WrapperI18nHost & I18nLoaderApi & I18nPluginHostApi>
+export type _PluginInstanceExtendsWrapperInstance = Expect<
+  Equal<PluginI18nInstance, WrapperI18nInstance & I18nLoaderApi & I18nPluginApi>
 >;
 
 // A ROOT instance is a wrapper host — the root stays first-class.
-const rootAsHost: WrapperI18nHost = createI18n({ locale: "en" });
+const rootAsHost: WrapperI18nInstance = createI18n({ locale: "en" });
 void rootAsHost;
 
 // @ts-expect-error — the host type does not carry loader members

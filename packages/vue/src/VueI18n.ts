@@ -17,7 +17,7 @@ import type {
   I18nEventData,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
-  WrapperI18nHost,
+  WrapperI18nInstance,
 } from "@comvi/core";
 import {
   shallowRef,
@@ -35,7 +35,7 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /** Thrown by {@link VueI18n.use} when an installer hands back a different object. */
-export interface UseHostIdentityError extends Error {
+export interface UseInstanceIdentityError extends Error {
   code: "E_USE_HOST_IDENTITY";
 }
 
@@ -70,12 +70,12 @@ export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOption
  * which returns this same instance with `core` retyped: assign the result,
  * since a discarded return leaves the binding's `C` unwidened. `C` is exact
  * when you hold the factory result; through `inject(I18N_INJECTION_KEY)` the
- * core is seen as a bare {@link WrapperI18nHost}, so capability calls are a
+ * core is seen as a bare {@link WrapperI18nInstance}, so capability calls are a
  * compile error there.
  */
 export class VueI18n<
   D extends DefaultTranslationParams = {},
-  C extends WrapperI18nHost<D> = I18n<D>,
+  C extends WrapperI18nInstance<D> = I18n<D>,
 > {
   readonly core: C;
 
@@ -107,10 +107,10 @@ export class VueI18n<
     callback: (payload: I18nEventData[E]) => void,
   ) => () => void;
   declare setFallbackLocale: (locales: string | string[]) => void;
-  declare setDefaultParams: WrapperI18nHost<D>["setDefaultParams"];
+  declare setDefaultParams: WrapperI18nInstance<D>["setDefaultParams"];
   declare reportError: (
     error: unknown,
-    context?: Parameters<WrapperI18nHost["reportError"]>[1],
+    context?: Parameters<WrapperI18nInstance["reportError"]>[1],
   ) => void;
   declare formatNumber: (
     value: number,
@@ -345,7 +345,7 @@ export class VueI18n<
   hasLocale(locale: string, namespace?: string): ComputedRef<boolean> {
     return computed(() => {
       void this._cacheRevision.value;
-      // With no explicit namespace the host resolves against the DEFAULT
+      // With no explicit namespace the instance resolves against the DEFAULT
       // namespace, which is config: on defaultNamespaceChanged the cache
       // revision is re-assigned, not bumped, so it alone never triggers.
       void this._configRevision.value;
@@ -490,7 +490,7 @@ export class VueI18n<
    * is swallowed and the identity error is the only thing the app sees — and
    * the development message names the ways out, exactly as core's does.
    */
-  use<T extends WrapperI18nHost<D>>(installer: (core: C) => T): VueI18n<D, T> {
+  use<T extends WrapperI18nInstance<D>>(installer: (core: C) => T): VueI18n<D, T> {
     if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateUse) {
       this._warnedLateUse = true;
       console.warn(
@@ -511,7 +511,7 @@ export class VueI18n<
         IS_DEV
           ? "[@comvi/vue] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
           : "E_USE_HOST_IDENTITY",
-      ) as UseHostIdentityError;
+      ) as UseInstanceIdentityError;
       error.code = "E_USE_HOST_IDENTITY";
       throw error;
     }
@@ -576,7 +576,7 @@ export class VueI18n<
       });
     }
 
-    // Ambient channels: the consumer cannot know this instance's `D` or host
+    // Ambient channels: the consumer cannot know this instance's `D` or instance
     // type, so both erase to `AnyVueI18n`, as the injection key declares.
     const ambient = this as unknown as AnyVueI18n;
     app.provide(I18N_INJECTION_KEY, ambient);
@@ -592,7 +592,7 @@ export class VueI18n<
  * whatever the app installed, so it gets the capability-free instance surface and
  * must acquire capabilities through `useI18nLoader()` / `useI18nPlugins()`.
  */
-export type AnyVueI18n = VueI18n<{}, WrapperI18nHost>;
+export type AnyVueI18n = VueI18n<{}, WrapperI18nInstance>;
 
 declare module "vue" {
   export interface ComponentCustomProperties {

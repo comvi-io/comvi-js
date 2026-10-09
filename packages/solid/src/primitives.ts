@@ -1,7 +1,7 @@
 import { from, type Accessor } from "solid-js";
 import { subscribeToRevision } from "@comvi/core";
 import type {
-  WrapperI18nHost,
+  WrapperI18nInstance,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
   SetDefaultParamsArg,
@@ -11,13 +11,13 @@ import type {
 // calls `set()` synchronously, so the first read is always defined.
 //
 // Two names, one rule: `create*Signal` READS — it returns an `Accessor` that
-// mirrors the host, for all seven axes — and `create*State` READS AND WRITES,
-// returning `[accessor, setter]` for the two axes a host lets you write
+// mirrors the instance, for all seven axes — and `create*State` READS AND WRITES,
+// returning `[accessor, setter]` for the two axes an instance lets you write
 // (`defaultNamespace`, `defaultParams`). A setter always writes THROUGH to the
-// host; nothing here holds a local value the host does not have.
+// instance; nothing here holds a local value the instance does not have.
 
 /** MUST be called within a reactive context (component or effect). */
-export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
+export function createLocaleSignal(i18n: WrapperI18nInstance): Accessor<string> {
   const signal = from<string>((set) => {
     set(i18n.locale);
     return i18n.on("localeChanged", () => set(i18n.locale));
@@ -30,7 +30,7 @@ export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
  * axis is {@link createDefaultNamespaceState}. MUST be called within a
  * reactive context (component or effect).
  */
-export function createDefaultNamespaceSignal(i18n: WrapperI18nHost): Accessor<string> {
+export function createDefaultNamespaceSignal(i18n: WrapperI18nInstance): Accessor<string> {
   const signal = from<string>((set) => {
     set(i18n.getDefaultNamespace());
     return i18n.on("defaultNamespaceChanged", ({ to }) => set(to));
@@ -47,7 +47,7 @@ export function createDefaultNamespaceSignal(i18n: WrapperI18nHost): Accessor<st
  * within a reactive context (component or effect).
  */
 export function createDefaultNamespaceState(
-  i18n: WrapperI18nHost,
+  i18n: WrapperI18nInstance,
 ): [Accessor<string>, (namespace: string) => void] {
   const namespace = createDefaultNamespaceSignal(i18n);
   const setDefaultNamespace = (value: string) => i18n.setDefaultNamespace(value);
@@ -55,7 +55,7 @@ export function createDefaultNamespaceState(
 }
 
 /** MUST be called within a reactive context (component or effect). */
-export function createLoadingSignal(i18n: WrapperI18nHost): Accessor<boolean> {
+export function createLoadingSignal(i18n: WrapperI18nInstance): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     set(i18n.isLoading);
     return i18n.on("loadingStateChanged", ({ isLoading }) => set(isLoading));
@@ -64,7 +64,7 @@ export function createLoadingSignal(i18n: WrapperI18nHost): Accessor<boolean> {
 }
 
 /** MUST be called within a reactive context (component or effect). */
-export function createInitializingSignal(i18n: WrapperI18nHost): Accessor<boolean> {
+export function createInitializingSignal(i18n: WrapperI18nInstance): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     set(i18n.isInitializing);
     return i18n.on("loadingStateChanged", ({ isInitializing }) => set(isInitializing));
@@ -73,7 +73,7 @@ export function createInitializingSignal(i18n: WrapperI18nHost): Accessor<boolea
 }
 
 /** MUST be called within a reactive context (component or effect). */
-export function createInitializedSignal(i18n: WrapperI18nHost): Accessor<boolean> {
+export function createInitializedSignal(i18n: WrapperI18nInstance): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     const syncInitializedState = () => set(i18n.isInitialized);
     syncInitializedState();
@@ -97,7 +97,7 @@ export function createInitializedSignal(i18n: WrapperI18nHost): Accessor<boolean
  * reactive context (component or effect).
  */
 export function createDefaultParamsSignal<D extends DefaultTranslationParams = {}>(
-  i18n: WrapperI18nHost<D>,
+  i18n: WrapperI18nInstance<D>,
 ): Accessor<DefaultParamsSnapshot<D>> {
   const signal = from<DefaultParamsSnapshot<D>>((set) => {
     // `as never`: `Setter<T>`'s overloads exclude `Function` from `T`, which
@@ -120,7 +120,7 @@ export function createDefaultParamsSignal<D extends DefaultTranslationParams = {
  * setter. MUST be called within a reactive context (component or effect).
  */
 export function createDefaultParamsState<D extends DefaultTranslationParams = {}>(
-  i18n: WrapperI18nHost<D>,
+  i18n: WrapperI18nInstance<D>,
 ): [Accessor<DefaultParamsSnapshot<D>>, (params: SetDefaultParamsArg<D>) => void] {
   const params = createDefaultParamsSignal(i18n);
   const setDefaultParams = (next: SetDefaultParamsArg<D>) => i18n.setDefaultParams(next);
@@ -131,7 +131,7 @@ export function createDefaultParamsState<D extends DefaultTranslationParams = {}
  * Tracks messages cache/config changes as a monotonic revision counter.
  * MUST be called within a reactive context (component or effect).
  */
-export function createCacheRevisionSignal(i18n: WrapperI18nHost): Accessor<number> {
+export function createCacheRevisionSignal(i18n: WrapperI18nInstance): Accessor<number> {
   const signal = from<number>((set) => {
     // ONE monotonic counter: summing a cache and a config revision let two
     // opposite steps collide and drop a re-render.

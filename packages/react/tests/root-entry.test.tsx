@@ -16,12 +16,12 @@ import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, loader } from "@comvi/core/loader";
 import type { I18nLoaderApi } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import type { I18nPluginHostApi } from "@comvi/core/plugins";
+import type { I18nPluginApi } from "@comvi/core/plugins";
 import { I18n, createI18n } from "@comvi/core";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 import * as root from "../src/index";
 
-const wrapperFor = (i18n: WrapperI18nHost) =>
+const wrapperFor = (i18n: WrapperI18nInstance) =>
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <root.I18nProvider i18n={i18n} autoInit={false}>
@@ -46,7 +46,7 @@ describe("@comvi/react — the one-call host", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
     // A base host does not DECLARE the capability members, so the absence
     // claim needs a view that admits them as optional to be readable at all.
-    const bare = i18n as Partial<I18nLoaderApi & I18nPluginHostApi>;
+    const bare = i18n as Partial<I18nLoaderApi & I18nPluginApi>;
 
     expect(bare.reloadMessages).toBeUndefined();
     expect(bare.onMissingKey).toBeUndefined();
@@ -141,7 +141,7 @@ describe("@comvi/react — the export surface", () => {
     "plugins",
     "useFormatters",
     "useI18n",
-    "useI18nHost",
+    "useI18nInstance",
     "useI18nLoader",
     "useI18nPlugins",
     "useIsLoading",
@@ -195,7 +195,7 @@ describe("@comvi/react — the export surface", () => {
     });
 
     const { result } = renderHook(
-      () => ({ host: root.useI18nHost(), bag: root.useI18n(), locale: root.useLocale() }),
+      () => ({ host: root.useI18nInstance(), bag: root.useI18n(), locale: root.useLocale() }),
       { wrapper: wrapperFor(i18n) },
     );
 

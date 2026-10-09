@@ -2,10 +2,10 @@ import { describe, it, expectTypeOf } from "vitest";
 import type {
   I18n,
   I18nLoaderApi,
-  I18nPluginHostApi,
+  I18nPluginApi,
   LoaderFn,
   MessageCompiler,
-  WrapperI18nHost,
+  WrapperI18nInstance,
 } from "@comvi/core";
 import type { UseI18nReturn as VueUseI18nReturn, VueI18n } from "@comvi/vue";
 import type {
@@ -13,22 +13,22 @@ import type {
   I18nLoaderApi as PublicI18nLoaderApi,
   LoaderFn as PublicLoaderFn,
   ModuleOptions,
-  NuxtHostFactory as PublicNuxtHostFactory,
-  NuxtHostFactoryOptions as PublicNuxtHostFactoryOptions,
+  NuxtInstanceFactory as PublicNuxtInstanceFactory,
+  NuxtInstanceFactoryOptions as PublicNuxtInstanceFactoryOptions,
   NuxtI18nSetup as PublicNuxtI18nSetup,
 } from "@comvi/nuxt";
 import type { UseI18nReturn as NuxtUseI18nReturn } from "../src/runtime/composables/useI18n";
 import { attachLoader, createI18n, defineComviHost } from "../src/runtime/host";
 import type {
   CheckedNuxtI18nSetup,
-  NuxtHostFactory,
-  NuxtHostFactoryOptions,
+  NuxtInstanceFactory,
+  NuxtInstanceFactoryOptions,
   NuxtI18nOptions,
   NuxtI18nSetup,
   NuxtI18nSetupContext,
-  NuxtServerHost,
-  NuxtServerLoaderHost,
-  ResolvedNuxtHost,
+  NuxtServerInstance,
+  NuxtServerLoaderInstance,
+  ResolvedNuxtInstance,
 } from "../src/types";
 
 describe("UseI18nReturn type parity", () => {
@@ -40,8 +40,8 @@ describe("UseI18nReturn type parity", () => {
 describe("published package-root types", () => {
   it("exports both module options and the custom host factory vocabulary", () => {
     expectTypeOf<ModuleOptions>().toMatchTypeOf<Partial<NuxtI18nOptions>>();
-    expectTypeOf<PublicNuxtHostFactoryOptions>().toMatchTypeOf<{ locale: string }>();
-    expectTypeOf<PublicNuxtHostFactory>().toBeFunction();
+    expectTypeOf<PublicNuxtInstanceFactoryOptions>().toMatchTypeOf<{ locale: string }>();
+    expectTypeOf<PublicNuxtInstanceFactory>().toBeFunction();
   });
 
   it("carries the loader types a typed comvi.setup hook needs, from one specifier", () => {
@@ -57,42 +57,42 @@ describe("published package-root types", () => {
   });
 
   it("names the compiler a factory receives when comvi.icu is on", () => {
-    expectTypeOf<PublicNuxtHostFactoryOptions["compiler"]>().toEqualTypeOf<
+    expectTypeOf<PublicNuxtInstanceFactoryOptions["compiler"]>().toEqualTypeOf<
       MessageCompiler | undefined
     >();
   });
 });
 
 type FactoryDefaults = { tenant: string };
-export const publicFactoryWithDefaults: PublicNuxtHostFactory<
-  WrapperI18nHost<FactoryDefaults>,
+export const publicFactoryWithDefaults: PublicNuxtInstanceFactory<
+  WrapperI18nInstance<FactoryDefaults>,
   FactoryDefaults
 > = (options) => {
   expectTypeOf(options.defaultParams.tenant).toEqualTypeOf<string>();
-  return {} as WrapperI18nHost<FactoryDefaults>;
+  return {} as WrapperI18nInstance<FactoryDefaults>;
 };
 
 describe("host vocabulary after the single-entry convergence", () => {
-  it("NuxtServerHost is the BASE host, with no capability folded in", () => {
+  it("NuxtServerInstance is the BASE host, with no capability folded in", () => {
     // The generated default template builds this, so claiming more here would
     // make every server utility type-check against a host that does not exist.
-    expectTypeOf<NuxtServerHost>().toEqualTypeOf<WrapperI18nHost>();
-    expectTypeOf<I18n>().toMatchTypeOf<NuxtServerHost>();
-    expectTypeOf<NuxtServerHost>().not.toMatchTypeOf<I18nLoaderApi>();
-    expectTypeOf<NuxtServerHost>().not.toMatchTypeOf<I18nPluginHostApi>();
+    expectTypeOf<NuxtServerInstance>().toEqualTypeOf<WrapperI18nInstance>();
+    expectTypeOf<I18n>().toMatchTypeOf<NuxtServerInstance>();
+    expectTypeOf<NuxtServerInstance>().not.toMatchTypeOf<I18nLoaderApi>();
+    expectTypeOf<NuxtServerInstance>().not.toMatchTypeOf<I18nPluginApi>();
   });
 
-  it("NuxtServerLoaderHost is the composed shape SSR loading needs", () => {
-    expectTypeOf<NuxtServerLoaderHost>().toMatchTypeOf<NuxtServerHost>();
-    expectTypeOf<NuxtServerLoaderHost>().toMatchTypeOf<I18nLoaderApi>();
-    expectTypeOf<NuxtServerHost>().not.toMatchTypeOf<NuxtServerLoaderHost>();
+  it("NuxtServerLoaderInstance is the composed shape SSR loading needs", () => {
+    expectTypeOf<NuxtServerLoaderInstance>().toMatchTypeOf<NuxtServerInstance>();
+    expectTypeOf<NuxtServerLoaderInstance>().toMatchTypeOf<I18nLoaderApi>();
+    expectTypeOf<NuxtServerInstance>().not.toMatchTypeOf<NuxtServerLoaderInstance>();
   });
 
-  it("NuxtHostFactory carries the composed host type through to the setup hook", () => {
-    const composed = (options: NuxtHostFactoryOptions) =>
+  it("NuxtInstanceFactory carries the composed host type through to the setup hook", () => {
+    const composed = (options: NuxtInstanceFactoryOptions) =>
       ({ locale: options.locale }) as unknown as I18n & I18nLoaderApi;
 
-    expectTypeOf(composed).toMatchTypeOf<NuxtHostFactory<I18n & I18nLoaderApi>>();
+    expectTypeOf(composed).toMatchTypeOf<NuxtInstanceFactory<I18n & I18nLoaderApi>>();
     // …and that same host type is what makes the hook see the capability, on
     // both sides of the context union (VueI18n in the app plugin, the host
     // itself in the server utilities).
@@ -111,9 +111,9 @@ describe("host vocabulary after the single-entry convergence", () => {
   });
 
   it("nuxt's resolved options are what a factory is handed", () => {
-    expectTypeOf<NuxtHostFactoryOptions>().toMatchTypeOf<{ locale: string }>();
-    expectTypeOf<NuxtHostFactoryOptions["defaultNs"]>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<NuxtHostFactoryOptions["tagInterpolation"]>().toEqualTypeOf<
+    expectTypeOf<NuxtInstanceFactoryOptions>().toMatchTypeOf<{ locale: string }>();
+    expectTypeOf<NuxtInstanceFactoryOptions["defaultNs"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<NuxtInstanceFactoryOptions["tagInterpolation"]>().toEqualTypeOf<
       { basicHtmlTags?: string[] } | undefined
     >();
   });
@@ -138,15 +138,15 @@ export type PublicSetupAgainstComposedLoader = PublicCheckedNuxtI18nSetup<
 >;
 
 /** A factory that composed the PLUGIN host instead — a capability mismatch. */
-export type SetupAgainstPluginsOnlyHost = CheckedNuxtI18nSetup<
-  I18n & I18nPluginHostApi,
+export type SetupAgainstPluginsOnlyInstance = CheckedNuxtI18nSetup<
+  I18n & I18nPluginApi,
   // @ts-expect-error the hook names a loader this factory never composed
   LoaderHook
 >;
 
 /** The no-`hostModule` branch: core's BASE host, so every capability is absent. */
 export type SetupAgainstDefaultBranch = CheckedNuxtI18nSetup<
-  ResolvedNuxtHost,
+  ResolvedNuxtInstance,
   // @ts-expect-error a base host has no loader, and this is the whole U4 defect
   LoaderHook
 >;
@@ -158,11 +158,11 @@ describe("the comvi.setup host cross-check", () => {
   });
 
   it("resolves to core's BASE host with no generated declaration in the program", () => {
-    // This package compiles without any app, and `ComviNuxtHostRegistry` is
+    // This package compiles without any app, and `ComviNuxtInstanceRegistry` is
     // empty here; an app's generated `types/comvi-host.ts` augments it with
     // `ReturnType<typeof import("./comvi.host").default>`.
-    expectTypeOf<ResolvedNuxtHost>().toEqualTypeOf<I18n>();
-    expectTypeOf<Parameters<NuxtI18nSetup>[0]["core"]>().toEqualTypeOf<ResolvedNuxtHost>();
+    expectTypeOf<ResolvedNuxtInstance>().toEqualTypeOf<I18n>();
+    expectTypeOf<Parameters<NuxtI18nSetup>[0]["core"]>().toEqualTypeOf<ResolvedNuxtInstance>();
   });
 
   it("accepts a hook written with no type argument at all", () => {
@@ -177,18 +177,20 @@ describe("the comvi.setup host cross-check", () => {
 });
 
 describe("defineComviHost", () => {
-  // The helper replaces `satisfies NuxtHostFactory`: `options` is typed from it
+  // The helper replaces `satisfies NuxtInstanceFactory`: `options` is typed from it
   // and the factory comes back unchanged, so the generated declaration's
   // `ReturnType<typeof import("./comvi.host").default>` still reads the
   // composed host and the setup hook still sees its capabilities.
   const composedHost = defineComviHost((options) => {
-    expectTypeOf(options).toEqualTypeOf<NuxtHostFactoryOptions>();
+    expectTypeOf(options).toEqualTypeOf<NuxtInstanceFactoryOptions>();
     return createI18n(options).use(attachLoader);
   });
 
   it("keeps the composed host as the factory's return type", () => {
     expectTypeOf<ReturnType<typeof composedHost>>().toMatchTypeOf<I18n & I18nLoaderApi>();
-    expectTypeOf(composedHost).toMatchTypeOf<NuxtHostFactory<ReturnType<typeof composedHost>>>();
+    expectTypeOf(composedHost).toMatchTypeOf<
+      NuxtInstanceFactory<ReturnType<typeof composedHost>>
+    >();
     expectTypeOf<
       CheckedNuxtI18nSetup<ReturnType<typeof composedHost>, NuxtI18nSetup<I18n & I18nLoaderApi>>
     >().toEqualTypeOf<NuxtI18nSetup<I18n & I18nLoaderApi>>();

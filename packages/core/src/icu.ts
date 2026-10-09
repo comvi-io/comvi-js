@@ -9,7 +9,7 @@
 // No ordering rule comes with it: the option is read in the constructor, so
 // composition (`.use(loader(map))`, `.use(plugins())`, …) is unaffected.
 //
-// Deliberately not exported from the root, which is the BASE host with the
+// Deliberately not exported from the root, which is the BASE instance with the
 // simple compiler. This subpath must stay out of the package `sideEffects`
 // array.
 export { icuCompiler } from "./core/translate/compile-icu";

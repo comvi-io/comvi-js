@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n, hasPluginHostApi } from "@comvi/core";
+import { createI18n, hasPluginApi } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { fetchLoaderPlugin, FETCH_LOADER_PLUGIN_KEY } from "../src/api";
@@ -104,7 +104,7 @@ describe("published plugins on a composed slim host", () => {
   it("a loader-only host cannot host the plugin — plugins() is what adds use()", () => {
     const loaderOnly = createI18n({ locale: "en", exposeGlobal: false }).use(attachLoader);
 
-    expect(hasPluginHostApi(loaderOnly)).toBe(false);
-    expect(hasPluginHostApi(loaderOnly.use(plugins()))).toBe(true);
+    expect(hasPluginApi(loaderOnly)).toBe(false);
+    expect(hasPluginApi(loaderOnly.use(plugins()))).toBe(true);
   });
 });

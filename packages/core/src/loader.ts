@@ -1,4 +1,4 @@
-// @comvi/core/loader — async translation loading, composed onto the base host.
+// @comvi/core/loader — async translation loading, composed onto the base instance.
 //
 // Pure subpath (never listed in package.json `sideEffects`): importing it has
 // no effect until you compose an instance.
@@ -21,16 +21,16 @@
 // before `init()` is attached. There is no other ordering rule: ICU is the
 // constructor option `compiler: icuCompiler`, not an installer.
 //
-// `acquireLoaderApi(host)` is the COMPONENT-side half of the same subpath: the
+// `acquireLoaderApi(instance)` is the COMPONENT-side half of the same subpath: the
 // one implementation behind `useI18nLoader()` in all four bindings. It lives
 // here rather than on the `@comvi/core` root because a graph that never
 // acquires the capability must not pay for it — the root is the base floor.
 //
-// `flattenCatalog` is NOT here: every host flattens nested catalogs itself, so
+// `flattenCatalog` is NOT here: every instance flattens nested catalogs itself, so
 // the flattener is no longer this capability's escape hatch. It stays published
 // from the `@comvi/core` root, for pre-flattening data by hand.
 import type { I18n } from "./core/i18n";
-import type { I18nLoaderApi, WrapperI18nHost } from "./types";
+import type { I18nLoaderApi, WrapperI18nInstance } from "./types";
 import { attachLoader } from "./core/loader";
 import { createImportMapLoader, type LoaderImportMap } from "./core/importMapLoader";
 import { hasLoaderApi, missingCapability } from "./utils/capability";
@@ -79,9 +79,9 @@ export function loader(
 ): <T extends I18n<any>>(i18n: T) => T & I18nLoaderApi {
   if (importMap == null) throw new Error(ERR_LOADER_IMPORT_MAP);
   return (i18n) => {
-    const host = attachLoader(i18n);
-    host.registerLoader(createImportMapLoader(importMap, () => host.getDefaultNamespace()));
-    return host;
+    const instance = attachLoader(i18n);
+    instance.registerLoader(createImportMapLoader(importMap, () => instance.getDefaultNamespace()));
+    return instance;
   };
 }
 
@@ -124,10 +124,10 @@ export interface AcquiredLoaderApi {
  * for the map: `acquireLoaderApi` is the only reader, and dropping the
  * function has to drop this with it.
  */
-const loaderBags = /* @__PURE__ */ new WeakMap<WrapperI18nHost, AcquiredLoaderApi>();
+const loaderBags = /* @__PURE__ */ new WeakMap<WrapperI18nInstance, AcquiredLoaderApi>();
 
 /**
- * Acquire the loader capability of `host`, or throw
+ * Acquire the loader capability of `instance`, or throw
  * {@link missingCapability | missingCapability("loader")}.
  *
  * ONE implementation, four bindings: `useI18nLoader()` in `@comvi/react`,
@@ -143,26 +143,26 @@ const loaderBags = /* @__PURE__ */ new WeakMap<WrapperI18nHost, AcquiredLoaderAp
  *
  * @example
  * ```ts
- * const { addActiveNamespace } = acquireLoaderApi(host);
+ * const { addActiveNamespace } = acquireLoaderApi(instance);
  * await addActiveNamespace("dashboard");
  * ```
  */
-export function acquireLoaderApi(host: WrapperI18nHost): AcquiredLoaderApi {
-  // A cached bag implies the capability was already verified for this host:
+export function acquireLoaderApi(instance: WrapperI18nInstance): AcquiredLoaderApi {
+  // A cached bag implies the capability was already verified for this instance:
   // attach is monotonic, capabilities are added and never removed.
-  const cached = loaderBags.get(host);
+  const cached = loaderBags.get(instance);
   if (cached) return cached;
 
-  if (!hasLoaderApi(host)) throw missingCapability("loader");
+  if (!hasLoaderApi(instance)) throw missingCapability("loader");
 
   const bag: AcquiredLoaderApi = {
-    addActiveNamespace: host.addActiveNamespace.bind(host),
-    addActiveNamespaces: host.addActiveNamespaces.bind(host),
-    removeActiveNamespace: host.removeActiveNamespace.bind(host),
-    removeActiveNamespaces: host.removeActiveNamespaces.bind(host),
-    reloadMessages: host.reloadMessages.bind(host),
-    onLoadError: host.onLoadError.bind(host),
+    addActiveNamespace: instance.addActiveNamespace.bind(instance),
+    addActiveNamespaces: instance.addActiveNamespaces.bind(instance),
+    removeActiveNamespace: instance.removeActiveNamespace.bind(instance),
+    removeActiveNamespaces: instance.removeActiveNamespaces.bind(instance),
+    reloadMessages: instance.reloadMessages.bind(instance),
+    onLoadError: instance.onLoadError.bind(instance),
   };
-  loaderBags.set(host, bag);
+  loaderBags.set(instance, bag);
   return bag;
 }

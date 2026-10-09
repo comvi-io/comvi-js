@@ -1,10 +1,10 @@
 // NON-EXPORTED CDN/global entry — absent from package.json#exports.
 //
 // A `<script src>` consumer has no import graph to extend, so the global stays
-// BATTERIES-INCLUDED where the ESM root is the bare base host. That is the one
+// BATTERIES-INCLUDED where the ESM root is the bare base instance. That is the one
 // deliberate ESM-vs-global format exception, and the composition lives here:
-// ambient tag syntax, plus the composed host (ICU compiler + loader + plugin
-// host + devtools discovery) so `new ComviCore.I18n(options)` accepts the
+// ambient tag syntax, plus the composed instance (ICU compiler + loader + plugin
+// instance + devtools discovery) so `new ComviCore.I18n(options)` accepts the
 // `exposeGlobal` / `instanceId` options and the import-map `registerLoader`
 // overload.
 import "./register-tags";
@@ -15,7 +15,7 @@ export { normalizeTranslationObject as flattenCatalog } from "./utils";
 export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";
 export { subscribeToRevision, REVISION_EVENTS } from "./utils/subscribeToRevision";
-export { missingCapability, hasLoaderApi, hasPluginHostApi } from "./utils/capability";
+export { missingCapability, hasLoaderApi, hasPluginApi } from "./utils/capability";
 export {
   formatNumber,
   formatDate,

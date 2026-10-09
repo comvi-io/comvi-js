@@ -8,7 +8,7 @@
  * existed, and it never pays to look for the brand.
  */
 import { describe, it, expect } from "vitest";
-import { createI18n, hasLoaderApi, hasPluginHostApi, missingCapability } from "../../src";
+import { createI18n, hasLoaderApi, hasPluginApi, missingCapability } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { attachPlugins } from "../../src/plugins";
 import { LOADER_MEMBERS, capabilityShim } from "../../src/utils/capability";
@@ -55,12 +55,12 @@ describe("hasLoaderApi()", () => {
   });
 });
 
-describe("hasPluginHostApi()", () => {
+describe("hasPluginApi()", () => {
   it("accepts a host the plugin API was attached to", () => {
-    expect(hasPluginHostApi(attachPlugins(makeBareHost()))).toBe(true);
+    expect(hasPluginApi(attachPlugins(makeBareHost()))).toBe(true);
   });
 
   it("rejects a bare host", () => {
-    expect(hasPluginHostApi(makeBareHost())).toBe(false);
+    expect(hasPluginApi(makeBareHost())).toBe(false);
   });
 });

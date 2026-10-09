@@ -1,5 +1,5 @@
 import { hasLoaderApi } from "@comvi/core";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 
 /**
  * In-flight loads per instance and `locale:namespace`. Core's `reloadMessages`
@@ -9,7 +9,7 @@ import type { WrapperI18nHost } from "@comvi/core";
 const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
 
-const pendingLoads = new WeakMap<WrapperI18nHost, Record<string, Promise<void> | undefined>>();
+const pendingLoads = new WeakMap<WrapperI18nInstance, Record<string, Promise<void> | undefined>>();
 
 /**
  * Pairs whose load failed on an instance. Every server instance is the request's own,
@@ -17,7 +17,7 @@ const pendingLoads = new WeakMap<WrapperI18nHost, Record<string, Promise<void> |
  * ends, because the render already went without it and the payload must carry
  * what the render read.
  */
-const failedLoads = new WeakMap<WrapperI18nHost, Set<string>>();
+const failedLoads = new WeakMap<WrapperI18nInstance, Set<string>>();
 
 /**
  * Load `namespaces` (default: the active ones) for `locale` and every locale of
@@ -34,7 +34,7 @@ const failedLoads = new WeakMap<WrapperI18nHost, Set<string>>();
  * to load: whatever `comvi.setup` put in the catalog is already there.
  */
 export async function loadCatalogs(
-  i18n: WrapperI18nHost,
+  i18n: WrapperI18nInstance,
   namespaces?: readonly string[],
   locale?: string,
 ): Promise<void> {

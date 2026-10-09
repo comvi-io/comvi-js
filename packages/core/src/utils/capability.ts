@@ -1,16 +1,16 @@
 // Capability presence: the shared, loud boundary between a wrapper and the
-// host instance it was handed.
+// instance it was handed.
 //
-// A bare `@comvi/core` instance is a `WrapperI18nHost` and nothing more:
-// the loader and plugin-host APIs are absent from its module graph, not
+// A bare `@comvi/core` instance is a `WrapperI18nInstance` and nothing more:
+// the loader and plugin APIs are absent from its module graph, not
 // merely disabled. Wrappers therefore verify capability presence ONCE, at the
 // acquisition call (`useI18nLoader()` / `useI18nPlugins()`), and throw the
 // error this module builds — in dev AND in prod. There is no silent no-op and
 // no dev-only tombstone.
 //
-// `core/plugins.ts` is the other consumer: on a plugins-only host it installs
+// `core/plugins.ts` is the other consumer: on a plugins-only instance it installs
 // one {@link capabilityShim} per {@link LOADER_MEMBERS} entry, so a PLUGIN
-// handed that host gets the same error a wrapper would rather than a bare
+// handed that instance gets the same error a wrapper would rather than a bare
 // `TypeError`. That is also why the probes below have to know about shims — a
 // stand-in is an absence, and reporting it as presence would flip the very
 // guards it exists to serve.
@@ -26,8 +26,8 @@
 import type {
   DefaultTranslationParams,
   I18nLoaderApi,
-  I18nPluginHostApi,
-  WrapperI18nHost,
+  I18nPluginApi,
+  WrapperI18nInstance,
 } from "../types";
 
 declare const __DEV__: boolean | undefined;
@@ -60,7 +60,7 @@ export const LOADER_MEMBERS = [
 ] as const satisfies readonly (keyof I18nLoaderApi)[];
 
 /**
- * Every public member of `I18nPluginHostApi`.
+ * Every public member of `I18nPluginApi`.
  *
  * Probe-only, unlike {@link LOADER_MEMBERS}: nothing stands in for a missing
  * plugin capability, because an instance without the capability has no `registerPlugin()`
@@ -76,7 +76,7 @@ export const PLUGIN_MEMBERS = [
   "registerPostProcessor",
   "setPluginData",
   "getPluginData",
-] as const satisfies readonly (keyof I18nPluginHostApi)[];
+] as const satisfies readonly (keyof I18nPluginApi)[];
 
 /**
  * The error every wrapper throws when a capability was requested from an instance
@@ -93,7 +93,7 @@ export const PLUGIN_MEMBERS = [
  *
  * @example
  * ```ts
- * if (!hasLoaderApi(host)) throw missingCapability("loader");
+ * if (!hasLoaderApi(instance)) throw missingCapability("loader");
  * ```
  */
 export function missingCapability(name: CapabilityName): Error {
@@ -157,18 +157,18 @@ const isRealMember: (member: unknown) => boolean = IS_DEV
   ? (member) => typeof member === "function" && (member as CapabilityShim).comviShim !== true
   : (member) => typeof member === "function";
 
-/** Whether `host` carries the whole `@comvi/core/loader` surface. */
+/** Whether `instance` carries the whole `@comvi/core/loader` surface. */
 export function hasLoaderApi<D extends DefaultTranslationParams = {}>(
-  host: WrapperI18nHost<D>,
-): host is WrapperI18nHost<D> & I18nLoaderApi {
-  const probe = host as unknown as Record<string, unknown>;
+  instance: WrapperI18nInstance<D>,
+): instance is WrapperI18nInstance<D> & I18nLoaderApi {
+  const probe = instance as unknown as Record<string, unknown>;
   return LOADER_MEMBERS.every((name) => isRealMember(probe[name]));
 }
 
-/** Whether `host` carries the whole `@comvi/core/plugins` surface. */
-export function hasPluginHostApi<D extends DefaultTranslationParams = {}>(
-  host: WrapperI18nHost<D>,
-): host is WrapperI18nHost<D> & I18nPluginHostApi {
-  const probe = host as unknown as Record<string, unknown>;
+/** Whether `instance` carries the whole `@comvi/core/plugins` surface. */
+export function hasPluginApi<D extends DefaultTranslationParams = {}>(
+  instance: WrapperI18nInstance<D>,
+): instance is WrapperI18nInstance<D> & I18nPluginApi {
+  const probe = instance as unknown as Record<string, unknown>;
   return PLUGIN_MEMBERS.every((name) => isRealMember(probe[name]));
 }

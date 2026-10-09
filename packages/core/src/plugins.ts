@@ -1,4 +1,4 @@
-// @comvi/core/plugins — the plugin host, composed onto the base host.
+// @comvi/core/plugins — the plugin capability, composed onto the base instance.
 //
 // Pure subpath (never listed in package.json `sideEffects`): importing it has
 // no effect until you compose an instance.
@@ -21,7 +21,7 @@
 // plugins run at `init()`, by which point every capability composed before
 // `init()` is attached.
 //
-// `acquirePluginsApi(host)` is the COMPONENT-side half of the same subpath: the
+// `acquirePluginsApi(instance)` is the COMPONENT-side half of the same subpath: the
 // one implementation behind `useI18nPlugins()` in all four bindings. It lives
 // here rather than on the `@comvi/core` root because a graph that never
 // acquires the capability must not pay for it — the root is the base floor.
@@ -31,15 +31,15 @@
 // installer calls first, so `registerPlugin(fetchLoader(…))` fails before
 // anything is attached. Independently, `init()` rejects a plugin that returns
 // an OBJECT — only nothing and a cleanup function are legal, which catches an
-// installer that hands the host back instead of registering a cleanup.
+// installer that hands the instance back instead of registering a cleanup.
 import type { I18n } from "./core/i18n";
-import type { I18nPluginHostApi, WrapperI18nHost } from "./types";
+import type { I18nPluginApi, WrapperI18nInstance } from "./types";
 import { attachPlugins } from "./core/plugins";
 import type { I18nPlugin as I18nPluginFn, PluginOptions } from "./plugins/types";
-import { hasPluginHostApi, missingCapability } from "./utils/capability";
+import { hasPluginApi, missingCapability } from "./utils/capability";
 
 export { attachPlugins, ensureInstallable } from "./core/plugins";
-export type { I18nPluginHostApi, I18nPluginHost } from "./types";
+export type { I18nPluginApi, PluginI18nInstance } from "./types";
 export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/types";
 
 /**
@@ -58,7 +58,7 @@ export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/typ
  * Attaching is idempotent: a second `.use(plugins())`, or the internal
  * composite, installs nothing and keeps every registered plugin.
  */
-export function plugins(): <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi {
+export function plugins(): <T extends I18n<any>>(i18n: T) => T & I18nPluginApi {
   return attachPlugins;
 }
 
@@ -74,7 +74,7 @@ export function plugins(): <T extends I18n<any>>(i18n: T) => T & I18nPluginHostA
  * );
  * ```
  *
- * `definePlugin(fn)` is `attachPlugins(host).registerPlugin(fn)` wrapped as an
+ * `definePlugin(fn)` is `attachPlugins(instance).registerPlugin(fn)` wrapped as an
  * installer, so it attaches the plugin capability if the chain has not already, and
  * it can appear anywhere in a `.use` chain before `init()`. A plugin PACKAGE
  * ships its own bare-name installer (`fetchLoader()`, `localeDetector()`) —
@@ -83,10 +83,10 @@ export function plugins(): <T extends I18n<any>>(i18n: T) => T & I18nPluginHostA
 export function definePlugin(
   fn: I18nPluginFn,
   options?: PluginOptions,
-): <T extends I18n<any>>(host: T) => T & I18nPluginHostApi {
-  return (host) => {
-    attachPlugins(host).registerPlugin(fn, options);
-    return host as typeof host & I18nPluginHostApi;
+): <T extends I18n<any>>(instance: T) => T & I18nPluginApi {
+  return (instance) => {
+    attachPlugins(instance).registerPlugin(fn, options);
+    return instance as typeof instance & I18nPluginApi;
   };
 }
 
@@ -113,7 +113,7 @@ export interface AcquiredPluginsApi {
    * narrow that contract to a semantic core does not have, and one binding's
    * `String(result)` once did exactly that.
    */
-  onMissingKey: I18nPluginHostApi["onMissingKey"];
+  onMissingKey: I18nPluginApi["onMissingKey"];
 }
 
 /**
@@ -125,10 +125,10 @@ export interface AcquiredPluginsApi {
  * for the map: `acquirePluginsApi` is the only reader, and dropping the
  * function has to drop this with it.
  */
-const pluginBags = /* @__PURE__ */ new WeakMap<WrapperI18nHost, AcquiredPluginsApi>();
+const pluginBags = /* @__PURE__ */ new WeakMap<WrapperI18nInstance, AcquiredPluginsApi>();
 
 /**
- * Acquire the plugin capability of `host`, or throw
+ * Acquire the plugin capability of `instance`, or throw
  * {@link missingCapability | missingCapability("plugins")}.
  *
  * ONE implementation, four bindings: `useI18nPlugins()` in `@comvi/react`,
@@ -141,21 +141,21 @@ const pluginBags = /* @__PURE__ */ new WeakMap<WrapperI18nHost, AcquiredPluginsA
  *
  * @example
  * ```ts
- * const { onMissingKey } = acquirePluginsApi(host);
+ * const { onMissingKey } = acquirePluginsApi(instance);
  * const off = onMissingKey((key) => `[${key}]`);
  * ```
  */
-export function acquirePluginsApi(host: WrapperI18nHost): AcquiredPluginsApi {
-  // A cached bag implies the capability was already verified for this host:
+export function acquirePluginsApi(instance: WrapperI18nInstance): AcquiredPluginsApi {
+  // A cached bag implies the capability was already verified for this instance:
   // attach is monotonic, capabilities are added and never removed.
-  const cached = pluginBags.get(host);
+  const cached = pluginBags.get(instance);
   if (cached) return cached;
 
-  if (!hasPluginHostApi(host)) throw missingCapability("plugins");
+  if (!hasPluginApi(instance)) throw missingCapability("plugins");
 
   const bag: AcquiredPluginsApi = {
-    onMissingKey: host.onMissingKey.bind(host),
+    onMissingKey: instance.onMissingKey.bind(instance),
   };
-  pluginBags.set(host, bag);
+  pluginBags.set(instance, bag);
   return bag;
 }

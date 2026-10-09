@@ -1278,10 +1278,10 @@ test("Omit<I18nLoaderApi, …> describing a host without the loader → still ba
   assert.deepEqual(rulesOf(body), ["banned/register-loader-on-instance"]);
 });
 
-test("NuxtServerLoaderHost in a type-argument position → vouches", () => {
+test("NuxtServerLoaderInstance in a type-argument position → vouches", () => {
   const body = [
     "```ts",
-    "export default defineComviSetup((core: NuxtServerLoaderHost) => {",
+    "export default defineComviSetup((core: NuxtServerLoaderInstance) => {",
     "  core.registerLoader(myLoader);",
     "});",
     "```",

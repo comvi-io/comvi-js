@@ -181,7 +181,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
       // is AWAITED, so a switch can resume BEFORE phase 3's `_resetLoader()`
       // runs; an invalidation that lived only there would be too late, and
       // bumping the changeId from `destroy()` would put loader-owned state in
-      // the base host. One extra clause, checked where the switch resumes,
+      // the base instance. One extra clause, checked where the switch resumes,
       // covers every phase order.
       if (changeId !== this._currentLocaleChangeId || this._isDestroyed) {
         return;
@@ -504,7 +504,7 @@ export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderAp
   return i18n as T & I18nLoaderApi;
 }
 
-// `flattenCatalog` is NOT re-exported here. Every host flattens nested
+// `flattenCatalog` is NOT re-exported here. Every instance flattens nested
 // catalogs on its own (`_nsAddMessages` in `core/i18n.ts`), so the
 // flattener is no longer an escape hatch attached to this capability — it stays
 // published from the `@comvi/core` root for pre-flattening data by hand.

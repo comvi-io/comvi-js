@@ -1,8 +1,8 @@
 // The host type `C` is exact exactly where the factory result is held, and
 // NOWHERE else: through `inject` a component sees a capability-free
-// `WrapperI18nHost`, so a capability call there is a compile error rather than
+// `WrapperI18nInstance`, so a capability call there is a compile error rather than
 // a typed-then-crashes path.
-import type { I18n, I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "../../src/index";
+import type { I18n, I18nLoaderApi, I18nPluginApi, WrapperI18nInstance } from "../../src/index";
 import { createI18n as createCore } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";
 import {
@@ -29,7 +29,7 @@ const composedHost = attachPlugins(attachLoader(createCore({ locale: "en" })));
 const injected = inject(I18N_INJECTION_KEY)!;
 
 type InjectedCore = (typeof injected)["core"];
-type _InjectedCoreIsHostTyped = Expect<Equal<InjectedCore, WrapperI18nHost>>;
+type _InjectedCoreIsInstanceTyped = Expect<Equal<InjectedCore, WrapperI18nInstance>>;
 type _InjectedCoreIsNotTheClass = Expect<Equal<InjectedCore extends I18n ? true : false, false>>;
 
 // @ts-expect-error — loader capability is absent from the injected core's type
@@ -57,7 +57,7 @@ type _LoaderCoreHasLoaderApi = Expect<
   Equal<(typeof fromLoader)["core"] extends I18nLoaderApi ? true : false, true>
 >;
 type _LoaderCoreHasNoPluginApi = Expect<
-  Equal<(typeof fromLoader)["core"] extends I18nPluginHostApi ? true : false, false>
+  Equal<(typeof fromLoader)["core"] extends I18nPluginApi ? true : false, false>
 >;
 void fromLoader.core.reloadMessages();
 // @ts-expect-error — this host was composed WITHOUT the plugin capability
@@ -82,7 +82,7 @@ void fromPreset.core.use(attachLoader).registerLoader(() => Promise.resolve({}))
 // with `core` widened by the installer's return type, one capability per call.
 const chained = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 type _ChainedIsWrapper = Expect<
-  Equal<typeof chained, VueI18n<{}, I18n<{}> & I18nLoaderApi & I18nPluginHostApi>>
+  Equal<typeof chained, VueI18n<{}, I18n<{}> & I18nLoaderApi & I18nPluginApi>>
 >;
 void chained.core.reloadMessages();
 void chained.core.onMissingKey(() => undefined);
@@ -120,20 +120,18 @@ type _DevtoolsWidensNothing = Expect<Equal<(typeof withDevtools)["core"], I18n<{
 void withDevtools.t("greeting");
 
 // A plugin package's installer has the `fetchLoader` / `cdnLoader` shape —
-// `<T extends I18n<any>>(i18n: T) => T & I18nLoaderApi & I18nPluginHostApi` —
+// `<T extends I18n<any>>(i18n: T) => T & I18nLoaderApi & I18nPluginApi` —
 // and composes through the wrapper pipe with both capabilities typed on `core`.
-declare const pluginInstaller: <T extends I18n<any>>(
-  i18n: T,
-) => T & I18nLoaderApi & I18nPluginHostApi;
+declare const pluginInstaller: <T extends I18n<any>>(i18n: T) => T & I18nLoaderApi & I18nPluginApi;
 const withPlugin = createI18n({ locale: "en" }).use(pluginInstaller);
 type _PluginInstallerCore = Expect<
-  Equal<(typeof withPlugin)["core"], I18n<{}> & I18nLoaderApi & I18nPluginHostApi>
+  Equal<(typeof withPlugin)["core"], I18n<{}> & I18nLoaderApi & I18nPluginApi>
 >;
 void withPlugin.core.reloadMessages();
 void withPlugin.core.registerPlugin(() => undefined);
 
 // …but NOT through the inject path: the injected core is a bare
-// `WrapperI18nHost`, which no installer accepts, so composing from inside a
+// `WrapperI18nInstance`, which no installer accepts, so composing from inside a
 // component is a compile error rather than a runtime surprise.
 // @ts-expect-error — installers take an `I18n`; the injected core is host-typed
 injected.use(attachLoader);

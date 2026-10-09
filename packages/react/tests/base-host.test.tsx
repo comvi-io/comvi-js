@@ -1,6 +1,6 @@
 /**
  * `@comvi/react`'s bindings on the BASE host — a host that implements
- * `WrapperI18nHost` and nothing more. Nothing the wrapper does at render time
+ * `WrapperI18nInstance` and nothing more. Nothing the wrapper does at render time
  * may touch a loader/plugin member: a single eager `.bind()` of an absent
  * capability would crash every case below.
  *
@@ -19,7 +19,7 @@ import {
   useI18n,
   useSetLocaleTransition,
 } from "../src/index";
-import type { WrapperI18nHost } from "../src/index";
+import type { WrapperI18nInstance } from "../src/index";
 
 const makeHost = () =>
   createI18n({
@@ -31,7 +31,7 @@ const makeHost = () =>
     },
   });
 
-const wrapperFor = (i18n: WrapperI18nHost) =>
+const wrapperFor = (i18n: WrapperI18nInstance) =>
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <I18nProvider i18n={i18n} autoInit={false}>

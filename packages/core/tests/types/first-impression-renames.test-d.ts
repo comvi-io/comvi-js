@@ -1,12 +1,12 @@
 // Type-level contract for the 0.5 «first impression» renames. 0.5 ships no
 // aliases: every old name must be rejected outright, not merely deprecated.
 import * as core from "@comvi/core";
-import { createI18n, type MessagesCache, type WrapperI18nHost } from "@comvi/core";
+import { createI18n, type MessagesCache, type WrapperI18nInstance } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 
 declare const base: ReturnType<typeof createI18n>;
 const withLoader = createI18n({ locale: "en" }).use(loader({}));
-declare const host: WrapperI18nHost;
+declare const host: WrapperI18nInstance;
 
 // One awaitable locale switch: `setLocale(): Promise<void>`.
 export const switched: Promise<void>[] = [

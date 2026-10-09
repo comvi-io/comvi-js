@@ -1,5 +1,5 @@
 // 0.5 is a new library: `@comvi/next/client` re-exports only `@comvi/react`'s
-// current names. The host is `useI18nHost()`.
+// current names. The host is `useI18nInstance()`.
 import * as clientEntry from "../../src/client";
 
 type Equal<X, Y> =

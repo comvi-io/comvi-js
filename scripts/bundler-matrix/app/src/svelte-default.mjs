@@ -22,7 +22,7 @@
 // `sideEffects: false` WITHOUT resolving it, and that leg has no svelte loader —
 // so if `<T>` ever re-entered this graph the webpack build would fail outright
 // rather than quietly grow.
-import { createI18n, useI18nHost, useI18n } from "@comvi/svelte";
+import { createI18n, useI18nInstance, useI18n } from "@comvi/svelte";
 
 function assert(condition, label) {
   if (!condition) {
@@ -42,7 +42,7 @@ function assertEqual(actual, expected, label) {
 
 assert(typeof createI18n === "function", "@comvi/svelte exports createI18n");
 assert(typeof useI18n === "function", "@comvi/svelte exports useI18n");
-assert(typeof useI18nHost === "function", "@comvi/svelte exports useI18nHost");
+assert(typeof useI18nInstance === "function", "@comvi/svelte exports useI18nInstance");
 
 const i18n = createI18n({
   locale: "en",

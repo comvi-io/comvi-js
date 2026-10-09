@@ -12,7 +12,7 @@ type MovedOffUseI18n = "addActiveNamespace" | "reloadMessages" | "onLoadError" |
 // `useI18nLoader()` / `useI18nPlugins()` own these; `UseI18nReturn` declares none of them.
 export type _NoMovedKeys = Expect<Equal<Extract<keyof UseI18nReturn, MovedOffUseI18n>, never>>;
 
-// The host is `useI18nHost()`; the combined-context hook is not exported.
+// The host is `useI18nInstance()`; the combined-context hook is not exported.
 export type _NoUseI18nContext = Expect<
   Equal<"useI18nContext" extends keyof typeof rootEntry ? true : false, false>
 >;

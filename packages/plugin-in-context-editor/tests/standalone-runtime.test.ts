@@ -9,7 +9,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n, type ComposedHost } from "./helpers/composedHost";
+import { createI18n, type ComposedInstance } from "./helpers/composedHost";
 
 const { coreCtorMock, coreStopMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } =
   await vi.hoisted(() => import("./helpers/mockCore"));
@@ -46,7 +46,7 @@ function makeI18n(
   messages: Record<string, Record<string, string>> = {
     "en:default": { hello: "Hello" },
   },
-): ComposedHost {
+): ComposedInstance {
   return createI18n({ locale: "en", defaultNs: "default", messages });
 }
 

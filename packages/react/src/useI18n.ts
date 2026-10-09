@@ -1,5 +1,5 @@
 import { useContext, useMemo } from "react";
-import { LocaleContext, useI18nInstance, useStoreRevision } from "./I18nProvider";
+import { LocaleContext, useI18nInstanceContext, useStoreRevision } from "./I18nProvider";
 import {
   createBoundTranslation,
   formatCurrency,
@@ -18,7 +18,7 @@ import type {
   MessagesMap,
   I18nEvent,
   I18nEventData,
-  WrapperI18nHost,
+  WrapperI18nInstance,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
 } from "@comvi/core";
@@ -104,7 +104,7 @@ function translationResultToString(result: TranslationResult): string {
  * `D` to `{}` for every member reached through it, which silently un-typed
  * `setDefaultParams` (see `tests/types/default-params.test-d.ts`).
  */
-type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
+type Instance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D>;
 
 /**
  * No loader or plugin member is here — `addActiveNamespace(s)`,
@@ -172,7 +172,7 @@ export interface UseI18nReturn<
   /** Current interpolation defaults for this render (shallow snapshot). */
   defaultParams: DefaultParamsSnapshot<D>;
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: Host<D>["setDefaultParams"];
+  setDefaultParams: Instance<D>["setDefaultParams"];
   clearMessages: (locale?: string, namespace?: string) => void;
 
   hasLocale: (locale: string, namespace?: string) => boolean;
@@ -213,7 +213,7 @@ export interface UseI18nReturn<
   /** Subscribe to i18n events. Returns an unsubscribe function. */
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
   /** Report an error to the configured onError handler. */
-  reportError: Host["reportError"];
+  reportError: Instance["reportError"];
 }
 
 /**
@@ -236,7 +236,7 @@ export function useI18n<
   D extends DefaultTranslationParams = {},
   NS extends string | undefined = undefined,
 >(ns?: NS): UseI18nReturn<D, NS> {
-  const { i18n, view, isLoading, isInitializing } = useI18nInstance();
+  const { i18n, view, isLoading, isInitializing } = useI18nInstanceContext();
   const locale = useContext(LocaleContext) ?? "";
 
   // Load-bearing: subscribes this component to re-render on the canonical
@@ -269,7 +269,7 @@ export function useI18n<
     //
     // Solid drops the options object entirely for this case
     // (`packages/solid/src/useI18n.ts`); react cannot, because the locale it
-    // injects is the RENDER locale, which is not always the host's own.
+    // injects is the RENDER locale, which is not always the instance's own.
     const localeOnly = Object.freeze({ locale }) as TranslationParams;
     const wrapper = (key: string, params?: TranslationParams): TranslationResult =>
       bound(key, params == null ? localeOnly : { locale, ...params });
@@ -288,7 +288,7 @@ export function useI18n<
 
   const boundMethods = useMemo(() => {
     type BoundName = (typeof BIND_METHODS)[number];
-    type Bound = { [K in BoundName]: Host[K] };
+    type Bound = { [K in BoundName]: Instance[K] };
     const methods = {} as Bound;
     const bag = methods as Record<BoundName, unknown>;
     for (const m of BIND_METHODS) {
@@ -301,7 +301,7 @@ export function useI18n<
   }, [i18n]);
 
   // Defaults to the render-time locale, like `t`. A raw bind would answer for
-  // `i18n.locale`, which under a server-rendered provider is the host's static
+  // `i18n.locale`, which under a server-rendered provider is the instance's static
   // configured locale rather than the one this tree is rendering.
   const hasTranslation = useMemo(
     () =>

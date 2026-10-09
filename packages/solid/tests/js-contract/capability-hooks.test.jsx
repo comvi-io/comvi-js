@@ -206,7 +206,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   //
   // The four wrappers had drifted here: react wrapped the callback and coerced
   // its result with `String(result)`; vue, solid and svelte bound the host
-  // method raw. Core decides, and core's `I18nPluginHostApi["onMissingKey"]`
+  // method raw. Core decides, and core's `I18nPluginApi["onMissingKey"]`
   // declares the callback returns `TranslationResult | void` — a string OR the
   // `Array<string | VirtualNode>` a rich-text fallback is made of — which
   // `_missHook` takes as-is. So the canonical behaviour is PASS-THROUGH; the

@@ -173,9 +173,9 @@ export class FakeI18n {
     },
   );
 
-  // ===== I18nPluginHostApi completeness =====
+  // ===== I18nPluginApi completeness =====
   //
-  // Same reason as the loader block above: `hasPluginHostApi` checks all seven
+  // Same reason as the loader block above: `hasPluginApi` checks all seven
   // public members, and `onMissingKey` alone does not make the double a
   // plugin host. The registration members are inert recorders — no wrapper
   // test drives plugin behavior through the fake; they exist so the fake is

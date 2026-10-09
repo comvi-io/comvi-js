@@ -1,4 +1,4 @@
-import type { I18n, I18nLoaderApi, I18nPluginHostApi } from "@comvi/core";
+import type { I18n, I18nLoaderApi, I18nPluginApi } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 import type { CdnLoaderOptions } from "./options";
@@ -7,7 +7,7 @@ import { cdnLoaderPlugin } from "./loader";
 /** The instance surface `cdnLoader` guarantees on the way out. */
 export type CdnLoaderInstaller = <T extends I18n<any>>(
   i18n: T,
-) => T & I18nLoaderApi & I18nPluginHostApi;
+) => T & I18nLoaderApi & I18nPluginApi;
 
 /**
  * The CDN-only fetch loader as a `.use(…)` installer.
@@ -35,8 +35,8 @@ export type CdnLoaderInstaller = <T extends I18n<any>>(
  */
 export function cdnLoader(options: CdnLoaderOptions): CdnLoaderInstaller {
   return (i18n) => {
-    const host = attachLoader(attachPlugins(ensureInstallable(i18n, "cdnLoader")));
-    host.registerPlugin(cdnLoaderPlugin(options));
-    return host;
+    const instance = attachLoader(attachPlugins(ensureInstallable(i18n, "cdnLoader")));
+    instance.registerPlugin(cdnLoaderPlugin(options));
+    return instance;
   };
 }

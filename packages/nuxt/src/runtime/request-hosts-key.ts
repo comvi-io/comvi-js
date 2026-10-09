@@ -1,4 +1,4 @@
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 
 /**
  * Where the app plugin parks its per-request instance for the Nitro teardown to
@@ -14,4 +14,4 @@ import type { WrapperI18nHost } from "@comvi/core";
 export const REQUEST_HOSTS_KEY = "__comviRequestHosts";
 
 /** All the teardown needs of an instance, and what both instance shapes have. */
-export type RequestScopedHost = Pick<WrapperI18nHost, "destroy" | "reportError">;
+export type RequestScopedInstance = Pick<WrapperI18nInstance, "destroy" | "reportError">;

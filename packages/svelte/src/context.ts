@@ -1,5 +1,5 @@
 import { setContext, getContext } from "svelte";
-import type { AnyI18nHost, WrapperI18nHost } from "@comvi/core";
+import type { AnyI18nInstance, WrapperI18nInstance } from "@comvi/core";
 import { autoInitPending, syncInitializing } from "./stores.js";
 
 /**
@@ -7,11 +7,11 @@ import { autoInitPending, syncInitializing } from "./stores.js";
  * `useI18nLoader()` / `useI18nPlugins()`, so the context accepts an instance that
  * never had them.
  */
-type Host = WrapperI18nHost;
+type Instance = WrapperI18nInstance;
 
-// `AnyI18nHost` is core's: the `strictFunctionTypes` invariance in `D` it
+// `AnyI18nInstance` is core's: the `strictFunctionTypes` invariance in `D` it
 // widens is documented there, once, for all three providers that accept it.
-export type { AnyI18nHost };
+export type { AnyI18nInstance };
 
 const I18N_CONTEXT_KEY = Symbol.for("comvi-i18n");
 
@@ -67,7 +67,7 @@ function normalizeInitError(error: unknown): Error {
  * </script>
  * ```
  */
-export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOptions): void {
+export function setI18nContext(i18n: AnyI18nInstance, options?: SetI18nContextOptions): void {
   setContext(I18N_CONTEXT_KEY, i18n);
 
   if ((options?.autoInit ?? true) && !i18n.isInitialized && !i18n.isInitializing) {
@@ -92,14 +92,14 @@ export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOption
 
 /**
  * The instance the nearest `setI18nContext` ancestor provided, as a bare
- * `WrapperI18nHost` — THE name for "give me the instance", the same in react,
+ * `WrapperI18nInstance` — THE name for "give me the instance", the same in react,
  * solid and svelte (vue's equivalent is `inject(I18N_INJECTION_KEY).core`).
  * A context reader, so callable during component initialisation only.
  *
  * @throws if no ancestor called `setI18nContext`.
  */
-export function useI18nHost(): Host {
-  const i18n = getContext<Host>(I18N_CONTEXT_KEY);
+export function useI18nInstance(): Instance {
+  const i18n = getContext<Instance>(I18N_CONTEXT_KEY);
 
   if (!i18n) {
     throw new Error(

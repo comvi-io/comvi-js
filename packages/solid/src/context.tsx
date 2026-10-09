@@ -8,7 +8,7 @@ import {
   type ParentComponent,
   type Accessor,
 } from "solid-js";
-import type { AnyI18nHost, WrapperI18nHost } from "@comvi/core";
+import type { AnyI18nInstance, WrapperI18nInstance } from "@comvi/core";
 import {
   createLocaleSignal,
   createDefaultNamespaceSignal,
@@ -24,7 +24,7 @@ import {
  * never had them.
  */
 export interface I18nContextValue {
-  i18n: WrapperI18nHost;
+  i18n: WrapperI18nInstance;
   /** Bound to the Provider's lifecycle, not the consumer's. */
   signals: {
     locale: Accessor<string>;
@@ -36,15 +36,15 @@ export interface I18nContextValue {
   };
 }
 
-// `AnyI18nHost` is core's: the `strictFunctionTypes` invariance in `D` it
+// `AnyI18nInstance` is core's: the `strictFunctionTypes` invariance in `D` it
 // widens is documented there, once, for all three providers that accept it.
-export type { AnyI18nHost };
+export type { AnyI18nInstance };
 
 const I18nContext = createContext<I18nContextValue>();
 
 export interface I18nProviderProps {
   /** Any instance, whatever default-params type it carries. */
-  i18n: AnyI18nHost;
+  i18n: AnyI18nInstance;
   /** Auto-initialize the instance on mount (default: true). */
   autoInit?: boolean;
   /**
@@ -168,7 +168,7 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
   // Read ONCE and lazily, never in the component body. Solid props are
   // getters, so `<I18nProvider fallback={<Spinner />}>` re-runs `Spinner` on
   // every access — and the read has to happen INSIDE the context below, since
-  // a fallback may call `useI18n()`. `||` short-circuits, so a host that is
+  // a fallback may call `useI18n()`. `||` short-circuits, so an instance that is
   // already initialized never constructs the fallback at all.
   let fallbackNode: JSX.Element | undefined;
   let fallbackRead = false;
@@ -210,12 +210,12 @@ export function useI18nContextValue(): I18nContextValue {
 }
 
 /**
- * The instance the nearest `<I18nProvider>` holds, as a bare `WrapperI18nHost` —
+ * The instance the nearest `<I18nProvider>` holds, as a bare `WrapperI18nInstance` —
  * THE name for "give me the instance", the same in react, solid and svelte (vue's
  * equivalent is `inject(I18N_INJECTION_KEY).core`).
  *
  * @throws if called outside an `<I18nProvider>`.
  */
-export function useI18nHost(): WrapperI18nHost {
+export function useI18nInstance(): WrapperI18nInstance {
   return useI18nContextValue().i18n;
 }

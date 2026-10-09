@@ -17,7 +17,7 @@ host without those capabilities it threw
 | `const { t, reloadMessages } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
 
 **They are readers, NOT stores.** `useI18nLoader()` / `useI18nPlugins()` call
-`useI18nHost()`, so — like `useI18n()` — they are callable during component
+`useI18nInstance()`, so — like `useI18n()` — they are callable during component
 initialisation only, and what they return is a plain object of bound functions. Do not
 `$`-prefix a member. The asymmetry with `createLocaleStore()` & friends is deliberate: a
 capability action is an imperative operation, not a value that changes over time. A host
@@ -29,9 +29,9 @@ re-exported its siblings with extensionless specifiers, which strict-ESM resolve
 for a `"type": "module"` package. The source now carries the emitted `.js` extension; no
 public API changed.
 
-`setI18nContext(i18n)`, `useI18nHost()` and all seven store factories accept
-`WrapperI18nHost` instead of the concrete `I18n` class — the five read-only stores plus the
+`setI18nContext(i18n)`, `useI18nInstance()` and all seven store factories accept
+`WrapperI18nInstance` instead of the concrete `I18n` class — the five read-only stores plus the
 writable `createDefaultNamespaceStore` and `createDefaultParamsStore`, whose `set` / `update`
 write through to the host — and the store factories gained an
-optional `D` type parameter (inferred) because `WrapperI18nHost<D>` is invariant in `D`. See
+optional `D` type parameter (inferred) because `WrapperI18nInstance<D>` is invariant in `D`. See
 the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md).

@@ -15,14 +15,14 @@ import { devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { WrapperI18nInstance } from "@comvi/core";
 import * as react from "@comvi/react";
 import * as client from "../src/client";
 import * as root from "../src/index";
 import { nextPlugin, nextPluginLazy } from "../src/nextPlugin";
 import { I18nProvider } from "../src/client/I18nProvider";
 
-const wrapperFor = (i18n: WrapperI18nHost) =>
+const wrapperFor = (i18n: WrapperI18nInstance) =>
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <I18nProvider i18n={i18n} locale="en" messages={{}} autoInit={false}>
@@ -117,14 +117,14 @@ describe("@comvi/next/client — the capability toolkit", () => {
     expect(root.nextPluginLazy).toBe(nextPluginLazy);
   });
 
-  it("carries react's whole 0.5 hook surface, `useI18nHost` included", () => {
+  it("carries react's whole 0.5 hook surface, `useI18nInstance` included", () => {
     // The README says this entry re-exports react's 0.5.0 surface. Wave 3 added
-    // `useI18nHost()` there — THE name for "give me the host" in react, solid
+    // `useI18nInstance()` there — THE name for "give me the host" in react, solid
     // and svelte — and this entry is react's Next face, so a client component
     // must not have to import `@comvi/react` beside this package to get it.
     for (const name of [
       "useI18n",
-      "useI18nHost",
+      "useI18nInstance",
       "useI18nLoader",
       "useI18nPlugins",
       "useLocale",
@@ -137,10 +137,10 @@ describe("@comvi/next/client — the capability toolkit", () => {
     }
   });
 
-  it("returns the provider's own host from useI18nHost()", () => {
+  it("returns the provider's own host from useI18nInstance()", () => {
     const i18n = client.createI18n({ locale: "en", exposeGlobal: false });
 
-    const { result } = renderHook(() => client.useI18nHost(), { wrapper: wrapperFor(i18n) });
+    const { result } = renderHook(() => client.useI18nInstance(), { wrapper: wrapperFor(i18n) });
 
     expect(result.current).toBe(i18n);
   });
@@ -218,7 +218,7 @@ describe("@comvi/next/server — the same surface for the SSR half", () => {
     expect(server).not.toHaveProperty("prepareTranslation");
   });
 
-  it("builds a NextServerHost from one package", async () => {
+  it("builds a NextServerInstance from one package", async () => {
     const { attachLoader: attach, createNextI18nFromHost, createI18n } = await importServerEntry();
 
     const { i18n } = createNextI18nFromHost(

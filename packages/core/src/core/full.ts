@@ -1,4 +1,4 @@
-import type { DefaultTranslationParams, I18nOptions, I18nPluginHostApi, LoaderFn } from "../types";
+import type { DefaultTranslationParams, I18nOptions, I18nPluginApi, LoaderFn } from "../types";
 import type { I18nInternal } from "./i18n";
 import { I18nWithLoader } from "./loader";
 import { I18nWithPlugins } from "./plugins";
@@ -31,7 +31,7 @@ import { icuCompiler } from "./translate/compile-icu";
  * declaration of a merged name.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- see above
-export interface I18n<D extends DefaultTranslationParams = {}> extends I18nPluginHostApi {}
+export interface I18n<D extends DefaultTranslationParams = {}> extends I18nPluginApi {}
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- see above
 export class I18n<D extends DefaultTranslationParams = {}> extends I18nWithLoader<D> {

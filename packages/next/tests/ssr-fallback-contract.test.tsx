@@ -84,10 +84,10 @@ const createServerHost = (row: SsrFallbackCase) => {
   return { loader, loadErrors, reports };
 };
 
-type ClientHost = ReturnType<typeof createHost>["i18n"];
+type ClientInstance = ReturnType<typeof createHost>["i18n"];
 
 const Tree = (props: {
-  i18n: ClientHost;
+  i18n: ClientInstance;
   locale: string;
   messages: Messages;
   keys: readonly string[];

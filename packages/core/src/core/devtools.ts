@@ -4,7 +4,7 @@
 // Everything that makes an instance findable by a devtools extension lives
 // here and NOWHERE else: the `window.__COMVI__` protocol probe, the version
 // stamp, the instance-id counter, and the identity-based removal on destroy.
-// A base `@comvi/core` host therefore never carries the protocol —
+// A base `@comvi/core` instance therefore never carries the protocol —
 // it is absent from the module graph, not disabled by a flag.
 //
 // ONE implementation, TWO install surfaces, exactly like `core/loader.ts`:

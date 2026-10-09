@@ -8,12 +8,12 @@ import { createNextI18nFromHost } from "@comvi/next/server";
 import type {
   CreateNextI18nFromHostOptions,
   CreateNextI18nFromHostResult,
-  NextServerHost,
+  NextServerInstance,
 } from "@comvi/next/server";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
-import type { ServerI18nHost, ServerTranslatingHost } from "../../src/server/hostTypes";
+import type { ServerI18nInstance, ServerTranslatingInstance } from "../../src/server/hostTypes";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -28,14 +28,14 @@ const ROUTING = {
 const composedHost = attachLoader(createI18n({ locale: "en", defaultNs: "common" }));
 const composed = createNextI18nFromHost(() => composedHost, ROUTING);
 
-export type _ExactHostType = Expect<Equal<typeof composed.i18n, typeof composedHost>>;
+export type _ExactInstanceType = Expect<Equal<typeof composed.i18n, typeof composedHost>>;
 
 // A host composed through the INSTALLER pipe instead of `attachLoader`: the
 // second acquisition path.
 const installerHost = createI18n({ locale: "en" }).use(attachLoader);
 const _onPiped = createNextI18nFromHost(() => installerHost, ROUTING);
 
-export type _PipedHostAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof installerHost>>;
+export type _PipedInstanceAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof installerHost>>;
 
 // The result has NO `.use` pipe (composition belongs in the host factory) and
 // none of the four delegates the composed root deleted. The positive control
@@ -87,19 +87,19 @@ createNextI18nFromHost(() => composedHost, {
 // constructor builds — is a compile error.
 const bareBaseHost = createI18n({ locale: "en" });
 
-// @ts-expect-error -- NextServerHost = WrapperI18nHost & I18nLoaderApi
+// @ts-expect-error -- NextServerInstance = WrapperI18nInstance & I18nLoaderApi
 createNextI18nFromHost(() => bareBaseHost, ROUTING);
 
-export type _BareBaseIsNotAServerHost = Expect<
-  Equal<typeof bareBaseHost extends NextServerHost ? true : false, false>
+export type _BareBaseIsNotAServerInstance = Expect<
+  Equal<typeof bareBaseHost extends NextServerInstance ? true : false, false>
 >;
-export type _ComposedIsAServerHost = Expect<
-  Equal<typeof composedHost extends NextServerHost ? true : false, true>
+export type _ComposedIsAServerInstance = Expect<
+  Equal<typeof composedHost extends NextServerInstance ? true : false, true>
 >;
 
 // The SINGLE-PACKAGE server recipe: `createI18n` and the capability toolkit are
 // re-exported from `@comvi/next/server`, so an SSR app builds a
-// `NextServerHost` without ever naming `@comvi/core`.
+// `NextServerInstance` without ever naming `@comvi/core`.
 export type _RetiredNameIsGone = Expect<
   Equal<Extract<keyof typeof serverEntry, "createSlimI18n">, never>
 >;
@@ -109,18 +109,18 @@ const singlePackageHost = serverEntry.attachLoader(
 );
 const _singlePackage = createNextI18nFromHost(() => singlePackageHost, ROUTING);
 
-export type _SinglePackageHostIsExact = Expect<
+export type _SinglePackageInstanceIsExact = Expect<
   Equal<typeof _singlePackage.i18n, typeof singlePackageHost>
 >;
-export type _SinglePackageHostIsAServerHost = Expect<
-  Equal<typeof singlePackageHost extends NextServerHost ? true : false, true>
+export type _SinglePackageInstanceIsAServerInstance = Expect<
+  Equal<typeof singlePackageHost extends NextServerInstance ? true : false, true>
 >;
 // The re-exported constructor IS core's base one, so it builds the same bare
 // host the two-package recipe did — and the same compile error when unattached.
 export type _SinglePackageConstructorIsBase = Expect<
   Equal<typeof serverEntry.createI18n, typeof createI18n>
 >;
-// @ts-expect-error -- still NextServerHost = WrapperI18nHost & I18nLoaderApi
+// @ts-expect-error -- still NextServerInstance = WrapperI18nInstance & I18nLoaderApi
 createNextI18nFromHost(() => serverEntry.createI18n({ locale: "en" }), ROUTING);
 
 // ICU stays injectable from the same specifier, in its ONE shape: the compiler
@@ -145,9 +145,9 @@ const pipedHost = serverEntry
   .use(serverEntry.loader({ en: async () => ({ default: { hello: "Hello" } }) }));
 const _piped = createNextI18nFromHost(() => pipedHost, ROUTING);
 
-export type _PipedHostIsExact = Expect<Equal<typeof _piped.i18n, typeof pipedHost>>;
-export type _PipedHostIsAServerHost = Expect<
-  Equal<typeof pipedHost extends NextServerHost ? true : false, true>
+export type _PipedInstanceIsExact = Expect<Equal<typeof _piped.i18n, typeof pipedHost>>;
+export type _PipedInstanceIsAServerInstance = Expect<
+  Equal<typeof pipedHost extends NextServerInstance ? true : false, true>
 >;
 // `.use(attachLoader)` is the installer for a host with no import map.
 void createNextI18nFromHost(
@@ -162,21 +162,21 @@ createNextI18nFromHost(
 
 // ─── The server request contract ────────────────────────────────────────────
 //
-// `ServerI18nHost` is the internal instance type the request pipeline reads.
+// `ServerI18nInstance` is the internal instance type the request pipeline reads.
 // It carries the CATALOG and the LOADER and nothing else: `t`/`tRaw` are
 // deliberately absent, so a server helper cannot translate without naming a
 // locale — such a lookup would resolve against the host's process-wide
 // `_locale` and leak one request's locale into another request's tree.
 
-export type _ServerHostCannotTranslate = Expect<
-  Equal<Extract<keyof ServerI18nHost, "t" | "tRaw">, never>
+export type _ServerInstanceCannotTranslate = Expect<
+  Equal<Extract<keyof ServerI18nInstance, "t" | "tRaw">, never>
 >;
 
 // The positive control: everything the pipeline DOES read is still on it, so
 // the probe above cannot pass by the type having decayed to `never`.
-export type _ServerHostMembers = Expect<
+export type _ServerInstanceMembers = Expect<
   Equal<
-    keyof ServerI18nHost,
+    keyof ServerI18nInstance,
     | "isInitialized"
     | "init"
     | "getDefaultNamespace"
@@ -189,17 +189,17 @@ export type _ServerHostMembers = Expect<
   >
 >;
 
-// A host missing one of those members is not a `ServerI18nHost`.
+// A host missing one of those members is not a `ServerI18nInstance`.
 export type _MissingGetMessagesRejected = Expect<
-  Equal<Omit<ServerI18nHost, "getMessages"> extends ServerI18nHost ? true : false, false>
+  Equal<Omit<ServerI18nInstance, "getMessages"> extends ServerI18nInstance ? true : false, false>
 >;
 
 // `getI18n` is the single sanctioned crossing, and it names the widening.
-export type _TranslatingHostAddsExactlyTheTranslator = Expect<
-  Equal<Exclude<keyof ServerTranslatingHost, keyof ServerI18nHost>, "t" | "tRaw">
+export type _TranslatingInstanceAddsExactlyTheTranslator = Expect<
+  Equal<Exclude<keyof ServerTranslatingInstance, keyof ServerI18nInstance>, "t" | "tRaw">
 >;
 
 // Every published host still satisfies the narrowed contract structurally.
-export type _ComposedHostSatisfiesServerHost = Expect<
-  Equal<typeof composedHost extends ServerI18nHost ? true : false, true>
+export type _ComposedInstanceSatisfiesServerInstance = Expect<
+  Equal<typeof composedHost extends ServerI18nInstance ? true : false, true>
 >;

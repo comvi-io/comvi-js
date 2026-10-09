@@ -8,17 +8,17 @@ import type {
   I18n,
   I18nLoaderApi,
   I18nOptions,
-  I18nPluginHost,
-  I18nPluginHostApi,
+  PluginI18nInstance,
+  I18nPluginApi,
 } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";
 import { attachDevtools } from "@comvi/core/devtools";
 
 /** Base host + the plugin API + browser discovery used by editor tests. */
-export type ComposedHost = I18n & I18nPluginHostApi;
+export type ComposedInstance = I18n & I18nPluginApi;
 
 /** `createI18n(options)` with the plugin capability already composed on. */
-export function createI18n(options: I18nOptions): ComposedHost {
+export function createI18n(options: I18nOptions): ComposedInstance {
   return attachDevtools(attachPlugins(createBaseI18n(options)), {
     instanceId: options.instanceId,
     exposeGlobal: options.exposeGlobal,
@@ -32,6 +32,6 @@ export function createI18n(options: I18nOptions): ComposedHost {
  * capability off the double; handing it to a plugin states the unused half
  * here rather than at every install site.
  */
-export function asPluginHost(i18n: ComposedHost): I18nPluginHost {
-  return i18n as ComposedHost & I18nLoaderApi;
+export function asPluginHost(i18n: ComposedInstance): PluginI18nInstance {
+  return i18n as ComposedInstance & I18nLoaderApi;
 }

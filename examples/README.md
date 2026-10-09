@@ -107,21 +107,21 @@ The three that depart from it:
 - **Vanilla** composes the same chain from the core subpaths (`@comvi/core`, `@comvi/core/icu`,
   `@comvi/core/loader`) and side-effect-imports `@comvi/core/tags`, so plain `t()` parses
   `<tag>…</tag>`; the framework examples get tags through `<T>` instead.
-- **Next** keeps the host in `examples/next/src/i18n/config.ts` and the routing in a separate
+- **Next** keeps the instance in `examples/next/src/i18n/config.ts` and the routing in a separate
   `routing.ts`, because `middleware.ts` runs in the Edge runtime and must not import the composed
-  host. `next.config.ts` points `withComvi({ config })` at the config module, the layout renders
+  instance. `next.config.ts` points `withComvi({ config })` at the config module, the layout renders
   `<ComviProvider locale>` from `@comvi/next/server`, and the pages call `getI18n({ locale })`.
 - **Nuxt** names a Comvi package in one file only, `examples/nuxt/src/comvi.host.ts`: a factory
   that composes `icuCompiler` and `loader(map)` on the options Nuxt resolved. `useI18n()`, `<T>`
   and `useSwitchLocalePath()` are auto-imported, and `src/app.vue` calls `useLocaleHead()`.
 
 Neither SSR example composes a locale detector: the URL is the source of truth there, and the
-framework middleware decides the locale before the host runs.
+framework middleware decides the locale before the instance runs.
 
 ## Connect to Comvi (opt-in)
 
 Every example can read its catalogs from the platform CDN instead of the
-bundled JSON. Set one variable when you build, and the host composes
+bundled JSON. Set one variable when you build, and the instance composes
 `cdnLoader({ cdnUrl })` from `@comvi/plugin-fetch-loader` in place of the
 import map:
 
@@ -168,7 +168,7 @@ only publishing settles that. Re-run the gate after the version bump.
 ## Connect to Comvi (opt-in)
 
 Every example can read its catalogs from the platform CDN instead of the
-bundled JSON. Set one variable when you build, and the host composes
+bundled JSON. Set one variable when you build, and the instance composes
 `cdnLoader({ cdnUrl })` from `@comvi/plugin-fetch-loader` in place of the
 import map:
 

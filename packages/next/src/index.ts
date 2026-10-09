@@ -5,7 +5,7 @@ export { createNextI18n } from "./createNextI18n";
 export type {
   CreateNextI18nOptions,
   CreateNextI18nResult,
-  UseHostIdentityError,
+  UseInstanceIdentityError,
 } from "./createNextI18n";
 
 // The two Next-scoped installers for `result.use(…)`, beside the factory

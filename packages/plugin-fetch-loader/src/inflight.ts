@@ -1,5 +1,5 @@
 /** The instance surface this bookkeeping needs: the cleared-scope announcement and the cache revision. */
-export interface ClearedScopeHost {
+export interface ClearedScopeInstance {
   on(
     event: "messagesCleared",
     callback: (data: { locale?: string; namespace?: string }) => void,
@@ -68,7 +68,10 @@ export interface InflightRequests {
  * omitted locale or namespace means "every one", exactly as it does on
  * `clearMessages`.
  */
-export function trackInflight(i18n: ClearedScopeHost, callbacks: LoadCallbacks): InflightRequests {
+export function trackInflight(
+  i18n: ClearedScopeInstance,
+  callbacks: LoadCallbacks,
+): InflightRequests {
   // Read once, at install time, exactly as the plugin factories destructure the
   // rest of their options: an options object mutated after install must not
   // change where reports go.
