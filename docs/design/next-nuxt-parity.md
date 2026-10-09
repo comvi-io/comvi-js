@@ -282,6 +282,19 @@ prefetches a link to another locale. Writing the cookie alone was tried first an
 Next 15 app for exactly the cache reason. Pinned by `packages/next/tests/locale-switch.test.tsx` and
 `packages/nuxt/tests/locale-switch.test.ts`, both of which run the real middleware.
 
+**Open on Next 16 (found 2026-10-09, not fixed).** Next 16 re-prefetches the links of the page being
+left after a navigation. Those requests carry the new cookie to the old locale's URLs, and the
+middleware records the locale of every request whose path names one, so the cookie can move back to
+the locale just left; the next unprefixed URL is then resolved to it again. Observed in a real
+Next 16.4 build after a clicked `<Link locale>` to the default locale under `as-needed`; the same
+scenarios hold on Next 15.5. The middleware cannot tell a prefetch from a navigation: Next removes
+`Next-Router-Prefetch` from the request it hands to middleware. What it can see is
+`Sec-Fetch-Dest`, which separates a page the browser loads from a client-router fetch, so the
+candidate fix is to record the cookie for document requests and for a redirect away from a
+locale-prefixed URL only, and leave client navigations to the navigation API in the browser. That
+changes what a client navigation through a plain `next/link` records, which is why it is a
+decision and not part of this fix.
+
 ## Alternatives rejected
 
 - **A published shared package.** locale-routing would have to be versioned, documented and
