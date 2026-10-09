@@ -1,30 +1,20 @@
 /**
  * The manual `init()` / `stop()` pair against the real `Core`: what a
- * translator can still do on the page after `stop()`, however many times
+ * translator can still do on the page after each call, however many times
  * `init()` ran before it.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
 import { init, stop } from "../src/main";
-import { encodeKeyToInvisible, registerKey, loadKeyMappings } from "../src/translation";
+import { loadKeyMappings } from "../src/translation";
 import { TAG_ATTRIBUTES } from "../src/constants";
-import { cleanupDOM, flushDOMMutations, getActiveTooltip, simulateMouseEvent } from "./helpers";
+import { cleanupDOM } from "./helpers";
+import { hoverLabel, renderMarked } from "./helpers/editorPage";
 
-/** The Alt+hover tooltip a translator sees on the element, or null. */
-function hoverLabel(element: Element): string | null {
-  simulateMouseEvent(element, "mouseover", { altKey: true });
-  const label = getActiveTooltip()?.textContent ?? null;
-  simulateMouseEvent(element, "mouseout", { altKey: true });
-  return label;
-}
-
-function renderMarkedHeading(): { container: HTMLElement; heading: HTMLElement } {
+function renderTarget(): HTMLElement {
   const container = document.createElement("div");
-  const heading = document.createElement("h1");
-  heading.textContent = `Welcome ${encodeKeyToInvisible(registerKey("home.title"))}`;
-  container.append(heading);
   document.body.append(container);
-  return { container, heading };
+  return container;
 }
 
 afterEach(() => {
@@ -33,24 +23,88 @@ afterEach(() => {
   loadKeyMappings({});
 });
 
-describe("manual init()/stop() against the real runtime", () => {
-  it("init() twice then stop() → no runtime still highlights the page", async () => {
-    const { container, heading } = renderMarkedHeading();
+describe("manual init()", () => {
+  it("init() once → the page's marked text is highlighted", async () => {
+    const container = renderTarget();
+    const heading = renderMarked("home.title", { text: "Welcome", parent: container });
+
     init({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
-    init({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
-    await flushDOMMutations();
+
+    expect(await hoverLabel(heading)).toBe("home.title (default)");
+  });
+
+  it("init({ targetElement }) → marked text outside the target is not highlighted", async () => {
+    const container = renderTarget();
+    const outside = renderMarked("footer.copyright", { text: "©" });
+
+    init({ targetElement: container });
+
+    expect(await hoverLabel(outside)).toBeNull();
+  });
+
+  it("init() on a second target → the first target's text is no longer highlighted", async () => {
+    const first = renderTarget();
+    const second = renderTarget();
+    const firstHeading = renderMarked("home.title", { text: "Welcome", parent: first });
+    init({ targetElement: first });
+
+    init({ targetElement: second });
+
+    expect(await hoverLabel(firstHeading)).toBeNull();
+  });
+
+  it("init() on a second target → the second target's text is highlighted", async () => {
+    const first = renderTarget();
+    const second = renderTarget();
+    const secondHeading = renderMarked("checkout.total", { text: "Total", parent: second });
+    init({ targetElement: first });
+
+    init({ targetElement: second });
+
+    expect(await hoverLabel(secondHeading)).toBe("checkout.total (default)");
+  });
+});
+
+describe("manual stop()", () => {
+  it("init() then stop() → the page's marked text is no longer highlighted", async () => {
+    const container = renderTarget();
+    const heading = renderMarked("home.title", { text: "Welcome", parent: container });
+    init({ targetElement: container });
 
     stop();
 
-    expect(hoverLabel(heading)).toBeNull();
+    expect(await hoverLabel(heading)).toBeNull();
   });
 
-  it("init() once → the page's marked text is highlighted", async () => {
-    const { container, heading } = renderMarkedHeading();
-
+  it("init() twice then stop() → no runtime still highlights the page", async () => {
+    const container = renderTarget();
+    const heading = renderMarked("home.title", { text: "Welcome", parent: container });
     init({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
-    await flushDOMMutations();
+    init({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
 
-    expect(hoverLabel(heading)).toBe("home.title (default)");
+    stop();
+
+    expect(await hoverLabel(heading)).toBeNull();
+  });
+
+  it("stop() before any init() → does not throw", () => {
+    expect(() => stop()).not.toThrow();
+  });
+
+  it("stop() before any init() → a later init() still highlights the page", async () => {
+    const container = renderTarget();
+    const heading = renderMarked("home.title", { text: "Welcome", parent: container });
+    stop();
+
+    init({ targetElement: container });
+
+    expect(await hoverLabel(heading)).toBe("home.title (default)");
+  });
+
+  it("stop() twice after one init() → the second stop() does not throw", () => {
+    init({ targetElement: renderTarget() });
+    stop();
+
+    expect(() => stop()).not.toThrow();
   });
 });
