@@ -3,7 +3,7 @@
 ---
 
 **Added: `localeDetector(options)` — the bare-name `.use(…)` installer.** `@comvi/core` is
-the base host now, so the plugin host is an import you add; the installer composes it and
+the base instance now, so the plugins capability is an import you add; the installer composes it and
 registers the plugin you already know.
 
 ```ts
@@ -21,8 +21,8 @@ detector hands core a locale, it never loads a catalog.
 
 `localeDetectorPlugin` behaves exactly as `LocaleDetector` did (the rename is in its
 own changeset), and the installer re-implements no lifecycle: `required`,
-`timeout`, `onError`, cleanup registration and LIFO destroy keep running inside the plugin host,
-because the installer's last act is `registerPlugin`. Composing onto a host that already has the
+`timeout`, `onError`, cleanup registration and LIFO destroy keep running inside the plugins capability,
+because the installer's last act is `registerPlugin`. Composing onto an instance that already has the
 capability installs nothing and keeps every plugin already registered. The exported installer
 type is `LocaleDetectorInstaller`. Putting one in the other's slot is a type error and loud at
 runtime.

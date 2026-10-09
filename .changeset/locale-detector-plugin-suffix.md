@@ -12,4 +12,4 @@
 +i18n.registerPlugin(localeDetectorPlugin({ order: ["cookie"] }));
 ```
 
-The `localeDetector` installer, `LocaleDetectorOptions`, `LocaleDetectorInstaller` and `resolveLocale` keep their names, and behaviour is unchanged. On Next this is also the name inside `nextPlugin(localeDetectorPlugin(…), { runtime: "client" })`, still the only correct way to run the detector on an App Router host. The old names are removed, with no deprecated aliases.
+The `localeDetector` installer, `LocaleDetectorOptions`, `LocaleDetectorInstaller` and `resolveLocale` keep their names, and behaviour is unchanged. On Next this is also the name inside `nextPlugin(localeDetectorPlugin(…), { runtime: "client" })`, still the only correct way to run the detector on an App Router instance. The old names are removed, with no deprecated aliases.
