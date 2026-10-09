@@ -47,6 +47,13 @@ const MAX_NAMESPACE_LENGTH = 255;
 const KEY_PATH_SEPARATORS = /[/\\]/;
 const KEY_SEPARATOR_ERROR =
   'Keys and namespaces containing "/" or "\\" cannot be edited through the extension';
+/**
+ * An exact "." or ".." path segment is a directory step to the URL parser, so
+ * the GET/DELETE for such a key or namespace can never address it.
+ */
+const DOT_SEGMENT_NAMES = new Set([".", ".."]);
+const DOT_SEGMENT_ERROR =
+  'Keys and namespaces named "." or ".." cannot be edited through the extension';
 /** Worst case percent-encoding: one UTF-16 unit of a 3-byte character is 9 characters. */
 const MAX_ENCODED_CHARS_PER_UNIT = 9;
 const MAX_PATH_LENGTH = Math.max(
@@ -158,6 +165,9 @@ const validateSaveKeyBody: BodyValidator = (body) => {
   if (!isBoundedString(body.namespace, MAX_NAMESPACE_LENGTH)) return "Invalid namespace";
   if (KEY_PATH_SEPARATORS.test(body.key) || KEY_PATH_SEPARATORS.test(body.namespace)) {
     return KEY_SEPARATOR_ERROR;
+  }
+  if (DOT_SEGMENT_NAMES.has(body.key) || DOT_SEGMENT_NAMES.has(body.namespace)) {
+    return DOT_SEGMENT_ERROR;
   }
   if (typeof body.isPlural !== "boolean") return "Invalid isPlural";
   if (!isPlainObject(body.translations)) return "Invalid translations";

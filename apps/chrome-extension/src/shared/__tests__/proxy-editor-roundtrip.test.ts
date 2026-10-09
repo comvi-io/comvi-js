@@ -103,6 +103,35 @@ describe("editor key round trip through the proxy", () => {
     expect(remove).toMatchObject({ ok: false });
   });
 
+  // URL parsing turns an exact "." or ".." path segment into a directory
+  // step, so the generated GET/DELETE can never address such a key.
+  it.each([
+    ["a key that is a single dot", ".", "app"],
+    ["a key that is two dots", "..", "app"],
+    ["a namespace that is a single dot", "title", "."],
+    ["a namespace that is two dots", "title", ".."],
+  ])("refuses %s on all three calls, explaining why on save", async (_label, key, namespace) => {
+    const [save, read, remove] = await editorRequestsFor(key, namespace);
+
+    expect(save).toEqual({
+      ok: false,
+      error: 'Keys and namespaces named "." or ".." cannot be edited through the extension',
+    });
+    expect(read).toMatchObject({ ok: false });
+    expect(remove).toMatchObject({ ok: false });
+  });
+
+  it.each([["keys that only contain dots", "...", "a..b"]])(
+    "still accepts %s",
+    async (_label, key, namespace) => {
+      const [save, read, remove] = await editorRequestsFor(key, namespace);
+
+      expect(save).toMatchObject({ ok: true });
+      expect(read).toMatchObject({ ok: true });
+      expect(remove).toMatchObject({ ok: true });
+    },
+  );
+
   it.each([
     ["a 769-character key", "k".repeat(769), "app"],
     ["a 256-character namespace", "title", "n".repeat(256)],
