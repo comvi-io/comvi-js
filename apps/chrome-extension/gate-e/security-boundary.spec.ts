@@ -20,14 +20,19 @@ function heldValidation(page: Page): Promise<{ held: boolean; delivered: number 
   return page.evaluate(() => (globalThis as any).gateE.heldValidation());
 }
 
-/** Key validations whose response the worker has fully received. */
-function finishedKeyValidations(worker: Worker): Promise<number> {
+/**
+ * Settled START_SESSION outcomes, in order. Recorded by the worker in Gate E
+ * builds only (service-worker.ts recordStartSessionOutcome), so a spec can
+ * wait for the terminal result of an attempt whose popup is already closed.
+ */
+function startSessionOutcomes(worker: Worker): Promise<Array<{ ok: boolean; error?: string }>> {
   return worker.evaluate(
     () =>
-      performance
-        .getEntriesByType("resource")
-        .filter((entry) => new URL(entry.name).pathname === "/v1/project")
-        .filter((entry) => (entry as PerformanceResourceTiming).responseEnd > 0).length,
+      (
+        globalThis as typeof globalThis & {
+          __gateEStartSessionOutcomes?: Array<{ ok: boolean; error?: string }>;
+        }
+      ).__gateEStartSessionOutcomes ?? [],
   );
 }
 
@@ -220,8 +225,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
 
     await test.step("phase 5: a popup closed mid-activation leaves no usable capability", async () => {
       await page.evaluate(() => (globalThis as any).gateE.runPhase5());
-      // The worker's resource-timing buffer fills up during phase 2; start empty.
-      await worker.evaluate(() => performance.clearResourceTimings());
+      const attemptsBefore = (await startSessionOutcomes(worker)).length;
       const racePopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
       await expectPopupView(racePopup, worker, page, "idle", tabId);
       await racePopup.locator("#api-key").fill("gate-e-key");
@@ -230,7 +234,15 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
       await racePopup.close();
       await page.bringToFront();
       await page.evaluate(() => (globalThis as any).gateE.releaseValidation());
-      await expect.poll(() => finishedKeyValidations(worker), POLL).toBe(1);
+
+      // Wait for this attempt's terminal outcome, not only for its network
+      // response: identity checks, locks and the lease check run after it.
+      await expect
+        .poll(async () => (await startSessionOutcomes(worker)).length, POLL)
+        .toBe(attemptsBefore + 1);
+      const outcome = (await startSessionOutcomes(worker))[attemptsBefore];
+      expect(outcome).toMatchObject({ ok: false });
+      expect(await storedSession(worker, tabId)).toBeUndefined();
       await page.evaluate(() => (globalThis as any).gateE.checkPhase5());
       await expectPhase(page, "5", 2);
     });
