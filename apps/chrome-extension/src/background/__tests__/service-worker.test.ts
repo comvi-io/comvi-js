@@ -1274,32 +1274,36 @@ describe("DOCUMENT_READY", () => {
 
 /**
  * Resolve with the response, or NO_RESPONSE if the channel is never answered.
- * The watchdog is cleared either way, so no timer outlives the test.
+ * No wall clock: fake timers take over and everything that is due now (the
+ * promise chains plus any zero-delay timers) runs to completion; a reply that
+ * would need real time to pass is, by construction, no reply.
  */
 const NO_RESPONSE = Symbol("no response");
-async function responseWithin(pending: Promise<unknown>, ms = 250): Promise<unknown> {
-  let watchdog: ReturnType<typeof setTimeout> | undefined;
+async function responseWithin(pending: Promise<unknown>): Promise<unknown> {
+  let answered = false;
+  let response: unknown;
+  void pending.then((value) => {
+    answered = true;
+    response = value;
+  });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
   try {
-    return await Promise.race([
-      pending,
-      new Promise((resolve) => {
-        watchdog = setTimeout(() => resolve(NO_RESPONSE), ms);
-      }),
-    ]);
+    await vi.advanceTimersByTimeAsync(0);
   } finally {
-    clearTimeout(watchdog);
+    vi.useRealTimers();
   }
+  return answered ? response : NO_RESPONSE;
 }
 
 describe("storage failures at the response boundary", () => {
   const storageError = new Error("storage unavailable");
 
-  it("leaves no watchdog timer behind once a response arrives", async () => {
-    vi.useFakeTimers();
-
+  it("reports an answered channel as its response", async () => {
     await expect(responseWithin(Promise.resolve("answered"))).resolves.toBe("answered");
+  });
 
-    expect(vi.getTimerCount()).toBe(0);
+  it("reports a channel that is never answered as no response", async () => {
+    await expect(responseWithin(new Promise(() => {}))).resolves.toBe(NO_RESPONSE);
   });
 
   it("answers START_SESSION and rolls the pending record back when the key cannot be saved", async () => {
