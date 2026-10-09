@@ -8,6 +8,8 @@ defineProps<{
   position: { top: number; left: number };
   open: Ref<boolean>;
   defaultNs?: string;
+  /** API scope of the runtime that opened the selector. */
+  instanceId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -44,6 +46,7 @@ watch(theme.theme, applyTheme);
     :position="position"
     :open="open"
     :default-ns="defaultNs"
+    :instance-id="instanceId"
     @update:open="emit('update:open', $event)"
     @select="(key, ns) => emit('select', key, ns)"
   />

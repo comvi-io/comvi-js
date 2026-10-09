@@ -84,6 +84,7 @@ function mountApp(
     position,
     open: isOpen,
     defaultNs,
+    instanceId,
     "onUpdate:open": (value: boolean) => {
       isOpen.value = value;
 

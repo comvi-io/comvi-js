@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeKeySelector, showKeySelector } from "../src/KeySelector";
-import { initApiConfig, resetApiConfig } from "../src/config/api";
+import { initApiConfig, resetApiConfig, type ApiTransport } from "../src/config/api";
 import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "../src/constants";
 
 const VIEWPORT = { innerHeight: 800, innerWidth: 1200, scrollX: 0, scrollY: 1000 };
@@ -32,6 +32,32 @@ function elementAt(rect: { top: number; bottom: number; left: number; right: num
 function dropdown(): HTMLElement | null {
   const host = document.querySelector(`[${EDITOR_UI_SHADOW_HOST_ATTRIBUTE}]`);
   return host?.shadowRoot?.querySelector<HTMLElement>('[role="listbox"]') ?? null;
+}
+
+function keyResponse(value: string): Response {
+  return new Response(
+    JSON.stringify({
+      id: 1,
+      key: "home.title",
+      namespaceId: 1,
+      isPlural: false,
+      namespace: "default",
+      createdAt: "2026-10-09T00:00:00.000Z",
+      updatedAt: "2026-10-09T00:00:00.000Z",
+      translations: {
+        en: {
+          id: 1,
+          value,
+          status: "translated",
+          createdAt: "2026-10-09T00:00:00.000Z",
+          updatedAt: "2026-10-09T00:00:00.000Z",
+          createdBy: 1,
+          reviewedBy: 1,
+        },
+      },
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
 }
 
 beforeEach(() => {
@@ -64,5 +90,23 @@ describe("key selector placement on a scrolled page", () => {
 
     expect(dropdown()?.style.top).toBe("148px");
     expect(dropdown()?.style.left).toBe("200px");
+  });
+});
+
+describe("key selector previews", () => {
+  it("two runtimes configured → the preview is requested through the opening runtime's scope", async () => {
+    const otherRuntime = vi.fn<ApiTransport>(async () => keyResponse("From the other project"));
+    const openingRuntime = vi.fn<ApiTransport>(async () => keyResponse("Hello from B"));
+    initApiConfig(undefined, "core-a", { transport: otherRuntime });
+    initApiConfig(undefined, "core-b", { transport: openingRuntime });
+    const element = elementAt({ top: 100, right: 300, bottom: 140, left: 200 });
+
+    showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-b");
+
+    await vi.waitFor(() => expect(dropdown()?.textContent).toContain("Hello from B"));
+    expect(openingRuntime).toHaveBeenCalledExactlyOnceWith("/v1/keys/default/home.title", {
+      method: "GET",
+    });
+    expect(otherRuntime).not.toHaveBeenCalled();
   });
 });
