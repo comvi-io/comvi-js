@@ -11,7 +11,7 @@ setting that looks configured and does nothing. They are removed rather than wir
 composes nothing on your behalf, which is the same rule that makes `i18nModule` the only way to
 get a loader.
 
-**Migration.** A 0.4 app that set `cdnUrl` composes the loader in its host file instead:
+**Migration.** A 0.4 app that set `cdnUrl` composes the loader in its `comvi.i18n.ts` file instead:
 
 ```ts
 // comvi.i18n.ts
@@ -27,6 +27,6 @@ export default ((options) =>
 …and points `comvi.i18nModule` at it. `apiBaseUrl` moves the same way, into the loader plugin's own `baseUrl`
 option.
 
-`comvi.apiKey` STAYS: it is forwarded to the host as `i18n.apiKey`, where a loader plugin such as
+`comvi.apiKey` STAYS: it is forwarded to the instance as `i18n.apiKey`, where a loader plugin such as
 `@comvi/plugin-fetch-loader` reads it. Its doc comment no longer implies this module does CDN or
 API loading.

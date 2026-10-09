@@ -2,11 +2,11 @@
 "@comvi/nuxt": minor
 ---
 
-**BREAKING (breaking change on a 0.x minor): the host under `@comvi/nuxt` is core's base host.**
+**BREAKING (breaking change on a 0.x minor): the instance under `@comvi/nuxt` is core's base instance.**
 Nuxt is the one package this convergence did not repackage — every published entry,
 composable, component, middleware and server utility stays exactly where it was. What
 changed sits underneath all of them: the generated `#build/comvi.i18n` template builds
-core's base host, so ICU, async loading, the plugin host, devtools discovery and ambient tag
+core's base instance, so ICU, async loading, the plugins capability, devtools discovery and ambient tag
 syntax became things a Nuxt app composes. `nuxt-framework-slim.md` carries the recipe and
 the migration table; this entry states the three contracts that are Nuxt's alone.
 
