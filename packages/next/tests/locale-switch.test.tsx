@@ -26,6 +26,12 @@ import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { I18nProvider } from "../src/client/I18nProvider";
 import { Link, useLocalizedRouter } from "../src/navigation";
 import { createMiddleware } from "../src/middleware/createMiddleware";
+import { createNextI18n } from "../src/createNextI18n";
+import { createNextI18nFromInstance } from "../src/server";
+import { _resetServerI18n } from "../src/server/cache";
+import { createI18n } from "@comvi/core";
+import { attachLoader } from "@comvi/core/loader";
+import { defineRouting } from "../src/routing/defineRouting";
 import type { RoutingConfig } from "../src/routing/types";
 
 const nextNavigation = vi.hoisted(() => ({
@@ -481,4 +487,65 @@ describe("a switch through the hooks without a routing config", () => {
 
     expect(readCookies()).toEqual({ NEXT_LOCALE: "de" });
   });
+});
+
+describe("the routing object the factories return carries the cookie the middleware writes", () => {
+  // The standard setup: `defineRouting` in `routing.ts`, spread into the
+  // factory, whose `routing` reaches `<I18nProvider>` through `<ComviProvider>`.
+  // The switch must write the cookie the middleware reads. Both factories
+  // used to rebuild `routing` from four keys and drop `localeCookie`.
+  const factories = {
+    createNextI18n: (options: RoutingConfig) => createNextI18n({ ...options }).routing,
+    createNextI18nFromInstance: (options: RoutingConfig) =>
+      createNextI18nFromInstance(
+        () => attachLoader(createI18n({ locale: "en", exposeGlobal: false, devMode: false })),
+        { ...options },
+      ).routing,
+  };
+
+  const switchThrough = (
+    factory: keyof typeof factories,
+    localeCookie: RoutingConfig["localeCookie"],
+  ) => {
+    _resetServerI18n();
+    const routing = factories[factory](
+      defineRouting({ locales: ["en", "de"], defaultLocale: "en", localeCookie }),
+    );
+    const { result } = renderRouter(routing, "de");
+    act(() => {
+      result.current.push("/about", "en");
+    });
+  };
+
+  it.each(Object.keys(factories) as Array<keyof typeof factories>)(
+    "%s with localeCookie: 'MY_LOCALE' → the switch writes MY_LOCALE, not NEXT_LOCALE",
+    (factory) => {
+      switchThrough(factory, "MY_LOCALE");
+
+      expect(readCookies()).toEqual({ MY_LOCALE: "en" });
+    },
+  );
+
+  it.each(Object.keys(factories) as Array<keyof typeof factories>)(
+    "%s with localeCookie: false → the switch writes no cookie",
+    (factory) => {
+      switchThrough(factory, false);
+
+      expect(readCookies()).toEqual({});
+    },
+  );
+
+  it.each(Object.keys(factories) as Array<keyof typeof factories>)(
+    "%s with cookie attributes → returned as configured",
+    (factory) => {
+      _resetServerI18n();
+      const localeCookie = { name: "LANG", maxAge: 60, sameSite: "strict" as const };
+
+      const routing = factories[factory](
+        defineRouting({ locales: ["en", "de"], defaultLocale: "en", localeCookie }),
+      );
+
+      expect(routing.localeCookie).toEqual({ name: "LANG", maxAge: 60, sameSite: "strict" });
+    },
+  );
 });

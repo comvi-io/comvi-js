@@ -41,6 +41,14 @@ export interface NextRoutingOptions {
    * Keys are canonical internal routes, values are public localized slugs.
    */
   pathnames?: RoutingConfig["pathnames"];
+
+  /**
+   * The locale cookie, as `defineRouting` takes it: a name, its attributes, or
+   * `false`. Carried into the returned `routing`, where a client-side locale
+   * switch reads it to write the cookie the middleware reads.
+   * @default 'NEXT_LOCALE'
+   */
+  localeCookie?: RoutingConfig["localeCookie"];
 }
 
 /**
@@ -54,5 +62,6 @@ export const resolveRouting = ({
   defaultLocale,
   localePrefix,
   pathnames,
+  localeCookie,
 }: NextRoutingOptions): Required<RoutingConfig> =>
-  defineRouting({ locales, defaultLocale, localePrefix, pathnames });
+  defineRouting({ locales, defaultLocale, localePrefix, pathnames, localeCookie });

@@ -72,7 +72,7 @@ export type _ResetIsNotPublic = Expect<
 export type _OptionsAreRoutingOnly = Expect<
   Equal<
     keyof CreateNextI18nFromInstanceOptions,
-    "locales" | "defaultLocale" | "localePrefix" | "pathnames"
+    "locales" | "defaultLocale" | "localePrefix" | "pathnames" | "localeCookie"
   >
 >;
 

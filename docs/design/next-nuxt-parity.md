@@ -103,7 +103,8 @@ follow-up audit decides each one, and this record changes when it does.
 - **The routing options schema** (amended 2026-10-04). One implementation,
   `normalizeRoutingOptions(input, { cookieNameDefault })` in the locale-routing source, decides the
   names, shapes and defaults of `locales`, `defaultLocale`, `localePrefix`, `localeCookie`,
-  `localeDetection` and `ns`. Next's `defineRouting` and `createMiddleware` call it; nuxt's module
+  `localeDetection` and `ns`. Next's `createMiddleware` calls it (`defineRouting` only applies the
+  prefix mode's and the cookie name's defaults, and leaves the rest to the middleware); nuxt's module
   calls the vendored copy at build time and writes the result into runtime config. The cookie
   name's default is the only input that differs. `localeCookie` is `false`, a name, or `{ name,
 maxAge, secure, sameSite, domain }`; `localeDetection` is `false` or `{ order, queryParam,
@@ -356,7 +357,7 @@ stays there. Pinned by `packages/next/tests/middleware-records-loads.test.ts`,
   `packages/nuxt/src/runtime/utils/resolve-locale.ts`, used by `runtime/middleware/i18n.global.ts`
   and the Nitro utils
 - the routing options schema — `normalizeRoutingOptions` and `findUnknownRoutingOptionKeys` in
-  `packages/locale-routing/src/index.ts`, called by `packages/next/src/routing/defineRouting.ts`,
+  `packages/locale-routing/src/index.ts`, called by
   `packages/next/src/middleware/createMiddleware.ts` and `packages/nuxt/src/module.ts`; the
   same-keys type tests `packages/next/tests/types/routing-options.test-d.ts` and
   `packages/nuxt/tests/routing-options.test-d.ts`; `#build/comvi.detection` from
