@@ -3,7 +3,8 @@ import { mount } from "@vue/test-utils";
 import { h } from "vue";
 import { createI18n as createCore } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";
-import { createI18nFromCore, type TranslationResult, type FragmentNode } from "../src";
+import { createFragment } from "@comvi/core/rich-text";
+import { createI18nFromCore, type TranslationResult } from "../src";
 import { createI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
@@ -59,7 +60,7 @@ describe("<T /> component", () => {
         params: {
           wrap: ({ children }: { children: TranslationResult }) => {
             const fragmentChildren = typeof children === "string" ? [children] : children;
-            return { type: "fragment", children: fragmentChildren } as FragmentNode;
+            return createFragment(fragmentChildren);
           },
         },
       },

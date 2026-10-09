@@ -3,7 +3,7 @@
   // would register tag syntax AMBIENTLY, so every app rendering <T> would also
   // start parsing `<tag>` markup in plain string-API `t()`. prepareTranslation
   // passes the tag extension per call, so the ambient switch stays the app's.
-  import { prepareTranslation } from '@comvi/core/rich-text';
+  import { isVirtualNode, prepareTranslation } from '@comvi/core/rich-text';
   import type { PendingHandler } from '@comvi/core/rich-text';
   import type { Component } from 'svelte';
   import type { VirtualNode } from '@comvi/core';
@@ -83,11 +83,13 @@
 <!--
   Translation content can only ever produce text nodes and handler-mapped
   elements — there is no HTML string sink, so untrusted translations cannot
-  inject markup.
+  inject markup. Params are held to the same rule: only a node the library
+  built is rendered as one. Anything else is data — an object parsed from JSON
+  can be shaped like a node, but cannot carry core's brand — and is text.
 -->
 {#snippet renderList(items: Array<VirtualNode | string>)}
   {#each items as item, index (index)}
-    {#if typeof item === 'string'}{item}{:else}{@render renderNode(item)}{/if}
+    {#if isVirtualNode(item)}{@render renderNode(item)}{:else}{item}{/if}
   {/each}
 {/snippet}
 

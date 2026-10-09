@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { isPrimitive, isVNodeLoose } from "../../src/core/translate/params";
 import { createElement, createFragment, createTextNode } from "../../src/virtualNode";
 
-// Both predicates are deliberately LOOSE about foreign node shapes (Vue VNodes, React elements).
+// `isVNodeLoose` is loose about WHOSE node it is (core's or React's), never about shape.
 
 describe("isPrimitive()", () => {
   it.each([
@@ -40,10 +40,6 @@ describe("isVNodeLoose()", () => {
     expect(isVNodeLoose(value)).toBe(true);
   });
 
-  it("accepts a Vue VNode by its __v_isVNode marker", () => {
-    expect(isVNodeLoose({ __v_isVNode: true, type: "div" })).toBe(true);
-  });
-
   it("accepts a React element by its $$typeof marker", () => {
     expect(isVNodeLoose({ $$typeof: Symbol.for("react.element"), type: "div" })).toBe(true);
   });
@@ -51,7 +47,9 @@ describe("isVNodeLoose()", () => {
   it.each([
     ["plain object", {}],
     ["object with an unknown type", { type: "component" }],
-    ["object whose __v_isVNode is not true", { __v_isVNode: 1 }],
+    ["Vue VNode, whose __v_isVNode marker is a plain boolean", { __v_isVNode: true, type: "div" }],
+    ["object shaped like an element node", { type: "element", tag: "b", props: {}, children: [] }],
+    ["object whose $$typeof is not a symbol", { $$typeof: "react.element", type: "div" }],
     ["array", [createTextNode("hi")]],
     ["null", null],
     ["undefined", undefined],

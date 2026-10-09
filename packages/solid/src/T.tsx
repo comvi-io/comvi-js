@@ -14,7 +14,7 @@ import { useI18nContextValue } from "./context";
 // would register tag syntax AMBIENTLY, so every app rendering `<T>` would also
 // start parsing `<tag>` markup in plain string-API `t()`. `prepareTranslation`
 // passes the tag extension per call, so the ambient switch stays the app's own.
-import { prepareTranslation, type PendingHandler } from "@comvi/core/rich-text";
+import { isVirtualNode, prepareTranslation, type PendingHandler } from "@comvi/core/rich-text";
 import type {
   TranslationParams,
   VirtualNode,
@@ -66,6 +66,13 @@ function renderNode(
   markerHandlers: MarkerHandlers,
   reportTagError: ReportTagError,
 ): JSX.Element {
+  // Not a node the library built, so it is data and renders as text. A param
+  // is whatever the app was handed, and an object parsed from JSON can be
+  // shaped like a node; it cannot carry core's brand.
+  if (!isVirtualNode(node)) {
+    return String(node);
+  }
+
   if (node.type === "text") {
     return <>{node.text}</>;
   }

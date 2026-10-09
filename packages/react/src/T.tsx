@@ -256,18 +256,28 @@ const TComponent = function T({
     pendingByMarker.set(pending.marker, pending);
   }
 
+  // What is neither a node the library built nor one of React's own is DATA,
+  // and renders as text. React marks its nodes with a symbol `$$typeof` for the
+  // same reason core brands its own: an object parsed from JSON cannot have it.
+  const inert = (value: unknown): React.ReactNode =>
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { $$typeof?: unknown }).$$typeof !== "symbol"
+      ? String(value)
+      : (value as React.ReactNode);
+
   // Children can hold raw React nodes at runtime (`<bold>{name}</bold>` with
   // `name={<em/>}`), so non-VirtualNode values must survive the conversion.
   const convertChildren = (childResult: unknown): React.ReactNode[] => {
     if (!Array.isArray(childResult)) {
-      return childResult == null ? [] : [childResult as React.ReactNode];
+      return childResult == null ? [] : [inert(childResult)];
     }
 
     return childResult.map((child, index) => {
       if (isVirtualNode(child)) {
         return convertNode(child, index);
       }
-      return child as React.ReactNode;
+      return inert(child);
     });
   };
 
@@ -345,9 +355,7 @@ const TComponent = function T({
         if (isVirtualNode(item)) {
           return convertNode(item, index);
         }
-        return (
-          <React.Fragment key={`${keyString}-${index}`}>{item as React.ReactNode}</React.Fragment>
-        );
+        return <React.Fragment key={`${keyString}-${index}`}>{inert(item)}</React.Fragment>;
       })}
     </>
   );

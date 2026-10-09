@@ -9,6 +9,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h, defineComponent, markRaw } from "vue";
+import { createFragment, createTextNode } from "@comvi/core/rich-text";
 import { createI18n } from "../src/createI18n";
 import type { AnyVueI18n } from "../src/VueI18n";
 import { T } from "../src/components/T";
@@ -213,19 +214,19 @@ describe("<T /> VirtualNode conversion", () => {
     );
 
   it("renders the text of a text node a tag callback returns", () => {
-    const wrapper = withCallback(() => ({ type: "text", text: "replaced" }));
+    const wrapper = withCallback(() => createTextNode("replaced"));
 
     expect(wrapper.text()).toBe("[replaced]");
   });
 
   it("renders a fragment node whose children arrived as one string", () => {
-    const wrapper = withCallback(() => ({ type: "fragment", children: "replaced" }));
+    const wrapper = withCallback(() => createFragment("replaced" as never));
 
     expect(wrapper.text()).toBe("[replaced]");
   });
 
   it("renders nothing for a fragment node whose children arrived as an empty string", () => {
-    const wrapper = withCallback(() => ({ type: "fragment", children: "" }));
+    const wrapper = withCallback(() => createFragment("" as never));
 
     expect(wrapper.text()).toBe("[]");
   });

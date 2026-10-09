@@ -6,6 +6,7 @@ import { createI18n } from "../src/index";
 import type { ComponentMap } from "../src/types";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import type { TagCallbackParams, TranslationResult } from "@comvi/core";
+import { createElement, createFragment, createTextNode } from "@comvi/core/rich-text";
 import { flushMicrotasks, renderSolid } from "./test-utils";
 
 describe("T.tsx", () => {
@@ -252,11 +253,8 @@ describe("T.tsx", () => {
   it("renders text and fragment virtual nodes", () => {
     fake.tImplementation = () =>
       [
-        { type: "text", text: "Hello" },
-        {
-          type: "fragment",
-          children: [" ", { type: "element", tag: "strong", props: {}, children: ["World"] }],
-        },
+        createTextNode("Hello"),
+        createFragment([" ", createElement("strong", {}, ["World"])]),
       ] as unknown as TranslationResult;
 
     renderWithProvider(() => <T i18nKey={"msg" as never} />);

@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { I18n } from "../helpers/composedInstance";
-import type { VirtualNode } from "../helpers/composedInstance";
+import { createElement } from "../helpers/composedInstance";
+import { createTextNode } from "../../src/virtualNode";
 
-const NODE: VirtualNode = { type: "element", tag: "strong", props: {}, children: ["Bold"] };
-const NODES = [
-  { type: "text", text: "One" },
-  { type: "text", text: "Two" },
-] as VirtualNode[];
+const NODE = createElement("strong", {}, ["Bold"]);
+const NODES = [createTextNode("One"), createTextNode("Two")];
 
 describe("tRaw() with node params", () => {
   let i18n: I18n;
@@ -67,7 +65,7 @@ describe("tRaw() with node params", () => {
   });
 
   it("supports virtual nodes inside plural options", () => {
-    const vNode: VirtualNode = { type: "element", tag: "span", props: {}, children: ["5"] };
+    const vNode = createElement("span", {}, ["5"]);
 
     i18n.addMessages({
       en: {
@@ -81,7 +79,7 @@ describe("tRaw() with node params", () => {
     expect(i18n.t("plural", { count: 5, badge: vNode })).toBe("Count: 5");
   });
 
-  it("treats Vue-style VNodes as node values for interpolation", () => {
+  it("treats a Vue-style VNode as data, since nothing about it is unforgeable", () => {
     const vueVNode = { __v_isVNode: true, type: "span", children: ["Vue"] };
 
     i18n.addMessages({
@@ -90,7 +88,7 @@ describe("tRaw() with node params", () => {
 
     const result = i18n.tRaw("text", { node: vueVNode as any });
 
-    expect(result).toEqual(["This is ", vueVNode, " text"]);
+    expect(result).toBe("This is [object Object] text");
   });
 
   it("treats React-style elements as node values for interpolation", () => {

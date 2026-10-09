@@ -7,6 +7,7 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { createElement, createFragment, createTextNode } from "@comvi/core/rich-text";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 import type { TranslationResult } from "../src/index";
@@ -37,24 +38,17 @@ describe("useI18n() — t() text flattening", () => {
   it.each([
     {
       shape: "a nested element node",
-      raw: [
-        {
-          type: "element",
-          tag: "p",
-          props: {},
-          children: [{ type: "element", tag: "b", props: {}, children: ["deep"] }, " tail"],
-        },
-      ],
+      raw: [createElement("p", {}, [createElement("b", {}, ["deep"]), " tail"])],
       text: "deep tail",
     },
     {
       shape: "a text node",
-      raw: [{ type: "text", text: "world" }],
+      raw: [createTextNode("world")],
       text: "world",
     },
     {
       shape: "a fragment node",
-      raw: [{ type: "fragment", children: ["frag", { type: "text", text: "ment" }] }],
+      raw: [createFragment(["frag", createTextNode("ment")])],
       text: "fragment",
     },
     {
@@ -64,7 +58,7 @@ describe("useI18n() — t() text flattening", () => {
     },
     {
       shape: "an element wrapping a virtual node",
-      raw: [element({ type: "element", tag: "b", props: {}, children: ["deep"] })],
+      raw: [element(createElement("b", {}, ["deep"]))],
       text: "deep",
     },
     {

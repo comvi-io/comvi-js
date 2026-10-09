@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import React from "react";
+import { createElement } from "@comvi/core";
 import type { TranslationParams, TranslationResult } from "../src";
 
 const { mockUseI18n } = vi.hoisted(() => ({
@@ -49,11 +50,7 @@ describe("<T />", () => {
 
   it("renders VirtualNode arrays as React elements", () => {
     const t = vi.fn(
-      () =>
-        [
-          "Hello ",
-          { type: "element", tag: "strong", props: {}, children: ["World"] },
-        ] as unknown as TranslationResult,
+      () => ["Hello ", createElement("strong", {}, ["World"])] as unknown as TranslationResult,
     );
     mockUseI18n.mockReturnValue(createHookStub({ t }));
 
