@@ -164,27 +164,32 @@ export async function sessionStatus(tabId = TAB) {
   )) as { active: boolean; pending: boolean; comviDetected?: boolean; version?: string };
 }
 
-/**
- * Resolve with the response, or NO_RESPONSE if the channel is never answered.
- * No wall clock: fake timers take over and everything that is due now (the
- * promise chains plus any zero-delay timers) runs to completion; a reply that
- * would need real time to pass is, by construction, no reply.
- */
 export const NO_RESPONSE = Symbol("no response");
-export async function responseWithin(pending: Promise<unknown>): Promise<unknown> {
-  let answered = false;
-  let response: unknown;
-  void pending.then((value) => {
-    answered = true;
-    response = value;
-  });
+
+/**
+ * Start a message exchange and report its response, or NO_RESPONSE if the
+ * channel is never answered. Fake timers are installed before `start` runs,
+ * so no timer it creates can depend on the wall clock; everything due now
+ * then runs to completion. A rejected exchange rejects here too.
+ */
+export async function responseWithin(start: () => Promise<unknown>): Promise<unknown> {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
   try {
+    let outcome: { answered: true; value: unknown } | { failed: true; error: unknown } | undefined;
+    start().then(
+      (value) => {
+        outcome = { answered: true, value };
+      },
+      (error: unknown) => {
+        outcome = { failed: true, error };
+      },
+    );
     await vi.advanceTimersByTimeAsync(0);
+    if (outcome && "failed" in outcome) throw outcome.error;
+    return outcome ? outcome.value : NO_RESPONSE;
   } finally {
     vi.useRealTimers();
   }
-  return answered ? response : NO_RESPONSE;
 }
 
 /**

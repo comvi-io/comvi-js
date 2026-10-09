@@ -82,7 +82,10 @@ const server = createServer((req, res) => {
     apiLog.length = 0;
     nextProjectDelayMs = 0;
     holdNextProject = false;
-    releaseHeldProject?.();
+    // Detach before invoking, so the release cannot observe itself as held.
+    const release = releaseHeldProject;
+    releaseHeldProject = null;
+    release?.();
     heldProjectsDelivered = 0;
     nextLocalesResponseBytes = 0;
     return send(res, 200, { ok: true });

@@ -36,7 +36,10 @@ function newestSourceMtime(): number {
   };
   walk(resolve(PACKAGE_DIR, "src"));
   walk(resolve(PACKAGE_DIR, "public"));
-  return Math.max(...files.filter(existsSync).map((file) => statSync(file).mtimeMs));
+  // A missing input means this list or the build changed; never skip it silently.
+  const missing = files.filter((file) => !existsSync(file));
+  if (missing.length > 0) throw new Error(`Build inputs not found: ${missing.join(", ")}`);
+  return Math.max(...files.map((file) => statSync(file).mtimeMs));
 }
 
 const distIsFresh = hasDist && statSync(BUILT_MANIFEST).mtimeMs >= newestSourceMtime();
@@ -52,7 +55,7 @@ const read = (name: string) => readFileSync(resolve(DIST, name), "utf8");
 describe.skipIf(!runSuite)(
   skipReason && !runSuite ? `built artifacts (skipped: ${skipReason})` : "built artifacts",
   () => {
-    it("dist/ was built from the current sources", () => {
+    it("dist/manifest.json is not older than any build input", () => {
       expect(skipReason, "rebuild before checking the release artifacts").toBeUndefined();
     });
 
@@ -103,6 +106,11 @@ describe.skipIf(!runSuite)(
         expect(code, bundle).not.toMatch(/^export[\s{]/m);
       },
     );
+
+    // Gate E builds record START_SESSION outcomes for race specs; release must not.
+    it("worker bundle carries no Gate E test hook", () => {
+      expect(read("background.js")).not.toContain("__gateE");
+    });
 
     it("editor bundle contains no API-key configuration channel", () => {
       const editor = read("editor.iife.js");

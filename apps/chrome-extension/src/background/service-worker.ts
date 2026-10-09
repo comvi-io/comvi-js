@@ -122,6 +122,20 @@ function whenServiceWorkerReady<T>(operation: () => Promise<T>): Promise<T> {
   return initialization.then(operation);
 }
 
+/**
+ * Gate E builds only (`vite build --mode gate-e`): keep every settled
+ * START_SESSION outcome on the worker global, so a race spec can wait for the
+ * terminal result of an attempt whose popup is already closed. The mode is
+ * replaced at build time, so release builds carry no such record.
+ */
+function recordStartSessionOutcome(outcome: { ok: boolean; error?: string }): void {
+  if (import.meta.env.MODE !== "gate-e") return;
+  const holder = globalThis as typeof globalThis & {
+    __gateEStartSessionOutcomes?: Array<{ ok: boolean; error?: string }>;
+  };
+  (holder.__gateEStartSessionOutcomes ??= []).push({ ok: outcome.ok, error: outcome.error });
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message
     ? error.message
@@ -252,7 +266,18 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     // inside each handler (sender.tab must be absent).
     case "START_SESSION":
       return respondAsync(
-        () => startSession(message.payload, sender, (leaseId) => popupLeases.has(leaseId)),
+        async () => {
+          try {
+            const outcome = await startSession(message.payload, sender, (leaseId) =>
+              popupLeases.has(leaseId),
+            );
+            recordStartSessionOutcome(outcome);
+            return outcome;
+          } catch (error) {
+            recordStartSessionOutcome({ ok: false, error: errorMessage(error) });
+            throw error;
+          }
+        },
         sendResponse,
         (error) => ({ ok: false, error }),
       );

@@ -20,17 +20,23 @@ describe("storage failures at the response boundary", () => {
   const storageError = new Error("storage unavailable");
 
   it("reports an answered channel as its response", async () => {
-    await expect(responseWithin(Promise.resolve("answered"))).resolves.toBe("answered");
+    await expect(responseWithin(() => Promise.resolve("answered"))).resolves.toBe("answered");
+  });
+
+  it("passes on a rejected exchange instead of reporting it as unanswered", async () => {
+    await expect(responseWithin(() => Promise.reject(new Error("channel broke")))).rejects.toThrow(
+      "channel broke",
+    );
   });
 
   it("reports a channel that is never answered as no response", async () => {
-    await expect(responseWithin(new Promise(() => {}))).resolves.toBe(NO_RESPONSE);
+    await expect(responseWithin(() => new Promise(() => {}))).resolves.toBe(NO_RESPONSE);
   });
 
   it("answers START_SESSION and rolls the pending record back when the key cannot be saved", async () => {
     vi.spyOn(harness.chrome.storage.local, "set").mockRejectedValue(storageError);
 
-    const response = await responseWithin(startSession());
+    const response = await responseWithin(() => startSession());
 
     expect(response).toEqual({ ok: false, error: "Could not save the API key. Try again." });
     expect(harness.chrome.storage.session.snapshot()).not.toHaveProperty(`comvi_session_${TAB}`);
@@ -40,7 +46,7 @@ describe("storage failures at the response boundary", () => {
     await openActiveSession();
     vi.spyOn(harness.chrome.storage.session, "remove").mockRejectedValue(storageError);
 
-    const response = await responseWithin(
+    const response = await responseWithin(() =>
       harness.dispatchMessage({ type: "END_SESSION", payload: { tabId: TAB } }, popupSender),
     );
 
@@ -51,7 +57,7 @@ describe("storage failures at the response boundary", () => {
     const started = await startSession();
     vi.spyOn(harness.chrome.storage.session, "get").mockRejectedValue(storageError);
 
-    const response = await responseWithin(
+    const response = await responseWithin(() =>
       harness.dispatchMessage(
         { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
         popupSender,
@@ -65,7 +71,7 @@ describe("storage failures at the response boundary", () => {
     await openActiveSession();
     vi.spyOn(harness.chrome.storage.local, "get").mockRejectedValue(storageError);
 
-    const response = await responseWithin(
+    const response = await responseWithin(() =>
       harness.dispatchMessage(
         { type: "FORGET_CREDENTIALS", payload: { origin: ORIGIN } },
         popupSender,
@@ -78,7 +84,7 @@ describe("storage failures at the response boundary", () => {
   it("answers GET_SESSION_STATUS with a failure the popup can tell from inactive", async () => {
     vi.spyOn(harness.chrome.storage.session, "get").mockRejectedValue(storageError);
 
-    const response = await responseWithin(
+    const response = await responseWithin(() =>
       harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
     );
 
@@ -94,7 +100,7 @@ describe("storage failures at the response boundary", () => {
     const before = fetchMock.mock.calls.length;
     vi.spyOn(harness.chrome.storage.session, "get").mockRejectedValue(storageError);
 
-    const response = await responseWithin(proxyRequest({ id: "storage-down" }));
+    const response = await responseWithin(() => proxyRequest({ id: "storage-down" }));
 
     expect(response).toEqual({
       id: "storage-down",
@@ -117,10 +123,13 @@ describe("storage failures at the response boundary", () => {
 
   it("retries a failed initialization on the next message", async () => {
     await openActiveSession();
+    expect(harness.chrome.storage.session.snapshot()[`comvi_session_${TAB}`]).toMatchObject({
+      status: "active",
+    });
     vi.spyOn(harness.chrome.storage.local, "get").mockRejectedValueOnce(storageError);
-    await initializeServiceWorkerState().catch(() => undefined);
+    await expect(initializeServiceWorkerState()).rejects.toThrow("storage unavailable");
 
-    const response = await responseWithin(
+    const response = await responseWithin(() =>
       harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
     );
 
