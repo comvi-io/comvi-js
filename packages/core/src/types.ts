@@ -650,7 +650,12 @@ export interface I18nBaseOptions {
    * are the same catalog: every instance flattens on ingestion.
    */
   messages?: MessagesMap;
-  /** Tried in order when a key is missing in the active locale. */
+  /**
+   * Tried in order when a key is missing in the active locale, or present
+   * there as an empty string. With a loader composed, every load of a locale's
+   * namespaces also loads them for these locales; a fallback catalog that
+   * fails to load is reported and does not fail the operation.
+   */
   fallbackLocale?: string | readonly string[];
   /** Applied to every translation result. */
   postProcess?: PostProcessFn;

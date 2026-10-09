@@ -334,7 +334,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     const failures: Array<{ loc: string; reason: unknown }> = [];
     await Promise.all(
       localesToReload.map((loc) =>
-        this._loadNs(loc, namespacesToReload, false).catch((reason) => {
+        this._loadLocale(loc, namespacesToReload, false).catch((reason) => {
           failures.push({ loc, reason });
         }),
       ),
@@ -411,8 +411,29 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     return namespaces.filter((ns) => !this.messagesCache.has(locale, ns));
   }
 
-  /** @internal `_loadNs` hook — load the given namespaces for one locale. */
-  protected async _loadNs(
+  /**
+   * @internal `_loadNs` hook — load the given namespaces for `locale` and for
+   * every locale of its fallback chain.
+   *
+   * The chain is only worth configuring if its catalogs are there to answer:
+   * `fallbackLocale` with a loader used to be a lookup rule over catalogs
+   * nobody had fetched, so a key missing from the active locale rendered as
+   * the key. A fallback catalog is a safety net, though, never a requirement:
+   * its failure is reported like any load error and does not fail the
+   * operation, and a catalog already in the cache is not requested again.
+   */
+  protected _loadNs(locale: string, namespaces: string[], skipLoaded: boolean): Promise<void> {
+    return Promise.all([
+      this._loadLocale(locale, namespaces, skipLoaded),
+      ...this._fallbackLocales.map(
+        (fallback) =>
+          fallback === locale || this._loadLocale(fallback, namespaces, true).catch(() => {}),
+      ),
+    ]) as Promise<unknown> as Promise<void>;
+  }
+
+  /** Load the given namespaces for one locale. */
+  protected async _loadLocale(
     locale: string,
     namespaces: string[],
     skipLoaded: boolean,

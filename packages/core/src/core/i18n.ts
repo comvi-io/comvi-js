@@ -915,45 +915,38 @@ export class I18n<D extends DefaultTranslationParams = {}>
       params?.tagInterpolation,
     );
 
-    const template = this._template(locale, namespace, translationKey);
+    // An EMPTY string is a value nobody has written yet — what a translation
+    // platform publishes for an untranslated key — so the chain is walked past
+    // it. It still outranks a missing key: when no locale has text, the first
+    // empty value found is the answer and the key is not reported missing.
+    let template = this._template(locale, namespace, translationKey);
+    let templateLocale = locale;
+    for (let i = 0; !template && i < fallbackLocales.length; i++) {
+      const fallbackTemplate = this._template(fallbackLocales[i], namespace, translationKey);
+      if (fallbackTemplate || template === undefined) {
+        template = fallbackTemplate;
+        templateLocale = fallbackLocales[i];
+      }
+    }
+
     if (template !== undefined) {
       const result = translate(
         template,
-        locale,
+        templateLocale,
         params,
         tagInterpolation,
         this._compiler,
         this._missingParam,
       );
       // The compile that just ran may have rendered an ICU segment literally.
-      // Read-and-clear here, where the key/namespace/locale telemetry exists.
+      // Read-and-clear here, where the key/namespace/locale telemetry exists,
+      // with the locale that actually compiled.
       if (!IS_DEV && icuHit !== undefined) {
-        this._reportIcuLiteral(translationKey, namespace, locale);
+        this._reportIcuLiteral(translationKey, namespace, templateLocale);
       }
       return skipPostProcess
         ? result
         : this._postProcess(result, translationKey, namespace, params);
-    }
-
-    for (const fallbackLoc of fallbackLocales) {
-      const fallbackTemplate = this._template(fallbackLoc, namespace, translationKey);
-      if (fallbackTemplate !== undefined) {
-        const result = translate(
-          fallbackTemplate,
-          fallbackLoc,
-          params,
-          tagInterpolation,
-          this._compiler,
-          this._missingParam,
-        );
-        // Same read-and-clear, with the locale that actually compiled.
-        if (!IS_DEV && icuHit !== undefined) {
-          this._reportIcuLiteral(translationKey, namespace, fallbackLoc);
-        }
-        return skipPostProcess
-          ? result
-          : this._postProcess(result, translationKey, namespace, params);
-      }
     }
 
     const missingResult = this._handleMissingTranslation(
