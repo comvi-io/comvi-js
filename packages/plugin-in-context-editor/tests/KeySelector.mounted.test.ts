@@ -110,3 +110,35 @@ describe("key selector previews", () => {
     expect(otherRuntime).not.toHaveBeenCalled();
   });
 });
+
+describe("key selector teardown", () => {
+  it("closed before its listeners were installed → no document listener is left behind", () => {
+    vi.useFakeTimers();
+    initApiConfig(undefined, "core-1");
+    // Net document listeners, applied in call order: a removal that runs
+    // before the matching add does not cancel it.
+    const attached: Array<{ type: string; listener: unknown }> = [];
+    vi.spyOn(document, "addEventListener").mockImplementation(((
+      type: string,
+      listener: unknown,
+    ) => {
+      attached.push({ type, listener });
+    }) as typeof document.addEventListener);
+    vi.spyOn(document, "removeEventListener").mockImplementation(((
+      type: string,
+      listener: unknown,
+    ) => {
+      const index = attached.findIndex(
+        (entry) => entry.type === type && entry.listener === listener,
+      );
+      if (index !== -1) attached.splice(index, 1);
+    }) as typeof document.removeEventListener);
+    const element = elementAt({ top: 100, right: 300, bottom: 140, left: 200 });
+    showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
+
+    closeKeySelector();
+    vi.runAllTimers();
+
+    expect(attached.map((entry) => entry.type)).toEqual([]);
+  });
+});

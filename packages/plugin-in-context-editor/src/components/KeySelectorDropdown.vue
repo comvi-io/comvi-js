@@ -92,14 +92,19 @@ const handleEscape = (event: KeyboardEvent) => {
   }
 };
 
+// Deferred so the click that opened the selector does not close it at once.
+let listenTimer: ReturnType<typeof setTimeout> | undefined;
+
 onMounted(() => {
-  setTimeout(() => {
+  listenTimer = setTimeout(() => {
+    listenTimer = undefined;
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
   }, 0);
 });
 
 onUnmounted(() => {
+  clearTimeout(listenTimer);
   document.removeEventListener("mousedown", handleClickOutside);
   document.removeEventListener("keydown", handleEscape);
 });
