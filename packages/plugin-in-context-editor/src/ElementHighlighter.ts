@@ -9,6 +9,7 @@ import {
   DEFAULT_HIGHLIGHT_BORDER_COLOR,
   DEFAULT_HIGHLIGHT_BACKGROUND_COLOR,
 } from "./config/highlight";
+import { EDITOR_UI_ATTRIBUTE } from "./constants";
 import type { EventBus } from "./EventBus";
 import type { ElementData } from "./types/translation";
 
@@ -252,6 +253,7 @@ export class ElementHighlighter {
 
   private createHighlightOverlay(): HTMLDivElement {
     const overlay = document.createElement("div");
+    overlay.setAttribute(EDITOR_UI_ATTRIBUTE, "");
     overlay.style.position = "absolute";
     overlay.style.border = `${this.highlightStyle.borderWidth}px solid ${this.highlightStyle.borderColor}`;
     overlay.style.pointerEvents = "none";
@@ -269,6 +271,7 @@ export class ElementHighlighter {
     if (!keys || keys.length === 0) return null;
 
     const tooltip = document.createElement("div");
+    tooltip.setAttribute(EDITOR_UI_ATTRIBUTE, "");
     tooltip.textContent = keys.length === 1 ? keys[0] : `${keys[0]} (+${keys.length - 1})`;
     tooltip.style.position = "absolute";
     tooltip.style.backgroundColor = "#0E0D0C";

@@ -4,12 +4,20 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DOMWatcher } from "../src/DOMWatcher";
+import { ElementHighlighter } from "../src/ElementHighlighter";
 import { EventBus } from "../src/EventBus";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { TranslationScanner } from "../src/TranslationScanner";
 import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE, TAG_ATTRIBUTES } from "../src/constants";
 import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
-import { cleanupDOM, flushDOMMutations } from "./helpers";
+import {
+  cleanupDOM,
+  flushDOMMutations,
+  getActiveOverlay,
+  mockBoundingClientRect,
+  simulateKeyEvent,
+  simulateMouseEvent,
+} from "./helpers";
 
 const PRISTINE_ATTACH_SHADOW = Element.prototype.attachShadow;
 
@@ -27,15 +35,16 @@ describe("DOM pipeline", () => {
     return paragraph;
   }
 
-  function startPipeline(targetElement: Node): {
-    registry: TranslationRegistry;
-    eventBus: EventBus;
-  } {
+  function startPipeline(
+    targetElement: Node,
+    beforeStart: (eventBus: EventBus) => void = () => {},
+  ): { registry: TranslationRegistry; eventBus: EventBus } {
     const eventBus = new EventBus();
     const registry = new TranslationRegistry(eventBus);
     const options = { targetElement, tagAttributes: TAG_ATTRIBUTES };
     const scanner = new TranslationScanner(eventBus, registry, options);
     const watcher = new DOMWatcher(eventBus, options);
+    beforeStart(eventBus);
     watcher.start();
     stops.push(() => {
       watcher.stop();
@@ -162,6 +171,66 @@ describe("DOM pipeline", () => {
       await flushDOMMutations();
 
       expect(registry.has(markedChild)).toBe(false);
+    });
+  });
+
+  describe("work done per mutation", () => {
+    function recordRegistryEvents(eventBus: EventBus): string[] {
+      const events: string[] = [];
+      for (const name of [
+        "translationRegistered",
+        "translationUpdated",
+        "translationRemoved",
+      ] as const) {
+        eventBus.on(name, () => events.push(name));
+      }
+      return events;
+    }
+
+    it("unrelated element appended next to translated content → no registry event", async () => {
+      container.appendChild(markedParagraph("Hello", "hello"));
+      const { eventBus } = startPipeline(container);
+      const events = recordRegistryEvents(eventBus);
+
+      container.appendChild(document.createElement("div"));
+      await flushDOMMutations();
+
+      expect(events).toEqual([]);
+    });
+
+    it("translated text rewritten with identical content → no registry event", async () => {
+      const paragraph = markedParagraph("Hello", "hello");
+      container.appendChild(paragraph);
+      const { eventBus } = startPipeline(container);
+      const events = recordRegistryEvents(eventBus);
+      const text = paragraph.firstChild!;
+
+      text.nodeValue = `${text.nodeValue}`;
+      await flushDOMMutations();
+
+      expect(events).toEqual([]);
+    });
+
+    it("Alt-hover inserts the highlight overlay → no structure rescan", async () => {
+      const paragraph = markedParagraph("Hello", "hello");
+      mockBoundingClientRect(paragraph, { top: 0, left: 0, width: 100, height: 30 });
+      container.appendChild(paragraph);
+      const { eventBus } = startPipeline(document, (bus) => {
+        const highlighter = new ElementHighlighter(bus, () => {});
+        stops.push(() => highlighter.cleanup());
+      });
+      await flushDOMMutations();
+      const rescans: Node[][] = [];
+      eventBus.on("structureChanges", (nodes: Node[]) => rescans.push(nodes));
+
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(paragraph, "mouseover");
+      await flushDOMMutations();
+
+      expect({ overlayShown: getActiveOverlay() !== null, rescans }).toEqual({
+        overlayShown: true,
+        rescans: [],
+      });
     });
   });
 });

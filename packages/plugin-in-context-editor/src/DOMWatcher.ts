@@ -6,7 +6,7 @@
 import type { TranslationSystemInnerOptions } from "./types";
 import { EventBus } from "./EventBus";
 import { collectAllDescendantNodes } from "./utils/domHelpers";
-import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "./constants";
+import { EDITOR_UI_ATTRIBUTE, EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "./constants";
 
 type ShadowRootAttachedListener = (host: Element, shadowRoot: ShadowRoot) => void;
 
@@ -169,6 +169,15 @@ export class DOMWatcher {
     return element.hasAttribute(EDITOR_UI_SHADOW_HOST_ATTRIBUTE);
   }
 
+  /** The editor's own overlay, tooltip and UI hosts: never scanned, never cleaned up. */
+  private isEditorOwnedNode(node: Node): boolean {
+    return (
+      node.nodeType === Node.ELEMENT_NODE &&
+      ((node as Element).hasAttribute(EDITOR_UI_ATTRIBUTE) ||
+        this.isEditorUiShadowHost(node as Element))
+    );
+  }
+
   /**
    * Whether `node` is attached under the target right now, walking up through
    * the hosts of shadow roots. Editor UI shadow trees are outside the scope.
@@ -308,14 +317,20 @@ export class DOMWatcher {
     newlyObservedRoots: Set<Node>,
   ): void {
     if (mutation.type === "childList") {
-      structureChanges.add(mutation.target);
-
+      // Only the added subtrees are scanned, not the parent: a node appended to
+      // <body> must not rescan the whole page.
       mutation.addedNodes.forEach((node) => {
+        if (this.isEditorOwnedNode(node)) {
+          return;
+        }
         structureChanges.add(node);
         this.observeShadowRootsInSubtree(node, newlyObservedRoots);
       });
 
       mutation.removedNodes.forEach((node) => {
+        if (this.isEditorOwnedNode(node)) {
+          return;
+        }
         removedNodes.add(node);
         this.unobserveRootsInRemovedSubtree(node);
         const descendants = collectAllDescendantNodes(node);

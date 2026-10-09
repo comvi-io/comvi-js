@@ -6,6 +6,10 @@ import { isNodeContainedIn, isAttributeAffectedByNodes } from "./utils/domHelper
 
 export type { ElementData, NodeData };
 
+function isSameNodeData(a: NodeData, b: NodeData): boolean {
+  return a.key === b.key && a.ns === b.ns && a.textPreview === b.textPreview;
+}
+
 export class TranslationRegistry {
   private elements: Map<Element, ElementData> = new Map();
 
@@ -37,7 +41,7 @@ export class TranslationRegistry {
     }
   }
 
-  /** Merges `data`'s nodes into any already tracked for the element.
+  /** Merges `data`'s nodes into any already tracked for the element; emits only on a change.
    * @throws {Error} If the element is null or undefined.
    */
   public addOrUpdate(element: Element, data: ElementData): void {
@@ -47,10 +51,17 @@ export class TranslationRegistry {
 
     if (this.elements.has(element)) {
       const existingData = this.elements.get(element)!;
+      let changed = false;
       data.nodes.forEach((value, key) => {
-        existingData.nodes.set(key, value);
+        const existing = existingData.nodes.get(key);
+        if (!existing || !isSameNodeData(existing, value)) {
+          existingData.nodes.set(key, value);
+          changed = true;
+        }
       });
-      this.eventBus.emit("translationUpdated", element, existingData);
+      if (changed) {
+        this.eventBus.emit("translationUpdated", element, existingData);
+      }
     } else {
       this.add(element, data);
     }
