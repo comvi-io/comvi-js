@@ -295,6 +295,10 @@ export function activate(options: ActivateOptions): ActivateResult | null {
       }
       refreshRenderedTranslations(i18n);
     });
+  } else {
+    // Only the API fetch is optional: text rendered before the processor was
+    // registered still needs the re-render that marks it.
+    refreshRenderedTranslations(i18n);
   }
 
   return {

@@ -213,6 +213,15 @@ describe("activate() translation refresh", () => {
     expect(fetchApiTranslationsMock).not.toHaveBeenCalled();
   });
 
+  it("refreshMessages false → still re-adds the page's own catalog so rendered text gets marked", () => {
+    const i18n = makeI18n();
+    const addMessages = vi.spyOn(i18n, "addMessages");
+
+    activate({ apiKey: "test-key", refreshMessages: false });
+
+    expect(addedCatalogs(addMessages)).toEqual([{ "en:default": { hello: "Hello" } }]);
+  });
+
   it("performs the API round trip when refreshMessages is explicitly true", async () => {
     makeI18n();
     fetchApiTranslationsMock.mockResolvedValue(new Map());
@@ -273,6 +282,9 @@ describe("activate() translation refresh", () => {
     const first = activate({ apiKey: "test-key" });
     first?.stop();
     activate({ apiKey: "test-key", refreshMessages: false });
+    // The newer runtime's own local re-add is not the stale refresh's doing.
+    addMessages.mockClear();
+
     inFlight.resolve(new Map());
     await settleRefresh();
 
