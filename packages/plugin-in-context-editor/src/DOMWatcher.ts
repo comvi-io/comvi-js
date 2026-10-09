@@ -179,7 +179,7 @@ export class DOMWatcher {
   }
 
   /**
-   * Whether `node` is attached under the target right now, walking up through
+   * Whether `node` is attached under the target, walking up through
    * the hosts of shadow roots. Editor UI shadow trees are outside the scope.
    */
   private isNodeWithinTargetScope(node: Node): boolean {
