@@ -22,7 +22,7 @@
     "gate-e:serve": "node gate-e/mock-api-server.mjs",
     "test:e2e": "pnpm gate-e:build && playwright test",
     "test:system:platform": "pnpm gate-e:build:system && playwright test --config playwright.system.config.ts",
-    "zip": "pnpm build && cd dist && zip -r ../comvi-extension.zip ."
+    "zip": "pnpm build && COMVI_EXPECT_API_ORIGIN=https://api.comvi.io vitest run src/__tests__/artifacts.test.ts && cd dist && zip -r ../comvi-extension.zip ."
   },
   "devDependencies": {
     "@comvi/plugin-in-context-editor": "workspace:*",

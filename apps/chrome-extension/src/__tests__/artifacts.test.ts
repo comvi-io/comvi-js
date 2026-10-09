@@ -34,6 +34,16 @@ describe.skipIf(!hasDist && !process.env.CI)("built artifacts", () => {
     expect(manifest.host_permissions[0]).toMatch(/^https:\/\/[^*]+\/\*$/);
   });
 
+  // `pnpm zip` sets this, so a release package can only carry the production
+  // API origin (no test page origin, whatever the build environment was).
+  it.runIf(Boolean(process.env.COMVI_EXPECT_API_ORIGIN))(
+    "manifest grants only the expected release API origin",
+    () => {
+      const manifest = JSON.parse(read("manifest.json"));
+      expect(manifest.host_permissions).toEqual([`${process.env.COMVI_EXPECT_API_ORIGIN}/*`]);
+    },
+  );
+
   it("manifest requests only the expected permissions", () => {
     const manifest = JSON.parse(read("manifest.json"));
     expect([...manifest.permissions].sort()).toEqual(["activeTab", "scripting", "storage"]);
