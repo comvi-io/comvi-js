@@ -1272,17 +1272,35 @@ describe("DOCUMENT_READY", () => {
   });
 });
 
-/** Resolve with the response, or NO_RESPONSE if the channel is never answered. */
+/**
+ * Resolve with the response, or NO_RESPONSE if the channel is never answered.
+ * The watchdog is cleared either way, so no timer outlives the test.
+ */
 const NO_RESPONSE = Symbol("no response");
-function responseWithin(pending: Promise<unknown>, ms = 250): Promise<unknown> {
-  return Promise.race([
-    pending,
-    new Promise((resolve) => setTimeout(() => resolve(NO_RESPONSE), ms)),
-  ]);
+async function responseWithin(pending: Promise<unknown>, ms = 250): Promise<unknown> {
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      pending,
+      new Promise((resolve) => {
+        watchdog = setTimeout(() => resolve(NO_RESPONSE), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(watchdog);
+  }
 }
 
 describe("storage failures at the response boundary", () => {
   const storageError = new Error("storage unavailable");
+
+  it("leaves no watchdog timer behind once a response arrives", async () => {
+    vi.useFakeTimers();
+
+    await expect(responseWithin(Promise.resolve("answered"))).resolves.toBe("answered");
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
 
   it("answers START_SESSION and rolls the pending record back when the key cannot be saved", async () => {
     vi.spyOn(harness.chrome.storage.local, "set").mockRejectedValue(storageError);
