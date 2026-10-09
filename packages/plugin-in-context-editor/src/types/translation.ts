@@ -5,6 +5,12 @@ export interface NodeData {
   key: string;
   ns: string;
   textPreview?: string; // Visible text preview (invisible chars stripped)
+  /**
+   * Set only when the node carries more than one distinct key: every
+   * (ns, key) in document order, each with the visible text in front of it.
+   * `key`, `ns` and `textPreview` repeat the first entry.
+   */
+  markers?: Array<KeyInfo & { textPreview?: string }>;
 }
 
 export interface ElementData {

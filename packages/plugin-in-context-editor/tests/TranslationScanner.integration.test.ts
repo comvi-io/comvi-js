@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { TranslationScanner } from "../src/TranslationScanner";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { EventBus } from "../src/EventBus";
-import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
+import {
+  encodeKeyToInvisible,
+  loadKeyMappings,
+  registerKey,
+  resetEncoder,
+} from "../src/translation";
 import { TAG_ATTRIBUTES } from "../src/constants";
 import { INVALID_DATA } from "./fixtures";
 import { cleanupDOM } from "./helpers";
@@ -597,5 +602,91 @@ describe("TranslationScanner", () => {
         expect(map.has(div)).toBe(false);
       },
     );
+  });
+
+  describe("several markers in one node", () => {
+    function marker(key: string, ns?: string): string {
+      return encodeKeyToInvisible(registerKey(key, ns));
+    }
+
+    it("one text node rendering two translations → both keys tracked, each with its own preview", () => {
+      const p = document.createElement("p");
+      const text = document.createTextNode(
+        `Hello${marker("hello")} Bye${marker("bye", "farewells")}`,
+      );
+      p.appendChild(text);
+
+      eventBus.emit("structureChanges", [p]);
+
+      expect(map.get(p)?.nodes.get(text)).toEqual({
+        key: "hello",
+        ns: "default",
+        textPreview: "Hello",
+        markers: [
+          { key: "hello", ns: "default", textPreview: "Hello" },
+          { key: "bye", ns: "farewells", textPreview: "Bye" },
+        ],
+      });
+    });
+
+    it("one attribute composed from two translations → both keys tracked", () => {
+      const input = document.createElement("input");
+      input.setAttribute("title", `Save${marker("save")} or cancel${marker("cancel")}`);
+
+      eventBus.emit("structureChanges", [input]);
+
+      expect(map.get(input)?.nodes.get(input.getAttributeNode("title")!)?.markers).toEqual([
+        { key: "save", ns: "default", textPreview: "Save" },
+        { key: "cancel", ns: "default", textPreview: "or cancel" },
+      ]);
+    });
+
+    it("the same key twice in one text node → tracked once, without a marker list", () => {
+      const p = document.createElement("p");
+      const text = document.createTextNode(`A${marker("same")} B${marker("same")}`);
+      p.appendChild(text);
+
+      eventBus.emit("structureChanges", [p]);
+
+      expect(map.get(p)?.nodes.get(text)).toEqual({
+        key: "same",
+        ns: "default",
+        textPreview: "A B",
+      });
+    });
+
+    it("a marker split across adjacent text nodes → tracked on the node where it starts", () => {
+      const encoded = marker("hello");
+      const p = document.createElement("p");
+      const head = document.createTextNode(`Hello${encoded.slice(0, 3)}`);
+      const tail = document.createTextNode(encoded.slice(3));
+      p.append(head, tail);
+
+      eventBus.emit("structureChanges", [p]);
+
+      expect(registeredKeys(p)).toEqual([{ key: "hello", ns: "default" }]);
+    });
+
+    it("a lone marker fragment → nothing tracked", () => {
+      const encoded = marker("hello");
+      const p = document.createElement("p");
+      p.append(document.createElement("br"), document.createTextNode(`${encoded.slice(3)}tail`));
+
+      eventBus.emit("structureChanges", [p]);
+
+      expect(map.has(p)).toBe(false);
+    });
+
+    it("a stray fragment in front of a whole marker → no key decoded from the misaligned run", () => {
+      // The first 8 characters of the run are the stray fragment plus the head
+      // of `second`'s marker; they spell the id `victim` is registered under.
+      loadKeyMappings({ "default:second": 1, "default:victim": 387500 });
+      const p = document.createElement("p");
+      p.appendChild(document.createTextNode(`x\u2064\u2064\u2064${encodeKeyToInvisible(1)}`));
+
+      eventBus.emit("structureChanges", [p]);
+
+      expect(map.has(p)).toBe(false);
+    });
   });
 });

@@ -454,6 +454,34 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateKeyEvent("keyup", "Alt");
     });
 
+    it("one text node carrying two keys → the tooltip counts both", () => {
+      const button = document.createElement("button");
+      mockBoundingClientRect(button, { top: 50, left: 10, width: 100, height: 30 });
+      document.body.appendChild(button);
+      const text = document.createTextNode("HelloBye");
+      button.appendChild(text);
+      eventBus.emit("translationRegistered", button, {
+        nodes: new Map([
+          [
+            text,
+            {
+              key: "hello",
+              ns: "common",
+              markers: [
+                { key: "hello", ns: "common" },
+                { key: "bye", ns: "common" },
+              ],
+            },
+          ],
+        ]),
+      });
+
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
+
+      expect(getActiveTooltip()!.textContent).toBe("hello (common) (+1)");
+    });
+
     it("should show count for multiple keys on same element", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 50, left: 10, width: 100, height: 30 });

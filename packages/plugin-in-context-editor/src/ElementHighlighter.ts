@@ -117,9 +117,11 @@ export class ElementHighlighter {
   private updateElementKeys(element: Element, data: ElementData): void {
     const keys: string[] = [];
     for (const nodeData of data.nodes.values()) {
-      const label = this.formatKeyLabel(nodeData.key, nodeData.ns);
-      if (!keys.includes(label)) {
-        keys.push(label);
+      for (const { key, ns } of nodeData.markers ?? [nodeData]) {
+        const label = this.formatKeyLabel(key, ns);
+        if (!keys.includes(label)) {
+          keys.push(label);
+        }
       }
     }
     this.elementKeyMap.set(element, keys);

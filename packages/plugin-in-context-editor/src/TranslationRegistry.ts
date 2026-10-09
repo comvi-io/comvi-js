@@ -7,7 +7,12 @@ import { isNodeContainedIn, isAttributeAffectedByNodes } from "./utils/domHelper
 export type { ElementData, NodeData };
 
 function isSameNodeData(a: NodeData, b: NodeData): boolean {
-  return a.key === b.key && a.ns === b.ns && a.textPreview === b.textPreview;
+  return (
+    a.key === b.key &&
+    a.ns === b.ns &&
+    a.textPreview === b.textPreview &&
+    JSON.stringify(a.markers) === JSON.stringify(b.markers)
+  );
 }
 
 export class TranslationRegistry {
