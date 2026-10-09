@@ -424,7 +424,7 @@ describe("translationService", () => {
     expect(result?.description).toBe("Main heading on the homepage");
   });
 
-  it("should handle missing description field gracefully", async () => {
+  it("key response without a description → description is undefined", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(mockOkResponse(makeKeyResponse({ key: "home.title" })));
 
     const result = await getTranslation("home.title", "default");

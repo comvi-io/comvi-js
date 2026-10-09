@@ -29,7 +29,7 @@ describe("icuParser", () => {
       expect(result).toEqual({ variable: "count", forms: { other: "Hello world" } });
     });
 
-    it("should handle all plural forms", () => {
+    it("plural with all six CLDR categories → every form is parsed under its category", () => {
       const icu =
         "{n, plural, zero {none} one {single} two {pair} few {several} many {lots} other {items}}";
       const result = parseICUPlural(icu);
@@ -144,7 +144,7 @@ describe("icuParser", () => {
       });
     });
 
-    it("should handle select with placeholders inside", () => {
+    it("select whose forms contain {placeholders} → the placeholders are kept verbatim", () => {
       const icu =
         "{f, select, formal {Sie haben {count} Nachrichten} informal {Du hast {count} Nachrichten}}";
       const result = parseICUSelect(icu);
@@ -173,7 +173,7 @@ describe("icuParser", () => {
       expect(result.forms).toEqual({ other: "Hello world" });
     });
 
-    it("should handle empty select forms", () => {
+    it("select with an empty form → that form parses to an empty string", () => {
       const icu = "{status, select, active {} inactive {Not active}}";
       const result = parseICUSelect(icu);
 
@@ -242,7 +242,7 @@ describe("icuParser", () => {
       expect(result).toBe("{formality, select, formal {Sie} informal {Du}}");
     });
 
-    it("should handle single option", () => {
+    it('only an "other" form → a one-option select', () => {
       const forms = { other: "Default text" };
       const result = generateICUSelect(forms, "type");
 
@@ -348,7 +348,7 @@ describe("icuParser", () => {
       );
     });
 
-    it("should handle missing forms gracefully", () => {
+    it("combined select/plural with missing forms → every missing cell is emitted empty", () => {
       const forms = { "formal:one": "Text" };
 
       const result = generateICUCombined(forms, "f", "n", ["formal", "informal"], ["one", "other"]);

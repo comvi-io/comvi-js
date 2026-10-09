@@ -77,7 +77,7 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
-    it("should handle stop when not started", () => {
+    it("stop() before start() → does not throw", () => {
       expect(() => {
         domWatcher.stop();
       }).not.toThrow();
@@ -357,7 +357,7 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
   });
 
   describe("Complex mutation scenarios", () => {
-    it("should handle rapid successive mutations", async () => {
+    it("ten paragraphs appended in one tick → every one is reported in structureChanges", async () => {
       const structureChanges: Node[] = [];
       eventBus.on("structureChanges", (nodes: Node[]) => {
         structureChanges.push(...nodes);
@@ -377,7 +377,7 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       expect(structureChanges).toEqual(expect.arrayContaining(paragraphs));
     });
 
-    it("should handle mixed mutation types", async () => {
+    it("text, attribute and child changes in one tick → textChanges, attributeChanges and structureChanges are all emitted", async () => {
       const p = document.createElement("p");
       const textNode = document.createTextNode("initial");
       p.appendChild(textNode);
@@ -402,7 +402,7 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       expect(new Set(events)).toEqual(new Set(["text", "attr", "structure"]));
     });
 
-    it("should handle innerHTML changes", async () => {
+    it("innerHTML replaced → the new div and span are reported in structureChanges", async () => {
       const callback = vi.fn();
       eventBus.on("structureChanges", callback);
 

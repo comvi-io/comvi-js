@@ -163,7 +163,7 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe("Translation");
     });
 
-    it("should handle empty string with markers: false", () => {
+    it("empty string with markers: false → returned unchanged", () => {
       const postProcessor = createInvisibleCharPostProcessor();
       const params: TranslationParams = { markers: false };
 
@@ -172,7 +172,7 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe("");
     });
 
-    it("should handle empty array with markers: false", () => {
+    it("empty array with markers: false → returned unchanged", () => {
       const postProcessor = createInvisibleCharPostProcessor();
       const params: TranslationParams = { markers: false };
 
@@ -183,7 +183,7 @@ describe("createInvisibleCharPostProcessor()", () => {
   });
 
   describe("empty results", () => {
-    it("should handle empty string with markers left on", () => {
+    it("empty string with markers left on → becomes just the key's marker", () => {
       const postProcessor = createInvisibleCharPostProcessor();
 
       const result = postProcessor("", "empty", "default", {});
@@ -191,7 +191,7 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe(ENCODED_ID_1);
     });
 
-    it("should handle empty array with markers left on", () => {
+    it("empty array with markers left on → becomes an array holding just the key's marker", () => {
       const postProcessor = createInvisibleCharPostProcessor();
 
       const result = postProcessor([], "empty", "default", {});

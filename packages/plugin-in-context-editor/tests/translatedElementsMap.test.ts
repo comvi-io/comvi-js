@@ -90,7 +90,7 @@ describe("TranslationRegistry", () => {
       }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
-    it("should handle multiple different elements", () => {
+    it("three different elements added → all three are tracked", () => {
       const div = document.createElement("div");
       const span = document.createElement("span");
       const p = document.createElement("p");
@@ -167,7 +167,7 @@ describe("TranslationRegistry", () => {
       expect(onTranslationRemoved).toHaveBeenCalledWith(element);
     });
 
-    it("should handle removing non-existent element", () => {
+    it("remove() of an untracked element → nothing changes and no removal is announced", () => {
       const element = document.createElement("div");
       map.remove(element);
 
@@ -523,7 +523,7 @@ describe("TranslationRegistry", () => {
       expect(map.has(element)).toBe(false);
     });
 
-    it("should handle node contained within removed node", () => {
+    it("removed parent contains a tracked element's only node → that element is dropped and announced", () => {
       const parent = document.createElement("div");
       const child = document.createElement("span");
       const textNode = document.createTextNode("text");
@@ -544,7 +544,7 @@ describe("TranslationRegistry", () => {
       expect(onTranslationRemoved).toHaveBeenCalledWith(child);
     });
 
-    it("should handle attribute whose owner element was removed", () => {
+    it("tracked attribute's owner element removed → the element is dropped", () => {
       const element = document.createElement("div");
       const attr = document.createAttribute("title");
       element.setAttributeNode(attr);
@@ -559,7 +559,7 @@ describe("TranslationRegistry", () => {
       expect(map.has(element)).toBe(false);
     });
 
-    it("should handle empty removedNodes set", () => {
+    it("cleanupRemovedNodes() with an empty set → tracked elements stay", () => {
       const element = document.createElement("div");
       map.add(element, {
         nodes: new Map<Node | Attr, NodeData>([
@@ -573,7 +573,7 @@ describe("TranslationRegistry", () => {
       expect(map.has(element)).toBe(true);
     });
 
-    it("should handle multiple elements and nodes", () => {
+    it("one node of a two-node element and all of another element removed → the first keeps its other node, the second is dropped", () => {
       const div = document.createElement("div");
       const span = document.createElement("span");
       const textNode1 = document.createTextNode("text1");
@@ -662,7 +662,7 @@ describe("TranslationRegistry", () => {
   });
 
   describe("Complex scenarios", () => {
-    it("should handle element with multiple translation nodes", () => {
+    it("element tracked with a text node and two attributes → all three nodes are kept with their keys", () => {
       const element = document.createElement("button");
       const textNode = document.createTextNode("Click me");
       const ariaAttr = document.createAttribute("aria-label");

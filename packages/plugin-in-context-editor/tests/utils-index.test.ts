@@ -57,7 +57,7 @@ describe("getNearestElementNode()", () => {
     expect(result).toBe(parent);
   });
 
-  it("should handle multiple levels of nesting", () => {
+  it("text node four elements deep → its parent <em> is the nearest element", () => {
     const level1 = document.createElement("div");
     const level2 = document.createElement("span");
     const level3 = document.createElement("strong");
@@ -74,7 +74,7 @@ describe("getNearestElementNode()", () => {
     expect(result).toBe(level4);
   });
 
-  it("should handle comment nodes", () => {
+  it("comment node → its parent element is the nearest element", () => {
     const parent = document.createElement("div");
     const comment = document.createComment("Comment");
     parent.appendChild(comment);
@@ -84,7 +84,7 @@ describe("getNearestElementNode()", () => {
     expect(result).toBe(parent);
   });
 
-  it("should handle SVG elements", () => {
+  it("SVG element → is its own nearest element", () => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     svg.appendChild(circle);
@@ -100,7 +100,7 @@ describe("getNearestElementNode()", () => {
     expect(result).toBeNull();
   });
 
-  it("should handle DocumentFragment", () => {
+  it("text node directly in a DocumentFragment → no nearest element (null)", () => {
     const fragment = document.createDocumentFragment();
     const textNode = document.createTextNode("Fragment text");
     fragment.appendChild(textNode);
@@ -160,7 +160,7 @@ describe("findCorrespondingNode()", () => {
     expect(result).toBe(optgroup);
   });
 
-  it("should handle case insensitivity for node names", () => {
+  it("<OPTION> created upper-case → its <SELECT> is found", () => {
     const select = document.createElement("SELECT");
     const option = document.createElement("OPTION");
     select.appendChild(option);

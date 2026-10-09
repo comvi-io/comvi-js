@@ -69,7 +69,7 @@ describe("useToast", () => {
     expect(toasts.value[0]!.title).toBe("Second");
   });
 
-  it("should handle removing non-existent toast gracefully", () => {
+  it("removeToast() with an unknown id → the existing toast stays", () => {
     const { toasts, addToast, removeToast } = createToastManager();
     addToast({ title: "Only", variant: "success" });
 

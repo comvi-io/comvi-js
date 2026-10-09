@@ -134,7 +134,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(getActiveOverlay()).not.toBeNull();
     });
 
-    it("should handle Alt+click using mouse event altKey when keydown is missed", () => {
+    it("Alt+click whose Alt keydown was never seen → the click handler still gets the element", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
       document.body.appendChild(button);
@@ -209,7 +209,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
   });
 
   describe("Mouseover/mouseout behavior", () => {
-    it("should handle mouseover on highlighted element with Alt pressed", () => {
+    it("Alt held, mouseover a highlighted element → the overlay is drawn at the element's top-left", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 100, left: 100, width: 100, height: 30 });
       document.body.appendChild(button);
@@ -267,7 +267,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateKeyEvent("keyup", "Alt");
     });
 
-    it("should handle multiple cleanup calls safely", () => {
+    it("cleanup() called three times → does not throw", () => {
       expect(() => {
         highlighter.cleanup();
         highlighter.cleanup();
@@ -341,7 +341,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
   });
 
   describe("Multiple elements", () => {
-    it("should handle multiple highlighted elements", () => {
+    it("Alt+click on two of three highlighted elements → the handler gets exactly those two, in order", () => {
       const elements = Array.from({ length: 3 }, (_, i) => {
         const div = document.createElement("div");
         div.textContent = `Element ${i}`;
@@ -565,7 +565,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
   });
 
   describe("Shadow DOM interaction", () => {
-    it("should handle Alt+click on highlighted elements inside open shadow roots", () => {
+    it("Alt+click on a highlighted element inside an open shadow root → the handler gets that element", () => {
       const host = document.createElement("div");
       const shadowRoot = host.attachShadow({ mode: "open" });
       const button = document.createElement("button");

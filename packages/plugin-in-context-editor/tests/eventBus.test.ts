@@ -103,7 +103,7 @@ describe("EventBus", () => {
       expect(callback).toHaveBeenCalledWith(arg1, arg2, arg3);
     });
 
-    it("should handle no arguments", () => {
+    it("emit() with no payload → the listener is called with no arguments", () => {
       const callback = vi.fn();
       eventBus.on("test-event", callback);
 
@@ -112,7 +112,7 @@ describe("EventBus", () => {
       expect(callback).toHaveBeenCalledWith();
     });
 
-    it("should handle complex data types", () => {
+    it("emit() with a nested Map/array payload → the listener receives that same object", () => {
       const callback = vi.fn();
       eventBus.on("test-event", callback);
 
@@ -171,7 +171,7 @@ describe("EventBus", () => {
       expect(callback2).toHaveBeenCalledTimes(1);
     });
 
-    it("should handle multiple unsubscribes safely", () => {
+    it("unsubscribe called twice → the listener stays detached", () => {
       const callback = vi.fn();
       const unsubscribe = eventBus.on("test-event", callback);
 
@@ -182,7 +182,7 @@ describe("EventBus", () => {
       expect(callback).not.toHaveBeenCalled();
     });
 
-    it("should handle unsubscribe from non-existent event", () => {
+    it("unsubscribe after removeAllListeners(event) → the listener stays detached", () => {
       const callback = vi.fn();
       const unsubscribe = eventBus.on("test-event", callback);
 
@@ -309,7 +309,7 @@ describe("EventBus", () => {
       );
     });
 
-    it("should handle errors in multiple callbacks", () => {
+    it("two listeners throw → every listener still runs and each error is logged", () => {
       const callback1 = vi.fn(() => {
         throw new Error("Error 1");
       });
@@ -334,7 +334,7 @@ describe("EventBus", () => {
   });
 
   describe("event isolation", () => {
-    it("should handle similar event names separately", () => {
+    it('emit("test") → a listener on "test-event" is not called', () => {
       const callback1 = vi.fn();
       const callback2 = vi.fn();
 
