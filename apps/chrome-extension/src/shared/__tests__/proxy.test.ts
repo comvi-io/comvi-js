@@ -26,7 +26,8 @@ const CTX: ProxySessionContext = {
 const TELEMETRY_CTX: ProxySessionContext = { ...CTX, collectContext: true };
 
 /** Documented bounds, restated so a changed constant fails a test rather than drifting silently. */
-const MAX_PATH_LENGTH = 2048;
+/** Fits the longest key path: 255 + 768 decoded units at 9 encoded characters each. */
+const MAX_PATH_LENGTH = "/v1/keys/".length + (255 + 768) * 9 + "/".length;
 const MAX_ID_LENGTH = 128;
 const MAX_PARAM_LENGTH = 512;
 const MAX_KEY_LENGTH = 768;
@@ -351,17 +352,20 @@ describe("proxy contract — request envelope", () => {
     expectRejected({ path }, "Missing or invalid path");
   });
 
-  it("accepts a path of exactly the 2048-character limit", () => {
-    const path = translationsPathOfLength(MAX_PATH_LENGTH);
-    expect(path).toHaveLength(MAX_PATH_LENGTH);
-    expectOk({ path });
+  // The longest manageable key path: three-byte characters encode to 9 each.
+  const longestKeyPath = `/v1/keys/${encodeURIComponent("名".repeat(MAX_NAMESPACE_LENGTH))}/${encodeURIComponent("ア".repeat(MAX_KEY_LENGTH))}`;
+
+  it("accepts the longest key path, which is exactly the path limit", () => {
+    expect(longestKeyPath).toHaveLength(MAX_PATH_LENGTH);
+    expectOk({ path: longestKeyPath });
   });
 
   it("rejects a path one character past the limit", () => {
-    expectRejected(
-      { path: translationsPathOfLength(MAX_PATH_LENGTH + 1) },
-      "Missing or invalid path",
-    );
+    expectRejected({ path: `${longestKeyPath}x` }, "Missing or invalid path");
+  });
+
+  it("still accepts a long translations path", () => {
+    expectOk({ path: translationsPathOfLength(2048) });
   });
 
   it("rejects a method that is not a string", () => {
@@ -480,15 +484,37 @@ describe("proxy contract — route and method rejection", () => {
     },
   );
 
-  it("accepts a path parameter of exactly the 512-character limit", () => {
-    expectOk({ path: `/v1/keys/common/${"k".repeat(MAX_PARAM_LENGTH)}` });
+  // Path parameters share the save body's key/namespace domain, so whatever
+  // can be saved can be read back and deleted.
+  it("accepts a key parameter of exactly the save body's key limit", () => {
+    expectOk({ path: `/v1/keys/common/${"k".repeat(MAX_KEY_LENGTH)}` });
   });
 
-  it("rejects a path parameter one character past the limit", () => {
-    const key = "k".repeat(MAX_PARAM_LENGTH + 1);
+  it("rejects a key parameter one character past the save body's key limit", () => {
+    const key = "k".repeat(MAX_KEY_LENGTH + 1);
     expectRejected(
       { path: `/v1/keys/common/${key}` },
       `Not an allowed API call: GET /v1/keys/common/${key}`,
+    );
+  });
+
+  it("accepts a namespace parameter of exactly the save body's namespace limit", () => {
+    expectOk({ path: `/v1/keys/${"n".repeat(MAX_NAMESPACE_LENGTH)}/title` });
+  });
+
+  it("rejects a namespace parameter one character past the save body's namespace limit", () => {
+    const namespace = "n".repeat(MAX_NAMESPACE_LENGTH + 1);
+    expectRejected(
+      { path: `/v1/keys/${namespace}/title` },
+      `Not an allowed API call: GET /v1/keys/${namespace}/title`,
+    );
+  });
+
+  it("keeps the generic parameter cap for other parameters", () => {
+    const projectId = "1".repeat(MAX_PARAM_LENGTH + 1);
+    expectRejected(
+      { path: `/v1/projects/${projectId}/export` },
+      `Not an allowed API call: GET /v1/projects/${projectId}/export`,
     );
   });
 
