@@ -46,7 +46,7 @@ export default defineNuxtConfig({
 });
 ```
 
-```vue title="app.vue" check=group=nuxt-app
+```vue title="app/app.vue" check=group=nuxt-app
 <template>
   <NuxtPage />
 </template>
@@ -57,7 +57,7 @@ module writes `<html lang dir>` from the active locale on the server and on ever
 
 ## Use in components
 
-```vue title="pages/index.vue" check=group=nuxt-app
+```vue title="app/pages/index.vue" check=group=nuxt-app
 <script setup lang="ts">
 const { t, locale } = useI18n();
 </script>
