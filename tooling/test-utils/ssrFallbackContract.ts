@@ -20,8 +20,10 @@
  *   (the row's namespace activated during the render, as a page does), its
  *   payload and client hydration.
  *
- * Both fixtures also assert that hydration fetches nothing, and that `onError`
- * fires {@link SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD} times per `loadError`.
+ * Both fixtures also assert that hydration fetches nothing, and how often
+ * `onError` fires per `loadError`: {@link SSR_FALLBACK_ON_ERROR_PER_CORE_LOAD}
+ * for a pair core's own chain load attempted,
+ * {@link SSR_FALLBACK_ON_ERROR_PER_ADAPTER_LOAD} for one an adapter attempted.
  *
  * One table, two adapters: a row added here runs against both, and a row
  * cannot be "fixed" for one adapter while the other fails. This file is a
@@ -50,15 +52,34 @@ export const SSR_FALLBACK_CATALOGS: Readonly<Record<string, Readonly<Record<stri
 };
 
 /**
- * `onError` reports per failed catalog load, counted against `loadError`
- * events. It is 2, not 1, because of core and not the adapters: a single-pair
- * `reloadMessages(locale, ns)` that fails reports `E_ALL_NAMESPACES_FAILED`
- * from `_loadNs` and then `E_FAILED_RELOAD_TRANSLATIONS` from
- * `reloadMessages` itself (`packages/core/src/core/loader.ts`), and core
- * exposes no non-reporting single-pair load. Both adapters assert this ratio,
- * so the day core reports once, this constant is the one place to change.
+ * `onError` reports per failed catalog load an ADAPTER made, counted against
+ * `loadError` events. It is 2, not 1, because of core and not the adapters: a
+ * single-pair `reloadMessages(locale, ns)` that fails reports
+ * `E_ALL_NAMESPACES_FAILED` from `_loadLocale` and then
+ * `E_FAILED_RELOAD_TRANSLATIONS` from `reloadMessages` itself
+ * (`packages/core/src/core/loader.ts`), and core exposes no non-reporting
+ * single-pair load. The day core reports once there, this constant is the one
+ * place to change.
  */
-export const SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD = 2;
+export const SSR_FALLBACK_ON_ERROR_PER_ADAPTER_LOAD = 2;
+
+/**
+ * `onError` reports per failed catalog load CORE made itself. Core loads the
+ * instance's own locale and its fallback chain at `init()`, on a namespace
+ * activation and on a locale switch, and a pair that fails there never goes
+ * through `reloadMessages`: it reports `E_ALL_NAMESPACES_FAILED` once and that
+ * is all. The adapters do not attempt such a pair again in the same request,
+ * so one `loadError` and one report is the whole of it.
+ */
+export const SSR_FALLBACK_ON_ERROR_PER_CORE_LOAD = 1;
+
+/**
+ * The `onError` reports a row's `loadErrors` add up to. `adapterLoads` is how
+ * many of them the adapter made through `reloadMessages`; the rest are core's.
+ */
+export const ssrFallbackOnErrorReports = (loadErrors: number, adapterLoads: number): number =>
+  SSR_FALLBACK_ON_ERROR_PER_ADAPTER_LOAD * adapterLoads +
+  SSR_FALLBACK_ON_ERROR_PER_CORE_LOAD * (loadErrors - adapterLoads);
 
 export interface SsrFallbackRequest {
   /** The locale the request renders in. */
@@ -101,6 +122,17 @@ export interface SsrFallbackCase {
    * loader is asked for each failing pair exactly as often as it appears here.
    */
   loadErrors: readonly string[];
+  /**
+   * How many of `loadErrors` `@comvi/next` makes through its own loader
+   * rather than through core. Defaults to 0. Next's server instance is shared
+   * and stays on its default locale, so core's `init()` loads the default
+   * namespace for that locale and the fallback chain, and every other pair a
+   * request needs (another locale, another namespace) is next's own
+   * `reloadMessages`. `@comvi/nuxt` builds an instance per request on the request
+   * locale and activates a namespace through core, so there every failed load
+   * is core's.
+   */
+  nextAdapterLoadErrors?: number;
 }
 
 export const SSR_FALLBACK_CASES: readonly SsrFallbackCase[] = [
@@ -225,6 +257,22 @@ export const SSR_FALLBACK_CASES: readonly SsrFallbackCase[] = [
       },
     ],
     loadErrors: ["de:common"],
+  },
+  {
+    name: "a fallback catalog of a non-default namespace fails to load → reported, the render continues",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    ns: "admin",
+    failing: ["de:admin"],
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDeAdmin: "onlyDeAdmin", title: "Administration" },
+        clientCatalogs: ["fr:admin"],
+      },
+    ],
+    loadErrors: ["de:admin"],
+    nextAdapterLoadErrors: 1,
   },
   {
     name: "concurrent requests in different locales → no locale or catalog leaks",

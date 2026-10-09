@@ -22,7 +22,7 @@ function createI18nStub(initialLocale = "en") {
 
   const i18n: any = {
     // The wrapper's own host, reachable as `VueI18n.core`.
-    core: { id: "core-host" },
+    core: { id: "core-host", on: vi.fn(() => () => {}) },
     locale: ref(initialLocale),
     messagesCache: computed(() => new Map()),
     isLoading: ref(false),

@@ -141,14 +141,14 @@ export async function useTranslation(
 
   // The fallback chain too, whether or not the primary catalog was cached:
   // otherwise a key present only in a fallback catalog renders as the raw key.
-  // The instance is already on `resolvedLocale`, which the chain load leaves to the
-  // primary path, so the two run in parallel without touching the same pair.
-  await Promise.all([
-    i18n.hasLocale(resolvedLocale, namespace)
-      ? undefined
-      : loadMessagesForLocale(i18n, resolvedLocale, [namespace]),
-    loadCatalogs(i18n, [namespace]),
-  ]);
+  // In turn, not in parallel: the primary path activates the namespace, and
+  // core's activation loads the chain itself, so a chain reload racing it would
+  // cancel and refetch each pair. Run after it, `loadCatalogs` only fills in
+  // what the activation did not attempt (a primary that was already cached).
+  if (!i18n.hasLocale(resolvedLocale, namespace)) {
+    await loadMessagesForLocale(i18n, resolvedLocale, [namespace]);
+  }
+  await loadCatalogs(i18n, [namespace]);
 
   const t: ServerTranslationFunction = ((key: string, params?: TranslationParams) => {
     // `as never` because the key is a RUNTIME string: once an app generates

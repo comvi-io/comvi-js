@@ -9,7 +9,7 @@ import { watch } from "vue";
 import { createComviI18n } from "#build/comvi.i18n";
 import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
-import { loadCatalogs } from "./utils/load-catalogs";
+import { loadCatalogs, rememberFailedLoads } from "./utils/load-catalogs";
 import { useHtmlAttrs } from "./utils/html-attrs";
 import { hasLoaderApi } from "@comvi/core";
 import { REQUEST_HOSTS_KEY, type RequestScopedInstance } from "./request-hosts-key";
@@ -164,6 +164,8 @@ export default defineNuxtPlugin({
       throw error;
     }
 
+    if (import.meta.server) rememberFailedLoads(i18n.core);
+
     // Only after every plugin is registered.
     await i18n.init();
 
@@ -188,7 +190,10 @@ export default defineNuxtPlugin({
         chainLoadingInstances.add(core);
         const activate = core.addActiveNamespaces.bind(core);
         core.addActiveNamespaces = async (namespaces: string[]) => {
-          await Promise.all([activate(namespaces), loadCatalogs(core, namespaces)]);
+          // In turn, not in parallel: core's activation loads the chain
+          // itself, and a reload racing it would cancel and refetch each pair.
+          await activate(namespaces);
+          await loadCatalogs(core, namespaces);
         };
       }
     }

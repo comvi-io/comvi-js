@@ -20,6 +20,21 @@ const pendingLoads = new WeakMap<WrapperI18nInstance, Record<string, Promise<voi
 const failedLoads = new WeakMap<WrapperI18nInstance, Set<string>>();
 
 /**
+ * Start remembering the pairs that fail on an instance. Called before `init()`:
+ * core loads the instance's own locale and its fallback chain there, and on
+ * every activation and locale switch after it, so a catalog that fails in core
+ * has had its one attempt for the request and {@link loadCatalogs} must not
+ * request and report it again.
+ */
+export function rememberFailedLoads(i18n: WrapperI18nInstance): void {
+  if (!failedLoads.has(i18n)) {
+    const failed = new Set<string>();
+    failedLoads.set(i18n, failed);
+    i18n.on("loadError", ({ locale, namespace }) => failed.add(`${locale}:${namespace}`));
+  }
+}
+
+/**
  * Load `namespaces` (default: the active ones) for `locale` and every locale of
  * the instance's `fallbackLocale` chain, in core's lookup order, skipping every
  * pair already in the cache. Without `locale`, the fallback chain minus the
