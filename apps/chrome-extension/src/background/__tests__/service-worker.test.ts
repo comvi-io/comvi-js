@@ -1929,7 +1929,7 @@ describe("extension lifecycle", () => {
   });
 
   it("leaves badges alone for tabs that report no id", async () => {
-    harness.chrome.tabs.query.mockResolvedValue([{ url: PAGE_URL } as chrome.tabs.Tab]);
+    harness.chrome.tabs.query.mockResolvedValueOnce([{ url: PAGE_URL } as chrome.tabs.Tab]);
     harness.chrome.action.setIcon.mockClear();
 
     harness.fireInstalled("update");
