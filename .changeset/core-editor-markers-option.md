@@ -10,9 +10,10 @@
 **BREAKING (breaking change on a 0.x minor): the per-call `raw` option is renamed `markers`, with
 the polarity inverted.** `t('meta.title', { raw: true })` becomes `t('meta.title', { markers: false })`.
 Core never read the option; its one reader is the in-context editor, which appends invisible
-marker characters to every result so it can find the text on the page. `markers: false` keeps
-those characters out of this call's result, for text that lands in attributes, `<title>`, emails
-or JSON, and the new name says exactly that. Leaving it out, or passing `true`, keeps the markers
+marker characters to every result so it can find the text on the page. `markers: false` turns
+those characters off for this call, for when they cause a problem: a comparison or sort that sees
+extra characters, a width-sensitive layout, a canvas or library that counts characters. The new
+name says exactly that; nothing else reads it, and the string is then not editable in context. Leaving it out, or passing `true`, keeps the markers
 as before. `markers` stays a reserved call-control key: it is not an interpolation value, and
 `defaultParams` rejects it beside `locale`, `ns`, `fallback` and `tagInterpolation`.
 

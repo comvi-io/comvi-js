@@ -126,8 +126,10 @@ interface TBaseProps {
   /** Text shown when the translation is missing. Takes priority over children. */
   fallback?: string;
   /**
-   * `false` keeps the in-context editor's invisible markers out of this call's result; use it
-   * for text that lands in attributes, `<title>`, emails or JSON. Nothing else reads it.
+   * `false` turns the in-context editor's invisible markers off for this call. Use it when
+   * they cause a problem: a comparison or sort that sees extra characters, a width-sensitive
+   * layout, a canvas or library that counts characters. Nothing else reads it; the string
+   * is then not editable in context.
    */
   markers?: boolean;
   /** Tag-name → handler map for tag interpolation. */

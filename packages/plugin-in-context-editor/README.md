@@ -114,8 +114,10 @@ extension.
 
 `tagAttributes` replaces the built-in map, so `{ img: ['alt'] }` stops the scan of `aria-label`,
 `placeholder` and the rest; copy the default and spread it to add to the map. Pass `markers: false`
-to `t()` wherever invisible markers must not appear: attributes, document titles, `<meta>`
-content, emails, JSON, values you compare or hash. On `<T>` the equivalent is `markers={false}`.
+to `t()` to turn the invisible markers off for one call when they cause a problem: a comparison
+or sort that sees extra characters, a width-sensitive layout, a canvas or library that counts
+characters. That string is then not editable in context. On `<T>` the equivalent is
+`markers={false}`.
 
 ## Next steps
 
