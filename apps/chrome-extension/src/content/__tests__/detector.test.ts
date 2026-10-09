@@ -75,11 +75,10 @@ describe("MAIN-world detector transport contract", () => {
         detail: { apiBaseUrl: "https://api.comvi.io" },
       }),
     );
-    expect(transport).toBeDefined();
-
+    if (!transport) throw new Error("activation did not hand the editor a transport");
     const order: string[] = [];
     testWindow.addEventListener("comvi-extension:api-abort", () => order.push("abort"));
-    const request = transport!("/v1/project").catch((error) => {
+    const request = transport("/v1/project").catch((error) => {
       order.push("reject");
       throw error;
     });
@@ -154,17 +153,22 @@ describe("MAIN-world detector dual-protocol discovery", () => {
     expect(requestStatus()).toMatchObject({ detected: true, instanceCount: 2 });
   });
 
-  it("adopts a queue array installed by a late-loading new core via polling", async () => {
+  it("plants no global and reports nothing on a page without Comvi", async () => {
     await injectDetector(undefined);
 
+    const status = requestStatus();
+
+    expect(status).toMatchObject({ detected: false, instanceCount: 0 });
+    // No install-on-empty: a passive detector never plants a global.
+    expect(testWindow.__COMVI__).toBeUndefined();
+  });
+
+  it("adopts a queue array installed by a late-loading new core via polling", async () => {
+    await injectDetector(undefined);
     let detected: Record<string, any> | undefined;
     testWindow.addEventListener("comvi-extension:detected", ((event: CustomEvent) => {
       detected = event.detail;
     }) as EventListener);
-
-    expect(requestStatus()).toMatchObject({ detected: false, instanceCount: 0 });
-    // No install-on-empty: a passive detector never plants a global.
-    expect(testWindow.__COMVI__).toBeUndefined();
 
     testWindow.__COMVI__ = [{ v: "2.0.0", i: { instanceId: "late-1" } }];
     await vi.advanceTimersByTimeAsync(100);

@@ -107,11 +107,19 @@ describe("storage failures at the response boundary", () => {
     expect(fetchMock.mock.calls.length).toBe(before);
   });
 
+  it("reports a failed initialization to its caller", async () => {
+    vi.spyOn(harness.chrome.storage.local, "get").mockRejectedValueOnce(storageError);
+
+    const initialization = initializeServiceWorkerState();
+
+    await expect(initialization).rejects.toThrow("storage unavailable");
+  });
+
   it("retries a failed initialization on the next message", async () => {
     await openActiveSession();
     vi.spyOn(harness.chrome.storage.local, "get").mockRejectedValueOnce(storageError);
+    await initializeServiceWorkerState().catch(() => undefined);
 
-    await expect(initializeServiceWorkerState()).rejects.toThrow("storage unavailable");
     const response = await responseWithin(
       harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
     );

@@ -560,18 +560,34 @@ describe("MAIN-world detector adoption guards", () => {
     expect(notFound[0]).toMatchObject({ detected: false, instanceCount: 0 });
   });
 
-  it("clears the re-injection guard when installation cannot finish", async () => {
+  /** Make the page's addEventListener throw until `heal()` is called. */
+  function breakAddEventListener() {
     let hostile = true;
     const realAddEventListener = page.addEventListener.bind(page);
     page.addEventListener = ((type: string, listener: EventListener) => {
       if (hostile) throw new Error("page broke addEventListener");
       realAddEventListener(type, listener);
     }) as PageWindow["addEventListener"];
+    return {
+      heal() {
+        hostile = false;
+      },
+    };
+  }
 
-    await expect(injectDetector()).rejects.toThrow("page broke addEventListener");
+  it("clears the re-injection guard when installation cannot finish", async () => {
+    breakAddEventListener();
+
+    const injection = injectDetector();
+
+    await expect(injection).rejects.toThrow("page broke addEventListener");
     expect(page.__comviExtensionDetectorInstalled).toBe(false);
+  });
 
-    hostile = false;
+  it("installs on the next injection after a failed one", async () => {
+    const listeners = breakAddEventListener();
+    await injectDetector().catch(() => undefined);
+    listeners.heal();
     page.__COMVI__ = [{ v: "2.0.0", i: { instanceId: "after-retry" } }];
     const detected = recordEvents(page, "comvi-extension:detected");
 

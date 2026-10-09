@@ -20,21 +20,31 @@ import {
 } from "./service-worker.suite";
 
 describe("FORGET_CREDENTIALS", () => {
-  it("clears the credential and revokes every session for the origin", async () => {
+  it("clears the saved credential for the origin", async () => {
     await openActiveSession();
-    expect(Object.keys(harness.chrome.storage.local.snapshot())).not.toEqual([]);
 
-    const result = (await harness.dispatchMessage(
+    const result = await harness.dispatchMessage(
       { type: "FORGET_CREDENTIALS", payload: { origin: ORIGIN } },
       popupSender,
-    )) as { ok: boolean };
-    expect(result.ok).toBe(true);
+    );
 
-    expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
+    expect(result).toMatchObject({ ok: true });
     const credentials = harness.chrome.storage.local.snapshot()["comvi_credentials"] as
       | Record<string, unknown>
       | undefined;
     expect(credentials?.[ORIGIN]).toBeUndefined();
+  });
+
+  it("revokes the origin's session so the proxy refuses afterwards", async () => {
+    await openActiveSession();
+    await harness.dispatchMessage(
+      { type: "FORGET_CREDENTIALS", payload: { origin: ORIGIN } },
+      popupSender,
+    );
+
+    const result = await proxyRequest();
+
+    expect(result.networkError).toMatch(/No active editor session/);
   });
 
   it("is refused for content scripts", async () => {

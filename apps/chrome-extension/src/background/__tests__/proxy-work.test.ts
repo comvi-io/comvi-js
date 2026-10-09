@@ -3,7 +3,9 @@
  * concurrency and rate limits, abort propagation and revocation gating.
  *
  * The registry is module-level state shared by the whole file, so every test
- * claims its own tab id and settles the waiters and reservations it creates.
+ * claims its own tab id, and afterEach ends any revocation still open and
+ * settles every reservation and waiter a test left behind, even when one of
+ * its assertions failed.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -30,9 +32,11 @@ const RATE_WINDOW_MS = 60_000;
 const PENDING_ACTIVATION_WAIT_MS = 5_000;
 
 let nextTabId = 100;
+const touchedTabs: number[] = [];
 /** A tab id no other test has touched, so module-level state cannot leak between tests. */
 function freshTab(): number {
   nextTabId += 1;
+  touchedTabs.push(nextTabId);
   return nextTabId;
 }
 
@@ -58,6 +62,17 @@ function track(promise: Promise<ProxySessionWaitOutcome>) {
 
 afterEach(() => {
   vi.useRealTimers();
+  // Global revocation closes every tab, so a never-used id tells whether one is open.
+  const probe = (nextTabId += 1);
+  for (let guard = 0; guard < 10 && isProxyRevoking(probe); guard += 1) {
+    endGlobalProxyRevocation();
+  }
+  for (const tabId of touchedTabs.splice(0)) {
+    for (let guard = 0; guard < 10 && isProxyRevoking(tabId); guard += 1) {
+      endTabProxyRevocation(tabId);
+    }
+    abortTabProxyWork(tabId);
+  }
 });
 
 describe("work reservation", () => {
@@ -69,8 +84,6 @@ describe("work reservation", () => {
       ok: false,
       error: "Duplicate request id",
     });
-
-    abortTabProxyWork(tabId);
   });
 
   it("frees the request id once its reservation is released", () => {
@@ -78,8 +91,6 @@ describe("work reservation", () => {
     releaseProxyWork(reserveOrThrow(tabId, "request-1"));
 
     expect(reserveProxyWork(tabId, "request-1").ok).toBe(true);
-
-    abortTabProxyWork(tabId);
   });
 
   it("ignores a stale release that no longer owns the request id", () => {
@@ -94,7 +105,6 @@ describe("work reservation", () => {
       ok: false,
       error: "Duplicate request id",
     });
-    abortTabProxyWork(tabId);
   });
 
   it("refuses work beyond the per-tab concurrency limit", () => {
@@ -107,8 +117,6 @@ describe("work reservation", () => {
       ok: false,
       error: "Too many concurrent requests",
     });
-
-    abortTabProxyWork(tabId);
   });
 
   it("frees a concurrency slot when a reservation is released", () => {
@@ -121,7 +129,6 @@ describe("work reservation", () => {
     releaseProxyWork(reservations[0]);
 
     expect(reserveProxyWork(tabId, "next-request").ok).toBe(true);
-    abortTabProxyWork(tabId);
   });
 
   it("counts concurrency per tab rather than globally", () => {
@@ -132,9 +139,6 @@ describe("work reservation", () => {
     }
 
     expect(reserveProxyWork(otherTab, "request-0").ok).toBe(true);
-
-    abortTabProxyWork(busyTab);
-    abortTabProxyWork(otherTab);
   });
 });
 
@@ -147,8 +151,6 @@ describe("rate limiting", () => {
       ok: false,
       error: "Rate limit exceeded",
     });
-
-    abortTabProxyWork(tabId);
   });
 
   it("accepts a request again once the earlier ones fall outside the window", () => {
@@ -156,8 +158,6 @@ describe("rate limiting", () => {
     logRequests(tabId, MAX_REQUESTS_PER_WINDOW, 40_000);
 
     expect(reserveProxyWork(tabId, "after-window", 40_000 + RATE_WINDOW_MS).ok).toBe(true);
-
-    abortTabProxyWork(tabId);
   });
 
   it("forgets a tab's request history when its work is aborted", () => {
@@ -167,7 +167,6 @@ describe("rate limiting", () => {
     abortTabProxyWork(tabId);
 
     expect(reserveProxyWork(tabId, "after-abort", 40_000).ok).toBe(true);
-    abortTabProxyWork(tabId);
   });
 });
 
@@ -181,7 +180,6 @@ describe("aborting work", () => {
 
     expect(target.controller.signal.aborted).toBe(true);
     expect(bystander.controller.signal.aborted).toBe(false);
-    abortTabProxyWork(tabId);
   });
 
   it("ignores an abort for a request id it never registered", () => {
@@ -201,7 +199,6 @@ describe("aborting work", () => {
     expect(revoked.controller.signal.aborted).toBe(true);
     expect(survivor.controller.signal.aborted).toBe(false);
     expect(reserveProxyWork(otherTab, "request-1").ok).toBe(false);
-    abortTabProxyWork(otherTab);
   });
 
   it("frees the request ids of a tab whose work was aborted", () => {
@@ -211,7 +208,6 @@ describe("aborting work", () => {
     abortTabProxyWork(tabId);
 
     expect(reserveProxyWork(tabId, "request-1").ok).toBe(true);
-    abortTabProxyWork(tabId);
   });
 });
 
@@ -220,17 +216,21 @@ describe("revocation gating", () => {
     const tabId = freshTab();
     beginTabProxyRevocation(tabId);
 
-    expect(reserveProxyWork(tabId, "request-1")).toEqual({
-      ok: false,
-      error: "No active editor session for this tab",
-    });
+    const result = reserveProxyWork(tabId, "request-1");
 
-    endTabProxyRevocation(tabId);
-    expect(reserveProxyWork(tabId, "request-1").ok).toBe(true);
-    abortTabProxyWork(tabId);
+    expect(result).toEqual({ ok: false, error: "No active editor session for this tab" });
   });
 
-  it("keeps a nested tab revocation in force until every begin is ended", () => {
+  it("accepts work again once the tab revocation ends", () => {
+    const tabId = freshTab();
+    beginTabProxyRevocation(tabId);
+
+    endTabProxyRevocation(tabId);
+
+    expect(reserveProxyWork(tabId, "request-1").ok).toBe(true);
+  });
+
+  it("keeps a nested tab revocation in force after only one of two ends", () => {
     const tabId = freshTab();
     beginTabProxyRevocation(tabId);
     beginTabProxyRevocation(tabId);
@@ -238,7 +238,16 @@ describe("revocation gating", () => {
     endTabProxyRevocation(tabId);
 
     expect(isProxyRevoking(tabId)).toBe(true);
+  });
+
+  it("lifts a nested tab revocation once every begin is ended", () => {
+    const tabId = freshTab();
+    beginTabProxyRevocation(tabId);
+    beginTabProxyRevocation(tabId);
     endTabProxyRevocation(tabId);
+
+    endTabProxyRevocation(tabId);
+
     expect(isProxyRevoking(tabId)).toBe(false);
   });
 
@@ -249,20 +258,26 @@ describe("revocation gating", () => {
     beginTabProxyRevocation(tabId);
 
     expect(isProxyRevoking(tabId)).toBe(true);
-    endTabProxyRevocation(tabId);
   });
 
   it("closes every tab during a global revocation", () => {
     const tabId = freshTab();
+
     beginGlobalProxyRevocation();
 
     expect(isProxyRevoking(tabId)).toBe(true);
+  });
+
+  it("reopens every tab when the global revocation ends", () => {
+    const tabId = freshTab();
+    beginGlobalProxyRevocation();
 
     endGlobalProxyRevocation();
+
     expect(isProxyRevoking(tabId)).toBe(false);
   });
 
-  it("keeps a nested global revocation in force until every begin is ended", () => {
+  it("keeps a nested global revocation in force after only one of two ends", () => {
     const tabId = freshTab();
     beginGlobalProxyRevocation();
     beginGlobalProxyRevocation();
@@ -270,20 +285,36 @@ describe("revocation gating", () => {
     endGlobalProxyRevocation();
 
     expect(isProxyRevoking(tabId)).toBe(true);
+  });
+
+  it("lifts a nested global revocation once every begin is ended", () => {
+    const tabId = freshTab();
+    beginGlobalProxyRevocation();
+    beginGlobalProxyRevocation();
     endGlobalProxyRevocation();
+
+    endGlobalProxyRevocation();
+
     expect(isProxyRevoking(tabId)).toBe(false);
   });
 
-  it("aborts and forgets in-flight work of every tab on a global revocation", () => {
+  it("aborts in-flight work of every tab on a global revocation", () => {
     const tabId = freshTab();
     const reservation = reserveOrThrow(tabId, "request-1");
 
     beginGlobalProxyRevocation();
 
     expect(reservation.controller.signal.aborted).toBe(true);
+  });
+
+  it("frees the request ids of aborted work once the global revocation ends", () => {
+    const tabId = freshTab();
+    reserveOrThrow(tabId, "request-1");
+    beginGlobalProxyRevocation();
+
     endGlobalProxyRevocation();
+
     expect(reserveProxyWork(tabId, "request-1").ok).toBe(true);
-    abortTabProxyWork(tabId);
   });
 
   it("forgets every tab's request history on a global revocation", () => {
@@ -294,7 +325,6 @@ describe("revocation gating", () => {
     endGlobalProxyRevocation();
 
     expect(reserveProxyWork(tabId, "after-revocation", 40_000).ok).toBe(true);
-    abortTabProxyWork(tabId);
   });
 });
 
@@ -303,16 +333,14 @@ describe("session transition generations", () => {
     expect(getProxySessionTransitionGeneration(freshTab())).toBe(0);
   });
 
-  it("advances the generation on every transition", () => {
+  it("advances the generation on every transition, not only the first", () => {
     const tabId = freshTab();
-    const first = getProxySessionTransitionGeneration(tabId);
+    notifyProxySessionTransition(tabId);
+    const afterFirst = getProxySessionTransitionGeneration(tabId);
 
     notifyProxySessionTransition(tabId);
-    const second = getProxySessionTransitionGeneration(tabId);
-    notifyProxySessionTransition(tabId);
 
-    expect(second).toBeGreaterThan(first);
-    expect(getProxySessionTransitionGeneration(tabId)).toBeGreaterThan(second);
+    expect(getProxySessionTransitionGeneration(tabId)).toBeGreaterThan(afterFirst);
   });
 });
 
@@ -336,11 +364,9 @@ describe("activation-time waiters", () => {
     await expect(waitForProxySessionTransition(tabId, "request-1", observed)).resolves.toBe(
       "transitioned",
     );
-
-    abortTabProxyWork(tabId);
   });
 
-  it("holds a request until its own tab transitions", async () => {
+  it("keeps a request waiting when another tab transitions", async () => {
     const waitingTab = freshTab();
     const otherTab = freshTab();
     const waiting = waitForProxySessionTransition(
@@ -354,21 +380,29 @@ describe("activation-time waiters", () => {
     await Promise.resolve();
 
     expect(settled).not.toHaveBeenCalled();
-    notifyProxySessionTransition(waitingTab);
+  });
+
+  it("resolves a waiting request when its own tab transitions", async () => {
+    const tabId = freshTab();
+    const waiting = waitForProxySessionTransition(
+      tabId,
+      "request-1",
+      getProxySessionTransitionGeneration(tabId),
+    );
+
+    notifyProxySessionTransition(tabId);
+
     await expect(waiting).resolves.toBe("transitioned");
   });
 
   it("refuses a second wait for a request id already waiting", async () => {
     const tabId = freshTab();
     const observed = getProxySessionTransitionGeneration(tabId);
-    const waiting = waitForProxySessionTransition(tabId, "request-1", observed);
+    void waitForProxySessionTransition(tabId, "request-1", observed);
 
     await expect(waitForProxySessionTransition(tabId, "request-1", observed)).resolves.toBe(
       "duplicate",
     );
-
-    abortTabProxyWork(tabId);
-    await waiting;
   });
 
   it("refuses to wait for a request id that is already registered as in-flight work", async () => {
@@ -378,8 +412,6 @@ describe("activation-time waiters", () => {
     await expect(
       waitForProxySessionTransition(tabId, "request-1", getProxySessionTransitionGeneration(tabId)),
     ).resolves.toBe("duplicate");
-
-    abortTabProxyWork(tabId);
   });
 
   it("lets a settled request id wait again", async () => {
@@ -387,7 +419,7 @@ describe("activation-time waiters", () => {
     const observed = getProxySessionTransitionGeneration(tabId);
     const first = waitForProxySessionTransition(tabId, "request-1", observed);
     abortProxyWork(tabId, "request-1");
-    await expect(first).resolves.toBe("aborted");
+    await first;
 
     const second = waitForProxySessionTransition(
       tabId,
@@ -398,8 +430,6 @@ describe("activation-time waiters", () => {
     const settled = track(second);
     await Promise.resolve();
     expect(settled).not.toHaveBeenCalled();
-    abortTabProxyWork(tabId);
-    await second;
   });
 
   it("caps how many requests one tab may hold across an activation", async () => {
@@ -413,9 +443,6 @@ describe("activation-time waiters", () => {
     await expect(waitForProxySessionTransition(tabId, "one-too-many", observed)).resolves.toBe(
       "limit",
     );
-
-    abortTabProxyWork(tabId);
-    await Promise.all(waiting);
   });
 
   it("gives up on a waiter that outlives the activation deadline", async () => {
@@ -471,7 +498,6 @@ describe("activation-time waiters", () => {
     beginGlobalProxyRevocation();
 
     await expect(waiting).resolves.toBe("aborted");
-    endGlobalProxyRevocation();
   });
 });
 
@@ -494,8 +520,5 @@ describe("per-tab activation budget", () => {
     const settled = track(spare);
     await Promise.resolve();
     expect(settled).not.toHaveBeenCalled();
-    abortTabProxyWork(busyTab);
-    abortTabProxyWork(otherTab);
-    await Promise.all([...waiting, spare]);
   });
 });

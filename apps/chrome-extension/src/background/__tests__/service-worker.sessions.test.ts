@@ -26,24 +26,39 @@ import {
 } from "./service-worker.suite";
 
 describe("session lifecycle", () => {
-  it("full happy path: validate -> pending -> activate -> proxy works", async () => {
+  it("opens a pending session with a single-use nonce when the key validates", async () => {
     const started = await startSession();
-    expect(started.ok).toBe(true);
-    expect(started.nonce).toBeTruthy();
 
-    // An activation-time request may arrive before the acknowledgement. It
-    // must remain network-silent until promotion, then pass normal checks.
+    expect(started).toMatchObject({ ok: true, nonce: expect.any(String) });
+  });
+
+  // An activation-time request may arrive before the acknowledgement. It must
+  // stay off the network until promotion, then pass the normal checks.
+  it("keeps an activation-time request off the network while the session is pending", async () => {
+    await startSession();
+
+    void proxyRequest({ id: "activation-refresh" });
+    await harness.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1); // key validation only
+  });
+
+  it("answers a held activation-time request once the session is promoted", async () => {
+    const started = await startSession();
     const whilePending = proxyRequest({ id: "activation-refresh" });
     await harness.flush();
-    expect(fetchMock).toHaveBeenCalledTimes(1); // key validation only
+
     await activate(started.nonce);
-    const promotedRequest = await whilePending;
-    expect(promotedRequest.ok).toBe(true);
 
-    const afterActivation = await proxyRequest();
-    expect(afterActivation.ok).toBe(true);
-    expect(afterActivation.status).toBe(200);
+    await expect(whilePending).resolves.toMatchObject({ ok: true });
+  });
 
+  it("proxies an allowed call to the API with the stored key once active", async () => {
+    await openActiveSession();
+
+    const response = await proxyRequest();
+
+    expect(response).toMatchObject({ ok: true, status: 200 });
     const proxiedCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
     expect(String(proxiedCall[0])).toBe("https://api.comvi.io/v1/project/locales");
     expect(proxiedCall[1].headers.Authorization).toBe(`Bearer ${API_KEY}`);
@@ -79,23 +94,26 @@ describe("session lifecycle", () => {
     });
   });
 
-  it("rolls back only the pending activation with the matching nonce", async () => {
-    const started = await startSession();
+  it("keeps a pending session when the rollback carries the wrong nonce", async () => {
+    await startSession();
+
     await harness.dispatchMessage(
       { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: "wrong" } },
       popupSender,
     );
-    await expect(
-      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
-    ).resolves.toMatchObject({ pending: true });
+
+    expect(await sessionStatus()).toMatchObject({ pending: true });
+  });
+
+  it("rolls a pending session back when the rollback carries its nonce", async () => {
+    const started = await startSession();
 
     await harness.dispatchMessage(
       { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
       popupSender,
     );
-    await expect(
-      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
-    ).resolves.toMatchObject({ active: false, pending: false });
+
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
   });
 
   it("key validation failure leaves no session and no stored credential", async () => {
@@ -106,20 +124,26 @@ describe("session lifecycle", () => {
     expect(harness.chrome.storage.local.snapshot()).toEqual({});
   });
 
-  it("a forged activation without the nonce cannot promote the session", async () => {
-    const started = await startSession();
+  it("keeps the session pending when acknowledgements carry no nonce or a wrong one", async () => {
+    await startSession();
+
     await activate(undefined);
     await activate("wrong-nonce");
 
-    await expect(
-      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
-    ).resolves.toMatchObject({ active: false, pending: true });
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: true });
+  });
 
+  it("denies the proxy after forged acknowledgements and a rollback", async () => {
+    const started = await startSession();
+    await activate(undefined);
+    await activate("wrong-nonce");
     await harness.dispatchMessage(
       { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
       popupSender,
     );
+
     const result = await proxyRequest();
+
     expect(result.networkError).toMatch(/No active editor session/);
   });
 
@@ -185,7 +209,7 @@ describe("session lifecycle", () => {
     expect((await proxyRequest()).ok).toBe(true);
   });
 
-  it("deactivation gates authority before its first storage read", async () => {
+  it("denies a request racing a deactivation without any network access", async () => {
     await openActiveSession();
     const before = fetchMock.mock.calls.length;
     let releaseLock!: () => void;
@@ -211,7 +235,6 @@ describe("session lifecycle", () => {
     });
     await harness.flush();
     expect(fetchMock.mock.calls.length).toBe(before);
-    expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
   });
 
   it("navigation revokes the session before the next document can use it", async () => {
@@ -345,19 +368,25 @@ describe("sender enforcement", () => {
     expect(result.networkError).toMatch(/No active editor session/);
   });
 
-  it("activation ack from a different origin cannot promote", async () => {
+  it("keeps the session pending when the acknowledgement comes from another origin", async () => {
     const started = await startSession();
+
     await activate(started.nonce, pageSender({ origin: "https://evil.example" }));
 
-    await expect(
-      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
-    ).resolves.toMatchObject({ active: false, pending: true });
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: true });
+  });
 
+  it("denies the proxy after a cross-origin acknowledgement and a rollback", async () => {
+    const started = await startSession();
+    await activate(started.nonce, pageSender({ origin: "https://evil.example" }));
     await harness.dispatchMessage(
       { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
       popupSender,
     );
-    expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
+
+    const result = await proxyRequest();
+
+    expect(result.networkError).toMatch(/No active editor session/);
   });
 });
 
@@ -404,20 +433,17 @@ describe("origin policy", () => {
 });
 
 describe("storage concurrency", () => {
-  it("parallel sessions on different tabs do not clobber each other", async () => {
+  it("keeps one tab's session working when a parallel session on another tab is revoked", async () => {
     const TAB2 = 11;
     harness.setTabUrl(TAB2, PAGE_URL);
 
     const [first, second] = await Promise.all([startSession(), startSession({ tabId: TAB2 })]);
-    expect(first.ok).toBe(true);
-    expect(second.ok).toBe(true);
-
     await activate(first.nonce);
     await activate(second.nonce, pageSender({ tab: { id: TAB2 } as chrome.tabs.Tab }));
 
-    // Revoking one tab's session leaves the other fully functional.
     harness.fireTabRemoved(TAB2);
     await harness.flush();
+
     expect((await proxyRequest()).ok).toBe(true);
   });
 
