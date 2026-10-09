@@ -40,3 +40,19 @@ declare module "#build/comvi.detection" {
   // runtime config. `undefined` when the app set none.
   export const resolveAcceptLanguage: import("../types").ResolveAcceptLanguage | undefined;
 }
+
+// The same three generated modules under the names the Nitro build knows them
+// by: the module registers them as Nitro virtual modules (`nitro:config`),
+// because `#build/*` is refused in the Nitro graph. Imported by the server
+// utilities only.
+declare module "#comvi/setup" {
+  export * from "#build/comvi.setup";
+}
+
+declare module "#comvi/i18n" {
+  export * from "#build/comvi.i18n";
+}
+
+declare module "#comvi/detection" {
+  export * from "#build/comvi.detection";
+}

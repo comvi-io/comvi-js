@@ -8,7 +8,7 @@ import { getRequestI18n } from "./request-i18n";
 import { loadCatalogs } from "../../utils/load-catalogs";
 import { resolveAcceptLanguage } from "../../utils/resolve-locale";
 import { extractLocaleFromPath } from "../../utils/locale-path";
-import { resolveAcceptLanguage as customResolveAcceptLanguage } from "#build/comvi.detection";
+import { resolveAcceptLanguage as customResolveAcceptLanguage } from "#comvi/detection";
 
 export interface UseTranslationOptions {
   /**

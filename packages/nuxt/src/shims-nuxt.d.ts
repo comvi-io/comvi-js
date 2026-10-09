@@ -92,3 +92,9 @@ declare module "#app" {
 declare module "#components" {
   export const NuxtLink: import("vue").Component;
 }
+
+// Nitro's auto-import entry, as the server utilities see it. Only the one
+// function they call; the real module is Nitro's own virtual `#imports`.
+declare module "#imports" {
+  export function useRuntimeConfig(event?: import("h3").H3Event): unknown;
+}

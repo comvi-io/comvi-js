@@ -17,7 +17,11 @@
       "#build/comvi.setup": ["./tests/mocks/comvi-setup.ts"],
       "#build/comvi.detection": ["./tests/mocks/comvi-detection.ts"],
       "#build/comvi.i18n": ["./tests/mocks/comvi-i18n.ts"],
-      "#components": ["./tests/mocks/nuxt-components.ts"]
+      "#components": ["./tests/mocks/nuxt-components.ts"],
+      "#comvi/setup": ["./tests/mocks/comvi-setup.ts"],
+      "#comvi/detection": ["./tests/mocks/comvi-detection.ts"],
+      "#comvi/i18n": ["./tests/mocks/comvi-i18n.ts"],
+      "#imports": ["./tests/mocks/nitro-imports.ts"]
     }
   },
   "include": ["./src/**/*.ts", "./src/**/*.d.ts", "./tests/**/*.test.ts", "./tests/mocks/**/*.ts"],

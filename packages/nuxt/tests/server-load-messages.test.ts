@@ -4,11 +4,11 @@ import { nodeResponseStub } from "./mocks/node-response";
 const createComviCore = vi.fn();
 const runComviSetup = vi.fn(async () => undefined);
 
-vi.mock("#build/comvi.i18n", () => ({
+vi.mock("#comvi/i18n", () => ({
   createComviCore,
 }));
 
-vi.mock("#build/comvi.setup", () => ({
+vi.mock("#comvi/setup", () => ({
   runComviSetup,
 }));
 

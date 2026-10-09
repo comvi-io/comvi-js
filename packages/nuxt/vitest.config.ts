@@ -71,6 +71,12 @@ export default defineConfig({
       "#build/comvi.i18n": resolve(__dirname, "./tests/mocks/comvi-i18n.ts"),
       "#build/comvi.detection": resolve(__dirname, "./tests/mocks/comvi-detection.ts"),
       "#components": resolve(__dirname, "./tests/mocks/nuxt-components.ts"),
+      // The Nitro build's names for the same three generated modules, and
+      // Nitro's own auto-import entry: what the server utilities import.
+      "#comvi/setup": resolve(__dirname, "./tests/mocks/comvi-setup.ts"),
+      "#comvi/i18n": resolve(__dirname, "./tests/mocks/comvi-i18n.ts"),
+      "#comvi/detection": resolve(__dirname, "./tests/mocks/comvi-detection.ts"),
+      "#imports": resolve(__dirname, "./tests/mocks/nitro-imports.ts"),
     },
   },
 });
