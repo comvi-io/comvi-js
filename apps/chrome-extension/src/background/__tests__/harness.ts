@@ -129,24 +129,34 @@ export function installFakeChrome(): Harness {
   };
   let pingResponder = defaultPingResponder;
 
+  // Every shared fake keeps its default behaviour here, so reset() can undo a
+  // test's mockResolvedValue/mockImplementation instead of leaking it into
+  // whichever test runs next.
+  const defaults: Array<[ReturnType<typeof vi.fn>, (...args: never[]) => unknown]> = [];
+  function defaultFn<T extends (...args: never[]) => unknown>(impl: T) {
+    const mock = vi.fn(impl);
+    defaults.push([mock as unknown as ReturnType<typeof vi.fn>, impl]);
+    return mock;
+  }
+
   const fake: FakeChrome = {
     storage: { session: new FakeStorageArea(), local: new FakeStorageArea() },
     runtime: {
       onMessage: { addListener: (fn) => messageListeners.push(fn) },
       onConnect: { addListener: (fn) => connectListeners.push(fn) },
       onInstalled: { addListener: (fn) => installedListeners.push(fn) },
-      sendMessage: vi.fn((_message: unknown, callback?: () => void) => callback?.()),
+      sendMessage: defaultFn((_message: unknown, callback?: () => void) => callback?.()),
       lastError: undefined,
     },
     tabs: {
-      get: vi.fn(async (tabId: number) => {
+      get: defaultFn(async (tabId: number) => {
         if (!tabUrls.has(tabId)) throw new Error(`No tab with id ${tabId}`);
         return { id: tabId, url: tabUrls.get(tabId) };
       }),
-      query: vi.fn(async () =>
+      query: defaultFn(async () =>
         [...tabUrls.entries()].map(([id, url]) => ({ id, url }) as chrome.tabs.Tab),
       ),
-      sendMessage: vi.fn(
+      sendMessage: defaultFn(
         (
           _tabId: number,
           message: unknown,
@@ -167,10 +177,10 @@ export function installFakeChrome(): Harness {
       onUpdated: { addListener: (fn) => updatedListeners.push(fn) },
     },
     action: {
-      setIcon: vi.fn(async () => undefined),
-      setBadgeText: vi.fn(async () => undefined),
-      setBadgeBackgroundColor: vi.fn(async () => undefined),
-      setBadgeTextColor: vi.fn(async () => undefined),
+      setIcon: defaultFn(async () => undefined),
+      setBadgeText: defaultFn(async () => undefined),
+      setBadgeBackgroundColor: defaultFn(async () => undefined),
+      setBadgeTextColor: defaultFn(async () => undefined),
     },
   };
 
@@ -288,10 +298,10 @@ export function installFakeChrome(): Harness {
       vi.stubGlobal("chrome", fake);
       fake.storage.session.clear();
       fake.storage.local.clear();
-      fake.action.setIcon.mockClear();
-      fake.action.setBadgeText.mockClear();
-      fake.runtime.sendMessage.mockClear();
-      fake.tabs.sendMessage.mockClear();
+      for (const [mock, impl] of defaults) {
+        mock.mockReset();
+        mock.mockImplementation(impl);
+      }
       tabUrls.clear();
       goneDocuments.clear();
       pingResponder = defaultPingResponder;
