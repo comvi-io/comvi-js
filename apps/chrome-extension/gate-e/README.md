@@ -67,7 +67,9 @@ and the key all stay out of reach.
 `navigation.spec.ts` runs with the back/forward cache enabled (Playwright
 disables it by default). It navigates an active tab to `about:blank`, where no
 content script runs, and requires the session and the `ON` badge to be gone.
-It then goes Back, checks that the cached document really was restored, and
+Before navigating it also evaluates `chrome.storage.local.get` in the
+extension's content-script world over CDP and requires it to be denied, so the
+saved key stays with the worker and the popup. It then goes Back, checks that the cached document really was restored, and
 requires that document to hold no authority, its editor runtime to be torn
 down, and a new activation from the popup to succeed.
 

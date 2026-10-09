@@ -1,4 +1,11 @@
-import { expect, test, type Browser, type Page, type Worker } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Browser,
+  type CDPSession,
+  type Page,
+  type Worker,
+} from "@playwright/test";
 import {
   activateEditor,
   activeTabId,
@@ -24,6 +31,26 @@ function badgeText(worker: Worker, tabId: number): Promise<string> {
   }, tabId);
 }
 
+/**
+ * Evaluate in this extension's content-script (isolated) world, which
+ * Playwright does not expose directly; the bridge runs there.
+ */
+async function evaluateInBridgeWorld(
+  cdp: CDPSession,
+  contextIds: Map<number, string>,
+  expression: string,
+): Promise<unknown> {
+  const contextId = [...contextIds].findLast(([, name]) => name === "Comvi In-Context Editor")?.[0];
+  if (contextId === undefined) throw new Error("The bridge's isolated world was not found");
+  const { result } = await cdp.send("Runtime.evaluate", {
+    contextId,
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  return result.value;
+}
+
 test("top-level navigation revokes authority even where no content script runs, and a restored document needs fresh activation", async () => {
   test.setTimeout(90_000);
   const { context, worker, extensionId, debuggingPort } = await launchGateE({
@@ -33,6 +60,12 @@ test("top-level navigation revokes authority even where no content script runs, 
 
   try {
     const page = await context.newPage();
+    const cdp = await context.newCDPSession(page);
+    const isolatedWorlds = new Map<number, string>();
+    cdp.on("Runtime.executionContextCreated", ({ context: created }) => {
+      if (created.auxData?.type === "isolated") isolatedWorlds.set(created.id, created.name);
+    });
+    await cdp.send("Runtime.enable");
     await page.goto(HOSTILE_PAGE);
     await page.bringToFront();
     const tabId = await activeTabId(worker);
@@ -48,6 +81,18 @@ test("top-level navigation revokes authority even where no content script runs, 
       await page.evaluate(() => {
         (globalThis as any).__gateEDocumentMarker = "cached-document";
       });
+    });
+
+    await test.step("the saved key is not readable from the extension's content-script world", async () => {
+      const read = await evaluateInBridgeWorld(
+        cdp,
+        isolatedWorlds,
+        `chrome.storage.local.get(null).then(
+          (items) => "READ " + JSON.stringify(items),
+          (error) => "DENIED " + error.message,
+        )`,
+      );
+      expect(read).toMatch(/^DENIED /);
     });
 
     await test.step("navigating to a page with no content script revokes the session and the badge", async () => {
