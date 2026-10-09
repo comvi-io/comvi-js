@@ -39,7 +39,7 @@ import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
 export const i18n = createI18n({
   locale: "en",
-  apiKey: import.meta.env.VITE_COMVI_EDITOR_API_KEY,
+  apiKey: import.meta.env.DEV ? import.meta.env.VITE_COMVI_EDITOR_API_KEY : undefined,
 })
   .use(cdnLoader({ cdnUrl: import.meta.env.VITE_COMVI_CDN_URL }))
   .use(inContextEditor());
@@ -51,6 +51,11 @@ Create an API key in the project's settings with project read plus translation r
 read alone loads the editor but every save fails. The editor reads the key off `i18n.apiKey`, the
 same option the fetch loader reads for API mode. Compose a loader or an inline `messages`
 catalog next to it: the editor can only edit text the app rendered through `t()`.
+
+**An API key in a browser bundle is readable by every visitor, and this one can overwrite
+translations, so the editor key must never be in a production build or a public preview build.**
+The `import.meta.env.DEV` test is what keeps it out: Vite replaces it with `false` in a build, and
+the bundler drops the key with the dead branch.
 
 | Do this                                  | And                                                         |
 | ---------------------------------------- | ----------------------------------------------------------- |
@@ -70,7 +75,7 @@ import { createI18n } from "@comvi/core";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
-const editorEnabled = import.meta.env.DEV || import.meta.env.VITE_COMVI_EDITOR === "true";
+const editorEnabled = import.meta.env.DEV;
 
 const base = createI18n({
   locale: "en",
@@ -83,13 +88,17 @@ export const i18n = editorEnabled ? base.use(inContextEditor()) : base;
 await i18n.init();
 ```
 
-Two things already keep the editor out of a production build: the package's `production` export
-condition resolves to an entry whose installer is `(i18n) => i18n`, with no editor bytes, and
-`inContextEditorPlugin()` returns a no-op when `process.env.NODE_ENV` is `"production"`. Gate it
-yourself to choose where it runs, such as a preview deployment. The installer returns the i18n instance type
-unchanged, so both branches of the ternary have the same type. On a live site a translator uses the
-browser extension instead: it injects the standalone editor runtime, and the key never enters the
-page.
+Gating the key is required. Two things keep the editor code out of a production build: the
+package's `production` export condition resolves to an entry whose installer is `(i18n) => i18n`,
+with no editor bytes, and `inContextEditorPlugin()` returns a no-op when `process.env.NODE_ENV` is
+`"production"`. Neither touches your own `createI18n` call, so an ungated `apiKey` still ships in
+`dist/assets`, where anyone can read it and overwrite translations with it. Put the key and the
+installer behind the same condition, and never widen that condition with a flag a deployed build
+can set: a preview deployment is a production build, so the editor would not run there and the key
+would still ship. The installer returns the i18n instance type unchanged, so both branches of the
+ternary have the same type. On a live site or a preview deployment a translator uses the browser
+extension instead: it injects the standalone editor runtime into the page and keeps the key in the
+extension.
 
 ## Options
 

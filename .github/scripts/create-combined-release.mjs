@@ -287,15 +287,50 @@ function extractVersionSection(changelog, v) {
   return match ? match[1].trim() : "";
 }
 
-let body = "";
-body += `Released \`${version}\` across the coordinated \`@comvi/*\` release train.\n\n`;
+// GitHub rejects a release body above 125,000 characters, and this step runs
+// after npm publish, where a failure cannot be undone. The body is therefore
+// built to a cap well below that limit and never fails because of length.
+const BODY_LIMIT = 100_000;
+
+const repository = process.env.GITHUB_REPOSITORY;
+const repositoryUrl = repository
+  ? `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${repository}`
+  : null;
+
+/** Where the rest of a cut section is: the file at the release tag. */
+function changelogPointer(dir) {
+  const file = `${dir}/CHANGELOG.md`;
+  const target = repositoryUrl
+    ? `[\`${file}\`](${repositoryUrl}/blob/${tag}/${file})`
+    : `\`${file}\``;
+  return `_Truncated. Full changelog: ${target}._`;
+}
+
+/**
+ * `text` cut to at most `limit` characters at the end of a line. A code fence
+ * left open by the cut is closed at its own indentation: inside a list item an
+ * unindented fence would open a new block instead, and the rest of the body
+ * would render as code.
+ */
+const FENCE_RESERVE = 40;
+function cutAtLine(text, limit) {
+  if (text.length <= limit) return text;
+  const head = text.slice(0, Math.max(0, limit - FENCE_RESERVE));
+  const cut = head.slice(0, Math.max(0, head.lastIndexOf("\n"))).trimEnd();
+  const fences = [...cut.matchAll(/^([ \t]*)```/gm)];
+  if (fences.length % 2 === 0) return cut;
+  return `${cut}\n${fences.at(-1)[1].slice(0, FENCE_RESERVE - 4)}\`\`\``;
+}
+
+let intro = `Released \`${version}\` across the coordinated \`@comvi/*\` release train.\n\n`;
 if (independentPackages.length > 0) {
-  body += `Independently versioned in this release: ${independentPackages
+  intro += `Independently versioned in this release: ${independentPackages
     .map((p) => `\`${p.name}@${p.version}\``)
     .join(", ")}.\n\n`;
 }
-body += `The GitHub Release asset \`comvi-v${version}.tar.gz\` is the single archive for this release. It contains the packed npm tarballs plus \`manifest.json\` and \`SHA256SUMS\`.\n\n`;
+intro += `The GitHub Release asset \`comvi-v${version}.tar.gz\` is the single archive for this release. It contains the packed npm tarballs plus \`manifest.json\` and \`SHA256SUMS\`.\n\n`;
 
+const sections = [];
 for (const pkg of sorted) {
   const dir = nameToPath[pkg.name];
   if (!dir) continue;
@@ -307,13 +342,54 @@ for (const pkg of sorted) {
   }
   const section = extractVersionSection(changelog, pkg.version);
   if (!section) continue;
-  const demoted = section.replace(/^(#{1,5}) /gm, "#$1 ");
-  body += `### \`${pkg.name}\`\n\n${demoted}\n\n`;
+  sections.push({
+    heading: `### \`${pkg.name}\`\n\n`,
+    text: section.replace(/^(#{1,5}) /gm, "#$1 "),
+    pointer: changelogPointer(dir),
+  });
 }
+// What every section costs even when its text is cut to nothing.
+const sectionOverhead = (s) => s.heading.length + s.pointer.length + 4;
+const overhead = sections.reduce((sum, s) => sum + sectionOverhead(s), 0);
+
+// The hand-written notes of this version, when the repository has them. They
+// come first and are cut only if they alone would not leave room for the
+// package headings.
+let highlights = "";
+try {
+  highlights = readFileSync(`.github/release-notes/${version}.md`, "utf8").trim();
+} catch {
+  // no hand-written notes for this version
+}
+if (highlights) {
+  highlights = `${cutAtLine(highlights, Math.max(0, BODY_LIMIT - intro.length - overhead - 2))}\n\n`;
+}
+
+// Share what is left between the sections: one that fits its share is kept
+// whole, and what it does not use goes to the longer ones.
+let budget = BODY_LIMIT - intro.length - highlights.length - overhead;
+const bySize = [...sections].sort((a, b) => a.text.length - b.text.length);
+for (const [index, section] of bySize.entries()) {
+  const share = Math.max(0, Math.floor(budget / (bySize.length - index)));
+  if (section.text.length > share) {
+    const cut = cutAtLine(section.text, share);
+    section.text = cut ? `${cut}\n\n${section.pointer}` : section.pointer;
+    budget -= cut.length;
+  } else {
+    budget -= section.text.length;
+  }
+}
+
+let body = intro + highlights;
+for (const section of sections) body += `${section.heading}${section.text}\n\n`;
 
 if (!body.trim()) {
   body = `Released packages: ${sorted.map((p) => `\`${p.name}@${p.version}\``).join(", ")}`;
 }
+
+// The exact notes, for a preview and for the tests: a pipe on macOS drops what
+// is still queued at `process.exit`, so stdout cannot carry a long body.
+if (process.env.COMVI_RELEASE_BODY_FILE) writeFileSync(process.env.COMVI_RELEASE_BODY_FILE, body);
 
 console.log(`Creating GitHub Release: ${tag}`);
 console.log("---BODY---");
