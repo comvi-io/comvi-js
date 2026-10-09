@@ -312,6 +312,9 @@ export async function confirmActivation(
     }
     if (sender.tab?.id !== tabId) return false;
     if (sender.frameId !== 0) return false;
+    // Proxy authority is bound to this document; without an identity there
+    // is nothing to bind, so promotion fails closed.
+    if (typeof sender.documentId !== "string" || sender.documentId.length === 0) return false;
     if (canonicalizeOrigin(sender.origin) !== session.origin) return false;
     if ((await getNavGen(tabId)) !== session.navGen) return false;
     if ((await tabOrigin(tabId)) !== session.origin) return false;

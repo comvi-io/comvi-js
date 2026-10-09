@@ -21,6 +21,13 @@ describe.skipIf(!hasDist && !process.env.CI)("built artifacts", () => {
     expect(manifest.content_scripts).toEqual(EXPECTED_CONTENT_SCRIPTS);
   });
 
+  // Static content_scripts world: "MAIN" needs Chrome 111; older browsers
+  // would run the detector in the isolated world.
+  it("manifest declares the Chrome floor that MAIN-world content scripts need", () => {
+    const manifest = JSON.parse(read("manifest.json"));
+    expect(manifest.minimum_chrome_version).toBe("111");
+  });
+
   it("manifest grants exactly one API host permission", () => {
     const manifest = JSON.parse(read("manifest.json"));
     expect(manifest.host_permissions).toHaveLength(1);

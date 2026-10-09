@@ -28,7 +28,7 @@ export interface SessionRecord {
   nonce: string;
   /** Popup Port lease that owns a pending activation. */
   popupLeaseId: string;
-  /** Document identity bound at activation (Chrome >= 106 senders). */
+  /** Document identity bound at activation; required for active sessions. */
   documentId?: string;
   /** Per-tab navigation generation the session was created under. */
   navGen: number;

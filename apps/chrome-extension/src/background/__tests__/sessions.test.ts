@@ -608,6 +608,20 @@ describe("activation", () => {
     expect(harness.chrome.action.setBadgeText).toHaveBeenCalledWith({ text: "ON", tabId: TAB });
   });
 
+  // Proxy enforcement is bound to the acknowledging document. Without a
+  // document identity there is nothing to bind, so promotion fails closed.
+  it.each([
+    ["missing", undefined],
+    ["empty", ""],
+  ])("refuses an acknowledgement whose document identity is %s", async (_label, documentId) => {
+    const nonce = await openPendingSession();
+
+    await expect(
+      confirmActivation(TAB, pageSender({ documentId }), nonce, true, () => true),
+    ).resolves.toBe(false);
+    await expect(getSession(TAB)).resolves.toMatchObject({ status: "pending" });
+  });
+
   it("refuses an acknowledgement for a tab with no session", async () => {
     await expect(confirmActivation(TAB, pageSender(), "any-nonce", true, () => true)).resolves.toBe(
       false,
