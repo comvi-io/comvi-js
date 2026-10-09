@@ -194,11 +194,11 @@ describe("a value published as an empty string", () => {
     expect(i18n.t("empty")).toBe("E-en");
   });
 
-  it("empty in every locale of the chain → the empty string, not the key", async () => {
+  it("empty in every locale of the chain → the key, as for a key missing everywhere", async () => {
     const i18n = make({ locale: "de", fallbackLocale: "en" });
 
     await i18n.init();
 
-    expect(i18n.t("blank")).toBe("");
+    expect(i18n.t("blank")).toBe("blank");
   });
 });

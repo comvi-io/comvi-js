@@ -860,6 +860,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * The template a lookup reads, key by key: a `withMessages` view's catalog
    * first, then the cache — the same merge `addMessages` would make, so a
    * partial catalog never hides a cached key.
+   *
+   * An EMPTY string is not a template. It is the value nobody has written yet
+   * — what a translation platform publishes for an untranslated key — so it
+   * reads as absent here, the one place every lookup goes through: `t()` walks
+   * the fallback chain past it, `hasTranslation()` says no, and a key that is
+   * empty in every locale takes the missing-key path like any other.
    */
   private _template(
     locale: string,
@@ -867,10 +873,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
     key: string,
   ): FlattenedMessages[string] | undefined {
     return (
-      this._overlay?.[locale + ":" + namespace]?.[key] ??
+      this._overlay?.[locale + ":" + namespace]?.[key] ||
       (locale === this._locale && namespace === this._cachedDefaultNs
         ? this._getPrimaryTranslations()
-        : this.messagesCache.get(locale, namespace))?.[key]
+        : this.messagesCache.get(locale, namespace))?.[key] ||
+      undefined
     );
   }
 
@@ -915,18 +922,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
       params?.tagInterpolation,
     );
 
-    // An EMPTY string is a value nobody has written yet — what a translation
-    // platform publishes for an untranslated key — so the chain is walked past
-    // it. It still outranks a missing key: when no locale has text, the first
-    // empty value found is the answer and the key is not reported missing.
     let template = this._template(locale, namespace, translationKey);
     let templateLocale = locale;
-    for (let i = 0; !template && i < fallbackLocales.length; i++) {
-      const fallbackTemplate = this._template(fallbackLocales[i], namespace, translationKey);
-      if (fallbackTemplate || template === undefined) {
-        template = fallbackTemplate;
-        templateLocale = fallbackLocales[i];
-      }
+    for (let i = 0; template === undefined && i < fallbackLocales.length; i++) {
+      template = this._template((templateLocale = fallbackLocales[i]), namespace, translationKey);
     }
 
     if (template !== undefined) {

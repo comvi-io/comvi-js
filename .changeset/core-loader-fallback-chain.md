@@ -20,8 +20,12 @@ still succeeds. The locale's own catalog keeps its old rule, so `init()` rejects
 namespace of the active locale failed. A chain changed with `setFallbackLocale()` after `init()` is
 picked up by the next load or by `reloadMessages()`.
 
-**BREAKING (behaviour change on a 0.x minor): `t()` treats an empty string as untranslated.** A
-key whose value is `""` in the active locale now renders the first non-empty value along the
-fallback chain; it used to render as an empty string. This is what a translation platform
-publishes for a value nobody has written yet. When no locale of the chain has text, the result is
-still `""`, never the key, and `onMissingKey` is not called.
+**BREAKING (behaviour change on a 0.x minor): an empty string is a missing translation.** A key
+whose stored value is `""` reads as absent everywhere a key is looked up. `t()` renders the first
+non-empty value along the fallback chain where it used to render an empty string, and
+`hasTranslation()` returns `false` for it. A key that is empty in every locale of the chain takes
+the missing-key path exactly like a key that is in none: `missingKey` fires, `onMissingKey` runs,
+a per-call `fallback` is used, and otherwise the key is rendered. This is what a translation
+platform publishes for a value nobody has written yet. Only the stored value is judged: a message
+with text that renders empty for one call, such as an empty plural or select branch, is a
+translation and is returned as is.
