@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vite
 import { ElementHighlighter } from "../src/ElementHighlighter";
 import { EventBus } from "../src/EventBus";
 import type { NodeData } from "../src/types/translation";
-import { SCROLL_DEBOUNCE_DELAY, DEFAULT_HIGHLIGHT_Z_INDEX } from "../src/config/highlight";
+import { DEFAULT_HIGHLIGHT_Z_INDEX } from "../src/config/highlight";
 import {
   cleanupDOM,
   simulateKeyEvent,
@@ -324,7 +324,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
         button.remove();
         window.dispatchEvent(new Event("scroll"));
-        vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+        vi.advanceTimersToNextFrame();
 
         expect(
           warn.mock.calls.filter(
@@ -452,6 +452,34 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(tooltip!.textContent).toBe("greeting (common)");
 
       simulateKeyEvent("keyup", "Alt");
+    });
+
+    it("one text node carrying two keys → the tooltip counts both", () => {
+      const button = document.createElement("button");
+      mockBoundingClientRect(button, { top: 50, left: 10, width: 100, height: 30 });
+      document.body.appendChild(button);
+      const text = document.createTextNode("HelloBye");
+      button.appendChild(text);
+      eventBus.emit("translationRegistered", button, {
+        nodes: new Map([
+          [
+            text,
+            {
+              key: "hello",
+              ns: "common",
+              markers: [
+                { key: "hello", ns: "common" },
+                { key: "bye", ns: "common" },
+              ],
+            },
+          ],
+        ]),
+      });
+
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
+
+      expect(getActiveTooltip()!.textContent).toBe("hello (common) (+1)");
     });
 
     it("should show count for multiple keys on same element", () => {
@@ -908,8 +936,8 @@ describe("ElementHighlighter", () => {
     });
   });
 
-  describe("ancestor lookup memoization", () => {
-    it("resolves an element registered after a failed lookup — registering invalidates the cache", () => {
+  describe("ancestor lookup", () => {
+    it("element registered after a failed lookup → Alt-click resolves it", () => {
       const button = appendElement({ top: 0, left: 0, width: 100, height: 30 });
 
       simulateKeyEvent("keydown", "Alt");
@@ -922,7 +950,7 @@ describe("ElementHighlighter", () => {
       expect(handleClick.mock.calls).toEqual([[button]]);
     });
 
-    it("stops resolving a child after its ancestor is unregistered — unregistering invalidates the cache", () => {
+    it("ancestor unregistered → Alt-click on its child resolves nothing", () => {
       const parent = appendElement({ top: 0, left: 0, width: 100, height: 30 }, "div");
       const child = document.createElement("span");
       parent.appendChild(child);
@@ -938,21 +966,37 @@ describe("ElementHighlighter", () => {
       expect(handleClick.mock.calls).toEqual([[parent]]);
     });
 
-    it("keeps resolving a child moved out of its registered ancestor until registration changes", () => {
+    it("child moved out of its registered ancestor → Alt-click no longer selects the old parent", () => {
       const parent = appendElement({ top: 0, left: 0, width: 100, height: 30 }, "div");
       const child = document.createElement("span");
       parent.appendChild(child);
       highlighter.addHighlight(parent);
-
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(child, "click");
+
       document.body.appendChild(child);
       simulateMouseEvent(child, "click");
 
-      expect(handleClick.mock.calls).toEqual([[parent], [parent]]);
+      expect(handleClick.mock.calls).toEqual([[parent]]);
     });
 
-    it("keeps ignoring a related target moved into a registered element until registration changes", () => {
+    it("child moved from one registered container into another → Alt-click selects the new one", () => {
+      const first = appendElement({ top: 0, left: 0, width: 100, height: 30 }, "div");
+      const second = appendElement({ top: 60, left: 0, width: 100, height: 30 }, "div");
+      const child = document.createElement("span");
+      first.appendChild(child);
+      highlighter.addHighlight(first);
+      highlighter.addHighlight(second);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(child, "click");
+
+      second.appendChild(child);
+      simulateMouseEvent(child, "click");
+
+      expect(handleClick.mock.calls).toEqual([[first], [second]]);
+    });
+
+    it("related target moved into the registered element → mouseout keeps the overlay", () => {
       const parent = appendElement({ top: 0, left: 0, width: 100, height: 30 }, "div");
       const child = document.createElement("span");
       parent.appendChild(child);
@@ -966,7 +1010,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(child, "mouseover");
       simulateMouseEvent(child, "mouseout", { relatedTarget: stranger });
 
-      expect(getActiveOverlay()).toBeNull();
+      expect(getActiveOverlay()).not.toBeNull();
     });
   });
 
@@ -1101,6 +1145,60 @@ describe("ElementHighlighter", () => {
       return scrollable;
     }
 
+    it("inner container scrolls → the overlay follows on the next animation frame", () => {
+      const scrollable = appendScrollable({ overflowY: "auto", overflowX: "hidden" });
+      const button = document.createElement("button");
+      mockBoundingClientRect(button, { top: 100, left: 0, width: 100, height: 30 });
+      scrollable.appendChild(button);
+      highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
+      mockBoundingClientRect(button, { top: 80, left: 0, width: 100, height: 30 });
+
+      scrollable.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersToNextFrame();
+
+      expect(getActiveOverlay()!.style.top).toBe("80px");
+    });
+
+    it("window resizes → the overlay and tooltip move onto the element's new rect", () => {
+      const button = appendElement({ top: 100, left: 10, width: 100, height: 40, bottom: 140 });
+      registerKeys(button, [{ key: "greeting" }]);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
+      mockBoundingClientRect(button, { top: 150, left: 30, width: 60, height: 40, bottom: 190 });
+
+      window.dispatchEvent(new Event("resize"));
+      vi.advanceTimersToNextFrame();
+
+      expect({
+        top: getActiveOverlay()!.style.top,
+        left: getActiveOverlay()!.style.left,
+        width: getActiveOverlay()!.style.width,
+        tooltipTop: getActiveTooltip()!.style.top,
+      }).toEqual({ top: "150px", left: "30px", width: "60px", tooltipTop: "116px" });
+    });
+
+    it.each([
+      ["the overlay is dismissed", () => simulateKeyEvent("keyup", "Alt")],
+      ["the highlighter is cleaned up", () => highlighter.cleanup()],
+    ])("%s → the window resize listener is removed", (_condition, dismiss) => {
+      const added = vi.spyOn(window, "addEventListener");
+      const removed = vi.spyOn(window, "removeEventListener");
+      const button = appendElement({ top: 100, left: 0, width: 100, height: 30 });
+      highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
+      const resizeHandler = added.mock.calls.find(([type]) => type === "resize")?.[1];
+
+      dismiss();
+
+      expect(resizeHandler).toBeTypeOf("function");
+      expect(
+        removed.mock.calls.filter(([type]) => type === "resize").map(([, handler]) => handler),
+      ).toContain(resizeHandler);
+    });
+
     it.each([
       { css: "overflow-y: auto", styles: { overflowY: "auto", overflowX: "hidden" } },
       { css: "overflow-y: scroll", styles: { overflowY: "scroll", overflowX: "hidden" } },
@@ -1117,7 +1215,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(button, "mouseover");
       mockBoundingClientRect(button, { top: 20, left: 0, width: 100, height: 30 });
       scrollable.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()!.style.top).toBe("20px");
     });
@@ -1133,7 +1231,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(button, "mouseover");
       mockBoundingClientRect(button, { top: 20, left: 0, width: 100, height: 30 });
       wrapper.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()!.style.top).toBe("100px");
     });
@@ -1146,7 +1244,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(button, "mouseover");
       mockBoundingClientRect(button, { top: 200, left: 0, width: 100, height: 40, bottom: 240 });
       window.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()!.style.top).toBe("200px");
       expect(getActiveTooltip()!.style.top).toBe("166px");
@@ -1166,7 +1264,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(secondButton, "mouseover");
       mockBoundingClientRect(secondButton, { top: 50, left: 0, width: 100, height: 30 });
       first.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()!.style.top).toBe("200px");
     });
@@ -1186,7 +1284,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(outside, "mouseover");
       mockBoundingClientRect(outside, { top: 10, left: 0, width: 100, height: 30 });
       scrollable.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()!.style.top).toBe("300px");
     });
@@ -1205,7 +1303,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(inside, "mouseover");
       mockBoundingClientRect(inside, { top: 20, left: 0, width: 100, height: 30 });
       scrollable.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()!.style.top).toBe("20px");
     });
@@ -1225,7 +1323,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(last, "mouseover");
       mockBoundingClientRect(last, { top: 10, left: 0, width: 100, height: 30 });
       scrollable.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()!.style.top).toBe("400px");
     });
@@ -1238,7 +1336,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(button, "mouseover");
       window.dispatchEvent(new Event("scroll"));
       simulateKeyEvent("keyup", "Alt");
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()).toBeNull();
     });
@@ -1347,7 +1445,7 @@ describe("ElementHighlighter", () => {
 
       button.remove();
       window.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
+      vi.advanceTimersToNextFrame();
 
       expect(warn).not.toHaveBeenCalled();
 

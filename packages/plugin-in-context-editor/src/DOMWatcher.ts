@@ -6,7 +6,7 @@
 import type { TranslationSystemInnerOptions } from "./types";
 import { EventBus } from "./EventBus";
 import { collectAllDescendantNodes } from "./utils/domHelpers";
-import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "./constants";
+import { EDITOR_UI_ATTRIBUTE, EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "./constants";
 
 type ShadowRootAttachedListener = (host: Element, shadowRoot: ShadowRoot) => void;
 
@@ -169,16 +169,37 @@ export class DOMWatcher {
     return element.hasAttribute(EDITOR_UI_SHADOW_HOST_ATTRIBUTE);
   }
 
+  /** The editor's own overlay, tooltip and UI hosts: never scanned, never cleaned up. */
+  private isEditorOwnedNode(node: Node): boolean {
+    return (
+      node.nodeType === Node.ELEMENT_NODE &&
+      ((node as Element).hasAttribute(EDITOR_UI_ATTRIBUTE) ||
+        this.isEditorUiShadowHost(node as Element))
+    );
+  }
+
+  /**
+   * Whether `node` is attached under the target right now, walking up through
+   * the hosts of shadow roots. Editor UI shadow trees are outside the scope.
+   */
   private isNodeWithinTargetScope(node: Node): boolean {
-    if (this.targetElement.nodeType === Node.DOCUMENT_NODE) {
-      return node.ownerDocument === this.targetElement;
+    let current: Node | null = node;
+    while (current) {
+      if (current === this.targetElement) {
+        return true;
+      }
+      if (current.parentNode) {
+        current = current.parentNode;
+      } else if (typeof ShadowRoot !== "undefined" && current instanceof ShadowRoot) {
+        if (this.isEditorUiShadowHost(current.host)) {
+          return false;
+        }
+        current = current.host;
+      } else {
+        return false;
+      }
     }
-
-    if (node === this.targetElement) {
-      return true;
-    }
-
-    return typeof this.targetElement.contains === "function" && this.targetElement.contains(node);
+    return false;
   }
 
   private handleShadowRootAttached(host: Element, shadowRoot: ShadowRoot): void {
@@ -296,14 +317,20 @@ export class DOMWatcher {
     newlyObservedRoots: Set<Node>,
   ): void {
     if (mutation.type === "childList") {
-      structureChanges.add(mutation.target);
-
+      // Only the added subtrees are scanned, not the parent: a node appended to
+      // <body> must not rescan the whole page.
       mutation.addedNodes.forEach((node) => {
+        if (this.isEditorOwnedNode(node)) {
+          return;
+        }
         structureChanges.add(node);
         this.observeShadowRootsInSubtree(node, newlyObservedRoots);
       });
 
       mutation.removedNodes.forEach((node) => {
+        if (this.isEditorOwnedNode(node)) {
+          return;
+        }
         removedNodes.add(node);
         this.unobserveRootsInRemovedSubtree(node);
         const descendants = collectAllDescendantNodes(node);
@@ -316,7 +343,11 @@ export class DOMWatcher {
     }
   }
 
-  /** Nothing is emitted for an empty change set. */
+  /**
+   * Removals go first, then everything is scanned against where it ended up:
+   * a node moved within the batch is removed and registered again, and a node
+   * that left the target is never scanned. Nothing is emitted for an empty set.
+   */
   private emitBatchedChanges(
     textChanges: Set<Node>,
     attributeChanges: Set<Element>,
@@ -324,25 +355,33 @@ export class DOMWatcher {
     removedNodes: Set<Node>,
     newlyObservedRoots: Set<Node>,
   ): void {
-    if (textChanges.size > 0) {
-      this.eventBus.emit("textChanges", Array.from(textChanges));
-    }
-
-    if (attributeChanges.size > 0) {
-      this.eventBus.emit("attributeChanges", Array.from(attributeChanges));
-    }
-
-    if (structureChanges.size > 0) {
-      this.eventBus.emit("structureChanges", Array.from(structureChanges));
-    }
-
     if (removedNodes.size > 0) {
       this.eventBus.emit("nodesRemoved", Array.from(removedNodes));
     }
 
-    if (newlyObservedRoots.size > 0) {
-      this.emitInitialScans(Array.from(newlyObservedRoots));
+    const connectedText = this.filterWithinTargetScope(textChanges);
+    if (connectedText.length > 0) {
+      this.eventBus.emit("textChanges", connectedText);
     }
+
+    const connectedAttributes = this.filterWithinTargetScope(attributeChanges);
+    if (connectedAttributes.length > 0) {
+      this.eventBus.emit("attributeChanges", connectedAttributes);
+    }
+
+    const connectedStructure = this.filterWithinTargetScope(structureChanges);
+    if (connectedStructure.length > 0) {
+      this.eventBus.emit("structureChanges", connectedStructure);
+    }
+
+    const connectedRoots = this.filterWithinTargetScope(newlyObservedRoots);
+    if (connectedRoots.length > 0) {
+      this.emitInitialScans(connectedRoots);
+    }
+  }
+
+  private filterWithinTargetScope<T extends Node>(nodes: Set<T>): T[] {
+    return Array.from(nodes).filter((node) => this.isNodeWithinTargetScope(node));
   }
 
   private handleMutations = (mutations: MutationRecord[]) => {

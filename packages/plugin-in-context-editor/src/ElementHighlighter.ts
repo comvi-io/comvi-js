@@ -4,15 +4,14 @@
  */
 
 import {
-  SCROLL_DEBOUNCE_DELAY,
   DEFAULT_HIGHLIGHT_Z_INDEX,
   DEFAULT_HIGHLIGHT_BORDER_WIDTH,
   DEFAULT_HIGHLIGHT_BORDER_COLOR,
   DEFAULT_HIGHLIGHT_BACKGROUND_COLOR,
 } from "./config/highlight";
+import { EDITOR_UI_ATTRIBUTE } from "./constants";
 import type { EventBus } from "./EventBus";
 import type { ElementData } from "./types/translation";
-import { debounce, type DebouncedFunction } from "./utils/debounce";
 
 const MODIFIER_KEYS = {
   ALT: "Alt",
@@ -53,9 +52,8 @@ export class ElementHighlighter {
 
   private elementKeyMap: Map<Element, string[]> = new Map();
 
-  private ancestorCache: WeakMap<Element, Element | null> = new WeakMap();
-
-  private debouncedScrollHandler: DebouncedFunction<() => void>;
+  /** The animation frame a scroll or resize has queued a reposition for. */
+  private pendingRepositionFrame: number | null = null;
 
   private unsubscribers: (() => void)[] = [];
 
@@ -70,12 +68,6 @@ export class ElementHighlighter {
       ...DEFAULT_HIGHLIGHT_STYLE,
       ...options.highlightStyle,
     };
-
-    this.debouncedScrollHandler = debounce(() => {
-      if (this.activeHighlight && this.activeElement) {
-        this.updateHighlightPosition(this.activeHighlight, this.activeElement);
-      }
-    }, SCROLL_DEBOUNCE_DELAY);
 
     this.handleKeyEvent = this.handleKeyEvent.bind(this);
     this.handleMouseOver = this.handleMouseOver.bind(this);
@@ -125,9 +117,11 @@ export class ElementHighlighter {
   private updateElementKeys(element: Element, data: ElementData): void {
     const keys: string[] = [];
     for (const nodeData of data.nodes.values()) {
-      const label = this.formatKeyLabel(nodeData.key, nodeData.ns);
-      if (!keys.includes(label)) {
-        keys.push(label);
+      for (const { key, ns } of nodeData.markers ?? [nodeData]) {
+        const label = this.formatKeyLabel(key, ns);
+        if (!keys.includes(label)) {
+          keys.push(label);
+        }
       }
     }
     this.elementKeyMap.set(element, keys);
@@ -206,29 +200,17 @@ export class ElementHighlighter {
       return null;
     }
 
-    const cached = this.ancestorCache.get(element);
-    if (cached !== undefined) {
-      return cached;
-    }
-
+    // Walked on every event, not cached: a cached result goes stale when the
+    // page moves a node without changing any registration.
     let current: Element | null = element;
     while (current) {
       if (this.highlightedElements.has(current)) {
-        this.ancestorCache.set(element, current);
         return current;
       }
       current = this.getParentElementAcrossShadow(current);
     }
 
-    // Cache the miss too: repeated hovers over unregistered subtrees are common.
-    this.ancestorCache.set(element, null);
     return null;
-  }
-
-  private invalidateAncestorCache(): void {
-    // WeakMap has no clear(); dropping the map is safe because its entries
-    // are garbage-collected with their keys.
-    this.ancestorCache = new WeakMap();
   }
 
   private handleMouseOver = (event: Event): void => {
@@ -273,6 +255,7 @@ export class ElementHighlighter {
 
   private createHighlightOverlay(): HTMLDivElement {
     const overlay = document.createElement("div");
+    overlay.setAttribute(EDITOR_UI_ATTRIBUTE, "");
     overlay.style.position = "absolute";
     overlay.style.border = `${this.highlightStyle.borderWidth}px solid ${this.highlightStyle.borderColor}`;
     overlay.style.pointerEvents = "none";
@@ -290,6 +273,7 @@ export class ElementHighlighter {
     if (!keys || keys.length === 0) return null;
 
     const tooltip = document.createElement("div");
+    tooltip.setAttribute(EDITOR_UI_ATTRIBUTE, "");
     tooltip.textContent = keys.length === 1 ? keys[0] : `${keys[0]} (+${keys.length - 1})`;
     tooltip.style.position = "absolute";
     tooltip.style.backgroundColor = "#0E0D0C";
@@ -344,9 +328,25 @@ export class ElementHighlighter {
     }
   }
 
+  /** Scroll and resize: one reposition per animation frame, so a continuous scroll is followed. */
   private handleScroll = (): void => {
-    this.debouncedScrollHandler();
+    if (this.pendingRepositionFrame !== null) {
+      return;
+    }
+    this.pendingRepositionFrame = requestAnimationFrame(() => {
+      this.pendingRepositionFrame = null;
+      if (this.activeHighlight && this.activeElement) {
+        this.updateHighlightPosition(this.activeHighlight, this.activeElement);
+      }
+    });
   };
+
+  private cancelPendingReposition(): void {
+    if (this.pendingRepositionFrame !== null) {
+      cancelAnimationFrame(this.pendingRepositionFrame);
+      this.pendingRepositionFrame = null;
+    }
+  }
 
   private findScrollableAncestors(element: Element): Element[] {
     const scrollableAncestors: Element[] = [];
@@ -400,6 +400,7 @@ export class ElementHighlighter {
       });
 
       window.addEventListener("scroll", this.handleScroll, { passive: true });
+      window.addEventListener("resize", this.handleScroll, { passive: true });
 
       const scrollableAncestors = this.findScrollableAncestors(element);
       scrollableAncestors.forEach((container) => {
@@ -441,14 +442,10 @@ export class ElementHighlighter {
     }
 
     this.highlightedElements.add(element);
-    // Invalidate cache since registered elements changed
-    this.invalidateAncestorCache();
   }
 
   public removeHighlightFromElement(element: Element): void {
     this.highlightedElements.delete(element);
-    // Invalidate cache since registered elements changed
-    this.invalidateAncestorCache();
 
     if (this.activeElement === element) {
       this.removeHighlightOverlay();
@@ -469,7 +466,9 @@ export class ElementHighlighter {
       this.activeElement = null;
       this.removeTooltip();
       window.removeEventListener("scroll", this.handleScroll);
+      window.removeEventListener("resize", this.handleScroll);
       this.cleanupScrollListeners();
+      this.cancelPendingReposition();
     }
   }
 
@@ -478,7 +477,7 @@ export class ElementHighlighter {
     this.highlightedElements.clear();
     this.elementKeyMap.clear();
 
-    this.debouncedScrollHandler.cancel();
+    this.cancelPendingReposition();
 
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
@@ -493,6 +492,7 @@ export class ElementHighlighter {
     });
     document.removeEventListener("click", this.handleClick, { capture: true });
     window.removeEventListener("scroll", this.handleScroll);
+    window.removeEventListener("resize", this.handleScroll);
     window.removeEventListener("blur", this.handleWindowBlur);
 
     this.cleanupScrollListeners();

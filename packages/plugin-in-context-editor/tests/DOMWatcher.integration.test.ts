@@ -889,7 +889,7 @@ describe("DOMWatcher", () => {
       expect(emitted).toEqual(["textChanges"]);
     });
 
-    it("reports the parent of an added node alongside the node", async () => {
+    it("node added → reports only the added node, not its parent", async () => {
       const { watcher, eventBus } = watch(container);
       const callback = vi.fn();
       eventBus.on("structureChanges", callback);
@@ -899,7 +899,7 @@ describe("DOMWatcher", () => {
       container.appendChild(added);
       await flushDOMMutations();
 
-      expect(callback).toHaveBeenCalledWith([container, added]);
+      expect(callback.mock.calls).toEqual([[[added]]]);
     });
 
     it("reports a mutation inside an added subtree once", async () => {
