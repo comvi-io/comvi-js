@@ -171,14 +171,18 @@ export default defineNuxtPlugin({
 
     if (import.meta.server) {
       const core = i18n.core;
-      // `init()` and the middleware's locale switch load the active namespaces
-      // for one locale each, never the fallback chain. The chain does not
-      // depend on the request locale, so it is loaded once here, before the
-      // render, and reaches the client through the payload with the rest.
+      // `init()` loads the namespaces it was given for the locale and for the
+      // fallback chain. A namespace that became active another way, through a
+      // catalog `comvi.setup` added, was never loaded for the chain, so that
+      // is filled in here, before the render, and reaches the client through
+      // the payload with the rest. A pair that already failed in `init()` is
+      // not attempted again.
       await loadCatalogs(core);
       // A namespace a page activates DURING the render (`useI18nLoader()
-      // .addActiveNamespace(ns)`) loads for the current locale only. The render
-      // waits for what a component awaits, not for anything collected before
+      // .addActiveNamespace(ns)`) is loaded by core for the locale and the
+      // chain. The wrapper below adds the same fill-in after it, for a
+      // namespace whose own catalog was already cached. The render waits for
+      // what a component awaits, not for anything collected before
       // `app:rendered` (by then the HTML already holds the raw key), so the
       // activation itself resolves only once the chain is in. This instance is the
       // request's own, so the override never leaves the request; a `i18nModule`
