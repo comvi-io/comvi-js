@@ -69,16 +69,23 @@ afterEach(() => {
 });
 
 describe("inContextEditorPlugin mappings bridge", () => {
-  it("publishes a bridge that reads and restores the encoder's key ids", () => {
+  it("install → a mappings bridge is published on the host", () => {
     const i18n = makeI18n();
 
     const cleanup = installEditor()(i18n);
 
-    const bridge = readEditorMappings(i18n);
-    expect(bridge).toBeDefined();
-    bridge?.loadKeyMappings({ "default:hydrated": 7 });
-    expect(bridge?.getKeyMappings()).toEqual({ "default:hydrated": 7 });
+    expect(readEditorMappings(i18n)).toBeDefined();
+    cleanup?.();
+  });
 
+  it("key ids restored through the bridge → the bridge reads them back", () => {
+    const i18n = makeI18n();
+    const cleanup = installEditor()(i18n);
+    const bridge = readEditorMappings(i18n);
+
+    bridge?.loadKeyMappings({ "default:hydrated": 7 });
+
+    expect(bridge?.getKeyMappings()).toEqual({ "default:hydrated": 7 });
     cleanup?.();
   });
 
@@ -147,24 +154,48 @@ describe("inContextEditorPlugin on a server runtime", () => {
     cleanup?.();
   });
 
-  it("gives each server host its own key ids, so an overlapping host leaves the first one's bridge alone", () => {
-    vi.stubGlobal("window", undefined);
-    const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
-    const second = makeI18n({ messages: { "en:default": { beta: "Beta" } } });
+  describe("two overlapping server hosts", () => {
+    const cleanups: Array<() => void> = [];
+    afterEach(() => {
+      for (const cleanup of cleanups.splice(0).reverse()) cleanup();
+    });
 
-    const cleanupFirst = installEditor()(first);
-    first.t("alpha");
-    const firstBridge = readEditorMappings(first);
-    expect(firstBridge?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    /** Host `alpha` installed and rendered, host `beta` installed: two overlapping server requests. */
+    function overlappingHosts() {
+      vi.stubGlobal("window", undefined);
+      const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
+      const second = makeI18n({ messages: { "en:default": { beta: "Beta" } } });
+      cleanups.push(installEditor()(first));
+      first.t("alpha");
+      cleanups.push(installEditor()(second));
+      return { first, second };
+    }
 
-    const cleanupSecond = installEditor()(second);
-    second.t("beta");
+    it("first host renders alpha → its bridge maps alpha to id 1", () => {
+      vi.stubGlobal("window", undefined);
+      const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
+      cleanups.push(installEditor()(first));
 
-    expect(firstBridge?.getKeyMappings()).toEqual({ "default:alpha": 1 });
-    expect(readEditorMappings(second)?.getKeyMappings()).toEqual({ "default:beta": 1 });
+      first.t("alpha");
 
-    cleanupSecond?.();
-    cleanupFirst?.();
+      expect(readEditorMappings(first)?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    });
+
+    it("second host renders beta → the first host's bridge is left alone", () => {
+      const { first, second } = overlappingHosts();
+
+      second.t("beta");
+
+      expect(readEditorMappings(first)?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    });
+
+    it("second host renders beta → its own bridge maps beta to id 1", () => {
+      const { second } = overlappingHosts();
+
+      second.t("beta");
+
+      expect(readEditorMappings(second)?.getKeyMappings()).toEqual({ "default:beta": 1 });
+    });
   });
 
   it("unsubscribes every host event it subscribed to when the runtime is torn down", () => {

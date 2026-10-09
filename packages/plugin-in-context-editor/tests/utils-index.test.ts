@@ -188,18 +188,30 @@ describe("findCorrespondingNode()", () => {
 });
 
 describe("getNearestElementNode() + findCorrespondingNode()", () => {
-  it("should map an option's text node to the enclosing select", () => {
-    const select = document.createElement("select");
-    const option = document.createElement("option");
-    const textNode = document.createTextNode("Option 1");
+  describe("an option's text node", () => {
+    function renderSelect() {
+      const select = document.createElement("select");
+      const option = document.createElement("option");
+      const textNode = document.createTextNode("Option 1");
+      option.appendChild(textNode);
+      select.appendChild(option);
+      return { select, option, textNode };
+    }
 
-    option.appendChild(textNode);
-    select.appendChild(option);
+    it("getNearestElementNode(text in <option>) → the <option>", () => {
+      const { option, textNode } = renderSelect();
 
-    const nearestElement = getNearestElementNode(textNode);
-    expect(nearestElement).toBe(option);
+      const nearestElement = getNearestElementNode(textNode);
 
-    const correspondingNode = findCorrespondingNode(nearestElement!);
-    expect(correspondingNode).toBe(select);
+      expect(nearestElement).toBe(option);
+    });
+
+    it("findCorrespondingNode(<option>) → the enclosing <select>", () => {
+      const { select, option } = renderSelect();
+
+      const correspondingNode = findCorrespondingNode(option);
+
+      expect(correspondingNode).toBe(select);
+    });
   });
 });

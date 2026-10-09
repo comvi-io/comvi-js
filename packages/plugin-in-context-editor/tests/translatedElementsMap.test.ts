@@ -137,20 +137,20 @@ describe("TranslationRegistry", () => {
   });
 
   describe("remove", () => {
-    it("should remove element from map", () => {
+    it("tracked element removed → has() is false and get() returns undefined", () => {
       const element = document.createElement("div");
-      const data = {
+      map.add(element, {
         nodes: new Map<Node | Attr, NodeData>([
           [document.createTextNode("test"), { key: "key", ns: "default" }],
         ]),
-      };
-
-      map.add(element, data);
-      expect(map.has(element)).toBe(true);
+      });
 
       map.remove(element);
-      expect(map.has(element)).toBe(false);
-      expect(map.get(element)).toBeUndefined();
+
+      expect({ has: map.has(element), data: map.get(element) }).toEqual({
+        has: false,
+        data: undefined,
+      });
     });
 
     it("should emit translationRemoved event when removing", () => {
@@ -421,23 +421,32 @@ describe("TranslationRegistry", () => {
   });
 
   describe("clear", () => {
-    it("should remove all elements", () => {
+    function addThreeElements(): Element[] {
       const elements = [
         document.createElement("div"),
         document.createElement("span"),
         document.createElement("p"),
       ];
+      elements.forEach((el) => map.add(el, { nodes: new Map() }));
+      return elements;
+    }
 
-      elements.forEach((el) => {
-        map.add(el, { nodes: new Map() });
-      });
-
-      expect(map.size()).toBe(3);
+    it("three tracked elements, clear() → none is tracked any more", () => {
+      const elements = addThreeElements();
 
       map.clear();
 
-      expect(map.size()).toBe(0);
-      expect(elements.map((el) => map.has(el))).toEqual([false, false, false]);
+      expect({ size: map.size(), has: elements.map((el) => map.has(el)) }).toEqual({
+        size: 0,
+        has: [false, false, false],
+      });
+    });
+
+    it("three tracked elements, clear() → each removal is announced, in insertion order", () => {
+      const elements = addThreeElements();
+
+      map.clear();
+
       expect(onTranslationRemoved.mock.calls.map(([el]) => el)).toEqual(elements);
     });
   });
@@ -447,30 +456,33 @@ describe("TranslationRegistry", () => {
       expect(map.size()).toBe(0);
     });
 
-    it("should return correct count", () => {
-      map.add(document.createElement("div"), { nodes: new Map() });
-      expect(map.size()).toBe(1);
+    it.each([1, 2, 3])("%i elements added → size() is %i", (count) => {
+      const tags = ["div", "span", "p"].slice(0, count);
 
-      map.add(document.createElement("span"), { nodes: new Map() });
-      expect(map.size()).toBe(2);
+      tags.forEach((tag) => map.add(document.createElement(tag), { nodes: new Map() }));
 
-      map.add(document.createElement("p"), { nodes: new Map() });
-      expect(map.size()).toBe(3);
+      expect(map.size()).toBe(count);
     });
 
-    it("should update when elements are removed", () => {
+    it("two tracked elements, one removed → size() is 1", () => {
       const div = document.createElement("div");
-      const span = document.createElement("span");
-
       map.add(div, { nodes: new Map() });
-      map.add(span, { nodes: new Map() });
-
-      expect(map.size()).toBe(2);
+      map.add(document.createElement("span"), { nodes: new Map() });
 
       map.remove(div);
+
       expect(map.size()).toBe(1);
+    });
+
+    it("two tracked elements, both removed → size() is 0", () => {
+      const div = document.createElement("div");
+      const span = document.createElement("span");
+      map.add(div, { nodes: new Map() });
+      map.add(span, { nodes: new Map() });
+      map.remove(div);
 
       map.remove(span);
+
       expect(map.size()).toBe(0);
     });
   });
@@ -591,13 +603,13 @@ describe("TranslationRegistry", () => {
       });
 
       const removedNodes = new Set<Node | Attr>([textNode2, span]);
+
       map.cleanupRemovedNodes(removedNodes);
 
-      expect(map.has(div)).toBe(true);
-      const divResult = map.get(div);
-      expect(divResult?.nodes.size).toBe(1);
-      expect(divResult?.nodes.has(textNode1)).toBe(true);
-      expect(map.has(span)).toBe(false);
+      expect({
+        divNodes: [...(map.get(div)?.nodes.keys() ?? [])],
+        spanTracked: map.has(span),
+      }).toEqual({ divNodes: [textNode1], spanTracked: false });
     });
 
     it("should emit nothing for a registered element none of whose nodes were removed", () => {

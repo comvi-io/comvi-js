@@ -224,19 +224,32 @@ describe("addBeforeProcessHook()", () => {
     loadKeyMappings({});
   });
 
-  it("should execute and cleanup beforeProcess hooks", () => {
+  /** A registered post-processor with one beforeProcess hook added ahead of it. */
+  function processorWithHook(beforeProcessHook: () => void) {
     const i18n = { registerPostProcessor: vi.fn() };
-    const beforeProcessHook = vi.fn();
-
     const removeHook = addBeforeProcessHook(i18n as never, beforeProcessHook);
     registerPostProcessorOnce(i18n as never);
-
     const processor = i18n.registerPostProcessor.mock.calls[0]![0];
-    processor("Hello", "greeting", "default", {});
-    expect(beforeProcessHook).toHaveBeenCalledTimes(1);
+    return { processor, removeHook };
+  }
 
-    removeHook();
+  it("beforeProcess hook added → it runs once per processed translation", () => {
+    const beforeProcessHook = vi.fn();
+    const { processor } = processorWithHook(beforeProcessHook);
+
     processor("Hello", "greeting", "default", {});
+
+    expect(beforeProcessHook).toHaveBeenCalledTimes(1);
+  });
+
+  it("beforeProcess hook removed after one run → the next translation does not run it", () => {
+    const beforeProcessHook = vi.fn();
+    const { processor, removeHook } = processorWithHook(beforeProcessHook);
+    processor("Hello", "greeting", "default", {});
+    removeHook();
+
+    processor("Hello", "greeting", "default", {});
+
     expect(beforeProcessHook).toHaveBeenCalledTimes(1);
   });
 
