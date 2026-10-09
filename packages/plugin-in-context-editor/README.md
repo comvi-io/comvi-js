@@ -122,8 +122,9 @@ characters. That string is then not editable in context. On `<T>` the equivalent
 With an API key or the extension, context collection sends the page origin, the keys on screen with
 their screen group, and structural and layout signals to the Comvi API; it never sends rendered
 text. Grouping screens by a digest or a `screenGroupResolver` template does not hide the origin. Set
-`collectContext: false` on the plugin, or on `createI18n` to also override the extension, to turn
-it off.
+`collectContext: false` on the plugin to turn it off. Set it on `createI18n` to also ask the
+extension to stop. The extension follows that setting on a page that reports it honestly, but a
+hostile page can report it as on; the extension README describes this limit.
 
 ## Next steps
 
