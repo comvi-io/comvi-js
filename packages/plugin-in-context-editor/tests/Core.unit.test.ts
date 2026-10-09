@@ -209,6 +209,41 @@ describe("Core unit behavior", () => {
     core.stop();
   });
 
+  it("one text node carrying two keys → the key selector offers both, the modal waits", async () => {
+    const core = new Core({}, HOST);
+    registryGetMock.mockReturnValue({
+      nodes: new Map([
+        [
+          document.createTextNode("HelloBye"),
+          {
+            key: "hello",
+            ns: "default",
+            textPreview: "Hello",
+            markers: [
+              { key: "hello", ns: "default", textPreview: "Hello" },
+              { key: "bye", ns: "default", textPreview: "Bye" },
+            ],
+          },
+        ],
+      ]),
+    });
+
+    clickElement(document.createElement("p"));
+    await flushPendingImports();
+
+    expect({
+      keyData: showKeySelectorMock.mock.calls[0]?.[0],
+      modalOpened: showModalMock.mock.calls.length > 0,
+    }).toEqual({
+      keyData: [
+        { key: "hello", ns: "default", textPreview: "Hello" },
+        { key: "bye", ns: "default", textPreview: "Bye" },
+      ],
+      modalOpened: false,
+    });
+    core.stop();
+  });
+
   it("does not open lazy UI when stopped before the import resolves", async () => {
     const core = new Core({}, HOST);
     const element = document.createElement("div");

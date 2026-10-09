@@ -415,4 +415,64 @@ describe("collector/enumerate", () => {
   it("returns no targets when the registry is empty", () => {
     expect(enumerateVisibleTargets(registry)).toEqual([]);
   });
+
+  describe("an element whose one text node carries two keys", () => {
+    function registerTwoKeyNode(): HTMLParagraphElement {
+      const paragraph = document.createElement("p");
+      document.body.appendChild(paragraph);
+      mockBoundingClientRect(paragraph, {
+        top: 10,
+        left: 10,
+        width: 100,
+        height: 20,
+        right: 110,
+        bottom: 30,
+      });
+      registry.add(paragraph, {
+        nodes: new Map([
+          [
+            document.createTextNode("HelloBye"),
+            {
+              key: "hello",
+              ns: "default",
+              markers: [
+                { key: "hello", ns: "default" },
+                { key: "bye", ns: "farewells" },
+              ],
+            },
+          ],
+        ]),
+      });
+      return paragraph;
+    }
+
+    it("enumerateVisibleTargets → one target per key", () => {
+      registerTwoKeyNode();
+
+      const targets = enumerateVisibleTargets(registry);
+
+      expect(targets.map(({ namespace, key }) => ({ namespace, key }))).toEqual([
+        { namespace: "default", key: "hello" },
+        { namespace: "farewells", key: "bye" },
+      ]);
+    });
+
+    it("collectAllKeyRefs → both keys", () => {
+      registerTwoKeyNode();
+
+      expect(collectAllKeyRefs(registry)).toEqual([
+        { namespace: "default", key: "hello" },
+        { namespace: "farewells", key: "bye" },
+      ]);
+    });
+
+    it("collectKeyRefsForElements → both keys", () => {
+      const paragraph = registerTwoKeyNode();
+
+      expect(collectKeyRefsForElements(registry, new Set([paragraph]))).toEqual([
+        { namespace: "default", key: "hello" },
+        { namespace: "farewells", key: "bye" },
+      ]);
+    });
+  });
 });

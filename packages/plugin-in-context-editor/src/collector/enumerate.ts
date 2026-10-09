@@ -72,7 +72,9 @@ export function enumerateVisibleTargets(
     }
 
     for (const nodeData of data.nodes.values()) {
-      raw.push({ element, namespace: nodeData.ns, key: nodeData.key, rect });
+      for (const { ns, key } of nodeData.markers ?? [nodeData]) {
+        raw.push({ element, namespace: ns, key, rect });
+      }
     }
   };
 
@@ -116,12 +118,14 @@ export function collectAllKeyRefs(registry: TranslationRegistry): KeyRef[] {
 
   for (const [, data] of registry.entries()) {
     for (const nodeData of data.nodes.values()) {
-      const compositeKey = nodeData.ns + "::" + nodeData.key;
-      if (seen.has(compositeKey)) {
-        continue;
+      for (const { ns, key } of nodeData.markers ?? [nodeData]) {
+        const compositeKey = ns + "::" + key;
+        if (seen.has(compositeKey)) {
+          continue;
+        }
+        seen.add(compositeKey);
+        refs.push({ namespace: ns, key });
       }
-      seen.add(compositeKey);
-      refs.push({ namespace: nodeData.ns, key: nodeData.key });
     }
   }
 
@@ -152,12 +156,14 @@ export function collectKeyRefsForElements(
       continue;
     }
     for (const nodeData of data.nodes.values()) {
-      const compositeKey = nodeData.ns + "::" + nodeData.key;
-      if (seen.has(compositeKey)) {
-        continue;
+      for (const { ns, key } of nodeData.markers ?? [nodeData]) {
+        const compositeKey = ns + "::" + key;
+        if (seen.has(compositeKey)) {
+          continue;
+        }
+        seen.add(compositeKey);
+        refs.push({ namespace: ns, key });
       }
-      seen.add(compositeKey);
-      refs.push({ namespace: nodeData.ns, key: nodeData.key });
     }
   }
 

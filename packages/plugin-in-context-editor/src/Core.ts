@@ -95,7 +95,10 @@ export class Core {
 
   private handleElementClick = (element: Element): void => {
     const nodes = this.translationRegistry.get(element)?.nodes;
-    const nodeDataArray = Array.from(nodes?.values() || []);
+    // A node carrying several keys lists them all in `markers`.
+    const nodeDataArray = Array.from(nodes?.values() || []).flatMap(
+      (nodeData) => nodeData.markers ?? [nodeData],
+    );
 
     if (nodeDataArray.length > 1) {
       const keyData = nodeDataArray.map((nodeData) => ({
