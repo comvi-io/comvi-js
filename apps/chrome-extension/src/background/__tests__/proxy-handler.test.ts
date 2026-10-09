@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSession = vi.fn();
 const getNavGen = vi.fn();
@@ -90,6 +90,13 @@ beforeEach(() => {
   getTabState.mockResolvedValue(undefined);
 });
 
+// Restored here rather than at the end of a test, so a failed assertion
+// cannot leave fake timers or the tab's reservations and waiters behind.
+afterEach(() => {
+  vi.useRealTimers();
+  abortTabProxyWork(TAB_ID);
+});
+
 describe("proxy sender document binding", () => {
   it("fails closed when an active session has a documentId but the sender does not", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
@@ -133,7 +140,8 @@ describe("proxy sender document binding", () => {
 });
 
 describe("pending activation ordering", () => {
-  it("holds an activation-time request until the session is promoted", async () => {
+  /** A session that is pending until `promote()`; then active for doc-1. */
+  function promotableSession() {
     let status: "pending" | "active" = "pending";
     getSession.mockImplementation(async () => ({
       status,
@@ -145,20 +153,38 @@ describe("pending activation ordering", () => {
       expiresAt: status === "pending" ? Date.now() + 30_000 : 0,
       ...(status === "active" ? { documentId: "doc-1" } : {}),
     }));
+    return {
+      promote() {
+        status = "active";
+        notifyProxySessionTransition(TAB_ID);
+      },
+    };
+  }
+
+  const activationRefresh = {
+    id: "activation-refresh",
+    path: "/v1/translations?locales=en&namespaces=default",
+  };
+
+  it("sends nothing to the API while the session is still pending", async () => {
+    promotableSession();
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    void handleProxyRequest(activationRefresh, sender());
+    await vi.waitFor(() => expect(getSession).toHaveBeenCalled(), POLL);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends a held activation-time request once the session is promoted", async () => {
+    const session = promotableSession();
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response('{"namespaces":{}}', { status: 200 }));
-
-    const response = handleProxyRequest(
-      { id: "activation-refresh", path: "/v1/translations?locales=en&namespaces=default" },
-      sender(),
-    );
-
+    const response = handleProxyRequest(activationRefresh, sender());
     await vi.waitFor(() => expect(getSession).toHaveBeenCalled(), POLL);
-    expect(fetchMock).not.toHaveBeenCalled();
 
-    status = "active";
-    notifyProxySessionTransition(TAB_ID);
+    session.promote();
 
     await expect(response).resolves.toMatchObject({ ok: true, status: 200 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -373,8 +399,6 @@ describe("waiting out an activation", () => {
       handleProxyRequest(request(), sender()),
       new Promise((resolve) => setTimeout(() => resolve("still waiting"), 0)),
     ]);
-    // Settle before asserting: a failed assertion must not leave a parked request.
-    abortTabProxyWork(TAB_ID);
 
     expect(result).toMatchObject({
       networkError: "No active editor session for this tab",
@@ -403,13 +427,11 @@ describe("waiting out an activation", () => {
   it("refuses a request id that is already waiting for the same activation", async () => {
     getSession.mockResolvedValue(pendingSession());
 
-    const first = handleProxyRequest(request("wait-dup"), sender());
+    void handleProxyRequest(request("wait-dup"), sender());
     await vi.waitFor(() => expect(getSession).toHaveBeenCalled(), POLL);
     const second = await handleProxyRequest(request("wait-dup"), sender());
 
     expect(second.networkError).toBe("Duplicate request id");
-    abortTabProxyWork(TAB_ID);
-    await first;
   });
 });
 
@@ -454,7 +476,6 @@ describe("outgoing request shape", () => {
     await vi.advanceTimersByTimeAsync(30_000);
 
     await expect(inFlight).resolves.toMatchObject({ networkError: "Request aborted" });
-    vi.useRealTimers();
   });
 
   it("cancels the request deadline once the response arrived", async () => {
@@ -464,7 +485,6 @@ describe("outgoing request shape", () => {
     await handleProxyRequest(request(), sender());
 
     expect(vi.getTimerCount()).toBe(0);
-    vi.useRealTimers();
   });
 
   it("frees the request id once the request has completed", async () => {
@@ -626,7 +646,6 @@ describe("page-requested cancellation", () => {
     abortProxyRequest({ id: "keep-1" }, sender({ tab: undefined }));
 
     expect(reserved.reservation.controller.signal.aborted).toBe(false);
-    abortTabProxyWork(TAB_ID);
   });
 
   it("ignores a cancellation with no payload", () => {
@@ -636,7 +655,6 @@ describe("page-requested cancellation", () => {
     abortProxyRequest(undefined, sender());
 
     expect(reserved.reservation.controller.signal.aborted).toBe(false);
-    abortTabProxyWork(TAB_ID);
   });
 
   // Work is keyed by `${tabId}:${requestId}`, so a numeric id would collide
@@ -648,7 +666,6 @@ describe("page-requested cancellation", () => {
     abortProxyRequest({ id: 42 }, sender());
 
     expect(reserved.reservation.controller.signal.aborted).toBe(false);
-    abortTabProxyWork(TAB_ID);
   });
 });
 
@@ -690,8 +707,6 @@ describe("activation wait outcomes", () => {
     const result = await handleProxyRequest(request("over-queue"), sender());
 
     expect(result.networkError).toBe("Too many pending activation requests");
-    abortTabProxyWork(TAB_ID);
-    await Promise.all(waiting);
   });
 
   it("reports an activation that never completes", async () => {
@@ -704,7 +719,6 @@ describe("activation wait outcomes", () => {
     await expect(inFlight).resolves.toMatchObject({
       networkError: "Editor activation did not complete in time",
     });
-    vi.useRealTimers();
   });
 });
 

@@ -593,14 +593,26 @@ describe("popup session lifecycle", () => {
     expect(popup.enableBtn.disabled).toBe(true);
   });
 
-  it("reports progress as soon as the page acknowledges, before the command settles", async () => {
-    await startIdle();
+  /** Click Enable with a page that never answers the activation command. */
+  async function enableAgainstSilentPage() {
     popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
     popup.onContentScript("ACTIVATE_EDITOR", new Promise(() => {}));
     popup.apiKeyInput.value = "sk-live-key";
     popup.enableBtn.click();
     await popup.flush();
+  }
+
+  it("shows the starting progress until the page acknowledges", async () => {
+    await startIdle();
+
+    await enableAgainstSilentPage();
+
     expect(popup.operationStatusText.textContent).toBe("Starting editor…");
+  });
+
+  it("reports progress as soon as the page acknowledges, before the command settles", async () => {
+    await startIdle();
+    await enableAgainstSilentPage();
 
     await popup.fromTab(TAB_ID, { type: "EDITOR_ACTIVATED", payload: { success: true } });
 

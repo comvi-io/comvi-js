@@ -3,7 +3,7 @@
  *
  * These reach outside the extension package (the js-sdk root `contracts/`
  * document and the SDK's canonical telemetry fixture) and therefore only run
- * in a full checkout. They live apart from proxy.test.ts so that the
+ * in a full checkout. They live apart from the proxy.*.test.ts suites so that the
  * behavioural suite stays loadable from an isolated copy of this package —
  * a mutation-testing sandbox, for one, where an unresolvable import would
  * silently drop every proxy test.

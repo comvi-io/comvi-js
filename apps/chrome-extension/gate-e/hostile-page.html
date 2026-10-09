@@ -75,14 +75,19 @@
       <button id="run-p3">Run Phase 3 — probe AFTER forget</button>
     </p>
     <p>
-      <strong>Phase 4</strong>: click the button, then enable the editor in the popup before this
-      page reloads in four seconds. The delayed validation must not authorize the new document:
+      <strong>Phase 4</strong>: arm, enable the editor in the popup (validation is held), reload
+      this page, release the validation, then check. It must not authorize the new document:
       <button id="run-p4">Arm navigation-during-validation race</button>
+      <button id="check-p4">Check Phase 4</button>
     </p>
     <p>
-      <strong>Phase 5</strong>: click the button, enable the editor, then close the popup before
-      validation completes. The pending capability must disappear:
+      <strong>Phase 5</strong>: arm, enable the editor, close the popup, release the validation,
+      then check. The pending capability must disappear:
       <button id="run-p5">Arm popup-close activation race</button>
+      <button id="check-p5">Check Phase 5</button>
+    </p>
+    <p>
+      <button id="release">Release the held key validation</button>
     </p>
     <p class="muted">
       <strong>Phase 6 (two-tab check)</strong>: open this harness once as <code>127.0.0.1</code> and
@@ -239,7 +244,9 @@
         window.dispatchEvent(
           new CustomEvent("comvi-extension:activated", { detail: { success: true } }),
         );
-        await new Promise((r) => setTimeout(r, 400));
+        // No wait needed: the bridge relays these and the probes below in
+        // order, and the worker serializes a tab's messages under one lock,
+        // so every probe is judged after the forgeries were processed.
 
         const probes = [
           ["/v1/project/locales", {}],
@@ -384,11 +391,12 @@
           pageAuth.length === 0,
           "page auth egress=" + pageAuth.length,
         );
+      }
 
-        // Direct SDK teardown bypasses the popup command but must still revoke
-        // the service-worker capability through the lifecycle signal.
-        window.ComviInContextEditor?.deactivate?.();
-        await new Promise((r) => setTimeout(r, 250));
+      // Direct SDK teardown bypasses the popup command but must still revoke
+      // the service-worker capability through the lifecycle signal. The spec
+      // calls deactivate() and waits until the worker dropped the session.
+      async function checkSdkDeactivation() {
         const afterSdkDeactivate = await proxy("/v1/project/locales");
         record(
           "2",
@@ -409,38 +417,55 @@
         );
       }
 
-      async function runPhase4() {
+      // Phases 4 and 5 park the next key validation in the mock API until
+      // it is released, so the race is sequenced on observed state.
+      async function holdNextValidation() {
         await resetLog();
-        await configure({ nextProjectDelayMs: "5000" });
+        await configure({ holdNextProject: "1" });
+      }
+      async function releaseValidation() {
+        await realFetch("/__release");
+      }
+      async function heldValidation() {
+        return (await realFetch("/__held")).json();
+      }
+
+      async function noCapabilityRecord(phase, name) {
+        const result = await proxy("/v1/project/locales");
+        const log = await apiLog();
+        const leaked = log.some((entry) => entry.path.startsWith("/v1/project/locales"));
+        record(phase, name, result.denied && !leaked, result.networkError || result.reason || "");
+      }
+
+      async function runPhase4() {
+        await holdNextValidation();
         sessionStorage.setItem("gate-e-navigation-race", "armed");
         record(
           "4",
           "navigation race armed",
           true,
-          "enable via popup now; this page reloads in 4 seconds",
+          "enable via popup, reload this page, release the validation, then check",
         );
-        setTimeout(() => location.assign("/?navigation-race=check"), 4000);
+      }
+      async function checkPhase4() {
+        sessionStorage.removeItem("gate-e-navigation-race");
+        await noCapabilityRecord(
+          "4",
+          "new document cannot inherit validation from the old document",
+        );
       }
 
       async function runPhase5() {
-        await resetLog();
-        await configure({ nextProjectDelayMs: "5000" });
+        await holdNextValidation();
         record(
           "5",
           "popup-close race armed",
           true,
-          "enable via popup and close it before validation completes",
+          "enable via popup, close it, release the validation, then check",
         );
-        await new Promise((r) => setTimeout(r, 6500));
-        const result = await proxy("/v1/project/locales");
-        const log = await apiLog();
-        const leaked = log.some((entry) => entry.path.startsWith("/v1/project/locales"));
-        record(
-          "5",
-          "popup closure leaves no usable capability",
-          result.denied && !leaked,
-          result.networkError || result.reason || "",
-        );
+      }
+      async function checkPhase5() {
+        await noCapabilityRecord("5", "popup closure leaves no usable capability");
       }
 
       document.getElementById("run-p1").onclick = runPhase1;
@@ -448,31 +473,24 @@
       document.getElementById("run-p3").onclick = runPhase3;
       document.getElementById("run-p4").onclick = runPhase4;
       document.getElementById("run-p5").onclick = runPhase5;
+      document.getElementById("release").onclick = releaseValidation;
+      document.getElementById("check-p4").onclick = checkPhase4;
+      document.getElementById("check-p5").onclick = checkPhase5;
       window.gateE = {
         runPhase1,
         runPhase2,
         runPhase3,
         runPhase4,
         runPhase5,
+        checkSdkDeactivation,
+        checkPhase4,
+        checkPhase5,
+        releaseValidation,
+        heldValidation,
         proxy,
         apiLog,
         resetLog,
       };
-
-      if (sessionStorage.getItem("gate-e-navigation-race") === "armed") {
-        sessionStorage.removeItem("gate-e-navigation-race");
-        setTimeout(async () => {
-          const result = await proxy("/v1/project/locales");
-          const log = await apiLog();
-          const leaked = log.some((entry) => entry.path.startsWith("/v1/project/locales"));
-          record(
-            "4",
-            "new document cannot inherit validation from the old document",
-            result.denied && !leaked,
-            result.networkError || result.reason || "",
-          );
-        }, 2500);
-      }
     </script>
   </body>
 </html>

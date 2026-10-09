@@ -131,12 +131,20 @@ describe("MAIN-world detector status reporting", () => {
     expect(detected[0]).toMatchObject({ editorLoaded: true, editorActive: false });
   });
 
-  it("gives up on a page without Comvi after the full poll budget", async () => {
+  it("keeps polling a page without Comvi until the last poll of the budget", async () => {
     const notFound = recordEvents(page, "comvi-extension:not-found");
     await injectDetector();
 
     vi.advanceTimersByTime((POLLS_BEFORE_GIVING_UP - 2) * POLL_INTERVAL);
+
     expect(notFound).toEqual([]);
+  });
+
+  it("gives up on a page without Comvi after the full poll budget", async () => {
+    const notFound = recordEvents(page, "comvi-extension:not-found");
+    await injectDetector();
+    vi.advanceTimersByTime((POLLS_BEFORE_GIVING_UP - 2) * POLL_INTERVAL);
+
     vi.advanceTimersByTime(POLL_INTERVAL);
 
     expect(notFound).toEqual([

@@ -5,7 +5,7 @@
  * refuses to read or delete it must refuse to save, with a useful error.
  *
  * Cross-package (imports the editor's source), so it lives beside
- * proxy-crossrepo.test.ts rather than in the isolated proxy.test.ts.
+ * proxy-crossrepo.test.ts rather than in the isolated proxy.*.test.ts suites.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validateProxyRequest, type ProxySessionContext } from "../proxy";
