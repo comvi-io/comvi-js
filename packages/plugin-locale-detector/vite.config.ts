@@ -16,4 +16,10 @@ export default defineConfig({
     // never duplicated into this bundle.
     external: ["@comvi/core", "@comvi/core/plugins"],
   }),
+  define: {
+    // The default artifact is the PROD one: the development-only warning ships
+    // in dist/index.dev.js (vite.config.dev.ts), reachable through the
+    // "development" export condition.
+    __DEV__: JSON.stringify(false),
+  },
 });

@@ -18,7 +18,7 @@ import {
   SSR_FALLBACK_CATALOGS,
   SSR_FALLBACK_DEFAULT_NS,
   SSR_FALLBACK_LOCALES,
-  SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD,
+  ssrFallbackOnErrorReports,
   type SsrFallbackCase,
 } from "@comvi/test-utils/ssrFallbackContract";
 
@@ -177,7 +177,7 @@ describe("@comvi/next: the server fallback-chain contract", () => {
       );
     }
     expect(reports).toHaveBeenCalledTimes(
-      SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD * loadErrors.length,
+      ssrFallbackOnErrorReports(loadErrors.length, row.nextAdapterLoadErrors ?? 0),
     );
 
     // Client: SSR markup, then hydration from the same messages.
@@ -190,14 +190,21 @@ describe("@comvi/next: the server fallback-chain contract", () => {
       expect(rendered(container, keys)).toEqual(request.expect);
 
       // Hydration renders from `messages` alone: the client host has a loader
-      // and initializes, and still fetches nothing.
+      // and initializes, and fetches nothing the server serialised. A pair
+      // that FAILED on the server is not in `messages` and the payload does
+      // not say so, so the client's own chain load asks for it once, when the pair is in
+      // a namespace the client initializes.
       const { i18n: client, loader: clientLoader } = createHost(row);
       let root!: ReturnType<typeof hydrateRoot>;
       await act(async () => {
         root = hydrateRoot(container, <Tree i18n={client} {...props} />);
       });
       expect(rendered(container, keys)).toEqual(request.expect);
-      expect(clientLoader).not.toHaveBeenCalled();
+      const clientFetched = clientLoader.mock.calls.map(
+        ([locale, namespace]) => `${locale}:${namespace}`,
+      );
+      for (const pair of clientFetched) expect(row.failing ?? []).toContain(pair);
+      expect(new Set(clientFetched).size).toBe(clientFetched.length);
 
       if (index === 0 && row.navigation) {
         const { navigation } = row;

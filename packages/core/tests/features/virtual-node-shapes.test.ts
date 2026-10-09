@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createElement, isVirtualNode, translationResultToString } from "../../src";
 import type { VirtualNode } from "../../src";
+import { createFragment, createTextNode } from "../../src/virtualNode";
 
 describe("isVirtualNode()", () => {
   it.each([
-    ["element", { type: "element", tag: "b", props: {}, children: [] }],
-    ["text", { type: "text", text: "hi" }],
-    ["fragment", { type: "fragment", children: [] }],
-  ])("accepts a %s node", (_label, node) => {
+    ["element", createElement("b")],
+    ["text", createTextNode("hi")],
+    ["fragment", createFragment([])],
+  ])("accepts a %s node the library built", (_label, node) => {
     expect(isVirtualNode(node)).toBe(true);
   });
 
@@ -18,6 +19,8 @@ describe("isVirtualNode()", () => {
     ["a number", 42],
     ["an object without a type", {}],
     ["an object with an unknown type", { type: "portal" }],
+    ["an object literal shaped like a node", { type: "text", text: "hi" }],
+    ["a spread copy of a node", { ...createElement("b") }],
   ])("rejects %s", (_label, value) => {
     expect(isVirtualNode(value)).toBe(false);
   });

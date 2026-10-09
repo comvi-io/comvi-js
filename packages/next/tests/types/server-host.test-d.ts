@@ -186,6 +186,7 @@ export type _ServerInstanceMembers = Expect<
     | "getFallbackLocales"
     | "getLoader"
     | "reloadMessages"
+    | "onLoadError"
   >
 >;
 

@@ -44,7 +44,7 @@ export type ServerI18nInstance = Pick<
   | "getMessages"
   | "getFallbackLocales"
 > &
-  Pick<I18nLoaderApi, "getLoader" | "reloadMessages">;
+  Pick<I18nLoaderApi, "getLoader" | "reloadMessages" | "onLoadError">;
 
 /**
  * The single sanctioned crossing back to the instance's translator.

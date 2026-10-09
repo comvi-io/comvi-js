@@ -334,6 +334,7 @@ describe("request host teardown", () => {
     createComviCore.mockImplementation(() => ({
       locale: "en",
       t: () => "Hello",
+      on: vi.fn(() => () => {}),
       init: vi.fn().mockResolvedValue(undefined),
       setLocale: vi.fn(),
       destroy: vi.fn().mockRejectedValue(new Error("cleanup exploded")),
@@ -367,6 +368,7 @@ describe("request host teardown", () => {
       if (options.locale === "uk") {
         return {
           locale: "uk",
+          on: vi.fn(() => () => {}),
           init: vi.fn().mockRejectedValue(new Error("catalog unreachable")),
           setLocale: vi.fn(),
           destroy: vi.fn(),

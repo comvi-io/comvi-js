@@ -130,7 +130,7 @@
       "package": "packages/core",
       "file": "src/core/loader.ts",
       "mutators": ["BooleanLiteral"],
-      "snippet": "this._loadNs(loc, namespacesToReload, false).catch((reason) => {",
+      "snippet": "this._loadLocale(loc, namespacesToReload, false).catch((reason) => {",
       "lineHint": 286,
       "kind": "equivalent",
       "reason": "equivalent. `skipLoaded` filters against the cache, and the loop above deleted every (locale, namespace) pair being reloaded before any load starts — nothing is left for `true` to skip."
@@ -5343,7 +5343,7 @@
       "package": "packages/react",
       "file": "src/T.tsx",
       "mutators": ["ConditionalExpression"],
-      "snippet": "return childResult == null ? [] : [childResult as React.ReactNode];",
+      "snippet": "return childResult == null ? [] : [inert(childResult)];",
       "lineHint": 180,
       "kind": "equivalent",
       "reason": "forcing the test false yields [null] (or [\"\"] for the string case this line now also handles after the fast-path deletion) instead of [] — React renders both as the same zero-child DOM (probed). Hand-applied; green."

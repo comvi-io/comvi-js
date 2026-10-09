@@ -9,7 +9,7 @@ import {
   SSR_FALLBACK_CATALOGS,
   SSR_FALLBACK_DEFAULT_NS,
   SSR_FALLBACK_LOCALES,
-  SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD,
+  ssrFallbackOnErrorReports,
   type SsrFallbackCase,
 } from "@comvi/test-utils/ssrFallbackContract";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
@@ -84,7 +84,9 @@ const expectServerSide = (row: SsrFallbackCase, loader: Loader, reports: Reports
     );
   }
   const onErrorCalls = reports.onError.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
-  expect(onErrorCalls).toBe(SSR_FALLBACK_ON_ERROR_PER_FAILED_LOAD * reports.loadErrors.length);
+  // Every load here goes through core (init, the locale switch, an
+  // activation), so none of the failed ones is the adapter's.
+  expect(onErrorCalls).toBe(ssrFallbackOnErrorReports(reports.loadErrors.length, 0));
 };
 
 const rows = SSR_FALLBACK_CASES.map((row) => [row.name, row] as const);
@@ -239,14 +241,16 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
       expect(Object.keys(payload)).toEqual(expect.arrayContaining([...request.clientCatalogs]));
       for (const pair of row.failing ?? []) expect(Object.keys(payload)).not.toContain(pair);
 
-      // Client: hydrates from the payload and renders the same text without a
-      // single fetch.
+      // Client: hydrates from the payload and renders the same text, fetching
+      // nothing the server serialised. A pair that FAILED on the server is
+      // not in the payload and the payload does not say so, so the client's
+      // own chain load asks for it once.
       const clientLoader = createLoader(row);
       serveAppHost(row, clientLoader);
       const client = await runPlugin(createNuxtApp({ __comvi_messages__: payload }));
-      expect(clientLoader).not.toHaveBeenCalled();
+      for (const pair of fetchedPairs(clientLoader)) expect(row.failing ?? []).toContain(pair);
       await activateDuringRender(client, ns);
-      expect(clientLoader).not.toHaveBeenCalled();
+      expect(fetchedPairs(clientLoader)).toEqual(row.failing ?? []);
       expect(client.locale.value).toBe(request.locale);
       expect(translateAll(client, keys, ns)).toEqual(request.expect);
 

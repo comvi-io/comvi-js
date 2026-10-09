@@ -27,6 +27,7 @@ function createHostStub() {
     // `vi.fn()` records a zero-length tuple and indexing it is a tsc error.
     t: vi.fn((_key: string, _params?: { locale?: string }) => "translated-value"),
     tRaw: vi.fn((_key: string, _params?: { locale?: string }) => "translated-value"),
+    onLoadError: vi.fn(() => () => {}),
     init: vi.fn().mockResolvedValue(undefined),
   };
   return host;

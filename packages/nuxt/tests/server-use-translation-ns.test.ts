@@ -41,6 +41,7 @@ function createI18nStub() {
   const loaded = new Set<string>();
   const i18n: Record<string, unknown> = {
     locale: "en",
+    on: vi.fn(() => () => {}),
     init: vi.fn().mockResolvedValue(undefined),
     use: vi.fn(),
     setLocale: vi.fn(async (next: string) => {

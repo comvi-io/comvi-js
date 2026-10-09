@@ -171,9 +171,13 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 
     try {
       // Load the active namespaces BEFORE the locale applies, so the UI never
-      // flashes untranslated.
+      // flashes untranslated. The target locale only: the fallback chain does
+      // not depend on the locale, and its catalogs for these namespaces were
+      // attempted when each namespace was activated. Loading the chain again
+      // here would re-request a fallback catalog that is missing for good on
+      // every switch.
       if (mustLoad) {
-        await this._loadNs(value, namespaces, true);
+        await this._loadLocale(value, namespaces, true);
       }
 
       // Staleness must be re-checked after EVERY await — and `destroy()` is a
@@ -334,7 +338,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     const failures: Array<{ loc: string; reason: unknown }> = [];
     await Promise.all(
       localesToReload.map((loc) =>
-        this._loadNs(loc, namespacesToReload, false).catch((reason) => {
+        this._loadLocale(loc, namespacesToReload, false).catch((reason) => {
           failures.push({ loc, reason });
         }),
       ),
@@ -411,8 +415,30 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     return namespaces.filter((ns) => !this.messagesCache.has(locale, ns));
   }
 
-  /** @internal `_loadNs` hook — load the given namespaces for one locale. */
-  protected async _loadNs(
+  /**
+   * @internal `_loadNs` hook, which `init()` and a namespace activation go
+   * through — load the given namespaces for `locale` and for every locale of
+   * its fallback chain.
+   *
+   * The chain is only worth configuring if its catalogs are there to answer:
+   * `fallbackLocale` with a loader used to be a lookup rule over catalogs
+   * nobody had fetched, so a key missing from the active locale rendered as
+   * the key. A fallback catalog is a safety net, though, never a requirement:
+   * its failure is reported like any load error and does not fail the
+   * operation, and a catalog already in the cache is not requested again.
+   */
+  protected _loadNs(locale: string, namespaces: string[], skipLoaded: boolean): Promise<void> {
+    return Promise.all([
+      this._loadLocale(locale, namespaces, skipLoaded),
+      ...this._fallbackLocales.map(
+        (fallback) =>
+          fallback === locale || this._loadLocale(fallback, namespaces, true).catch(() => {}),
+      ),
+    ]) as Promise<unknown> as Promise<void>;
+  }
+
+  /** Load the given namespaces for one locale. */
+  protected async _loadLocale(
     locale: string,
     namespaces: string[],
     skipLoaded: boolean,

@@ -17,6 +17,7 @@ import {
   hookRequestCleanup,
   requestI18nMap,
 } from "../internal/request-hosts";
+import { rememberFailedLoads } from "../../utils/load-catalogs";
 
 /** Keyed by event context in a WeakMap, so cleanup is automatic. */
 export async function getRequestI18n(event: H3Event, locale: string): Promise<NuxtServerInstance> {
@@ -79,6 +80,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
         runtimeConfig: config,
       });
 
+      rememberFailedLoads(i18n);
       await i18n.init();
       return i18n;
     })();

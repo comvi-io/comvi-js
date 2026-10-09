@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, renderHook, act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { createElement, createTextNode } from "@comvi/core/rich-text";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 import { createI18n, icuCompiler } from "../src/index";
@@ -46,8 +47,8 @@ describe("useI18n", () => {
     const fake = new FakeI18n();
     const raw: TranslationResult = [
       "Hello ",
-      { type: "text", text: "world" },
-      { type: "element", tag: "strong", props: {}, children: ["!"] },
+      createTextNode("world"),
+      createElement("strong", {}, ["!"]),
     ];
     fake.tImplementation = () => raw;
 

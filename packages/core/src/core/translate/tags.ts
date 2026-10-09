@@ -233,7 +233,12 @@ function processTag(
   const flattenedChildren = finalizeResult(childrenResult);
 
   const handler = ctx.params[tagName];
-  if (typeof handler === "function") {
+  // Not an inherited member: `<constructor>` or `<valueOf>` in a message must
+  // not call what every object has.
+  if (
+    typeof handler === "function" &&
+    handler !== (Object.prototype as Record<string, unknown>)[tagName]
+  ) {
     return (handler as TagCallback)({
       children: flattenedChildren,
       name: tagName,

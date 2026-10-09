@@ -74,6 +74,7 @@ function createI18nStub(
   // The BASE host — what the generated default `#build/comvi.i18n` builds.
   const i18n: any = {
     locale: initialLanguage,
+    on: vi.fn(() => () => {}),
     init: vi.fn().mockResolvedValue(undefined),
     setLocale: vi.fn(async (newLocale: string) => {
       i18n.locale = newLocale;

@@ -33,6 +33,7 @@ const createEvent = (comvi: ComviPublic = {}, privateComvi: unknown = {}) =>
 function createHost(locale = "en") {
   const host = {
     locale,
+    on: vi.fn(() => () => {}),
     init: vi.fn().mockResolvedValue(undefined),
     setLocale: vi.fn(async (next: string) => {
       host.locale = next;

@@ -11,6 +11,7 @@ import {
 // per call, so rendering `<T>` never makes `<tag>` markup ambient for plain
 // string-API `t()`. Importing `@comvi/core/tags` would do exactly that.
 import {
+  isVirtualNode,
   prepareTranslation,
   type PendingHandler,
   type PrepareTranslationSource,
@@ -247,6 +248,11 @@ const TComponent = /*@__PURE__*/ defineComponent({
       };
 
       const convertNode = (node: VirtualNode): VNode | string => {
+        // Not a node the library built, so it is data and renders as text. A
+        // param is whatever the app was handed, and an object parsed from JSON
+        // can be shaped like a node; it cannot carry core's brand.
+        if (!isVirtualNode(node)) return String(node);
+
         if (node.type === "text") return node.text;
 
         if (node.type === "fragment") {

@@ -430,7 +430,9 @@ function appendParamValue(
   name: string,
   ctx: TranslateCtx,
 ): void {
-  if (value === undefined) {
+  // The second test is the own-property check: `{constructor}` or `{valueOf}`
+  // in a message must not resolve to what every object inherits.
+  if (value === undefined || value === (Object.prototype as Record<string, unknown>)[name]) {
     if (ctx.missingParam === "literal") {
       appendString(parts, missingParamText(name, ctx));
     }

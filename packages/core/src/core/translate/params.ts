@@ -1,4 +1,4 @@
-import type { VirtualNode } from "../../virtualNode";
+import { isVirtualNode } from "../../virtualNode";
 
 /** String, number, boolean, null, undefined, symbol or bigint. */
 export function isPrimitive(val: unknown): boolean {
@@ -13,25 +13,21 @@ export function isPrimitive(val: unknown): boolean {
   );
 }
 
-/** LOOSE: a framework-agnostic VirtualNode, but also a Vue VNode or React element. */
+/**
+ * LOOSE: a node this library created, or a React element.
+ *
+ * Never by shape alone. A param is application DATA — a name from an API, a
+ * value from the URL — and data can be shaped like anything; only a mark that
+ * cannot come out of `JSON.parse` separates a node from an object describing
+ * one. Core's own nodes carry a symbol-keyed brand, and a React element's
+ * `$$typeof` is a symbol for the same reason. A Vue VNode has no such mark
+ * (`__v_isVNode` is a plain boolean), so it is data here, like any object.
+ */
 export function isVNodeLoose(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-
-  const node = value as Partial<VirtualNode>;
-  const nodeType = node.type;
-  if (nodeType === "element" || nodeType === "text" || nodeType === "fragment") {
-    return true;
-  }
-
-  // Vue VNode.
-  if ((value as any).__v_isVNode === true) {
-    return true;
-  }
-
-  // React element.
-  if ((value as any).$$typeof) {
-    return true;
-  }
-
-  return false;
+  return (
+    isVirtualNode(value) ||
+    (!!value &&
+      typeof value === "object" &&
+      typeof (value as { $$typeof?: unknown }).$$typeof === "symbol")
+  );
 }

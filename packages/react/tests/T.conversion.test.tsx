@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render } from "@testing-library/react";
 import React from "react";
 import type { TranslationParams, TranslationResult } from "../src";
+import { createElement, createFragment, createTextNode } from "@comvi/core/rich-text";
 
 const { mockUseI18n } = vi.hoisted(() => ({
   mockUseI18n: vi.fn(),
@@ -50,13 +51,9 @@ const renderResult = (raw: unknown) => {
   return render(<T i18nKey="msg" />);
 };
 
-const elementNode = (tag: string, children: unknown, key?: string) => ({
-  type: "element",
-  tag,
-  props: {},
-  children,
-  ...(key === undefined ? {} : { key }),
-});
+// Built by core's factory: only a node the library created is rendered as one.
+const elementNode = (tag: string, children: unknown, key?: string) =>
+  Object.assign(createElement(tag), { children }, key === undefined ? {} : { key });
 
 describe("<T /> node conversion", () => {
   beforeEach(() => {
@@ -64,15 +61,13 @@ describe("<T /> node conversion", () => {
   });
 
   it("renders a text node as its text", () => {
-    const { container } = renderResult([{ type: "text", text: "Hi" }]);
+    const { container } = renderResult([createTextNode("Hi")]);
 
     expect(container.textContent).toBe("Hi");
   });
 
   it("renders a fragment node's children without adding a wrapper element", () => {
-    const { container } = renderResult([
-      { type: "fragment", children: ["a", elementNode("b", ["c"])] },
-    ]);
+    const { container } = renderResult([createFragment(["a", elementNode("b", ["c"])])]);
 
     expect(container.textContent).toBe("ac");
     expect(container.querySelector("b")!.textContent).toBe("c");
@@ -125,7 +120,7 @@ describe("<T /> React keys", () => {
   });
 
   it("keeps the DOM node identity when a keyed fragment shifts position", () => {
-    const keyed = { type: "fragment", children: [elementNode("b", ["x"])], key: "kf" };
+    const keyed = createFragment([elementNode("b", ["x"])], "kf");
     mockUseI18n.mockReturnValue(createHookStub({ t: () => [keyed] as TranslationResult }));
 
     const { container, rerender } = render(<T i18nKey="msg" v={1} />);
@@ -148,10 +143,10 @@ describe("<T /> React keys", () => {
       elementNode("b", ["one"]),
       "c",
       elementNode("b", ["two"]),
-      { type: "text", text: "t1" },
-      { type: "text", text: "t2" },
-      { type: "fragment", children: ["f1"] },
-      { type: "fragment", children: ["f2"] },
+      createTextNode("t1"),
+      createTextNode("t2"),
+      createFragment(["f1"]),
+      createFragment(["f2"]),
       React.createElement("em", null, "d"),
       React.createElement("em", null, "e"),
     ]);
