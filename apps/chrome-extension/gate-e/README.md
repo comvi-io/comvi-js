@@ -57,6 +57,13 @@ The Playwright gate runs phases 1–5 without user input:
 4. navigation while API-key validation is in flight;
 5. popup closure while activation is pending.
 
+`navigation.spec.ts` runs with the back/forward cache enabled (Playwright
+disables it by default). It navigates an active tab to `about:blank`, where no
+content script runs, and requires the session and the `ON` badge to be gone.
+It then goes Back, checks that the cached document really was restored, and
+requires that document to hold no authority, its editor runtime to be torn
+down, and a new activation from the popup to succeed.
+
 Phase 6 (same API key across two page origins) is covered deterministically by
 the service-worker integration test `revokes sessions on other origins that
 use the same API key`. Chromium's programmatic `openPopup()` does not grant

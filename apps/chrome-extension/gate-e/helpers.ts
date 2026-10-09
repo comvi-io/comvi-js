@@ -6,7 +6,10 @@ import {
   type Page,
   type Worker,
 } from "@playwright/test";
+import { mkdtemp } from "node:fs/promises";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import type { SessionRecord, TabState } from "../src/background/state";
 import type { OriginCredentials } from "../src/shared/storage";
 
@@ -138,4 +141,113 @@ export async function expectPopupView(
       cause: error,
     });
   }
+}
+
+/** Enable the editor from an open popup and wait until the worker holds an active session. */
+export async function activateEditor(
+  popup: Page,
+  hostilePage: Page,
+  worker: Worker,
+  tabId: number,
+  apiKey = "gate-e-key",
+) {
+  await expectPopupView(popup, worker, hostilePage, "idle", tabId);
+  const key = popup.locator("#api-key");
+  if (!(await key.inputValue())) await key.fill(apiKey);
+  await popup.locator("#enable-btn").click();
+  try {
+    await expect
+      .poll(
+        () =>
+          worker.evaluate((id) => {
+            const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+            return chromeApi.storage.session
+              .get<SessionStore>(`comvi_session_${id}`)
+              .then((state) => state[`comvi_session_${id}`]?.status);
+          }, tabId),
+        { timeout: 10_000 },
+      )
+      .toBe("active");
+    await expect(popup.locator("#state-active")).toBeVisible({ timeout: 5_000 });
+    await expect(popup.locator("#state-active")).toContainText("Editor active on this page");
+  } catch (error) {
+    const diagnostics = {
+      error: await popup.locator("#error-msg").textContent(),
+      button: await popup.locator("#enable-btn").textContent(),
+      page: await hostilePage.evaluate(() => ({
+        editorLoaded: Boolean((globalThis as any).ComviInContextEditor),
+        editorActive: (globalThis as any).ComviInContextEditor?.isActive?.(),
+        activations: (globalThis as any).__GATE_E_ACTIVATIONS__ ?? [],
+      })),
+      storage: await worker.evaluate(() => {
+        const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+        return chromeApi.storage.session.get(null);
+      }),
+    };
+    throw new Error(`Editor activation timed out: ${JSON.stringify(diagnostics)}`, {
+      cause: error,
+    });
+  }
+}
+
+/** Launch Chromium with the unpacked Gate E build and return its worker and extension id. */
+export async function launchGateE(options: { backForwardCache?: boolean } = {}): Promise<{
+  context: BrowserContext;
+  worker: Worker;
+  extensionId: string;
+  debuggingPort: number;
+}> {
+  const extensionPath = resolve(import.meta.dirname, "../dist-gate-e");
+  const userDataDir = await mkdtemp(join(tmpdir(), "comvi-gate-e-"));
+  const debuggingPort = await reservePort();
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    channel: "chromium",
+    headless: true,
+    args: [
+      `--remote-debugging-port=${debuggingPort}`,
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+    ],
+    // Playwright disables the back/forward cache by default; real Chrome
+    // restores cached documents, which is the case under test.
+    ...(options.backForwardCache ? { ignoreDefaultArgs: ["--disable-back-forward-cache"] } : {}),
+  });
+  const worker = await extensionWorker(context);
+  return { context, worker, extensionId: new URL(worker.url()).host, debuggingPort };
+}
+
+/** The active tab id as the extension sees it. */
+export async function activeTabId(worker: Worker): Promise<number> {
+  const tabId = await worker.evaluate(() => {
+    const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+    return chromeApi.tabs.query({ active: true, currentWindow: true }).then((tabs) => tabs[0]?.id);
+  });
+  if (typeof tabId !== "number") throw new Error("No active tab");
+  return tabId;
+}
+
+/** The worker's stored session record for a tab, if any. */
+export function storedSession(worker: Worker, tabId: number) {
+  return worker.evaluate((id) => {
+    const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+    return chromeApi.storage.session
+      .get<SessionStore>(`comvi_session_${id}`)
+      .then((state) => state[`comvi_session_${id}`]);
+  }, tabId);
+}
+
+/** Wait until the manifest content scripts reported Comvi on the tab. */
+export async function waitForDetection(worker: Worker, tabId: number): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        worker.evaluate((id) => {
+          const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+          return chromeApi.storage.session
+            .get<TabStateStore>(`comvi_tabstate_${id}`)
+            .then((state) => state[`comvi_tabstate_${id}`]?.comviDetected === true);
+        }, tabId),
+      { timeout: 10_000 },
+    )
+    .toBe(true);
 }

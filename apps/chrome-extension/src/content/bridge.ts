@@ -191,6 +191,32 @@ function installBridge() {
     });
   }) as EventListener);
 
+  // Leaving this document (navigation, reload, tab close or entry into the
+  // back/forward cache) ends its authority. A destination without a content
+  // script never announces itself, so the leaving document says so. A page
+  // can dispatch a synthetic pagehide too, which can only revoke its own
+  // session.
+  window.addEventListener("pagehide", () => {
+    currentStatus.editorActive = false;
+    sendRuntimeMessage({ type: "EDITOR_DEACTIVATED", payload: { success: true } });
+  });
+
+  // A document restored from the back/forward cache keeps its JavaScript
+  // state, including a possibly still-active editor runtime. It resumes no
+  // authority: announce it as a restored document, forget any activation
+  // nonce issued before it was cached, and tear the runtime down so the next
+  // popup activation starts it again.
+  window.addEventListener("pageshow", (event) => {
+    if (!(event as PageTransitionEvent).persisted) return;
+    pendingActivationNonce = undefined;
+    currentStatus.editorActive = false;
+    sendRuntimeMessage({ type: "DOCUMENT_READY", payload: { restored: true } });
+    if (currentStatus.comviDetected) {
+      sendRuntimeMessage({ type: "COMVI_DETECTED", payload: currentStatus });
+    }
+    window.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
+  });
+
   // Relay proxied API requests from the editor runtime to the service
   // worker. The payload is page-controlled; only a fixed shape is forwarded
   // and the service worker independently re-validates everything.
@@ -242,6 +268,12 @@ function installBridge() {
       case "DEACTIVATE_EDITOR":
         window.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
         sendResponse({ type: "STATUS_RESPONSE", payload: { pending: true } });
+        break;
+
+      // The service worker asks whether the document its session is bound to
+      // still exists. Nothing is dispatched into the page.
+      case "PING_DOCUMENT":
+        sendResponse({ alive: true });
         break;
     }
 

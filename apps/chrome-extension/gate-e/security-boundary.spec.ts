@@ -1,58 +1,18 @@
-import { expect, test, chromium, type Browser, type Page, type Worker } from "@playwright/test";
+import { expect, test, chromium, type Browser, type Page } from "@playwright/test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { expectPopupView, extensionWorker, openPopup, reservePort } from "./helpers";
+import {
+  activateEditor,
+  expectPopupView,
+  extensionWorker,
+  openPopup,
+  reservePort,
+} from "./helpers";
 import type { SessionStore, TabStateStore } from "./helpers";
 
 const extensionPath = resolve(import.meta.dirname, "../dist-gate-e");
 const POLL = { timeout: 10_000 };
-
-async function activateEditor(
-  popup: Page,
-  hostilePage: Page,
-  worker: Worker,
-  tabId: number,
-  apiKey = "gate-e-key",
-) {
-  await expectPopupView(popup, worker, hostilePage, "idle", tabId);
-  const key = popup.locator("#api-key");
-  if (!(await key.inputValue())) await key.fill(apiKey);
-  await popup.locator("#enable-btn").click();
-  try {
-    await expect
-      .poll(
-        () =>
-          worker.evaluate((id) => {
-            const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
-            return chromeApi.storage.session
-              .get<SessionStore>(`comvi_session_${id}`)
-              .then((state) => state[`comvi_session_${id}`]?.status);
-          }, tabId),
-        { timeout: 10_000 },
-      )
-      .toBe("active");
-    await expect(popup.locator("#state-active")).toBeVisible({ timeout: 5_000 });
-    await expect(popup.locator("#state-active")).toContainText("Editor active on this page");
-  } catch (error) {
-    const diagnostics = {
-      error: await popup.locator("#error-msg").textContent(),
-      button: await popup.locator("#enable-btn").textContent(),
-      page: await hostilePage.evaluate(() => ({
-        editorLoaded: Boolean((globalThis as any).ComviInContextEditor),
-        editorActive: (globalThis as any).ComviInContextEditor?.isActive?.(),
-        activations: (globalThis as any).__GATE_E_ACTIVATIONS__ ?? [],
-      })),
-      storage: await worker.evaluate(() => {
-        const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
-        return chromeApi.storage.session.get(null);
-      }),
-    };
-    throw new Error(`Editor activation timed out: ${JSON.stringify(diagnostics)}`, {
-      cause: error,
-    });
-  }
-}
 
 async function phaseFailures(page: Page, phase: string) {
   return page.evaluate((wantedPhase) => {

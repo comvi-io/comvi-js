@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vite
 import { installFakeChrome, type FakePort, type Harness } from "./harness";
 import { tabLockKey, withLock } from "../state";
 import { CURRENT_STORAGE_SCHEMA_VERSION, STORAGE_SCHEMA_KEY } from "../../shared/storage";
-import { sweepExpiredPendingSessions } from "../sessions";
+import { DOCUMENT_PING_TIMEOUT_MS, sweepExpiredPendingSessions } from "../sessions";
 
 const TAB = 7;
 /** Every tab id the suite proxies through; their rate-limit logs are reset per test. */
@@ -875,6 +875,154 @@ describe("same-document SPA navigation", () => {
     );
     expect(status).toMatchObject({ active: true, pending: false });
     await expect(proxyRequest()).resolves.toMatchObject({ ok: true, status: 200 });
+  });
+});
+
+// Chrome reports status "loading"/"complete" for History API routes as well
+// as for real navigations, so the status alone cannot revoke. The worker asks
+// the session's bound document whether it still exists.
+describe("top-level navigation without a replacement bridge", () => {
+  function pingedDocuments(): unknown[] {
+    return harness.chrome.tabs.sendMessage.mock.calls
+      .filter(([, message]) => (message as { type?: string }).type === "PING_DOCUMENT")
+      .map(([, , options]) => (options as { documentId?: string }).documentId);
+  }
+
+  it("keeps the session through History API status changes while its document answers", async () => {
+    await openActiveSession();
+
+    harness.setTabUrl(TAB, `${ORIGIN}/spa-route`);
+    harness.fireTabUpdated(TAB, { status: "loading", url: `${ORIGIN}/spa-route` });
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await harness.flush();
+
+    expect(pingedDocuments()).toEqual(["doc-1", "doc-1"]);
+    expect(await sessionStatus()).toMatchObject({ active: true, pending: false });
+    await expect(proxyRequest()).resolves.toMatchObject({ ok: true, status: 200 });
+  });
+
+  it("revokes the session and resets the toolbar when its document is gone", async () => {
+    await openActiveSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.action.setIcon.mockClear();
+
+    // e.g. chrome://settings: no content script runs, so no DOCUMENT_READY.
+    harness.markDocumentGone("doc-1");
+    harness.setTabUrl(TAB, undefined);
+    harness.fireTabUpdated(TAB, { status: "loading" });
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
+    expect(lastBadgeText()).toBe("");
+    const icons = harness.chrome.action.setIcon.mock.calls;
+    expect((icons[icons.length - 1]?.[0] as { path: Record<number, string> }).path[16]).toContain(
+      "icon-inactive-16",
+    );
+    expect(broadcasts()).toContainEqual({
+      tabId: TAB,
+      active: false,
+      pending: false,
+      comviDetected: false,
+    });
+    await expect(proxyRequest()).resolves.toMatchObject({ ok: false });
+  });
+
+  it("does not delete a replacement session bound to a newer document", async () => {
+    await openActiveSession();
+    let answerPing!: () => void;
+    harness.respondToDocumentPing(
+      () =>
+        new Promise((_resolve, reject) => {
+          answerPing = () => reject(new Error("Receiving end does not exist."));
+        }),
+    );
+
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await harness.flush();
+    const replacement = {
+      ...(harness.chrome.storage.session.snapshot()[`comvi_session_${TAB}`] as object),
+      documentId: "doc-2",
+      nonce: "nonce-2",
+    };
+    await harness.chrome.storage.session.set({ [`comvi_session_${TAB}`]: replacement });
+    answerPing();
+    await harness.flush();
+
+    expect(harness.chrome.storage.session.snapshot()[`comvi_session_${TAB}`]).toEqual(replacement);
+  });
+
+  it("revokes without messaging when the tab's top-level origin changed", async () => {
+    await openActiveSession();
+
+    harness.setTabUrl(TAB, "https://elsewhere.example/");
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await harness.flush();
+
+    expect(pingedDocuments()).toEqual([]);
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
+  });
+
+  // Observed in Chromium: a message to a document that is entering the
+  // back/forward cache is neither answered nor failed.
+  it("treats a document that never answers as gone", async () => {
+    await openActiveSession();
+    harness.respondToDocumentPing(() => new Promise(() => {}));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await vi.advanceTimersByTimeAsync(DOCUMENT_PING_TIMEOUT_MS + 1);
+    vi.useRealTimers();
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
+  });
+
+  it("keeps the session when the document answers just within the deadline", async () => {
+    await openActiveSession();
+    harness.respondToDocumentPing(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ alive: true }), DOCUMENT_PING_TIMEOUT_MS - 50),
+        ),
+    );
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await vi.advanceTimersByTimeAsync(DOCUMENT_PING_TIMEOUT_MS + 1);
+    vi.useRealTimers();
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ active: true, pending: false });
+  });
+
+  it("does not message any document when the tab has no active session", async () => {
+    await startSession(); // pending only: no document is bound yet
+
+    harness.fireTabUpdated(TAB, { status: "loading" });
+    await harness.flush();
+
+    expect(pingedDocuments()).toEqual([]);
+  });
+
+  it("ignores updates that carry no status", async () => {
+    await openActiveSession();
+
+    harness.fireTabUpdated(TAB, { url: `${ORIGIN}/another-route` });
+    await harness.flush();
+
+    expect(pingedDocuments()).toEqual([]);
+  });
+
+  it("revokes an active session when its own document is restored from the back/forward cache", async () => {
+    await openActiveSession();
+
+    const response = await harness.dispatchMessage(
+      { type: "DOCUMENT_READY", payload: { restored: true } },
+      pageSender(),
+    );
+
+    expect(response).toEqual({ ok: true });
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
   });
 });
 

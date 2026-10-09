@@ -832,8 +832,29 @@ describe("revocation from an editor lifecycle event", () => {
   it("refuses a deactivation from a subframe", async () => {
     await openActiveSession();
 
-    await expect(revokeSessionFromSender(TAB, pageSender({ frameId: 2 }))).resolves.toBe(false);
+    // A subframe is its own document; Chrome never gives it the top document's id.
+    await expect(
+      revokeSessionFromSender(TAB, pageSender({ frameId: 2, documentId: "subframe-doc" })),
+    ).resolves.toBe(false);
     await expect(getSession(TAB)).resolves.toMatchObject({ status: "active" });
+  });
+
+  // Observed in Chromium: a top-level document entering the back/forward
+  // cache sends its pagehide message with a non-zero frameId and
+  // documentLifecycle "cached". Its document id still identifies it.
+  it("revokes when the bound document leaves for the back/forward cache", async () => {
+    await openActiveSession();
+
+    await expect(
+      revokeSessionFromSender(
+        TAB,
+        pageSender({
+          frameId: 2,
+          documentLifecycle: "cached",
+        } as Partial<chrome.runtime.MessageSender>),
+      ),
+    ).resolves.toBe(true);
+    await expect(getSession(TAB)).resolves.toBeUndefined();
   });
 
   it("refuses a deactivation from another origin", async () => {

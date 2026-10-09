@@ -27,6 +27,7 @@ import {
   getSessionStatus,
   revokePendingForLease,
   revokeSessionFromSender,
+  revokeSessionIfDocumentGone,
   sweepExpiredPendingSessions,
 } from "./sessions";
 import { handleProxyRequest, abortProxyRequest, failure as proxyFailure } from "./proxy-handler";
@@ -203,15 +204,21 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
         return false;
       }
 
-      // The manifest bridge emits this once at document_start. Unlike
-      // tabs.onUpdated, this is not emitted for History API / SPA routes.
+      // The manifest bridge emits this once at document_start, and again with
+      // `restored` when the document returns from the back/forward cache.
+      // Unlike tabs.onUpdated, it is not emitted for History API / SPA routes.
+      const restored = (message.payload as { restored?: unknown } | undefined)?.restored === true;
       beginTabProxyRevocation(tabId);
       void (async () => {
         try {
           return await whenServiceWorkerReady(() =>
             withLock(tabLockKey(tabId), async () => {
               const previous = await getTabState(tabId);
-              if (sender.documentId && previous?.documentId === sender.documentId) return false;
+              // A restored document resumes no authority it held before it
+              // was cached: it needs a fresh activation like a new document.
+              if (!restored && sender.documentId && previous?.documentId === sender.documentId) {
+                return false;
+              }
               await bumpNavGen(tabId);
               await deleteSession(tabId);
               await putTabState(tabId, {
@@ -437,6 +444,38 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 // --- tab lifecycle cleanup ---
+
+/** Whether the document the session is bound to still exists and answers. */
+async function isDocumentAlive(tabId: number, documentId: string): Promise<boolean> {
+  try {
+    const response: unknown = await chrome.tabs.sendMessage(
+      tabId,
+      { type: "PING_DOCUMENT" } satisfies Message,
+      { documentId },
+    );
+    return (response as { alive?: unknown } | undefined)?.alive === true;
+  } catch {
+    // "Receiving end does not exist": replaced, cached or discarded.
+    return false;
+  }
+}
+
+// A top-level navigation to a page where no content script runs (for example
+// chrome://settings) produces no DOCUMENT_READY. Status changes are reported
+// for History API routes too, so they only trigger a liveness check of the
+// bound document; tabs.onUpdated status needs no "tabs" permission.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!changeInfo.status) return;
+  runInBackground(async () => {
+    const revoked = await revokeSessionIfDocumentGone(tabId, (documentId) =>
+      isDocumentAlive(tabId, documentId),
+    );
+    if (revoked) {
+      const status = await getSessionStatus({ tabId }, {} as chrome.runtime.MessageSender);
+      broadcastSessionState({ tabId, ...status });
+    }
+  });
+});
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   beginTabProxyRevocation(tabId);

@@ -25,7 +25,8 @@ export type MessageType =
   | "GET_SESSION_STATUS"
   | "SESSION_STATE_CHANGED"
   | "API_PROXY_REQUEST"
-  | "API_PROXY_ABORT";
+  | "API_PROXY_ABORT"
+  | "PING_DOCUMENT";
 
 export interface Message {
   type: MessageType;

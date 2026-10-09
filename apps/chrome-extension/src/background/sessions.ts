@@ -34,6 +34,7 @@ import {
   deleteSession,
   getAllSessions,
   getTabState,
+  putTabState,
   getNavGen,
   getAuthorityEpoch,
   bumpAuthorityEpoch,
@@ -50,6 +51,12 @@ import {
 
 /** How long a pending session may wait for activation acknowledgement. */
 export const PENDING_TTL_MS = 30_000;
+/**
+ * How long the bound document gets to answer a liveness check. Chromium
+ * neither answers nor fails a message to a document entering the
+ * back/forward cache, so silence counts as gone.
+ */
+export const DOCUMENT_PING_TIMEOUT_MS = 2_000;
 const KEY_VALIDATION_TIMEOUT_MS = 8_000;
 
 // --- API key validation ---
@@ -371,6 +378,64 @@ export async function revokeSession(tabId: number): Promise<void> {
 }
 
 /**
+ * Revoke an active session whose bound document no longer exists.
+ *
+ * Chrome reports the same tab status changes for History API routes and for
+ * real navigations, and a destination such as chrome://settings runs no
+ * content script that could announce itself. So the bound document is asked
+ * directly; only when it no longer answers is authority revoked. Returns
+ * whether a session was revoked.
+ */
+export async function revokeSessionIfDocumentGone(
+  tabId: number,
+  isDocumentAlive: (documentId: string) => Promise<boolean>,
+): Promise<boolean> {
+  const session = await getSession(tabId);
+  // Pending records hold no proxy authority and are not bound to a document.
+  if (session?.status !== "active" || !session.documentId) return false;
+  const boundDocumentId = session.documentId;
+  // History API routes cannot change the origin, so a different (or hidden)
+  // top-level origin means the bound document is gone; no message needed.
+  if ((await tabOrigin(tabId)) === session.origin) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const alive = await Promise.race([
+      isDocumentAlive(boundDocumentId).catch(() => false),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), DOCUMENT_PING_TIMEOUT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (alive) return false;
+  }
+
+  beginTabProxyRevocation(tabId);
+  try {
+    return await withLock(tabLockKey(tabId), async () => {
+      const current = await getSession(tabId);
+      if (
+        !current ||
+        current.documentId !== session.documentId ||
+        current.nonce !== session.nonce
+      ) {
+        return false;
+      }
+      await deleteSession(tabId);
+      const tabState = await getTabState(tabId);
+      if (tabState?.documentId === session.documentId) {
+        // Detection state belonged to the document that is gone.
+        await putTabState(tabId, { comviDetected: false });
+        renderBadge(tabId, false, false);
+      } else {
+        renderBadge(tabId, tabState?.comviDetected ?? false, false);
+      }
+      return true;
+    });
+  } finally {
+    endTabProxyRevocation(tabId);
+  }
+}
+
+/**
  * Validate an editor lifecycle deactivation and revoke under one gated tab
  * transition. The gate is raised synchronously before any storage read, so a
  * proxy request cannot register between receipt and authority deletion.
@@ -384,7 +449,15 @@ export async function revokeSessionFromSender(
     return await withLock(tabLockKey(tabId), async () => {
       const session = await getSession(tabId);
       if (!session) return false;
-      if (sender.tab?.id !== tabId || sender.frameId !== 0) return false;
+      if (sender.tab?.id !== tabId) return false;
+      // The bound document itself may revoke whatever its frame id: Chromium
+      // reports a non-zero frameId for a top-level document that is entering
+      // the back/forward cache. Otherwise only the top frame may.
+      const fromBoundDocument =
+        typeof session.documentId === "string" &&
+        session.documentId.length > 0 &&
+        sender.documentId === session.documentId;
+      if (!fromBoundDocument && sender.frameId !== 0) return false;
       if (canonicalizeOrigin(sender.origin) !== session.origin) return false;
       if (session.documentId && sender.documentId !== session.documentId) return false;
       if ((await getNavGen(tabId)) !== session.navGen) return false;
