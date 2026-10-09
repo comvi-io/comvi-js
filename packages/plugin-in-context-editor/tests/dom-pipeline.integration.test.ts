@@ -233,4 +233,35 @@ describe("DOM pipeline", () => {
       });
     });
   });
+
+  describe("markers that stop decoding", () => {
+    function splitMarkerParagraph(): { paragraph: HTMLParagraphElement; tail: Text } {
+      const encoded = encodeKeyToInvisible(registerKey("hello"));
+      const paragraph = document.createElement("p");
+      const tail = document.createTextNode(encoded.slice(3));
+      paragraph.append(document.createTextNode(`Hello${encoded.slice(0, 3)}`), tail);
+      container.appendChild(paragraph);
+      return { paragraph, tail };
+    }
+
+    it("tail of a split marker rewritten → the key is dropped from the node where it started", async () => {
+      const { paragraph, tail } = splitMarkerParagraph();
+      const { registry } = startPipeline(container);
+
+      tail.nodeValue = "plain";
+      await flushDOMMutations();
+
+      expect(registry.has(paragraph)).toBe(false);
+    });
+
+    it("tail of a split marker removed → the key is dropped from the node where it started", async () => {
+      const { paragraph, tail } = splitMarkerParagraph();
+      const { registry } = startPipeline(container);
+
+      tail.remove();
+      await flushDOMMutations();
+
+      expect(registry.has(paragraph)).toBe(false);
+    });
+  });
 });

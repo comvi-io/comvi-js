@@ -315,8 +315,22 @@ export class DOMWatcher {
     structureChanges: Set<Node>,
     removedNodes: Set<Node>,
     newlyObservedRoots: Set<Node>,
+    textChanges: Set<Node>,
   ): void {
     if (mutation.type === "childList") {
+      // A text node joining or leaving a run of adjacent text changes what its
+      // neighbours decode to: a marker can span the run.
+      const pageNodeChanged = [...mutation.addedNodes, ...mutation.removedNodes].some(
+        (node) => !this.isEditorOwnedNode(node),
+      );
+      if (pageNodeChanged) {
+        for (const sibling of [mutation.previousSibling, mutation.nextSibling]) {
+          if (sibling?.nodeType === Node.TEXT_NODE) {
+            textChanges.add(sibling);
+          }
+        }
+      }
+
       // Only the added subtrees are scanned, not the parent: a node appended to
       // <body> must not rescan the whole page.
       mutation.addedNodes.forEach((node) => {
@@ -398,7 +412,13 @@ export class DOMWatcher {
     mutations.forEach((mutation) => {
       this.categorizeTextChanges(mutation, textChanges);
       this.categorizeAttributeChanges(mutation, attributeChanges);
-      this.categorizeStructureChanges(mutation, structureChanges, removedNodes, newlyObservedRoots);
+      this.categorizeStructureChanges(
+        mutation,
+        structureChanges,
+        removedNodes,
+        newlyObservedRoots,
+        textChanges,
+      );
     });
 
     this.emitBatchedChanges(
