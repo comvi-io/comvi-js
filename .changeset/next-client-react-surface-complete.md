@@ -4,7 +4,7 @@
 
 **`@comvi/next/client` now really does re-export react's whole 0.5 surface: `useI18nInstance` and
 `ComponentMap` were missing.** The README says this entry carries react's 0.5.0 surface, and it
-carried all of it except those two: `useI18nInstance()` — THE name for "give me the host" in
+carried all of it except those two: `useI18nInstance()` — THE name for "give me the instance" in
 `@comvi/react`, `@comvi/solid` and `@comvi/svelte`, added there in this same release — and
 `ComponentMap`, the type a `<T components={…}>` map is annotated with. A next client component
 that wanted either had to import `@comvi/react` beside this package, which is exactly the second

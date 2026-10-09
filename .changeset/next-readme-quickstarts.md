@@ -2,9 +2,9 @@
 "@comvi/next": patch
 ---
 
-**Docs only.** The README's "three ways to get a host" table read like three peer
+**Docs only.** The README's table of three ways to get an instance read like three peer
 options; it is one: `createNextI18n(options).use(...)` is the recommendation,
-`createNextI18nFromInstance` is for a host built elsewhere, and `createI18n` (still
+`createNextI18nFromInstance` is for an instance built elsewhere, and `createI18n` (still
 exported from both runtime entries) is for that factory and for 0.4 migration —
 demoted to a mention in the export table rather than a coequal choice.
 
@@ -16,7 +16,7 @@ out the actual mechanism behind client-side ICU and the loader: the shared
 `i18n/config.ts` module is evaluated once on the server and once again inside
 the client bundle (`I18nClientProvider.tsx` imports it a second time, because
 Next cannot pass a class instance across the Server/Client Component
-boundary), so the client host gets `compiler: icuCompiler` and the composed
+boundary), so the client instance gets `compiler: icuCompiler` and the composed
 loader only because the same construction code runs twice — nothing is
 serialized from the running server instance to the browser. Both quickstarts
 were typechecked against a scratch copy of `test-apps/next` before writing.
