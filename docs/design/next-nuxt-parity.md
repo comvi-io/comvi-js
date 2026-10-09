@@ -256,6 +256,32 @@ until the option exists. Once it does, the known-difference tests become two con
 shared row, and the shared-options rule carries the per-framework defaults. Reading and writing the
 cookie as separate controls, and a no-cookie mode, follow the same path.
 
+### An explicit locale switch always wins (amended 2026-10-09)
+
+The cookie is the record of the user's explicit choice, and a URL that names no locale — the
+default locale's under `as-needed`, every URL under `never` — is resolved from it. A switch to such
+a URL was therefore answered with the locale being LEFT: `/de` → `/` bounced back to `/de` in both
+packages. Both now end a switch with the user on the locale they chose and the cookie saying so:
+
+| what the user does                              | next                                                   | nuxt                                                       |
+| ----------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------- |
+| switches locale (router / link naming a locale) | lands on that locale's public URL; cookie records it   | the same                                                   |
+| first visit, no cookie                          | detection, as before                                   | the same                                                   |
+| direct visit to `/`, cookie says `de`           | redirected to `/de`, as before                         | the same                                                   |
+| direct visit to `/about`, cookie says `de`      | redirected to `/de/about` (the known difference above) | serves `en`, keeps the cookie (the known difference above) |
+
+The mechanism differs because the middleware runs in different places. Nuxt's runs in the browser
+on every navigation, so it can see the switch itself: a navigation from a locale-prefixed URL to
+the same page without one is what `useSwitchLocalePath()` returns for the default locale, and
+`<NuxtLinkLocale locale>` writes the cookie on click for every other target. Next's runs on the
+server only, behind a client router cache keyed by URL: an unprefixed URL may already be cached as
+the redirect an earlier prefetch was answered with, and a cached navigation sends no request at
+all. So a next switch navigates to the locale-PREFIXED URL (`/en/about`, which the middleware
+canonicalizes to `/about` and records), writes the cookie in the browser as well, and never
+prefetches a link to another locale. Writing the cookie alone was tried first and failed in a real
+Next 15 app for exactly the cache reason. Pinned by `packages/next/tests/locale-switch.test.tsx` and
+`packages/nuxt/tests/locale-switch.test.ts`, both of which run the real middleware.
+
 ## Alternatives rejected
 
 - **A published shared package.** locale-routing would have to be versioned, documented and

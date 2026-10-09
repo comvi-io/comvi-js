@@ -421,6 +421,32 @@ export function normalizeLocaleCookie(
   return resolved;
 }
 
+/**
+ * The `document.cookie` assignment that records `locale` as the user's choice:
+ * the same name, path, lifetime and attributes the middleware writes, so the
+ * browser replaces that cookie instead of keeping a second one beside it.
+ *
+ * For the one moment only the browser knows about — an explicit locale switch.
+ * A URL that names no locale (`as-needed`'s default locale, every URL under
+ * `never`) is resolved from this cookie, so the switch has to update it BEFORE
+ * it navigates; the middleware's own write arrives with the response, which is
+ * one request too late. `secure` is the caller's: a browser drops a `Secure`
+ * cookie set from a plain-HTTP page.
+ */
+export function serializeLocaleCookie(
+  cookie: ResolvedLocaleCookie,
+  locale: string,
+  secure: boolean,
+): string {
+  const { name, maxAge, sameSite, domain } = cookie;
+  return (
+    `${name}=${encodeURIComponent(locale)}; Path=/; Max-Age=${maxAge}` +
+    `; SameSite=${sameSite[0]!.toUpperCase()}${sameSite.slice(1)}` +
+    (domain === undefined ? "" : `; Domain=${domain}`) +
+    (secure ? "; Secure" : "")
+  );
+}
+
 /** `localeDetection` with its defaults applied, or `false` for detection off. */
 export function normalizeLocaleDetection(
   detection: false | LocaleDetectionConfig | undefined,

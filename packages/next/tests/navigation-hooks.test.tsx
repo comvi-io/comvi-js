@@ -182,7 +182,9 @@ describe("useLocalizedRouter", () => {
 
     result.current.push("/about", "en");
 
-    expect(nextNavigation.router.push).toHaveBeenCalledWith("/about");
+    // Another locale than the page's is a switch: the locale-prefixed URL,
+    // which the middleware redirects to `/about`. See `localeSwitch.ts`.
+    expect(nextNavigation.router.push).toHaveBeenCalledWith("/en/about");
   });
 
   it("localizes replace targets", () => {
@@ -193,7 +195,7 @@ describe("useLocalizedRouter", () => {
 
     result.current.replace("/about", "en");
 
-    expect(nextNavigation.router.replace).toHaveBeenCalledWith("/about");
+    expect(nextNavigation.router.replace).toHaveBeenCalledWith("/en/about");
   });
 
   it("localizes prefetch targets", () => {

@@ -25,9 +25,10 @@ import { resolveAcceptLanguage as customResolveAcceptLanguage } from "#build/com
  * (default: the query parameter, the cookie, the Accept-Language header), then
  * `defaultLocale`. Under `as-needed` a prefixless non-root path IS the default
  * locale's URL: it is decided after any `query` sources that lead the order
- * and before the rest.
+ * and before the rest. So is the prefixless URL of a locale switch to the
+ * default locale, the root path included.
  */
-export default defineNuxtRouteMiddleware(async (to) => {
+export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
   const config = useRuntimeConfig();
   const {
     locales,
@@ -66,8 +67,22 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const queryParam = detectConfig ? detectConfig.queryParam : undefined;
   const hasQueryParam =
     queryParam !== undefined && Object.prototype.hasOwnProperty.call(to.query ?? {}, queryParam);
+
+  // A locale switch to the default locale: a navigation from a locale-prefixed
+  // URL to the SAME page without a prefix, which is what `useSwitchLocalePath()`
+  // returns for the default locale under `as-needed`. It is the user's explicit
+  // choice, so the URL decides, the root path included, and the cookie records
+  // the default locale instead of keeping the one being switched away from.
+  // The first run of a visit never matches: its `from` is the target itself on
+  // the server, and the router's start location (`/`) in the browser.
+  const isSwitchToDefault =
+    localePrefix === "as-needed" &&
+    pathLocale === undefined &&
+    from !== undefined &&
+    extractLocaleFromPath(from.path, locales) !== undefined &&
+    stripLocalePrefix(from.path, locales) === pathname;
   const isPathImpliedDefaultCandidate =
-    localePrefix === "as-needed" && pathname !== "/" && pathname !== "";
+    isSwitchToDefault || (localePrefix === "as-needed" && pathname !== "/" && pathname !== "");
 
   if (pathLocale) {
     detectedLocale = pathLocale;
@@ -131,6 +146,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const isPathImpliedDefault = detectedSource === "path" && pathLocale === undefined;
   const preservedPreference =
     isPathImpliedDefault &&
+    !isSwitchToDefault &&
     localeCookie?.value &&
     locales.includes(localeCookie.value) &&
     localeCookie.value !== locale
