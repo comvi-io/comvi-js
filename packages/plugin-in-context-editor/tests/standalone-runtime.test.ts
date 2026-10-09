@@ -39,7 +39,11 @@ import { getApiConfig } from "../src/config/api";
 import { resetEncoder } from "../src/translation";
 import type { ApiTransport, ApiTransportInit } from "../src/config/api";
 
-type CoreOptions = { targetElement?: Node; collectContext?: boolean };
+type CoreOptions = {
+  targetElement?: Node;
+  collectContext?: boolean;
+  highlightStyle?: { borderColor?: string; backgroundColor?: string; borderWidth?: number };
+};
 
 function lastCoreOptions(): CoreOptions {
   expect(coreCtorMock).toHaveBeenCalled();
@@ -131,6 +135,19 @@ describe("activate() defaults", () => {
     activate({ targetElement: target, refreshMessages: false });
 
     expect(lastCoreOptions().targetElement).toBe(target);
+  });
+
+  it("hands the caller's highlightStyle to the runtime", () => {
+    makeI18n();
+    const highlightStyle = { borderColor: "red", backgroundColor: "pink", borderWidth: 3 };
+
+    activate({ highlightStyle, refreshMessages: false });
+
+    expect(lastCoreOptions().highlightStyle).toEqual({
+      borderColor: "red",
+      backgroundColor: "pink",
+      borderWidth: 3,
+    });
   });
 
   it("trims the api key before storing it in the runtime's configuration", () => {
