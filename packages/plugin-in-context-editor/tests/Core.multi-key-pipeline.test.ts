@@ -24,7 +24,6 @@ import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translat
 import {
   cleanupDOM,
   flushDOMMutations,
-  flushPendingImports,
   mockBoundingClientRect,
   simulateMouseEvent,
 } from "./helpers";
@@ -47,8 +46,10 @@ describe("Core with a multi-key text node", () => {
     await flushDOMMutations();
 
     simulateMouseEvent(paragraph, "click", { altKey: true });
-    await flushPendingImports();
 
+    // The selector and the (absent) modal are decided in the same continuation,
+    // so once the selector has opened, "no modal" is settled too.
+    await vi.waitFor(() => expect(showKeySelectorMock).toHaveBeenCalled());
     expect({
       keyData: showKeySelectorMock.mock.calls[0]?.[0],
       instanceId: showKeySelectorMock.mock.calls[0]?.[4],

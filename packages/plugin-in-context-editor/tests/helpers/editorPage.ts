@@ -9,7 +9,6 @@
 import { encodeKeyToInvisible, registerKey } from "../../src/translation";
 import {
   flushDOMMutations,
-  flushPendingImports,
   getActiveOverlay,
   getActiveTooltip,
   mockBoundingClientRect,
@@ -69,14 +68,14 @@ export function hoverLabelNow(element: Element): string | null {
 }
 
 /**
- * Alt-click on `element`, then lets the lazily imported editor UI settle. Use
- * `simulateMouseEvent(element, "click", { altKey: true })` directly when the
- * test must act before the UI chunk resolves.
+ * Alt-click on `element` once pending DOM mutations are scanned. The editor UI
+ * loads lazily after this returns, so a caller asserting that something opens
+ * polls for it (`vi.waitFor`), and a caller asserting that nothing opens needs
+ * a controlled import boundary (see `holdUiImports` in editorUiMocks.ts).
  */
 export async function altClick(element: Element): Promise<void> {
   await flushDOMMutations();
   simulateMouseEvent(element, "click", { altKey: true });
-  await flushPendingImports();
 }
 
 /**

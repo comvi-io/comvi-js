@@ -15,14 +15,42 @@ import { vi } from "vitest";
 export const showModalMock = vi.fn();
 export const showKeySelectorMock = vi.fn();
 
-export function mockEditModalModule() {
+/**
+ * The import boundary of the two chunks. While held, a dynamic import of
+ * either chunk stays pending, so a test can act (stop the runtime, click
+ * again) BEFORE the UI resolves, then release it on purpose. A suite that
+ * wants a fresh, gated import per test must `vi.resetModules()` and import
+ * the Core again, since the Core caches a chunk once it has loaded.
+ */
+let importGate: { promise: Promise<void>; release: () => void } | null = null;
+
+export function holdUiImports(): void {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  importGate = { promise, release };
+}
+
+export function releaseUiImports(): void {
+  importGate?.release();
+  importGate = null;
+}
+
+async function passImportGate(): Promise<void> {
+  await importGate?.promise;
+}
+
+export async function mockEditModalModule() {
+  await passImportGate();
   return {
     showModal: (...args: unknown[]) => showModalMock(...args),
     cleanup: () => undefined,
   };
 }
 
-export function mockKeySelectorModule() {
+export async function mockKeySelectorModule() {
+  await passImportGate();
   return {
     showKeySelector: (...args: unknown[]) => showKeySelectorMock(...args),
     cleanup: () => undefined,
@@ -67,6 +95,7 @@ export function chooseInSelector(index: number, key: string, ns: string): void {
 }
 
 export function resetEditorUiMocks(): void {
+  releaseUiImports();
   showModalMock.mockReset();
   showKeySelectorMock.mockReset();
 }
