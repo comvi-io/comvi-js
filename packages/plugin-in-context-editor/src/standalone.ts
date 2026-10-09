@@ -191,6 +191,10 @@ function refreshRenderedTranslations(i18n: EditorI18n): void {
   }
 }
 
+function isEditable(i18n: object): boolean {
+  return typeof (i18n as { registerPostProcessor?: unknown }).registerPostProcessor === "function";
+}
+
 /**
  * Activate the in-context editor on the current page.
  *
@@ -220,11 +224,21 @@ export function activate(options: ActivateOptions): ActivateResult | null {
     return null;
   }
 
-  const i18n = comviHook.get(options.instanceId);
+  // Discovery also tracks base instances composed with devtools only; those
+  // lack `registerPostProcessor`, so the default pick prefers an editable one.
+  const i18n = options.instanceId
+    ? comviHook.get(options.instanceId)
+    : ([...comviHook.instances.values()].find(isEditable) ?? comviHook.get());
   if (!i18n) {
     console.error(
       "[@comvi/plugin-in-context-editor] No i18n instance found.",
       options.instanceId ? `Instance ID: ${options.instanceId}` : "No instances registered.",
+    );
+    return null;
+  }
+  if (!isEditable(i18n)) {
+    console.error(
+      "[@comvi/plugin-in-context-editor] This i18n instance cannot be edited: it was created without the plugin capability (`@comvi/core/plugins`).",
     );
     return null;
   }

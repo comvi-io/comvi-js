@@ -9,7 +9,11 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n, type ComposedInstance } from "./helpers/composedInstance";
+import {
+  createDiscoverableBaseI18n,
+  createI18n,
+  type ComposedInstance,
+} from "./helpers/composedInstance";
 
 const { coreCtorMock, coreStopMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } =
   await vi.hoisted(() => import("./helpers/mockCore"));
@@ -164,6 +168,38 @@ describe("activate() defaults", () => {
     result?.stop();
 
     expect(info).toHaveBeenCalledWith("[@comvi/plugin-in-context-editor] Deactivated");
+  });
+});
+
+describe("activate() instance selection", () => {
+  it("an instance without the plugin capability → returns null instead of throwing", () => {
+    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const result = activate({ refreshMessages: false });
+
+    expect(result).toBeNull();
+    expect(isActive()).toBe(false);
+    expect(error).toHaveBeenCalledOnce();
+  });
+
+  it("no instanceId → edits the instance with the plugin capability over an earlier one without it", () => {
+    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
+    const editable = makeI18n();
+
+    activate({ refreshMessages: false });
+
+    expect(editable.t("hello")).toContainInvisibleChars();
+  });
+
+  it("an instanceId naming an instance without the plugin capability → returns null", () => {
+    makeI18n();
+    createDiscoverableBaseI18n({ locale: "en", instanceId: "base-only" });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const result = activate({ instanceId: "base-only", refreshMessages: false });
+
+    expect(result).toBeNull();
   });
 });
 
