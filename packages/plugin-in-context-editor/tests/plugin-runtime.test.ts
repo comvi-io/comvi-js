@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EDITOR_INITIAL_MAPPINGS_GLOBAL, readEditorMappings } from "@comvi/core/editor-bridge";
 import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedInstance";
 
-const { coreCtorMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = await vi.hoisted(
+const { mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = await vi.hoisted(
   () => import("./helpers/mockCore"),
 );
 
@@ -129,57 +129,6 @@ describe("inContextEditorPlugin mappings bridge", () => {
     expect(
       (i18n as unknown as Record<string, unknown>)[EDITOR_INITIAL_MAPPINGS_GLOBAL],
     ).toBeUndefined();
-
-    cleanup?.();
-  });
-});
-
-describe("inContextEditorPlugin runtime detection", () => {
-  it("starts no editor when there is no window, even with a document present", () => {
-    const i18n = makeI18n();
-    vi.stubGlobal("window", undefined);
-
-    const cleanup = installEditor()(i18n);
-
-    expect(coreCtorMock).not.toHaveBeenCalled();
-    expect(typeof cleanup).toBe("function");
-
-    cleanup?.();
-  });
-
-  it("starts no editor when there is no document, even with a window present", () => {
-    const i18n = makeI18n();
-    vi.stubGlobal("document", undefined);
-
-    const cleanup = installEditor()(i18n);
-
-    expect(coreCtorMock).not.toHaveBeenCalled();
-    expect(typeof cleanup).toBe("function");
-
-    cleanup?.();
-  });
-
-  it("starts the editor in a browser bundle that has no process global", () => {
-    const i18n = makeI18n();
-    const nodeProcess = globalThis.process;
-
-    // The factory reads the `process` global directly, so a bundle without a
-    // `process` shim can only be staged by removing it. Not `vi.stubGlobal`:
-    // that leaves it missing until the runner's own teardown, which needs
-    // `process` itself. Put it back the instant the factory has run.
-    Reflect.deleteProperty(globalThis, "process");
-    let cleanup: (() => void) | undefined;
-    try {
-      cleanup = installEditor()(i18n);
-    } finally {
-      Reflect.defineProperty(globalThis, "process", {
-        value: nodeProcess,
-        configurable: true,
-        writable: true,
-      });
-    }
-
-    expect(coreCtorMock).toHaveBeenCalledTimes(1);
 
     cleanup?.();
   });

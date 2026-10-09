@@ -10,6 +10,7 @@ import { encodeKeyToInvisible, registerKey } from "../../src/translation";
 import {
   flushDOMMutations,
   flushPendingImports,
+  getActiveOverlay,
   getActiveTooltip,
   mockBoundingClientRect,
   simulateMouseEvent,
@@ -53,6 +54,14 @@ export function renderMarked(
  */
 export async function hoverLabel(element: Element): Promise<string | null> {
   await flushDOMMutations();
+  return hoverLabelNow(element);
+}
+
+/**
+ * `hoverLabel` without the flush: reads the label at this exact moment, for
+ * probes that must run synchronously (inside a teardown callback, say).
+ */
+export function hoverLabelNow(element: Element): string | null {
   simulateMouseEvent(element, "mouseover", { altKey: true });
   const label = getActiveTooltip()?.textContent ?? null;
   simulateMouseEvent(element, "mouseout", { altKey: true });
@@ -68,4 +77,22 @@ export async function altClick(element: Element): Promise<void> {
   await flushDOMMutations();
   simulateMouseEvent(element, "click", { altKey: true });
   await flushPendingImports();
+}
+
+/**
+ * The Alt+hover overlay's border and fill on `element`, or null when no
+ * running editor owns it. `zIndex` must match the configured highlight z-index.
+ */
+export async function hoverOverlayStyle(
+  element: Element,
+  zIndex?: number,
+): Promise<{ border: string; backgroundColor: string } | null> {
+  await flushDOMMutations();
+  simulateMouseEvent(element, "mouseover", { altKey: true });
+  const overlay = getActiveOverlay(zIndex);
+  const style = overlay
+    ? { border: overlay.style.border, backgroundColor: overlay.style.backgroundColor }
+    : null;
+  simulateMouseEvent(element, "mouseout", { altKey: true });
+  return style;
 }
