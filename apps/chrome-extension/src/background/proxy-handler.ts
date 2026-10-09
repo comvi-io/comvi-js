@@ -46,7 +46,7 @@ export function abortProxyRequest(payload: unknown, sender: chrome.runtime.Messa
 
 // --- request handling ---
 
-function failure(id: string, error: string): ApiProxyResponsePayload {
+export function failure(id: string, error: string): ApiProxyResponsePayload {
   return { id, ok: false, status: 0, statusText: "", body: "", networkError: error };
 }
 

@@ -271,7 +271,14 @@ export async function startSession(
         expiresAt: Date.now() + PENDING_TTL_MS,
       };
       await putSession(tabId, record);
-      await setCredentials(canonicalOrigin, { apiKey, validated: true });
+      try {
+        await setCredentials(canonicalOrigin, { apiKey, validated: true });
+      } catch {
+        // Do not leave a pending record behind for a key that was not saved.
+        await deleteSession(tabId);
+        notifyProxySessionTransition(tabId);
+        return { ok: false, error: "Could not save the API key. Try again." };
+      }
       // Port disconnect may interleave at either storage await above. In that
       // case its revoker either removed the record already, or this check does.
       if (!isPopupLeaseActive(popupLeaseId)) {

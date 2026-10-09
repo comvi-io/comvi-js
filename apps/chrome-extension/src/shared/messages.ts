@@ -74,6 +74,8 @@ export interface SessionStatusResponse {
   /** Cached detector state, used to render the popup without reinjection. */
   comviDetected?: boolean;
   version?: string;
+  /** Set when the worker could not determine the state (reported as inactive). */
+  unavailable?: string;
 }
 
 /** service worker -> popup: authoritative lifecycle completion for one tab. */

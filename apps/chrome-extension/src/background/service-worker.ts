@@ -12,6 +12,7 @@
 
 import type {
   Message,
+  SessionStatusResponse,
   StatusResponsePayload,
   EditorActivatedMessage,
   SessionStateChangedPayload,
@@ -28,7 +29,7 @@ import {
   revokeSessionFromSender,
   sweepExpiredPendingSessions,
 } from "./sessions";
-import { handleProxyRequest, abortProxyRequest } from "./proxy-handler";
+import { handleProxyRequest, abortProxyRequest, failure as proxyFailure } from "./proxy-handler";
 import { beginTabProxyRevocation, endTabProxyRevocation } from "./proxy-work";
 import {
   putTabState,
@@ -46,6 +47,8 @@ import {
 import { renderBadge, resetBadge } from "./badge";
 
 let initialization: Promise<void> = Promise.resolve();
+/** Set when the latest initialization attempt rejected; the next message retries it. */
+let initializationFailed = false;
 
 async function reconcileAllBadges(): Promise<void> {
   const tabs = await chrome.tabs.query({});
@@ -73,15 +76,60 @@ export function initializeServiceWorkerState(clearSessions = false): Promise<voi
       }
       await sweepExpiredPendingSessions();
     });
-  return initialization;
+  const attempt = initialization;
+  attempt.then(
+    () => {
+      if (initialization === attempt) initializationFailed = false;
+    },
+    () => {
+      if (initialization === attempt) initializationFailed = true;
+    },
+  );
+  return attempt;
 }
 
 // Module evaluation happens on every MV3 worker start, so expired pending
 // records are swept even when no page attempts to use them.
-void initializeServiceWorkerState();
+void initializeServiceWorkerState().catch(() => {});
 
+/**
+ * Run an operation after initialization. A transient startup failure (for
+ * example a storage error) is retried once per incoming message instead of
+ * leaving every later request chained onto the same rejected promise.
+ */
 function whenServiceWorkerReady<T>(operation: () => Promise<T>): Promise<T> {
+  if (initializationFailed) {
+    initializationFailed = false;
+    void initializeServiceWorkerState().catch(() => {});
+  }
   return initialization.then(operation);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : "The extension could not complete the request.";
+}
+
+/**
+ * Answer an asynchronous message exactly once: with the operation's result,
+ * or with a typed failure when the operation (or initialization) rejects.
+ * Returns true so the listener keeps the response channel open.
+ */
+function respondAsync<T>(
+  operation: () => Promise<T>,
+  sendResponse: (response: unknown) => void,
+  onFailure: (error: string) => unknown,
+): true {
+  void whenServiceWorkerReady(operation).then(sendResponse, (error: unknown) =>
+    sendResponse(onFailure(errorMessage(error))),
+  );
+  return true;
+}
+
+/** Background follow-up work that has no response channel; never leave it unhandled. */
+function runInBackground(operation: () => Promise<unknown>, onFailure?: () => void): void {
+  void whenServiceWorkerReady(operation).catch(() => onFailure?.());
 }
 
 function broadcastSessionState(payload: SessionStateChangedPayload): void {
@@ -125,7 +173,7 @@ chrome.runtime.onConnect.addListener((port) => {
     if (!leaseId || popupLeases.get(leaseId) !== port) return;
     const disconnectedLeaseId = leaseId;
     popupLeases.delete(disconnectedLeaseId);
-    void whenServiceWorkerReady(() => revokePendingForLease(disconnectedLeaseId));
+    runInBackground(() => revokePendingForLease(disconnectedLeaseId));
   });
 });
 
@@ -180,10 +228,11 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     // Extension-page (popup) requests. Sender restrictions are enforced
     // inside each handler (sender.tab must be absent).
     case "START_SESSION":
-      void whenServiceWorkerReady(() =>
-        startSession(message.payload, sender, (leaseId) => popupLeases.has(leaseId)),
-      ).then(sendResponse);
-      return true;
+      return respondAsync(
+        () => startSession(message.payload, sender, (leaseId) => popupLeases.has(leaseId)),
+        sendResponse,
+        (error) => ({ ok: false, error }),
+      );
 
     case "ROLLBACK_ACTIVATION": {
       const { tabId, nonce } = (message.payload ?? {}) as {
@@ -191,14 +240,17 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
         nonce?: unknown;
       };
       if (!sender.tab && typeof tabId === "number") {
-        void whenServiceWorkerReady(async () => {
-          await rollbackPending(tabId, nonce);
-          const status = await getSessionStatus({ tabId }, sender);
-          broadcastSessionState({ tabId, ...status });
-          if (!status.active) deactivatePageRuntime(tabId);
-          return { ok: true };
-        }).then(sendResponse);
-        return true;
+        return respondAsync(
+          async () => {
+            await rollbackPending(tabId, nonce);
+            const status = await getSessionStatus({ tabId }, sender);
+            broadcastSessionState({ tabId, ...status });
+            if (!status.active) deactivatePageRuntime(tabId);
+            return { ok: true };
+          },
+          sendResponse,
+          (error) => ({ ok: false, error }),
+        );
       }
       sendResponse({ ok: false });
       return false;
@@ -207,43 +259,54 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     case "END_SESSION": {
       const tabId = (message.payload as { tabId?: unknown } | undefined)?.tabId;
       if (!sender.tab && typeof tabId === "number") {
-        void whenServiceWorkerReady(async () => {
-          await revokeSession(tabId);
-          broadcastSessionState({ tabId, active: false, pending: false });
-          deactivatePageRuntime(tabId);
-          return { ok: true };
-        }).then(sendResponse);
-        return true;
+        return respondAsync(
+          async () => {
+            await revokeSession(tabId);
+            broadcastSessionState({ tabId, active: false, pending: false });
+            deactivatePageRuntime(tabId);
+            return { ok: true };
+          },
+          sendResponse,
+          (error) => ({ ok: false, error }),
+        );
       }
       sendResponse({ ok: false });
       return false;
     }
 
     case "FORGET_CREDENTIALS":
-      void whenServiceWorkerReady(async () => {
-        const result = await forgetCredentials(message.payload, sender);
-        if (result.ok) {
-          for (const tabId of result.revokedTabIds) {
-            broadcastSessionState({ tabId, active: false, pending: false });
-            deactivatePageRuntime(tabId);
+      return respondAsync(
+        async () => {
+          const result = await forgetCredentials(message.payload, sender);
+          if (result.ok) {
+            for (const tabId of result.revokedTabIds) {
+              broadcastSessionState({ tabId, active: false, pending: false });
+              deactivatePageRuntime(tabId);
+            }
           }
-        }
-        return { ok: result.ok, error: result.error };
-      }).then(sendResponse);
-      return true;
+          return { ok: result.ok, error: result.error };
+        },
+        sendResponse,
+        (error) => ({ ok: false, error }),
+      );
 
     case "GET_SESSION_STATUS":
-      void whenServiceWorkerReady(() => getSessionStatus(message.payload, sender)).then(
+      return respondAsync(
+        () => getSessionStatus(message.payload, sender),
         sendResponse,
+        // Fail closed (inactive) and say why.
+        (error): SessionStatusResponse => ({ active: false, pending: false, unavailable: error }),
       );
-      return true;
 
     // Content-script (bridge) requests.
-    case "API_PROXY_REQUEST":
-      void whenServiceWorkerReady(() => handleProxyRequest(message.payload, sender)).then(
+    case "API_PROXY_REQUEST": {
+      const rawId = (message.payload as { id?: unknown } | undefined)?.id;
+      return respondAsync(
+        () => handleProxyRequest(message.payload, sender),
         sendResponse,
+        (error) => proxyFailure(typeof rawId === "string" ? rawId : "", error),
       );
-      return true;
+    }
 
     case "API_PROXY_ABORT":
       abortProxyRequest(message.payload, sender);
@@ -259,7 +322,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
       // Detection metadata drives the icon variant only — never the badge,
       // which is an authority indicator derived from session state.
       const payload = (message.payload ?? {}) as StatusResponsePayload;
-      void whenServiceWorkerReady(async () => {
+      runInBackground(async () => {
         await withLock(tabLockKey(tabId), async () => {
           const state: TabState = {
             comviDetected: true,
@@ -275,7 +338,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     }
 
     case "COMVI_NOT_FOUND": {
-      void whenServiceWorkerReady(async () => {
+      runInBackground(async () => {
         await withLock(tabLockKey(tabId), async () => {
           const current = await getTabState(tabId);
           await putTabState(tabId, {
@@ -292,28 +355,33 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     case "EDITOR_ACTIVATED": {
       const detail = (message.payload ?? {}) as EditorActivatedMessage;
       if (detail.success === true) {
-        void whenServiceWorkerReady(async () => {
-          const active = await confirmActivation(
-            tabId,
-            sender,
-            detail.nonce,
-            detail.collectContext,
-            (leaseId) => popupLeases.has(leaseId),
-          );
-          const status = await getSessionStatus({ tabId }, {} as chrome.runtime.MessageSender);
-          broadcastSessionState({
-            tabId,
-            ...status,
-            ...(!active
-              ? { error: "The editor activation could not be confirmed. Try again." }
-              : {}),
-          });
-          if (!active) deactivatePageRuntime(tabId);
-        });
+        runInBackground(
+          async () => {
+            const active = await confirmActivation(
+              tabId,
+              sender,
+              detail.nonce,
+              detail.collectContext,
+              (leaseId) => popupLeases.has(leaseId),
+            );
+            const status = await getSessionStatus({ tabId }, {} as chrome.runtime.MessageSender);
+            broadcastSessionState({
+              tabId,
+              ...status,
+              ...(!active
+                ? { error: "The editor activation could not be confirmed. Try again." }
+                : {}),
+            });
+            if (!active) deactivatePageRuntime(tabId);
+          },
+          // A promotion that could not be confirmed must not leave the page
+          // runtime running; the pending record still expires on its own.
+          () => deactivatePageRuntime(tabId),
+        );
       } else {
         // Failed activation rolls the pending session back (nonce required,
         // so a page-forged failure cannot cancel a session it never saw).
-        void whenServiceWorkerReady(async () => {
+        runInBackground(async () => {
           await rollbackPending(tabId, detail.nonce);
           const status = await getSessionStatus({ tabId }, {} as chrome.runtime.MessageSender);
           broadcastSessionState({
@@ -330,7 +398,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     case "EDITOR_DEACTIVATED": {
       // Lifecycle validation and revocation are gated before the first
       // storage read; stale/subframe events release the gate without deleting.
-      void whenServiceWorkerReady(async () => {
+      runInBackground(async () => {
         const revoked = await revokeSessionFromSender(tabId, sender);
         if (revoked) broadcastSessionState({ tabId, active: false, pending: false });
       });
@@ -347,7 +415,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "update") {
     // Active authority never crosses an extension update. Credentials only
     // survive when their explicit schema version is still compatible.
-    void initializeServiceWorkerState(true);
+    void initializeServiceWorkerState(true).catch(() => {});
   }
 });
 
@@ -355,7 +423,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   beginTabProxyRevocation(tabId);
-  void whenServiceWorkerReady(() =>
+  runInBackground(() =>
     withLock(tabLockKey(tabId), async () => {
       try {
         await deleteSession(tabId);
