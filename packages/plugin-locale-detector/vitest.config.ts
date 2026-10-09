@@ -28,4 +28,7 @@ export default defineConfig({
       "@": resolve(__dirname, "./src"),
     },
   },
+  define: {
+    __DEV__: JSON.stringify(true),
+  },
 });

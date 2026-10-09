@@ -1,6 +1,10 @@
 import type { I18n, I18nPlugin, I18nPluginFactory, I18nPluginApi } from "@comvi/core";
 import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 
+declare const __DEV__: boolean | undefined;
+
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
 export type DetectorType =
   | "querystring"
   | "localStorage"
@@ -174,6 +178,17 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
   };
 
   return (i18n) => {
+    // Development only: `IS_DEV` is `false` in the default artifact, so the
+    // check and its text fold out of it.
+    if (IS_DEV && !supportedLocales && !convertDetectedLocale) {
+      console.warn(
+        "[@comvi/plugin-locale-detector] localeDetector() was given no supportedLocales, so any " +
+          "language the browser reports becomes the active locale and is cached, including one " +
+          "this app has no translations for. Pass the locales you ship: " +
+          'localeDetector({ supportedLocales: ["en", "de"] }).',
+      );
+    }
+
     const fallbackLocale = options.fallbackLocale ?? i18n.locale;
     // Bridges a single `detect()` call to the `localeChanged` event core emits
     // right after it, so a fallback-only resolution suppresses its cache write.
