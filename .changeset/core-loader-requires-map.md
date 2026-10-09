@@ -21,5 +21,5 @@ The capability-absence error names the new pair: `[@comvi/core] This i18n instan
 capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).`
 
 Bundle effect: the import-map adapter is in your graph only when you actually hand over a
-map. The five `full-composite` size rows and the two nuxt host rows drop it, because a
-composed-everything host that registers no map never needed it.
+map. The five `full-composite` size rows and the two nuxt rows drop it, because an
+instance with everything composed that registers no map never needed it.

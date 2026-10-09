@@ -2,7 +2,7 @@
 "@comvi/core": minor
 ---
 
-**BREAKING (breaking change on a 0.x minor): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base host — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted; it never published, so there is no deprecation debt.
+**BREAKING (breaking change on a 0.x minor): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base instance — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted; it never published, so there is no deprecation debt.
 
 | what a 0.4 root had                          | on the converged root                 | compose it back                                                     |
 | -------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------- |
@@ -47,7 +47,7 @@ expression-bodied arrow:
 +i18n.registerPlugin(() => { ready = true; }); // returns nothing — fine
 ```
 
-Residuals: nested catalogs are flattened by the BASE host, unconditionally, so they need no
+Residuals: nested catalogs are flattened by the BASE instance, unconditionally, so they need no
 composition at all, and `flattenCatalog` is exported from the `@comvi/core` root only — for
 pre-flattening data by hand, not as the answer to a rule;
 `@comvi/core/rich-text` is the pure `<T>` toolbox and `@comvi/core/tags` still registers

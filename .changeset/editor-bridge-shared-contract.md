@@ -6,8 +6,8 @@
 
 New `@comvi/core/editor-bridge` subpath: the typed contract for the in-context editor
 mappings bridge, previously hand-copied in two places. It exports `EDITOR_MAPPINGS_GLOBAL` /
-`EDITOR_INITIAL_MAPPINGS_GLOBAL` (the host property keys), the `InContextEditorMappings`
-interface, the `toRecordOfNumbers()` payload validator and the `readEditorMappings(host)`
+`EDITOR_INITIAL_MAPPINGS_GLOBAL` (the property keys on the instance), the `InContextEditorMappings`
+interface, the `toRecordOfNumbers()` payload validator and the `readEditorMappings(instance)`
 guard. The module is pure and invisible to non-importers.
 
 `@comvi/plugin-in-context-editor` and `@comvi/nuxt` now consume this shared contract instead

@@ -7,24 +7,24 @@
 "@comvi/vue": minor
 ---
 
-A nested inline catalog now works on every host, and `flattenCatalog` stops being an escape hatch.
+A nested inline catalog now works on every instance, and `flattenCatalog` stops being an escape hatch.
 
 `createI18n({ messages: { en: { nav: { home: "Home" } } } })` type-checked before, warned once in
 development, and then resolved every key under `nav` as missing in production — because flattening
-was an optional capability hook (`_flattenNs`) that only a loader-bearing host installed, and a base
-host stored the nested object as if it were flat. `addMessages()` had the same hole.
+was an optional capability hook (`_flattenNs`) that only an instance with the loader composed installed, and a base
+instance stored the nested object as if it were flat. `addMessages()` had the same hole.
 
-Flattening now happens in the BASE host, unconditionally, at the one place a catalog enters. Nested
+Flattening now happens in the BASE instance, unconditionally, at the one place a catalog enters. Nested
 objects and flat dotted keys are the same catalog everywhere — in the constructor, in
 `addMessages()`, and in a loader result — and a mixed object carrying both works too. With that,
 two things are gone:
 
-- the dev warning that told you a base host "stores catalogs as given";
+- the dev warning that told you a base instance "stores catalogs as given";
 - `flattenCatalog` as the answer to that rule. It is still exported, from the `@comvi/core` ROOT
   only, for pre-flattening data by hand.
 
-Non-string leaves now behave identically on every host, as they already did on the loader path:
-coerced with `String()`, and `null`/`undefined` leaves dropped with a dev warning. On a base host a
+Non-string leaves now behave identically on every instance, as they already did on the loader path:
+coerced with `String()`, and `null`/`undefined` leaves dropped with a dev warning. On a base instance a
 `null` leaf used to be stored verbatim and resolve as an empty template.
 
 MIGRATION — `flattenCatalog` is no longer re-exported from the loader subpath

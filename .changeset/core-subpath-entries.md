@@ -12,11 +12,11 @@ New subpath entries decompose the core, so an app pays only for what it composes
   `registerTagSyntax()` (returns a disposer), `tagSyntaxExtension` for per-call activation,
   and the VirtualNode helpers.
 - `@comvi/core/loader` — pure: `attachLoader` / `loader()`, `createImportMapLoader`, the
-  `acquireLoaderApi(host)` accessor every binding's `useI18nLoader()` is built on (with its
-  `AcquiredLoaderApi` type) and the loader types. (`flattenCatalog` is NOT here: every host
+  `acquireLoaderApi(instance)` accessor every binding's `useI18nLoader()` is built on (with its
+  `AcquiredLoaderApi` type) and the loader types. (`flattenCatalog` is NOT here: every instance
   flattens nested catalogs itself, and the function stays on the `@comvi/core` root.)
 - `@comvi/core/plugins` — pure: `attachPlugins`, the `plugins()` and `definePlugin(fn, options?)`
-  installers, the `acquirePluginsApi(host)` accessor behind every binding's `useI18nPlugins()`
+  installers, the `acquirePluginsApi(instance)` accessor behind every binding's `useI18nPlugins()`
   (with its `AcquiredPluginsApi` type) and the plugin types.
 - `@comvi/core/devtools` — pure: `attachDevtools(i18n, { instanceId, exposeGlobal })`.
 - `@comvi/core/rich-text` — the pure `<T>` toolbox; `@comvi/core/editor-bridge` — the
@@ -35,10 +35,10 @@ Tag activation is dual-channel: ambient registration via import, or per call thr
 `tagInterpolation.extensions` — the ordering-proof channel `<T>` uses, immune to bundler
 side-effect stripping. `sideEffects` changed from `false` to an array naming exactly the
 tag-registering modules, so everything else still prunes. The template cache keys on
-compiler identity and the effective syntax-extension set, so hosts with different compilers
+compiler identity and the effective syntax-extension set, so instances with different compilers
 in one process never poison each other.
 
-**Scope note:** the base host is what every framework binding runs on in this release — all
+**Scope note:** the base instance is what every framework binding runs on in this release — all
 six accept `WrapperI18nInstance`, so a binding's own graph no longer drags ambient tag
 registration into your bundle. The price is that the loader/plugin members left `useI18n()`
 for `useI18nLoader()` / `useI18nPlugins()`; see each binding's own entry.

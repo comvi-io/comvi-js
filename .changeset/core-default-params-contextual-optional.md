@@ -2,9 +2,9 @@
 "@comvi/core": patch
 ---
 
-`I18nOptions` no longer demands `defaultParams` from a host that was written down by type.
+`I18nOptions` no longer demands `defaultParams` from an instance that was written down by type.
 
-Naming a host's type instantiates `D` with its own constraint, whose `keyof` is `string`, so the
+Naming an instance's type instantiates `D` with its own constraint, whose `keyof` is `string`, so the
 `string extends keyof D` arm of `I18nOptions<D>` decided — and that arm required the option. Every
 annotated position therefore failed to compile without a `defaultParams` nobody meant to configure:
 
