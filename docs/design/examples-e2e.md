@@ -120,12 +120,11 @@ themselves. The rows do not gate on `isLoading`: it is also true during a locale
 rows would blank then instead of keeping the old language until the new one is in. Rendering the
 rows without waiting fails step x with a raw-key state.
 
-One limit is documented, not tested as a failure: in the browser, core loads a namespace for the
-active locale only. The en-only row shows English when `account/en.json` is already cached (the
-path x takes: open in en, then switch) and the key when the second page is first opened in another
-locale, in the five client-rendered examples and on a client-side navigation in Nuxt. The first
-page's `fallback.only_en` row has the same limit after a reload in uk. A server render loads the
-fallback chain, which y asserts for Next and Nuxt.
+Core loads a namespace for the active locale and for the fallback chain, so the en-only row shows
+English however the second page is reached: opened in en and switched, opened first in another
+locale, or reached by a client-side navigation in Nuxt. The first page's `fallback.only_en` row
+behaves the same after a reload in uk. A server render loads the same catalogs, which y asserts for
+Next and Nuxt.
 
 ## Where it lives
 
