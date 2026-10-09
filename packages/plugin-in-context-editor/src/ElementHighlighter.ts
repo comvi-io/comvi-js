@@ -53,8 +53,6 @@ export class ElementHighlighter {
 
   private elementKeyMap: Map<Element, string[]> = new Map();
 
-  private ancestorCache: WeakMap<Element, Element | null> = new WeakMap();
-
   private debouncedScrollHandler: DebouncedFunction<() => void>;
 
   private unsubscribers: (() => void)[] = [];
@@ -206,29 +204,17 @@ export class ElementHighlighter {
       return null;
     }
 
-    const cached = this.ancestorCache.get(element);
-    if (cached !== undefined) {
-      return cached;
-    }
-
+    // Walked on every event, not cached: a cached result goes stale when the
+    // page moves a node without changing any registration.
     let current: Element | null = element;
     while (current) {
       if (this.highlightedElements.has(current)) {
-        this.ancestorCache.set(element, current);
         return current;
       }
       current = this.getParentElementAcrossShadow(current);
     }
 
-    // Cache the miss too: repeated hovers over unregistered subtrees are common.
-    this.ancestorCache.set(element, null);
     return null;
-  }
-
-  private invalidateAncestorCache(): void {
-    // WeakMap has no clear(); dropping the map is safe because its entries
-    // are garbage-collected with their keys.
-    this.ancestorCache = new WeakMap();
   }
 
   private handleMouseOver = (event: Event): void => {
@@ -441,14 +427,10 @@ export class ElementHighlighter {
     }
 
     this.highlightedElements.add(element);
-    // Invalidate cache since registered elements changed
-    this.invalidateAncestorCache();
   }
 
   public removeHighlightFromElement(element: Element): void {
     this.highlightedElements.delete(element);
-    // Invalidate cache since registered elements changed
-    this.invalidateAncestorCache();
 
     if (this.activeElement === element) {
       this.removeHighlightOverlay();

@@ -908,8 +908,8 @@ describe("ElementHighlighter", () => {
     });
   });
 
-  describe("ancestor lookup memoization", () => {
-    it("resolves an element registered after a failed lookup — registering invalidates the cache", () => {
+  describe("ancestor lookup", () => {
+    it("element registered after a failed lookup → Alt-click resolves it", () => {
       const button = appendElement({ top: 0, left: 0, width: 100, height: 30 });
 
       simulateKeyEvent("keydown", "Alt");
@@ -922,7 +922,7 @@ describe("ElementHighlighter", () => {
       expect(handleClick.mock.calls).toEqual([[button]]);
     });
 
-    it("stops resolving a child after its ancestor is unregistered — unregistering invalidates the cache", () => {
+    it("ancestor unregistered → Alt-click on its child resolves nothing", () => {
       const parent = appendElement({ top: 0, left: 0, width: 100, height: 30 }, "div");
       const child = document.createElement("span");
       parent.appendChild(child);
@@ -938,21 +938,37 @@ describe("ElementHighlighter", () => {
       expect(handleClick.mock.calls).toEqual([[parent]]);
     });
 
-    it("keeps resolving a child moved out of its registered ancestor until registration changes", () => {
+    it("child moved out of its registered ancestor → Alt-click no longer selects the old parent", () => {
       const parent = appendElement({ top: 0, left: 0, width: 100, height: 30 }, "div");
       const child = document.createElement("span");
       parent.appendChild(child);
       highlighter.addHighlight(parent);
-
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(child, "click");
+
       document.body.appendChild(child);
       simulateMouseEvent(child, "click");
 
-      expect(handleClick.mock.calls).toEqual([[parent], [parent]]);
+      expect(handleClick.mock.calls).toEqual([[parent]]);
     });
 
-    it("keeps ignoring a related target moved into a registered element until registration changes", () => {
+    it("child moved from one registered container into another → Alt-click selects the new one", () => {
+      const first = appendElement({ top: 0, left: 0, width: 100, height: 30 }, "div");
+      const second = appendElement({ top: 60, left: 0, width: 100, height: 30 }, "div");
+      const child = document.createElement("span");
+      first.appendChild(child);
+      highlighter.addHighlight(first);
+      highlighter.addHighlight(second);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(child, "click");
+
+      second.appendChild(child);
+      simulateMouseEvent(child, "click");
+
+      expect(handleClick.mock.calls).toEqual([[first], [second]]);
+    });
+
+    it("related target moved into the registered element → mouseout keeps the overlay", () => {
       const parent = appendElement({ top: 0, left: 0, width: 100, height: 30 }, "div");
       const child = document.createElement("span");
       parent.appendChild(child);
@@ -966,7 +982,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(child, "mouseover");
       simulateMouseEvent(child, "mouseout", { relatedTarget: stranger });
 
-      expect(getActiveOverlay()).toBeNull();
+      expect(getActiveOverlay()).not.toBeNull();
     });
   });
 
