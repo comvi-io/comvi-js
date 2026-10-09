@@ -69,6 +69,10 @@ it needs:
 
 Dispatch it from a green ref: apart from that browser suite the jobs run no tests.
 
+A dispatch that leaves `rc` empty is the GA path, and it is refused on every ref except `main`: the
+`ga-guard` job fails with the ref it was given, and `version`, `pack`, `verify` and `publish` are
+skipped. So a rehearsal dispatched from a release branch with the input forgotten publishes nothing.
+
 ## 3. The cut
 
 - [ ] Merge the release branch to `main`.
