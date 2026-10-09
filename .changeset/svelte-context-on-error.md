@@ -12,5 +12,5 @@ rejection — an unreachable CDN, a wrong endpoint — used to be swallowed by t
 setI18nContext(i18n, { onError: (error) => reportToSentry(error) });
 ```
 
-The host's own `createI18n({ onError })` handler still reports the failure first, with
+The instance's own `createI18n({ onError })` handler still reports the failure first, with
 `{ source: "init" }`. Without an `onError` the rejection stays swallowed, exactly as before.

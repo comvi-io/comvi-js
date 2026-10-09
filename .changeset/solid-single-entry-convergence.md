@@ -2,12 +2,12 @@
 "@comvi/solid": minor
 ---
 
-**BREAKING (breaking change on a 0.x minor): `createI18n` from `@comvi/solid` now builds the base host.** `@comvi/solid` has re-exported core's `createI18n` and `I18n` by name since 0.4, and in 0.4 that constructor arrived with ICU, tag syntax, async loading, the plugin host and devtools discovery already attached. Those five are now things you compose. **ICU plurals THROW instead of rendering wrong text**: development throws `E_ICU_SYNTAX` at ingestion, production renders the braced segment literally and reports it through `onError`.
+**BREAKING (breaking change on a 0.x minor): `createI18n` from `@comvi/solid` now builds the base instance.** `@comvi/solid` has re-exported core's `createI18n` and `I18n` by name since 0.4, and in 0.4 that constructor arrived with ICU, tag syntax, async loading, the plugins capability and devtools discovery already attached. Those five are now things you compose. **ICU plurals THROW instead of rendering wrong text**: development throws `E_ICU_SYNTAX` at ingestion, production renders the braced segment literally and reports it through `onError`.
 
 **Grep target for a tree built against 0.5 development:** the retired subpath was `@comvi/solid/slim`. Drop the suffix — the surviving entry is a superset of everything that one exported, and it never published, so there is no deprecation debt.
 
 Nothing about `<I18nProvider>`, `useI18n()`, `<T>`, the reactive primitives or the capability
-accessors changes here; this is the host underneath them, and the packaging half is in
+accessors changes here; this is the instance underneath them, and the packaging half is in
 `solid-single-package-slim.md`. Compose what you had back — every installer is re-exported
 from `@comvi/solid`, so each fix stays inside the one specifier you already have:
 

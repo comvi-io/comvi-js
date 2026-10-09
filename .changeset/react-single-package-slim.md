@@ -3,7 +3,7 @@
 ---
 
 **Added: the `@comvi/react` entry carries the whole toolkit.** Building an app used to take
-two packages — the host constructor from `@comvi/core`, the bindings from `@comvi/react`.
+two packages — the instance constructor from `@comvi/core`, the bindings from `@comvi/react`.
 One entry now carries both.
 
 ```ts
@@ -12,17 +12,17 @@ import { createI18n, icuCompiler, loader } from "@comvi/react";
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap));
 ```
 
-| export                                     | what it is                                                                                      |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `createI18n`                               | core's base host constructor                                                                    |
-| `I18n` (type only)                         | core's base host class, for typing a host you compose — a runtime value only from `@comvi/core` |
-| `icuCompiler`                              | from `@comvi/core/icu` — the ICU compiler                                                       |
-| `loader`, `attachLoader`                   | from `@comvi/core/loader`                                                                       |
-| `plugins`, `definePlugin`                  | from `@comvi/core/plugins`                                                                      |
-| `devtools`                                 | from `@comvi/core/devtools`                                                                     |
-| every hook, `I18nProvider`, `T`, the types | the react bindings                                                                              |
+| export                                     | what it is                                                                                               |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `createI18n`                               | core's base instance constructor                                                                         |
+| `I18n` (type only)                         | core's base instance class, for typing an instance you compose — a runtime value only from `@comvi/core` |
+| `icuCompiler`                              | from `@comvi/core/icu` — the ICU compiler                                                                |
+| `loader`, `attachLoader`                   | from `@comvi/core/loader`                                                                                |
+| `plugins`, `definePlugin`                  | from `@comvi/core/plugins`                                                                               |
+| `devtools`                                 | from `@comvi/core/devtools`                                                                              |
+| every hook, `I18nProvider`, `T`, the types | the react bindings                                                                                       |
 
-There is no react-side wrapper object to build — the host goes straight into
+There is no react-side wrapper object to build — the instance goes straight into
 `<I18nProvider i18n={…}>` — so the constructor IS core's own `createI18n`, re-exported by
 name. ICU is here on purpose, so neither recipe makes a react app reach for a core
 subpath.

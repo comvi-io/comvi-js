@@ -2,34 +2,34 @@
 "@comvi/vue": minor
 ---
 
-**BREAKING (breaking change on a 0.x minor) — `@comvi/vue` runs on a base `@comvi/core` host.**
+**BREAKING (breaking change on a 0.x minor) — `@comvi/vue` runs on a base `@comvi/core` instance.**
 `VueI18n` is now `VueI18n<D, C extends WrapperI18nInstance<D> = I18n<D>>` around an injected
-host it exposes as `readonly core: C`, and the capability APIs live where the host actually
+instance it exposes as `readonly core: C`, and the capability APIs live where the instance actually
 has them.
 
 **New:** `useI18nLoader()` / `useI18nPlugins()` composables (`UseI18nLoaderReturn`,
-`UseI18nPluginsReturn`); and, as the escape hatch for a host built elsewhere,
-`createI18nFromCore(core, options?)`, which wraps a host built with `createI18n` from
+`UseI18nPluginsReturn`); and, as the escape hatch for an instance built elsewhere,
+`createI18nFromCore(core, options?)`, which wraps an instance built with `createI18n` from
 `@comvi/core` directly (`import { createI18n as createCore } from "@comvi/core"`) and preserves
 its exact type as `i18n.core`. This package does not re-export core's constructor under a second
 name — see `vue-drop-create-core.md`. `createI18n(options)` is unchanged and
-still the default: it builds the host internally from the same options object, and
-`.use(installer)` on its result composes capabilities onto that host.
+still the default: it builds the instance internally from the same options object, and
+`.use(installer)` on its result composes capabilities onto that instance.
 
-| 0.4.x                                                                   | 0.5.0                                                                        |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `const { reloadMessages, addActiveNamespace, onLoadError } = useI18n()` | the same names from `useI18nLoader()`                                        |
-| `const { onMissingKey } = useI18n()`                                    | `const { onMissingKey } = useI18nPlugins()`                                  |
-| `const { t, reloadMessages } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; the capability composables take no argument       |
-| `i18n.registerLoader(…)` and the other six instance proxies             | `i18n.core.registerLoader(…)` etc.                                           |
-| `i18n.use(plugin)` / `createI18n(options).use(plugin)`                  | `i18n.core.registerPlugin(plugin)` — assign first, then register on the host |
-| `new VueI18n(options)`                                                  | `createI18n(options)` — the constructor now takes `(core, vueOptions)`       |
+| 0.4.x                                                                   | 0.5.0                                                                            |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `const { reloadMessages, addActiveNamespace, onLoadError } = useI18n()` | the same names from `useI18nLoader()`                                            |
+| `const { onMissingKey } = useI18n()`                                    | `const { onMissingKey } = useI18nPlugins()`                                      |
+| `const { t, reloadMessages } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; the capability composables take no argument           |
+| `i18n.registerLoader(…)` and the other six instance proxies             | `i18n.core.registerLoader(…)` etc.                                               |
+| `i18n.use(plugin)` / `createI18n(options).use(plugin)`                  | `i18n.core.registerPlugin(plugin)` — assign first, then register on the instance |
+| `new VueI18n(options)`                                                  | `createI18n(options)` — the constructor now takes `(core, vueOptions)`           |
 
 Plugin registration is the **eighth** dropped proxy and the one that changed late: 0.4's
 `use(plugin)` briefly survived behind a capability guard, which made it the only member typed
 present on every `C` that could still throw "missing capability" at runtime — precisely the
 failure class this release removes. It is gone from the class in types and at runtime, and it is
-called `registerPlugin` on the host. The `use` the class carries now is the composition pipe,
+called `registerPlugin` on the instance. The `use` the class carries now is the composition pipe,
 which takes an installer.
 
 The eight dropped instance proxies each need a by-hand move to `i18n.core.*`: the receiver's
