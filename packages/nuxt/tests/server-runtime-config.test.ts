@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { getServerRuntimeConfig } from "../src/runtime/server/utils/runtime-config";
+import { setNitroRuntimeConfig } from "./mocks/nitro-imports";
 
 describe("getServerRuntimeConfig", () => {
   afterEach(() => {
+    setNitroRuntimeConfig(undefined);
     delete (globalThis as any).__NUXT_CONFIG__;
   });
 
@@ -18,13 +20,23 @@ describe("getServerRuntimeConfig", () => {
     expect(result).toBe(runtimeConfig);
   });
 
-  it("falls back to Nitro runtime config shape", () => {
+  // What a real Nitro route gets: Nitro puts no config on `event.context`
+  // until its own `useRuntimeConfig(event)` is called for that event.
+  it("an event with no config on its context → Nitro's useRuntimeConfig(event) answers", () => {
     const runtimeConfig = { public: { comvi: { defaultLocale: "de" } } };
-    const result = getServerRuntimeConfig({
-      context: { nitro: { runtimeConfig } },
-    } as any);
+    setNitroRuntimeConfig(runtimeConfig);
+
+    const result = getServerRuntimeConfig({ context: {} } as any);
 
     expect(result).toBe(runtimeConfig);
+  });
+
+  it("a Nitro config without the module's keys → the populated fallback, not a config with no comvi block", () => {
+    setNitroRuntimeConfig({ public: {} });
+
+    const result = getServerRuntimeConfig({ context: {} } as any);
+
+    expect(result.public.comvi.defaultLocale).toBe("en");
   });
 
   it("uses global Nuxt config as a last known fallback", () => {

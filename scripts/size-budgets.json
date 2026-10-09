@@ -247,7 +247,7 @@
         "@comvi/core/devtools"
       ],
       "fixture": "framework/nuxt-full-composite.ts",
-      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "external": ["#app", "#build/*", "#comvi/*", "#imports", "vue", "vue-router", "h3"],
       "define": {
         "import.meta.server": "false",
         "import.meta.client": "true",

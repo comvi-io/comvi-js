@@ -340,23 +340,19 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       mode: "all",
     });
 
-    addTemplate({
-      filename: "comvi.detection.mjs",
-      getContents: () => detectionTemplate(resolveAcceptLanguage),
-    });
+    const detectionContents = () => detectionTemplate(resolveAcceptLanguage);
+    addTemplate({ filename: "comvi.detection.mjs", getContents: detectionContents });
 
-    addTemplate({
-      filename: "comvi.setup.mjs",
-      getContents: () => {
-        const setupPath = resolvedSetupPath;
+    const setupContents = () => {
+      const setupPath = resolvedSetupPath;
 
-        if (!setupPath) {
-          return `
+      if (!setupPath) {
+        return `
 export async function runComviSetup() {}
 `;
-        }
+      }
 
-        return `
+      return `
 import userSetup from ${JSON.stringify(setupPath)};
 
 export async function runComviSetup(context) {
@@ -369,8 +365,8 @@ export async function runComviSetup(context) {
   await userSetup(context);
 }
 `;
-      },
-    });
+    };
+    addTemplate({ filename: "comvi.setup.mjs", getContents: setupContents });
 
     // The instance is decided HERE, at codegen: the same branch taken at runtime
     // would keep BOTH paths alive in every bundle. The default branch builds the
@@ -380,16 +376,14 @@ export async function runComviSetup(context) {
     // forwards nuxt's RESOLVED options into the factory — `icu: true` included,
     // as `compiler: icuCompiler` in those options, so the option means the same
     // thing on both branches and a factory that spreads them gets it.
-    addTemplate({
-      filename: "comvi.i18n.mjs",
-      getContents: () => {
-        const i18nModulePath = resolvedI18nModulePath;
+    const i18nContents = () => {
+      const i18nModulePath = resolvedI18nModulePath;
 
-        if (!i18nModulePath) {
-          // Emitted only for `icu: true`: an app that did not ask for ICU must
-          // get a module that cannot pull `@comvi/core/icu` into its graph.
-          if (options.icu) {
-            return `
+      if (!i18nModulePath) {
+        // Emitted only for `icu: true`: an app that did not ask for ICU must
+        // get a module that cannot pull `@comvi/core/icu` into its graph.
+        if (options.icu) {
+          return `
 import { createI18n } from "@comvi/vue";
 import { createI18n as createCore } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
@@ -402,9 +396,9 @@ export function createComviCore(options) {
   return createCore({ ...options, compiler: icuCompiler });
 }
 `;
-          }
+        }
 
-          return `
+        return `
 import { createI18n } from "@comvi/vue";
 import { createI18n as createCore } from "@comvi/core";
 
@@ -416,20 +410,20 @@ export function createComviCore(options) {
   return createCore(options);
 }
 `;
-        }
+      }
 
-        // The same conditional import as the default branch: `icu: false`
-        // emits a module that cannot pull `@comvi/core/icu` into the graph.
-        // With `icu: true` the compiler is the LAST key, so a factory that
-        // spreads `options` gets ICU, and one that writes its own `compiler`
-        // after the spread wins by key order.
-        const icuImport = options.icu ? `import { icuCompiler } from "@comvi/core/icu";\n` : "";
-        const factoryOptions = options.icu ? "{ ...options, compiler: icuCompiler }" : "options";
-        // Development only, decided at codegen like the branch itself: a factory
-        // that hands back one shared instance would mix every request's locale and
-        // catalog. Production builds carry no guard and no WeakSet.
-        const freshInstanceGuard = nuxt.options.dev
-          ? `
+      // The same conditional import as the default branch: `icu: false`
+      // emits a module that cannot pull `@comvi/core/icu` into the graph.
+      // With `icu: true` the compiler is the LAST key, so a factory that
+      // spreads `options` gets ICU, and one that writes its own `compiler`
+      // after the spread wins by key order.
+      const icuImport = options.icu ? `import { icuCompiler } from "@comvi/core/icu";\n` : "";
+      const factoryOptions = options.icu ? "{ ...options, compiler: icuCompiler }" : "options";
+      // Development only, decided at codegen like the branch itself: a factory
+      // that hands back one shared instance would mix every request's locale and
+      // catalog. Production builds carry no guard and no WeakSet.
+      const freshInstanceGuard = nuxt.options.dev
+        ? `
   if (returnedInstances.has(instance)) {
     throw new Error(
       "[@comvi/nuxt] comvi i18nModule returned an instance it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
@@ -437,10 +431,10 @@ export function createComviCore(options) {
   }
   returnedInstances.add(instance);
 `
-          : "";
-        const guardState = nuxt.options.dev ? "\nconst returnedInstances = new WeakSet();\n" : "";
+        : "";
+      const guardState = nuxt.options.dev ? "\nconst returnedInstances = new WeakSet();\n" : "";
 
-        return `
+      return `
 import { createI18nFromCore } from "@comvi/vue";
 ${icuImport}import i18nFactory from ${JSON.stringify(i18nModulePath)};
 ${guardState}
@@ -476,7 +470,32 @@ export function createComviCore(options) {
   return createInstance(options);
 }
 `;
-      },
+    };
+    addTemplate({ filename: "comvi.i18n.mjs", getContents: i18nContents });
+
+    // The same three modules for the Nitro build, which the server utilities
+    // (`useTranslation(event)`, `loadMessages`, `getRequestI18n`) import. The
+    // Vue app's server bundle and the Nitro runtime are separate builds, and
+    // nuxt's `impound` plugin refuses a `#build/*` specifier anywhere in the
+    // Nitro graph: an app with one `server/api` route that called
+    // `useTranslation(event)` failed `nuxt build`. Nitro's own virtual modules
+    // are how generated code reaches that build.
+    // The hook is declared by nuxt's Nitro integration, which this package's
+    // own compilation does not load; the cast names the one field written.
+    (
+      nuxt as unknown as {
+        hook(
+          name: "nitro:config",
+          fn: (nitroConfig: { virtual?: Record<string, string | (() => string)> }) => void,
+        ): void;
+      }
+    ).hook("nitro:config", (nitroConfig) => {
+      nitroConfig.virtual = {
+        ...nitroConfig.virtual,
+        "#comvi/detection": detectionContents,
+        "#comvi/setup": setupContents,
+        "#comvi/i18n": i18nContents,
+      };
     });
 
     // The type-level counterpart of the instance template above, and the only place

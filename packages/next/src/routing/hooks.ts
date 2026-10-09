@@ -5,6 +5,7 @@ import { useLocale } from "@comvi/react";
 import { useCallback } from "react";
 import { useRoutingConfig } from "./context";
 import { getCanonicalPathname, localizeHref, stripLocalePrefix } from "./utils";
+import { getSwitchRouting, writeLocaleCookie } from "./localeSwitch";
 
 /**
  * Get pathname without locale prefix.
@@ -55,6 +56,12 @@ export interface LocalizedRouter {
 /**
  * Wraps Next.js useRouter and adds locale prefixes to the navigation methods.
  *
+ * `push` and `replace` with a locale record it in the locale cookie, and with
+ * another locale than the current one they navigate to the locale-prefixed URL,
+ * which the middleware redirects to the public one. That is what lets a switch
+ * to the default locale win under `localePrefix: "as-needed"`. `prefetch`
+ * does neither.
+ *
  * @example
  * ```tsx
  * import { useLocalizedRouter } from '@comvi/next/navigation';
@@ -79,22 +86,37 @@ export function useLocalizedRouter(): LocalizedRouter {
   const locale = useLocale();
   const routing = useRoutingConfig();
 
+  // The href to navigate to. Naming a locale records it in the locale cookie,
+  // and naming ANOTHER locale is a switch, which goes to the locale-prefixed
+  // URL: see `localeSwitch.ts`.
+  const localizeNavigation = useCallback(
+    (href: string, targetLocale?: string): string => {
+      if (targetLocale === undefined) {
+        return localizeHref(href, locale, routing ?? undefined);
+      }
+      writeLocaleCookie(routing, targetLocale);
+      const isSwitch = routing !== null && targetLocale !== locale;
+      return localizeHref(
+        href,
+        targetLocale,
+        isSwitch ? getSwitchRouting(routing) : (routing ?? undefined),
+      );
+    },
+    [locale, routing],
+  );
+
   const push = useCallback(
     (href: string, targetLocale?: string) => {
-      const resolvedLocale = targetLocale ?? locale;
-      const localizedHref = localizeHref(href, resolvedLocale, routing ?? undefined);
-      router.push(localizedHref);
+      router.push(localizeNavigation(href, targetLocale));
     },
-    [router, locale, routing],
+    [router, localizeNavigation],
   );
 
   const replace = useCallback(
     (href: string, targetLocale?: string) => {
-      const resolvedLocale = targetLocale ?? locale;
-      const localizedHref = localizeHref(href, resolvedLocale, routing ?? undefined);
-      router.replace(localizedHref);
+      router.replace(localizeNavigation(href, targetLocale));
     },
-    [router, locale, routing],
+    [router, localizeNavigation],
   );
 
   const prefetch = useCallback(

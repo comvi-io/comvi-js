@@ -54,11 +54,9 @@ interface NitroAppLike {
  * the response to actually end rather than scheduling anything. Both paths are
  * idempotent, so a request that reaches both is destroyed once.
  *
- * Why it imports `../internal/request-hosts` and not the server util next to
- * it: nuxt's `impound` plugin refuses a `#build/*` alias anywhere in the nitro
- * runtime graph, and `../utils/request-i18n` imports two of them to build a
- * instance. Pulling that module in here fails an app's `nitro` build outright —
- * which is why `test-apps/nuxt` is built as part of this lot's gates.
+ * It imports `../internal/request-hosts` and not the server util next to it:
+ * the registry is all it needs, and `../utils/request-i18n` also imports the
+ * generated instance and setup modules (`#comvi/*`) to build an instance.
  */
 export default function comviRequestCleanup(nitroApp: NitroAppLike): void {
   claimRequestCleanup();

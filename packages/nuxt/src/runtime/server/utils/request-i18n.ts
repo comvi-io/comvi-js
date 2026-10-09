@@ -1,14 +1,16 @@
 import type { H3Event } from "h3";
-import { runComviSetup } from "#build/comvi.setup";
+// `#comvi/*`, not `#build/*`: this file runs in the Nitro build, where nuxt's
+// `impound` plugin refuses the Vue app's `#build/*` aliases. The module
+// registers the same generated modules there as Nitro virtual modules.
+import { runComviSetup } from "#comvi/setup";
 // Same build-time branch as the client plugin: with `i18nModule` set, the
 // generated template returns the app's own composed instance and nuxt's default
 // `@comvi/vue` construction path is not in the server graph.
-import { createComviCore } from "#build/comvi.i18n";
+import { createComviCore } from "#comvi/i18n";
 import type { NuxtServerInstance } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
-// The registry and its teardown live outside this file so the Nitro server
-// plugin can import them: nuxt's `impound` plugin refuses the `#build/*`
-// aliases above anywhere in the nitro runtime graph.
+// The registry and its teardown live outside this file, so the Nitro server
+// plugin reaches them without pulling the generated modules into its graph.
 import {
   assertRequestLive,
   getContextKey,

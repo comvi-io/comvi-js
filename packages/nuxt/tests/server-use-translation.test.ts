@@ -13,11 +13,11 @@ vi.mock("h3", () => ({
   getHeader,
 }));
 
-vi.mock("#build/comvi.i18n", () => ({
+vi.mock("#comvi/i18n", () => ({
   createComviCore,
 }));
 
-vi.mock("#build/comvi.setup", () => ({
+vi.mock("#comvi/setup", () => ({
   runComviSetup,
 }));
 
@@ -519,12 +519,12 @@ describe("useTranslation (server)", () => {
       createComviCore.mockReturnValue(createI18nStub("en"));
       headers({ "accept-language": "uk" });
       const custom = vi.fn(() => "de");
-      vi.doMock("#build/comvi.detection", () => ({ resolveAcceptLanguage: custom }));
+      vi.doMock("#comvi/detection", () => ({ resolveAcceptLanguage: custom }));
       const useTranslation = await importUseTranslation();
 
       const { locale } = await useTranslation(createEvent());
 
-      vi.doUnmock("#build/comvi.detection");
+      vi.doUnmock("#comvi/detection");
       expect(custom).toHaveBeenCalledWith("uk", ["en", "de", "uk"], "en");
       expect(locale).toBe("de");
     });

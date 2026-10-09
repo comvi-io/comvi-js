@@ -8,7 +8,10 @@
       "#app": ["./tests/mocks/nuxt-app.ts"],
       "#build/comvi.setup": ["./tests/mocks/comvi-setup.ts"],
       "#build/comvi.detection": ["./tests/mocks/comvi-detection.ts"],
-      "#components": ["./tests/mocks/nuxt-components.ts"]
+      "#components": ["./tests/mocks/nuxt-components.ts"],
+      "#comvi/setup": ["./tests/mocks/comvi-setup.ts"],
+      "#comvi/detection": ["./tests/mocks/comvi-detection.ts"],
+      "#imports": ["./tests/mocks/nitro-imports.ts"]
     }
   },
   // `./tests/*.test-d.ts`, not `./tests/**`: `tests/types-keys-closed/` is a

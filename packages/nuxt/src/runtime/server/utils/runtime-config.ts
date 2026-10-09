@@ -1,4 +1,5 @@
 import type { H3Event } from "h3";
+import { useRuntimeConfig } from "#imports";
 import type { NuxtI18nRuntimeConfig, NuxtI18nPrivateRuntimeConfig } from "../../../types";
 import { DEFAULT_COOKIE_NAME } from "../../defaults";
 import { normalizeLocaleCookie, normalizeLocaleDetection } from "../../_vendor/locale-routing";
@@ -30,17 +31,21 @@ const EMPTY_CONFIG: ComviServerRuntimeConfig = {
   comvi: {},
 };
 
-/** Handles the differing Nitro versions' config locations. */
+/**
+ * The runtime config of this request: Nitro's own `useRuntimeConfig(event)`,
+ * which is the only place a Nitro route can read it from. Nitro puts nothing on
+ * `event.context` until that function is called for the event, so reading the
+ * context alone answered a `server/api` route with the empty fallback below:
+ * no locales, and every request resolved to `en`.
+ */
 export function getServerRuntimeConfig(event?: H3Event): ComviServerRuntimeConfig {
-  // Nitro 2.x+
+  // A config handed over on the event wins: a caller outside Nitro has no other way.
   if (event?.context?.runtimeConfig) {
     return event.context.runtimeConfig as ComviServerRuntimeConfig;
   }
 
-  // Older Nitro
-  const nitroCtx = event?.context as Record<string, unknown> | undefined;
-  const nitroRuntime = (nitroCtx?.nitro as Record<string, unknown> | undefined)?.runtimeConfig;
-  if (nitroRuntime) {
+  const nitroRuntime = useRuntimeConfig(event) as Partial<ComviServerRuntimeConfig> | undefined;
+  if (nitroRuntime?.public?.comvi) {
     return nitroRuntime as ComviServerRuntimeConfig;
   }
 

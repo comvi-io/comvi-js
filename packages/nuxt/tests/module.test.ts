@@ -268,6 +268,34 @@ describe("nuxt module setup", () => {
     expect(contents).toContain("[@comvi/nuxt] comvi.setup must export a default function.");
   });
 
+  // The server utilities run in the Nitro build, where `#build/*` is refused:
+  // an app whose `server/api` route called `useTranslation(event)` failed
+  // `nuxt build`. `test-apps/nuxt4/server/api/translate.get.ts` is that route.
+  it("registers the three generated modules as Nitro virtual modules, with the templates' own contents", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    resolveOnly(["./comvi.setup", "/app/comvi.setup.ts"]);
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+    const onNitroConfig = nuxt.hook.mock.calls.find(
+      ([name]: [string]) => name === "nitro:config",
+    )?.[1];
+    const nitroConfig = { virtual: { "#other/module": "export {}" } as Record<string, any> };
+
+    onNitroConfig(nitroConfig);
+
+    expect(Object.keys(nitroConfig.virtual)).toEqual([
+      "#other/module",
+      "#comvi/detection",
+      "#comvi/setup",
+      "#comvi/i18n",
+    ]);
+    expect(nitroConfig.virtual["#comvi/setup"]()).toBe(setupTemplateContents());
+    expect(nitroConfig.virtual["#comvi/i18n"]()).toBe(hostTemplateContents());
+    expect(nitroConfig.virtual["#comvi/detection"]()).toBe(
+      template("comvi.detection.mjs")?.getContents(),
+    );
+  });
+
   it("transpiles the runtime and pre-bundles the wrapper packages", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();

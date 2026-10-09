@@ -71,7 +71,9 @@ describe("<Link>", () => {
       { routing: ROUTING, locale: "de" },
     );
 
-    expect(hrefHandedToNext()).toBe("/about");
+    // Another locale than the page's is a switch: the locale-prefixed URL,
+    // which the middleware redirects to `/about`. See `localeSwitch.ts`.
+    expect(hrefHandedToNext()).toBe("/en/about");
   });
 
   it("localizes the pathname of a URL object and keeps its query", () => {
