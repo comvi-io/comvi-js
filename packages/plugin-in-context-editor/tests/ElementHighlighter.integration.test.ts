@@ -1179,25 +1179,44 @@ describe("ElementHighlighter", () => {
       }).toEqual({ top: "150px", left: "30px", width: "60px", tooltipTop: "116px" });
     });
 
-    it.each([
-      ["the overlay is dismissed", () => simulateKeyEvent("keyup", "Alt")],
-      ["the highlighter is cleaned up", () => highlighter.cleanup()],
-    ])("%s → the window resize listener is removed", (_condition, dismiss) => {
-      const added = vi.spyOn(window, "addEventListener");
-      const removed = vi.spyOn(window, "removeEventListener");
+    it("content inserted above the element, with no scroll or resize → the overlay moves on the next frame", () => {
       const button = appendElement({ top: 100, left: 0, width: 100, height: 30 });
       highlighter.addHighlight(button);
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
-      const resizeHandler = added.mock.calls.find(([type]) => type === "resize")?.[1];
+      vi.advanceTimersToNextFrame();
 
-      dismiss();
+      const banner = document.createElement("div");
+      document.body.insertBefore(banner, button);
+      mockBoundingClientRect(button, { top: 260, left: 0, width: 100, height: 30 });
+      vi.advanceTimersToNextFrame();
 
-      expect(resizeHandler).toBeTypeOf("function");
-      expect(
-        removed.mock.calls.filter(([type]) => type === "resize").map(([, handler]) => handler),
-      ).toContain(resizeHandler);
+      expect(getActiveOverlay()!.style.top).toBe("260px");
     });
+
+    it.each([
+      ["the overlay is dismissed", () => simulateKeyEvent("keyup", "Alt")],
+      ["the highlighter is cleaned up", () => highlighter.cleanup()],
+    ])(
+      "%s → no animation frame stays queued and the element is no longer measured",
+      (_condition, dismiss) => {
+        const button = appendElement({ top: 100, left: 0, width: 100, height: 30 });
+        highlighter.addHighlight(button);
+        simulateKeyEvent("keydown", "Alt");
+        simulateMouseEvent(button, "mouseover");
+        vi.advanceTimersToNextFrame();
+        const measure = vi.spyOn(button, "getBoundingClientRect");
+
+        dismiss();
+        vi.advanceTimersToNextFrame();
+        vi.advanceTimersToNextFrame();
+
+        expect({ queuedTimers: vi.getTimerCount(), measured: measure.mock.calls.length }).toEqual({
+          queuedTimers: 0,
+          measured: 0,
+        });
+      },
+    );
 
     it.each([
       { css: "overflow-y: auto", styles: { overflowY: "auto", overflowX: "hidden" } },
@@ -1220,7 +1239,7 @@ describe("ElementHighlighter", () => {
       expect(getActiveOverlay()!.style.top).toBe("20px");
     });
 
-    it("ignores scroll on a non-scrollable ancestor", () => {
+    it("element moves while a non-scrollable ancestor scrolls → the overlay still follows it", () => {
       const wrapper = appendScrollable({ overflowY: "hidden", overflowX: "hidden" });
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 100, left: 0, width: 100, height: 30 });
@@ -1233,7 +1252,7 @@ describe("ElementHighlighter", () => {
       wrapper.dispatchEvent(new Event("scroll"));
       vi.advanceTimersToNextFrame();
 
-      expect(getActiveOverlay()!.style.top).toBe("100px");
+      expect(getActiveOverlay()!.style.top).toBe("20px");
     });
 
     it("repositions the tooltip together with the overlay on page scroll", () => {
@@ -1250,7 +1269,7 @@ describe("ElementHighlighter", () => {
       expect(getActiveTooltip()!.style.top).toBe("166px");
     });
 
-    it("stops following the previous scrollable ancestor once the hover moves away", () => {
+    it("hover moves to another element → movement of the previous one no longer moves the overlay", () => {
       const first = appendScrollable({ overflowY: "auto", overflowX: "hidden" });
       const firstButton = document.createElement("button");
       mockBoundingClientRect(firstButton, { top: 100, left: 0, width: 100, height: 30 });
@@ -1262,14 +1281,14 @@ describe("ElementHighlighter", () => {
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(firstButton, "mouseover");
       simulateMouseEvent(secondButton, "mouseover");
-      mockBoundingClientRect(secondButton, { top: 50, left: 0, width: 100, height: 30 });
+      mockBoundingClientRect(firstButton, { top: 50, left: 0, width: 100, height: 30 });
       first.dispatchEvent(new Event("scroll"));
       vi.advanceTimersToNextFrame();
 
       expect(getActiveOverlay()!.style.top).toBe("200px");
     });
 
-    it("stops following a scrollable ancestor once its overlay is dismissed", () => {
+    it("overlay dismissed and shown on another element → the first element's movement is ignored", () => {
       const scrollable = appendScrollable({ overflowY: "auto", overflowX: "hidden" });
       const inside = document.createElement("button");
       mockBoundingClientRect(inside, { top: 100, left: 0, width: 100, height: 30 });
@@ -1282,7 +1301,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(inside, "mouseover");
       simulateMouseEvent(inside, "mouseout");
       simulateMouseEvent(outside, "mouseover");
-      mockBoundingClientRect(outside, { top: 10, left: 0, width: 100, height: 30 });
+      mockBoundingClientRect(inside, { top: 10, left: 0, width: 100, height: 30 });
       scrollable.dispatchEvent(new Event("scroll"));
       vi.advanceTimersToNextFrame();
 
@@ -1308,7 +1327,7 @@ describe("ElementHighlighter", () => {
       expect(getActiveOverlay()!.style.top).toBe("20px");
     });
 
-    it("releases a scrollable ancestor picked up on a hover switch", () => {
+    it("hover passes over an element and moves on → that element's movement is ignored", () => {
       const plain = appendElement({ top: 300, left: 0, width: 100, height: 30 });
       const scrollable = appendScrollable({ overflowY: "auto", overflowX: "hidden" });
       const inside = document.createElement("button");
@@ -1321,7 +1340,7 @@ describe("ElementHighlighter", () => {
       simulateMouseEvent(plain, "mouseover");
       simulateMouseEvent(inside, "mouseover");
       simulateMouseEvent(last, "mouseover");
-      mockBoundingClientRect(last, { top: 10, left: 0, width: 100, height: 30 });
+      mockBoundingClientRect(inside, { top: 10, left: 0, width: 100, height: 30 });
       scrollable.dispatchEvent(new Event("scroll"));
       vi.advanceTimersToNextFrame();
 

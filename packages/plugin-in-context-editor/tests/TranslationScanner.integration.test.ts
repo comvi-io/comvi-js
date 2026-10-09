@@ -667,6 +667,21 @@ describe("TranslationScanner", () => {
       expect(registeredKeys(p)).toEqual([{ key: "hello", ns: "default" }]);
     });
 
+    it("attribute marker replaced in place by a broken fragment → the attribute is unregistered", () => {
+      // A browser updates the existing Attr and reports an attribute mutation.
+      // happy-dom swaps in a new Attr on setAttribute and reports nothing for
+      // an in-place Attr.value change, so the watcher's event is emitted here.
+      const encoded = marker("save");
+      const input = document.createElement("input");
+      input.setAttribute("title", `Save${encoded}`);
+      eventBus.emit("structureChanges", [input]);
+
+      input.getAttributeNode("title")!.value = `Save${encoded.slice(0, 3)}`;
+      eventBus.emit("attributeChanges", [input]);
+
+      expect(map.has(input)).toBe(false);
+    });
+
     it("a lone marker fragment → nothing tracked", () => {
       const encoded = marker("hello");
       const p = document.createElement("p");

@@ -82,25 +82,33 @@ function toNodeData(markers: DecodedMarker[], wholePreview: string): NodeData | 
   };
 }
 
+/** `textNode` and its adjacent text siblings, in document order. */
+function textRun(textNode: Text): Text[] {
+  let first: Node = textNode;
+  while (first.previousSibling?.nodeType === Node.TEXT_NODE) {
+    first = first.previousSibling;
+  }
+  const run: Text[] = [];
+  for (
+    let current: Node | null = first;
+    current?.nodeType === Node.TEXT_NODE;
+    current = current.nextSibling
+  ) {
+    run.push(current as Text);
+  }
+  return run;
+}
+
 /**
  * The markers that start in `textNode`. Adjacent text siblings are read as
  * one string, so a marker split across them still decodes, on the node where
  * it starts.
  */
 function decodeTextNodeMarkers(textNode: Text): DecodedMarker[] {
-  let first: Node = textNode;
-  while (first.previousSibling?.nodeType === Node.TEXT_NODE) {
-    first = first.previousSibling;
-  }
-
   let text = "";
   let nodeStart = 0;
   let nodeEnd = 0;
-  for (
-    let current: Node | null = first;
-    current?.nodeType === Node.TEXT_NODE;
-    current = current.nextSibling
-  ) {
+  for (const current of textRun(textNode)) {
     if (current === textNode) nodeStart = text.length;
     text += current.nodeValue ?? "";
     if (current === textNode) nodeEnd = text.length;
@@ -132,11 +140,9 @@ export class TranslationScanner {
   private registerEventHandlers(): void {
     this.unsubscribers.push(
       this.eventBus.on("textChanges", (nodes: Node[]) => {
-        nodes.forEach((node) => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            this.processTextNode(node as Text);
-          }
-        });
+        this.processTextRuns(
+          nodes.filter((node): node is Text => node.nodeType === Node.TEXT_NODE),
+        );
       }),
     );
 
@@ -288,6 +294,10 @@ export class TranslationScanner {
         this.registry.addOrUpdate(element, {
           nodes: new Map([[attribute, nodeData]]),
         });
+      } else {
+        // Invisible characters that no longer decode: the same Attr stays on
+        // the element, so it has to be dropped explicitly.
+        this.registry.removeNodesForElement(element, (node) => node === attribute);
       }
     });
   }
@@ -320,11 +330,28 @@ export class TranslationScanner {
     }
 
     if (node.nodeType === Node.TEXT_NODE) {
-      this.processTextNode(node as Text);
+      this.processTextRuns([node as Text]);
       return;
     }
 
     this.traverseAndProcessNodes(node);
+  }
+
+  /**
+   * Reconciles every node of each changed node's adjacent text run: a marker
+   * can start in one node and end in the next, so a change to either one
+   * changes what the other decodes to.
+   */
+  private processTextRuns(textNodes: Text[]): void {
+    const processed = new Set<Text>();
+    textNodes.forEach((textNode) => {
+      textRun(textNode).forEach((member) => {
+        if (!processed.has(member)) {
+          processed.add(member);
+          this.processTextNode(member);
+        }
+      });
+    });
   }
 
   private normalizeStructureRoots(nodes: Node[]): Node[] {
