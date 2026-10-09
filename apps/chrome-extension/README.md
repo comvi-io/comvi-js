@@ -21,7 +21,8 @@ boundary in either direction:
   custody is limited to **trusted extension contexts**: the service worker,
   which attaches it to proxied requests, and the popup, which shows the saved
   key. On startup the worker restricts `chrome.storage.local` to those
-  contexts, so the extension's content scripts cannot read it. The key can be
+  contexts, so the extension's content scripts cannot read it. If the browser
+  cannot apply that restriction, the worker handles no key at all. The key can be
   removed with the popup's "Forget key" button.
 - The editor runtime is activated with a **proxy transport**: API requests
   (path + body only) travel over DOM events to the isolated-world bridge and on

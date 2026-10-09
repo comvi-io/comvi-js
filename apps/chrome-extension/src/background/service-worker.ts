@@ -63,17 +63,16 @@ async function reconcileAllBadges(): Promise<void> {
 /**
  * chrome.storage.local is readable from content scripts by default. Keep the
  * persisted credential map to trusted extension contexts (this worker and the
- * popup) before any credential is read or written. Browsers that cannot set
- * the level keep the default, which no content script of ours reads.
+ * popup) before any credential is read or written. A missing or refused
+ * restriction fails initialization, so no credential is handled; the next
+ * message retries it.
  */
 async function restrictCredentialStorage(): Promise<void> {
   const local = chrome.storage.local as Partial<chrome.storage.StorageArea>;
-  if (typeof local.setAccessLevel !== "function") return;
-  try {
-    await local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
-  } catch {
-    // Unsupported for this storage area on this browser version.
+  if (typeof local.setAccessLevel !== "function") {
+    throw new Error("This browser cannot restrict saved keys to the extension. Update Chrome.");
   }
+  await local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 }
 
 export function initializeServiceWorkerState(clearSessions = false): Promise<void> {
