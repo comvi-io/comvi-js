@@ -1,21 +1,14 @@
 /**
  * Regression guard for the public opt-outs: both activation entry points
- * (the plugin factory and the standalone `activate`) must hand
- * collectContext/screenGroupResolver through to Core — a dropped option here
- * silently re-enables collection for integrations that opted out.
+ * (the plugin factory and the standalone `activate`) must honour
+ * collectContext/screenGroupResolver — a dropped option here silently
+ * re-enables collection for integrations that opted out. Read at the wire:
+ * the real runtime runs, and the requests under `/v1/context/` are what the
+ * platform would receive.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { asPluginHost, createI18n } from "./helpers/composedInstance";
-
-const {
-  coreCtorMock,
-  coreStartMock,
-  coreStopMock,
-  mockCoreModule,
-  resetCoreMocks,
-  FIRST_MOCK_CORE_ID,
-} = await vi.hoisted(() => import("./helpers/mockCore"));
 
 const { fetchApiTranslationsMock } = vi.hoisted(() => ({
   fetchApiTranslationsMock: vi.fn(),
@@ -29,10 +22,9 @@ vi.mock("@comvi/plugin-fetch-loader/api", async (importOriginal) => {
   };
 });
 
-vi.mock("../src/Core", mockCoreModule);
-
 import { inContextEditorPlugin } from "../src/index";
-import type { ApiTransport } from "../src/config/api";
+import { resetApiConfig, type ApiTransport } from "../src/config/api";
+import { resetEncoder } from "../src/translation";
 import {
   activate,
   deactivate,
@@ -41,92 +33,138 @@ import {
   isActive,
   type EditorLifecycleDetail,
 } from "../src/standalone";
+import { cleanupDOM, flushDOMMutations } from "./helpers";
+import { hoverLabel, renderMarked } from "./helpers/editorPage";
+import { contextApiResponse, contextPaths, reportedScreenGroups } from "./helpers/contextWire";
 
-type CoreOptions = {
-  collectContext?: boolean;
-  screenGroupResolver?: () => string | null | undefined;
-};
-
-function lastCoreOptions(): CoreOptions {
-  expect(coreCtorMock).toHaveBeenCalled();
-  return coreCtorMock.mock.calls[coreCtorMock.mock.calls.length - 1]![0] as CoreOptions;
-}
-
-function makeI18n() {
+function makeI18n(options: { apiKey?: string; collectContext?: boolean } = {}) {
   return createI18n({
     locale: "en",
     defaultNs: "default",
     messages: { "en:default": { hello: "Hello" } },
+    ...options,
   });
+}
+
+/** `fetch` answering the context API, for the plugin path (it authenticates with the host's key). */
+function stubContextFetch() {
+  const fetchMock = vi.fn((input: RequestInfo | URL) =>
+    contextApiResponse(input instanceof Request ? input.url : String(input)),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+/** A transport answering the context API, for the standalone path. */
+function contextTransport() {
+  return vi.fn<ApiTransport>((path) => contextApiResponse(path));
+}
+
+const pluginTeardowns: Array<() => void> = [];
+
+/** Installs the plugin over a page that already shows one translated paragraph. */
+function installOverTranslatedPage(options?: Parameters<typeof inContextEditorPlugin>[0]): void {
+  renderMarked("hello");
+  const i18n = makeI18n({ apiKey: "test-key" });
+  pluginTeardowns.push(inContextEditorPlugin(options)(asPluginHost(i18n)) as () => void);
 }
 
 function resetStandaloneRuntime(): void {
   if (isActive()) {
     deactivate();
   }
+  for (const teardown of pluginTeardowns.splice(0)) teardown();
   delete (window as { __COMVI__?: unknown }).__COMVI__;
-  resetCoreMocks();
   fetchApiTranslationsMock.mockReset();
+  cleanupDOM();
+  resetApiConfig();
+  resetEncoder();
 }
 
-describe("collectContext / screenGroupResolver pass-through", () => {
+describe("collectContext / screenGroupResolver on the plugin path", () => {
   afterEach(resetStandaloneRuntime);
 
-  it("inContextEditorPlugin hands collectContext: false and the resolver to Core", () => {
-    const resolver = () => "/users/:id";
-    const i18n = makeI18n();
-    // The editor's install is synchronous and always hands back its teardown;
-    // `I18nPlugin`'s return type also covers the async and no-cleanup shapes.
-    const cleanup = inContextEditorPlugin({ collectContext: false, screenGroupResolver: resolver })(
-      asPluginHost(i18n),
-    ) as () => void;
+  it("inContextEditorPlugin() without collectContext → the context handshake and usages reach the API", async () => {
+    const fetchMock = stubContextFetch();
 
-    const options = lastCoreOptions();
-    expect(options.collectContext).toBe(false);
-    expect(options.screenGroupResolver).toBe(resolver);
+    installOverTranslatedPage();
+    await flushDOMMutations();
 
-    cleanup?.();
+    expect(contextPaths(fetchMock.mock.calls)).toEqual([
+      "/v1/context/handshake",
+      "/v1/context/usages",
+    ]);
   });
 
-  it("inContextEditorPlugin leaves collectContext undefined (Core's default: enabled) when not set", () => {
-    const i18n = makeI18n();
-    const cleanup = inContextEditorPlugin()(asPluginHost(i18n)) as () => void;
+  it("inContextEditorPlugin({ collectContext: false }) → no context request reaches the API", async () => {
+    const fetchMock = stubContextFetch();
 
-    expect(lastCoreOptions().collectContext).toBeUndefined();
+    installOverTranslatedPage({ collectContext: false });
+    await flushDOMMutations();
 
-    cleanup?.();
+    expect(contextPaths(fetchMock.mock.calls)).toEqual([]);
   });
 
-  it("standalone activate() hands collectContext: false and the resolver to Core", () => {
-    const resolver = () => "/checkout";
-    // makeI18n() self-announces on the __COMVI__ queue (exposeGlobal default)
+  it("inContextEditorPlugin({ screenGroupResolver }) → reported usages carry the resolver's screen group", async () => {
+    const fetchMock = stubContextFetch();
+
+    installOverTranslatedPage({ screenGroupResolver: () => "/users/:id" });
+    await flushDOMMutations();
+
+    expect(reportedScreenGroups(fetchMock.mock.calls)).toEqual(["/users/:id"]);
+  });
+});
+
+describe("collectContext / screenGroupResolver on the standalone path", () => {
+  afterEach(resetStandaloneRuntime);
+
+  it("activate({ collectContext: false }) → no context request goes through the transport", async () => {
+    makeI18n();
+    renderMarked("hello");
+    const transport = contextTransport();
+
+    activate({ transport, collectContext: false, refreshMessages: false });
+    await flushDOMMutations();
+
+    expect(contextPaths(transport.mock.calls)).toEqual([]);
+  });
+
+  it("activate({ collectContext: false }) → the result reports collectContext: false", () => {
     makeI18n();
 
-    const result = activate({
-      collectContext: false,
-      screenGroupResolver: resolver,
-      refreshMessages: false,
-    });
-    expect(result).not.toBeNull();
+    const result = activate({ collectContext: false, refreshMessages: false });
 
-    const options = lastCoreOptions();
-    expect(options.collectContext).toBe(false);
-    expect(options.screenGroupResolver).toBe(resolver);
     expect(result?.collectContext).toBe(false);
   });
 
-  it("standalone activation reports the effective site-narrowed collectContext value", () => {
-    createI18n({
-      locale: "en",
-      defaultNs: "default",
-      messages: { "en:default": { hello: "Hello" } },
-      collectContext: false,
-    });
+  it("activate({ screenGroupResolver }) → reported usages carry the resolver's screen group", async () => {
+    makeI18n();
+    renderMarked("hello");
+    const transport = contextTransport();
+
+    activate({ transport, screenGroupResolver: () => "/checkout", refreshMessages: false });
+    await flushDOMMutations();
+
+    expect(reportedScreenGroups(transport.mock.calls)).toEqual(["/checkout"]);
+  });
+
+  it("site created with collectContext: false, activate({ collectContext: true }) → the result reports false", () => {
+    makeI18n({ collectContext: false });
 
     const result = activate({ collectContext: true, refreshMessages: false });
 
     expect(result?.collectContext).toBe(false);
-    expect(lastCoreOptions().collectContext).toBe(false);
+  });
+
+  it("site created with collectContext: false, activate({ collectContext: true }) → no context request goes through the transport", async () => {
+    makeI18n({ collectContext: false });
+    renderMarked("hello");
+    const transport = contextTransport();
+
+    activate({ transport, collectContext: true, refreshMessages: false });
+    await flushDOMMutations();
+
+    expect(contextPaths(transport.mock.calls)).toEqual([]);
   });
 });
 
@@ -171,8 +209,8 @@ describe("standalone lifecycle notifications", () => {
     window.removeEventListener(EDITOR_LIFECYCLE_EVENT, listener);
 
     expect(eventDetails).toEqual([
-      { state: "activated", instanceId: FIRST_MOCK_CORE_ID },
-      { state: "deactivated", instanceId: FIRST_MOCK_CORE_ID },
+      { state: "activated", instanceId: result?.instanceId },
+      { state: "deactivated", instanceId: result?.instanceId },
     ]);
   });
 
@@ -228,7 +266,7 @@ describe("standalone lifecycle notifications", () => {
     expect(isActive()).toBe(false);
   });
 
-  it("drains a legacy v1 __COMVI__ registry into the dual-protocol hook", () => {
+  it("legacy v1 __COMVI__ registry on the page → the editor starts on its instance's text", async () => {
     const i18n = makeI18n();
     // Old core on the page: `activate()` must migrate `.instances` across
     // rather than reporting "no Comvi i18n found".
@@ -237,24 +275,43 @@ describe("standalone lifecycle notifications", () => {
       instances: new Map([["primary", i18n]]),
       get: () => i18n,
     };
-
-    const result = activate({ refreshMessages: false });
-
-    expect(result).not.toBeNull();
-    expect(coreStartMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects a second activation while one is already running", () => {
-    makeI18n();
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const heading = renderMarked("home.title");
 
     activate({ refreshMessages: false });
 
-    expect(activate({ refreshMessages: false })).toBeNull();
+    expect(await hoverLabel(heading)).toBe("home.title");
+  });
+
+  it("second activate() while one is running → returns null", () => {
+    makeI18n();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    activate({ refreshMessages: false });
+
+    const second = activate({ refreshMessages: false });
+
+    expect(second).toBeNull();
+  });
+
+  it("second activate() while one is running → warns to deactivate first", () => {
+    makeI18n();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    activate({ refreshMessages: false });
+
+    activate({ refreshMessages: false });
+
     expect(warn).toHaveBeenCalledExactlyOnceWith(
       "[@comvi/plugin-in-context-editor] Already active. Call deactivate() first.",
     );
-    expect(coreStartMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("second activate() while one is running → the first activation stays the active runtime", () => {
+    makeI18n();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const first = activate({ refreshMessages: false });
+
+    activate({ refreshMessages: false });
+
+    expect(getStatus().instanceId).toBe(first?.instanceId);
   });
 
   it("reports authoritative runtime status while active and after stopping", () => {
@@ -269,7 +326,7 @@ describe("standalone lifecycle notifications", () => {
 
     expect(getStatus()).toEqual({
       active: true,
-      instanceId: FIRST_MOCK_CORE_ID,
+      instanceId: first?.instanceId,
       comviDetected: true,
       comviVersion: "0.3.0",
       instanceCount: 1,
@@ -384,7 +441,7 @@ describe("standalone lifecycle notifications", () => {
     expect(isActive()).toBe(true);
   });
 
-  it("warns instead of throwing when deactivate() is called twice", () => {
+  it("deactivate() twice → the second call warns 'Not active.' instead of throwing", () => {
     makeI18n();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     activate({ refreshMessages: false });
@@ -393,6 +450,5 @@ describe("standalone lifecycle notifications", () => {
     deactivate();
 
     expect(warn).toHaveBeenCalledExactlyOnceWith("[@comvi/plugin-in-context-editor] Not active.");
-    expect(coreStopMock).toHaveBeenCalledTimes(1);
   });
 });

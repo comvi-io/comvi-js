@@ -27,7 +27,8 @@ import {
   inContextEditor as prodInContextEditor,
 } from "../src/entry-production";
 import { resetApiConfig } from "../src/config/api";
-import { resetEncoder } from "../src/translation";
+import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
+import { contextApiResponse, handshakeKeys } from "./helpers/contextWire";
 import { cleanupDOM, flushDOMMutations } from "./helpers";
 import {
   hoverLabel,
@@ -61,6 +62,7 @@ afterEach(async () => {
   await Promise.allSettled(liveHosts.splice(0).map((host) => host.destroy()));
   delete browserGlobals.__COMVI__;
   cleanupDOM();
+  document.head.querySelector("title")?.remove();
   resetApiConfig();
   resetEncoder();
 });
@@ -110,6 +112,23 @@ describe("inContextEditor() installer — default entry", () => {
     const host = base();
 
     expect(host.use(inContextEditor())).toBe(host);
+  });
+
+  it("inContextEditor() without targetElement → a translated <title> in the head is not tracked", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => contextApiResponse(String(input)));
+    vi.stubGlobal("fetch", fetchMock);
+    renderMarked("home.title");
+    document.title = `Shop${encodeKeyToInvisible(registerKey("page.title"))}`;
+    const i18n = track(
+      createBaseI18n({ locale: "en", exposeGlobal: false, apiKey: "test-key" }).use(
+        inContextEditor(),
+      ),
+    );
+
+    await i18n.init();
+    await flushDOMMutations();
+
+    expect(handshakeKeys(fetchMock.mock.calls)).toEqual(["home.title"]);
   });
 
   it("inContextEditor({ targetElement }) → text inside the target is highlighted", async () => {

@@ -36,3 +36,13 @@ export function reportedScreenGroups(calls: readonly RecordedCall[]): string[] {
       return body.items.map((item) => item.screenGroup);
     });
 }
+
+/** The keys the collector announced in its handshakes, in order. */
+export function handshakeKeys(calls: readonly RecordedCall[]): string[] {
+  return calls
+    .filter(([input]) => pathOf(input) === "/v1/context/handshake")
+    .flatMap(([, init]) => {
+      const body = JSON.parse(String(init?.body)) as { keys: Array<{ key: string }> };
+      return body.keys.map((entry) => entry.key);
+    });
+}
