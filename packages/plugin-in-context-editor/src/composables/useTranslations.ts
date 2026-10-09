@@ -413,6 +413,25 @@ export function useTranslations(
     state.value.isDirty = true;
   }
 
+  function pluralFormsOf(langCode: string): string[] {
+    return languages.value.find((l) => l.code === langCode)?.pluralForms ?? ["one", "other"];
+  }
+
+  /** Composite `<option>:<pluralForm>` forms; `valueOf` picks each value. */
+  function combinedForms(
+    options: string[],
+    pluralForms: string[],
+    valueOf: (option: string, pluralForm: string) => string | undefined,
+  ): Record<string, string> {
+    const forms: Record<string, string> = {};
+    for (const option of options) {
+      for (const pluralForm of pluralForms) {
+        forms[`${option}:${pluralForm}`] = valueOf(option, pluralForm) ?? "";
+      }
+    }
+    return forms;
+  }
+
   /** Existing translations are converted between the two shapes. */
   function togglePluralMode(enabled: boolean): void {
     if (!state.value.data) {
@@ -429,6 +448,18 @@ export function useTranslations(
     Object.keys(state.value.data.translations).forEach((langCode) => {
       const lang = languages.value.find((l) => l.code === langCode);
       if (!lang || isRawLanguage(langCode)) return;
+
+      const forms = state.value.data!.translations[langCode] || {};
+      const selectConfig = state.value.data!.selectConfigs?.[langCode];
+      if (selectConfig?.enabled) {
+        // Variants stay; plural forms are added to or removed from each one.
+        state.value.data!.translations[langCode] = enabled
+          ? combinedForms(selectConfig.options, lang.pluralForms, (option) => forms[option])
+          : Object.fromEntries(
+              selectConfig.options.map((option) => [option, forms[`${option}:other`] ?? ""]),
+            );
+        return;
+      }
 
       if (enabled) {
         const singular = state.value.data!.translations[langCode]?.other || "";
@@ -471,21 +502,43 @@ export function useTranslations(
         options,
       };
 
-      const currentValue = state.value.data.translations[langCode]?.other || "";
-      const selectForms: Record<string, string> = {};
-      options.forEach((opt) => {
-        selectForms[opt] = currentValue;
-      });
-      state.value.data.translations[langCode] = selectForms;
+      const current = state.value.data.translations[langCode] || {};
+      if (state.value.data.isPlural) {
+        // Every variant starts with the plural forms the message already has.
+        state.value.data.translations[langCode] = combinedForms(
+          options,
+          pluralFormsOf(langCode),
+          (_option, pluralForm) => current[pluralForm] ?? current.other,
+        );
+      } else {
+        const currentValue = current.other || "";
+        const selectForms: Record<string, string> = {};
+        options.forEach((opt) => {
+          selectForms[opt] = currentValue;
+        });
+        state.value.data.translations[langCode] = selectForms;
+      }
     } else {
-      if (state.value.data.selectConfigs[langCode]) {
-        state.value.data.selectConfigs[langCode].enabled = false;
+      const previous = state.value.data.selectConfigs[langCode];
+      if (previous) {
+        previous.enabled = false;
       }
 
-      // Back to singular: the FIRST form's value wins.
-      const forms = state.value.data.translations[langCode];
-      const firstValue = Object.values(forms || {})[0] || "";
-      state.value.data.translations[langCode] = { other: firstValue };
+      const forms = state.value.data.translations[langCode] || {};
+      if (state.value.data.isPlural) {
+        // Back to plain plural: the first variant's plural forms win.
+        const first = previous?.options[0];
+        state.value.data.translations[langCode] = Object.fromEntries(
+          pluralFormsOf(langCode).map((pluralForm) => [
+            pluralForm,
+            forms[`${first}:${pluralForm}`] ?? "",
+          ]),
+        );
+      } else {
+        // Back to singular: the FIRST form's value wins.
+        const firstValue = Object.values(forms)[0] || "";
+        state.value.data.translations[langCode] = { other: firstValue };
+      }
     }
 
     state.value.isDirty = true;
@@ -516,6 +569,18 @@ export function useTranslations(
     // If options changed, update translations structure
     if (config.options && existing.options.join(",") !== config.options.join(",")) {
       const currentForms = state.value.data.translations[langCode] || {};
+      if (state.value.data.isPlural && state.value.data.selectConfigs[langCode].enabled) {
+        // A new variant copies the plural forms of `other`, or of the first variant.
+        const source = existing.options.includes("other") ? "other" : existing.options[0];
+        state.value.data.translations[langCode] = combinedForms(
+          config.options,
+          pluralFormsOf(langCode),
+          (option, pluralForm) =>
+            currentForms[`${option}:${pluralForm}`] ?? currentForms[`${source}:${pluralForm}`],
+        );
+        state.value.isDirty = true;
+        return;
+      }
       const firstExistingValue = Object.values(currentForms).find(
         (value): value is string => typeof value === "string",
       );

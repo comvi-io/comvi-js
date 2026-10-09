@@ -181,3 +181,96 @@ describe("saving one language leaves ICU the editor cannot rebuild untouched", (
     expect(sentTranslations(fetchMock).de).toEqual({ value: exact, status: "not_reviewed" });
   });
 });
+
+describe("switching between plural, variants and both", () => {
+  beforeEach(() => {
+    initApiConfig("test-api-key");
+    vi.stubGlobal("fetch", vi.fn());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    resetApiConfig();
+  });
+
+  const GENDER = { variable: "gender", options: ["male", "other"] };
+
+  it("keeps every plural form under each variant when variants are added to a plural", async () => {
+    const fetchMock = serveKey({ en: "{count, plural, one {One item} other {# items}}" });
+    const manager = await loadKey();
+
+    manager.toggleSelectMode("en", true, GENDER);
+    await manager.saveTranslation();
+
+    expect(manager.translations.value.en).toEqual({
+      "male:one": "One item",
+      "male:other": "# items",
+      "other:one": "One item",
+      "other:other": "# items",
+    });
+    expect(sentTranslations(fetchMock).en!.value).toBe(
+      "{gender, select, male {{count, plural, one {One item} other {# items}}} other {{count, plural, one {One item} other {# items}}}}",
+    );
+  });
+
+  it("keeps the first variant's plural forms when variants are removed again", async () => {
+    serveKey({
+      en: "{gender, select, male {{count, plural, one {He has one} other {He has #}}} other {{count, plural, one {They have one} other {They have #}}}}",
+    });
+    const manager = await loadKey();
+
+    manager.toggleSelectMode("en", false);
+
+    expect(manager.translations.value.en).toEqual({ one: "He has one", other: "He has #" });
+  });
+
+  it("gives each variant every plural form when plural is switched on", async () => {
+    const fetchMock = serveKey(
+      { en: "{gender, select, male {His files} other {Their files}}" },
+      false,
+    );
+    const manager = await loadKey();
+
+    manager.togglePluralMode(true);
+    await manager.saveTranslation();
+
+    expect(manager.translations.value.en).toEqual({
+      "male:one": "His files",
+      "male:other": "His files",
+      "other:one": "Their files",
+      "other:other": "Their files",
+    });
+    expect(sentTranslations(fetchMock).en!.value).not.toContain("{}");
+  });
+
+  it("keeps each variant's other form when plural is switched off", async () => {
+    serveKey({
+      en: "{gender, select, male {{count, plural, one {He has one} other {He has #}}} other {{count, plural, one {They have one} other {They have #}}}}",
+    });
+    const manager = await loadKey();
+
+    manager.togglePluralMode(false);
+
+    expect(manager.translations.value.en).toEqual({ male: "He has #", other: "They have #" });
+  });
+
+  it("fills a new variant's plural forms from an existing variant", async () => {
+    const fetchMock = serveKey({
+      en: "{gender, select, male {{count, plural, one {He has one} other {He has #}}} other {{count, plural, one {They have one} other {They have #}}}}",
+    });
+    const manager = await loadKey();
+
+    manager.updateSelectConfig("en", { options: ["male", "female", "other"] });
+    await manager.saveTranslation();
+
+    expect(manager.translations.value.en).toEqual({
+      "male:one": "He has one",
+      "male:other": "He has #",
+      "female:one": "They have one",
+      "female:other": "They have #",
+      "other:one": "They have one",
+      "other:other": "They have #",
+    });
+    expect(sentTranslations(fetchMock).en!.value).not.toContain("{}");
+  });
+});
