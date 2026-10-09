@@ -3,9 +3,6 @@
  * shadow root, placed on a scrolled page, loading previews through the API
  * scope of the runtime that opened it, and torn down without leaving
  * document listeners behind.
- *
- * `tests/KeySelector.test.ts` covers placement arithmetic and teardown
- * against a mocked `createApp`; this suite does not repeat those.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,9 +26,43 @@ function elementAt(rect: { top: number; bottom: number; left: number; right: num
   return element;
 }
 
+function selectorHosts(): Element[] {
+  return Array.from(document.querySelectorAll(`[${EDITOR_UI_SHADOW_HOST_ATTRIBUTE}]`));
+}
+
 function dropdown(): HTMLElement | null {
-  const host = document.querySelector(`[${EDITOR_UI_SHADOW_HOST_ATTRIBUTE}]`);
+  const host = selectorHosts()[0];
   return host?.shadowRoot?.querySelector<HTMLElement>('[role="listbox"]') ?? null;
+}
+
+/** The options as the translator reads them: key, then the namespace when it is not the default. */
+function optionLabels(): string[] {
+  return Array.from(dropdown()?.querySelectorAll<HTMLElement>('[role="option"]') ?? []).map(
+    (option) => option.querySelector(".font-mono")?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+  );
+}
+
+function clickOption(index: number): void {
+  dropdown()!.querySelectorAll<HTMLElement>('[role="option"]')[index]!.click();
+}
+
+/** Opens a selector for `keys` against an element in the top-left of the viewport. */
+function openSelector(
+  keys: Array<{ key: string; ns: string; textPreview?: string }>,
+  onSelect: (key: string, ns: string) => void = vi.fn(),
+): void {
+  showKeySelector(
+    keys,
+    elementAt({ top: 100, right: 300, bottom: 140, left: 200 }),
+    onSelect,
+    "default",
+    "core-1",
+  );
+}
+
+/** The dropdown arms its outside-click and Escape listeners one macrotask after mounting. */
+async function waitForDismissListeners(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function keyResponse(value: string): Response {
@@ -82,14 +113,83 @@ afterEach(() => {
 });
 
 describe("key selector placement on a scrolled page", () => {
+  beforeEach(() => initApiConfig(undefined, "core-1"));
+
+  it("element near the bottom-right corner → the dropdown is flipped above and clamped to the 16px margin", () => {
+    // Flipped above (bottom 790 + 300 > 800), then floored at 16px; left is
+    // viewport 1200 − dropdown 400 − 16px margin.
+    const element = elementAt({ top: 10, right: 1190, bottom: 790, left: 1100 });
+
+    showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
+
+    expect({ top: dropdown()?.style.top, left: dropdown()?.style.left }).toEqual({
+      top: "16px",
+      left: "784px",
+    });
+  });
+
+  it("element whose dropdown would overflow the bottom edge → the dropdown opens 8px above it", () => {
+    const element = elementAt({ top: 400, right: 300, bottom: 600, left: 200 });
+
+    showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
+
+    // Element top 400 − dropdown 300 − the 8px gap.
+    expect(dropdown()?.style.top).toBe("92px");
+  });
+
+  it("dropdown that fits the viewport bottom exactly → it stays below the element", () => {
+    const element = elementAt({ top: 460, right: 300, bottom: 500, left: 200 });
+
+    showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
+
+    expect(dropdown()?.style.top).toBe("508px");
+  });
+
+  it("element starting left of the viewport → the dropdown is clamped to the 16px left margin", () => {
+    const element = elementAt({ top: 100, right: 60, bottom: 140, left: -40 });
+
+    showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
+
+    expect(dropdown()?.style.left).toBe("16px");
+  });
+
+  it("dropdown that reaches the right edge exactly → it stays aligned with the element", () => {
+    const element = elementAt({ top: 100, right: 900, bottom: 140, left: 800 });
+
+    showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
+
+    expect(dropdown()?.style.left).toBe("800px");
+  });
+
   it("scrollY 1000 → the fixed dropdown opens 8px below the element in the viewport", () => {
-    initApiConfig(undefined, "core-1");
     const element = elementAt({ top: 100, right: 300, bottom: 140, left: 200 });
 
     showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
 
     expect(dropdown()?.style.top).toBe("148px");
     expect(dropdown()?.style.left).toBe("200px");
+  });
+});
+
+describe("key selector options", () => {
+  beforeEach(() => initApiConfig(undefined, "core-1"));
+
+  it("keys from the default and another namespace → only the other key is labelled with its namespace", () => {
+    openSelector([
+      { key: "home.title", ns: "default" },
+      { key: "checkout.total", ns: "checkout" },
+    ]);
+
+    expect(optionLabels()).toEqual(["home.title", "checkout.total (checkout)"]);
+  });
+
+  it("empty key list → the dropdown opens with no options", () => {
+    openSelector([]);
+
+    expect({ open: dropdown() !== null, options: optionLabels() }).toEqual({
+      open: true,
+      options: [],
+    });
   });
 });
 
@@ -111,10 +211,97 @@ describe("key selector previews", () => {
   });
 });
 
+describe("key selector choice", () => {
+  beforeEach(() => initApiConfig(undefined, "core-1"));
+
+  it("option clicked → the caller receives its key and namespace", () => {
+    const onSelect = vi.fn();
+    openSelector(
+      [
+        { key: "home.title", ns: "default" },
+        { key: "checkout.total", ns: "checkout" },
+      ],
+      onSelect,
+    );
+
+    clickOption(1);
+
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith("checkout.total", "checkout");
+  });
+
+  it("option clicked → the selector leaves the page", () => {
+    openSelector([{ key: "home.title", ns: "default" }]);
+
+    clickOption(0);
+
+    expect(selectorHosts()).toEqual([]);
+  });
+
+  it("closeKeySelector() after a choice → nothing is left to tear down and Vue warns about nothing", () => {
+    const warn = vi.spyOn(console, "warn");
+    openSelector([{ key: "home.title", ns: "default" }]);
+    clickOption(0);
+
+    closeKeySelector();
+
+    expect({ hosts: selectorHosts(), warnings: warn.mock.calls }).toEqual({
+      hosts: [],
+      warnings: [],
+    });
+  });
+});
+
 describe("key selector teardown", () => {
+  beforeEach(() => initApiConfig(undefined, "core-1"));
+
+  it("Escape pressed → the selector leaves the page", async () => {
+    openSelector([{ key: "home.title", ns: "default" }]);
+    await waitForDismissListeners();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    expect(selectorHosts()).toEqual([]);
+  });
+
+  it("mousedown outside the dropdown → the selector leaves the page", async () => {
+    openSelector([{ key: "home.title", ns: "default" }]);
+    await waitForDismissListeners();
+
+    document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, composed: true }));
+
+    expect(selectorHosts()).toEqual([]);
+  });
+
+  it("mousedown inside the dropdown → the selector stays open", async () => {
+    openSelector([{ key: "home.title", ns: "default" }]);
+    await waitForDismissListeners();
+
+    dropdown()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, composed: true }));
+
+    expect(selectorHosts()).toHaveLength(1);
+  });
+
+  it("closeKeySelector() → the selector leaves the page", () => {
+    openSelector([{ key: "home.title", ns: "default" }]);
+
+    closeKeySelector();
+
+    expect(selectorHosts()).toEqual([]);
+  });
+
+  it("second showKeySelector() → one selector on the page, offering the second call's keys", () => {
+    openSelector([{ key: "home.title", ns: "default" }]);
+
+    openSelector([{ key: "checkout.total", ns: "checkout" }]);
+
+    expect({ hosts: selectorHosts().length, options: optionLabels() }).toEqual({
+      hosts: 1,
+      options: ["checkout.total (checkout)"],
+    });
+  });
+
   it("closed before its listeners were installed → no document listener is left behind", () => {
     vi.useFakeTimers();
-    initApiConfig(undefined, "core-1");
     // Net document listeners, applied in call order: a removal that runs
     // before the matching add does not cancel it.
     const attached: Array<{ type: string; listener: unknown }> = [];
