@@ -40,26 +40,37 @@ import {
 
 const MAPPINGS_BRIDGE_KEY = "__comviInContextEditorMappings";
 
-const base = () =>
-  createBaseI18n({
-    locale: "en",
-    defaultNs: "default",
-    exposeGlobal: false,
-    messages: { "en:default": { hello: "Hello" } },
-  });
-
 /** The discovery queue the devtools capability publishes onto. */
 const browserGlobals = globalThis as Record<string, unknown>;
 
-/** Every host a test initialized, destroyed afterwards so no runtime outlives its test. */
+/**
+ * Every host a test creates, destroyed after it so no runtime outlives its
+ * test. All destructions are attempted; any that rejected fail the test.
+ */
 const liveHosts: Array<{ destroy: () => Promise<void> }> = [];
 function track<T extends { destroy: () => Promise<void> }>(host: T): T {
   liveHosts.push(host);
   return host;
 }
 
+const base = () =>
+  track(
+    createBaseI18n({
+      locale: "en",
+      defaultNs: "default",
+      exposeGlobal: false,
+      messages: { "en:default": { hello: "Hello" } },
+    }),
+  );
+
 afterEach(async () => {
-  await Promise.allSettled(liveHosts.splice(0).map((host) => host.destroy()));
+  const results = await Promise.allSettled(liveHosts.splice(0).map((host) => host.destroy()));
+  const failures = results.flatMap((result) =>
+    result.status === "rejected" ? [result.reason as unknown] : [],
+  );
+  if (failures.length > 0) {
+    throw new AggregateError(failures, `${failures.length} host destroy() call(s) rejected`);
+  }
   delete browserGlobals.__COMVI__;
   cleanupDOM();
   document.head.querySelector("title")?.remove();
@@ -69,13 +80,13 @@ afterEach(async () => {
 
 describe("inContextEditor() installer — default entry", () => {
   it("use(inContextEditor()) → the host is announced with a discovery instanceId", () => {
-    const i18n = track(base().use(inContextEditor()));
+    const i18n = base().use(inContextEditor());
 
     expect(i18n.instanceId).toBeDefined();
   });
 
   it("use(inContextEditor()) before init() → rendered text is not highlighted yet", async () => {
-    track(base().use(inContextEditor()));
+    base().use(inContextEditor());
 
     const heading = renderMarked("home.title");
 
@@ -83,7 +94,7 @@ describe("inContextEditor() installer — default entry", () => {
   });
 
   it("init() → the host's rendered translations are highlighted", async () => {
-    const i18n = track(base().use(inContextEditor()));
+    const i18n = base().use(inContextEditor());
 
     await i18n.init();
 
@@ -91,7 +102,7 @@ describe("inContextEditor() installer — default entry", () => {
   });
 
   it("init() → the key-mappings bridge is published on the host", async () => {
-    const i18n = track(base().use(inContextEditor()));
+    const i18n = base().use(inContextEditor());
 
     await i18n.init();
 
@@ -134,7 +145,7 @@ describe("inContextEditor() installer — default entry", () => {
   it("inContextEditor({ targetElement }) → text inside the target is highlighted", async () => {
     const target = document.createElement("section");
     document.body.appendChild(target);
-    const i18n = track(base().use(inContextEditor({ targetElement: target })));
+    const i18n = base().use(inContextEditor({ targetElement: target }));
 
     await i18n.init();
 
@@ -144,7 +155,7 @@ describe("inContextEditor() installer — default entry", () => {
   it("inContextEditor({ targetElement }) → text outside the target is not highlighted", async () => {
     const target = document.createElement("section");
     document.body.appendChild(target);
-    const i18n = track(base().use(inContextEditor({ targetElement: target })));
+    const i18n = base().use(inContextEditor({ targetElement: target }));
 
     await i18n.init();
 
@@ -153,7 +164,7 @@ describe("inContextEditor() installer — default entry", () => {
 
   it("inContextEditor({ highlightStyle }) → the Alt+hover overlay is drawn in that style", async () => {
     const highlightStyle = { borderColor: "red", backgroundColor: "pink", borderWidth: 3 };
-    const i18n = track(base().use(inContextEditor({ highlightStyle })));
+    const i18n = base().use(inContextEditor({ highlightStyle }));
 
     await i18n.init();
 
@@ -167,7 +178,7 @@ describe("inContextEditor() installer — default entry", () => {
     const host = attachDevtools(base(), { instanceId: "kept" }).use(plugins());
     host.setPluginData("existing", "kept");
 
-    const again = track(host.use(inContextEditor()));
+    const again = host.use(inContextEditor());
 
     expect({
       same: again === host,
@@ -207,7 +218,7 @@ describe("inContextEditor() wrong use — default entry", () => {
     const i18n = base().use(plugins());
     i18n.registerPlugin(inContextEditor() as unknown as I18nPlugin);
 
-    await i18n.init().catch(() => undefined);
+    await expect(i18n.init()).rejects.toThrow(/inContextEditor\(\) is a \.use installer/);
 
     expect(i18n.instanceId).toBeUndefined();
   });
@@ -216,7 +227,7 @@ describe("inContextEditor() wrong use — default entry", () => {
     const i18n = base().use(plugins());
     i18n.registerPlugin(inContextEditor() as unknown as I18nPlugin);
 
-    await i18n.init().catch(() => undefined);
+    await expect(i18n.init()).rejects.toThrow(/inContextEditor\(\) is a \.use installer/);
 
     expect(await hoverLabel(renderMarked("home.title"))).toBeNull();
   });
@@ -224,7 +235,7 @@ describe("inContextEditor() wrong use — default entry", () => {
   it("registerPlugin(inContextEditor()) then a failed init() → destroy() still resolves", async () => {
     const i18n = base().use(plugins());
     i18n.registerPlugin(inContextEditor() as unknown as I18nPlugin);
-    await i18n.init().catch(() => undefined);
+    await expect(i18n.init()).rejects.toThrow(/inContextEditor\(\) is a \.use installer/);
 
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
@@ -245,11 +256,9 @@ describe("inContextEditor() wrong use — default entry", () => {
   it("use(inContextEditorPlugin()) → the editor never starts on the page", async () => {
     const i18n = base();
 
-    try {
-      i18n.use(inContextEditorPlugin() as unknown as (host: typeof i18n) => typeof i18n);
-    } catch {
-      // The TypeError is the previous test's claim; this one is about the page.
-    }
+    expect(() =>
+      i18n.use(inContextEditorPlugin() as unknown as (host: typeof i18n) => typeof i18n),
+    ).toThrow(TypeError);
 
     expect(await hoverLabel(renderMarked("home.title"))).toBeNull();
   });
@@ -278,7 +287,7 @@ describe("inContextEditor() — production condition", () => {
   });
 
   it("valid .use() then init() → the editor never starts on the page", async () => {
-    const host = track(base().use(prodInContextEditor({ debug: true })));
+    const host = base().use(prodInContextEditor({ debug: true }));
 
     await host.init();
 
@@ -298,7 +307,7 @@ describe("inContextEditor() — production condition", () => {
     const i18n = base().use(plugins());
     i18n.registerPlugin(prodInContextEditor() as unknown as I18nPlugin);
 
-    await i18n.init().catch(() => undefined);
+    await expect(i18n.init()).rejects.toThrow(/A plugin returned a value/);
 
     expect(i18n.instanceId).toBeUndefined();
   });
@@ -307,7 +316,7 @@ describe("inContextEditor() — production condition", () => {
     const i18n = base().use(plugins());
     i18n.registerPlugin(prodInContextEditor() as unknown as I18nPlugin);
 
-    await i18n.init().catch(() => undefined);
+    await expect(i18n.init()).rejects.toThrow(/A plugin returned a value/);
 
     expect(await hoverLabel(renderMarked("home.title"))).toBeNull();
   });
@@ -315,14 +324,14 @@ describe("inContextEditor() — production condition", () => {
   it("wrong registerPlugin() → nothing was queued for teardown, destroy() resolves", async () => {
     const i18n = base().use(plugins());
     i18n.registerPlugin(prodInContextEditor() as unknown as I18nPlugin);
-    await i18n.init().catch(() => undefined);
+    await expect(i18n.init()).rejects.toThrow(/A plugin returned a value/);
 
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
 
   it("rejected optional plugin → onError is told once and init() still completes", async () => {
     const onError = vi.fn();
-    const i18n = track(base().use(plugins()));
+    const i18n = base().use(plugins());
     i18n.registerPlugin(prodInContextEditor() as unknown as I18nPlugin, {
       required: false,
       onError,
@@ -353,7 +362,7 @@ describe("inContextEditor() — production condition", () => {
   });
 
   it("production *Plugin → returns no cleanup and publishes no mappings bridge", () => {
-    const i18n = createI18n({ locale: "en", defaultNs: "default", exposeGlobal: false });
+    const i18n = track(createI18n({ locale: "en", defaultNs: "default", exposeGlobal: false }));
 
     const cleanup = ProdPlugin()(asPluginHost(i18n));
 
@@ -364,7 +373,7 @@ describe("inContextEditor() — production condition", () => {
   });
 
   it("production *Plugin → the editor never starts on the page", async () => {
-    const i18n = createI18n({ locale: "en", defaultNs: "default", exposeGlobal: false });
+    const i18n = track(createI18n({ locale: "en", defaultNs: "default", exposeGlobal: false }));
 
     ProdPlugin()(asPluginHost(i18n));
 
