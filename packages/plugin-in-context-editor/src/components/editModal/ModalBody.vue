@@ -26,7 +26,10 @@ if (!translationManager) {
     <ModalSidebar :languages="languages" />
 
     <div
-      v-if="translationManager.state.value.isLoading || isLoadingLanguages"
+      v-if="
+        (translationManager.state.value.isLoading && !translationManager.isSaving.value) ||
+        isLoadingLanguages
+      "
       class="flex-1 overflow-y-auto p-4 space-y-6"
     >
       <div v-for="i in 3" :key="i" class="space-y-3 animate-pulse">

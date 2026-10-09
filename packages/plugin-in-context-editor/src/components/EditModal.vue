@@ -135,6 +135,8 @@ async function handleSaveOnly() {
   // A new load replaces the state object; a save that settles after that
   // belongs to a session the user already left and reports nothing here.
   const sessionState = translationManager.state.value;
+  // The outcome of this save replaces whatever an earlier one reported.
+  toast?.toasts.value.forEach((item) => toast.removeToast(item.id));
   const savedData = await translationManager.saveTranslation();
   if (translationManager.state.value !== sessionState) {
     return null;
