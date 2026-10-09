@@ -180,13 +180,18 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-watch(isOpenInternal, (open) => {
-  if (open) {
-    document.addEventListener("keydown", handleKeydown);
-  } else {
-    document.removeEventListener("keydown", handleKeydown);
-  }
-});
+// Immediate: the modal is usually mounted already open, with no false → true change.
+watch(
+  isOpenInternal,
+  (open) => {
+    if (open) {
+      document.addEventListener("keydown", handleKeydown);
+    } else {
+      document.removeEventListener("keydown", handleKeydown);
+    }
+  },
+  { immediate: true },
+);
 
 onUnmounted(() => {
   document.removeEventListener("keydown", handleKeydown);

@@ -157,3 +157,31 @@ describe("EditModal save session", () => {
     });
   });
 });
+
+describe("EditModal save shortcut", () => {
+  it("saves with Ctrl+S when the modal is mounted already open", async () => {
+    saveTranslationMock.mockReset();
+    getTranslationMock.mockImplementation(async (k: string) => singular(k, "Old"));
+    saveTranslationMock.mockResolvedValue(singular("first", "edited"));
+    const wrapper = mount(EditModal, {
+      props: {
+        open: ref(true),
+        translationKey: ref("first"),
+        translationNamespace: ref("namespace-A"),
+        translationInstanceId: ref<string | undefined>("core-a"),
+      },
+      global: { stubs: { ModalBody: BodyStub, ModalHeader: true } },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    manager.updateTranslation("en", "other", "edited");
+
+    const event = new KeyboardEvent("keydown", { key: "s", ctrlKey: true, cancelable: true });
+    document.dispatchEvent(event);
+    await flushPromises();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(saveTranslationMock).toHaveBeenCalledOnce();
+    wrapper.unmount();
+  });
+});
