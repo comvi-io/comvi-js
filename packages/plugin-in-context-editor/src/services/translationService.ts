@@ -216,7 +216,10 @@ function transformApiResponse(
   };
 }
 
-/** Returns null in demo mode and for keys the server does not know. */
+/**
+ * Returns null in demo mode. A key the server does not know (404) comes back
+ * as an empty singular record, so the editor can create it on save.
+ */
 export async function getTranslation(
   key: string,
   ns: string,
