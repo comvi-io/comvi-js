@@ -47,6 +47,40 @@ export function useTranslations(
   const session = ref(0);
   const savingSession = ref<number | null>(null);
   const isSaving = computed(() => savingSession.value === session.value);
+  // The plural shape and select configs at last load/save, serialized. A
+  // language whose forms and shape still match was not edited and is sent
+  // back exactly as stored.
+  let baselineShape = "";
+  let baselineSelectConfigs: Record<string, string> = {};
+
+  function shapeOf(data: TranslationData): string {
+    return JSON.stringify([data.isPlural, data.pluralVariable ?? ""]);
+  }
+
+  function setBaseline(data: TranslationData): void {
+    baselineTranslations.value = snapshotTranslations(data.translations);
+    baselineShape = shapeOf(data);
+    baselineSelectConfigs = Object.fromEntries(
+      Object.entries(data.selectConfigs ?? {}).map(([lang, config]) => [
+        lang,
+        JSON.stringify(config),
+      ]),
+    );
+  }
+
+  function isLanguageUnedited(data: TranslationData, langCode: string): boolean {
+    const baselineForms = baselineTranslations.value?.[langCode];
+    return (
+      baselineForms !== undefined &&
+      shapeOf(data) === baselineShape &&
+      JSON.stringify(data.translations[langCode]) === JSON.stringify(baselineForms) &&
+      JSON.stringify(data.selectConfigs?.[langCode]) === baselineSelectConfigs[langCode]
+    );
+  }
+
+  function isRawLanguage(langCode: string): boolean {
+    return state.value.data?.rawLanguages?.includes(langCode) ?? false;
+  }
 
   function snapshotTranslations(
     translations: Record<string, Record<string, string>>,
@@ -92,7 +126,7 @@ export function useTranslations(
       }
       state.value.data = data;
       state.value.isDirty = false;
-      baselineTranslations.value = snapshotTranslations(data.translations);
+      setBaseline(data);
     } catch (error) {
       if (requestId !== latestLoadRequestId) {
         return;
@@ -131,8 +165,12 @@ export function useTranslations(
       }
 
       const selectConfig = data.selectConfigs?.[langCode];
+      const storedValue = data.sourceValues?.[langCode];
 
-      if (data.isPlural && selectConfig?.enabled) {
+      if (storedValue !== undefined) {
+        // What the server stored is what the app would load next time.
+        translationsToAdd[cacheKey][String(data.key)] = storedValue;
+      } else if (data.isPlural && selectConfig?.enabled) {
         // Select wrapping plural: composite keys like "formal:one".
         const lang = scopeLanguages.find((l) => l.code === langCode);
         const pluralForms = lang?.pluralForms || ["one", "other"];
@@ -196,6 +234,15 @@ export function useTranslations(
     const namespace = currentNamespace.value;
     const scopeId = unref(instanceId);
     const scopeLanguages = languages.value;
+    const verbatim: Record<string, string> = {};
+    for (const [langCode, forms] of Object.entries(data.translations)) {
+      const stored = data.sourceValues?.[langCode];
+      if (data.rawLanguages?.includes(langCode)) {
+        verbatim[langCode] = forms.other ?? "";
+      } else if (stored !== undefined && isLanguageUnedited(data, langCode)) {
+        verbatim[langCode] = stored;
+      }
+    }
     const selectConfigs = data.selectConfigs
       ? Object.fromEntries(
           Object.entries(data.selectConfigs).map(([lang, config]) => [
@@ -218,6 +265,7 @@ export function useTranslations(
         data.pluralVariable,
         selectConfigs,
         scopeId,
+        verbatim,
       );
 
       // The server holds the new value either way, so the runtime the save
@@ -229,7 +277,7 @@ export function useTranslations(
       }
       state.value.data = savedData;
       state.value.isDirty = false;
-      baselineTranslations.value = snapshotTranslations(savedData.translations);
+      setBaseline(savedData);
 
       return savedData;
     } catch (error) {
@@ -380,7 +428,7 @@ export function useTranslations(
 
     Object.keys(state.value.data.translations).forEach((langCode) => {
       const lang = languages.value.find((l) => l.code === langCode);
-      if (!lang) return;
+      if (!lang || isRawLanguage(langCode)) return;
 
       if (enabled) {
         const singular = state.value.data!.translations[langCode]?.other || "";
@@ -407,6 +455,7 @@ export function useTranslations(
       console.warn("[@comvi/plugin-in-context-editor] Cannot toggle select mode: no data loaded");
       return;
     }
+    if (isRawLanguage(langCode)) return;
 
     if (!state.value.data.selectConfigs) {
       state.value.data.selectConfigs = {};
@@ -447,6 +496,7 @@ export function useTranslations(
       console.warn("[@comvi/plugin-in-context-editor] Cannot update select config: no data loaded");
       return;
     }
+    if (isRawLanguage(langCode)) return;
 
     if (!state.value.data.selectConfigs) {
       state.value.data.selectConfigs = {};
@@ -508,5 +558,6 @@ export function useTranslations(
     updateSelectConfig,
     getSelectConfig,
     isFieldDirty,
+    isRawLanguage,
   };
 }
