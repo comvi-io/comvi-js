@@ -104,20 +104,24 @@ Open <http://127.0.0.1:8791/> and:
    but telemetry remains closed; destructive/out-of-contract routes, wrong-project export,
    oversized bodies, and a request flood are all rejected —
    and none of the destructive routes appear in the mock log.
-3. Phase 2 ends by calling the SDK's global `deactivate()` directly and proving
-   that authority is revoked. Re-enable the editor, click _Forget key_, then
+3. After Phase 2, run `ComviInContextEditor.deactivate()` in the console and
+   then `gateE.checkSdkDeactivation()`, which proves that direct SDK teardown
+   revokes authority. Re-enable the editor, click _Forget key_, then
    run **Phase 3**; the proxy must be denied again.
-4. **Phase 4** arms a delayed key validation and reloads the hostile document
-   while validation is in flight. Enable the editor during the four-second
-   countdown; the reloaded document automatically verifies that it inherited
-   no capability.
-5. **Phase 5** arms the same delayed validation without navigation. Enable the
-   editor and close the popup before validation completes; the page automatically
-   verifies that no pending/active capability survived.
-6. **Phase 6** is a two-tab credential-family check: open the harness as both
-   `http://127.0.0.1:8791` and `http://localhost:8791`, enable both with the
-   same mock key, Forget it in either popup, then run
-   `gateE.proxy("/v1/project/locales")` in both consoles. Both must be denied.
+4. **Phase 4** makes the mock API hold the next key validation. Enable the
+   editor (validation stays in flight), reload this page, click _Release the
+   held key validation_, then _Check Phase 4_: the new document must have
+   inherited no capability.
+5. **Phase 5** holds the next validation the same way. Enable the editor,
+   close the popup, release the validation, then _Check Phase 5_: no
+   pending/active capability may survive.
+
+Nothing in the harness waits on the wall clock: the automated spec sequences
+each race on observed state (the mock reports a held validation, the worker's
+session store, the popup's error line) instead of sleeps. 6. **Phase 6** is a two-tab credential-family check: open the harness as both
+`http://127.0.0.1:8791` and `http://localhost:8791`, enable both with the
+same mock key, Forget it in either popup, then run
+`gateE.proxy("/v1/project/locales")` in both consoles. Both must be denied.
 
 The page shows PASS/FAIL per check and an overall verdict. Results are also on
 `window.__GATE_E_RESULTS__` / `window.__GATE_E_SUMMARY__` for tooling.

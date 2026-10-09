@@ -1,4 +1,4 @@
-import { expect, test, chromium, type Browser, type Page } from "@playwright/test";
+import { expect, test, chromium, type Browser, type Page, type Worker } from "@playwright/test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,11 +8,28 @@ import {
   extensionWorker,
   openPopup,
   reservePort,
+  storedSession,
 } from "./helpers";
 import type { SessionStore, TabStateStore } from "./helpers";
 
 const extensionPath = resolve(import.meta.dirname, "../dist-gate-e");
 const POLL = { timeout: 10_000 };
+
+/** Whether the mock API is holding a key validation, and how many it delivered. */
+function heldValidation(page: Page): Promise<{ held: boolean; delivered: number }> {
+  return page.evaluate(() => (globalThis as any).gateE.heldValidation());
+}
+
+/** Key validations whose response the worker has fully received. */
+function finishedKeyValidations(worker: Worker): Promise<number> {
+  return worker.evaluate(
+    () =>
+      performance
+        .getEntriesByType("resource")
+        .filter((entry) => new URL(entry.name).pathname === "/v1/project")
+        .filter((entry) => (entry as PerformanceResourceTiming).responseEnd > 0).length,
+  );
+}
 
 async function phaseFailures(page: Page, phase: string) {
   return page.evaluate((wantedPhase) => {
@@ -167,6 +184,10 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
       await spaPopup.close();
       await page.bringToFront();
       await page.evaluate(() => (globalThis as any).gateE.runPhase2());
+      // Direct SDK teardown: wait for the worker to drop the session, then probe.
+      await page.evaluate(() => (globalThis as any).ComviInContextEditor.deactivate());
+      await expect.poll(() => storedSession(worker, tabId), POLL).toBeUndefined();
+      await page.evaluate(() => (globalThis as any).gateE.checkSdkDeactivation());
       await expectPhase(page, "2", 13);
     });
 
@@ -198,26 +219,37 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
     });
 
     await test.step("phase 5: a popup closed mid-activation leaves no usable capability", async () => {
-      await page.evaluate(() => {
-        void (globalThis as any).gateE.runPhase5();
-      });
+      await page.evaluate(() => (globalThis as any).gateE.runPhase5());
+      // The worker's resource-timing buffer fills up during phase 2; start empty.
+      await worker.evaluate(() => performance.clearResourceTimings());
       const racePopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
       await expectPopupView(racePopup, worker, page, "idle", tabId);
       await racePopup.locator("#api-key").fill("gate-e-key");
       await racePopup.locator("#enable-btn").click();
+      await expect.poll(() => heldValidation(page), POLL).toMatchObject({ held: true });
       await racePopup.close();
+      await page.bringToFront();
+      await page.evaluate(() => (globalThis as any).gateE.releaseValidation());
+      await expect.poll(() => finishedKeyValidations(worker), POLL).toBe(1);
+      await page.evaluate(() => (globalThis as any).gateE.checkPhase5());
       await expectPhase(page, "5", 2);
     });
 
     await test.step("phase 4: a navigation racing activation cannot inherit the old document's validation", async () => {
-      await page.evaluate(() => {
-        void (globalThis as any).gateE.runPhase4();
-      });
+      await page.evaluate(() => (globalThis as any).gateE.runPhase4());
       const navigationPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
       await expectPopupView(navigationPopup, worker, page, "idle", tabId);
       await navigationPopup.locator("#api-key").fill("gate-e-key");
       await navigationPopup.locator("#enable-btn").click();
-      await page.waitForURL("**/?navigation-race=check", { timeout: 10_000 });
+      // Validation is parked in the mock, so the reload lands mid-validation.
+      await expect.poll(() => heldValidation(page), POLL).toMatchObject({ held: true });
+      // The URL is still phase 2's pushState route, which the mock does not serve.
+      await page.goto("http://127.0.0.1:8791/?navigation-race=check");
+      await page.evaluate(() => (globalThis as any).gateE.releaseValidation());
+      await expect(navigationPopup.locator("#error-msg")).toContainText("navigated", {
+        timeout: 10_000,
+      });
+      await page.evaluate(() => (globalThis as any).gateE.checkPhase4());
       await expectPhase(page, "4", 1);
       if (!navigationPopup.isClosed()) await navigationPopup.close();
     });

@@ -22,6 +22,16 @@ const DIR = dirname(fileURLToPath(import.meta.url));
 /** @type {{method:string,path:string,auth:string|null,at:number}[]} */
 const apiLog = [];
 let nextProjectDelayMs = 0;
+/**
+ * Hold-and-release for the next key validation, so a spec can sequence a race
+ * on observed state instead of wall-clock delays: `holdNextProject=1` parks
+ * the next /v1/project response until `/__release`; `/__held` reports whether
+ * one is parked and how many held responses were delivered.
+ */
+let holdNextProject = false;
+/** @type {(() => void) | null} */
+let releaseHeldProject = null;
+let heldProjectsDelivered = 0;
 let nextLocalesResponseBytes = 0;
 
 function send(res, status, body, headers = {}) {
@@ -71,10 +81,23 @@ const server = createServer((req, res) => {
   if (path === "/__reset") {
     apiLog.length = 0;
     nextProjectDelayMs = 0;
+    holdNextProject = false;
+    releaseHeldProject?.();
+    heldProjectsDelivered = 0;
     nextLocalesResponseBytes = 0;
     return send(res, 200, { ok: true });
   }
+  if (path === "/__held") {
+    return send(res, 200, { held: releaseHeldProject !== null, delivered: heldProjectsDelivered });
+  }
+  if (path === "/__release") {
+    const release = releaseHeldProject;
+    releaseHeldProject = null;
+    release?.();
+    return send(res, 200, { released: Boolean(release) });
+  }
   if (path === "/__config") {
+    if (url.searchParams.get("holdNextProject") === "1") holdNextProject = true;
     const projectDelay = Number(url.searchParams.get("nextProjectDelayMs"));
     const localesBytes = Number(url.searchParams.get("nextLocalesResponseBytes"));
     if (Number.isFinite(projectDelay) && projectDelay >= 0) nextProjectDelayMs = projectDelay;
@@ -95,6 +118,14 @@ const server = createServer((req, res) => {
 
     // Key validation.
     if (path === "/v1/project" || path === "/api/v1/api/project") {
+      if (holdNextProject) {
+        holdNextProject = false;
+        releaseHeldProject = () => {
+          send(res, 200, { id: 42, name: "Gate-E Mock Project" });
+          heldProjectsDelivered += 1;
+        };
+        return;
+      }
       const delay = nextProjectDelayMs;
       nextProjectDelayMs = 0;
       if (delay > 0) {
