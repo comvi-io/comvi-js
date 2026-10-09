@@ -11,14 +11,17 @@ rendered a key missing from `de` as the key: the `en` catalog it was supposed to
 never been requested. The same held for a `de-AT` → `de` → `en` chain and for a namespace
 activated later.
 
-Every load of a locale's namespaces now loads them for each locale of the fallback chain as well:
-`init()`, `addActiveNamespace(s)()` and `setLocale()`. A catalog already in the cache, including
+A namespace is now loaded for each locale of the fallback chain when it is first needed: at
+`init()` and on `addActiveNamespace(s)()`. `setLocale()` then finds the chain in the cache and
+fetches the target locale alone. A catalog already in the cache, including
 one passed as `messages` or hydrated from a server payload, is not requested again, and a fallback
 equal to the locale costs nothing. A fallback catalog is a safety net and never a requirement: when
 it fails to load, the failure reaches `onLoadError` and `onError` like any other and the operation
 still succeeds. The locale's own catalog keeps its old rule, so `init()` rejects when every
-namespace of the active locale failed. A chain changed with `setFallbackLocale()` after `init()` is
-picked up by the next load or by `reloadMessages()`.
+namespace of the active locale failed. A chain changed with
+`setFallbackLocale()` after `init()` is loaded by `reloadMessages()` or with the next namespace
+that is activated. A fallback catalog that is missing for good is requested once per namespace,
+not on every locale switch.
 
 **BREAKING (behaviour change on a 0.x minor): an empty string is a missing translation.** A key
 whose stored value is `""` reads as absent everywhere a key is looked up. `t()` renders the first

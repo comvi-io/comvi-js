@@ -171,9 +171,13 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 
     try {
       // Load the active namespaces BEFORE the locale applies, so the UI never
-      // flashes untranslated.
+      // flashes untranslated. The target locale only: the fallback chain does
+      // not depend on the locale, and its catalogs for these namespaces were
+      // attempted when each namespace was activated. Loading the chain again
+      // here would re-request a fallback catalog that is missing for good on
+      // every switch.
       if (mustLoad) {
-        await this._loadNs(value, namespaces, true);
+        await this._loadLocale(value, namespaces, true);
       }
 
       // Staleness must be re-checked after EVERY await — and `destroy()` is a
@@ -412,8 +416,9 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   }
 
   /**
-   * @internal `_loadNs` hook — load the given namespaces for `locale` and for
-   * every locale of its fallback chain.
+   * @internal `_loadNs` hook, which `init()` and a namespace activation go
+   * through — load the given namespaces for `locale` and for every locale of
+   * its fallback chain.
    *
    * The chain is only worth configuring if its catalogs are there to answer:
    * `fallbackLocale` with a loader used to be a lookup rule over catalogs

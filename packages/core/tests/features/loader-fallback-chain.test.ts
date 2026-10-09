@@ -3,9 +3,11 @@
  *
  * `fallbackLocale` says where `t()` looks for a key the active locale lacks.
  * With a loader that only helps if the fallback catalogs were fetched, so every
- * load that brings in namespaces for a locale brings them in for its chain too:
- * `init()`, a namespace activation and a locale switch. A fallback catalog is
- * a safety net, never a requirement — its failure is reported and nothing more.
+ * namespace is loaded for the chain when it is first needed: at `init()` and on
+ * activation. A locale switch then finds the chain already there and fetches
+ * the target locale alone. A fallback catalog is a safety net, never a
+ * requirement — its failure is reported and nothing more, and it is not
+ * requested again on every switch.
  */
 import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
@@ -119,13 +121,25 @@ describe("loader: activation, locale switch and the fallback chain", () => {
     expect(loaded()).toEqual(["fr:default"]);
   });
 
-  it("locale switch after the chain changed → the new fallback is loaded with the locale", async () => {
+  it("locale switch with a fallback that failed at init → the fallback is not requested again", async () => {
+    const { i18n, load, loaded } = makeHost({ locale: "de", fallbackLocale: "xx" });
+    await i18n.init();
+    load.mockClear();
+
+    await i18n.setLocale("fr");
+
+    expect(loaded()).toEqual(["fr:default"]);
+  });
+
+  it("chain set after init → loaded by reloadMessages(), not by a locale switch", async () => {
     const { i18n } = makeHost({ locale: "de" });
     await i18n.init();
     i18n.setFallbackLocale("en");
 
     await i18n.setLocale("fr");
+    const afterSwitch = i18n.t("c");
+    await i18n.reloadMessages();
 
-    expect(i18n.t("c")).toBe("C-en");
+    expect([afterSwitch, i18n.t("c")]).toEqual(["c", "C-en"]);
   });
 });
