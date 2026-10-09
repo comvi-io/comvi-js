@@ -166,7 +166,7 @@ describe("worker restart", () => {
         });
       },
     ],
-  ])("handles no credential when the browser %s", async (_label, breakRestriction) => {
+  ])("refuses all credential work when the browser %s", async (_label, breakRestriction) => {
     const fresh = await startFreshWorker(harness, (worker) =>
       breakRestriction(worker.chrome.storage.local as unknown as Record<string, unknown>),
     );
@@ -195,7 +195,7 @@ describe("worker restart", () => {
     expect(fresh.chrome.storage.local.snapshot()).not.toHaveProperty("comvi_credentials");
   });
 
-  it("handles credentials once a retried restriction succeeds", async () => {
+  it("starts sessions again once a retried restriction succeeds", async () => {
     let refuse = true;
     const fresh = await startFreshWorker(harness, (worker) => {
       (worker.chrome.storage.local as unknown as Record<string, unknown>).setAccessLevel = vi.fn(

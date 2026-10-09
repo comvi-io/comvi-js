@@ -28,52 +28,52 @@ import {
 } from "./proxy.fixtures";
 
 describe("proxy contract — allowed SDK calls", () => {
-  it("GET /v1/project (key validation, project info)", () => {
+  it("accepts GET /v1/project (key validation, project info)", () => {
     expect(expectOk({ path: "/v1/project" }).url).toBe("https://api.comvi.io/v1/project");
   });
 
-  it("GET /api/v1/api/project (legacy deployments)", () => {
+  it("accepts GET /api/v1/api/project (legacy deployments)", () => {
     expectOk({ path: "/api/v1/api/project" });
   });
 
-  it("GET /v1/project/locales (languageService)", () => {
+  it("accepts GET /v1/project/locales (languageService)", () => {
     expectOk({ path: "/v1/project/locales" });
   });
 
-  it("GET /v1/translations without query (getAllTranslationKeys)", () => {
+  it("accepts GET /v1/translations without query (getAllTranslationKeys)", () => {
     expectOk({ path: "/v1/translations" });
   });
 
-  it("GET /v1/translations with locales/namespaces query (fetch-loader)", () => {
+  it("accepts GET /v1/translations with locales/namespaces query (fetch-loader)", () => {
     expectOk({ path: "/v1/translations?locales=en&namespaces=common,checkout" });
   });
 
-  it("GET /v1/projects/:id/export bound to the session project", () => {
+  it("accepts GET /v1/projects/:id/export bound to the session project", () => {
     expectOk({ path: "/v1/projects/42/export?locales=en&namespaces=common" });
   });
 
-  it("GET /api/v1/api/projects/:id/export (legacy export)", () => {
+  it("accepts GET /api/v1/api/projects/:id/export (legacy export)", () => {
     expectOk({ path: "/api/v1/api/projects/42/export?locales=en&namespaces=common" });
   });
 
-  it("GET /v1/keys/:ns/:key with encoded params", () => {
+  it("accepts GET /v1/keys/:ns/:key with encoded params", () => {
     const result = expectOk({ path: `/v1/keys/common/${encodeURIComponent("hero.title")}` });
     expect(result.url).toContain("/v1/keys/common/hero.title");
   });
 
-  it("PUT /v1/keys with a valid save payload", () => {
+  it("accepts PUT /v1/keys with a valid save payload", () => {
     expectOk(savePut(savePayload()));
   });
 
-  it("DELETE /v1/keys/:ns/:key", () => {
+  it("accepts DELETE /v1/keys/:ns/:key", () => {
     expectOk({ path: "/v1/keys/common/hero.title", method: "DELETE" });
   });
 
-  it("POST /v1/context/handshake when telemetry is enabled", () => {
+  it("accepts POST /v1/context/handshake when telemetry is enabled", () => {
     expectOk(handshakePost({ keys: [{ namespace: "common", key: "hero.title" }] }), TELEMETRY_CTX);
   });
 
-  it("POST /v1/context/usages when telemetry is enabled and origin matches", () => {
+  it("accepts POST /v1/context/usages when telemetry is enabled and origin matches", () => {
     expectOk(usagesPost(usagesBody()), TELEMETRY_CTX);
   });
 
