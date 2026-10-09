@@ -4,7 +4,6 @@
  */
 
 import {
-  SCROLL_DEBOUNCE_DELAY,
   DEFAULT_HIGHLIGHT_Z_INDEX,
   DEFAULT_HIGHLIGHT_BORDER_WIDTH,
   DEFAULT_HIGHLIGHT_BORDER_COLOR,
@@ -12,7 +11,6 @@ import {
 } from "./config/highlight";
 import type { EventBus } from "./EventBus";
 import type { ElementData } from "./types/translation";
-import { debounce, type DebouncedFunction } from "./utils/debounce";
 
 const MODIFIER_KEYS = {
   ALT: "Alt",
@@ -53,7 +51,8 @@ export class ElementHighlighter {
 
   private elementKeyMap: Map<Element, string[]> = new Map();
 
-  private debouncedScrollHandler: DebouncedFunction<() => void>;
+  /** The animation frame a scroll or resize has queued a reposition for. */
+  private pendingRepositionFrame: number | null = null;
 
   private unsubscribers: (() => void)[] = [];
 
@@ -68,12 +67,6 @@ export class ElementHighlighter {
       ...DEFAULT_HIGHLIGHT_STYLE,
       ...options.highlightStyle,
     };
-
-    this.debouncedScrollHandler = debounce(() => {
-      if (this.activeHighlight && this.activeElement) {
-        this.updateHighlightPosition(this.activeHighlight, this.activeElement);
-      }
-    }, SCROLL_DEBOUNCE_DELAY);
 
     this.handleKeyEvent = this.handleKeyEvent.bind(this);
     this.handleMouseOver = this.handleMouseOver.bind(this);
@@ -330,9 +323,25 @@ export class ElementHighlighter {
     }
   }
 
+  /** Scroll and resize: one reposition per animation frame, so a continuous scroll is followed. */
   private handleScroll = (): void => {
-    this.debouncedScrollHandler();
+    if (this.pendingRepositionFrame !== null) {
+      return;
+    }
+    this.pendingRepositionFrame = requestAnimationFrame(() => {
+      this.pendingRepositionFrame = null;
+      if (this.activeHighlight && this.activeElement) {
+        this.updateHighlightPosition(this.activeHighlight, this.activeElement);
+      }
+    });
   };
+
+  private cancelPendingReposition(): void {
+    if (this.pendingRepositionFrame !== null) {
+      cancelAnimationFrame(this.pendingRepositionFrame);
+      this.pendingRepositionFrame = null;
+    }
+  }
 
   private findScrollableAncestors(element: Element): Element[] {
     const scrollableAncestors: Element[] = [];
@@ -386,6 +395,7 @@ export class ElementHighlighter {
       });
 
       window.addEventListener("scroll", this.handleScroll, { passive: true });
+      window.addEventListener("resize", this.handleScroll, { passive: true });
 
       const scrollableAncestors = this.findScrollableAncestors(element);
       scrollableAncestors.forEach((container) => {
@@ -451,7 +461,9 @@ export class ElementHighlighter {
       this.activeElement = null;
       this.removeTooltip();
       window.removeEventListener("scroll", this.handleScroll);
+      window.removeEventListener("resize", this.handleScroll);
       this.cleanupScrollListeners();
+      this.cancelPendingReposition();
     }
   }
 
@@ -460,7 +472,7 @@ export class ElementHighlighter {
     this.highlightedElements.clear();
     this.elementKeyMap.clear();
 
-    this.debouncedScrollHandler.cancel();
+    this.cancelPendingReposition();
 
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
@@ -475,6 +487,7 @@ export class ElementHighlighter {
     });
     document.removeEventListener("click", this.handleClick, { capture: true });
     window.removeEventListener("scroll", this.handleScroll);
+    window.removeEventListener("resize", this.handleScroll);
     window.removeEventListener("blur", this.handleWindowBlur);
 
     this.cleanupScrollListeners();

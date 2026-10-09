@@ -1,6 +1,3 @@
-/** Scroll-event debounce, in ms: bounds overlay reposition work. */
-export const SCROLL_DEBOUNCE_DELAY = 100;
-
 /** High enough to sit above most page content. */
 export const DEFAULT_HIGHLIGHT_Z_INDEX = 10000;
 
