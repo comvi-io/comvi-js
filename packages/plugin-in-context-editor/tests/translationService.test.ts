@@ -127,6 +127,9 @@ describe("translationService", () => {
       selectConfigs: {
         en: { enabled: true, variable: "formality", options: ["formal", "informal"] },
       },
+      sourceValues: {
+        en: "{formality, select, formal {{count, plural, one {You have # message} other {You have # messages}}} informal {{count, plural, one {You've got # message} other {You've got # messages}}}}",
+      },
       metadata: { createdAt: TIMESTAMP, lastModified: TIMESTAMP },
     });
   });
@@ -450,6 +453,7 @@ describe("translationService", () => {
       pluralVariable: undefined,
       translations: { en: { other: "Welcome" } },
       selectConfigs: undefined,
+      sourceValues: { en: "Welcome" },
       metadata: { createdAt: TIMESTAMP, lastModified: TIMESTAMP },
     });
   });
@@ -473,6 +477,7 @@ describe("translationService", () => {
       pluralVariable: "count",
       translations: { en: { one: "1 item", other: "# items" } },
       selectConfigs: undefined,
+      sourceValues: { en: "{count, plural, one {1 item} other {# items}}" },
       metadata: { createdAt: TIMESTAMP, lastModified: TIMESTAMP },
     });
   });
@@ -498,6 +503,7 @@ describe("translationService", () => {
       selectConfigs: {
         en: { enabled: true, variable: "formality", options: ["formal", "informal"] },
       },
+      sourceValues: { en: "{formality, select, formal {Welcome} informal {Hi}}" },
       metadata: { createdAt: TIMESTAMP, lastModified: TIMESTAMP },
     });
   });

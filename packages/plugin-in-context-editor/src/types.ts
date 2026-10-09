@@ -33,6 +33,13 @@ export interface TranslationData {
   translations: Record<string, PluralFormTranslation>;
   /** Per-language select configuration (language code → config) */
   selectConfigs?: Record<string, LanguageSelectConfig>;
+  /**
+   * Languages whose stored value the structured editor cannot rebuild byte for
+   * byte. Each is edited as one plain-text value in `translations[lang].other`.
+   */
+  rawLanguages?: string[];
+  /** Each language's value as the API stored it. */
+  sourceValues?: Record<string, string>;
   metadata?: {
     lastModified?: string;
     createdAt?: string;

@@ -30,6 +30,10 @@ const selectConfig = computed<LanguageSelectConfig | undefined>(() =>
   translationManager?.getSelectConfig?.(props.lang.code),
 );
 const useSelectForms = computed(() => selectConfig.value?.enabled ?? false);
+// ICU the form fields cannot rebuild byte for byte is edited as written.
+const isRaw = computed<boolean>(
+  () => translationManager?.isRawLanguage?.(props.lang.code) ?? false,
+);
 
 const { presets, getDefaultPreset, detectPresetFromForms } = useSelectPresets();
 const selectedPresetId = ref<string>("formality");
@@ -181,6 +185,7 @@ const formChipClass =
         <label class="flex items-center gap-2 cursor-pointer">
           <Checkbox
             v-model="useSelectForms"
+            :disabled="isRaw"
             @update:model-value="
               (value: boolean | 'indeterminate') => handleSelectToggle(value === true)
             "
@@ -249,8 +254,33 @@ const formChipClass =
         <p v-else class="text-xs text-muted-foreground">No options added yet</p>
       </div>
 
+      <!-- RAW: ICU edited as written -->
+      <div v-if="isRaw">
+        <p class="text-xs text-muted-foreground mb-2">
+          This message uses ICU syntax the form fields cannot rebuild exactly, so it is edited as
+          written.
+        </p>
+        <div
+          :class="[
+            'transition-colors',
+            isFieldDirty('other') ? 'border-l-2 border-l-warn pl-2' : '',
+          ]"
+        >
+          <HighlightedTextarea
+            class="min-h-24 mb-1"
+            :locale-code="lang.code"
+            :model-value="translations?.other || ''"
+            :placeholder="`Enter ${lang.name} translation...`"
+            @update:model-value="(v: string | number) => handleTranslationChange(String(v))"
+          />
+          <div class="flex justify-end mb-3">
+            <span class="text-xs text-muted-foreground">{{ charCount("other") }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- COMBINED: Plural + Select mode -->
-      <div v-if="usePluralForms && useSelectForms" class="space-y-4">
+      <div v-else-if="usePluralForms && useSelectForms" class="space-y-4">
         <div v-for="selectForm in selectForms" :key="selectForm" class="border p-3">
           <div class="mb-3">
             <span :class="[formChipClass, 'border-primary/30 bg-accent-soft text-primary']">

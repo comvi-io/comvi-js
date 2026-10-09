@@ -15,7 +15,8 @@ if (!translationManager || !handleSaveOnly || !handleSaveAndClose) {
   );
 }
 
-const isSaving = ref(false);
+// Shared with the Ctrl/Cmd+S path, which saves without going through these buttons.
+const isSaving = computed<boolean>(() => translationManager.isSaving.value);
 
 const isMac = computed(() => {
   if (typeof navigator === "undefined") return false;
@@ -29,21 +30,11 @@ const isMac = computed(() => {
 const saveShortcut = computed(() => (isMac.value ? "⌘S" : "Ctrl+S"));
 
 async function onSave() {
-  isSaving.value = true;
-  try {
-    await handleSaveOnly!();
-  } finally {
-    isSaving.value = false;
-  }
+  await handleSaveOnly!();
 }
 
 async function onSaveAndClose() {
-  isSaving.value = true;
-  try {
-    await handleSaveAndClose!();
-  } finally {
-    isSaving.value = false;
-  }
+  await handleSaveAndClose!();
 }
 </script>
 

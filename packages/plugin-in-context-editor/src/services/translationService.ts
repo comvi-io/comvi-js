@@ -108,30 +108,97 @@ function parseLanguageValue(value: string): {
   };
 }
 
+/** The value a save sends for one language; also the round-trip check on load. */
+function generateLanguageValue(
+  forms: PluralFormTranslation,
+  isPlural: boolean,
+  pluralVariable: string | undefined,
+  selectConfig: LanguageSelectConfig | undefined,
+): string {
+  if (isPlural && selectConfig?.enabled) {
+    // Select wrapping plural: forms carry composite keys like
+    // "formal:one" / "formal:other", split apart here.
+    const pluralFormsSet = new Set<string>();
+    Object.keys(forms).forEach((key) => {
+      const parts = key.split(":");
+      if (parts.length === 2) {
+        if (parts[1]) pluralFormsSet.add(parts[1]);
+      }
+    });
+    const pluralForms = Array.from(pluralFormsSet);
+
+    return generateICUCombined(
+      forms,
+      selectConfig.variable || DEFAULT_SELECT_VARIABLE,
+      pluralVariable || DEFAULT_PLURAL_VARIABLE,
+      selectConfig.options,
+      pluralForms.length > 0 ? pluralForms : ["one", "other"],
+    );
+  }
+  if (isPlural) {
+    return generateICUPlural(forms, pluralVariable || DEFAULT_PLURAL_VARIABLE);
+  }
+  if (selectConfig?.enabled) {
+    return generateICUSelect(forms, selectConfig.variable || DEFAULT_SELECT_VARIABLE);
+  }
+  return forms.other || "";
+}
+
 function transformApiResponse(
   apiData: ApiTranslationResponse,
   keyFallback?: string,
 ): TranslationData {
   const transformedTranslations: Record<string, PluralFormTranslation> = {};
   const selectConfigs: Record<string, LanguageSelectConfig> = {};
+  const sourceValues: Record<string, string> = {};
+  const rawLanguages: string[] = [];
   let pluralVariable: string | undefined;
   let hasPluralData = apiData.isPlural;
 
-  Object.entries(apiData.translations).forEach(([langCode, translation]) => {
+  const parsedByLanguage = Object.entries(apiData.translations).map(([langCode, translation]) => {
     const parsed = parseLanguageValue(translation.value);
-    transformedTranslations[langCode] = parsed.forms;
-
-    if (parsed.isPlural) {
+    sourceValues[langCode] = translation.value;
+    // Structured editing only for what the save would rebuild byte for byte:
+    // exact selectors, offsets, other nestings and surrounding text are not.
+    const lossless =
+      generateLanguageValue(
+        parsed.forms,
+        parsed.isPlural,
+        parsed.pluralVariable,
+        parsed.selectConfig,
+      ) === translation.value;
+    if (lossless && parsed.isPlural) {
       hasPluralData = true;
-      if (!pluralVariable && parsed.pluralVariable) {
-        pluralVariable = parsed.pluralVariable;
-      }
+      pluralVariable ??= parsed.pluralVariable;
     }
+    return { langCode, value: translation.value, parsed, lossless };
+  });
 
+  for (const { langCode, value, parsed, lossless } of parsedByLanguage) {
+    // A save rebuilds every structured language with the key's plural flag and
+    // variable, so one that differs from them is not rebuilt exactly either.
+    // Plain text stays plain text; it is sent back as stored while unedited.
+    const structured =
+      !parsed.isPlural && !parsed.selectConfig
+        ? true
+        : lossless &&
+          generateLanguageValue(
+            parsed.forms,
+            hasPluralData,
+            pluralVariable,
+            parsed.selectConfig,
+          ) === value;
+
+    if (!structured) {
+      rawLanguages.push(langCode);
+      transformedTranslations[langCode] = { other: value };
+      continue;
+    }
+    transformedTranslations[langCode] = parsed.forms;
     if (parsed.selectConfig) {
       selectConfigs[langCode] = parsed.selectConfig;
     }
-  });
+  }
 
   return {
     key: keyFallback ?? apiData.key,
@@ -140,6 +207,8 @@ function transformApiResponse(
     pluralVariable: hasPluralData ? pluralVariable : undefined,
     translations: transformedTranslations,
     selectConfigs: Object.keys(selectConfigs).length > 0 ? selectConfigs : undefined,
+    rawLanguages: rawLanguages.length > 0 ? rawLanguages : undefined,
+    sourceValues,
     metadata: {
       createdAt: apiData.createdAt,
       lastModified: apiData.updatedAt,
@@ -147,7 +216,10 @@ function transformApiResponse(
   };
 }
 
-/** Returns null in demo mode and for keys the server does not know. */
+/**
+ * Returns null in demo mode. A key the server does not know (404) comes back
+ * as an empty singular record, so the editor can create it on save.
+ */
 export async function getTranslation(
   key: string,
   ns: string,
@@ -192,6 +264,8 @@ export async function getTranslation(
 /**
  * @param pluralVariable - Variable name for the ICU plural format (e.g. "count")
  * @param scopeId - Optional runtime scope used to isolate editor instances
+ * @param verbatim - Languages sent exactly as given instead of being generated
+ *   from their forms: ones the user did not edit, and plain-text ICU.
  */
 export async function saveTranslation(
   key: string,
@@ -201,6 +275,7 @@ export async function saveTranslation(
   pluralVariable?: string,
   selectConfigs?: Record<string, LanguageSelectConfig>,
   scopeId?: string,
+  verbatim?: Record<string, string>,
 ): Promise<TranslationData> {
   if (isDemoMode(scopeId)) {
     throw new DemoModeError("Saving translations");
@@ -209,49 +284,12 @@ export async function saveTranslation(
   try {
     const apiTranslations: Record<string, { value: string; status: string }> = {};
     Object.entries(translations).forEach(([langCode, forms]) => {
-      const selectConfig = selectConfigs?.[langCode];
-
-      if (isPlural && selectConfig?.enabled) {
-        // Select wrapping plural: forms carry composite keys like
-        // "formal:one" / "formal:other", split apart here.
-        const pluralFormsSet = new Set<string>();
-        Object.keys(forms).forEach((key) => {
-          const parts = key.split(":");
-          if (parts.length === 2) {
-            if (parts[1]) pluralFormsSet.add(parts[1]);
-          }
-        });
-        const pluralForms = Array.from(pluralFormsSet);
-
-        apiTranslations[langCode] = {
-          value: generateICUCombined(
-            forms,
-            selectConfig.variable || DEFAULT_SELECT_VARIABLE,
-            pluralVariable || DEFAULT_PLURAL_VARIABLE,
-            selectConfig.options,
-            pluralForms.length > 0 ? pluralForms : ["one", "other"],
-          ),
-          status: "not_reviewed",
-        };
-      } else if (isPlural) {
-        // Plural only: Generate ICU format from plural forms
-        apiTranslations[langCode] = {
-          value: generateICUPlural(forms, pluralVariable || DEFAULT_PLURAL_VARIABLE),
-          status: "not_reviewed",
-        };
-      } else if (selectConfig?.enabled) {
-        // Select only: Generate ICU select format
-        apiTranslations[langCode] = {
-          value: generateICUSelect(forms, selectConfig.variable || DEFAULT_SELECT_VARIABLE),
-          status: "not_reviewed",
-        };
-      } else {
-        // Singular: just send the 'other' form value
-        apiTranslations[langCode] = {
-          value: forms.other || "",
-          status: "not_reviewed",
-        };
-      }
+      apiTranslations[langCode] = {
+        value:
+          verbatim?.[langCode] ??
+          generateLanguageValue(forms, isPlural, pluralVariable, selectConfigs?.[langCode]),
+        status: "not_reviewed",
+      };
     });
 
     const payload = {

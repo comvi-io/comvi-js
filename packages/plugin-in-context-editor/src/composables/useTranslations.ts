@@ -42,6 +42,45 @@ export function useTranslations(
   // from the persisted state (true "unsaved" indicator).
   const baselineTranslations = ref<Record<string, Record<string, string>> | null>(null);
   let latestLoadRequestId = 0;
+  // One editing session per load/reset. A save remembers the session it
+  // started in; when it settles later, it must not touch a newer session.
+  const session = ref(0);
+  const savingSession = ref<number | null>(null);
+  const isSaving = computed(() => savingSession.value === session.value);
+  // The plural shape and select configs at last load/save, serialized. A
+  // language whose forms and shape still match was not edited and is sent
+  // back exactly as stored.
+  let baselineShape = "";
+  let baselineSelectConfigs: Record<string, string> = {};
+
+  function shapeOf(data: TranslationData): string {
+    return JSON.stringify([data.isPlural, data.pluralVariable ?? ""]);
+  }
+
+  function setBaseline(data: TranslationData): void {
+    baselineTranslations.value = snapshotTranslations(data.translations);
+    baselineShape = shapeOf(data);
+    baselineSelectConfigs = Object.fromEntries(
+      Object.entries(data.selectConfigs ?? {}).map(([lang, config]) => [
+        lang,
+        JSON.stringify(config),
+      ]),
+    );
+  }
+
+  function isLanguageUnedited(data: TranslationData, langCode: string): boolean {
+    const baselineForms = baselineTranslations.value?.[langCode];
+    return (
+      baselineForms !== undefined &&
+      shapeOf(data) === baselineShape &&
+      JSON.stringify(data.translations[langCode]) === JSON.stringify(baselineForms) &&
+      JSON.stringify(data.selectConfigs?.[langCode]) === baselineSelectConfigs[langCode]
+    );
+  }
+
+  function isRawLanguage(langCode: string): boolean {
+    return state.value.data?.rawLanguages?.includes(langCode) ?? false;
+  }
 
   function snapshotTranslations(
     translations: Record<string, Record<string, string>>,
@@ -65,6 +104,7 @@ export function useTranslations(
 
   async function loadTranslation(key: string, ns: string): Promise<void> {
     const requestId = ++latestLoadRequestId;
+    session.value++;
     state.value = {
       data: null,
       isLoading: true,
@@ -86,7 +126,7 @@ export function useTranslations(
       }
       state.value.data = data;
       state.value.isDirty = false;
-      baselineTranslations.value = snapshotTranslations(data.translations);
+      setBaseline(data);
     } catch (error) {
       if (requestId !== latestLoadRequestId) {
         return;
@@ -101,8 +141,13 @@ export function useTranslations(
   }
 
   /** Without this the edit would not show until the page reloads. */
-  function updateRuntimeCache(data: TranslationData, namespace: string): void {
-    const i18n = getI18nInstance(unref(instanceId));
+  function updateRuntimeCache(
+    data: TranslationData,
+    namespace: string,
+    scopeId: string | undefined,
+    scopeLanguages: Language[],
+  ): void {
+    const i18n = getI18nInstance(scopeId);
     if (!i18n) {
       console.warn(
         "[@comvi/plugin-in-context-editor] Cannot update runtime cache: i18n instance not available",
@@ -120,10 +165,14 @@ export function useTranslations(
       }
 
       const selectConfig = data.selectConfigs?.[langCode];
+      const storedValue = data.sourceValues?.[langCode];
 
-      if (data.isPlural && selectConfig?.enabled) {
+      if (storedValue !== undefined) {
+        // What the server stored is what the app would load next time.
+        translationsToAdd[cacheKey][String(data.key)] = storedValue;
+      } else if (data.isPlural && selectConfig?.enabled) {
         // Select wrapping plural: composite keys like "formal:one".
-        const lang = languages.value.find((l) => l.code === langCode);
+        const lang = scopeLanguages.find((l) => l.code === langCode);
         const pluralForms = lang?.pluralForms || ["one", "other"];
 
         const icuFormat = generateICUCombined(
@@ -174,32 +223,77 @@ export function useTranslations(
       return null;
     }
 
+    if (isSaving.value) {
+      return null;
+    }
+
+    // Everything the save needs is captured now: the modal can move on to
+    // another key, namespace or instance before the request settles.
+    const saveSession = session.value;
+    const data = state.value.data;
+    const namespace = currentNamespace.value;
+    const scopeId = unref(instanceId);
+    const scopeLanguages = languages.value;
+    const verbatim: Record<string, string> = {};
+    for (const [langCode, forms] of Object.entries(data.translations)) {
+      const stored = data.sourceValues?.[langCode];
+      if (data.rawLanguages?.includes(langCode)) {
+        verbatim[langCode] = forms.other ?? "";
+      } else if (stored !== undefined && isLanguageUnedited(data, langCode)) {
+        verbatim[langCode] = stored;
+      }
+    }
+    const selectConfigs = data.selectConfigs
+      ? Object.fromEntries(
+          Object.entries(data.selectConfigs).map(([lang, config]) => [
+            lang,
+            { ...config, options: [...config.options] },
+          ]),
+        )
+      : undefined;
+
+    savingSession.value = saveSession;
     state.value.isLoading = true;
     state.value.error = null;
 
     try {
       const savedData = await saveTranslationService(
-        String(state.value.data.key),
-        currentNamespace.value,
-        state.value.data.translations,
-        state.value.data.isPlural,
-        state.value.data.pluralVariable,
-        state.value.data.selectConfigs,
-        unref(instanceId),
+        String(data.key),
+        namespace,
+        snapshotTranslations(data.translations),
+        data.isPlural,
+        data.pluralVariable,
+        selectConfigs,
+        scopeId,
+        verbatim,
       );
+
+      // The server holds the new value either way, so the runtime the save
+      // was made for shows it too.
+      updateRuntimeCache(savedData, namespace, scopeId, scopeLanguages);
+
+      if (saveSession !== session.value) {
+        return null;
+      }
       state.value.data = savedData;
       state.value.isDirty = false;
-      baselineTranslations.value = snapshotTranslations(savedData.translations);
-
-      updateRuntimeCache(savedData, currentNamespace.value);
+      setBaseline(savedData);
 
       return savedData;
     } catch (error) {
-      state.value.error = error instanceof Error ? error.message : "Failed to save translation";
       console.error("[@comvi/plugin-in-context-editor] Error saving translation:", error);
+      if (saveSession !== session.value) {
+        return null;
+      }
+      state.value.error = error instanceof Error ? error.message : "Failed to save translation";
       return null;
     } finally {
-      state.value.isLoading = false;
+      if (saveSession === session.value) {
+        state.value.isLoading = false;
+      }
+      if (savingSession.value === saveSession) {
+        savingSession.value = null;
+      }
     }
   }
 
@@ -269,6 +363,7 @@ export function useTranslations(
   }
 
   function resetState(): void {
+    session.value++;
     state.value = {
       data: null,
       isLoading: false,
@@ -318,6 +413,25 @@ export function useTranslations(
     state.value.isDirty = true;
   }
 
+  function pluralFormsOf(langCode: string): string[] {
+    return languages.value.find((l) => l.code === langCode)?.pluralForms ?? ["one", "other"];
+  }
+
+  /** Composite `<option>:<pluralForm>` forms; `valueOf` picks each value. */
+  function combinedForms(
+    options: string[],
+    pluralForms: string[],
+    valueOf: (option: string, pluralForm: string) => string | undefined,
+  ): Record<string, string> {
+    const forms: Record<string, string> = {};
+    for (const option of options) {
+      for (const pluralForm of pluralForms) {
+        forms[`${option}:${pluralForm}`] = valueOf(option, pluralForm) ?? "";
+      }
+    }
+    return forms;
+  }
+
   /** Existing translations are converted between the two shapes. */
   function togglePluralMode(enabled: boolean): void {
     if (!state.value.data) {
@@ -333,7 +447,19 @@ export function useTranslations(
 
     Object.keys(state.value.data.translations).forEach((langCode) => {
       const lang = languages.value.find((l) => l.code === langCode);
-      if (!lang) return;
+      if (!lang || isRawLanguage(langCode)) return;
+
+      const forms = state.value.data!.translations[langCode] || {};
+      const selectConfig = state.value.data!.selectConfigs?.[langCode];
+      if (selectConfig?.enabled) {
+        // Variants stay; plural forms are added to or removed from each one.
+        state.value.data!.translations[langCode] = enabled
+          ? combinedForms(selectConfig.options, lang.pluralForms, (option) => forms[option])
+          : Object.fromEntries(
+              selectConfig.options.map((option) => [option, forms[`${option}:other`] ?? ""]),
+            );
+        return;
+      }
 
       if (enabled) {
         const singular = state.value.data!.translations[langCode]?.other || "";
@@ -360,6 +486,7 @@ export function useTranslations(
       console.warn("[@comvi/plugin-in-context-editor] Cannot toggle select mode: no data loaded");
       return;
     }
+    if (isRawLanguage(langCode)) return;
 
     if (!state.value.data.selectConfigs) {
       state.value.data.selectConfigs = {};
@@ -375,21 +502,43 @@ export function useTranslations(
         options,
       };
 
-      const currentValue = state.value.data.translations[langCode]?.other || "";
-      const selectForms: Record<string, string> = {};
-      options.forEach((opt) => {
-        selectForms[opt] = currentValue;
-      });
-      state.value.data.translations[langCode] = selectForms;
+      const current = state.value.data.translations[langCode] || {};
+      if (state.value.data.isPlural) {
+        // Every variant starts with the plural forms the message already has.
+        state.value.data.translations[langCode] = combinedForms(
+          options,
+          pluralFormsOf(langCode),
+          (_option, pluralForm) => current[pluralForm] ?? current.other,
+        );
+      } else {
+        const currentValue = current.other || "";
+        const selectForms: Record<string, string> = {};
+        options.forEach((opt) => {
+          selectForms[opt] = currentValue;
+        });
+        state.value.data.translations[langCode] = selectForms;
+      }
     } else {
-      if (state.value.data.selectConfigs[langCode]) {
-        state.value.data.selectConfigs[langCode].enabled = false;
+      const previous = state.value.data.selectConfigs[langCode];
+      if (previous) {
+        previous.enabled = false;
       }
 
-      // Back to singular: the FIRST form's value wins.
-      const forms = state.value.data.translations[langCode];
-      const firstValue = Object.values(forms || {})[0] || "";
-      state.value.data.translations[langCode] = { other: firstValue };
+      const forms = state.value.data.translations[langCode] || {};
+      if (state.value.data.isPlural) {
+        // Back to plain plural: the first variant's plural forms win.
+        const first = previous?.options[0];
+        state.value.data.translations[langCode] = Object.fromEntries(
+          pluralFormsOf(langCode).map((pluralForm) => [
+            pluralForm,
+            forms[`${first}:${pluralForm}`] ?? "",
+          ]),
+        );
+      } else {
+        // Back to singular: the FIRST form's value wins.
+        const firstValue = Object.values(forms)[0] || "";
+        state.value.data.translations[langCode] = { other: firstValue };
+      }
     }
 
     state.value.isDirty = true;
@@ -400,6 +549,7 @@ export function useTranslations(
       console.warn("[@comvi/plugin-in-context-editor] Cannot update select config: no data loaded");
       return;
     }
+    if (isRawLanguage(langCode)) return;
 
     if (!state.value.data.selectConfigs) {
       state.value.data.selectConfigs = {};
@@ -419,6 +569,18 @@ export function useTranslations(
     // If options changed, update translations structure
     if (config.options && existing.options.join(",") !== config.options.join(",")) {
       const currentForms = state.value.data.translations[langCode] || {};
+      if (state.value.data.isPlural && state.value.data.selectConfigs[langCode].enabled) {
+        // A new variant copies the plural forms of `other`, or of the first variant.
+        const source = existing.options.includes("other") ? "other" : existing.options[0];
+        state.value.data.translations[langCode] = combinedForms(
+          config.options,
+          pluralFormsOf(langCode),
+          (option, pluralForm) =>
+            currentForms[`${option}:${pluralForm}`] ?? currentForms[`${source}:${pluralForm}`],
+        );
+        state.value.isDirty = true;
+        return;
+      }
       const firstExistingValue = Object.values(currentForms).find(
         (value): value is string => typeof value === "string",
       );
@@ -444,6 +606,7 @@ export function useTranslations(
     description,
     translations,
     hasUnsavedChanges,
+    isSaving,
     isPlural,
     pluralVariable,
     selectConfigs,
@@ -460,5 +623,6 @@ export function useTranslations(
     updateSelectConfig,
     getSelectConfig,
     isFieldDirty,
+    isRawLanguage,
   };
 }
