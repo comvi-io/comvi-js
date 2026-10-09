@@ -63,7 +63,7 @@ function git(root, ...args) {
  * A minimal workspace: .changeset/config.json plus packable packages/*, as one
  * commit (the release SHA) carrying the release tag `tag` (null: no tag).
  */
-function makeFixture(t, packages, { tag = "v0.5.0" } = {}) {
+function makeFixture(t, packages, { tag = "v0.5.0", files = {} } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-combined-release-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -82,6 +82,11 @@ function makeFixture(t, packages, { tag = "v0.5.0" } = {}) {
       `${JSON.stringify({ name: pkg.name, version: pkg.version, files: ["dist"] }, null, 2)}\n`,
     );
     fs.writeFileSync(path.join(dir, "CHANGELOG.md"), changelog(pkg.name, pkg.changelog));
+  }
+
+  for (const [file, content] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    fs.writeFileSync(path.join(root, file), content);
   }
 
   git(root, "init", "-q");
@@ -455,4 +460,110 @@ test("the archive is reproducible: two builds from the same inputs have the same
     manifest.generatedAt,
     new Date(Number(git(root, "show", "-s", "--format=%ct", "HEAD")) * 1000).toISOString(),
   );
+});
+
+// GitHub rejects a release body above 125,000 characters, and this step runs
+// AFTER npm publish. 0.5.0's package changelogs add up to about 553,000.
+const BODY_CAP = 100_000;
+
+/** One changelog entry of about `chars` characters: `count` bullets under it. */
+function longEntry(label, chars) {
+  const bullet = `${label} bullet ${"x".repeat(60)}`;
+  return Array.from({ length: Math.ceil(chars / (bullet.length + 3)) }, () => bullet).join("\n- ");
+}
+
+const OVERSIZED_PACKAGES = [
+  {
+    dir: "core",
+    name: "@comvi/core",
+    version: "0.5.0",
+    changelog: [["0.5.0", longEntry("core", 200_000)]],
+  },
+  {
+    dir: "react",
+    name: "@comvi/react",
+    version: "0.5.0",
+    changelog: [["0.5.0", longEntry("react", 200_000)]],
+  },
+  {
+    dir: "next",
+    name: "@comvi/next",
+    version: "0.5.0",
+    changelog: [["0.5.0", "next short entry"]],
+  },
+];
+const OVERSIZED_TRAIN = OVERSIZED_PACKAGES.map(({ name, version }) => ({ name, version }));
+const HIGHLIGHTS = "## Highlights\n\nThe hand-written summary of 0.5.\n";
+
+function releaseBody(t, packages, published, options = {}) {
+  const { root, archiveDir } = makeFixture(t, packages, options);
+  // Read from a file, not from stdout: a pipe on macOS loses everything past
+  // 64 KiB when the script exits, which made an oversized body look small.
+  const bodyFile = path.join(root, "release-body.md");
+  const result = runScript({
+    root,
+    archiveDir,
+    published,
+    env: {
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "comvi-io/comvi-js",
+      COMVI_RELEASE_BODY_FILE: bodyFile,
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return fs.readFileSync(bodyFile, "utf8");
+}
+
+test("changelogs larger than GitHub's body limit → a body under the cap with the highlights and every package heading", (t) => {
+  const body = releaseBody(t, OVERSIZED_PACKAGES, OVERSIZED_TRAIN, {
+    files: { ".github/release-notes/0.5.0.md": HIGHLIGHTS },
+  });
+
+  assert.equal(body.length < BODY_CAP, true, `body is ${body.length} characters`);
+  assert.match(body, /## Highlights\n\nThe hand-written summary of 0\.5\./);
+  assert.deepEqual(body.match(/^### `@comvi\/[^`]+`$/gm), [
+    "### `@comvi/core`",
+    "### `@comvi/next`",
+    "### `@comvi/react`",
+  ]);
+});
+
+test("a truncated package section ends with a link to that package's CHANGELOG.md at the release tag", (t) => {
+  const body = releaseBody(t, OVERSIZED_PACKAGES, OVERSIZED_TRAIN);
+
+  const [, core, next, react] = body.split(/^### `@comvi\/[^`]+`$/m);
+  assert.match(
+    core.trimEnd(),
+    /\(https:\/\/github\.com\/comvi-io\/comvi-js\/blob\/v0\.5\.0\/packages\/core\/CHANGELOG\.md\)\._$/,
+  );
+  assert.match(
+    react.trimEnd(),
+    /\(https:\/\/github\.com\/comvi-io\/comvi-js\/blob\/v0\.5\.0\/packages\/react\/CHANGELOG\.md\)\._$/,
+  );
+  // A section that fits is whole and carries no link.
+  assert.equal(next.trim(), "#### Minor Changes\n\n- next short entry");
+});
+
+test("a section cut inside a code fence gets the fence closed at its own indentation, so the rest of the body is not rendered as code", (t) => {
+  const fenced = `fenced entry\n\n  \`\`\`ts\n${"  const x = 1;\n".repeat(20_000)}  \`\`\``;
+  const body = releaseBody(
+    t,
+    [{ ...OVERSIZED_PACKAGES[0], changelog: [["0.5.0", fenced]] }, OVERSIZED_PACKAGES[2]],
+    [OVERSIZED_TRAIN[0], OVERSIZED_TRAIN[2]],
+  );
+
+  const core = body.split(/^### `@comvi\/[^`]+`$/m)[1];
+  assert.match(core, /Truncated\./);
+  assert.deepEqual(core.match(/^ *```.*$/gm), ["  ```ts", "  ```"]);
+});
+
+test("an oversized highlights file is cut too: the body never exceeds the cap", (t) => {
+  const body = releaseBody(t, OVERSIZED_PACKAGES, OVERSIZED_TRAIN, {
+    files: {
+      ".github/release-notes/0.5.0.md": `## Highlights\n\n${"line of notes\n".repeat(20_000)}`,
+    },
+  });
+
+  assert.equal(body.length < BODY_CAP, true, `body is ${body.length} characters`);
+  assert.equal(body.match(/^### `@comvi\/[^`]+`$/gm).length, 3);
 });
