@@ -114,7 +114,12 @@ provide("translationManager", translationManager);
 provide("isInDemoMode", isInDemoMode);
 
 watch(
-  () => [isOpenInternal.value, unref(props.translationKey), unref(props.translationNamespace)],
+  () => [
+    isOpenInternal.value,
+    unref(props.translationKey),
+    unref(props.translationNamespace),
+    unref(props.translationInstanceId),
+  ],
   () => {
     if (isOpenInternal.value) {
       translationManager.loadTranslation(
@@ -127,7 +132,13 @@ watch(
 );
 
 async function handleSaveOnly() {
+  // A new load replaces the state object; a save that settles after that
+  // belongs to a session the user already left and reports nothing here.
+  const sessionState = translationManager.state.value;
   const savedData = await translationManager.saveTranslation();
+  if (translationManager.state.value !== sessionState) {
+    return null;
+  }
   if (savedData) {
     toast?.addToast({
       title: "Saved",
@@ -159,7 +170,11 @@ function handleKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key === "s") {
     event.preventDefault();
     event.stopPropagation();
-    if (translationManager.hasUnsavedChanges.value && !translationManager.state.value.isLoading) {
+    if (
+      translationManager.hasUnsavedChanges.value &&
+      !translationManager.state.value.isLoading &&
+      !translationManager.isSaving.value
+    ) {
       handleSaveOnly();
     }
   }
@@ -180,6 +195,7 @@ onUnmounted(() => {
 const showUnsavedWarning = ref(false);
 
 function tryClose() {
+  if (translationManager.isSaving.value) return;
   if (translationManager.hasUnsavedChanges.value) {
     showUnsavedWarning.value = true;
   } else {
@@ -188,11 +204,16 @@ function tryClose() {
 }
 
 function forceClose() {
+  if (translationManager.isSaving.value) return;
   showUnsavedWarning.value = false;
   isOpenInternal.value = false;
 }
 
 function handleEscapeKeyDown(event: KeyboardEvent) {
+  if (translationManager.isSaving.value) {
+    event.preventDefault();
+    return;
+  }
   if (translationManager.hasUnsavedChanges.value) {
     event.preventDefault();
     showUnsavedWarning.value = true;
@@ -200,6 +221,10 @@ function handleEscapeKeyDown(event: KeyboardEvent) {
 }
 
 function handleInteractOutside(event: Event) {
+  if (translationManager.isSaving.value) {
+    event.preventDefault();
+    return;
+  }
   if (translationManager.hasUnsavedChanges.value) {
     event.preventDefault();
     showUnsavedWarning.value = true;
@@ -294,7 +319,12 @@ function handleInteractOutside(event: Event) {
       </DialogHeader>
       <div class="flex justify-end gap-2 mt-4">
         <Button variant="outline" @click="showUnsavedWarning = false">Keep Editing</Button>
-        <Button variant="destructive" @click="forceClose">Discard</Button>
+        <Button
+          variant="destructive"
+          :disabled="translationManager.isSaving.value"
+          @click="forceClose"
+          >Discard</Button
+        >
       </div>
     </DialogContent>
   </Dialog>

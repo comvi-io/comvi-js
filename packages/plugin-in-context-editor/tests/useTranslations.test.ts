@@ -1088,4 +1088,118 @@ describe("useTranslations", () => {
 
     expect(manager.getSelectConfig("en")).toBeUndefined();
   });
+
+  describe("a save that settles after its editing session ended", () => {
+    function deferredSave() {
+      let resolve!: (value: TranslationData) => void;
+      let reject!: (reason: unknown) => void;
+      saveTranslationMock.mockImplementationOnce(
+        () =>
+          new Promise<TranslationData>((res, rej) => {
+            resolve = res;
+            reject = rej;
+          }),
+      );
+      return {
+        resolve: (value: TranslationData) => resolve(value),
+        reject: (reason: unknown) => reject(reason),
+      };
+    }
+
+    it("keeps the newer session and writes only into the scope the save started in", async () => {
+      const instanceId = ref<string | undefined>("core-a");
+      const manager = useTranslations(ref(LANGUAGES), instanceId);
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("first", "Old"));
+      await manager.loadTranslation("first", "namespace-A");
+      manager.updateTranslation("en", "other", "edited");
+      const firstSave = deferredSave();
+      const pending = manager.saveTranslation();
+
+      // Discard, then open another key in another namespace and instance.
+      instanceId.value = "core-b";
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("second", "Two"));
+      await manager.loadTranslation("second", "namespace-B");
+
+      firstSave.resolve(createSingularTranslationData("first", "edited"));
+      const result = await pending;
+
+      expect(result).toBeNull();
+      expect(manager.currentKey.value).toBe("second");
+      expect(manager.translations.value).toEqual({ en: { other: "Two" } });
+      expect(manager.hasUnsavedChanges.value).toBe(false);
+      expect(manager.state.value.isLoading).toBe(false);
+      expect(getI18nInstanceMock.mock.calls).toEqual([["core-a"]]);
+      expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
+        "en:namespace-A": { first: "edited" },
+      });
+    });
+
+    it("does not report the failure of an older session's save in the newer session", async () => {
+      const manager = createManager();
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("first", "Old"));
+      await manager.loadTranslation("first", "namespace-A");
+      manager.updateTranslation("en", "other", "edited");
+      const firstSave = deferredSave();
+      const pending = manager.saveTranslation();
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("second", "Two"));
+      await manager.loadTranslation("second", "namespace-B");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      firstSave.reject(new Error("offline"));
+      const result = await pending;
+
+      expect(result).toBeNull();
+      expect(manager.state.value.error).toBeNull();
+      expect(manager.currentKey.value).toBe("second");
+    });
+
+    it("sends the values captured when the save started", async () => {
+      const manager = createManager();
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("first", "Old"));
+      await manager.loadTranslation("first", "namespace-A");
+      manager.updateTranslation("en", "other", "edited");
+      deferredSave();
+
+      void manager.saveTranslation();
+      manager.updateTranslation("en", "other", "typed after save");
+
+      expect(saveTranslationMock.mock.calls[0]?.[2]).toEqual({ en: { other: "edited" } });
+    });
+
+    it("refuses a second save while the first one is pending", async () => {
+      const manager = createManager();
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("first", "Old"));
+      await manager.loadTranslation("first", "namespace-A");
+      manager.updateTranslation("en", "other", "edited");
+      const firstSave = deferredSave();
+
+      const pending = manager.saveTranslation();
+      const second = await manager.saveTranslation();
+
+      expect(second).toBeNull();
+      expect(saveTranslationMock).toHaveBeenCalledOnce();
+      firstSave.resolve(createSingularTranslationData("first", "edited"));
+      await pending;
+    });
+
+    it("reports a pending save through one shared saving flag scoped to its session", async () => {
+      const manager = createManager();
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("first", "Old"));
+      await manager.loadTranslation("first", "namespace-A");
+      manager.updateTranslation("en", "other", "edited");
+      const firstSave = deferredSave();
+
+      expect(manager.isSaving.value).toBe(false);
+      const pending = manager.saveTranslation();
+      expect(manager.isSaving.value).toBe(true);
+
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("second", "Two"));
+      await manager.loadTranslation("second", "namespace-B");
+      expect(manager.isSaving.value).toBe(false);
+
+      firstSave.resolve(createSingularTranslationData("first", "edited"));
+      await pending;
+      expect(manager.isSaving.value).toBe(false);
+    });
+  });
 });

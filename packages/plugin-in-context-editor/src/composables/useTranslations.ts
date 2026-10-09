@@ -42,6 +42,11 @@ export function useTranslations(
   // from the persisted state (true "unsaved" indicator).
   const baselineTranslations = ref<Record<string, Record<string, string>> | null>(null);
   let latestLoadRequestId = 0;
+  // One editing session per load/reset. A save remembers the session it
+  // started in; when it settles later, it must not touch a newer session.
+  const session = ref(0);
+  const savingSession = ref<number | null>(null);
+  const isSaving = computed(() => savingSession.value === session.value);
 
   function snapshotTranslations(
     translations: Record<string, Record<string, string>>,
@@ -65,6 +70,7 @@ export function useTranslations(
 
   async function loadTranslation(key: string, ns: string): Promise<void> {
     const requestId = ++latestLoadRequestId;
+    session.value++;
     state.value = {
       data: null,
       isLoading: true,
@@ -101,8 +107,13 @@ export function useTranslations(
   }
 
   /** Without this the edit would not show until the page reloads. */
-  function updateRuntimeCache(data: TranslationData, namespace: string): void {
-    const i18n = getI18nInstance(unref(instanceId));
+  function updateRuntimeCache(
+    data: TranslationData,
+    namespace: string,
+    scopeId: string | undefined,
+    scopeLanguages: Language[],
+  ): void {
+    const i18n = getI18nInstance(scopeId);
     if (!i18n) {
       console.warn(
         "[@comvi/plugin-in-context-editor] Cannot update runtime cache: i18n instance not available",
@@ -123,7 +134,7 @@ export function useTranslations(
 
       if (data.isPlural && selectConfig?.enabled) {
         // Select wrapping plural: composite keys like "formal:one".
-        const lang = languages.value.find((l) => l.code === langCode);
+        const lang = scopeLanguages.find((l) => l.code === langCode);
         const pluralForms = lang?.pluralForms || ["one", "other"];
 
         const icuFormat = generateICUCombined(
@@ -174,32 +185,67 @@ export function useTranslations(
       return null;
     }
 
+    if (isSaving.value) {
+      return null;
+    }
+
+    // Everything the save needs is captured now: the modal can move on to
+    // another key, namespace or instance before the request settles.
+    const saveSession = session.value;
+    const data = state.value.data;
+    const namespace = currentNamespace.value;
+    const scopeId = unref(instanceId);
+    const scopeLanguages = languages.value;
+    const selectConfigs = data.selectConfigs
+      ? Object.fromEntries(
+          Object.entries(data.selectConfigs).map(([lang, config]) => [
+            lang,
+            { ...config, options: [...config.options] },
+          ]),
+        )
+      : undefined;
+
+    savingSession.value = saveSession;
     state.value.isLoading = true;
     state.value.error = null;
 
     try {
       const savedData = await saveTranslationService(
-        String(state.value.data.key),
-        currentNamespace.value,
-        state.value.data.translations,
-        state.value.data.isPlural,
-        state.value.data.pluralVariable,
-        state.value.data.selectConfigs,
-        unref(instanceId),
+        String(data.key),
+        namespace,
+        snapshotTranslations(data.translations),
+        data.isPlural,
+        data.pluralVariable,
+        selectConfigs,
+        scopeId,
       );
+
+      // The server holds the new value either way, so the runtime the save
+      // was made for shows it too.
+      updateRuntimeCache(savedData, namespace, scopeId, scopeLanguages);
+
+      if (saveSession !== session.value) {
+        return null;
+      }
       state.value.data = savedData;
       state.value.isDirty = false;
       baselineTranslations.value = snapshotTranslations(savedData.translations);
 
-      updateRuntimeCache(savedData, currentNamespace.value);
-
       return savedData;
     } catch (error) {
-      state.value.error = error instanceof Error ? error.message : "Failed to save translation";
       console.error("[@comvi/plugin-in-context-editor] Error saving translation:", error);
+      if (saveSession !== session.value) {
+        return null;
+      }
+      state.value.error = error instanceof Error ? error.message : "Failed to save translation";
       return null;
     } finally {
-      state.value.isLoading = false;
+      if (saveSession === session.value) {
+        state.value.isLoading = false;
+      }
+      if (savingSession.value === saveSession) {
+        savingSession.value = null;
+      }
     }
   }
 
@@ -269,6 +315,7 @@ export function useTranslations(
   }
 
   function resetState(): void {
+    session.value++;
     state.value = {
       data: null,
       isLoading: false,
@@ -444,6 +491,7 @@ export function useTranslations(
     description,
     translations,
     hasUnsavedChanges,
+    isSaving,
     isPlural,
     pluralVariable,
     selectConfigs,
