@@ -108,7 +108,7 @@ extension.
 | `tagAttributes`       | built-in map                                                                             | HTML tag name to the attributes treated as translated values. Replaces the built-in map. |
 | `debug`               | `false`                                                                                  | Verbose console logging.                                                                 |
 | `highlightStyle`      | `{ borderColor: '#D97706', backgroundColor: 'rgba(217, 119, 6, 0.12)', borderWidth: 2 }` | The overlay. Its `z-index: 10000` is fixed.                                              |
-| `collectContext`      | `true`                                                                                   | Passive context collection while the editor runs.                                        |
+| `collectContext`      | `true`                                                                                   | Passive context collection while the editor runs. See below for what it sends.           |
 | `screenGroupResolver` | none                                                                                     | `() => '/users/:id'`, a PII-free route template shown instead of a URL digest.           |
 | `apiKeyOverride`      | none                                                                                     | Overrides `i18n.apiKey` for this plugin only; used by the extension.                     |
 
@@ -118,6 +118,12 @@ to `t()` to turn the invisible markers off for one call when they cause a proble
 or sort that sees extra characters, a width-sensitive layout, a canvas or library that counts
 characters. That string is then not editable in context. On `<T>` the equivalent is
 `markers={false}`.
+
+With an API key or the extension, context collection sends the page origin, the keys on screen with
+their screen group, and structural and layout signals to the Comvi API; it never sends rendered
+text. Grouping screens by a digest or a `screenGroupResolver` template does not hide the origin. Set
+`collectContext: false` on the plugin, or on `createI18n` to also override the extension, to turn
+it off.
 
 ## Next steps
 

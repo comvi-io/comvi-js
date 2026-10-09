@@ -26,6 +26,18 @@ export function createI18n(options: I18nOptions): ComposedInstance {
 }
 
 /**
+ * `createI18n(options).use(devtools())` with NO plugin capability: discoverable
+ * on `window.__COMVI__`, but without `registerPostProcessor`, so the editor
+ * cannot mark its translations.
+ */
+export function createDiscoverableBaseI18n(options: I18nOptions): I18n {
+  return attachDevtools(createBaseI18n(options), {
+    instanceId: options.instanceId,
+    exposeGlobal: options.exposeGlobal,
+  });
+}
+
+/**
  * `I18nPlugin` declares the fully composed plugin host, loader capability
  * included, because a plugin is allowed to call loader APIs. The editor
  * runtime calls none of them, so these suites deliberately leave that

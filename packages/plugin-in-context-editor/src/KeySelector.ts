@@ -34,6 +34,7 @@ export function cleanup(instanceId?: string) {
   ownerInstanceId = undefined;
 }
 
+/** Viewport coordinates: the dropdown is `position: fixed`, so page scroll never enters. */
 function calculatePosition(element: Element): { top: number; left: number } {
   const rect = element.getBoundingClientRect();
   const viewportHeight = window.innerHeight;
@@ -43,11 +44,11 @@ function calculatePosition(element: Element): { top: number; left: number } {
   const dropdownHeight = 300;
   const dropdownWidth = 400;
 
-  let top = rect.bottom + window.scrollY + 8; // 8px gap below element
-  let left = rect.left + window.scrollX;
+  let top = rect.bottom + 8; // 8px gap below element
+  let left = rect.left;
 
   if (rect.bottom + dropdownHeight > viewportHeight) {
-    top = rect.top + window.scrollY - dropdownHeight - 8;
+    top = rect.top - dropdownHeight - 8;
   }
 
   if (rect.left + dropdownWidth > viewportWidth) {
@@ -83,6 +84,7 @@ function mountApp(
     position,
     open: isOpen,
     defaultNs,
+    instanceId,
     "onUpdate:open": (value: boolean) => {
       isOpen.value = value;
 

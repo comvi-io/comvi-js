@@ -9,7 +9,11 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n, type ComposedInstance } from "./helpers/composedInstance";
+import {
+  createDiscoverableBaseI18n,
+  createI18n,
+  type ComposedInstance,
+} from "./helpers/composedInstance";
 
 const { coreCtorMock, coreStopMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } =
   await vi.hoisted(() => import("./helpers/mockCore"));
@@ -35,7 +39,11 @@ import { getApiConfig } from "../src/config/api";
 import { resetEncoder } from "../src/translation";
 import type { ApiTransport, ApiTransportInit } from "../src/config/api";
 
-type CoreOptions = { targetElement?: Node; collectContext?: boolean };
+type CoreOptions = {
+  targetElement?: Node;
+  collectContext?: boolean;
+  highlightStyle?: { borderColor?: string; backgroundColor?: string; borderWidth?: number };
+};
 
 function lastCoreOptions(): CoreOptions {
   expect(coreCtorMock).toHaveBeenCalled();
@@ -129,6 +137,19 @@ describe("activate() defaults", () => {
     expect(lastCoreOptions().targetElement).toBe(target);
   });
 
+  it("hands the caller's highlightStyle to the runtime", () => {
+    makeI18n();
+    const highlightStyle = { borderColor: "red", backgroundColor: "pink", borderWidth: 3 };
+
+    activate({ highlightStyle, refreshMessages: false });
+
+    expect(lastCoreOptions().highlightStyle).toEqual({
+      borderColor: "red",
+      backgroundColor: "pink",
+      borderWidth: 3,
+    });
+  });
+
   it("trims the api key before storing it in the runtime's configuration", () => {
     makeI18n();
 
@@ -167,6 +188,38 @@ describe("activate() defaults", () => {
   });
 });
 
+describe("activate() instance selection", () => {
+  it("an instance without the plugin capability → returns null instead of throwing", () => {
+    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const result = activate({ refreshMessages: false });
+
+    expect(result).toBeNull();
+    expect(isActive()).toBe(false);
+    expect(error).toHaveBeenCalledOnce();
+  });
+
+  it("no instanceId → edits the instance with the plugin capability over an earlier one without it", () => {
+    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
+    const editable = makeI18n();
+
+    activate({ refreshMessages: false });
+
+    expect(editable.t("hello")).toContainInvisibleChars();
+  });
+
+  it("an instanceId naming an instance without the plugin capability → returns null", () => {
+    makeI18n();
+    createDiscoverableBaseI18n({ locale: "en", instanceId: "base-only" });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const result = activate({ instanceId: "base-only", refreshMessages: false });
+
+    expect(result).toBeNull();
+  });
+});
+
 describe("activate() translation refresh", () => {
   it("skips the API round trip when refreshMessages is false", async () => {
     makeI18n();
@@ -175,6 +228,15 @@ describe("activate() translation refresh", () => {
     await settleRefresh();
 
     expect(fetchApiTranslationsMock).not.toHaveBeenCalled();
+  });
+
+  it("refreshMessages false → still re-adds the page's own catalog so rendered text gets marked", () => {
+    const i18n = makeI18n();
+    const addMessages = vi.spyOn(i18n, "addMessages");
+
+    activate({ apiKey: "test-key", refreshMessages: false });
+
+    expect(addedCatalogs(addMessages)).toEqual([{ "en:default": { hello: "Hello" } }]);
   });
 
   it("performs the API round trip when refreshMessages is explicitly true", async () => {
@@ -237,6 +299,9 @@ describe("activate() translation refresh", () => {
     const first = activate({ apiKey: "test-key" });
     first?.stop();
     activate({ apiKey: "test-key", refreshMessages: false });
+    // The newer runtime's own local re-add is not the stale refresh's doing.
+    addMessages.mockClear();
+
     inFlight.resolve(new Map());
     await settleRefresh();
 

@@ -21,6 +21,8 @@ const props = defineProps<{
   position: { top: number; left: number };
   open: Ref<boolean>;
   defaultNs?: string;
+  /** API scope the previews are loaded through. */
+  instanceId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -43,7 +45,7 @@ onMounted(async () => {
     });
 
     try {
-      const translationData = await getTranslation(item.key, item.ns);
+      const translationData = await getTranslation(item.key, item.ns, props.instanceId);
       const firstLang = Object.keys(translationData?.translations || {})[0];
       const firstForm = firstLang
         ? Object.keys(translationData?.translations[firstLang] || {})[0]
@@ -90,14 +92,19 @@ const handleEscape = (event: KeyboardEvent) => {
   }
 };
 
+// Deferred so the click that opened the selector does not close it at once.
+let listenTimer: ReturnType<typeof setTimeout> | undefined;
+
 onMounted(() => {
-  setTimeout(() => {
+  listenTimer = setTimeout(() => {
+    listenTimer = undefined;
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
   }, 0);
 });
 
 onUnmounted(() => {
+  clearTimeout(listenTimer);
   document.removeEventListener("mousedown", handleClickOutside);
   document.removeEventListener("keydown", handleEscape);
 });

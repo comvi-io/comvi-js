@@ -283,7 +283,7 @@ export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
  * Promising `I18nPluginApi` here would type a member present in dev and
  * absent in production. Need `registerPlugin` yourself? Compose `.use(plugins())`.
  *
- * `.use(inContextEditor(…))` is a type error. Under this entry it fails at
+ * `registerPlugin(inContextEditor(…))` is a type error. Under this entry it fails at
  * `init()` on `ensureInstallable`; under the `production` condition the
  * identity no-op hands the instance back and the plugin capability's return-shape guard
  * rejects it — a plugin may only return nothing or a cleanup function.

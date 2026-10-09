@@ -167,7 +167,7 @@ export class Core {
       this.options,
     );
 
-    // Passive context collector (extension channel only). Constructed here so
+    // Passive context collector (any runtime with an API key or transport). Constructed here so
     // both activation paths (standalone.ts and index.ts) cover it; it does
     // nothing until start()/stop() run.
     this.collector = new Collector(this.eventBus, this.translationRegistry, this.instanceId, {

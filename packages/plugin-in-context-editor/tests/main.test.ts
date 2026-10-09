@@ -38,13 +38,31 @@ describe("manual editor lifecycle", () => {
     expect(coreStopMock).not.toHaveBeenCalled();
   });
 
-  it("init() twice starts a second Core and stop() then stops only the newest", () => {
+  it("init() twice → the second init() stops the first Core before starting its own", () => {
     main.init();
+
     main.init();
-    main.stop();
 
     expect(coreCtorMock).toHaveBeenCalledTimes(2);
     expect(coreStartMock).toHaveBeenCalledTimes(2);
-    expect(coreStopMock).toHaveBeenCalledTimes(1);
+    expect(coreStopMock).toHaveBeenCalledOnce();
+  });
+
+  it("init() twice then stop() → both Cores are stopped", () => {
+    main.init();
+    main.init();
+
+    main.stop();
+
+    expect(coreStopMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("stop() twice after one init() → the Core is stopped once", () => {
+    main.init();
+    main.stop();
+
+    main.stop();
+
+    expect(coreStopMock).toHaveBeenCalledOnce();
   });
 });
