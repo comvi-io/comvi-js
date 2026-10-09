@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
-import { flushPromises, mount } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import KeySelectorDropdown from "../src/components/KeySelectorDropdown.vue";
 
 const getTranslationMock = vi.fn();
@@ -13,6 +13,9 @@ function stored(value: string) {
   return { key: "k", isPlural: false, translations: { en: { other: value } } };
 }
 
+/** Every mounted selector, unmounted after each test: its Escape/outside-click listeners and arming timer go with it. */
+const mounted: VueWrapper[] = [];
+
 async function mountSelector(items: { key: string; textPreview?: string }[]) {
   const wrapper = mount(KeySelectorDropdown, {
     props: {
@@ -22,6 +25,7 @@ async function mountSelector(items: { key: string; textPreview?: string }[]) {
       defaultNs: "default",
     },
   });
+  mounted.push(wrapper);
   await flushPromises();
   return wrapper;
 }
@@ -29,6 +33,10 @@ async function mountSelector(items: { key: string; textPreview?: string }[]) {
 describe("KeySelectorDropdown entries", () => {
   beforeEach(() => {
     getTranslationMock.mockReset();
+  });
+
+  afterEach(() => {
+    for (const wrapper of mounted.splice(0)) wrapper.unmount();
   });
 
   it("shows a value once when the page text and the stored value match", async () => {

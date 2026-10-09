@@ -10,7 +10,8 @@ import { cleanup, closeKeySelector, showKeySelector } from "../src/KeySelector";
 import { initApiConfig, resetApiConfig, type ApiTransport } from "../src/config/api";
 import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "../src/constants";
 
-const VIEWPORT = { innerHeight: 800, innerWidth: 1200, scrollX: 0, scrollY: 1000 };
+// Scrolled on both axes: the dropdown is `position: fixed`, so neither offset may leak into it.
+const VIEWPORT = { innerHeight: 800, innerWidth: 1200, scrollX: 300, scrollY: 1000 };
 const originalViewport = new Map<string, PropertyDescriptor | undefined>();
 
 function elementAt(rect: { top: number; bottom: number; left: number; right: number }): Element {
@@ -33,6 +34,11 @@ function selectorHosts(): Element[] {
 function dropdown(): HTMLElement | null {
   const host = selectorHosts()[0];
   return host?.shadowRoot?.querySelector<HTMLElement>('[role="listbox"]') ?? null;
+}
+
+/** Where the dropdown sits, in viewport pixels. */
+function dropdownPosition(): { top: string | undefined; left: string | undefined } {
+  return { top: dropdown()?.style.top, left: dropdown()?.style.left };
 }
 
 /** The options as the translator reads them: key, then the namespace when it is not the default. */
@@ -122,7 +128,7 @@ describe("key selector placement on a scrolled page", () => {
 
     showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
 
-    expect({ top: dropdown()?.style.top, left: dropdown()?.style.left }).toEqual({
+    expect(dropdownPosition()).toEqual({
       top: "16px",
       left: "784px",
     });
@@ -133,8 +139,8 @@ describe("key selector placement on a scrolled page", () => {
 
     showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
 
-    // Element top 400 − dropdown 300 − the 8px gap.
-    expect(dropdown()?.style.top).toBe("92px");
+    // Element top 400 − dropdown 300 − the 8px gap; left stays on the element.
+    expect(dropdownPosition()).toEqual({ top: "92px", left: "200px" });
   });
 
   it("dropdown that fits the viewport bottom exactly → it stays below the element", () => {
@@ -142,7 +148,7 @@ describe("key selector placement on a scrolled page", () => {
 
     showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
 
-    expect(dropdown()?.style.top).toBe("508px");
+    expect(dropdownPosition()).toEqual({ top: "508px", left: "200px" });
   });
 
   it("element starting left of the viewport → the dropdown is clamped to the 16px left margin", () => {
@@ -150,7 +156,7 @@ describe("key selector placement on a scrolled page", () => {
 
     showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
 
-    expect(dropdown()?.style.left).toBe("16px");
+    expect(dropdownPosition()).toEqual({ top: "148px", left: "16px" });
   });
 
   it("dropdown that reaches the right edge exactly → it stays aligned with the element", () => {
@@ -158,16 +164,15 @@ describe("key selector placement on a scrolled page", () => {
 
     showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
 
-    expect(dropdown()?.style.left).toBe("800px");
+    expect(dropdownPosition()).toEqual({ top: "148px", left: "800px" });
   });
 
-  it("scrollY 1000 → the fixed dropdown opens 8px below the element in the viewport", () => {
+  it("page scrolled by (300, 1000) → the fixed dropdown opens 8px below the element in viewport coordinates", () => {
     const element = elementAt({ top: 100, right: 300, bottom: 140, left: 200 });
 
     showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn(), "default", "core-1");
 
-    expect(dropdown()?.style.top).toBe("148px");
-    expect(dropdown()?.style.left).toBe("200px");
+    expect(dropdownPosition()).toEqual({ top: "148px", left: "200px" });
   });
 });
 
@@ -208,6 +213,27 @@ describe("key selector previews", () => {
       method: "GET",
     });
     expect(otherRuntime).not.toHaveBeenCalled();
+  });
+});
+
+describe("key selector page text", () => {
+  it("element text differs from the stored translation → the option shows the page text and the stored value", async () => {
+    const transport = vi.fn<ApiTransport>(async () => keyResponse("Welcome to the shop"));
+    initApiConfig(undefined, "core-1", { transport });
+    const element = elementAt({ top: 100, right: 300, bottom: 140, left: 200 });
+
+    showKeySelector(
+      [{ key: "home.title", ns: "default", textPreview: "Welcome back" }],
+      element,
+      vi.fn(),
+      "default",
+      "core-1",
+    );
+
+    await vi.waitFor(() => expect(dropdown()?.textContent).toContain("Welcome to the shop"));
+    expect(dropdown()?.querySelector('[role="option"]')?.textContent).toContain(
+      'Text: "Welcome back"',
+    );
   });
 });
 
