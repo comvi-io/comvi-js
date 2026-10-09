@@ -22,6 +22,22 @@ describe("TranslationScanner", () => {
     return [...(map.get(element)?.nodes.values() ?? [])].map(({ key, ns }) => ({ key, ns }));
   }
 
+  /**
+   * Arrange step for removal tests: emits the scan event and fails the test
+   * unless `element` really got registered, so a later "unregistered" claim
+   * can never pass because nothing was registered in the first place.
+   */
+  function scanAndExpectRegistered(
+    event: "structureChanges" | "attributeChanges",
+    nodes: Node[],
+    element: Element,
+  ): void {
+    eventBus.emit(event, nodes);
+    if (!map.has(element)) {
+      throw new Error(`arrangement failed: <${element.localName}> was not registered by ${event}`);
+    }
+  }
+
   beforeEach(() => {
     eventBus = new EventBus();
     map = new TranslationRegistry(eventBus);
@@ -90,12 +106,11 @@ describe("TranslationScanner", () => {
     });
 
     it("registered text node rewritten without its marker → the element is unregistered", () => {
-      // That the marked text registers first is pinned by "text node with a marker → registered…".
       const key = registerKey("ghost.key");
       const p = document.createElement("p");
       const textNode = document.createTextNode(`Value ${encodeKeyToInvisible(key)}`);
       p.appendChild(textNode);
-      eventBus.emit("structureChanges", [p]);
+      scanAndExpectRegistered("structureChanges", [p], p);
       textNode.nodeValue = "Plain value";
 
       eventBus.emit("textChanges", [textNode]);
@@ -219,11 +234,10 @@ describe("TranslationScanner", () => {
     });
 
     it("registered placeholder rewritten without its marker → the input is unregistered", () => {
-      // That the marked placeholder registers first is pinned by "marked placeholder attribute → registered on the input".
       const key = registerKey("placeholder.key");
       const input = document.createElement("input");
       input.setAttribute("placeholder", `Placeholder ${encodeKeyToInvisible(key)}`);
-      eventBus.emit("attributeChanges", [input]);
+      scanAndExpectRegistered("attributeChanges", [input], input);
       input.setAttribute("placeholder", "Plain placeholder");
 
       eventBus.emit("attributeChanges", [input]);
@@ -236,7 +250,7 @@ describe("TranslationScanner", () => {
       const input = document.createElement("input");
       input.setAttribute("type", "submit");
       input.setAttribute("value", `Send ${encodeKeyToInvisible(key)}`);
-      eventBus.emit("attributeChanges", [input]);
+      scanAndExpectRegistered("attributeChanges", [input], input);
 
       input.setAttribute("value", "Send");
       eventBus.emit("attributeChanges", [input]);
@@ -429,7 +443,7 @@ describe("TranslationScanner", () => {
       const div = document.createElement("div");
       const textNode = document.createTextNode(`Text ${encodeKeyToInvisible(key)}`);
       div.appendChild(textNode);
-      eventBus.emit("structureChanges", [div]);
+      scanAndExpectRegistered("structureChanges", [div], div);
 
       eventBus.emit("nodesRemoved", [textNode]);
 
@@ -440,7 +454,7 @@ describe("TranslationScanner", () => {
       const key = registerKey("element.key");
       const div = document.createElement("div");
       div.setAttribute("title", `Title ${encodeKeyToInvisible(key)}`);
-      eventBus.emit("structureChanges", [div]);
+      scanAndExpectRegistered("structureChanges", [div], div);
 
       eventBus.emit("nodesRemoved", [div]);
 
