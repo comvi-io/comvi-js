@@ -586,7 +586,10 @@ describe("proxy authorization", () => {
     expect(result.networkError).toMatch(/telemetry is disabled/);
   });
 
-  it("telemetry routes open when the effective SDK config enables collection", async () => {
+  // The flag is page-reported (MAIN world), so this is an honest-site opt-out,
+  // not a boundary: a hostile page can report true (see Gate E
+  // hostile-activation.spec.ts).
+  it("telemetry routes open when the page-reported activation result enables collection", async () => {
     const started = await startSession();
     await activate(started.nonce, pageSender(), { collectContext: true });
     const result = await proxyRequest({
@@ -597,7 +600,7 @@ describe("proxy authorization", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("effective SDK config can disable collection", async () => {
+  it("a page-reported false keeps telemetry closed", async () => {
     const started = await startSession();
     await activate(started.nonce, pageSender(), { collectContext: false });
     const result = await proxyRequest({

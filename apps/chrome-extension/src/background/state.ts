@@ -22,7 +22,7 @@ export interface SessionRecord {
   apiKey: string;
   /** Project id captured during key validation. */
   projectId?: string | number;
-  /** Effective SDK context-collection setting for this session. */
+  /** Page-reported context-collection setting (advisory, not a boundary). */
   collectContext: boolean;
   /** Single-use activation nonce; travels popup -> bridge -> SW, never the page. */
   nonce: string;

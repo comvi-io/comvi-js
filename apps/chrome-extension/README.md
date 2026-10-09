@@ -47,19 +47,24 @@ boundary in either direction:
   authenticated session are still created only after explicit activation in
   the popup.
 - Context collection (page origin, translation keys, on-screen layout hints)
-  follows the site's Comvi i18n `collectContext` option and is sent only to
-  **your own** Comvi project. Collection is enabled by default; set
-  `collectContext: false` in the site's i18n configuration to disable it. The
-  editor reports the effective setting during activation, and the service
-  worker binds it to that session before opening telemetry routes.
+  is sent only to **your own** Comvi project. It follows the site's Comvi i18n
+  `collectContext` option, which is on by default; set `collectContext: false`
+  in the site's i18n configuration to turn it off. The editor reports the
+  effective setting when it activates, and the service worker opens the
+  telemetry routes for that session only if the report says `true`. The report
+  comes from the page's MAIN world, so the setting is **advisory**: it is
+  honoured for an honest site, but it is not a security boundary (see below).
 
 **Residual risk, by design:** DOM events in the MAIN world are forgeable, so
 while a session is _active_ on a tab, scripts on that page can invoke the same
 proxy channel — meaning they can perform exactly the editor's own operations
-(read project locales/translations and save or delete translation keys; when
-the site's i18n config enables it, submit context telemetry for their own origin) against the project of the
-validated key. They cannot reach any other API route, another project's
-export, another origin's telemetry, or the key itself. Only enable the editor on sites you operate or trust, and prefer keys
+(read project locales/translations, save or delete translation keys, and submit
+context telemetry for their own origin) against the project of the validated
+key. The `collectContext: false` opt-out does not stop the telemetry part: a
+hostile page can answer the activation itself and report `collectContext: true`,
+because the single-use nonce proves that you started the activation, not what
+the page reports. They cannot reach any other API route, another project's
+export, telemetry for another origin, or the key itself. Only enable the editor on sites you operate or trust, and prefer keys
 scoped to a single project with the minimum required permissions. A hostile
 page can also fake the "Comvi detected" status in the popup and the activation
 acknowledgement — both are treated as UI/readiness signals only and grant no

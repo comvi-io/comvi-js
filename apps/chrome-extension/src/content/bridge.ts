@@ -164,8 +164,9 @@ function installBridge() {
     }
     sendRuntimeMessage({
       type: "EDITOR_ACTIVATED",
-      // `collectContext` is derived by the editor from the page's i18n config.
-      // The service worker uses the sanitized value to gate telemetry routes.
+      // `collectContext` is page-authored: the honest editor derives it from
+      // the page's i18n config, but any page script can answer first. The
+      // nonce proves the user started this activation, not this value.
       payload: { ...detail, nonce: takeActivationNonce() },
     });
   }) as EventListener);

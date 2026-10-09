@@ -336,8 +336,9 @@ export async function confirmActivation(
     const promoted: SessionRecord = {
       ...session,
       status: "active",
-      // The editor derives this value from the site's i18n.collectContext
-      // option. Keep telemetry routes closed unless activation reports true.
+      // Page-reported (MAIN world): an honest editor derives it from the
+      // site's i18n.collectContext, but a hostile page can report true. It is
+      // an opt-out for honest sites, not a boundary. Closed unless true.
       collectContext: effectiveCollectContext === true,
       expiresAt: 0,
       // Bind the acknowledging document; every proxy request must come from it.
