@@ -26,7 +26,8 @@ const CTX: ProxySessionContext = {
 const TELEMETRY_CTX: ProxySessionContext = { ...CTX, collectContext: true };
 
 /** Documented bounds, restated so a changed constant fails a test rather than drifting silently. */
-const MAX_PATH_LENGTH = 2048;
+/** Fits the longest key path: 255 + 768 decoded units at 9 encoded characters each. */
+const MAX_PATH_LENGTH = "/v1/keys/".length + (255 + 768) * 9 + "/".length;
 const MAX_ID_LENGTH = 128;
 const MAX_PARAM_LENGTH = 512;
 const MAX_KEY_LENGTH = 768;
@@ -351,17 +352,20 @@ describe("proxy contract — request envelope", () => {
     expectRejected({ path }, "Missing or invalid path");
   });
 
-  it("accepts a path of exactly the 2048-character limit", () => {
-    const path = translationsPathOfLength(MAX_PATH_LENGTH);
-    expect(path).toHaveLength(MAX_PATH_LENGTH);
-    expectOk({ path });
+  // The longest manageable key path: three-byte characters encode to 9 each.
+  const longestKeyPath = `/v1/keys/${encodeURIComponent("名".repeat(MAX_NAMESPACE_LENGTH))}/${encodeURIComponent("ア".repeat(MAX_KEY_LENGTH))}`;
+
+  it("accepts the longest key path, which is exactly the path limit", () => {
+    expect(longestKeyPath).toHaveLength(MAX_PATH_LENGTH);
+    expectOk({ path: longestKeyPath });
   });
 
   it("rejects a path one character past the limit", () => {
-    expectRejected(
-      { path: translationsPathOfLength(MAX_PATH_LENGTH + 1) },
-      "Missing or invalid path",
-    );
+    expectRejected({ path: `${longestKeyPath}x` }, "Missing or invalid path");
+  });
+
+  it("still accepts a long translations path", () => {
+    expectOk({ path: translationsPathOfLength(2048) });
   });
 
   it("rejects a method that is not a string", () => {
@@ -413,6 +417,25 @@ describe("proxy contract — path resolution", () => {
     expectRejected({ path }, "Trailing slash not allowed");
   });
 
+  // Matching used to drop empty segments while the fetch URL kept them, so
+  // "/v1//project" reached the API as a path outside the exact contract.
+  it.each([
+    ["a static route", "/v1//project"],
+    ["a static route with a leading repeat", "//v1/project?x"],
+    ["a parameterised route", "/v1/projects/42//export"],
+    ["a parameterised route with a repeat before the id", "/v1/projects//42/export"],
+  ])("rejects a repeated separator in %s", (_label, path) => {
+    const result = validateProxyRequest(req({ path }), BASE, CTX);
+    expect(result).toMatchObject({ ok: false });
+  });
+
+  it.each(["/v1//project", "/v1/projects/42//export", "/v1/projects//42/export"])(
+    "names the empty segment in %s",
+    (path) => {
+      expectRejected({ path }, "Empty path segment not allowed");
+    },
+  );
+
   it.each([
     ["/v1/../admin/users", "/admin/users"],
     ["/v1/%2e%2e/admin/users", "/admin/users"],
@@ -461,15 +484,37 @@ describe("proxy contract — route and method rejection", () => {
     },
   );
 
-  it("accepts a path parameter of exactly the 512-character limit", () => {
-    expectOk({ path: `/v1/keys/common/${"k".repeat(MAX_PARAM_LENGTH)}` });
+  // Path parameters share the save body's key/namespace domain, so whatever
+  // can be saved can be read back and deleted.
+  it("accepts a key parameter of exactly the save body's key limit", () => {
+    expectOk({ path: `/v1/keys/common/${"k".repeat(MAX_KEY_LENGTH)}` });
   });
 
-  it("rejects a path parameter one character past the limit", () => {
-    const key = "k".repeat(MAX_PARAM_LENGTH + 1);
+  it("rejects a key parameter one character past the save body's key limit", () => {
+    const key = "k".repeat(MAX_KEY_LENGTH + 1);
     expectRejected(
       { path: `/v1/keys/common/${key}` },
       `Not an allowed API call: GET /v1/keys/common/${key}`,
+    );
+  });
+
+  it("accepts a namespace parameter of exactly the save body's namespace limit", () => {
+    expectOk({ path: `/v1/keys/${"n".repeat(MAX_NAMESPACE_LENGTH)}/title` });
+  });
+
+  it("rejects a namespace parameter one character past the save body's namespace limit", () => {
+    const namespace = "n".repeat(MAX_NAMESPACE_LENGTH + 1);
+    expectRejected(
+      { path: `/v1/keys/${namespace}/title` },
+      `Not an allowed API call: GET /v1/keys/${namespace}/title`,
+    );
+  });
+
+  it("keeps the generic parameter cap for other parameters", () => {
+    const projectId = "1".repeat(MAX_PARAM_LENGTH + 1);
+    expectRejected(
+      { path: `/v1/projects/${projectId}/export` },
+      `Not an allowed API call: GET /v1/projects/${projectId}/export`,
     );
   });
 
@@ -548,6 +593,20 @@ describe("proxy contract — query validation", () => {
   ])("rejects %s", (_label, query, key) => {
     expectRejected({ path: `/v1/translations?${query}` }, `Invalid query parameter: ${key}`);
   });
+
+  // An inherited Object.prototype name must never be looked up as a validator:
+  // toString/constructor were accepted and forwarded, __proto__/valueOf threw.
+  it.each(Object.getOwnPropertyNames(Object.prototype))(
+    "rejects the inherited name %s without throwing",
+    (name) => {
+      const path = `/v1/translations?${encodeURIComponent(name)}=x`;
+      let result: ReturnType<typeof validateProxyRequest> | undefined;
+      expect(() => {
+        result = validateProxyRequest(req({ path }), BASE, CTX);
+      }).not.toThrow();
+      expect(result).toEqual({ ok: false, error: `Unexpected query parameter: ${name}` });
+    },
+  );
 
   it("accepts a locale list at exactly its item cap and item length", () => {
     const locales = Array(20).fill("l".repeat(64)).join(",");

@@ -100,6 +100,28 @@ describe("proxy sender document binding", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["no document identity", undefined],
+    ["an empty document identity", ""],
+  ])("fails closed for an active session with %s", async (_label, documentId) => {
+    getSession.mockResolvedValue({
+      status: "active",
+      origin: ORIGIN,
+      apiKey: "cmv_test",
+      collectContext: false,
+      nonce: "nonce",
+      navGen: 0,
+      expiresAt: 0,
+      documentId,
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    const result = await handleProxyRequest(request(), sender({ documentId }));
+
+    expect(result.networkError).toBe("Stale document");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a different document before network access", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
 

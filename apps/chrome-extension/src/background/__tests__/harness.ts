@@ -94,6 +94,13 @@ export interface Harness {
   fireDocumentReady(tabId: number, documentId?: string): Promise<unknown>;
   fireTabUpdated(tabId: number, changeInfo: { status?: string; url?: string }): void;
   fireInstalled(reason: "install" | "update"): void;
+  /**
+   * Decide how a document answers the worker's liveness message. The default
+   * answers for every document; a replaced or cached document rejects, as
+   * Chrome does when no receiving end exists.
+   */
+  respondToDocumentPing(responder: (documentId: string | undefined) => Promise<unknown>): void;
+  markDocumentGone(documentId: string): void;
   /** Open a raw port; `sender` defaults to an extension page (no tab). */
   connectPort(options?: { name?: string; sender?: chrome.runtime.MessageSender }): FakePort;
   openPopupLease(leaseId: string): FakePort;
@@ -110,6 +117,14 @@ export function installFakeChrome(): Harness {
   const connectListeners: Listener[] = [];
   const installedListeners: Listener[] = [];
   const tabUrls = new Map<number, string | undefined>();
+  const goneDocuments = new Set<string>();
+  const defaultPingResponder = async (documentId: string | undefined): Promise<unknown> => {
+    if (documentId !== undefined && goneDocuments.has(documentId)) {
+      throw new Error("Could not establish connection. Receiving end does not exist.");
+    }
+    return { alive: true };
+  };
+  let pingResponder = defaultPingResponder;
 
   const fake: FakeChrome = {
     storage: { session: new FakeStorageArea(), local: new FakeStorageArea() },
@@ -128,8 +143,22 @@ export function installFakeChrome(): Harness {
       query: vi.fn(async () =>
         [...tabUrls.entries()].map(([id, url]) => ({ id, url }) as chrome.tabs.Tab),
       ),
-      sendMessage: vi.fn((_tabId: number, _message: unknown, callback?: () => void) =>
-        callback?.(),
+      sendMessage: vi.fn(
+        (
+          _tabId: number,
+          message: unknown,
+          optionsOrCallback?: { documentId?: string } | (() => void),
+          maybeCallback?: () => void,
+        ) => {
+          const callback =
+            typeof optionsOrCallback === "function" ? optionsOrCallback : maybeCallback;
+          if ((message as { type?: unknown } | undefined)?.type === "PING_DOCUMENT") {
+            const options = typeof optionsOrCallback === "object" ? optionsOrCallback : {};
+            return pingResponder(options.documentId);
+          }
+          callback?.();
+          return undefined;
+        },
       ),
       onRemoved: { addListener: (fn) => removedListeners.push(fn) },
       onUpdated: { addListener: (fn) => updatedListeners.push(fn) },
@@ -211,6 +240,12 @@ export function installFakeChrome(): Harness {
     fireInstalled(reason) {
       for (const listener of installedListeners) listener({ reason });
     },
+    respondToDocumentPing(responder) {
+      pingResponder = responder;
+    },
+    markDocumentGone(documentId) {
+      goneDocuments.add(documentId);
+    },
     connectPort({ name = "comvi-popup-lifecycle", sender = {} } = {}) {
       const portMessageListeners: Listener[] = [];
       const disconnectListeners: Listener[] = [];
@@ -255,6 +290,8 @@ export function installFakeChrome(): Harness {
       fake.runtime.sendMessage.mockClear();
       fake.tabs.sendMessage.mockClear();
       tabUrls.clear();
+      goneDocuments.clear();
+      pingResponder = defaultPingResponder;
       // proxy-work keeps a module-level per-tab request log with a 60s window;
       // without this the suite's own requests accumulate against the rate cap.
       for (const tabId of tabIds) clearTabLimits(tabId);

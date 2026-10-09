@@ -25,7 +25,8 @@ export type MessageType =
   | "GET_SESSION_STATUS"
   | "SESSION_STATE_CHANGED"
   | "API_PROXY_REQUEST"
-  | "API_PROXY_ABORT";
+  | "API_PROXY_ABORT"
+  | "PING_DOCUMENT";
 
 export interface Message {
   type: MessageType;
@@ -74,6 +75,8 @@ export interface SessionStatusResponse {
   /** Cached detector state, used to render the popup without reinjection. */
   comviDetected?: boolean;
   version?: string;
+  /** Set when the worker could not determine the state (reported as inactive). */
+  unavailable?: string;
 }
 
 /** service worker -> popup: authoritative lifecycle completion for one tab. */

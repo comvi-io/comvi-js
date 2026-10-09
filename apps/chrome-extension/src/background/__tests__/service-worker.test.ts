@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vite
 import { installFakeChrome, type FakePort, type Harness } from "./harness";
 import { tabLockKey, withLock } from "../state";
 import { CURRENT_STORAGE_SCHEMA_VERSION, STORAGE_SCHEMA_KEY } from "../../shared/storage";
-import { sweepExpiredPendingSessions } from "../sessions";
+import { DOCUMENT_PING_TIMEOUT_MS, sweepExpiredPendingSessions } from "../sessions";
 
 const TAB = 7;
 /** Every tab id the suite proxies through; their rate-limit logs are reset per test. */
@@ -560,6 +560,22 @@ describe("proxy authorization", () => {
     expect(fetchMock.mock.calls.length).toBe(before);
   });
 
+  it.each(Object.getOwnPropertyNames(Object.prototype))(
+    "answers an inherited query name %s with a failure and no network access",
+    async (name) => {
+      await openActiveSession();
+      const before = fetchMock.mock.calls.length;
+      const result = await proxyRequest({
+        path: `/v1/translations?${encodeURIComponent(name)}=x`,
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        networkError: `Unexpected query parameter: ${name}`,
+      });
+      expect(fetchMock.mock.calls.length).toBe(before);
+    },
+  );
+
   it("telemetry routes stay closed when activation does not enable collection", async () => {
     await openActiveSession();
     const result = await proxyRequest({
@@ -570,7 +586,10 @@ describe("proxy authorization", () => {
     expect(result.networkError).toMatch(/telemetry is disabled/);
   });
 
-  it("telemetry routes open when the effective SDK config enables collection", async () => {
+  // The flag is page-reported (MAIN world), so this is an honest-site opt-out,
+  // not a boundary: a hostile page can report true (see Gate E
+  // hostile-activation.spec.ts).
+  it("telemetry routes open when the page-reported activation result enables collection", async () => {
     const started = await startSession();
     await activate(started.nonce, pageSender(), { collectContext: true });
     const result = await proxyRequest({
@@ -581,7 +600,7 @@ describe("proxy authorization", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("effective SDK config can disable collection", async () => {
+  it("a page-reported false keeps telemetry closed", async () => {
     const started = await startSession();
     await activate(started.nonce, pageSender(), { collectContext: false });
     const result = await proxyRequest({
@@ -862,6 +881,154 @@ describe("same-document SPA navigation", () => {
   });
 });
 
+// Chrome reports status "loading"/"complete" for History API routes as well
+// as for real navigations, so the status alone cannot revoke. The worker asks
+// the session's bound document whether it still exists.
+describe("top-level navigation without a replacement bridge", () => {
+  function pingedDocuments(): unknown[] {
+    return harness.chrome.tabs.sendMessage.mock.calls
+      .filter(([, message]) => (message as { type?: string }).type === "PING_DOCUMENT")
+      .map(([, , options]) => (options as { documentId?: string }).documentId);
+  }
+
+  it("keeps the session through History API status changes while its document answers", async () => {
+    await openActiveSession();
+
+    harness.setTabUrl(TAB, `${ORIGIN}/spa-route`);
+    harness.fireTabUpdated(TAB, { status: "loading", url: `${ORIGIN}/spa-route` });
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await harness.flush();
+
+    expect(pingedDocuments()).toEqual(["doc-1", "doc-1"]);
+    expect(await sessionStatus()).toMatchObject({ active: true, pending: false });
+    await expect(proxyRequest()).resolves.toMatchObject({ ok: true, status: 200 });
+  });
+
+  it("revokes the session and resets the toolbar when its document is gone", async () => {
+    await openActiveSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.action.setIcon.mockClear();
+
+    // e.g. chrome://settings: no content script runs, so no DOCUMENT_READY.
+    harness.markDocumentGone("doc-1");
+    harness.setTabUrl(TAB, undefined);
+    harness.fireTabUpdated(TAB, { status: "loading" });
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
+    expect(lastBadgeText()).toBe("");
+    const icons = harness.chrome.action.setIcon.mock.calls;
+    expect((icons[icons.length - 1]?.[0] as { path: Record<number, string> }).path[16]).toContain(
+      "icon-inactive-16",
+    );
+    expect(broadcasts()).toContainEqual({
+      tabId: TAB,
+      active: false,
+      pending: false,
+      comviDetected: false,
+    });
+    await expect(proxyRequest()).resolves.toMatchObject({ ok: false });
+  });
+
+  it("does not delete a replacement session bound to a newer document", async () => {
+    await openActiveSession();
+    let answerPing!: () => void;
+    harness.respondToDocumentPing(
+      () =>
+        new Promise((_resolve, reject) => {
+          answerPing = () => reject(new Error("Receiving end does not exist."));
+        }),
+    );
+
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await harness.flush();
+    const replacement = {
+      ...(harness.chrome.storage.session.snapshot()[`comvi_session_${TAB}`] as object),
+      documentId: "doc-2",
+      nonce: "nonce-2",
+    };
+    await harness.chrome.storage.session.set({ [`comvi_session_${TAB}`]: replacement });
+    answerPing();
+    await harness.flush();
+
+    expect(harness.chrome.storage.session.snapshot()[`comvi_session_${TAB}`]).toEqual(replacement);
+  });
+
+  it("revokes without messaging when the tab's top-level origin changed", async () => {
+    await openActiveSession();
+
+    harness.setTabUrl(TAB, "https://elsewhere.example/");
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await harness.flush();
+
+    expect(pingedDocuments()).toEqual([]);
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
+  });
+
+  // Observed in Chromium: a message to a document that is entering the
+  // back/forward cache is neither answered nor failed.
+  it("treats a document that never answers as gone", async () => {
+    await openActiveSession();
+    harness.respondToDocumentPing(() => new Promise(() => {}));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await vi.advanceTimersByTimeAsync(DOCUMENT_PING_TIMEOUT_MS + 1);
+    vi.useRealTimers();
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
+  });
+
+  it("keeps the session when the document answers just within the deadline", async () => {
+    await openActiveSession();
+    harness.respondToDocumentPing(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ alive: true }), DOCUMENT_PING_TIMEOUT_MS - 50),
+        ),
+    );
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    harness.fireTabUpdated(TAB, { status: "complete" });
+    await vi.advanceTimersByTimeAsync(DOCUMENT_PING_TIMEOUT_MS + 1);
+    vi.useRealTimers();
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ active: true, pending: false });
+  });
+
+  it("does not message any document when the tab has no active session", async () => {
+    await startSession(); // pending only: no document is bound yet
+
+    harness.fireTabUpdated(TAB, { status: "loading" });
+    await harness.flush();
+
+    expect(pingedDocuments()).toEqual([]);
+  });
+
+  it("ignores updates that carry no status", async () => {
+    await openActiveSession();
+
+    harness.fireTabUpdated(TAB, { url: `${ORIGIN}/another-route` });
+    await harness.flush();
+
+    expect(pingedDocuments()).toEqual([]);
+  });
+
+  it("revokes an active session when its own document is restored from the back/forward cache", async () => {
+    await openActiveSession();
+
+    const response = await harness.dispatchMessage(
+      { type: "DOCUMENT_READY", payload: { restored: true } },
+      pageSender(),
+    );
+
+    expect(response).toEqual({ ok: true });
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
+  });
+});
+
 // --- storage concurrency ---
 
 describe("storage concurrency", () => {
@@ -1102,6 +1269,111 @@ describe("DOCUMENT_READY", () => {
     const response = await harness.fireDocumentReady(TAB, "doc-3");
 
     expect(response).toEqual({ ok: false });
+  });
+});
+
+/** Resolve with the response, or NO_RESPONSE if the channel is never answered. */
+const NO_RESPONSE = Symbol("no response");
+function responseWithin(pending: Promise<unknown>, ms = 250): Promise<unknown> {
+  return Promise.race([
+    pending,
+    new Promise((resolve) => setTimeout(() => resolve(NO_RESPONSE), ms)),
+  ]);
+}
+
+describe("storage failures at the response boundary", () => {
+  const storageError = new Error("storage unavailable");
+
+  it("answers START_SESSION and rolls the pending record back when the key cannot be saved", async () => {
+    vi.spyOn(harness.chrome.storage.local, "set").mockRejectedValue(storageError);
+
+    const response = await responseWithin(startSession());
+
+    expect(response).toEqual({ ok: false, error: "Could not save the API key. Try again." });
+    expect(harness.chrome.storage.session.snapshot()).not.toHaveProperty(`comvi_session_${TAB}`);
+  });
+
+  it("answers END_SESSION with a failure when the session cannot be deleted", async () => {
+    await openActiveSession();
+    vi.spyOn(harness.chrome.storage.session, "remove").mockRejectedValue(storageError);
+
+    const response = await responseWithin(
+      harness.dispatchMessage({ type: "END_SESSION", payload: { tabId: TAB } }, popupSender),
+    );
+
+    expect(response).toEqual({ ok: false, error: "storage unavailable" });
+  });
+
+  it("answers ROLLBACK_ACTIVATION with a failure when the session cannot be read", async () => {
+    const started = await startSession();
+    vi.spyOn(harness.chrome.storage.session, "get").mockRejectedValue(storageError);
+
+    const response = await responseWithin(
+      harness.dispatchMessage(
+        { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
+        popupSender,
+      ),
+    );
+
+    expect(response).toEqual({ ok: false, error: "storage unavailable" });
+  });
+
+  it("answers FORGET_CREDENTIALS with a failure when the credentials cannot be read", async () => {
+    await openActiveSession();
+    vi.spyOn(harness.chrome.storage.local, "get").mockRejectedValue(storageError);
+
+    const response = await responseWithin(
+      harness.dispatchMessage(
+        { type: "FORGET_CREDENTIALS", payload: { origin: ORIGIN } },
+        popupSender,
+      ),
+    );
+
+    expect(response).toEqual({ ok: false, error: "storage unavailable" });
+  });
+
+  it("answers GET_SESSION_STATUS with a failure the popup can tell from inactive", async () => {
+    vi.spyOn(harness.chrome.storage.session, "get").mockRejectedValue(storageError);
+
+    const response = await responseWithin(
+      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
+    );
+
+    expect(response).toEqual({
+      active: false,
+      pending: false,
+      unavailable: "storage unavailable",
+    });
+  });
+
+  it("answers API_PROXY_REQUEST with a proxy failure when the session cannot be read", async () => {
+    await openActiveSession();
+    const before = fetchMock.mock.calls.length;
+    vi.spyOn(harness.chrome.storage.session, "get").mockRejectedValue(storageError);
+
+    const response = await responseWithin(proxyRequest({ id: "storage-down" }));
+
+    expect(response).toEqual({
+      id: "storage-down",
+      ok: false,
+      status: 0,
+      statusText: "",
+      body: "",
+      networkError: "storage unavailable",
+    });
+    expect(fetchMock.mock.calls.length).toBe(before);
+  });
+
+  it("retries a failed initialization on the next message", async () => {
+    await openActiveSession();
+    vi.spyOn(harness.chrome.storage.local, "get").mockRejectedValueOnce(storageError);
+
+    await expect(initializeServiceWorkerState()).rejects.toThrow("storage unavailable");
+    const response = await responseWithin(
+      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
+    );
+
+    expect(response).toMatchObject({ active: true, pending: false });
   });
 });
 
@@ -1440,15 +1712,143 @@ describe("in-flight proxy cancellation", () => {
   });
 });
 
-describe("extension lifecycle", () => {
-  it("keeps sessions when the worker restarts with a compatible schema", async () => {
+/**
+ * Evaluate a brand-new copy of the worker modules against a new chrome fake,
+ * as MV3 does after terminating an idle worker: no popup leases, locks,
+ * timers or listeners survive, only what `retained` copies into storage.
+ */
+async function startFreshWorker(
+  retained?: Harness,
+  prepare?: (fresh: Harness) => void,
+): Promise<Harness> {
+  vi.resetModules();
+  const fresh = installFakeChrome();
+  if (retained) {
+    await fresh.chrome.storage.session.set(retained.chrome.storage.session.snapshot());
+    await fresh.chrome.storage.local.set(retained.chrome.storage.local.snapshot());
+  }
+  fresh.setTabUrl(TAB, PAGE_URL);
+  prepare?.(fresh);
+  await import("../service-worker");
+  await fresh.flush();
+  return fresh;
+}
+
+describe("worker restart", () => {
+  it("recovers an active session in a fresh worker and keeps proxying for its document", async () => {
     await openActiveSession();
 
-    await initializeServiceWorkerState();
+    const fresh = await startFreshWorker(harness);
+    const status = await fresh.dispatchMessage(
+      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+      popupSender,
+    );
+    const proxied = await fresh.dispatchMessage(
+      { type: "API_PROXY_REQUEST", payload: { id: "after-restart", path: "/v1/project/locales" } },
+      pageSender(),
+    );
 
-    expect(await sessionStatus()).toMatchObject({ active: true });
+    expect(status).toMatchObject({ active: true, pending: false });
+    expect(proxied).toMatchObject({ id: "after-restart", ok: true, status: 200 });
   });
 
+  it("fails a pending session closed when its popup lease did not survive the restart", async () => {
+    const started = await startSession();
+
+    const fresh = await startFreshWorker(harness);
+    await fresh.dispatchMessage(
+      { type: "EDITOR_ACTIVATED", payload: { success: true, nonce: started.nonce } },
+      pageSender(),
+    );
+    await fresh.flush();
+    const proxied = await fresh.dispatchMessage(
+      { type: "API_PROXY_REQUEST", payload: { id: "pending", path: "/v1/project/locales" } },
+      pageSender(),
+    );
+
+    expect(fresh.chrome.storage.session.snapshot()).not.toHaveProperty(`comvi_session_${TAB}`);
+    expect(proxied).toMatchObject({
+      ok: false,
+      networkError: "No active editor session for this tab",
+    });
+  });
+
+  it("sweeps a pending session whose deadline passed while the worker was stopped", async () => {
+    await startSession();
+    const record = harness.chrome.storage.session.snapshot()[`comvi_session_${TAB}`] as {
+      expiresAt: number;
+    };
+    record.expiresAt = Date.now() - 1;
+
+    const fresh = await startFreshWorker(harness);
+
+    expect(fresh.chrome.storage.session.snapshot()).not.toHaveProperty(`comvi_session_${TAB}`);
+  });
+
+  it("restricts persisted credentials to trusted contexts before touching them", async () => {
+    const calls: string[] = [];
+    const fresh = await startFreshWorker(undefined, (worker) => {
+      const local = worker.chrome.storage.local as unknown as Record<string, unknown>;
+      local.setAccessLevel = vi.fn(async (options: { accessLevel: string }) => {
+        calls.push(`setAccessLevel:${options.accessLevel}`);
+      });
+      const get = worker.chrome.storage.local.get;
+      const set = worker.chrome.storage.local.set;
+      worker.chrome.storage.local.get = async (keys) => {
+        calls.push("get");
+        return get(keys);
+      };
+      worker.chrome.storage.local.set = async (items) => {
+        calls.push("set");
+        return set(items);
+      };
+    });
+    fresh.openPopupLease(POPUP_LEASE);
+
+    const started = await fresh.dispatchMessage(
+      {
+        type: "START_SESSION",
+        payload: { tabId: TAB, origin: ORIGIN, apiKey: API_KEY, popupLeaseId: POPUP_LEASE },
+      },
+      popupSender,
+    );
+
+    expect(started).toMatchObject({ ok: true });
+    expect(calls[0]).toBe("setAccessLevel:TRUSTED_CONTEXTS");
+    expect(calls.slice(1)).toContain("set");
+  });
+
+  it("still starts when the browser has no storage access-level API", async () => {
+    const fresh = await startFreshWorker(harness);
+
+    const status = await fresh.dispatchMessage(
+      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+      popupSender,
+    );
+
+    expect(status).toMatchObject({ active: false, pending: false });
+  });
+
+  it("still starts when the browser refuses to restrict local storage", async () => {
+    const fresh = await startFreshWorker(harness, (worker) => {
+      (worker.chrome.storage.local as unknown as Record<string, unknown>).setAccessLevel = vi.fn(
+        async () => {
+          throw new Error("This StorageArea is not available for setting access level");
+        },
+      );
+    });
+
+    const status = await fresh.dispatchMessage(
+      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+      popupSender,
+    );
+
+    expect(status).toMatchObject({ active: false, pending: false });
+    expect(status).not.toHaveProperty("unavailable");
+  });
+});
+
+describe("extension lifecycle", () => {
   it("publishes the cleared state for every tab an update revoked", async () => {
     await openActiveSession();
     harness.chrome.runtime.sendMessage.mockClear();

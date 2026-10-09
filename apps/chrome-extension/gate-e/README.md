@@ -57,6 +57,22 @@ The Playwright gate runs phases 1–5 without user input:
 4. navigation while API-key validation is in flight;
 5. popup closure while activation is pending.
 
+`hostile-activation.spec.ts` documents a residual risk rather than a
+boundary. A page that answers the activation before the detector can report
+`collectContext: true` although its i18n config says `false`, and the
+session then accepts telemetry for the page's own origin. The spec asserts
+exactly that, and that telemetry for another origin, another project's export
+and the key all stay out of reach.
+
+`navigation.spec.ts` runs with the back/forward cache enabled (Playwright
+disables it by default). It navigates an active tab to `about:blank`, where no
+content script runs, and requires the session and the `ON` badge to be gone.
+Before navigating it also evaluates `chrome.storage.local.get` in the
+extension's content-script world over CDP and requires it to be denied, so the
+saved key stays with the worker and the popup. It then goes Back, checks that the cached document really was restored, and
+requires that document to hold no authority, its editor runtime to be torn
+down, and a new activation from the popup to succeed.
+
 Phase 6 (same API key across two page origins) is covered deterministically by
 the service-worker integration test `revokes sessions on other origins that
 use the same API key`. Chromium's programmatic `openPopup()` does not grant
@@ -108,14 +124,14 @@ The page shows PASS/FAIL per check and an overall verdict. Results are also on
 
 ## What each phase proves
 
-| Phase | Boundary claim                                                                                                                                                                                                                                                                                                   |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | No proxy authority exists without a popup-created, activated session; forged detection/activation grant nothing.                                                                                                                                                                                                 |
-| 2     | An active session is confined to the exact editor route contract, bound to the validated project, size/rate limited, and telemetry stays closed when the site's i18n config disables it. Credentials never leave the service worker (no `/v1` request the page didn't authorize; page sends no `Authorization`). |
-| 3     | "Forget key" revokes authority across the tab immediately.                                                                                                                                                                                                                                                       |
-| 4     | Navigation during validation cannot authorize the replacement document or reuse its channel.                                                                                                                                                                                                                     |
-| 5     | Popup teardown before confirmation revokes pending activation.                                                                                                                                                                                                                                                   |
-| 6     | Forget removes every persisted credential/session sharing the API key across origins.                                                                                                                                                                                                                            |
+| Phase | Boundary claim                                                                                                                                                                                                                                                                                                                 |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | No proxy authority exists without a popup-created, activated session; forged detection/activation grant nothing.                                                                                                                                                                                                               |
+| 2     | An active session is confined to the exact editor route contract, bound to the validated project, size/rate limited, and telemetry stays closed when an honest site's i18n config disables it. Credentials never leave trusted extension contexts (no `/v1` request the page didn't authorize; page sends no `Authorization`). |
+| 3     | "Forget key" revokes authority across the tab immediately.                                                                                                                                                                                                                                                                     |
+| 4     | Navigation during validation cannot authorize the replacement document or reuse its channel.                                                                                                                                                                                                                                   |
+| 5     | Popup teardown before confirmation revokes pending activation.                                                                                                                                                                                                                                                                 |
+| 6     | Forget removes every persisted credential/session sharing the API key across origins.                                                                                                                                                                                                                                          |
 
 ## Notes
 

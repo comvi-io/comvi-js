@@ -509,6 +509,30 @@ describe("pending expiry", () => {
     expect(lastIconPath()).toContain("icon-inactive-16");
   });
 
+  // The expired record is read before the tab lock. A replacement created in
+  // that window belongs to a newer activation and must survive the cleanup.
+  it.each([
+    ["a status read", () => getLiveSession(TAB)],
+    ["the startup sweep", () => sweepExpiredPendingSessions()],
+  ])("keeps a replacement created while %s waits for the tab lock", async (_label, cleanup) => {
+    await putSession(TAB, storedSession({ status: "pending", expiresAt: Date.now() - 1 }));
+    const lock = holdTabLock();
+
+    const cleaning = cleanup();
+    await settle();
+    const replacement = storedSession({
+      status: "pending",
+      nonce: "nonce-replacement",
+      expiresAt: Date.now() + PENDING_TTL_MS,
+    });
+    await putSession(TAB, replacement);
+    lock.release();
+    await lock.done;
+    await cleaning;
+
+    await expect(getSession(TAB)).resolves.toEqual(replacement);
+  });
+
   it("only removes the session its own deadline was scheduled for", async () => {
     vi.useFakeTimers();
     await openPendingSession();
@@ -582,6 +606,20 @@ describe("activation", () => {
 
     expect(lastIconPath()).toContain("icon-detected-16");
     expect(harness.chrome.action.setBadgeText).toHaveBeenCalledWith({ text: "ON", tabId: TAB });
+  });
+
+  // Proxy enforcement is bound to the acknowledging document. Without a
+  // document identity there is nothing to bind, so promotion fails closed.
+  it.each([
+    ["missing", undefined],
+    ["empty", ""],
+  ])("refuses an acknowledgement whose document identity is %s", async (_label, documentId) => {
+    const nonce = await openPendingSession();
+
+    await expect(
+      confirmActivation(TAB, pageSender({ documentId }), nonce, true, () => true),
+    ).resolves.toBe(false);
+    await expect(getSession(TAB)).resolves.toMatchObject({ status: "pending" });
   });
 
   it("refuses an acknowledgement for a tab with no session", async () => {
@@ -794,8 +832,29 @@ describe("revocation from an editor lifecycle event", () => {
   it("refuses a deactivation from a subframe", async () => {
     await openActiveSession();
 
-    await expect(revokeSessionFromSender(TAB, pageSender({ frameId: 2 }))).resolves.toBe(false);
+    // A subframe is its own document; Chrome never gives it the top document's id.
+    await expect(
+      revokeSessionFromSender(TAB, pageSender({ frameId: 2, documentId: "subframe-doc" })),
+    ).resolves.toBe(false);
     await expect(getSession(TAB)).resolves.toMatchObject({ status: "active" });
+  });
+
+  // Observed in Chromium: a top-level document entering the back/forward
+  // cache sends its pagehide message with a non-zero frameId and
+  // documentLifecycle "cached". Its document id still identifies it.
+  it("revokes when the bound document leaves for the back/forward cache", async () => {
+    await openActiveSession();
+
+    await expect(
+      revokeSessionFromSender(
+        TAB,
+        pageSender({
+          frameId: 2,
+          documentLifecycle: "cached",
+        } as Partial<chrome.runtime.MessageSender>),
+      ),
+    ).resolves.toBe(true);
+    await expect(getSession(TAB)).resolves.toBeUndefined();
   });
 
   it("refuses a deactivation from another origin", async () => {

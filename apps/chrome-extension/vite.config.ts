@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
+import { isReleaseOutput, RELEASE_DIR_NAME } from "./src/build/release-output";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
@@ -53,7 +54,7 @@ export default defineConfig(({ mode }) => {
   // (dist-gate-e) without clobbering the shippable dist/. The copy plugin
   // below honors the same value — do NOT use vite's --outDir flag, which the
   // plugin cannot see.
-  const outDir = env.COMVI_OUT_DIR?.trim() || "dist";
+  const outDir = env.COMVI_OUT_DIR?.trim() || RELEASE_DIR_NAME;
   // A gate-e build that points at a non-loopback API is a mis-configured build (typically a
   // production VITE_COMVI_API_BASE_URL leaking in from the environment): its host_permissions
   // would not cover the mock origin and every popup check would silently fail.
@@ -65,7 +66,8 @@ export default defineConfig(({ mode }) => {
   let testPageOrigin: string | undefined;
   if (testPageOriginValue) {
     const testPageUrl = new URL(testPageOriginValue);
-    if (outDir === "dist" || !LOOPBACK_HOSTS.has(testPageUrl.hostname)) {
+    // Compare resolved paths: "./dist" or an absolute path is still dist/.
+    if (isReleaseOutput(outDir, __dirname) || !LOOPBACK_HOSTS.has(testPageUrl.hostname)) {
       throw new Error(
         "COMVI_TEST_PAGE_ORIGIN is restricted to non-release builds on an exact loopback host",
       );

@@ -30,12 +30,29 @@ export type ProxyValidationResult =
   | { ok: true; url: string; method: string; body?: string; keepalive: boolean; id: string }
   | { ok: false; error: string };
 
-const MAX_PATH_LENGTH = 2048;
 const MAX_BODY_BYTES = 1_000_000;
 const MAX_JSON_DEPTH = 8;
 const MAX_TRANSLATIONS = 100;
+/**
+ * The key/namespace domain the editor can manage, shared by the PUT body and
+ * the GET/DELETE path parameters so that anything saved can be read back and
+ * deleted. 768 matches the platform's translation_keys.key column.
+ */
 const MAX_KEY_LENGTH = 768;
 const MAX_NAMESPACE_LENGTH = 255;
+/**
+ * Path separators are refused in keys and namespaces on every call: the path
+ * routes would need encoded slashes, whose backend handling is unverified.
+ */
+const KEY_PATH_SEPARATORS = /[/\\]/;
+const KEY_SEPARATOR_ERROR =
+  'Keys and namespaces containing "/" or "\\" cannot be edited through the extension';
+/** Worst case percent-encoding: one UTF-16 unit of a 3-byte character is 9 characters. */
+const MAX_ENCODED_CHARS_PER_UNIT = 9;
+const MAX_PATH_LENGTH = Math.max(
+  2048,
+  "/v1/keys/".length + (MAX_NAMESPACE_LENGTH + MAX_KEY_LENGTH) * MAX_ENCODED_CHARS_PER_UNIT + 1,
+);
 const MAX_TRANSLATION_VALUE_LENGTH = 65_536;
 const MAX_LOCALE_LENGTH = 50;
 const CONTEXT_BATCH_CAP = 100;
@@ -139,6 +156,9 @@ const validateSaveKeyBody: BodyValidator = (body) => {
 
   if (!isBoundedString(body.key, MAX_KEY_LENGTH)) return "Invalid key";
   if (!isBoundedString(body.namespace, MAX_NAMESPACE_LENGTH)) return "Invalid namespace";
+  if (KEY_PATH_SEPARATORS.test(body.key) || KEY_PATH_SEPARATORS.test(body.namespace)) {
+    return KEY_SEPARATOR_ERROR;
+  }
   if (typeof body.isPlural !== "boolean") return "Invalid isPlural";
   if (!isPlainObject(body.translations)) return "Invalid translations";
 
@@ -481,6 +501,11 @@ export const PROXY_ROUTE_CONTRACT: ProxyRouteContractEntry[] = ROUTES.map((route
 }));
 
 const MAX_PARAM_LENGTH = 512;
+/** Decoded length caps for named path parameters; others use MAX_PARAM_LENGTH. */
+const PARAM_MAX_LENGTH = new Map<string, number>([
+  ["namespace", MAX_NAMESPACE_LENGTH],
+  ["key", MAX_KEY_LENGTH],
+]);
 
 /**
  * Match a decoded-per-segment pathname against a rule. Returns extracted
@@ -501,10 +526,11 @@ function matchSegments(pathSegments: string[], rule: RouteRule): Record<string, 
       } catch {
         return null;
       }
-      if (!isBoundedString(decoded, MAX_PARAM_LENGTH)) return null;
+      const name = pattern.slice(1);
+      if (!isBoundedString(decoded, PARAM_MAX_LENGTH.get(name) ?? MAX_PARAM_LENGTH)) return null;
       // A decoded slash would change the effective path on some backends.
       if (decoded.includes("/") || decoded.includes("\\")) return null;
-      params[pattern.slice(1)] = decoded;
+      params[name] = decoded;
     } else if (rawSegment !== pattern) {
       return null;
     }
@@ -565,9 +591,14 @@ export function validateProxyRequest(
 
   // Split the (still percent-encoded) pathname into segments. The URL parser
   // has already normalized dot segments, including percent-encoded forms.
-  const pathSegments = resolved.pathname.split("/").filter((segment) => segment.length > 0);
+  // Empty segments are rejected, not dropped: the fetch URL keeps them, so
+  // "/v1//project" would otherwise reach the API outside the exact contract.
   if (resolved.pathname.endsWith("/")) {
     return { ok: false, error: "Trailing slash not allowed" };
+  }
+  const pathSegments = resolved.pathname.slice(1).split("/");
+  if (pathSegments.includes("")) {
+    return { ok: false, error: "Empty path segment not allowed" };
   }
 
   let matched: { rule: RouteRule; params: Record<string, string> } | null = null;
@@ -609,8 +640,13 @@ export function validateProxyRequest(
     return { ok: false, error: "Duplicate query parameters" };
   }
   for (const key of queryKeys) {
-    const validator = rule.query?.[key];
-    if (!validator) {
+    // Own properties only: an inherited name such as "toString" or
+    // "__proto__" is not a declared parameter and must not reach a lookup.
+    const validator =
+      rule.query && Object.prototype.hasOwnProperty.call(rule.query, key)
+        ? rule.query[key]
+        : undefined;
+    if (typeof validator !== "function") {
       return { ok: false, error: `Unexpected query parameter: ${key}` };
     }
     const value = resolved.searchParams.get(key) ?? "";
