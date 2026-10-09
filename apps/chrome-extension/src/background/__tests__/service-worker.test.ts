@@ -1561,15 +1561,143 @@ describe("in-flight proxy cancellation", () => {
   });
 });
 
-describe("extension lifecycle", () => {
-  it("keeps sessions when the worker restarts with a compatible schema", async () => {
+/**
+ * Evaluate a brand-new copy of the worker modules against a new chrome fake,
+ * as MV3 does after terminating an idle worker: no popup leases, locks,
+ * timers or listeners survive, only what `retained` copies into storage.
+ */
+async function startFreshWorker(
+  retained?: Harness,
+  prepare?: (fresh: Harness) => void,
+): Promise<Harness> {
+  vi.resetModules();
+  const fresh = installFakeChrome();
+  if (retained) {
+    await fresh.chrome.storage.session.set(retained.chrome.storage.session.snapshot());
+    await fresh.chrome.storage.local.set(retained.chrome.storage.local.snapshot());
+  }
+  fresh.setTabUrl(TAB, PAGE_URL);
+  prepare?.(fresh);
+  await import("../service-worker");
+  await fresh.flush();
+  return fresh;
+}
+
+describe("worker restart", () => {
+  it("recovers an active session in a fresh worker and keeps proxying for its document", async () => {
     await openActiveSession();
 
-    await initializeServiceWorkerState();
+    const fresh = await startFreshWorker(harness);
+    const status = await fresh.dispatchMessage(
+      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+      popupSender,
+    );
+    const proxied = await fresh.dispatchMessage(
+      { type: "API_PROXY_REQUEST", payload: { id: "after-restart", path: "/v1/project/locales" } },
+      pageSender(),
+    );
 
-    expect(await sessionStatus()).toMatchObject({ active: true });
+    expect(status).toMatchObject({ active: true, pending: false });
+    expect(proxied).toMatchObject({ id: "after-restart", ok: true, status: 200 });
   });
 
+  it("fails a pending session closed when its popup lease did not survive the restart", async () => {
+    const started = await startSession();
+
+    const fresh = await startFreshWorker(harness);
+    await fresh.dispatchMessage(
+      { type: "EDITOR_ACTIVATED", payload: { success: true, nonce: started.nonce } },
+      pageSender(),
+    );
+    await fresh.flush();
+    const proxied = await fresh.dispatchMessage(
+      { type: "API_PROXY_REQUEST", payload: { id: "pending", path: "/v1/project/locales" } },
+      pageSender(),
+    );
+
+    expect(fresh.chrome.storage.session.snapshot()).not.toHaveProperty(`comvi_session_${TAB}`);
+    expect(proxied).toMatchObject({
+      ok: false,
+      networkError: "No active editor session for this tab",
+    });
+  });
+
+  it("sweeps a pending session whose deadline passed while the worker was stopped", async () => {
+    await startSession();
+    const record = harness.chrome.storage.session.snapshot()[`comvi_session_${TAB}`] as {
+      expiresAt: number;
+    };
+    record.expiresAt = Date.now() - 1;
+
+    const fresh = await startFreshWorker(harness);
+
+    expect(fresh.chrome.storage.session.snapshot()).not.toHaveProperty(`comvi_session_${TAB}`);
+  });
+
+  it("restricts persisted credentials to trusted contexts before touching them", async () => {
+    const calls: string[] = [];
+    const fresh = await startFreshWorker(undefined, (worker) => {
+      const local = worker.chrome.storage.local as unknown as Record<string, unknown>;
+      local.setAccessLevel = vi.fn(async (options: { accessLevel: string }) => {
+        calls.push(`setAccessLevel:${options.accessLevel}`);
+      });
+      const get = worker.chrome.storage.local.get;
+      const set = worker.chrome.storage.local.set;
+      worker.chrome.storage.local.get = async (keys) => {
+        calls.push("get");
+        return get(keys);
+      };
+      worker.chrome.storage.local.set = async (items) => {
+        calls.push("set");
+        return set(items);
+      };
+    });
+    fresh.openPopupLease(POPUP_LEASE);
+
+    const started = await fresh.dispatchMessage(
+      {
+        type: "START_SESSION",
+        payload: { tabId: TAB, origin: ORIGIN, apiKey: API_KEY, popupLeaseId: POPUP_LEASE },
+      },
+      popupSender,
+    );
+
+    expect(started).toMatchObject({ ok: true });
+    expect(calls[0]).toBe("setAccessLevel:TRUSTED_CONTEXTS");
+    expect(calls.slice(1)).toContain("set");
+  });
+
+  it("still starts when the browser has no storage access-level API", async () => {
+    const fresh = await startFreshWorker(harness);
+
+    const status = await fresh.dispatchMessage(
+      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+      popupSender,
+    );
+
+    expect(status).toMatchObject({ active: false, pending: false });
+  });
+
+  it("still starts when the browser refuses to restrict local storage", async () => {
+    const fresh = await startFreshWorker(harness, (worker) => {
+      (worker.chrome.storage.local as unknown as Record<string, unknown>).setAccessLevel = vi.fn(
+        async () => {
+          throw new Error("This StorageArea is not available for setting access level");
+        },
+      );
+    });
+
+    const status = await fresh.dispatchMessage(
+      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+      popupSender,
+    );
+
+    expect(status).toMatchObject({ active: false, pending: false });
+    expect(status).not.toHaveProperty("unavailable");
+  });
+});
+
+describe("extension lifecycle", () => {
   it("publishes the cleared state for every tab an update revoked", async () => {
     await openActiveSession();
     harness.chrome.runtime.sendMessage.mockClear();

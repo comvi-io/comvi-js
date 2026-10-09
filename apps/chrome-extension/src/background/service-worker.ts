@@ -59,10 +59,27 @@ async function reconcileAllBadges(): Promise<void> {
   );
 }
 
+/**
+ * chrome.storage.local is readable from content scripts by default. Keep the
+ * persisted credential map to trusted extension contexts (this worker and the
+ * popup) before any credential is read or written. Browsers that cannot set
+ * the level keep the default, which no content script of ours reads.
+ */
+async function restrictCredentialStorage(): Promise<void> {
+  const local = chrome.storage.local as Partial<chrome.storage.StorageArea>;
+  if (typeof local.setAccessLevel !== "function") return;
+  try {
+    await local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
+  } catch {
+    // Unsupported for this storage area on this browser version.
+  }
+}
+
 export function initializeServiceWorkerState(clearSessions = false): Promise<void> {
   initialization = initialization
     .catch(() => {})
     .then(async () => {
+      await restrictCredentialStorage();
       const migrated = await ensureStorageSchema();
       if (clearSessions || migrated) {
         const affectedTabs = [...(await getAllSessions()).keys()];

@@ -17,8 +17,12 @@ arbitrary first- and third-party scripts, so nothing secret crosses that
 boundary in either direction:
 
 - The key is entered in the popup, validated by the **service worker** against
-  the API, and only then persisted (per-origin, `chrome.storage.local`). It can
-  be removed with the popup's "Forget key" button.
+  the API, and only then persisted (per-origin, `chrome.storage.local`). Key
+  custody is limited to **trusted extension contexts**: the service worker,
+  which attaches it to proxied requests, and the popup, which shows the saved
+  key. On startup the worker restricts `chrome.storage.local` to those
+  contexts, so the extension's content scripts cannot read it. The key can be
+  removed with the popup's "Forget key" button.
 - The editor runtime is activated with a **proxy transport**: API requests
   (path + body only) travel over DOM events to the isolated-world bridge and on
   to the service worker, which attaches the `Authorization` header and performs
