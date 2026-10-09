@@ -47,13 +47,12 @@ export class ElementHighlighter {
   private isAltKeyPressed: boolean = false;
   private hoveredElement: Element | null = null;
   private highlightedElements: Set<Element> = new Set();
-  private scrollableContainers: Set<Element> = new Set();
   private readonly highlightStyle: HighlightStyle;
 
   private elementKeyMap: Map<Element, string[]> = new Map();
 
-  /** The animation frame a scroll or resize has queued a reposition for. */
-  private pendingRepositionFrame: number | null = null;
+  /** The frame of the per-frame position tracking, while the overlay is shown. */
+  private trackingFrame: number | null = null;
 
   private unsubscribers: (() => void)[] = [];
 
@@ -73,7 +72,6 @@ export class ElementHighlighter {
     this.handleMouseOver = this.handleMouseOver.bind(this);
     this.handleMouseOut = this.handleMouseOut.bind(this);
     this.handleClick = this.handleClick.bind(this);
-    this.handleScroll = this.handleScroll.bind(this);
     this.handleWindowBlur = this.handleWindowBlur.bind(this);
 
     this.subscribeToEvents();
@@ -328,55 +326,44 @@ export class ElementHighlighter {
     }
   }
 
-  /** Scroll and resize: one reposition per animation frame, so a continuous scroll is followed. */
-  private handleScroll = (): void => {
-    if (this.pendingRepositionFrame !== null) {
+  /**
+   * Follows the active element once per animation frame while the overlay is
+   * shown: scrolling, resizing and layout shifts all move it, and only a
+   * per-frame read catches all three. The page is measured once per frame and
+   * written only when the rectangle changed.
+   */
+  private startPositionTracking(): void {
+    if (this.trackingFrame !== null) {
       return;
     }
-    this.pendingRepositionFrame = requestAnimationFrame(() => {
-      this.pendingRepositionFrame = null;
-      if (this.activeHighlight && this.activeElement) {
-        this.updateHighlightPosition(this.activeHighlight, this.activeElement);
+    let lastGeometry = "";
+    const track = () => {
+      this.trackingFrame = null;
+      const overlay = this.activeHighlight;
+      const element = this.activeElement;
+      if (!overlay || !element) {
+        return;
       }
-    });
-  };
-
-  private cancelPendingReposition(): void {
-    if (this.pendingRepositionFrame !== null) {
-      cancelAnimationFrame(this.pendingRepositionFrame);
-      this.pendingRepositionFrame = null;
-    }
+      if (!element.isConnected) {
+        this.updateHighlightPosition(overlay, element);
+        return;
+      }
+      const rect = element.getBoundingClientRect();
+      const geometry = `${rect.top},${rect.left},${rect.width},${rect.height},${window.scrollX},${window.scrollY}`;
+      if (geometry !== lastGeometry) {
+        lastGeometry = geometry;
+        this.updateHighlightPosition(overlay, element);
+      }
+      this.trackingFrame = requestAnimationFrame(track);
+    };
+    this.trackingFrame = requestAnimationFrame(track);
   }
 
-  private findScrollableAncestors(element: Element): Element[] {
-    const scrollableAncestors: Element[] = [];
-    let current = this.getParentElementAcrossShadow(element);
-
-    while (current) {
-      const style = window.getComputedStyle(current);
-      const overflowY = style.overflowY;
-      const overflowX = style.overflowX;
-
-      if (
-        overflowY === "auto" ||
-        overflowY === "scroll" ||
-        overflowX === "auto" ||
-        overflowX === "scroll"
-      ) {
-        scrollableAncestors.push(current);
-      }
-
-      current = this.getParentElementAcrossShadow(current);
+  private stopPositionTracking(): void {
+    if (this.trackingFrame !== null) {
+      cancelAnimationFrame(this.trackingFrame);
+      this.trackingFrame = null;
     }
-
-    return scrollableAncestors;
-  }
-
-  private cleanupScrollListeners(): void {
-    this.scrollableContainers.forEach((container) => {
-      container.removeEventListener("scroll", this.handleScroll);
-    });
-    this.scrollableContainers.clear();
   }
 
   private ensureOverlayExists(element: Element): void {
@@ -399,18 +386,8 @@ export class ElementHighlighter {
         if (this.activeTooltip) this.activeTooltip.style.opacity = "1";
       });
 
-      window.addEventListener("scroll", this.handleScroll, { passive: true });
-      window.addEventListener("resize", this.handleScroll, { passive: true });
-
-      const scrollableAncestors = this.findScrollableAncestors(element);
-      scrollableAncestors.forEach((container) => {
-        container.addEventListener("scroll", this.handleScroll, {
-          passive: true,
-        });
-        this.scrollableContainers.add(container);
-      });
+      this.startPositionTracking();
     } else {
-      this.cleanupScrollListeners();
       this.activeElement = element;
       this.updateHighlightPosition(this.activeHighlight, element);
 
@@ -424,14 +401,6 @@ export class ElementHighlighter {
           if (this.activeTooltip) this.activeTooltip.style.opacity = "1";
         });
       }
-
-      const scrollableAncestors = this.findScrollableAncestors(element);
-      scrollableAncestors.forEach((container) => {
-        container.addEventListener("scroll", this.handleScroll, {
-          passive: true,
-        });
-        this.scrollableContainers.add(container);
-      });
     }
   }
 
@@ -465,10 +434,7 @@ export class ElementHighlighter {
       this.activeHighlight = null;
       this.activeElement = null;
       this.removeTooltip();
-      window.removeEventListener("scroll", this.handleScroll);
-      window.removeEventListener("resize", this.handleScroll);
-      this.cleanupScrollListeners();
-      this.cancelPendingReposition();
+      this.stopPositionTracking();
     }
   }
 
@@ -477,7 +443,7 @@ export class ElementHighlighter {
     this.highlightedElements.clear();
     this.elementKeyMap.clear();
 
-    this.cancelPendingReposition();
+    this.stopPositionTracking();
 
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
@@ -491,10 +457,6 @@ export class ElementHighlighter {
       capture: true,
     });
     document.removeEventListener("click", this.handleClick, { capture: true });
-    window.removeEventListener("scroll", this.handleScroll);
-    window.removeEventListener("resize", this.handleScroll);
     window.removeEventListener("blur", this.handleWindowBlur);
-
-    this.cleanupScrollListeners();
   }
 }
