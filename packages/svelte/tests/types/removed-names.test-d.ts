@@ -17,8 +17,9 @@ export type _NoGetI18nContext = Expect<
   Equal<"getI18nContext" extends keyof typeof rootEntry ? true : false, false>
 >;
 
-// `skipPostProcess` is the prop; tag handlers come from `components`. Neither
-// `raw` nor `allowedTags` is declared, so each falls into the
+// `markers` is the prop; tag handlers come from `components`. Neither
+// `raw`, `skipPostProcess` nor `allowedTags` is declared, so each falls into the
 // interpolation-param widening like any other undeclared key.
 export type _RawIsJustAParam = Expect<Equal<TProps["raw"], unknown>>;
+export type _SkipPostProcessIsJustAParam = Expect<Equal<TProps["skipPostProcess"], unknown>>;
 export type _AllowedTagsIsJustAParam = Expect<Equal<TProps["allowedTags"], unknown>>;

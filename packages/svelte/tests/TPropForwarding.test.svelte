@@ -15,14 +15,14 @@
   export let locale: string | undefined = undefined;
   export let passFallback: boolean = false;
   export let fallback: string | undefined = undefined;
-  export let passSkipPostProcess: boolean = false;
-  export let skipPostProcess: boolean = false;
+  export let passMarkers: boolean = false;
+  export let markers: boolean = true;
 
   $: forwarded = {
     ...(passNs ? { ns } : {}),
     ...(passLocale ? { locale } : {}),
     ...(passFallback ? { fallback } : {}),
-    ...(passSkipPostProcess ? { skipPostProcess } : {}),
+    ...(passMarkers ? { markers } : {}),
   };
 
   setI18nContext(i18n);

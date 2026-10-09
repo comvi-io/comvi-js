@@ -116,10 +116,10 @@ const TComponent = /*@__PURE__*/ defineComponent({
     },
 
     /**
-     * Skip post-processing — notably the invisible marker characters the
-     * in-context editor injects.
+     * `false` keeps the in-context editor's invisible markers out of this call's result; use it
+     * for text that lands in attributes, `<title>`, emails or JSON. Nothing else reads it.
      */
-    skipPostProcess: {
+    markers: {
       type: Boolean,
       default: undefined,
     },
@@ -185,7 +185,7 @@ const TComponent = /*@__PURE__*/ defineComponent({
       // Every undeclared attribute is an interpolation param, matching the
       // react wrapper: `<T i18nKey="cart" :count="2" />` is `params: { count: 2 }`.
       // A direct prop wins a name collision with `params`, again as in react.
-      // Declared props (`ns`, `locale`, `fallback`, `skipPostProcess`,
+      // Declared props (`ns`, `locale`, `fallback`, `markers`,
       // `components`, `params`, `i18nKey`) never reach `attrs`, so they
       // cannot leak in here.
       const params = props.params as TranslationParams;
@@ -198,7 +198,7 @@ const TComponent = /*@__PURE__*/ defineComponent({
         ns: props.ns,
         locale: props.locale,
         fallback: props.fallback,
-        raw: props.skipPostProcess,
+        markers: props.markers,
         components: hasHandlers ? merged : undefined,
       });
 

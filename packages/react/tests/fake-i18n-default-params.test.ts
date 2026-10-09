@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 describe("FakeI18n defaultParams contract", () => {
-  it.each(["locale", "ns", "fallback", "raw"])(
+  it.each(["locale", "ns", "fallback", "markers"])(
     "rejects the reserved call-control key %s",
     (key) => {
       expect(
@@ -10,7 +10,7 @@ describe("FakeI18n defaultParams contract", () => {
           new FakeI18n({
             defaultParams: { [key]: "invalid" },
           } as never),
-      ).toThrow(/defaultParams.*locale.*ns.*fallback.*raw/i);
+      ).toThrow(/defaultParams.*locale.*ns.*fallback.*markers/i);
     },
   );
 
@@ -27,7 +27,7 @@ describe("FakeI18n defaultParams contract", () => {
     const fake = new FakeI18n();
 
     expect(() => fake.setDefaultParams({ locale: "de" } as never)).toThrow(
-      /defaultParams.*locale.*ns.*fallback.*raw/i,
+      /defaultParams.*locale.*ns.*fallback.*markers/i,
     );
     expect(() => fake.setDefaultParams({ formality: null } as never)).toThrow(
       /defaultParams.*null.*undefined/i,

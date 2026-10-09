@@ -2,7 +2,7 @@
  * The three transports `prepareTranslation` multiplexes into ONE `tRaw` call,
  * at the points where a wrapper can tell them apart:
  *
- *  • reserved props (`ns`/`locale`/`fallback`/`raw`) vs. the same-named
+ *  • reserved props (`ns`/`locale`/`fallback`/`markers`) vs. the same-named
  *    `params` keys — a prop only speaks when the wrapper actually passed one;
  *  • `params.tagInterpolation` — a caller's own per-call options must survive
  *    the tag extension being added to them, extensions included;
@@ -11,7 +11,7 @@
  *    resolve, including the cases where the resolved text happens to be the
  *    key itself.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
 import { createElement } from "../../src/virtualNode";
 import type { VirtualNode } from "../../src/virtualNode";
@@ -77,37 +77,56 @@ describe("prepareTranslation() reserved props", () => {
     expect(isMissing).toBe(false);
   });
 
-  describe("raw", () => {
-    // `raw` is not read by the pipeline — it reaches the post-processors,
-    // which is where the in-context editor decides to skip a call.
+  describe("markers", () => {
+    // `markers` is not read by the pipeline — it reaches the post-processors,
+    // which is where the in-context editor decides to leave a call unmarked.
     const withPostProcessor = () =>
       createI18n({
         locale: "en",
         messages: { en: { msg: "text" } },
         postProcess: (result, _key, _ns, params) =>
-          params.raw === true ? result : `${result as string}!`,
+          params.markers === false ? result : `${result as string}!`,
       });
 
-    it("post-processes when neither the prop nor params ask for raw", () => {
+    it("post-processes when neither the prop nor params turn markers off", () => {
       const { content } = prepareTranslation(withPostProcessor(), { i18nKey: "msg" });
 
       expect(content).toBe("text!");
     });
 
-    it("leaves a params-supplied raw flag in place when the prop is omitted", () => {
+    it("leaves a params-supplied markers flag in place when the prop is omitted", () => {
       const { content } = prepareTranslation(withPostProcessor(), {
         i18nKey: "msg",
-        params: { raw: true },
+        params: { markers: false },
       });
 
       expect(content).toBe("text");
     });
 
-    it("overrides a params-supplied raw flag with the prop", () => {
+    it("adds no markers key for a prop of true", () => {
+      const i18n = createI18n({ locale: "en", messages: { en: { msg: "text" } } });
+      const tRaw = vi.spyOn(i18n, "tRaw");
+
+      prepareTranslation(i18n, { i18nKey: "msg", markers: true });
+
+      expect(tRaw.mock.calls[0]?.[1]).not.toHaveProperty("markers");
+    });
+
+    it("keeps params' markers: false when the prop is true", () => {
       const { content } = prepareTranslation(withPostProcessor(), {
         i18nKey: "msg",
-        params: { raw: false },
-        raw: true,
+        params: { markers: false },
+        markers: true,
+      });
+
+      expect(content).toBe("text");
+    });
+
+    it("overrides a params-supplied markers flag with the prop", () => {
+      const { content } = prepareTranslation(withPostProcessor(), {
+        i18nKey: "msg",
+        params: { markers: true },
+        markers: false,
       });
 
       expect(content).toBe("text");

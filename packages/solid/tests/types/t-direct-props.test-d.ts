@@ -23,6 +23,6 @@ export const _declaredProps: TProps = {
   ns: "dashboard",
   locale: "fr",
   fallback: "Hello",
-  skipPostProcess: true,
+  markers: false,
   components: { bold: "strong" },
 };

@@ -17,6 +17,7 @@ export type _NoUseI18nContext = Expect<
   Equal<"useI18nContext" extends keyof typeof rootEntry ? true : false, false>
 >;
 
-// `skipPostProcess` is the prop. `raw` is not declared, so it falls into the
+// `markers` is the prop. Neither `raw` nor `skipPostProcess` is declared, so each falls into the
 // interpolation-param widening like any other undeclared key.
 export type _RawIsJustAParam = Expect<Equal<TProps["raw"], unknown>>;
+export type _SkipPostProcessIsJustAParam = Expect<Equal<TProps["skipPostProcess"], unknown>>;

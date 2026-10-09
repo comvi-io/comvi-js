@@ -65,8 +65,11 @@ interface TBaseProps {
   locale?: string;
   /** Shown when the key is missing. Takes priority over the children snippet. */
   fallback?: string;
-  /** Skip the post-processors that honour it, for this call only. */
-  skipPostProcess?: boolean;
+  /**
+   * `false` keeps the in-context editor's invisible markers out of this call's result; use it
+   * for text that lands in attributes, `<title>`, emails or JSON. Nothing else reads it.
+   */
+  markers?: boolean;
   /** Tag-name → handler map (see {@link ComponentMap}). */
   components?: ComponentMap;
   /** Rendered when the key is missing and no `fallback` prop was given. */

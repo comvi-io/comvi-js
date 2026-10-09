@@ -30,8 +30,8 @@ describe("createInvisibleCharPostProcessor()", () => {
   it.each([
     ["an empty params object", {} as TranslationParams],
     ["no params at all", undefined as unknown as TranslationParams],
-    ["raw: false", { raw: false } as TranslationParams],
-    ["raw: false alongside other params", { raw: false, ns: "custom", locale: "en" }],
+    ["markers: true", { markers: true } as TranslationParams],
+    ["markers: true alongside other params", { markers: true, ns: "custom", locale: "en" }],
   ])("should inject the encoding with %s", (_label, params) => {
     const postProcessor = createInvisibleCharPostProcessor();
 
@@ -92,10 +92,21 @@ describe("createInvisibleCharPostProcessor()", () => {
     expect(postProcessor(vnode as never, "greeting", "default", {})).toBe(vnode);
   });
 
-  describe("raw: true", () => {
+  describe("markers: false", () => {
+    it("returns the untouched result for markers: false and appends the marker for true or absent", () => {
+      const postProcessor = createInvisibleCharPostProcessor();
+      const input = "Hello World";
+
+      expect(postProcessor(input, "greeting", "default", { markers: false })).toBe(input);
+      expect(postProcessor(input, "greeting", "default", { markers: true })).toBe(
+        input + ENCODED_ID_1,
+      );
+      expect(postProcessor(input, "greeting", "default", {})).toBe(input + ENCODED_ID_1);
+    });
+
     it("should skip invisible character injection for string results", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
 
       const result = postProcessor("Hello World", "greeting", "default", params);
 
@@ -104,7 +115,7 @@ describe("createInvisibleCharPostProcessor()", () => {
 
     it("should skip invisible character injection for array results", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
       const input = ["Hello", " ", "World"];
 
       const result = postProcessor(input, "greeting", "default", params);
@@ -121,7 +132,7 @@ describe("createInvisibleCharPostProcessor()", () => {
         children: ["test"],
       };
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
       const input = ["Hello", mockVNode];
 
       const result = postProcessor(input, "greeting", "default", params);
@@ -129,19 +140,19 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe(input);
     });
 
-    it("should not register the key when raw flag is set", () => {
+    it("should not register the key when markers is false", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
 
       postProcessor("Translation", "skip.this.key", "default", params);
 
       expect(getKeyMappings()).toEqual({});
     });
 
-    it("should skip injection when raw is true along with other params", () => {
+    it("should skip injection when markers is false along with other params", () => {
       const postProcessor = createInvisibleCharPostProcessor();
       const params: TranslationParams = {
-        raw: true,
+        markers: false,
         ns: "custom",
         locale: "en",
         custom: "value",
@@ -152,18 +163,18 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe("Translation");
     });
 
-    it("should handle empty string with raw flag", () => {
+    it("should handle empty string with markers: false", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
 
       const result = postProcessor("", "empty", "default", params);
 
       expect(result).toBe("");
     });
 
-    it("should handle empty array with raw flag", () => {
+    it("should handle empty array with markers: false", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
 
       const result = postProcessor([], "empty", "default", params);
 
@@ -172,7 +183,7 @@ describe("createInvisibleCharPostProcessor()", () => {
   });
 
   describe("empty results", () => {
-    it("should handle empty string without raw flag", () => {
+    it("should handle empty string with markers left on", () => {
       const postProcessor = createInvisibleCharPostProcessor();
 
       const result = postProcessor("", "empty", "default", {});
@@ -180,7 +191,7 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe(ENCODED_ID_1);
     });
 
-    it("should handle empty array without raw flag", () => {
+    it("should handle empty array with markers left on", () => {
       const postProcessor = createInvisibleCharPostProcessor();
 
       const result = postProcessor([], "empty", "default", {});

@@ -137,7 +137,7 @@ export type DefaultTranslationParams = Record<string, DefaultTranslationParamVal
   ns?: never;
   locale?: never;
   fallback?: never;
-  raw?: never;
+  markers?: never;
   tagInterpolation?: never;
 };
 
@@ -548,8 +548,12 @@ export interface TranslationParams {
   locale?: string;
   /** Used when the key is missing — after the locale chain and the `onMissingKey` callback. */
   fallback?: string;
-  /** Post-processors that support it (the in-context editor) skip this call. */
-  raw?: boolean;
+  /**
+   * `false` keeps the in-context editor's invisible markers out of this call's result; use it
+   * for text that lands in attributes, `<title>`, emails or JSON. Nothing else reads it.
+   * Reserved key — NOT an interpolation value.
+   */
+  markers?: boolean;
   /**
    * Merged over the instance-level `tagInterpolation` for this call only:
    * `extensions` UNION with the instance-level ones, other fields override.
@@ -723,7 +727,7 @@ export interface I18nBaseOptions {
 
 /**
  * Core instance options. Constructor defaults are interpolation values only;
- * call-level routing controls (`locale`, `ns`, `fallback`, `raw`) stay explicit.
+ * call-level routing controls (`locale`, `ns`, `fallback`, `markers`) stay explicit.
  *
  * `defaultParams` is REQUIRED for exactly one shape of `D`: one whose keys are
  * statically known and all required, because those keys are what the instance

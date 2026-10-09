@@ -25,8 +25,10 @@ its write path, so `createDefaultNamespaceStore` and `createDefaultParamsStore` 
 `Writable`, their `set` / `update` calling the host. Every setter writes THROUGH to the host,
 which stays the source of truth; nothing assigns a local value. React and vue are unaffected.
 
-**BREAKING (breaking change on a 0.x minor): `<T raw>` is renamed to `<T skipPostProcess>`, in all
-four bindings.** `raw` meant two unrelated things — `tRaw()` returns the structured result; `<T raw>`
-skips post-processors, notably the in-context editor's invisible markers — and only the `<T>` prop
-is renamed; `tRaw` is untouched. Rename the prop wherever you render `<T>` — JSX and `.vue` /
-`.svelte` template markup alike.
+**BREAKING (breaking change on a 0.x minor): `<T raw>` is renamed to `<T markers={false}>`, in
+all four bindings, with the polarity inverted.** `raw` meant two unrelated things — `tRaw()`
+returns the structured result; `<T raw>` kept the in-context editor's invisible markers out of
+the output — and only the `<T>` prop is renamed; `tRaw` is untouched. The new name says the one
+thing it does: `markers={false}` leaves this result unmarked, and nothing else reads it. Replace
+`<T raw>` with `<T markers={false}>` wherever you render `<T>` — JSX and `.vue` (`:markers="false"`)
+/ `.svelte` template markup alike.

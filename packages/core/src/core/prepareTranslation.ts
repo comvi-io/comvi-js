@@ -74,8 +74,12 @@ export interface PrepareTranslationProps {
   locale?: string;
   /** Fallback text when the key is missing. */
   fallback?: string;
-  /** Skip post-processing for this call. */
-  raw?: boolean;
+  /**
+   * `false` keeps the in-context editor's invisible markers out of this call's result; use it
+   * for text that lands in attributes, `<title>`, emails or JSON. Nothing else reads it.
+   * Forwarded as `markers: false` only when `false`; `true` or absent adds nothing.
+   */
+  markers?: boolean;
   /** Tag-interpolation handlers (see {@link TagComponentsMap}). */
   components?: TagComponentsMap;
 }
@@ -146,8 +150,9 @@ function elementHandler(
  * - `components` entries with string targets render directly as elements;
  *   opaque framework handlers are transported via marker nodes and returned
  *   in `pendingHandlers` for the wrapper's converter.
- * - Reserved props (`ns`/`locale`/`fallback`/`raw`) override same-named
- *   `params` keys only when the prop is not `undefined`.
+ * - Reserved props (`ns`/`locale`/`fallback`) override same-named `params`
+ *   keys only when the prop is not `undefined`; `markers` is forwarded only
+ *   as `markers: false`, so `true` leaves the call's params untouched.
  * - The tag syntax extension is passed per call — no ambient registration
  *   required.
  */
@@ -193,7 +198,7 @@ export function prepareTranslation(
   if (props.ns !== undefined) transport.ns = props.ns;
   if (props.locale !== undefined) transport.locale = props.locale;
   if (props.fallback !== undefined) transport.fallback = props.fallback;
-  if (props.raw !== undefined) transport.raw = props.raw;
+  if (props.markers === false) transport.markers = false;
 
   // A caller-supplied per-call option keeps its own fields; the tag extension
   // is guaranteed present either way.

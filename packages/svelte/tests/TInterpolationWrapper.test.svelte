@@ -8,15 +8,15 @@
   export let i18nKey: string;
   export let params: Record<string, unknown> = {};
   export let components: ComponentMap = {};
-  export let raw: boolean | undefined = undefined;
+  export let markers: boolean | undefined = undefined;
 
   setI18nContext(i18n);
 </script>
 
 <div data-testid="t-interpolation-wrapper">
-  {#if raw === undefined}
+  {#if markers === undefined}
     <T {i18nKey} {params} {components} />
   {:else}
-    <T {i18nKey} {params} {components} {raw} />
+    <T {i18nKey} {params} {components} {markers} />
   {/if}
 </div>

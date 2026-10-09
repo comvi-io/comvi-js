@@ -8,11 +8,11 @@ const RESERVED_DEFAULT_PARAM_KEYS: readonly string[] = [
   "locale",
   "ns",
   "fallback",
-  "raw",
+  "markers",
   "tagInterpolation",
 ];
 const ERR_RESERVED_DEFAULT_PARAMS = IS_DEV
-  ? "[@comvi/core] defaultParams cannot contain call-control keys: locale, ns, fallback, raw, tagInterpolation"
+  ? "[@comvi/core] defaultParams cannot contain call-control keys: locale, ns, fallback, markers, tagInterpolation"
   : "E_RESERVED_DEFAULT_PARAMS";
 const ERR_NULLISH_DEFAULT_PARAMS = IS_DEV
   ? "[@comvi/core] defaultParams values cannot be null or undefined"

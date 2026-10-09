@@ -155,14 +155,14 @@ describe("<T /> component - Tag Interpolation", () => {
 
     it("should allow handlers named like optional transport params when prop is unset", () => {
       const i18n = createI18n({
-        msg: "Hello <raw>world</raw> and <fallback>friends</fallback>",
+        msg: "Hello <markers>world</markers> and <fallback>friends</fallback>",
       });
 
       const wrapper = mount(T, {
         props: {
           i18nKey: "msg",
           components: {
-            raw: "strong",
+            markers: "strong",
             fallback: "em",
           },
         },

@@ -128,7 +128,7 @@ export interface NuxtI18nOptions {
 
   /**
    * JSON-serializable interpolation defaults forwarded to client and request-scoped instances.
-   * Call controls (`locale`, `ns`, `fallback`, `raw`) must remain explicit per call.
+   * Call controls (`locale`, `ns`, `fallback`, `markers`) must remain explicit per call.
    */
   defaultParams?: NuxtDefaultTranslationParams;
 
@@ -242,7 +242,7 @@ export type NuxtDefaultTranslationParams = Record<string, string | number | bool
   locale?: never;
   ns?: never;
   fallback?: never;
-  raw?: never;
+  markers?: never;
 };
 
 export interface ResolvedRoutingConfig {

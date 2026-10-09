@@ -126,10 +126,10 @@ interface TBaseProps {
   /** Text shown when the translation is missing. Takes priority over children. */
   fallback?: string;
   /**
-   * Skip post-processing — notably the invisible marker characters the
-   * in-context editor injects.
+   * `false` keeps the in-context editor's invisible markers out of this call's result; use it
+   * for text that lands in attributes, `<title>`, emails or JSON. Nothing else reads it.
    */
-  skipPostProcess?: boolean;
+  markers?: boolean;
   /** Tag-name → handler map for tag interpolation. */
   components?: ComponentMap;
   /** Rendered when the key is missing and no `fallback` prop was given. */
@@ -150,7 +150,7 @@ const DECLARED_PROPS = [
   "ns",
   "locale",
   "fallback",
-  "skipPostProcess",
+  "markers",
   "components",
   "children",
 ] as const;
@@ -214,7 +214,7 @@ export const T: Component<TProps> = (props) => {
       local.ns !== undefined ||
       local.locale !== undefined ||
       local.fallback !== undefined ||
-      local.skipPostProcess !== undefined;
+      local.markers === false;
 
     // Fast path: a bare `tRaw` call keeps core's static-template cache hit
     // (zero per-render allocation) for the common shape — a plain-text template
@@ -246,7 +246,7 @@ export const T: Component<TProps> = (props) => {
       ns: local.ns,
       locale: local.locale,
       fallback: local.fallback,
-      raw: local.skipPostProcess,
+      markers: local.markers,
       components: local.components,
     });
 

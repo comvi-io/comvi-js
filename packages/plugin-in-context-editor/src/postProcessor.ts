@@ -109,7 +109,7 @@ export function createInvisibleCharPostProcessor(options: InvisibleCharPostProce
   ): TranslationResult => {
     options.beforeProcess?.();
 
-    if (params?.raw === true) {
+    if (params?.markers === false) {
       return result;
     }
 

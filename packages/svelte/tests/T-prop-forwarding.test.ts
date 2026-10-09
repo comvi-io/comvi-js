@@ -1,6 +1,6 @@
 /**
- * `ns` / `locale` / `fallback` / `skipPostProcess` reach `transportParams` ONLY
- * when explicitly passed as props (`skipPostProcess` as core's `raw`); when
+ * `ns` / `locale` / `fallback` / `markers` reach `transportParams` ONLY
+ * when explicitly passed as props; when
  * omitted, the value in `params.*` wins. And
  * `hasTranslation` looks up against the same forwarded locale/ns.
  */
@@ -25,8 +25,8 @@ type WrapperProps = {
   locale?: string;
   passFallback?: boolean;
   fallback?: string;
-  passSkipPostProcess?: boolean;
-  skipPostProcess?: boolean;
+  passMarkers?: boolean;
+  markers?: boolean;
 };
 
 describe("T.svelte hasExplicitProp forwarding characterization", () => {
@@ -53,7 +53,7 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
     component = mount(TPropForwardingWrapper, { target, props });
   }
 
-  describe("when ns/locale/fallback/skipPostProcess are NOT passed as props", () => {
+  describe("when ns/locale/fallback/markers are NOT passed as props", () => {
     it("does NOT inject ns into transportParams — params.ns reaches tRaw", () => {
       mountWrapper({
         i18n: fake.asI18n(),
@@ -91,26 +91,29 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
       );
     });
 
-    it("does NOT inject raw into transportParams — params.raw reaches tRaw", () => {
+    it("does NOT inject markers into transportParams — params.markers reaches tRaw", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
-        params: { raw: true },
+        params: { markers: false },
       });
 
-      expect(fake.tRaw).toHaveBeenLastCalledWith("probe", expect.objectContaining({ raw: true }));
+      expect(fake.tRaw).toHaveBeenLastCalledWith(
+        "probe",
+        expect.objectContaining({ markers: false }),
+      );
     });
 
     it("passes all four via params when none forwarded as props", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
-        params: { ns: "admin", locale: "fr", fallback: "FB", raw: true },
+        params: { ns: "admin", locale: "fr", fallback: "FB", markers: false },
       });
 
       expect(fake.tRaw).toHaveBeenLastCalledWith(
         "probe",
-        expect.objectContaining({ ns: "admin", locale: "fr", fallback: "FB", raw: true }),
+        expect.objectContaining({ ns: "admin", locale: "fr", fallback: "FB", markers: false }),
       );
     });
 
@@ -125,7 +128,7 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
     });
   });
 
-  describe("when ns/locale/fallback/skipPostProcess ARE passed as props", () => {
+  describe("when ns/locale/fallback/markers ARE passed as props", () => {
     it("prop ns overrides params.ns in transportParams", () => {
       mountWrapper({
         i18n: fake.asI18n(),
@@ -174,31 +177,34 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
       );
     });
 
-    it("prop skipPostProcess overrides params.raw in transportParams", () => {
+    it("prop markers overrides params.markers in transportParams", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
-        params: { raw: false },
-        passSkipPostProcess: true,
-        skipPostProcess: true,
+        params: { markers: true },
+        passMarkers: true,
+        markers: false,
       });
 
-      expect(fake.tRaw).toHaveBeenLastCalledWith("probe", expect.objectContaining({ raw: true }));
+      expect(fake.tRaw).toHaveBeenLastCalledWith(
+        "probe",
+        expect.objectContaining({ markers: false }),
+      );
     });
 
     it("all four props forwarded simultaneously override all four params values", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
-        params: { ns: "p-ns", locale: "de", fallback: "p-fb", raw: false },
+        params: { ns: "p-ns", locale: "de", fallback: "p-fb", markers: true },
         passNs: true,
         ns: "prop-ns",
         passLocale: true,
         locale: "fr",
         passFallback: true,
         fallback: "prop-fb",
-        passSkipPostProcess: true,
-        skipPostProcess: true,
+        passMarkers: true,
+        markers: false,
       });
 
       expect(fake.tRaw).toHaveBeenLastCalledWith(
@@ -207,7 +213,7 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
           ns: "prop-ns",
           locale: "fr",
           fallback: "prop-fb",
-          raw: true,
+          markers: false,
         }),
       );
     });

@@ -8,15 +8,15 @@
   // `undefined` means "the prop was not passed at all" (distinct from
   // explicit `false`), matching `TPropForwarding.test.svelte`'s pass*/value
   // split for the reserved props.
-  export let skipPostProcess: boolean | undefined = undefined;
+  export let markers: boolean | undefined = undefined;
 
   $: forwarded = {
-    ...(skipPostProcess === undefined ? {} : { skipPostProcess }),
+    ...(markers === undefined ? {} : { markers }),
   };
 
   setI18nContext(i18n);
 </script>
 
-<div data-testid="t-skip-post-process">
+<div data-testid="t-markers">
   <T {i18nKey} {...forwarded} />
 </div>

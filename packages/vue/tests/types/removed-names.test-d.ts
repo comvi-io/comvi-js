@@ -21,7 +21,11 @@ export function _theClassHasTheNowPair(i18n: VueI18n): [boolean, boolean] {
   return [i18n.hasTranslationNow("greeting"), i18n.hasLocaleNow("en")];
 }
 
-// `skipPostProcess` is the prop. `raw` is not declared, so it falls into the
+// `markers` is the prop. Neither `raw` nor `skipPostProcess` is declared, so each falls into the
 // interpolation-param widening like any other undeclared key: any value types.
 type TProps = InstanceType<typeof T>["$props"];
 export const _rawIsJustAParam: TProps = { i18nKey: "greeting", raw: "a param value" };
+export const _skipPostProcessIsJustAParam: TProps = {
+  i18nKey: "greeting",
+  skipPostProcess: "a param value",
+};

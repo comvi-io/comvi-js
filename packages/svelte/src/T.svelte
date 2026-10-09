@@ -19,7 +19,7 @@
     ns = undefined,
     locale = undefined,
     fallback = undefined,
-    skipPostProcess = undefined,
+    markers = undefined,
     components = undefined,
     children = undefined,
     ...directParams
@@ -51,7 +51,7 @@
       ns,
       locale,
       fallback,
-      raw: skipPostProcess,
+      markers,
       components,
     });
   });

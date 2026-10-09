@@ -59,8 +59,8 @@ this: `'{literal}'` and `''` are core grammar and work on every graph.
 **Non-primitive parameter values are a separate axis** and behave identically on every graph: `t()`
 always returns a string, coercing the parts, and `tRaw()` preserves them as a parts array.
 
-**`<T skipPostProcess>` skips post-processors for one call**, notably the in-context editor's
-invisible markers.
+**`<T markers={false}>` keeps the in-context editor's invisible markers out of one result**, the
+same as `t(key, { markers: false })`. Nothing else reads it.
 
 ## Alternatives rejected
 

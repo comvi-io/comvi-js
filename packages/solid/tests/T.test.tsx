@@ -328,16 +328,18 @@ describe("T.tsx", () => {
     expect(container.textContent).toBe("Hello Alice");
   });
 
-  it("passes skipPostProcess to skip post-processing", () => {
-    fake.tImplementation = (_key, params) => (params?.raw ? "raw content" : "processed content");
+  it("forwards markers={false} to the translation call", () => {
+    fake.tImplementation = (_key, params) =>
+      params?.markers === false ? "unmarked content" : "processed content";
 
-    renderWithProvider(() => <T i18nKey={"msg" as never} skipPostProcess />);
+    renderWithProvider(() => <T i18nKey={"msg" as never} markers={false} />);
 
-    expect(container.textContent).toBe("raw content");
+    expect(container.textContent).toBe("unmarked content");
   });
 
-  it("applies post-processing when skipPostProcess is not set", () => {
-    fake.tImplementation = (_key, params) => (params?.raw ? "raw content" : "processed content");
+  it("applies post-processing when markers is not set", () => {
+    fake.tImplementation = (_key, params) =>
+      params?.markers === false ? "unmarked content" : "processed content";
 
     renderWithProvider(() => <T i18nKey={"msg" as never} />);
 

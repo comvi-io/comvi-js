@@ -49,7 +49,7 @@ const createInterpolationI18n = (): FakeI18n => {
     if (key === "reserved") {
       return `locale=${String(params?.locale)}|ns=${String(params?.ns)}|fallback=${String(
         params?.fallback,
-      )}|raw=${String(params?.raw)}`;
+      )}|markers=${String(params?.markers)}`;
     }
 
     return key;
@@ -156,18 +156,21 @@ describe("T.svelte tag interpolation contract", () => {
     expect(target.textContent).toBe("<img src=x onerror=alert(1)>");
   });
 
-  it("forwards raw flag to translation call params", () => {
+  it("forwards the markers prop to translation call params", () => {
     component = mount(TInterpolationWrapper, {
       target,
       props: {
         i18n: fake.asI18n(),
         i18nKey: "welcome",
-        raw: true,
+        markers: false,
         params: { name: "Alice" },
       },
     });
 
-    expect(fake.tRaw).toHaveBeenLastCalledWith("welcome", expect.objectContaining({ raw: true }));
+    expect(fake.tRaw).toHaveBeenLastCalledWith(
+      "welcome",
+      expect.objectContaining({ markers: false }),
+    );
   });
 
   it("preserves reserved params keys when corresponding props are omitted", () => {
@@ -180,7 +183,7 @@ describe("T.svelte tag interpolation contract", () => {
           locale: "fr",
           ns: "admin",
           fallback: "Fallback Text",
-          raw: true,
+          markers: false,
         },
       },
     });
@@ -192,10 +195,10 @@ describe("T.svelte tag interpolation contract", () => {
         locale: "fr",
         ns: "admin",
         fallback: "Fallback Text",
-        raw: true,
+        markers: false,
       }),
     );
-    expect(target.textContent).toBe("locale=fr|ns=admin|fallback=Fallback Text|raw=true");
+    expect(target.textContent).toBe("locale=fr|ns=admin|fallback=Fallback Text|markers=false");
   });
 
   it("throws when i18n context is not provided", () => {

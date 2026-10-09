@@ -35,7 +35,7 @@ type SerializedDefaults = Record<string, string | number | boolean> & {
   locale?: never;
   ns?: never;
   fallback?: never;
-  raw?: never;
+  markers?: never;
 };
 declare const serializedDefaults: SerializedDefaults;
 createI18n({ locale: "en", defaultParams: serializedDefaults });
@@ -111,5 +111,9 @@ createI18n({ locale: "en", defaultParams: { locale: "de" } });
 createI18n({ locale: "en", defaultParams: { ns: "admin" } });
 // @ts-expect-error fallback controls are not interpolation defaults
 createI18n({ locale: "en", defaultParams: { fallback: "Missing" } });
-// @ts-expect-error post-processing controls are not interpolation defaults
-createI18n({ locale: "en", defaultParams: { raw: true } });
+// @ts-expect-error the editor-marker control is not an interpolation default
+createI18n({ locale: "en", defaultParams: { markers: false } });
+// @ts-expect-error the editor-marker control is not an interpolation default, either polarity
+createI18n({ locale: "en", defaultParams: { markers: true } });
+// @ts-expect-error the editor-marker control cannot be set as a runtime default either
+untypedDefaultKey.setDefaultParams({ audience: "private", markers: false });

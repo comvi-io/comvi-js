@@ -147,32 +147,32 @@ describe("<T /> component", () => {
   const createPostProcessorI18n = (messages: Record<string, Record<string, string>>) =>
     createI18nFromCore(createCore({ locale: "en", messages }).use(attachPlugins));
 
-  const upperCaseUnlessRaw = (
+  const upperCaseUnlessUnmarked = (
     result: TranslationResult,
     _key: string,
     _ns: string | undefined,
     params?: Record<string, unknown>,
   ): TranslationResult =>
-    params?.raw === true || typeof result !== "string" ? result : result.toUpperCase();
+    params?.markers === false || typeof result !== "string" ? result : result.toUpperCase();
 
-  describe("skipPostProcess prop", () => {
-    it("skips post-processor when skipPostProcess is true", () => {
+  describe("markers prop", () => {
+    it("skips post-processor when markers is false", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
-      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
+      i18n.core.registerPostProcessor(upperCaseUnlessUnmarked);
 
       const wrapper = mount(T, {
-        props: { i18nKey: "greeting", skipPostProcess: true },
+        props: { i18nKey: "greeting", markers: false },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
       expect(wrapper.text()).toBe("hello");
     });
 
-    it("applies post-processor when skipPostProcess is not specified", () => {
+    it("applies post-processor when markers is not specified", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
-      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
+      i18n.core.registerPostProcessor(upperCaseUnlessUnmarked);
 
       const wrapper = mount(T, {
         props: { i18nKey: "greeting" },
@@ -182,13 +182,13 @@ describe("<T /> component", () => {
       expect(wrapper.text()).toBe("HELLO");
     });
 
-    it("applies post-processor when skipPostProcess is false", () => {
+    it("applies post-processor when markers is true", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
-      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
+      i18n.core.registerPostProcessor(upperCaseUnlessUnmarked);
 
       const wrapper = mount(T, {
-        props: { i18nKey: "greeting", skipPostProcess: false },
+        props: { i18nKey: "greeting", markers: true },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
@@ -198,13 +198,13 @@ describe("<T /> component", () => {
     it("works with other props combined", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello {name}" } });
 
-      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
+      i18n.core.registerPostProcessor(upperCaseUnlessUnmarked);
 
       const wrapper = mount(T, {
         props: {
           i18nKey: "greeting",
           params: { name: "World" },
-          skipPostProcess: true,
+          markers: false,
         },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });

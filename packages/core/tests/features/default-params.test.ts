@@ -99,7 +99,7 @@ describe("defaultParams — the constructor option and setDefaultParams()", () =
     expect(i18n.defaultParams).toEqual({ formality: "formal" });
   });
 
-  it.each(["locale", "ns", "fallback", "raw", "tagInterpolation"])(
+  it.each(["locale", "ns", "fallback", "markers", "tagInterpolation"])(
     "rejects the reserved call-control key %s in constructor defaults",
     (key) => {
       expect(
@@ -108,7 +108,7 @@ describe("defaultParams — the constructor option and setDefaultParams()", () =
             locale: "en",
             defaultParams: { [key]: "invalid" } as never,
           }),
-      ).toThrow(/defaultParams.*locale.*ns.*fallback.*raw/i);
+      ).toThrow(/defaultParams.*locale.*ns.*fallback.*markers/i);
     },
   );
 
@@ -116,7 +116,7 @@ describe("defaultParams — the constructor option and setDefaultParams()", () =
     const i18n = createInstance();
 
     expect(() => i18n.setDefaultParams({ locale: "de" } as never)).toThrow(
-      /defaultParams.*locale.*ns.*fallback.*raw/i,
+      /defaultParams.*locale.*ns.*fallback.*markers/i,
     );
   });
 

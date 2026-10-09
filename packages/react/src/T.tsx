@@ -113,10 +113,10 @@ interface TBaseProps {
   fallback?: string;
 
   /**
-   * Skip post-processing — notably the invisible marker characters the
-   * in-context editor injects.
+   * `false` keeps the in-context editor's invisible markers out of this call's result; use it
+   * for text that lands in attributes, `<title>`, emails or JSON. Nothing else reads it.
    */
-  skipPostProcess?: boolean;
+  markers?: boolean;
 
   /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: React.ReactNode;
@@ -184,7 +184,7 @@ const TComponent = function T({
   locale,
   params = {},
   fallback,
-  skipPostProcess,
+  markers,
   children,
   components,
   ...restProps
@@ -233,7 +233,7 @@ const TComponent = function T({
       ns,
       locale,
       fallback,
-      raw: skipPostProcess,
+      markers,
       components,
     },
   );

@@ -22,7 +22,11 @@ export type _NoSsrInitialLocale = Expect<
   Equal<"ssrInitialLocale" extends keyof I18nProviderProps ? true : false, false>
 >;
 
-// `skipPostProcess` is the prop. `raw` is not declared, so it falls into the
+// `markers` is the prop. Neither `raw` nor `skipPostProcess` is declared, so each falls into the
 // interpolation-param widening like any other undeclared key: any value types.
 // (`admin:dashboard` has no required params — see namespace-bound.test-d.ts.)
 export const _rawIsJustAParam: TProps = { i18nKey: "admin:dashboard", raw: "a param value" };
+export const _skipPostProcessIsJustAParam: TProps = {
+  i18nKey: "admin:dashboard",
+  skipPostProcess: "a param value",
+};

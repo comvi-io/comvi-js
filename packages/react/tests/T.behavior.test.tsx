@@ -14,12 +14,12 @@ declare module "@comvi/core" {
   }
 }
 
-/** A plugins host whose post-processor upper-cases anything not asked for raw. */
+/** A plugins host whose post-processor upper-cases anything not marked `markers: false`. */
 const hostWithUppercasePostProcessor = () => {
   const i18n = createI18n({ locale: "en" }).use(plugins());
   i18n.addMessages({ "en:default": { reserved: "English default" } });
   i18n.registerPostProcessor((result, _key, _ns, params) => {
-    if (params?.raw === true) {
+    if (params?.markers === false) {
       return result;
     }
     return typeof result === "string" ? result.toUpperCase() : result;
@@ -166,7 +166,7 @@ describe("<T /> behavior", () => {
       hostWithUppercasePostProcessor(),
       <T
         i18nKey="reserved"
-        params={{ locale: "fr", ns: "custom", fallback: "fallback text", raw: true }}
+        params={{ locale: "fr", ns: "custom", fallback: "fallback text", markers: false }}
       />,
     );
 
@@ -182,8 +182,7 @@ describe("<T /> behavior", () => {
         locale="fr"
         ns="dashboard"
         fallback="Fallback text"
-        skipPostProcess={false}
-        params={{ locale: "en", ns: "default", fallback: "param fallback", raw: true }}
+        params={{ locale: "en", ns: "default", fallback: "param fallback" }}
       />,
     );
 
@@ -191,16 +190,25 @@ describe("<T /> behavior", () => {
     expect(screen.queryByText("English default")).toBeNull();
   });
 
-  it("skips post-processing via the skipPostProcess prop", async () => {
+  it("forwards markers only when false, so markers={true} keeps params' markers: false", async () => {
     const { container } = await renderWithI18n(
       hostWithUppercasePostProcessor(),
-      <T i18nKey="reserved" skipPostProcess />,
+      <T i18nKey="reserved" markers={true} params={{ markers: false }} />,
     );
 
     expect(container.textContent).toBe("English default");
   });
 
-  it("still applies post-processing when skipPostProcess is not set", async () => {
+  it("leaves the result unmarked via markers={false}", async () => {
+    const { container } = await renderWithI18n(
+      hostWithUppercasePostProcessor(),
+      <T i18nKey="reserved" markers={false} />,
+    );
+
+    expect(container.textContent).toBe("English default");
+  });
+
+  it("still applies post-processing when markers is not set", async () => {
     const { container } = await renderWithI18n(
       hostWithUppercasePostProcessor(),
       <T i18nKey="reserved" />,

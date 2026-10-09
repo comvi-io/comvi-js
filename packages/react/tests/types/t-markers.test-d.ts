@@ -1,5 +1,5 @@
 /**
- * `<T skipPostProcess>` skips the post-processors that honour it.
+ * `<T markers={false}>` keeps the in-context editor's invisible markers out of the result.
  *
  * `admin:dashboard` is declared with no required params by
  * `namespace-bound.test-d.ts`, which (with `default-params.test-d.ts`) closes
@@ -10,7 +10,7 @@
  */
 import type { TProps } from "../../src/T";
 
-export const _skipPostProcess: TProps = {
+export const _markers: TProps = {
   i18nKey: "admin:dashboard",
-  skipPostProcess: true,
+  markers: false,
 };

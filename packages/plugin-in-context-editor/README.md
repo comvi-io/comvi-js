@@ -113,9 +113,9 @@ extension.
 | `apiKeyOverride`      | none                                                                                     | Overrides `i18n.apiKey` for this plugin only; used by the extension.                     |
 
 `tagAttributes` replaces the built-in map, so `{ img: ['alt'] }` stops the scan of `aria-label`,
-`placeholder` and the rest; copy the default and spread it to add to the map. Pass `raw: true` to
-`t()` wherever invisible markers must not appear: document titles, `<meta>` content, values you
-compare or hash. On `<T>` the equivalent is the `skipPostProcess` prop.
+`placeholder` and the rest; copy the default and spread it to add to the map. Pass `markers: false`
+to `t()` wherever invisible markers must not appear: attributes, document titles, `<meta>`
+content, emails, JSON, values you compare or hash. On `<T>` the equivalent is `markers={false}`.
 
 ## Next steps
 
