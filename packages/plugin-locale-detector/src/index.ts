@@ -326,6 +326,9 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
         }
       }
 
+      // A deliberate switch supersedes a detection still waiting for
+      // `initialized`, which would otherwise be written over it.
+      deferredWrite = null;
       writeCaches(locale, caches, cfg);
     });
 

@@ -166,6 +166,24 @@ describe("a locale the app does ship", () => {
     expect(stored()).toBe("de");
   });
 
+  it("explicit switch while init is still loading → that choice is what stays persisted", async () => {
+    localStorage.setItem(KEY, "de");
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(attachLoader);
+    let switched: Promise<void> | undefined;
+    i18n.registerLoader(async (locale) => {
+      // The app switches while init is fetching the detected locale's catalog.
+      if (locale === "de") switched ??= i18n.setLocale("en");
+      return { hello: `hello-${locale}` };
+    });
+    i18n.use(localeDetector({ supportedLocales: ["en", "de"] }));
+
+    await i18n.init();
+    await switched;
+
+    expect(i18n.locale).toBe("en");
+    expect(stored()).toBe("en");
+  });
+
   it("cached and loadable → read back and kept", async () => {
     localStorage.setItem(KEY, "de");
 
