@@ -87,11 +87,9 @@ describe("Core <-> Collector wiring", () => {
     callOrder.length = 0;
   });
 
-  it("constructs the Collector with the EventBus, registry, instance id, and enabled option", () => {
+  it("Core built with default options → the Collector shares the scanner's bus and registry, is scoped to the instance id and enabled", () => {
     const core = new Core({});
-    const instanceId = core.getInstanceId();
 
-    expect(collectorCtorMock).toHaveBeenCalledTimes(1);
     const [eventBusArg, registryArg, scopeIdArg, optionsArg] = collectorCtorMock.mock.calls[0] as [
       unknown,
       unknown,
@@ -102,10 +100,19 @@ describe("Core <-> Collector wiring", () => {
       unknown,
       unknown,
     ];
-    expect(eventBusArg).toBe(scannerEventBus);
-    expect(registryArg).toBe(scannerRegistry);
-    expect(scopeIdArg).toBe(instanceId);
-    expect(optionsArg).toEqual({ enabled: true });
+    expect({
+      collectorsBuilt: collectorCtorMock.mock.calls.length,
+      sameBus: eventBusArg === scannerEventBus,
+      sameRegistry: registryArg === scannerRegistry,
+      scopeId: scopeIdArg,
+      options: optionsArg,
+    }).toEqual({
+      collectorsBuilt: 1,
+      sameBus: true,
+      sameRegistry: true,
+      scopeId: core.getInstanceId(),
+      options: { enabled: true },
+    });
   });
 
   it("honors collectContext: false", () => {

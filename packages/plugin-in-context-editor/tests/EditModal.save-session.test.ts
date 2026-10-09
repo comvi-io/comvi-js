@@ -103,24 +103,33 @@ describe("EditModal save session", () => {
     );
   }
 
-  it("shows the keyboard save as pending in the footer", async () => {
-    const resolve = deferredSave();
+  it("keyboard save pending → every footer button is disabled and both save buttons read Saving...", async () => {
+    deferredSave();
 
     pressSaveShortcut();
     await nextTick();
 
-    const footer = wrapper.findComponent(ModalFooter);
-    const buttons = footer.findAll("button");
-    expect(buttons.map((b) => b.text())).toEqual(["Cancel", "Saving...", "Saving..."]);
-    expect(buttons.every((b) => b.attributes("disabled") !== undefined)).toBe(true);
+    const buttons = wrapper.findComponent(ModalFooter).findAll("button");
+    expect({
+      labels: buttons.map((b) => b.text()),
+      allDisabled: buttons.every((b) => b.attributes("disabled") !== undefined),
+    }).toEqual({ labels: ["Cancel", "Saving...", "Saving..."], allDisabled: true });
+  });
+
+  it("keyboard save settles → the footer reads Save and Save & Close again", async () => {
+    const resolve = deferredSave();
+    pressSaveShortcut();
+    await nextTick();
 
     resolve(singular("first", "edited"));
     await flushPromises();
-    expect(footer.findAll("button").map((b) => b.text())).toEqual([
-      "Cancel",
-      "Save",
-      "Save & Close",
-    ]);
+
+    expect(
+      wrapper
+        .findComponent(ModalFooter)
+        .findAll("button")
+        .map((b) => b.text()),
+    ).toEqual(["Cancel", "Save", "Save & Close"]);
   });
 
   it("keeps the modal open on Escape while a save is pending", async () => {

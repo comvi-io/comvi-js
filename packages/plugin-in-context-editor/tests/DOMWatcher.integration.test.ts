@@ -83,24 +83,16 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       }).not.toThrow();
     });
 
-    it("should bind deferred initial scan to target ownerDocument", () => {
+    it("target in a still-loading foreign document, start() → waits for that document's DOMContentLoaded, once", () => {
       const foreignDocument = document.implementation.createHTMLDocument("foreign");
       const foreignContainer = foreignDocument.createElement("div");
       foreignDocument.body.appendChild(foreignContainer);
-
       Object.defineProperty(foreignDocument, "readyState", {
         configurable: true,
         get: () => "loading",
       });
-
       const addEventListenerSpy = vi.spyOn(foreignDocument, "addEventListener");
-      const foreignEventBus = new EventBus();
-      const foreignInitialScans: Node[] = [];
-      foreignEventBus.on("initialScan", (target: Node) => {
-        foreignInitialScans.push(target);
-      });
-
-      const foreignWatcher = new DOMWatcher(foreignEventBus, {
+      const foreignWatcher = new DOMWatcher(new EventBus(), {
         targetElement: foreignContainer,
         tagAttributes: TAG_ATTRIBUTES,
       });
@@ -110,15 +102,32 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       expect(addEventListenerSpy).toHaveBeenCalledWith("DOMContentLoaded", expect.any(Function), {
         once: true,
       });
+      foreignWatcher.stop();
+    });
 
-      const domContentLoadedListener = addEventListenerSpy.mock.calls.find(
-        (call) => call[0] === "DOMContentLoaded",
-      )?.[1] as EventListener | undefined;
-      domContentLoadedListener?.(new Event("DOMContentLoaded"));
+    it("target in a still-loading foreign document, its DOMContentLoaded fires → the initial scan covers the target", () => {
+      const foreignDocument = document.implementation.createHTMLDocument("foreign");
+      const foreignContainer = foreignDocument.createElement("div");
+      foreignDocument.body.appendChild(foreignContainer);
+      Object.defineProperty(foreignDocument, "readyState", {
+        configurable: true,
+        get: () => "loading",
+      });
+      const foreignEventBus = new EventBus();
+      const foreignInitialScans: Node[] = [];
+      foreignEventBus.on("initialScan", (target: Node) => {
+        foreignInitialScans.push(target);
+      });
+      const foreignWatcher = new DOMWatcher(foreignEventBus, {
+        targetElement: foreignContainer,
+        tagAttributes: TAG_ATTRIBUTES,
+      });
+      foreignWatcher.start();
+
+      foreignDocument.dispatchEvent(new Event("DOMContentLoaded"));
 
       expect(foreignInitialScans).toContain(foreignContainer);
       foreignWatcher.stop();
-      addEventListenerSpy.mockRestore();
     });
   });
 
@@ -142,28 +151,22 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       expect(callback.mock.calls[0][0]).toContain(textNode);
     });
 
-    it("should emit text changes for multiple text nodes", async () => {
+    it("two text nodes changed in one tick → one textChanges batch carries both", async () => {
       const textNode1 = document.createTextNode("text1");
       const textNode2 = document.createTextNode("text2");
       const p = document.createElement("p");
       p.appendChild(textNode1);
       p.appendChild(textNode2);
       container.appendChild(p);
-
       const callback = vi.fn();
       eventBus.on("textChanges", callback);
-
       domWatcher.start();
 
       textNode1.nodeValue = "changed1";
       textNode2.nodeValue = "changed2";
-
       await flushDOMMutations();
 
-      expect(callback).toHaveBeenCalled();
-      const capturedNodes = callback.mock.calls[0][0];
-      expect(capturedNodes).toContain(textNode1);
-      expect(capturedNodes).toContain(textNode2);
+      expect(callback.mock.calls[0]?.[0]).toEqual(expect.arrayContaining([textNode1, textNode2]));
     });
   });
 
@@ -238,60 +241,44 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
   });
 
   describe("structureChanges events", () => {
-    it("should detect when nodes are added", async () => {
+    it("element appended → reported in the first structureChanges batch", async () => {
       const newDiv = document.createElement("div");
-
       const callback = vi.fn();
       eventBus.on("structureChanges", callback);
-
       domWatcher.start();
 
       container.appendChild(newDiv);
-
       await flushDOMMutations();
 
-      expect(callback).toHaveBeenCalled();
-      const capturedNodes = callback.mock.calls[0][0];
-      expect(capturedNodes.some((n: Node) => n === newDiv)).toBe(true);
+      expect(callback.mock.calls[0]?.[0]).toContain(newDiv);
     });
 
-    it("should detect when multiple nodes are added", async () => {
+    it("two elements appended in one tick → both reported in the first structureChanges batch", async () => {
       const div1 = document.createElement("div");
       const div2 = document.createElement("span");
-
       const callback = vi.fn();
       eventBus.on("structureChanges", callback);
-
       domWatcher.start();
 
       container.appendChild(div1);
       container.appendChild(div2);
-
       await flushDOMMutations();
 
-      expect(callback).toHaveBeenCalled();
-      const capturedNodes = callback.mock.calls[0][0];
-      expect(capturedNodes).toContain(div1);
-      expect(capturedNodes).toContain(div2);
+      expect(callback.mock.calls[0]?.[0]).toEqual(expect.arrayContaining([div1, div2]));
     });
 
-    it("should detect nested node additions", async () => {
+    it("subtree appended → its root is reported in the first structureChanges batch", async () => {
       const parent = document.createElement("div");
       const child = document.createElement("span");
       parent.appendChild(child);
-
       const callback = vi.fn();
       eventBus.on("structureChanges", callback);
-
       domWatcher.start();
 
       container.appendChild(parent);
-
       await flushDOMMutations();
 
-      expect(callback).toHaveBeenCalled();
-      const capturedNodes = callback.mock.calls[0][0];
-      expect(capturedNodes.some((n: Node) => n === parent)).toBe(true);
+      expect(callback.mock.calls[0]?.[0]).toContain(parent);
     });
   });
 
@@ -333,26 +320,26 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       expect(removedNodes).toEqual(expect.arrayContaining([parent, child1, child2, textNode]));
     });
 
-    it("should collect attributes of removed elements", async () => {
+    it("element with two attributes removed → nodesRemoved reports the element and both attributes", async () => {
       const input = document.createElement("input");
       input.setAttribute("placeholder", "test");
       input.setAttribute("title", "tooltip");
       container.appendChild(input);
-
       const callback = vi.fn();
       eventBus.on("nodesRemoved", callback);
-
       domWatcher.start();
+
       container.removeChild(input);
       await flushDOMMutations();
 
       const removedNodes = callback.mock.calls.flatMap((call) => call[0] as Node[]);
-      expect(removedNodes).toContain(input);
-      const attributeNames = removedNodes
-        .filter((n) => n.nodeType === Node.ATTRIBUTE_NODE)
-        .map((n) => (n as Attr).name)
-        .sort();
-      expect(attributeNames).toEqual(["placeholder", "title"]);
+      expect({
+        element: removedNodes.includes(input),
+        attributes: removedNodes
+          .filter((n) => n.nodeType === Node.ATTRIBUTE_NODE)
+          .map((n) => (n as Attr).name)
+          .sort(),
+      }).toEqual({ element: true, attributes: ["placeholder", "title"] });
     });
   });
 
@@ -492,55 +479,60 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       expect(capturedNodes).not.toContain(textNode);
     });
 
-    it("should observe shadow roots attached to existing hosts after start", async () => {
+    it("shadow root attached to an existing host after start() → the shadow root gets an initial scan", async () => {
       const host = document.createElement("div");
       container.appendChild(host);
-
       const initialScanCallback = vi.fn();
-      const textChangesCallback = vi.fn();
       eventBus.on("initialScan", initialScanCallback);
-      eventBus.on("textChanges", textChangesCallback);
-
       domWatcher.start();
 
       const shadowRoot = host.attachShadow({ mode: "open" });
-      const textNode = document.createTextNode("initial");
-      shadowRoot.appendChild(textNode);
-
       await flushDOMMutations();
 
-      const scannedRoots = initialScanCallback.mock.calls.map((call) => call[0] as Node);
-      expect(scannedRoots).toContain(shadowRoot);
+      expect(initialScanCallback.mock.calls.map((call) => call[0] as Node)).toContain(shadowRoot);
+    });
+
+    it("shadow root attached after start(), its text then changes → the text node is reported in textChanges", async () => {
+      const host = document.createElement("div");
+      container.appendChild(host);
+      const textChangesCallback = vi.fn();
+      eventBus.on("textChanges", textChangesCallback);
+      domWatcher.start();
+      const shadowRoot = host.attachShadow({ mode: "open" });
+      const textNode = document.createTextNode("initial");
+      shadowRoot.appendChild(textNode);
+      await flushDOMMutations();
 
       textNode.nodeValue = "changed";
       await flushDOMMutations();
 
-      const capturedNodes = textChangesCallback.mock.calls.flatMap((call) => call[0] as Node[]);
-      expect(capturedNodes).toContain(textNode);
+      expect(textChangesCallback.mock.calls.flatMap((call) => call[0] as Node[])).toContain(
+        textNode,
+      );
     });
   });
 
   describe("Edge cases", () => {
-    it("should deduplicate mutation events", async () => {
+    it("one text node changed three times in one tick → one textChanges batch listing it once", async () => {
       const p = document.createElement("p");
       const textNode = document.createTextNode("test");
       p.appendChild(textNode);
       container.appendChild(p);
-
       const callback = vi.fn();
       eventBus.on("textChanges", callback);
-
       domWatcher.start();
 
       textNode.nodeValue = "change1";
       textNode.nodeValue = "change2";
       textNode.nodeValue = "change3";
-
       await flushDOMMutations();
 
-      expect(callback).toHaveBeenCalledTimes(1);
-      const captured = callback.mock.calls[0][0] as Node[];
-      expect(captured.filter((n) => n === textNode)).toHaveLength(1);
+      // One entry per batch: the number of times the text node appears in it.
+      expect(
+        callback.mock.calls.map(
+          ([nodes]) => (nodes as Node[]).filter((n) => n === textNode).length,
+        ),
+      ).toEqual([1]);
     });
 
     it("keeps notifying the remaining subscribers when one listener throws", async () => {
@@ -658,19 +650,31 @@ describe("DOMWatcher", () => {
       expect(Element.prototype.attachShadow).toBe(PRISTINE_ATTACH_SHADOW);
     });
 
-    it("keeps the attachShadow patch until the last watcher stops", () => {
+    it("first of two watchers stopped → the other still scans a newly attached shadow root", () => {
       const other = document.createElement("div");
       document.body.appendChild(other);
       const first = watch(container);
       const second = watch(other);
       first.watcher.start();
       second.watcher.start();
-
       first.watcher.stop();
       const host = document.createElement("div");
       other.appendChild(host);
+
       const shadowRoot = host.attachShadow({ mode: "open" });
+
       expect(second.scans).toContain(shadowRoot);
+      second.watcher.stop();
+    });
+
+    it("last of two watchers stopped → attachShadow is the pristine native again", () => {
+      const other = document.createElement("div");
+      document.body.appendChild(other);
+      const first = watch(container);
+      const second = watch(other);
+      first.watcher.start();
+      second.watcher.start();
+      first.watcher.stop();
 
       second.watcher.stop();
 
@@ -847,7 +851,7 @@ describe("DOMWatcher", () => {
   });
 
   describe("initial scan timing", () => {
-    it("defers the initial scan until its own document has finished loading", () => {
+    it("start() while its own document is still loading → no initial scan yet", () => {
       const foreignDocument = document.implementation.createHTMLDocument("foreign");
       Object.defineProperty(foreignDocument, "readyState", {
         configurable: true,
@@ -856,7 +860,18 @@ describe("DOMWatcher", () => {
       const { watcher, scans } = watch(foreignDocument);
 
       watcher.start();
+
       expect(scans).toEqual([]);
+    });
+
+    it("its own document fires DOMContentLoaded after start() → the document is scanned", () => {
+      const foreignDocument = document.implementation.createHTMLDocument("foreign");
+      Object.defineProperty(foreignDocument, "readyState", {
+        configurable: true,
+        get: () => "loading",
+      });
+      const { watcher, scans } = watch(foreignDocument);
+      watcher.start();
 
       foreignDocument.dispatchEvent(new Event("DOMContentLoaded"));
 

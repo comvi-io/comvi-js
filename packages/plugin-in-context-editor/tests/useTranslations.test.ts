@@ -65,6 +65,41 @@ async function loadedPluralManager(): Promise<TranslationManager> {
   return manager;
 }
 
+/** A manager holding a loaded singular key, already switched to select mode on two options. */
+async function loadedSelectManager(): Promise<TranslationManager> {
+  const manager = createManager();
+  getTranslationMock.mockResolvedValue(createSingularTranslationData("welcome.message", "Hello"));
+  await manager.loadTranslation("welcome.message", "default");
+  manager.toggleSelectMode("en", true, { variable: "formality", options: ["formal", "informal"] });
+  return manager;
+}
+
+/**
+ * Two loads whose responses the test settles by hand: the first one can be
+ * rejected, the second one resolved.
+ */
+function twoRacingLoads() {
+  let rejectFirst!: (reason: unknown) => void;
+  let resolveSecond!: (value: TranslationData) => void;
+  getTranslationMock
+    .mockImplementationOnce(
+      () =>
+        new Promise<TranslationData>((_resolve, reject) => {
+          rejectFirst = reject;
+        }),
+    )
+    .mockImplementationOnce(
+      () =>
+        new Promise<TranslationData>((resolve) => {
+          resolveSecond = resolve;
+        }),
+    );
+  return {
+    rejectFirst: (reason: unknown) => rejectFirst(reason),
+    resolveSecond: (value: TranslationData) => resolveSecond(value),
+  };
+}
+
 describe("useTranslations", () => {
   beforeEach(() => {
     getTranslationMock.mockReset();
@@ -149,20 +184,20 @@ describe("useTranslations", () => {
     expect(manager.state.value.isLoading).toBe(false);
   });
 
-  it("clears stale translation data when a later load fails", async () => {
+  it("a load fails after an earlier one succeeded → the stale data is cleared, the error shown, nothing dirty", async () => {
     const manager = createManager();
     getTranslationMock
       .mockResolvedValueOnce(createSingularTranslationData("home.title", "Welcome"))
       .mockRejectedValueOnce(new Error("Load failed"));
-
     await manager.loadTranslation("home.title", "default");
-    expect(manager.state.value.data?.key).toBe("home.title");
 
     await manager.loadTranslation("missing.key", "default");
 
-    expect(manager.state.value.data).toBeNull();
-    expect(manager.state.value.error).toBe("Load failed");
-    expect(manager.state.value.isDirty).toBe(false);
+    expect({
+      data: manager.state.value.data,
+      error: manager.state.value.error,
+      isDirty: manager.state.value.isDirty,
+    }).toEqual({ data: null, error: "Load failed", isDirty: false });
   });
 
   it("returns namespace error when save is attempted without namespace", async () => {
@@ -175,57 +210,77 @@ describe("useTranslations", () => {
     expect(manager.state.value.error).toContain("No namespace set");
   });
 
-  it("converts translations when toggling plural mode on and off", async () => {
+  it("plural mode switched on for a singular key → the value is copied into one and other under the default variable", async () => {
     const manager = createManager();
     getTranslationMock.mockResolvedValue(createSingularTranslationData("items.count", "Item"));
-
     await manager.loadTranslation("items.count", "default");
+
     manager.togglePluralMode(true);
 
-    expect(manager.state.value.data?.isPlural).toBe(true);
-    expect(manager.state.value.data?.pluralVariable).toBe(DEFAULT_PLURAL_VARIABLE);
-    expect(manager.state.value.data?.translations.en?.one).toBe("Item");
-    expect(manager.state.value.data?.translations.en?.other).toBe("Item");
+    expect({
+      isPlural: manager.state.value.data?.isPlural,
+      pluralVariable: manager.state.value.data?.pluralVariable,
+      one: manager.state.value.data?.translations.en?.one,
+      other: manager.state.value.data?.translations.en?.other,
+    }).toEqual({
+      isPlural: true,
+      pluralVariable: DEFAULT_PLURAL_VARIABLE,
+      one: "Item",
+      other: "Item",
+    });
+  });
+
+  it("plural mode switched off again → the key is singular with only its other form", async () => {
+    const manager = await loadedPluralManager();
 
     manager.togglePluralMode(false);
 
-    expect(manager.state.value.data?.isPlural).toBe(false);
-    expect(manager.state.value.data?.translations.en).toEqual({ other: "Item" });
+    expect({
+      isPlural: manager.state.value.data?.isPlural,
+      en: manager.state.value.data?.translations.en,
+    }).toEqual({ isPlural: false, en: { other: "Item" } });
   });
 
-  it("converts, reconfigures and unconverts select mode across one lifecycle", async () => {
+  it("select mode switched on with two options → the config is stored and each option gets the singular value", async () => {
     const manager = createManager();
     getTranslationMock.mockResolvedValue(createSingularTranslationData("welcome.message", "Hello"));
-
     await manager.loadTranslation("welcome.message", "default");
+
     manager.toggleSelectMode("en", true, {
       variable: "formality",
       options: ["formal", "informal"],
     });
 
-    expect(manager.state.value.data?.selectConfigs?.en).toEqual({
-      enabled: true,
-      variable: "formality",
-      options: ["formal", "informal"],
+    expect({
+      config: manager.state.value.data?.selectConfigs?.en,
+      en: manager.state.value.data?.translations.en,
+    }).toEqual({
+      config: { enabled: true, variable: "formality", options: ["formal", "informal"] },
+      en: { formal: "Hello", informal: "Hello" },
     });
-    expect(manager.state.value.data?.translations.en).toEqual({
-      formal: "Hello",
-      informal: "Hello",
-    });
+  });
 
-    manager.updateSelectConfig("en", {
-      options: ["formal", "neutral", "informal"],
-    });
+  it("select option added through updateSelectConfig → the new option gets the existing value", async () => {
+    const manager = await loadedSelectManager();
+
+    manager.updateSelectConfig("en", { options: ["formal", "neutral", "informal"] });
 
     expect(manager.state.value.data?.translations.en).toEqual({
       formal: "Hello",
       neutral: "Hello",
       informal: "Hello",
     });
+  });
+
+  it("select mode switched off again → the config is disabled and only the other form remains", async () => {
+    const manager = await loadedSelectManager();
 
     manager.toggleSelectMode("en", false);
-    expect(manager.state.value.data?.selectConfigs?.en?.enabled).toBe(false);
-    expect(manager.state.value.data?.translations.en).toEqual({ other: "Hello" });
+
+    expect({
+      enabled: manager.state.value.data?.selectConfigs?.en?.enabled,
+      en: manager.state.value.data?.translations.en,
+    }).toEqual({ enabled: false, en: { other: "Hello" } });
   });
 
   it.each([
@@ -417,7 +472,7 @@ describe("useTranslations", () => {
     expect(manager.description.value).toBe("");
   });
 
-  it("exposes empty defaults from every accessor before a translation is loaded", () => {
+  it("fresh manager → the state is empty, not loading, without error, not dirty", () => {
     const manager = createManager();
 
     expect(manager.state.value).toEqual({
@@ -426,17 +481,42 @@ describe("useTranslations", () => {
       error: null,
       isDirty: false,
     });
-    expect(manager.currentKey.value).toBeUndefined();
-    expect(manager.description.value).toBe("");
-    expect(manager.translations.value).toEqual({});
-    expect(manager.hasUnsavedChanges.value).toBe(false);
-    expect(manager.isPlural.value).toBe(false);
-    expect(manager.pluralVariable.value).toBe("");
-    expect(manager.selectConfigs.value).toEqual({});
-    expect(manager.getSelectConfig("en")).toBeUndefined();
   });
 
-  it("exposes the key, translations, plural flag, variable and select config of loaded data", async () => {
+  it.each<[string, (manager: TranslationManager) => unknown, unknown]>([
+    ["currentKey", (m) => m.currentKey.value, undefined],
+    ["description", (m) => m.description.value, ""],
+    ["translations", (m) => m.translations.value, {}],
+    ["hasUnsavedChanges", (m) => m.hasUnsavedChanges.value, false],
+    ["isPlural", (m) => m.isPlural.value, false],
+    ["pluralVariable", (m) => m.pluralVariable.value, ""],
+    ["selectConfigs", (m) => m.selectConfigs.value, {}],
+    ['getSelectConfig("en")', (m) => m.getSelectConfig("en"), undefined],
+  ])("fresh manager → %s reads its empty default", (_name, read, expected) => {
+    const manager = createManager();
+
+    const value = read(manager);
+
+    expect(value).toEqual(expected);
+  });
+
+  it.each<[string, (manager: TranslationManager) => unknown, unknown]>([
+    ["currentKey", (m) => m.currentKey.value, "cart.items"],
+    ["translations", (m) => m.translations.value, { en: { one: "# item", other: "# items" } }],
+    ["isPlural", (m) => m.isPlural.value, true],
+    ["pluralVariable", (m) => m.pluralVariable.value, "n"],
+    [
+      "selectConfigs",
+      (m) => m.selectConfigs.value,
+      { en: { enabled: true, variable: "formality", options: ["formal", "informal"] } },
+    ],
+    ["hasUnsavedChanges", (m) => m.hasUnsavedChanges.value, false],
+    [
+      'getSelectConfig("en")',
+      (m) => m.getSelectConfig("en"),
+      { enabled: true, variable: "formality", options: ["formal", "informal"] },
+    ],
+  ])("plural key with a select config loaded → %s exposes it", async (_name, read, expected) => {
     const manager = createManager();
     getTranslationMock.mockResolvedValue({
       key: "cart.items",
@@ -450,22 +530,19 @@ describe("useTranslations", () => {
 
     await manager.loadTranslation("cart.items", "shop");
 
-    expect(manager.currentKey.value).toBe("cart.items");
-    expect(manager.translations.value).toEqual({ en: { one: "# item", other: "# items" } });
-    expect(manager.isPlural.value).toBe(true);
-    expect(manager.pluralVariable.value).toBe("n");
-    expect(manager.selectConfigs.value).toEqual({
-      en: { enabled: true, variable: "formality", options: ["formal", "informal"] },
-    });
-    expect(manager.hasUnsavedChanges.value).toBe(false);
-    expect(manager.getSelectConfig("en")).toEqual({
-      enabled: true,
-      variable: "formality",
-      options: ["formal", "informal"],
-    });
+    expect(read(manager)).toEqual(expected);
   });
 
-  it("stays loading from the start of a fetch until it settles", async () => {
+  it("fetch in flight → isLoading is true", () => {
+    const manager = createManager();
+    getTranslationMock.mockImplementation(() => new Promise<TranslationData>(() => undefined));
+
+    void manager.loadTranslation("home.title", "default");
+
+    expect(manager.state.value.isLoading).toBe(true);
+  });
+
+  it("fetch settles → isLoading is false again", async () => {
     const manager = createManager();
     let resolveLoad!: (value: TranslationData) => void;
     getTranslationMock.mockImplementation(
@@ -474,10 +551,7 @@ describe("useTranslations", () => {
           resolveLoad = resolve;
         }),
     );
-
     const pending = manager.loadTranslation("home.title", "default");
-
-    expect(manager.state.value.isLoading).toBe(true);
 
     resolveLoad(createSingularTranslationData("home.title", "Welcome"));
     await pending;
@@ -526,33 +600,31 @@ describe("useTranslations", () => {
     );
   });
 
-  it("ignores a stale rejection while a newer request is still loading", async () => {
+  it("older request rejects while a newer one is still loading → no error, still loading, nothing logged", async () => {
     const manager = createManager();
-    let rejectFirst!: (reason: unknown) => void;
-    let resolveSecond!: (value: TranslationData) => void;
-    getTranslationMock
-      .mockImplementationOnce(
-        () =>
-          new Promise<TranslationData>((_resolve, reject) => {
-            rejectFirst = reject;
-          }),
-      )
-      .mockImplementationOnce(
-        () =>
-          new Promise<TranslationData>((resolve) => {
-            resolveSecond = resolve;
-          }),
-      );
+    const { rejectFirst } = twoRacingLoads();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const firstLoad = manager.loadTranslation("key.first", "default");
+    void manager.loadTranslation("key.second", "default");
 
+    rejectFirst(new Error("Load failed"));
+    await firstLoad;
+
+    expect({
+      error: manager.state.value.error,
+      isLoading: manager.state.value.isLoading,
+      logged: errorSpy.mock.calls.length,
+    }).toEqual({ error: null, isLoading: true, logged: 0 });
+  });
+
+  it("older request rejected, then the newer one resolves → the newer key's data is shown", async () => {
+    const manager = createManager();
+    const { rejectFirst, resolveSecond } = twoRacingLoads();
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const firstLoad = manager.loadTranslation("key.first", "default");
     const secondLoad = manager.loadTranslation("key.second", "default");
     rejectFirst(new Error("Load failed"));
     await firstLoad;
-
-    expect(manager.state.value.error).toBeNull();
-    expect(manager.state.value.isLoading).toBe(true);
-    expect(errorSpy).not.toHaveBeenCalled();
 
     resolveSecond(createSingularTranslationData("key.second", "Second"));
     await secondLoad;
@@ -579,7 +651,18 @@ describe("useTranslations", () => {
     );
   });
 
-  it("stays loading from the start of a save until it settles", async () => {
+  it("save in flight → isLoading is true", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
+    await manager.loadTranslation("home.title", "default");
+    saveTranslationMock.mockImplementation(() => new Promise<TranslationData>(() => undefined));
+
+    void manager.saveTranslation();
+
+    expect(manager.state.value.isLoading).toBe(true);
+  });
+
+  it("save settles → isLoading is false again", async () => {
     const manager = createManager();
     getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
     await manager.loadTranslation("home.title", "default");
@@ -590,10 +673,7 @@ describe("useTranslations", () => {
           resolveSave = resolve;
         }),
     );
-
     const pending = manager.saveTranslation();
-
-    expect(manager.state.value.isLoading).toBe(true);
 
     resolveSave(createSingularTranslationData("home.title", "Initial"));
     await pending;
@@ -1106,6 +1186,15 @@ describe("useTranslations", () => {
       };
     }
 
+    /** A manager with key "first" loaded in namespace-A and its value edited. */
+    async function editedFirstKey(): Promise<TranslationManager> {
+      const manager = createManager();
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("first", "Old"));
+      await manager.loadTranslation("first", "namespace-A");
+      manager.updateTranslation("en", "other", "edited");
+      return manager;
+    }
+
     it("keeps the newer session and writes only into the scope the save started in", async () => {
       const instanceId = ref<string | undefined>("core-a");
       const manager = useTranslations(ref(LANGUAGES), instanceId);
@@ -1182,23 +1271,44 @@ describe("useTranslations", () => {
       await pending;
     });
 
-    it("reports a pending save through one shared saving flag scoped to its session", async () => {
-      const manager = createManager();
-      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("first", "Old"));
-      await manager.loadTranslation("first", "namespace-A");
-      manager.updateTranslation("en", "other", "edited");
-      const firstSave = deferredSave();
+    it("edited key, no save started → isSaving is false", async () => {
+      const manager = await editedFirstKey();
+
+      const saving = manager.isSaving.value;
+
+      expect(saving).toBe(false);
+    });
+
+    it("save started and still pending → isSaving is true", async () => {
+      const manager = await editedFirstKey();
+      deferredSave();
+
+      void manager.saveTranslation();
+
+      expect(manager.isSaving.value).toBe(true);
+    });
+
+    it("another key loaded while a save is pending → isSaving is false for the new session", async () => {
+      const manager = await editedFirstKey();
+      deferredSave();
+      void manager.saveTranslation();
+      getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("second", "Two"));
+
+      await manager.loadTranslation("second", "namespace-B");
 
       expect(manager.isSaving.value).toBe(false);
-      const pending = manager.saveTranslation();
-      expect(manager.isSaving.value).toBe(true);
+    });
 
+    it("old session's save settles after another key was loaded → isSaving stays false", async () => {
+      const manager = await editedFirstKey();
+      const firstSave = deferredSave();
+      const pending = manager.saveTranslation();
       getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("second", "Two"));
       await manager.loadTranslation("second", "namespace-B");
-      expect(manager.isSaving.value).toBe(false);
 
       firstSave.resolve(createSingularTranslationData("first", "edited"));
       await pending;
+
       expect(manager.isSaving.value).toBe(false);
     });
   });

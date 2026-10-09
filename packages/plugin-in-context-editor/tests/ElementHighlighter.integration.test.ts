@@ -69,54 +69,76 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateKeyEvent("keyup", "Alt");
     });
 
-    it("should ignore removeHighlightFromElement for a never-highlighted element", () => {
+    it("removeHighlightFromElement on a never-highlighted element → does not throw", () => {
+      const stranger = document.createElement("button");
+      document.body.append(stranger);
+
+      expect(() => highlighter.removeHighlightFromElement(stranger)).not.toThrow();
+    });
+
+    it("removeHighlightFromElement on a never-highlighted element → the highlighted one still answers Alt+click", () => {
       const highlighted = document.createElement("button");
       const stranger = document.createElement("button");
       mockBoundingClientRect(highlighted, { top: 0, left: 0, width: 100, height: 30 });
       document.body.append(highlighted, stranger);
       highlighter.addHighlight(highlighted);
-
-      expect(() => highlighter.removeHighlightFromElement(stranger)).not.toThrow();
-
+      highlighter.removeHighlightFromElement(stranger);
       simulateKeyEvent("keydown", "Alt");
+
       simulateMouseEvent(highlighted, "click");
 
       expect(handleClick).toHaveBeenCalledWith(highlighted);
-
       simulateKeyEvent("keyup", "Alt");
     });
   });
 
   describe("Alt key interaction", () => {
-    it("should track Alt key state", () => {
+    it("Alt keydown, then mouseover a highlighted element → the overlay is shown", () => {
       const button = document.createElement("button");
-      button.textContent = "Test";
       mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
       document.body.appendChild(button);
-
       highlighter.addHighlight(button);
-
       simulateKeyEvent("keydown", "Alt");
+
       simulateMouseEvent(button, "mouseover");
 
       expect(getActiveOverlay()).not.toBeNull();
+      simulateKeyEvent("keyup", "Alt");
+    });
+
+    it("Alt released over a highlighted element → the overlay is removed", () => {
+      const button = document.createElement("button");
+      mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
+      document.body.appendChild(button);
+      highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
 
       simulateKeyEvent("keyup", "Alt");
 
       expect(getActiveOverlay()).toBeNull();
     });
 
-    it("should handle Option key (Mac)", () => {
+    it("Option (Mac) keydown, then mouseover a highlighted element → the overlay is shown", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
       document.body.appendChild(button);
-
       highlighter.addHighlight(button);
-
       simulateKeyEvent("keydown", "Option");
+
       simulateMouseEvent(button, "mouseover");
 
       expect(getActiveOverlay()).not.toBeNull();
+      simulateKeyEvent("keyup", "Option");
+    });
+
+    it("Option (Mac) released over a highlighted element → the overlay is removed", () => {
+      const button = document.createElement("button");
+      mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
+      document.body.appendChild(button);
+      highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Option");
+      simulateMouseEvent(button, "mouseover");
 
       simulateKeyEvent("keyup", "Option");
 
@@ -145,21 +167,29 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(handleClick).toHaveBeenCalledWith(button);
     });
 
-    it("should reset modifier state and overlay on window blur", () => {
+    it("window blur while Alt-hovering → the overlay is removed", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
       document.body.appendChild(button);
-
       highlighter.addHighlight(button);
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
 
-      expect(getActiveOverlay()).not.toBeNull();
-
       window.dispatchEvent(new Event("blur"));
 
       expect(getActiveOverlay()).toBeNull();
+    });
+
+    it("window blur after Alt keydown → a later plain click is not treated as Alt+click", () => {
+      const button = document.createElement("button");
+      mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
+      document.body.appendChild(button);
+      highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Alt");
+      window.dispatchEvent(new Event("blur"));
+
       simulateMouseEvent(button, "click");
+
       expect(handleClick).not.toHaveBeenCalled();
     });
   });
@@ -227,20 +257,17 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateKeyEvent("keyup", "Alt");
     });
 
-    it("should handle mouseout", () => {
+    it("Alt held, mouseout from the hovered element → the overlay is removed", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 100, left: 100, width: 100, height: 30 });
       document.body.appendChild(button);
-
       highlighter.addHighlight(button);
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
-      expect(getActiveOverlay()).not.toBeNull();
 
       simulateMouseEvent(button, "mouseout");
 
       expect(getActiveOverlay()).toBeNull();
-
       simulateKeyEvent("keyup", "Alt");
     });
   });
@@ -410,23 +437,31 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateKeyEvent("keyup", "Alt");
     });
 
-    it("should start overlay with opacity 0 for fade-in", async () => {
+    it("Alt+hover → the overlay starts at opacity 0", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 10, left: 10, width: 100, height: 30 });
       document.body.appendChild(button);
+      highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Alt");
 
+      simulateMouseEvent(button, "mouseover");
+
+      expect(getActiveOverlay()?.style.opacity).toBe("0");
+      simulateKeyEvent("keyup", "Alt");
+    });
+
+    it("Alt+hover, next animation frame → the overlay fades in to opacity 1", async () => {
+      const button = document.createElement("button");
+      mockBoundingClientRect(button, { top: 10, left: 10, width: 100, height: 30 });
+      document.body.appendChild(button);
       highlighter.addHighlight(button);
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
-
       const overlay = getActiveOverlay();
-      expect(overlay).not.toBeNull();
-      expect(overlay!.style.opacity).toBe("0");
 
       await flushAnimationFrame();
 
-      expect(overlay!.style.opacity).toBe("1");
-
+      expect(overlay?.style.opacity).toBe("1");
       simulateKeyEvent("keyup", "Alt");
     });
   });
@@ -508,22 +543,20 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateKeyEvent("keyup", "Alt");
     });
 
-    it("should remove tooltip when highlight is removed", () => {
+    it("Alt released while a key tooltip shows → the tooltip is removed", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 50, left: 10, width: 100, height: 30 });
       document.body.appendChild(button);
-
       const textNode = document.createTextNode("Hello");
       button.appendChild(textNode);
       eventBus.emit("translationRegistered", button, {
         nodes: new Map([[textNode, { key: "greeting", ns: "common" }]]),
       });
-
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
-      expect(getActiveTooltip()).not.toBeNull();
 
       simulateKeyEvent("keyup", "Alt");
+
       expect(getActiveTooltip()).toBeNull();
     });
 
@@ -740,24 +773,35 @@ describe("ElementHighlighter", () => {
       });
     });
 
-    it("fades the overlay and the tooltip in on the next animation frame", async () => {
+    it("Alt+hover → the overlay and the tooltip start transparent with a 150ms opacity transition", () => {
       const button = appendElement({ top: 100, left: 60, width: 120, height: 40, bottom: 140 });
       registerKeys(button, [{ key: "greeting", ns: "common" }]);
-
       simulateKeyEvent("keydown", "Alt");
+
       simulateMouseEvent(button, "mouseover");
 
       const overlay = getActiveOverlay();
       const tooltip = getActiveTooltip();
-      expect([overlay!.style.opacity, tooltip!.style.opacity]).toEqual(["0", "0"]);
-      expect([overlay!.style.transition, tooltip!.style.transition]).toEqual([
-        "opacity 150ms ease-in-out",
-        "opacity 150ms ease-in-out",
-      ]);
+      expect({
+        opacity: [overlay?.style.opacity, tooltip?.style.opacity],
+        transition: [overlay?.style.transition, tooltip?.style.transition],
+      }).toEqual({
+        opacity: ["0", "0"],
+        transition: ["opacity 150ms ease-in-out", "opacity 150ms ease-in-out"],
+      });
+    });
+
+    it("Alt+hover, next animation frame → the overlay and the tooltip fade in to opacity 1", async () => {
+      const button = appendElement({ top: 100, left: 60, width: 120, height: 40, bottom: 140 });
+      registerKeys(button, [{ key: "greeting", ns: "common" }]);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
+      const overlay = getActiveOverlay();
+      const tooltip = getActiveTooltip();
 
       await flushAnimationFrame();
 
-      expect([overlay!.style.opacity, tooltip!.style.opacity]).toEqual(["1", "1"]);
+      expect([overlay?.style.opacity, tooltip?.style.opacity]).toEqual(["1", "1"]);
     });
 
     it("leaves nothing behind when the modifier is released before the fade-in frame", () => {
@@ -792,26 +836,45 @@ describe("ElementHighlighter", () => {
       expect(getActiveTooltip()).toBeNull();
     });
 
-    it("replaces the tooltip with the newly hovered element's key", async () => {
+    it("Alt+hover moves to a second element → one tooltip shows its key at its position, transparent until the next frame", async () => {
       const first = appendElement({ top: 100, left: 60, width: 120, height: 40, bottom: 140 });
       const second = appendElement({ top: 300, left: 10, width: 80, height: 20, bottom: 320 });
       registerKeys(first, [{ key: "greeting", ns: "common" }]);
       registerKeys(second, [{ key: "farewell", ns: "common" }]);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(first, "mouseover");
+      await flushAnimationFrame();
 
+      simulateMouseEvent(second, "mouseover");
+
+      const tooltip = getActiveTooltip();
+      expect({
+        text: tooltip?.textContent,
+        opacity: tooltip?.style.opacity,
+        top: tooltip?.style.top,
+        overlayAndTooltipOnly: document.body.querySelectorAll("div").length,
+      }).toEqual({
+        text: "farewell (common)",
+        opacity: "0",
+        top: "266px",
+        overlayAndTooltipOnly: 2,
+      });
+    });
+
+    it("Alt+hover moves to a second element, next animation frame → its tooltip fades in", async () => {
+      const first = appendElement({ top: 100, left: 60, width: 120, height: 40, bottom: 140 });
+      const second = appendElement({ top: 300, left: 10, width: 80, height: 20, bottom: 320 });
+      registerKeys(first, [{ key: "greeting", ns: "common" }]);
+      registerKeys(second, [{ key: "farewell", ns: "common" }]);
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(first, "mouseover");
       await flushAnimationFrame();
       simulateMouseEvent(second, "mouseover");
-
       const tooltip = getActiveTooltip();
-      expect(tooltip!.textContent).toBe("farewell (common)");
-      expect(tooltip!.style.opacity).toBe("0");
-      expect(tooltip!.style.top).toBe("266px");
-      expect(document.body.querySelectorAll("div").length).toBe(2);
 
       await flushAnimationFrame();
 
-      expect(tooltip!.style.opacity).toBe("1");
+      expect(tooltip?.style.opacity).toBe("1");
     });
   });
 
@@ -939,14 +1002,13 @@ describe("ElementHighlighter", () => {
   describe("ancestor lookup", () => {
     it("element registered after a failed lookup → Alt-click resolves it", () => {
       const button = appendElement({ top: 0, left: 0, width: 100, height: 30 });
-
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "click");
-      expect(handleClick).not.toHaveBeenCalled();
-
       highlighter.addHighlight(button);
+
       simulateMouseEvent(button, "click");
 
+      // Exactly one call: the click before registration resolved nothing.
       expect(handleClick.mock.calls).toEqual([[button]]);
     });
 
@@ -955,14 +1017,13 @@ describe("ElementHighlighter", () => {
       const child = document.createElement("span");
       parent.appendChild(child);
       highlighter.addHighlight(parent);
-
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(child, "click");
-      expect(handleClick).toHaveBeenCalledWith(parent);
-
       highlighter.removeHighlightFromElement(parent);
+
       simulateMouseEvent(child, "click");
 
+      // Only the click made while the ancestor was registered resolved it.
       expect(handleClick.mock.calls).toEqual([[parent]]);
     });
 
@@ -1015,16 +1076,14 @@ describe("ElementHighlighter", () => {
   });
 
   describe("modifier handling", () => {
-    it("shows the overlay when Alt is pressed while the pointer is already on the element", () => {
+    it("Alt pressed while the pointer already rests on the element → the overlay is drawn at its top", () => {
       const button = appendElement({ top: 40, left: 20, width: 100, height: 30 });
       highlighter.addHighlight(button);
-
       simulateMouseEvent(button, "mouseover");
-      expect(getActiveOverlay()).toBeNull();
 
       simulateKeyEvent("keydown", "Alt");
 
-      expect(getActiveOverlay()!.style.top).toBe("40px");
+      expect(getActiveOverlay()?.style.top).toBe("40px");
     });
 
     it("ignores a non-modifier key press while hovering a registered element", () => {
@@ -1375,20 +1434,30 @@ describe("ElementHighlighter", () => {
       expect(getActiveTooltip()!.textContent).toBe("farewell (common)");
     });
 
-    it("forgets both the element and its keys on translationRemoved", () => {
+    it("translationRemoved → Alt+hover on the element draws no overlay", () => {
       const button = appendElement({ top: 100, left: 0, width: 100, height: 40, bottom: 140 });
       registerKeys(button, [{ key: "greeting", ns: "common" }]);
-
       eventBus.emit("translationRemoved", button);
       simulateKeyEvent("keydown", "Alt");
+
       simulateMouseEvent(button, "mouseover");
+
       expect(getActiveOverlay()).toBeNull();
+    });
 
+    it("translationRemoved, then highlighted again without keys → overlay shown but no key tooltip", () => {
+      const button = appendElement({ top: 100, left: 0, width: 100, height: 40, bottom: 140 });
+      registerKeys(button, [{ key: "greeting", ns: "common" }]);
+      eventBus.emit("translationRemoved", button);
       highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Alt");
+
       simulateMouseEvent(button, "mouseover");
 
-      expect(getActiveOverlay()).not.toBeNull();
-      expect(getActiveTooltip()).toBeNull();
+      expect({ overlay: getActiveOverlay() !== null, tooltip: getActiveTooltip() }).toEqual({
+        overlay: true,
+        tooltip: null,
+      });
     });
 
     it("lists a key once when several nodes of an element share it", () => {
