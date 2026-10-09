@@ -4,11 +4,14 @@
  * `init()` ran before it.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { init, stop } from "../src/main";
 import { loadKeyMappings } from "../src/translation";
 import { TAG_ATTRIBUTES } from "../src/constants";
-import { cleanupDOM } from "./helpers";
+import { Core } from "../src/Core";
+import { initApiConfig, resetApiConfig, type ApiTransport } from "../src/config/api";
+import { cleanupDOM, flushDOMMutations } from "./helpers";
+import { contextApiResponse, contextPaths } from "./helpers/contextWire";
 import { hoverLabel, renderMarked } from "./helpers/editorPage";
 
 function renderTarget(): HTMLElement {
@@ -17,8 +20,24 @@ function renderTarget(): HTMLElement {
   return container;
 }
 
+/**
+ * `init()` builds its runtime without any API configuration, so a test that
+ * wants to watch the wire configures the scope the NEXT runtime will get. Ids
+ * are `core-<counter>` (pinned by Core.i18n-instances.test.ts); a probe Core
+ * reads the counter and is stopped at once.
+ */
+function transportForNextRuntime(): ReturnType<typeof vi.fn<ApiTransport>> {
+  const probe = new Core();
+  const nextId = `core-${Number(probe.getInstanceId().slice("core-".length)) + 1}`;
+  probe.stop();
+  const transport = vi.fn<ApiTransport>((path) => contextApiResponse(path));
+  initApiConfig(undefined, nextId, { transport });
+  return transport;
+}
+
 afterEach(() => {
   stop();
+  resetApiConfig();
   cleanupDOM();
   loadKeyMappings({});
 });
@@ -62,6 +81,28 @@ describe("manual init()", () => {
     init({ targetElement: second });
 
     expect(await hoverLabel(secondHeading)).toBe("checkout.total (default)");
+  });
+});
+
+describe("manual init() and context collection", () => {
+  it("init() with a transport configured → the context handshake leaves through it", async () => {
+    renderMarked("home.title", { text: "Welcome" });
+    const transport = transportForNextRuntime();
+
+    init();
+    await flushDOMMutations();
+
+    expect(contextPaths(transport.mock.calls)).toContain("/v1/context/handshake");
+  });
+
+  it("init({ collectContext: false }) with a transport configured → no /v1/context request leaves", async () => {
+    renderMarked("home.title", { text: "Welcome" });
+    const transport = transportForNextRuntime();
+
+    init({ collectContext: false });
+    await flushDOMMutations();
+
+    expect(contextPaths(transport.mock.calls)).toEqual([]);
   });
 });
 
