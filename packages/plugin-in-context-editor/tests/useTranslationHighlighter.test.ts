@@ -198,7 +198,9 @@ describe("useTranslationHighlighter()", () => {
     it("a change to the source ref → the highlighted HTML is recomputed", () => {
       const text = ref("{name}");
       const { highlightedHtml } = useTranslationHighlighter(text);
-      expect(highlightedHtml.value).toBe(span(PLACEHOLDER, "{name}"));
+      // Read once so the change below must RE-compute, not compute for the first time.
+      // What "{name}" highlights to is pinned by the placeholder tests above.
+      void highlightedHtml.value;
 
       text.value = "<b>x</b>";
 

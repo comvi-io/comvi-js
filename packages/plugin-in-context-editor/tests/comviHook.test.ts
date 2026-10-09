@@ -642,16 +642,29 @@ describe("ensureComviHook() colliding instance ids", () => {
     expect(hook.instances.size).toBe(2);
   });
 
-  it("keeps both instances when an old core registers an id another instance holds", () => {
+  /** A held "comvi-1" instance, then an old core registering a second instance under that same id. */
+  function registerClashingId() {
     const hook = install();
     const held = fake("comvi-1");
     const late = fake();
     hook.push(slot({ v: "1.4.0", i: held }));
+    return { hook, held, late };
+  }
+
+  it("old core registers an id another instance holds → both instances are kept, the id still resolves to the holder", () => {
+    const { hook, held, late } = registerClashingId();
 
     hook.register("comvi-1", slot(late) as never);
 
-    expect(hook.instances.size).toBe(2);
-    expect(hook.get("comvi-1")).toBe(held);
+    expect({ size: hook.instances.size, resolved: hook.get("comvi-1") }).toEqual({
+      size: 2,
+      resolved: held,
+    });
+  });
+
+  it("clashing id registered, then the holder is removed → only the late instance remains", () => {
+    const { hook, held, late } = registerClashingId();
+    hook.register("comvi-1", slot(late) as never);
 
     hook.remove(slot({ v: "1.4.0", i: held }));
 

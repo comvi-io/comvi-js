@@ -42,31 +42,63 @@ describe("EventBus", () => {
       expect(order).toEqual([1, 2, 3]);
     });
 
-    it("should return unsubscribe function", () => {
+    it("on() → the event has one listener", () => {
       const callback = vi.fn();
-      const unsubscribe = eventBus.on("test-event", callback);
+
+      eventBus.on("test-event", callback);
 
       expect(eventBus.listenerCount("test-event")).toBe(1);
+    });
+
+    it("calling the function on() returned → the event has no listener", () => {
+      const unsubscribe = eventBus.on("test-event", vi.fn());
 
       unsubscribe();
+
       expect(eventBus.listenerCount("test-event")).toBe(0);
+    });
+
+    it("calling the function on() returned, then emit() → the callback is not called", () => {
+      const callback = vi.fn();
+      const unsubscribe = eventBus.on("test-event", callback);
+      unsubscribe();
+
       eventBus.emit("test-event");
 
       expect(callback).not.toHaveBeenCalled();
     });
 
-    it("should not deliver the in-flight event to a listener subscribed during emit", () => {
-      const lateCallback = vi.fn();
+    /** A listener that subscribes `lateCallback` while the event is being delivered. */
+    function subscribeDuringEmit(lateCallback: () => void): void {
       eventBus.on("test-event", () => {
         eventBus.on("test-event", lateCallback);
       });
+    }
+
+    it("listener subscribed during emit → the in-flight event is not delivered to it", () => {
+      const lateCallback = vi.fn();
+      subscribeDuringEmit(lateCallback);
 
       eventBus.emit("test-event");
 
       expect(lateCallback).not.toHaveBeenCalled();
-      expect(eventBus.listenerCount("test-event")).toBe(2);
+    });
+
+    it("listener subscribed during emit → it is registered once the emit returns", () => {
+      subscribeDuringEmit(vi.fn());
 
       eventBus.emit("test-event");
+
+      expect(eventBus.listenerCount("test-event")).toBe(2);
+    });
+
+    it("listener subscribed during emit → the next emit delivers to it", () => {
+      const lateCallback = vi.fn();
+      subscribeDuringEmit(lateCallback);
+      eventBus.emit("test-event");
+
+      eventBus.emit("test-event");
+
       expect(lateCallback).toHaveBeenCalledTimes(1);
     });
   });
@@ -103,7 +135,7 @@ describe("EventBus", () => {
       expect(callback).toHaveBeenCalledWith(arg1, arg2, arg3);
     });
 
-    it("should handle no arguments", () => {
+    it("emit() with no payload → the listener is called with no arguments", () => {
       const callback = vi.fn();
       eventBus.on("test-event", callback);
 
@@ -112,7 +144,7 @@ describe("EventBus", () => {
       expect(callback).toHaveBeenCalledWith();
     });
 
-    it("should handle complex data types", () => {
+    it("emit() with a nested Map/array payload → the listener receives that same object", () => {
       const callback = vi.fn();
       eventBus.on("test-event", callback);
 
@@ -144,16 +176,14 @@ describe("EventBus", () => {
   });
 
   describe("unsubscribe", () => {
-    it("should stop receiving events after unsubscribe", () => {
+    it("listener that already received one event, then unsubscribed → a later emit is not delivered", () => {
       const callback = vi.fn();
       const unsubscribe = eventBus.on("test-event", callback);
-
       eventBus.emit("test-event");
-      expect(callback).toHaveBeenCalledTimes(1);
-
       unsubscribe();
 
       eventBus.emit("test-event");
+
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
@@ -171,7 +201,7 @@ describe("EventBus", () => {
       expect(callback2).toHaveBeenCalledTimes(1);
     });
 
-    it("should handle multiple unsubscribes safely", () => {
+    it("unsubscribe called twice → the listener stays detached", () => {
       const callback = vi.fn();
       const unsubscribe = eventBus.on("test-event", callback);
 
@@ -182,7 +212,7 @@ describe("EventBus", () => {
       expect(callback).not.toHaveBeenCalled();
     });
 
-    it("should handle unsubscribe from non-existent event", () => {
+    it("unsubscribe after removeAllListeners(event) → the listener stays detached", () => {
       const callback = vi.fn();
       const unsubscribe = eventBus.on("test-event", callback);
 
@@ -309,7 +339,7 @@ describe("EventBus", () => {
       );
     });
 
-    it("should handle errors in multiple callbacks", () => {
+    it("two listeners throw → every listener still runs and each error is logged", () => {
       const callback1 = vi.fn(() => {
         throw new Error("Error 1");
       });
@@ -334,7 +364,7 @@ describe("EventBus", () => {
   });
 
   describe("event isolation", () => {
-    it("should handle similar event names separately", () => {
+    it('emit("test") → a listener on "test-event" is not called', () => {
       const callback1 = vi.fn();
       const callback2 = vi.fn();
 
@@ -349,11 +379,18 @@ describe("EventBus", () => {
   });
 
   describe("scale", () => {
-    it("should deliver one call per subscriber to every subscriber", () => {
+    it("three subscribers → the event has three listeners", () => {
       const callbacks = [vi.fn(), vi.fn(), vi.fn()];
+
       callbacks.forEach((callback) => eventBus.on("test-event", callback));
 
       expect(eventBus.listenerCount("test-event")).toBe(3);
+    });
+
+    it("three subscribers, one emit → each is called exactly once", () => {
+      const callbacks = [vi.fn(), vi.fn(), vi.fn()];
+      callbacks.forEach((callback) => eventBus.on("test-event", callback));
+
       eventBus.emit("test-event");
 
       expect(callbacks.map((callback) => callback.mock.calls.length)).toEqual([1, 1, 1]);

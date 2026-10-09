@@ -38,7 +38,7 @@ describe("TranslationScanner", () => {
   });
 
   describe("Text node processing", () => {
-    it("should process text nodes with encoded keys", () => {
+    it("text node with a marker → registered with its key and the visible text as preview", () => {
       const key = registerKey("text.key");
       const encoded = encodeKeyToInvisible(key);
 
@@ -55,7 +55,7 @@ describe("TranslationScanner", () => {
       });
     });
 
-    it("should process multiple text nodes in same element", () => {
+    it("two marked text nodes in one element → both keys registered on it, in order", () => {
       const key1 = registerKey("key1");
       const key2 = registerKey("key2");
 
@@ -74,7 +74,7 @@ describe("TranslationScanner", () => {
       ]);
     });
 
-    it("should handle textChanges events", () => {
+    it("textChanges for a node that gained a marker → its element is registered with the key", () => {
       const key = registerKey("change.key");
       const p = document.createElement("p");
       const textNode = document.createTextNode("Initial");
@@ -89,16 +89,15 @@ describe("TranslationScanner", () => {
       expect(registeredKeys(p)).toEqual([{ key: "change.key", ns: "default" }]);
     });
 
-    it("should remove stale text registrations when encoded markers disappear", () => {
+    it("registered text node rewritten without its marker → the element is unregistered", () => {
+      // That the marked text registers first is pinned by "text node with a marker → registered…".
       const key = registerKey("ghost.key");
       const p = document.createElement("p");
       const textNode = document.createTextNode(`Value ${encodeKeyToInvisible(key)}`);
       p.appendChild(textNode);
-
       eventBus.emit("structureChanges", [p]);
-      expect(registeredKeys(p)).toEqual([{ key: "ghost.key", ns: "default" }]);
-
       textNode.nodeValue = "Plain value";
+
       eventBus.emit("textChanges", [textNode]);
 
       expect(map.has(p)).toBe(false);
@@ -151,7 +150,7 @@ describe("TranslationScanner", () => {
   });
 
   describe("Attribute processing", () => {
-    it("should process attributes with encoded keys", () => {
+    it("marked placeholder attribute → registered on the input", () => {
       const key = registerKey("attr.key");
       const encoded = encodeKeyToInvisible(key);
 
@@ -163,7 +162,7 @@ describe("TranslationScanner", () => {
       expect(registeredKeys(input)).toEqual([{ key: "attr.key", ns: "default" }]);
     });
 
-    it("should process multiple attributes on same element", () => {
+    it("three marked attributes on one input → all three keys registered, in order", () => {
       const key1 = registerKey("placeholder.key");
       const key2 = registerKey("title.key");
       const key3 = registerKey("aria.key");
@@ -182,7 +181,7 @@ describe("TranslationScanner", () => {
       ]);
     });
 
-    it("should handle tag-specific attributes", () => {
+    it("marked placeholder on <textarea> (tag-specific rule) → registered", () => {
       const key = registerKey("textarea.placeholder");
       const encoded = encodeKeyToInvisible(key);
 
@@ -194,7 +193,7 @@ describe("TranslationScanner", () => {
       expect(registeredKeys(textarea)).toEqual([{ key: "textarea.placeholder", ns: "default" }]);
     });
 
-    it("should handle universal attributes (*)", () => {
+    it("marked title on <span> (universal * rule) → registered", () => {
       const key = registerKey("universal.title");
       const encoded = encodeKeyToInvisible(key);
 
@@ -206,7 +205,7 @@ describe("TranslationScanner", () => {
       expect(registeredKeys(span)).toEqual([{ key: "universal.title", ns: "default" }]);
     });
 
-    it("should handle selector-based tagAttributes rules", () => {
+    it("marked value on <input type=button> (selector rule) → registered", () => {
       const key = registerKey("input.button.value");
       const encoded = encodeKeyToInvisible(key);
 
@@ -219,15 +218,14 @@ describe("TranslationScanner", () => {
       expect(registeredKeys(inputButton)).toEqual([{ key: "input.button.value", ns: "default" }]);
     });
 
-    it("should remove stale attribute registrations when encoded markers disappear", () => {
+    it("registered placeholder rewritten without its marker → the input is unregistered", () => {
+      // That the marked placeholder registers first is pinned by "marked placeholder attribute → registered on the input".
       const key = registerKey("placeholder.key");
       const input = document.createElement("input");
       input.setAttribute("placeholder", `Placeholder ${encodeKeyToInvisible(key)}`);
-
       eventBus.emit("attributeChanges", [input]);
-      expect(registeredKeys(input)).toEqual([{ key: "placeholder.key", ns: "default" }]);
-
       input.setAttribute("placeholder", "Plain placeholder");
+
       eventBus.emit("attributeChanges", [input]);
 
       expect(map.has(input)).toBe(false);
@@ -328,7 +326,7 @@ describe("TranslationScanner", () => {
   });
 
   describe("Structure changes", () => {
-    it("should process nested structures", () => {
+    it("marked parent and child under one structureChanges root → each registered with its own key", () => {
       const key1 = registerKey("parent.key");
       const key2 = registerKey("child.key");
 
@@ -346,7 +344,7 @@ describe("TranslationScanner", () => {
       expect(registeredKeys(child)).toEqual([{ key: "child.key", ns: "default" }]);
     });
 
-    it("should process deeply nested structures", () => {
+    it("five nested levels, one marker each → five elements registered, one key each", () => {
       const root = document.createElement("div");
       let current = root;
 
@@ -388,7 +386,7 @@ describe("TranslationScanner", () => {
       expect(updatedSpy).not.toHaveBeenCalled();
     });
 
-    it("should process a root listed twice in one batch only once", () => {
+    it("same root listed twice in one batch → registered once, no update event", () => {
       const key = registerKey("dup.key");
       const p = document.createElement("p");
       p.appendChild(document.createTextNode(`Value ${encodeKeyToInvisible(key)}`));
@@ -426,45 +424,37 @@ describe("TranslationScanner", () => {
   });
 
   describe("Removed nodes", () => {
-    it("should cleanup removed nodes", () => {
+    it("nodesRemoved for a registered element's only marked text node → the element is unregistered", () => {
       const key = registerKey("removed.key");
       const div = document.createElement("div");
       const textNode = document.createTextNode(`Text ${encodeKeyToInvisible(key)}`);
       div.appendChild(textNode);
-
       eventBus.emit("structureChanges", [div]);
-      expect(registeredKeys(div)).toEqual([{ key: "removed.key", ns: "default" }]);
 
       eventBus.emit("nodesRemoved", [textNode]);
 
       expect(map.has(div)).toBe(false);
     });
 
-    it("should cleanup removed elements", () => {
+    it("nodesRemoved for a registered element → the element is unregistered", () => {
       const key = registerKey("element.key");
       const div = document.createElement("div");
       div.setAttribute("title", `Title ${encodeKeyToInvisible(key)}`);
-
       eventBus.emit("structureChanges", [div]);
-      expect(registeredKeys(div)).toEqual([{ key: "element.key", ns: "default" }]);
 
       eventBus.emit("nodesRemoved", [div]);
 
       expect(map.has(div)).toBe(false);
     });
 
-    it("should batch cleanup for multiple removed nodes in one registry pass", () => {
+    it("two nodes removed in one event → the registry is cleaned in one pass over both", () => {
       const cleanupSpy = vi.spyOn(map, "cleanupRemovedNodes");
       const textNode1 = document.createTextNode("a");
       const textNode2 = document.createTextNode("b");
 
       eventBus.emit("nodesRemoved", [textNode1, textNode2]);
 
-      expect(cleanupSpy).toHaveBeenCalledTimes(1);
-      const removedSet = cleanupSpy.mock.calls[0]?.[0];
-      expect(removedSet).toBeInstanceOf(Set);
-      expect(removedSet?.has(textNode1)).toBe(true);
-      expect(removedSet?.has(textNode2)).toBe(true);
+      expect(cleanupSpy.mock.calls).toEqual([[new Set([textNode1, textNode2])]]);
     });
   });
 
@@ -557,7 +547,7 @@ describe("TranslationScanner", () => {
   });
 
   describe("Edge cases", () => {
-    it("should handle elements without encoded content", () => {
+    it("element with plain text only → not registered", () => {
       const div = document.createElement("div");
       div.textContent = "Plain text without encoding";
 
@@ -566,7 +556,7 @@ describe("TranslationScanner", () => {
       expect(map.has(div)).toBe(false);
     });
 
-    it("should handle empty elements", () => {
+    it("empty element → not registered", () => {
       const div = document.createElement("div");
 
       eventBus.emit("structureChanges", [div]);
@@ -574,7 +564,7 @@ describe("TranslationScanner", () => {
       expect(map.has(div)).toBe(false);
     });
 
-    it("should handle mixed encoded and plain text", () => {
+    it("plain and marked text nodes mixed → only the marked node is registered", () => {
       const key = registerKey("mixed.key");
       const div = document.createElement("div");
       const text1 = document.createTextNode("Plain text ");

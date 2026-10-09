@@ -70,6 +70,18 @@ function makePassItem(overrides: Partial<Observation> = {}, localHash = "hash-a"
   };
 }
 
+/** The JSON body of the `index`-th recorded fetch call (negative counts from the end). */
+function sentBody(index: number) {
+  const calls = vi.mocked(fetch).mock.calls;
+  const call = calls[index < 0 ? calls.length + index : index] as [string, RequestInit];
+  return JSON.parse(call[1].body as string);
+}
+
+/** The usages response the server sends when nothing needs re-sending. */
+function usagesOkResponse(): Response {
+  return mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 });
+}
+
 /** Re-initializes the scope without an apiKey, which is what demo mode is. */
 function useDemoMode(): void {
   resetApiConfig(SCOPE);
@@ -102,18 +114,26 @@ describe("collector/transport", () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
-    it("POSTs to /v1/context/handshake with the given keys", async () => {
+    it("one key → one POST to /v1/context/handshake carrying that key", async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValueOnce(mockOkResponse({ entries: [] }));
-
       const transport = new CollectorTransport(SCOPE);
+
       await transport.handshake([{ namespace: "ns", key: "a" }]);
 
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      expect(url).toContain("/v1/context/handshake");
-      expect(init.method).toBe("POST");
-      expect(JSON.parse(init.body as string)).toEqual({ keys: [{ namespace: "ns", key: "a" }] });
+      expect(
+        fetchMock.mock.calls.map(([url, init]) => ({
+          handshakeEndpoint: String(url).includes("/v1/context/handshake"),
+          method: (init as RequestInit).method,
+          body: JSON.parse((init as RequestInit).body as string),
+        })),
+      ).toEqual([
+        {
+          handshakeEndpoint: true,
+          method: "POST",
+          body: { keys: [{ namespace: "ns", key: "a" }] },
+        },
+      ]);
     });
 
     it("returns false on a non-ok response", async () => {
@@ -138,19 +158,20 @@ describe("collector/transport", () => {
         return Array.from({ length: count }, (_, i) => ({ namespace: "ns", key: `key-${i}` }));
       }
 
-      it("splits a 250-key registry into 3 handshake POSTs of <=100 keys each", async () => {
+      it("250 keys → three handshake POSTs of 100, 100 and 50 keys, and the handshake succeeds", async () => {
         const fetchMock = vi.mocked(fetch);
         fetchMock.mockResolvedValue(mockOkResponse({ entries: [] }));
-
         const transport = new CollectorTransport(SCOPE);
+
         const ok = await transport.handshake(makeKeys(250));
 
-        expect(ok).toBe(true);
-        expect(fetchMock).toHaveBeenCalledTimes(3);
-        const sizes = fetchMock.mock.calls.map(
-          ([, init]) => (JSON.parse((init as RequestInit).body as string).keys as unknown[]).length,
-        );
-        expect(sizes).toEqual([100, 100, 50]);
+        expect({
+          ok,
+          sizes: fetchMock.mock.calls.map(
+            ([, init]) =>
+              (JSON.parse((init as RequestInit).body as string).keys as unknown[]).length,
+          ),
+        }).toEqual({ ok: true, sizes: [100, 100, 50] });
       });
 
       it("emits no trailing empty batch when the key count is an exact multiple of 100", async () => {
@@ -163,49 +184,36 @@ describe("collector/transport", () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
       });
 
-      it("merges entries from every successful chunk into one gate map", async () => {
-        const fetchMock = vi.mocked(fetch);
-        fetchMock
+      /** Handshake over 250 keys whose first two chunks each hydrate one screen group. */
+      function mockTwoHydratingChunks(): void {
+        vi.mocked(fetch)
           .mockResolvedValueOnce(
-            mockOkResponse({
-              entries: [
-                {
-                  namespace: "ns",
-                  key: "key-0",
-                  profileHash: "p0",
-                  confidenceLevel: "high",
-                  lastSeenAt: "2026-01-01T00:00:00.000Z",
-                  screenGroups: [{ screenGroup: "/a", observationHash: "hash-0" }],
-                },
-              ],
-            }),
+            mockOkResponse({ entries: [hydratedEntry("ns", "key-0", "/a", "hash-0")] }),
           )
           .mockResolvedValueOnce(
-            mockOkResponse({
-              entries: [
-                {
-                  namespace: "ns",
-                  key: "key-150",
-                  profileHash: "p1",
-                  confidenceLevel: "high",
-                  lastSeenAt: "2026-01-01T00:00:00.000Z",
-                  screenGroups: [{ screenGroup: "/b", observationHash: "hash-150" }],
-                },
-              ],
-            }),
+            mockOkResponse({ entries: [hydratedEntry("ns", "key-150", "/b", "hash-150")] }),
           )
           .mockResolvedValueOnce(mockOkResponse({ entries: [] }));
+      }
 
+      it("two chunks hydrating entries, the third empty → the handshake succeeds", async () => {
+        mockTwoHydratingChunks();
         const transport = new CollectorTransport(SCOPE);
+
         const ok = await transport.handshake(makeKeys(250));
+
         expect(ok).toBe(true);
+      });
+
+      it("entries from two chunks merged into one gate map → a pass matching both is two pings, no full item", async () => {
+        mockTwoHydratingChunks();
+        const transport = new CollectorTransport(SCOPE);
+        await transport.handshake(makeKeys(250));
+        vi.mocked(fetch).mockResolvedValue(usagesOkResponse());
 
         // Both chunk-0's and chunk-1's entries landed in one merged gate map:
         // a matching still-valid ping for EITHER group must now be a ping,
         // not a full re-send.
-        fetchMock.mockResolvedValue(
-          mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
-        );
         await transport.sendPass([
           {
             observation: makeObservation({ key: "key-0", screenGroup: "/a" }),
@@ -219,13 +227,11 @@ describe("collector/transport", () => {
           },
         ]);
 
-        const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as [
-          string,
-          RequestInit,
-        ];
-        const body = JSON.parse(lastCall[1].body as string);
-        expect(body.items).toHaveLength(0);
-        expect(body.stillValid).toHaveLength(2);
+        const body = sentBody(-1);
+        expect({ items: body.items.length, stillValid: body.stillValid.length }).toEqual({
+          items: 0,
+          stillValid: 2,
+        });
       });
 
       it("best-effort: one failed chunk does not disable collection if another chunk succeeds", async () => {
@@ -452,13 +458,9 @@ describe("collector/transport", () => {
       expect(body.stillValid).toHaveLength(0);
     });
 
-    it("mid-session convergence (MF-1): after a confirmed full send, an identical pass makes NO network call", async () => {
-      const fetchMock = vi.mocked(fetch);
-      // No handshake call at all — this screenGroup is discovered mid-session
-      // (an empty-keys handshake never hits the network, so the gate map
-      // starts empty either way).
-      // First pass: full observation; server echoes back the authoritative hash.
-      fetchMock.mockResolvedValueOnce(
+    /** First usages reply: the server confirms the full send and echoes the authoritative hash. */
+    function mockConfirmedFullSend(): void {
+      vi.mocked(fetch).mockResolvedValueOnce(
         mockOkResponse({
           updated: [
             {
@@ -474,100 +476,97 @@ describe("collector/transport", () => {
           hashSkew: 0,
         }),
       );
+    }
 
+    it("group discovered mid-session, no stored hash (MF-1) → the first pass sends one full item", async () => {
+      // No handshake call at all — this screenGroup is discovered mid-session
+      // (an empty-keys handshake never hits the network, so the gate map
+      // starts empty either way).
+      mockConfirmedFullSend();
       const transport = new CollectorTransport(SCOPE);
 
       await transport.sendPass([makePassItem({}, "server-hash")]);
-      const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
-      expect(body.items).toHaveLength(1); // first pass: no stored hash yet -> full
+
+      expect(sentBody(0).items).toHaveLength(1);
+    });
+
+    it("mid-session convergence (MF-1): identical pass after a confirmed full send → no network call", async () => {
+      mockConfirmedFullSend();
+      const transport = new CollectorTransport(SCOPE);
+      await transport.sendPass([makePassItem({}, "server-hash")]);
 
       // The confirmed send already proved liveness for this exact state —
       // repeating it (mutation-forced passes rebuild identical observations
       // every settle) must stay off the network entirely.
       await transport.sendPass([makePassItem({}, "server-hash")]);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      expect(fetch).toHaveBeenCalledTimes(1);
     });
 
-    it("a changed hash after convergence sends full again", async () => {
-      const fetchMock = vi.mocked(fetch);
-      fetchMock.mockResolvedValue(
-        mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
-      );
-
+    it("hash changed after a confirmed send → the next pass is a second request with one full item", async () => {
+      vi.mocked(fetch).mockResolvedValue(usagesOkResponse());
       const transport = new CollectorTransport(SCOPE);
       await transport.sendPass([makePassItem({}, "hash-1")]);
+
       await transport.sendPass([makePassItem({}, "hash-2")]);
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      const body = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
-      expect(body.items).toHaveLength(1);
+      expect({
+        calls: vi.mocked(fetch).mock.calls.length,
+        items: sentBody(1).items.length,
+      }).toEqual({ calls: 2, items: 1 });
     });
 
-    it("a failed full send is NOT recorded as delivered and retries on the next pass", async () => {
-      const fetchMock = vi.mocked(fetch);
-      fetchMock
+    it("full send rejected by the network → not recorded as delivered, the next pass retries it as one full item", async () => {
+      vi.mocked(fetch)
         .mockRejectedValueOnce(new Error("network down"))
-        .mockResolvedValueOnce(
-          mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
-        );
-
+        .mockResolvedValueOnce(usagesOkResponse());
       const transport = new CollectorTransport(SCOPE);
       await transport.sendPass([makePassItem({}, "hash-a")]);
+
       await transport.sendPass([makePassItem({}, "hash-a")]);
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      const body = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
-      expect(body.items).toHaveLength(1); // retried as full, not dropped
+      // Retried as full, not dropped.
+      expect({
+        calls: vi.mocked(fetch).mock.calls.length,
+        items: sentBody(1).items.length,
+      }).toEqual({ calls: 2, items: 1 });
     });
 
-    it("a still-valid ping is sent once; identical later passes stay silent", async () => {
-      const fetchMock = vi.mocked(fetch);
-      fetchMock.mockResolvedValueOnce(
+    /** Handshake that hydrates `/checkout` with hash-a, so a matching pass is a ping. */
+    async function hydratedTransport(): Promise<CollectorTransport> {
+      vi.mocked(fetch).mockResolvedValueOnce(
         mockOkResponse({
-          entries: [
-            {
-              namespace: "ns",
-              key: "checkout.submit",
-              profileHash: "p1",
-              confidenceLevel: "high",
-              lastSeenAt: "2026-01-01T00:00:00.000Z",
-              screenGroups: [{ screenGroup: "/checkout", observationHash: "hash-a" }],
-            },
-          ],
+          entries: [hydratedEntry("ns", "checkout.submit", "/checkout", "hash-a")],
         }),
       );
-      fetchMock.mockResolvedValueOnce(
-        mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
-      );
-
       const transport = new CollectorTransport(SCOPE);
       await transport.handshake([{ namespace: "ns", key: "checkout.submit" }]);
+      return transport;
+    }
+
+    it("pass matching the handshake hash → exactly one ping request after the handshake", async () => {
+      const transport = await hydratedTransport();
+      vi.mocked(fetch).mockResolvedValueOnce(usagesOkResponse());
 
       await transport.sendPass([makePassItem({}, "hash-a")]);
-      expect(fetchMock).toHaveBeenCalledTimes(2); // handshake + one ping
 
-      await transport.sendPass([makePassItem({}, "hash-a")]);
-      expect(fetchMock).toHaveBeenCalledTimes(2); // no re-ping for the same state
+      // Handshake + one ping.
+      expect(fetch).toHaveBeenCalledTimes(2);
     });
 
-    it("a `resend` entry forces the NEXT pass to send full even though the local gate map still matches", async () => {
-      const fetchMock = vi.mocked(fetch);
-      fetchMock.mockResolvedValueOnce(
-        mockOkResponse({
-          entries: [
-            {
-              namespace: "ns",
-              key: "checkout.submit",
-              profileHash: "p1",
-              confidenceLevel: "high",
-              lastSeenAt: "2026-01-01T00:00:00.000Z",
-              screenGroups: [{ screenGroup: "/checkout", observationHash: "hash-a" }],
-            },
-          ],
-        }),
-      );
-      // First pass would be a ping, but the server reports a hash-skew resend.
-      fetchMock.mockResolvedValueOnce(
+    it("identical pass after a confirmed ping → no re-ping for the same state", async () => {
+      const transport = await hydratedTransport();
+      vi.mocked(fetch).mockResolvedValueOnce(usagesOkResponse());
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    /** Usages reply to a ping: the server reports hash skew and asks for a full resend. */
+    function mockResendDemand(): void {
+      vi.mocked(fetch).mockResolvedValueOnce(
         mockOkResponse({
           updated: [],
           resend: [{ namespace: "ns", key: "checkout.submit", screenGroup: "/checkout" }],
@@ -575,22 +574,30 @@ describe("collector/transport", () => {
           hashSkew: 1,
         }),
       );
-      fetchMock.mockResolvedValueOnce(
-        mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
-      );
+    }
 
-      const transport = new CollectorTransport(SCOPE);
-      await transport.handshake([{ namespace: "ns", key: "checkout.submit" }]);
-
-      await transport.sendPass([makePassItem({}, "hash-a")]);
-      let body = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
-      expect(body.stillValid).toHaveLength(1); // matches -> ping, server then asks for resend
+    it("pass matching the hydrated hash → sent as one still-valid ping", async () => {
+      const transport = await hydratedTransport();
+      mockResendDemand();
 
       await transport.sendPass([makePassItem({}, "hash-a")]);
-      body = JSON.parse((fetchMock.mock.calls[2]![1] as RequestInit).body as string);
-      expect(body.items).toHaveLength(1); // forced full despite matching local hash
-      expect(body.items[0].key).toBe("checkout.submit");
-      expect(body.stillValid).toHaveLength(0);
+
+      expect(sentBody(1).stillValid).toHaveLength(1);
+    });
+
+    it("a `resend` entry → the NEXT pass sends full even though the local gate map still matches", async () => {
+      const transport = await hydratedTransport();
+      mockResendDemand();
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+      vi.mocked(fetch).mockResolvedValueOnce(usagesOkResponse());
+
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+
+      const body = sentBody(2);
+      expect({
+        items: body.items.map((item: { key: string }) => item.key),
+        stillValid: body.stillValid.length,
+      }).toEqual({ items: ["checkout.submit"], stillValid: 0 });
     });
 
     it("consumes the forced-resend marker on a confirmed send, leaving the next pass silent", async () => {
@@ -620,22 +627,21 @@ describe("collector/transport", () => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
-    it("a non-ok (500) full send is NOT recorded as delivered and retries on the next pass", async () => {
-      const fetchMock = vi.mocked(fetch);
-      fetchMock
+    it("full send answered 500 → not recorded as delivered, the next pass retries it as one full item, no ping", async () => {
+      vi.mocked(fetch)
         .mockResolvedValueOnce(mockErrorResponse(500))
-        .mockResolvedValueOnce(
-          mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
-        );
-
+        .mockResolvedValueOnce(usagesOkResponse());
       const transport = new CollectorTransport(SCOPE);
       await transport.sendPass([makePassItem({}, "hash-a")]);
+
       await transport.sendPass([makePassItem({}, "hash-a")]);
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      const body = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
-      expect(body.items).toHaveLength(1);
-      expect(body.stillValid).toHaveLength(0);
+      const body = sentBody(1);
+      expect({
+        calls: vi.mocked(fetch).mock.calls.length,
+        items: body.items.length,
+        stillValid: body.stillValid.length,
+      }).toEqual({ calls: 2, items: 1, stillValid: 0 });
     });
 
     it("a forced-resend marker survives a failed POST and still forces full on the pass after (RC-A)", async () => {
@@ -682,7 +688,7 @@ describe("collector/transport", () => {
   });
 
   describe("sendPass — batching", () => {
-    it("chunks more than 100 observations into multiple requests", async () => {
+    it("150 observations → two requests of 100 and 50 items", async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValue(
         mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
@@ -695,12 +701,12 @@ describe("collector/transport", () => {
 
       await transport.sendPass(pass);
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      const firstBody = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
-      const secondBody = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
-      expect(firstBody.items).toHaveLength(100);
-      expect(secondBody.items).toHaveLength(50);
-      expect(secondBody.stillValid).toEqual([]);
+      expect({
+        calls: fetchMock.mock.calls.length,
+        firstItems: sentBody(0).items.length,
+        secondItems: sentBody(1).items.length,
+        secondStillValid: sentBody(1).stillValid,
+      }).toEqual({ calls: 2, firstItems: 100, secondItems: 50, secondStillValid: [] });
     });
 
     it("carries an empty items array on a ping-only overflow batch", async () => {
@@ -756,7 +762,7 @@ describe("collector/transport", () => {
   });
 
   describe("flushOnTeardown", () => {
-    it("caps the keepalive batch at 20 items", async () => {
+    it("50 undelivered items at teardown → one keepalive request carrying the first 20", async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValueOnce(mockOkResponse({}));
 
@@ -766,13 +772,19 @@ describe("collector/transport", () => {
       );
       transport.flushOnTeardown(pass);
 
-      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      const init = await vi.waitFor(() => {
+        const call = fetchMock.mock.calls[0];
+        if (!call) throw new Error("no keepalive request yet");
+        return call[1] as RequestInit;
+      });
 
-      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      expect(init.keepalive).toBe(true);
       const body = JSON.parse(init.body as string);
-      expect(body.items).toHaveLength(20);
-      expect(body.items[0].key).toBe("key-0");
+      expect({
+        calls: fetchMock.mock.calls.length,
+        keepalive: init.keepalive,
+        items: body.items.length,
+        firstKey: body.items[0].key,
+      }).toEqual({ calls: 1, keepalive: true, items: 20, firstKey: "key-0" });
     });
 
     it("does nothing for an empty pass", () => {
@@ -798,7 +810,7 @@ describe("collector/transport", () => {
       expect(JSON.parse(init.body as string).stillValid).toHaveLength(20);
     });
 
-    it("POSTs a keepalive ping batch when the pass is entirely still-valid", async () => {
+    it("entirely still-valid pass at teardown → a keepalive POST to usages carrying only pings", async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValueOnce(
         mockOkResponse({
@@ -811,32 +823,40 @@ describe("collector/transport", () => {
       transport.flushOnTeardown([makePassItem({}, "hash-a")]);
 
       const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
-      expect(url).toContain("/v1/context/usages");
-      expect(init.method).toBe("POST");
-      expect(init.keepalive).toBe(true);
-      const body = JSON.parse(init.body as string);
-      expect(body.items).toEqual([]);
-      expect(body.stillValid).toEqual([
-        {
-          namespace: "ns",
-          key: "checkout.submit",
-          screenGroup: "/checkout",
-          observationHash: "hash-a",
-        },
-      ]);
+      expect({
+        usagesEndpoint: url.includes("/v1/context/usages"),
+        method: init.method,
+        keepalive: init.keepalive,
+        body: JSON.parse(init.body as string),
+      }).toEqual({
+        usagesEndpoint: true,
+        method: "POST",
+        keepalive: true,
+        body: expect.objectContaining({
+          items: [],
+          stillValid: [
+            {
+              namespace: "ns",
+              key: "checkout.submit",
+              screenGroup: "/checkout",
+              observationHash: "hash-a",
+            },
+          ],
+        }),
+      });
     });
 
-    it("sends nothing when every item in the pass was already delivered this session", async () => {
+    it("every item already delivered this session → teardown sends nothing", async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValueOnce(usagesOk());
 
       const transport = new CollectorTransport(SCOPE);
       const pass = [makePassItem({}, "hash-a")];
       await transport.sendPass(pass);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
 
       transport.flushOnTeardown(pass);
 
+      // The one call is the earlier sendPass; teardown added none.
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 

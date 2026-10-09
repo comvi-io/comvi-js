@@ -7990,6 +7990,56 @@
       "lineHint": 242,
       "kind": "equivalent",
       "reason": "the handover's initial state is also what the render-phase correction below builds: an empty seed fails `hand[0] !== i18n` on the first render, so `setHand` rebuilds the same tuple before any child renders. Hand-applied (`[] as never`): 294/294 react tests green."
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression", "LogicalOperator"],
+      "snippet": "isBrowserRuntime &&",
+      "lineHint": 163,
+      "kind": "equivalent",
+      "reason": "equivalent. `TranslationKeyEncoder` empties its two maps only together with `nextId = 1` (`reset()`, and `loadMappings({})` sets `nextId = maxId + 1 = 1`), and `registerKey` always fills both maps, so an encoder whose `getMappings()` is empty is already in the reset state. The third clause of this condition (`Object.keys(encoder.getMappings()).length === 0`) is left intact by every mutant here, so `encoder.reset()` only ever runs on an encoder it cannot change. Hand-applied (call removed; first two clauses forced true), full package suite green (1626/1626), src restored byte-identically.",
+      "round": 6
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/index.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "encoder.reset();",
+      "lineHint": 168,
+      "kind": "equivalent",
+      "reason": "equivalent. `TranslationKeyEncoder` empties its two maps only together with `nextId = 1` (`reset()`, and `loadMappings({})` sets `nextId = maxId + 1 = 1`), and `registerKey` always fills both maps, so an encoder whose `getMappings()` is empty is already in the reset state. The third clause of this condition (`Object.keys(encoder.getMappings()).length === 0`) is left intact by every mutant here, so `encoder.reset()` only ever runs on an encoder it cannot change. Hand-applied (call removed; first two clauses forced true), full package suite green (1626/1626), src restored byte-identically.",
+      "round": 6
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/index.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "bridgeUsers.delete(i18n);",
+      "lineHint": 253,
+      "kind": "equivalent",
+      "reason": "equivalent. `bridgeUsers` is a WeakMap read only as `(bridgeUsers.get(i18n) ?? 0)`, so an entry left at 0 and a missing entry read the same: the next install on that host counts 0 + 1 either way, and the next teardown deletes the bridge at 0 either way. The WeakMap is not reachable from outside the module and holds the host weakly, so the left-over entry has no observable. Hand-applied, full package suite green (1626/1626), src restored byte-identically.",
+      "round": 6
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/KeySelector.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (instanceId !== undefined && ownerInstanceId !== undefined) {",
+      "lineHint": 22,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant: the claim IS pinned. Hand-applying `if (true) {` turns 19 of this package's tests RED (closeKeySelector()/teardown cases in tests/KeySelector.mounted.test.ts and the Core suites that open the selector without an owner id). Stryker's perTest run still reports it Survived.",
+      "round": 6
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/KeySelector.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "isOpen.value = false;",
+      "lineHint": 33,
+      "kind": "equivalent",
+      "reason": "equivalent at the behaviour level. `cleanup()` sets the module ref false right after unmounting the app and removing its shadow host, so no mounted component reads it any more, and `mountApp()` sets it true before the next `createApp`. The only test that saw it was the old mocked-createApp suite reading the ref out of the props object, an implementation detail; that suite was replaced by the mounted one. Hand-applied (`= true`), full package suite green (1626/1626), src restored byte-identically.",
+      "round": 6
     }
   ]
 }

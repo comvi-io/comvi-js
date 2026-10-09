@@ -44,16 +44,22 @@ describe("useToast", () => {
     expect(new Set(ids).size).toBe(3);
   });
 
-  it("should auto-remove toast after 3 seconds", () => {
+  it("toast added, 2999ms elapsed → it is still shown", () => {
     const { toasts, addToast } = createToastManager();
     addToast({ title: "Temporary", variant: "success" });
 
-    expect(toasts.value).toHaveLength(1);
-
     vi.advanceTimersByTime(2999);
+
     expect(toasts.value).toHaveLength(1);
+  });
+
+  it("toast added, 3000ms elapsed → it is removed", () => {
+    const { toasts, addToast } = createToastManager();
+    addToast({ title: "Temporary", variant: "success" });
+    vi.advanceTimersByTime(2999);
 
     vi.advanceTimersByTime(1);
+
     expect(toasts.value).toHaveLength(0);
   });
 
@@ -69,7 +75,7 @@ describe("useToast", () => {
     expect(toasts.value[0]!.title).toBe("Second");
   });
 
-  it("should handle removing non-existent toast gracefully", () => {
+  it("removeToast() with an unknown id → the existing toast stays", () => {
     const { toasts, addToast, removeToast } = createToastManager();
     addToast({ title: "Only", variant: "success" });
 
@@ -88,20 +94,39 @@ describe("useToast", () => {
     expect(toasts.value).toEqual([]);
   });
 
-  it("should auto-remove multiple toasts independently", () => {
-    const { toasts, addToast } = createToastManager();
-    addToast({ title: "First", variant: "success" });
+  describe("two toasts added 1000ms apart", () => {
+    function addStaggeredToasts() {
+      const manager = createToastManager();
+      manager.addToast({ title: "First", variant: "success" });
+      vi.advanceTimersByTime(1000);
+      return manager;
+    }
 
-    vi.advanceTimersByTime(1000);
-    addToast({ title: "Second", variant: "error" });
+    it("second toast added → both are shown", () => {
+      const { toasts, addToast } = addStaggeredToasts();
 
-    expect(toasts.value).toHaveLength(2);
+      addToast({ title: "Second", variant: "error" });
 
-    vi.advanceTimersByTime(2000);
-    expect(toasts.value).toHaveLength(1);
-    expect(toasts.value[0]!.title).toBe("Second");
+      expect(toasts.value).toHaveLength(2);
+    });
 
-    vi.advanceTimersByTime(1000);
-    expect(toasts.value).toHaveLength(0);
+    it("first toast's 3000ms elapsed → only the second remains", () => {
+      const { toasts, addToast } = addStaggeredToasts();
+      addToast({ title: "Second", variant: "error" });
+
+      vi.advanceTimersByTime(2000);
+
+      expect(toasts.value.map((toast) => toast.title)).toEqual(["Second"]);
+    });
+
+    it("second toast's 3000ms elapsed too → none remain", () => {
+      const { toasts, addToast } = addStaggeredToasts();
+      addToast({ title: "Second", variant: "error" });
+      vi.advanceTimersByTime(2000);
+
+      vi.advanceTimersByTime(1000);
+
+      expect(toasts.value).toHaveLength(0);
+    });
   });
 });

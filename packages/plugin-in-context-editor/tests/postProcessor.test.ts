@@ -163,7 +163,7 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe("Translation");
     });
 
-    it("should handle empty string with markers: false", () => {
+    it("empty string with markers: false → returned unchanged", () => {
       const postProcessor = createInvisibleCharPostProcessor();
       const params: TranslationParams = { markers: false };
 
@@ -172,7 +172,7 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe("");
     });
 
-    it("should handle empty array with markers: false", () => {
+    it("empty array with markers: false → returned unchanged", () => {
       const postProcessor = createInvisibleCharPostProcessor();
       const params: TranslationParams = { markers: false };
 
@@ -183,7 +183,7 @@ describe("createInvisibleCharPostProcessor()", () => {
   });
 
   describe("empty results", () => {
-    it("should handle empty string with markers left on", () => {
+    it("empty string with markers left on → becomes just the key's marker", () => {
       const postProcessor = createInvisibleCharPostProcessor();
 
       const result = postProcessor("", "empty", "default", {});
@@ -191,7 +191,7 @@ describe("createInvisibleCharPostProcessor()", () => {
       expect(result).toBe(ENCODED_ID_1);
     });
 
-    it("should handle empty array with markers left on", () => {
+    it("empty array with markers left on → becomes an array holding just the key's marker", () => {
       const postProcessor = createInvisibleCharPostProcessor();
 
       const result = postProcessor([], "empty", "default", {});
@@ -224,19 +224,32 @@ describe("addBeforeProcessHook()", () => {
     loadKeyMappings({});
   });
 
-  it("should execute and cleanup beforeProcess hooks", () => {
+  /** A registered post-processor with one beforeProcess hook added ahead of it. */
+  function processorWithHook(beforeProcessHook: () => void) {
     const i18n = { registerPostProcessor: vi.fn() };
-    const beforeProcessHook = vi.fn();
-
     const removeHook = addBeforeProcessHook(i18n as never, beforeProcessHook);
     registerPostProcessorOnce(i18n as never);
-
     const processor = i18n.registerPostProcessor.mock.calls[0]![0];
-    processor("Hello", "greeting", "default", {});
-    expect(beforeProcessHook).toHaveBeenCalledTimes(1);
+    return { processor, removeHook };
+  }
 
-    removeHook();
+  it("beforeProcess hook added → it runs once per processed translation", () => {
+    const beforeProcessHook = vi.fn();
+    const { processor } = processorWithHook(beforeProcessHook);
+
     processor("Hello", "greeting", "default", {});
+
+    expect(beforeProcessHook).toHaveBeenCalledTimes(1);
+  });
+
+  it("beforeProcess hook removed after one run → the next translation does not run it", () => {
+    const beforeProcessHook = vi.fn();
+    const { processor, removeHook } = processorWithHook(beforeProcessHook);
+    processor("Hello", "greeting", "default", {});
+    removeHook();
+
+    processor("Hello", "greeting", "default", {});
+
     expect(beforeProcessHook).toHaveBeenCalledTimes(1);
   });
 

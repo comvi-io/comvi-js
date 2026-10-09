@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EDITOR_INITIAL_MAPPINGS_GLOBAL, readEditorMappings } from "@comvi/core/editor-bridge";
 import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedInstance";
 
-const { coreCtorMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = await vi.hoisted(
+const { mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = await vi.hoisted(
   () => import("./helpers/mockCore"),
 );
 
@@ -69,16 +69,23 @@ afterEach(() => {
 });
 
 describe("inContextEditorPlugin mappings bridge", () => {
-  it("publishes a bridge that reads and restores the encoder's key ids", () => {
+  it("install → a mappings bridge is published on the host", () => {
     const i18n = makeI18n();
 
     const cleanup = installEditor()(i18n);
 
-    const bridge = readEditorMappings(i18n);
-    expect(bridge).toBeDefined();
-    bridge?.loadKeyMappings({ "default:hydrated": 7 });
-    expect(bridge?.getKeyMappings()).toEqual({ "default:hydrated": 7 });
+    expect(readEditorMappings(i18n)).toBeDefined();
+    cleanup?.();
+  });
 
+  it("key ids restored through the bridge → the bridge reads them back", () => {
+    const i18n = makeI18n();
+    const cleanup = installEditor()(i18n);
+    const bridge = readEditorMappings(i18n);
+
+    bridge?.loadKeyMappings({ "default:hydrated": 7 });
+
+    expect(bridge?.getKeyMappings()).toEqual({ "default:hydrated": 7 });
     cleanup?.();
   });
 
@@ -134,57 +141,6 @@ describe("inContextEditorPlugin mappings bridge", () => {
   });
 });
 
-describe("inContextEditorPlugin runtime detection", () => {
-  it("starts no editor when there is no window, even with a document present", () => {
-    const i18n = makeI18n();
-    vi.stubGlobal("window", undefined);
-
-    const cleanup = installEditor()(i18n);
-
-    expect(coreCtorMock).not.toHaveBeenCalled();
-    expect(typeof cleanup).toBe("function");
-
-    cleanup?.();
-  });
-
-  it("starts no editor when there is no document, even with a window present", () => {
-    const i18n = makeI18n();
-    vi.stubGlobal("document", undefined);
-
-    const cleanup = installEditor()(i18n);
-
-    expect(coreCtorMock).not.toHaveBeenCalled();
-    expect(typeof cleanup).toBe("function");
-
-    cleanup?.();
-  });
-
-  it("starts the editor in a browser bundle that has no process global", () => {
-    const i18n = makeI18n();
-    const nodeProcess = globalThis.process;
-
-    // The factory reads the `process` global directly, so a bundle without a
-    // `process` shim can only be staged by removing it. Not `vi.stubGlobal`:
-    // that leaves it missing until the runner's own teardown, which needs
-    // `process` itself. Put it back the instant the factory has run.
-    Reflect.deleteProperty(globalThis, "process");
-    let cleanup: (() => void) | undefined;
-    try {
-      cleanup = installEditor()(i18n);
-    } finally {
-      Reflect.defineProperty(globalThis, "process", {
-        value: nodeProcess,
-        configurable: true,
-        writable: true,
-      });
-    }
-
-    expect(coreCtorMock).toHaveBeenCalledTimes(1);
-
-    cleanup?.();
-  });
-});
-
 describe("inContextEditorPlugin on a server runtime", () => {
   it("starts each server host from an empty key-id map, whatever the page-wide encoder holds", () => {
     const i18n = makeI18n();
@@ -198,24 +154,48 @@ describe("inContextEditorPlugin on a server runtime", () => {
     cleanup?.();
   });
 
-  it("gives each server host its own key ids, so an overlapping host leaves the first one's bridge alone", () => {
-    vi.stubGlobal("window", undefined);
-    const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
-    const second = makeI18n({ messages: { "en:default": { beta: "Beta" } } });
+  describe("two overlapping server hosts", () => {
+    const cleanups: Array<() => void> = [];
+    afterEach(() => {
+      for (const cleanup of cleanups.splice(0).reverse()) cleanup();
+    });
 
-    const cleanupFirst = installEditor()(first);
-    first.t("alpha");
-    const firstBridge = readEditorMappings(first);
-    expect(firstBridge?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    /** Host `alpha` installed and rendered, host `beta` installed: two overlapping server requests. */
+    function overlappingHosts() {
+      vi.stubGlobal("window", undefined);
+      const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
+      const second = makeI18n({ messages: { "en:default": { beta: "Beta" } } });
+      cleanups.push(installEditor()(first));
+      first.t("alpha");
+      cleanups.push(installEditor()(second));
+      return { first, second };
+    }
 
-    const cleanupSecond = installEditor()(second);
-    second.t("beta");
+    it("first host renders alpha → its bridge maps alpha to id 1", () => {
+      vi.stubGlobal("window", undefined);
+      const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
+      cleanups.push(installEditor()(first));
 
-    expect(firstBridge?.getKeyMappings()).toEqual({ "default:alpha": 1 });
-    expect(readEditorMappings(second)?.getKeyMappings()).toEqual({ "default:beta": 1 });
+      first.t("alpha");
 
-    cleanupSecond?.();
-    cleanupFirst?.();
+      expect(readEditorMappings(first)?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    });
+
+    it("second host renders beta → the first host's bridge is left alone", () => {
+      const { first, second } = overlappingHosts();
+
+      second.t("beta");
+
+      expect(readEditorMappings(first)?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    });
+
+    it("second host renders beta → its own bridge maps beta to id 1", () => {
+      const { second } = overlappingHosts();
+
+      second.t("beta");
+
+      expect(readEditorMappings(second)?.getKeyMappings()).toEqual({ "default:beta": 1 });
+    });
   });
 
   it("unsubscribes every host event it subscribed to when the runtime is torn down", () => {

@@ -37,12 +37,49 @@ function sentKeys(fetchMock: ReturnType<typeof vi.fn>): string[] {
   return keys;
 }
 
+/** Triggers a test started, destroyed after it so none outlives the test (destroy is idempotent). */
+const liveTriggers: CollectorTriggers[] = [];
+
+/** A started CollectorTriggers over a fresh bus and registry. */
+function startTriggers(onSettle: () => void = vi.fn()) {
+  const eventBus = new EventBus();
+  const registry = new TranslationRegistry(eventBus);
+  const triggers = new CollectorTriggers(eventBus, registry, onSettle);
+  liveTriggers.push(triggers);
+  triggers.start();
+  return { eventBus, registry, triggers, onSettle };
+}
+
+/** Registers a fresh element with one translation node. */
+function addRegistered(registry: TranslationRegistry): HTMLElement {
+  const el = document.createElement("div");
+  registry.add(el, {
+    nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
+  });
+  return el;
+}
+
+/** A started Collector over `registry`, with fetch stubbed to accept every usages post. */
+async function startCollector(registry: TranslationRegistry, eventBus: EventBus) {
+  const fetchMock = vi.fn().mockResolvedValue(usagesResponse());
+  vi.stubGlobal("fetch", fetchMock);
+  const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+  liveCollectors.push(collector);
+  await collector.start();
+  await flushMicrotasks();
+  return fetchMock;
+}
+
+const liveCollectors: Collector[] = [];
+
 describe("collector triggers — IntersectionObserver visibility + maxWait", () => {
   beforeEach(() => {
     initApiConfig("test-api-key", SCOPE);
   });
 
   afterEach(() => {
+    for (const triggers of liveTriggers.splice(0)) triggers.destroy();
+    for (const collector of liveCollectors.splice(0)) collector.destroy();
     vi.useRealTimers();
     // pushState/replaceState navigate the shared `location`; leaving it on a
     // test route would make any later screenGroup assertion order-dependent.
@@ -57,24 +94,21 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       MockIntersectionObserver.autoIntersect = false;
     });
 
-    it("observes elements on translationRegistered and unobserves on translationRemoved", () => {
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
-      triggers.start();
+    it("translationRegistered → the element is observed by the IntersectionObserver", () => {
+      const { registry } = startTriggers();
 
-      const el = document.createElement("div");
-      registry.add(el, {
-        nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
-      });
+      const el = addRegistered(registry);
 
-      const io = MockIntersectionObserver.instances[0];
-      expect(io.observed.has(el)).toBe(true);
+      expect(MockIntersectionObserver.instances[0]!.observed.has(el)).toBe(true);
+    });
+
+    it("translationRemoved → the element is no longer observed", () => {
+      const { registry } = startTriggers();
+      const el = addRegistered(registry);
 
       registry.remove(el);
-      expect(io.observed.has(el)).toBe(false);
 
-      triggers.destroy();
+      expect(MockIntersectionObserver.instances[0]!.observed.has(el)).toBe(false);
     });
 
     it("seeds already-registered elements at start() (elements registered before subscribe)", () => {
@@ -114,52 +148,70 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       triggers.destroy();
     });
 
-    it("an IO intersection change updates the visible set and schedules a settle", () => {
-      vi.useFakeTimers();
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const onSettle = vi.fn();
-      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
-      triggers.start();
+    it("registered element IO has not reported yet → not in the visible set", () => {
+      const { registry, triggers } = startTriggers();
 
-      const el = document.createElement("div");
-      registry.add(el, {
-        nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
-      });
+      const el = addRegistered(registry);
 
       expect(triggers.getIntersectingElements().has(el)).toBe(false);
-
-      setIntersecting(el, true);
-      expect(triggers.getIntersectingElements().has(el)).toBe(true);
-      expect(onSettle).not.toHaveBeenCalled();
-
-      vi.advanceTimersByTime(500); // maxWait ceiling
-      expect(onSettle).toHaveBeenCalledTimes(1);
-
-      setIntersecting(el, false);
-      expect(triggers.getIntersectingElements().has(el)).toBe(false);
-
-      triggers.destroy();
     });
 
-    it("disconnects the observer and clears the visible set on destroy()", () => {
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
-      triggers.start();
+    it("IO reports the element intersecting → it joins the visible set", () => {
+      const { registry, triggers } = startTriggers();
+      const el = addRegistered(registry);
 
-      const el = document.createElement("div");
-      registry.add(el, {
-        nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
-      });
       setIntersecting(el, true);
-      expect(triggers.getIntersectingElements().size).toBe(1);
 
-      const io = MockIntersectionObserver.instances[0];
-      const disconnectSpy = vi.spyOn(io, "disconnect");
+      expect(triggers.getIntersectingElements().has(el)).toBe(true);
+    });
+
+    it("IO intersection change → no settle before the maxWait ceiling", () => {
+      vi.useFakeTimers();
+      const { registry, onSettle } = startTriggers(vi.fn());
+      const el = addRegistered(registry);
+
+      setIntersecting(el, true);
+
+      expect(onSettle).not.toHaveBeenCalled();
+    });
+
+    it("IO intersection change, 500ms maxWait ceiling elapses → one settle", () => {
+      vi.useFakeTimers();
+      const { registry, onSettle } = startTriggers(vi.fn());
+      const el = addRegistered(registry);
+      setIntersecting(el, true);
+
+      vi.advanceTimersByTime(500);
+
+      expect(onSettle).toHaveBeenCalledTimes(1);
+    });
+
+    it("IO reports a visible element no longer intersecting → it leaves the visible set", () => {
+      const { registry, triggers } = startTriggers();
+      const el = addRegistered(registry);
+      setIntersecting(el, true);
+
+      setIntersecting(el, false);
+
+      expect(triggers.getIntersectingElements().has(el)).toBe(false);
+    });
+
+    it("destroy() → the IntersectionObserver is disconnected once", () => {
+      const { registry, triggers } = startTriggers();
+      setIntersecting(addRegistered(registry), true);
+      const disconnectSpy = vi.spyOn(MockIntersectionObserver.instances[0]!, "disconnect");
+
       triggers.destroy();
 
       expect(disconnectSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("destroy() with one visible element → the visible set is cleared", () => {
+      const { registry, triggers } = startTriggers();
+      setIntersecting(addRegistered(registry), true);
+
+      triggers.destroy();
+
       expect(triggers.getIntersectingElements().size).toBe(0);
     });
 
@@ -221,22 +273,22 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       triggers.destroy();
     });
 
-    it("start() after destroy() resubscribes, and a second destroy() never throws", () => {
+    it("start() after destroy() → a structure change settles again", () => {
       vi.useFakeTimers();
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const onSettle = vi.fn();
-      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
-
-      triggers.start();
+      const { eventBus, triggers, onSettle } = startTriggers(vi.fn());
       triggers.destroy();
       triggers.start();
 
       eventBus.emit("structureChanges", [document.body]);
       vi.advanceTimersByTime(500);
-      expect(onSettle).toHaveBeenCalledTimes(1);
 
+      expect(onSettle).toHaveBeenCalledTimes(1);
+    });
+
+    it("destroy() on already-destroyed triggers → does not throw", () => {
+      const { triggers } = startTriggers();
       triggers.destroy();
+
       expect(() => triggers.destroy()).not.toThrow();
     });
 
@@ -255,24 +307,14 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       expect(onSettle).not.toHaveBeenCalled();
     });
 
-    it("removing a registered element drops it from the intersecting set", () => {
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
-      triggers.start();
-
-      const el = document.createElement("div");
-      registry.add(el, {
-        nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
-      });
+    it("visible element removed from the registry → it leaves the intersecting set", () => {
+      const { registry, triggers } = startTriggers();
+      const el = addRegistered(registry);
       setIntersecting(el, true);
-      expect(triggers.getIntersectingElements().size).toBe(1);
 
       registry.remove(el);
 
       expect(triggers.getIntersectingElements().size).toBe(0);
-
-      triggers.destroy();
     });
 
     it("a throw inside the IO callback is caught and never escapes (MED-2, RC3/P8)", () => {
@@ -304,23 +346,34 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
   });
 
   describe("without IntersectionObserver (SSR / very old engines)", () => {
-    it("starts, observes, unobserves and destroys silently, collecting nothing", () => {
+    beforeEach(() => {
       vi.stubGlobal("IntersectionObserver", undefined);
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    it("no IntersectionObserver, start() → does not throw", () => {
       const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
+      const triggers = new CollectorTriggers(eventBus, new TranslationRegistry(eventBus), vi.fn());
+      liveTriggers.push(triggers);
 
       expect(() => triggers.start()).not.toThrow();
+    });
 
-      const el = document.createElement("div");
-      registry.add(el, {
-        nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
-      });
+    it("no IntersectionObserver, element registered then removed → nothing collected and no error logged", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { registry, triggers } = startTriggers();
+      const el = addRegistered(registry);
+
       registry.remove(el);
 
-      expect(triggers.getIntersectingElements().size).toBe(0);
-      expect(errorSpy).not.toHaveBeenCalled();
+      expect({
+        visible: triggers.getIntersectingElements().size,
+        errors: errorSpy.mock.calls.length,
+      }).toEqual({ visible: 0, errors: 0 });
+    });
+
+    it("no IntersectionObserver, destroy() → does not throw", () => {
+      const { triggers } = startTriggers();
+
       expect(() => triggers.destroy()).not.toThrow();
     });
   });
@@ -345,23 +398,24 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       triggers.destroy();
     });
 
-    it("pushState and replaceState calls each trigger a scheduled settle", () => {
+    it("pushState call → one scheduled settle", () => {
       vi.useFakeTimers();
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const onSettle = vi.fn();
-      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
-      triggers.start();
+      const { onSettle } = startTriggers(vi.fn());
 
       window.history.pushState({}, "", "/a");
       vi.advanceTimersByTime(500);
+
       expect(onSettle).toHaveBeenCalledTimes(1);
+    });
+
+    it("replaceState call → one scheduled settle", () => {
+      vi.useFakeTimers();
+      const { onSettle } = startTriggers(vi.fn());
 
       window.history.replaceState({}, "", "/b");
       vi.advanceTimersByTime(500);
-      expect(onSettle).toHaveBeenCalledTimes(2);
 
-      triggers.destroy();
+      expect(onSettle).toHaveBeenCalledTimes(1);
     });
 
     it("a hashchange dispatch triggers a scheduled settle", () => {
@@ -433,113 +487,135 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       second.destroy();
     });
 
-    it("destroy() restores the original pushState/replaceState when nothing else re-wrapped them", () => {
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const onSettle = vi.fn();
-      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
-
-      // Spy on the pre-patch functions to prove destroy() delegates back to
+    describe("with pre-patch history functions spied", () => {
+      // Spies on the pre-patch functions prove destroy() delegates back to
       // them functionally — ensureHistoryPatched rebinds a fresh `.bind()`
       // wrapper on every patch cycle, so reference equality across a
       // patch/restore round-trip isn't meaningful; behavior is.
-      const nativePushState = window.history.pushState.bind(window.history);
-      const nativeReplaceState = window.history.replaceState.bind(window.history);
-      const pushSpy = vi.fn(nativePushState);
-      const replaceSpy = vi.fn(nativeReplaceState);
-      // Plain assignment, not vi.spyOn: ensureHistoryPatched detects an
-      // already-patched history, so a spy wrapper would suppress the patch
-      // this test is about — and restoreMocks cannot undo an assignment.
-      window.history.pushState = pushSpy as History["pushState"];
-      window.history.replaceState = replaceSpy as History["replaceState"];
+      let nativePushState: History["pushState"];
+      let nativeReplaceState: History["replaceState"];
+      let pushSpy: ReturnType<typeof vi.fn>;
+      let replaceSpy: ReturnType<typeof vi.fn>;
 
-      try {
+      beforeEach(() => {
+        nativePushState = window.history.pushState.bind(window.history);
+        nativeReplaceState = window.history.replaceState.bind(window.history);
+        pushSpy = vi.fn(nativePushState);
+        replaceSpy = vi.fn(nativeReplaceState);
+        // Plain assignment, not vi.spyOn: ensureHistoryPatched detects an
+        // already-patched history, so a spy wrapper would suppress the patch
+        // this test is about — and restoreMocks cannot undo an assignment.
+        window.history.pushState = pushSpy as History["pushState"];
+        window.history.replaceState = replaceSpy as History["replaceState"];
+      });
+
+      afterEach(() => {
+        for (const triggers of liveTriggers.splice(0)) triggers.destroy();
+        window.history.pushState = nativePushState;
+        window.history.replaceState = nativeReplaceState;
+      });
+
+      it("start() → pushState and replaceState are replaced by the route-change patch", () => {
+        const eventBus = new EventBus();
+        const triggers = new CollectorTriggers(
+          eventBus,
+          new TranslationRegistry(eventBus),
+          vi.fn(),
+        );
+        liveTriggers.push(triggers);
+
         triggers.start();
-        expect(window.history.pushState).not.toBe(pushSpy);
-        expect(window.history.replaceState).not.toBe(replaceSpy);
 
+        expect({
+          pushPatched: window.history.pushState !== pushSpy,
+          replacePatched: window.history.replaceState !== replaceSpy,
+        }).toEqual({ pushPatched: true, replacePatched: true });
+      });
+
+      it("destroy() with nothing re-wrapping history → navigation reaches the original functions", () => {
+        const { triggers } = startTriggers();
         triggers.destroy();
 
         window.history.pushState({}, "", "/after-destroy-push");
         window.history.replaceState({}, "", "/after-destroy-replace");
 
-        // Restored functions delegate through to the pre-patch ones...
-        expect(pushSpy).toHaveBeenCalledTimes(1);
-        expect(replaceSpy).toHaveBeenCalledTimes(1);
-        expect(location.pathname).toBe("/after-destroy-replace");
-        // ...and no longer notify our (unsubscribed) route-change listener.
+        expect({
+          push: pushSpy.mock.calls.length,
+          replace: replaceSpy.mock.calls.length,
+          pathname: location.pathname,
+        }).toEqual({ push: 1, replace: 1, pathname: "/after-destroy-replace" });
+      });
+
+      it("destroy() with nothing re-wrapping history → navigation no longer schedules a settle", () => {
+        const { triggers, onSettle } = startTriggers(vi.fn());
+        triggers.destroy();
+
+        window.history.pushState({}, "", "/after-destroy-push");
+        window.history.replaceState({}, "", "/after-destroy-replace");
+
         expect(onSettle).not.toHaveBeenCalled();
-      } finally {
-        window.history.pushState = nativePushState;
-        window.history.replaceState = nativeReplaceState;
-      }
+      });
     });
 
-    it("MED-3: a host router that re-wraps pushState AFTER us is left in place on destroy(), and navigation still works", () => {
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
-      const trueOriginalPushState = window.history.pushState;
+    describe("MED-3: a host router that re-wraps history AFTER us", () => {
+      let trueOriginalPushState: History["pushState"];
+      let trueOriginalReplaceState: History["replaceState"];
 
-      try {
-        triggers.start(); // our patch is in place
+      beforeEach(() => {
+        trueOriginalPushState = window.history.pushState;
+        trueOriginalReplaceState = window.history.replaceState;
+      });
 
-        // Simulate a host-app router patching pushState AFTER the collector did.
-        const ourPushState = window.history.pushState;
+      afterEach(() => {
+        for (const triggers of liveTriggers.splice(0)) triggers.destroy();
+        // Not a vi.spyOn: the wrapper is installed by assignment to model a
+        // host router, so restoreMocks cannot undo it.
+        window.history.pushState = trueOriginalPushState;
+        window.history.replaceState = trueOriginalReplaceState;
+      });
+
+      /** Starts triggers, then installs a host-router wrapper over our patched `method`. */
+      function startThenHostWraps(method: "pushState" | "replaceState") {
+        const { triggers } = startTriggers();
+        const ours = window.history[method];
         const hostRouterWrapper = vi.fn(function (
           this: History,
           ...args: Parameters<History["pushState"]>
         ) {
-          return ourPushState.apply(this, args);
-        }) as unknown as History["pushState"];
-        window.history.pushState = hostRouterWrapper;
-
-        triggers.destroy();
-
-        // Our restore must NOT clobber the host's wrapper — it delegates to our
-        // patch, which in turn delegates to the true original, so the chain
-        // still works; stomping it here would break the host's navigation.
-        expect(window.history.pushState).toBe(hostRouterWrapper);
-
-        window.history.pushState({}, "", "/still-works");
-        expect(hostRouterWrapper).toHaveBeenCalledTimes(1);
-        expect(location.pathname).toBe("/still-works");
-      } finally {
-        // Not a vi.spyOn: the wrapper is installed by assignment to model a
-        // host router, so restoreMocks cannot undo it.
-        window.history.pushState = trueOriginalPushState;
+          return ours.apply(this, args);
+        });
+        window.history[method] = hostRouterWrapper as unknown as History["pushState"];
+        return { triggers, hostRouterWrapper };
       }
-    });
-    it("MED-3: a host router that re-wraps replaceState AFTER us is left in place on destroy()", () => {
-      const eventBus = new EventBus();
-      const registry = new TranslationRegistry(eventBus);
-      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
-      const trueOriginalReplaceState = window.history.replaceState;
 
-      try {
-        triggers.start();
+      it.each(["pushState", "replaceState"] as const)(
+        "host wrapped %s after us, destroy() → the host wrapper is left in place",
+        (method) => {
+          const { triggers, hostRouterWrapper } = startThenHostWraps(method);
 
-        const ourReplaceState = window.history.replaceState;
-        const hostRouterWrapper = vi.fn(function (
-          this: History,
-          ...args: Parameters<History["replaceState"]>
-        ) {
-          return ourReplaceState.apply(this, args);
-        }) as unknown as History["replaceState"];
-        window.history.replaceState = hostRouterWrapper;
+          triggers.destroy();
 
-        triggers.destroy();
+          // Our restore must NOT clobber the host's wrapper — it delegates to our
+          // patch, which in turn delegates to the true original, so the chain
+          // still works; stomping it here would break the host's navigation.
+          expect(window.history[method]).toBe(hostRouterWrapper);
+        },
+      );
 
-        expect(window.history.replaceState).toBe(hostRouterWrapper);
+      it.each(["pushState", "replaceState"] as const)(
+        "host wrapped %s after us, destroyed → navigating through the wrapper still works",
+        (method) => {
+          const { triggers, hostRouterWrapper } = startThenHostWraps(method);
+          triggers.destroy();
 
-        window.history.replaceState({}, "", "/still-works");
-        expect(hostRouterWrapper).toHaveBeenCalledTimes(1);
-        expect(location.pathname).toBe("/still-works");
-      } finally {
-        // Not a vi.spyOn: the wrapper is installed by assignment to model a
-        // host router, so restoreMocks cannot undo it.
-        window.history.replaceState = trueOriginalReplaceState;
-      }
+          window.history[method]({}, "", "/still-works");
+
+          expect({
+            wrapperCalls: hostRouterWrapper.mock.calls.length,
+            pathname: location.pathname,
+          }).toEqual({ wrapperCalls: 1, pathname: "/still-works" });
+        },
+      );
     });
   });
 
@@ -624,33 +700,34 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       collector.destroy();
     });
 
-    it("AC8: the synchronous start pass sees an empty IO set and is recovered by the first IO settle", async () => {
+    it("AC8: start pass while the IO set is still empty → the above-the-fold key is not sent yet", async () => {
       MockIntersectionObserver.autoIntersect = false; // model real async IO
-      const fetchMock = vi.fn().mockResolvedValue(usagesResponse());
-      vi.stubGlobal("fetch", fetchMock);
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      registerVisible(registry, "above.fold");
 
+      const fetchMock = await startCollector(registry, eventBus);
+
+      expect(sentKeys(fetchMock)).not.toContain("above.fold");
+    });
+
+    it("AC8: first IO settle after an empty start pass → the above-the-fold key is sent", async () => {
+      MockIntersectionObserver.autoIntersect = false; // model real async IO
       const eventBus = new EventBus();
       const registry = new TranslationRegistry(eventBus);
       const above = registerVisible(registry, "above.fold");
-
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
-      await collector.start(); // IO empty here -> nothing sent yet
-      await flushMicrotasks();
-      expect(sentKeys(fetchMock)).not.toContain("above.fold");
-
+      const fetchMock = await startCollector(registry, eventBus);
       vi.useFakeTimers();
+
       setIntersecting(above, true); // first IO settle recovers the seed
       await vi.advanceTimersByTimeAsync(600);
 
       expect(sentKeys(fetchMock)).toContain("above.fold");
-      collector.destroy();
     });
 
-    it("AC1: scrolling a static below-the-fold element into view triggers a pass that includes it", async () => {
+    /** A collector over one above-the-fold and one static below-the-fold element, IO not yet reporting. */
+    async function aboveAndBelowFold() {
       MockIntersectionObserver.autoIntersect = false;
-      const fetchMock = vi.fn().mockResolvedValue(usagesResponse());
-      vi.stubGlobal("fetch", fetchMock);
-
       const eventBus = new EventBus();
       const registry = new TranslationRegistry(eventBus);
       const above = registerVisible(registry, "above.fold");
@@ -663,17 +740,27 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
         right: 100,
         bottom: 2020,
       });
-
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
-      await collector.start();
-      await flushMicrotasks();
-
+      const fetchMock = await startCollector(registry, eventBus);
       vi.useFakeTimers();
-      // First paint: only the above-the-fold element intersects.
+      return { above, below, fetchMock };
+    }
+
+    it("AC1: first paint with only the above-the-fold element intersecting → it is sent, the below-the-fold one is not", async () => {
+      const { above, fetchMock } = await aboveAndBelowFold();
+
       setIntersecting(above, true);
       await vi.advanceTimersByTimeAsync(600);
-      expect(sentKeys(fetchMock)).toContain("above.fold");
-      expect(sentKeys(fetchMock)).not.toContain("below.fold");
+
+      expect({
+        above: sentKeys(fetchMock).includes("above.fold"),
+        below: sentKeys(fetchMock).includes("below.fold"),
+      }).toEqual({ above: true, below: false });
+    });
+
+    it("AC1: scrolling a static below-the-fold element into view → a pass includes it", async () => {
+      const { above, below, fetchMock } = await aboveAndBelowFold();
+      setIntersecting(above, true);
+      await vi.advanceTimersByTimeAsync(600);
 
       // Scroll reveals `below`: it now intersects and its rect is on-screen.
       mockBoundingClientRect(below, {
@@ -688,35 +775,39 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       await vi.advanceTimersByTimeAsync(600);
 
       expect(sentKeys(fetchMock)).toContain("below.fold");
-      collector.destroy();
     });
 
-    it("AC3: an IO settle with an unchanged visible key-set sends no further batch", async () => {
+    /** A collector over one above-the-fold element, IO not yet reporting. */
+    async function aboveFoldOnly() {
       MockIntersectionObserver.autoIntersect = false;
-      const fetchMock = vi.fn().mockResolvedValue(usagesResponse());
-      vi.stubGlobal("fetch", fetchMock);
-
       const eventBus = new EventBus();
       const registry = new TranslationRegistry(eventBus);
       const above = registerVisible(registry, "above.fold");
-
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
-      await collector.start();
-      await flushMicrotasks();
-
+      const fetchMock = await startCollector(registry, eventBus);
       vi.useFakeTimers();
+      return { above, fetchMock };
+    }
+
+    it("AC3: IO reveals the element → the handshake plus exactly one pass reach the network", async () => {
+      const { above, fetchMock } = await aboveFoldOnly();
+
       setIntersecting(above, true);
       await vi.advanceTimersByTimeAsync(600);
-      // Handshake + the pass the reveal triggered.
+
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("AC3: an IO settle with an unchanged visible key-set → no further batch", async () => {
+      const { above, fetchMock } = await aboveFoldOnly();
+      setIntersecting(above, true);
+      await vi.advanceTimersByTimeAsync(600);
 
       // A redundant IO settle (same element, still intersecting) — the
       // visible key-set is unchanged, so the pre-gate short-circuits.
       setIntersecting(above, true);
       await vi.advanceTimersByTimeAsync(600);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
 
-      collector.destroy();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it("AC9: an IO-intersecting element that enumerate filters out proceeds without a bad send", async () => {
@@ -749,36 +840,44 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       collector.destroy();
     });
 
-    it("AC5: an aligned-burst short-lived element still registered at the maxWait pass is captured", async () => {
+    /**
+     * A loader mounted at burst start (t=0, arming trailing 1000 + maxWait 500),
+     * then sustained mutations at t=100 and t=200 that keep pushing the 1000ms
+     * trailing debounce out, so WITHOUT maxWait no pass would fire until t=1000+.
+     */
+    async function loaderUnderSustainedMutations() {
       MockIntersectionObserver.autoIntersect = false;
-      const fetchMock = vi.fn().mockResolvedValue(usagesResponse());
-      vi.stubGlobal("fetch", fetchMock);
-
       const eventBus = new EventBus();
       const registry = new TranslationRegistry(eventBus);
-
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
-      await collector.start();
-      await flushMicrotasks();
-
+      const fetchMock = await startCollector(registry, eventBus);
       vi.useFakeTimers();
-      // Loader mounts at burst start.
       const loader = registerVisible(registry, "loading");
-      setIntersecting(loader, true); // t=0: arms trailing(1000) + maxWait(500)
+      setIntersecting(loader, true);
+      return { eventBus, fetchMock };
+    }
 
-      // Sustained mutations keep pushing the 1000ms trailing debounce out, so
-      // WITHOUT maxWait no pass would fire until t=1000+.
+    it("AC5: sustained mutations for 200ms after a loader mounts → no pass has sent it yet", async () => {
+      const { eventBus, fetchMock } = await loaderUnderSustainedMutations();
+
       await vi.advanceTimersByTimeAsync(100); // t=100
       eventBus.emit("structureChanges", [document.body]);
       await vi.advanceTimersByTimeAsync(100); // t=200
       eventBus.emit("structureChanges", [document.body]);
-      expect(sentKeys(fetchMock)).not.toContain("loading"); // no pass yet (t<500)
+
+      expect(sentKeys(fetchMock)).not.toContain("loading");
+    });
+
+    it("AC5: an aligned-burst short-lived element still registered at the maxWait pass → captured", async () => {
+      const { eventBus, fetchMock } = await loaderUnderSustainedMutations();
+      await vi.advanceTimersByTimeAsync(100); // t=100
+      eventBus.emit("structureChanges", [document.body]);
+      await vi.advanceTimersByTimeAsync(100); // t=200
+      eventBus.emit("structureChanges", [document.body]);
 
       await vi.advanceTimersByTimeAsync(350); // t=550: maxWait ceiling hit
+
       // Loader is still registered here, so the bounded pass captures it.
       expect(sentKeys(fetchMock)).toContain("loading");
-
-      collector.destroy();
     });
 
     it("AC5: a misaligned short-lived element removed before the maxWait pass is an accepted miss", async () => {

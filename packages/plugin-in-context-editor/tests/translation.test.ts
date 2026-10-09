@@ -33,7 +33,7 @@ describe("registerKey", () => {
     expect(id1).toBe(id2);
   });
 
-  it("should handle different key formats", () => {
+  it("six keys of different shapes registered in turn → ids 1 to 6", () => {
     const keys = [
       SAMPLE_KEYS.SIMPLE,
       SAMPLE_KEYS.NESTED,
@@ -48,7 +48,7 @@ describe("registerKey", () => {
     expect(ids).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
-  it("should handle empty string", () => {
+  it("empty key registered first → id 1", () => {
     expect(registerKey("")).toBe(1);
   });
 });
@@ -109,7 +109,7 @@ describe("encodeKeyToInvisible", () => {
     expect(encoded1).toBe(encoded2);
   });
 
-  it("should handle maximum safe ID (5^8 - 1 = 390,624)", () => {
+  it("largest 8-digit base-5 id (5^8 - 1 = 390,624) → encodes to 8 characters and decodes back", () => {
     const maxId = 390624;
     const encoded = encodeKeyToInvisible(maxId);
 
@@ -172,7 +172,7 @@ describe("decodeInvisibleToKey", () => {
     expect(decoded).toBeNull();
   });
 
-  it("should handle text with partial invisible sequence", () => {
+  it("3 invisible characters instead of 8 → decodes to null", () => {
     const partial = "\u200B\u200C\u200D"; // Only 3 chars, not 8
     const decoded = decodeInvisibleToKey(partial);
 
@@ -180,7 +180,7 @@ describe("decodeInvisibleToKey", () => {
   });
 
   describe("edge cases", () => {
-    it("should handle very long keys", () => {
+    it("1000-character key → round-trips through encode and decode", () => {
       const longKey = "a".repeat(1000);
       const id = registerKey(longKey);
       const encoded = encodeKeyToInvisible(id);
@@ -189,7 +189,7 @@ describe("decodeInvisibleToKey", () => {
       expect(decoded).toEqual({ key: longKey, ns: "default" });
     });
 
-    it("should handle keys with special characters", () => {
+    it("key with _ - . : characters → round-trips through encode and decode", () => {
       const specialKey = "key_with-special.chars:123";
       const id = registerKey(specialKey);
       const encoded = encodeKeyToInvisible(id);
@@ -198,7 +198,7 @@ describe("decodeInvisibleToKey", () => {
       expect(decoded).toEqual({ key: specialKey, ns: "default" });
     });
 
-    it("should handle Unicode keys", () => {
+    it("key with emoji and CJK characters → round-trips through encode and decode", () => {
       const unicodeKey = "🌍 hello 你好";
       const id = registerKey(unicodeKey);
       const encoded = encodeKeyToInvisible(id);
@@ -207,7 +207,7 @@ describe("decodeInvisibleToKey", () => {
       expect(decoded).toEqual({ key: unicodeKey, ns: "default" });
     });
 
-    it("should handle whitespace in text around encoding", () => {
+    it("marker surrounded by spaces → still decodes to its key", () => {
       const key = "whitespace.test";
       const id = registerKey(key);
       const encoded = encodeKeyToInvisible(id);
@@ -229,17 +229,17 @@ describe("decodeInvisibleToKey", () => {
   });
 
   describe("invalid input", () => {
-    it("should handle invalid encoding gracefully", () => {
+    it("characters outside the base-5 alphabet → decode to null", () => {
       const decoded = decodeInvisibleToKey(INVALID_DATA.INVALID_BASE5);
       expect(decoded).toBeNull();
     });
 
-    it("should handle too short encoding", () => {
+    it("encoding shorter than 8 characters → decodes to null", () => {
       const decoded = decodeInvisibleToKey(INVALID_DATA.TOO_SHORT_ENCODING);
       expect(decoded).toBeNull();
     });
 
-    it("should handle mixed valid/invalid characters", () => {
+    it("valid and invalid characters mixed → decode to null", () => {
       const decoded = decodeInvisibleToKey(INVALID_DATA.MIXED_VALID_INVALID);
       expect(decoded).toBeNull();
     });
@@ -298,7 +298,7 @@ describe("scanForInvisibleKeys", () => {
     expect(keys).toEqual([]);
   });
 
-  it("should handle empty string", () => {
+  it("empty string → no keys found", () => {
     const keys = scanForInvisibleKeys("");
     expect(keys).toEqual([]);
   });
@@ -378,7 +378,7 @@ describe("loadKeyMappings / getKeyMappings", () => {
     expect(loaded).not.toHaveProperty("old.key");
   });
 
-  it("should handle empty mappings", () => {
+  it("loadKeyMappings({}) → getKeyMappings() returns {}", () => {
     loadKeyMappings({});
     const mappings = getKeyMappings();
 
@@ -409,7 +409,7 @@ describe("extractAllIds", () => {
     expect(ids).toEqual([id1, id2]);
   });
 
-  it("should handle interleaved invisible characters", () => {
+  it("marker characters interleaved with visible text → the id is still extracted", () => {
     const id = registerKey("interleaved");
     const encoded = encodeKeyToInvisible(id);
 

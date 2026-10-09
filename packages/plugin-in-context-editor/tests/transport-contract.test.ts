@@ -105,7 +105,7 @@ describe("editor services over the transport", () => {
     expect(calls[0].init?.body).toBeUndefined();
   });
 
-  it("saveTranslation: PUT /v1/keys with the documented body shape", async () => {
+  it("saveTranslation → one PUT /v1/keys with the documented body shape", async () => {
     responder = () =>
       jsonResponse({
         id: 1,
@@ -126,11 +126,19 @@ describe("editor services over the transport", () => {
       undefined,
       SCOPE,
     );
-    expect(calls[0].path).toBe("/v1/keys");
-    expect(calls[0].init?.method).toBe("PUT");
+
     const body = JSON.parse(calls[0].init?.body ?? "{}");
-    expect(Object.keys(body).sort()).toEqual(["isPlural", "key", "namespace", "translations"]);
-    expect(body.translations.en).toEqual({ value: "Hello", status: "not_reviewed" });
+    expect({
+      path: calls[0].path,
+      method: calls[0].init?.method,
+      fields: Object.keys(body).sort(),
+      en: body.translations.en,
+    }).toEqual({
+      path: "/v1/keys",
+      method: "PUT",
+      fields: ["isPlural", "key", "namespace", "translations"],
+      en: { value: "Hello", status: "not_reviewed" },
+    });
   });
 
   it("deleteTranslation: DELETE /v1/keys/:ns/:key", async () => {

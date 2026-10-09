@@ -96,13 +96,13 @@ describe("golden-vector conformance", () => {
 });
 
 describe("top-K neighbor selection", () => {
-  it("caps the hashed neighbor set at HASH_NEIGHBOR_TOP_K", () => {
+  it("fixture with more neighbors than the cap → the hashed neighbor set holds HASH_NEIGHBOR_TOP_K", () => {
     const vector = fixtures.vectors.find((v) => v.name === "error-message-topk-truncation");
-    expect(vector).not.toBeUndefined();
+    if (!vector) throw new Error('fixture vector "error-message-topk-truncation" is missing');
 
-    const neighborArray = JSON.parse(vector!.canonical)[NEIGHBORS_FIELD] as unknown[];
+    const neighborArray = JSON.parse(vector.canonical)[NEIGHBORS_FIELD] as unknown[];
 
-    expect(neighborArray.length).toBe(HASH_NEIGHBOR_TOP_K);
+    expect(neighborArray).toHaveLength(HASH_NEIGHBOR_TOP_K);
   });
 
   it("selects by readingOrderIndex, dropping later-reading neighbors", () => {

@@ -81,19 +81,28 @@ describe("EditModal", () => {
     expect(mocks.unmount).not.toHaveBeenCalled();
   });
 
-  it("a second showModal() reuses the mounted app and swaps in the new key", () => {
+  it("a second showModal() → the mounted app is reused and shows the new key, open", () => {
     modal.showModal("home.title", "default", "instance-a");
     modal.closeModal();
 
     modal.showModal("checkout.total", "checkout");
 
-    expect(mocks.createApp).toHaveBeenCalledOnce();
-    expect(mocks.createShadowDomContainer).toHaveBeenCalledOnce();
     const props = appProps();
-    expect(props.translationKey.value).toBe("checkout.total");
-    expect(props.translationNamespace.value).toBe("checkout");
-    expect(props.translationInstanceId.value).toBeUndefined();
-    expect(props.open.value).toBe(true);
+    expect({
+      appsCreated: mocks.createApp.mock.calls.length,
+      containersCreated: mocks.createShadowDomContainer.mock.calls.length,
+      key: props.translationKey.value,
+      namespace: props.translationNamespace.value,
+      instanceId: props.translationInstanceId.value,
+      open: props.open.value,
+    }).toEqual({
+      appsCreated: 1,
+      containersCreated: 1,
+      key: "checkout.total",
+      namespace: "checkout",
+      instanceId: undefined,
+      open: true,
+    });
   });
 
   it("the app's onUpdate:open(false) closes the modal", () => {
@@ -105,20 +114,34 @@ describe("EditModal", () => {
     expect(props.open.value).toBe(false);
   });
 
-  it("cleanup() unmounts the app, removes the container and clears the props", () => {
+  it("cleanup() → the app is unmounted and its container removed", () => {
     // Spied before the dynamic import so the spy survives `vi.resetModules()`.
     const remove = vi.spyOn(container, "remove");
     modal.showModal("home.title", "default", "instance-a");
 
     modal.cleanup();
 
-    expect(mocks.unmount).toHaveBeenCalledOnce();
-    expect(remove).toHaveBeenCalledOnce();
+    expect({
+      unmounts: mocks.unmount.mock.calls.length,
+      removals: remove.mock.calls.length,
+    }).toEqual({
+      unmounts: 1,
+      removals: 1,
+    });
+  });
+
+  it("cleanup() → the key, namespace and instance id are cleared and the modal is closed", () => {
+    modal.showModal("home.title", "default", "instance-a");
+
+    modal.cleanup();
+
     const props = appProps();
-    expect(props.translationKey.value).toBe("");
-    expect(props.translationNamespace.value).toBe("");
-    expect(props.translationInstanceId.value).toBeUndefined();
-    expect(props.open.value).toBe(false);
+    expect({
+      key: props.translationKey.value,
+      namespace: props.translationNamespace.value,
+      instanceId: props.translationInstanceId.value,
+      open: props.open.value,
+    }).toEqual({ key: "", namespace: "", instanceId: undefined, open: false });
   });
 
   it("a second cleanup() unmounts and removes nothing more", () => {

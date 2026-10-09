@@ -15,9 +15,6 @@ import {
   type ComposedInstance,
 } from "./helpers/composedInstance";
 
-const { coreCtorMock, coreStopMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } =
-  await vi.hoisted(() => import("./helpers/mockCore"));
-
 const { fetchApiTranslationsMock, clearProjectInfoCacheMock } = vi.hoisted(() => ({
   fetchApiTranslationsMock: vi.fn(),
   clearProjectInfoCacheMock: vi.fn(),
@@ -32,22 +29,25 @@ vi.mock("@comvi/plugin-fetch-loader/api", async (importOriginal) => {
   };
 });
 
-vi.mock("../src/Core", mockCoreModule);
-
 import { activate, deactivate, isActive } from "../src/standalone";
-import { getApiConfig } from "../src/config/api";
-import { resetEncoder } from "../src/translation";
+import { Core } from "../src/Core";
+import { getApiConfig, resetApiConfig } from "../src/config/api";
+import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
 import type { ApiTransport, ApiTransportInit } from "../src/config/api";
+import { cleanupDOM, flushDOMMutations } from "./helpers";
+import { hoverLabel, hoverOverlayStyle, renderMarked } from "./helpers/editorPage";
+import { contextApiResponse, contextPaths, handshakeKeys } from "./helpers/contextWire";
 
-type CoreOptions = {
-  targetElement?: Node;
-  collectContext?: boolean;
-  highlightStyle?: { borderColor?: string; backgroundColor?: string; borderWidth?: number };
-};
-
-function lastCoreOptions(): CoreOptions {
-  expect(coreCtorMock).toHaveBeenCalled();
-  return coreCtorMock.mock.calls[coreCtorMock.mock.calls.length - 1]![0] as CoreOptions;
+/**
+ * Fault injection: `Core.stop()` finishes its real teardown, so nothing leaks
+ * into later tests, and then throws — the failure `deactivate()` must survive.
+ */
+function failCoreStopWith(message: string): void {
+  const realStop = Core.prototype.stop;
+  vi.spyOn(Core.prototype, "stop").mockImplementation(function (this: Core) {
+    realStop.call(this);
+    throw new Error(message);
+  });
 }
 
 function makeI18n(
@@ -71,10 +71,12 @@ async function settleRefresh(): Promise<void> {
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((settle) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((settle, fail) => {
     resolve = settle;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 /**
@@ -109,44 +111,91 @@ afterEach(() => {
     deactivate();
   }
   delete (window as { __COMVI__?: unknown }).__COMVI__;
-  resetCoreMocks();
+  cleanupDOM();
+  document.head.querySelector("title")?.remove();
+  resetApiConfig();
   resetEncoder();
   fetchApiTranslationsMock.mockReset();
   clearProjectInfoCacheMock.mockReset();
 });
 
 describe("activate() defaults", () => {
-  it("collects context and watches document.body when the caller asks for neither", () => {
+  it("activate() without collectContext → the result reports collectContext: true", () => {
     makeI18n();
 
     const result = activate({ refreshMessages: false });
 
     expect(result?.collectContext).toBe(true);
-    expect(lastCoreOptions()).toMatchObject({
-      targetElement: document.body,
-      collectContext: true,
-    });
   });
 
-  it("watches the element the caller names instead of document.body", () => {
+  it("activate() without collectContext → the context handshake goes through the transport", async () => {
+    makeI18n();
+    renderMarked("hello");
+    const transport = vi.fn<ApiTransport>((path) => contextApiResponse(path));
+
+    activate({ transport, refreshMessages: false });
+    await flushDOMMutations();
+
+    expect(contextPaths(transport.mock.calls)).toContain("/v1/context/handshake");
+  });
+
+  it("activate() without targetElement → marked text anywhere in the body is highlighted", async () => {
+    makeI18n();
+    const nested = document.createElement("section");
+    document.body.appendChild(nested);
+    const heading = renderMarked("home.title", { parent: nested });
+
+    activate({ refreshMessages: false });
+
+    expect(await hoverLabel(heading)).toBe("home.title");
+  });
+
+  it("activate() without targetElement → a translated <title> in the head is not tracked", async () => {
+    makeI18n();
+    renderMarked("home.title");
+    document.title = `Shop${encodeKeyToInvisible(registerKey("page.title"))}`;
+    const transport = vi.fn<ApiTransport>((path) => contextApiResponse(path));
+
+    activate({ transport, refreshMessages: false });
+    await flushDOMMutations();
+
+    expect(handshakeKeys(transport.mock.calls)).toEqual(["home.title"]);
+  });
+
+  it("activate({ targetElement }) → marked text inside the target is highlighted", async () => {
     makeI18n();
     const target = document.createElement("section");
+    document.body.appendChild(target);
+    const heading = renderMarked("home.title", { parent: target });
 
     activate({ targetElement: target, refreshMessages: false });
 
-    expect(lastCoreOptions().targetElement).toBe(target);
+    expect(await hoverLabel(heading)).toBe("home.title");
   });
 
-  it("hands the caller's highlightStyle to the runtime", () => {
+  it("activate({ targetElement }) → marked text outside the target is not highlighted", async () => {
     makeI18n();
-    const highlightStyle = { borderColor: "red", backgroundColor: "pink", borderWidth: 3 };
+    const target = document.createElement("section");
+    document.body.appendChild(target);
+    const outside = renderMarked("footer.copyright");
 
-    activate({ highlightStyle, refreshMessages: false });
+    activate({ targetElement: target, refreshMessages: false });
 
-    expect(lastCoreOptions().highlightStyle).toEqual({
-      borderColor: "red",
+    expect(await hoverLabel(outside)).toBeNull();
+  });
+
+  it("activate({ highlightStyle }) → the Alt+hover overlay is drawn in that style", async () => {
+    makeI18n();
+    const heading = renderMarked("home.title");
+
+    activate({
+      highlightStyle: { borderColor: "red", backgroundColor: "pink", borderWidth: 3 },
+      refreshMessages: false,
+    });
+
+    expect(await hoverOverlayStyle(heading)).toEqual({
+      border: "3px solid red",
       backgroundColor: "pink",
-      borderWidth: 3,
     });
   });
 
@@ -170,10 +219,10 @@ describe("activate() defaults", () => {
     makeI18n();
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
-    activate({ refreshMessages: false });
+    const result = activate({ refreshMessages: false });
 
     expect(info).toHaveBeenCalledWith(
-      `[@comvi/plugin-in-context-editor] Activated (instance: ${FIRST_MOCK_CORE_ID})`,
+      `[@comvi/plugin-in-context-editor] Activated (instance: ${result?.instanceId})`,
     );
   });
 
@@ -198,6 +247,17 @@ describe("activate() instance selection", () => {
     expect(result).toBeNull();
     expect(isActive()).toBe(false);
     expect(error).toHaveBeenCalledOnce();
+  });
+
+  it("an instance without the plugin capability → the error names the missing @comvi/core/plugins capability", () => {
+    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    activate({ refreshMessages: false });
+
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      "[@comvi/plugin-in-context-editor] This i18n instance cannot be edited: it was created without the plugin capability (`@comvi/core/plugins`).",
+    );
   });
 
   it("no instanceId → edits the instance with the plugin capability over an earlier one without it", () => {
@@ -322,6 +382,20 @@ describe("activate() translation refresh", () => {
     expect(addedCatalogs(addMessages)).toEqual([]);
   });
 
+  it("refresh that fails after the runtime was stopped → no refresh warning is logged", async () => {
+    makeI18n();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const inFlight = createDeferred<Map<string, unknown>>();
+    fetchApiTranslationsMock.mockReturnValue(inFlight.promise);
+    const result = activate({ apiKey: "test-key" });
+    result?.stop();
+
+    inFlight.reject(new Error("network down"));
+    await settleRefresh();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("RC review #11: drops a NON-EMPTY refresh that resolves after the runtime was stopped", async () => {
     const i18n = makeI18n();
     const addMessages = vi.spyOn(i18n, "addMessages");
@@ -377,26 +451,59 @@ describe("activate() proxy transport", () => {
 });
 
 describe("deactivate() teardown", () => {
+  it("deactivate() → the page's marked text is no longer highlighted", async () => {
+    makeI18n();
+    const heading = renderMarked("home.title");
+    activate({ refreshMessages: false });
+
+    deactivate();
+
+    expect(await hoverLabel(heading)).toBeNull();
+  });
+
   it("clears the fetch-loader's project cache for the runtime's own scope", () => {
     makeI18n();
     const result = activate({ refreshMessages: false });
 
     result?.stop();
 
-    expect(clearProjectInfoCacheMock).toHaveBeenCalledExactlyOnceWith(FIRST_MOCK_CORE_ID);
+    expect(clearProjectInfoCacheMock).toHaveBeenCalledExactlyOnceWith(result?.instanceId);
   });
 
-  it("finishes teardown and rethrows when Core.stop() fails", () => {
+  it("Core.stop() throws → deactivation rethrows the failure", () => {
     makeI18n();
-    coreStopMock.mockImplementation(() => {
-      throw new Error("core boom");
-    });
+    failCoreStopWith("core boom");
     const result = activate({ refreshMessages: false });
 
     expect(() => result?.stop()).toThrow("core boom");
+  });
+
+  it("Core.stop() throws → the runtime is still reported inactive", () => {
+    makeI18n();
+    failCoreStopWith("core boom");
+    const result = activate({ refreshMessages: false });
+
+    try {
+      result?.stop();
+    } catch {
+      // The rethrow is the previous test's claim; this one is about the state left behind.
+    }
 
     expect(isActive()).toBe(false);
-    expect(() => getApiConfig(FIRST_MOCK_CORE_ID)).toThrow(/API configuration not initialized/);
+  });
+
+  it("Core.stop() throws → the runtime's API configuration is still dropped", () => {
+    makeI18n();
+    failCoreStopWith("core boom");
+    const result = activate({ refreshMessages: false });
+
+    try {
+      result?.stop();
+    } catch {
+      // The rethrow is the first test's claim; this one is about the state left behind.
+    }
+
+    expect(() => getApiConfig(result?.instanceId)).toThrow(/API configuration not initialized/);
   });
 
   it("stays silent when a stale stop handle is called a second time", () => {
