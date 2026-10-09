@@ -4,7 +4,7 @@
 // same defect, with `__DEV__: false` baked into its only artifact family.
 //
 // The ROOT entry, not `/client`: the package's one `IS_DEV` diagnostic is the
-// readable `E_USE_HOST_IDENTITY` message in `src/createNextI18n.ts`, and
+// readable `E_USE_INSTANCE_IDENTITY` message in `src/createNextI18n.ts`, and
 // `createNextI18n` is exported from `./index` alone. `preserveModules` means
 // the root resolves `dist/createNextI18n.js` or `dist/createNextI18n.dev.js`
 // per condition; the runner asserts that module is in the graph and that its
@@ -58,7 +58,7 @@ try {
   thrown = error;
 }
 assert(thrown instanceof Error, "a foreign return from .use throws");
-assertEqual(thrown.code, "E_USE_HOST_IDENTITY", "the error carries the stable code");
+assertEqual(thrown.code, "E_USE_INSTANCE_IDENTITY", "the error carries the stable code");
 assert(typeof thrown.message === "string" && thrown.message.length > 0, "the error has a message");
 
 console.log("BUNDLER_MATRIX_OK next-dev-conditions");

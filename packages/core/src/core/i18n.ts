@@ -403,7 +403,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * runtime guard stays: a JS caller, or an `any`-typed one, reaches it anyway.
    *
    * Vue's wrapper enforces the same rule one level up, over `i18n.core`, and
-   * reports it under the wrapper's own code `E_USE_HOST_IDENTITY`.
+   * reports it under the wrapper's own code `E_USE_INSTANCE_IDENTITY`.
    */
   public use<T extends this>(installer: (instance: this) => T): T {
     const widened: unknown = installer(this);

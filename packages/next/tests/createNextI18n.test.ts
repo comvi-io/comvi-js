@@ -299,12 +299,12 @@ describe("createNextI18n — `.use(installer)` is the composition pipe", () => {
     expect(nextI18n.i18n.t("greeting")).toBe("Hallo");
   });
 
-  it("refuses an installer that returns a different object (E_USE_HOST_IDENTITY) over result.i18n", () => {
+  it("refuses an installer that returns a different object (E_USE_INSTANCE_IDENTITY) over result.i18n", () => {
     const nextI18n = create();
     const other = { ...nextI18n.i18n };
 
     expect(() => nextI18n.use(() => other as never)).toThrow(
-      expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }),
+      expect.objectContaining({ code: "E_USE_INSTANCE_IDENTITY" }),
     );
     expect(() => nextI18n.use(() => other as never)).toThrow(
       "[@comvi/next] .use(installer) must return the instance it was given",
@@ -323,7 +323,7 @@ describe("createNextI18n — `.use(installer)` is the composition pipe", () => {
       });
 
       expect(() => nextI18n.use(rejected as never)).toThrow(
-        expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }),
+        expect.objectContaining({ code: "E_USE_INSTANCE_IDENTITY" }),
       );
       expect(rejected).toHaveBeenCalledTimes(1);
       // Let the swallowed rejection settle before asserting nothing surfaced.
@@ -338,7 +338,7 @@ describe("createNextI18n — `.use(installer)` is the composition pipe", () => {
     const nextI18n = create();
 
     expect(() => nextI18n.use((() => undefined) as never)).toThrow(
-      expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }),
+      expect.objectContaining({ code: "E_USE_INSTANCE_IDENTITY" }),
     );
   });
 

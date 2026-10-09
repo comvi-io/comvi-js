@@ -2,7 +2,7 @@
  * Development build (dist/*.dev.js) — selected by bundlers via the
  * "development" export condition on every runtime entry. `__DEV__` is
  * hardcoded true so the `IS_DEV`-guarded diagnostic in `src/createNextI18n.ts`
- * (the readable `E_USE_HOST_IDENTITY` message) actually fires; the default
+ * (the readable `E_USE_INSTANCE_IDENTITY` message) actually fires; the default
  * family keeps the bare error code.
  *
  * `addUseClient(".dev")` is NOT optional: `"use client"` is a per-file

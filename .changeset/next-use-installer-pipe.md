@@ -9,7 +9,7 @@
 **`use` is core's installer pipe now.** `result.use(f)` is `f(result.i18n)` and hands back the same
 result with `i18n` retyped to what the installer widened the host to — the same contract as
 `i18n.use(…)` on every host, with the same identity guard: an installer that returns a different
-object, an async one, or a raw plugin throws `code: "E_USE_HOST_IDENTITY"` (reported over
+object, an async one, or a raw plugin throws `code: "E_USE_INSTANCE_IDENTITY"` (reported over
 `result.i18n`; a raw async plugin's rejection is swallowed so that error is the only report), and
 all three are TypeScript errors first. The 0.4 `use(plugin, options)` — Next's own scoped
 raw-plugin queue, one word away from the SDK's composition verb with the opposite timing — is gone.

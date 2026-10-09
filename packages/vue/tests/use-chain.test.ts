@@ -48,7 +48,7 @@ describe("VueI18n.use()", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
     const foreign = createCore({ locale: "en", exposeGlobal: false });
     expect(() => i18n.use(() => foreign)).toThrow(
-      expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }),
+      expect.objectContaining({ code: "E_USE_INSTANCE_IDENTITY" }),
     );
     // The refused installer left the wrapper on its own host.
     expect(i18n.core).not.toBe(foreign);
@@ -63,7 +63,7 @@ describe("VueI18n.use()", () => {
         i18n.use((async () => {
           throw new Error("the plugin's own failure");
         }) as unknown as (core: typeof i18n.core) => typeof i18n.core),
-      ).toThrow(expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }));
+      ).toThrow(expect.objectContaining({ code: "E_USE_INSTANCE_IDENTITY" }));
 
       // Two macrotask turns: enough for node to have reported one.
       await new Promise((resolve) => setTimeout(resolve, 0));

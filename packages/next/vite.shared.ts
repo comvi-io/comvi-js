@@ -11,7 +11,7 @@
  *
  * WHY: `vite build` pins `NODE_ENV=production`, so a package with a single
  * artifact family bakes `__DEV__: false` into the only files consumers can
- * resolve — the readable `E_USE_HOST_IDENTITY` message in
+ * resolve — the readable `E_USE_INSTANCE_IDENTITY` message in
  * `src/createNextI18n.ts` was then dead code in the published package, no
  * matter what mode the consuming app built in.
  *

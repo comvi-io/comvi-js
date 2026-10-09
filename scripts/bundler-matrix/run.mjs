@@ -110,7 +110,7 @@ const NEXT_COMPOSED_ROOT_MODULE = [`@comvi${path.sep}next${path.sep}dist${path.s
 const VUE_LATE_USE_WARNING = "ran after app.use(i18n) started init()";
 /**
  * `@comvi/next`'s one `IS_DEV` diagnostic: the readable half of the
- * `E_USE_HOST_IDENTITY` error `createNextI18n(…).use` throws when an installer
+ * `E_USE_INSTANCE_IDENTITY` error `createNextI18n(…).use` throws when an installer
  * hands back a different object. The production family throws the bare code
  * instead, so this text is a development-artifact marker in the same way.
  * `next-dev-conditions.mjs` deliberately never quotes it.

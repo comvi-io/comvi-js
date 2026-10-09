@@ -9,7 +9,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /** Thrown by {@link CreateNextI18nResult.use} when an installer hands back a different object. */
 export interface UseInstanceIdentityError extends Error {
-  code: "E_USE_HOST_IDENTITY";
+  code: "E_USE_INSTANCE_IDENTITY";
 }
 
 export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
@@ -123,7 +123,7 @@ export interface CreateNextI18nResult<
    * Installers widen the instance IN PLACE and return it, and everything else in
    * this result — `setI18n(i18n)`, the provider, the server helpers — holds
    * that one instance, so an installer that hands back a different object is
-   * refused with `code: "E_USE_HOST_IDENTITY"`, reported over `this.i18n`
+   * refused with `code: "E_USE_INSTANCE_IDENTITY"`, reported over `this.i18n`
    * (the composed instance), instead of leaving the app driving an instance nothing
    * else sees. A raw ASYNC plugin handed here has already run by the time the
    * check fires, so its rejection is swallowed and the identity error is the
@@ -218,9 +218,9 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
         const error = new Error(
           IS_DEV
             ? "[@comvi/next] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
-            : "E_USE_HOST_IDENTITY",
+            : "E_USE_INSTANCE_IDENTITY",
         ) as UseInstanceIdentityError;
-        error.code = "E_USE_HOST_IDENTITY";
+        error.code = "E_USE_INSTANCE_IDENTITY";
         throw error;
       }
       return result as unknown as CreateNextI18nResult<D, T>;

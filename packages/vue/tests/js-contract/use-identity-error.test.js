@@ -1,5 +1,5 @@
 // `VueI18n.use`'s identity refusal, asserted against BOTH published build
-// families — this is vue's prod lane, and `E_USE_HOST_IDENTITY` is one of the
+// families — this is vue's prod lane, and `E_USE_INSTANCE_IDENTITY` is one of the
 // three codes the docs promise consumers can branch on.
 //
 // The expected messages are written out verbatim rather than imported from the
@@ -15,7 +15,7 @@ const IS_DEV_BUILD = __COMVI_CORE_BUILD__ === "development";
 
 const EXPECTED_MESSAGE = IS_DEV_BUILD
   ? "[@comvi/vue] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
-  : "E_USE_HOST_IDENTITY";
+  : "E_USE_INSTANCE_IDENTITY";
 
 describe("VueI18n.use() identity refusal", () => {
   it("carries the branchable code in both builds and only the code in production", () => {
@@ -29,7 +29,7 @@ describe("VueI18n.use() identity refusal", () => {
       thrown = error;
     }
 
-    expect(thrown.code).toBe("E_USE_HOST_IDENTITY");
+    expect(thrown.code).toBe("E_USE_INSTANCE_IDENTITY");
     expect(thrown.message).toBe(EXPECTED_MESSAGE);
     expect(i18n.core).not.toBe(foreign);
   });
@@ -43,7 +43,7 @@ describe("VueI18n.use() identity refusal", () => {
         i18n.use(async () => {
           throw new Error("the plugin's own failure");
         }),
-      ).toThrow(expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }));
+      ).toThrow(expect.objectContaining({ code: "E_USE_INSTANCE_IDENTITY" }));
 
       // Two macrotask turns: enough for node to have reported one.
       await new Promise((resolve) => setTimeout(resolve, 0));

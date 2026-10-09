@@ -36,7 +36,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /** Thrown by {@link VueI18n.use} when an installer hands back a different object. */
 export interface UseInstanceIdentityError extends Error {
-  code: "E_USE_HOST_IDENTITY";
+  code: "E_USE_INSTANCE_IDENTITY";
 }
 
 /**
@@ -484,7 +484,7 @@ export class VueI18n<
    *
    * Installers widen the instance IN PLACE and return it; the wrapper's bound
    * proxies point at that one instance, so an installer that hands back a
-   * different object is refused (`code: "E_USE_HOST_IDENTITY"`) instead of
+   * different object is refused (`code: "E_USE_INSTANCE_IDENTITY"`) instead of
    * leaving the wrapper driving an instance the app never sees. A raw ASYNC plugin
    * handed here has already run by the time the check fires, so its rejection
    * is swallowed and the identity error is the only thing the app sees — and
@@ -510,9 +510,9 @@ export class VueI18n<
       const error = new Error(
         IS_DEV
           ? "[@comvi/vue] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
-          : "E_USE_HOST_IDENTITY",
+          : "E_USE_INSTANCE_IDENTITY",
       ) as UseInstanceIdentityError;
-      error.code = "E_USE_HOST_IDENTITY";
+      error.code = "E_USE_INSTANCE_IDENTITY";
       throw error;
     }
     return this as unknown as VueI18n<D, T>;

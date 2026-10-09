@@ -37,7 +37,7 @@ Two smaller consequences. The development `E_ICU_SYNTAX` message now ends with
 so anything asserting on the old hint text needs updating. And the production
 error inventory shrinks by one here: after this change the identities that carry
 a branchable `code` are `E_ICU_SYNTAX` and, on the Vue wrapper,
-`E_USE_HOST_IDENTITY`. `E_USE_NOT_INSTALLER` joins them with the `.use(installer)`
+`E_USE_INSTANCE_IDENTITY`. `E_USE_NOT_INSTALLER` joins them with the `.use(installer)`
 verb.
 
 Migration: replace `createI18n(options).use(icu())` with
