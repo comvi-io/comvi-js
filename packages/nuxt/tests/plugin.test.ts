@@ -13,7 +13,7 @@ import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
 
 const createComviI18n = vi.fn();
 
-vi.mock("#build/comvi.host", () => ({
+vi.mock("#build/comvi.i18n", () => ({
   createComviI18n,
 }));
 
@@ -178,7 +178,7 @@ describe("runtime plugin", () => {
   });
 
   it("renders a key from comvi.messages on a real client instance", async () => {
-    // The two-line module-options floor: no hostModule means the generated host
+    // The two-line module-options floor: no i18nModule means the generated host
     // is core's BASE host and has no loader, so the instance this plugin hands
     // the app must already hold the catalog nuxt.config declared — otherwise
     // the app can never show a translation at all.
@@ -597,12 +597,12 @@ describe("runtime plugin", () => {
 
   it("surfaces a host construction failure instead of booting a half-built app", async () => {
     createComviI18n.mockImplementation(() => {
-      throw new Error("hostModule factory blew up");
+      throw new Error("i18nModule factory blew up");
     });
 
     const plugin = await importPlugin();
 
-    await expect(plugin.setup(createNuxtAppStub())).rejects.toThrow("hostModule factory blew up");
+    await expect(plugin.setup(createNuxtAppStub())).rejects.toThrow("i18nModule factory blew up");
   });
 
   it("rich translation content with VirtualNode shape survives JSON round-trip hydration", async () => {

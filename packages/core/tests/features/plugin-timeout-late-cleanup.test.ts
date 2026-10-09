@@ -5,7 +5,7 @@
  * return is reported, never silently dropped.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import { createDeferred } from "../helpers/deferred";
 
 type Cleanup = () => void;

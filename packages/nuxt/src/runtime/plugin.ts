@@ -5,8 +5,8 @@ import { watch } from "vue";
 // The i18n instance is built by the BUILD-TIME template, never by a runtime
 // branch here: a static `createI18n` import in this module would pin nuxt's
 // default `@comvi/vue` construction path into every nuxt bundle, including apps
-// that configured their own `hostModule`.
-import { createComviI18n } from "#build/comvi.host";
+// that configured their own `i18nModule`.
+import { createComviI18n } from "#build/comvi.i18n";
 import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
 import { loadCatalogs } from "./utils/load-catalogs";
@@ -79,7 +79,7 @@ export default defineNuxtPlugin({
       ns: publicConfig.ns || undefined,
       devMode: import.meta.dev,
       apiKey: privateConfig?.apiKey,
-      // Without a `hostModule` the generated instance is core's BASE instance and has
+      // Without a `i18nModule` the generated instance is core's BASE instance and has
       // no loader, so `comvi.messages` is the only catalog it ever gets.
       // `||`, not the value as-is: runtime config turns an unset option into
       // `""` (a `NUXT_PUBLIC_COMVI_MESSAGES=` override does too), and core
@@ -179,7 +179,7 @@ export default defineNuxtPlugin({
       // waits for what a component awaits, not for anything collected before
       // `app:rendered` (by then the HTML already holds the raw key), so the
       // activation itself resolves only once the chain is in. This instance is the
-      // request's own, so the override never leaves the request; a `hostModule`
+      // request's own, so the override never leaves the request; a `i18nModule`
       // factory that returns one shared instance anyway gets it wrapped once, not
       // once per request. One path still bypasses it: an `addActiveNamespaces`
       // reference taken inside `comvi.setup`, which runs before this line, and

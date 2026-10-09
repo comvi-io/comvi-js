@@ -161,7 +161,7 @@ resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge.
 ### Advanced
 
 A loader that needs server-only code cannot live in the client-safe config module. Build that
-i18n instance with `createNextI18nFromHost` in a server-only module, or hand one over with
+i18n instance with `createNextI18nFromInstance` in a server-only module, or hand one over with
 `setI18n(i18n)`, and wrap `<I18nProvider>` in your own `"use client"` component.
 
 ## Next steps

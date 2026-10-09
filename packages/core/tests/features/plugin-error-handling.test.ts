@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { I18n } from "../helpers/composedHost";
-import type { I18nPlugin } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
+import type { I18nPlugin } from "../helpers/composedInstance";
 import { flushMicrotasks } from "../helpers/flush";
 
 /**

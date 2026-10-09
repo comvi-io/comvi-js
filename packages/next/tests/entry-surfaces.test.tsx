@@ -166,7 +166,7 @@ describe("@comvi/next — the root carries the toolkit a shared config module ne
     expect(root.plugins).toBe(plugins);
     expect(root.devtools).toBe(devtools);
     expect(root).not.toHaveProperty("flattenCatalog");
-    expect(root).not.toHaveProperty("createNextI18nFromHost");
+    expect(root).not.toHaveProperty("createNextI18nFromInstance");
     // `attachPlugins`/`attachDevtools` are NOT re-exported here (P4).
     expect(root).not.toHaveProperty("attachPlugins");
     expect(root).not.toHaveProperty("attachDevtools");
@@ -219,9 +219,13 @@ describe("@comvi/next/server — the same surface for the SSR half", () => {
   });
 
   it("builds a NextServerInstance from one package", async () => {
-    const { attachLoader: attach, createNextI18nFromHost, createI18n } = await importServerEntry();
+    const {
+      attachLoader: attach,
+      createNextI18nFromInstance,
+      createI18n,
+    } = await importServerEntry();
 
-    const { i18n } = createNextI18nFromHost(
+    const { i18n } = createNextI18nFromInstance(
       () =>
         attach(
           createI18n({

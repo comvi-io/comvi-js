@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
-import type { I18nPlugin } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
+import type { I18nPlugin } from "../helpers/composedInstance";
 import { createDeferred } from "../helpers/deferred";
 
 /** Lifecycle behaviour that is observable through the PUBLIC API only. */

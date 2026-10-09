@@ -40,7 +40,7 @@ import { definePlugin } from "@comvi/core/plugins";
 import { getRequestI18n } from "../src/runtime/server/utils/request-i18n";
 import { REQUEST_HOSTS_KEY } from "../src/runtime/request-hosts-key";
 import requestCleanupPlugin from "../src/runtime/server/plugins/request-cleanup";
-import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
+import { createComviCore, resetComviI18nMock } from "./mocks/comvi-i18n";
 import { resetComviSetupMock } from "./mocks/comvi-setup";
 
 interface Teardown {
@@ -181,7 +181,7 @@ function get(port: number, path: string): Promise<{ status: number; body: string
 }
 
 beforeEach(() => {
-  resetComviHostMock();
+  resetComviI18nMock();
   resetComviSetupMock();
   teardowns.length = 0;
   order.length = 0;

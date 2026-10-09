@@ -14,7 +14,7 @@ import type { I18nPlugin } from "@comvi/core";
 import { plugins } from "@comvi/core/plugins";
 import { cdnLoaderPlugin, cdnLoader, type CdnLoaderOptions } from "../src/index";
 import { FETCH_LOADER_PLUGIN_KEY } from "../src/api";
-import { I18n } from "./helpers/composedHost";
+import { I18n } from "./helpers/composedInstance";
 import { asFetch } from "./helpers/transport";
 import {
   server,

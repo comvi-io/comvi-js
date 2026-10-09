@@ -14,13 +14,13 @@ export type { ComviProviderProps } from "./server/ComviProvider";
 
 // Exported here and nowhere else: a server loader reached through the instance
 // factory can then never leak into the client graph.
-export { createNextI18nFromHost } from "./server/createNextI18nFromHost";
+export { createNextI18nFromInstance } from "./server/createNextI18nFromInstance";
 export type {
-  CreateNextI18nFromHostOptions,
-  CreateNextI18nFromHostResult,
-} from "./server/createNextI18nFromHost";
+  CreateNextI18nFromInstanceOptions,
+  CreateNextI18nFromInstanceResult,
+} from "./server/createNextI18nFromInstance";
 export type { NextRoutingOptions } from "./nextI18nRouting";
-export type { NextServerInstance } from "./server/hostTypes";
+export type { NextServerInstance } from "./server/instanceTypes";
 
 export type {
   GetI18nOptions,

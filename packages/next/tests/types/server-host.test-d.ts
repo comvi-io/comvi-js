@@ -1,19 +1,19 @@
-// The compile-time contract of `createNextI18nFromHost`.
+// The compile-time contract of `createNextI18nFromInstance`.
 //
 // Every import below names `@comvi/next/server` exactly, which is the import
 // path the contract fixes (package.json maps `./server` straight to
 // `dist/server.js`); the companion is reachable from nowhere else.
 import * as serverEntry from "@comvi/next/server";
-import { createNextI18nFromHost } from "@comvi/next/server";
+import { createNextI18nFromInstance } from "@comvi/next/server";
 import type {
-  CreateNextI18nFromHostOptions,
-  CreateNextI18nFromHostResult,
+  CreateNextI18nFromInstanceOptions,
+  CreateNextI18nFromInstanceResult,
   NextServerInstance,
 } from "@comvi/next/server";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
-import type { ServerI18nInstance, ServerTranslatingInstance } from "../../src/server/hostTypes";
+import type { ServerI18nInstance, ServerTranslatingInstance } from "../../src/server/instanceTypes";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -22,18 +22,18 @@ type Expect<T extends true> = T;
 const ROUTING = {
   locales: ["en", "fr"],
   defaultLocale: "en",
-} satisfies CreateNextI18nFromHostOptions;
+} satisfies CreateNextI18nFromInstanceOptions;
 
 // The supplied host type `C` is preserved EXACTLY.
 const composedHost = attachLoader(createI18n({ locale: "en", defaultNs: "common" }));
-const composed = createNextI18nFromHost(() => composedHost, ROUTING);
+const composed = createNextI18nFromInstance(() => composedHost, ROUTING);
 
 export type _ExactInstanceType = Expect<Equal<typeof composed.i18n, typeof composedHost>>;
 
 // A host composed through the INSTALLER pipe instead of `attachLoader`: the
 // second acquisition path.
 const installerHost = createI18n({ locale: "en" }).use(attachLoader);
-const _onPiped = createNextI18nFromHost(() => installerHost, ROUTING);
+const _onPiped = createNextI18nFromInstance(() => installerHost, ROUTING);
 
 export type _PipedInstanceAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof installerHost>>;
 
@@ -41,7 +41,7 @@ export type _PipedInstanceAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof 
 // none of the four delegates the composed root deleted. The positive control
 // keeps these probes from passing vacuously.
 export type _ResultIsTwoFields = Expect<
-  Equal<keyof CreateNextI18nFromHostResult, "i18n" | "routing">
+  Equal<keyof CreateNextI18nFromInstanceResult, "i18n" | "routing">
 >;
 export type _RootResultStillHasUse = Expect<
   Equal<Extract<keyof CreateNextI18nResult, "use">, "use">
@@ -71,12 +71,12 @@ export type _ResetIsNotPublic = Expect<
 // to the host factory and do not exist here at all.
 export type _OptionsAreRoutingOnly = Expect<
   Equal<
-    keyof CreateNextI18nFromHostOptions,
+    keyof CreateNextI18nFromInstanceOptions,
     "locales" | "defaultLocale" | "localePrefix" | "pathnames"
   >
 >;
 
-createNextI18nFromHost(() => composedHost, {
+createNextI18nFromInstance(() => composedHost, {
   locales: ["en"],
   defaultLocale: "en",
   // @ts-expect-error -- owned by the host factory, never silently reapplied
@@ -88,7 +88,7 @@ createNextI18nFromHost(() => composedHost, {
 const bareBaseHost = createI18n({ locale: "en" });
 
 // @ts-expect-error -- NextServerInstance = WrapperI18nInstance & I18nLoaderApi
-createNextI18nFromHost(() => bareBaseHost, ROUTING);
+createNextI18nFromInstance(() => bareBaseHost, ROUTING);
 
 export type _BareBaseIsNotAServerInstance = Expect<
   Equal<typeof bareBaseHost extends NextServerInstance ? true : false, false>
@@ -107,7 +107,7 @@ export type _RetiredNameIsGone = Expect<
 const singlePackageHost = serverEntry.attachLoader(
   serverEntry.createI18n({ locale: "en", defaultNs: "common" }),
 );
-const _singlePackage = createNextI18nFromHost(() => singlePackageHost, ROUTING);
+const _singlePackage = createNextI18nFromInstance(() => singlePackageHost, ROUTING);
 
 export type _SinglePackageInstanceIsExact = Expect<
   Equal<typeof _singlePackage.i18n, typeof singlePackageHost>
@@ -121,7 +121,7 @@ export type _SinglePackageConstructorIsBase = Expect<
   Equal<typeof serverEntry.createI18n, typeof createI18n>
 >;
 // @ts-expect-error -- still NextServerInstance = WrapperI18nInstance & I18nLoaderApi
-createNextI18nFromHost(() => serverEntry.createI18n({ locale: "en" }), ROUTING);
+createNextI18nFromInstance(() => serverEntry.createI18n({ locale: "en" }), ROUTING);
 
 // ICU stays injectable from the same specifier, in its ONE shape: the compiler
 // option, which covers the remote catalogs an SSR loader fetches too.
@@ -143,18 +143,18 @@ serverEntry.createI18n({ locale: "en", messages: { en: { nav: { home: "Home" } }
 const pipedHost = serverEntry
   .createI18n({ locale: "en", defaultNs: "common" })
   .use(serverEntry.loader({ en: async () => ({ default: { hello: "Hello" } }) }));
-const _piped = createNextI18nFromHost(() => pipedHost, ROUTING);
+const _piped = createNextI18nFromInstance(() => pipedHost, ROUTING);
 
 export type _PipedInstanceIsExact = Expect<Equal<typeof _piped.i18n, typeof pipedHost>>;
 export type _PipedInstanceIsAServerInstance = Expect<
   Equal<typeof pipedHost extends NextServerInstance ? true : false, true>
 >;
 // `.use(attachLoader)` is the installer for a host with no import map.
-void createNextI18nFromHost(
+void createNextI18nFromInstance(
   () => serverEntry.createI18n({ locale: "en" }).use(serverEntry.attachLoader),
   ROUTING,
 );
-createNextI18nFromHost(
+createNextI18nFromInstance(
   // @ts-expect-error -- plugins() is not the loader: the server host still needs one
   () => serverEntry.createI18n({ locale: "en" }).use(serverEntry.plugins()),
   ROUTING,

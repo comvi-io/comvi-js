@@ -1,4 +1,4 @@
-import { I18n } from "./composedHost";
+import { I18n } from "./composedInstance";
 import type { LocaleDetectorOptions } from "../../src/index";
 import { localeDetectorPlugin } from "../../src/index";
 

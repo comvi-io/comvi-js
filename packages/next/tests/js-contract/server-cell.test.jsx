@@ -11,11 +11,11 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { _resetServerI18n, resolveServerI18n, setI18n } from "../../src/server/cache";
-import { createNextI18nFromHost } from "../../src/server/createNextI18nFromHost";
+import { createNextI18nFromInstance } from "../../src/server/createNextI18nFromInstance";
 
 /* global __COMVI_CORE_BUILD__ */
 
-const FACTORY = "createNextI18nFromHost()";
+const FACTORY = "createNextI18nFromInstance()";
 const SET_I18N = "setI18n()";
 const ROUTING = { locales: ["en", "fr"], defaultLocale: "en" };
 
@@ -24,7 +24,7 @@ const conflict = (configured, incoming) =>
   "Configure it once — only a same-instance setI18n() repeats.";
 
 const NOT_CONFIGURED =
-  "[@comvi/next] i18n not configured. Add withComvi({ config }) to next.config, or call setI18n(i18n) / createNextI18nFromHost(host, routing). In a test runner the alias does not apply: alias `@comvi/next/config` to your config module (vitest `resolve.alias`, jest `moduleNameMapper`) or call setI18n(i18n) in test setup. `serverExternalPackages` containing @comvi/next is not supported.";
+  "[@comvi/next] i18n not configured. Add withComvi({ config }) to next.config, or call setI18n(i18n) / createNextI18nFromInstance(factory, routing). In a test runner the alias does not apply: alias `@comvi/next/config` to your config module (vitest `resolve.alias`, jest `moduleNameMapper`) or call setI18n(i18n) in test setup. `serverExternalPackages` containing @comvi/next is not supported.";
 
 const host = () =>
   attachLoader(createI18n({ locale: "en", defaultNs: "common", exposeGlobal: false }));
@@ -37,11 +37,11 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
   it("rejects a host registration after setI18n", () => {
     setI18n(host());
 
-    expect(() => createNextI18nFromHost(host, ROUTING)).toThrow(conflict(SET_I18N, FACTORY));
+    expect(() => createNextI18nFromInstance(host, ROUTING)).toThrow(conflict(SET_I18N, FACTORY));
   });
 
   it("rejects setI18n with a DIFFERENT instance after a host registration", () => {
-    const result = createNextI18nFromHost(host, ROUTING);
+    const result = createNextI18nFromInstance(host, ROUTING);
     const resolved = result.i18n;
 
     expect(() => setI18n(host())).toThrow(conflict(FACTORY, SET_I18N));
@@ -49,11 +49,11 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
   });
 
   it("rejects a second host registration WITHOUT building its host", () => {
-    createNextI18nFromHost(host, ROUTING);
+    createNextI18nFromInstance(host, ROUTING);
     let built = 0;
 
     expect(() =>
-      createNextI18nFromHost(() => {
+      createNextI18nFromInstance(() => {
         built += 1;
         return host();
       }, ROUTING),
@@ -62,7 +62,7 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
   });
 
   it("accepts setI18n with the SAME instance after a host registration", () => {
-    const result = createNextI18nFromHost(host, ROUTING);
+    const result = createNextI18nFromInstance(host, ROUTING);
     const resolved = result.i18n;
 
     expect(() => setI18n(resolved)).not.toThrow();
@@ -93,7 +93,7 @@ describe(`server i18n once-cell — construction failures (${__COMVI_CORE_BUILD_
 
   it("a factory that reads the instance it is building sees the not-configured error", () => {
     expect(() =>
-      createNextI18nFromHost(() => {
+      createNextI18nFromInstance(() => {
         resolveServerI18n();
         return host();
       }, ROUTING),
@@ -102,7 +102,7 @@ describe(`server i18n once-cell — construction failures (${__COMVI_CORE_BUILD_
 
   it("propagates a factory throw out of the call and leaves the cell EMPTY", () => {
     expect(() =>
-      createNextI18nFromHost(() => {
+      createNextI18nFromInstance(() => {
         throw new Error("host factory boom");
       }, ROUTING),
     ).toThrow("host factory boom");

@@ -51,7 +51,7 @@ vi.mock("@nuxt/kit", () => ({
 
 function createNuxtStub() {
   return {
-    // The module registers the generated `types/comvi-host.ts` as a tsconfig
+    // The module registers the generated `types/comvi-i18n.ts` as a tsconfig
     // reference through `prepare:types`; the payload handler is invoked by the
     // cases that assert on it.
     hook: vi.fn(),
@@ -88,7 +88,7 @@ function template(filename: string) {
 }
 
 const setupTemplateContents = () => template("comvi.setup.mjs")?.getContents();
-const hostTemplateContents = () => template("comvi.host.mjs")?.getContents();
+const hostTemplateContents = () => template("comvi.i18n.mjs")?.getContents();
 
 /**
  * `findPath` is consulted for BOTH conventions now, so a blanket
@@ -402,23 +402,23 @@ describe("nuxt module setup", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("auto-detects ./comvi.host when hostModule is omitted and logs the path", async () => {
+  it("auto-detects ./comvi.i18n when i18nModule is omitted and logs the path", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
-    resolveOnly(["./comvi.host", "/app/comvi.host.ts"]);
+    resolveOnly(["./comvi.i18n", "/app/comvi.i18n.ts"]);
 
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
 
     // The composed branch, from a file nuxt.config never named…
-    expect(hostTemplateContents()).toContain('import hostFactory from "/app/comvi.host.ts";');
+    expect(hostTemplateContents()).toContain('import i18nFactory from "/app/comvi.i18n.ts";');
     expect(hostTemplateContents()).not.toContain('from "@comvi/core"');
     // …which is exactly why the path is said out loud at build time.
     expect(infoSpy).toHaveBeenCalledTimes(1);
     const [message] = infoSpy.mock.calls[0] as [string];
-    expect(message).toContain('"/app/comvi.host.ts"');
-    expect(message).toContain("auto-detected ./comvi.host");
-    expect(message).toContain("`hostModule`");
+    expect(message).toContain('"/app/comvi.i18n.ts"');
+    expect(message).toContain("auto-detected ./comvi.i18n");
+    expect(message).toContain("`i18nModule`");
   });
 
   it("looks the conventional host up in srcDir before rootDir", async () => {
@@ -426,50 +426,50 @@ describe("nuxt module setup", () => {
     const nuxt = createNuxtStub();
     vi.spyOn(console, "info").mockImplementation(() => {});
     nuxtKitMocks.findPath.mockImplementation(async (specifier: string, options: { cwd: string }) =>
-      specifier === "./comvi.host" && options.cwd === ABSENT_ROOT_DIR
-        ? "/root/comvi.host.ts"
+      specifier === "./comvi.i18n" && options.cwd === ABSENT_ROOT_DIR
+        ? "/root/comvi.i18n.ts"
         : null,
     );
 
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
 
-    expect(nuxtKitMocks.findPath).toHaveBeenCalledWith("./comvi.host", {
+    expect(nuxtKitMocks.findPath).toHaveBeenCalledWith("./comvi.i18n", {
       cwd: ABSENT_SRC_DIR,
       type: "file",
     });
-    expect(hostTemplateContents()).toContain('import hostFactory from "/root/comvi.host.ts";');
+    expect(hostTemplateContents()).toContain('import i18nFactory from "/root/comvi.i18n.ts";');
   });
 
-  it("lets an explicit hostModule win over a conventional comvi.host", async () => {
+  it("lets an explicit i18nModule win over a conventional comvi.i18n", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
     resolveOnly(
       ["./custom.host.ts", "/app/custom.host.ts"],
-      ["./comvi.host", "/app/comvi.host.ts"],
+      ["./comvi.i18n", "/app/comvi.i18n.ts"],
     );
 
     await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", hostModule: "./custom.host.ts" },
+      { locales: ["en"], defaultLocale: "en", i18nModule: "./custom.host.ts" },
       nuxt,
     );
 
-    expect(hostTemplateContents()).toContain('import hostFactory from "/app/custom.host.ts";');
-    expect(hostTemplateContents()).not.toContain("/app/comvi.host.ts");
+    expect(hostTemplateContents()).toContain('import i18nFactory from "/app/custom.host.ts";');
+    expect(hostTemplateContents()).not.toContain("/app/comvi.i18n.ts");
     // The convention is not even consulted, and an explicit path is not "stray".
-    expect(nuxtKitMocks.findPath).not.toHaveBeenCalledWith("./comvi.host", expect.anything());
+    expect(nuxtKitMocks.findPath).not.toHaveBeenCalledWith("./comvi.i18n", expect.anything());
     expect(infoSpy).not.toHaveBeenCalled();
   });
 
-  it("names the near-missed file when comvi.host auto-detection resolved nothing", async () => {
+  it("names the near-missed file when comvi.i18n auto-detection resolved nothing", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const srcDir = mkdtempSync(join(tmpdir(), "comvi-nuxt-host-near-miss-"));
     tempDirs.push(srcDir);
-    writeFileSync(join(srcDir, "comvi.host.cjs"), "");
+    writeFileSync(join(srcDir, "comvi.i18n.cjs"), "");
     // A `.d.ts` neighbour of the host file must not be the one reported either.
-    writeFileSync(join(srcDir, "comvi.host.d.ts"), "");
+    writeFileSync(join(srcDir, "comvi.i18n.d.ts"), "");
     nuxt.options.srcDir = srcDir;
 
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
@@ -478,14 +478,14 @@ describe("nuxt module setup", () => {
     expect(hostTemplateContents()).toContain('import { createI18n } from "@comvi/vue";');
     expect(warnSpy).toHaveBeenCalledTimes(1);
     const [message] = warnSpy.mock.calls[0] as [string];
-    expect(message).toContain(`Found "${join(srcDir, "comvi.host.cjs")}"`);
-    expect(message).toContain('could not resolve "./comvi.host"');
+    expect(message).toContain(`Found "${join(srcDir, "comvi.i18n.cjs")}"`);
+    expect(message).toContain('could not resolve "./comvi.i18n"');
     expect(message).toContain(srcDir);
     expect(message).toContain("the app runs on the BASE instance");
-    expect(message).toContain("`hostModule`");
+    expect(message).toContain("`i18nModule`");
   });
 
-  it("logs nothing about the host when no comvi.host file exists", async () => {
+  it("logs nothing about the host when no comvi.i18n file exists", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
@@ -515,7 +515,7 @@ describe("nuxt module setup", () => {
     ).rejects.toThrow('Failed to resolve comvi.setup path: "./missing.setup.ts"');
   });
 
-  it("stays quiet about icu when no hostModule is configured", async () => {
+  it("stays quiet about icu when no i18nModule is configured", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -525,7 +525,7 @@ describe("nuxt module setup", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("emits the base construction branch when hostModule is unset", async () => {
+  it("emits the base construction branch when i18nModule is unset", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
 
@@ -577,14 +577,14 @@ describe("nuxt module setup", () => {
     expect(contents).toContain("return createCore(options);");
   });
 
-  it("emits compiler: icuCompiler into the factory options when icu is true with hostModule", async () => {
+  it("emits compiler: icuCompiler into the factory options when icu is true with i18nModule", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.host.ts", "/app/comvi.host.ts"]);
+    resolveOnly(["./comvi.i18n.ts", "/app/comvi.i18n.ts"]);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", icu: true, hostModule: "./comvi.host.ts" },
+      { locales: ["en"], defaultLocale: "en", icu: true, i18nModule: "./comvi.i18n.ts" },
       nuxt,
     );
 
@@ -593,21 +593,21 @@ describe("nuxt module setup", () => {
 
     const contents = hostTemplateContents();
 
-    expect(contents).toContain('import hostFactory from "/app/comvi.host.ts";');
+    expect(contents).toContain('import i18nFactory from "/app/comvi.i18n.ts";');
     expect(contents).toContain('import { createI18nFromCore } from "@comvi/vue";');
     expect(contents).toContain('import { icuCompiler } from "@comvi/core/icu";');
     // The compiler is the LAST key: `{ ...options }` gets it, `{ ...options, compiler }` overrides it.
-    expect(contents).toContain("hostFactory({ ...options, compiler: icuCompiler })");
-    expect(contents).not.toContain("hostFactory(options)");
+    expect(contents).toContain("i18nFactory({ ...options, compiler: icuCompiler })");
+    expect(contents).not.toContain("i18nFactory(options)");
   });
 
-  it("emits no ICU import on the hostModule branch when icu is off", async () => {
+  it("emits no ICU import on the i18nModule branch when icu is off", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.host.ts", "/app/comvi.host.ts"]);
+    resolveOnly(["./comvi.i18n.ts", "/app/comvi.i18n.ts"]);
 
     await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", icu: false, hostModule: "./comvi.host.ts" },
+      { locales: ["en"], defaultLocale: "en", icu: false, i18nModule: "./comvi.i18n.ts" },
       nuxt,
     );
 
@@ -616,37 +616,37 @@ describe("nuxt module setup", () => {
     // Same codegen rule as the default branch: off means absent from the graph.
     expect(contents).not.toContain("@comvi/core/icu");
     expect(contents).not.toContain("icuCompiler");
-    expect(contents).toContain("hostFactory(options)");
+    expect(contents).toContain("i18nFactory(options)");
   });
 
-  it("emits the composed-host branch and never imports @comvi/core itself when hostModule is set", async () => {
+  it("emits the composed-host branch and never imports @comvi/core itself when i18nModule is set", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.host.ts", "/app/comvi.host.ts"]);
+    resolveOnly(["./comvi.i18n.ts", "/app/comvi.i18n.ts"]);
 
     await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", hostModule: "./comvi.host.ts" },
+      { locales: ["en"], defaultLocale: "en", i18nModule: "./comvi.i18n.ts" },
       nuxt,
     );
 
     const contents = hostTemplateContents();
 
     expect(contents).toContain('import { createI18nFromCore } from "@comvi/vue";');
-    expect(contents).toContain('import hostFactory from "/app/comvi.host.ts";');
+    expect(contents).toContain('import i18nFactory from "/app/comvi.i18n.ts";');
     // The whole point of branching at build time: no root import to tree-shake.
     expect(contents).not.toContain('from "@comvi/core"');
-    expect(contents).toContain("comvi hostModule must export a default function");
+    expect(contents).toContain("comvi i18nModule must export a default function");
     // The guard names the import that FIXES it, and it is the module's own
     // subpath — @comvi/vue's createI18n is the wrapper the guard rejects.
     expect(contents).toContain("must default-export a factory returning a core instance");
-    expect(contents).toContain('createI18n from "@comvi/nuxt/host"');
+    expect(contents).toContain('createI18n from "@comvi/nuxt/i18n"');
     expect(contents).toContain("createI18n(options).use(loader(map))");
     // A composed host honours the same nuxt.config the default branch does.
-    expect(contents).toContain("hostFactory(options)");
-    expect(contents).toContain("createHost({ ...options, locale })");
+    expect(contents).toContain("i18nFactory(options)");
+    expect(contents).toContain("createInstance({ ...options, locale })");
   });
 
-  it("throws when hostModule points to missing file", async () => {
+  it("throws when i18nModule points to missing file", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     nuxtKitMocks.findPath.mockResolvedValue(null);
@@ -656,11 +656,11 @@ describe("nuxt module setup", () => {
         {
           locales: ["en"],
           defaultLocale: "en",
-          hostModule: "./missing.host.ts",
+          i18nModule: "./missing.host.ts",
         },
         nuxt,
       ),
-    ).rejects.toThrow('Failed to resolve comvi hostModule path: "./missing.host.ts"');
+    ).rejects.toThrow('Failed to resolve comvi i18nModule path: "./missing.host.ts"');
   });
 
   it("merges private runtime config and keeps existing values when apiKey option is omitted", async () => {

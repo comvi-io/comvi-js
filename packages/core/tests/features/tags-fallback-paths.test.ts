@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createI18n } from "../helpers/composedHost";
+import { createI18n } from "../helpers/composedInstance";
 import { makeMarkerExtension } from "../helpers/extensions";
 
 /**

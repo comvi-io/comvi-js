@@ -23,7 +23,7 @@
 // `.use(installer)`, which runs on `i18n.core` and retypes it.
 //
 // `createI18nFromCore` wraps an instance built somewhere other than next to the app
-// (nuxt's `hostModule`, or one instance shared with non-Vue code). That instance is
+// (nuxt's `i18nModule`, or one instance shared with non-Vue code). That instance is
 // built with `createI18n` from `@comvi/core` directly — it is elsewhere by
 // definition, so crossing the import boundary is more honest than a local
 // alias, and no `createCore` is re-exported here. `I18n` is a TYPE from this

@@ -4,7 +4,7 @@ import { createI18n } from "@comvi/core";
 import { prepareTranslation } from "@comvi/core/rich-text";
 import type { PrepareTranslationSource } from "@comvi/core/rich-text";
 import { getRequestI18n } from "../src/runtime/server/utils/request-i18n";
-import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
+import { createComviCore, resetComviI18nMock } from "./mocks/comvi-i18n";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
 import { nodeResponseStub } from "./mocks/node-response";
 
@@ -58,7 +58,7 @@ function createHostWithLocaleWrites(locale = "en") {
 
 describe("getRequestI18n", () => {
   beforeEach(() => {
-    resetComviHostMock();
+    resetComviI18nMock();
     resetComviSetupMock();
   });
 

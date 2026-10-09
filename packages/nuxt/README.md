@@ -78,17 +78,17 @@ state the route middleware watches. `$t()` works in any template without calling
 npm install @comvi/plugin-fetch-loader
 ```
 
-```ts title="comvi.host.ts" check=group=nuxt-cdn
-import { createI18n, defineComviHost } from "@comvi/nuxt/host";
+```ts title="comvi.i18n.ts" check=group=nuxt-cdn
+import { createI18n, defineComviI18n } from "@comvi/nuxt/i18n";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
-export default defineComviHost((options) =>
+export default defineComviI18n((options) =>
   createI18n(options).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" })),
 );
 ```
 
-Add this file next to `nuxt.config.ts`. The module picks up `./comvi.host.*` by convention and
-logs the path; `comvi.hostModule` points at a file elsewhere. The default export receives the
+Add this file next to `nuxt.config.ts`. The module picks up `./comvi.i18n.*` by convention and
+logs the path; `comvi.i18nModule` points at a file elsewhere. The default export receives the
 resolved `comvi` options and must return a new instance from `createI18n` on every call; in
 development the module throws when it gets the same instance twice. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
@@ -101,9 +101,9 @@ independent.
 - The module builds one i18n instance per request, detects the locale from the URL path, the query
   parameter, the cookie or the `Accept-Language` header, runs `comvi.setup.ts` for that instance, and serializes the loaded catalog
   into the payload, so the client hydrates with no second fetch and no flash.
-- Without a `comvi.host.ts` file the module builds the base instance, with no loader and no ICU compiler. Every
-  installer `comvi.host.ts` needs (`createI18n`, `loader`, `icuCompiler`, `plugins`, `devtools`)
-  comes from `@comvi/nuxt/host`, so the file resolves from `npm install @comvi/nuxt` alone.
+- Without a `comvi.i18n.ts` file the module builds the base instance, with no loader and no ICU compiler. Every
+  installer `comvi.i18n.ts` needs (`createI18n`, `loader`, `icuCompiler`, `plugins`, `devtools`)
+  comes from `@comvi/nuxt/i18n`, so the file resolves from `npm install @comvi/nuxt` alone.
 - In a Nitro route the server auto-imports are `useTranslation(event)`,
   `loadMessages(event, locale)`, `getRequestI18n(event, locale)` and
   `getServerRuntimeConfig(event)`; the app-side composables do not exist there.
@@ -136,7 +136,7 @@ Set `comvi.head: false` to write the `<html lang dir>` attributes yourself, and 
 ## Next steps
 
 - [Nuxt guide](https://comvi.io/docs/i18n/nuxt): rich text, SSR, locale routing.
-- [Nuxt API reference](https://comvi.io/docs/i18n/api/nuxt): every module option, the `hostModule` factory and setup types, the composables.
+- [Nuxt API reference](https://comvi.io/docs/i18n/api/nuxt): every module option, the `i18nModule` factory and setup types, the composables.
 - [Server-side rendering](https://comvi.io/docs/i18n/ssr#nuxt): `comvi.setup.ts`, per-request instances and hydration.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `t()` autocompletes in templates.
 

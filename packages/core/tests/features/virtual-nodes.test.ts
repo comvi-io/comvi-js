@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n } from "../helpers/composedHost";
-import type { VirtualNode } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
+import type { VirtualNode } from "../helpers/composedInstance";
 
 const NODE: VirtualNode = { type: "element", tag: "strong", props: {}, children: ["Bold"] };
 const NODES = [

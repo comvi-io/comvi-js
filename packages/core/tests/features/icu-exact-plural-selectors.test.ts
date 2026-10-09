@@ -6,7 +6,7 @@
  * RC review #6.
  */
 import { describe, expect, it } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 function render(template: string, n: number): string {
   const i18n = new I18n({ locale: "en" });

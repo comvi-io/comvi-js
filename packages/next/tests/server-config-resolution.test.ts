@@ -2,7 +2,7 @@
 /**
  * Where the server helpers find the instance.
  *
- * Two sources: the once-cell (`setI18n` / `createNextI18nFromHost`, the manual
+ * Two sources: the once-cell (`setI18n` / `createNextI18nFromInstance`, the manual
  * path) and the `i18n` export of the module `withComvi({ config })` aliases to
  * `@comvi/next/config`. The cell wins; the alias is read lazily, at call time.
  * Neither is a programming error whose message names every way out.
@@ -90,11 +90,11 @@ describe("resolveServerI18n", () => {
     expect(warn.mock.calls[0]![0]).toContain("withComvi");
   });
 
-  it("neither → the not-configured error names withComvi, setI18n and createNextI18nFromHost", async () => {
+  it("neither → the not-configured error names withComvi, setI18n and createNextI18nFromInstance", async () => {
     const { resolveServerI18n } = await load({});
     expect(() => resolveServerI18n()).toThrow(
       "[@comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
-        "or call setI18n(i18n) / createNextI18nFromHost(host, routing). " +
+        "or call setI18n(i18n) / createNextI18nFromInstance(factory, routing). " +
         "In a test runner the alias does not apply: alias `@comvi/next/config` to your config module " +
         "(vitest `resolve.alias`, jest `moduleNameMapper`) or call setI18n(i18n) in test setup. " +
         "`serverExternalPackages` containing @comvi/next is not supported.",

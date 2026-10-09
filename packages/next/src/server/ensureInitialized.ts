@@ -1,4 +1,4 @@
-import type { ServerI18nInstance } from "./hostTypes";
+import type { ServerI18nInstance } from "./instanceTypes";
 
 const initPromises = new WeakMap<ServerI18nInstance, Promise<void>>();
 

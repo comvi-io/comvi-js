@@ -12,7 +12,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedHost";
+import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedInstance";
 import { CollectorTransport } from "../src/collector/transport";
 import { inContextEditorPlugin } from "../src/index";
 

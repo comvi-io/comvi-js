@@ -28,20 +28,20 @@ const filesNaming = (identifier: string): string[] =>
     .filter((entry) => fs.readFileSync(path.join(serverDir, entry), "utf8").includes(identifier))
     .sort();
 
-describe("the server pipeline's one crossing back to the host translator", () => {
+describe("the server pipeline's one crossing back to the instance translator", () => {
   it("is named in exactly the file that declares it and the file that uses it", () => {
-    expect(filesNaming("ServerTranslatingInstance")).toEqual(["getI18n.ts", "hostTypes.ts"]);
+    expect(filesNaming("ServerTranslatingInstance")).toEqual(["getI18n.ts", "instanceTypes.ts"]);
   });
 
-  it("control: the probe reports every file that names the host type itself", () => {
+  it("control: the probe reports every file that names the instance type itself", () => {
     // `ServerI18nInstance` is the pipeline-wide type, so a scan that found only two
     // files for it would mean the probe above is reading the wrong directory.
     expect(filesNaming("ServerI18nInstance")).toEqual([
       "cache.ts",
-      "createNextI18nFromHost.ts",
+      "createNextI18nFromInstance.ts",
       "ensureInitialized.ts",
       "getI18n.ts",
-      "hostTypes.ts",
+      "instanceTypes.ts",
       "loadMessages.ts",
     ]);
   });

@@ -1,16 +1,16 @@
-// `@comvi/nuxt/host` exists so the documented `comvi.host.ts` recipe is
+// `@comvi/nuxt/i18n` exists so the documented `comvi.i18n.ts` recipe is
 // followable from `pnpm add @comvi/nuxt` alone — @comvi/core is a dependency of
 // THIS package, not of the app. That makes the export list a contract: a name
 // dropped here is a recipe a reader cannot follow.
 import { describe, expect, it } from "vitest";
-import * as host from "../src/runtime/host";
+import * as host from "../src/runtime/i18n";
 
-describe("@comvi/nuxt/host", () => {
-  it("re-exports exactly the installers a hostModule factory composes with", () => {
+describe("@comvi/nuxt/i18n", () => {
+  it("re-exports exactly the installers a i18nModule factory composes with", () => {
     expect(Object.keys(host).sort()).toEqual([
       "attachLoader",
       "createI18n",
-      "defineComviHost",
+      "defineComviI18n",
       "definePlugin",
       "devtools",
       "icuCompiler",
@@ -35,9 +35,9 @@ describe("@comvi/nuxt/host", () => {
     expect(host).not.toHaveProperty("flattenCatalog");
   });
 
-  it("defineComviHost returns the factory it was given", () => {
+  it("defineComviI18n returns the factory it was given", () => {
     const factory = (options: { locale: string }) => host.createI18n(options);
-    expect(host.defineComviHost(factory)).toBe(factory);
+    expect(host.defineComviI18n(factory)).toBe(factory);
   });
 
   it("composes a working host through this subpath alone", () => {

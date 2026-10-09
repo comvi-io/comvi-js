@@ -24,11 +24,11 @@ export default defineNuxtConfig({
     defaultLocale: "en",
     localePrefix: "as-needed",
     defaultNs: "default",
-    // No `hostModule`: `app/comvi.host.ts` is picked up by convention (srcDir,
+    // No `i18nModule`: `app/comvi.i18n.ts` is picked up by convention (srcDir,
     // then rootDir) and the module logs the path it resolved at build time.
     // The nuxt 3 test app names it explicitly, so both paths stay exercised.
     // Its host file keeps the `satisfies NuxtInstanceFactory` form; the nuxt 3 test
-    // app uses `defineComviHost`, so both typings stay exercised too.
+    // app uses `defineComviI18n`, so both typings stay exercised too.
     fallbackLocale: "en",
     localeCookie: "i18n_locale",
     basicHtmlTags: ["strong", "em", "a", "br"],

@@ -13,7 +13,7 @@ vi.mock("h3", () => ({
   getHeader,
 }));
 
-vi.mock("#build/comvi.host", () => ({
+vi.mock("#build/comvi.i18n", () => ({
   createComviCore,
 }));
 
@@ -47,7 +47,7 @@ function createEvent(comviOverrides: Record<string, unknown> = {}) {
 function createI18nStub(initialLanguage = "en", { loaderCapability = true } = {}) {
   const loaded = new Set<string>();
 
-  // The BASE host — what the generated default `#build/comvi.host` builds.
+  // The BASE host — what the generated default `#build/comvi.i18n` builds.
   const i18n: any = {
     locale: initialLanguage,
     init: vi.fn().mockResolvedValue(undefined),

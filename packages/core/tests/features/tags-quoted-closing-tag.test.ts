@@ -6,7 +6,7 @@
  * parsed in. RC review #7.
  */
 import { describe, expect, it, vi } from "vitest";
-import { createI18n } from "../helpers/composedHost";
+import { createI18n } from "../helpers/composedInstance";
 import type { TagCallbackParams, TranslationParams } from "../../src/types";
 
 /** A handler per tag name, so an accepted tag shows up as `[name:children]`. */

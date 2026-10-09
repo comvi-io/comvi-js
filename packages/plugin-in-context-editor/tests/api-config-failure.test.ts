@@ -9,7 +9,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedHost";
+import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedInstance";
 
 const { coreStopMock, mockCoreModule, resetCoreMocks } = await vi.hoisted(
   () => import("./helpers/mockCore"),

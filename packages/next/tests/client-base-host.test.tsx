@@ -1,5 +1,5 @@
 // The documented next client recipe end to end: the server loads (covered in
-// createNextI18nFromHost.test.ts); the client constructs the BASE host and is
+// createNextI18nFromInstance.test.ts); the client constructs the BASE host and is
 // hydrated from the serialized catalog through `<I18nProvider messages>` —
 // core's base entry and react's bindings and nothing else: no loader, no tag
 // machinery, none of next's server modules.

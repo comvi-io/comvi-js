@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 describe("missing-parameter warning dedup", () => {
   it("warns for two templates whose (template, param) pairs concatenate to the same text", () => {

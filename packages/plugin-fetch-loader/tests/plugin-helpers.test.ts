@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { fetchLoaderPlugin, getFetchLoaderConfig, resolveFallback } from "../src/api";
-import { I18n } from "./helpers/composedHost";
+import { I18n } from "./helpers/composedInstance";
 import { mockCdnSuccessResponse, TEST_CDN_URL } from "./setup";
 
 describe("getFetchLoaderConfig()", () => {

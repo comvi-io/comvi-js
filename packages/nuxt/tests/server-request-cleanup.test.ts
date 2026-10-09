@@ -21,7 +21,7 @@ import type { ClientRequest, Server, ServerResponse } from "node:http";
 import { createI18n } from "@comvi/core";
 import { definePlugin } from "@comvi/core/plugins";
 import { getRequestI18n } from "../src/runtime/server/utils/request-i18n";
-import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
+import { createComviCore, resetComviI18nMock } from "./mocks/comvi-i18n";
 import { resetComviSetupMock } from "./mocks/comvi-setup";
 
 /** One entry per host teardown: which host, and had its response finished? */
@@ -128,7 +128,7 @@ function createRequest(
 }
 
 beforeEach(() => {
-  resetComviHostMock();
+  resetComviI18nMock();
   resetComviSetupMock();
   teardowns.length = 0;
   order.length = 0;

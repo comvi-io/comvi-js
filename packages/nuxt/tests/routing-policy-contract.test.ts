@@ -35,7 +35,7 @@ import {
   setMockRequestHeaders,
 } from "./mocks/nuxt-app";
 import { useState } from "#app";
-import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
+import { createComviCore, resetComviI18nMock } from "./mocks/comvi-i18n";
 import { resetComviSetupMock } from "./mocks/comvi-setup";
 import { nodeResponseStub } from "./mocks/node-response";
 import { runtimeLocaleKeys } from "./mocks/locale-options";
@@ -136,7 +136,7 @@ const runHelper = async (
 };
 
 beforeEach(() => {
-  resetComviHostMock();
+  resetComviI18nMock();
   resetComviSetupMock();
   createComviCore.mockImplementation((options: Record<string, unknown>) => {
     const host = attachLoader(createCoreI18n(options as never));

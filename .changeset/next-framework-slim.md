@@ -6,15 +6,15 @@
 the host you composed, and the server i18n becomes a once-cell that refuses two
 configuration sources.
 
-**New: `createNextI18nFromHost(host, options)`**, exported from `@comvi/next/server` and
+**New: `createNextI18nFromInstance(host, options)`**, exported from `@comvi/next/server` and
 nowhere else. `createNextI18n` keeps its exact signature; its one behaviour change in this
 release is the dropped `compiler` default, in its own changeset.
 
 ```ts
 import "server-only";
-import { createI18n, createNextI18nFromHost, loader } from "@comvi/next/server";
+import { createI18n, createNextI18nFromInstance, loader } from "@comvi/next/server";
 
-export const { i18n, routing } = createNextI18nFromHost(
+export const { i18n, routing } = createNextI18nFromInstance(
   () => createI18n({ locale: "en", defaultNs: "default" }).use(loader(importMap)),
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
 );
@@ -35,7 +35,7 @@ replace the instance, last write wins. It now throws, in development **and** pro
 naming both sources:
 
 ```
-[@comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. Configure it once — only a same-instance setI18n() repeats.
+[@comvi/next] i18n already configured by createNextI18nFromInstance(); setI18n() is a second source. Configure it once — only a same-instance setI18n() repeats.
 ```
 
 `setI18n(i18n)` keeps its exact signature and stays the supported way to configure a

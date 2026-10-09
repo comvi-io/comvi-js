@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { flattenCatalog } from "../../src";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 /** `{ nav: { home }, title }` with NO prototype at either level. */
 function nestedNullProto(): Record<string, unknown> {

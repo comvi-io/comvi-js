@@ -68,7 +68,7 @@ adapters, two adapters. A row cannot be fixed for one adapter while the other fa
 Differences that exist today and are NOT forced by a framework. They are recorded, not resolved: a
 follow-up audit decides each one, and this record changes when it does.
 
-- the hand-off option names, `config` in next and `hostModule` in nuxt — the mechanisms are forced
+- the hand-off option names, `config` in next and `i18nModule` in nuxt — the mechanisms are forced
   apart (instance module against factory), so the rule keeps the names apart today; whether both
   could take one name with one meaning is open;
 - `<html lang dir>` — the module writes it, the layout writes it; the next integration cannot reach
@@ -116,7 +116,7 @@ headerName, resolveAcceptLanguage }`. The URL path always comes first, the defau
   only, so there it must be self-contained.
 - **App-wide namespaces** (amended 2026-10-04). `ns: string[]`, core's option, in
   `createNextI18n` and in the `comvi` module options, forwarded into every constructed host and a
-  `hostModule` factory's options.
+  `i18nModule` factory's options.
 - **Error-message vocabulary** (amended 2026-10-04). Every message starts with the package name,
   `[@comvi/next]` or `[@comvi/nuxt]`, as every other comvi package does. Three stems are spelled
   identically after it: `i18n not configured.`, `No loader registered, so SSR loaded nothing.` and
@@ -152,7 +152,7 @@ headerName, resolveAcceptLanguage }`. The URL path always comes first, the defau
   the library at a module that exports an instance; the server helpers read that export at call
   time, after the `setI18n` cell, and `<ComviProvider>` from `@comvi/next/server` loads the chain and
   hands `locale` and plain `messages` to a library client half importing the same module. Nuxt:
-  `hostModule` names a module whose default export is a factory, called once per constructed
+  `i18nModule` names a module whose default export is a factory, called once per constructed
   instance and required to return a fresh one. An instance module is what a process-wide instance
   wants, a factory what a per-request one wants; the lifecycle row allows both. **The option names
   differ on purpose, today:** they take different things, and the shared-options rule forbids one
@@ -308,7 +308,7 @@ cookie as separate controls, and a no-cookie mode, follow the same path.
   `packages/nuxt/src/locale-options.ts`
 - the instance hand-off (next side landing in 0.5) — `withComvi` in `packages/next/src/plugin.ts`,
   `resolveServerI18n` in `packages/next/src/server/cache.ts`, `packages/next/src/server/ComviProvider.tsx`;
-  `hostModule` and `NuxtInstanceFactory` in `packages/nuxt/src/types.ts`
+  `i18nModule` and `NuxtInstanceFactory` in `packages/nuxt/src/types.ts`
 - `<html lang dir>` (nuxt side landing in 0.5) — the `head` option in `packages/nuxt/src/types.ts`,
   applied from `runtime/plugin.ts` through `runtime/utils/html-attrs.ts`; the layout in
   `packages/next/README.md`

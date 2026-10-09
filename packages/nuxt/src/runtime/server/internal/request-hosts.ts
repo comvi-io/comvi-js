@@ -5,7 +5,7 @@ import { REQUEST_HOSTS_KEY, type RequestScopedInstance } from "../../request-hos
 /**
  * The per-request instance registry and its teardown, kept apart from
  * `../utils/request-i18n` for one build-time reason: that module imports
- * `#build/comvi.setup` and `#build/comvi.host`, and nuxt's `impound` plugin
+ * `#build/comvi.setup` and `#build/comvi.i18n`, and nuxt's `impound` plugin
  * refuses a Vue app alias anywhere in the NITRO runtime graph — which a server
  * plugin is. So the plugin imports this file, whose only imports are types and
  * therefore vanish at build time.

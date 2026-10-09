@@ -3,7 +3,7 @@ import type { TranslationParams, TranslationResult } from "@comvi/core";
 import { getConfiguredRouting, resolveServerI18n } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import { getLocale } from "./getLocale";
-import type { ServerTranslatingInstance } from "./hostTypes";
+import type { ServerTranslatingInstance } from "./instanceTypes";
 import { loadChain } from "./loadMessages";
 import type {
   GetI18nOptions,

@@ -5,13 +5,13 @@
 import {
   attachLoader,
   createI18n,
-  createNextI18nFromHost,
+  createNextI18nFromInstance,
   getI18n,
   loadMessages,
   setRequestLocale,
 } from "@comvi/next/server";
 
-const { i18n, routing } = createNextI18nFromHost(
+const { i18n, routing } = createNextI18nFromInstance(
   () =>
     createI18n({
       locale: "en",

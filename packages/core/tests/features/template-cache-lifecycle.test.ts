@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createI18n } from "../helpers/composedHost";
+import { createI18n } from "../helpers/composedInstance";
 import { clearTemplateCache, isStaticTemplate, _templateCacheSize } from "../../src/core/translate";
 import { parsePluralChoices, icuCompiler } from "../../src/core/translate/compile-icu";
 import { effectiveExtBits, getCompilerId } from "../../src/core/translate/syntax";

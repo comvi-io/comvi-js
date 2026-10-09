@@ -4,7 +4,7 @@
 
 `createNextI18n(…).use(installer)` is the one composition verb; runtime scoping moves onto
 `nextPlugin` / `nextPluginLazy`; the four scoped delegates are deleted; `compiler` is an option;
-`createNextI18nFromHost` builds its host eagerly.
+`createNextI18nFromInstance` builds its host eagerly.
 
 **`use` is core's installer pipe now.** `result.use(f)` is `f(result.i18n)` and hands back the same
 result with `i18n` retyped to what the installer widened the host to — the same contract as
@@ -53,7 +53,7 @@ the first request's headers would pin the locale for every later render; use
 removed. `apiKey` / `devMode` are documented for what they are: forwarded to the host for a
 fetch-loader plugin to read; this factory loads nothing on its own.
 
-**`createNextI18nFromHost` is eager.** It promised `host()` would run lazily on first `result.i18n`
+**`createNextI18nFromInstance` is eager.** It promised `host()` would run lazily on first `result.i18n`
 access while its documented example destructured `i18n` at module scope, hitting the getter at once.
 `host()` now runs exactly once, inside the call, `i18n` is a plain field, and the once-cell's
 factory / resolving / cycle / retry machinery is deleted. The two-source conflict is checked BEFORE

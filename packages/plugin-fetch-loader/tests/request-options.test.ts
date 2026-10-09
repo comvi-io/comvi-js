@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { fetchLoaderPlugin, fetchApiTranslations } from "../src/api";
 import type { FetchLoaderOptions } from "../src/api";
-import { I18n } from "./helpers/composedHost";
+import { I18n } from "./helpers/composedInstance";
 import { jsonResponse, recordingTransport } from "./helpers/transport";
 import { mockCdnSuccessResponse, TEST_CDN_URL } from "./setup";
 

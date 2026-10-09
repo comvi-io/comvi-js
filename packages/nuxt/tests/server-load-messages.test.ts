@@ -4,7 +4,7 @@ import { nodeResponseStub } from "./mocks/node-response";
 const createComviCore = vi.fn();
 const runComviSetup = vi.fn(async () => undefined);
 
-vi.mock("#build/comvi.host", () => ({
+vi.mock("#build/comvi.i18n", () => ({
   createComviCore,
 }));
 
@@ -22,7 +22,7 @@ vi.mock("#build/comvi.setup", () => ({
 const NO_LOADER_REGISTERED_MESSAGE =
   "[@comvi/nuxt] No loader registered, so SSR loaded nothing. This i18n instance has the loader " +
   "capability: pass the import map where you compose it — " +
-  "createI18n(options).use(loader(map)) in your `hostModule` factory — or, on an instance " +
+  "createI18n(options).use(loader(map)) in your `i18nModule` factory — or, on an instance " +
   "composed with .use(attachLoader), register a LoaderFn from " +
   "comvi.setup: (({ core }) => { core.registerLoader(fn); }).";
 
@@ -71,7 +71,7 @@ function createI18nStub(
   const loaded = new Set(Object.keys(cached));
   const translations = new Map(Object.entries(cached));
 
-  // The BASE host — what the generated default `#build/comvi.host` builds.
+  // The BASE host — what the generated default `#build/comvi.i18n` builds.
   const i18n: any = {
     locale: initialLanguage,
     init: vi.fn().mockResolvedValue(undefined),
@@ -232,7 +232,7 @@ describe("loadMessages", () => {
   it("names the composition fix when the host has no loader CAPABILITY", async () => {
     // The generated default host is core's BASE host, so the fix is a different
     // FILE from "you forgot to register a loader": the capability is composed in
-    // the `hostModule` factory, not in `comvi.setup`.
+    // the `i18nModule` factory, not in `comvi.setup`.
     const i18n = createI18nStub({ loaderCapability: false });
     createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -243,11 +243,11 @@ describe("loadMessages", () => {
     expect(result).toEqual({});
     const [message] = warnSpy.mock.lastCall ?? [];
     expect(message).toContain("has no loader capability");
-    expect(message).toContain("hostModule");
+    expect(message).toContain("i18nModule");
     expect(message).toContain("use(loader(map))");
     // A Nuxt app has no direct @comvi/core dependency: the entry is the
     // package's own `/host` subpath.
-    expect(message).toContain('"@comvi/nuxt/host"');
+    expect(message).toContain('"@comvi/nuxt/i18n"');
     expect(message).not.toContain("@comvi/core");
     // The capability-less message must not send a reader to comvi.setup.
     expect(message).not.toContain("registerLoader");

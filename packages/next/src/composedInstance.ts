@@ -59,7 +59,7 @@ export function createComposedNextI18n<const D extends DefaultTranslationParams 
   // `registerLoader` as an OWN descriptor; the moment a capability moves to a
   // prototype install — which is what `core/full.ts` does — `instance.registerLoader
   // = fn` would silently create an enumerable own property and leak the method
-  // into `{ ...host }`.
+  // into `{ ...instance }`.
   const registerLoaderFn = instance.registerLoader.bind(instance) as (loader: LoaderFn) => void;
   Object.defineProperty(instance, "registerLoader", {
     value: (loader: LoaderFn | LoaderImportMap): void => {

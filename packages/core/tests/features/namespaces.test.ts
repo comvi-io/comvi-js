@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import type { I18nOptions } from "../../src/types";
 
 const makeI18n = (options: Partial<I18nOptions> = {}) => new I18n({ locale: "en", ...options });

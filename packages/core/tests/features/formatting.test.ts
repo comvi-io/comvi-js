@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n, getTextDirection, type TranslationParams } from "../helpers/composedHost";
+import { I18n, getTextDirection, type TranslationParams } from "../helpers/composedInstance";
 
 describe("ICU message formatting and the Intl helpers", () => {
   let i18n: I18n;

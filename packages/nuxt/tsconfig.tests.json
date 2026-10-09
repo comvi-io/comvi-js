@@ -1,7 +1,7 @@
 {
   // Type-checks the runtime test files (tests/**) that tsconfig.typecheck.json
   // deliberately excludes. Mirrors tsconfig.test-types.json's `#…` alias mocks
-  // (vitest resolves them the same way) and adds `#build/comvi.host`, which
+  // (vitest resolves them the same way) and adds `#build/comvi.i18n`, which
   // only the runtime suites import. `tests/types.test-d.ts` stays with
   // tsconfig.test-types.json / `vitest --typecheck`.
   "extends": "../../tsconfig.json",
@@ -16,7 +16,7 @@
       "#app": ["./tests/mocks/nuxt-app.ts"],
       "#build/comvi.setup": ["./tests/mocks/comvi-setup.ts"],
       "#build/comvi.detection": ["./tests/mocks/comvi-detection.ts"],
-      "#build/comvi.host": ["./tests/mocks/comvi-host.ts"],
+      "#build/comvi.i18n": ["./tests/mocks/comvi-i18n.ts"],
       "#components": ["./tests/mocks/nuxt-components.ts"]
     }
   },

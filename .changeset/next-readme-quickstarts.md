@@ -4,7 +4,7 @@
 
 **Docs only.** The README's "three ways to get a host" table read like three peer
 options; it is one: `createNextI18n(options).use(...)` is the recommendation,
-`createNextI18nFromHost` is for a host built elsewhere, and `createI18n` (still
+`createNextI18nFromInstance` is for a host built elsewhere, and `createI18n` (still
 exported from both runtime entries) is for that factory and for 0.4 migration —
 demoted to a mention in the export table rather than a coequal choice.
 

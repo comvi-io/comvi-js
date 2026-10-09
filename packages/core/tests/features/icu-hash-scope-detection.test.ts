@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { icuCompiler } from "../../src/icu";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 // Probed on the published compiler object: `argOpensHashScope` is the
 // `MessageCompiler` member the parser calls to decide where `#` is substituted.

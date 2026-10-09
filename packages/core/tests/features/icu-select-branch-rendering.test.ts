@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import { _templateCacheSize, clearTemplateCache } from "../../src/core/translate";
 import type { TranslationResult } from "../../src";
 

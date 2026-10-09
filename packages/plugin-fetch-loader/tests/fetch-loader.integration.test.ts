@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { fetchLoaderPlugin, fetchProjectInfo } from "../src/api";
-import { I18n } from "./helpers/composedHost";
+import { I18n } from "./helpers/composedInstance";
 import { http, HttpResponse } from "msw";
 import { deferred } from "./helpers/deferred";
 import {

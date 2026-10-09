@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createI18n } from "../helpers/composedHost";
+import { createI18n } from "../helpers/composedInstance";
 import { findMatchingBraceEnd, type ArgOpensHashScope } from "../../src/core/translate/parser";
 import type { TranslationParams } from "../../src/types";
 

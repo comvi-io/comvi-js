@@ -4,7 +4,7 @@
  * re-init behaviour (it drains the plugin queue again).
  */
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import { createDeferred } from "../helpers/deferred";
 import { flushMicrotasks } from "../helpers/flush";
 

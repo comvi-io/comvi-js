@@ -7,7 +7,7 @@ import { useLocaleHead } from "../src/runtime/composables/useLocaleHead";
 
 const createComviI18n = vi.fn();
 
-vi.mock("#build/comvi.host", () => ({
+vi.mock("#build/comvi.i18n", () => ({
   createComviI18n,
 }));
 

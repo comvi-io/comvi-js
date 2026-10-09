@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import { createI18n } from "../../src";
 import { TK_PLURAL, TK_SELECT } from "../../src/core/translate/cache";
 import { icuCompiler } from "../../src/core/translate/compile-icu";

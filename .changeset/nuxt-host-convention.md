@@ -2,14 +2,14 @@
 "@comvi/nuxt": minor
 ---
 
-`comvi.host.ts` is found by convention, `icu: true` reaches a host module, and a typed
+`comvi.i18n.ts` is found by convention, `icu: true` reaches a host module, and a typed
 `comvi.setup.ts` names one specifier.
 
-- **`comvi.host.*` is auto-detected.** The module looks for `./comvi.host.*` under `srcDir`, then
-  `rootDir`, the same way it already found `./comvi.setup`. `hostModule` stays the explicit
-  override, and a set `hostModule` that does not resolve is still a build error. The detected
+- **`comvi.i18n.*` is auto-detected.** The module looks for `./comvi.i18n.*` under `srcDir`, then
+  `rootDir`, the same way it already found `./comvi.setup`. `i18nModule` stays the explicit
+  override, and a set `i18nModule` that does not resolve is still a build error. The detected
   path is logged at build time so a stray file that changed the host is visible, and a near
-  miss (a `comvi.host.cjs` it found but could not resolve) is warned about, naming the file and
+  miss (a `comvi.i18n.cjs` it found but could not resolve) is warned about, naming the file and
   the specifier it looked for. The host branch is still decided in codegen.
 - **`icu: true` is no longer ignored when a host module exists.** It used to be dropped with a
   build-time warning. Now the module puts `compiler: icuCompiler` into the resolved options the
@@ -28,12 +28,12 @@
 
 **Migrating a `comvi.setup.ts` that only registered an import-map loader.** A setup hook whose
 whole body was `core.registerLoader(createImportMapLoader({ … }, () => core.getDefaultNamespace()))`
-is what `loader(map)` from `@comvi/nuxt/host` already does — it attaches the loader capability AND
-registers the map. Move the map into `comvi.host.ts` and delete the setup file:
+is what `loader(map)` from `@comvi/nuxt/i18n` already does — it attaches the loader capability AND
+registers the map. Move the map into `comvi.i18n.ts` and delete the setup file:
 
 ```ts
-// comvi.host.ts
-import { createI18n, loader, type NuxtInstanceFactory } from "@comvi/nuxt/host";
+// comvi.i18n.ts
+import { createI18n, loader, type NuxtInstanceFactory } from "@comvi/nuxt/i18n";
 
 export default ((options) =>
   createI18n(options).use(

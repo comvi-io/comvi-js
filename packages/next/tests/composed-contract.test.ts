@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
 import { nextPlugin, nextPluginLazy } from "../src/nextPlugin";
-import type { NextComposedI18n } from "../src/composedHost";
+import type { NextComposedI18n } from "../src/composedInstance";
 import { createI18n as baseCreateI18n, isVirtualNode } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import type { I18nPlugin, LoaderFn, TagCallbackParams } from "@comvi/core";
@@ -10,7 +10,7 @@ import type { I18nPlugin, LoaderFn, TagCallbackParams } from "@comvi/core";
  * The PUBLISHED `@comvi/next` root contract: every capability a 0.4 caller
  * could reach through `result.i18n`, exercised through the published factory
  * only. The composed semantics now come from the non-exported
- * `src/composedHost.ts` builder rather than from core's root.
+ * `src/composedInstance.ts` builder rather than from core's root.
  *
  * The type half is `tests/types/next-contract.test-d.ts`.
  */

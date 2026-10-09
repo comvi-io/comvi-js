@@ -5,7 +5,7 @@ import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
 
 /**
  * Wrap an existing core instance in Vue reactivity — the ESCAPE HATCH, for an instance
- * built somewhere other than next to the app: Nuxt's `hostModule`, or one instance
+ * built somewhere other than next to the app: Nuxt's `i18nModule`, or one instance
  * shared between a Vue app and non-Vue code. An app that builds its own instance
  * here wants `createI18n(options).use(installer)` instead, which composes on
  * the instance this package builds and widens `i18n.core` the same way.

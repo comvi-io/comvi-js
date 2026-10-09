@@ -15,7 +15,7 @@ import type { DefaultTranslationParams, I18nLoaderApi, WrapperI18nInstance } fro
  * import { createI18n } from "@comvi/core";
  * import { attachLoader } from "@comvi/core/loader";
  *
- * const host = () => attachLoader(createI18n({ locale: "en" }));
+ * const factory = () => attachLoader(createI18n({ locale: "en" }));
  * ```
  */
 export type NextServerInstance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D> &

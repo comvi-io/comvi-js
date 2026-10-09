@@ -51,7 +51,7 @@ createRoot(document.getElementById("root")!).render(
 `.use(cdnLoader({ cdnUrl }))` adds HTTP loading to the instance; nothing else is needed. `fallback` paints
 until the first catalog is in. Omitting `cdnUrl` throws at composition time with
 `[@comvi/plugin-fetch-loader] cdnUrl is required`. On Vue the same `.use()` goes on the wrapper
-`createI18n` returns; on Nuxt it goes in the `comvi.host.ts` factory. The CDN URL comes from
+`createI18n` returns; on Nuxt it goes in the `comvi.i18n.ts` factory. The CDN URL comes from
 **Settings → Content Deploy** in the Comvi project; see
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on

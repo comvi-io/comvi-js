@@ -15,7 +15,7 @@
 import {
   attachLoader,
   createI18n,
-  createNextI18nFromHost,
+  createNextI18nFromInstance,
   loadMessages,
   setRequestLocale,
 } from "@comvi/next/server";
@@ -36,14 +36,17 @@ function assertEqual(actual, expected, label) {
   }
 }
 
-assert(typeof createNextI18nFromHost === "function", "@comvi/next/server exports the companion");
+assert(
+  typeof createNextI18nFromInstance === "function",
+  "@comvi/next/server exports the companion",
+);
 assert(typeof loadMessages === "function", "@comvi/next/server exports loadMessages");
 assert(typeof setRequestLocale === "function", "@comvi/next/server exports setRequestLocale");
 assert(typeof createI18n === "function", "@comvi/next/server exports createI18n");
 assert(typeof attachLoader === "function", "@comvi/next/server re-exports attachLoader");
 
 let hostCalls = 0;
-const result = createNextI18nFromHost(
+const result = createNextI18nFromInstance(
   () => {
     hostCalls += 1;
     return attachLoader(
@@ -59,7 +62,7 @@ const result = createNextI18nFromHost(
 
 // Construction is EAGER (N2): `host()` runs exactly once, inside the call, and
 // `i18n` is the instance it returned — a plain field, not a resolving getter.
-assertEqual(hostCalls, 1, "host factory runs exactly once, inside createNextI18nFromHost");
+assertEqual(hostCalls, 1, "host factory runs exactly once, inside createNextI18nFromInstance");
 assertEqual(result.routing.localeCookie, "NEXT_LOCALE", "routing defaults are applied");
 
 const i18n = result.i18n;

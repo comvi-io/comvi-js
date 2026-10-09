@@ -268,7 +268,7 @@ Two things about fence directives follow from that split, and both have bitten:
   program and a virtual directory, which is how one fence imports the file another fence shows.
   A fence whose import points at a sibling fence needs the group, and needs a `title=` that puts
   it in the right directory: `./routing` resolves next to the importing file, not next to the
-  page. A group holding a `comvi.host.ts` also gets the declaration `@comvi/nuxt`'s codegen
+  page. A group holding a `comvi.i18n.ts` also gets the declaration `@comvi/nuxt`'s codegen
   generates for it, so a `comvi.setup` hook in the same group is typed from the factory the way
   a real Nuxt build types it.
 

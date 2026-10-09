@@ -1,4 +1,4 @@
-import { createI18n, defineComviHost, icuCompiler, loader } from "@comvi/nuxt/host";
+import { createI18n, defineComviI18n, icuCompiler, loader } from "@comvi/nuxt/i18n";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { useRuntimeConfig } from "#imports";
 
@@ -12,13 +12,13 @@ import { useRuntimeConfig } from "#imports";
  * `nuxt.config.ts` stays in charge of configuration while this file stays in
  * charge of capabilities.
  *
- * The local-catalog path names `@comvi/nuxt` only: `@comvi/nuxt/host`
+ * The local-catalog path names `@comvi/nuxt` only: `@comvi/nuxt/i18n`
  * re-exports core's installers, so that recipe is followable from
  * `pnpm add @comvi/nuxt` alone — a transitive `@comvi/core` is not resolvable
  * under pnpm's default layout. The opt-in CDN path adds one package of its own,
  * `@comvi/plugin-fetch-loader`.
  */
-export default defineComviHost((options) => {
+export default defineComviI18n((options) => {
   // Connect to Comvi, opt-in: `runtimeConfig.public.comviCdnUrl`, set through
   // `NUXT_PUBLIC_COMVI_CDN_URL`. Empty — the default, and what StackBlitz runs —
   // and the import map is the only loader.

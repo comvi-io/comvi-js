@@ -39,9 +39,9 @@
       "types": "./dist/module.d.mts",
       "import": "./dist/module.mjs"
     },
-    "./host": {
-      "types": "./dist/runtime/host.d.ts",
-      "import": "./dist/runtime/host.js"
+    "./i18n": {
+      "types": "./dist/runtime/i18n.d.ts",
+      "import": "./dist/runtime/i18n.js"
     },
     "./setup": {
       "types": "./dist/runtime/setup.d.ts",

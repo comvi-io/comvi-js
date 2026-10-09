@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import { createDeferred as deferred } from "../helpers/deferred";
 
 describe("addMessages() / the `messages` option — no input mutation", () => {

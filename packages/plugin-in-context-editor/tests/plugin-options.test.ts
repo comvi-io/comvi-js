@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { asPluginHost, createI18n } from "./helpers/composedHost";
+import { asPluginHost, createI18n } from "./helpers/composedInstance";
 
 const {
   coreCtorMock,

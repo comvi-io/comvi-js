@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
-import { createNextI18nFromHost } from "../src/server";
+import { createNextI18nFromInstance } from "../src/server";
 import { _resetServerI18n, setI18n } from "../src/server/cache";
 
 const ROUTING = { locales: ["en", "fr"], defaultLocale: "en" };
@@ -60,17 +60,17 @@ describe("server i18n once-cell", () => {
   });
 
   it("rejects setI18n after a host factory, naming the factory as the first source", () => {
-    createNextI18nFromHost(composedHost, ROUTING);
+    createNextI18nFromInstance(composedHost, ROUTING);
 
     const conflict = captureThrown(() => setI18n(composedHost()));
 
     expect(conflict.message).toBe(
-      `[@comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by createNextI18nFromInstance(); setI18n() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 
   it("rejects setI18n after a host factory that has already resolved", () => {
-    const { i18n } = createNextI18nFromHost(composedHost, ROUTING);
+    const { i18n } = createNextI18nFromInstance(composedHost, ROUTING);
     // Reading `i18n` resolves the cell, so the conflict is reported from the
     // `resolved` state rather than the `factory` one.
     expect(i18n).toBeDefined();
@@ -78,27 +78,27 @@ describe("server i18n once-cell", () => {
     const conflict = captureThrown(() => setI18n(composedHost()));
 
     expect(conflict.message).toBe(
-      `[@comvi/next] i18n already configured by createNextI18nFromHost(); setI18n() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by createNextI18nFromInstance(); setI18n() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 
   it("rejects a host factory after setI18n, naming setI18n as the first source", () => {
     setI18n(composedHost());
 
-    const conflict = captureThrown(() => createNextI18nFromHost(composedHost, ROUTING));
+    const conflict = captureThrown(() => createNextI18nFromInstance(composedHost, ROUTING));
 
     expect(conflict.message).toBe(
-      `[@comvi/next] i18n already configured by setI18n(); createNextI18nFromHost() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by setI18n(); createNextI18nFromInstance() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 
   it("rejects a second host factory registration", () => {
-    createNextI18nFromHost(composedHost, ROUTING);
+    createNextI18nFromInstance(composedHost, ROUTING);
 
-    const conflict = captureThrown(() => createNextI18nFromHost(composedHost, ROUTING));
+    const conflict = captureThrown(() => createNextI18nFromInstance(composedHost, ROUTING));
 
     expect(conflict.message).toBe(
-      `[@comvi/next] i18n already configured by createNextI18nFromHost(); createNextI18nFromHost() is a second source. ${REPEAT_ADVICE}`,
+      `[@comvi/next] i18n already configured by createNextI18nFromInstance(); createNextI18nFromInstance() is a second source. ${REPEAT_ADVICE}`,
     );
   });
 });

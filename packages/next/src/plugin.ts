@@ -22,7 +22,7 @@ export interface WithComviOptions {
    *
    * The module is evaluated in the server and in the client build, so it must
    * be client-safe: a loader that needs server-only code stays on the manual
-   * setup (`createNextI18nFromHost` plus your own client provider).
+   * setup (`createNextI18nFromInstance` plus your own client provider).
    * @example "./src/i18n/config.ts"
    */
   config: string;
@@ -93,7 +93,7 @@ export function withComvi(options: WithComviOptions): WithComvi {
         "path.resolve(path.dirname(fileURLToPath(import.meta.url)), './src/i18n/config.ts'). " +
         "It is imported by the server and the client build, so it must be client-safe: " +
         "a loader that needs server-only code stays on the manual setup " +
-        "(createNextI18nFromHost plus your own client provider).",
+        "(createNextI18nFromInstance plus your own client provider).",
     );
   }
   // The two bundlers get the same file through different spellings: webpack

@@ -99,8 +99,8 @@ function isLocaleParamRoute(path: string): boolean {
 
 /**
  * A path `import("…")` can carry inside a generated `.d.ts`: POSIX separators,
- * and no extension, because `import("…/comvi.host.ts")` is an error unless the
- * app enabled `allowImportingTsExtensions` and `…/comvi.host.js` next to a
+ * and no extension, because `import("…/comvi.i18n.ts")` is an error unless the
+ * app enabled `allowImportingTsExtensions` and `…/comvi.i18n.js` next to a
  * `.d.ts` resolves to the wrong file. Absolute, so the emitted declaration does
  * not depend on where in `buildDir` nuxt puts it.
  */
@@ -161,7 +161,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
 
     // An auto-detect MISS is otherwise the quietest failure the module has: the
     // setup template degrades to an empty `runComviSetup()` and the app boots
-    // with none of its hooks; a missed host file builds the BASE instance and every
+    // with none of its hooks; a missed `comvi.i18n` file builds the BASE instance and every
     // capability the file composed is absent. A file that merely does not
     // RESOLVE (an extension Nuxt does not try, a typo after the prefix) is the
     // reachable shape, so it is looked for by name, at build time only. The
@@ -203,23 +203,23 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       await warnNearMiss("comvi.setup", "the comvi.setup hook is EMPTY", "comvi.setup");
     }
 
-    // Same convention as the setup hook: `hostModule` is the explicit override,
-    // and unset means `./comvi.host.*` under srcDir then rootDir. The detected
+    // Same convention as the setup hook: `i18nModule` is the explicit override,
+    // and unset means `./comvi.i18n.*` under srcDir then rootDir. The detected
     // path is logged so a stray file that changed the instance is visible at build
     // time rather than at the first `useI18nLoader()` that throws.
-    const resolvedHostModulePath = await findUserModule(options.hostModule ?? "./comvi.host");
-    if (options.hostModule && !resolvedHostModulePath) {
+    const resolvedI18nModulePath = await findUserModule(options.i18nModule ?? "./comvi.i18n");
+    if (options.i18nModule && !resolvedI18nModulePath) {
       throw new Error(
-        `[@comvi/nuxt] Failed to resolve comvi hostModule path: "${options.hostModule}".`,
+        `[@comvi/nuxt] Failed to resolve comvi i18nModule path: "${options.i18nModule}".`,
       );
     }
-    if (!options.hostModule) {
-      if (resolvedHostModulePath) {
+    if (!options.i18nModule) {
+      if (resolvedI18nModulePath) {
         console.info(
-          `[@comvi/nuxt] Composing the i18n instance from "${resolvedHostModulePath}" (auto-detected ./comvi.host; set \`hostModule\` to override).`,
+          `[@comvi/nuxt] Composing the i18n instance from "${resolvedI18nModulePath}" (auto-detected ./comvi.i18n; set \`i18nModule\` to override).`,
         );
       } else {
-        await warnNearMiss("comvi.host", "the app runs on the BASE instance", "hostModule");
+        await warnNearMiss("comvi.i18n", "the app runs on the BASE instance", "i18nModule");
       }
     }
 
@@ -312,7 +312,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       head: existingPublicRuntimeConfig.head ?? options.head,
       // Forwarded so BOTH construction paths — the client plugin and each
       // per-request server instance — receive the same inline catalog, and so a
-      // `hostModule` factory sees it in its resolved options.
+      // `i18nModule` factory sees it in its resolved options.
       messages: existingPublicRuntimeConfig.messages ?? options.messages,
       defaultNs: existingPublicRuntimeConfig.defaultNs ?? options.defaultNs ?? "default",
       ns: routing.ns,
@@ -376,16 +376,16 @@ export async function runComviSetup(context) {
     // would keep BOTH paths alive in every bundle. The default branch builds the
     // BASE instance — ICU is the one capability with a module option, because it is
     // a constructor argument rather than something `.use()` can pipe on. Every
-    // other capability arrives through `hostModule`, which is why that branch
+    // other capability arrives through `i18nModule`, which is why that branch
     // forwards nuxt's RESOLVED options into the factory — `icu: true` included,
     // as `compiler: icuCompiler` in those options, so the option means the same
     // thing on both branches and a factory that spreads them gets it.
     addTemplate({
-      filename: "comvi.host.mjs",
+      filename: "comvi.i18n.mjs",
       getContents: () => {
-        const hostPath = resolvedHostModulePath;
+        const i18nModulePath = resolvedI18nModulePath;
 
-        if (!hostPath) {
+        if (!i18nModulePath) {
           // Emitted only for `icu: true`: an app that did not ask for ICU must
           // get a module that cannot pull `@comvi/core/icu` into its graph.
           if (options.icu) {
@@ -426,54 +426,54 @@ export function createComviCore(options) {
         const icuImport = options.icu ? `import { icuCompiler } from "@comvi/core/icu";\n` : "";
         const factoryOptions = options.icu ? "{ ...options, compiler: icuCompiler }" : "options";
         // Development only, decided at codegen like the branch itself: a factory
-        // that hands back one shared host would mix every request's locale and
+        // that hands back one shared instance would mix every request's locale and
         // catalog. Production builds carry no guard and no WeakSet.
-        const freshHostGuard = nuxt.options.dev
+        const freshInstanceGuard = nuxt.options.dev
           ? `
-  if (returnedHosts.has(host)) {
+  if (returnedInstances.has(instance)) {
     throw new Error(
-      "[@comvi/nuxt] comvi hostModule returned an instance it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
+      "[@comvi/nuxt] comvi i18nModule returned an instance it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
     );
   }
-  returnedHosts.add(host);
+  returnedInstances.add(instance);
 `
           : "";
-        const guardState = nuxt.options.dev ? "\nconst returnedHosts = new WeakSet();\n" : "";
+        const guardState = nuxt.options.dev ? "\nconst returnedInstances = new WeakSet();\n" : "";
 
         return `
 import { createI18nFromCore } from "@comvi/vue";
-${icuImport}import hostFactory from ${JSON.stringify(hostPath)};
+${icuImport}import i18nFactory from ${JSON.stringify(i18nModulePath)};
 ${guardState}
-function createHost(options) {
-  if (typeof hostFactory !== "function") {
+function createInstance(options) {
+  if (typeof i18nFactory !== "function") {
     throw new TypeError(
-      "[@comvi/nuxt] comvi hostModule must export a default function returning an i18n instance.",
+      "[@comvi/nuxt] comvi i18nModule must export a default function returning an i18n instance.",
     );
   }
 
-  const host = hostFactory(${factoryOptions});
+  const instance = i18nFactory(${factoryOptions});
 
   // A VueI18n HAS a t(), so a t-only check let @comvi/vue's createI18n(...)
   // through and createI18nFromCore wrapped a wrapper. "core" is the wrapper's
-  // own tell, and init() separates a host from any object carrying a t().
-  if (!host || typeof host.t !== "function" || typeof host.init !== "function" || "core" in host) {
+  // own tell, and init() separates an instance from any object carrying a t().
+  if (!instance || typeof instance.t !== "function" || typeof instance.init !== "function" || "core" in instance) {
     throw new TypeError(
-      '[@comvi/nuxt] comvi hostModule must default-export a factory returning a core instance, not a VueI18n. Use createI18n from "@comvi/nuxt/host", e.g. createI18n(options).use(loader(map)).',
+      '[@comvi/nuxt] comvi i18nModule must default-export a factory returning a core instance, not a VueI18n. Use createI18n from "@comvi/nuxt/i18n", e.g. createI18n(options).use(loader(map)).',
     );
   }
 
-${freshHostGuard}
-  return host;
+${freshInstanceGuard}
+  return instance;
 }
 
 export function createComviI18n(options) {
   const locale = options.ssrLocale ?? options.locale;
 
-  return createI18nFromCore(createHost({ ...options, locale }), { ssrLocale: locale });
+  return createI18nFromCore(createInstance({ ...options, locale }), { ssrLocale: locale });
 }
 
 export function createComviCore(options) {
-  return createHost(options);
+  return createInstance(options);
 }
 `;
       },
@@ -483,10 +483,10 @@ export function createComviCore(options) {
     // the two user files are compared. `comvi.setup`'s instance used to be an
     // ASSERTION about a different file reached by a string path — a hook typed
     // `NuxtI18nSetup<I18n & I18nLoaderApi>` compiled whether or not
-    // `comvi.host` ever composed the loader, and a base instance gets no capability
+    // `comvi.i18n` ever composed the loader, and a base instance gets no capability
     // shim, so `core.registerLoader(...)` threw a raw `TypeError` on the first
     // call. This template reads the instance type OFF the factory
-    // (`ReturnType<typeof import("./comvi.host").default>`), publishes it
+    // (`ReturnType<typeof import("./comvi.i18n").default>`), publishes it
     // through `ComviNuxtInstanceRegistry` so `NuxtI18nSetup`'s DEFAULT type
     // argument is the real instance, and puts the hook through
     // `CheckedNuxtI18nSetup`, which does not compile when the hook names a
@@ -500,7 +500,7 @@ export function createComviCore(options) {
     // a `.ts` from the generated `nuxt.d.ts` is the same one-line hook
     // `addTypeTemplate` uses, minus its filename assertion.
     const typeCheckTemplate = addTemplate({
-      filename: "types/comvi-host.ts",
+      filename: "types/comvi-i18n.ts",
       // Templates are virtual unless asked for: `.d.ts` is the one extension
       // nuxt writes to `buildDir` on its own, and a file tsc never opens raises
       // nothing.
@@ -509,9 +509,9 @@ export function createComviCore(options) {
         // `default` in BOTH imports on purpose: the runtime template above
         // imports exactly these two default exports, so a file whose default
         // export is missing is a build error here too.
-        const hostType = resolvedHostModulePath
-          ? `ReturnType<typeof import(${JSON.stringify(toTypeImportSpecifier(resolvedHostModulePath))}).default>`
-          : // No host module: codegen built core's BASE host, and naming it here
+        const instanceType = resolvedI18nModulePath
+          ? `ReturnType<typeof import(${JSON.stringify(toTypeImportSpecifier(resolvedI18nModulePath))}).default>`
+          : // No i18n module: codegen built core's BASE instance, and naming it here
             // is what makes a hook that calls a capability on it an error.
             `import("@comvi/nuxt").I18n`;
 
@@ -519,7 +519,7 @@ export function createComviCore(options) {
           ? `
 /**
  * The cross-check. \`comvi.setup\`'s default export is measured against the instance
- * \`comvi.host\` actually returns, so a hook that reaches for a capability the
+ * \`comvi.i18n\` actually returns, so a hook that reaches for a capability the
  * factory never composed fails HERE instead of throwing on its first call.
  */
 export type ComviSetupMatchesInstance = import("@comvi/nuxt").CheckedNuxtI18nSetup<
@@ -532,8 +532,8 @@ export type ComviSetupMatchesInstance = import("@comvi/nuxt").CheckedNuxtI18nSet
         return `// Generated by @comvi/nuxt — do not edit.
 export {};
 
-/** The instance \`#build/comvi.host\` really builds, read off the factory. */
-type ComviResolvedInstance = ${hostType};
+/** The instance \`#build/comvi.i18n\` really builds, read off the factory. */
+type ComviResolvedInstance = ${instanceType};
 
 declare module "@comvi/nuxt" {
   interface ComviNuxtInstanceRegistry {

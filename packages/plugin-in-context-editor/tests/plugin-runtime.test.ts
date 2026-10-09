@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EDITOR_INITIAL_MAPPINGS_GLOBAL, readEditorMappings } from "@comvi/core/editor-bridge";
-import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedHost";
+import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedInstance";
 
 const { coreCtorMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = await vi.hoisted(
   () => import("./helpers/mockCore"),

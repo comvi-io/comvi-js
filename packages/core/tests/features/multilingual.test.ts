@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 describe("t() with non-Latin locales", () => {
   it("interpolates params in CJK text without spaces", () => {

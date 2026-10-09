@@ -11,7 +11,7 @@ import { createNextI18n } from "../src/createNextI18n";
  *
  *   a spread copy of a host carries DATA only, never behaviour.
  *
- * `src/composedHost.ts` restores the import-map `registerLoader` overload on
+ * `src/composedInstance.ts` restores the import-map `registerLoader` overload on
  * the instance. Whatever mechanism it uses must leave the own descriptor in
  * the class-method shape `{ writable: true, enumerable: false, configurable:
  * true }` — the shape `attachLoader` installed and every 0.4 consumer that

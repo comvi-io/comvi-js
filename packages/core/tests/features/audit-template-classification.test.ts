@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 describe("template classification", () => {
   it("renders the selected branch of a select that follows a plain param", () => {

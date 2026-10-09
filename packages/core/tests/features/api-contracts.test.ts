@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 // `__DEV__` is defined true by vitest.config.ts, so the DEV branch of every
 // error message below is the one this suite observes.

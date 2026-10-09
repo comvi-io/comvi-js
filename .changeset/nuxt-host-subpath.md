@@ -2,7 +2,7 @@
 "@comvi/nuxt": minor
 ---
 
-New `@comvi/nuxt/host` subpath, so a `comvi.host.ts` can be written after installing
+New `@comvi/nuxt/i18n` subpath, so a `comvi.i18n.ts` can be written after installing
 `@comvi/nuxt` and nothing else.
 
 The documented host recipe composed `createI18n` from `@comvi/core` plus `@comvi/core/icu` and
@@ -17,8 +17,8 @@ stays on `@comvi/core/plugins` / `@comvi/core/devtools`. `attachLoader` is not a
 `loader(map)` — it is the attach-only loader installer — so it is here.
 
 ```ts
-// comvi.host.ts
-import { createI18n, icuCompiler, loader, type NuxtInstanceFactory } from "@comvi/nuxt/host";
+// comvi.i18n.ts
+import { createI18n, icuCompiler, loader, type NuxtInstanceFactory } from "@comvi/nuxt/i18n";
 
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler }).use(

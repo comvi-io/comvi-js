@@ -8,14 +8,14 @@ Both were documented with `@example "https://cdn.comvi.io/your-distribution-id"`
 `runtimeConfig.public.comvi`, and no runtime code in this package ever read either one. An app
 that set them got a config key, a serialized payload entry, and no loading — the exact shape of a
 setting that looks configured and does nothing. They are removed rather than wired: this module
-composes nothing on your behalf, which is the same rule that makes `hostModule` the only way to
+composes nothing on your behalf, which is the same rule that makes `i18nModule` the only way to
 get a loader.
 
 **Migration.** A 0.4 app that set `cdnUrl` composes the loader in its host file instead:
 
 ```ts
-// comvi.host.ts
-import { createI18n, type NuxtInstanceFactory } from "@comvi/nuxt/host";
+// comvi.i18n.ts
+import { createI18n, type NuxtInstanceFactory } from "@comvi/nuxt/i18n";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 
 export default ((options) =>
@@ -24,7 +24,7 @@ export default ((options) =>
   )) satisfies NuxtInstanceFactory;
 ```
 
-…and points `comvi.hostModule` at it. `apiBaseUrl` moves the same way, into the loader plugin's own `baseUrl`
+…and points `comvi.i18nModule` at it. `apiBaseUrl` moves the same way, into the loader plugin's own `baseUrl`
 option.
 
 `comvi.apiKey` STAYS: it is forwarded to the host as `i18n.apiKey`, where a loader plugin such as

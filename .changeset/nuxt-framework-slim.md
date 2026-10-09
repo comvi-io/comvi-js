@@ -4,20 +4,20 @@
 
 **BREAKING (breaking change on a 0.x minor): the generated default host is the base host.**
 `@comvi/nuxt` keeps every published entry, composable, component, middleware and server
-utility. What changes is the build-time `#build/comvi.host` template when `hostModule` is
+utility. What changes is the build-time `#build/comvi.i18n` template when `i18nModule` is
 unset: it builds text + `{param}` interpolation, the cache, events and default params, and
 NOTHING ELSE. ICU throws `E_ICU_SYNTAX` in development and renders literally in production;
 the loader, plugin host and devtools discovery are absent until the app composes them; and
 string-API tag syntax is literal (dev-warned). A nested inline catalog is NOT on that list:
 the base host flattens one itself, so `comvi.messages` works nested or flat.
 
-`hostModule` is the composition escape and, for any app that loads translations
+`i18nModule` is the composition escape and, for any app that loads translations
 asynchronously, the migration path. (`icu: true` is the one exception — see
 `nuxt-icu-option.md`.)
 
 ```ts
-// nuxt.config.ts → comvi: { …, hostModule: "./comvi.host.ts" }
-// comvi.host.ts — return a FRESH host per call
+// nuxt.config.ts → comvi: { …, i18nModule: "./comvi.i18n.ts" }
+// comvi.i18n.ts — return a FRESH host per call
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import { loader } from "@comvi/core/loader";
@@ -46,7 +46,7 @@ request-scoped server instance.
 server utilities accept; `NuxtServerLoaderInstance` is that host plus `I18nLoaderApi`, the shape
 SSR loading needs. Utilities narrow with `hasLoaderApi` before driving the loader, so a base
 host with cached or setup-provided translations renders them, a base host with an empty
-catalog warns once naming the `hostModule` + `.use(loader(map))` fix, and no path calls an
+catalog warns once naming the `i18nModule` + `.use(loader(map))` fix, and no path calls an
 absent loader member.
 
 `comvi.setup` still receives a `VueI18n`, and its removed capability proxies remain a

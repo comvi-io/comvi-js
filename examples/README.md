@@ -111,7 +111,7 @@ The three that depart from it:
   `routing.ts`, because `middleware.ts` runs in the Edge runtime and must not import the composed
   instance. `next.config.ts` points `withComvi({ config })` at the config module, the layout renders
   `<ComviProvider locale>` from `@comvi/next/server`, and the pages call `getI18n({ locale })`.
-- **Nuxt** names a Comvi package in one file only, `examples/nuxt/src/comvi.host.ts`: a factory
+- **Nuxt** names a Comvi package in one file only, `examples/nuxt/src/comvi.i18n.ts`: a factory
   that composes `icuCompiler` and `loader(map)` on the options Nuxt resolved. `useI18n()`, `<T>`
   and `useSwitchLocalePath()` are auto-imported, and `src/app.vue` calls `useLocaleHead()`.
 

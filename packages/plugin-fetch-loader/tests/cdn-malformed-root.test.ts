@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { fetchLoaderPlugin } from "../src/api";
-import { I18n } from "./helpers/composedHost";
+import { I18n } from "./helpers/composedInstance";
 import { server, TEST_CDN_URL, buildTestCdnUrl } from "./setup";
 
 /** Whatever msw will serialise as a JSON body — including the non-objects under test. */

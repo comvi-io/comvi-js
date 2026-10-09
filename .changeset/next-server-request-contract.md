@@ -27,5 +27,5 @@ deliberate: the server render's `addMessages()`, which is additive and keyed by
 The package's tests now pin that no request writes the shared instance's locale or its active
 namespaces.
 
-No API change. `createNextI18n()`, `setI18n()`, `createNextI18nFromHost()`, `loadMessages()`,
+No API change. `createNextI18n()`, `setI18n()`, `createNextI18nFromInstance()`, `loadMessages()`,
 `setRequestLocale()` and `<I18nProvider>` all work exactly as before.

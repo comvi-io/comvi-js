@@ -1,4 +1,4 @@
-import { createComposedNextI18n, type NextComposedI18n } from "./composedHost";
+import { createComposedNextI18n, type NextComposedI18n } from "./composedInstance";
 import type { I18nOptions, DefaultTranslationParams, MessageCompiler } from "@comvi/core";
 import { resolveRouting } from "./nextI18nRouting";
 import type { NextRoutingOptions } from "./nextI18nRouting";

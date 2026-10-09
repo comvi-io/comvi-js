@@ -1,8 +1,8 @@
 import type { NuxtI18nSetup } from "@comvi/nuxt";
 
 // No type argument, and that is the point: `NuxtI18nSetup` defaults to the host
-// `app/comvi.host.ts` actually returns, read off the factory by the module's
-// generated `.nuxt/types/comvi-host.ts`. The `onLoadError` call below compiles
+// `app/comvi.i18n.ts` actually returns, read off the factory by the module's
+// generated `.nuxt/types/comvi-i18n.ts`. The `onLoadError` call below compiles
 // BECAUSE that file composes `loader(map)` — delete the `.use(loader(...))`
 // there and this line stops compiling, which is the whole cross-check: the
 // hook's host used to be an assertion about a file reached by a string path

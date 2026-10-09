@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { fetchLoaderPlugin, buildCdnUrl, buildApiExportUrl } from "../src/api";
-import { I18n } from "./helpers/composedHost";
+import { I18n } from "./helpers/composedInstance";
 import { http, HttpResponse } from "msw";
 import {
   server,

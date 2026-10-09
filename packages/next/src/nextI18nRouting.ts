@@ -5,7 +5,7 @@ import type { LocalePrefixMode, RoutingConfig } from "./routing/types";
  * The routing half of both Next.js factories' options.
  *
  * Core-free by construction: nothing here imports `@comvi/core`, which is why
- * `createNextI18nFromHost` can share it without adding a core module the
+ * `createNextI18nFromInstance` can share it without adding a core module the
  * caller's own composed instance did not already bring.
  */
 export interface NextRoutingOptions {

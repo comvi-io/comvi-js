@@ -15,7 +15,7 @@ const createComviCore = vi.fn();
 const runComviSetup = vi.fn(async () => undefined);
 
 vi.mock("h3", () => ({ getCookie, getHeader }));
-vi.mock("#build/comvi.host", () => ({ createComviCore }));
+vi.mock("#build/comvi.i18n", () => ({ createComviCore }));
 vi.mock("#build/comvi.setup", () => ({ runComviSetup }));
 
 function createEvent() {

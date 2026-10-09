@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
-import { createI18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
+import { createI18n } from "../helpers/composedInstance";
 import type { TagCallbackParams } from "../../src/types";
 
 /**

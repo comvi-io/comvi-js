@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import { prepareTranslation } from "../../src/core/prepareTranslation";
 import type { TranslationResult } from "../../src";
 

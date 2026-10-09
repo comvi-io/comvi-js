@@ -90,7 +90,7 @@ watch([locale, isLoading], () => {
     </section>
 
     <!-- 3 — an ICU plural, live on a counter. The compiler was named in
-         `comvi.host.ts`; the module's own generated instance would render the
+         `comvi.i18n.ts`; the module's own generated instance would render the
          braced segment literally. -->
     <section>
       <h2>plural</h2>

@@ -27,7 +27,7 @@ export type { DevtoolsOptions } from "@comvi/core/devtools";
 
 // Published so a consumer can name the type of `result.i18n` without reaching
 // for `CreateNextI18nResult<D>["i18n"]`.
-export type { NextComposedI18n } from "./composedHost";
+export type { NextComposedI18n } from "./composedInstance";
 
 export type { RoutingConfig, LocalePrefixMode } from "./routing/types";
 export type { MiddlewareConfig } from "./middleware/types";

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import type { LoaderResult } from "../../src/types";
 
 describe("new I18n(options) — option validation", () => {

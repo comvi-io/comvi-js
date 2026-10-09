@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 const makeI18n = (defaultNs = "common", ns: string[] = [defaultNs]) =>
   new I18n({ locale: "en", defaultNs, ns });

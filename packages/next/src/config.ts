@@ -6,7 +6,7 @@
  * own module (webpack `resolve.alias`, Turbopack `resolveAlias`), which exports
  * `i18n` and, optionally, `routing`. Without the plugin this stub is what
  * resolves: both are `undefined`, and the server helpers use the once-cell
- * that `setI18n` / `createNextI18nFromHost` fill.
+ * that `setI18n` / `createNextI18nFromInstance` fill.
  *
  * Not part of the public API: import your own config module instead.
  */

@@ -14,7 +14,7 @@ change in its own changeset: `createNextI18n` no longer defaults `compiler` to `
 so an ICU catalog needs `compiler: icuCompiler` here as well. Its host type is now published
 as `NextComposedI18n<D>`. Nothing about
 `<I18nProvider>`, `useI18n()`, `<T>`, the capability hooks, `createMiddleware`,
-`createNextI18nFromHost`, locale routing or navigation changes here.
+`createNextI18nFromInstance`, locale routing or navigation changes here.
 
 Compose what you had back — every installer is re-exported from BOTH host entries, so each
 fix stays inside the specifier you already import:

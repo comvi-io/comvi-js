@@ -190,7 +190,7 @@ describe("withComvi: a missing config module", () => {
     expect(() => withComvi({ config: "./src/i18n/missing.ts" })).toThrow(
       "It is imported by the server and the client build, so it must be client-safe: " +
         "a loader that needs server-only code stays on the manual setup " +
-        "(createNextI18nFromHost plus your own client provider).",
+        "(createNextI18nFromInstance plus your own client provider).",
     );
   });
 });

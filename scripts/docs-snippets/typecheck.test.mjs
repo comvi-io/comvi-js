@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildProjects, mapPosition, nuxtHostModule, titleToPath } from "./project.mjs";
+import { buildProjects, mapPosition, nuxtI18nModule, titleToPath } from "./project.mjs";
 import {
   EXPECT_ERROR_MISSING,
-  NUXT_HOST_REGISTRY_FILE,
+  NUXT_I18N_REGISTRY_FILE,
   createHostFactory,
   loadTypeScript,
   nuxtHostRegistrySource,
@@ -1006,18 +1006,18 @@ test("@comvi/vue does not count as a rival, because Nuxt is Vue", () => {
 // ---------------------------------------------------------------------------
 // The Nuxt host registry: emulating what `@comvi/nuxt`'s codegen generates.
 //
-// A `comvi.setup` hook is typed from the host the app's `comvi.host` factory
+// A `comvi.setup` hook is typed from the host the app's `comvi.i18n` factory
 // returns, and the link between the two files is a declaration the MODULE
-// generates (`.nuxt/types/comvi-host.ts`) rather than anything either file
+// generates (`.nuxt/types/comvi-i18n.ts`) rather than anything either file
 // says. Without it the hook is typed from the fallback (core's base `I18n`) and
 // `core.registerLoader(...)` — the line `packages/nuxt/README.md` exists to
 // show, which really does compile in a reader's app — is TS2339.
 // ---------------------------------------------------------------------------
 
 /** The two fences `packages/nuxt/README.md` pools under `check=group=nuxt-app`. */
-const NUXT_HOST_FENCE = [
-  "```ts title='comvi.host.ts' check=group=nuxt-app",
-  "import { createI18n, loader, type NuxtInstanceFactory } from '@comvi/nuxt/host';",
+const NUXT_I18N_FENCE = [
+  "```ts title='comvi.i18n.ts' check=group=nuxt-app",
+  "import { createI18n, loader, type NuxtInstanceFactory } from '@comvi/nuxt/i18n';",
   "",
   "export default ((options) =>",
   "  createI18n(options).use(",
@@ -1038,8 +1038,8 @@ const NUXT_SETUP_FENCE = [
   "```",
 ];
 
-test("a group holding comvi.host.ts types its setup hook from the factory", () => {
-  const body = [...NUXT_HOST_FENCE, "", ...NUXT_SETUP_FENCE].join("\n");
+test("a group holding comvi.i18n.ts types its setup hook from the factory", () => {
+  const body = [...NUXT_I18N_FENCE, "", ...NUXT_SETUP_FENCE].join("\n");
 
   assert.deepEqual(errors(check(body)), []);
 });
@@ -1047,7 +1047,7 @@ test("a group holding comvi.host.ts types its setup hook from the factory", () =
 test("the same hook without the host fence reports the capability it cannot have", () => {
   // The negative half, and the reason the emulation cannot just be a blanket
   // `host: any`: a hook that reaches for a capability nothing composed must
-  // still fail, because in a real app with no `hostModule` it does.
+  // still fail, because in a real app with no `i18nModule` it does.
   const found = errors(check(NUXT_SETUP_FENCE.join("\n")));
 
   assert.equal(found.length, 1);
@@ -1055,26 +1055,26 @@ test("the same hook without the host fence reports the capability it cannot have
   assert.match(found[0].message, /TS2339: Property 'registerLoader' does not exist/);
 });
 
-test("the registry is withheld from a comvi.host fence with no default export", () => {
+test("the registry is withheld from a comvi.i18n fence with no default export", () => {
   // The factory IS the default export — the runtime template imports exactly
   // that — so a file without one is not a host module, and reading
   // `ReturnType<typeof import(…).default>` off it would be a diagnostic inside
   // a generated file nobody can edit.
   const source = [
-    "```ts title='comvi.host.ts'",
-    "import { createI18n } from '@comvi/nuxt/host';",
+    "```ts title='comvi.i18n.ts'",
+    "import { createI18n } from '@comvi/nuxt/i18n';",
     "export const host = createI18n({ locale: 'en' });",
     "```",
   ].join("\n");
   const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
 
-  assert.equal(projects[0].nuxtHostModule, null);
-  assert.equal(nuxtHostModule(projects[0]), null);
+  assert.equal(projects[0].nuxtI18nModule, null);
+  assert.equal(nuxtI18nModule(projects[0]), null);
 });
 
-test("nuxtHostModule returns the specifier codegen would import", () => {
+test("nuxtI18nModule returns the specifier codegen would import", () => {
   const source = [
-    "```ts title='app/comvi.host.mts'",
+    "```ts title='app/comvi.i18n.mts'",
     "export default (() => ({})) as unknown;",
     "```",
   ].join("\n");
@@ -1082,14 +1082,14 @@ test("nuxtHostModule returns the specifier codegen would import", () => {
 
   // Extension stripped, POSIX, project-relative: the same shape
   // `toTypeImportSpecifier` produces in `packages/nuxt/src/module.ts`.
-  assert.equal(projects[0].nuxtHostModule, "app/comvi.host");
+  assert.equal(projects[0].nuxtI18nModule, "app/comvi.i18n");
   assert.match(
-    nuxtHostRegistrySource("app/comvi.host"),
-    /import\("\.\.\/\.\.\/app\/comvi\.host"\)/,
+    nuxtHostRegistrySource("app/comvi.i18n"),
+    /import\("\.\.\/\.\.\/app\/comvi\.i18n"\)/,
   );
 });
 
-test("only a project with a comvi.host fence gets the registry as a root", () => {
+test("only a project with a comvi.i18n fence gets the registry as a root", () => {
   const ts = loadTypeScript();
   const make = createHostFactory(ts, { sdkRoot, mode: "bundler" });
   const file = {
@@ -1101,11 +1101,11 @@ test("only a project with a comvi.host fence gets the registry as a root", () =>
   };
   const files = new Map([["src/a.ts", file]]);
 
-  const withHost = make({ id: "p0", pageSlug: "x", nuxtHostModule: "comvi.host", files });
-  const without = make({ id: "p1", pageSlug: "x", nuxtHostModule: null, files });
+  const withHost = make({ id: "p0", pageSlug: "x", nuxtI18nModule: "comvi.i18n", files });
+  const without = make({ id: "p1", pageSlug: "x", nuxtI18nModule: null, files });
 
-  assert.ok(withHost.rootNames.some((name) => name.endsWith(`/${NUXT_HOST_REGISTRY_FILE}`)));
-  assert.ok(!without.rootNames.some((name) => name.endsWith(`/${NUXT_HOST_REGISTRY_FILE}`)));
+  assert.ok(withHost.rootNames.some((name) => name.endsWith(`/${NUXT_I18N_REGISTRY_FILE}`)));
+  assert.ok(!without.rootNames.some((name) => name.endsWith(`/${NUXT_I18N_REGISTRY_FILE}`)));
 });
 
 test("the emitted registry is the declaration the Nuxt module generates", () => {
@@ -1115,7 +1115,7 @@ test("the emitted registry is the declaration the Nuxt module generates", () => 
   // for a link that no longer exists, and the fence it vouches for would fail
   // in a reader's `nuxi typecheck` while passing here.
   const module = fs.readFileSync(path.join(REPO_ROOT, "packages/nuxt/src/module.ts"), "utf8");
-  const emitted = nuxtHostRegistrySource("comvi.host");
+  const emitted = nuxtHostRegistrySource("comvi.i18n");
 
   const augmentation = emitted.slice(emitted.indexOf('declare module "@comvi/nuxt"'));
   assert.ok(
@@ -1125,8 +1125,8 @@ test("the emitted registry is the declaration the Nuxt module generates", () => 
   // And the file name, which decides what the relative specifier above resolves
   // against.
   assert.ok(
-    module.includes(`filename: "${NUXT_HOST_REGISTRY_FILE.replace(".nuxt/", "")}"`),
-    "the module's type template no longer writes types/comvi-host.ts",
+    module.includes(`filename: "${NUXT_I18N_REGISTRY_FILE.replace(".nuxt/", "")}"`),
+    "the module's type template no longer writes types/comvi-i18n.ts",
   );
 });
 

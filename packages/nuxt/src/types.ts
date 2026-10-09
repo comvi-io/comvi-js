@@ -79,7 +79,7 @@ export interface NuxtI18nOptions {
    * Credential forwarded to the instance as `i18n.apiKey`, for a loader plugin that
    * authenticates against a backend (`@comvi/plugin-fetch-loader` reads it
    * there). This module loads NOTHING on your behalf — it neither contacts a
-   * CDN nor an API — so the key is inert until a `hostModule` factory composes
+   * CDN nor an API — so the key is inert until a `i18nModule` factory composes
    * a plugin that reads it.
    *
    * Set it through private `runtimeConfig` rather than in `nuxt.config`
@@ -94,10 +94,10 @@ export interface NuxtI18nOptions {
    * Inline catalogs, keyed `locale` or `"locale:namespace"` —
    * exactly `I18nOptions["messages"]`, forwarded verbatim into BOTH
    * constructed instances (the client plugin and each per-request server instance) and
-   * into a `hostModule` factory's resolved options.
+   * into a `i18nModule` factory's resolved options.
    *
    * This is the whole reason a two-line `comvi` block can render a translation:
-   * without a `hostModule` the generated instance is core's BASE instance, which has no
+   * without a `i18nModule` the generated instance is core's BASE instance, which has no
    * loader, so a catalog declared here is the only catalog it will ever have.
    *
    * It travels through public `runtimeConfig`, so it must stay
@@ -115,7 +115,7 @@ export interface NuxtI18nOptions {
 
   /**
    * Namespaces to load at init besides `defaultNs` — core's `ns` option,
-   * forwarded into both constructed instances and a `hostModule` factory's options.
+   * forwarded into both constructed instances and a `i18nModule` factory's options.
    * @example ["common", "nav"]
    */
   ns?: I18nOptions["ns"];
@@ -136,12 +136,12 @@ export interface NuxtI18nOptions {
    * Path to a setup file that runs before i18n.init().
    *
    * Register your own plugin with `i18n.core.use(definePlugin(fn))` from
-   * `@comvi/nuxt/host` — `i18n` is a `VueI18n`, whose capability APIs live on
+   * `@comvi/nuxt/i18n` — `i18n` is a `VueI18n`, whose capability APIs live on
    * `i18n.core`. That shape works on BOTH instances: `definePlugin` attaches the
    * plugin when it is absent, which it is on the module's generated DEFAULT
    * instance (core's base instance). `i18n.core.registerPlugin(...)` is the raw queue
    * and exists only when the instance was composed with the plugin capability — in
-   * a `hostModule` factory — so on the default instance it is `undefined` and
+   * a `i18nModule` factory — so on the default instance it is `undefined` and
    * calling it throws a `TypeError`.
    *
    * If omitted, the module auto-detects `./comvi.setup.*` under `srcDir`, then
@@ -160,12 +160,12 @@ export interface NuxtI18nOptions {
    * module contains no `@comvi/core/icu` import at all, so the option costs
    * nothing when off. A runtime `if` would pin the compiler into every bundle.
    *
-   * With no `hostModule` it is the generated BASE instance that gets the compiler.
+   * With no `i18nModule` it is the generated BASE instance that gets the compiler.
    * With one, `compiler: icuCompiler` is placed LAST in the resolved options
    * the factory receives, so a factory that spreads `options` gets ICU and one
    * that writes its own `compiler` after the spread wins by key order. ICU is
    * the only capability with a module option — the loader, the plugin capability and
-   * devtools discovery are composed in the `hostModule` factory.
+   * devtools discovery are composed in the `i18nModule` factory.
    *
    * @default false
    */
@@ -177,11 +177,11 @@ export interface NuxtI18nOptions {
    * constructor.
    *
    * This is how a nuxt app gets any capability at all. Unset (the default),
-   * the module auto-detects `./comvi.host.*` under `srcDir`, then `rootDir`,
+   * the module auto-detects `./comvi.i18n.*` under `srcDir`, then `rootDir`,
    * and logs the path it picked so a stray file is visible at build time; when
    * there is none it builds the BASE instance, and will not inject the loader, the
    * plugin or devtools on your behalf (ICU is the one exception, through
-   * `icu: true`). Set it to name the file explicitly — a set `hostModule` that
+   * `icu: true`). Set it to name the file explicitly — a set `i18nModule` that
    * does not resolve is a build error, never a silent fallback.
    *
    * It is a module PATH, not a function: the branch that decides whether
@@ -196,13 +196,13 @@ export interface NuxtI18nOptions {
    * the server utilities say so once, by name, and render what the catalog
    * already holds.
    *
-   * @example "./comvi.host.ts"
+   * @example "./comvi.i18n.ts"
    * @example
    * ```ts
-   * // comvi.host.ts — the full explicit composition, in the one file that
-   * // names comvi values: `@comvi/nuxt/host` re-exports core's installers so
+   * // comvi.i18n.ts — the full explicit composition, in the one file that
+   * // names comvi values: `@comvi/nuxt/i18n` re-exports core's installers so
    * // the recipe needs no dependency the app did not already install.
-   * import { createI18n, icuCompiler, loader, plugins, devtools } from "@comvi/nuxt/host";
+   * import { createI18n, icuCompiler, loader, plugins, devtools } from "@comvi/nuxt/i18n";
    *
    * export default (options) =>
    *   createI18n({ ...options, compiler: icuCompiler })
@@ -211,7 +211,7 @@ export interface NuxtI18nOptions {
    *     .use(devtools());
    * ```
    */
-  hostModule?: string;
+  i18nModule?: string;
 
   /**
    * The locale cookie: a name, its attributes, or `false` to persist nothing.
@@ -316,7 +316,7 @@ export interface NuxtI18nSetupEvent extends H3Event {
 
 /**
  * The instance shape nuxt's SERVER utilities accept: the BASE instance and nothing
- * more, because that is what the generated default `#build/comvi.host` builds.
+ * more, because that is what the generated default `#build/comvi.i18n` builds.
  * The loader is NOT part of it — `loadMessages` and `useTranslation` probe
  * for the capability with core's `hasLoaderApi` and say so once, by name, when
  * it is absent, rather than calling a member the instance does not have.
@@ -324,7 +324,7 @@ export interface NuxtI18nSetupEvent extends H3Event {
 export type NuxtServerInstance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D>;
 
 /**
- * A {@link NuxtServerInstance} whose `hostModule` factory composed
+ * A {@link NuxtServerInstance} whose `i18nModule` factory composed
  * `@comvi/core/loader`. This is the shape SSR translation loading actually
  * needs, and the one the server utilities narrow to before driving
  * `reloadMessages` / `addActiveNamespace`.
@@ -333,7 +333,7 @@ export type NuxtServerLoaderInstance<D extends DefaultTranslationParams = {}> =
   WrapperI18nInstance<D> & I18nLoaderApi;
 
 /**
- * The resolved options nuxt hands a `hostModule` factory: every core option
+ * The resolved options nuxt hands a `i18nModule` factory: every core option
  * the module derived from `nuxt.config` and runtime config, so a composed
  * instance honours the same configuration the default branch does.
  *
@@ -364,7 +364,7 @@ export type NuxtInstanceFactoryOptions<D extends DefaultTranslationParams = {}> 
 } & (keyof D extends never ? {} : { defaultParams: D });
 
 /**
- * The `hostModule` default export: a factory returning a FRESH instance per call.
+ * The `i18nModule` default export: a factory returning a FRESH instance per call.
  *
  * `C` is the instance the app composed, and it flows all the way through — a
  * factory typed `NuxtInstanceFactory<I18n & I18nLoaderApi>` is what makes
@@ -375,12 +375,12 @@ export type NuxtInstanceFactory<C = WrapperI18nInstance, D extends DefaultTransl
 
 /**
  * The one slot the module's generated `#build` declaration writes the app's
- * REAL instance into, as `ReturnType<typeof import("./comvi.host").default>`.
+ * REAL instance into, as `ReturnType<typeof import("./comvi.i18n").default>`.
  *
  * It exists because a `comvi.setup` hook's instance type used to be an unverified
  * ASSERTION about a different file reached by a string path: a hook typed
  * `NuxtI18nSetup<I18n & I18nLoaderApi>` compiled whether or not
- * `comvi.host.ts` ever composed the loader, and a base instance has no capability
+ * `comvi.i18n.ts` ever composed the loader, and a base instance has no capability
  * shim, so `core.registerLoader(...)` threw a raw `TypeError` on the first
  * call. Codegen augments this interface, which makes {@link ResolvedNuxtInstance}
  * — and therefore `NuxtI18nSetup`'s DEFAULT type argument — the instance the
@@ -405,9 +405,9 @@ export type RegisteredNuxtInstance<Fallback extends WrapperI18nInstance> =
     : Fallback;
 
 /**
- * The instance this app runs on: the `comvi.host` factory's return type when the
+ * The instance this app runs on: the `comvi.i18n` factory's return type when the
  * module's generated declaration is in the program, core's base `I18n` (the
- * no-`hostModule` branch, and this package's own compilation) otherwise.
+ * no-`i18nModule` branch, and this package's own compilation) otherwise.
  *
  * This is `NuxtI18nSetup`'s default type argument, so a hook written
  * `satisfies NuxtI18nSetup` — no type argument at all — is typed from the
@@ -422,7 +422,7 @@ export type ResolvedNuxtInstance = RegisteredNuxtInstance<I18n>;
  * have.
  *
  * The generated declaration passes `ReturnType<typeof
- * import("./comvi.host").default>` as `Instance` and `typeof
+ * import("./comvi.i18n").default>` as `Instance` and `typeof
  * import("./comvi.setup").default` as `Hook`, so a hook that calls
  * `core.registerLoader(...)` against a factory that never composed the loader
  * fails at build time, by name, instead of at the first call.
@@ -436,9 +436,9 @@ export type CheckedNuxtI18nSetup<
  * Context passed to `comvi.setup` hook.
  *
  * `C` is the instance the app runs on, and it defaults to
- * {@link ResolvedNuxtInstance}: the `comvi.host` factory's return type when the
+ * {@link ResolvedNuxtInstance}: the `comvi.i18n` factory's return type when the
  * module's generated declaration is in the program, core's base `I18n` — the
- * no-`hostModule` configuration — otherwise. An app MAY still name its own
+ * no-`i18nModule` configuration — otherwise. An app MAY still name its own
  * instance type (`NuxtI18nSetup<MyInstance>`) and get exactly the capabilities it
  * names; codegen then cross-checks that claim against the factory. Capability
  * calls live on `i18n.core.*` on the plugin side.
@@ -486,14 +486,14 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nInstance = ResolvedNu
  * Signature for a `comvi.setup` default export.
  *
  * The default type parameter is {@link ResolvedNuxtInstance} — inside an app, the
- * `comvi.host` factory's own return type, read from the file rather than
- * claimed about it; with no `hostModule` (and in this package's own
+ * `comvi.i18n` factory's own return type, read from the file rather than
+ * claimed about it; with no `i18nModule` (and in this package's own
  * compilation) the BASE instance, so capability calls do not compile by accident.
  * Prefer the bare form:
  *
  * @example
  * ```ts
- * // comvi.setup.ts — the instance type comes from comvi.host.ts, so composing the
+ * // comvi.setup.ts — the instance type comes from comvi.i18n.ts, so composing the
  * // loader there is what makes this call compile here.
  * import type { NuxtI18nSetup } from "@comvi/nuxt";
  *
@@ -509,7 +509,7 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nInstance = ResolvedNu
  * @example
  * ```ts
  * // The hand-typed fallback — for an instance whose type this package cannot see
- * // (a factory in another package, a `.js` `hostModule` file).
+ * // (a factory in another package, a `.js` `i18nModule` file).
  * import type { I18n, I18nLoaderApi, NuxtI18nSetup } from "@comvi/nuxt";
  *
  * export default (({ core }) => {

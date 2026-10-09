@@ -4,8 +4,8 @@
  * nothing. Cleanups from an EARLIER successful init stay until `destroy()`.
  */
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
-import type { I18nPlugin } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
+import type { I18nPlugin } from "../helpers/composedInstance";
 
 function resourcePlugin(log: string[], name: string): I18nPlugin {
   return () => {

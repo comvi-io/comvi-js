@@ -13,7 +13,7 @@ import {
   type SsrFallbackCase,
 } from "@comvi/test-utils/ssrFallbackContract";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
-import { createComviCore, createComviI18n, resetComviHostMock } from "./mocks/comvi-host";
+import { createComviCore, createComviI18n, resetComviI18nMock } from "./mocks/comvi-i18n";
 import { resetComviSetupMock } from "./mocks/comvi-setup";
 import { nodeResponseStub } from "./mocks/node-response";
 import { loadMessages } from "../src/runtime/server/utils/loadMessages";
@@ -91,7 +91,7 @@ const rows = SSR_FALLBACK_CASES.map((row) => [row.name, row] as const);
 
 describe("@comvi/nuxt server utilities: the server fallback-chain contract", () => {
   beforeEach(() => {
-    resetComviHostMock();
+    resetComviI18nMock();
     resetComviSetupMock();
   });
 
@@ -203,7 +203,7 @@ const translateAll = (i18n: PluginI18n, keys: readonly string[], ns: string) =>
 
 describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
   beforeEach(() => {
-    resetComviHostMock();
+    resetComviI18nMock();
     resetComviSetupMock();
   });
 
@@ -268,7 +268,7 @@ describe("@comvi/nuxt app plugin: the server fallback-chain contract", () => {
 
 describe("@comvi/nuxt app plugin: the activation wrapper", () => {
   beforeEach(() => {
-    resetComviHostMock();
+    resetComviI18nMock();
     resetComviSetupMock();
   });
 

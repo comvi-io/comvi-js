@@ -3,7 +3,7 @@ import { cache } from "react";
 // without it. Kept external in the build so the APP's bundler applies the alias.
 import * as configModule from "@comvi/next/config";
 import type { RoutingConfig } from "../routing/types";
-import type { NextServerInstance, ServerI18nInstance } from "./hostTypes";
+import type { NextServerInstance, ServerI18nInstance } from "./instanceTypes";
 import type { RequestStore } from "./types";
 
 declare const __DEV__: boolean | undefined;
@@ -32,7 +32,7 @@ const getRequestStore = cache(
 
 /**
  * The server i18n once-cell. Two configuration sources feed it —
- * `setI18n(instance)` and `createNextI18nFromHost()`, which builds its instance
+ * `setI18n(instance)` and `createNextI18nFromInstance()`, which builds its instance
  * EAGERLY, inside the call — and `resolveServerI18n()` reads it.
  *
  * Module-local, deliberately NEVER anchored on `globalThis`: a Next dev
@@ -46,11 +46,11 @@ type CellState =
       readonly kind: "resolved";
       readonly instance: ServerI18nInstance;
       readonly bySetI18n: boolean;
-      /** The routing `createNextI18nFromHost(host, routing)` was given. */
+      /** The routing `createNextI18nFromInstance(factory, routing)` was given. */
       readonly routing?: ConfigModule["routing"];
     };
 
-const SOURCE_FACTORY = "createNextI18nFromHost()";
+const SOURCE_FACTORY = "createNextI18nFromInstance()";
 const SOURCE_SET_I18N = "setI18n()";
 
 const EMPTY: CellState = { kind: "empty" };
@@ -76,7 +76,7 @@ const configurationConflict = (configured: CellState, incoming: string): Error =
  *
  * Calling it again with the SAME instance is a no-op (setup files commonly run
  * more than once). Any other second configuration — a different instance, or a
- * `createNextI18nFromHost()` registration — throws.
+ * `createNextI18nFromInstance()` registration — throws.
  *
  * @param i18n - A loader-carrying instance: the `i18n` from `createNextI18n`, or
  * any instance you composed yourself. The server pipeline calls `getLoader` /
@@ -117,14 +117,14 @@ export function setI18n(i18n: NextServerInstance): void {
 }
 
 /**
- * Build and register the instance (the `createNextI18nFromHost` half).
+ * Build and register the instance (the `createNextI18nFromInstance` half).
  *
  * The conflict check comes FIRST, so a second configuration source never
  * builds an instance it cannot register; a `build()` that throws propagates and
  * leaves the cell `empty`, exactly as if the call had never happened.
  * @internal
  */
-export function registerServerI18nHost<C extends ServerI18nInstance>(
+export function registerServerI18nInstance<C extends ServerI18nInstance>(
   build: () => C,
   routing?: ConfigModule["routing"],
 ): C {
@@ -167,7 +167,7 @@ export function resolveServerI18n(): ServerI18nInstance {
   }
   throw new Error(
     "[@comvi/next] i18n not configured. Add withComvi({ config }) to next.config, " +
-      "or call setI18n(i18n) / createNextI18nFromHost(host, routing). " +
+      "or call setI18n(i18n) / createNextI18nFromInstance(factory, routing). " +
       // The alias exists only in Next's own bundled graphs: a test runner, or
       // a Next build that leaves this package unbundled, resolves the stub.
       "In a test runner the alias does not apply: alias `@comvi/next/config` to your config module " +
@@ -185,7 +185,7 @@ export function getConfiguredI18n(): ConfigModule["i18n"] {
 }
 
 /**
- * The routing in force: the one `createNextI18nFromHost(host, routing)`
+ * The routing in force: the one `createNextI18nFromInstance(factory, routing)`
  * registered (the manual setup), otherwise the `routing` export of the aliased
  * config module, if there is one.
  * @internal

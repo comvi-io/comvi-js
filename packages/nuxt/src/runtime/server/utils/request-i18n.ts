@@ -1,9 +1,9 @@
 import type { H3Event } from "h3";
 import { runComviSetup } from "#build/comvi.setup";
-// Same build-time branch as the client plugin: with `hostModule` set, the
+// Same build-time branch as the client plugin: with `i18nModule` set, the
 // generated template returns the app's own composed instance and nuxt's default
 // `@comvi/vue` construction path is not in the server graph.
-import { createComviCore } from "#build/comvi.host";
+import { createComviCore } from "#build/comvi.i18n";
 import type { NuxtServerInstance } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
 // The registry and its teardown live outside this file so the Nitro server
@@ -42,7 +42,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
         devMode: process.env.NODE_ENV === "development",
         apiKey: privateConfig?.apiKey,
         // Symmetric with the app plugin: the inline catalog is what makes an
-        // app with no `hostModule` (and therefore no loader) render anything at
+        // app with no `i18nModule` (and therefore no loader) render anything at
         // all, so SSR must construct with the same one the client does.
         // `||` treats the `""` that runtime config makes of an unset option as
         // no catalog, exactly as the app plugin does.
@@ -59,7 +59,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
         : createComviCore(baseI18nOptions);
 
       // Both branches now receive the request locale in their options — the
-      // default branch constructs core with it, and a `hostModule` factory is
+      // default branch constructs core with it, and a `i18nModule` factory is
       // handed the same resolved options — so this is a no-op for any factory
       // that forwards them. It stays because the factory is free to ignore
       // them, and an instance on the wrong locale would load the wrong catalog:

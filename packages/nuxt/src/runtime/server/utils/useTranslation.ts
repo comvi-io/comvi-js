@@ -175,8 +175,8 @@ export async function useTranslation(
 }
 
 /**
- * The instance may have no loader at all: the generated default `#build/comvi.host`
- * builds core's BASE instance, and only a `hostModule` factory composes
+ * The instance may have no loader at all: the generated default `#build/comvi.i18n`
+ * builds core's BASE instance, and only a `i18nModule` factory composes
  * `@comvi/core/loader` onto it. Without the capability there is nothing to load
  * — whatever `comvi.setup` put in the catalog is already there — so this
  * returns instead of calling a member the instance does not have.

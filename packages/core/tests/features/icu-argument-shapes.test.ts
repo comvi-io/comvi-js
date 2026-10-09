@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import type { TranslationResult } from "../../src";
 
 function render(template: string, params: Record<string, unknown>): string | TranslationResult {

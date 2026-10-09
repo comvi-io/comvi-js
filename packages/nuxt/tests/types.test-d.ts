@@ -18,7 +18,7 @@ import type {
   NuxtI18nSetup as PublicNuxtI18nSetup,
 } from "@comvi/nuxt";
 import type { UseI18nReturn as NuxtUseI18nReturn } from "../src/runtime/composables/useI18n";
-import { attachLoader, createI18n, defineComviHost } from "../src/runtime/host";
+import { attachLoader, createI18n, defineComviI18n } from "../src/runtime/i18n";
 import type {
   CheckedNuxtI18nSetup,
   NuxtInstanceFactory,
@@ -121,10 +121,10 @@ describe("host vocabulary after the single-entry convergence", () => {
 
 // `comvi.setup`'s host type was an unverified ASSERTION about a different file
 // reached by a string path: `NuxtI18nSetup<I18n & I18nLoaderApi>` compiled
-// whether or not `comvi.host` composed the loader, and a base host gets no
+// whether or not `comvi.i18n` composed the loader, and a base host gets no
 // capability shim, so `core.registerLoader(...)` threw a raw `TypeError` on the
 // first call. `CheckedNuxtI18nSetup` is the constraint the module's generated
-// `types/comvi-host.ts` applies to close that gap; these are both of its
+// `types/comvi-i18n.ts` applies to close that gap; these are both of its
 // directions, on the exact shapes codegen passes it.
 type LoaderHook = (context: NuxtI18nSetupContext<I18n & I18nLoaderApi>) => void;
 
@@ -144,7 +144,7 @@ export type SetupAgainstPluginsOnlyInstance = CheckedNuxtI18nSetup<
   LoaderHook
 >;
 
-/** The no-`hostModule` branch: core's BASE host, so every capability is absent. */
+/** The no-`i18nModule` branch: core's BASE host, so every capability is absent. */
 export type SetupAgainstDefaultBranch = CheckedNuxtI18nSetup<
   ResolvedNuxtInstance,
   // @ts-expect-error a base host has no loader, and this is the whole U4 defect
@@ -159,8 +159,8 @@ describe("the comvi.setup host cross-check", () => {
 
   it("resolves to core's BASE host with no generated declaration in the program", () => {
     // This package compiles without any app, and `ComviNuxtInstanceRegistry` is
-    // empty here; an app's generated `types/comvi-host.ts` augments it with
-    // `ReturnType<typeof import("./comvi.host").default>`.
+    // empty here; an app's generated `types/comvi-i18n.ts` augments it with
+    // `ReturnType<typeof import("./comvi.i18n").default>`.
     expectTypeOf<ResolvedNuxtInstance>().toEqualTypeOf<I18n>();
     expectTypeOf<Parameters<NuxtI18nSetup>[0]["core"]>().toEqualTypeOf<ResolvedNuxtInstance>();
   });
@@ -176,12 +176,12 @@ describe("the comvi.setup host cross-check", () => {
   });
 });
 
-describe("defineComviHost", () => {
+describe("defineComviI18n", () => {
   // The helper replaces `satisfies NuxtInstanceFactory`: `options` is typed from it
   // and the factory comes back unchanged, so the generated declaration's
-  // `ReturnType<typeof import("./comvi.host").default>` still reads the
+  // `ReturnType<typeof import("./comvi.i18n").default>` still reads the
   // composed host and the setup hook still sees its capabilities.
-  const composedHost = defineComviHost((options) => {
+  const composedHost = defineComviI18n((options) => {
     expectTypeOf(options).toEqualTypeOf<NuxtInstanceFactoryOptions>();
     return createI18n(options).use(attachLoader);
   });
@@ -198,6 +198,6 @@ describe("defineComviHost", () => {
 
   it("rejects a factory that does not return a host", () => {
     // @ts-expect-error a number is not an i18n host
-    defineComviHost(() => 42);
+    defineComviI18n(() => 42);
   });
 });

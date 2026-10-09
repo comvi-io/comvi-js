@@ -1,4 +1,4 @@
-// The `#build/comvi.host` template is generated TEXT, so module.test.ts can
+// The `#build/comvi.i18n` template is generated TEXT, so module.test.ts can
 // only assert what it says. This file executes it: both branches are written to
 // disk and imported, which is the only way to prove the emitted code parses,
 // resolves, and wires the host the way the option promises.
@@ -46,7 +46,7 @@ vi.mock("@nuxt/kit", () => ({
 
 // The emitted template imports "@comvi/vue" / "@comvi/core" by bare specifier,
 // so it has to live where those resolve: inside this package.
-const workDir = mkdtempSync(join(process.cwd(), "node_modules", ".comvi-host-template-"));
+const workDir = mkdtempSync(join(process.cwd(), "node_modules", ".comvi-i18n-template-"));
 
 afterAll(() => rmSync(workDir, { recursive: true, force: true }));
 
@@ -88,7 +88,7 @@ interface ModuleDefinition {
 
 /** Runs the module's setup, then writes + imports the generated host template. */
 async function emitHostTemplate(
-  hostModule?: string,
+  i18nModule?: string,
   extraOptions: Record<string, unknown> = {},
   nuxtOptions: { dev?: boolean } = {},
 ): Promise<HostTemplate & { source: string }> {
@@ -102,7 +102,7 @@ async function emitHostTemplate(
     {
       locales: ["en"],
       defaultLocale: "en",
-      ...(hostModule ? { hostModule } : {}),
+      ...(i18nModule ? { i18nModule } : {}),
       ...extraOptions,
     },
     {
@@ -120,7 +120,7 @@ async function emitHostTemplate(
   );
 
   const template = nuxtKitMocks.addTemplate.mock.calls.find(
-    ([candidate]) => candidate.filename === "comvi.host.mjs",
+    ([candidate]) => candidate.filename === "comvi.i18n.mjs",
   )?.[0] as NuxtTemplateStub;
 
   const file = join(workDir, `host-${moduleId++}.mjs`);
@@ -130,7 +130,7 @@ async function emitHostTemplate(
   return { ...((await import(pathToFileURL(file).href)) as HostTemplate), source };
 }
 
-function writeHostModule(body: string): string {
+function writeI18nModule(body: string): string {
   const file = join(workDir, `user-host-${moduleId++}.mjs`);
   writeFileSync(file, body);
   return file;
@@ -138,7 +138,7 @@ function writeHostModule(body: string): string {
 
 const globals = globalThis as unknown as Record<string, unknown>;
 
-describe("generated #build/comvi.host template", () => {
+describe("generated #build/comvi.i18n template", () => {
   let previousComviGlobal: unknown;
 
   beforeEach(() => {
@@ -170,7 +170,7 @@ describe("generated #build/comvi.host template", () => {
 
     const i18n = createComviI18n({ locale: "en", exposeGlobal: false });
     expect(i18n.locale.value).toBe("en");
-    // Absent from the module graph, not merely disabled: a capability is a `hostModule` import.
+    // Absent from the module graph, not merely disabled: a capability is a `i18nModule` import.
     expect(i18n.core.registerLoader).toBeUndefined();
     expect(i18n.core.registerPlugin).toBeUndefined();
 
@@ -224,8 +224,8 @@ describe("generated #build/comvi.host template", () => {
     expect(globals.__COMVI__).toBeUndefined();
   });
 
-  it("wires the user host through createI18nFromCore on the hostModule branch", async () => {
-    const hostPath = writeHostModule(`
+  it("wires the user host through createI18nFromCore on the i18nModule branch", async () => {
+    const hostPath = writeI18nModule(`
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 
@@ -238,7 +238,7 @@ export default () => {
 };
 `);
     nuxtKitMocks.findPath.mockResolvedValue(hostPath);
-    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.i18n.mjs");
     const { built } = (await import(pathToFileURL(hostPath).href)) as { built: unknown[] };
 
     // The factory is not called until something is constructed…
@@ -266,7 +266,7 @@ export default () => {
   });
 
   it("hands nuxt's resolved options to the host factory", async () => {
-    const hostPath = writeHostModule(`
+    const hostPath = writeI18nModule(`
 import { createI18n } from "@comvi/core";
 
 export const seen = [];
@@ -277,13 +277,13 @@ export default (options) => {
 };
 `);
     nuxtKitMocks.findPath.mockResolvedValue(hostPath);
-    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.i18n.mjs");
     // Dynamic by necessity: the specifier is a file this test just generated.
     const { seen } = (await import(pathToFileURL(hostPath).href)) as {
       seen: Record<string, unknown>[];
     };
 
-    // Migrating to `hostModule` must not silently drop the nuxt.config options.
+    // Migrating to `i18nModule` must not silently drop the nuxt.config options.
     const core = createComviCore({
       locale: "de",
       fallbackLocale: "en",
@@ -307,7 +307,7 @@ export default (options) => {
   });
 
   it("renders a key from comvi.messages on the default branch", async () => {
-    // The two-line module-options floor: no hostModule, therefore no loader,
+    // The two-line module-options floor: no i18nModule, therefore no loader,
     // therefore this inline catalog is the only one the host will ever have.
     const { createComviI18n, createComviCore } = await emitHostTemplate();
 
@@ -347,12 +347,12 @@ export default (options) => {
   });
 
   it("throws a named error when the host factory returns no host", async () => {
-    nuxtKitMocks.findPath.mockResolvedValue(writeHostModule("export default () => undefined;\n"));
-    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    nuxtKitMocks.findPath.mockResolvedValue(writeI18nModule("export default () => undefined;\n"));
+    const { createComviCore } = await emitHostTemplate("./comvi.i18n.mjs");
 
     // Regression: a factory missing its `return` used to fail deep inside createI18nFromCore.
     expect(() => createComviCore()).toThrow(
-      "[@comvi/nuxt] comvi hostModule must default-export a factory returning a core instance",
+      "[@comvi/nuxt] comvi i18nModule must default-export a factory returning a core instance",
     );
   });
 
@@ -362,16 +362,16 @@ export default (options) => {
     // The old message even named `createI18n`, which in @comvi/vue returns
     // exactly this.
     nuxtKitMocks.findPath.mockResolvedValue(
-      writeHostModule(`
+      writeI18nModule(`
 import { createI18n } from "@comvi/vue";
 
 export default (options) => createI18n({ ...options, exposeGlobal: false });
 `),
     );
-    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    const { createComviCore } = await emitHostTemplate("./comvi.i18n.mjs");
 
     expect(() => createComviCore({ locale: "en" })).toThrow(
-      '[@comvi/nuxt] comvi hostModule must default-export a factory returning a core instance, not a VueI18n. Use createI18n from "@comvi/nuxt/host", e.g. createI18n(options).use(loader(map)).',
+      '[@comvi/nuxt] comvi i18nModule must default-export a factory returning a core instance, not a VueI18n. Use createI18n from "@comvi/nuxt/i18n", e.g. createI18n(options).use(loader(map)).',
     );
   });
 
@@ -379,14 +379,14 @@ export default (options) => createI18n({ ...options, exposeGlobal: false });
     // The counterpart: the tightened guard must not reject what the recipe
     // actually tells a reader to write.
     nuxtKitMocks.findPath.mockResolvedValue(
-      writeHostModule(`
+      writeI18nModule(`
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 
 export default (options) => createI18n({ ...options, exposeGlobal: false }).use(attachLoader);
 `),
     );
-    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.i18n.mjs");
 
     const core = createComviCore({ locale: "en", messages: { en: { greeting: "Hello" } } });
     expect(core.t("greeting")).toBe("Hello");
@@ -398,8 +398,8 @@ export default (options) => createI18n({ ...options, exposeGlobal: false }).use(
     expect((i18n.core as unknown as { core?: unknown }).core).toBeUndefined();
   });
 
-  it("hands comvi.messages to a hostModule factory in its resolved options", async () => {
-    const hostPath = writeHostModule(`
+  it("hands comvi.messages to a i18nModule factory in its resolved options", async () => {
+    const hostPath = writeI18nModule(`
 import { createI18n } from "@comvi/core";
 
 export const seen = [];
@@ -410,7 +410,7 @@ export default (options) => {
 };
 `);
     nuxtKitMocks.findPath.mockResolvedValue(hostPath);
-    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    const { createComviCore } = await emitHostTemplate("./comvi.i18n.mjs");
     // Dynamic by necessity: the specifier is a file this test just generated.
     const { seen } = (await import(pathToFileURL(hostPath).href)) as {
       seen: Record<string, unknown>[];
@@ -422,19 +422,19 @@ export default (options) => {
     expect(core.t("greeting")).toBe("Hello");
   });
 
-  it("compiles ICU through a hostModule factory that spreads its options when icu is true", async () => {
-    const hostPath = writeHostModule(`
+  it("compiles ICU through a i18nModule factory that spreads its options when icu is true", async () => {
+    const hostPath = writeI18nModule(`
 import { createI18n } from "@comvi/core";
 
 export default (options) => createI18n({ ...options, exposeGlobal: false });
 `);
     nuxtKitMocks.findPath.mockResolvedValue(hostPath);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs", {
+    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.i18n.mjs", {
       icu: true,
     });
 
-    // The rule used to be "hostModule wins, icu is ignored with a warning".
+    // The rule used to be "i18nModule wins, icu is ignored with a warning".
     expect(warnSpy).not.toHaveBeenCalled();
 
     const core = createComviCore({ locale: "en" });
@@ -447,8 +447,8 @@ export default (options) => createI18n({ ...options, exposeGlobal: false });
     expect(i18n.core.t("cart", { count: 1 })).toBe("1 item");
   });
 
-  it("lets a hostModule factory's own compiler win over icu by key order", async () => {
-    const hostPath = writeHostModule(`
+  it("lets a i18nModule factory's own compiler win over icu by key order", async () => {
+    const hostPath = writeI18nModule(`
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 
@@ -464,7 +464,7 @@ export default (options) => {
 };
 `);
     nuxtKitMocks.findPath.mockResolvedValue(hostPath);
-    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs", { icu: true });
+    const { createComviCore } = await emitHostTemplate("./comvi.i18n.mjs", { icu: true });
     const { seen } = (await import(pathToFileURL(hostPath).href)) as { seen: boolean[] };
 
     const core = createComviCore({ locale: "en" });
@@ -476,8 +476,8 @@ export default (options) => {
     expect(core.t("cart", { count: 5 })).toBe("{count, plural, one {# item} other {# items}}");
   });
 
-  it("hands a hostModule factory no compiler when icu is off", async () => {
-    const hostPath = writeHostModule(`
+  it("hands a i18nModule factory no compiler when icu is off", async () => {
+    const hostPath = writeI18nModule(`
 import { createI18n } from "@comvi/core";
 
 export const seen = [];
@@ -488,7 +488,7 @@ export default (options) => {
 };
 `);
     nuxtKitMocks.findPath.mockResolvedValue(hostPath);
-    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    const { createComviCore } = await emitHostTemplate("./comvi.i18n.mjs");
     const { seen } = (await import(pathToFileURL(hostPath).href)) as { seen: boolean[] };
 
     const core = createComviCore({ locale: "en" });
@@ -503,11 +503,11 @@ export default (options) => {
 
   it("throws a named error when the host module's default export is not a function", async () => {
     // A missing default is an ESM link error; a WRONG default is the reachable shape.
-    nuxtKitMocks.findPath.mockResolvedValue(writeHostModule("export default {};\n"));
-    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    nuxtKitMocks.findPath.mockResolvedValue(writeI18nModule("export default {};\n"));
+    const { createComviCore } = await emitHostTemplate("./comvi.i18n.mjs");
 
     expect(() => createComviCore()).toThrow(
-      "[@comvi/nuxt] comvi hostModule must export a default function returning an i18n instance.",
+      "[@comvi/nuxt] comvi i18nModule must export a default function returning an i18n instance.",
     );
   });
 });
@@ -515,10 +515,10 @@ export default (options) => {
 // The `.host.mjs` template decides which host is BUILT; this one decides how it
 // is TYPED. `comvi.setup`'s host was an unverified assertion about a different
 // file reached by a string path — a hook typed `NuxtI18nSetup<I18n &
-// I18nLoaderApi>` compiled whether or not `comvi.host` composed the loader, and
+// I18nLoaderApi>` compiled whether or not `comvi.i18n` composed the loader, and
 // a base host gets no capability shim, so the call threw a raw `TypeError`.
 // These cases pin the text that turns the assertion into a compile-time check.
-describe("generated types/comvi-host.ts declaration", () => {
+describe("generated types/comvi-i18n.ts declaration", () => {
   beforeEach(() => {
     for (const mock of Object.values(nuxtKitMocks)) mock.mockReset();
     nuxtKitMocks.createResolver.mockReturnValue({ resolve: (id: string) => `/resolved/${id}` });
@@ -540,7 +540,7 @@ describe("generated types/comvi-host.ts declaration", () => {
     extraOptions: Record<string, unknown> = {},
   ): Promise<string> {
     nuxtKitMocks.findPath.mockImplementation(async (specifier: string) =>
-      specifier === "./comvi.host"
+      specifier === "./comvi.i18n"
         ? (paths.host ?? null)
         : specifier === "./comvi.setup"
           ? (paths.setup ?? null)
@@ -568,20 +568,20 @@ describe("generated types/comvi-host.ts declaration", () => {
     );
 
     const template = nuxtKitMocks.addTemplate.mock.calls.find(
-      ([candidate]) => candidate.filename === "types/comvi-host.ts",
+      ([candidate]) => candidate.filename === "types/comvi-i18n.ts",
     )?.[0] as NuxtTemplateStub;
 
     return template.getContents();
   }
 
   it("reads the host type off the factory, and does not re-declare it", async () => {
-    const contents = await emitTypeTemplate({ host: "/app/comvi.host.ts" });
+    const contents = await emitTypeTemplate({ host: "/app/comvi.i18n.ts" });
 
     // The whole point of U4: the type comes FROM the file the runtime template
     // imports, so the two cannot drift. A hand-written wrapper type here would
     // be the same unverified assertion, one file further along.
     expect(contents).toContain(
-      'type ComviResolvedInstance = ReturnType<typeof import("/app/comvi.host").default>;',
+      'type ComviResolvedInstance = ReturnType<typeof import("/app/comvi.i18n").default>;',
     );
     // …published through the registry, so `NuxtI18nSetup`'s DEFAULT type
     // argument is the real host and the bare `satisfies NuxtI18nSetup` is typed
@@ -601,15 +601,15 @@ describe("generated types/comvi-host.ts declaration", () => {
   });
 
   it("strips the extension from both resolved paths", async () => {
-    // `import("…/comvi.host.ts")` needs `allowImportingTsExtensions`, which an
-    // app does not have, and `…/comvi.host.js` next to a `.d.ts` resolves to
+    // `import("…/comvi.i18n.ts")` needs `allowImportingTsExtensions`, which an
+    // app does not have, and `…/comvi.i18n.js` next to a `.d.ts` resolves to
     // the wrong file. Every extension nuxt's own resolution tries must go.
     for (const extension of ["ts", "mts", "cts", "js", "mjs", "cjs", "tsx", "jsx"]) {
       const contents = await emitTypeTemplate({
-        host: `/app/comvi.host.${extension}`,
+        host: `/app/comvi.i18n.${extension}`,
         setup: `/app/comvi.setup.${extension}`,
       });
-      expect(contents).toContain('import("/app/comvi.host").default');
+      expect(contents).toContain('import("/app/comvi.i18n").default');
       expect(contents).toContain('import("/app/comvi.setup").default');
       expect(contents).not.toContain(`.${extension}").default`);
     }
@@ -617,7 +617,7 @@ describe("generated types/comvi-host.ts declaration", () => {
 
   it("puts comvi.setup's default export through the cross-check", async () => {
     const contents = await emitTypeTemplate({
-      host: "/app/comvi.host.ts",
+      host: "/app/comvi.i18n.ts",
       setup: "/app/comvi.setup.ts",
     });
 
@@ -629,7 +629,7 @@ describe("generated types/comvi-host.ts declaration", () => {
   });
 
   it("emits no cross-check when there is no setup file", async () => {
-    const contents = await emitTypeTemplate({ host: "/app/comvi.host.ts" });
+    const contents = await emitTypeTemplate({ host: "/app/comvi.i18n.ts" });
 
     // Nothing to check, and naming a file that is not there would be a
     // "cannot find module" reported against generated code.
@@ -638,7 +638,7 @@ describe("generated types/comvi-host.ts declaration", () => {
   });
 
   it("is written to disk and referenced from the generated types", async () => {
-    await emitTypeTemplate({ host: "/app/comvi.host.ts", setup: "/app/comvi.setup.ts" });
+    await emitTypeTemplate({ host: "/app/comvi.i18n.ts", setup: "/app/comvi.setup.ts" });
 
     // A `.ts`, not the `.d.ts` `addTypeTemplate` insists on: every nuxt
     // tsconfig sets `skipLibCheck: true`, which silences every error inside a
@@ -646,17 +646,17 @@ describe("generated types/comvi-host.ts declaration", () => {
     // template is VIRTUAL unless `write` says otherwise, so without both of
     // these the cross-check is a file tsc never opens.
     expect(nuxtKitMocks.addTemplate).toHaveBeenCalledWith(
-      expect.objectContaining({ filename: "types/comvi-host.ts", write: true }),
+      expect.objectContaining({ filename: "types/comvi-i18n.ts", write: true }),
     );
 
     const payload: { references?: { path: string }[] } = {};
     expect(prepareTypesHandlers).toHaveLength(1);
     for (const handler of prepareTypesHandlers) handler(payload);
-    expect(payload.references).toEqual([{ path: "/build/types/comvi-host.ts" }]);
+    expect(payload.references).toEqual([{ path: "/build/types/comvi-i18n.ts" }]);
   });
 
   it("keeps the reference when a payload already carries some", async () => {
-    await emitTypeTemplate({ host: "/app/comvi.host.ts" });
+    await emitTypeTemplate({ host: "/app/comvi.i18n.ts" });
 
     // Every other module writes into the same array; clobbering it would drop
     // their types and be blamed on them.
@@ -664,20 +664,20 @@ describe("generated types/comvi-host.ts declaration", () => {
     for (const handler of prepareTypesHandlers) handler(payload);
     expect(payload.references).toEqual([
       { path: "/build/types/other.d.ts" },
-      { path: "/build/types/comvi-host.ts" },
+      { path: "/build/types/comvi-i18n.ts" },
     ]);
   });
 
   it("declares the host the same way whether or not icu is on", async () => {
     // `comvi.icu` changes the compiler the factory is HANDED, not the type it
     // returns, so the declaration must not fork on it.
-    const off = await emitTypeTemplate({ host: "/app/comvi.host.ts" });
-    const on = await emitTypeTemplate({ host: "/app/comvi.host.ts" }, { icu: true });
+    const off = await emitTypeTemplate({ host: "/app/comvi.i18n.ts" });
+    const on = await emitTypeTemplate({ host: "/app/comvi.i18n.ts" }, { icu: true });
     expect(on).toBe(off);
   });
 });
 
-describe("generated #build/comvi.host template: one host per call", () => {
+describe("generated #build/comvi.i18n template: one host per call", () => {
   beforeEach(() => {
     for (const mock of Object.values(nuxtKitMocks)) mock.mockReset();
     nuxtKitMocks.createResolver.mockReturnValue({ resolve: (id: string) => `/resolved/${id}` });
@@ -689,8 +689,8 @@ describe("generated #build/comvi.host template: one host per call", () => {
   });
 
   /** A factory that hands every caller the same module-level host. */
-  function singletonHostModule() {
-    return writeHostModule(`
+  function singletonI18nModule() {
+    return writeI18nModule(`
 import { createI18n } from "@comvi/core";
 
 const shared = createI18n({ locale: "en", exposeGlobal: false });
@@ -700,37 +700,37 @@ export default () => shared;
   }
 
   it("throws a named error in development when the factory returns the same host twice", async () => {
-    nuxtKitMocks.findPath.mockResolvedValue(singletonHostModule());
+    nuxtKitMocks.findPath.mockResolvedValue(singletonI18nModule());
     const { createComviCore, createComviI18n } = await emitHostTemplate(
-      "./comvi.host.mjs",
+      "./comvi.i18n.mjs",
       {},
       { dev: true },
     );
 
     createComviI18n({ locale: "en" });
     expect(() => createComviCore({ locale: "en" })).toThrow(
-      "[@comvi/nuxt] comvi hostModule returned an instance it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
+      "[@comvi/nuxt] comvi i18nModule returned an instance it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
     );
   });
 
   it("lets a factory that builds a new host every call through in development", async () => {
     nuxtKitMocks.findPath.mockResolvedValue(
-      writeHostModule(`
+      writeI18nModule(`
 import { createI18n } from "@comvi/core";
 
 export default (options) => createI18n({ ...options, exposeGlobal: false });
 `),
     );
-    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs", {}, { dev: true });
+    const { createComviCore } = await emitHostTemplate("./comvi.i18n.mjs", {}, { dev: true });
 
     const first = createComviCore({ locale: "en" });
     expect(createComviCore({ locale: "en" })).not.toBe(first);
   });
 
   it("emits no guard in a production build", async () => {
-    nuxtKitMocks.findPath.mockResolvedValue(singletonHostModule());
+    nuxtKitMocks.findPath.mockResolvedValue(singletonI18nModule());
     const { createComviCore, source } = await emitHostTemplate(
-      "./comvi.host.mjs",
+      "./comvi.i18n.mjs",
       {},
       {
         dev: false,

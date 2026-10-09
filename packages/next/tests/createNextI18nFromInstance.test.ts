@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
-import { createNextI18nFromHost, getI18n, loadMessages } from "../src/server";
+import { createNextI18nFromInstance, getI18n, loadMessages } from "../src/server";
 import { _resetServerI18n, resolveServerI18n, setI18n } from "../src/server/cache";
 
 const ROUTING = { locales: ["en", "fr"], defaultLocale: "en" };
@@ -27,12 +27,12 @@ beforeEach(() => {
   _resetServerI18n();
 });
 
-describe("createNextI18nFromHost — eager construction", () => {
+describe("createNextI18nFromInstance — eager construction", () => {
   it("calls host() exactly once, inside the call, and publishes what it returned", () => {
     const built = composedHost();
     const host = vi.fn(() => built);
 
-    const result = createNextI18nFromHost(host, ROUTING);
+    const result = createNextI18nFromInstance(host, ROUTING);
 
     expect(host).toHaveBeenCalledTimes(1);
     expect(result.i18n).toBe(built);
@@ -46,7 +46,7 @@ describe("createNextI18nFromHost — eager construction", () => {
 
   it("is the same instance the server helpers resolve, with no prior result.i18n access", async () => {
     const host = vi.fn(() => composedHost({ "fr:common": { greeting: "Bonjour" } }));
-    createNextI18nFromHost(host, ROUTING);
+    createNextI18nFromInstance(host, ROUTING);
 
     const messages = await loadMessages("fr", { namespaces: ["common"] });
     const { t } = await getI18n({ locale: "fr" });
@@ -59,7 +59,7 @@ describe("createNextI18nFromHost — eager construction", () => {
 
   it("serves two concurrent renders from the one instance", async () => {
     const host = vi.fn(() => composedHost({ "en:common": { greeting: "Hello" } }));
-    const result = createNextI18nFromHost(host, ROUTING);
+    const result = createNextI18nFromInstance(host, ROUTING);
 
     const [renderA, renderB] = await Promise.all([
       getI18n({ locale: "en" }),
@@ -74,19 +74,19 @@ describe("createNextI18nFromHost — eager construction", () => {
 
   it("propagates a throwing host() and configures nothing", () => {
     expect(() =>
-      createNextI18nFromHost(() => {
+      createNextI18nFromInstance(() => {
         throw new Error("host factory boom");
       }, ROUTING),
     ).toThrow("host factory boom");
 
     expect(() => resolveServerI18n()).toThrow(/i18n not configured/);
     // The failed call left no trace: the corrected module registers cleanly.
-    const result = createNextI18nFromHost(() => composedHost(), ROUTING);
+    const result = createNextI18nFromInstance(() => composedHost(), ROUTING);
     expect(resolveServerI18n()).toBe(result.i18n);
   });
 });
 
-describe("createNextI18nFromHost — server render on a base + loader host", () => {
+describe("createNextI18nFromInstance — server render on a base + loader host", () => {
   // The default locale/namespace is seeded so `init()` has nothing to fetch:
   // every loader call below is one the request actually caused.
   const hostWithLoader =
@@ -100,7 +100,7 @@ describe("createNextI18nFromHost — server render on a base + loader host", () 
     const loader = vi.fn(async (locale: string, namespace: string) =>
       locale === "fr" && namespace === "common" ? { greeting: "Bonjour" } : {},
     );
-    createNextI18nFromHost(hostWithLoader(loader), ROUTING);
+    createNextI18nFromInstance(hostWithLoader(loader), ROUTING);
 
     const messages = await loadMessages("fr", { namespaces: ["common"] });
 
@@ -111,7 +111,7 @@ describe("createNextI18nFromHost — server render on a base + loader host", () 
 
   it("preserves the messages cache across requests", async () => {
     const loader = vi.fn(async () => ({ greeting: "Bonjour" }));
-    createNextI18nFromHost(hostWithLoader(loader), ROUTING);
+    createNextI18nFromInstance(hostWithLoader(loader), ROUTING);
 
     const first = await loadMessages("fr", { namespaces: ["common"] });
     const second = await loadMessages("fr", { namespaces: ["common"] });
@@ -122,7 +122,10 @@ describe("createNextI18nFromHost — server render on a base + loader host", () 
   });
 
   it("serializes translations as plain objects for the client boundary", async () => {
-    createNextI18nFromHost(() => composedHost({ "fr:common": { greeting: "Bonjour" } }), ROUTING);
+    createNextI18nFromInstance(
+      () => composedHost({ "fr:common": { greeting: "Bonjour" } }),
+      ROUTING,
+    );
 
     const messages = await loadMessages("fr", { namespaces: ["common"] });
 
@@ -130,7 +133,7 @@ describe("createNextI18nFromHost — server render on a base + loader host", () 
   });
 });
 
-describe("createNextI18nFromHost — export boundary", () => {
+describe("createNextI18nFromInstance — export boundary", () => {
   it("is reachable as @comvi/next/server and nowhere else", async () => {
     const pkg = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
       exports: Record<string, { default: string }>;
@@ -142,9 +145,9 @@ describe("createNextI18nFromHost — export boundary", () => {
     const rootEntry = await import("../src/index");
     const clientEntry = await import("../src/client");
 
-    expect(typeof serverEntry.createNextI18nFromHost).toBe("function");
-    expect("createNextI18nFromHost" in rootEntry).toBe(false);
-    expect("createNextI18nFromHost" in clientEntry).toBe(false);
+    expect(typeof serverEntry.createNextI18nFromInstance).toBe("function");
+    expect("createNextI18nFromInstance" in rootEntry).toBe(false);
+    expect("createNextI18nFromInstance" in clientEntry).toBe(false);
   });
 
   it("keeps the suite-only cell reset out of the public server entry", async () => {
@@ -155,7 +158,7 @@ describe("createNextI18nFromHost — export boundary", () => {
   });
 
   it("has no .use pipe and none of the four deleted delegates on the result", () => {
-    const result = createNextI18nFromHost(() => composedHost(), ROUTING) as unknown as Record<
+    const result = createNextI18nFromInstance(() => composedHost(), ROUTING) as unknown as Record<
       string,
       unknown
     >;
@@ -167,7 +170,7 @@ describe("createNextI18nFromHost — export boundary", () => {
   });
 });
 
-describe("createNextI18nFromHost — legacy setI18n interop", () => {
+describe("createNextI18nFromInstance — legacy setI18n interop", () => {
   it("still resolves an instance registered the old way", async () => {
     const host = composedHost({ "fr:common": { greeting: "Bonjour" } });
 
@@ -179,6 +182,6 @@ describe("createNextI18nFromHost — legacy setI18n interop", () => {
 
   it("throws the not-configured error naming both configuration paths", () => {
     expect(() => resolveServerI18n()).toThrow(/i18n not configured/);
-    expect(() => resolveServerI18n()).toThrow(/createNextI18nFromHost/);
+    expect(() => resolveServerI18n()).toThrow(/createNextI18nFromInstance/);
   });
 });

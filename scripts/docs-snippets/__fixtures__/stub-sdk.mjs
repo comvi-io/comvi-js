@@ -105,7 +105,7 @@ export declare const icuCompiler: MessageCompiler;
  * this package compiles without any app, and `ResolvedNuxtInstance` therefore falls
  * back to core's base `I18n` — which has no `registerLoader`. The module's
  * codegen is what fills the slot, by reading the host type off the app's
- * `comvi.host` factory, and `typecheck.mjs` emits the same declaration for a
+ * `comvi.i18n` factory, and `typecheck.mjs` emits the same declaration for a
  * fence group holding that file. So a group WITH the host fence must compile
  * `core.registerLoader(...)` and the same group WITHOUT it must report TS2339 —
  * a stub that gave the base host a `registerLoader` could not tell the two
@@ -147,7 +147,7 @@ export type NuxtI18nSetup<C extends I18n = ResolvedNuxtInstance> = (
 export type NuxtInstanceFactory = (options: { locale: string }) => I18n;
 `;
 
-const NUXT_HOST = `
+const NUXT_I18N = `
 import type { I18n } from "@comvi/core";
 import type { I18nLoaderApi } from "@comvi/nuxt";
 export type { NuxtInstanceFactory, LoaderFn } from "@comvi/nuxt";
@@ -204,7 +204,7 @@ export function writeStubSdk(dir) {
         type: "module",
         exports: {
           ".": { types: "./index.d.ts", default: "./index.js" },
-          "./host": { types: "./host.d.ts", default: "./host.js" },
+          "./i18n": { types: "./i18n.d.ts", default: "./i18n.js" },
         },
       },
       null,
@@ -212,8 +212,8 @@ export function writeStubSdk(dir) {
     ),
   );
   fs.writeFileSync(path.join(nuxt, "index.d.ts"), NUXT_INDEX);
-  fs.writeFileSync(path.join(nuxt, "host.d.ts"), NUXT_HOST);
-  for (const name of ["index", "host"]) {
+  fs.writeFileSync(path.join(nuxt, "i18n.d.ts"), NUXT_I18N);
+  for (const name of ["index", "i18n"]) {
     fs.writeFileSync(path.join(nuxt, `${name}.js`), "export {};\n");
   }
 

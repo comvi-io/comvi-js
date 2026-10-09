@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 const PLURAL = "{count, plural, one {# apple} other {# apples}}";
 const ORDINAL = "{count, selectordinal, one {#st} other {#th}}";

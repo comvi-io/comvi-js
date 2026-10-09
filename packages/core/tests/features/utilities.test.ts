@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n, createBoundTranslation } from "../helpers/composedHost";
+import { I18n, createBoundTranslation } from "../helpers/composedInstance";
 
 const twoNamespaces = () => {
   const i18n = new I18n({ locale: "en" });

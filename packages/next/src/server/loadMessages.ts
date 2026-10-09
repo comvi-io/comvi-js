@@ -1,7 +1,7 @@
 import type { MessagesMap, TranslationValue } from "@comvi/core";
 import { resolveServerI18n, getRequestFailedLoads } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
-import type { ServerI18nInstance } from "./hostTypes";
+import type { ServerI18nInstance } from "./instanceTypes";
 
 export interface LoadMessagesOptions {
   /**

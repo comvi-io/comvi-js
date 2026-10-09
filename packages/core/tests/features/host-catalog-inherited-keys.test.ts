@@ -5,7 +5,7 @@
  * caller had passed them. RC review, non-blocking hardening on core/i18n.ts.
  */
 import { describe, expect, it } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 /** `{ fr: … }` as an own key, `{ en: … }` reachable only through the prototype. */
 function withInheritedLocale(): Record<string, Record<string, string>> {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 
 describe("t() with ICU plural", () => {
   describe("English (one/other)", () => {

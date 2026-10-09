@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createI18n } from "./helpers/composedHost";
+import { createI18n } from "./helpers/composedInstance";
 import { inContextEditorPlugin } from "../src/index";
 import { readEditorMappings } from "@comvi/core/editor-bridge";
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { I18n, createElement } from "../helpers/composedHost";
+import { I18n, createElement } from "../helpers/composedInstance";
 import type { PostProcessFn } from "../../src/types";
 
 /** The post-processor these tests reuse: brackets a string, passes nodes through. */

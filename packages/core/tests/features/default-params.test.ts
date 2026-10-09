@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../helpers/composedHost";
+import { I18n } from "../helpers/composedInstance";
 import type { DefaultTranslationParams } from "../../src/types";
 
 const FORMALITY_SELECT = "{formality, select, formal {Ihre Bewertung} other {Deine Bewertung}}";

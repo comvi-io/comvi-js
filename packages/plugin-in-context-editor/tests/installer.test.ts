@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { attachDevtools } from "@comvi/core/devtools";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
-import { asPluginHost, createI18n } from "./helpers/composedHost";
+import { asPluginHost, createI18n } from "./helpers/composedInstance";
 import { createI18n as createBaseI18n } from "@comvi/core";
 
 const { coreCtorMock, coreStartMock, coreStopMock, mockCoreModule, resetCoreMocks } =

@@ -5503,7 +5503,7 @@
     },
     {
       "package": "packages/next",
-      "file": "src/composedHost.ts",
+      "file": "src/composedInstance.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (messages !== undefined) {",
       "lineHint": 76,
@@ -5512,7 +5512,7 @@
     },
     {
       "package": "packages/next",
-      "file": "src/composedHost.ts",
+      "file": "src/composedInstance.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "attachDevtools(instance, { instanceId, exposeGlobal });",
       "lineHint": 82,
@@ -5577,7 +5577,7 @@
       "package": "packages/next",
       "file": "src/server/cache.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "const SOURCE_FACTORY = \"createNextI18nFromHost()\";",
+      "snippet": "const SOURCE_FACTORY = \"createNextI18nFromInstance()\";",
       "lineHint": 41,
       "kind": "tooling:static-mutant",
       "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."

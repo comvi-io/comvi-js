@@ -63,13 +63,13 @@ runtime, is in [next-runtimes.md](next-runtimes.md).
 
 ## Nuxt — a fresh host per request
 
-The module calls your `comvi.host.ts` factory once per constructed instance: the app plugin, and
+The module calls your `comvi.i18n.ts` factory once per constructed instance: the app plugin, and
 each per-request server instance. So the factory must return a FRESH host every call. The app plugin
 runs in both bundles and adds `ssrLocale` so a server render and the hydrated client agree on the
 render locale; the request-scoped Nitro host has no hydration to match and omits it — set it inside
 the factory if a server route needs it.
 
-**The fresh-host rule is checked in development.** `defineComviHost()` from `@comvi/nuxt/host`
+**The fresh-host rule is checked in development.** `defineComviI18n()` from `@comvi/nuxt/i18n`
 types the factory, and the generated host template keeps a `WeakSet` of the hosts it was handed: the
 same host a second time throws a named error asking for a new instance from `createI18n` on every
 call. The check is emitted at codegen only when `nuxt.options.dev` is set, so a production build
@@ -89,7 +89,7 @@ plugin calling it). Next does not do this: its root layout is the app's own file
 stays explicit there; the Nuxt module owns the plugin and the middleware, so it can.
 
 SSR loading is the loader capability at work, so a server-rendered nuxt app composes a loader in
-`comvi.host.ts`. Without one, the server utilities say so once, by name, and render whatever the
+`comvi.i18n.ts`. Without one, the server utilities say so once, by name, and render whatever the
 catalog already holds. They never call a member the host does not have.
 
 **Both of the request's hosts are destroyed once the request is answered.** The module registers a
