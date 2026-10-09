@@ -3,7 +3,7 @@
 ---
 
 **Added: `inContextEditor(options)` — the bare-name `.use(…)` installer, under both export
-conditions.** `@comvi/core` is the base host now, so extension discovery and the plugin host
+conditions.** `@comvi/core` is the base instance now, so extension discovery and the plugins capability
 are imports you add; the installer composes both and registers the editor plugin in one
 call.
 
@@ -16,20 +16,20 @@ await i18n.init();
 ```
 
 Discovery is composed too, on purpose: the editor's whole point is being driven from outside
-the page, so an editor-enabled host announces itself on the `window.__COMVI__` queue without
+the page, so an editor-enabled instance announces itself on the `window.__COMVI__` queue without
 a separate `.use(devtools())`. Both attaches are idempotent.
 
-**The host type comes back unchanged, and that is the contract.** `inContextEditor` widens
+**The instance type comes back unchanged, and that is the contract.** `inContextEditor` widens
 nothing — the editor needs no public surface from its caller, and this is the only widening
 that stays true under the package's `production` export condition, where the installer is
-literally `(host) => host`. The type is IDENTICAL under both conditions, so a
+literally `(instance) => instance`. The type is IDENTICAL under both conditions, so a
 `.use(inContextEditor())` chain type-checks and behaves the same whichever entry your
 bundler picked. If you want `registerPlugin` yourself, compose `.use(plugins())`.
 
 `inContextEditorPlugin` behaves exactly as `InContextEditorPlugin` did (the rename is
 in its own changeset), and the installer re-implements no lifecycle: `required`,
-`timeout`, `onError`, cleanup registration and LIFO destroy keep running inside the plugin host,
+`timeout`, `onError`, cleanup registration and LIFO destroy keep running inside the plugins capability,
 because the installer's last act is `registerPlugin`. Putting one in the other's slot is a type
 error and loud at runtime — and under `production` `registerPlugin(inContextEditor(…))` is caught
-by the plugin-return rule instead, because the identity no-op hands the host back and a plugin
+by the plugin-return rule instead, because the identity no-op hands the instance back and a plugin
 may only hand back nothing or a cleanup function.

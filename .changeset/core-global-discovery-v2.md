@@ -6,10 +6,10 @@
 (`version` / `instances` / `register` / `unregister` / `get`, plus the `COMVI_READY` event)
 is gone, and announcing is a capability now rather than a constructor behaviour.
 
-A host that composed discovery — `.use(devtools({ exposeGlobal }))`, the lower-level
+An instance that composed discovery — `.use(devtools({ exposeGlobal }))`, the lower-level
 `attachDevtools`, or `.use(inContextEditor())` under the editor package's development
 entry — pushes a `{ v: version, i: instance }` envelope onto a plain queue array at
-`window.__COMVI__`, installing the array when the slot is empty. A host that never composes
+`window.__COMVI__`, installing the array when the slot is empty. An instance that never composes
 it reads `instanceId` as `undefined`, touches no global at all, and is invisible to the
 browser extension. Consumers such as the in-context editor drain that array and swap in a
 hook object (`push` / `remove`) to receive later instances; `destroy()` removes the

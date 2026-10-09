@@ -2,13 +2,13 @@
 "@comvi/vue": minor
 ---
 
-**BREAKING (breaking change on a 0.x minor): `createI18n` from `@comvi/vue` now builds the base host.** Vue's `createI18n` is a real preset — it constructs a `VueI18n` around a `@comvi/core` host and applies `ssrLocale` before the reactive ref is seeded — and in 0.4 the host it constructed arrived with ICU, tag syntax, async loading, the plugin host and devtools discovery already attached. Those five are now things you compose. **ICU plurals THROW instead of rendering wrong text**: development throws `E_ICU_SYNTAX` at ingestion, production renders the braced segment literally and reports it through `onError`.
+**BREAKING (breaking change on a 0.x minor): `createI18n` from `@comvi/vue` now builds the base instance.** Vue's `createI18n` is a real preset — it constructs a `VueI18n` around a `@comvi/core` instance and applies `ssrLocale` before the reactive ref is seeded — and in 0.4 the instance it constructed arrived with ICU, tag syntax, async loading, the plugins capability and devtools discovery already attached. Those five are now things you compose. **ICU plurals THROW instead of rendering wrong text**: development throws `E_ICU_SYNTAX` at ingestion, production renders the braced segment literally and reports it through `onError`.
 
 **Grep target for a tree built against 0.5 development:** the retired subpath was `@comvi/vue/slim`. Drop the suffix — the surviving entry is a superset of everything that one exported that still exists, and it never published, so there is no deprecation debt.
 
 Nothing about the preset itself changes: same call signature, same `ssrLocale` handling,
 same `VueI18n`, same `app.use(i18n)` install, same composables, same `<T>`, same
-`I18N_INJECTION_KEY`, and `createI18nFromCore` is the untouched escape hatch for a host built
+`I18N_INJECTION_KEY`, and `createI18nFromCore` is the untouched escape hatch for an instance built
 elsewhere — with `createI18n` from `@comvi/core` now, since the `createCore` alias is gone
 (`vue-drop-create-core.md`).
 **Where the pipe goes on vue:** on the `createI18n` result. `VueI18n` has its own

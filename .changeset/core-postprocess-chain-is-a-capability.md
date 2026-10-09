@@ -2,11 +2,11 @@
 "@comvi/core": patch
 ---
 
-The post-processor chain moved out of the base host into the plugin capability.
+The post-processor chain moved out of the base instance into the plugins capability.
 
-`postProcess` is a constructor option on every host, so the base kept the whole chain
+`postProcess` is a constructor option on every instance, so the base kept the whole chain
 machinery — an array field, a `push`, and an indexed loop — to serve the at most ONE processor a
-bare host can have. The base now holds a single optional slot applied with one guarded call, and
+bare instance can have. The base now holds a single optional slot applied with one guarded call, and
 `@comvi/core/plugins` owns the array and the loop: `registerPostProcessor()` seeds the chain with
 the constructor option, takes the slot over with its own chaining applier, and appends from there.
 

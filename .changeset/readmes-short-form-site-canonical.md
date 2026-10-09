@@ -21,5 +21,5 @@ against the build the way a docs page can, and eight of ten competitor READMEs c
 reference at all. What stays is deliberately the part a reader runs in the first minute, plus the
 facts that only exist in this repo — one measured size figure per package, named by the fixture in
 `scripts/size-budgets.json` so the `prose/stale-size-figure` gate still grades it, and the house
-paragraphs (the ICU failure mode, the host definition, the `@comvi/core` formatters caveat, the
+paragraphs (the ICU failure mode, the instance definition, the `@comvi/core` formatters caveat, the
 Content Deploy sentence), kept byte-identical.

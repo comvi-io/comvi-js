@@ -2,14 +2,14 @@
 "@comvi/next": patch
 ---
 
-**The server pipeline resolves every lookup against the request locale; the shared host contributes
+**The server pipeline resolves every lookup against the request locale; the shared instance contributes
 catalog and loader only.**
 
 Your i18n instance is created once at module scope and shared by every request a Next.js server
 process handles. Every lookup under `getI18n()` already named the request locale explicitly, but
 nothing said so: it held because each call site happened to be written that way, and the next
 server helper someone added was free to translate through the instance and pick up its
-process-wide locale instead. That is now the type. The internal server host type carries no `t` or
+process-wide locale instead. That is now the type. The internal server instance type carries no `t` or
 `tRaw`, so a locale-implicit server lookup does not compile, and `getI18n()` reaches the
 translator through one named widening that binds the request locale into every call.
 

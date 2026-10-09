@@ -8,10 +8,10 @@ rendered the English text on the server, but `loadMessages()` sent the client on
 catalogs. After hydration the client rendered the raw key, React reported hydration error #418, and
 the page did not recover. Switching locales on the client was unaffected.
 
-`loadMessages(locale)` now returns the requested locale and every locale of the host's
+`loadMessages(locale)` now returns the requested locale and every locale of the instance's
 `fallbackLocale` chain (a string or an array, in the order lookups walk it), for each requested
 namespace, and nothing outside that chain. The result is still keyed `locale:namespace`, so
 `<I18nProvider messages>` needs no change. `getI18n()` loads the same chain, so a server-side
-`t()` for a namespace loaded on demand also resolves through the fallback. Keep the client host on
-the same `fallbackLocale` as the server host; the documented setup shares one instance, which does
+`t()` for a namespace loaded on demand also resolves through the fallback. Keep the client instance on
+the same `fallbackLocale` as the server instance; the documented setup shares one instance, which does
 this already.

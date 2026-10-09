@@ -16,13 +16,13 @@ siblings, where assigning into it (`store.set(ns)`) writes through to `i18n.setD
 
 Both axes are also WRITABLE in both, each in its framework's own shape, so neither set is the
 read-only one. **Solid's primitives now follow one naming rule: `create*Signal` READS —
-an `Accessor` mirroring the host, on all seven axes — and `create*State` READS AND WRITES,
+an `Accessor` mirroring the instance, on all seven axes — and `create*State` READS AND WRITES,
 returning `[accessor, setter]`.** So `createDefaultParamsSignal(i18n)` returns
 `Accessor<DefaultParamsSnapshot<D>>`, and the tuple lives on the two `State` primitives:
 `createDefaultParamsState(i18n)` (setter → `i18n.setDefaultParams`) and
 `createDefaultNamespaceState(i18n)` (setter → `i18n.setDefaultNamespace`). Svelte keeps stores as
 its write path, so `createDefaultNamespaceStore` and `createDefaultParamsStore` are both
-`Writable`, their `set` / `update` calling the host. Every setter writes THROUGH to the host,
+`Writable`, their `set` / `update` calling the instance. Every setter writes THROUGH to the instance,
 which stays the source of truth; nothing assigns a local value. React and vue are unaffected.
 
 **BREAKING (breaking change on a 0.x minor): `<T raw>` is renamed to `<T markers={false}>`, in

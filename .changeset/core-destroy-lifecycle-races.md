@@ -6,7 +6,7 @@
 Four lifecycle fixes for a `destroy()` that races an operation already in flight, plus one
 loader bug that needed no race at all.
 
-`init()` used to finish on a host that `destroy()` had already torn down: it read the
+`init()` used to finish on an instance that `destroy()` had already torn down: it read the
 destroyed flag only on entry, so a `destroy()` landing during plugin initialization or the
 initial namespace load still ended with `isInitialized === true`, an `initialized` event, and
 the active namespaces and catalog put back after destroy had cleared them. It now re-checks
@@ -24,12 +24,12 @@ worth knowing: that late cleanup is awaited by the `init()` promise, not by `des
 promise as well if you need both to have finished.
 
 A repeat `destroy()` used to resolve immediately while the first call was still running the
-cleanups, so a second caller — a component unmounting twice, a server host torn down by two
+cleanups, so a second caller — a component unmounting twice, a server instance torn down by two
 paths — was told the teardown had finished before it had. Every call is now the same attempt
 and resolves when that one teardown has actually settled.
 
 A locale switch that was in flight when `destroy()` landed used to apply anyway, changing
-`locale` and emitting `localeChanged` on a destroyed host. A pending switch is now abandoned.
+`locale` and emitting `localeChanged` on a destroyed instance. A pending switch is now abandoned.
 
 A loader that threw SYNCHRONOUSLY (rather than returning a rejected promise) used to poison
 its namespace: the failure reported correctly the first time, but a rejected promise was left

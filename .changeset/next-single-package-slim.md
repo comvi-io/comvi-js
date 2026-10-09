@@ -3,30 +3,30 @@
 ---
 
 **Added: the capability toolkit on both `@comvi/next/client` and `@comvi/next/server`.** A
-next app no longer names `@comvi/core` to build a host on either side of the boundary.
+next app no longer names `@comvi/core` to build an instance on either side of the boundary.
 
-| export                    | on   | what it is                                                   |
-| ------------------------- | ---- | ------------------------------------------------------------ |
-| `createI18n`              | both | core's base host constructor, the same binding on each entry |
-| `icuCompiler`             | both | the ICU compiler, from core's pure `/icu` subpath            |
-| `loader`, `attachLoader`  | both | from core's pure `/loader` subpath                           |
-| `plugins`, `definePlugin` | both | from core's pure `/plugins` subpath                          |
-| `devtools`                | both | from core's pure `/devtools` subpath                         |
+| export                    | on   | what it is                                                       |
+| ------------------------- | ---- | ---------------------------------------------------------------- |
+| `createI18n`              | both | core's base instance constructor, the same binding on each entry |
+| `icuCompiler`             | both | the ICU compiler, from core's pure `/icu` subpath                |
+| `loader`, `attachLoader`  | both | from core's pure `/loader` subpath                               |
+| `plugins`, `definePlugin` | both | from core's pure `/plugins` subpath                              |
+| `devtools`                | both | from core's pure `/devtools` subpath                             |
 
 `DevtoolsOptions` comes with them as a type. `attachPlugins` / `attachDevtools` are not on
 these entries: they are the low-level pair `plugins()` / `devtools()` already configure, and they
 stay on `@comvi/core/plugins` and `@comvi/core/devtools` (see `roots-drop-attach-pair.md`). The server entry carries the toolkit because
 `NextServerInstance = WrapperI18nInstance & I18nLoaderApi` makes the loader **mandatory** for SSR —
-the one host an app cannot avoid composing should not take a second package to compose.
+the one instance an app cannot avoid composing should not take a second package to compose.
 
 One constructor name on two entries: the client/server split is a RUNTIME split — which
-helpers are reachable — never a host-tier split. The semantics of that name changed in this
+helpers are reachable — never an instance-tier split. The semantics of that name changed in this
 release; `next-single-entry-convergence.md` leads with the break and carries the migration
 table.
 
 `@comvi/next/server` exports **no** composed constructor and no tag entry, because a server
 graph reaching for the 0.4 composed recipe would pull in ICU and core's ambient
-tag-registration chunk. The published composed host stays exactly where it was —
+tag-registration chunk. The published composed instance stays exactly where it was —
 `createNextI18n` from `@comvi/next`.
 
 The re-exports cost nothing: they are **named** re-exports of core's own bindings, from

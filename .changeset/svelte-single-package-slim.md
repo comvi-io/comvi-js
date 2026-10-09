@@ -3,7 +3,7 @@
 ---
 
 **Added: the `@comvi/svelte` entry carries the whole toolkit.** Building an app used to take
-two packages — the host constructor from `@comvi/core`, the bindings from `@comvi/svelte`.
+two packages — the instance constructor from `@comvi/core`, the bindings from `@comvi/svelte`.
 One entry now carries both.
 
 ```svelte
@@ -16,17 +16,17 @@ One entry now carries both.
 </script>
 ```
 
-| export                                       | what it is                                                                                      |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `createI18n`                                 | core's base host constructor                                                                    |
-| `I18n` (type only)                           | core's base host class, for typing a host you compose — a runtime value only from `@comvi/core` |
-| `icuCompiler`                                | from `@comvi/core/icu` — the ICU compiler                                                       |
-| `loader`, `attachLoader`                     | from `@comvi/core/loader`                                                                       |
-| `plugins`, `definePlugin`                    | from `@comvi/core/plugins`                                                                      |
-| `devtools`                                   | from `@comvi/core/devtools`                                                                     |
-| every store factory, the readers, `T`, types | the svelte bindings                                                                             |
+| export                                       | what it is                                                                                               |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `createI18n`                                 | core's base instance constructor                                                                         |
+| `I18n` (type only)                           | core's base instance class, for typing an instance you compose — a runtime value only from `@comvi/core` |
+| `icuCompiler`                                | from `@comvi/core/icu` — the ICU compiler                                                                |
+| `loader`, `attachLoader`                     | from `@comvi/core/loader`                                                                                |
+| `plugins`, `definePlugin`                    | from `@comvi/core/plugins`                                                                               |
+| `devtools`                                   | from `@comvi/core/devtools`                                                                              |
+| every store factory, the readers, `T`, types | the svelte bindings                                                                                      |
 
-There is no svelte-side wrapper object to build — the host goes straight into
+There is no svelte-side wrapper object to build — the instance goes straight into
 `setI18nContext(i18n)` — so the constructor IS core's own `createI18n`, re-exported by name.
 ICU is here on purpose, so neither recipe makes a svelte app reach for a core subpath.
 

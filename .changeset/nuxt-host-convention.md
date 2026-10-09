@@ -2,16 +2,16 @@
 "@comvi/nuxt": minor
 ---
 
-`comvi.i18n.ts` is found by convention, `icu: true` reaches a host module, and a typed
+`comvi.i18n.ts` is found by convention, `icu: true` reaches a `comvi.i18n` module, and a typed
 `comvi.setup.ts` names one specifier.
 
 - **`comvi.i18n.*` is auto-detected.** The module looks for `./comvi.i18n.*` under `srcDir`, then
   `rootDir`, the same way it already found `./comvi.setup`. `i18nModule` stays the explicit
   override, and a set `i18nModule` that does not resolve is still a build error. The detected
-  path is logged at build time so a stray file that changed the host is visible, and a near
+  path is logged at build time so a stray file that changed the instance is visible, and a near
   miss (a `comvi.i18n.cjs` it found but could not resolve) is warned about, naming the file and
-  the specifier it looked for. The host branch is still decided in codegen.
-- **`icu: true` is no longer ignored when a host module exists.** It used to be dropped with a
+  the specifier it looked for. The choice between the generated and the composed instance is still made in codegen.
+- **`icu: true` is no longer ignored when a `comvi.i18n` module exists.** It used to be dropped with a
   build-time warning. Now the module puts `compiler: icuCompiler` into the resolved options the
   factory receives — as the last key, so a factory that writes `createI18n({ ...options })` gets
   ICU and one that writes `createI18n({ ...options, compiler: mine })` keeps its own. With
@@ -24,7 +24,7 @@
 - **The near-miss probe is exact.** It matched any entry starting with `comvi.setup`, so a
   `comvi.setup.d.ts`, a `comvi.setup.ts.bak` or a `comvi.setup/` directory was reported as the
   hook that failed to resolve. It now requires a regular file named `comvi.setup.<ext>` (one
-  extension), and the new host probe has the same shape.
+  extension), and the new `comvi.i18n` probe has the same shape.
 
 **Migrating a `comvi.setup.ts` that only registered an import-map loader.** A setup hook whose
 whole body was `core.registerLoader(createImportMapLoader({ … }, () => core.getDefaultNamespace()))`
