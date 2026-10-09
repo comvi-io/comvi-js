@@ -90,7 +90,7 @@ describe("KeySelector", () => {
   });
 
   describe("placement", () => {
-    it("opens the dropdown 8px below the element, in page coordinates", () => {
+    it("opens the dropdown 8px below the element, in viewport coordinates whatever the page scroll", () => {
       const element = elementAt({ top: 100, right: 300, bottom: 140, left: 200 });
 
       selector.showKeySelector(
@@ -101,7 +101,7 @@ describe("KeySelector", () => {
       );
 
       const props = appProps();
-      expect(props.position).toEqual({ top: 168, left: 210 });
+      expect(props.position).toEqual({ top: 148, left: 200 });
       expect(props.open.value).toBe(true);
       expect(mocks.mount).toHaveBeenCalledExactlyOnceWith(mountPoint);
     });
@@ -135,8 +135,8 @@ describe("KeySelector", () => {
 
       selector.showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn());
 
-      // Element top 400 + scroll 20 − dropdown 300 − the same 8px gap.
-      expect(appProps().position).toEqual({ top: 112, left: 210 });
+      // Element top 400 − dropdown 300 − the same 8px gap.
+      expect(appProps().position).toEqual({ top: 92, left: 200 });
     });
 
     it("keeps the dropdown below the element when it fits the viewport exactly", () => {
@@ -144,7 +144,7 @@ describe("KeySelector", () => {
 
       selector.showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn());
 
-      expect(appProps().position).toEqual({ top: 528, left: 210 });
+      expect(appProps().position).toEqual({ top: 508, left: 200 });
     });
 
     it("leaves the dropdown at the element when it reaches the right edge exactly", () => {
@@ -152,7 +152,7 @@ describe("KeySelector", () => {
 
       selector.showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn());
 
-      expect(appProps().position).toEqual({ top: 168, left: 810 });
+      expect(appProps().position).toEqual({ top: 148, left: 800 });
     });
 
     it("opens with an empty key list rather than skipping the mount", () => {
