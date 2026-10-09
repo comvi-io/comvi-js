@@ -169,16 +169,28 @@ export class DOMWatcher {
     return element.hasAttribute(EDITOR_UI_SHADOW_HOST_ATTRIBUTE);
   }
 
+  /**
+   * Whether `node` is attached under the target right now, walking up through
+   * the hosts of shadow roots. Editor UI shadow trees are outside the scope.
+   */
   private isNodeWithinTargetScope(node: Node): boolean {
-    if (this.targetElement.nodeType === Node.DOCUMENT_NODE) {
-      return node.ownerDocument === this.targetElement;
+    let current: Node | null = node;
+    while (current) {
+      if (current === this.targetElement) {
+        return true;
+      }
+      if (current.parentNode) {
+        current = current.parentNode;
+      } else if (typeof ShadowRoot !== "undefined" && current instanceof ShadowRoot) {
+        if (this.isEditorUiShadowHost(current.host)) {
+          return false;
+        }
+        current = current.host;
+      } else {
+        return false;
+      }
     }
-
-    if (node === this.targetElement) {
-      return true;
-    }
-
-    return typeof this.targetElement.contains === "function" && this.targetElement.contains(node);
+    return false;
   }
 
   private handleShadowRootAttached(host: Element, shadowRoot: ShadowRoot): void {
@@ -186,7 +198,11 @@ export class DOMWatcher {
       return;
     }
 
-    if (this.isEditorUiShadowHost(host) || !this.isNodeWithinTargetScope(host)) {
+    const hostInScope =
+      this.targetElement.nodeType === Node.DOCUMENT_NODE
+        ? host.ownerDocument === this.targetElement
+        : host === this.targetElement || this.targetElement.contains(host);
+    if (this.isEditorUiShadowHost(host) || !hostInScope) {
       return;
     }
 
@@ -316,7 +332,11 @@ export class DOMWatcher {
     }
   }
 
-  /** Nothing is emitted for an empty change set. */
+  /**
+   * Removals go first, then everything is scanned against where it ended up:
+   * a node moved within the batch is removed and registered again, and a node
+   * that left the target is never scanned. Nothing is emitted for an empty set.
+   */
   private emitBatchedChanges(
     textChanges: Set<Node>,
     attributeChanges: Set<Element>,
@@ -324,25 +344,33 @@ export class DOMWatcher {
     removedNodes: Set<Node>,
     newlyObservedRoots: Set<Node>,
   ): void {
-    if (textChanges.size > 0) {
-      this.eventBus.emit("textChanges", Array.from(textChanges));
-    }
-
-    if (attributeChanges.size > 0) {
-      this.eventBus.emit("attributeChanges", Array.from(attributeChanges));
-    }
-
-    if (structureChanges.size > 0) {
-      this.eventBus.emit("structureChanges", Array.from(structureChanges));
-    }
-
     if (removedNodes.size > 0) {
       this.eventBus.emit("nodesRemoved", Array.from(removedNodes));
     }
 
-    if (newlyObservedRoots.size > 0) {
-      this.emitInitialScans(Array.from(newlyObservedRoots));
+    const connectedText = this.filterWithinTargetScope(textChanges);
+    if (connectedText.length > 0) {
+      this.eventBus.emit("textChanges", connectedText);
     }
+
+    const connectedAttributes = this.filterWithinTargetScope(attributeChanges);
+    if (connectedAttributes.length > 0) {
+      this.eventBus.emit("attributeChanges", connectedAttributes);
+    }
+
+    const connectedStructure = this.filterWithinTargetScope(structureChanges);
+    if (connectedStructure.length > 0) {
+      this.eventBus.emit("structureChanges", connectedStructure);
+    }
+
+    const connectedRoots = this.filterWithinTargetScope(newlyObservedRoots);
+    if (connectedRoots.length > 0) {
+      this.emitInitialScans(connectedRoots);
+    }
+  }
+
+  private filterWithinTargetScope<T extends Node>(nodes: Set<T>): T[] {
+    return Array.from(nodes).filter((node) => this.isNodeWithinTargetScope(node));
   }
 
   private handleMutations = (mutations: MutationRecord[]) => {
