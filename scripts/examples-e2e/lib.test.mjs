@@ -22,6 +22,7 @@ import {
   assertCandidateIntegrity,
   candidatePackages,
   catalogFile,
+  catalogKey,
   cdnCatalog,
   cdnEnv,
   cdnRoute,
@@ -231,15 +232,80 @@ test("startMockCdn: hold withholds until released, in the order the test chooses
       "uk:held",
     ]);
     // de first: its response is written before the release call returns.
-    assert.deepEqual(await (await post("release?locale=de")).json(), { released: 1 });
+    assert.deepEqual(await (await post("release?key=de")).json(), { released: 1 });
     assert.deepEqual(await de, { a: `${CDN_MARK}de` });
     assert.deepEqual((await (await control("state")).json()).held, ["uk"]);
-    assert.deepEqual(await (await post("release?locale=uk")).json(), { released: 1 });
+    assert.deepEqual(await (await post("release?key=uk")).json(), { released: 1 });
     assert.deepEqual(await uk, { a: `${CDN_MARK}uk` });
     assert.deepEqual(arrived, ["de", "uk"]);
     // Nothing held: a release is a 409, not a silent no-op.
-    assert.equal((await post("release?locale=uk")).status, 409);
+    assert.equal((await post("release?key=uk")).status, 409);
     assert.ok(cdn.requests.every((entry) => entry.status === 200));
+  } finally {
+    await cdn.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("startMockCdn: a mode names one catalog, so a namespace is steered apart from its locale", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-lib-"));
+  fs.mkdirSync(path.join(dir, "account"));
+  for (const locale of ["uk", "de"]) {
+    fs.writeFileSync(path.join(dir, `${locale}.json`), JSON.stringify({ a: locale }));
+    fs.writeFileSync(path.join(dir, "account", `${locale}.json`), JSON.stringify({ b: locale }));
+  }
+  const cdn = await startMockCdn({ localesDir: dir });
+  const control = (action, init) => fetch(`${cdn.controlUrl}/${action}`, init);
+  const post = (action, body) =>
+    control(action, { method: "POST", body: body && JSON.stringify(body) });
+  const held = async (count) => {
+    let state;
+    for (let i = 0; i < 50; i++) {
+      state = await (await control("state")).json();
+      if (state.held.length === count) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    return state.held;
+  };
+  try {
+    assert.equal(catalogKey({ locale: "uk", namespace: "default" }), "uk");
+    assert.equal(catalogKey({ locale: "uk", namespace: "account" }), "uk:account");
+    assert.equal(catalogKey({ locale: "uk", namespace: "main" }, "main"), "uk");
+
+    // Only the namespace's file is held: the same locale's default catalog answers.
+    await post("mode", { hold: ["uk:account"] });
+    const account = fetch(`${cdn.url}/account/uk.json`).then((r) => r.json());
+    assert.deepEqual(await (await fetch(`${cdn.url}/uk.json`)).json(), { a: `${CDN_MARK}uk` });
+    assert.deepEqual(await held(1), ["uk:account"]);
+    // A release names the catalog too: the locale alone releases nothing here.
+    assert.equal((await post("release?key=uk")).status, 409);
+    assert.deepEqual(await (await post("release?key=uk%3Aaccount")).json(), { released: 1 });
+    assert.deepEqual(await account, { b: `${CDN_MARK}uk` });
+
+    // Both of a locale's files held, the default one released first.
+    await post("mode", { hold: ["de", "de:account"] });
+    const order = [];
+    const root = fetch(`${cdn.url}/de.json`).then((r) => (order.push("de"), r.json()));
+    const namespaced = fetch(`${cdn.url}/account/de.json`).then(
+      (r) => (order.push("de:account"), r.json()),
+    );
+    assert.deepEqual([...(await held(2))].sort(), ["de", "de:account"]);
+    await post("release?key=de");
+    await root;
+    assert.deepEqual((await (await control("state")).json()).held, ["de:account"]);
+    await post("release?key=de%3Aaccount");
+    await namespaced;
+    assert.deepEqual(order, ["de", "de:account"]);
+
+    // hang and corrupt are keyed the same way.
+    await post("mode", { corrupt: ["uk:account"], hang: ["de:account"] });
+    assert.equal(await (await fetch(`${cdn.url}/account/uk.json`)).text(), CORRUPT_BODY);
+    assert.deepEqual(await (await fetch(`${cdn.url}/uk.json`)).json(), { a: `${CDN_MARK}uk` });
+    const hung = await fetch(`${cdn.url}/account/de.json`, {
+      signal: AbortSignal.timeout(300),
+    }).catch((error) => error.name);
+    assert.equal(hung, "TimeoutError");
+    assert.deepEqual(await (await fetch(`${cdn.url}/de.json`)).json(), { a: `${CDN_MARK}de` });
   } finally {
     await cdn.close();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -422,16 +488,22 @@ test("summarizeError: strips colour, stack, code frame and diff scaffolding, kee
   assert.equal(summarizeError("x".repeat(500), 10), `${"x".repeat(9)}…`);
 });
 
-test("nuxtCatalogChunks: maps each locale's catalog to its hash-named chunk", () => {
+test("nuxtCatalogChunks: maps each catalog to its hash-named chunk, under its import-map key", () => {
   const manifest = {
     "locales/uk.json": { file: "FOGPGq4F.js" },
     "src/locales/de.json": { file: "NPGEZfEc.js" },
+    // A namespace folder: its own key, never the locale's.
+    "src/locales/account/uk.json": { file: "Bq1nsAcc.js" },
+    "locales/account/de.json": { file: "Cq2nsAcc.js" },
     "pages/index.vue": { file: "x.js" },
     "locales/broken.json": {},
+    "src/locales/a/b/uk.json": { file: "deep.js" },
   };
   assert.deepEqual(nuxtCatalogChunks(manifest), {
     uk: "/_nuxt/FOGPGq4F.js",
     de: "/_nuxt/NPGEZfEc.js",
+    "uk:account": "/_nuxt/Bq1nsAcc.js",
+    "de:account": "/_nuxt/Cq2nsAcc.js",
   });
   assert.deepEqual(nuxtCatalogChunks(undefined), {});
 });
@@ -448,7 +520,17 @@ test("STEPS: a column per scenario, k2/k3 beside k, g2 beside g", () => {
     "l",
   ]);
   assert.equal(STEPS[STEPS.indexOf("g") + 1], "g2");
-  assert.deepEqual(STEPS.slice(STEPS.indexOf("q")), ["q", "r", "s", ...CDN_CONTROL_STEPS]);
+  assert.deepEqual(STEPS.slice(STEPS.indexOf("q")), [
+    "q",
+    "r",
+    "s",
+    ...CDN_CONTROL_STEPS,
+    // The `account` namespace, after every step that predates it.
+    "w",
+    "x",
+    "y",
+    "z",
+  ]);
   assert.deepEqual(CDN_CONTROL_STEPS, ["t", "t2", "u", "v", "v2"]);
   for (const step of STEPS) assert.ok(STEP_LEGEND[step], `a legend line for ${step}`);
 });
@@ -582,6 +664,8 @@ test("allowedSkips: SSR-only steps for vite, CDN steps without --cdn, s with --c
     "u",
     "v",
     "v2",
+    "y",
+    "z",
   ]);
   assert.deepEqual([...allowedSkips({ kind: "vite", cdn: true })].sort(), [
     "f",
@@ -590,6 +674,7 @@ test("allowedSkips: SSR-only steps for vite, CDN steps without --cdn, s with --c
     "s",
     "t",
     "t2",
+    "y",
   ]);
   assert.deepEqual([...allowedSkips({ kind: "next", cdn: true })], ["s"]);
   assert.deepEqual([...allowedSkips({ kind: "nuxt", cdn: false })].sort(), [
@@ -602,6 +687,7 @@ test("allowedSkips: SSR-only steps for vite, CDN steps without --cdn, s with --c
     "u",
     "v",
     "v2",
+    "z",
   ]);
 });
 
@@ -667,10 +753,10 @@ test("EXPECTED_FAILURES: each entry has a reference and a message to match", () 
 test("renderTable / allPassed: an xfail is listed with its reference and keeps the run green", () => {
   const steps = { ...allSteps(pass), s: { status: "xfail", message: "F-15 (r): boom" } };
   const text = renderTable([{ name: "nuxt", build: pass, steps }]);
-  // s's cell, followed by the CDN-steering columns.
+  // s's cell, followed by every column after it.
   assert.match(
     text.split("\n")[2],
-    new RegExp(`\\sxfail${"\\s+ok".repeat(CDN_CONTROL_STEPS.length)}$`),
+    new RegExp(`\\sxfail${"\\s+ok".repeat(STEPS.length - 1 - STEPS.indexOf("s"))}$`),
   );
   assert.ok(text.includes("expected failures:\nnuxt/s: F-15 (r): boom"));
   assert.equal(allPassed([{ name: "nuxt", build: pass, steps }]), true);
@@ -905,6 +991,11 @@ test("stepFindings → collectFindings → renderFindings: mixed states are repo
   assert.match(
     text,
     /next\/r \(main\): en text under <html lang="uk">; lang=uk, greeting="Hello", painted=no/,
+  );
+  // A step that watches other elements names the one it quotes.
+  assert.match(
+    renderFindings({ mixedStates: [{ ...findings.mixedStates[0], field: "account-signed-in" }] }),
+    /lang=uk, account-signed-in="Hello", painted=no/,
   );
   assert.equal(renderFindings(collectFindings([{ name: "react", findings: [] }], "cdn")), "");
 });

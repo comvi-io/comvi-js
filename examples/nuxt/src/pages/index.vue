@@ -2,15 +2,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 
 // Auto-imported by the module — there is no `import { useI18n }` anywhere in a
-// Nuxt app. `locales` and `defaultLocale` are Nuxt's own additions to
-// @comvi/vue's composable, read from runtime config.
-const { t, locale, locales, setLocale, isLoading, formatNumber, formatDate, loadedLocales } =
-  useI18n();
-
-// The locale lives in the URL, so switching NAVIGATES: `switchLocalePath(code)`
-// is this same page's address in another language, and the module's route
-// middleware pre-loads that catalog before the page renders.
-const switchLocalePath = useSwitchLocalePath();
+// Nuxt app.
+const { t, locale, isLoading, formatNumber, formatDate, loadedLocales } = useI18n();
 
 const count = ref(2);
 
@@ -20,28 +13,7 @@ const count = ref(2);
 const route = useRoute();
 const name = computed(() => (typeof route.query.name === "string" ? route.query.name : "Ada"));
 
-// Routable but not in the switcher: the right-to-left locale the e2e suite uses.
-const rtlLocale = "ar";
 const RELEASED = new Date("2026-09-01T00:00:00Z");
-
-// The newest click, so an older switch that resolves later never navigates.
-let latestSelect = 0;
-
-async function select(code: string) {
-  if (code === locale.value) return;
-  const request = ++latestSelect;
-  // `setLocale` first so the switch is instant — it loads the catalog and
-  // advances the locale state the page is already bound to, rather than waiting
-  // for the navigation to land. The route middleware would set the same locale
-  // from the new URL anyway, so this is about the moment of the change, not
-  // about correctness.
-  await setLocale(code);
-  // Clicked uk, then de before uk's catalog arrived: uk's switch still
-  // resolves, and navigating to /uk then would leave a German page at the
-  // Ukrainian address. Only the newest click navigates.
-  if (request !== latestSelect) return;
-  await navigateTo(switchLocalePath(code));
-}
 
 // Read on the CLIENT only. The module builds one instance per server request and a
 // separate one in the browser, so the catalogs "fetched so far" is a fact about
@@ -63,25 +35,8 @@ watch([locale, isLoading], () => {
   <main>
     <h1>{{ t("app.title") }}</h1>
 
-    <!-- 1 — locale switcher -->
-    <section>
-      <h2>{{ t("app.language") }}</h2>
-      <div class="row">
-        <button
-          v-for="code in locales.filter((code) => code !== rtlLocale)"
-          :key="code"
-          :data-testid="`locale-${code}`"
-          :aria-pressed="locale === code"
-          @click="select(code)"
-        >
-          {{ code }}
-        </button>
-        <button hidden :data-testid="`locale-${rtlLocale}`" @click="select(rtlLocale)">
-          {{ rtlLocale }}
-        </button>
-        <code v-if="isLoading">{{ t("app.loading") }}</code>
-      </div>
-    </section>
+    <!-- 1 — locale switcher, `components/LocaleSwitcher.vue` -->
+    <LocaleSwitcher />
 
     <!-- 2 — a string with a parameter -->
     <section>

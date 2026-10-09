@@ -86,11 +86,55 @@ first run, on every machine.
   `setI18nContext` would no longer be the one that starts it. Core's `init()` is single-flight, so
   this is about ordering, not about a double init.
 
+## Addendum, 2026-10-05: a second namespace
+
+The examples' second page renders a namespace of its own, `account`, that no `ns` list names. Four
+steps cover it, on the packed tarballs:
+
+- **w** counts requests. The first page makes none for the namespace, and opening the second page
+  makes one. A prefetch hint the page declares (Nuxt's `<link rel="prefetch">`, the route prefetch
+  of Next's `<Link>`) is not a load, as in step j. On Next the browser never fetches a catalog, so
+  the request counted is the route's RSC payload, and the first page's HTML is also checked to
+  hold none of the namespace's text.
+- **x** is step r's contract on the second page. The watched set is the page's default-namespace
+  text together with the three `account` rows, so "the locale applied before the namespace
+  arrived" is a mixed state and fails. The en-only key's row must show the en value in every
+  locale; a text every locale expects names no language.
+- **y** reads the server HTML of `/uk/about` (next, nuxt), then runs the same observer from the
+  parser's first insertion through hydration and checks that the browser fetches neither uk's
+  nor en's `account` catalog.
+- **z** runs in the dead-CDN build beside k2: the namespace has no `locale` shorthand, so the
+  loader's `fallback` must hold the exact `locale:account` key.
+
+**The mock CDN's modes are keyed by catalog, not by locale.** `uk` is the default namespace's uk
+file and `uk:account` the namespace's, the names an import map uses. Under `--cdn` step x holds
+both, releases the default namespace's first, and asserts the page is still the old locale in full
+before it releases the namespace's. That forces the one state the step exists for. It applies where
+the browser fetches catalogs (the five Vite examples and Nuxt). Next's second page is prerendered
+and its browser fetches nothing, so there the switch is observed unheld.
+
+**The activation lives in the component that needs it, and the rows wait for it to settle.** The
+five client-rendered examples call `addActiveNamespace("account")` when the second view mounts and
+render its rows only afterwards, because a namespace that is not in yet renders its keys as
+themselves. The rows do not gate on `isLoading`: it is also true during a locale switch, and the
+rows would blank then instead of keeping the old language until the new one is in. Rendering the
+rows without waiting fails step x with a raw-key state.
+
+One limit is documented, not tested as a failure: in the browser, core loads a namespace for the
+active locale only. The en-only row shows English when `account/en.json` is already cached (the
+path x takes: open in en, then switch) and the key when the second page is first opened in another
+locale, in the five client-rendered examples and on a client-side navigation in Nuxt. The first
+page's `fallback.only_en` row has the same limit after a reload in uk. A server render loads the
+fallback chain, which y asserts for Next and Nuxt.
+
 ## Where it lives
 
-- step r, `classify`, `stateProblem` and the observer: `scripts/examples-e2e/scenario.spec.ts`
-- the mock CDN's hold mode and the `cdn-r` phase: `startMockCdn` in
+- steps r and x, `observeStates`, `classify`, `stateProblem` and `judgeStates`:
+  `scripts/examples-e2e/scenario.spec.ts`
+- the mock CDN's hold mode, `catalogKey`, and the `cdn-r` and `cdn-x` phases: `startMockCdn` in
   `scripts/examples-e2e/lib.mjs`, `PHASES` and `CDN_STEERED` in `scripts/examples-e2e/run.mjs`
+- the `account` namespace: `examples/locales/account/`, `Account.*` in the five client-rendered
+  examples, `about/` in `examples/next`, `pages/about.vue` in `examples/nuxt`
 - `targetLocale`: `I18nProvider` in `packages/react/src/I18nProvider.tsx`
 - the Next handover: `I18nProvider` in `packages/next/src/client/I18nProvider.tsx`
 - the Svelte gate: `autoInitPending` in `packages/svelte/src/stores.ts`, `setI18nContext` in

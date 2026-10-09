@@ -1,5 +1,6 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { T, useI18n } from "@comvi/solid";
+import { Account } from "./Account";
 import { locales, rtlLocale } from "./i18n";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
@@ -184,6 +185,8 @@ export function App() {
             </a>
           </p>
         </section>
+        {/* 10 — a second namespace, fetched when this view is first shown */}
+        <Account name={name} />
       </Show>
     </main>
   );

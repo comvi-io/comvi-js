@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { T, useI18n } from "@comvi/next/client";
-import { Link, useLocalizedRouter, usePathname } from "@comvi/next/navigation";
-import { locales, rtlLocale } from "@/i18n/config";
+import { Link } from "@comvi/next/navigation";
+import { LocaleSwitcher } from "./LocaleSwitcher";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
@@ -29,13 +29,6 @@ export function Demo() {
     document.documentElement.dataset.hydrated = "true";
   }, []);
 
-  // The locale lives in the URL here, so the switcher NAVIGATES rather than
-  // calling `setLocale`: `usePathname()` is the path with the locale prefix
-  // already removed, and `useLocalizedRouter().push(path, locale)` puts the new
-  // one back on. <I18nProvider locale> then syncs `i18n.locale` on arrival.
-  const pathname = usePathname();
-  const router = useLocalizedRouter();
-
   // Read AFTER mount, on purpose. On the server the instance is one module-scope
   // instance shared by every request, so its loaded-catalog set is a property of
   // the process rather than of this page — rendering it during SSR would print
@@ -48,34 +41,7 @@ export function Demo() {
   return (
     <>
       {/* 1 — locale switcher */}
-      <section>
-        <h2>{t("app.language")}</h2>
-        <div className="row">
-          {locales.map((code) => (
-            <button
-              key={code}
-              data-testid={`locale-${code}`}
-              aria-pressed={locale === code}
-              onClick={() => {
-                router.push(pathname, code);
-              }}
-            >
-              {code}
-            </button>
-          ))}
-          {/* Not in the switcher: the right-to-left locale the e2e suite uses. */}
-          <button
-            hidden
-            data-testid={`locale-${rtlLocale}`}
-            onClick={() => {
-              router.push(pathname, rtlLocale);
-            }}
-          >
-            {rtlLocale}
-          </button>
-          {isLoading && <code>{t("app.loading")}</code>}
-        </div>
-      </section>
+      <LocaleSwitcher />
 
       {/* 2 — a string with a parameter */}
       <section>

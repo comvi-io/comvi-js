@@ -1,5 +1,6 @@
 <script lang="ts">
   import { setI18nContext, useI18n, T } from '@comvi/svelte';
+  import Account from './Account.svelte';
   import { i18n, locales, rtlLocale } from './i18n';
 
   // Publishes the instance to every descendant and — because `autoInit`
@@ -102,6 +103,8 @@
     <p data-testid="about-body">{$t('about.body')}</p>
     <p><a data-testid="nav-home" href="/" onclick={go('home')}>{$t('nav.home')}</a></p>
   </section>
+  <!-- 10 — a second namespace, fetched when this view is first shown -->
+  <Account {name} />
   {:else}
   <!-- 2 — a string with a parameter -->
   <section>

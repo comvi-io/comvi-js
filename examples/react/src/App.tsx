@@ -1,5 +1,6 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import { T, useI18n } from "@comvi/react";
+import { Account } from "./Account";
 import { locales, rtlLocale } from "./i18n";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
@@ -74,15 +75,19 @@ export function App() {
       </section>
 
       {view === "about" ? (
-        <section>
-          <h2>navigation</h2>
-          <p data-testid="about-body">{t("about.body")}</p>
-          <p>
-            <a data-testid="nav-home" href="/" onClick={go("home")}>
-              {t("nav.home")}
-            </a>
-          </p>
-        </section>
+        <>
+          <section>
+            <h2>navigation</h2>
+            <p data-testid="about-body">{t("about.body")}</p>
+            <p>
+              <a data-testid="nav-home" href="/" onClick={go("home")}>
+                {t("nav.home")}
+              </a>
+            </p>
+          </section>
+          {/* 10 — a second namespace, fetched when this view is first shown */}
+          <Account name={name} />
+        </>
       ) : (
         <>
           {/* 2 — a string with a parameter */}

@@ -130,7 +130,26 @@ const ONLY_EN = {
   de: "Dieser Satz fehlt im ukrainischen Katalog.",
 };
 
+/** The `account` namespace: `profile.signed_in` with `{name}` filled. */
+const SIGNED_IN: Record<Shown, (name: string) => string> = {
+  en: (name) => `Signed in as ${name}.`,
+  uk: (name) => `Ви увійшли як ${name}.`,
+  de: (name) => `Angemeldet als ${name}.`,
+};
+
+/** The `account` namespace: `profile.devices` at the 3 every example passes; uk 3 is `few`. */
+const DEVICES: Record<Shown, string> = {
+  en: "3 devices are connected",
+  uk: "3 пристрої підключено",
+  de: "3 Geräte sind verbunden",
+};
+
+/** The `account` namespace: `profile.only_en`, which only `account/en.json` has. */
+const ACCOUNT_ONLY_EN = "This line exists only in the English account catalog.";
+
 const greeting = (locale: Locale, name = "Ada") => MARK + GREETING[locale](name);
+const signedIn = (locale: Shown, name = "Ada") => MARK + SIGNED_IN[locale](name);
+const devices = (locale: Shown) => MARK + DEVICES[locale];
 const cart = (locale: Shown, count: 0 | 1 | 2 | 3 | 5) => MARK + CART[locale][count];
 const readMore = (locale: Shown) => ({
   text: MARK + READ_MORE[locale].text,
@@ -173,6 +192,17 @@ function message(locale: Locale, key: string): string {
 
 function rawKeysIn(text: string): string[] {
   return RAW_KEYS.filter((key) => text.includes(key));
+}
+
+/** Every key of the `account` namespace; none may appear where its text is rendered. */
+const ACCOUNT_KEYS = Object.keys(
+  flatten(
+    JSON.parse(fs.readFileSync(path.join(LOCALES_DIR, "account", "en.json"), "utf8")) as Catalog,
+  ),
+);
+
+function accountKeysIn(text: string): string[] {
+  return ACCOUNT_KEYS.filter((key) => text.includes(key));
 }
 
 /**
@@ -713,12 +743,10 @@ test("q: an HTML-like parameter renders as text, creates no element, runs nothin
   }
 });
 
-/** One observed DOM state of the elements step r watches. */
+/** One observed DOM state of the elements a step watches. */
 type Frame = {
-  greeting: string | null;
-  cart: string | null;
-  readMore: string | null;
-  link: string | null;
+  /** Each watched element's text; null when it is not rendered. */
+  texts: Record<string, string | null>;
   lang: string | null;
   dir: string | null;
   /** Diagnostics only: animation frames painted before this state was recorded. */
@@ -727,33 +755,97 @@ type Frame = {
   batch: number;
 };
 
+/** A watched element: its CSS selector, and the text it must show in a locale. */
+type Watched = Record<string, { selector: string; expected: (locale: Shown) => string }>;
+
+/** What step r watches on the first page. */
+const HOME_WATCHED: Watched = {
+  greeting: { selector: '[data-testid="greeting"]', expected: (locale) => greeting(locale) },
+  cart: { selector: '[data-testid="cart"]', expected: (locale) => cart(locale, 2) },
+  "read-more": {
+    selector: '[data-testid="read-more"]',
+    expected: (locale) => readMore(locale).text,
+  },
+  link: { selector: '[data-testid="read-more"] a', expected: (locale) => readMore(locale).link },
+};
+
+/**
+ * Record every DOM state of the watched elements from the moment the document
+ * exists: one state per DELIVERED batch of mutations (one MutationObserver
+ * callback, at one microtask checkpoint). Read the states back with
+ * `observedStates`.
+ */
+async function observeStates(page: Page, watched: Watched): Promise<void> {
+  const selectors = Object.fromEntries(
+    Object.entries(watched).map(([field, entry]) => [field, entry.selector]),
+  );
+  await page.addInitScript((selectors: Record<string, string>) => {
+    const frames: unknown[] = [];
+    (window as unknown as { __frames: unknown[] }).__frames = frames;
+    let last = "";
+    // Painted frames so far: a MessageChannel task posted from rAF runs once
+    // the frame's callbacks, style, layout and paint are done.
+    let paints = 0;
+    let batch = 0;
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      paints++;
+    };
+    const tick = () => {
+      channel.port2.postMessage(null);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    const record = () => {
+      batch++;
+      const html = document.documentElement;
+      const texts: Record<string, string | null> = {};
+      for (const [field, selector] of Object.entries(selectors)) {
+        texts[field] = document.querySelector(selector)?.textContent ?? null;
+      }
+      const frame = { texts, lang: html.getAttribute("lang"), dir: html.getAttribute("dir") };
+      const key = JSON.stringify(frame);
+      if (key !== last) frames.push({ ...frame, paints, batch });
+      last = key;
+    };
+    new MutationObserver(record).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["lang", "dir"],
+    });
+  }, selectors);
+}
+
+function observedStates(page: Page): Promise<Frame[]> {
+  return page.evaluate(() => (window as unknown as { __frames: Frame[] }).__frames);
+}
+
 /**
  * Which locales a frame's texts belong to. A text that is no locale's
  * expected value (a raw key, an empty string, a half-interpolated message)
  * is returned in `unknown`. An element that is not rendered at all is the
  * documented loading state and belongs to no locale.
  */
-function classify(frame: Frame): { locales: Set<Shown>; unknown: string[] } {
+function classify(frame: Frame, watched: Watched): { locales: Set<Shown>; unknown: string[] } {
   const locales = new Set<Shown>();
   const unknown: string[] = [];
-  const fields: Array<[string, string | null, (locale: Shown) => string]> = [
-    ["greeting", frame.greeting, (locale) => greeting(locale)],
-    ["cart", frame.cart, (locale) => cart(locale, 2)],
-    ["read-more", frame.readMore, (locale) => readMore(locale).text],
-    ["link", frame.link, (locale) => readMore(locale).link],
-  ];
-  for (const [field, text, expected] of fields) {
+  for (const [field, { expected }] of Object.entries(watched)) {
+    const text = frame.texts[field];
     if (text === null) continue;
     const owners = SHOWN.filter((locale) => expected(locale) === text);
     if (owners.length === 0) unknown.push(`${field}=${JSON.stringify(text)}`);
+    // A text every locale expects (an en-only key's fallback) names no language.
+    if (owners.length === SHOWN.length) continue;
     for (const owner of owners) locales.add(owner);
   }
   return { locales, unknown };
 }
 
 /** What is wrong with one observed state under the strict contract, or null. */
-function stateProblem(frame: Frame): string | null {
-  const { locales, unknown } = classify(frame);
+function stateProblem(frame: Frame, watched: Watched): string | null {
+  const { locales, unknown } = classify(frame, watched);
   if (unknown.length > 0) return `not any locale's text: ${unknown.join(", ")}`;
   if (locales.size > 1) return `mixed languages ${[...locales].join("+")}`;
   if (locales.size === 1) {
@@ -764,6 +856,46 @@ function stateProblem(frame: Frame): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Judge every observed state under the strict contract: each violation is
+ * returned and recorded as a `mixedState` finding (with whether a paint ran
+ * before the next state, which is diagnostics only), and `order` is the
+ * sequence of whole languages the watched elements showed. `sample` names the
+ * field whose text the finding quotes.
+ */
+function judgeStates(
+  frames: Frame[],
+  watched: Watched,
+  sample: string,
+): { violations: string[]; order: Shown[] } {
+  const violations: string[] = [];
+  const order: Shown[] = [];
+  for (const [index, frame] of frames.entries()) {
+    const problem = stateProblem(frame, watched);
+    if (problem) {
+      violations.push(`state ${index}: ${problem}`);
+      const next = frames[index + 1];
+      test.info().annotations.push({
+        type: "finding:mixedState",
+        description: JSON.stringify({
+          problem,
+          lang: frame.lang,
+          field: sample,
+          text: frame.texts[sample],
+          painted: !next || next.paints !== frame.paints,
+        }),
+      });
+      continue;
+    }
+    const { locales } = classify(frame, watched);
+    if (locales.size === 1) {
+      const [locale] = [...locales];
+      if (order[order.length - 1] !== locale) order.push(locale);
+    }
+  }
+  return { violations, order };
 }
 
 test("r: every DOM state during en → uk → de is one whole language, never a key or a mix", async ({
@@ -783,47 +915,7 @@ test("r: every DOM state during en → uk → de is one whole language, never a 
   // observed every run, not when the timing happens to allow it. The paint
   // counter (frames painted so far, per state) is diagnostics in the report
   // and never part of the verdict.
-  await page.addInitScript(() => {
-    const frames: unknown[] = [];
-    (window as unknown as { __frames: unknown[] }).__frames = frames;
-    let last = "";
-    // Painted frames so far: a MessageChannel task posted from rAF runs once
-    // the frame's callbacks, style, layout and paint are done.
-    let paints = 0;
-    let batch = 0;
-    const channel = new MessageChannel();
-    channel.port1.onmessage = () => {
-      paints++;
-    };
-    const tick = () => {
-      channel.port2.postMessage(null);
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    const text = (selector: string) => document.querySelector(selector)?.textContent ?? null;
-    const record = () => {
-      batch++;
-      const html = document.documentElement;
-      const frame = {
-        greeting: text('[data-testid="greeting"]'),
-        cart: text('[data-testid="cart"]'),
-        readMore: text('[data-testid="read-more"]'),
-        link: text('[data-testid="read-more"] a'),
-        lang: html.getAttribute("lang"),
-        dir: html.getAttribute("dir"),
-      };
-      const key = JSON.stringify(frame);
-      if (key !== last) frames.push({ ...frame, paints, batch });
-      last = key;
-    };
-    new MutationObserver(record).observe(document, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ["lang", "dir"],
-    });
-  });
+  await observeStates(page, HOME_WATCHED);
   const start = CDN_CONTROL ? livePath("en") : START;
   await open(page, start);
   await ready(page);
@@ -841,33 +933,8 @@ test("r: every DOM state during en → uk → de is one whole language, never a 
     const path = CDN_CONTROL ? livePath(target) : homePath(target);
     if (SSR) await expect(page).toHaveURL(new RegExp(`${escapeRegExp(path)}$`));
   }
-  const frames = await page.evaluate(() => (window as unknown as { __frames: Frame[] }).__frames);
-
-  const violations: string[] = [];
-  const order: Shown[] = [];
-  for (const [index, frame] of frames.entries()) {
-    const problem = stateProblem(frame);
-    if (problem) {
-      violations.push(`state ${index}: ${problem}`);
-      // Diagnostics for the report: whether a paint ran before the next state.
-      const next = frames[index + 1];
-      test.info().annotations.push({
-        type: "finding:mixedState",
-        description: JSON.stringify({
-          problem,
-          lang: frame.lang,
-          text: frame.greeting,
-          painted: !next || next.paints !== frame.paints,
-        }),
-      });
-      continue;
-    }
-    const { locales } = classify(frame);
-    if (locales.size === 1) {
-      const [locale] = [...locales];
-      if (order[order.length - 1] !== locale) order.push(locale);
-    }
-  }
+  const frames = await observedStates(page);
+  const { violations, order } = judgeStates(frames, HOME_WATCHED, "greeting");
   expect(violations, `${frames.length} states:\n${JSON.stringify(frames, null, 1)}`).toEqual([]);
   // The previous language until the switch lands, then the new one: never
   // back, never a detour through a third.
@@ -910,6 +977,10 @@ test("s: F-15 — defaultLocale uk, /uk renders the en value of an en-only key",
 
 // ── steering the mock CDN (t, t2, u, v, v2) ───────────────────────────────
 
+/**
+ * Catalogs are named as an import map names them: `uk` is the default
+ * namespace's uk file, `uk:account` the `account` namespace's.
+ */
 type CdnState = { held: string[]; hanging: string[] };
 
 /** The mock CDN's control surface: what to do with catalog requests from now on. */
@@ -948,10 +1019,12 @@ const cdn = {
         `${timeoutMs / 1000}s (${kind}: [${state[kind].join(", ")}])`,
     );
   },
-  /** Answers every withheld request for `locale`; resolves once the answers are written. */
-  async release(locale: string): Promise<void> {
-    const response = await fetch(`${CDN_CONTROL}/release?locale=${locale}`, { method: "POST" });
-    expect(response.status, `the mock CDN held a request for ${locale} to release`).toBe(200);
+  /** Answers every withheld request for the catalog `key`; resolves once the answers are written. */
+  async release(key: string): Promise<void> {
+    const response = await fetch(`${CDN_CONTROL}/release?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+    });
+    expect(response.status, `the mock CDN held a request for ${key} to release`).toBe(200);
   },
 };
 
@@ -1282,6 +1355,284 @@ for (const [step, fault] of [
     expect(rawKeysIn(await pageText(page))).toEqual([]);
   });
 }
+
+// ── the `account` namespace (w, x, y, z) ──────────────────────────────────
+//
+// Every example's second page renders a second namespace, `account`, that no
+// `ns` list names: it loads when that page is first shown. The texts are
+// literals above (`SIGNED_IN`, `DEVICES`, `ACCOUNT_ONLY_EN`).
+
+/** What the second page watches: its default-namespace body and the three `account` rows. */
+const ABOUT_WATCHED: Watched = {
+  "about-body": {
+    selector: '[data-testid="about-body"]',
+    expected: (locale) => message(locale, "about.body"),
+  },
+  "account-signed-in": {
+    selector: '[data-testid="account-signed-in"]',
+    expected: (locale) => signedIn(locale),
+  },
+  "account-devices": {
+    selector: '[data-testid="account-devices"]',
+    expected: (locale) => devices(locale),
+  },
+  // Only `account/en.json` has the key, so every locale shows en's value.
+  "account-only-en": {
+    selector: '[data-testid="account-only-en"]',
+    expected: () => MARK + ACCOUNT_ONLY_EN,
+  },
+};
+
+/** The three `account` rows show `locale`'s text; the en-only key shows en's. */
+async function expectAccount(page: Page, locale: Shown): Promise<void> {
+  await expect(page.getByTestId("account-signed-in")).toHaveText(signedIn(locale));
+  await expect(page.getByTestId("account-devices")).toHaveText(devices(locale));
+  await expect(page.getByTestId("account-only-en")).toHaveText(MARK + ACCOUNT_ONLY_EN);
+}
+
+/** Open the second page directly, wait until it is live, and check its `account` rows. */
+async function openAbout(page: Page, locale: Shown): Promise<void> {
+  await page.goto(aboutPath(locale));
+  if (SSR) {
+    await page.waitForFunction(() => document.documentElement.dataset.hydrated === "true");
+  }
+  await expectAccount(page, locale);
+}
+
+/**
+ * The request that proves `locale`'s `account` catalog was fetched, per kind
+ * and mode.
+ *
+ *   - next: the browser never fetches a catalog. The second page's layout
+ *     loads the namespace on the server and it arrives inside the RSC payload
+ *     of the navigation there, the request for `/<locale>/about?_rsc=…`.
+ *   - `--cdn`, vite and nuxt: `{cdnUrl}/account/{locale}.json`.
+ *   - vite: the import map's chunk, `assets/<locale>-<hash>.js`. The default
+ *     namespace's chunk for the same locale has the same name and another
+ *     hash, so this pattern matches both (step w tells them apart).
+ *   - nuxt: the hash-named chunk the client manifest lists for
+ *     `locales/account/<locale>.json`.
+ */
+function accountRequest(locale: Shown): RegExp {
+  if (KIND === "next") return new RegExp(`/${locale}/about\\?_rsc=`);
+  if (CDN_URL) return new RegExp(`^${escapeRegExp(`${CDN_URL}/account/${locale}.json`)}$`);
+  if (KIND === "vite") return new RegExp(`/assets/${locale}-[^/]+\\.js$`);
+  const chunk = CATALOG_CHUNKS[`${locale}:account`];
+  if (!chunk) {
+    throw new Error(`the runner found no chunk for ${locale}:account in Nuxt's manifest`);
+  }
+  return new RegExp(`${escapeRegExp(chunk)}$`);
+}
+
+/**
+ * Every request matching `pattern` from now on, split into loads and hints.
+ * A hint is a download the page declares in advance and may never use:
+ * Nuxt's `<link rel="prefetch">` for a dynamic chunk, and the route prefetch
+ * Next's `<Link>` sends when it scrolls into view.
+ */
+function watchRequests(page: Page, pattern: RegExp) {
+  const loads: string[] = [];
+  const hints: string[] = [];
+  const pending: Promise<void>[] = [];
+  page.on("request", (request) => {
+    if (!pattern.test(request.url())) return;
+    pending.push(
+      (async () => {
+        const headers = await request.allHeaders();
+        const purpose = headers["sec-purpose"] ?? headers["purpose"] ?? "";
+        const hint =
+          purpose.includes("prefetch") ||
+          "next-router-prefetch" in headers ||
+          "next-router-segment-prefetch" in headers;
+        (hint ? hints : loads).push(request.url());
+      })(),
+    );
+  });
+  return {
+    async seen(): Promise<{ loads: string[]; hints: string[] }> {
+      await Promise.all(pending);
+      return { loads: [...loads], hints: [...hints] };
+    },
+  };
+}
+
+test("w: the account namespace loads on the second page only, once", async ({ page, request }) => {
+  const watching = watchRequests(page, accountRequest("en"));
+  // Bundled Vite names the default catalog's chunk like the namespace's
+  // (`en-<hash>.js`), so there the first page's ONE load is the default
+  // catalog, and the namespace is whatever is requested beyond it.
+  const sharedName = KIND === "vite" && !CDN_URL;
+  const namespaceLoads = async () => {
+    const { loads, hints } = await watching.seen();
+    return { loads: sharedName ? [...new Set(loads)].slice(1) : loads, hints };
+  };
+
+  await open(page);
+  await ready(page);
+  expect((await namespaceLoads()).loads, "the first page requested the account namespace").toEqual(
+    [],
+  );
+  if (SSR) {
+    // …and the document the server sent holds none of its text, in the markup
+    // or in the catalog handed over for hydration.
+    const html = await (await request.get(START)).text();
+    expect(html, "account text in the first page's HTML").not.toContain(ACCOUNT_ONLY_EN);
+    expect(html, "account text in the first page's HTML").not.toContain(SIGNED_IN.en("").trim());
+  }
+
+  await page.getByTestId("nav-about").click();
+  await expect(page).toHaveURL(new RegExp(`${escapeRegExp(aboutPath("en"))}$`));
+  await expectAccount(page, "en");
+  await expect(page.getByTestId("about-body")).toHaveText(message("en", "about.body"));
+  const text = await pageText(page);
+  expect(accountKeysIn(text), "raw account keys on the second page").toEqual([]);
+  expect(rawKeysIn(text), "raw keys on the second page").toEqual([]);
+
+  // Exactly one request brought the namespace. Where the page hinted it in
+  // advance, the hint may have been the download and the load served from it.
+  const opened = await namespaceLoads();
+  expect(
+    opened.loads.length + opened.hints.length,
+    `no request for the account namespace (${accountRequest("en")})`,
+  ).toBeGreaterThan(0);
+  expect(opened.loads.length, `loads of the account namespace: ${opened.loads}`).toBeLessThan(2);
+
+  if (KIND !== "next") {
+    // Leaving and coming back renders from the cache: nothing is fetched
+    // again. (Next's request is the route's RSC payload, which its router
+    // caches by its own rules, so there is no catalog request to count.)
+    await page.getByTestId("nav-home").click();
+    await expect(page.getByTestId("greeting")).toHaveText(greeting("en"));
+    await page.getByTestId("nav-about").click();
+    await expectAccount(page, "en");
+    expect((await namespaceLoads()).loads, "the namespace was fetched again").toEqual(opened.loads);
+  }
+});
+
+test("x: every DOM state of the second page during en → uk → de is one whole language", async ({
+  page,
+}) => {
+  // Step r's contract and observer, on the second page: its default-namespace
+  // body and the three `account` rows are the old locale in full, the new
+  // locale in full, or not rendered. A switch that applied the locale once the
+  // default namespace arrived, with `account` still outstanding, would show
+  // the new language's body over the old language's rows, or their raw keys.
+  //
+  // Under --cdn that is forced rather than sampled, where the browser fetches
+  // the catalogs (vite, nuxt): both of the target's files are held, the default
+  // namespace's is answered first, and the page must still be the old locale in
+  // full when `account`'s is released. Next's browser fetches no catalog and
+  // its second page is prerendered, so there is nothing at the CDN to hold.
+  const steered = Boolean(CDN_CONTROL) && KIND !== "next";
+  await observeStates(page, ABOUT_WATCHED);
+  await openAbout(page, "en");
+  let previous: Shown = "en";
+  for (const target of ["uk", "de"] as const) {
+    const button = page.getByTestId(`locale-${target}`);
+    if (steered) {
+      await cdn.mode({ hold: [target, `${target}:account`] });
+      const defaultCatalog = page.waitForEvent("requestfinished", (finished) =>
+        catalogRequest(target).test(finished.url()),
+      );
+      await button.click();
+      await cdn.inFlight("held", [target, `${target}:account`]);
+      await cdn.release(target);
+      await defaultCatalog;
+      // Two animation frames and a beat: room for a switch that did not wait
+      // for the namespace to render.
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 200))),
+          ),
+      );
+      await expect(page.getByTestId("about-body")).toHaveText(message(previous, "about.body"));
+      await expectAccount(page, previous);
+      await cdn.release(`${target}:account`);
+    } else {
+      await button.click();
+    }
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("about-body")).toHaveText(message(target, "about.body"));
+    await expectAccount(page, target);
+    await expect(page.locator("html")).toHaveAttribute("lang", target);
+    if (SSR) await expect(page).toHaveURL(new RegExp(`${escapeRegExp(aboutPath(target))}$`));
+    expect(accountKeysIn(await pageText(page)), `raw account keys in ${target}`).toEqual([]);
+    previous = target;
+  }
+  const frames = await observedStates(page);
+  const { violations, order } = judgeStates(frames, ABOUT_WATCHED, "account-signed-in");
+  expect(violations, `${frames.length} states:\n${JSON.stringify(frames, null, 1)}`).toEqual([]);
+  expect(order, "the sequence of languages the watched elements showed").toEqual([
+    "en",
+    "uk",
+    "de",
+  ]);
+});
+
+test("y: SSR — plain-HTTP /uk/about already carries the account namespace, then hydrates", async ({
+  page,
+  request,
+}) => {
+  test.skip(!SSR, "client-rendered example: there is no server HTML to read");
+  const response = await request.get(aboutPath("uk"));
+  expect(response.status(), `GET ${aboutPath("uk")}`).toBe(200);
+  const html = await response.text();
+  expect(html).toMatch(/<html[^>]*\blang="uk"/);
+  const visible = visibleText(html);
+  expect(visible).toContain(message("uk", "about.body"));
+  expect(visible).toContain(signedIn("uk"));
+  expect(visible).toContain(devices("uk"));
+  // The fallback chain was loaded for the namespace too: uk's `account` lacks
+  // the key and en is not the request's locale.
+  expect(visible, "the en-only account key in the server HTML").toContain(MARK + ACCOUNT_ONLY_EN);
+  expect(accountKeysIn(visible), "raw account keys in the server HTML").toEqual([]);
+  expect(rawKeysIn(visible), "raw keys in the server HTML").toEqual([]);
+
+  // …and the same page in a browser: from the parser's first insertion through
+  // hydration the rows only ever hold those texts (a hydration mismatch is a
+  // console error, which fails this test on its own), and the browser fetches
+  // neither uk's nor en's `account` catalog, because both came with the page.
+  const refetched = [watchRequests(page, accountRequest("uk"))];
+  // On Next the pattern is the route's own RSC request, the same for every catalog.
+  if (KIND !== "next") refetched.push(watchRequests(page, accountRequest("en")));
+  await observeStates(page, ABOUT_WATCHED);
+  await openAbout(page, "uk");
+  const frames = await observedStates(page);
+  const { violations, order } = judgeStates(frames, ABOUT_WATCHED, "account-signed-in");
+  expect(violations, `${frames.length} states:\n${JSON.stringify(frames, null, 1)}`).toEqual([]);
+  expect(order, "the languages the second page showed, first paint to hydrated").toEqual(["uk"]);
+  for (const watching of refetched) {
+    expect((await watching.seen()).loads, "the browser fetched a catalog the page shipped").toEqual(
+      [],
+    );
+  }
+});
+
+test("z: CDN down — the bundled fallback imports serve the account namespace", async ({ page }) => {
+  test.skip(PHASE !== "cdn-down", CDN_URL ? "runs in its own dead-CDN phase" : NEEDS_CDN);
+  const failed: string[] = [];
+  page.on("requestfailed", (failure) => {
+    if (failure.url().startsWith(CDN_URL)) failed.push(failure.url());
+  });
+  // The BUNDLED texts, exactly: MARK is empty in this phase, so a CDN-marked
+  // text could not match. The namespace has no `locale` shorthand to fall back
+  // on: the loader's `fallback` map must hold the exact `locale:account` key.
+  await openAbout(page, "en");
+  await page.getByTestId("locale-uk").click();
+  await expect(page.getByTestId("about-body")).toHaveText(flat.uk["about.body"]);
+  await expect(page.getByTestId("account-signed-in")).toHaveText(SIGNED_IN.uk("Ada"));
+  await expect(page.getByTestId("account-devices")).toHaveText(DEVICES.uk);
+  await expect(page.getByTestId("account-only-en")).toHaveText(ACCOUNT_ONLY_EN);
+  expect(accountKeysIn(await pageText(page))).toEqual([]);
+  // Proof the CDN was really asked for the namespace and really down. Next is
+  // the exception, as in k2: its browser never fetches a catalog.
+  if (KIND !== "next") {
+    expect(failed, `no failed request for uk's account catalog at ${CDN_URL}`).toContain(
+      `${CDN_URL}/account/uk.json`,
+    );
+  }
+});
 
 // g's verdict is its own pass: since every test fails on its own browser
 // errors, g is the dedicated "nothing logged an error" step a reader can find

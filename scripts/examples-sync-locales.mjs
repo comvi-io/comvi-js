@@ -3,7 +3,11 @@ import path from "node:path";
 import url from "node:url";
 
 /**
- * Re-copy `examples/locales/*.json` into every `examples/<name>/src/locales/`.
+ * Re-copy every catalog under `examples/locales` into each `examples/<name>/src/locales/`.
+ *
+ * The default namespace is `<locale>.json` at the root and every other
+ * namespace is a folder, `<namespace>/<locale>.json`: the layout the platform
+ * CDN serves, so the same tree feeds the import maps and the e2e mock CDN.
  *
  * One scenario, one set of catalogs — but a symlink is not an option: StackBlitz
  * opens ONE directory out of the GitHub tree, so anything an example imports has
@@ -27,10 +31,13 @@ export function targets(root = REPO_ROOT) {
     .map((entry) => path.join(examples, entry, "src", "locales"));
 }
 
-function catalogs(source = SOURCE) {
+/** Every `.json` under `dir`, as sorted paths relative to it, namespace folders included. */
+function catalogs(dir = SOURCE) {
+  if (!fs.existsSync(dir)) return [];
   return fs
-    .readdirSync(source)
-    .filter((entry) => entry.endsWith(".json"))
+    .readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+    .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
     .sort();
 }
 
@@ -47,9 +54,8 @@ export function strays(root = REPO_ROOT, source = SOURCE) {
   const shared = new Set(catalogs(source));
   const found = [];
   for (const dir of targets(root)) {
-    if (!fs.existsSync(dir)) continue;
-    for (const entry of fs.readdirSync(dir).sort()) {
-      if (!entry.endsWith(".json") || shared.has(entry)) continue;
+    for (const entry of catalogs(dir)) {
+      if (shared.has(entry)) continue;
       found.push(path.relative(root, path.join(dir, entry)));
     }
   }
@@ -65,6 +71,7 @@ function main(argv) {
     for (const file of files) {
       const from = path.join(SOURCE, file);
       const to = path.join(dir, file);
+      fs.mkdirSync(path.dirname(to), { recursive: true });
       const wanted = fs.readFileSync(from);
       const current = fs.existsSync(to) ? fs.readFileSync(to) : null;
       if (current !== null && current.equals(wanted)) continue;

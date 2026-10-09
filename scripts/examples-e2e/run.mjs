@@ -41,11 +41,11 @@
  * installed.
  *
  * Each example runs up to three builds of the same copy: `main` (every step
- * but k2, s and the CDN-steering steps), `cdn-down` under `--cdn` (k2, and g
- * again as g2), and `f15` for next and nuxt without `--cdn` (step s, against
- * the `F15_VARIANT` edit of the copy). Under `--cdn` each CDN-steering step
- * (t, t2, u, v, v2) runs between main and cdn-down, against the main build on
- * a fresh server of its own. A skip outside `allowedSkips` fails its
+ * but k2, s, z and the CDN-steering steps), `cdn-down` under `--cdn` (k2, z,
+ * and g again as g2), and `f15` for next and nuxt without `--cdn` (step s,
+ * against the `F15_VARIANT` edit of the copy). Under `--cdn` each CDN-steering
+ * step (r, x, t, t2, u, v, v2) runs between main and cdn-down, against the main
+ * build on a fresh server of its own. A skip outside `allowedSkips` fails its
  * step, and a failure is green only when `EXPECTED_FAILURES` lists it with a
  * reference. Step r judges every delivered mutation batch: a mixed-language
  * or raw-key state fails it, and each one is also printed under the table and
@@ -282,16 +282,17 @@ async function startServer(kind, dir, extraEnv, logFile) {
 /**
  * The Playwright runs an example can get, each against its own build.
  *
- *   - `main`: every step but k2 and s against the app as built (bundled
+ *   - `main`: every step but k2, z and s against the app as built (bundled
  *     catalogs, or the mock CDN under `--cdn`).
  *   - `cdn-down` (`--cdn` only): the app rebuilt against a CDN address where
- *     nothing listens, running k2 and g. g's result here is column g2: the
+ *     nothing listens, running k2, z and g. g's result here is column g2: the
  *     same "no browser errors" verdict, with the narrow allowlist of network
  *     messages a dead CDN legitimately produces (the spec owns that list).
  *   - `f15` (next and nuxt, without `--cdn`): the copy edited by
  *     `F15_VARIANT` to `defaultLocale: "uk"`, running s alone.
- *   - `main-cdn` (`--cdn`): `main` without step r, which then runs in its own
- *     `cdn-r` phase so it can hold each switch at the mock CDN.
+ *   - `main-cdn` (`--cdn`): `main` without steps r and x, which then run in
+ *     their own `cdn-r` and `cdn-x` phases so they can hold each switch at
+ *     the mock CDN.
  *   - `cdn-<step>` (`--cdn` only), one per `CDN_STEERED` step: the main
  *     build, served by a FRESH server, running that step alone. The step
  *     steers the mock CDN (hold, hang, corrupt), and a server that already
@@ -299,16 +300,20 @@ async function startServer(kind, dir, extraEnv, logFile) {
  *
  * `rename` maps a test's step id to the column its result fills.
  */
-const CDN_STEERED = ["r", ...CDN_CONTROL_STEPS];
+const CDN_STEERED = ["r", "x", ...CDN_CONTROL_STEPS];
 const mainPhase = (excluded) => ({
-  args: ["--grep-invert", `\\b(${["k2", "s", ...excluded].join("|")}): `],
-  expect: STEPS.filter((step) => !["k", "k2", "g2", "s", ...excluded].includes(step)),
+  args: ["--grep-invert", `\\b(${["k2", "s", "z", ...excluded].join("|")}): `],
+  expect: STEPS.filter((step) => !["k", "k2", "g2", "s", "z", ...excluded].includes(step)),
   rename: {},
 });
 const PHASES = {
   main: mainPhase(CDN_CONTROL_STEPS),
   "main-cdn": mainPhase(CDN_STEERED),
-  "cdn-down": { args: ["--grep", "\\b(k2|g): "], expect: ["k2", "g"], rename: { g: "g2" } },
+  "cdn-down": {
+    args: ["--grep", "\\b(k2|z|g): "],
+    expect: ["k2", "z", "g"],
+    rename: { g: "g2" },
+  },
   f15: { args: ["--grep", "\\bs: "], expect: ["s"], rename: {} },
   ...Object.fromEntries(
     CDN_STEERED.map((step) => [
@@ -501,7 +506,7 @@ async function e2eExample(example, packages, options, cdn) {
       return result;
     }
 
-    // Phase 1: everything but k2, s and (under --cdn) the steered steps.
+    // Phase 1: everything but k2, z, s and (under --cdn) the steered steps.
     const mainName = cdn ? "main-cdn" : "main";
     try {
       Object.assign(result.steps, await buildServeRun(ctx, mainName, cdn?.url));
@@ -546,11 +551,11 @@ async function e2eExample(example, packages, options, cdn) {
         const deadUrl = `http://127.0.0.1:${await freePort()}/cdn/e2e`;
         Object.assign(result.steps, await buildServeRun(ctx, "cdn-down", deadUrl));
       } catch (error) {
-        failAll(["k2", "g2"], error);
+        failAll(["k2", "z", "g2"], error);
       }
       result.steps.s = { status: "skip", message: "the F-15 variant runs in the bundled mode" };
     } else {
-      for (const step of ["k", "k2", "g2", ...CDN_CONTROL_STEPS])
+      for (const step of ["k", "k2", "g2", "z", ...CDN_CONTROL_STEPS])
         result.steps[step] = { status: "skip", message: "needs --cdn" };
       if (F15_VARIANT[kind]) {
         // Phase 3: the same copy with defaultLocale uk, rebuilt. Last, because
