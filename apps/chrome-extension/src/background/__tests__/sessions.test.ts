@@ -509,6 +509,30 @@ describe("pending expiry", () => {
     expect(lastIconPath()).toContain("icon-inactive-16");
   });
 
+  // The expired record is read before the tab lock. A replacement created in
+  // that window belongs to a newer activation and must survive the cleanup.
+  it.each([
+    ["a status read", () => getLiveSession(TAB)],
+    ["the startup sweep", () => sweepExpiredPendingSessions()],
+  ])("keeps a replacement created while %s waits for the tab lock", async (_label, cleanup) => {
+    await putSession(TAB, storedSession({ status: "pending", expiresAt: Date.now() - 1 }));
+    const lock = holdTabLock();
+
+    const cleaning = cleanup();
+    await settle();
+    const replacement = storedSession({
+      status: "pending",
+      nonce: "nonce-replacement",
+      expiresAt: Date.now() + PENDING_TTL_MS,
+    });
+    await putSession(TAB, replacement);
+    lock.release();
+    await lock.done;
+    await cleaning;
+
+    await expect(getSession(TAB)).resolves.toEqual(replacement);
+  });
+
   it("only removes the session its own deadline was scheduled for", async () => {
     vi.useFakeTimers();
     await openPendingSession();

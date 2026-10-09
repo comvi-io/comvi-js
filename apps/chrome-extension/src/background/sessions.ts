@@ -130,11 +130,12 @@ function isExpired(session: SessionRecord, now: number): boolean {
 export async function getLiveSession(tabId: number): Promise<SessionRecord | undefined> {
   const session = await getSession(tabId);
   if (!session) return undefined;
-  if (isExpired(session, Date.now())) {
-    await revokeSession(tabId);
-    return undefined;
-  }
-  return session;
+  const now = Date.now();
+  if (!isExpired(session, now)) return session;
+  // The read above was outside the tab lock; a replacement may exist by now.
+  await expirePendingSession(tabId, session.nonce, now);
+  const current = await getSession(tabId);
+  return current && !isExpired(current, now) ? current : undefined;
 }
 
 /** Remove expired pending records when the MV3 worker starts or wakes. */
@@ -143,27 +144,36 @@ export async function sweepExpiredPendingSessions(now = Date.now()): Promise<num
   let removed = 0;
   for (const [tabId, session] of sessions) {
     if (!isExpired(session, now)) continue;
-    await revokeSession(tabId);
-    removed += 1;
+    if (await expirePendingSession(tabId, session.nonce, now)) removed += 1;
   }
   return removed;
 }
 
-async function expirePendingSession(tabId: number, nonce: string): Promise<void> {
-  await withLock(tabLockKey(tabId), async () => {
+/**
+ * Delete a pending record only if, under the tab lock, it is still the same
+ * expired record (same nonce). A replacement created after the caller's
+ * unlocked read belongs to a newer activation and is left alone.
+ */
+async function expirePendingSession(
+  tabId: number,
+  nonce: string,
+  now = Date.now(),
+): Promise<boolean> {
+  return withLock(tabLockKey(tabId), async () => {
     const session = await getSession(tabId);
     if (
       !session ||
       session.status !== "pending" ||
       session.nonce !== nonce ||
-      !isExpired(session, Date.now())
+      !isExpired(session, now)
     ) {
-      return;
+      return false;
     }
     await deleteSession(tabId);
     notifyProxySessionTransition(tabId);
     const tabState = await getTabState(tabId);
     renderBadge(tabId, tabState?.comviDetected ?? false, false);
+    return true;
   });
 }
 
