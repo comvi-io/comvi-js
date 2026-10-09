@@ -31,12 +31,25 @@ async function waitForUsagesCall(fetchMock: ReturnType<typeof vi.fn>) {
   });
 }
 
+/** Every collector a test creates; afterEach destroys them so none outlives its test. */
+const live: Collector[] = [];
+function track(collector: Collector): Collector {
+  live.push(collector);
+  return collector;
+}
+
 describe("collector/Collector — lifecycle & fault isolation", () => {
   beforeEach(() => {
     initApiConfig("test-api-key", SCOPE);
   });
 
   afterEach(() => {
+    // A teardown flush from a collector a test left running must not reach the network.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockOkResponse({})));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const collector of live.splice(0)) {
+      collector.destroy();
+    }
     vi.useRealTimers();
     resetApiConfig(SCOPE);
     resetIntersectionObserverMock();
@@ -63,7 +76,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     vi.stubGlobal("fetch", vi.fn());
     const eventBus = new EventBus();
     const registry = new TranslationRegistry(eventBus);
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: false });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: false }));
 
     const div = registerVisible(registry, "a");
     await collector.start();
@@ -86,7 +99,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     document.body.appendChild(div);
     registry.add(div, { nodes: new Map([[document.createTextNode("x"), { key: "a", ns: "ns" }]]) });
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
 
     expect(collector.isDisabled()).toBe(true);
@@ -108,7 +121,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     registry.add(document.createElement("div"), {
       nodes: new Map([[document.createTextNode("x"), { key: "a", ns: "ns" }]]),
     });
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
 
     await expect(collector.start()).resolves.toBeUndefined();
     expect(collector.isDisabled()).toBe(true);
@@ -126,7 +139,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
 
     const div = registerVisible(registry, "a");
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start(); // handshake + immediate first settle pass
     await flushMicrotasks();
 
@@ -174,7 +187,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
 
     const div = registerVisible(registry, "a");
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start(); // handshake + immediate first settle pass
     await flushMicrotasks();
 
@@ -216,7 +229,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
 
     const div = registerVisible(registry, "a");
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
     await flushMicrotasks();
 
@@ -292,7 +305,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       nodes: new Map([[document.createTextNode("y"), { key: "modal.title", ns: "ns" }]]),
     });
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
     await flushMicrotasks();
 
@@ -338,7 +351,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       nodes: new Map([[document.createTextNode("x"), { key: "checkout.submit", ns: "ns" }]]),
     });
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
     await flushMicrotasks();
 
@@ -358,7 +371,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const eventBus = new EventBus();
     const registry = new TranslationRegistry(eventBus);
     registerVisible(registry, "a");
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
 
     collector.destroy();
     await collector.start();
@@ -377,7 +390,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     vi.spyOn(registry, "entries").mockImplementation(() => {
       throw new Error("registry exploded");
     });
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
 
     await expect(collector.start()).resolves.toBeUndefined();
 
@@ -398,7 +411,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const registry = new TranslationRegistry(eventBus);
     registerVisible(registry, "a");
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
     await flushMicrotasks();
 
@@ -417,7 +430,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const registry = new TranslationRegistry(eventBus);
     registerVisible(registry, "a");
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
     await flushMicrotasks();
     const before = fetchMock.mock.calls.length;
@@ -437,7 +450,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const registry = new TranslationRegistry(eventBus);
     registerVisible(registry, "a");
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
     await flushMicrotasks();
     const before = fetchMock.mock.calls.length;
@@ -455,7 +468,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const registry = new TranslationRegistry(eventBus);
     registerVisible(registry, "a");
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
     await flushMicrotasks();
     collector.destroy();
@@ -472,7 +485,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const registry = new TranslationRegistry(eventBus);
     registerVisible(registry, "a");
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     await collector.start();
     await flushMicrotasks();
     const io = MockIntersectionObserver.instances[0]!;
@@ -498,7 +511,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       const registry = new TranslationRegistry(eventBus);
       const div = registerVisible(registry, "a");
 
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
       await collector.start();
       await flushMicrotasks();
 
@@ -533,6 +546,16 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       expect(MockIntersectionObserver.instances[0]!.observed.size).toBe(0);
     });
 
+    it("crashed collector does not flush on pagehide", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { fetchMock } = await startThenCrash();
+      const before = fetchMock.mock.calls.length;
+
+      window.dispatchEvent(new Event("pagehide"));
+
+      expect(fetchMock.mock.calls).toHaveLength(before);
+    });
+
     it("skips the teardown flush, because a disabled collector has nothing trustworthy to send", async () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       const { collector, fetchMock } = await startThenCrash();
@@ -556,7 +579,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       const registry = new TranslationRegistry(eventBus);
       registerVisible(registry, "a");
 
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
       await collector.start();
       await flushMicrotasks();
 
@@ -577,6 +600,17 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
         expect.stringContaining("Collector teardown failed"),
         expect.any(Error),
       );
+    });
+
+    it("destroyed collector does not flush on pagehide", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { collector, fetchMock } = await startThenFailTeardown();
+      collector.destroy();
+      const before = fetchMock.mock.calls.length;
+
+      window.dispatchEvent(new Event("pagehide"));
+
+      expect(fetchMock.mock.calls).toHaveLength(before);
     });
 
     it("still leaves a destroyed collector unable to run another pass", async () => {
@@ -617,7 +651,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       const registry = new TranslationRegistry(eventBus);
       const div = registerVisible(registry, "a");
 
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
       await collector.start();
       await flushMicrotasks();
 
@@ -656,7 +690,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
         bottom: -480,
       });
 
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
       await collector.start();
       await flushMicrotasks();
 
@@ -713,7 +747,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
         return body.items[0].screenGroup as string;
       }
 
-      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
       await collector.start();
       await flushMicrotasks();
 
@@ -758,7 +792,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       nodes: new Map([[document.createTextNode("x"), { key: "a", ns: "ns" }]]),
     });
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    const collector = track(new Collector(eventBus, registry, SCOPE, { enabled: true }));
     const startPromise = collector.start();
 
     collector.destroy();

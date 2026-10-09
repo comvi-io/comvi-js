@@ -104,12 +104,12 @@ export class Collector {
   }
 
   public destroy(): void {
+    if (this.destroyed) {
+      return;
+    }
     this.destroyed = true;
     try {
       this.triggers.destroy();
-      if (typeof window !== "undefined") {
-        window.removeEventListener("pagehide", this.handlePageHide);
-      }
       if (!this.disabled) {
         this.transport.flushOnTeardown(this.lastPass);
       }
@@ -118,10 +118,22 @@ export class Collector {
         "[@comvi/plugin-in-context-editor] Collector teardown failed (ignored).",
         error,
       );
+    } finally {
+      this.removePageHideListener();
+    }
+  }
+
+  private removePageHideListener(): void {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("pagehide", this.handlePageHide);
     }
   }
 
   private handlePageHide = (): void => {
+    // A destroyed or crashed collector sends nothing, whatever listener is left.
+    if (this.destroyed || this.disabled) {
+      return;
+    }
     try {
       this.transport.flushOnTeardown(this.lastPass);
     } catch {
@@ -249,6 +261,7 @@ export class Collector {
       } catch {
         // ignore — already disabling
       }
+      this.removePageHideListener();
     }
   }
 }
