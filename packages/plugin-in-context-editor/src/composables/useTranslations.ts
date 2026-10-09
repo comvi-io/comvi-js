@@ -78,6 +78,23 @@ export function useTranslations(
     );
   }
 
+  /**
+   * Languages a save sends as written rather than rebuilding from their forms:
+   * ICU the fields cannot rebuild, and languages the user did not edit.
+   */
+  function verbatimValues(data: TranslationData): Record<string, string> {
+    const verbatim: Record<string, string> = {};
+    for (const [langCode, forms] of Object.entries(data.translations)) {
+      const stored = data.sourceValues?.[langCode];
+      if (data.rawLanguages?.includes(langCode)) {
+        verbatim[langCode] = forms.other ?? "";
+      } else if (stored !== undefined && isLanguageUnedited(data, langCode)) {
+        verbatim[langCode] = stored;
+      }
+    }
+    return verbatim;
+  }
+
   function isRawLanguage(langCode: string): boolean {
     return state.value.data?.rawLanguages?.includes(langCode) ?? false;
   }
@@ -234,15 +251,7 @@ export function useTranslations(
     const namespace = currentNamespace.value;
     const scopeId = unref(instanceId);
     const scopeLanguages = languages.value;
-    const verbatim: Record<string, string> = {};
-    for (const [langCode, forms] of Object.entries(data.translations)) {
-      const stored = data.sourceValues?.[langCode];
-      if (data.rawLanguages?.includes(langCode)) {
-        verbatim[langCode] = forms.other ?? "";
-      } else if (stored !== undefined && isLanguageUnedited(data, langCode)) {
-        verbatim[langCode] = stored;
-      }
-    }
+    const verbatim = verbatimValues(data);
     const selectConfigs = data.selectConfigs
       ? Object.fromEntries(
           Object.entries(data.selectConfigs).map(([lang, config]) => [
@@ -331,8 +340,13 @@ export function useTranslations(
       state.value.data.translations,
     );
 
-    // Validate plural variable if in plural mode
-    if (state.value.data.isPlural) {
+    // The plural variable matters only if some language is rebuilt from its
+    // forms; a key whose languages are all sent as written needs none.
+    const verbatim = verbatimValues(state.value.data);
+    const rebuildsAny = Object.keys(state.value.data.translations).some(
+      (langCode) => !(langCode in verbatim),
+    );
+    if (state.value.data.isPlural && rebuildsAny) {
       const variable = state.value.data.pluralVariable;
 
       if (!variable || variable.trim() === "") {

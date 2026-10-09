@@ -182,6 +182,58 @@ describe("saving one language leaves ICU the editor cannot rebuild untouched", (
   });
 });
 
+describe("saving a plural key where no language can be rebuilt", () => {
+  beforeEach(() => {
+    initApiConfig("test-api-key");
+    vi.stubGlobal("fetch", vi.fn());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    addMessagesMock.mockReset();
+  });
+
+  afterEach(() => {
+    resetApiConfig();
+  });
+
+  const EXACT = "{count, plural, =0 {None} one {One} other {# items}}";
+  const MULTILINE = "{count, plural,\n  one {# Datei}\n  other {# Dateien}\n}";
+
+  it.each([
+    ["an exact-selector plural", { en: EXACT }, "en"],
+    ["a multiline plural", { de: MULTILINE }, "de"],
+    ["every language written as is", { en: EXACT, de: MULTILINE }, "en"],
+  ])("sends %s as typed", async (_case, values: Record<string, string>, edited) => {
+    const fetchMock = serveKey(values);
+    const manager = await loadKey();
+    const typed = "{count, plural, =0 {Nothing} one {One} other {# things}}";
+
+    manager.updateTranslation(edited, "other", typed);
+    const saved = await manager.saveTranslation();
+
+    expect(manager.state.value.error).toBeNull();
+    expect(saved).not.toBeNull();
+    expect(sentTranslations(fetchMock)).toEqual(
+      Object.fromEntries(
+        Object.entries({ ...values, [edited]: typed }).map(([lang, value]) => [
+          lang,
+          { value, status: "not_reviewed" },
+        ]),
+      ),
+    );
+  });
+
+  it("still requires a plural variable once a language is rebuilt from its fields", async () => {
+    const fetchMock = serveKey({ en: EXACT });
+    const manager = await loadKey();
+
+    manager.updateTranslation("de", "one", "# Datei");
+    const saved = await manager.saveTranslation();
+
+    expect(saved).toBeNull();
+    expect(manager.state.value.error).toBe("Validation failed: Plural variable name is required");
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(false);
+  });
+});
+
 describe("switching between plural, variants and both", () => {
   beforeEach(() => {
     initApiConfig("test-api-key");
