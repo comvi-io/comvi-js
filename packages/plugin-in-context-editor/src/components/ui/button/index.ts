@@ -7,7 +7,10 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        // Neutral when disabled: a faded primary under primary-foreground reads
+        // as dark on dark orange in the dark theme.
+        default:
+          "bg-primary text-primary-foreground shadow hover:bg-primary/90 disabled:bg-muted disabled:text-ink-2 disabled:shadow-none disabled:opacity-100",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline:
           "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",

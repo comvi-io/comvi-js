@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mount } from "@vue/test-utils";
+import Button from "../src/components/ui/button/Button.vue";
 
 /**
  * Both barrels build their class tables with a single `cva()` call at module
@@ -21,7 +23,10 @@ beforeEach(async () => {
 
 const BUTTON_BASE =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
-const BUTTON_DEFAULT_VARIANT = "bg-primary text-primary-foreground shadow hover:bg-primary/90";
+// Disabled, the primary button turns neutral: primary-foreground on a faded
+// primary is dark on dark orange in the dark theme.
+const BUTTON_DEFAULT_VARIANT =
+  "bg-primary text-primary-foreground shadow hover:bg-primary/90 disabled:bg-muted disabled:text-ink-2 disabled:shadow-none disabled:opacity-100";
 const BUTTON_DEFAULT_SIZE = "h-9 px-4 py-2";
 
 const BADGE_BASE =
@@ -99,5 +104,15 @@ describe("badgeVariants()", () => {
 
   it("an explicitly undefined variant → the default applies", () => {
     expect(badgeVariants({ variant: undefined })).toBe(`${BADGE_BASE} ${BADGE_DEFAULT_VARIANT}`);
+  });
+});
+
+describe("Button disabled colours", () => {
+  it("a disabled primary button drops the faded orange for the neutral disabled style", () => {
+    const classes = mount(Button, { attrs: { disabled: true } }).classes();
+    expect(classes).toEqual(
+      expect.arrayContaining(["disabled:bg-muted", "disabled:text-ink-2", "disabled:opacity-100"]),
+    );
+    expect(classes).not.toContain("disabled:opacity-50");
   });
 });
