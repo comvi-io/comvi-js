@@ -17,6 +17,23 @@ function setMatchMedia(impl: ((query: string) => { matches: boolean }) | undefin
   (window as unknown as { matchMedia: unknown }).matchMedia = impl;
 }
 
+/**
+ * Stands in for `localStorage` with one failing method. A spy on
+ * `Storage.prototype` would leak: happy-dom binds each storage method onto the
+ * instance on first read, so a spy read first stays cached after its restore.
+ */
+function stubStorageThatThrowsOn(method: "getItem" | "setItem", message: string): void {
+  const store = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => void store.set(key, value),
+    clear: () => store.clear(),
+    [method]: () => {
+      throw new Error(message);
+    },
+  });
+}
+
 function hostPrefers(scheme: "light" | "dark"): void {
   setMatchMedia((query: string) => ({
     matches: query === "(prefers-color-scheme: dark)" && scheme === "dark",
@@ -96,9 +113,7 @@ describe("useTheme()", () => {
     });
 
     it("localStorage that throws on read → the host page decides", async () => {
-      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-        throw new Error("storage blocked");
-      });
+      stubStorageThatThrowsOn("getItem", "storage blocked");
       hostPrefers("dark");
 
       const { useTheme } = await loadThemeModule();
@@ -137,9 +152,7 @@ describe("useTheme()", () => {
     it("localStorage that throws on write → the theme still switches", async () => {
       const { useTheme } = await loadThemeModule();
       const { theme, setTheme } = useTheme();
-      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-        throw new Error("storage full");
-      });
+      stubStorageThatThrowsOn("setItem", "storage full");
 
       setTheme("dark");
 
