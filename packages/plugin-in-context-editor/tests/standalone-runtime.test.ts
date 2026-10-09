@@ -71,10 +71,12 @@ async function settleRefresh(): Promise<void> {
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((settle) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((settle, fail) => {
     resolve = settle;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 /**
@@ -247,6 +249,17 @@ describe("activate() instance selection", () => {
     expect(error).toHaveBeenCalledOnce();
   });
 
+  it("an instance without the plugin capability → the error names the missing @comvi/core/plugins capability", () => {
+    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    activate({ refreshMessages: false });
+
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      "[@comvi/plugin-in-context-editor] This i18n instance cannot be edited: it was created without the plugin capability (`@comvi/core/plugins`).",
+    );
+  });
+
   it("no instanceId → edits the instance with the plugin capability over an earlier one without it", () => {
     createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
     const editable = makeI18n();
@@ -367,6 +380,20 @@ describe("activate() translation refresh", () => {
     await settleRefresh();
 
     expect(addedCatalogs(addMessages)).toEqual([]);
+  });
+
+  it("refresh that fails after the runtime was stopped → no refresh warning is logged", async () => {
+    makeI18n();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const inFlight = createDeferred<Map<string, unknown>>();
+    fetchApiTranslationsMock.mockReturnValue(inFlight.promise);
+    const result = activate({ apiKey: "test-key" });
+    result?.stop();
+
+    inFlight.reject(new Error("network down"));
+    await settleRefresh();
+
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("RC review #11: drops a NON-EMPTY refresh that resolves after the runtime was stopped", async () => {

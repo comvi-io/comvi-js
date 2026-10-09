@@ -6,7 +6,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { closeKeySelector, showKeySelector } from "../src/KeySelector";
+import { cleanup, closeKeySelector, showKeySelector } from "../src/KeySelector";
 import { initApiConfig, resetApiConfig, type ApiTransport } from "../src/config/api";
 import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "../src/constants";
 
@@ -277,6 +277,22 @@ describe("key selector teardown", () => {
     await waitForDismissListeners();
 
     dropdown()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, composed: true }));
+
+    expect(selectorHosts()).toHaveLength(1);
+  });
+
+  it("cleanup() by the runtime that opened it → the selector leaves the page", () => {
+    openSelector([{ key: "home.title", ns: "default" }]);
+
+    cleanup("core-1");
+
+    expect(selectorHosts()).toEqual([]);
+  });
+
+  it("cleanup() by another runtime → the selector stays on the page", () => {
+    openSelector([{ key: "home.title", ns: "default" }]);
+
+    cleanup("core-2");
 
     expect(selectorHosts()).toHaveLength(1);
   });
