@@ -166,7 +166,7 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       textNode2.nodeValue = "changed2";
       await flushDOMMutations();
 
-      expect(callback.mock.calls[0]?.[0]).toEqual(expect.arrayContaining([textNode1, textNode2]));
+      expect(callback.mock.calls).toEqual([[expect.arrayContaining([textNode1, textNode2])]]);
     });
   });
 

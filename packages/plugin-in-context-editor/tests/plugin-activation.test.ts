@@ -102,11 +102,32 @@ describe("inContextEditorPlugin production guard", () => {
     }).toEqual({ bridge: undefined, subscriptions: 0 });
   });
 
-  it("NODE_ENV=production → the returned cleanup is a callable no-op", () => {
+  it("NODE_ENV=production, cleanup → the host still renders plain text and has no bridge", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const i18n = makeI18n();
+    const cleanup = install(i18n);
+
+    cleanup();
+
+    expect({
+      rendered: i18n.t("hello"),
+      bridge: (i18n as unknown as Record<string, unknown>)[MAPPINGS_BRIDGE_KEY],
+    }).toEqual({ rendered: "Hello", bridge: undefined });
+  });
+
+  it("NODE_ENV=production, cleanup → an editor another host started keeps highlighting", async () => {
+    // The production no-op must not stop anything: its cleanup has no editor of
+    // its own, so a running one on the page must survive it.
+    vi.stubEnv("NODE_ENV", "development");
+    const editedHost = makeI18n();
+    install(editedHost);
+    const heading = renderText(editedHost.t("hello"));
     vi.stubEnv("NODE_ENV", "production");
     const cleanup = install(makeI18n());
 
-    expect(() => cleanup()).not.toThrow();
+    cleanup();
+
+    expect(await hoverLabel(heading)).toBe("hello");
   });
 
   it("NODE_ENV=development → the host's rendered translations are highlighted", async () => {

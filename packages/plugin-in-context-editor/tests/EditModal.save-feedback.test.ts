@@ -96,41 +96,83 @@ describe("EditModal save feedback", () => {
     document.body.innerHTML = "";
   });
 
-  it("keeps the form on screen, disabled, while a save is pending", async () => {
+  /** Starts a save that stays pending until the returned function settles it. */
+  async function startPendingSave(): Promise<(value: TranslationData) => void> {
     let resolve!: (value: TranslationData) => void;
     saveTranslationMock.mockImplementationOnce(
       () => new Promise<TranslationData>((res) => (resolve = res)),
     );
     await edit("Fresh coffee, weekly");
+    clickButton("Save");
+    await nextTick();
+    return resolve;
+  }
+
+  it("save pending → the form stays on screen with the edited values, no loading skeleton", async () => {
+    saveTranslationMock.mockImplementationOnce(() => new Promise<TranslationData>(() => {}));
+    await edit("Fresh coffee, weekly");
 
     clickButton("Save");
     await nextTick();
 
-    const fields = textareas();
-    expect(fields.map((f) => f.value)).toEqual(["Fresh coffee, weekly", "Frischer Kaffee"]);
-    expect(fields.every((f) => f.disabled)).toBe(true);
-    expect(document.body.querySelector("#use-plural-forms")?.hasAttribute("disabled")).toBe(true);
-    expect(document.body.querySelector(".animate-pulse")).toBeNull();
-
-    resolve(stored("Fresh coffee, weekly"));
-    await flushPromises();
-    expect(textareas().every((f) => !f.disabled)).toBe(true);
+    expect({
+      values: textareas().map((f) => f.value),
+      skeleton: document.body.querySelector(".animate-pulse"),
+    }).toEqual({ values: ["Fresh coffee, weekly", "Frischer Kaffee"], skeleton: null });
   });
 
-  it("replaces the earlier Saved toast with the error of a failed save", async () => {
+  it("save pending → every field and the plural toggle are disabled", async () => {
+    saveTranslationMock.mockImplementationOnce(() => new Promise<TranslationData>(() => {}));
+    await edit("Fresh coffee, weekly");
+
+    clickButton("Save");
+    await nextTick();
+
+    expect({
+      fieldsDisabled: textareas().map((f) => f.disabled),
+      pluralToggleDisabled: document.body
+        .querySelector("#use-plural-forms")
+        ?.hasAttribute("disabled"),
+    }).toEqual({ fieldsDisabled: [true, true], pluralToggleDisabled: true });
+  });
+
+  it("pending save settles → the fields are enabled again", async () => {
+    const settle = await startPendingSave();
+
+    settle(stored("Fresh coffee, weekly"));
+    await flushPromises();
+
+    expect(textareas().map((f) => f.disabled)).toEqual([false, false]);
+  });
+
+  it("successful save → a Saved toast", async () => {
+    saveTranslationMock.mockResolvedValueOnce(stored("First edit"));
+    await edit("First edit");
+
+    clickButton("Save");
+    await flushPromises();
+
+    expect(toastTitles()).toEqual(["Saved"]);
+  });
+
+  it("failed save after a successful one → the Saved toast is replaced by a dismissible error", async () => {
     saveTranslationMock.mockResolvedValueOnce(stored("First edit"));
     await edit("First edit");
     clickButton("Save");
     await flushPromises();
-    expect(toastTitles()).toEqual(["Saved"]);
-
+    if (toastTitles().join() !== "Saved") {
+      throw new Error(`arrangement failed: expected a Saved toast, got [${toastTitles().join()}]`);
+    }
     saveTranslationMock.mockRejectedValueOnce(new Error("Failed to save translation"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     await edit("Second edit");
+
     clickButton("Save");
     await flushPromises();
 
-    expect(toastTitles()).toEqual(["Error"]);
-    expect(document.body.textContent).toContain("Dismiss");
+    expect({
+      toasts: toastTitles(),
+      dismissible: document.body.textContent?.includes("Dismiss"),
+    }).toEqual({ toasts: ["Error"], dismissible: true });
   });
 });

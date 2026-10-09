@@ -32,6 +32,9 @@ describe("ElementHighlighter — highlight overlay", () => {
   });
 
   afterEach(() => {
+    // Restored here, not at the end of a test: a failing assertion must not
+    // leave fake timers installed for the tests that follow.
+    vi.useRealTimers();
     highlighter.cleanup();
     cleanupDOM();
     restorePageScroll();
@@ -157,9 +160,6 @@ describe("ElementHighlighter — highlight overlay", () => {
               "[@comvi/plugin-in-context-editor] Cannot update position: element is detached from DOM",
           ),
         ).toHaveLength(expectedWarnings);
-
-        simulateKeyEvent("keyup", "Alt");
-        vi.useRealTimers();
       },
     );
   });
@@ -520,8 +520,6 @@ describe("ElementHighlighter — highlight overlay", () => {
       vi.advanceTimersToNextFrame();
 
       expect(warn).not.toHaveBeenCalled();
-
-      vi.useRealTimers();
     });
   });
 });

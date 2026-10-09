@@ -76,7 +76,7 @@ describe("inContextEditorPlugin startup failure", () => {
     const i18n = makeI18n();
     failWith(initApiConfigMock, "bad config");
 
-    expect(() => inContextEditorPlugin()(asPluginHost(i18n))).toThrow();
+    expect(() => inContextEditorPlugin()(asPluginHost(i18n))).toThrow("bad config");
 
     expect(getI18nInstance()).toBeNull();
   });
@@ -94,7 +94,7 @@ describe("activate() startup failure", () => {
     makeI18n();
     failWith(initApiConfigMock, "bad config");
 
-    expect(() => activate({ refreshMessages: false })).toThrow();
+    expect(() => activate({ refreshMessages: false })).toThrow("bad config");
 
     expect(isActive()).toBe(false);
   });
@@ -103,7 +103,7 @@ describe("activate() startup failure", () => {
     makeI18n();
     failWith(initApiConfigMock, "bad config");
 
-    expect(() => activate({ refreshMessages: false })).toThrow();
+    expect(() => activate({ refreshMessages: false })).toThrow("bad config");
 
     expect(getI18nInstance()).toBeNull();
   });

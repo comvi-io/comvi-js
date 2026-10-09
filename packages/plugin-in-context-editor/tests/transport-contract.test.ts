@@ -127,13 +127,15 @@ describe("editor services over the transport", () => {
       SCOPE,
     );
 
-    const body = JSON.parse(calls[0].init?.body ?? "{}");
+    const body = JSON.parse(calls[0]?.init?.body ?? "{}");
     expect({
-      path: calls[0].path,
-      method: calls[0].init?.method,
+      requests: calls.length,
+      path: calls[0]?.path,
+      method: calls[0]?.init?.method,
       fields: Object.keys(body).sort(),
       en: body.translations.en,
     }).toEqual({
+      requests: 1,
       path: "/v1/keys",
       method: "PUT",
       fields: ["isPlural", "key", "namespace", "translations"],

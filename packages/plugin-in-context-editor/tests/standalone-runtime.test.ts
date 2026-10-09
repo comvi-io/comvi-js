@@ -483,11 +483,7 @@ describe("deactivate() teardown", () => {
     failCoreStopWith("core boom");
     const result = activate({ refreshMessages: false });
 
-    try {
-      result?.stop();
-    } catch {
-      // The rethrow is the previous test's claim; this one is about the state left behind.
-    }
+    expect(() => result?.stop()).toThrow("core boom");
 
     expect(isActive()).toBe(false);
   });
@@ -497,11 +493,7 @@ describe("deactivate() teardown", () => {
     failCoreStopWith("core boom");
     const result = activate({ refreshMessages: false });
 
-    try {
-      result?.stop();
-    } catch {
-      // The rethrow is the first test's claim; this one is about the state left behind.
-    }
+    expect(() => result?.stop()).toThrow("core boom");
 
     expect(() => getApiConfig(result?.instanceId)).toThrow(/API configuration not initialized/);
   });
