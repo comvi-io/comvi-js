@@ -1,7 +1,7 @@
 /**
  * Service worker integration: opening, promoting, ending and rolling back editor sessions, and who may ask for each.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, onTestFinished, vi } from "vitest";
 import { tabLockKey, withLock } from "../state";
 import { sweepExpiredPendingSessions } from "../sessions";
 import {
@@ -37,7 +37,15 @@ describe("session lifecycle", () => {
   it("keeps an activation-time request off the network while the session is pending", async () => {
     await startSession();
 
-    void proxyRequest({ id: "activation-refresh" });
+    const held = proxyRequest({ id: "activation-refresh" });
+    // Cancel and settle the held request whatever the assertion does.
+    onTestFinished(async () => {
+      await harness.dispatchMessage(
+        { type: "API_PROXY_ABORT", payload: { id: "activation-refresh" } },
+        pageSender(),
+      );
+      await held;
+    });
     await harness.flush();
 
     expect(fetchMock).toHaveBeenCalledTimes(1); // key validation only
@@ -124,19 +132,23 @@ describe("session lifecycle", () => {
     expect(harness.chrome.storage.local.snapshot()).toEqual({});
   });
 
-  it("keeps the session pending when acknowledgements carry no nonce or a wrong one", async () => {
+  it.each([
+    ["no nonce", undefined],
+    ["a wrong nonce", "wrong-nonce"],
+  ])("keeps the session pending when an acknowledgement carries %s", async (_label, nonce) => {
     await startSession();
 
-    await activate(undefined);
-    await activate("wrong-nonce");
+    await activate(nonce);
 
     expect(await sessionStatus()).toMatchObject({ active: false, pending: true });
   });
 
-  it("denies the proxy after forged acknowledgements and a rollback", async () => {
+  it.each([
+    ["no nonce", undefined],
+    ["a wrong nonce", "wrong-nonce"],
+  ])("denies the proxy after an acknowledgement with %s and a rollback", async (_label, nonce) => {
     const started = await startSession();
-    await activate(undefined);
-    await activate("wrong-nonce");
+    await activate(nonce);
     await harness.dispatchMessage(
       { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
       popupSender,
@@ -438,8 +450,13 @@ describe("storage concurrency", () => {
     harness.setTabUrl(TAB2, PAGE_URL);
 
     const [first, second] = await Promise.all([startSession(), startSession({ tabId: TAB2 })]);
+    expect(first).toMatchObject({ ok: true, nonce: expect.any(String) });
+    expect(second).toMatchObject({ ok: true, nonce: expect.any(String) });
+    expect(second.nonce).not.toBe(first.nonce);
     await activate(first.nonce);
     await activate(second.nonce, pageSender({ tab: { id: TAB2 } as chrome.tabs.Tab }));
+    expect(await sessionStatus(TAB)).toMatchObject({ active: true });
+    expect(await sessionStatus(TAB2)).toMatchObject({ active: true });
 
     harness.fireTabRemoved(TAB2);
     await harness.flush();
