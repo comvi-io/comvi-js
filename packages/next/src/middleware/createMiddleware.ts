@@ -134,7 +134,8 @@ export function createMiddleware(config: MiddlewareConfig) {
     // made `/de/` redirect to ITSELF forever: the public path is `/de`, but
     // `nextUrl.clone()` re-serializes it with the slash the request carried,
     // so the two strings never converged.
-    if (withoutTrailingSlash(pathname) !== withoutTrailingSlash(publicPathname)) {
+    const isRedirect = withoutTrailingSlash(pathname) !== withoutTrailingSlash(publicPathname);
+    if (isRedirect) {
       const url = request.nextUrl.clone();
       url.pathname = publicPathname;
       response = NextResponse.redirect(url);
@@ -152,7 +153,23 @@ export function createMiddleware(config: MiddlewareConfig) {
 
     response.headers.set(LOCALE_HEADER, locale);
 
-    if (cookie && request.cookies.get(cookie.name)?.value !== locale) {
+    // The cookie is the record of the user's choice, so it follows the pages
+    // the browser LOADS, not the fetches Next's client router makes in the
+    // background: it prefetches a page's links, and Next 16 re-prefetches the
+    // links of the page being left after a navigation, which moved the cookie
+    // back to the locale just switched away from. Next removes its own
+    // prefetch header before middleware runs, so `Sec-Fetch-Dest` is the
+    // signal; a request without it (a non-browser client) counts as a load.
+    // A client-side switch records itself in the browser: `localeSwitch.ts`.
+    //
+    // One fetch still writes: a redirect away from a URL that names its locale
+    // leads to a URL that names none, and the cookie is all that tells the
+    // redirected request which locale that was.
+    const fetchDest = request.headers.get("sec-fetch-dest");
+    const recordsChoice =
+      fetchDest === null || fetchDest === "document" || (isRedirect && pathLocale !== undefined);
+
+    if (cookie && recordsChoice && request.cookies.get(cookie.name)?.value !== locale) {
       response.cookies.set(cookie.name, locale, {
         path: "/",
         maxAge: cookie.maxAge,
