@@ -413,6 +413,25 @@ describe("proxy contract — path resolution", () => {
     expectRejected({ path }, "Trailing slash not allowed");
   });
 
+  // Matching used to drop empty segments while the fetch URL kept them, so
+  // "/v1//project" reached the API as a path outside the exact contract.
+  it.each([
+    ["a static route", "/v1//project"],
+    ["a static route with a leading repeat", "//v1/project?x"],
+    ["a parameterised route", "/v1/projects/42//export"],
+    ["a parameterised route with a repeat before the id", "/v1/projects//42/export"],
+  ])("rejects a repeated separator in %s", (_label, path) => {
+    const result = validateProxyRequest(req({ path }), BASE, CTX);
+    expect(result).toMatchObject({ ok: false });
+  });
+
+  it.each(["/v1//project", "/v1/projects/42//export", "/v1/projects//42/export"])(
+    "names the empty segment in %s",
+    (path) => {
+      expectRejected({ path }, "Empty path segment not allowed");
+    },
+  );
+
   it.each([
     ["/v1/../admin/users", "/admin/users"],
     ["/v1/%2e%2e/admin/users", "/admin/users"],
@@ -548,6 +567,20 @@ describe("proxy contract — query validation", () => {
   ])("rejects %s", (_label, query, key) => {
     expectRejected({ path: `/v1/translations?${query}` }, `Invalid query parameter: ${key}`);
   });
+
+  // An inherited Object.prototype name must never be looked up as a validator:
+  // toString/constructor were accepted and forwarded, __proto__/valueOf threw.
+  it.each(Object.getOwnPropertyNames(Object.prototype))(
+    "rejects the inherited name %s without throwing",
+    (name) => {
+      const path = `/v1/translations?${encodeURIComponent(name)}=x`;
+      let result: ReturnType<typeof validateProxyRequest> | undefined;
+      expect(() => {
+        result = validateProxyRequest(req({ path }), BASE, CTX);
+      }).not.toThrow();
+      expect(result).toEqual({ ok: false, error: `Unexpected query parameter: ${name}` });
+    },
+  );
 
   it("accepts a locale list at exactly its item cap and item length", () => {
     const locales = Array(20).fill("l".repeat(64)).join(",");

@@ -560,6 +560,22 @@ describe("proxy authorization", () => {
     expect(fetchMock.mock.calls.length).toBe(before);
   });
 
+  it.each(Object.getOwnPropertyNames(Object.prototype))(
+    "answers an inherited query name %s with a failure and no network access",
+    async (name) => {
+      await openActiveSession();
+      const before = fetchMock.mock.calls.length;
+      const result = await proxyRequest({
+        path: `/v1/translations?${encodeURIComponent(name)}=x`,
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        networkError: `Unexpected query parameter: ${name}`,
+      });
+      expect(fetchMock.mock.calls.length).toBe(before);
+    },
+  );
+
   it("telemetry routes stay closed when activation does not enable collection", async () => {
     await openActiveSession();
     const result = await proxyRequest({

@@ -565,9 +565,14 @@ export function validateProxyRequest(
 
   // Split the (still percent-encoded) pathname into segments. The URL parser
   // has already normalized dot segments, including percent-encoded forms.
-  const pathSegments = resolved.pathname.split("/").filter((segment) => segment.length > 0);
+  // Empty segments are rejected, not dropped: the fetch URL keeps them, so
+  // "/v1//project" would otherwise reach the API outside the exact contract.
   if (resolved.pathname.endsWith("/")) {
     return { ok: false, error: "Trailing slash not allowed" };
+  }
+  const pathSegments = resolved.pathname.slice(1).split("/");
+  if (pathSegments.includes("")) {
+    return { ok: false, error: "Empty path segment not allowed" };
   }
 
   let matched: { rule: RouteRule; params: Record<string, string> } | null = null;
@@ -609,8 +614,13 @@ export function validateProxyRequest(
     return { ok: false, error: "Duplicate query parameters" };
   }
   for (const key of queryKeys) {
-    const validator = rule.query?.[key];
-    if (!validator) {
+    // Own properties only: an inherited name such as "toString" or
+    // "__proto__" is not a declared parameter and must not reach a lookup.
+    const validator =
+      rule.query && Object.prototype.hasOwnProperty.call(rule.query, key)
+        ? rule.query[key]
+        : undefined;
+    if (typeof validator !== "function") {
       return { ok: false, error: `Unexpected query parameter: ${key}` };
     }
     const value = resolved.searchParams.get(key) ?? "";
