@@ -18,8 +18,8 @@ import { NEXT_LOCALE_COOKIE } from "./defineRouting";
  *    its own entry in Next's client router cache, where the unprefixed one may
  *    hold a redirect that an earlier prefetch was answered with.
  * 2. The switch writes the cookie itself, in the browser. Next answers a
- *    navigation it has cached without a request, so the middleware never sees
- *    it and the cookie would keep the previous choice.
+ *    navigation it has cached without a request, and the middleware records
+ *    only a page the browser loads, never a client-router fetch.
  */
 
 const switchRoutingCache = new WeakMap<Required<RoutingConfig>, Required<RoutingConfig>>();
@@ -38,12 +38,15 @@ export function getSwitchRouting(routing: Required<RoutingConfig>): Required<Rou
  * Record `locale` in the locale cookie, with the name and attributes the
  * middleware writes it with.
  *
- * Nothing is written without a routing config (no cookie is known), for
- * `localeCookie: false`, or for a locale the routing does not list.
+ * Nothing is written for `localeCookie: false` or for a locale the routing
+ * does not list. Without a routing config (`<I18nProvider>` with no `routing`
+ * prop) the cookie is the default one, `NEXT_LOCALE` with default attributes:
+ * the middleware does not record the fetch a client-side switch makes, so the
+ * switch is the only thing that can.
  */
 export function writeLocaleCookie(routing: Required<RoutingConfig> | null, locale: string): void {
-  if (!routing || typeof document === "undefined" || !routing.locales.includes(locale)) return;
-  const cookie = normalizeLocaleCookie(routing.localeCookie, NEXT_LOCALE_COOKIE);
+  if (typeof document === "undefined" || (routing && !routing.locales.includes(locale))) return;
+  const cookie = normalizeLocaleCookie(routing?.localeCookie, NEXT_LOCALE_COOKIE);
   if (!cookie) return;
   // A browser drops a `Secure` cookie set from a plain-HTTP page.
   document.cookie = serializeLocaleCookie(

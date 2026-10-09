@@ -438,3 +438,47 @@ describe("<Link> to another locale is not prefetched", () => {
     expect(screen.getByTestId("next-link").dataset.prefetch).toBe("undefined");
   });
 });
+
+describe("a switch through the hooks without a routing config", () => {
+  // The manual setup: `<I18nProvider>` with no `routing` prop. The middleware
+  // no longer records the client-router fetch a switch makes, so the switch
+  // records itself, in the cookie the middleware reads by default.
+  const renderBareRouter = (locale: string) => {
+    const fake = new FakeI18n({ language: locale });
+    return renderHook(() => useLocalizedRouter(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <I18nProvider i18n={fake.asI18n()} locale={locale} autoInit={false}>
+          {children}
+        </I18nProvider>
+      ),
+    });
+  };
+
+  it("router.push(href, 'de') → NEXT_LOCALE records de", () => {
+    document.cookie = "NEXT_LOCALE=en; Path=/";
+    const { result } = renderBareRouter("en");
+
+    act(() => {
+      result.current.push("/about", "de");
+    });
+
+    expect(nextNavigation.router.push).toHaveBeenCalledWith("/de/about");
+    expect(readCookies()).toEqual({ NEXT_LOCALE: "de" });
+  });
+
+  it("a clicked <Link locale='de'> → NEXT_LOCALE records de", () => {
+    document.cookie = "NEXT_LOCALE=en; Path=/";
+    const fake = new FakeI18n({ language: "en" });
+    render(
+      <I18nProvider i18n={fake.asI18n()} locale="en" autoInit={false}>
+        <Link href="/about" locale="de">
+          Deutsch
+        </Link>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("next-link"));
+
+    expect(readCookies()).toEqual({ NEXT_LOCALE: "de" });
+  });
+});
