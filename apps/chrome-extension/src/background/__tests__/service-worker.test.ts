@@ -1818,33 +1818,73 @@ describe("worker restart", () => {
     expect(calls.slice(1)).toContain("set");
   });
 
-  it("still starts when the browser has no storage access-level API", async () => {
-    const fresh = await startFreshWorker(harness);
+  // The README promises content scripts cannot read saved keys, so the worker
+  // handles no credential until the restriction is in place.
+  it.each([
+    [
+      "has no storage access-level API",
+      (local: Record<string, unknown>) => {
+        delete local.setAccessLevel;
+      },
+    ],
+    [
+      "refuses to restrict local storage",
+      (local: Record<string, unknown>) => {
+        local.setAccessLevel = vi.fn(async () => {
+          throw new Error("This StorageArea is not available for setting access level");
+        });
+      },
+    ],
+  ])("handles no credential when the browser %s", async (_label, breakRestriction) => {
+    const fresh = await startFreshWorker(harness, (worker) =>
+      breakRestriction(worker.chrome.storage.local as unknown as Record<string, unknown>),
+    );
+    fresh.openPopupLease(POPUP_LEASE);
+    const before = fetchMock.mock.calls.length;
 
+    const started = await fresh.dispatchMessage(
+      {
+        type: "START_SESSION",
+        payload: { tabId: TAB, origin: ORIGIN, apiKey: API_KEY, popupLeaseId: POPUP_LEASE },
+      },
+      popupSender,
+    );
     const status = await fresh.dispatchMessage(
       { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
       popupSender,
     );
 
-    expect(status).toMatchObject({ active: false, pending: false });
+    expect(started).toMatchObject({ ok: false });
+    expect(status).toMatchObject({
+      active: false,
+      pending: false,
+      unavailable: expect.any(String),
+    });
+    expect(fetchMock.mock.calls.length).toBe(before);
+    expect(fresh.chrome.storage.local.snapshot()).not.toHaveProperty("comvi_credentials");
   });
 
-  it("still starts when the browser refuses to restrict local storage", async () => {
+  it("handles credentials once a retried restriction succeeds", async () => {
+    let refuse = true;
     const fresh = await startFreshWorker(harness, (worker) => {
       (worker.chrome.storage.local as unknown as Record<string, unknown>).setAccessLevel = vi.fn(
         async () => {
-          throw new Error("This StorageArea is not available for setting access level");
+          if (refuse) throw new Error("transient");
         },
       );
     });
+    fresh.openPopupLease(POPUP_LEASE);
+    refuse = false;
 
-    const status = await fresh.dispatchMessage(
-      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+    const started = await fresh.dispatchMessage(
+      {
+        type: "START_SESSION",
+        payload: { tabId: TAB, origin: ORIGIN, apiKey: API_KEY, popupLeaseId: POPUP_LEASE },
+      },
       popupSender,
     );
 
-    expect(status).toMatchObject({ active: false, pending: false });
-    expect(status).not.toHaveProperty("unavailable");
+    expect(started).toMatchObject({ ok: true });
   });
 });
 

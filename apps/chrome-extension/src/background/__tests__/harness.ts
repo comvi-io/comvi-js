@@ -29,6 +29,9 @@ class FakeStorageArea {
     for (const [key, value] of Object.entries(items)) this.data.set(key, value);
   };
 
+  /** Present by default, like every Chrome the manifest allows. */
+  setAccessLevel?: (options: { accessLevel: string }) => Promise<void> = async () => undefined;
+
   remove = async (keys: string | string[]): Promise<void> => {
     for (const key of Array.isArray(keys) ? keys : [keys]) this.data.delete(key);
   };
