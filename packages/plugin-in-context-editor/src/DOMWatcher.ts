@@ -198,11 +198,7 @@ export class DOMWatcher {
       return;
     }
 
-    const hostInScope =
-      this.targetElement.nodeType === Node.DOCUMENT_NODE
-        ? host.ownerDocument === this.targetElement
-        : host === this.targetElement || this.targetElement.contains(host);
-    if (this.isEditorUiShadowHost(host) || !hostInScope) {
+    if (this.isEditorUiShadowHost(host) || !this.isNodeWithinTargetScope(host)) {
       return;
     }
 

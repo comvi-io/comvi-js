@@ -7,7 +7,7 @@ import { DOMWatcher } from "../src/DOMWatcher";
 import { EventBus } from "../src/EventBus";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { TranslationScanner } from "../src/TranslationScanner";
-import { TAG_ATTRIBUTES } from "../src/constants";
+import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE, TAG_ATTRIBUTES } from "../src/constants";
 import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
 import { cleanupDOM, flushDOMMutations } from "./helpers";
 
@@ -130,6 +130,38 @@ describe("DOM pipeline", () => {
         false,
         "hello",
       ]);
+    });
+  });
+
+  describe("shadow roots attached after start", () => {
+    it("shadow root attached inside an observed shadow tree → its translations register", async () => {
+      const outerHost = document.createElement("div");
+      container.appendChild(outerHost);
+      const outerRoot = outerHost.attachShadow({ mode: "open" });
+      const innerHost = document.createElement("div");
+      outerRoot.appendChild(innerHost);
+      const { registry } = startPipeline(container);
+      const markedChild = markedParagraph("Hello", "hello");
+
+      innerHost.attachShadow({ mode: "open" }).appendChild(markedChild);
+      await flushDOMMutations();
+
+      expect(registry.has(markedChild)).toBe(true);
+    });
+
+    it("shadow root attached inside an editor UI shadow tree → stays unobserved", async () => {
+      const editorHost = document.createElement("div");
+      editorHost.setAttribute(EDITOR_UI_SHADOW_HOST_ATTRIBUTE, "true");
+      container.appendChild(editorHost);
+      const innerHost = document.createElement("div");
+      editorHost.attachShadow({ mode: "open" }).appendChild(innerHost);
+      const { registry } = startPipeline(container);
+      const markedChild = markedParagraph("Hello", "hello");
+
+      innerHost.attachShadow({ mode: "open" }).appendChild(markedChild);
+      await flushDOMMutations();
+
+      expect(registry.has(markedChild)).toBe(false);
     });
   });
 });
