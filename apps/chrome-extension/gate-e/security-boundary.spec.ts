@@ -257,7 +257,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
     // The two-tab credential-family case is deterministic at the service-
     // worker integration level. Programmatic openPopup() cannot grant
     // activeTab to a newly-created second tab, unlike a real toolbar click.
-    // See service-worker.test.ts: "revokes sessions on other origins that use
+    // See service-worker.credentials.test.ts: "revokes sessions on other origins that use
     // the same API key".
   } finally {
     await context.close();
