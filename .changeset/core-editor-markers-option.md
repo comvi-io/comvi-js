@@ -17,8 +17,8 @@ name says exactly that; nothing else reads it, and the string is then not editab
 as before. `markers` stays a reserved call-control key: it is not an interpolation value, and
 `defaultParams` rejects it beside `locale`, `ns`, `fallback` and `tagInterpolation`.
 
-**On `<T>` the prop is `markers` too, in all four bindings.** `<T skipPostProcess>` becomes
+**On `<T>` the prop is `markers` too, in all four bindings.** `<T raw>` becomes
 `<T markers={false}>` in JSX and `.svelte` markup and `:markers="false"` in `.vue` templates.
 `<T>` forwards `markers: false` only when the prop is `false`; `true` or no prop adds nothing, so
-a `markers` key in `params` is left as it is. `skipPostProcess` is now an undeclared name, so like
+a `markers` key in `params` is left as it is. `raw` is an undeclared name on `<T>`, so like
 any other undeclared prop it reaches the translation as an interpolation param.
