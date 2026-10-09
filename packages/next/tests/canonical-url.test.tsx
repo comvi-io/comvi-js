@@ -7,28 +7,23 @@
  * for, so the page was right and the address bar said `/en/about`. The routing
  * provider puts the public URL back, as the middleware would have.
  *
- * `next/navigation` is the framework boundary and is stubbed with the pathname
- * Next reports.
+ * The provider reads the browser's own URL, never `next/navigation`: the client
+ * entry has to import in plain Node ESM, where that specifier does not resolve
+ * (`tests/dist/native-esm-rich-text.dist.test.ts`). It looks again whenever the
+ * locale it renders in changes, which is what a switch is.
  */
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 import { I18nProvider } from "../src/client/I18nProvider";
 import type { RoutingConfig } from "../src/routing/types";
 
-const nextNavigation = vi.hoisted(() => ({ pathname: null as string | null }));
-
-vi.mock("next/navigation", () => ({
-  usePathname: () => nextNavigation.pathname,
-}));
-
 const ROUTING: RoutingConfig = { locales: ["en", "de"], defaultLocale: "en" };
 
 const renderAt = (url: string, locale: string, routing?: RoutingConfig) => {
   window.history.replaceState(null, "", url);
-  nextNavigation.pathname = new URL(url, "http://localhost").pathname;
   const replaced = vi.spyOn(window.history, "replaceState");
   const fake = new FakeI18n({ language: locale });
   render(
@@ -38,10 +33,6 @@ const renderAt = (url: string, locale: string, routing?: RoutingConfig) => {
   );
   return replaced;
 };
-
-beforeEach(() => {
-  nextNavigation.pathname = null;
-});
 
 describe("the routing provider keeps the public URL in the address bar", () => {
   it("as-needed, the default locale's prefixed URL → replaced with the unprefixed one, query and hash kept", () => {
@@ -79,17 +70,21 @@ describe("the routing provider keeps the public URL in the address bar", () => {
     expect(replaced).not.toHaveBeenCalled();
   });
 
-  it("no pathname from Next yet → left alone", () => {
+  it("a switch that arrives as a new locale on the same provider → the URL it landed on is put right", () => {
+    window.history.replaceState(null, "", "/de/about");
+    const fake = new FakeI18n({ language: "de" });
+    const tree = (locale: string) => (
+      <I18nProvider i18n={fake.asI18n()} locale={locale} routing={ROUTING} autoInit={false}>
+        <p>page</p>
+      </I18nProvider>
+    );
+    const { rerender } = render(tree("de"));
+    // What Next 16 leaves in the address bar for a repeated switch to `en`.
     window.history.replaceState(null, "", "/en/about");
     const replaced = vi.spyOn(window.history, "replaceState");
-    const fake = new FakeI18n({ language: "en" });
 
-    render(
-      <I18nProvider i18n={fake.asI18n()} locale="en" routing={ROUTING} autoInit={false}>
-        <p>page</p>
-      </I18nProvider>,
-    );
+    rerender(tree("en"));
 
-    expect(replaced).not.toHaveBeenCalled();
+    expect(replaced).toHaveBeenCalledWith(null, "", "/about");
   });
 });

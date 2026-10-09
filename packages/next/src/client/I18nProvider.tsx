@@ -193,7 +193,13 @@ export function I18nProvider({
     </ReactI18nProvider>
   );
 
-  return routing ? <RoutingProvider routing={routing}>{content}</RoutingProvider> : content;
+  return routing ? (
+    <RoutingProvider routing={routing} locale={locale}>
+      {content}
+    </RoutingProvider>
+  ) : (
+    content
+  );
 }
 
 I18nProvider.displayName = "I18nProvider";
