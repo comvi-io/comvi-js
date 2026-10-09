@@ -30,7 +30,12 @@ export interface LocaleDetectorOptions {
   order?: DetectorType[];
 
   /**
-   * Where to cache the detected/changed locale
+   * Where to cache the detected/changed locale.
+   *
+   * A locale detected during `init()` is written once that init has succeeded;
+   * a later `setLocale()` is written at once. When `init()` fails because the
+   * locale read from the cache could not be loaded, that cached value is
+   * removed, so the next visit detects afresh instead of failing the same way.
    * @default ['localStorage']
    */
   caches?: CacheType[];
@@ -193,6 +198,26 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
     // Bridges a single `detect()` call to the `localeChanged` event core emits
     // right after it, so a fallback-only resolution suppresses its cache write.
     let pendingInitResult: DetectionResult | null = null;
+    // A locale detected during `init()` is persisted once that init has
+    // succeeded, never before: written earlier, a language the app has no
+    // catalog for was cached ahead of the first load and failed every later
+    // visit the same way. Held here until `initialized`.
+    let deferredWrite: string | null = null;
+    // The raw value this init read from the cache, and whether a load for the
+    // locale it resolved to has failed since: together they say the cached
+    // value is what broke the init, which is the one case it is removed in.
+    let cachedRaw: string | null = null;
+    let cachedLocale: string | null = null;
+    let cachedLoadFailed = false;
+
+    /** Persist now, or once the init in progress has succeeded. */
+    const persist = (locale: string): void => {
+      if (i18n.isInitializing) {
+        deferredWrite = locale;
+      } else {
+        writeCaches(locale, caches, cfg);
+      }
+    };
 
     const process = (raw: string): DetectionResult | null => {
       if (convertDetectedLocale) {
@@ -225,17 +250,24 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
               firstCache === "sessionStorage" ? lookupSessionStorage : lookupLocalStorage,
             );
 
-      return raw && isValid(raw) ? process(raw) : null;
+      const result = raw && isValid(raw) ? process(raw) : null;
+      if (result && i18n.isInitializing) {
+        cachedRaw = raw;
+        cachedLocale = result.locale;
+        cachedLoadFailed = false;
+      }
+      return result;
     };
 
     const handleCurrentLocaleMatch = (result: DetectionResult): void => {
       if (result.cache && result.locale === i18n.locale) {
-        writeCaches(result.locale, caches, cfg);
+        persist(result.locale);
         pendingInitResult = null;
       }
     };
 
     const detect = (): string => {
+      deferredWrite = cachedRaw = cachedLocale = null;
       const cached = cacheFirst ? detectFromCache() : null;
       if (cached) {
         pendingInitResult = cached;
@@ -286,7 +318,10 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
         const initResult = pendingInitResult;
         pendingInitResult = null;
 
-        if (initResult.locale === locale && !initResult.cache) {
+        if (initResult.locale === locale) {
+          // The init-time detection being applied; a deliberate switch made
+          // while init is still running is not this branch and is written now.
+          if (initResult.cache) persist(locale);
           return;
         }
       }
@@ -294,9 +329,25 @@ export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
       writeCaches(locale, caches, cfg);
     });
 
+    const unsubInitialized = i18n.on("initialized", () => {
+      if (deferredWrite) writeCaches(deferredWrite, caches, cfg);
+      deferredWrite = cachedRaw = null;
+    });
+
+    const unsubLoadError = i18n.on("loadError", ({ locale }) => {
+      if (locale === cachedLocale) cachedLoadFailed = true;
+    });
+
     return () => {
-      pendingInitResult = null;
+      // Reached with `cachedRaw` still set only when the init that read it
+      // never succeeded. If its locale also failed to load, the cached value
+      // is what keeps breaking the app, so it goes; a value the app has
+      // written over it in the meantime is not this one and stays.
+      if (cachedRaw && cachedLoadFailed) removeCaches(cachedRaw, caches, cfg);
+      pendingInitResult = deferredWrite = cachedRaw = null;
       unsub();
+      unsubInitialized();
+      unsubLoadError();
     };
   };
 };
@@ -383,17 +434,15 @@ function detectNav(): string | null {
       : navigator.language || null;
 }
 
-function writeCaches(
-  locale: string,
-  caches: CacheType[],
-  cfg: {
-    cookieKey: string;
-    localStorageKey: string;
-    sessionStorageKey: string;
-    cookieOptions: CookieOptions;
-    maxAge: number;
-  },
-): void {
+interface CacheConfig {
+  cookieKey: string;
+  localStorageKey: string;
+  sessionStorageKey: string;
+  cookieOptions: CookieOptions;
+  maxAge: number;
+}
+
+function writeCaches(locale: string, caches: CacheType[], cfg: CacheConfig): void {
   for (const t of caches) {
     try {
       if (t === "cookie") {
@@ -420,6 +469,25 @@ function writeCaches(
       }
     } catch {
       /* privacy mode, quota exceeded */
+    }
+  }
+}
+
+/** Remove `raw` from every cache target that still holds exactly that value. */
+function removeCaches(raw: string, caches: CacheType[], cfg: CacheConfig): void {
+  for (const t of caches) {
+    try {
+      if (t === "cookie") {
+        if (readCookie(cfg.cookieKey) === raw) {
+          const { path: p = "/", domain: d } = cfg.cookieOptions;
+          document.cookie = `${cfg.cookieKey}=; max-age=0; path=${p}` + (d ? `; domain=${d}` : "");
+        }
+      } else {
+        const key = t === "sessionStorage" ? cfg.sessionStorageKey : cfg.localStorageKey;
+        if (readStorage(t, key) === raw) window[t].removeItem(key);
+      }
+    } catch {
+      /* privacy mode */
     }
   }
 }
