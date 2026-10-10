@@ -1,15 +1,20 @@
 import { render } from "solid-js/web";
+import { Route, Router } from "@solidjs/router";
 import { I18nProvider } from "@comvi/solid";
 import { App } from "./App";
+import { Home } from "./pages/Home";
+import { Account } from "./pages/Account";
 import { i18n } from "./i18n";
 
-// The provider calls `i18n.init()` — which runs the plugins and loads the first
-// catalog — and owns the signals every `useI18n()` below it reads. `fallback`
-// paints until the lazy catalog is in, so no frame shows raw keys.
+// The provider starts loading the first catalog and shows `fallback` until it
+// is in, so no frame renders a raw key.
 render(
   () => (
-    <I18nProvider i18n={i18n} fallback={<p>Loading…</p>}>
-      <App />
+    <I18nProvider i18n={i18n} fallback={<p class="status">Loading…</p>}>
+      <Router root={App}>
+        <Route path="/" component={Home} />
+        <Route path="/about" component={Account} />
+      </Router>
     </I18nProvider>
   ),
   document.getElementById("app")!,

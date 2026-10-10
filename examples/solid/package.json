@@ -14,6 +14,7 @@
     "@comvi/plugin-fetch-loader": "^0.5.0",
     "@comvi/plugin-locale-detector": "^0.5.0",
     "@comvi/solid": "^0.5.0",
+    "@solidjs/router": "^1.0.0",
     "solid-js": "^1.9.12"
   },
   "devDependencies": {

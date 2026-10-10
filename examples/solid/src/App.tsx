@@ -1,46 +1,10 @@
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
-import { T, useI18n } from "@comvi/solid";
-import { Account } from "./Account";
-import { locales, rtlLocale } from "./i18n";
+import { createEffect, type ParentProps } from "solid-js";
+import { useI18n } from "@comvi/solid";
+import { LocaleSwitcher } from "./components/LocaleSwitcher";
 
-const RELEASED = new Date("2026-09-01T00:00:00Z");
-
-// The greeting's `{name}`: "Ada", or `?name=…` from the address bar. Whatever
-// arrives there is a parameter, and a parameter is rendered as text, never as
-// markup: try `?name=<b>Grace</b>`.
-const name = new URLSearchParams(location.search).get("name") ?? "Ada";
-
-type View = "home" | "about";
-const viewFromPath = (): View => (location.pathname === "/about" ? "about" : "home");
-
-export function App() {
-  // `useI18n()` builds its signals from the provider's, so it MUST be called
-  // inside a component (a reactive context) — never at module scope.
-  const {
-    t,
-    locale,
-    setLocale,
-    dir,
-    isLoading,
-    cacheRevision,
-    formatNumber,
-    formatDate,
-    getLoadedLocales,
-  } = useI18n();
-  const [count, setCount] = createSignal(2);
-
-  // A second view, so the locale can be seen surviving a navigation. No router
-  // dependency: `history.pushState` and `popstate` are the whole of it, and
-  // `vite preview` serves index.html for /about on a reload.
-  const [view, setView] = createSignal(viewFromPath());
-  const onPop = () => setView(viewFromPath());
-  window.addEventListener("popstate", onPop);
-  onCleanup(() => window.removeEventListener("popstate", onPop));
-  const go = (to: View) => (event: MouseEvent) => {
-    event.preventDefault();
-    history.pushState(null, "", to === "about" ? "/about" : "/");
-    setView(to);
-  };
+/** The layout every route shares: header with the switcher, the page, footer. */
+export function App(props: ParentProps) {
+  const { t, locale, dir } = useI18n();
 
   createEffect(() => {
     document.documentElement.lang = locale();
@@ -49,145 +13,23 @@ export function App() {
 
   return (
     <main>
-      <h1>{t("app.title")}</h1>
+      <header>
+        <h1>{t("app.title")}</h1>
+        <p class="intro">{t("demo.intro")}</p>
+        <LocaleSwitcher />
+      </header>
 
-      {/* 1 — locale switcher */}
-      <section>
-        <h2>{t("app.language")}</h2>
-        <div class="row">
-          <For each={locales}>
-            {(code) => (
-              <button
-                data-testid={`locale-${code}`}
-                aria-pressed={locale() === code}
-                onClick={() => void setLocale(code)}
-              >
-                {code}
-              </button>
-            )}
-          </For>
-          {/* Not in the switcher: the right-to-left locale the e2e suite uses. */}
-          <button
-            hidden
-            data-testid={`locale-${rtlLocale}`}
-            onClick={() => void setLocale(rtlLocale)}
-          >
-            {rtlLocale}
-          </button>
-          <Show when={isLoading()}>
-            <code>{t("app.loading")}</code>
-          </Show>
-        </div>
-      </section>
+      {props.children}
 
-      <Show
-        when={view() === "about"}
-        fallback={
-          <>
-            {/* 2 — a string with a parameter */}
-            <section>
-              <h2>interpolation</h2>
-              <p data-testid="greeting">{t("greeting.hello", { name })}</p>
-            </section>
-
-            {/* 3 — an ICU plural, live on a counter */}
-            <section>
-              <h2>plural</h2>
-              <div class="row">
-                <button data-testid="cart-dec" onClick={() => setCount((n) => Math.max(0, n - 1))}>
-                  −
-                </button>
-                <button data-testid="cart-inc" onClick={() => setCount((n) => n + 1)}>
-                  +
-                </button>
-                <span data-testid="cart">{t("cart.items", { count: count() })}</span>
-              </div>
-            </section>
-
-            {/* 4 — <T> with a tag: the catalog holds <link>…</link>, the app decides
-          what that renders as. The tag grammar travels per call, so plain
-          `t()` elsewhere is unaffected. */}
-            <section>
-              <h2>tag interpolation</h2>
-              <p data-testid="read-more">
-                <T
-                  i18nKey="docs.read_more"
-                  components={{
-                    link: {
-                      tag: "a",
-                      props: { href: "https://comvi.io/docs", target: "_blank", rel: "noreferrer" },
-                    },
-                  }}
-                />
-              </p>
-            </section>
-
-            {/* 5 — date and number formatting. */}
-            <section>
-              <h2>formatting</h2>
-              <p>
-                {t("stats.summary", {
-                  views: formatNumber(1234567),
-                  date: formatDate(RELEASED, { dateStyle: "long" }),
-                })}
-              </p>
-            </section>
-
-            {/* 6 — proof the loader is lazy: only the locales you visited are here.
-          `getLoadedLocales()` is a plain call, so read `cacheRevision()` to
-          depend on the catalog landing. */}
-            <section>
-              <h2>lazy loading</h2>
-              <p>
-                <code data-testid="fetched">
-                  {(() => {
-                    void cacheRevision();
-                    return t("loader.fetched", { locales: getLoadedLocales().join(", ") });
-                  })()}
-                </code>
-              </p>
-            </section>
-
-            {/* 7 — a second view; the locale is not part of the path here */}
-            <section>
-              <h2>navigation</h2>
-              <p>
-                <a data-testid="nav-about" href="/about" onClick={go("about")}>
-                  {t("nav.about")}
-                </a>
-              </p>
-            </section>
-
-            {/* 8 — fallback: uk has no `fallback.only_en`, so uk renders the en text;
-          a key no catalog has renders as the key itself */}
-            <section>
-              <h2>fallback</h2>
-              <p data-testid="fallback">{t("fallback.only_en")}</p>
-              <p>
-                <code data-testid="missing-key">{t("fallback.nowhere")}</code>
-              </p>
-            </section>
-
-            {/* 9 — a missing parameter renders as its own placeholder */}
-            <section>
-              <h2>missing parameter</h2>
-              <p data-testid="missing-param">{t("greeting.hello", {})}</p>
-            </section>
-          </>
-        }
-      >
-        <section>
-          <h2>navigation</h2>
-          <p data-testid="about-body">{t("about.body")}</p>
-          <p>
-            <a data-testid="nav-home" href="/" onClick={go("home")}>
-              {t("nav.home")}
-            </a>
-          </p>
-        </section>
-        {/* 10 — a second namespace, fetched when this view is first shown */}
-        <Account name={name} />
-      </Show>
+      <footer>
+        <a href="https://comvi.io/docs/i18n">{t("demo.footer.docs")}</a>
+        <a href="https://github.com/comvi-io/comvi-js/tree/main/examples/solid">
+          {t("demo.footer.source")}
+        </a>
+        <span class="install">
+          {t("demo.footer.install")} <code>npm i @comvi/solid</code>
+        </span>
+      </footer>
     </main>
   );
 }
