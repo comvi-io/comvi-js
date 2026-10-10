@@ -102,5 +102,10 @@
     "*.{json,md,yml,yaml,css,scss,html}": [
       "pnpm exec prettier --write"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "source-map-js": ">=1.2.2"
+    }
   }
 }
