@@ -10,6 +10,7 @@ defineProps<{ name: string }>();
 // locale, and it keeps the namespace active, so a later locale switch brings
 // `account` along with the default namespace before the new locale applies.
 const { t } = useI18n("account");
+const { t: tDefault } = useI18n();
 const { addActiveNamespace } = useI18nLoader();
 
 // Until the namespace is in, its keys would render as themselves, so the rows
@@ -22,13 +23,12 @@ addActiveNamespace("account").then(done, done);
 </script>
 
 <template>
-  <p v-if="!ready">Loading…</p>
-  <section v-else>
-    <h2>namespace</h2>
-    <p data-testid="account-signed-in">{{ t("profile.signed_in", { name }) }}</p>
-    <p data-testid="account-devices">{{ t("profile.devices", { count: 3 }) }}</p>
+  <p v-if="!ready" class="body">{{ tDefault("app.loading") }}</p>
+  <template v-else>
+    <p class="widget" data-testid="account-signed-in">{{ t("profile.signed_in", { name }) }}</p>
+    <p class="widget" data-testid="account-devices">{{ t("profile.devices", { count: 3 }) }}</p>
     <!-- Only `account/en.json` has this key: the fallback chain is walked
          inside the same namespace, once that namespace's en catalog is in. -->
-    <p data-testid="account-only-en">{{ t("profile.only_en") }}</p>
-  </section>
+    <p class="widget" data-testid="account-only-en">{{ t("profile.only_en") }}</p>
+  </template>
 </template>
