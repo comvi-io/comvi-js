@@ -28,12 +28,19 @@ const localCatalogs = {
 const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
 const catalogs = cdnUrl ? cdnLoader({ cdnUrl, fallback: localCatalogs }) : loader(localCatalogs);
 
+// `t()` never throws: a missing key is reported to `onMissingKey`. A real app
+// would forward it to its error tracker; this one keeps the distinct keys.
+export const missedKeys = new Set<string>();
+
 export const i18n = createI18n({
   locale: "en",
   // A key missing in one language shows the English text instead of the key.
   fallbackLocale: "en",
   // ICU (`{count, plural, …}`) is opt-in, so apps without it ship less code.
   compiler: icuCompiler,
+  onMissingKey: ({ key, namespace }) => {
+    missedKeys.add(`${namespace}:${key}`);
+  },
 })
   .use(catalogs)
   .use(
@@ -46,10 +53,3 @@ export const i18n = createI18n({
       fallbackLocale: "en",
     }),
   );
-
-// `t()` never throws: a missing key is reported here, once per lookup. A real
-// app would forward it to its error tracker; this one counts distinct misses.
-export const missedKeys = new Set<string>();
-i18n.on("missingKey", ({ key, locale, namespace }) => {
-  missedKeys.add(`${locale}:${namespace}:${key}`);
-});

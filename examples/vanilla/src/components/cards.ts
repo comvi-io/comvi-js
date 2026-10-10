@@ -1,4 +1,4 @@
-import { createElement, formatDate, formatNumber } from "@comvi/core";
+import { createElement, formatDate, formatNumber, getTextDirection } from "@comvi/core";
 import type { TranslationResult, VirtualNode } from "@comvi/core";
 import { i18n, missedKeys } from "../i18n";
 import { h, toDom } from "../dom";
@@ -22,6 +22,7 @@ type Feature =
   | "fallback"
   | "missing"
   | "errors"
+  | "options"
   | "navigation";
 
 /** One feature: its name, a sentence about it, and the live widget. */
@@ -97,14 +98,6 @@ export function selectCard(): HTMLElement {
 }
 
 export function tagsCard(): HTMLElement {
-  // Tags are on for every `t()` here (see i18n.ts), so the card's own sentence,
-  // which quotes `<link>`, gets a handler that shows the tag as code.
-  const quote = toDom(
-    i18n.tRaw("demo.tags.body", {
-      link: ({ children: inner }) =>
-        createElement("code", {}, ["<link>", ...children(inner), "</link>"]),
-    }),
-  );
   // The handler decides what `<link>` becomes; the translator decides where it goes.
   const readMore = toDom(
     i18n.tRaw("docs.read_more", {
@@ -116,13 +109,7 @@ export function tagsCard(): HTMLElement {
         ),
     }),
   );
-  return h(
-    "section",
-    { class: "card" },
-    h("h2", { class: "eyebrow" }, i18n.t("demo.tags.title")),
-    h("p", { class: "body" }, ...quote),
-    h("p", { class: "widget", "data-testid": "read-more" }, ...readMore),
-  );
+  return card("tags", h("p", { class: "widget", "data-testid": "read-more" }, ...readMore));
 }
 
 export function formattingCard(): HTMLElement {
@@ -194,6 +181,21 @@ export function navigationCard(): HTMLElement {
     "navigation",
     h("p", { class: "widget" }, link("about", i18n.t("demo.navigation.cta"), "nav-about")),
   );
+}
+
+/** Each loaded language's name, read from that language's catalog with the `locale` call option. */
+export function optionsCard(): HTMLElement {
+  const rows = i18n.getLoadedLocales().map((code) =>
+    h(
+      "li",
+      { lang: code, dir: getTextDirection(code) },
+      i18n.t("demo.options.inOwn", {
+        name: i18n.t("demo.options.name", { locale: code }),
+        locale: code,
+      }),
+    ),
+  );
+  return card("options", h("ul", { class: "widget languages" }, ...rows));
 }
 
 /** Rendered after the fallback card, so the miss that card just caused is counted. */
