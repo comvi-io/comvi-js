@@ -11,7 +11,7 @@ export function Account() {
   const { t: tAccount } = useI18n("account");
   const { addActiveNamespace } = useI18nLoader();
 
-  // A failed load has already gone to `onError`; render either way.
+  // Show the rows once the load settles, whether it succeeded or failed.
   const [ready, setReady] = createSignal(false);
   const done = () => setReady(true);
   addActiveNamespace("account").then(done, done);
