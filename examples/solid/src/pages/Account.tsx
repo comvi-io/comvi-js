@@ -28,7 +28,7 @@ export function Account() {
           {t("about.body")}
         </p>
         <p class="widget">
-          <A data-testid="nav-home" href="/" end>
+          <A data-testid="nav-home" href="/features">
             {t("nav.home")}
           </A>
         </p>

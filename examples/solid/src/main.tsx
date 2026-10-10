@@ -2,7 +2,8 @@ import { render } from "solid-js/web";
 import { Route, Router } from "@solidjs/router";
 import { I18nProvider } from "@comvi/solid";
 import { App } from "./App";
-import { Home } from "./pages/Home";
+import { Start } from "./pages/Start";
+import { Features } from "./pages/Features";
 import { Account } from "./pages/Account";
 import { i18n } from "./i18n";
 
@@ -12,7 +13,8 @@ render(
   () => (
     <I18nProvider i18n={i18n} fallback={<div class="boot" role="status" aria-busy="true" />}>
       <Router root={App}>
-        <Route path="/" component={Home} />
+        <Route path="/" component={Start} />
+        <Route path="/features" component={Features} />
         <Route path="/about" component={Account} />
       </Router>
     </I18nProvider>
