@@ -7,79 +7,209 @@
     <style>
       :root {
         color-scheme: light dark;
-        --bg: #ffffff;
+        --bg: #fcfcfb;
         --fg: #16181d;
-        --muted: #6b7280;
-        --line: #e5e7eb;
-        --accent: #2f6df6;
+        --muted: #5f6672;
+        --line: #e6e8ec;
+        --accent: #d97706;
+        --card: #ffffff;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #14161a;
-          --fg: #e8eaee;
-          --muted: #9aa1ad;
-          --line: #2a2e36;
-          --accent: #7aa2ff;
+          --bg: #0f1115;
+          --fg: #eceef2;
+          --muted: #9aa3b2;
+          --line: #262a33;
+          --card: #161920;
         }
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
       }
       body {
         margin: 0;
         background: var(--bg);
         color: var(--fg);
         font:
-          15px/1.55 system-ui,
+          16px/1.5 system-ui,
           -apple-system,
-          Segoe UI,
+          "Segoe UI",
           Roboto,
           sans-serif;
       }
       main {
-        max-width: 40rem;
+        max-width: 760px;
         margin: 0 auto;
-        padding: 2rem 1.25rem 4rem;
+        padding: 32px 20px;
+      }
+      header {
+        display: grid;
+        gap: 12px;
+        margin-block-end: 24px;
       }
       h1 {
-        font-size: 1.35rem;
-        margin: 0 0 1.5rem;
+        font-size: 28px;
+        font-weight: 700;
+        line-height: 1.2;
+        margin: 0;
       }
-      section {
-        border-top: 1px solid var(--line);
-        padding: 0.9rem 0;
+      p {
+        margin: 0;
       }
-      h2 {
-        font-size: 0.72rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
+      .intro {
         color: var(--muted);
-        margin: 0 0 0.4rem;
-        font-weight: 600;
       }
-      button {
+      .switcher-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-block-start: 4px;
+      }
+      .label,
+      .eyebrow {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 0;
+      }
+      .switcher {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--card);
+      }
+      .switcher button {
         font: inherit;
-        color: inherit;
+        font-size: 14px;
+        min-width: 48px;
+        padding: 8px 14px;
+        color: var(--fg);
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+      }
+      .switcher button + button {
+        border-inline-start: 1px solid var(--line);
+      }
+      .switcher button[aria-pressed="true"] {
+        background: var(--accent);
+        color: #fff;
+      }
+      .status {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .note {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        font: inherit;
+        font-size: 14px;
+        padding: 4px 12px;
+        color: var(--fg);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .chip[aria-pressed="true"] {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .cards {
+        display: grid;
+        gap: 16px;
+      }
+      .card {
+        display: grid;
+        gap: 8px;
+        padding: 20px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .body {
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .widget {
+        font-size: 17px;
+        color: var(--fg);
+      }
+      .counter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .counter button {
+        display: inline-grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        font: inherit;
+        font-size: 18px;
+        line-height: 1;
+        color: var(--fg);
         background: transparent;
         border: 1px solid var(--line);
         border-radius: 6px;
-        padding: 0.3rem 0.7rem;
         cursor: pointer;
       }
-      button[aria-pressed="true"] {
-        border-color: var(--accent);
-        color: var(--accent);
-        font-weight: 600;
+      .counter span {
+        margin-inline: 4px;
       }
-      .row {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-        flex-wrap: wrap;
+      .net {
+        display: grid;
+        gap: 4px;
+        padding: 10px 12px;
+        font-family: var(--mono);
+        font-size: 13px;
+        background: color-mix(in srgb, var(--line) 55%, transparent);
+        border-radius: 8px;
+      }
+      .net code {
+        font: inherit;
+        color: var(--fg);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
       }
       a {
         color: var(--accent);
+        text-decoration: none;
       }
-      code {
+      a:hover {
+        text-decoration: underline;
+      }
+      footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 20px;
+        margin-block-start: 32px;
+        padding-block-start: 16px;
+        border-block-start: 1px solid var(--line);
+        font-size: 14px;
         color: var(--muted);
-        font-size: 0.85em;
+      }
+      footer code {
+        color: var(--fg);
+        margin-inline-start: 6px;
       }
     </style>
   </head>

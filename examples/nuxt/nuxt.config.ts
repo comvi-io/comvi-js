@@ -2,41 +2,31 @@ import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
-  // The catalogs are shared across every example and copied into
-  // `<example>/src/locales`, so this app's source root is `src/` too.
   srcDir: "src/",
   compatibilityDate: "2024-11-01",
 
-  // Connect to Comvi, opt-in: empty by default, so `comvi.i18n.ts` composes the
-  // local import map. `NUXT_PUBLIC_COMVI_CDN_URL` overrides it at runtime (Nuxt
-  // maps that variable onto this key), and the instance then loads every catalog
-  // from the platform CDN instead, on the server and in the browser.
   runtimeConfig: {
     public: {
+      // Empty: the app uses the bundled catalogs. NUXT_PUBLIC_COMVI_CDN_URL
+      // fills it at runtime, and `src/comvi.i18n.ts` switches to the CDN.
       comviCdnUrl: "",
     },
   },
 
   comvi: {
     defaultLocale: "en",
-    // No `dir` on any of them: the module derives the direction from the
-    // locale itself, so <html dir="ltr"> is written here and
-    // an Arabic locale added to this list would get "rtl" with no further
-    // change. Declaring `dir` is for overriding that, not for enabling it.
+    // No `dir` needed: the module derives it from the code, so `ar` gets
+    // <html dir="rtl"> on its own.
     locales: [
       { code: "en", name: "English" },
       { code: "uk", name: "Українська" },
       { code: "de", name: "Deutsch" },
-      // Not in the switcher (pages/index.vue filters it out): the right-to-left
-      // locale the e2e suite uses to check `<html dir="rtl">`.
       { code: "ar", name: "العربية" },
     ],
-    // `always`: every URL carries its locale, so /en, /uk and /de are three real
-    // addresses. The module clones `src/pages` into locale-prefixed routes and
-    // its route middleware pre-loads the catalog before the page renders.
+    // Every URL carries its locale (/en, /uk/about), so each language is a
+    // real, shareable, crawlable address.
     localePrefix: "always",
+    // A key missing in one language shows the English text, never the key.
     fallbackLocale: "en",
-    // No `i18nModule`: `src/comvi.i18n.ts` decides what the instance can do, and
-    // the module picks it up by convention (it logs the path it chose).
   },
 });

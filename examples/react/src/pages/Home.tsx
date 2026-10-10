@@ -1,0 +1,31 @@
+import { useState } from "react";
+import { FallbackCard } from "../cards/FallbackCard";
+import { FormattingCard } from "../cards/FormattingCard";
+import { GreetingCard } from "../cards/GreetingCard";
+import { LazyLoadingCard } from "../cards/LazyLoadingCard";
+import { MarkupCard } from "../cards/MarkupCard";
+import { MissingParamCard } from "../cards/MissingParamCard";
+import { NavigationCard } from "../cards/NavigationCard";
+import { OrdinalCard } from "../cards/OrdinalCard";
+import { PluralCard } from "../cards/PluralCard";
+import { SelectCard } from "../cards/SelectCard";
+
+export function Home({ name }: { name: string }) {
+  // The plural and ordinal cards read the same number.
+  const [count, setCount] = useState(2);
+
+  return (
+    <div className="cards">
+      <GreetingCard name={name} />
+      <PluralCard count={count} onChange={setCount} />
+      <OrdinalCard count={count} />
+      <SelectCard />
+      <MarkupCard />
+      <FormattingCard />
+      <LazyLoadingCard />
+      <FallbackCard />
+      <MissingParamCard />
+      <NavigationCard />
+    </div>
+  );
+}
