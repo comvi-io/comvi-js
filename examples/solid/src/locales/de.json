@@ -104,7 +104,7 @@
     },
     "errors": {
       "title": "Jeder Fehler erreicht einen Hook",
-      "body": "t() wirft nie. Ein fehlender Schlüssel oder ein fehlgeschlagenes Laden wird an onMissingKey und onError gemeldet, hier an einen Zähler gebunden, den Sie an Ihren Tracker senden könnten.",
+      "body": "t() wirft nie. Ein Schlüssel, den kein Katalog hat, wird an onMissingKey gemeldet, hier an einen Zähler gebunden, den Sie an Ihren Tracker senden könnten. Ein Katalog, der nicht lädt, erreicht genauso onError.",
       "count": "Gemeldete Fehlstellen: {count}"
     },
     "formality": {
