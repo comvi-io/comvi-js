@@ -2,7 +2,7 @@ import { Link } from "@comvi/next/navigation";
 import { getI18n } from "@comvi/next/server";
 import { Footer } from "../Footer";
 import { Header } from "../Header";
-import { Namespaces } from "../Namespaces";
+import { Namespaces } from "../cards/Namespaces";
 import { Account } from "./Account";
 
 /**

@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@comvi/next/client";
 
-/**
- * The namespaces this browser's instance has active. Read AFTER mount, like the
- * fetched-locales line: on the server the instance is shared by every request,
- * so what it holds is a property of the process, not of this page.
- */
+/** The namespaces this browser has active, read after mount for the same reason as the locales. */
 export function Namespaces() {
   const { t, locale, isLoading, getActiveNamespaces } = useI18n();
   const [namespaces, setNamespaces] = useState<string[]>([]);

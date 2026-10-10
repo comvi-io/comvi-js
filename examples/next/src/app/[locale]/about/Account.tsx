@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useI18n } from "@comvi/next/client";
+import { useName } from "../cards/useName";
 
 /**
  * The client half of the `account` namespace. `useI18n("account")` scopes
@@ -11,14 +12,9 @@ import { useI18n } from "@comvi/next/client";
 export function Account() {
   const { t } = useI18n("account");
 
-  // "Ada", or `?name=…`, read after mount as on the demo page.
-  const [name, setName] = useState("Ada");
-  useEffect(() => {
-    const fromQuery = new URLSearchParams(location.search).get("name");
-    if (fromQuery !== null) setName(fromQuery);
-  }, []);
+  const name = useName();
 
-  // A marker for the e2e suite: set once React has hydrated this tree.
+  // Marks the document once React has hydrated it.
   useEffect(() => {
     document.documentElement.dataset.hydrated = "true";
   }, []);

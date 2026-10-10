@@ -1,4 +1,4 @@
-/** The same stylesheet the five Vite examples keep in their `index.html`. */
+/** The page stylesheet. Logical properties (`margin-inline`, …) mirror it for Arabic. */
 export const css = `
 :root {
   color-scheme: light dark;
@@ -152,6 +152,29 @@ a {
 }
 a:hover {
   text-decoration: underline;
+}
+.note {
+  color: var(--muted);
+  font-size: 14px;
+}
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  font: inherit;
+  font-size: 14px;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 footer {
   display: flex;
