@@ -12,7 +12,7 @@ import { useName } from "../cards/useName";
 export function Account() {
   const { t } = useI18n("account");
 
-  const name = useName();
+  const [name] = useName();
 
   // Marks the document once React has hydrated it.
   useEffect(() => {

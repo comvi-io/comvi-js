@@ -7,10 +7,6 @@ import { genders, state, update } from "../state";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
-// The greeting's `{name}`: "Ada", or `?name=…` from the address bar. A
-// parameter is always rendered as text, never as markup: try `?name=<b>Grace</b>`.
-export const name = new URLSearchParams(location.search).get("name") ?? "Ada";
-
 type Feature =
   | "interpolation"
   | "plural"
@@ -40,9 +36,23 @@ const children = (value: TranslationResult): Array<string | VirtualNode> =>
   typeof value === "string" ? [value] : value;
 
 export function interpolationCard(): HTMLElement {
+  // A parameter is always rendered as text, never as markup: try `<b>Grace</b>`.
+  const greeting = h(
+    "p",
+    { class: "widget", "data-testid": "greeting" },
+    i18n.t("greeting.hello", { name: state.name }),
+  );
+  const input = h("input", { class: "field", "data-testid": "name-input", value: state.name });
+  // Only the greeting changes while typing: re-rendering the page would take
+  // the focus away from the input.
+  input.oninput = () => {
+    state.name = input.value;
+    greeting.textContent = i18n.t("greeting.hello", { name: state.name });
+  };
   return card(
     "interpolation",
-    h("p", { class: "widget", "data-testid": "greeting" }, i18n.t("greeting.hello", { name })),
+    h("label", { class: "field-label" }, i18n.t("demo.interpolation.label"), input),
+    greeting,
   );
 }
 
