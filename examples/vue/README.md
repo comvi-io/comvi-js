@@ -5,6 +5,9 @@ between English, Ukrainian, German and Arabic and watch each feature follow.
 
 ## What it shows
 
+`/` is the whole integration in one screen: a translated greeting and the
+language switcher. `/features` walks through every feature:
+
 - Parameters: `t("greeting.hello", { name })`
 - ICU plurals, ordinals and select, with each language's own plural rules
 - Markup inside a translation with `<T>`, where the app decides what a tag renders as
