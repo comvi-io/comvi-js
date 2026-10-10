@@ -1,8 +1,5 @@
-// `@comvi/core/tags` is the one side-effectful subpath: importing it registers
-// tag syntax AMBIENTLY, so plain `t()` / `tRaw()` calls parse `<tag>…</tag>`.
-// Framework apps do not need it — their `<T>` passes the grammar per call —
-// but an app that renders rich text through the string API names the side
-// effect itself, right here.
+// Turns on `<tag>…</tag>` in every `t()` and `tRaw()` call. Framework apps skip
+// it: their `<T>` passes the tag grammar per call.
 import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
@@ -10,64 +7,49 @@ import { loader } from "@comvi/core/loader";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
-export const locales = ["en", "uk", "de"] as const;
+export const locales = ["en", "uk", "de", "ar"] as const;
 
-// Loadable but not in the switcher: the right-to-left locale the e2e suite uses
-// to check `<html dir="rtl">`. Its catalog holds two keys; the rest falls back
-// to English.
-export const rtlLocale = "ar";
-
-// Connect to Comvi, opt-in. With `VITE_COMVI_CDN_URL` set at BUILD time the
-// catalogs come from the platform CDN through `cdnLoader`; unset — the default,
-// and what StackBlitz runs — the import map below is the only loader and this
-// file behaves exactly as it reads without these lines.
-const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
-
-// The lazy loader. One dynamic `import()` per locale, so a catalog is fetched
-// the first time that locale is selected and never up front — the bundler
-// splits each JSON into its own chunk. `loader(map)` attaches the loader
-// capability AND registers the import-map adapter; `registerLoader` on its
-// own takes a plain function, never a map.
-//
-// One import map, two uses: the loader itself by default, and the CDN loader's
-// `fallback` when the CDN is configured but unreachable. `ar` is not in the
-// switcher; it is the right-to-left locale the e2e suite switches to.
+// One dynamic `import()` per catalog, so the bundler splits each into its own
+// chunk and a language is downloaded the first time someone picks it. A key is
+// `locale` for the default namespace or `locale:namespace` for another one.
 const localCatalogs = {
   en: () => import("./locales/en.json"),
   uk: () => import("./locales/uk.json"),
   de: () => import("./locales/de.json"),
   ar: () => import("./locales/ar.json"),
-  // A second namespace, `account`. A map key is `locale` for the default
-  // namespace or `locale:namespace` for another one. Nothing lists `account` in
-  // `ns`, so `init()` does not load it: the second page activates it.
   "en:account": () => import("./locales/account/en.json"),
   "uk:account": () => import("./locales/account/uk.json"),
   "de:account": () => import("./locales/account/de.json"),
   "ar:account": () => import("./locales/account/ar.json"),
 };
 
-const catalogs: ReturnType<typeof loader> = cdnUrl
-  ? cdnLoader({ cdnUrl, fallback: localCatalogs })
-  : loader(localCatalogs);
+// Connect your Comvi project: set `VITE_COMVI_CDN_URL` at build time and the
+// catalogs come from the CDN, with the local files as the offline fallback.
+const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
+const catalogs = cdnUrl ? cdnLoader({ cdnUrl, fallback: localCatalogs }) : loader(localCatalogs);
 
 export const i18n = createI18n({
   locale: "en",
+  // A key missing in one language shows the English text instead of the key.
   fallbackLocale: "en",
-  // ICU is never on by default. Without this line `{count, plural, …}` in the
-  // catalog is not syntax: the simple compiler renders the braced segment
-  // literally. It goes in the constructor options, which is before any catalog
-  // can reach the host.
+  // ICU (`{count, plural, …}`) is opt-in, so apps without it ship less code.
   compiler: icuCompiler,
 })
   .use(catalogs)
-  // The locale detector, through the package's own bare-name installer: it
-  // attaches the plugin host it needs and registers the detector, so an app
-  // never touches the raw plugin queue.
   .use(
     localeDetector({
       supportedLocales: [...locales],
+      // A `?lng=` link wins, then the last choice, then the browser's language.
       order: ["querystring", "localStorage", "navigator"],
+      // Remember the choice for the next visit.
       caches: ["localStorage"],
       fallbackLocale: "en",
     }),
   );
+
+// `t()` never throws: a missing key is reported here, once per lookup. A real
+// app would forward it to its error tracker; this one counts distinct misses.
+export const missedKeys = new Set<string>();
+i18n.on("missingKey", ({ key, locale, namespace }) => {
+  missedKeys.add(`${locale}:${namespace}:${key}`);
+});
