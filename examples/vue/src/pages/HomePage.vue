@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import CallOptionsCard from "../cards/CallOptionsCard.vue";
+import ErrorsCard from "../cards/ErrorsCard.vue";
 import FallbackCard from "../cards/FallbackCard.vue";
 import FormattingCard from "../cards/FormattingCard.vue";
 import GreetingCard from "../cards/GreetingCard.vue";
@@ -26,8 +28,10 @@ const count = ref(2);
     <MarkupCard />
     <FormattingCard />
     <LazyLoadingCard />
+    <CallOptionsCard />
     <FallbackCard />
     <MissingParamCard />
+    <ErrorsCard />
     <NavigationCard />
   </div>
 </template>

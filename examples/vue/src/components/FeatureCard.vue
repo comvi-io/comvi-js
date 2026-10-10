@@ -11,6 +11,8 @@ defineProps<{
     | "tags"
     | "formatting"
     | "lazy"
+    | "options"
+    | "errors"
     | "fallback"
     | "missing"
     | "navigation";
