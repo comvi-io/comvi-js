@@ -49,7 +49,8 @@
     },
     "formatting": {
       "title": "Daten und Zahlen",
-      "body": "Intl formatiert nach Locale: Tausendertrennzeichen, Monatsnamen und die Reihenfolge im Datum."
+      "body": "Intl formatiert nach Locale: Tausendertrennzeichen, Monatsnamen und die Reihenfolge im Datum.",
+      "price": "Gesamt: {price}"
     },
     "lazy": {
       "title": "Nur das Nötige wird geladen",
@@ -73,6 +74,36 @@
       "docs": "Dokumentation",
       "source": "Quellcode auf GitHub",
       "install": "Installieren"
+    },
+    "select": {
+      "title": "Auswahl nach Wert",
+      "body": "ICU select wählt einen ganzen Satz nach einem Wert, hier dem Geschlecht der Rezensentin; jede Variante gehört der Übersetzerin.",
+      "message": "{gender, select, female {Sie hat auf Ihre Rezension geantwortet} male {Er hat auf Ihre Rezension geantwortet} other {Sie haben auf Ihre Rezension geantwortet}}",
+      "female": "sie",
+      "male": "er",
+      "other": "sie (Plural)"
+    },
+    "ordinal": {
+      "title": "Ordnungszahlen",
+      "body": "selectordinal weiß, dass Englisch 1st, 2nd, 3rd sagt und Deutsch nicht.",
+      "message": "Sie sind heute der {n, selectordinal, other {#.}} Besucher."
+    },
+    "rtl": {
+      "body": "Arabisch dreht die ganze Seite auf rechts-nach-links: <html dir> folgt der Locale."
+    },
+    "options": {
+      "title": "Aufrufoptionen",
+      "body": "Ein Aufruf kann eine andere Locale oder einen anderen Namespace lesen. Die Namen unten zeigen jede Sprache in ihrer eigenen Sprache.",
+      "inOwn": "{name} in eigener Sprache"
+    },
+    "typed": {
+      "title": "Typisierte Schlüssel",
+      "body": "Die Schlüssel werden aus diesen JSON-Dateien generiert: ein Tippfehler im Schlüssel oder ein fehlender Parameter ist ein Compile-Fehler. Öffnen Sie src/i18n im Editor und probieren Sie es."
+    },
+    "errors": {
+      "title": "Jeder Fehler erreicht einen Hook",
+      "body": "t() wirft nie. Ein fehlender Schlüssel oder ein fehlgeschlagenes Laden wird an onMissingKey und onError gemeldet, hier an einen Zähler gebunden, den Sie an Ihren Tracker senden könnten.",
+      "count": "Gemeldete Fehlstellen: {count}"
     }
   }
 }

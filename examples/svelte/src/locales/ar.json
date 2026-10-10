@@ -25,7 +25,8 @@
     },
     "formatting": {
       "title": "Dates and numbers",
-      "body": "Intl formats follow the locale: thousands separators, month names and the date order."
+      "body": "Intl formats follow the locale: thousands separators, month names and the date order.",
+      "price": "Total: {price}"
     },
     "lazy": {
       "title": "Only what you need is downloaded",
@@ -49,6 +50,36 @@
       "docs": "Documentation",
       "source": "Source on GitHub",
       "install": "Install"
+    },
+    "select": {
+      "title": "Select by a value",
+      "body": "ICU select picks a whole sentence by a value, here the reviewer's gender; the translator owns every variant.",
+      "message": "{gender, select, female {She replied to your review} male {He replied to your review} other {They replied to your review}}",
+      "female": "she",
+      "male": "he",
+      "other": "they"
+    },
+    "ordinal": {
+      "title": "Ordinals",
+      "body": "selectordinal knows that English says 1st, 2nd, 3rd and Ukrainian does not.",
+      "message": "You are the {n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} visitor today."
+    },
+    "rtl": {
+      "body": "Arabic turns the whole page right-to-left: <html dir> follows the locale."
+    },
+    "options": {
+      "title": "Call options",
+      "body": "One call can read another locale or namespace. The names below render each language in its own language.",
+      "inOwn": "{name} in its own language"
+    },
+    "typed": {
+      "title": "Typed keys",
+      "body": "The keys are generated from these JSON files: a misspelled key or a missing parameter is a compile error. Open src/i18n in the editor and try it."
+    },
+    "errors": {
+      "title": "Every failure reaches a hook",
+      "body": "t() never throws. A missing key or a failed load is reported to onMissingKey and onError, wired here to a counter you could send to your tracker.",
+      "count": "Reported misses: {count}"
     }
   }
 }
