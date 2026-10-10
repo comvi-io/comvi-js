@@ -106,6 +106,13 @@
       "title": "Every failure reaches a hook",
       "body": "t() never throws. A missing key or a failed load is reported to onMissingKey and onError, wired here to a counter you could send to your tracker.",
       "count": "Reported misses: {count}"
+    },
+    "formality": {
+      "title": "Formal or informal",
+      "body": "English has one way to address someone; German has Sie and du, Ukrainian Ви and ти. One select value lets each translator pick the register, and the English stays a single sentence.",
+      "message": "{formality, select, formal {Welcome back. Your seat is saved.} other {Welcome back. Your seat is saved.}}",
+      "formal": "formal",
+      "informal": "informal"
     }
   }
 }

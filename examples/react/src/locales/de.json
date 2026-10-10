@@ -106,6 +106,13 @@
       "title": "Jeder Fehler erreicht einen Hook",
       "body": "t() wirft nie. Ein fehlender Schlüssel oder ein fehlgeschlagenes Laden wird an onMissingKey und onError gemeldet, hier an einen Zähler gebunden, den Sie an Ihren Tracker senden könnten.",
       "count": "Gemeldete Fehlstellen: {count}"
+    },
+    "formality": {
+      "title": "Förmlich oder vertraut",
+      "body": "Englisch hat eine Anrede; Deutsch hat Sie und du, Ukrainisch Ви und ти. Ein select-Wert lässt jede Übersetzerin das Register wählen, und der englische Text bleibt ein einziger Satz.",
+      "message": "{formality, select, formal {Willkommen zurück! Ihr Platz ist reserviert.} other {Willkommen zurück! Dein Platz ist reserviert.}}",
+      "formal": "Sie",
+      "informal": "du"
     }
   }
 }
