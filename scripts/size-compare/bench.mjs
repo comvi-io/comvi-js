@@ -6,6 +6,9 @@
 //                      library does the same job (plural selection + interpolation). Comvi's `#` is
 //                      inserted as plain digits while intl-messageformat localizes it, so a `#` message
 //                      would make the libraries do different work; the "default #" row shows that case.
+//   warm, same output  the `#` message on the libraries that localize `#`; Comvi formats the count with its own
+//                      formatNumber() (Intl.NumberFormat, cached) and passes it as {n}. Every library produces the
+//                      same localized string ("1,234 items in cart"), so the work and the output are equal.
 //   warm, default #    the same message written with `#`, as a user would write it; unequal work by design.
 //   catalog            one instance per library holding N distinct messages; every message is formatted
 //                      exactly once per round. Message ids are unique across warmup and rounds so no
@@ -16,7 +19,7 @@ if (process.env.NODE_ENV !== "production") {
   console.error("Run with NODE_ENV=production so every library takes its production branch.");
   process.exit(1);
 }
-const { createI18n } = await import("@comvi/core");
+const { createI18n, formatNumber } = await import("@comvi/core");
 const { icuCompiler } = await import("@comvi/core/icu");
 const { IntlMessageFormat } = await import("intl-messageformat");
 const i18next = (await import("i18next")).default;
@@ -112,6 +115,71 @@ console.log(`\n## warm, equal work: same key ${N_WARM} times, count pre-formatte
   bench(
     "vue-i18n (pipe plural, own syntax)",
     (i) => v.global.t("m", { n: String(i & 3), name: "cart" }, i & 3),
+    N_WARM,
+  );
+}
+
+console.log(
+  `\n## warm, same output: same key ${N_WARM} times, count 1234..1237, localized digits on every side`,
+);
+const BIG = (i) => 1234 + (i & 3);
+{
+  const i18n = createI18n({ locale: "en", messages: { en: { m: EQUAL } }, compiler: icuCompiler });
+  expect(
+    "comvi same output",
+    i18n.t("m", { count: 1234, n: formatNumber(i18n, 1234), name: "cart" }),
+    "1,234 items in cart",
+  );
+  bench(
+    "@comvi/core + icuCompiler, formatNumber() into {n}",
+    (i) => i18n.t("m", { count: BIG(i), n: formatNumber(i18n, BIG(i)), name: "cart" }),
+    N_WARM,
+  );
+}
+{
+  const mf = new IntlMessageFormat(HASH, "en");
+  expect("imf same output", mf.format({ count: 1234, name: "cart" }), "1,234 items in cart");
+  bench(
+    "intl-messageformat (instance reused), #",
+    (i) => mf.format({ count: BIG(i), name: "cart" }),
+    N_WARM,
+  );
+}
+{
+  const inst = i18next.createInstance();
+  await inst.use(ICU).init({ lng: "en", resources: { en: { translation: { m: HASH } } } });
+  expect(
+    "i18next-icu same output",
+    inst.t("m", { count: 1234, name: "cart" }),
+    "1,234 items in cart",
+  );
+  bench("i18next + i18next-icu, #", (i) => inst.t("m", { count: BIG(i), name: "cart" }), N_WARM);
+}
+{
+  const t = createTranslator({ locale: "en", messages: { m: HASH } });
+  expect("use-intl same output", t("m", { count: 1234, name: "cart" }), "1,234 items in cart");
+  bench(
+    "use-intl/core createTranslator, #",
+    (i) => t("m", { count: BIG(i), name: "cart" }),
+    N_WARM,
+  );
+}
+{
+  // A named number format is vue-i18n's documented, cached path; n(value) with no name is ~8x slower.
+  const v = createVueI18n({
+    legacy: false,
+    locale: "en",
+    messages: { en: { m: VUE_EQUAL } },
+    numberFormats: { en: { decimal: { style: "decimal" } } },
+  });
+  expect(
+    "vue-i18n same output",
+    v.global.t("m", { n: v.global.n(1234, "decimal"), name: "cart" }, 1234),
+    "1,234 items in cart",
+  );
+  bench(
+    "vue-i18n (pipe plural), n(x, 'decimal') into {n}",
+    (i) => v.global.t("m", { n: v.global.n(BIG(i), "decimal"), name: "cart" }, BIG(i)),
     N_WARM,
   );
 }
