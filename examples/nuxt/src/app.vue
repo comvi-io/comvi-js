@@ -211,6 +211,31 @@ h1 {
   font-weight: 600;
 }
 
+/* start page */
+.start {
+  display: grid;
+  gap: 20px;
+}
+.start .hero {
+  margin-block-end: 0;
+}
+.button {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+}
+.button:hover {
+  text-decoration: none;
+  filter: brightness(1.08);
+}
+.back {
+  margin-block-end: 16px;
+  font-size: 14px;
+}
+
 /* footer */
 .footer {
   display: flex;
