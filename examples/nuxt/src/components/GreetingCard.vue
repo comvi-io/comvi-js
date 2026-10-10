@@ -1,13 +1,8 @@
 <script setup lang="ts">
 const { t } = useI18n();
 
-// Starts from `?name=…` in the address bar, then follows what you type. Either
-// way it is rendered as text and never as markup: try `?name=<b>Grace</b>`.
-// `useState` carries the server's starting value into the browser.
-const route = useRoute();
-const name = useState("name", () =>
-  typeof route.query.name === "string" ? route.query.name : "Ada",
-);
+// Rendered as text and never as markup: try `?name=<b>Grace</b>`.
+const name = useVisitorName();
 </script>
 
 <template>
