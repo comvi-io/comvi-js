@@ -11,7 +11,7 @@
   --fg: #16181d;
   --muted: #5f6672;
   --line: #e6e8ec;
-  --accent: #d97706;
+  --accent: #b45309;
   --card: #ffffff;
 }
 @media (prefers-color-scheme: dark) {

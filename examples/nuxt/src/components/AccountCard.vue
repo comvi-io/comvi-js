@@ -4,8 +4,7 @@ const { t } = useI18n();
 // Scoped to the `account` namespace; the page that renders this card loads it.
 const { t: tAccount } = useI18n("account");
 
-const route = useRoute();
-const name = computed(() => (typeof route.query.name === "string" ? route.query.name : "Ada"));
+const name = useVisitorName();
 </script>
 
 <template>
