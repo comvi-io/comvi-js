@@ -6,81 +6,81 @@
     "hello": "مرحبًا يا {name}! سعداء برؤيتك مجددًا."
   },
   "demo": {
-    "intro": "Every string on this page comes from a translation catalog. Switch the language and watch each feature react.",
+    "intro": "كل نص في هذه الصفحة يأتي من كتالوج ترجمة. بدّل اللغة وراقب كيف تستجيب كل ميزة.",
     "switcher": {
-      "title": "Switch the language",
-      "body": "One call re-renders every translated element, and the choice is remembered for your next visit."
+      "title": "تبديل اللغة",
+      "body": "نداء واحد يعيد رسم كل عنصر مترجم، ويُحفظ اختيارك لزيارتك القادمة."
     },
     "interpolation": {
-      "title": "Parameters",
-      "body": "A value drops in where the translator put the placeholder, so the word order stays the translator's call."
+      "title": "المعاملات",
+      "body": "تدخل القيمة حيث وضع المترجم العنصر النائب، فيبقى ترتيب الكلمات قرار المترجم."
     },
     "plural": {
-      "title": "Plurals that know the language",
-      "body": "ICU plural rules: English has one and other, Ukrainian one, few and many. Change the count and compare."
+      "title": "جموع تعرف اللغة",
+      "body": "قواعد الجمع في ICU: للإنجليزية one وother، وللأوكرانية one وfew وmany، وللعربية ست صيغ. غيّر العدد وقارن."
     },
     "tags": {
-      "title": "Markup inside a translation",
-      "body": "The catalog wraps the words in a link tag; the app decides what a link renders as. A translator can move the tag and never break it."
+      "title": "وسوم داخل الترجمة",
+      "body": "يغلّف الكتالوج الكلمات بوسم رابط؛ والتطبيق يقرر كيف يُرسم الرابط. يستطيع المترجم نقل الوسم دون أن يكسره أبدًا."
     },
     "formatting": {
-      "title": "Dates and numbers",
-      "body": "Intl formats follow the locale: thousands separators, month names and the date order.",
-      "price": "Total: {price}"
+      "title": "التواريخ والأرقام",
+      "body": "تتبع تنسيقات Intl اللغة: فواصل الآلاف وأسماء الشهور وترتيب التاريخ.",
+      "price": "الإجمالي: {price}"
     },
     "lazy": {
-      "title": "Only what you need is downloaded",
-      "body": "The first screen ships one language. A catalog is fetched the first time its locale is chosen, and the account namespace only when you open the Account page.",
-      "namespaces": "Namespaces loaded: {namespaces}"
+      "title": "يُحمَّل ما تحتاجه فقط",
+      "body": "الشاشة الأولى تحمل لغة واحدة. يُجلب الكتالوج عند اختيار لغته لأول مرة، ومساحة الأسماء account عند فتح صفحة الحساب فقط.",
+      "namespaces": "مساحات الأسماء المحمّلة: {namespaces}"
     },
     "fallback": {
-      "title": "Nothing renders as a key",
-      "body": "A key missing in Ukrainian falls back to English. A key missing everywhere shows its name, so you notice it in development."
+      "title": "لا شيء يُعرض كمفتاح",
+      "body": "المفتاح الغائب في الأوكرانية يعود إلى الإنجليزية. والمفتاح الغائب في كل مكان يعرض اسمه حتى تلاحظه أثناء التطوير."
     },
     "missing": {
-      "title": "A missing parameter stays visible",
-      "body": "The placeholder remains in the text instead of disappearing silently."
+      "title": "المعامل الناقص يبقى ظاهرًا",
+      "body": "يبقى العنصر النائب في النص بدل أن يختفي بصمت."
     },
     "navigation": {
-      "title": "A second page, the same locale",
-      "body": "The locale survives navigation, and the account namespace loads on demand.",
-      "cta": "Open the Account page"
+      "title": "صفحة ثانية بنفس اللغة",
+      "body": "تبقى اللغة بعد التنقل، وتُحمَّل مساحة الأسماء account عند الحاجة.",
+      "cta": "افتح صفحة الحساب"
     },
     "footer": {
-      "docs": "Documentation",
-      "source": "Source on GitHub",
-      "install": "Install"
+      "docs": "التوثيق",
+      "source": "المصدر على GitHub",
+      "install": "التثبيت"
     },
     "select": {
-      "title": "Select by a value",
-      "body": "ICU select picks a whole sentence by a value, here the reviewer's gender; the translator owns every variant.",
+      "title": "اختيار حسب القيمة",
+      "body": "يختار ICU select جملة كاملة حسب قيمة، هنا جنس المراجِع؛ وكل صيغة ملك للمترجم.",
       "message": "{gender, select, female {ردّت على مراجعتك} male {ردّ على مراجعتك} other {ردّوا على مراجعتك}}",
-      "female": "she",
-      "male": "he",
-      "other": "they"
+      "female": "هي",
+      "male": "هو",
+      "other": "هم"
     },
     "ordinal": {
-      "title": "Ordinals",
-      "body": "selectordinal knows that English says 1st, 2nd, 3rd and Ukrainian does not.",
+      "title": "الأعداد الترتيبية",
+      "body": "يعرف selectordinal أن الإنجليزية تقول 1st و2nd و3rd وأن العربية لا تفعل.",
       "message": "أنت الزائر رقم {n, selectordinal, other {#}} اليوم."
     },
     "rtl": {
-      "body": "Arabic turns the whole page right-to-left: <html dir> follows the locale."
+      "body": "تقلب العربية الصفحة كلها من اليمين إلى اليسار: يتبع <html dir> اللغة."
     },
     "options": {
-      "title": "Call options",
-      "body": "One call can read another locale or namespace. The names below render each language in its own language.",
-      "inOwn": "{name} in its own language",
+      "title": "خيارات النداء",
+      "body": "يستطيع نداء واحد قراءة لغة أو مساحة أسماء أخرى. الأسماء أدناه تعرض كل لغة بلغتها.",
+      "inOwn": "{name} بلغتها",
       "name": "العربية"
     },
     "typed": {
-      "title": "Typed keys",
-      "body": "The keys are generated from these JSON files: a misspelled key or a missing parameter is a compile error. Open src/i18n in the editor and try it."
+      "title": "مفاتيح مُنمَّطة",
+      "body": "تُولَّد المفاتيح من ملفات JSON هذه: الخطأ الإملائي في المفتاح أو المعامل الناقص خطأ ترجمة برمجية. افتح src/i18n في المحرر وجرّب."
     },
     "errors": {
-      "title": "Every failure reaches a hook",
-      "body": "t() never throws. A missing key or a failed load is reported to onMissingKey and onError, wired here to a counter you could send to your tracker.",
-      "count": "Reported misses: {count}"
+      "title": "كل فشل يصل إلى خطاف",
+      "body": "لا يرمي t() أبدًا. يُبلَّغ عن المفتاح الغائب أو فشل التحميل إلى onMissingKey وonError، وهما هنا موصولان بعدّاد يمكنك إرساله إلى متتبعك.",
+      "count": "الإغفالات المبلَّغ عنها: {count}"
     }
   }
 }
