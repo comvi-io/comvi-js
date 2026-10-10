@@ -2,60 +2,41 @@ import { createNextI18n, icuCompiler, loader } from "@comvi/next";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { routing } from "./routing";
 
-export { locales, routing, rtlLocale } from "./routing";
+export { locales, routing } from "./routing";
 
-// Connect to Comvi, opt-in. With `NEXT_PUBLIC_COMVI_CDN_URL` set at BUILD time
-// the catalogs come from the platform CDN through `cdnLoader`, on the server and
-// in the browser alike; unset — the default, and what StackBlitz runs — the
-// import map is the only loader and this file behaves exactly as it reads
-// without these lines.
-const cdnUrl: string | undefined = process.env.NEXT_PUBLIC_COMVI_CDN_URL;
-
-// One import map, two uses: the loader itself by default, and the CDN loader's
-// `fallback` when the CDN is configured but unreachable. `ar` is not in the
-// switcher; it is the right-to-left locale the e2e suite switches to.
+// One dynamic `import()` per catalog, so a language is read the first time a
+// request needs it. A key is `locale` for the default namespace or
+// `locale:namespace` for another one.
 const localCatalogs = {
   en: () => import("../locales/en.json"),
   uk: () => import("../locales/uk.json"),
   de: () => import("../locales/de.json"),
   ar: () => import("../locales/ar.json"),
-  // A second namespace, `account`. A map key is `locale` for the default
-  // namespace or `locale:namespace` for another one. Nothing lists `account` in
-  // `ns`, so `init()` does not load it: the second page activates it.
   "en:account": () => import("../locales/account/en.json"),
   "uk:account": () => import("../locales/account/uk.json"),
   "de:account": () => import("../locales/account/de.json"),
   "ar:account": () => import("../locales/account/ar.json"),
 };
 
-const catalogs: ReturnType<typeof loader> = cdnUrl
-  ? cdnLoader({ cdnUrl, fallback: localCatalogs })
-  : loader(localCatalogs);
+// Connect your Comvi project: set `NEXT_PUBLIC_COMVI_CDN_URL` at build time and
+// the catalogs come from the CDN, with the local files as the offline fallback.
+const cdnUrl: string | undefined = process.env.NEXT_PUBLIC_COMVI_CDN_URL;
+const catalogs = cdnUrl ? cdnLoader({ cdnUrl, fallback: localCatalogs }) : loader(localCatalogs);
 
-/**
- * The composed root. `createNextI18n` is the batteries-included preset: it
- * composes the tag grammar, the loader and the plugin capability INSIDE the package.
- * The other five examples name each capability by hand because their instance is
- * core's bare base instance — the difference is the preset, not the framework.
- *
- * The compiler is NOT part of the preset. No constructor in the repo turns ICU
- * on by itself, so the plural in `locales/*.json` needs `compiler: icuCompiler`
- * named here, exactly as the other five examples name it.
- *
- * The URL rules come from `./routing` and are spread straight in, so the
- * middleware and the runtime cannot drift apart while `middleware.ts` keeps
- * importing the core-free file (see the comment there).
- *
- * `.use(installer)` is the one composition verb, here as on every instance.
- * `loader(map)` registers one dynamic `import()` per locale, so a catalog is
- * read the first time that locale is requested and never up front. A plugin
- * scoped to one runtime goes through `nextPlugin(...)` / `nextPluginLazy(...)`
- * from the same specifier — never `localeDetector()`: this instance is process-wide
- * on the App Router, and the first request's headers would pin the locale for
- * every later render.
- */
+// `t()` never throws: a missing key is reported to `onMissingKey`. A real app
+// would forward it to its error tracker; this one keeps the distinct keys.
+export const missedKeys = new Set<string>();
+
+// `withComvi({ config })` in next.config.ts points the server helpers and
+// `<ComviProvider>` at this instance, on the server and in the browser.
 export const { i18n } = createNextI18n({
+  // The same URL rules the middleware enforces.
   ...routing,
+  // A key missing in one language shows the English text instead of the key.
   fallbackLocale: "en",
+  // ICU (`{count, plural, …}`) is opt-in, so apps without it ship less code.
   compiler: icuCompiler,
+  onMissingKey: ({ key, namespace }) => {
+    missedKeys.add(`${namespace}:${key}`);
+  },
 }).use(catalogs);

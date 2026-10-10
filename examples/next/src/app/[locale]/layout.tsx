@@ -5,7 +5,7 @@ import { ComviProvider } from "@comvi/next/server";
 import { routing } from "@/i18n/routing";
 import { css } from "./styles";
 
-/** Prerender /en, /uk and /de at build time. */
+/** Prerender one page per locale at build time. */
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
@@ -23,19 +23,15 @@ export default async function LocaleLayout({
   if (!hasLocale(routing.locales, locale)) notFound();
 
   return (
-    // No `useI18n()` here: a Server Component has no hooks, so `dir` comes from
-    // core's free function, which answers the same question from the locale
-    // alone.
+    // `rtl` for Arabic. A Server Component has no hooks, so `dir` comes from
+    // core's free function.
     <html lang={locale} dir={getTextDirection(locale)}>
       <body>
-        {/* Inlined so the example stays a handful of files: a real app imports
-            a stylesheet, which is a build concern rather than an i18n one. */}
+        {/* Inlined to keep the example small; a real app imports a stylesheet. */}
         <style dangerouslySetInnerHTML={{ __html: css }} />
-        {/* Loads this locale's catalogs (and the fallback chain) on the
-            server and seeds the client instance from `src/i18n/config.ts` with
-            them, so the client components below render the right language on
-            the first paint. Only the locale and the plain catalog cross to
-            the client, never the instance. */}
+        {/* Loads this locale's catalogs on the server and hands them to the
+            client instance, so client components render translated on the
+            first paint. */}
         <ComviProvider locale={locale}>{children}</ComviProvider>
       </body>
     </html>
