@@ -51,6 +51,38 @@ Each card on the page is one feature, in the same order in all seven:
 
 Each example has its own README with the file where the setup lives.
 
+## How an example is wired
+
+Every example composes one instance the same way, in its `src/i18n.ts` (Next: `src/i18n/config.ts`, Nuxt: `src/comvi.i18n.ts`): the base instance from the binding, a loader with one import per catalog, and the locale detector. React's, with the counter plumbing left out:
+
+```ts title="src/i18n.ts"
+import { createI18n, icuCompiler, loader } from "@comvi/react";
+import { localeDetector } from "@comvi/plugin-locale-detector";
+
+export const i18n = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+  compiler: icuCompiler,
+})
+  .use(
+    loader({
+      en: () => import("./locales/en.json"),
+      uk: () => import("./locales/uk.json"),
+      de: () => import("./locales/de.json"),
+      ar: () => import("./locales/ar.json"),
+      "en:account": () => import("./locales/account/en.json"),
+    }),
+  )
+  .use(
+    localeDetector({
+      supportedLocales: ["en", "uk", "de", "ar"],
+      order: ["querystring", "localStorage", "navigator"],
+      caches: ["localStorage"],
+      fallbackLocale: "en",
+    }),
+  );
+```
+
 ## Run locally
 
 Every example installs from npm and starts with one command:
