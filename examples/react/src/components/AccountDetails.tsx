@@ -8,7 +8,7 @@ export function AccountDetails({ name }: { name: string }) {
   const { addActiveNamespace } = useI18nLoader();
 
   // Activating keeps `account` loaded across later locale switches. The rows
-  // wait for it to settle; a failed load has already reached `onError`.
+  // wait for the load to settle, whether it succeeded or failed.
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const done = () => setReady(true);
