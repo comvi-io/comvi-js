@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Route, Routes } from "react-router";
 import { useI18n } from "@comvi/react";
 import { Footer } from "./components/Footer";
@@ -7,10 +7,12 @@ import { About } from "./pages/About";
 import { Home } from "./pages/Home";
 
 // Try `?name=<b>Grace</b>`: a parameter is always rendered as text.
-const name = new URLSearchParams(location.search).get("name") ?? "Ada";
+const initialName = new URLSearchParams(location.search).get("name") ?? "Ada";
 
 export function App() {
   const { t, locale, dir } = useI18n();
+  // One name for the whole app: the greeting edits it, the Account page reads it.
+  const [name, setName] = useState(initialName);
 
   // Arabic flips the whole document to right-to-left.
   useEffect(() => {
@@ -27,7 +29,7 @@ export function App() {
       </header>
 
       <Routes>
-        <Route path="/" element={<Home name={name} />} />
+        <Route path="/" element={<Home name={name} onNameChange={setName} />} />
         <Route path="/about" element={<About name={name} />} />
       </Routes>
 

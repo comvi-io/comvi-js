@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { useI18n } from "@comvi/react";
 import { FeatureCard } from "../components/FeatureCard";
 
-export function GreetingCard({ name: initialName }: { name: string }) {
+type Props = { name: string; onChange: (name: string) => void };
+
+export function GreetingCard({ name, onChange }: Props) {
   const { t } = useI18n();
-  const [name, setName] = useState(initialName);
 
   return (
     <FeatureCard feature="interpolation">
@@ -13,7 +13,7 @@ export function GreetingCard({ name: initialName }: { name: string }) {
         <input
           data-testid="name-input"
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => onChange(event.target.value)}
         />
       </label>
       <p className="widget" data-testid="greeting">
