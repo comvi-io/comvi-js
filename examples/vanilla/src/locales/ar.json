@@ -21,7 +21,7 @@
     },
     "tags": {
       "title": "Markup inside a translation",
-      "body": "The catalog holds <link>…</link> around the words; the app decides what a link is. A translator can move it and never break it."
+      "body": "The catalog wraps the words in a link tag; the app decides what a link renders as. A translator can move the tag and never break it."
     },
     "formatting": {
       "title": "Dates and numbers",
