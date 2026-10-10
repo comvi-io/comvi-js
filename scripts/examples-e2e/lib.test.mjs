@@ -394,10 +394,10 @@ test("serverCommand: a reader's command per kind, on the chosen port", () => {
   assert.throws(() => serverCommand("astro", { dir: "/x", port: 1 }), /no server command/);
 });
 
-test("startPath: SSR examples start on a locale URL", () => {
-  assert.equal(startPath("vite"), "/");
-  assert.equal(startPath("next"), "/en");
-  assert.equal(startPath("nuxt"), "/en");
+test("startPath: the feature gallery, behind a locale URL for SSR examples", () => {
+  assert.equal(startPath("vite"), "/features");
+  assert.equal(startPath("next"), "/en/features");
+  assert.equal(startPath("nuxt"), "/en/features");
 });
 
 // ── report ─────────────────────────────────────────────────────────────────

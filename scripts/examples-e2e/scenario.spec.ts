@@ -348,12 +348,18 @@ async function switchTo(page: Page, locale: Locale, name = "Ada"): Promise<void>
     await expect(button).toHaveAttribute("aria-pressed", "true");
   }
   await expect(page.getByTestId("greeting")).toHaveText(greeting(locale, name));
-  if (SSR) await expect(page).toHaveURL(new RegExp(`/${locale}$`));
+  if (SSR) await expect(page).toHaveURL(new RegExp(`${escapeRegExp(homePath(locale))}$`));
 }
 
 /** The path a second page lives at, per kind. */
 const aboutPath = (locale: Locale) => (SSR ? `/${locale}/about` : "/about");
-const homePath = (locale: Locale) => (SSR ? `/${locale}` : "/");
+/**
+ * The feature gallery every step but the About ones drives; `/` is the
+ * examples' start page and carries none of the tested UI. With a locale, the
+ * SSR examples' prefixed URL (`/uk/features`); without one, the unprefixed
+ * `/features`, which the SSR examples redirect to the visitor's locale.
+ */
+const homePath = (locale?: Locale) => (SSR && locale ? `/${locale}/features` : "/features");
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -444,8 +450,8 @@ test("e: catalogs load lazily, one per visited locale", async ({ page }) => {
 
 test("f: SSR — plain-HTTP /uk is already translated, then hydrates", async ({ page, request }) => {
   test.skip(!SSR, "client-rendered example: there is no server HTML to read");
-  const response = await request.get("/uk");
-  expect(response.status(), "GET /uk").toBe(200);
+  const response = await request.get(homePath("uk"));
+  expect(response.status(), `GET ${homePath("uk")}`).toBe(200);
   const html = await response.text();
   expect(html).toMatch(/<html[^>]*\blang="uk"/);
   const visible = visibleText(html);
@@ -457,7 +463,7 @@ test("f: SSR — plain-HTTP /uk is already translated, then hydrates", async ({ 
   // …and the same page, hydrated, is a working app that still shows no key:
   // a catalog the server used but never handed over (say, the fallback
   // locale's) turns into a raw key the moment the client takes over.
-  await open(page, "/uk");
+  await open(page, homePath("uk"));
   await ready(page);
   expect(rawKeysIn(await pageText(page)), "raw keys after hydration").toEqual([]);
   await page.getByTestId("cart-inc").click();
@@ -490,12 +496,12 @@ test("i: locale in the URL — /de renders German, switching navigates, Back res
   page,
 }) => {
   test.skip(!SSR, CLIENT_ONLY);
-  await open(page, "/de");
+  await open(page, homePath("de"));
   await expect(page.locator("h1")).toHaveText(message("de", "app.title"));
   await expect(page.getByTestId("locale-de")).toHaveAttribute("aria-pressed", "true");
   await switchTo(page, "uk");
   await page.goBack();
-  await expect(page).toHaveURL(/\/de$/);
+  await expect(page).toHaveURL(new RegExp(`${escapeRegExp(homePath("de"))}$`));
   await expect(page.getByTestId("greeting")).toHaveText(greeting("de"));
   await expect(page.getByTestId("locale-de")).toHaveAttribute("aria-pressed", "true");
 });
@@ -604,9 +610,10 @@ test("m: the chosen locale persists; a German browser starts in German", async (
   await page.reload();
   await expect(page.getByTestId("greeting")).toHaveText(greeting("uk"));
   if (SSR) {
-    // …and come back to the bare root: the middleware's cookie sends them to uk.
-    await page.goto("/");
-    await expect(page).toHaveURL(/\/uk$/);
+    // …and come back without a locale in the URL: the middleware's cookie
+    // sends them to uk.
+    await page.goto(homePath());
+    await expect(page).toHaveURL(new RegExp(`${escapeRegExp(homePath("uk"))}$`));
     await expect(page.getByTestId("greeting")).toHaveText(greeting("uk"));
   }
 
@@ -615,9 +622,9 @@ test("m: the chosen locale persists; a German browser starts in German", async (
   try {
     const german = await context.newPage();
     browserErrors.watch(german);
-    await german.goto("/");
+    await german.goto(homePath());
     await expect(german.getByTestId("greeting")).toHaveText(greeting("de"));
-    if (SSR) await expect(german).toHaveURL(/\/de$/);
+    if (SSR) await expect(german).toHaveURL(new RegExp(`${escapeRegExp(homePath("de"))}$`));
   } finally {
     await context.close();
   }
@@ -653,7 +660,7 @@ test("o: SSR — the greeting is right from first paint through hydration", asyn
       if (text !== null && seen[seen.length - 1] !== text) seen.push(text);
     }).observe(document, { subtree: true, childList: true, characterData: true });
   });
-  await page.goto("/uk");
+  await page.goto(homePath("uk"));
   await ready(page);
   const seen = await page.evaluate(
     () => (window as unknown as { __greetings: string[] }).__greetings,
@@ -952,16 +959,18 @@ test("s: F-15 — defaultLocale uk, /uk renders the en value of an en-only key",
   test.skip(PHASE !== "f15", SSR ? "runs in its own F-15 phase" : "SSR examples only");
   // The variant really is in effect: a visitor whose language matches none
   // of the locales lands on the default, which is now uk.
-  const root = await request.get("/", {
+  const root = await request.get(homePath(), {
     headers: { "accept-language": "fr" },
     maxRedirects: 0,
   });
-  expect(root.headers().location ?? "", "where / sends a French browser").toMatch(/\/uk$/);
+  expect(root.headers().location ?? "", `where ${homePath()} sends a French browser`).toMatch(
+    new RegExp(`${escapeRegExp(homePath("uk"))}$`),
+  );
 
-  // A direct request for /uk. `fallback.only_en` is in en only; en is the
+  // A direct request for uk. `fallback.only_en` is in en only; en is the
   // fallbackLocale but neither the default nor the visitor's locale here.
-  const response = await request.get("/uk");
-  expect(response.status(), "GET /uk").toBe(200);
+  const response = await request.get(homePath("uk"));
+  expect(response.status(), `GET ${homePath("uk")}`).toBe(200);
   const visible = visibleText(await response.text());
   expect(visible, "the server HTML").toContain(GREETING.uk("Ada"));
   expect(visible, "the en-only key in the server HTML").toContain(ONLY_EN.en);
@@ -969,7 +978,7 @@ test("s: F-15 — defaultLocale uk, /uk renders the en value of an en-only key",
 
   // …and after hydration, with no hydration error (the browserErrors fixture
   // fails this test on one).
-  await page.goto("/uk");
+  await page.goto(homePath("uk"));
   await ready(page);
   await expect(page.getByTestId("greeting")).toHaveText(GREETING.uk("Ada"));
   await expect(page.getByTestId("fallback")).toHaveText(ONLY_EN.en);
@@ -1035,8 +1044,7 @@ const cdn = {
  * Nuxt renders every request (nothing in the example is prerendered), so its
  * own `/<locale>` is that page. The five Vite examples have one page, `/`.
  */
-const livePath = (locale: Shown) =>
-  KIND === "next" ? `/${locale}/live` : SSR ? `/${locale}` : "/";
+const livePath = (locale: Shown) => (KIND === "next" ? `/${locale}/live` : homePath(locale));
 
 /** `promise`, or a failure that says what never happened. */
 async function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {

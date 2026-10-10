@@ -511,9 +511,13 @@ export function nuxtCatalogChunks(manifest) {
   return out;
 }
 
-/** Where the scenario starts: SSR examples carry the locale in the URL. */
+/**
+ * Where the scenario starts: the feature gallery (`/` is a start page without
+ * the tested UI), behind the locale for SSR examples. `homePath` in
+ * scenario.spec.ts builds the same path for any locale.
+ */
 export function startPath(kind) {
-  return kind === "vite" ? "/" : "/en";
+  return kind === "vite" ? "/features" : "/en/features";
 }
 
 /**
