@@ -1,7 +1,7 @@
 import { i18n } from "../i18n";
 import { h } from "../dom";
 import { link } from "../router";
-import { update } from "../state";
+import { state, update } from "../state";
 import {
   errorsCard,
   fallbackCard,
@@ -9,7 +9,6 @@ import {
   interpolationCard,
   lazyCard,
   missingCard,
-  name,
   namespacesLine,
   navigationCard,
   optionsCard,
@@ -62,7 +61,7 @@ function accountRows(): HTMLElement[] {
     h(
       "p",
       { class: "widget", "data-testid": "account-signed-in" },
-      i18n.t("profile.signed_in", { ns: "account", name }),
+      i18n.t("profile.signed_in", { ns: "account", name: state.name }),
     ),
     h(
       "p",
