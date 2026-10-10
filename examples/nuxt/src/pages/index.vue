@@ -9,8 +9,10 @@
       <MarkupCard />
       <FormattingCard />
       <CatalogLoadingCard />
+      <CallOptionsCard />
       <FallbackCard />
       <MissingParamCard />
+      <ErrorsCard />
       <NavigationCard />
     </div>
     <AppFooter />

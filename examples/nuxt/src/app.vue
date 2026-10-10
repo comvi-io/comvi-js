@@ -124,6 +124,12 @@ h1 {
   border-color: var(--accent);
   color: var(--accent);
 }
+.language-list {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: grid;
+  gap: 4px;
+}
 .switcher-loading {
   color: var(--muted);
 }
