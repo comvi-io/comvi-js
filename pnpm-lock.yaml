@@ -516,6 +516,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@comvi/locale-routing':
+        specifier: workspace:*
+        version: link:../locale-routing
       '@comvi/test-utils':
         specifier: workspace:*
         version: link:../../tooling/test-utils
