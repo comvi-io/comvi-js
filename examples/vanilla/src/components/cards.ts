@@ -5,6 +5,7 @@ import { h, toDom } from "../dom";
 import { link } from "../router";
 import { formalities, genders, state, update } from "../state";
 
+// A UTC date shown in UTC, so every time zone prints the same day.
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
 type Feature =
@@ -156,7 +157,7 @@ export function formattingCard(): HTMLElement {
       i18n.t("stats.summary", {
         // Free functions: they take the instance and read its current locale.
         views: formatNumber(i18n, 1234567),
-        date: formatDate(i18n, RELEASED, { dateStyle: "long" }),
+        date: formatDate(i18n, RELEASED, { dateStyle: "long", timeZone: "UTC" }),
       }),
     ),
     h("p", { class: "widget" }, i18n.t("demo.formatting.price", { price })),

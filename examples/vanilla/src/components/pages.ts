@@ -47,8 +47,8 @@ let account: "idle" | "loading" | "ready" = "idle";
 function loadAccount(): void {
   if (account !== "idle") return;
   account = "loading";
-  // Settled, not only succeeded: a failed load already went to `onError`, and
-  // its keys then show as any missing translation would.
+  // Settled, not only succeeded: if the load fails, the page still renders and
+  // the account keys show as any missing translation would.
   const done = () => {
     account = "ready";
     update({});
