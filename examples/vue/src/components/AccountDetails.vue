@@ -10,7 +10,7 @@ const { t: tApp } = useI18n();
 const { addActiveNamespace } = useI18nLoader();
 
 // Activating keeps `account` loaded across later locale switches. The rows wait
-// for it to settle; a failed load has already reached `onError`.
+// for the load to settle, whether it succeeded or failed.
 const ready = ref(false);
 const done = () => (ready.value = true);
 addActiveNamespace("account").then(done, done);
