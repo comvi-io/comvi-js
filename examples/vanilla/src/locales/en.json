@@ -106,7 +106,7 @@
     },
     "errors": {
       "title": "Every failure reaches a hook",
-      "body": "t() never throws. A key that no catalog has is reported to onMissingKey, wired here to a counter you could send to your tracker. A catalog that fails to load reaches onError the same way.",
+      "body": "t() never throws. A key that no catalog has is reported to onMissingKey, wired here to a counter you could send to your tracker. A catalog that fails to load is reported to onError, which this page does not show.",
       "count": "Reported misses: {count}"
     },
     "formality": {
