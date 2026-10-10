@@ -26,12 +26,12 @@ export function Home({ name }: { name: string }) {
       <FormalityCard />
       <MarkupCard />
       <FormattingCard />
-      <LazyLoadingCard />
       <CallOptionsCard />
       <FallbackCard />
       <MissingParamCard />
       <ErrorsCard />
       <NavigationCard />
+      <LazyLoadingCard />
     </div>
   );
 }
