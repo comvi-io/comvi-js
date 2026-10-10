@@ -31,9 +31,19 @@ import { assertCandidateIntegrity } from "./examples-e2e/lib.mjs";
  * version, so a locally packed `@comvi/react` depends on `@comvi/core@<version>`
  * FROM THE REGISTRY. Install that one tarball and the example builds green
  * against the PREVIOUS release's core while reporting the next one's version.
- * So: pack all fourteen, and pin every `@comvi/*` — direct and transitive —
- * through `pnpm.overrides`, then refuse to continue unless the lockfile says
- * every `@comvi` resolution came from a local tarball.
+ * So: pack all fourteen, serve them as the ONLY `@comvi` packages from a
+ * registry of their own (`examples-e2e/candidate-registry.mjs`), so every
+ * `@comvi/*` — direct, transitive or peer — resolves to a candidate tarball,
+ * then refuse to continue unless the lockfile's integrity for each one is the
+ * sha512 of that tarball (`assertCandidateIntegrity`).
+ *
+ * The pnpm that installs is the one this repo pins (`packageManager`), not
+ * whatever is on PATH: the temp manifest carries the same `packageManager`
+ * field, which corepack and pnpm >= 9.7 (its `manage-package-manager-versions`)
+ * honour, and `assertPinnedPnpm` refuses to install under any other version.
+ * Outside this repo a corepack `pnpm` shim falls back to its own default (10.x
+ * on a laptop) while CI runs 9.12.1, and the two disagree about peers that an
+ * override touches; see `withOverrides`.
  *
  * What is checked, per example, in a temp copy outside every workspace (no
  * lockfile in this repo is read or written):
@@ -131,19 +141,60 @@ export const EXAMPLE_NPMRC = [
   "",
 ].join("\n");
 
+/** `packageManager` from this repo's root manifest, e.g. `pnpm@9.12.1`. */
+export const PINNED_PNPM = JSON.parse(
+  fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"),
+).packageManager;
+
 /**
- * The example's manifest with every `@comvi/*` pinned to a local tarball.
+ * Fail unless `pnpm` in `cwd` is the version this repo pins. Run in the temp
+ * copy after `withOverrides` wrote its `packageManager`, so it asks the same
+ * `pnpm` the install will run. Returns the version.
+ */
+export function assertPinnedPnpm(cwd, { env = process.env, pinned = PINNED_PNPM } = {}) {
+  const expected = pinned.replace(/^pnpm@/, "").replace(/\+.*$/, "");
+  const result = spawnSync("pnpm", ["--version"], { cwd, env, encoding: "utf8" });
+  const actual = (result.stdout ?? "").trim();
+  if (result.status !== 0 || actual !== expected) {
+    throw new Error(
+      `pnpm in ${cwd} is ${result.status === 0 ? actual : `unavailable (exit ${result.status})`}, not the pinned ` +
+        `${expected}: the temp install must run the repo's packageManager (${pinned}). Enable ` +
+        "corepack, or install that pnpm.\n" +
+        `${result.stderr ?? ""}`.trim(),
+    );
+  }
+  return actual;
+}
+
+/**
+ * The temp copy's manifest: the repo's `packageManager`, and every `@comvi/*`
+ * the example declares redirected to the candidate's version.
  *
  * `dependencies` is untouched on purpose — the published ranges are part of
- * what is being verified. `pnpm.overrides` redirects resolution only, and it
- * applies to TRANSITIVE dependencies, which is the half a plain install of one
- * tarball misses.
+ * what is being verified. The override only bridges the declared range
+ * (`^0.5.0`, or a dist-tag like `next`) to the candidate's version (0.4.0
+ * before the bump, a prerelease during an RC), which the candidate registry
+ * then serves; transitive `@comvi` dependencies need no override, because that
+ * registry has nothing else to give them.
+ *
+ * Each override is keyed by the DECLARED SPEC (`@comvi/core@^0.5.0`), never by
+ * the bare name. A bare-name override also rewrites every PEER spec on that
+ * name: pnpm 9 turns `@comvi/core: ^0.4.0` into the override's value and then
+ * reports a `file:` override unmet against the 0.4.0 it found (the CI failure
+ * this replaced), and with a version value both pnpm 9 and 10 report every
+ * peer satisfied, an unsatisfiable `^9.0.0` included. Keyed by the declared
+ * spec, a peer range that differs from it is left as published and checked
+ * under `strict-peer-dependencies`.
  */
 export function withOverrides(manifest, packages) {
   const overrides = {};
-  // `pkg.tarball` when the caller names the file (`examples:e2e --tarballs`).
-  for (const pkg of packages) overrides[pkg.name] = `file:${pkg.tarball ?? tarballFor(pkg)}`;
-  return { ...manifest, pnpm: { ...manifest.pnpm, overrides } };
+  for (const pool of [manifest.dependencies, manifest.devDependencies]) {
+    for (const [name, spec] of Object.entries(pool ?? {})) {
+      const pkg = packages.find((candidate) => candidate.name === name);
+      if (pkg) overrides[`${name}@${spec}`] = pkg.version;
+    }
+  }
+  return { ...manifest, packageManager: PINNED_PNPM, pnpm: { ...manifest.pnpm, overrides } };
 }
 
 /** Direct `@comvi/*` dependencies the example declares. */
@@ -637,17 +688,18 @@ async function verifyExample(example, packages, options) {
     // temp tree the flat `node_modules` a Vite app expects.
     //
     // The two peer settings decide what this gate can see about PEERS, and it
-    // is narrower than it looks. With `pnpm.overrides` in place an example that
-    // fails to declare `@comvi/core` still installs: the override satisfies the
-    // peer, so these settings do NOT catch a missing @comvi peer here — the
-    // provenance assertion below is what caught that one, by reporting the
-    // registry copy it had been resolved from.
+    // is narrower than it looks. An example that fails to declare
+    // `@comvi/core` can still install, because the binding it does declare
+    // depends on core and satisfies the peer, so these settings do NOT catch
+    // a missing @comvi peer here.
     //
     // What they do catch is an UNSATISFIABLE peer RANGE: repack the detector
     // with `peerDependencies: { "@comvi/core": "^9.0.0" }` and the install dies
-    // with ERR_PNPM_PEER_DEP_ISSUES instead of shrugging. That is the failure a
-    // reader would hit, because StackBlitz runs `npm install`, which errors on
-    // an unmet peer where pnpm's defaults quietly auto-install one.
+    // with ERR_PNPM_PEER_DEP_ISSUES instead of shrugging, under pnpm 9 and 10
+    // alike, because `withOverrides` keys each override by the declared spec
+    // and so leaves peer ranges as published. That is the failure a reader
+    // would hit, because StackBlitz runs `npm install`, which errors on an
+    // unmet peer where pnpm's defaults quietly auto-install one.
     //
     // RELEASE CAPTAIN: re-run this gate AFTER the version bump. Today the
     // detector's peer range is `^0.4.0` and the tarballs are 0.4.0, so it is
@@ -656,13 +708,14 @@ async function verifyExample(example, packages, options) {
     // check can fail.
     //
     // The last line sends the whole @comvi scope to the candidate's own
-    // registry, so a PEER no override reaches (core behind the fetch loader in
-    // the Nuxt example) resolves to the same tarballs and never to npmjs.org:
-    // scripts/examples-e2e/candidate-registry.mjs.
+    // registry, so every @comvi package, overridden or not (core behind the
+    // fetch loader in the Nuxt example), resolves to the candidate's tarballs
+    // and never to npmjs.org: scripts/examples-e2e/candidate-registry.mjs.
     fs.writeFileSync(
       path.join(target, ".npmrc"),
       `${EXAMPLE_NPMRC}@comvi:registry=${options.registryUrl}\n`,
     );
+    assertPinnedPnpm(target, { env: { ...process.env, CI: "1", ...KINDS[kind].env } });
 
     for (const [step, argv] of [
       ["install", ["install", "--no-frozen-lockfile", "--ignore-workspace"]],

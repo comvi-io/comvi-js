@@ -6,7 +6,9 @@ import path from "node:path";
 import zlib from "node:zlib";
 
 import {
+  PINNED_PNPM,
   assertLocalResolutions,
+  assertPinnedPnpm,
   declaredComviDeps,
   entryChunk,
   exampleKind,
@@ -31,15 +33,6 @@ import {
 function tempDir(prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   return dir;
-}
-
-/** A `packages` entry with its tarball really on disk, which `tarballFor` requires. */
-function fakePackage(root, name, version) {
-  const dir = path.join(root, name.replace("@comvi/", ""));
-  fs.mkdirSync(dir, { recursive: true });
-  const bare = name.replace(/^@/, "").replace("/", "-");
-  fs.writeFileSync(path.join(dir, `${bare}-${version}.tgz`), "");
-  return { name, version, dir };
 }
 
 test("assertLocalResolutions accepts a lockfile whose @comvi entries are all file: tarballs", () => {
@@ -83,38 +76,99 @@ test("assertLocalResolutions fails closed on a lockfile it cannot parse", () => 
   });
 });
 
-test("withOverrides pins every workspace package without touching the declared ranges", () => {
-  const root = tempDir("comvi-verify-overrides-");
+test("withOverrides keys each override by the declared spec and leaves the declared ranges alone", () => {
   const packages = [
-    fakePackage(root, "@comvi/core", "0.5.0"),
-    fakePackage(root, "@comvi/react", "0.5.0"),
+    { name: "@comvi/core", version: "0.4.0" },
+    { name: "@comvi/react", version: "0.4.0" },
+    { name: "@comvi/vite-plugin", version: "0.4.0" },
   ];
   const manifest = {
     name: "comvi-example-react",
     dependencies: { "@comvi/react": "^0.5.0", react: "^19.2.4" },
+    devDependencies: { "@comvi/vite-plugin": "next" },
+    pnpm: { onlyBuiltDependencies: ["esbuild"] },
   };
 
   const result = withOverrides(manifest, packages);
 
   assert.deepEqual(result.dependencies, { "@comvi/react": "^0.5.0", react: "^19.2.4" });
-  assert.equal(
-    result.pnpm.overrides["@comvi/core"],
-    `file:${path.join(root, "core", "comvi-core-0.5.0.tgz")}`,
-  );
-  assert.equal(
-    result.pnpm.overrides["@comvi/react"],
-    `file:${path.join(root, "react", "comvi-react-0.5.0.tgz")}`,
-  );
+  assert.deepEqual(result.devDependencies, { "@comvi/vite-plugin": "next" });
+  // Keyed by spec, never by bare name: a bare-name override rewrites the
+  // packages' PEER ranges too, which blinds strict-peer-dependencies.
+  assert.deepEqual(result.pnpm.overrides, {
+    "@comvi/react@^0.5.0": "0.4.0",
+    "@comvi/vite-plugin@next": "0.4.0",
+  });
+  assert.deepEqual(result.pnpm.onlyBuiltDependencies, ["esbuild"]);
 });
 
-test("withOverrides pins packages the example does not depend on, so transitives resolve locally", () => {
-  const root = tempDir("comvi-verify-transitive-");
-  const packages = [fakePackage(root, "@comvi/core", "0.5.0")];
+test("withOverrides leaves undeclared packages to the candidate registry", () => {
+  const packages = [
+    { name: "@comvi/core", version: "0.5.0-rc.1" },
+    { name: "@comvi/react", version: "0.5.0-rc.1" },
+  ];
   const manifest = { dependencies: { "@comvi/react": "^0.5.0" } };
 
   const result = withOverrides(manifest, packages);
 
-  assert.ok("@comvi/core" in result.pnpm.overrides);
+  assert.deepEqual(result.pnpm.overrides, { "@comvi/react@^0.5.0": "0.5.0-rc.1" });
+});
+
+test("withOverrides pins the temp install to the repo's packageManager", () => {
+  const root = JSON.parse(
+    fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ).packageManager;
+
+  const result = withOverrides({ packageManager: "pnpm@10.0.0", dependencies: {} }, []);
+
+  assert.equal(PINNED_PNPM, root);
+  assert.match(PINNED_PNPM, /^pnpm@\d+\.\d+\.\d+/);
+  assert.equal(result.packageManager, PINNED_PNPM);
+});
+
+/** A directory holding a `pnpm` that prints `version`, first on PATH. */
+function fakePnpm(version, status = 0) {
+  const bin = tempDir("comvi-verify-fake-pnpm-");
+  fs.writeFileSync(path.join(bin, "pnpm"), `#!/bin/sh\necho ${version}\nexit ${status}\n`, {
+    mode: 0o755,
+  });
+  return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+}
+
+test("assertPinnedPnpm returns the version when pnpm is the pinned one", () => {
+  const env = fakePnpm("9.12.1");
+
+  assert.equal(
+    assertPinnedPnpm(tempDir("comvi-verify-pnpm-"), { env, pinned: "pnpm@9.12.1" }),
+    "9.12.1",
+  );
+  // A corepack hash suffix is not part of the version.
+  assert.equal(
+    assertPinnedPnpm(tempDir("comvi-verify-pnpm-"), { env, pinned: "pnpm@9.12.1+sha512.abc" }),
+    "9.12.1",
+  );
+});
+
+test("assertPinnedPnpm fails when PATH runs another pnpm", () => {
+  const env = fakePnpm("10.33.2");
+
+  assert.throws(
+    () => assertPinnedPnpm(tempDir("comvi-verify-pnpm-"), { env, pinned: "pnpm@9.12.1" }),
+    {
+      message: /is 10\.33\.2, not the pinned 9\.12\.1/,
+    },
+  );
+});
+
+test("assertPinnedPnpm fails when pnpm exits non-zero", () => {
+  const env = fakePnpm("9.12.1", 1);
+
+  assert.throws(
+    () => assertPinnedPnpm(tempDir("comvi-verify-pnpm-"), { env, pinned: "pnpm@9.12.1" }),
+    {
+      message: /unavailable \(exit 1\), not the pinned 9\.12\.1/,
+    },
+  );
 });
 
 test("declaredComviDeps reads both pools and ignores everything outside the scope", () => {
