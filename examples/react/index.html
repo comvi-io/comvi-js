@@ -106,6 +106,29 @@
         font-size: 13px;
         color: var(--muted);
       }
+      .note {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        font: inherit;
+        font-size: 14px;
+        padding: 4px 12px;
+        color: var(--fg);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .chip[aria-pressed="true"] {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
       .cards {
         display: grid;
         gap: 16px;
@@ -147,7 +170,7 @@
         cursor: pointer;
       }
       .counter span {
-        margin-inline-start: 8px;
+        margin-inline: 4px;
       }
       .net {
         display: grid;

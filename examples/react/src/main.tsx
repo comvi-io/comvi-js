@@ -7,12 +7,9 @@ import { i18n } from "./i18n";
 
 createRoot(document.getElementById("app")!).render(
   <StrictMode>
-    {/* The provider calls `i18n.init()` on mount, which runs the plugins and
-        loads the first catalog. */}
-    {/* `fallback` paints until the lazy catalog is in, so no frame shows raw keys. */}
+    {/* The provider starts `i18n.init()` and paints `fallback` until the first
+        catalog is in, so no frame ever shows a raw key. */}
     <I18nProvider i18n={i18n} fallback={<p>Loading…</p>}>
-      {/* The router knows nothing about the locale: it is not part of the
-          path here, so a navigation keeps whatever the switcher chose. */}
       <BrowserRouter>
         <App />
       </BrowserRouter>
