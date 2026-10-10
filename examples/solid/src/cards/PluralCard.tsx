@@ -9,10 +9,10 @@ export function PluralCard(props: { count: number; onChange: (count: number) => 
         <button data-testid="cart-dec" onClick={() => props.onChange(Math.max(0, props.count - 1))}>
           −
         </button>
+        <span data-testid="cart">{t("cart.items", { count: props.count })}</span>
         <button data-testid="cart-inc" onClick={() => props.onChange(props.count + 1)}>
           +
         </button>
-        <span data-testid="cart">{t("cart.items", { count: props.count })}</span>
       </div>
     </Card>
   );
