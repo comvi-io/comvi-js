@@ -1,7 +1,5 @@
-<!--
-  No `useLocaleHead()` here: the module writes <html lang dir> from the active
-  locale (`comvi.head`, on by default). Call it for canonical and hreflang links.
--->
+<!-- The module writes <html lang dir> itself; add `useLocaleHead()` here for
+     canonical and hreflang links. -->
 <template>
   <NuxtPage />
 </template>
@@ -125,6 +123,12 @@ h1 {
 .chip[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
+}
+.language-list {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: grid;
+  gap: 4px;
 }
 .switcher-loading {
   color: var(--muted);

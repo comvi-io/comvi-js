@@ -45,7 +45,7 @@
     },
     "tags": {
       "title": "Markup in einer Übersetzung",
-      "body": "Der Katalog enthält <link>…</link> um die Wörter; die App entscheidet, was ein Link ist. Eine Übersetzerin kann ihn verschieben und nie kaputt machen."
+      "body": "Der Katalog umschließt die Wörter mit einem Link-Tag; die App entscheidet, als was ein Link gerendert wird. Eine Übersetzerin kann das Tag verschieben und nie kaputt machen."
     },
     "formatting": {
       "title": "Daten und Zahlen",
