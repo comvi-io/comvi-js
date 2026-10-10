@@ -16,7 +16,7 @@ const price = computed(() =>
       {{
         t("stats.summary", {
           views: formatNumber(1234567),
-          date: formatDate(RELEASED, { dateStyle: "long" }),
+          date: formatDate(RELEASED, { dateStyle: "long", timeZone: "UTC" }),
         })
       }}
     </p>
