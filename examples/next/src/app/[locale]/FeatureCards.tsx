@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ErrorsCard } from "./cards/ErrorsCard";
 import { FallbackCard } from "./cards/FallbackCard";
+import { FormalityCard } from "./cards/FormalityCard";
 import { FormattingCard } from "./cards/FormattingCard";
 import { GreetingCard } from "./cards/GreetingCard";
 import { LazyCard } from "./cards/LazyCard";
@@ -30,6 +31,7 @@ export function FeatureCards() {
       <PluralCard count={count} change={change} />
       <OrdinalCard count={count} />
       <SelectCard />
+      <FormalityCard />
       <TagsCard />
       <FormattingCard />
       <LazyCard />

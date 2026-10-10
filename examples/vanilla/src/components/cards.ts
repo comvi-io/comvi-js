@@ -3,7 +3,7 @@ import type { TranslationResult, VirtualNode } from "@comvi/core";
 import { i18n, missedKeys } from "../i18n";
 import { h, toDom } from "../dom";
 import { link } from "../router";
-import { genders, state, update } from "../state";
+import { formalities, genders, state, update } from "../state";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
@@ -12,6 +12,7 @@ type Feature =
   | "plural"
   | "ordinal"
   | "select"
+  | "formality"
   | "tags"
   | "formatting"
   | "lazy"
@@ -103,6 +104,27 @@ export function selectCard(): HTMLElement {
       "p",
       { class: "widget", "data-testid": "select-message" },
       i18n.t("demo.select.message", { gender: state.gender }),
+    ),
+  );
+}
+
+export function formalityCard(): HTMLElement {
+  const options = formalities.map((formality) => {
+    const button = h(
+      "button",
+      { class: "chip", "aria-pressed": String(state.formality === formality) },
+      i18n.t(`demo.formality.${formality}`),
+    );
+    button.onclick = () => update({ formality });
+    return button;
+  });
+  return card(
+    "formality",
+    h("div", { class: "options" }, ...options),
+    h(
+      "p",
+      { class: "widget", "data-testid": "formality-message" },
+      i18n.t("demo.formality.message", { formality: state.formality }),
     ),
   );
 }
