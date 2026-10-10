@@ -1,7 +1,8 @@
 # Comvi + Solid
 
-A small Solid app that shows what `@comvi/solid` does, one card per feature. Every string on
-the page comes from the JSON catalogs in `src/locales`.
+A small Solid app that shows what `@comvi/solid` does, starting from a one-line integration at `/`
+and a gallery with one card per feature at `/features`. Every string on the page comes from the JSON
+catalogs in `src/locales`.
 
 ## What it shows
 
@@ -14,7 +15,7 @@ the page comes from the JSON catalogs in `src/locales`.
 - **Call options**: one call reads another locale without switching to it.
 - **Fallback and missing keys**: English fills the gaps, and every miss reaches `onMissingKey`.
 - **Right-to-left**: Arabic sets `<html dir="rtl">`.
-- **A second page**: `/about`, with the locale kept across navigation and Back.
+- **Navigation**: `/`, `/features` and `/about`, with the locale kept across pages and Back.
 
 ## Run it
 
@@ -30,7 +31,7 @@ npm run dev
 - `src/i18n.ts` creates the i18n instance: the catalogs, the ICU compiler, the locale detector.
 - `src/main.tsx` wraps the router in `<I18nProvider>`; `src/App.tsx` is the shared layout.
 - `src/cards/` holds one component per feature, each using `useI18n()`.
-- `src/pages/` holds the two routes, `/` and `/about`, served by `@solidjs/router`.
+- `src/pages/` holds the three routes, `/`, `/features` and `/about`, served by `@solidjs/router`.
 
 ## Connect your Comvi project
 
