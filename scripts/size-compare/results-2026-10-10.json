@@ -102,7 +102,7 @@
     },
     {
       "group": "core+icu",
-      "name": "use-intl/core (react external: it imports react for cache())",
+      "name": "use-intl/core (react external: its shared chunk imports cloneElement and isValidElement from react)",
       "fixture": "use-intl-core.ts",
       "external": [
         "react",
@@ -402,6 +402,154 @@
         "@formatjs/icu-messageformat-parser": "3.5.18",
         "intl-messageformat": "11.2.15",
         "next-intl": "4.14.9"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/next root composed (fw-next-root-composed)",
+      "fixture": "comvi-next-root-composed.ts",
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 28364,
+      "gzipBytes": 10155,
+      "packages": [
+        "@comvi/core",
+        "@comvi/next"
+      ],
+      "versions": {
+        "@comvi/core": "0.5.0",
+        "@comvi/next": "0.5.0"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/next/server provider (fw-next-server-provider)",
+      "fixture": "comvi-next-server-provider.ts",
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*",
+        "@comvi/next/config",
+        "*/client/ComviClientProvider.js"
+      ],
+      "define": {},
+      "minBytes": 4267,
+      "gzipBytes": 1980,
+      "packages": [
+        "@comvi/core",
+        "@comvi/next",
+        "server-only"
+      ],
+      "versions": {
+        "@comvi/core": "0.5.0",
+        "@comvi/next": "0.5.0",
+        "server-only": "0.0.1"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/next/middleware (fw-next-middleware-edge)",
+      "fixture": "comvi-next-middleware-edge.ts",
+      "external": [
+        "next",
+        "next/*"
+      ],
+      "define": {},
+      "minBytes": 4829,
+      "gzipBytes": 2045,
+      "packages": [
+        "@comvi/next"
+      ],
+      "versions": {
+        "@comvi/next": "0.5.0"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/nuxt client runtime (fw-nuxt-client-default)",
+      "fixture": "comvi-nuxt-client-default.ts",
+      "external": [
+        "#app",
+        "#build/*",
+        "#imports",
+        "vue",
+        "vue-router",
+        "h3"
+      ],
+      "define": {
+        "import.meta.server": "false",
+        "import.meta.client": "true",
+        "import.meta.dev": "false"
+      },
+      "minBytes": 25410,
+      "gzipBytes": 8563,
+      "packages": [
+        "@comvi/core",
+        "@comvi/nuxt",
+        "@comvi/vue"
+      ],
+      "versions": {
+        "@comvi/nuxt": "0.5.0",
+        "@comvi/core": "0.5.0",
+        "@comvi/vue": "0.5.0"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/nuxt/i18n entry, nothing external (fw-nuxt-i18n)",
+      "fixture": "comvi-nuxt-i18n.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 23692,
+      "gzipBytes": 8525,
+      "packages": [
+        "@comvi/core",
+        "@comvi/nuxt"
+      ],
+      "versions": {
+        "@comvi/core": "0.5.0",
+        "@comvi/nuxt": "0.5.0"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/nuxt everything composed (fw-nuxt-full-composite)",
+      "fixture": "comvi-nuxt-full-composite.ts",
+      "external": [
+        "#app",
+        "#build/*",
+        "#imports",
+        "vue",
+        "vue-router",
+        "h3",
+        "#comvi/*"
+      ],
+      "define": {
+        "import.meta.server": "false",
+        "import.meta.client": "true",
+        "import.meta.dev": "false"
+      },
+      "minBytes": 39344,
+      "gzipBytes": 13361,
+      "packages": [
+        "@comvi/core",
+        "@comvi/nuxt",
+        "@comvi/vue"
+      ],
+      "versions": {
+        "@comvi/nuxt": "0.5.0",
+        "@comvi/core": "0.5.0",
+        "@comvi/vue": "0.5.0"
       }
     }
   ]

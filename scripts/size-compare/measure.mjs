@@ -7,6 +7,12 @@ const CONDITIONS = ["production", "import", "module", "browser"];
 const REACT = ["react", "react/*", "react-dom", "react-dom/*"];
 const NEXT = ["next", "next/*", ...REACT];
 const VUE = ["vue"];
+const NUXT_EXT = ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"];
+const NUXT_DEFINE = {
+  "import.meta.server": "false",
+  "import.meta.client": "true",
+  "import.meta.dev": "false",
+};
 const VUE_I18N_LEAN = {
   __VUE_I18N_FULL_INSTALL__: "false",
   __VUE_I18N_LEGACY_API__: "false",
@@ -23,7 +29,7 @@ const rows = [
   ["core+icu", "intl-messageformat alone", "intl-messageformat.ts", [], {}],
   [
     "core+icu",
-    "use-intl/core (react external: it imports react for cache())",
+    "use-intl/core (react external: its shared chunk imports cloneElement and isValidElement from react)",
     "use-intl-core.ts",
     REACT,
     {},
@@ -50,6 +56,50 @@ const rows = [
   ],
   ["next-client", "@comvi/next/client", "comvi-next-client.ts", NEXT, {}],
   ["next-client", "next-intl (client)", "next-intl-client.ts", NEXT, {}],
+  // Comvi-only rows that mirror the size gate's fixtures and externals exactly, so every Comvi
+  // figure a page cites comes from the published tarballs through this one configuration.
+  [
+    "comvi-only",
+    "@comvi/next root composed (fw-next-root-composed)",
+    "comvi-next-root-composed.ts",
+    NEXT,
+    {},
+  ],
+  [
+    "comvi-only",
+    "@comvi/next/server provider (fw-next-server-provider)",
+    "comvi-next-server-provider.ts",
+    [...NEXT, "@comvi/next/config", "*/client/ComviClientProvider.js"],
+    {},
+  ],
+  [
+    "comvi-only",
+    "@comvi/next/middleware (fw-next-middleware-edge)",
+    "comvi-next-middleware-edge.ts",
+    ["next", "next/*"],
+    {},
+  ],
+  [
+    "comvi-only",
+    "@comvi/nuxt client runtime (fw-nuxt-client-default)",
+    "comvi-nuxt-client-default.ts",
+    NUXT_EXT,
+    NUXT_DEFINE,
+  ],
+  [
+    "comvi-only",
+    "@comvi/nuxt/i18n entry, nothing external (fw-nuxt-i18n)",
+    "comvi-nuxt-i18n.ts",
+    [],
+    {},
+  ],
+  [
+    "comvi-only",
+    "@comvi/nuxt everything composed (fw-nuxt-full-composite)",
+    "comvi-nuxt-full-composite.ts",
+    [...NUXT_EXT, "#comvi/*"],
+    NUXT_DEFINE,
+  ],
 ];
 
 const out = [];

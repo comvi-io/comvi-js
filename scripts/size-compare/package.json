@@ -6,6 +6,7 @@
   "dependencies": {
     "@comvi/core": "0.5.0",
     "@comvi/next": "0.5.0",
+    "@comvi/nuxt": "0.5.0",
     "@comvi/plugin-fetch-loader": "0.5.0",
     "@comvi/react": "0.5.0",
     "@comvi/vue": "0.5.0",

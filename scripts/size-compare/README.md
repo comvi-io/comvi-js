@@ -55,8 +55,9 @@ Each fixture is the smallest app that does the same job: one message with one pa
   function in the shape `@intlify/unplugin-vue-i18n` emits (`fixtures/vue-i18n-precompiled.ts`;
   the function was executed in Node and renders `Hello, world!`). The smaller of the two is the
   fair floor for vue-i18n.
-- `use-intl/core` imports `react` for its `cache()`; `react` is marked external in that row so the
-  number is the library, not React.
+- `use-intl/core` pulls in `react` through a shared chunk that imports `cloneElement` and
+  `isValidElement` for rich-text formatting; `react` is marked external in that row so the number
+  is the library, not React.
 - `next-intl` is measured on its client entry only. Its server entry and middleware are not in the
   table, and neither are `@comvi/next/server` or `@comvi/next/middleware`.
 - `@nuxtjs/i18n` cannot be bundled by esbuild outside Nuxt (it depends on Nuxt's virtual modules),
@@ -103,23 +104,49 @@ Node v24.19.0, esbuild 0.28.0. The full table with the packages inside each bund
 | vue                                     |                      7,540 |             `vue-i18n` precompiled message function, compiler dropped 13,764 |  1.8× |
 | next-client                             | `@comvi/next/client` 8,044 |                                                    `next-intl` client 12,512 |  1.6× |
 
+### Comvi-only rows that the pages cite, published 0.5.0, min+gz bytes
+
+The same fixtures and externals as the size gate, bundled from the published tarballs with the
+configuration above:
+
+| Row                                                        |  Bytes |
+| ---------------------------------------------------------- | -----: |
+| `@comvi/next` root composed (fw-next-root-composed)        | 10,155 |
+| `@comvi/next/server` provider (fw-next-server-provider)    |  1,980 |
+| `@comvi/next/middleware` (fw-next-middleware-edge)         |  2,045 |
+| `@comvi/nuxt` client runtime (fw-nuxt-client-default)      |  8,563 |
+| `@comvi/nuxt/i18n` entry, nothing external (fw-nuxt-i18n)  |  8,525 |
+| `@comvi/nuxt` everything composed (fw-nuxt-full-composite) | 13,361 |
+
+Five of the six match `scripts/size-check.mjs` on the same code to the byte. The server-provider
+row is 1,980 B here and 2,052 B in the gate: the gate resolves `@comvi/*` imports through its own
+exports-map plugin, this harness lets esbuild resolve the installed tarballs, and the two walk the
+`*/client/ComviClientProvider.js` external slightly differently. The pages cite the harness figure,
+because the page states this harness as its method; both numbers are recorded here.
+
 Ratios compare like with like: a complete minimal fixture against a complete minimal fixture, or
 the bytes ICU adds to one library against the bytes ICU adds to the other. The engine-alone row
 for `intl-messageformat` is a fact about that package and carries no ratio, because Comvi has no
 standalone equivalent to put next to it.
 
-### ICU runtime, median of 7 rounds
+### ICU runtime, three runs, each the median of 7 rounds, million calls per second
 
-| Library                               |        warm, 200k calls |                    cold, 20k calls |
-| ------------------------------------- | ----------------------: | ---------------------------------: |
-| `@comvi/core` + `icuCompiler`         | 120.6 ms (1.66 M ops/s) |             59.9 ms (0.33 M ops/s) |
-| `intl-messageformat` 12.1.3           | 312.8 ms (0.64 M ops/s) |            635.9 ms (0.03 M ops/s) |
-| `i18next` + `i18next-icu`             | 788.1 ms (0.25 M ops/s) | not run (no per-message cold path) |
-| `use-intl/core`                       | 915.2 ms (0.22 M ops/s) |            818.5 ms (0.02 M ops/s) |
-| `vue-i18n`, pipe plural               | 892.4 ms (0.22 M ops/s) |            267.1 ms (0.07 M ops/s) |
-| `@comvi/core` simple compiler, no ICU |  36.7 ms (5.45 M ops/s) |                                  — |
+| Library                                                           | run 1 | run 2 | run 3 | median of the three |
+| ----------------------------------------------------------------- | ----: | ----: | ----: | ------------------: |
+| `@comvi/core` + `icuCompiler`, warm                               |  1.66 |  1.69 |  1.68 |            **1.68** |
+| `intl-messageformat` 12.1.3, warm, instance reused                |  0.64 |  0.65 |  0.66 |            **0.65** |
+| `i18next` + `i18next-icu`, warm                                   |  0.25 |  0.26 |  0.26 |            **0.26** |
+| `use-intl/core` translator, warm                                  |  0.22 |  0.22 |  0.23 |            **0.22** |
+| `vue-i18n`, pipe plural, warm                                     |  0.22 |  0.23 |  0.23 |            **0.23** |
+| `@comvi/core` simple compiler, no ICU, warm                       |  5.45 |  5.25 |  5.52 |            **5.45** |
+| `@comvi/core` + `icuCompiler`, cold (new instance, compile, call) |  0.33 |  0.35 |  0.36 |            **0.35** |
+| `intl-messageformat`, cold (new instance, format)                 |  0.03 |  0.03 |  0.03 |            **0.03** |
+| `use-intl/core`, cold (new translator, call)                      |  0.02 |  0.03 |  0.03 |            **0.03** |
+| `vue-i18n`, cold (new instance, call)                             |  0.07 |  0.08 |  0.08 |            **0.08** |
 
-The exact console output is in `bench-2026-10-10.txt`.
+The pages cite the median of the three runs. The exact console output of each run is in
+`bench-2026-10-10.txt`, `bench-2026-10-10-run2.txt` and `bench-2026-10-10-run3.txt`; `i18next-icu`
+has no cold row because the library does not expose a per-message cold path.
 
 ## Where the Comvi figures come from
 
