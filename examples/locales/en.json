@@ -88,7 +88,7 @@
     },
     "ordinal": {
       "title": "Ordinals",
-      "body": "selectordinal knows that English says 1st, 2nd, 3rd and Ukrainian does not.",
+      "body": "selectordinal knows that English says 1st, 2nd, 3rd and Ukrainian does not. The number is the counter above, rendered as an ordinal.",
       "message": "You are the {n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} visitor today."
     },
     "rtl": {
