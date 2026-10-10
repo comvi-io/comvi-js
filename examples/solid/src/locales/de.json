@@ -28,5 +28,51 @@
   },
   "fallback": {
     "only_en": "Dieser Satz fehlt im ukrainischen Katalog."
+  },
+  "demo": {
+    "intro": "Jeder Text auf dieser Seite stammt aus einem Übersetzungskatalog. Wechseln Sie die Sprache und sehen Sie, wie jede Funktion reagiert.",
+    "switcher": {
+      "title": "Sprache wechseln",
+      "body": "Ein Aufruf rendert jedes übersetzte Element neu, und die Wahl bleibt bis zum nächsten Besuch gespeichert."
+    },
+    "interpolation": {
+      "title": "Parameter",
+      "body": "Ein Wert landet dort, wo die Übersetzerin den Platzhalter gesetzt hat; die Wortstellung bleibt ihre Entscheidung."
+    },
+    "plural": {
+      "title": "Pluralformen, die die Sprache kennen",
+      "body": "ICU-Pluralregeln: Englisch hat one und other, Ukrainisch one, few und many. Ändern Sie die Anzahl und vergleichen Sie."
+    },
+    "tags": {
+      "title": "Markup in einer Übersetzung",
+      "body": "Der Katalog enthält <link>…</link> um die Wörter; die App entscheidet, was ein Link ist. Eine Übersetzerin kann ihn verschieben und nie kaputt machen."
+    },
+    "formatting": {
+      "title": "Daten und Zahlen",
+      "body": "Intl formatiert nach Locale: Tausendertrennzeichen, Monatsnamen und die Reihenfolge im Datum."
+    },
+    "lazy": {
+      "title": "Nur das Nötige wird geladen",
+      "body": "Der erste Bildschirm bringt eine Sprache mit. Ein Katalog wird beim ersten Wechsel zu seiner Locale geholt, der Namespace account erst beim Öffnen der Seite Account.",
+      "namespaces": "Geladene Namespaces: {namespaces}"
+    },
+    "fallback": {
+      "title": "Nichts wird als Schlüssel gerendert",
+      "body": "Ein Schlüssel, der auf Ukrainisch fehlt, fällt auf Englisch zurück. Ein Schlüssel, der überall fehlt, zeigt seinen Namen, damit er in der Entwicklung auffällt."
+    },
+    "missing": {
+      "title": "Ein fehlender Parameter bleibt sichtbar",
+      "body": "Der Platzhalter bleibt im Text, statt still zu verschwinden."
+    },
+    "navigation": {
+      "title": "Eine zweite Seite, dieselbe Sprache",
+      "body": "Die Locale überlebt die Navigation, und der Namespace account wird bei Bedarf geladen.",
+      "cta": "Seite Account öffnen"
+    },
+    "footer": {
+      "docs": "Dokumentation",
+      "source": "Quellcode auf GitHub",
+      "install": "Installieren"
+    }
   }
 }

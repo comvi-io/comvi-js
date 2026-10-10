@@ -28,5 +28,51 @@
   },
   "fallback": {
     "only_en": "This sentence is missing from the Ukrainian catalog."
+  },
+  "demo": {
+    "intro": "Every string on this page comes from a translation catalog. Switch the language and watch each feature react.",
+    "switcher": {
+      "title": "Switch the language",
+      "body": "One call re-renders every translated element, and the choice is remembered for your next visit."
+    },
+    "interpolation": {
+      "title": "Parameters",
+      "body": "A value drops in where the translator put the placeholder, so the word order stays the translator's call."
+    },
+    "plural": {
+      "title": "Plurals that know the language",
+      "body": "ICU plural rules: English has one and other, Ukrainian one, few and many. Change the count and compare."
+    },
+    "tags": {
+      "title": "Markup inside a translation",
+      "body": "The catalog holds <link>…</link> around the words; the app decides what a link is. A translator can move it and never break it."
+    },
+    "formatting": {
+      "title": "Dates and numbers",
+      "body": "Intl formats follow the locale: thousands separators, month names and the date order."
+    },
+    "lazy": {
+      "title": "Only what you need is downloaded",
+      "body": "The first screen ships one language. A catalog is fetched the first time its locale is chosen, and the account namespace only when you open the Account page.",
+      "namespaces": "Namespaces loaded: {namespaces}"
+    },
+    "fallback": {
+      "title": "Nothing renders as a key",
+      "body": "A key missing in Ukrainian falls back to English. A key missing everywhere shows its name, so you notice it in development."
+    },
+    "missing": {
+      "title": "A missing parameter stays visible",
+      "body": "The placeholder remains in the text instead of disappearing silently."
+    },
+    "navigation": {
+      "title": "A second page, the same locale",
+      "body": "The locale survives navigation, and the account namespace loads on demand.",
+      "cta": "Open the Account page"
+    },
+    "footer": {
+      "docs": "Documentation",
+      "source": "Source on GitHub",
+      "install": "Install"
+    }
   }
 }
