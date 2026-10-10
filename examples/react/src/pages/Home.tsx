@@ -13,13 +13,15 @@ import { OrdinalCard } from "../cards/OrdinalCard";
 import { PluralCard } from "../cards/PluralCard";
 import { SelectCard } from "../cards/SelectCard";
 
-export function Home({ name }: { name: string }) {
+type Props = { name: string; onNameChange: (name: string) => void };
+
+export function Home({ name, onNameChange }: Props) {
   // The plural and ordinal cards read the same number.
   const [count, setCount] = useState(2);
 
   return (
     <div className="cards">
-      <GreetingCard name={name} />
+      <GreetingCard name={name} onChange={onNameChange} />
       <PluralCard count={count} onChange={setCount} />
       <OrdinalCard count={count} />
       <SelectCard />

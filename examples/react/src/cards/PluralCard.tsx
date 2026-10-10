@@ -9,11 +9,19 @@ export function PluralCard({ count, onChange }: Props) {
   return (
     <FeatureCard feature="plural">
       <div className="counter widget">
-        <button data-testid="cart-dec" onClick={() => onChange(Math.max(0, count - 1))}>
+        <button
+          data-testid="cart-dec"
+          aria-label={t("demo.plural.dec")}
+          onClick={() => onChange(Math.max(0, count - 1))}
+        >
           −
         </button>
         <span data-testid="cart">{t("cart.items", { count })}</span>
-        <button data-testid="cart-inc" onClick={() => onChange(count + 1)}>
+        <button
+          data-testid="cart-inc"
+          aria-label={t("demo.plural.inc")}
+          onClick={() => onChange(count + 1)}
+        >
           +
         </button>
       </div>

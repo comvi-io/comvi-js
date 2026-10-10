@@ -15,8 +15,9 @@ watchEffect(() => {
 </script>
 
 <template>
-  <!-- Until the first catalog is in, show this rather than raw keys. -->
-  <p v-if="isInitializing">Loading…</p>
+  <!-- Until the first catalog is in there are no words to show, raw keys
+       included, so this is a wordless spinner. -->
+  <div v-if="isInitializing" class="boot" role="status" aria-busy="true" />
   <main v-else>
     <header>
       <h1>{{ t("app.title") }}</h1>

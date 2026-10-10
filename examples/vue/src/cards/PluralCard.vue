@@ -9,9 +9,15 @@ const { t } = useI18n();
 <template>
   <FeatureCard feature="plural">
     <div class="counter widget">
-      <button data-testid="cart-dec" @click="count = Math.max(0, count - 1)">−</button>
+      <button
+        data-testid="cart-dec"
+        :aria-label="t('demo.plural.dec')"
+        @click="count = Math.max(0, count - 1)"
+      >
+        −
+      </button>
       <span data-testid="cart">{{ t("cart.items", { count }) }}</span>
-      <button data-testid="cart-inc" @click="count++">+</button>
+      <button data-testid="cart-inc" :aria-label="t('demo.plural.inc')" @click="count++">+</button>
     </div>
   </FeatureCard>
 </template>
