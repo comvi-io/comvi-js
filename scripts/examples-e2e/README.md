@@ -129,7 +129,8 @@ in, in all seven examples.
 installs and builds each example exactly as `examples:verify` does, starts the
 built app the way a reader would (`vite preview`, `next start`, or Nitro's
 `.output/server/index.mjs`), and runs one Playwright spec against all seven
-through the same `data-testid`s:
+through the same `data-testid`s. Every step but the About ones drives the feature gallery at
+`/features` (`/<locale>/features` in `next` and `nuxt`), not the start page at `/`:
 
 ```bash
 pnpm exec playwright install chromium   # once per machine
