@@ -262,34 +262,55 @@ test("applyRcVersions with dryRun writes no manifest", (t) => {
 
 /**
  * The one claim the fixture cannot make: that THIS repo's pending release train
- * is shaped the way the tool assumes. It needs pending changesets, so it lives
- * only on a release branch — the copy on `main` ends at the fixture tests.
+ * is shaped the way the tool assumes. It needs pending changesets, which exist
+ * on a release branch but not on a versioned one (`changeset-release/main`, or
+ * `main` right after a release): there the plan must refuse instead of
+ * re-versioning, so that state is asserted rather than skipped.
  */
-test("plan against this repo: the whole publishable set is the fixed group, on one rc version", () => {
-  const { manifests, versions } = planRcVersions({ root: REPO, rc: "3" });
+const pendingChangesets = fs
+  .readdirSync(path.join(REPO, ".changeset"))
+  .filter((file) => file.endsWith(".md") && file !== "README.md");
 
-  const names = manifests.map((m) => m.name).sort();
-  assert.ok(
-    names.includes("@comvi/core"),
-    `@comvi/core must be versioned; got ${names.join(", ")}`,
-  );
-  assert.ok(!names.includes("@comvi/vite-config"), "ignored package must not be versioned");
-  assert.ok(!names.includes("@comvi/chrome-extension"), "apps are outside packages/");
-  // Workspace-private, and in `ignore` on top of that: the RC must not version
-  // (or publish) either. `planRcVersions` REFUSES a publishable package it
-  // cannot version, so a regression here fails loudly rather than silently
-  // shipping one at its GA version under dist-tag `next`.
-  assert.ok(!names.includes("@comvi/locale-routing"), "private package must not be versioned");
-  assert.ok(!names.includes("@comvi/typegen"), "private package must not be versioned");
+test(
+  "plan against this repo: a versioned branch has no changesets, so the RC plan refuses",
+  { skip: pendingChangesets.length > 0 && "this branch has pending changesets" },
+  () => {
+    assert.throws(
+      () => planRcVersions({ root: REPO, rc: "3" }),
+      /no changesets: nothing to version/,
+    );
+  },
+);
 
-  const core = versions["@comvi/core"];
-  assert.match(core, /^\d+\.\d+\.\d+-rc\.3$/);
-  const fixed = JSON.parse(
-    fs.readFileSync(path.join(REPO, ".changeset/config.json"), "utf8"),
-  ).fixed.flat();
-  for (const name of fixed)
-    assert.equal(versions[name], core, `${name} must share the fixed rc version`);
-  // One fixed group, nothing beside it: every package this RC versions is a
-  // member, so there is no second version line in the release.
-  assert.deepEqual(names, [...fixed].sort(), "the publishable set IS the fixed group");
-});
+test(
+  "plan against this repo: the whole publishable set is the fixed group, on one rc version",
+  { skip: pendingChangesets.length === 0 && "this branch is already versioned" },
+  () => {
+    const { manifests, versions } = planRcVersions({ root: REPO, rc: "3" });
+
+    const names = manifests.map((m) => m.name).sort();
+    assert.ok(
+      names.includes("@comvi/core"),
+      `@comvi/core must be versioned; got ${names.join(", ")}`,
+    );
+    assert.ok(!names.includes("@comvi/vite-config"), "ignored package must not be versioned");
+    assert.ok(!names.includes("@comvi/chrome-extension"), "apps are outside packages/");
+    // Workspace-private, and in `ignore` on top of that: the RC must not version
+    // (or publish) either. `planRcVersions` REFUSES a publishable package it
+    // cannot version, so a regression here fails loudly rather than silently
+    // shipping one at its GA version under dist-tag `next`.
+    assert.ok(!names.includes("@comvi/locale-routing"), "private package must not be versioned");
+    assert.ok(!names.includes("@comvi/typegen"), "private package must not be versioned");
+
+    const core = versions["@comvi/core"];
+    assert.match(core, /^\d+\.\d+\.\d+-rc\.3$/);
+    const fixed = JSON.parse(
+      fs.readFileSync(path.join(REPO, ".changeset/config.json"), "utf8"),
+    ).fixed.flat();
+    for (const name of fixed)
+      assert.equal(versions[name], core, `${name} must share the fixed rc version`);
+    // One fixed group, nothing beside it: every package this RC versions is a
+    // member, so there is no second version line in the release.
+    assert.deepEqual(names, [...fixed].sort(), "the publishable set IS the fixed group");
+  },
+);
