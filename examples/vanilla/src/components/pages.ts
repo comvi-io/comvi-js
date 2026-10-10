@@ -30,12 +30,12 @@ export function homePage(): Node[] {
     formalityCard(),
     tagsCard(),
     formattingCard(),
-    lazyCard(),
     optionsCard(),
     fallbackCard(),
     errorsCard(),
     missingCard(),
     navigationCard(),
+    lazyCard(),
     footer(),
   ];
 }
