@@ -8,6 +8,7 @@ defineProps<{
     | "plural"
     | "ordinal"
     | "select"
+    | "formality"
     | "tags"
     | "formatting"
     | "lazy"
