@@ -38,7 +38,10 @@ function walk(dir, out = []) {
   }
   return out;
 }
-for (const app of ["sm-bare", "sm-nuxt-i18n", "sm-comvi-nuxt"]) {
+// Usage: node attribute.mjs [<sourcemapBuildDir> ...]; defaults to sm-bare sm-nuxt-i18n sm-comvi-nuxt.
+const builds =
+  process.argv.length > 2 ? process.argv.slice(2) : ["sm-bare", "sm-nuxt-i18n", "sm-comvi-nuxt"];
+for (const app of builds) {
   const root = join(app, ".output/public/_nuxt");
   const totals = new Map();
   let total = 0,
@@ -78,6 +81,7 @@ for (const app of ["sm-bare", "sm-nuxt-i18n", "sm-comvi-nuxt"]) {
           Buffer.byteLength(lines[li].slice(start, end)) +
           (i + 1 === parsed.length && li < lines.length - 1 ? 1 : 0);
         const key = parsed[i].src >= 0 ? pkgOf(map.sources[parsed[i].src] || "") : "(unmapped)";
+        if (parsed[i].src < 0) unmapped += bytes;
         totals.set(key, (totals.get(key) || 0) + bytes);
       }
     }

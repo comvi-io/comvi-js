@@ -43,8 +43,8 @@ const rows = [
   ["vue", "vue-i18n (lean flags, runtime compiler kept)", "vue-i18n.ts", VUE, VUE_I18N_LEAN],
   [
     "vue",
-    "vue-i18n (lean flags, compiler dropped = precompiled)",
-    "vue-i18n.ts",
+    "vue-i18n (lean flags, precompiled message function, compiler dropped)",
+    "vue-i18n-precompiled.ts",
     VUE,
     { ...VUE_I18N_LEAN, __INTLIFY_DROP_MESSAGE_COMPILER__: "true" },
   ],

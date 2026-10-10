@@ -317,8 +317,8 @@
     },
     {
       "group": "vue",
-      "name": "vue-i18n (lean flags, compiler dropped = precompiled)",
-      "fixture": "vue-i18n.ts",
+      "name": "vue-i18n (lean flags, precompiled message function, compiler dropped)",
+      "fixture": "vue-i18n-precompiled.ts",
       "external": [
         "vue"
       ],
@@ -329,8 +329,8 @@
         "__VUE_PROD_DEVTOOLS__": "false",
         "__INTLIFY_DROP_MESSAGE_COMPILER__": "true"
       },
-      "minBytes": 36610,
-      "gzipBytes": 13732,
+      "minBytes": 36684,
+      "gzipBytes": 13764,
       "packages": [
         "@intlify/core-base",
         "@intlify/message-compiler",

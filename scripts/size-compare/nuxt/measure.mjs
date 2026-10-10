@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Usage: node measure.mjs <bareDir> <appDir> [<appDir> ...]
 // Each dir must contain a built Nuxt app (.output/public/_nuxt/). The first dir is the baseline.
-// Prints: per-app totals (all .js under _nuxt, recursive), entry-chunk table (the largest chunk,
-// cross-checked against <script type="module" src> in .output/public/index.html when present),
-// deltas vs baseline, per-chunk listing with marker attribution.
+// Prints: per-app totals (all .js under _nuxt, recursive), entry-chunk table (the chunk Nuxt's
+// client manifest marks isEntry, or the <script type="module"> of a prerendered index.html;
+// "unavailable" when neither identifies it), deltas vs baseline, per-chunk listing with marker
+// attribution.
 import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
 import { join, basename } from "node:path";
+import { pathToFileURL } from "node:url";
 import { gzipSync, brotliCompressSync, constants } from "node:zlib";
 
 const apps = process.argv.slice(2);
@@ -47,11 +49,21 @@ for (const app of apps) {
     })
     .sort((a, b) => b.min - a.min);
   const sum = (k) => files.reduce((a, f) => a + f[k], 0);
-  let entry = files[0];
+  // The entry chunk is taken from Nuxt's own client manifest (the record with
+  // isEntry: true), or from a prerendered index.html when the manifest is absent.
+  // When neither identifies it, the entry measurement is reported as unavailable
+  // rather than guessed from file size.
+  let entry = null;
+  const manifest = join(app, ".nuxt/dist/server/client.manifest.mjs");
+  if (existsSync(manifest)) {
+    const records = (await import(pathToFileURL(manifest).href)).default;
+    const hit = Object.values(records).find((r) => r.isEntry && r.file);
+    if (hit) entry = files.find((f) => f.file === hit.file) || null;
+  }
   const html = join(app, ".output/public/index.html");
-  if (existsSync(html)) {
+  if (!entry && existsSync(html)) {
     const m = readFileSync(html, "utf8").match(/<script type="module" src="[^"]*\/_nuxt\/([^"]+)"/);
-    if (m) entry = files.find((f) => f.file === m[1]) || entry;
+    if (m) entry = files.find((f) => f.file === m[1]) || null;
   }
   results[app] = {
     files: files.length,
@@ -83,6 +95,12 @@ console.log("|---|---|---|---|---|---|---|---|");
 for (const app of apps) {
   const e = results[app].entry,
     b = base.entry;
+  if (!e || !b) {
+    console.log(
+      `| ${name(app)} | unavailable (no client manifest or prerendered index.html) | — | — | — | — | — | — |`,
+    );
+    continue;
+  }
   console.log(
     `| ${name(app)} | ${e.file} | ${e.min} | ${e.gz} | ${e.br} | ${sign(e.min - b.min)} | ${sign(e.gz - b.gz)} | ${sign(e.br - b.br)} |`,
   );
