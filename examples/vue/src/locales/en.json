@@ -78,7 +78,7 @@
     },
     "select": {
       "title": "Select by a value",
-      "body": "ICU select picks a whole sentence by a value, here the reviewer's gender; the translator owns every variant.",
+      "body": "ICU select picks a whole sentence by a value, here the reviewer's gender. In English only the pronoun changes; switch to Ukrainian and the verb ending changes too. The app passes one value, the translator writes each variant.",
       "message": "{gender, select, female {She replied to your review} male {He replied to your review} other {They replied to your review}}",
       "female": "she",
       "male": "he",

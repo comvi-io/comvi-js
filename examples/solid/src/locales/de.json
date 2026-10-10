@@ -78,7 +78,7 @@
     },
     "select": {
       "title": "Auswahl nach Wert",
-      "body": "ICU select wählt einen ganzen Satz nach einem Wert, hier dem Geschlecht der Rezensentin; jede Variante gehört der Übersetzerin.",
+      "body": "ICU select wählt einen ganzen Satz nach einem Wert, hier dem Geschlecht der Rezensentin. Auf Deutsch ändert sich das Hilfsverb, auf Englisch nur das Pronomen: Die App übergibt einen Wert, die Übersetzerin schreibt jede Variante.",
       "message": "{gender, select, female {Sie hat auf Ihre Rezension geantwortet} male {Er hat auf Ihre Rezension geantwortet} other {Sie haben auf Ihre Rezension geantwortet}}",
       "female": "sie",
       "male": "er",
