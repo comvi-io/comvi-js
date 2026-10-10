@@ -120,3 +120,49 @@ The Comvi rows reproduce `scripts/size-check.mjs` on the published 0.5.0 tarball
 `fw-next-client-default` 8,044 on 2026-10-10). The `baseline` values in `scripts/size-budgets.json`
 were recorded between 2026-09-12 and 2026-10-05 and are 1–4 % lower than 0.5.0; the budgets still
 hold. Public pages should cite the figure measured on the released version, not the baseline.
+
+## Nuxt: measured with Nuxt's own build
+
+`@nuxtjs/i18n` depends on Nuxt's virtual modules and cannot be bundled by esbuild on its own, so
+the two Nuxt modules are compared with `nuxi build` instead. `nuxt/apps/` holds three one-string
+apps (`bare`, `nuxt-i18n`, `comvi-nuxt`) with identical `app.vue` output; `nuxt/measure.mjs` sums
+every client JavaScript file under `.output/public/_nuxt/` (minified, gzip level 9, brotli 11) and
+reports the delta over the bare app, total and for the entry chunk alone. `nuxt/attribute.mjs`
+attributes minified bytes to packages from a source-mapped build. `nuxt/REPORT.md` is the full
+run of 2026-10-10 with every config, command and version.
+
+```sh
+cd scripts/size-compare/nuxt/apps/<app> && pnpm install --ignore-workspace && pnpm nuxi build
+cd ../.. && node measure.mjs apps/bare apps/nuxt-i18n apps/comvi-nuxt
+```
+
+### Results, 2026-10-10 (Nuxt 4.6.1, @nuxtjs/i18n 10.6.0, @comvi/nuxt 0.5.0)
+
+| App          | JS files |   min B | gzip B | Δ gzip vs bare | entry chunk gzip | Δ entry vs bare |
+| ------------ | -------: | ------: | -----: | -------------: | ---------------: | --------------: |
+| bare         |        4 | 144,943 | 54,453 |              — |           49,167 |               — |
+| @nuxtjs/i18n |        5 | 229,147 | 82,571 |        +28,118 |           79,515 |         +30,348 |
+| @comvi/nuxt  |        4 | 184,255 | 66,719 |        +12,266 |           63,729 |         +14,562 |
+
+Per package, minified bytes in the entry chunk (from the source-mapped build): `@nuxtjs/i18n`
+21,479 + `@intlify/message-compiler` 16,905 + `@intlify/core-base` 14,966 + `vue-i18n` 14,589 +
+`@intlify/shared` 3,363 on one side; `@comvi/core` 16,262 + `@comvi/nuxt` 6,160 + `@comvi/vue`
+5,706 on the other. Both pull the same `cookie-es`, `ohash` and `klona` for the locale cookie.
+
+### Caveats
+
+- Neither delta contains message bytes. `@nuxtjs/i18n` 10.6 fetches the catalog from a Nitro
+  route at startup (`/_i18n/<hash>/en/messages.json`, one extra request; its former `lazy` option
+  no longer exists). `@comvi/nuxt` inlines the catalog in the page payload.
+- Both compile messages in the browser. On the `@nuxtjs/i18n` side that is why
+  `@intlify/message-compiler` is in the client chunk; the run did not precompile messages. The
+  Comvi app runs core's default compiler; `icuCompiler` was not composed, and adds about 1,058 B
+  gzipped (see the esbuild table).
+- The entry-chunk delta is larger than the total delta because in both i18n apps the prefetched
+  error-404 chunk shrinks (NuxtLink and router helpers move into the entry chunk).
+- The HTML of `/` is 2,157 B for `@nuxtjs/i18n` (inline runtime config) and 1,711 B for Comvi; not
+  counted. `@nuxtjs/i18n` has one extra 45 B prefetched `i18n.config` chunk.
+- The apps are hand-scaffolded without `pages/`; the Comvi README example uses `NuxtPage`, the
+  module renders without it.
+- Every build was started with `node .output/server/index.mjs` and `/` returned
+  `<p>Hello, world!</p>` for all three before the numbers were taken.

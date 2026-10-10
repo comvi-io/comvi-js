@@ -1,0 +1,14 @@
+{
+  "name": "nuxt-i18n",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxi build"
+  },
+  "dependencies": {
+    "nuxt": "4.6.1",
+    "vue": "latest",
+    "vue-router": "latest",
+    "@nuxtjs/i18n": "10.6.0"
+  }
+}
