@@ -54,9 +54,9 @@
       "price": "Total: {price}"
     },
     "lazy": {
-      "title": "Only what you need is downloaded",
+      "title": "Under the hood",
       "body": "The first screen ships one language. A catalog is fetched the first time its locale is chosen, and the account namespace only when you open the Account page. English is in the list from the start: it is the fallback locale, so a key missing in your language still renders.",
-      "namespaces": "Namespaces loaded: {namespaces}"
+      "namespaces": "Namespaces active for every fetched locale: {namespaces}"
     },
     "fallback": {
       "title": "Nothing renders as a key",

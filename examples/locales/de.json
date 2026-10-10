@@ -54,9 +54,9 @@
       "price": "Gesamt: {price}"
     },
     "lazy": {
-      "title": "Nur das Nötige wird geladen",
+      "title": "Unter der Haube",
       "body": "Der erste Bildschirm bringt eine Sprache mit. Ein Katalog wird beim ersten Wechsel zu seiner Locale geholt, der Namespace account erst beim Öffnen der Seite Account. Englisch steht von Anfang an in der Liste: Es ist die Fallback-Locale, damit ein in Ihrer Sprache fehlender Schlüssel trotzdem gerendert wird.",
-      "namespaces": "Geladene Namespaces: {namespaces}"
+      "namespaces": "Namespaces, aktiv für jede geladene Locale: {namespaces}"
     },
     "fallback": {
       "title": "Nichts wird als Schlüssel gerendert",
