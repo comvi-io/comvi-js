@@ -17,7 +17,7 @@ const { t } = useI18n();
       <p class="widget" data-testid="about-body">{{ t("about.body") }}</p>
       <AccountDetails :name="name" />
       <p>
-        <RouterLink data-testid="nav-home" to="/">{{ t("nav.home") }}</RouterLink>
+        <RouterLink data-testid="nav-home" to="/features">{{ t("nav.home") }}</RouterLink>
       </p>
     </article>
 

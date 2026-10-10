@@ -2,13 +2,15 @@ import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
 import AboutPage from "./pages/AboutPage.vue";
-import HomePage from "./pages/HomePage.vue";
+import FeaturesPage from "./pages/FeaturesPage.vue";
+import StartPage from "./pages/StartPage.vue";
 import { i18n } from "./i18n";
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/", component: HomePage },
+    { path: "/", component: StartPage },
+    { path: "/features", component: FeaturesPage },
     { path: "/about", component: AboutPage },
   ],
 });
