@@ -3,6 +3,7 @@ import { ref } from "vue";
 import CallOptionsCard from "../cards/CallOptionsCard.vue";
 import ErrorsCard from "../cards/ErrorsCard.vue";
 import FallbackCard from "../cards/FallbackCard.vue";
+import FormalityCard from "../cards/FormalityCard.vue";
 import FormattingCard from "../cards/FormattingCard.vue";
 import GreetingCard from "../cards/GreetingCard.vue";
 import LazyLoadingCard from "../cards/LazyLoadingCard.vue";
@@ -25,6 +26,7 @@ const count = ref(2);
     <PluralCard v-model:count="count" />
     <OrdinalCard :count="count" />
     <SelectCard />
+    <FormalityCard />
     <MarkupCard />
     <FormattingCard />
     <LazyLoadingCard />
