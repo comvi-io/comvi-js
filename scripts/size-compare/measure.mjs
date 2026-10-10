@@ -25,7 +25,15 @@ const rows = [
   ["core", "@comvi/core", "comvi-core.ts", [], {}],
   ["core", "i18next", "i18next-core.ts", [], {}],
   ["core+icu", "@comvi/core + /icu", "comvi-core-icu.ts", [], {}],
+  [
+    "core+icu",
+    "@comvi/core, same plural text, simple compiler (no ICU)",
+    "comvi-core-plural-text-no-icu.ts",
+    [],
+    {},
+  ],
   ["core+icu", "i18next + i18next-icu", "i18next-core-icu.ts", [], {}],
+  ["core+icu", "i18next, same plural text, no i18next-icu", "i18next-core-plural-text.ts", [], {}],
   ["core+icu", "intl-messageformat alone", "intl-messageformat.ts", [], {}],
   [
     "core+icu",
@@ -35,6 +43,7 @@ const rows = [
     {},
   ],
   ["react", "@comvi/react", "comvi-react.ts", REACT, {}],
+  ["react", "@comvi/react + /icu", "comvi-react-icu.ts", REACT, {}],
   ["react", "i18next + react-i18next", "i18next-react.ts", REACT, {}],
   ["react", "use-intl (react)", "use-intl-react.ts", REACT, {}],
   ["react+icu+loader", "@comvi/react + /icu + cdnLoader", "comvi-react-icu-cdn.ts", REACT, {}],
@@ -46,6 +55,7 @@ const rows = [
     {},
   ],
   ["vue", "@comvi/vue", "comvi-vue.ts", VUE, {}],
+  ["vue", "@comvi/vue + /icu", "comvi-vue-icu.ts", VUE, {}],
   ["vue", "vue-i18n (lean flags, runtime compiler kept)", "vue-i18n.ts", VUE, VUE_I18N_LEAN],
   [
     "vue",
@@ -55,6 +65,7 @@ const rows = [
     { ...VUE_I18N_LEAN, __INTLIFY_DROP_MESSAGE_COMPILER__: "true" },
   ],
   ["next-client", "@comvi/next/client", "comvi-next-client.ts", NEXT, {}],
+  ["next-client", "@comvi/next/client + /icu", "comvi-next-client-icu.ts", NEXT, {}],
   ["next-client", "next-intl (client)", "next-intl-client.ts", NEXT, {}],
   // Comvi-only rows that mirror the size gate's fixtures and externals exactly, so every Comvi
   // figure a page cites comes from the published tarballs through this one configuration.
@@ -156,7 +167,9 @@ for (const o of out) {
   o.versions = versionsOf(o.inputFiles);
   delete o.inputFiles;
 }
-const date = new Date().toISOString().slice(0, 10);
+// Local calendar date, so a run just after midnight is filed under the day it was made.
+const now = new Date();
+const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 fs.writeFileSync(
   `results-${date}.json`,
   JSON.stringify(

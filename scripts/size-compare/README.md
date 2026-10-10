@@ -4,7 +4,7 @@ What the comparison pages on comvi.io cite when they put a Comvi figure next to 
 another library. Everything here runs on **published npm packages** (Comvi included, pinned to
 0.5.0), with one bundler configuration for every row, so the numbers are comparable with each
 other. They are not comparable with figures produced elsewhere with a different bundler, fixture
-or gzip level.
+or gzip level, and a ratio between two minimal fixtures describes those fixtures, not every app.
 
 This directory is a standalone package, deliberately outside the pnpm workspace, so the competitor
 packages never enter the monorepo lockfile.
@@ -14,39 +14,51 @@ packages never enter the monorepo lockfile.
 ```sh
 cd scripts/size-compare
 pnpm install --ignore-workspace
-node measure.mjs   # writes results-<date>.json and results-<date>.md
-node bench.mjs     # prints the runtime table; paste into bench-<date>.txt
+node measure.mjs                      # writes results-<date>.json and results-<date>.md
+NODE_ENV=production node bench.mjs    # refuses to run without NODE_ENV=production; run it three times
 ```
 
 ## Method: bundle size
 
-Identical to `scripts/size-check.mjs`, the gate that guards Comvi's own sizes:
+The esbuild settings are those of `scripts/size-check.mjs`, the gate that guards Comvi's own sizes:
+esbuild 0.28.0, `bundle`, `minify`, `format: esm`, `platform: browser`, `target: es2020`,
+`process.env.NODE_ENV` defined as `"production"` and `__DEV__` as `false`, the framework marked
+external in every framework row (`react`, `react-dom`, `next`, `vue`), the single output file
+measured minified and gzipped at level 9. One difference: the gate resolves `@comvi/*` imports
+through its own exports-map plugin, this harness passes the conditions
+`production, import, module, browser` to esbuild and lets it resolve the installed tarballs. On the
+gate's own fixtures the two agree to the byte on all but one (see the Comvi-only table below).
 
-- esbuild 0.28.0, `bundle`, `minify`, `format: esm`, `platform: browser`, `target: es2020`
-- resolution conditions `production, import, module, browser`; `process.env.NODE_ENV` defined as
-  `"production"`, `__DEV__` as `false`
-- the framework is marked external in every framework row (`react`, `react-dom`, `next`, `vue`),
-  so only the i18n graph is counted
-- the reported number is the single output file, minified, and the same bytes gzipped at level 9
-- the metafile lists every package that landed in the bundle; the results table prints them with
-  the resolved version, so a figure can be traced to what it contains
+The metafile lists every package that landed in each bundle; the results table prints them with
+the resolved version, so a figure can be traced to what it contains.
 
-Each fixture is the smallest app that does the same job: one message with one parameter, one
-`t()` call, plus whatever the library needs to make that call. The pairs:
+Each fixture is the smallest app that does the same job: one message with one parameter, one `t()`
+call, plus whatever the library needs to make that call. Two fixtures are retention fixtures
+instead: `use-intl (react)` and `next-intl (client)` import the provider and the hook and reference
+them, with no message of their own, because those entries are the framework glue and a `t()` call
+there would not change what the bundler keeps.
 
-| Group            | Comvi                                                    | Other                                                                                                                                        |
-| ---------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| core             | `@comvi/core`, simple compiler                           | `i18next` (its own interpolation and suffix-key plurals)                                                                                     |
-| core+icu         | `@comvi/core` + `compiler: icuCompiler`                  | `i18next` + `i18next-icu`; `intl-messageformat` alone; `use-intl/core`                                                                       |
-| react            | `@comvi/react` (`createI18n`, `I18nProvider`, `useI18n`) | `i18next` + `react-i18next` (`initReactI18next`, `I18nextProvider`, `useTranslation`); `use-intl` (`IntlProvider`, `useTranslations`)        |
-| react+icu+loader | `@comvi/react` + ICU + `cdnLoader`                       | `i18next` + `react-i18next` + `i18next-icu` + `i18next-http-backend`                                                                         |
-| vue              | `@comvi/vue`                                             | `vue-i18n` 11, Composition API, a raw-string message with the runtime compiler, and a precompiled message function with the compiler dropped |
-| next-client      | `@comvi/next/client`                                     | `next-intl` client entry (`NextIntlClientProvider`, `useTranslations`)                                                                       |
+| Group            | Comvi                                                                                                    | Other                                                                                                                                        |
+| ---------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| core             | `@comvi/core`, simple compiler (interpolation only)                                                      | `i18next` (interpolation and suffix-key plurals in its own syntax)                                                                           |
+| core+icu         | `@comvi/core` + `compiler: icuCompiler`; and the same plural text on the simple compiler, as the control | `i18next` + `i18next-icu`; the same plural text without the plugin, as the control; `intl-messageformat` alone; `use-intl/core`              |
+| react            | `@comvi/react`, with and without ICU                                                                     | `i18next` + `react-i18next` (`initReactI18next`, `I18nextProvider`, `useTranslation`); `use-intl` (`IntlProvider`, `useTranslations`)        |
+| react+icu+loader | `@comvi/react` + ICU + `cdnLoader`                                                                       | `i18next` + `react-i18next` + `i18next-icu` + `i18next-http-backend`                                                                         |
+| vue              | `@comvi/vue`, with and without ICU                                                                       | `vue-i18n` 11, Composition API: a raw-string message with the runtime compiler, and a precompiled message function with the compiler dropped |
+| next-client      | `@comvi/next/client`, with and without ICU                                                               | `next-intl` client entry (`NextIntlClientProvider`, `useTranslations`)                                                                       |
 
 ### Caveats a reader should know
 
-- `i18next` without `i18next-icu` is not an ICU library; the "core" row compares two libraries that
-  each do interpolation and plurals in their own syntax. The "core+icu" row is the ICU-to-ICU one.
+- The core row compares two libraries that each do interpolation in their own syntax; i18next's
+  bare core also carries suffix-key plurals, Comvi's simple compiler does not. The rows with ICU on
+  the Comvi side are the plural-to-plural comparison; `use-intl`, `next-intl` and `vue-i18n` always
+  carry their plural engine, so their equal-work pair is the Comvi row **with** ICU.
+- What ICU adds is measured on each side with the message text held constant: the plural message
+  on Comvi's simple compiler against the same message on `icuCompiler`, and the same message on
+  bare `i18next` against `i18next` + `i18next-icu`. Subtracting two fixtures with different texts
+  gives a slightly different number (1,058 B instead of 1,043 B for Comvi); the pages cite the
+  constant-text figure. `intl-messageformat` alone is listed as a fact about that package and
+  carries no ratio, because Comvi has no standalone equivalent to put next to it.
 - `vue-i18n` is measured twice, with the feature flags a production Vite build would set
   (`__VUE_I18N_FULL_INSTALL__`, `__VUE_I18N_LEGACY_API__`, `__INTLIFY_PROD_DEVTOOLS__`,
   `__VUE_PROD_DEVTOOLS__` all `false`): once with the runtime message compiler kept, which is what
@@ -59,50 +71,61 @@ Each fixture is the smallest app that does the same job: one message with one pa
   `isValidElement` for rich-text formatting; `react` is marked external in that row so the number
   is the library, not React.
 - `next-intl` is measured on its client entry only. Its server entry and middleware are not in the
-  table, and neither are `@comvi/next/server` or `@comvi/next/middleware`.
+  table, and neither are `@comvi/next/server` or `@comvi/next/middleware` in a paired row.
 - `@nuxtjs/i18n` cannot be bundled by esbuild outside Nuxt (it depends on Nuxt's virtual modules),
-  so it is not in this table. See `nuxt/` for a comparison made with Nuxt's own production build.
-- A minimal fixture is a floor. A real app pulls in more of every library; the ratio between two
-  floors is the honest claim, not an absolute "your app will weigh X".
+  so it is not in this table. See the Nuxt section for a comparison made with Nuxt's own build.
+- A minimal fixture is a floor. A real app pulls in more of every library, and the ratio between two
+  floors describes these fixtures, not an app in general.
 
 ## Method: ICU runtime
 
-`bench.mjs`, Node, the same message for every library that speaks ICU
-(`{count, plural, one {# item} other {# items}} in {name}`), 7 rounds, median reported.
+`bench.mjs`, Node, `NODE_ENV=production` (the script refuses to run otherwise, so every library
+takes its production branch), the same message text for every library that speaks ICU, 7 rounds,
+median reported, run three times. Three scenarios:
 
-- **warm**: the same key formatted 200,000 times with a changing `count`. This is the render-loop
-  case; every library caches the parsed message, so it measures the formatter.
-- **cold**: a fresh message string on every one of 20,000 calls, so it measures parse plus format.
-  For Comvi and vue-i18n the cold path creates a whole instance per call, which is more work than
-  the other libraries do in their cold row; the Comvi figure is therefore conservative.
-- `vue-i18n` has no ICU; it is run on its own pipe-plural syntax
-  (`{count} item in {name} | {count} items in {name}`), so its row is "the same job in its own
-  format", not an ICU implementation.
+- **warm, equal work**: the same key formatted 200,000 times with a changing count, the count
+  passed pre-formatted as `{n}` and interpolated in both plural branches
+  (`{count, plural, one {{n} item} other {{n} items}} in {name}`). Every library does the same job:
+  plural selection plus interpolation. This is the row the pages cite for warm formatting.
+- **warm, default `#`**: the same message written with `#`, as a user would write it. Comvi inserts
+  `#` as plain digits (`String(count)`); `intl-messageformat` localizes it (`1,234.5` in English,
+  `1.234,5` in German). The two libraries do different work here by design, so this row is shown
+  but not cited as a like-for-like speed.
+- **catalog**: one instance per library holding 5,000 distinct messages, each formatted exactly
+  once per round (parse plus format). Message ids are unique across warmup and all rounds, so no
+  module-level cache from an earlier round can serve a later one. `intl-messageformat` appears twice,
+  with a formatters object shared across its instances (its best case) and with the default
+  per-instance formatters. This is the "first render of a catalog" case.
+- `vue-i18n` has no ICU; it runs on its own pipe-plural syntax
+  (`{n} item in {name} | {n} items in {name}`), so its rows are "the same job in its own format",
+  not an ICU implementation.
 
 Micro-benchmarks of a formatter that takes under a microsecond per call do not decide a UI; a
-page formats hundreds of strings, not millions. The cold number is the one that shows in practice,
-on the first render of a large catalog.
+page formats hundreds of strings, not millions. The catalog row is the one closest to what a user
+sees.
 
-## Results, 2026-10-10
+## Results
+
+### Size, min+gz bytes, measured 2026-10-10 and 2026-10-11 on the same packages
 
 Node v24.19.0, esbuild 0.28.0. The full table with the packages inside each bundle is in
-`results-2026-10-10.md`; the raw data in `results-2026-10-10.json`.
+`results-2026-10-11.md`; the raw data in `results-2026-10-11.json`.
 
-### Size, min+gz bytes
-
-| Group                                   |                      Comvi |                                                                        Other | Ratio |
-| --------------------------------------- | -------------------------: | ---------------------------------------------------------------------------: | ----: |
-| core                                    |        `@comvi/core` 5,452 |                                                             `i18next` 14,032 |  2.6× |
-| core+icu                                |  `@comvi/core` + ICU 6,510 |                                             `i18next` + `i18next-icu` 25,707 |  3.9× |
-| core+icu, ICU added to the same library |     +1,058 (6,510 − 5,452) | `i18next-icu` + `intl-messageformat` on `i18next`: +11,675 (25,707 − 14,032) | 11.0× |
-| core+icu, the engine alone, no ratio    |                          — |                                   `intl-messageformat` with its parser 9,894 |     — |
-| core+icu                                |                      6,510 |                                                       `use-intl/core` 11,277 |  1.7× |
-| react                                   |       `@comvi/react` 7,425 |                                           `i18next` + `react-i18next` 19,615 |  2.6× |
-| react                                   |                      7,425 |                                                            `use-intl` 11,567 |  1.6× |
-| react+icu+loader                        |                     11,837 |                      `i18next` + `react-i18next` + ICU + http-backend 33,826 |  2.9× |
-| vue                                     |         `@comvi/vue` 7,540 |                                      `vue-i18n` runtime compiler kept 18,693 |  2.5× |
-| vue                                     |                      7,540 |             `vue-i18n` precompiled message function, compiler dropped 13,764 |  1.8× |
-| next-client                             | `@comvi/next/client` 8,044 |                                                    `next-intl` client 12,512 |  1.6× |
+| Group                                          |                            Comvi |                                                                        Other | Ratio |
+| ---------------------------------------------- | -------------------------------: | ---------------------------------------------------------------------------: | ----: |
+| core, interpolation only on the Comvi side     |              `@comvi/core` 5,452 |                                                             `i18next` 14,032 |  2.6× |
+| core+icu                                       |        `@comvi/core` + ICU 6,510 |                                             `i18next` + `i18next-icu` 25,707 |  3.9× |
+| core+icu                                       |                            6,510 |                                                       `use-intl/core` 11,277 |  1.7× |
+| what ICU adds, same message text on both sides |           +1,043 (6,510 − 5,467) | `i18next-icu` + `intl-messageformat` on `i18next`: +11,670 (25,707 − 14,037) | 11.2× |
+| the ICU engine alone, no ratio                 |                                — |                                   `intl-messageformat` with its parser 9,894 |     — |
+| react, no plural engine on either side         |             `@comvi/react` 7,425 |                                           `i18next` + `react-i18next` 19,615 |  2.6× |
+| react, ICU on both sides                       |       `@comvi/react` + ICU 8,470 |                                                            `use-intl` 11,567 |  1.4× |
+| react+icu+loader                               |                           11,837 |                      `i18next` + `react-i18next` + ICU + http-backend 33,826 |  2.9× |
+| vue, plural engine on both sides               |         `@comvi/vue` + ICU 8,605 |                                      `vue-i18n` runtime compiler kept 18,693 |  2.2× |
+| vue, plural engine on both sides               |                            8,605 |             `vue-i18n` precompiled message function, compiler dropped 13,764 |  1.6× |
+| vue, Comvi without ICU, for reference          |               `@comvi/vue` 7,540 |                                                                            — |     — |
+| next-client, ICU on both sides                 | `@comvi/next/client` + ICU 9,092 |                                                    `next-intl` client 12,512 |  1.4× |
+| next-client, Comvi without ICU, for reference  |       `@comvi/next/client` 8,044 |                                                                            — |     — |
 
 ### Comvi-only rows that the pages cite, published 0.5.0, min+gz bytes
 
@@ -124,29 +147,34 @@ exports-map plugin, this harness lets esbuild resolve the installed tarballs, an
 `*/client/ComviClientProvider.js` external slightly differently. The pages cite the harness figure,
 because the page states this harness as its method; both numbers are recorded here.
 
-Ratios compare like with like: a complete minimal fixture against a complete minimal fixture, or
-the bytes ICU adds to one library against the bytes ICU adds to the other. The engine-alone row
-for `intl-messageformat` is a fact about that package and carries no ratio, because Comvi has no
-standalone equivalent to put next to it.
+### ICU runtime, 2026-10-11, three runs, each the median of 7 rounds
 
-### ICU runtime, three runs, each the median of 7 rounds, million calls per second
+Apple M1 Max, darwin arm64, Node v24.19.0, `NODE_ENV=production`. Warm rows in million calls per
+second, catalog rows in thousand messages per second (5,000 distinct messages, parse plus format,
+one instance). The pages cite the median of the three runs.
 
-| Library                                                           | run 1 | run 2 | run 3 | median of the three |
-| ----------------------------------------------------------------- | ----: | ----: | ----: | ------------------: |
-| `@comvi/core` + `icuCompiler`, warm                               |  1.66 |  1.69 |  1.68 |            **1.68** |
-| `intl-messageformat` 12.1.3, warm, instance reused                |  0.64 |  0.65 |  0.66 |            **0.65** |
-| `i18next` + `i18next-icu`, warm                                   |  0.25 |  0.26 |  0.26 |            **0.26** |
-| `use-intl/core` translator, warm                                  |  0.22 |  0.22 |  0.23 |            **0.22** |
-| `vue-i18n`, pipe plural, warm                                     |  0.22 |  0.23 |  0.23 |            **0.23** |
-| `@comvi/core` simple compiler, no ICU, warm                       |  5.45 |  5.25 |  5.52 |            **5.45** |
-| `@comvi/core` + `icuCompiler`, cold (new instance, compile, call) |  0.33 |  0.35 |  0.36 |            **0.35** |
-| `intl-messageformat`, cold (new instance, format)                 |  0.03 |  0.03 |  0.03 |            **0.03** |
-| `use-intl/core`, cold (new translator, call)                      |  0.02 |  0.03 |  0.03 |            **0.03** |
-| `vue-i18n`, cold (new instance, call)                             |  0.07 |  0.08 |  0.08 |            **0.08** |
+| Scenario                         | Library                                                            | run 1 | run 2 | run 3 |           median |
+| -------------------------------- | ------------------------------------------------------------------ | ----: | ----: | ----: | ---------------: |
+| warm, equal work                 | `@comvi/core` + `icuCompiler`                                      |  1.52 |  1.54 |  1.49 |     **1.52 M/s** |
+| warm, equal work                 | `intl-messageformat`, instance reused                              |  0.96 |  0.96 |  0.92 |     **0.96 M/s** |
+| warm, equal work                 | `i18next` + `i18next-icu`                                          |  0.31 |  0.31 |  0.28 |     **0.31 M/s** |
+| warm, equal work                 | `use-intl/core` translator                                         |  0.25 |  0.24 |  0.24 |     **0.24 M/s** |
+| warm, equal work                 | `vue-i18n`, pipe plural                                            |  0.23 |  0.23 |  0.23 |     **0.23 M/s** |
+| warm, default `#` (unequal work) | `@comvi/core` + `icuCompiler`                                      |  1.67 |  1.54 |  1.68 |         1.67 M/s |
+| warm, default `#` (unequal work) | `intl-messageformat`, instance reused                              |  0.67 |  0.64 |  0.66 |         0.66 M/s |
+| catalog                          | `@comvi/core` + `icuCompiler`                                      | 257.8 | 233.7 | 279.5 | **258 K msgs/s** |
+| catalog                          | `intl-messageformat`, new instance per message, shared formatters  |  87.0 |  87.2 |  92.3 |  **87 K msgs/s** |
+| catalog                          | `intl-messageformat`, new instance per message, default formatters |  50.3 |  46.7 |  50.0 |      50 K msgs/s |
+| catalog                          | `i18next` + `i18next-icu`, one instance                            |  37.0 |  35.1 |  37.2 |  **37 K msgs/s** |
+| catalog                          | `use-intl/core`, one translator                                    |  54.7 |  51.7 |  58.7 |  **55 K msgs/s** |
+| catalog                          | `vue-i18n`, one instance, pipe plural                              |  45.2 |  42.5 |  45.4 |  **45 K msgs/s** |
 
-The pages cite the median of the three runs. The exact console output of each run is in
-`bench-2026-10-10.txt`, `bench-2026-10-10-run2.txt` and `bench-2026-10-10-run3.txt`; `i18next-icu`
-has no cold row because the library does not expose a per-message cold path.
+The exact console output of each run is in `bench-2026-10-11-run1.txt`, `-run2.txt` and
+`-run3.txt`. An earlier version of this benchmark (2026-10-10) used a `#` message for every library
+and a "cold" row that created a new instance per call with ids repeated across rounds; a review
+found both unfair (unequal work; a module-level cache in vue-i18n served later rounds; the
+`intl-messageformat` row paid Intl initialization per instance). Those rows were replaced by the
+scenarios above and the pages re-cited.
 
 ## Where the Comvi figures come from
 
@@ -159,45 +187,54 @@ hold. Public pages should cite the figure measured on the released version, not 
 ## Nuxt: measured with Nuxt's own build
 
 `@nuxtjs/i18n` depends on Nuxt's virtual modules and cannot be bundled by esbuild on its own, so
-the two Nuxt modules are compared with `nuxi build` instead. `nuxt/apps/` holds three one-string
-apps (`bare`, `nuxt-i18n`, `comvi-nuxt`) with identical `app.vue` output; `nuxt/measure.mjs` sums
-every client JavaScript file under `.output/public/_nuxt/` (minified, gzip level 9, brotli 11) and
-reports the delta over the bare app, total and for the entry chunk alone. `nuxt/attribute.mjs`
-attributes minified bytes to packages from a source-mapped build. The entry chunk is read from Nuxt's client manifest (`.nuxt/dist/server/client.manifest.mjs`, the record marked `isEntry`) or from a prerendered `index.html`; when neither is present the entry row says so instead of guessing. `nuxt/REPORT.md` is the full
-run of 2026-10-10 with every config, command and version.
+the two Nuxt modules are compared with `nuxi build` instead. `nuxt/apps/` holds four one-string
+apps (`bare`, `nuxt-i18n`, `comvi-nuxt`, `comvi-nuxt-icu`) with the same rendered output;
+`nuxt/measure.mjs` sums every client JavaScript file under `.output/public/_nuxt/` (minified, gzip
+level 9, brotli 11) and reports the delta over the bare app, for the whole build and for the entry
+file alone (entry-file bytes exclude the other chunks and anything a browser may prefetch in the
+background). The entry chunk is read from Nuxt's client manifest
+(`.nuxt/dist/server/client.manifest.mjs`, the record marked `isEntry`) or from a prerendered
+`index.html`; when neither is present the entry row says so instead of guessing.
+`nuxt/attribute.mjs` attributes minified bytes to packages from a source-mapped build.
+`nuxt/REPORT.md` is the full run of 2026-10-10 with every config, command and version, plus the
+ICU variant of 2026-10-11.
 
 ```sh
 cd scripts/size-compare/nuxt/apps/<app> && pnpm install --ignore-workspace && pnpm nuxi build
-cd ../.. && node measure.mjs apps/bare apps/nuxt-i18n apps/comvi-nuxt
+cd ../.. && node measure.mjs apps/bare apps/comvi-nuxt apps/comvi-nuxt-icu apps/nuxt-i18n
 ```
 
-### Results, 2026-10-10 (Nuxt 4.6.1, @nuxtjs/i18n 10.6.0, @comvi/nuxt 0.5.0)
+### Results (Nuxt 4.6.1, @nuxtjs/i18n 10.6.0, @comvi/nuxt 0.5.0)
 
-| App          | JS files |   min B | gzip B | Δ gzip vs bare | entry chunk gzip | Δ entry vs bare |
-| ------------ | -------: | ------: | -----: | -------------: | ---------------: | --------------: |
-| bare         |        4 | 144,943 | 54,453 |              — |           49,167 |               — |
-| @nuxtjs/i18n |        5 | 229,147 | 82,571 |        +28,118 |           79,515 |         +30,348 |
-| @comvi/nuxt  |        4 | 184,255 | 66,719 |        +12,266 |           63,729 |         +14,562 |
+| App                                        | JS files |   min B | gzip B | Δ gzip vs bare | entry file gzip | Δ entry vs bare |
+| ------------------------------------------ | -------: | ------: | -----: | -------------: | --------------: | --------------: |
+| bare                                       |        4 | 144,943 | 54,453 |              — |          49,167 |               — |
+| @nuxtjs/i18n                               |        5 | 229,147 | 82,571 |        +28,118 |          79,515 |         +30,348 |
+| @comvi/nuxt, default compiler              |        4 | 184,255 | 66,719 |        +12,266 |          63,729 |         +14,562 |
+| @comvi/nuxt, `icu: true` (equal-work pair) |        4 | 186,945 | 67,692 |        +13,239 |          64,702 |         +15,535 |
 
-Per package, minified bytes in the entry chunk (from the source-mapped build): `@nuxtjs/i18n`
-21,479 + `@intlify/message-compiler` 16,905 + `@intlify/core-base` 14,966 + `vue-i18n` 14,589 +
-`@intlify/shared` 3,363 on one side; `@comvi/core` 16,262 + `@comvi/nuxt` 6,160 + `@comvi/vue`
-5,706 on the other. Both pull the same `cookie-es`, `ohash` and `klona` for the locale cookie.
+Per package, minified bytes in the entry chunk (from the source-mapped build of the default-compiler
+app): `@nuxtjs/i18n` 21,479 + `@intlify/message-compiler` 16,905 + `@intlify/core-base` 14,966 +
+`vue-i18n` 14,589 + `@intlify/shared` 3,363 on one side; `@comvi/core` 16,262 + `@comvi/nuxt` 6,160 +
+`@comvi/vue` 5,706 on the other. Both pull the same `cookie-es`, `ohash` and `klona` for the locale
+cookie.
 
 ### Caveats
 
 - Neither delta contains message bytes. `@nuxtjs/i18n` 10.6 fetches the catalog from a Nitro
-  route at startup (`/_i18n/<hash>/en/messages.json`, one extra request; its former `lazy` option
-  no longer exists). `@comvi/nuxt` inlines the catalog in the page payload.
+  route at startup (`/_i18n/<hash>/en/messages.json`, one extra request, 36 B here; its former
+  `lazy` option no longer exists). `@comvi/nuxt` inlines the catalog in the page payload. Both were
+  confirmed against the running servers.
 - Both compile messages in the browser. On the `@nuxtjs/i18n` side that is why
-  `@intlify/message-compiler` is in the client chunk; the run did not precompile messages. The
-  Comvi app runs core's default compiler; `icuCompiler` was not composed, and adds about 1,058 B
-  gzipped (see the esbuild table).
-- The entry-chunk delta is larger than the total delta because in both i18n apps the prefetched
+  `@intlify/message-compiler` is in the client chunk; the run did not precompile messages, which
+  `@nuxtjs/i18n` can do with `@intlify/unplugin-vue-i18n`. The `comvi-nuxt-icu` app composes the
+  ICU compiler and renders a plural; the default-compiler app is kept for reference.
+- The entry-chunk delta is larger than the total delta because in every i18n app the prefetched
   error-404 chunk shrinks (NuxtLink and router helpers move into the entry chunk).
 - The HTML of `/` is 2,157 B for `@nuxtjs/i18n` (inline runtime config) and 1,711 B for Comvi; not
   counted. `@nuxtjs/i18n` has one extra 45 B prefetched `i18n.config` chunk.
 - The apps are hand-scaffolded without `pages/`; the Comvi README example uses `NuxtPage`, the
-  module renders without it.
-- Every build was started with `node .output/server/index.mjs` and `/` returned
-  `<p>Hello, world!</p>` for all three before the numbers were taken.
+  module renders without it. This is one configuration of each module; the official options of
+  both change what lands in the client, so the deltas describe these apps, not every Nuxt app.
+- Every build was started with `node .output/server/index.mjs` and `/` returned the expected
+  string (`Hello, world!`, or `2 items for world` for the ICU app) before the numbers were taken.

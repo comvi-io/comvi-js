@@ -19,7 +19,9 @@ brotli = `zlib.brotliCompressSync` quality 11 per file, summed.
 
 The entry chunk is the one `<script type="module" src>` + `modulepreload` in the server-rendered HTML.
 The other chunks are `rel="prefetch"` (error-404, error-500, a tiny `__vccOpts` helper and, for
-nuxt-i18n, the 45-byte `i18n.config` chunk) and are not downloaded for a normal page view.
+nuxt-i18n, the 45-byte `i18n.config` chunk). A browser may fetch prefetched resources in the
+background, so this table is "entry-file bytes, excluding other chunks and background prefetch",
+not "everything a page view downloads"; the totals table above is the whole build.
 
 | app        | entry chunk | min    | gzip-9 | brotli-11 | Δ min vs base | Δ gzip vs base | Δ brotli vs base |
 | ---------- | ----------- | ------ | ------ | --------- | ------------- | -------------- | ---------------- |
@@ -30,6 +32,22 @@ nuxt-i18n, the 45-byte `i18n.config` chunk) and are not downloaded for a normal 
 The entry-chunk delta is larger than the total delta because in both i18n apps the error-404
 prefetch chunk shrank from 9 981 B to 4 029 B min: both i18n plugins pull NuxtLink/router helpers
 into the entry chunk, so error-404 no longer carries its own copy. Quote either number, but say which.
+
+### Comvi with the ICU compiler composed (added 2026-10-11)
+
+The `comvi-nuxt` app runs core's default compiler. `apps/comvi-nuxt-icu` is the same app with
+`comvi.icu: true` and a plural message (`{count, plural, one {# item} other {# items}} for {name}`),
+built and measured the same way on 2026-10-11 (`measure-2026-10-11.txt`); its server rendered
+`2 items for world` and the catalog is in the HTML payload, as before.
+
+| App                           | JS files | min bytes | gzip-9 bytes | brotli-11 bytes | Δ gzip vs bare | entry chunk gzip | Δ entry vs bare |
+| ----------------------------- | -------- | --------- | ------------ | --------------- | -------------- | ---------------- | --------------- |
+| comvi-nuxt (default compiler) | 4        | 184 255   | 66 719       | 59 630          | +12 266        | 63 729           | +14 562         |
+| comvi-nuxt-icu (`icu: true`)  | 4        | 186 945   | 67 692       | 60 506          | +13 239        | 64 702           | +15 535         |
+| nuxt-i18n                     | 5        | 229 147   | 82 571       | 73 043          | +28 118        | 79 515           | +30 348         |
+
+The ICU compiler costs 973 B gzip in this build (2 690 B minified). The nuxt-i18n app always
+carries vue-i18n's message compiler and plural rules, so the ICU row is the equal-work pair.
 
 ### Per-chunk listing with string attribution
 
@@ -132,7 +150,7 @@ leftover `.output/server/index.mjs` processes afterwards.
 4. HTML for `/` differs: 2 157 B (nuxt-i18n, which inlines a large `public.i18n` runtime-config
    block) vs 1 711 B (comvi-nuxt). Not counted in the tables above.
 5. nuxt-i18n emits one extra 45-byte chunk (`i18n.config`: `{legacy:false}`), hence 5 JS files
-   vs 4; it is prefetched, not loaded on `/`.
+   vs 4; it is prefetched (so it may be fetched in the background), not executed on `/`.
 6. All three apps share the exact same Nuxt/Vite/Vue versions, so framework bytes cancel. The only
    non-library drift is the extra Nuxt runtime each module pulls in (+3.3 KB vs +2.8 KB min),
    which is included in the headline deltas.
