@@ -115,6 +115,11 @@
       "message": "{formality, select, formal {Willkommen zurück! Ihr Platz ist reserviert.} other {Willkommen zurück! Dein Platz ist reserviert.}}",
       "formal": "Sie",
       "informal": "du"
+    },
+    "start": {
+      "intro": "Ein Paket, eine übersetzte Zeile, ein Umschalter. Das ist die ganze Integration.",
+      "cta": "Alle Funktionen ansehen",
+      "back": "Zurück zum Anfang"
     }
   }
 }

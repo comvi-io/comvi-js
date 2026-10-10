@@ -115,6 +115,11 @@
       "message": "{formality, select, formal {Welcome back. Your seat is saved.} other {Welcome back. Your seat is saved.}}",
       "formal": "formal",
       "informal": "informal"
+    },
+    "start": {
+      "intro": "One package, one translated line, one switcher. This is the whole integration.",
+      "cta": "Explore all features",
+      "back": "Back to the start"
     }
   }
 }
