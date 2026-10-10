@@ -11,6 +11,7 @@ import { useI18n, useI18nLoader } from "@comvi/react";
  */
 export function Account({ name }: { name: string }) {
   const { t } = useI18n("account");
+  const { t: tDefault } = useI18n();
   const { addActiveNamespace } = useI18nLoader();
 
   // Until the namespace is in, its keys would render as themselves, so the
@@ -23,16 +24,21 @@ export function Account({ name }: { name: string }) {
     addActiveNamespace("account").then(done, done);
   }, [addActiveNamespace]);
 
-  if (!ready) return <p>Loading…</p>;
+  if (!ready) return <p className="body">{tDefault("app.loading")}</p>;
 
   return (
-    <section>
-      <h2>namespace</h2>
-      <p data-testid="account-signed-in">{t("profile.signed_in", { name })}</p>
-      <p data-testid="account-devices">{t("profile.devices", { count: 3 })}</p>
+    <>
+      <p className="widget" data-testid="account-signed-in">
+        {t("profile.signed_in", { name })}
+      </p>
+      <p className="widget" data-testid="account-devices">
+        {t("profile.devices", { count: 3 })}
+      </p>
       {/* Only `account/en.json` has this key: the fallback chain is walked
           inside the same namespace, once that namespace's en catalog is in. */}
-      <p data-testid="account-only-en">{t("profile.only_en")}</p>
-    </section>
+      <p className="widget" data-testid="account-only-en">
+        {t("profile.only_en")}
+      </p>
+    </>
   );
 }
