@@ -2,6 +2,8 @@
 
 Server-rendered pages per locale with `@comvi/next`: `/en`, `/uk`, `/de` and `/ar` are prerendered,
 the middleware sends `/` to the visitor's language, and the switcher navigates between them.
+`/<locale>` is the whole integration on one screen, `/<locale>/features` shows every feature, and
+`/<locale>/about` is a second page with its own namespace.
 
 ## What it shows
 

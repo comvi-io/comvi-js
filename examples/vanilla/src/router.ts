@@ -1,13 +1,14 @@
-// The whole router: two paths, the History API, and a listener. `pushState`
+// The whole router: three paths, the History API, and a listener. `pushState`
 // changes the address without a reload, `popstate` brings Back and Forward,
-// and the dev server (Vite's default `appType: "spa"`) answers `/about` with
-// index.html on a reload.
-export type Route = "home" | "about";
+// and the dev server (Vite's default `appType: "spa"`) answers `/features`
+// and `/about` with index.html on a reload.
+export type Route = "start" | "features" | "about";
 
-const paths: Record<Route, string> = { home: "/", about: "/about" };
+const paths: Record<Route, string> = { start: "/", features: "/features", about: "/about" };
 
 export function currentRoute(): Route {
-  return location.pathname === paths.about ? "about" : "home";
+  const route = (Object.keys(paths) as Route[]).find((key) => paths[key] === location.pathname);
+  return route ?? "start";
 }
 
 const listeners = new Set<(route: Route) => void>();
@@ -30,8 +31,14 @@ export function navigate(route: Route): void {
 }
 
 /** A real `<a href>` that navigates without a reload; a modified click still opens a tab. */
-export function link(route: Route, label: string, testId: string): HTMLAnchorElement {
+export function link(
+  route: Route,
+  label: string,
+  testId: string,
+  className?: string,
+): HTMLAnchorElement {
   const anchor = document.createElement("a");
+  if (className) anchor.className = className;
   anchor.href = paths[route];
   anchor.textContent = label;
   anchor.dataset.testid = testId;

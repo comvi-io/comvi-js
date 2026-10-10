@@ -1,6 +1,7 @@
 # Comvi + vanilla TypeScript
 
-One page with no framework: `@comvi/core` and plain DOM code, built with Vite.
+`@comvi/core` and plain DOM code, built with Vite. `/` is the whole integration on one screen;
+`/features` shows every feature, and `/about` a second page with its own namespace.
 
 ## What it shows
 
@@ -36,4 +37,4 @@ VITE_COMVI_CDN_URL="<your project's CDN URL>" npm run build
 
 - `src/i18n.ts`: the instance, the loader and the locale detector.
 - `src/components/cards.ts`: one function per feature card.
-- `src/router.ts`: the second page, with the History API.
+- `src/router.ts`: the three pages, with the History API.

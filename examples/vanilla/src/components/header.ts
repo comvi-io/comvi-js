@@ -17,24 +17,29 @@ function localeButton(code: string): HTMLButtonElement {
   return button;
 }
 
+/** The language buttons, with the loading note while a catalog is on its way. */
+export function switcher(): HTMLElement {
+  return h(
+    "div",
+    { class: "switcher-row" },
+    h("span", { class: "label" }, i18n.t("app.language")),
+    h(
+      "div",
+      { class: "switcher", role: "group", "aria-label": i18n.t("app.language") },
+      ...locales.map(localeButton),
+    ),
+    // Last in the row, so its text appears and goes without moving anything.
+    ...(state.switching ? [h("span", { class: "loading" }, i18n.t("app.loading"))] : []),
+  );
+}
+
 export function header(): HTMLElement {
   return h(
     "header",
     {},
     h("h1", {}, i18n.t("app.title")),
     h("p", { class: "intro" }, i18n.t("demo.intro")),
-    h(
-      "div",
-      { class: "switcher-row" },
-      h("span", { class: "label" }, i18n.t("app.language")),
-      h(
-        "div",
-        { class: "switcher", role: "group", "aria-label": i18n.t("app.language") },
-        ...locales.map(localeButton),
-      ),
-      // Last in the row, so its text appears and goes without moving anything.
-      ...(state.switching ? [h("span", { class: "loading" }, i18n.t("app.loading"))] : []),
-    ),
+    switcher(),
     h("p", { class: "note" }, i18n.t("demo.rtl.body")),
   );
 }
