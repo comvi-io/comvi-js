@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import { useI18n } from "@comvi/vue";
 import FeatureCard from "../components/FeatureCard.vue";
+import { useVisitorName } from "../name";
 
-const props = defineProps<{ name: string }>();
 const { t } = useI18n();
-const name = ref(props.name);
+const name = useVisitorName();
 </script>
 
 <template>

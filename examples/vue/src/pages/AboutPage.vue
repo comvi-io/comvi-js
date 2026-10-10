@@ -4,8 +4,9 @@ import { useI18n } from "@comvi/vue";
 import AccountDetails from "../components/AccountDetails.vue";
 import FeatureCard from "../components/FeatureCard.vue";
 import NamespacesLine from "../components/NamespacesLine.vue";
+import { useVisitorName } from "../name";
 
-defineProps<{ name: string }>();
+const name = useVisitorName();
 const { t } = useI18n();
 </script>
 

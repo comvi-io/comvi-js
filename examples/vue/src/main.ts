@@ -5,14 +5,11 @@ import AboutPage from "./pages/AboutPage.vue";
 import HomePage from "./pages/HomePage.vue";
 import { i18n } from "./i18n";
 
-// Try `?name=<b>Grace</b>`: a parameter is always rendered as text.
-const name = new URLSearchParams(location.search).get("name") ?? "Ada";
-
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/", component: HomePage, props: { name } },
-    { path: "/about", component: AboutPage, props: { name } },
+    { path: "/", component: HomePage },
+    { path: "/about", component: AboutPage },
   ],
 });
 
