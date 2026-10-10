@@ -1,63 +1,51 @@
+import { createSignal } from "solid-js";
 import { createI18n, icuCompiler, loader } from "@comvi/solid";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
-export const locales = ["en", "uk", "de"] as const;
+export const locales = ["en", "uk", "de", "ar"] as const;
+export type Locale = (typeof locales)[number];
 
-// Loadable but not in the switcher: the right-to-left locale the e2e suite uses
-// to check `<html dir="rtl">`. Its catalog holds two keys; the rest falls back
-// to English.
-export const rtlLocale = "ar";
-
-// Connect to Comvi, opt-in. With `VITE_COMVI_CDN_URL` set at BUILD time the
-// catalogs come from the platform CDN through `cdnLoader`; unset — the default,
-// and what StackBlitz runs — the import map below is the only loader and this
-// file behaves exactly as it reads without these lines.
-const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
-
-// The lazy loader. One dynamic `import()` per locale, so a catalog is fetched
-// the first time that locale is selected and never up front — the bundler
-// splits each JSON into its own chunk. `loader(map)` attaches the loader
-// capability AND registers the import-map adapter; `registerLoader` on its
-// own takes a plain function, never a map.
-//
-// One import map, two uses: the loader itself by default, and the CDN loader's
-// `fallback` when the CDN is configured but unreachable. `ar` is not in the
-// switcher; it is the right-to-left locale the e2e suite switches to.
+// One dynamic import per catalog, so the bundler gives each its own chunk and
+// a language is downloaded only when someone picks it. `locale:account` is a
+// second namespace that only the Account page asks for.
 const localCatalogs = {
   en: () => import("./locales/en.json"),
   uk: () => import("./locales/uk.json"),
   de: () => import("./locales/de.json"),
   ar: () => import("./locales/ar.json"),
-  // A second namespace, `account`. A map key is `locale` for the default
-  // namespace or `locale:namespace` for another one. Nothing lists `account` in
-  // `ns`, so `init()` does not load it: the second page activates it.
   "en:account": () => import("./locales/account/en.json"),
   "uk:account": () => import("./locales/account/uk.json"),
   "de:account": () => import("./locales/account/de.json"),
   "ar:account": () => import("./locales/account/ar.json"),
 };
 
+// Set VITE_COMVI_CDN_URL to serve the catalogs from your Comvi project. The
+// local files stay as the fallback for when the CDN cannot be reached.
+const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
 const catalogs: ReturnType<typeof loader> = cdnUrl
   ? cdnLoader({ cdnUrl, fallback: localCatalogs })
   : loader(localCatalogs);
 
+// How many keys were missing. In your app, send them to an error tracker.
+const [missingKeys, setMissingKeys] = createSignal(0);
+export { missingKeys };
+
 export const i18n = createI18n({
   locale: "en",
+  // A key a catalog lacks is looked up in English before it shows as a key.
   fallbackLocale: "en",
-  // ICU is never on by default. Without this line `{count, plural, …}` in the
-  // catalog is not syntax: the simple compiler renders the braced segment
-  // literally. It goes in the constructor options, which is before any catalog
-  // can reach the instance.
+  // ICU plural, select and selectordinal are opt-in, so apps without them ship less.
   compiler: icuCompiler,
+  // t() never throws: a missing key is reported here. The report arrives while
+  // a component renders, so the counter updates after the render has finished.
+  onMissingKey: () => queueMicrotask(() => setMissingKeys((n) => n + 1)),
 })
   .use(catalogs)
-  // The locale detector, through the package's own bare-name installer: it
-  // attaches the plugin capability it needs and registers the detector, so an app
-  // never touches the raw plugin queue.
   .use(
     localeDetector({
       supportedLocales: [...locales],
+      // A shared link wins, then the visitor's last choice, then the browser.
       order: ["querystring", "localStorage", "navigator"],
       caches: ["localStorage"],
       fallbackLocale: "en",

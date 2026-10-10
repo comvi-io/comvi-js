@@ -1,12 +1,10 @@
-import { createEffect, For, Show, type ParentProps } from "solid-js";
+import { createEffect, type ParentProps } from "solid-js";
 import { useI18n } from "@comvi/solid";
-import { locales, rtlLocale } from "./i18n";
+import { LocaleSwitcher } from "./components/LocaleSwitcher";
 
 /** The layout every route shares: header with the switcher, the page, footer. */
 export function App(props: ParentProps) {
-  // `useI18n()` builds its signals from the provider's, so it MUST be called
-  // inside a component (a reactive context) — never at module scope.
-  const { t, locale, setLocale, dir, isLoading } = useI18n();
+  const { t, locale, dir } = useI18n();
 
   createEffect(() => {
     document.documentElement.lang = locale();
@@ -18,35 +16,7 @@ export function App(props: ParentProps) {
       <header>
         <h1>{t("app.title")}</h1>
         <p class="intro">{t("demo.intro")}</p>
-        <div class="switcher">
-          <span class="eyebrow" id="language-label">
-            {t("app.language")}
-          </span>
-          <div class="segmented" role="group" aria-labelledby="language-label">
-            <For each={locales}>
-              {(code) => (
-                <button
-                  data-testid={`locale-${code}`}
-                  aria-pressed={locale() === code}
-                  onClick={() => void setLocale(code)}
-                >
-                  {code.toUpperCase()}
-                </button>
-              )}
-            </For>
-          </div>
-          {/* Not in the switcher: the right-to-left locale the e2e suite uses. */}
-          <button
-            hidden
-            data-testid={`locale-${rtlLocale}`}
-            onClick={() => void setLocale(rtlLocale)}
-          >
-            {rtlLocale}
-          </button>
-          <Show when={isLoading()}>
-            <span class="status">{t("app.loading")}</span>
-          </Show>
-        </div>
+        <LocaleSwitcher />
       </header>
 
       {props.children}
