@@ -218,6 +218,10 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+          # setup-node v5 turns on dependency caching from `packageManager` by
+          # default and then looks for pnpm; this job installs nothing with
+          # pnpm and sets it up on purpose, so the cache stays off.
+          package-manager-cache: false
 
       # setup-node cannot pin npm itself; this is npm's own package at an exact
       # version, the one install this job makes. 11.21.0 is the first npm 11
@@ -463,6 +467,10 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+          # setup-node v5 turns on dependency caching from `packageManager` by
+          # default and then looks for pnpm; this job installs nothing with
+          # pnpm and sets it up on purpose, so the cache stays off.
+          package-manager-cache: false
 
       # setup-node cannot pin npm itself; this is npm's own package at an exact
       # version, the one install this job makes. 11.21.0 is the first npm 11
