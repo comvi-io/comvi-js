@@ -44,7 +44,7 @@ export const i18n = createI18n({
   .use(
     localeDetector({
       supportedLocales: [...locales],
-      // `?locale=de` wins, then the visitor's last choice, then the browser.
+      // `?lng=de` wins, then the visitor's last choice, then the browser.
       order: ["querystring", "localStorage", "navigator"],
       caches: ["localStorage"],
       fallbackLocale: "en",
