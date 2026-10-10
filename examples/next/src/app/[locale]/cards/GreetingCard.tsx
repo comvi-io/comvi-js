@@ -2,7 +2,7 @@
 
 import { useI18n } from "@comvi/next/client";
 import { Card } from "./Card";
-import { useName } from "./useName";
+import { useName } from "../NameProvider";
 
 export function GreetingCard() {
   const { t } = useI18n();

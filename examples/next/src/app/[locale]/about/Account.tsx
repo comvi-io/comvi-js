@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useI18n } from "@comvi/next/client";
-import { useName } from "../cards/useName";
+import { useName } from "../NameProvider";
 
 /**
  * The client half of the `account` namespace. `useI18n("account")` scopes

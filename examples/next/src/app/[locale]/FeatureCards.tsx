@@ -36,8 +36,8 @@ export function FeatureCards() {
       <FormattingCard />
       <OptionsCard />
       <FallbackCard />
-      <ErrorsCard />
       <MissingParamCard />
+      <ErrorsCard />
       <NavigationCard />
       <LazyCard />
     </>

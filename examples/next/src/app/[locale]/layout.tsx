@@ -3,7 +3,8 @@ import { getTextDirection } from "@comvi/core";
 import { hasLocale } from "@comvi/next/routing";
 import { ComviProvider } from "@comvi/next/server";
 import { routing } from "@/i18n/routing";
-import { css } from "./styles";
+import { NameProvider } from "./NameProvider";
+import "./styles.css";
 
 /** Prerender one page per locale at build time. */
 export function generateStaticParams() {
@@ -27,12 +28,12 @@ export default async function LocaleLayout({
     // core's free function.
     <html lang={locale} dir={getTextDirection(locale)}>
       <body>
-        {/* Inlined to keep the example small; a real app imports a stylesheet. */}
-        <style dangerouslySetInnerHTML={{ __html: css }} />
         {/* Loads this locale's catalogs on the server and hands them to the
             client instance, so client components render translated on the
             first paint. */}
-        <ComviProvider locale={locale}>{children}</ComviProvider>
+        <ComviProvider locale={locale}>
+          <NameProvider>{children}</NameProvider>
+        </ComviProvider>
       </body>
     </html>
   );
