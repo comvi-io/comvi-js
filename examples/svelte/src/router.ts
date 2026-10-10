@@ -1,4 +1,4 @@
-import { writable } from "svelte/store";
+import { derived, writable } from "svelte/store";
 
 // A history-based router in a few lines: the current path is a store, `link`
 // turns a plain `<a href>` into a client-side navigation, and the browser's
@@ -7,6 +7,14 @@ import { writable } from "svelte/store";
 export const pathname = writable(location.pathname);
 
 window.addEventListener("popstate", () => pathname.set(location.pathname));
+
+// The app's three pages. Any other path shows the start page.
+export type Route = "start" | "features" | "about";
+export const route = derived(
+  pathname,
+  ($pathname): Route =>
+    $pathname === "/features" ? "features" : $pathname === "/about" ? "about" : "start",
+);
 
 export function navigate(to: string): void {
   if (to === location.pathname) return;

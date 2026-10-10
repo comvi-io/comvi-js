@@ -1,7 +1,8 @@
 # Comvi + Svelte
 
-A small Svelte 5 app that shows what `@comvi/svelte` does, one card per feature. Every string on
-the page comes from the JSON catalogs in `src/locales`.
+A small Svelte 5 app that shows what `@comvi/svelte` does, starting from a one-line integration at
+`/` and a gallery with one card per feature at `/features`. Every string on the page comes from the
+JSON catalogs in `src/locales`.
 
 ## What it shows
 
@@ -14,7 +15,7 @@ the page comes from the JSON catalogs in `src/locales`.
 - **Call options**: one call reads another locale without switching to it.
 - **Fallback and missing keys**: English fills the gaps, and every miss reaches `onMissingKey`.
 - **Right-to-left**: Arabic sets `<html dir="rtl">`.
-- **A second page**: `/about`, with the locale kept across navigation and Back.
+- **Navigation**: `/`, `/features` and `/about`, with the locale kept across pages and Back.
 
 ## Run it
 
@@ -30,7 +31,7 @@ npm run dev
 - `src/i18n.ts` creates the i18n instance: the catalogs, the ICU compiler, the locale detector.
 - `src/App.svelte` publishes it with `setI18nContext` and lays out the page.
 - `src/cards/` holds one component per feature, each using `useI18n()`.
-- `src/router.ts` is the history router behind `/` and `/about`.
+- `src/router.ts` is the history router behind `/`, `/features` and `/about`.
 
 ## Connect your Comvi project
 

@@ -25,7 +25,7 @@
 <div class="cards">
   <Card title={$t('demo.navigation.title')}>
     <p class="widget" data-testid="about-body">{$t('about.body')}</p>
-    <p class="widget"><a data-testid="nav-home" href="/" use:link>{$t('nav.home')}</a></p>
+    <p class="widget"><a data-testid="nav-home" href="/features" use:link>{$t('nav.home')}</a></p>
   </Card>
 
   <Card title={$t('demo.lazy.title')} body={$t('demo.lazy.body')}>
