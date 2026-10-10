@@ -42,11 +42,13 @@
     },
     "plural": {
       "title": "Plurals that know the language",
-      "body": "ICU plural rules: English has one and other, Ukrainian one, few and many. Change the count and compare."
+      "body": "ICU plural rules: English has one and other, Ukrainian one, few and many. Change the count and compare.",
+      "dec": "Remove one item",
+      "inc": "Add one item"
     },
     "tags": {
       "title": "Markup inside a translation",
-      "body": "The catalog wraps the words in a link tag; the app decides what a link renders as. A translator can move the tag and never break it."
+      "body": "The catalog wraps the words in a link tag. The translator chooses where the link sits in the sentence; your app decides what it points to and how it renders."
     },
     "formatting": {
       "title": "Dates and numbers",
@@ -54,12 +56,12 @@
       "price": "Total: {price}"
     },
     "lazy": {
-      "title": "Under the hood",
-      "body": "The first screen ships one language. A catalog is fetched the first time its locale is chosen, and the account namespace only when you open the Account page. English is in the list from the start: it is the fallback locale, so a key missing in your language still renders.",
+      "title": "Load translations on demand",
+      "body": "The selected language and its English fallback load first. Another language loads when you select it, and the account namespace when its page opens.",
       "namespaces": "Namespaces active for every fetched locale: {namespaces}"
     },
     "fallback": {
-      "title": "Nothing renders as a key",
+      "title": "Fallbacks and missing keys",
       "body": "A key missing in Ukrainian falls back to English. A key missing everywhere shows its name, so you notice it in development."
     },
     "missing": {
@@ -94,7 +96,7 @@
     },
     "options": {
       "title": "Call options",
-      "body": "One call can read another locale or namespace. The names below render each language in its own language.",
+      "body": "One call can read another locale or namespace. The names below render each language in its own language; switch languages to grow the list.",
       "inOwn": "{name} in its own language",
       "name": "English"
     },

@@ -42,24 +42,26 @@
     },
     "plural": {
       "title": "Pluralformen, die die Sprache kennen",
-      "body": "ICU-Pluralregeln: Englisch hat one und other, Ukrainisch one, few und many. Ändern Sie die Anzahl und vergleichen Sie."
+      "body": "ICU-Pluralregeln: Englisch hat one und other, Ukrainisch one, few und many. Ändern Sie die Anzahl und vergleichen Sie.",
+      "dec": "Einen Artikel entfernen",
+      "inc": "Einen Artikel hinzufügen"
     },
     "tags": {
       "title": "Markup in einer Übersetzung",
-      "body": "Der Katalog umschließt die Wörter mit einem Link-Tag; die App entscheidet, als was ein Link gerendert wird. Eine Übersetzerin kann das Tag verschieben und nie kaputt machen."
+      "body": "Der Katalog umschließt die Wörter mit einem Link-Tag. Die Übersetzerin wählt, wo der Link im Satz steht; Ihre App entscheidet, wohin er führt und wie er gerendert wird."
     },
     "formatting": {
-      "title": "Daten und Zahlen",
+      "title": "Datumsangaben und Zahlen",
       "body": "Intl formatiert nach Locale: Tausendertrennzeichen, Monatsnamen und die Reihenfolge im Datum.",
       "price": "Gesamt: {price}"
     },
     "lazy": {
-      "title": "Unter der Haube",
-      "body": "Der erste Bildschirm bringt eine Sprache mit. Ein Katalog wird beim ersten Wechsel zu seiner Locale geholt, der Namespace account erst beim Öffnen der Seite Account. Englisch steht von Anfang an in der Liste: Es ist die Fallback-Locale, damit ein in Ihrer Sprache fehlender Schlüssel trotzdem gerendert wird.",
+      "title": "Übersetzungen bei Bedarf laden",
+      "body": "Zuerst laden die gewählte Sprache und ihr englischer Fallback. Eine andere Sprache lädt, wenn Sie sie wählen, der Namespace account, wenn seine Seite geöffnet wird.",
       "namespaces": "Namespaces, aktiv für jede geladene Locale: {namespaces}"
     },
     "fallback": {
-      "title": "Nichts wird als Schlüssel gerendert",
+      "title": "Fallbacks und fehlende Schlüssel",
       "body": "Ein Schlüssel, der auf Ukrainisch fehlt, fällt auf Englisch zurück. Ein Schlüssel, der überall fehlt, zeigt seinen Namen, damit er in der Entwicklung auffällt."
     },
     "missing": {
@@ -94,7 +96,7 @@
     },
     "options": {
       "title": "Aufrufoptionen",
-      "body": "Ein Aufruf kann eine andere Locale oder einen anderen Namespace lesen. Die Namen unten zeigen jede Sprache in ihrer eigenen Sprache.",
+      "body": "Ein Aufruf kann eine andere Locale oder einen anderen Namespace lesen. Die Namen unten zeigen jede Sprache in ihrer eigenen Sprache; wechseln Sie die Sprache, damit die Liste wächst.",
       "inOwn": "{name} in eigener Sprache",
       "name": "Deutsch"
     },
