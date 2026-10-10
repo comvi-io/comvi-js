@@ -1,5 +1,11 @@
-import { ref } from "vue";
+import { computed, shallowReactive } from "vue";
 
-// How many keys were missing in this browser. In your app, send them to an
-// error tracker instead.
-export const missingKeys = ref(0);
+// The distinct keys found missing in this browser. In your app, send them to
+// an error tracker instead.
+const missed = shallowReactive(new Set<string>());
+
+export const missingKeys = computed(() => missed.size);
+
+export function reportMissingKey(key: string): void {
+  missed.add(key);
+}
