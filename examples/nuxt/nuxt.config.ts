@@ -27,8 +27,7 @@ export default defineNuxtConfig({
       { code: "en", name: "English" },
       { code: "uk", name: "Українська" },
       { code: "de", name: "Deutsch" },
-      // Not in the switcher (pages/index.vue filters it out): the right-to-left
-      // locale the e2e suite uses to check `<html dir="rtl">`.
+      // Right-to-left: switching to it turns the page around (`<html dir="rtl">`).
       { code: "ar", name: "العربية" },
     ],
     // `always`: every URL carries its locale, so /en, /uk and /de are three real

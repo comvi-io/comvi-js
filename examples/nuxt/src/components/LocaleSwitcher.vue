@@ -10,9 +10,6 @@ const { t, locale, locales, setLocale, isLoading } = useI18n();
 // middleware pre-loads that catalog before the page renders.
 const switchLocalePath = useSwitchLocalePath();
 
-// Routable but not in the switcher: the right-to-left locale the e2e suite uses.
-const rtlLocale = "ar";
-
 // The newest click, so an older switch that resolves later never navigates.
 let latestSelect = 0;
 
@@ -34,11 +31,11 @@ async function select(code: string) {
 </script>
 
 <template>
-  <section>
-    <h2>{{ t("app.language") }}</h2>
-    <div class="row">
+  <div class="switcher" role="group" :aria-label="t('app.language')">
+    <span class="switcher-label">{{ t("app.language") }}</span>
+    <div class="segmented">
       <button
-        v-for="code in locales.filter((code) => code !== rtlLocale)"
+        v-for="code in locales"
         :key="code"
         :data-testid="`locale-${code}`"
         :aria-pressed="locale === code"
@@ -46,10 +43,9 @@ async function select(code: string) {
       >
         {{ code }}
       </button>
-      <button hidden :data-testid="`locale-${rtlLocale}`" @click="select(rtlLocale)">
-        {{ rtlLocale }}
-      </button>
-      <code v-if="isLoading">{{ t("app.loading") }}</code>
     </div>
-  </section>
+    <code v-if="isLoading" class="switcher-loading">{{ t("app.loading") }}</code>
+  </div>
+  <!-- `ar` is a right-to-left locale: the module writes <html dir="rtl"> for it -->
+  <p class="switcher-note">{{ t("demo.rtl.body") }}</p>
 </template>
