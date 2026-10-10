@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CallOptionsCard } from "../cards/CallOptionsCard";
 import { ErrorsCard } from "../cards/ErrorsCard";
 import { FallbackCard } from "../cards/FallbackCard";
+import { FormalityCard } from "../cards/FormalityCard";
 import { FormattingCard } from "../cards/FormattingCard";
 import { GreetingCard } from "../cards/GreetingCard";
 import { LazyLoadingCard } from "../cards/LazyLoadingCard";
@@ -22,6 +23,7 @@ export function Home({ name }: { name: string }) {
       <PluralCard count={count} onChange={setCount} />
       <OrdinalCard count={count} />
       <SelectCard />
+      <FormalityCard />
       <MarkupCard />
       <FormattingCard />
       <LazyLoadingCard />

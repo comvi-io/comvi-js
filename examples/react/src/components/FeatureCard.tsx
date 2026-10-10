@@ -6,6 +6,7 @@ type Feature =
   | "plural"
   | "ordinal"
   | "select"
+  | "formality"
   | "tags"
   | "formatting"
   | "lazy"
