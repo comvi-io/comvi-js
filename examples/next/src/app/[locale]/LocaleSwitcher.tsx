@@ -9,6 +9,7 @@ export function LocaleSwitcher() {
 
   // The locale lives in the URL, so switching navigates: `usePathname()` is the
   // path without its locale prefix, and `push(path, locale)` adds the new one.
+  // The query (`?name=…`) comes along, read at click time.
   const pathname = usePathname();
   const router = useLocalizedRouter();
 
@@ -21,7 +22,7 @@ export function LocaleSwitcher() {
             key={code}
             data-testid={`locale-${code}`}
             aria-pressed={locale === code}
-            onClick={() => router.push(pathname, code)}
+            onClick={() => router.push(pathname + location.search, code)}
           >
             {code}
           </button>
