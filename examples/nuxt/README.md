@@ -19,7 +19,7 @@ npm install
 npm run dev
 ```
 
-The source to read first is `src/comvi.i18n.ts` (the i18n setup) and `nuxt.config.ts` (locales and routing). Each feature card is one component under `src/components/`.
+The start page at `/` is the whole integration: a header, a translated line and the switcher. `/features` shows every feature as a card. The source to read first is `src/comvi.i18n.ts` (the i18n setup) and `nuxt.config.ts` (locales and routing). Each feature card is one component under `src/components/`.
 
 ## Connect your own Comvi project
 

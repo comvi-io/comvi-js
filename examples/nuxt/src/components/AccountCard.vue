@@ -17,7 +17,9 @@ const name = useVisitorName();
     <!-- Only the English account catalog has this key: fallback stays inside the namespace. -->
     <p class="widget" data-testid="account-only-en">{{ tAccount("profile.only_en") }}</p>
     <p class="widget">
-      <NuxtLinkLocale class="cta" data-testid="nav-home" to="/">{{ t("nav.home") }}</NuxtLinkLocale>
+      <NuxtLinkLocale class="cta" data-testid="nav-home" to="/features">{{
+        t("nav.home")
+      }}</NuxtLinkLocale>
     </p>
   </FeatureCard>
 </template>
