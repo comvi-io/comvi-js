@@ -23,6 +23,10 @@ const localCatalogs = {
 const cdnUrl: string | undefined = process.env.NEXT_PUBLIC_COMVI_CDN_URL;
 const catalogs = cdnUrl ? cdnLoader({ cdnUrl, fallback: localCatalogs }) : loader(localCatalogs);
 
+// `t()` never throws: a missing key is reported to `onMissingKey`. A real app
+// would forward it to its error tracker; this one keeps the distinct keys.
+export const missedKeys = new Set<string>();
+
 // `withComvi({ config })` in next.config.ts points the server helpers and
 // `<ComviProvider>` at this instance, on the server and in the browser.
 export const { i18n } = createNextI18n({
@@ -32,11 +36,7 @@ export const { i18n } = createNextI18n({
   fallbackLocale: "en",
   // ICU (`{count, plural, …}`) is opt-in, so apps without it ship less code.
   compiler: icuCompiler,
+  onMissingKey: ({ key, namespace }) => {
+    missedKeys.add(`${namespace}:${key}`);
+  },
 }).use(catalogs);
-
-// `t()` never throws: a missing key is reported here, once per lookup. A real
-// app would forward it to its error tracker; this one counts distinct misses.
-export const missedKeys = new Set<string>();
-i18n.on("missingKey", ({ key, locale, namespace }) => {
-  missedKeys.add(`${locale}:${namespace}:${key}`);
-});

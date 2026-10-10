@@ -176,6 +176,10 @@ a:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
+.languages {
+  margin: 0;
+  padding-inline-start: 20px;
+}
 footer {
   display: flex;
   flex-wrap: wrap;

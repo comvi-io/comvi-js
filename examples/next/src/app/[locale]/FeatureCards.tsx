@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ErrorsCard } from "./cards/ErrorsCard";
 import { FallbackCard } from "./cards/FallbackCard";
 import { FormattingCard } from "./cards/FormattingCard";
@@ -8,15 +8,16 @@ import { GreetingCard } from "./cards/GreetingCard";
 import { LazyCard } from "./cards/LazyCard";
 import { MissingParamCard } from "./cards/MissingParamCard";
 import { NavigationCard } from "./cards/NavigationCard";
+import { OptionsCard } from "./cards/OptionsCard";
 import { OrdinalCard } from "./cards/OrdinalCard";
 import { PluralCard } from "./cards/PluralCard";
 import { SelectCard } from "./cards/SelectCard";
 import { TagsCard } from "./cards/TagsCard";
-import { useCount } from "./cards/useCount";
 
 export function FeatureCards() {
   // One counter drives both the plural and the ordinal card.
-  const [count, change] = useCount();
+  const [count, setCount] = useState(2);
+  const change = (delta: number) => setCount((current) => Math.max(0, current + delta));
 
   // Marks the document once React has hydrated it.
   useEffect(() => {
@@ -32,6 +33,7 @@ export function FeatureCards() {
       <TagsCard />
       <FormattingCard />
       <LazyCard />
+      <OptionsCard />
       <FallbackCard />
       <ErrorsCard />
       <MissingParamCard />
