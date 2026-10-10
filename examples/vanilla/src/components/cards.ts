@@ -58,8 +58,8 @@ export function interpolationCard(): HTMLElement {
   );
 }
 
-function stepButton(label: string, delta: number, testId: string): HTMLButtonElement {
-  const button = h("button", { class: "square", "data-testid": testId }, label);
+function stepButton(label: string, name: string, delta: number, testId: string): HTMLButtonElement {
+  const button = h("button", { class: "square", "aria-label": name, "data-testid": testId }, label);
   button.onclick = () => update({ count: Math.max(0, state.count + delta) });
   return button;
 }
@@ -70,9 +70,9 @@ export function pluralCard(): HTMLElement {
     h(
       "div",
       { class: "widget counter" },
-      stepButton("−", -1, "cart-dec"),
+      stepButton("−", i18n.t("demo.plural.dec"), -1, "cart-dec"),
       h("span", { "data-testid": "cart" }, i18n.t("cart.items", { count: state.count })),
-      stepButton("+", 1, "cart-inc"),
+      stepButton("+", i18n.t("demo.plural.inc"), 1, "cart-inc"),
     ),
   );
 }

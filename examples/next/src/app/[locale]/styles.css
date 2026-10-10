@@ -1,12 +1,11 @@
-/** The page stylesheet. Logical properties (`margin-inline`, …) mirror it for Arabic. */
-export const css = `
+/* Logical properties (`margin-inline`, …) mirror the layout for Arabic. */
 :root {
   color-scheme: light dark;
   --bg: #fcfcfb;
   --fg: #16181d;
   --muted: #5f6672;
   --line: #e6e8ec;
-  --accent: #d97706;
+  --accent: #b45309;
   --card: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
@@ -67,7 +66,7 @@ p {
   color: var(--muted);
   font-size: 14px;
 }
-      .switcher {
+.switcher {
   display: inline-flex;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -207,4 +206,3 @@ footer {
 footer span {
   margin-inline-start: auto;
 }
-`;

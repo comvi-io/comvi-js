@@ -6,11 +6,20 @@ import { subscribe } from "./state";
 
 const root = document.getElementById("app")!;
 
+let shown = currentRoute();
+const focusable = () => [...root.querySelectorAll<HTMLElement>("a, button, input")];
+
 function render(): void {
+  // The page is rebuilt on every change. Note which control had the focus, by
+  // position, and give it back, so keyboard users stay where they were.
+  const route = currentRoute();
+  const focused = route === shown ? focusable().indexOf(document.activeElement as HTMLElement) : -1;
+  shown = route;
   document.documentElement.lang = i18n.locale;
   // `rtl` for Arabic: the stylesheet uses logical properties, so the layout mirrors.
   document.documentElement.dir = getTextDirection(i18n.locale);
-  root.replaceChildren(...(currentRoute() === "about" ? aboutPage() : homePage()));
+  root.replaceChildren(...(route === "about" ? aboutPage() : homePage()));
+  if (focused >= 0) focusable()[focused]?.focus();
 }
 
 subscribe(render);
