@@ -9,7 +9,7 @@ const { t } = useI18n();
 <template>
   <FeatureCard feature="errors">
     <p class="widget" data-testid="missing-count">
-      {{ t("demo.errors.count", { count: missingKeys }) }}
+      {{ t("demo.errors.count", { count: missingKeys.size }) }}
     </p>
   </FeatureCard>
 </template>
