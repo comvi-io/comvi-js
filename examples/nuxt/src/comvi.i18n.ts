@@ -1,7 +1,7 @@
 import { createI18n, defineComviI18n, icuCompiler, loader } from "@comvi/nuxt/i18n";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { useRuntimeConfig } from "#imports";
-import { missingKeys } from "./composables/missingKeys";
+import { reportMissingKey } from "./composables/missingKeys";
 
 // The module calls this once in the browser and once per server request, with
 // the `comvi` options from nuxt.config.ts already resolved.
@@ -32,8 +32,8 @@ export default defineComviI18n((options) => {
     // t() never throws: a missing key is reported here. The report arrives while
     // a component renders, so the counter updates after the render has finished,
     // and only in the browser, where the count is shown.
-    onMissingKey: () => {
-      if (import.meta.client) queueMicrotask(() => missingKeys.value++);
+    onMissingKey: ({ key }) => {
+      if (import.meta.client) queueMicrotask(() => reportMissingKey(key));
     },
   }).use(catalogs);
 });

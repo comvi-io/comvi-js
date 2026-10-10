@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { CallOptionsCard } from "../cards/CallOptionsCard";
+import { ErrorsCard } from "../cards/ErrorsCard";
 import { FallbackCard } from "../cards/FallbackCard";
 import { FormattingCard } from "../cards/FormattingCard";
 import { GreetingCard } from "../cards/GreetingCard";
@@ -23,8 +25,10 @@ export function Home({ name }: { name: string }) {
       <MarkupCard />
       <FormattingCard />
       <LazyLoadingCard />
+      <CallOptionsCard />
       <FallbackCard />
       <MissingParamCard />
+      <ErrorsCard />
       <NavigationCard />
     </div>
   );

@@ -27,7 +27,8 @@ const catalogs: ReturnType<typeof loader> = cdnUrl
   ? cdnLoader({ cdnUrl, fallback: localCatalogs })
   : loader(localCatalogs);
 
-// How many keys were missing. In your app, send them to an error tracker.
+// The keys no catalog has. In your app, send each one to an error tracker.
+const missed = new Set<string>();
 const [missingKeys, setMissingKeys] = createSignal(0);
 export { missingKeys };
 
@@ -37,9 +38,15 @@ export const i18n = createI18n({
   fallbackLocale: "en",
   // ICU plural, select and selectordinal are opt-in, so apps without them ship less.
   compiler: icuCompiler,
-  // t() never throws: a missing key is reported here. The report arrives while
-  // a component renders, so the counter updates after the render has finished.
-  onMissingKey: () => queueMicrotask(() => setMissingKeys((n) => n + 1)),
+  // t() never throws: a missing key is reported here, on every render that
+  // reads it, so the set keeps each key once. The report arrives while a
+  // component renders, so the counter updates after the render has finished.
+  onMissingKey: ({ key, namespace }) => {
+    const id = `${namespace}:${key}`;
+    if (missed.has(id)) return;
+    missed.add(id);
+    queueMicrotask(() => setMissingKeys(missed.size));
+  },
 })
   .use(catalogs)
   .use(
