@@ -3,6 +3,7 @@
   import PluralCard from '../cards/PluralCard.svelte';
   import OrdinalCard from '../cards/OrdinalCard.svelte';
   import SelectCard from '../cards/SelectCard.svelte';
+  import FormalityCard from '../cards/FormalityCard.svelte';
   import TagsCard from '../cards/TagsCard.svelte';
   import FormattingCard from '../cards/FormattingCard.svelte';
   import LazyCard from '../cards/LazyCard.svelte';
@@ -21,6 +22,7 @@
   <PluralCard bind:count />
   <OrdinalCard {count} />
   <SelectCard />
+  <FormalityCard />
   <TagsCard />
   <FormattingCard />
   <LazyCard />
