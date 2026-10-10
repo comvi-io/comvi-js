@@ -16,7 +16,7 @@ export function About({ name }: { name: string }) {
         </p>
         <AccountDetails name={name} />
         <p>
-          <Link data-testid="nav-home" to="/">
+          <Link data-testid="nav-home" to="/features">
             {t("nav.home")}
           </Link>
         </p>

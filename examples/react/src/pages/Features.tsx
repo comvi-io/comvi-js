@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Link } from "react-router";
+import { useI18n } from "@comvi/react";
 import { CallOptionsCard } from "../cards/CallOptionsCard";
 import { ErrorsCard } from "../cards/ErrorsCard";
 import { FallbackCard } from "../cards/FallbackCard";
@@ -15,12 +17,16 @@ import { SelectCard } from "../cards/SelectCard";
 
 type Props = { name: string; onNameChange: (name: string) => void };
 
-export function Home({ name, onNameChange }: Props) {
+export function Features({ name, onNameChange }: Props) {
+  const { t } = useI18n();
   // The plural and ordinal cards read the same number.
   const [count, setCount] = useState(2);
 
   return (
     <div className="cards">
+      <p className="note">
+        <Link to="/">{t("demo.start.back")}</Link>
+      </p>
       <GreetingCard name={name} onChange={onNameChange} />
       <PluralCard count={count} onChange={setCount} />
       <OrdinalCard count={count} />
