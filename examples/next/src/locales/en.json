@@ -94,7 +94,8 @@
     "options": {
       "title": "Call options",
       "body": "One call can read another locale or namespace. The names below render each language in its own language.",
-      "inOwn": "{name} in its own language"
+      "inOwn": "{name} in its own language",
+      "name": "English"
     },
     "typed": {
       "title": "Typed keys",

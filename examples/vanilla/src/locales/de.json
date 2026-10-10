@@ -94,7 +94,8 @@
     "options": {
       "title": "Aufrufoptionen",
       "body": "Ein Aufruf kann eine andere Locale oder einen anderen Namespace lesen. Die Namen unten zeigen jede Sprache in ihrer eigenen Sprache.",
-      "inOwn": "{name} in eigener Sprache"
+      "inOwn": "{name} in eigener Sprache",
+      "name": "Deutsch"
     },
     "typed": {
       "title": "Typisierte Schlüssel",
