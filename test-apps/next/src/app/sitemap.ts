@@ -4,7 +4,6 @@ import { routing } from "@/i18n/config";
 
 const baseUrl = "https://example.com";
 
-// All pages in the app (without locale prefix)
 const pages = ["/", "/plurals", "/rich-text", "/namespaces", "/rtl"];
 
 export default function sitemap(): MetadataRoute.Sitemap {

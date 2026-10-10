@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-const { t, addActiveNamespace, isLoading, activeNamespaces } = useI18n();
+const { t, isLoading, activeNamespaces } = useI18n();
+const { addActiveNamespace } = useI18nLoader();
 const isAdminLoaded = computed(() => activeNamespaces.value.includes("admin"));
 
 const loadAdmin = async () => {

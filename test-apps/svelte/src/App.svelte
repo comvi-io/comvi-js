@@ -9,12 +9,10 @@
   import NamespacesView from '$lib/views/NamespacesView.svelte';
   import RtlView from '$lib/views/RtlView.svelte';
 
-  // Set i18n context for all child components
   setI18nContext(i18n);
 
   const { t, isLoading, locale } = useI18n();
 
-  // Simple hash-based routing
   let currentPath = window.location.hash.slice(1) || '/';
 
   function navigate(path: string) {
@@ -23,7 +21,6 @@
   }
 
   onMount(() => {
-    // Initialize i18n
     i18n.init().then(() => {
       const defaultNs = i18n.getDefaultNamespace();
       const activeNamespaces = i18n.getActiveNamespaces();
@@ -32,7 +29,6 @@
       }
     });
 
-    // Listen for hash changes
     const handleHashChange = () => {
       currentPath = window.location.hash.slice(1) || '/';
     };
@@ -40,7 +36,6 @@
     return () => window.removeEventListener('hashchange', handleHashChange);
   });
 
-  // Update document direction based on locale
   $: if (typeof document !== 'undefined') {
     document.documentElement.dir = $locale === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = $locale;

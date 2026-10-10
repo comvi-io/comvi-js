@@ -1,8 +1,9 @@
 import { createSignal, Show } from "solid-js";
-import { useI18n } from "@comvi/solid";
+import { useI18n, useI18nLoader } from "@comvi/solid";
 
 export default function NamespacesView() {
-  const { t, addActiveNamespace, isLoading } = useI18n();
+  const { t, isLoading } = useI18n();
+  const { addActiveNamespace } = useI18nLoader();
 
   const [isAdminLoaded, setIsAdminLoaded] = createSignal(false);
 

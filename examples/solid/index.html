@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Comvi + Solid</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fcfcfb;
+        --fg: #16181d;
+        --muted: #5f6672;
+        --line: #e6e8ec;
+        --accent: #b45309;
+        --card: #ffffff;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1115;
+          --fg: #eceef2;
+          --muted: #9aa3b2;
+          --line: #262a33;
+          --card: #161920;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.5 system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 32px 20px;
+      }
+      header {
+        display: grid;
+        gap: 12px;
+        margin-block-end: 28px;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 700;
+        line-height: 1.2;
+        margin: 0;
+      }
+      .intro {
+        color: var(--muted);
+        margin: 0;
+      }
+      .switcher {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-block-start: 4px;
+      }
+      .eyebrow {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .segmented {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--card);
+      }
+      .segmented button {
+        font: inherit;
+        font-size: 14px;
+        min-width: 52px;
+        padding: 8px 14px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+      }
+      .segmented button + button {
+        border-inline-start: 1px solid var(--line);
+      }
+      .segmented button[aria-pressed="true"] {
+        background: var(--accent);
+        color: #fff;
+      }
+      .status {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .note {
+        font-size: 14px;
+        color: var(--muted);
+        margin: 0;
+      }
+      .card > .segmented {
+        justify-self: start;
+      }
+      .options {
+        display: grid;
+        gap: 4px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .boot {
+        width: 24px;
+        height: 24px;
+        margin: 96px auto;
+        border: 2px solid var(--line);
+        border-block-start-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(1turn);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot {
+          animation: none;
+        }
+      }
+      .start {
+        display: grid;
+        gap: 20px;
+        justify-items: start;
+      }
+      a.cta {
+        display: inline-block;
+        padding: 10px 18px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+      }
+      a.cta:hover {
+        text-decoration: none;
+        filter: brightness(1.1);
+      }
+      .back {
+        margin: 0 0 16px;
+        font-size: 14px;
+      }
+      .cards {
+        display: grid;
+        gap: 16px;
+      }
+      .card {
+        display: grid;
+        gap: 8px;
+        padding: 20px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .card-body {
+        font-size: 15px;
+        color: var(--muted);
+        margin: 0;
+      }
+      .widget {
+        font-size: 17px;
+        color: var(--fg);
+        margin: 0;
+      }
+      .field {
+        display: grid;
+        gap: 4px;
+        max-width: 320px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .field input {
+        font: inherit;
+        font-size: 15px;
+        color: var(--fg);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 10px;
+      }
+      .counter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .counter button {
+        display: inline-grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        font: inherit;
+        color: inherit;
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .counter span {
+        margin-inline: 4px;
+      }
+      .network {
+        display: grid;
+        gap: 4px;
+        margin: 0;
+        padding: 10px 12px;
+        font-family: var(--mono);
+        font-size: 13px;
+        background: color-mix(in srgb, var(--line) 55%, transparent);
+        border-radius: 8px;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
+      }
+      footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 20px;
+        margin-block-start: 32px;
+        padding-block-start: 20px;
+        border-block-start: 1px solid var(--line);
+        font-size: 14px;
+        color: var(--muted);
+      }
+      footer .install {
+        margin-inline-start: auto;
+      }
+      footer code {
+        color: var(--fg);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

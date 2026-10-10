@@ -1,0 +1,7 @@
+---
+"@comvi/solid": minor
+"@comvi/react": minor
+"@comvi/next": patch
+---
+
+**One name for the SSR render locale: `ssrLocale`.** `@comvi/solid` had no way to seed one, though it has `renderToString` and hydration, so a server render could only ever paint the instance's configured locale and the hydrating client silently disagreed with it until the first reactive update repainted. `<I18nProvider ssrLocale="fr">` now adopts that locale onto the instance during the render phase, before the locale signal is seeded — the same contract `@comvi/vue`'s option of that name has, and the reason `t()` and `locale()` cannot drift apart. Adopting it is a WRITE to `i18n.locale`, so a solid app that server-renders must build its instance inside the request handler: a module-scope instance shared by every concurrent request would carry one request's locale into another's tree. The package README's SSR section shows the per-request shape. **BREAKING (breaking change on a 0.x minor): `@comvi/react`'s render-locale prop is `ssrLocale` too**, the one cross-binding name; `ssrInitialLocale` is removed. React's `ssrInitialIsLoading` / `ssrInitialIsInitializing` are deliberately not ported — they exist for `useSyncExternalStore`'s server snapshot and are correctly react-only. `@comvi/next`'s own client provider passes `ssrLocale` internally and omits it from its own provider props, since it sets the render locale from its own `locale` prop and an `ssrLocale` passed there would be silently overridden.

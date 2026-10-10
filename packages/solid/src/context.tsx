@@ -3,11 +3,12 @@ import {
   useContext,
   createEffect,
   createMemo,
+  Show,
   type JSX,
   type ParentComponent,
   type Accessor,
 } from "solid-js";
-import type { I18n } from "@comvi/core";
+import type { AnyI18nInstance, WrapperI18nInstance } from "@comvi/core";
 import {
   createLocaleSignal,
   createDefaultNamespaceSignal,
@@ -17,10 +18,14 @@ import {
   createCacheRevisionSignal,
 } from "./primitives";
 
+/**
+ * Loader/plugin capabilities are acquired separately through
+ * `useI18nLoader()` / `useI18nPlugins()`, so the Provider accepts an instance that
+ * never had them.
+ */
 export interface I18nContextValue {
-  /** The i18n instance */
-  i18n: I18n;
-  /** Shared reactive signals bound to the Provider's lifecycle */
+  i18n: WrapperI18nInstance;
+  /** Bound to the Provider's lifecycle, not the consumer's. */
   signals: {
     locale: Accessor<string>;
     defaultNamespace: Accessor<string>;
@@ -31,62 +36,97 @@ export interface I18nContextValue {
   };
 }
 
+// `AnyI18nInstance` is core's: the `strictFunctionTypes` invariance in `D` it
+// widens is documented there, once, for all three providers that accept it.
+export type { AnyI18nInstance };
+
 const I18nContext = createContext<I18nContextValue>();
 
 export interface I18nProviderProps {
-  /** The i18n instance */
-  i18n: I18n;
-  /** Whether to auto-initialize Comvi i18n on mount (default: true) */
+  /** Any instance, whatever default-params type it carries. */
+  i18n: AnyI18nInstance;
+  /** Auto-initialize the instance on mount (default: true). */
   autoInit?: boolean;
   /**
-   * Called if auto-initialization fails. The error is already reported through
-   * core's configured error handler before this runs; this prop lets the app
-   * observe the failure too (parity with the other framework bindings).
+   * Rendered INSTEAD of `children` until the instance is INITIALIZED, so no paint
+   * is ever a flash of raw keys. Omit it and `children` render throughout,
+   * exactly as before this prop existed.
+   *
+   * The axis is the provider's own `isInitialized` signal — the one
+   * `useI18n().isInitialized()` returns — not `isInitializing`: auto-init
+   * starts from an effect, after the tree is built, so a gate on "is it
+   * initializing" is open for exactly the paint the raw keys would appear in.
+   * With `autoInit: false` the fallback therefore stays until your app calls
+   * `i18n.init()` itself, and during `renderToString` — where no effect runs
+   * and nothing initializes the instance — the fallback is what the server paints.
+   *
+   * @example
+   * ```tsx
+   * <I18nProvider i18n={i18n} fallback={<p>Loading…</p>}>
+   *   <App />
+   * </I18nProvider>
+   * ```
+   */
+  fallback?: JSX.Element;
+  /**
+   * Render locale for SSR, under the name `@comvi/vue` uses: the provider
+   * writes it to the instance during the render phase, so `renderToString` and
+   * the hydrating client agree on the first paint. Set it when the server
+   * renders in a locale the client would not detect on its own.
+   *
+   * It paints on the first render when that locale's catalogs are already
+   * available (inline `messages`, or loaded earlier). Otherwise the first
+   * render is in the instance's current locale, and the switch lands when the
+   * load completes.
+   *
+   * **The instance must be per request.** This is a WRITE to `i18n.locale`, and
+   * during `renderToString` it happens in the server process: an instance built at
+   * module scope and shared by every concurrent request would take one
+   * request's locale into another's tree — the same leak
+   * `@comvi/next`'s provider refuses to risk by never writing the locale on
+   * the server. Build the instance inside the request handler (see the SSR section
+   * of the package README); on the client, where a module-scope instance is the
+   * normal shape, there is one request and nothing to leak.
+   */
+  ssrLocale?: string;
+  /**
+   * Called if auto-initialization fails. Core's configured error handler has
+   * already reported the error by then; this only lets the app observe it too.
    */
   onError?: (error: Error) => void;
-  /** Child components */
   children: JSX.Element;
 }
 
-/**
- * Provider component that makes i18n available to all child components
- *
- * @example
- * ```tsx
- * import { I18nProvider } from '@comvi/solid';
- * import { i18n } from './i18n';
- *
- * function App() {
- *   return (
- *     <I18nProvider i18n={i18n}>
- *       <MyApp />
- *     </I18nProvider>
- *   );
- * }
- * ```
- */
 export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
-  // Auto-initialize on mount or when props.i18n changes.
-  // `isInitialized`/`isInitializing` are plain (non-reactive) getters on the
-  // instance, read here only as a one-shot guard against re-entry — the effect
-  // intentionally re-runs only when props.i18n or props.autoInit change.
+  // Read once, in the component body — the RENDER phase, `renderToString`
+  // included, not an effect. This is a WRITE to `i18n.locale`, which is why an
+  // SSR app must hand this provider a PER-REQUEST instance; see the prop's doc.
+  // The instance decides when the write lands: at once when that locale's
+  // catalogs are already available, otherwise when their load completes. The
+  // signals below mirror the instance and never run ahead of it, so `t()`,
+  // `locale()` and the formatters always agree.
+  const ssrLocale = props.ssrLocale;
+  if (ssrLocale !== undefined && props.i18n.locale !== ssrLocale) {
+    props.i18n.locale = ssrLocale;
+  }
+
+  // `isInitialized`/`isInitializing` are plain non-reactive getters, read here
+  // only as a re-entry guard: the effect re-runs on `props.i18n` /
+  // `props.autoInit` alone, by design.
   createEffect(() => {
     if (props.autoInit !== false && !props.i18n.isInitialized && !props.i18n.isInitializing) {
       props.i18n.init().catch((err: unknown) => {
-        // init() already reports the error through core's error handler before
-        // rethrowing; surface it to the optional onError prop as well.
+        // Already reported through core's error handler; this is the extra hop
+        // to the optional prop.
         props.onError?.(err instanceof Error ? err : new Error(String(err)));
       });
     }
   });
 
-  // Recreate signals whenever props.i18n changes.
-  // createMemo manages its own owner context and automatically cleans up
-  // previous subscriptions when re-evaluating.
-  // NOTE: the `from()` signals below MUST be created directly in this memo's
-  // reactive scope. Do not wrap them in `untrack(...)` or a detached
-  // `createRoot(...)` — that would detach their cleanups from the memo's owner
-  // and leak the core event subscriptions when props.i18n is swapped.
+  // The `from()` signals MUST be created directly in this memo's reactive
+  // scope. Wrapping them in `untrack(...)` or a detached `createRoot(...)`
+  // detaches their cleanups from the memo's owner and leaks the core event
+  // subscriptions whenever `props.i18n` is swapped.
   const signalsMemo = createMemo(() => ({
     locale: createLocaleSignal(props.i18n),
     defaultNamespace: createDefaultNamespaceSignal(props.i18n),
@@ -96,8 +136,8 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
     cacheRevision: createCacheRevisionSignal(props.i18n),
   }));
 
-  // Map to stable getters so the context object reference remains stable
-  // but always points to the latest signals from the current i18n instance.
+  // Getters, so the context object's identity stays stable while still
+  // pointing at the current instance's signals.
   const signals = {
     get locale() {
       return signalsMemo().locale;
@@ -119,6 +159,27 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
     },
   };
 
+  // `undefined` means "no gate", the same axis `@comvi/react` reads
+  // (`fallback !== undefined`): a wrapper that forwards its own optional prop
+  // passes `fallback={undefined}`, and that must render the children
+  // throughout rather than gate on a blank node. `fallback={null}` still IS a
+  // blank gate.
+  //
+  // Read ONCE and lazily, never in the component body. Solid props are
+  // getters, so `<I18nProvider fallback={<Spinner />}>` re-runs `Spinner` on
+  // every access — and the read has to happen INSIDE the context below, since
+  // a fallback may call `useI18n()`. `||` short-circuits, so an instance that is
+  // already initialized never constructs the fallback at all.
+  let fallbackNode: JSX.Element | undefined;
+  let fallbackRead = false;
+  const fallbackOnce = (): JSX.Element | undefined => {
+    if (!fallbackRead) {
+      fallbackRead = true;
+      fallbackNode = props.fallback;
+    }
+    return fallbackNode;
+  };
+
   return (
     <I18nContext.Provider
       value={{
@@ -128,17 +189,16 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
         signals,
       }}
     >
-      {props.children}
+      <Show
+        when={signals.isInitialized() || fallbackOnce() === undefined}
+        fallback={fallbackOnce()}
+      >
+        {props.children}
+      </Show>
     </I18nContext.Provider>
   );
 };
 
-/**
- * Get the full i18n context (instance + shared signals)
- *
- * @returns The i18n context value
- * @throws Error if called outside of I18nProvider
- */
 export function useI18nContextValue(): I18nContextValue {
   const ctx = useContext(I18nContext);
   if (!ctx) {
@@ -150,11 +210,12 @@ export function useI18nContextValue(): I18nContextValue {
 }
 
 /**
- * Get the i18n instance from SolidJS context (for backward compatibility)
+ * The instance the nearest `<I18nProvider>` holds, as a bare `WrapperI18nInstance` —
+ * THE name for "give me the instance", the same in react, solid and svelte (vue's
+ * equivalent is `inject(I18N_INJECTION_KEY).core`).
  *
- * @returns The i18n instance
- * @throws Error if called outside of I18nProvider
+ * @throws if called outside an `<I18nProvider>`.
  */
-export function useI18nContext(): I18n {
+export function useI18nInstance(): WrapperI18nInstance {
   return useI18nContextValue().i18n;
 }

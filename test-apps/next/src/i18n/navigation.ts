@@ -1,11 +1,10 @@
-// Navigation utilities for i18n
-// Use these for SEO (sitemap, hreflang) and programmatic navigation
+// Navigation utilities for SEO (sitemap, hreflang) and programmatic navigation.
 
 import { createGetPathname } from "@comvi/next/routing";
 import { routing } from "./config";
 
 /**
- * Get localized pathname for a given locale
+ * Localized pathname for a given locale.
  *
  * @example
  * ```ts
@@ -16,5 +15,4 @@ import { routing } from "./config";
  */
 export const getPathname = createGetPathname(routing);
 
-// Re-export Link and hooks from @comvi/next/navigation for convenience
 export { Link, usePathname, useLocalizedRouter } from "@comvi/next/navigation";

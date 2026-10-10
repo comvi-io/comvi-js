@@ -1,153 +1,141 @@
 /**
- * Core Integration Tests
- * Tests the full system working together: Core orchestrating
- * DOMWatcher, TextNodeProcessor, TranslatedElementsMap, and ElementHighlighter
+ * The real Core over a real DOM, read through what a translator sees: the
+ * Alt+hover tooltip, whose text is the key the scanner decoded onto the element.
+ * `Core.getRegistry()` exposes the decoded data itself.
  */
-
 import { describe, it, expect, afterEach } from "vitest";
-import { Core } from "../src/Core";
+import { Core, type EditorI18n } from "../src/Core";
 import { encodeKeyToInvisible, registerKey, loadKeyMappings } from "../src/translation";
 import { TAG_ATTRIBUTES } from "../src/constants";
-import { cleanupDOM } from "./helpers";
+import {
+  cleanupDOM,
+  flushDOMMutations,
+  getActiveOverlay,
+  simulateKeyEvent,
+  simulateMouseEvent,
+} from "./helpers";
+import { hoverLabelNow as hoverLabel } from "./helpers/editorPage";
 
-/** Wait for MutationObserver callbacks to process DOM mutations */
-const flushDOMMutations = async () => {
-  await new Promise((r) => setTimeout(r, 0));
-  await new Promise((r) => requestAnimationFrame(r));
-  await new Promise((r) => setTimeout(r, 0));
-};
+/** Every Core a test built, stopped afterwards so a failed assertion leaks no runtime. */
+const cores: Core[] = [];
+function startCore(...args: ConstructorParameters<typeof Core>): Core {
+  const core = new Core(...args);
+  cores.push(core);
+  core.start();
+  return core;
+}
 
-describe("Core.integration.test.ts - Full System Integration", () => {
+function renderTarget(tag = "div"): HTMLElement {
+  const container = document.createElement(tag);
+  document.body.appendChild(container);
+  return container;
+}
+
+function markedHeading(key: string): HTMLHeadingElement {
+  const h1 = document.createElement("h1");
+  h1.appendChild(document.createTextNode(`Welcome ${encodeKeyToInvisible(registerKey(key))}`));
+  return h1;
+}
+
+function withMarkedAttribute<T extends HTMLElement>(element: T, name: string, key: string): T {
+  element.setAttribute(name, `Text ${encodeKeyToInvisible(registerKey(key))}`);
+  return element;
+}
+
+describe("Core end-to-end", () => {
   afterEach(() => {
+    for (const core of cores.splice(0)) core.stop();
     cleanupDOM();
-    loadKeyMappings({}); // Clear key mappings between tests
+    loadKeyMappings({});
   });
 
-  describe("End-to-end flow with encoded content", () => {
-    it("should process encoded text through entire pipeline", async () => {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
+  describe("scanning marked content", () => {
+    it("marked text node in the target at start() → shows its key on Alt+hover", async () => {
+      const container = renderTarget();
+      const h1 = markedHeading("home.title");
+      container.append(h1);
 
-      // Register keys
-      const titleKey = registerKey("home.title");
-      const descKey = registerKey("home.description");
-
-      // Create DOM with encoded content
-      const h1 = document.createElement("h1");
-      const titleText = document.createTextNode(`Welcome ${encodeKeyToInvisible(titleKey)}`);
-      h1.appendChild(titleText);
-
-      const p = document.createElement("p");
-      p.setAttribute("title", `Tooltip ${encodeKeyToInvisible(descKey)}`);
-      const descText = document.createTextNode("Description");
-      p.appendChild(descText);
-
-      container.appendChild(h1);
-      container.appendChild(p);
-
-      // Create Core system
-      const core = new Core({
-        targetElement: container,
-        tagAttributes: TAG_ATTRIBUTES,
-      });
-
-      core.start();
-
-      // Wait for initial scan
+      startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
       await flushDOMMutations();
 
-      core.stop();
-
-      // Verify core processed content without errors
-      expect(h1.textContent).toContain("Welcome");
-      expect(p.getAttribute("title")).toContain("Tooltip");
-
-      container.remove();
+      expect(hoverLabel(h1)).toBe("home.title (default)");
     });
 
-    it("should handle dynamic content additions with encoding", async () => {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
+    it("marked title attribute in the target at start() → shows its key on Alt+hover", async () => {
+      const container = renderTarget();
+      const p = withMarkedAttribute(document.createElement("p"), "title", "home.description");
+      container.append(p);
 
-      const core = new Core({
-        targetElement: container,
-        tagAttributes: TAG_ATTRIBUTES,
-      });
+      startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+      await flushDOMMutations();
 
-      core.start();
+      expect(hoverLabel(p)).toBe("home.description (default)");
+    });
 
-      // Add content dynamically
-      const key = registerKey("dynamic.key");
-      const encoded = encodeKeyToInvisible(key);
+    it("marked element appended after start() → shows its key on Alt+hover", async () => {
+      const container = renderTarget();
+      startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+      const newDiv = withMarkedAttribute(
+        document.createElement("div"),
+        "aria-label",
+        "dynamic.key",
+      );
 
-      const newDiv = document.createElement("div");
-      newDiv.setAttribute("aria-label", `Dynamic ${encoded}`);
       container.appendChild(newDiv);
-
       await flushDOMMutations();
 
-      core.stop();
-      container.remove();
-
-      // Verify element was added and processed
-      expect(newDiv.getAttribute("aria-label")).toContain("Dynamic");
+      expect(hoverLabel(newDiv)).toBe("dynamic.key (default)");
     });
 
-    it("should handle multiple elements with different keys", async () => {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
+    it("three elements with different keys → each shows its own key on Alt+hover", async () => {
+      const container = renderTarget();
+      startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+      const divs = ["key1", "key2", "key3"].map((key) =>
+        withMarkedAttribute(document.createElement("div"), "title", key),
+      );
 
-      const keys = ["key1", "key2", "key3", "key4", "key5"].map(registerKey);
-      const core = new Core({
-        targetElement: container,
-        tagAttributes: TAG_ATTRIBUTES,
-      });
-
-      core.start();
-
-      // Add multiple elements
-      keys.forEach((key, index) => {
-        const div = document.createElement("div");
-        div.setAttribute("title", `Title ${index} ${encodeKeyToInvisible(key)}`);
-        container.appendChild(div);
-      });
-
+      container.append(...divs);
       await flushDOMMutations();
 
-      core.stop();
-      container.remove();
+      expect(divs.map(hoverLabel)).toEqual(["key1 (default)", "key2 (default)", "key3 (default)"]);
+    });
 
-      // Verify all elements were processed
-      expect(keys.length).toBe(5);
+    it("marked heading scanned → getRegistry() lists exactly that element", async () => {
+      const container = renderTarget();
+      const h1 = markedHeading("home.title");
+      container.appendChild(h1);
+
+      const core = startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+      await flushDOMMutations();
+
+      expect([...core.getRegistry().getElements()]).toEqual([h1]);
+    });
+
+    it("key in the host's default namespace → the hover label omits the namespace suffix", async () => {
+      const host = { getDefaultNamespace: () => "default" } as unknown as EditorI18n;
+      const container = renderTarget();
+      const h1 = markedHeading("home.title");
+      container.appendChild(h1);
+
+      startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES }, host);
+      await flushDOMMutations();
+
+      expect(hoverLabel(h1)).toBe("home.title");
     });
   });
 
-  describe("System lifecycle", () => {
-    it("should start and stop without errors", () => {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-
-      const core = new Core({
-        targetElement: container,
-        tagAttributes: TAG_ATTRIBUTES,
-      });
+  describe("lifecycle", () => {
+    it("start() then stop() → neither throws", () => {
+      const core = new Core({ targetElement: renderTarget(), tagAttributes: TAG_ATTRIBUTES });
 
       expect(() => {
         core.start();
         core.stop();
       }).not.toThrow();
-
-      container.remove();
     });
 
-    it("should handle multiple start/stop cycles", () => {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-
-      const core = new Core({
-        targetElement: container,
-        tagAttributes: TAG_ATTRIBUTES,
-      });
+    it("five start()/stop() cycles on one Core → none throws", () => {
+      const core = new Core({ targetElement: renderTarget(), tagAttributes: TAG_ATTRIBUTES });
 
       expect(() => {
         for (let i = 0; i < 5; i++) {
@@ -155,91 +143,9 @@ describe("Core.integration.test.ts - Full System Integration", () => {
           core.stop();
         }
       }).not.toThrow();
-
-      container.remove();
-    });
-  });
-
-  describe("Memory management", () => {
-    it("should clean up event listeners when stopped", () => {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-
-      const core = new Core({
-        targetElement: container,
-        tagAttributes: TAG_ATTRIBUTES,
-      });
-
-      core.start();
-
-      // Add some content
-      const div = document.createElement("div");
-      container.appendChild(div);
-
-      core.stop();
-
-      // After stop, mutations should not be processed
-      const div2 = document.createElement("div");
-      container.appendChild(div2);
-
-      container.remove();
-
-      // Verify cleanup is proper - no errors should occur
-      expect(container.contains(div)).toBe(true);
-      expect(container.contains(div2)).toBe(true);
-    });
-  });
-
-  describe("Element click handling", () => {
-    it("should handle element with single key", () => {
-      // This is more of a structural test since we can't easily test the modal
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-
-      const core = new Core({
-        targetElement: container,
-        tagAttributes: TAG_ATTRIBUTES,
-      });
-
-      core.start();
-
-      const key = registerKey("single.key");
-      const encoded = encodeKeyToInvisible(key);
-      const button = document.createElement("button");
-      button.textContent = `Click ${encoded}`;
-      container.appendChild(button);
-
-      // Can't easily test click without full modal integration
-      // This test ensures the structure is in place
-
-      core.stop();
-      container.remove();
-
-      // Verify button was created with encoded content
-      expect(button.textContent).toContain("Click");
-    });
-  });
-
-  describe("Configuration options", () => {
-    it("should respect custom targetElement", () => {
-      const customTarget = document.createElement("section");
-      customTarget.id = "custom-target";
-      document.body.appendChild(customTarget);
-
-      const core = new Core({
-        targetElement: customTarget,
-        tagAttributes: TAG_ATTRIBUTES,
-      });
-
-      expect(() => {
-        core.start();
-        core.stop();
-      }).not.toThrow();
-
-      customTarget.remove();
     });
 
-    it("should work with default configuration", () => {
+    it("Core built with no options → start() and stop() do not throw", () => {
       const core = new Core();
 
       expect(() => {
@@ -247,92 +153,122 @@ describe("Core.integration.test.ts - Full System Integration", () => {
         core.stop();
       }).not.toThrow();
     });
+  });
 
-    it("should respect custom tagAttributes", () => {
-      const customAttributes = {
-        div: ["data-custom"],
-        span: ["data-test"],
-      };
+  describe("after stop()", () => {
+    it("marked element appended after stop() → no key on Alt+hover", async () => {
+      const container = renderTarget();
+      const core = startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+      core.stop();
+      const div = withMarkedAttribute(document.createElement("div"), "title", "after.stop");
 
-      const core = new Core({
-        tagAttributes: customAttributes,
-      });
-
-      expect(() => {
-        core.start();
-        core.stop();
-      }).not.toThrow();
-    });
-
-    it("should use default TAG_ATTRIBUTES when tagAttributes is undefined", async () => {
-      // Regression test for bug where undefined tagAttributes caused
-      // "Cannot read properties of undefined (reading 'body')" error
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-
-      // Simulate plugin passing undefined tagAttributes
-      const core = new Core({
-        targetElement: container,
-        tagAttributes: undefined,
-      });
-
-      expect(() => {
-        core.start();
-      }).not.toThrow();
-
-      // Add content with attributes that should be checked by default TAG_ATTRIBUTES
-      const key = registerKey("test.key");
-      const encoded = encodeKeyToInvisible(key);
-
-      const input = document.createElement("input");
-      input.setAttribute("placeholder", `Enter text ${encoded}`);
-      container.appendChild(input);
-
-      // Wait for processing
-      await flushDOMMutations();
-
-      // Should process without errors
-      expect(() => {
-        core.stop();
-      }).not.toThrow();
-
-      container.remove();
-    });
-
-    it("should use default TAG_ATTRIBUTES when options object is empty", async () => {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-
-      // Pass empty options object
-      const core = new Core({});
-
-      expect(() => {
-        core.start();
-      }).not.toThrow();
-
-      // Test with various HTML elements that have default tag attributes
-      const key1 = registerKey("test.placeholder");
-      const key2 = registerKey("test.aria");
-      const encoded1 = encodeKeyToInvisible(key1);
-      const encoded2 = encodeKeyToInvisible(key2);
-
-      const textarea = document.createElement("textarea");
-      textarea.setAttribute("placeholder", `Type here ${encoded1}`);
-      container.appendChild(textarea);
-
-      const div = document.createElement("div");
-      div.setAttribute("aria-label", `Label ${encoded2}`);
       container.appendChild(div);
-
-      // Wait for processing
       await flushDOMMutations();
 
-      // Should process all elements without errors
-      expect(() => {
-        core.stop();
-      }).not.toThrow();
+      expect(hoverLabel(div)).toBeNull();
+    });
 
-      container.remove();
+    it("stopped while the pointer rests on marked text → pressing Alt draws no overlay", async () => {
+      const container = renderTarget();
+      const heading = markedHeading("home.title");
+      container.appendChild(heading);
+      const core = startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+      await flushDOMMutations();
+      simulateMouseEvent(heading, "mouseover");
+      core.stop();
+
+      simulateKeyEvent("keydown", "Alt");
+
+      expect(getActiveOverlay()).toBeNull();
+    });
+  });
+
+  describe("configuration options", () => {
+    it("custom targetElement → marked content inside it shows its key", async () => {
+      const customTarget = renderTarget("section");
+      startCore({ targetElement: customTarget, tagAttributes: TAG_ATTRIBUTES });
+      const inside = withMarkedAttribute(document.createElement("div"), "title", "inside.key");
+
+      customTarget.appendChild(inside);
+      await flushDOMMutations();
+
+      expect(hoverLabel(inside)).toBe("inside.key (default)");
+    });
+
+    it("custom targetElement → marked content outside it shows no key", async () => {
+      const customTarget = renderTarget("section");
+      const outside = renderTarget();
+      startCore({ targetElement: customTarget, tagAttributes: TAG_ATTRIBUTES });
+
+      withMarkedAttribute(outside, "title", "outside.key");
+      await flushDOMMutations();
+
+      expect(hoverLabel(outside)).toBeNull();
+    });
+
+    it("custom tagAttributes naming data-custom → a marked data-custom attribute shows its key", async () => {
+      const container = renderTarget();
+      startCore({ targetElement: container, tagAttributes: { div: ["data-custom"] } });
+      const watched = withMarkedAttribute(
+        document.createElement("div"),
+        "data-custom",
+        "custom.key",
+      );
+
+      container.append(watched);
+      await flushDOMMutations();
+
+      expect(hoverLabel(watched)).toBe("custom.key (default)");
+    });
+
+    it("custom tagAttributes without title → a marked title attribute shows no key", async () => {
+      const container = renderTarget();
+      startCore({ targetElement: container, tagAttributes: { div: ["data-custom"] } });
+      const unwatched = withMarkedAttribute(document.createElement("div"), "title", "title.key");
+
+      container.append(unwatched);
+      await flushDOMMutations();
+
+      expect(hoverLabel(unwatched)).toBeNull();
+    });
+
+    it("tagAttributes: undefined → the default rules apply and a marked placeholder shows its key", async () => {
+      // Regression: undefined tagAttributes used to crash with
+      // "Cannot read properties of undefined (reading 'body')".
+      const container = renderTarget();
+      startCore({ targetElement: container, tagAttributes: undefined });
+      const input = withMarkedAttribute(document.createElement("input"), "placeholder", "test.key");
+
+      container.appendChild(input);
+      await flushDOMMutations();
+
+      expect(hoverLabel(input)).toBe("test.key (default)");
+    });
+
+    it("empty options → the default rules apply to a marked <textarea> placeholder", async () => {
+      const container = renderTarget();
+      startCore({});
+      const textarea = withMarkedAttribute(
+        document.createElement("textarea"),
+        "placeholder",
+        "test.placeholder",
+      );
+
+      container.append(textarea);
+      await flushDOMMutations();
+
+      expect(hoverLabel(textarea)).toBe("test.placeholder (default)");
+    });
+
+    it("empty options → the default rules apply to a marked aria-label", async () => {
+      const container = renderTarget();
+      startCore({});
+      const div = withMarkedAttribute(document.createElement("div"), "aria-label", "test.aria");
+
+      container.append(div);
+      await flushDOMMutations();
+
+      expect(hoverLabel(div)).toBe("test.aria (default)");
     });
   });
 });

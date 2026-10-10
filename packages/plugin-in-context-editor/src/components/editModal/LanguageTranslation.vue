@@ -30,6 +30,12 @@ const selectConfig = computed<LanguageSelectConfig | undefined>(() =>
   translationManager?.getSelectConfig?.(props.lang.code),
 );
 const useSelectForms = computed(() => selectConfig.value?.enabled ?? false);
+// ICU the form fields cannot rebuild byte for byte is edited as written.
+const isRaw = computed<boolean>(
+  () => translationManager?.isRawLanguage?.(props.lang.code) ?? false,
+);
+// The form stays on screen during a save, read-only.
+const isSaving = computed<boolean>(() => translationManager?.isSaving?.value ?? false);
 
 const { presets, getDefaultPreset, detectPresetFromForms } = useSelectPresets();
 const selectedPresetId = ref<string>("formality");
@@ -181,6 +187,7 @@ const formChipClass =
         <label class="flex items-center gap-2 cursor-pointer">
           <Checkbox
             v-model="useSelectForms"
+            :disabled="isRaw || isSaving"
             @update:model-value="
               (value: boolean | 'indeterminate') => handleSelectToggle(value === true)
             "
@@ -202,6 +209,7 @@ const formChipClass =
           <span class="text-xs text-muted-foreground">Preset:</span>
           <Select
             :model-value="selectedPresetId"
+            :disabled="isSaving"
             @update:model-value="(v) => handlePresetChange(String(v))"
           >
             <SelectTrigger class="w-32 h-8">
@@ -223,6 +231,7 @@ const formChipClass =
           <Input
             class="w-32 h-8"
             :model-value="customVariable"
+            :disabled="isSaving"
             placeholder="select"
             @update:model-value="(v: string | number) => updateCustomVariable(String(v))"
           />
@@ -231,10 +240,13 @@ const formChipClass =
           <Input
             v-model="customOptionInput"
             class="flex-1 h-8"
+            :disabled="isSaving"
             placeholder="Add option (e.g., formal, informal)"
             @keyup.enter="addCustomOption"
           />
-          <Button size="sm" variant="outline" @click="addCustomOption">Add</Button>
+          <Button size="sm" variant="outline" :disabled="isSaving" @click="addCustomOption"
+            >Add</Button
+          >
         </div>
         <div v-if="selectForms.length > 0" class="flex flex-wrap gap-2">
           <span
@@ -243,14 +255,46 @@ const formChipClass =
             class="inline-flex items-center gap-1 px-2 py-1 border border-line-2 text-muted-foreground text-xs"
           >
             {{ option }}
-            <button class="hover:text-foreground" @click="removeCustomOption(option)">×</button>
+            <button
+              class="hover:text-foreground disabled:opacity-50"
+              :disabled="isSaving"
+              @click="removeCustomOption(option)"
+            >
+              ×
+            </button>
           </span>
         </div>
         <p v-else class="text-xs text-muted-foreground">No options added yet</p>
       </div>
 
+      <!-- RAW: ICU edited as written -->
+      <div v-if="isRaw">
+        <p class="text-xs text-muted-foreground mb-2">
+          This message uses ICU syntax the form fields cannot rebuild exactly, so it is edited as
+          written.
+        </p>
+        <div
+          :class="[
+            'transition-colors',
+            isFieldDirty('other') ? 'border-l-2 border-l-warn pl-2' : '',
+          ]"
+        >
+          <HighlightedTextarea
+            :disabled="isSaving"
+            class="min-h-24 mb-1"
+            :locale-code="lang.code"
+            :model-value="translations?.other || ''"
+            :placeholder="`Enter ${lang.name} translation...`"
+            @update:model-value="(v: string | number) => handleTranslationChange(String(v))"
+          />
+          <div class="flex justify-end mb-3">
+            <span class="text-xs text-muted-foreground">{{ charCount("other") }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- COMBINED: Plural + Select mode -->
-      <div v-if="usePluralForms && useSelectForms" class="space-y-4">
+      <div v-else-if="usePluralForms && useSelectForms" class="space-y-4">
         <div v-for="selectForm in selectForms" :key="selectForm" class="border p-3">
           <div class="mb-3">
             <span :class="[formChipClass, 'border-primary/30 bg-accent-soft text-primary']">
@@ -273,6 +317,7 @@ const formChipClass =
                 ]"
               >
                 <HighlightedTextarea
+                  :disabled="isSaving"
                   class="min-h-12 text-sm"
                   :locale-code="lang.code"
                   :model-value="translations?.[`${selectForm}:${pluralForm}`] || ''"
@@ -330,6 +375,7 @@ const formChipClass =
                 ]"
               >
                 <HighlightedTextarea
+                  :disabled="isSaving"
                   class="min-h-16 mb-1"
                   :locale-code="lang.code"
                   :model-value="translations?.[form] || ''"
@@ -362,6 +408,7 @@ const formChipClass =
             ]"
           >
             <HighlightedTextarea
+              :disabled="isSaving"
               class="min-h-16 mb-1"
               :locale-code="lang.code"
               :model-value="translations?.[form] || ''"
@@ -386,6 +433,7 @@ const formChipClass =
           ]"
         >
           <HighlightedTextarea
+            :disabled="isSaving"
             class="min-h-24 mb-1"
             :locale-code="lang.code"
             :model-value="translations?.other || ''"

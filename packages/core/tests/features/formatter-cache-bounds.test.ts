@@ -1,156 +1,125 @@
-import { describe, it, expect } from "vitest";
-import { I18n, formatNumber, formatDate, formatRelativeTime } from "../../src";
+import { describe, it, expect, beforeEach } from "vitest";
+import type { LocaleSource } from "../../src";
+import {
+  formatNumber,
+  formatDate,
+  formatRelativeTime,
+  getTextDirection,
+  _formatterCacheSize,
+  _resetFormatterCaches,
+} from "../../src/format";
 
 /**
- * Behavioural tests for the bounded Intl formatter caches introduced in fix/v030-core-reactivity.
- *
- * The caches (_numberFormatCache, _dateFormatCache, _relativeTimeFormatCache) are private,
- * so we exercise them purely through the public formatNumber / formatDate / formatRelativeTime
- * APIs.  The goal is to show that:
- *   1. Correctness is preserved after the FIFO eviction threshold (1000) is crossed.
- *   2. The process does not throw or produce garbled output when the cache wraps over.
+ * `FORMATTER_CACHE_MAX` (src/format.ts) is 1000 and is not exported, so every
+ * expected size below is written as the literal entry count it produces.
+ * `_formatterCacheSize()` sums the three Intl caches and the text-direction one.
  */
 
-// Real BCP-47 locale tags used for cache-key variation.
-// 30 locales × 21 fractionDigit values (0-20) = 630 keys per locale-set sweep;
-// two sweeps give 1260 keys, safely over FORMATTER_CACHE_MAX = 1000.
-const LOCALES = [
-  "en",
-  "fr",
-  "de",
-  "ja",
-  "zh",
-  "ko",
-  "es",
-  "pt",
-  "it",
-  "ru",
-  "ar",
-  "tr",
-  "nl",
-  "pl",
-  "sv",
-  "da",
-  "fi",
-  "no",
-  "cs",
-  "hu",
-  "ro",
-  "el",
-  "he",
-  "uk",
-  "vi",
-  "th",
-  "id",
-  "ms",
-  "fa",
-  "hr",
-];
+// The helpers take a `LocaleSource`, so a plain object is the whole contract —
+// no I18n instance, and nothing that could populate a cache behind the test.
+const source: LocaleSource = { locale: "en" };
 
-/** Fill `i18n`'s number-format cache with >1000 distinct (locale, options) keys. */
-function fillNumberCache(i18n: I18n, count: number): void {
-  let filled = 0;
-  outer: for (let sweep = 0; sweep < 2; sweep++) {
-    for (const loc of LOCALES) {
-      for (let digits = 0; digits <= 20; digits++) {
-        formatNumber(i18n, 1, { maximumFractionDigits: digits }, loc);
-        if (++filled >= count) break outer;
-      }
-    }
-  }
+const DATE = new Date(Date.UTC(2026, 4, 19));
+const MONTH: Intl.DateTimeFormatOptions = { month: "long", timeZone: "UTC" };
+const UTC: Intl.DateTimeFormatOptions = { timeZone: "UTC" };
+
+/**
+ * `-x-…` is a private-use subtag: every tag below is a distinct cache key that
+ * still resolves to English data, so a sweep costs one formatter per key and
+ * nothing else.
+ */
+const tag = (n: number): string => `en-x-k${n}`;
+
+function fillNumberCache(count: number): void {
+  for (let n = 0; n < count; n++) formatNumber(source, 1, undefined, tag(n));
 }
 
-const OVER_MAX = 1100;
+function fillDateCache(count: number): void {
+  for (let n = 0; n < count; n++) formatDate(source, DATE, UTC, tag(n));
+}
 
-describe("Intl formatter cache — bounded FIFO eviction", () => {
-  describe("formatNumber", () => {
-    it("returns correct output for a known (value, locale, options) after >1000 distinct keys are cached", () => {
-      const i18n = new I18n({ locale: "en" });
+function fillRelativeTimeCache(count: number): void {
+  for (let n = 0; n < count; n++) formatRelativeTime(source, -1, "day", undefined, tag(n));
+}
 
-      fillNumberCache(i18n, OVER_MAX);
+beforeEach(_resetFormatterCaches);
 
-      const expected = new Intl.NumberFormat("en", { style: "percent" }).format(0.5);
-      expect(formatNumber(i18n, 0.5, { style: "percent" }, "en")).toBe(expected);
-    });
+describe("Intl formatter caches — the bounded FIFO", () => {
+  it("adds one entry per distinct (locale, options) key", () => {
+    formatNumber(source, 1, undefined, "en");
+    formatNumber(source, 1, undefined, "de");
+    formatNumber(source, 1, { style: "percent" }, "en");
 
-    it("produces the same result as a fresh Intl.NumberFormat after the eviction boundary", () => {
-      const i18n = new I18n({ locale: "en" });
-
-      fillNumberCache(i18n, OVER_MAX);
-
-      const value = 9876.54;
-      const locale = "de";
-      const expected = new Intl.NumberFormat(locale).format(value);
-      expect(formatNumber(i18n, value, undefined, locale)).toBe(expected);
-    });
+    expect(_formatterCacheSize()).toBe(3);
   });
 
-  describe("formatDate", () => {
-    it("returns correct output for a known (date, locale) after >1000 distinct keys are cached", () => {
-      const i18n = new I18n({ locale: "en" });
-      const testDate = new Date(2025, 5, 1); // 2025-06-01
+  it("serves a repeated key from the cache instead of adding an entry", () => {
+    const first = formatNumber(source, 1234.5, undefined, "de");
+    const second = formatNumber(source, 1234.5, undefined, "de");
 
-      // Vary (locale, dateStyle) to produce >1000 distinct cache keys.
-      const dateStyles: Intl.DateTimeFormatOptions["dateStyle"][] = [
-        "full",
-        "long",
-        "medium",
-        "short",
-      ];
-      let filled = 0;
-      outer: for (let sweep = 0; sweep < 2; sweep++) {
-        for (const loc of LOCALES) {
-          for (const style of dateStyles) {
-            formatDate(i18n, testDate, { dateStyle: style }, loc);
-            if (++filled >= OVER_MAX) break outer;
-          }
-        }
-      }
-
-      const opts: Intl.DateTimeFormatOptions = { year: "numeric", month: "long", day: "numeric" };
-      const expected = new Intl.DateTimeFormat("fr", opts).format(testDate);
-      expect(formatDate(i18n, testDate, opts, "fr")).toBe(expected);
-    });
+    expect(second).toBe(first);
+    expect(_formatterCacheSize()).toBe(1);
   });
 
-  describe("formatRelativeTime", () => {
-    it("returns correct output for a known (value, unit, locale) after >1000 distinct keys are cached", () => {
-      const i18n = new I18n({ locale: "en" });
+  it("counts the number, date, relative-time and text-direction caches together", () => {
+    formatNumber(source, 1, undefined, "en");
+    formatDate(source, DATE, UTC, "en");
+    formatRelativeTime(source, -1, "day", undefined, "en");
+    getTextDirection("ar");
 
-      // Vary (locale, numeric) options to produce many distinct cache keys.
-      const numericOpts: Intl.RelativeTimeFormatNumeric[] = ["always", "auto"];
-      let filled = 0;
-      outer: for (let sweep = 0; sweep < 2; sweep++) {
-        for (const loc of LOCALES) {
-          for (const numeric of numericOpts) {
-            formatRelativeTime(i18n, -1, "day", { numeric }, loc);
-            if (++filled >= OVER_MAX) break outer;
-          }
-        }
-      }
-
-      const expected = new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-1, "day");
-      expect(formatRelativeTime(i18n, -1, "day", { numeric: "auto" }, "en")).toBe(expected);
-    });
+    expect(_formatterCacheSize()).toBe(4);
   });
 
-  describe("cross-eviction correctness", () => {
-    it("calling the same (locale, options) key before and after eviction returns identical results", () => {
-      const i18n = new I18n({ locale: "en" });
-      const pinLocale = "ja";
-      const pinValue = 12345.6;
+  it("holds every key while they fit: 1000 distinct number keys → 1000 entries", () => {
+    fillNumberCache(1000);
 
-      // Get a baseline result before eviction (this populates the cache for "ja").
-      const before = formatNumber(i18n, pinValue, undefined, pinLocale);
+    expect(_formatterCacheSize()).toBe(1000);
+  });
 
-      // Push the cache past the eviction threshold, evicting the pinned "ja" entry.
-      fillNumberCache(i18n, OVER_MAX);
+  it("stops growing at the bound: 1001 distinct number keys → 1000 entries", () => {
+    fillNumberCache(1001);
 
-      // The pinned entry was evicted; re-creating it must yield the same result.
-      const after = formatNumber(i18n, pinValue, undefined, pinLocale);
+    expect(_formatterCacheSize()).toBe(1000);
+  });
 
-      expect(after).toBe(before);
-      expect(after).toBe(new Intl.NumberFormat(pinLocale).format(pinValue));
+  it("bounds each cache separately: a full number cache plus one date and one relative-time key → 1002 entries", () => {
+    fillNumberCache(1001);
+
+    formatDate(source, DATE, UTC, "en");
+    formatRelativeTime(source, -1, "day", undefined, "en");
+
+    expect(_formatterCacheSize()).toBe(1002);
+  });
+
+  describe("output across the eviction boundary", () => {
+    it("formatNumber returns the identical string for a key the sweep evicted", () => {
+      const before = formatNumber(source, 12345.6, undefined, "ja");
+
+      fillNumberCache(1001);
+
+      expect(_formatterCacheSize()).toBe(1000);
+      expect(formatNumber(source, 12345.6, undefined, "ja")).toBe("12,345.6");
+      expect(before).toBe("12,345.6");
+    });
+
+    it("formatDate returns the identical string for a key the sweep evicted", () => {
+      const before = formatDate(source, DATE, MONTH, "de");
+
+      fillDateCache(1001);
+
+      expect(_formatterCacheSize()).toBe(1000);
+      expect(formatDate(source, DATE, MONTH, "de")).toBe("Mai");
+      expect(before).toBe("Mai");
+    });
+
+    it("formatRelativeTime returns the identical string for a key the sweep evicted", () => {
+      const before = formatRelativeTime(source, -1, "day", { numeric: "auto" }, "en");
+
+      fillRelativeTimeCache(1001);
+
+      expect(_formatterCacheSize()).toBe(1000);
+      expect(formatRelativeTime(source, -1, "day", { numeric: "auto" }, "en")).toBe("yesterday");
+      expect(before).toBe("yesterday");
     });
   });
 });

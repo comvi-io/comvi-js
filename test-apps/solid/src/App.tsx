@@ -11,7 +11,6 @@ import RtlView from "./views/RtlView";
 function AppContent() {
   const { t, isLoading, locale } = useI18n();
 
-  // Simple hash-based routing
   const [currentPath, setCurrentPath] = createSignal(window.location.hash.slice(1) || "/");
 
   function navigate(path: string) {
@@ -20,14 +19,12 @@ function AppContent() {
   }
 
   onMount(() => {
-    // Load default namespace
     const defaultNs = i18n.getDefaultNamespace();
     const activeNamespaces = i18n.getActiveNamespaces();
     if (!activeNamespaces.includes(defaultNs)) {
       i18n.addActiveNamespace(defaultNs);
     }
 
-    // Listen for hash changes
     const handleHashChange = () => {
       setCurrentPath(window.location.hash.slice(1) || "/");
     };
@@ -36,7 +33,6 @@ function AppContent() {
     return () => window.removeEventListener("hashchange", handleHashChange);
   });
 
-  // Update document direction based on locale
   createEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.dir = locale() === "ar" ? "rtl" : "ltr";

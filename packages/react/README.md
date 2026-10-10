@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/react</h1>
 
-<p align="center">React binding for Comvi i18n — provider, hook, and <code>&lt;T&gt;</code> component.</p>
+<p align="center">React bindings for Comvi i18n: provider, hooks, and the <code>&lt;T&gt;</code> component.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/react"><img src="https://img.shields.io/npm/v/@comvi/react?color=blue" alt="npm"></a>
@@ -17,32 +17,9 @@
 
 ---
 
-`@comvi/react` wraps [`@comvi/core`](../core) for React. `<I18nProvider>` mounts an instance and auto-initializes it; `useI18n()` reads from it via `useSyncExternalStore`, so re-renders are precise and concurrent-mode safe. Requires React 18+.
-
-Same `t()` and `<T>` API as the [Vue](../vue), [SolidJS](../solid), and [Svelte](../svelte) bindings — switch frameworks without relearning your i18n layer.
-
-For Next.js App Router, use [`@comvi/next`](../next) — it adds SSR, middleware, and locale routing on top of this package.
-
-📖 **Documentation:** https://comvi.io/docs/i18n/react/
-
-⚖️ **Comparison:** [Comvi vs i18next](https://comvi.io/compare/i18next/)
-
-## Why Comvi i18n?
-
-Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
-
-- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
-- **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~8 kB minified + gzipped (as bundled by your app), zero runtime dependencies.** No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`. You only ship what you use.
-- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
-
-## Why @comvi/react?
-
-- **Concurrent rendering safe.** Built on native `useSyncExternalStore` — no tearing, safe with Suspense, Time Slicing, and Transitions.
-- **Efficient re-renders.** Selector hooks (`useLocale()`, `useIsLoading()`) let you skip updates on axes you don't need.
-- **Provider auto-init.** Wrap your app in `<I18nProvider>` and it handles initialization automatically — no manual `i18n.init()` calls.
+Translate a React app with `@comvi/react`: one provider at the root, `useI18n()` in components,
+and `<T>` for translations that contain markup. The package depends on `@comvi/core`, so one
+install is enough. The full guide is [React](https://comvi.io/docs/i18n/react) on the docs site.
 
 ## Install
 
@@ -51,13 +28,9 @@ npm install @comvi/react
 # Peer: react ^18.0.0 || ^19.0.0
 ```
 
-Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
+## Setup
 
-## Quick start
-
-```tsx
-// main.tsx
-import React from "react";
+```tsx title="src/main.tsx" check=group=react-1
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
 import App from "./App";
@@ -65,7 +38,7 @@ import App from "./App";
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  translation: {
+  messages: {
     en: { greeting: "Hello, {name}!" },
     uk: { greeting: "Привіт, {name}!" },
   },
@@ -78,12 +51,17 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-```tsx
-// App.tsx
+`createI18n` builds the i18n instance, which holds the catalog, the current locale and `t()`.
+`<I18nProvider>` initializes it on mount, so there is no `init()` call to write.
+
+## Use in components
+
+```tsx title="src/App.tsx" check=group=react-1
 import { useI18n } from "@comvi/react";
 
 export default function App() {
   const { t, locale, setLocale } = useI18n();
+
   return (
     <>
       <h1>{t("greeting", { name: "Alice" })}</h1>
@@ -96,329 +74,68 @@ export default function App() {
 }
 ```
 
-For `<T>` rich-text components, type-safe keys, fetch-loader integration, and the full hook API, see the [documentation](https://comvi.io/docs/i18n/react/).
+`t()` fills `{name}` from its second argument. `setLocale()` resolves once the new locale's
+translations are loaded and re-renders every component that called `useI18n()`.
+`useI18n('admin')` binds a namespace, so `t('dashboard')` reads `admin:dashboard`.
 
-## Error Boundaries
+## Load from Comvi
 
-Wrap `<I18nProvider>` in an Error Boundary to handle initialization failures gracefully:
+```bash
+npm install @comvi/plugin-fetch-loader
+```
 
-```tsx
-import React from "react";
+```tsx title="src/main.tsx" check=group=react-3
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  translation: {
-    /* ... */
-  },
-});
-
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) {
-      return <div>Failed to load translations. Please refresh the page.</div>;
-    }
-    return this.props.children;
-  }
-}
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
 
 createRoot(document.getElementById("root")!).render(
-  <ErrorBoundary>
-    <I18nProvider i18n={i18n}>
-      <App />
-    </I18nProvider>
-  </ErrorBoundary>,
-);
-```
-
-Alternatively, use a third-party Error Boundary library like [react-error-boundary](https://github.com/bvaughn/react-error-boundary).
-
-## Selector hooks (new in v0.3)
-
-For components that only need a slice of the i18n state, use these selector hooks to skip unnecessary re-renders.
-
-### `useLocale()` — locale only
-
-For routing, locale-aware UI, or anything that doesn't translate:
-
-```tsx
-import { useLocale } from "@comvi/react";
-
-function FlagIcon() {
-  const locale = useLocale();
-  return <img src={`/flags/${locale}.svg`} alt={locale} />;
-}
-```
-
-This hook skips re-renders on namespace loads and loading-state changes — only locale changes trigger updates.
-
-### `useIsLoading()` — loading state only
-
-For loading indicators and spinners:
-
-```tsx
-import { useIsLoading } from "@comvi/react";
-
-function LoadingIndicator() {
-  const { isLoading, isInitializing } = useIsLoading();
-  if (!isLoading && !isInitializing) return null;
-  return <div className="spinner" />;
-}
-```
-
-Skips re-renders on translation cache updates.
-
-### `useSetLocaleTransition()` — non-blocking locale switch
-
-Wraps `setLocaleAsync()` in a React `useTransition`, so the current UI stays interactive while the new locale's translations load:
-
-```tsx
-import { useSetLocaleTransition } from "@comvi/react";
-
-function LangSwitcher() {
-  const { isPending, setLocale } = useSetLocaleTransition();
-  return (
-    <button onClick={() => setLocale("fr")} disabled={isPending}>
-      {isPending ? "Loading…" : "Français"}
-    </button>
-  );
-}
-```
-
-Returns `{ isPending, setLocale }` — `isPending` is `true` while the transition resolves.
-
-### `useFormatters()` — locale-aware Intl formatters
-
-Number/date/currency/relative-time formatters bound to the React-tracked locale (output updates automatically on locale change; identity is stable per `(i18n, locale)`):
-
-```tsx
-import { useFormatters } from "@comvi/react";
-
-function Price({ amount }: { amount: number }) {
-  const { formatCurrency } = useFormatters();
-  return <p>{formatCurrency(amount, "USD")}</p>;
-}
-```
-
-Provides `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime`.
-
-## Using `useI18n()`
-
-`useI18n()` returns the full i18n bag: `{ i18n, locale, translationCache, isLoading, isInitializing, setLocale, t, tRaw, ... }`.
-
-```tsx
-import { useI18n } from "@comvi/react";
-
-function MyComponent() {
-  const { t, locale, setLocale } = useI18n();
-  return (
-    <>
-      <h1>{t("hello")}</h1>
-      <p>Current: {locale}</p>
-      <button onClick={() => setLocale("uk")}>Українська</button>
-    </>
-  );
-}
-```
-
-**Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip (intentional — the function now closes over the current locale). If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the actual trigger instead.
-
-**Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It still works through v0.3 but will be removed in v0.4 — use `useI18n()` instead.
-
-## Rich text with `<T>`
-
-Embed components inside translation strings without raw HTML, without unsafe DOM injection. Translators see clean markup; you control the rendering via the `components` prop.
-
-```json
-{ "help": "Click <link>here</link> for support, or <bold>read the docs</bold>." }
-```
-
-```tsx
-import { T } from "@comvi/react";
-
-export default function Help() {
-  return (
-    <T
-      i18nKey="help"
-      components={{
-        link: <a href="/help" />,
-        bold: <strong />,
-      }}
-    />
-  );
-}
-```
-
-The `link` and `bold` elements are cloned with children injected automatically. Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to catch translations referencing tags you forgot to handle before they ship.
-
-## ICU MessageFormat — locale-correct grammar, not just singular/plural
-
-`count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
-
-### Plurals across languages
-
-```json
-{
-  "en": { "messages": "{count, plural, one {# message} other {# messages}}" },
-  "uk": {
-    "messages": "{count, plural, one {# повідомлення} few {# повідомлення} many {# повідомлень} other {# повідомлення}}"
-  },
-  "ar": {
-    "messages": "{count, plural, zero {لا توجد رسائل} one {رسالة واحدة} two {رسالتان} few {# رسائل} many {# رسالة} other {# رسالة}}"
-  }
-}
-```
-
-```ts
-t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
-t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
-t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
-t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
-```
-
-A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count — grammatically wrong for half your traffic.
-
-### Ordinals (1st, 2nd, 3rd…)
-
-```json
-{ "rank": "{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}" }
-```
-
-```ts
-t("rank", { place: 1 }); // "1st"
-t("rank", { place: 22 }); // "22nd"
-t("rank", { place: 113 }); // "113th"
-```
-
-### Select (gender, role, status)
-
-```json
-{ "greeting": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
-```
-
-```ts
-t("greeting", { gender: "female" }); // "Welcome, madam"
-t("greeting", { gender: "male" }); // "Welcome, sir"
-t("greeting", { gender: "other" }); // "Welcome"
-```
-
-### Locale-aware Intl formatters
-
-Numbers, dates, currency, and relative time follow the active locale via native `Intl` — reactive in your framework binding:
-
-```tsx
-import { useI18n } from "@comvi/react";
-
-function Stats() {
-  const { t, formatNumber, formatCurrency, formatRelativeTime } = useI18n();
-
-  // Locale-aware plurals
-  const items = t("items", { count: 5 });
-
-  return (
-    <div>
-      <p>{items}</p>
-      <p>Total: {formatCurrency(1234.56, "USD")}</p>
-      <p>Growth: {formatNumber(1.25, { style: "percent" })}</p>
-      <p>Posted {formatRelativeTime(-2, "hour")}</p>
-    </div>
-  );
-}
-```
-
-Switching locale via `setLocale()` triggers re-renders through `useSyncExternalStore` — formatters always reflect the current language.
-
-## Type-safe translation keys
-
-Declaration merging on `TranslationKeys` provides autocomplete and parameter validation per key. Generated automatically via `@comvi/cli` (TMS) or `@comvi/vite-plugin` (local JSON).
-
-```typescript
-// src/types/i18n.d.ts
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    welcome: { name: string };
-    greeting: never;
-    "errors:NOT_FOUND": never;
-  }
-}
-```
-
-```tsx
-import { useI18n } from "@comvi/react";
-
-function Welcome() {
-  const { t } = useI18n();
-
-  // ✓ Autocomplete works, params required
-  const msg = t("welcome", { name: "Alice" });
-
-  // ✓ No params needed
-  const greeting = t("greeting");
-
-  // ✓ Namespaced keys use the ns option
-  const notFound = t("NOT_FOUND", { ns: "errors" });
-
-  return <h1>{msg}</h1>;
-}
-```
-
-**What TypeScript catches:**
-
-```ts
-// ✗ Expected 2 arguments, but got 1
-t("welcome");
-
-// ✗ Property 'name' is missing in type '{ age: number }'
-t("welcome", { age: 5 });
-
-// ✗ Type 'number' is not assignable to type 'string'
-t("welcome", { name: 42 });
-
-// ✗ Argument of type '"typo"' is not assignable to parameter
-t("typo", { name: "Alice" });
-```
-
-## Loading translations from the Comvi platform
-
-Pair with `@comvi/plugin-fetch-loader` to load translations from a CDN or API. No redeploy needed to ship a translation:
-
-```tsx
-// main.tsx
-import { createRoot } from "react-dom/client";
-import { createI18n, I18nProvider } from "@comvi/react";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
-import App from "./App";
-
-const i18n = createI18n({
-  locale: "en",
-  defaultNs: "common",
-});
-
-// CDN for production, API for dev/staging
-i18n.use(
-  FetchLoader({
-    cdnUrl: "https://cdn.comvi.io/your-distribution-id",
-  }),
-);
-
-createRoot(document.getElementById("root")!).render(
-  <I18nProvider i18n={i18n}>
+  <I18nProvider i18n={i18n} fallback={<div className="spinner" />}>
     <App />
   </I18nProvider>,
 );
 ```
 
-See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/main/packages/plugin-fetch-loader) for full options and API endpoints.
+`.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN. Compose inside the `createI18n` expression,
+because the provider calls `init()` for you. `fallback` renders in place of the children until the
+i18n instance is initialized, so raw keys never paint. The CDN URL is on
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
+(`{count, plural, …}`), add `compiler: icuCompiler` as on
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
+independent, and either works without the other.
+
+## Specific to React
+
+- `<I18nProvider>` takes `i18n`, `fallback`, `autoInit`, `onError`, `ssrLocale`, `ssrInitialIsLoading`,
+  `ssrInitialIsInitializing`, `targetLocale` and `messages`. Leave `fallback` off when a server render already
+  produced real text. `targetLocale` renders the tree in the locale you are switching the i18n
+  instance to, until the i18n instance's locale moves, so text commits together with markup that comes with the switch.
+  `messages` are catalogs that arrive with the render: the children translate from them at once, and the provider
+  adds them to the i18n instance when the render commits, so a render React abandons, or a server render, never
+  writes the i18n instance. Keep the `messages` object stable across renders (module scope, `useMemo`,
+  or the server payload): an inline literal is a new object on every parent render, and each one is
+  added again and re-renders every `useI18n()` consumer.
+- `useLocale()` and `useIsLoading()` subscribe to one slice of the state, so namespace loads do not
+  re-render a component that only shows the locale.
+- `useSetLocaleTransition()` wraps the switch in `useTransition`, so the old UI stays interactive
+  while the new catalog loads. The provider subscribes through `useSyncExternalStore`.
+- `<T>` maps each tag a translator wrote to a React element, a function component or an HTML tag
+  name; children render when the key is missing. Plain `t()` does not parse tags. Define handler
+  components outside render, as with any component.
+- `@comvi/react` ships no SSR adapter. On Next.js use [`@comvi/next`](https://comvi.io/docs/i18n/next).
+
+## Next steps
+
+- [React guide](https://comvi.io/docs/i18n/react): markup inside a translation, first paint, SSR.
+- [Loading translations](https://comvi.io/docs/i18n/loading-translations): `loader(map)`, namespaces and `useI18nLoader()`.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `t()` and `<T>` check keys and params.
+- [React API reference](https://comvi.io/docs/i18n/api/react): every export, hook and provider prop.
 
 ## License
 

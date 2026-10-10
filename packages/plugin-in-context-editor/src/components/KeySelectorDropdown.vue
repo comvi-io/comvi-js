@@ -13,6 +13,8 @@ interface TranslationPreview {
   key: string;
   ns: string;
   preview: string;
+  /** The stored value untruncated, to tell whether it repeats the page text. */
+  fullText: string;
   isLoading: boolean;
 }
 
@@ -21,6 +23,8 @@ const props = defineProps<{
   position: { top: number; left: number };
   open: Ref<boolean>;
   defaultNs?: string;
+  /** API scope the previews are loaded through. */
+  instanceId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -39,19 +43,21 @@ onMounted(async () => {
       key: item.key,
       ns: item.ns,
       preview: "",
+      fullText: "",
       isLoading: true,
     });
 
     try {
-      const translationData = await getTranslation(item.key, item.ns);
+      const translationData = await getTranslation(item.key, item.ns, props.instanceId);
       const firstLang = Object.keys(translationData?.translations || {})[0];
       const firstForm = firstLang
         ? Object.keys(translationData?.translations[firstLang] || {})[0]
         : null;
 
       let preview = "(No translation yet)";
+      let fullText = "";
       if (firstLang && firstForm) {
-        const fullText = translationData?.translations[firstLang]?.[firstForm] || "";
+        fullText = translationData?.translations[firstLang]?.[firstForm] || "";
         preview = fullText.length > 60 ? fullText.substring(0, 60) + "..." : fullText;
       }
 
@@ -59,14 +65,16 @@ onMounted(async () => {
         key: item.key,
         ns: item.ns,
         preview,
+        fullText,
         isLoading: false,
       });
     } catch (error) {
-      console.error("Error loading translation preview:", error);
+      console.error("[@comvi/plugin-in-context-editor] Error loading translation preview:", error);
       translationPreviews.value.set(previewMapKey, {
         key: item.key,
         ns: item.ns,
         preview: "(Error loading)",
+        fullText: "",
         isLoading: false,
       });
     }
@@ -90,14 +98,19 @@ const handleEscape = (event: KeyboardEvent) => {
   }
 };
 
+// Deferred so the click that opened the selector does not close it at once.
+let listenTimer: ReturnType<typeof setTimeout> | undefined;
+
 onMounted(() => {
-  setTimeout(() => {
+  listenTimer = setTimeout(() => {
+    listenTimer = undefined;
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
   }, 0);
 });
 
 onUnmounted(() => {
+  clearTimeout(listenTimer);
   document.removeEventListener("mousedown", handleClickOutside);
   document.removeEventListener("keydown", handleEscape);
 });
@@ -114,6 +127,13 @@ const getPreview = (key: string, ns: string) => {
   return preview?.preview || "(No translation)";
 };
 
+// The stored value is worth a line only when the page text does not already say it.
+const showsStoredValue = (item: KeyDataItem) => {
+  if (!item.textPreview) return true;
+  const preview = translationPreviews.value.get(getPreviewMapKey(item.key, item.ns));
+  return !!preview && !preview.isLoading && preview.fullText.trim() !== item.textPreview.trim();
+};
+
 const isLoading = (key: string, ns: string) => {
   return translationPreviews.value.get(getPreviewMapKey(key, ns))?.isLoading || false;
 };
@@ -125,7 +145,7 @@ const isLoading = (key: string, ns: string) => {
     ref="dropdownRef"
     role="listbox"
     aria-label="Select translation key"
-    class="fixed z-[10001] bg-popover text-popover-foreground border border-border shadow-md overflow-hidden"
+    class="fixed z-[10001] bg-popover text-popover-foreground border border-border shadow-lg overflow-hidden"
     :style="{
       top: `${position.top}px`,
       left: `${position.left}px`,
@@ -170,7 +190,7 @@ const isLoading = (key: string, ns: string) => {
           }}"
         </div>
 
-        <div class="text-xs text-muted-foreground">
+        <div v-if="showsStoredValue(item)" class="text-xs text-muted-foreground">
           <span v-if="isLoading(item.key, item.ns)" class="text-muted-foreground/70">
             Loading translation...
           </span>

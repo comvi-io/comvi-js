@@ -11,13 +11,11 @@ import { InfoIcon } from "../../../components/InfoIcon";
 export default function RichTextPage() {
   const { t } = useI18n();
 
-  // ICU Select examples state
   const [gender, setGender] = useState<"male" | "female" | "other">("male");
   const [formality, setFormality] = useState<"formal" | "informal">("formal");
   const [genderCount, setGenderCount] = useState(5);
   const [formalityCount, setFormalityCount] = useState(3);
 
-  // Nested tags example state
   const [nestedCount, setNestedCount] = useState(3);
 
   return (

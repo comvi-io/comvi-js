@@ -1,28 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h } from "vue";
-import { type TranslationResult, type FragmentNode } from "../src";
-import { VueI18n } from "../src/VueI18n";
+import { createI18n as createCore } from "@comvi/core";
+import { attachPlugins } from "@comvi/core/plugins";
+import { createFragment } from "@comvi/core/rich-text";
+import { createI18nFromCore, type TranslationResult } from "../src";
+import { createI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 
-// Type declarations for test translation keys
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    hello: never;
-    w: { n: string };
-    "missing.key": never;
-    greeting: never;
-    title: never;
-    fragment: never;
-    multiRoot: never;
-    emptySlot: never;
-  }
-}
-
 describe("<T /> component", () => {
   it("renders simple translation", () => {
-    const i18n = new VueI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { hello: "Hello" } } });
     const wrapper = mount(T, {
       props: { i18nKey: "hello" },
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
@@ -31,15 +20,15 @@ describe("<T /> component", () => {
   });
 
   it("throws when used without provider", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
     expect(() => mount(T, { props: { i18nKey: "hello" } })).toThrow(
       /<T> component must be used within a Vue app with i18n plugin installed/i,
     );
-    warnSpy.mockRestore();
   });
 
   it("renders with params", () => {
-    const i18n = new VueI18n({ locale: "en", translation: { en: { w: "Welcome {n}" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { w: "Welcome {n}" } } });
     const wrapper = mount(T, {
       props: { i18nKey: "w", params: { n: "John" } },
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
@@ -48,9 +37,9 @@ describe("<T /> component", () => {
   });
 
   it("uses namespace override when provided", () => {
-    const i18n = new VueI18n({
+    const i18n = createI18n({
       locale: "en",
-      translation: { "en:dashboard": { title: "Dashboard" } },
+      messages: { "en:dashboard": { title: "Dashboard" } },
     });
     const wrapper = mount(T, {
       props: { i18nKey: "title", ns: "dashboard" },
@@ -60,9 +49,9 @@ describe("<T /> component", () => {
   });
 
   it("renders fragment nodes from tag handlers", () => {
-    const i18n = new VueI18n({
+    const i18n = createI18n({
       locale: "en",
-      translation: { en: { fragment: "Hello <wrap>world</wrap>" } },
+      messages: { en: { fragment: "Hello <wrap>world</wrap>" } },
     });
 
     const wrapper = mount(T, {
@@ -71,21 +60,21 @@ describe("<T /> component", () => {
         params: {
           wrap: ({ children }: { children: TranslationResult }) => {
             const fragmentChildren = typeof children === "string" ? [children] : children;
-            return { type: "fragment", children: fragmentChildren } as FragmentNode;
+            return createFragment(fragmentChildren);
           },
         },
       },
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
     });
 
-    expect(wrapper.text()).toMatch(/Hello\s*world/);
+    expect(wrapper.text()).toBe("Helloworld");
     expect(wrapper.find("template").exists()).toBe(false);
   });
 
   it("renders multi-root slot content", () => {
-    const i18n = new VueI18n({
+    const i18n = createI18n({
       locale: "en",
-      translation: { en: { multiRoot: "Click <link>here</link>" } },
+      messages: { en: { multiRoot: "Click <link>here</link>" } },
     });
 
     const wrapper = mount(T, {
@@ -103,13 +92,13 @@ describe("<T /> component", () => {
     expect(wrapper.find("strong").text()).toBe("here");
     expect(wrapper.find("em").exists()).toBe(true);
     expect(wrapper.find("em").text()).toBe("!");
-    expect(wrapper.text()).toMatch(/Click\s*here!/);
+    expect(wrapper.text()).toBe("Clickhere!");
   });
 
   it("handles empty slot content", () => {
-    const i18n = new VueI18n({
+    const i18n = createI18n({
       locale: "en",
-      translation: { en: { emptySlot: "Start <link></link> end" } },
+      messages: { en: { emptySlot: "Start <link></link> end" } },
     });
 
     const wrapper = mount(T, {
@@ -120,14 +109,14 @@ describe("<T /> component", () => {
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
     });
 
-    expect(wrapper.text()).toMatch(/Start\s*end/);
+    expect(wrapper.text()).toBe("Startend");
   });
 
   describe("fallback prop", () => {
     it("uses fallback with interpolation when translation is missing", () => {
-      const i18n = new VueI18n({
+      const i18n = createI18n({
         locale: "en",
-        translation: { en: { hello: "Hello" } },
+        messages: { en: { hello: "Hello" } },
       });
       const wrapper = mount(T, {
         props: {
@@ -141,9 +130,9 @@ describe("<T /> component", () => {
     });
 
     it("ignores fallback when translation exists", () => {
-      const i18n = new VueI18n({
+      const i18n = createI18n({
         locale: "en",
-        translation: { en: { hello: "Hello" } },
+        messages: { en: { hello: "Hello" } },
       });
       const wrapper = mount(T, {
         props: { i18nKey: "hello", fallback: "Fallback text" },
@@ -153,97 +142,73 @@ describe("<T /> component", () => {
     });
   });
 
-  describe("raw prop", () => {
-    it("skips post-processor when raw is true", () => {
-      const i18n = new VueI18n({
-        locale: "en",
-        translation: { en: { greeting: "hello" } },
-      });
+  // `registerPostProcessor` is a `@comvi/core/plugins` member, so every case
+  // here wraps a host that composed the plugin capability.
+  const createPostProcessorI18n = (messages: Record<string, Record<string, string>>) =>
+    createI18nFromCore(createCore({ locale: "en", messages }).use(attachPlugins));
 
-      // Post-processor that uppercases text
-      i18n.registerPostProcessor((result, key, ns, params) => {
-        if (params?.raw === true) {
-          return result;
-        }
-        return typeof result === "string" ? result.toUpperCase() : result;
-      });
+  const upperCaseUnlessUnmarked = (
+    result: TranslationResult,
+    _key: string,
+    _ns: string | undefined,
+    params?: Record<string, unknown>,
+  ): TranslationResult =>
+    params?.markers === false || typeof result !== "string" ? result : result.toUpperCase();
+
+  describe("markers prop", () => {
+    it("skips post-processor when markers is false", () => {
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
+
+      i18n.core.registerPostProcessor(upperCaseUnlessUnmarked);
 
       const wrapper = mount(T, {
-        props: { i18nKey: "greeting", raw: true },
+        props: { i18nKey: "greeting", markers: false },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should be lowercase because post-processor was skipped
       expect(wrapper.text()).toBe("hello");
     });
 
-    it("applies post-processor when raw is false", () => {
-      const i18n = new VueI18n({
-        locale: "en",
-        translation: { en: { greeting: "hello" } },
-      });
+    it("applies post-processor when markers is not specified", () => {
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
-      i18n.registerPostProcessor((result, key, ns, params) => {
-        if (params?.raw === true) {
-          return result;
-        }
-        return typeof result === "string" ? result.toUpperCase() : result;
-      });
-
-      const wrapper = mount(T, {
-        props: { i18nKey: "greeting", raw: false },
-        global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
-      });
-
-      // Should be uppercase because post-processor was applied
-      expect(wrapper.text()).toBe("HELLO");
-    });
-
-    it("applies post-processor when raw is not specified", () => {
-      const i18n = new VueI18n({
-        locale: "en",
-        translation: { en: { greeting: "hello" } },
-      });
-
-      i18n.registerPostProcessor((result, key, ns, params) => {
-        if (params?.raw === true) {
-          return result;
-        }
-        return typeof result === "string" ? result.toUpperCase() : result;
-      });
+      i18n.core.registerPostProcessor(upperCaseUnlessUnmarked);
 
       const wrapper = mount(T, {
         props: { i18nKey: "greeting" },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should be uppercase because raw is not set
+      expect(wrapper.text()).toBe("HELLO");
+    });
+
+    it("applies post-processor when markers is true", () => {
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
+
+      i18n.core.registerPostProcessor(upperCaseUnlessUnmarked);
+
+      const wrapper = mount(T, {
+        props: { i18nKey: "greeting", markers: true },
+        global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
+      });
+
       expect(wrapper.text()).toBe("HELLO");
     });
 
     it("works with other props combined", () => {
-      const i18n = new VueI18n({
-        locale: "en",
-        translation: { en: { greeting: "hello {name}" } },
-      });
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello {name}" } });
 
-      i18n.registerPostProcessor((result, key, ns, params) => {
-        if (params?.raw === true) {
-          return result;
-        }
-        return typeof result === "string" ? result.toUpperCase() : result;
-      });
+      i18n.core.registerPostProcessor(upperCaseUnlessUnmarked);
 
       const wrapper = mount(T, {
         props: {
           i18nKey: "greeting",
           params: { name: "World" },
-          raw: true,
+          markers: false,
         },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should be lowercase with interpolation applied
       expect(wrapper.text()).toBe("hello World");
     });
   });

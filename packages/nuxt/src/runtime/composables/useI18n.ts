@@ -2,8 +2,7 @@ import { useNuxtApp, useRuntimeConfig } from "#app";
 import { useLocaleState } from "../utils/locale-state";
 import { type Ref, computed } from "vue";
 import type { TranslationParams, DefaultTranslationParams } from "@comvi/core";
-import { createBoundTranslation } from "@comvi/core";
-import { translationResultToString } from "../utils";
+import { createBoundTranslation, translationResultToString } from "@comvi/core";
 import type { UseI18nReturn as VueUseI18nReturn } from "@comvi/vue";
 
 export interface UseI18nReturn<
@@ -16,12 +15,7 @@ export interface UseI18nReturn<
 }
 
 /**
- * Nuxt composable to access the i18n instance
- *
- * Wraps @comvi/vue's useI18n with Nuxt state synchronization
- *
- * @param ns - Optional namespace to scope translations to
- * @returns Object with translation function, reactive state, and i18n methods
+ * Wraps @comvi/vue's useI18n with Nuxt state synchronization.
  *
  * @example
  * ```vue
@@ -31,7 +25,7 @@ export interface UseI18nReturn<
  *
  * <template>
  *   <div>{{ t('greeting') }}</div>
- *   <select @change="setLanguage($event.target.value)">
+ *   <select @change="setLocale($event.target.value)">
  *     <option v-for="locale in locales" :key="locale" :value="locale">
  *       {{ locale }}
  *     </option>
@@ -48,22 +42,25 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
 
   if (!i18n) {
     throw new Error(
-      "[@comvi/nuxt] i18n not initialized. Make sure @comvi/nuxt module is configured in nuxt.config.ts",
+      '[@comvi/nuxt] i18n not configured. Add "@comvi/nuxt" to `modules` in nuxt.config.ts.',
     );
   }
 
-  // Get locale state for synchronization
   const localeState = useLocaleState();
 
-  // Create scoped translation functions
   const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn<D>["tRaw"];
   const t = ((key: string, params?: TranslationParams) =>
     translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"];
 
-  // Wrap setLocale to sync with Nuxt state
+  // setLocale must also advance the Nuxt state the middleware watches, but only
+  // to a locale that applied: a switch a newer one superseded resolves without
+  // applying, and writing it anyway would flip `<html lang>` (and, through the
+  // plugin's state watcher, the locale itself) back to the losing request.
   const setLocale = async (newLocale: string) => {
     await i18n.setLocale(newLocale);
-    localeState.value = newLocale;
+    if (i18n.locale.value === newLocale) {
+      localeState.value = newLocale;
+    }
   };
 
   return {
@@ -71,22 +68,18 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     tRaw,
     locale: i18n.locale,
     setLocale,
-    translationCache: i18n.translationCache,
+    messagesCache: i18n.messagesCache,
     isLoading: i18n.isLoading,
     isInitializing: i18n.isInitializing,
-    addTranslations: i18n.addTranslations,
-    addActiveNamespace: i18n.addActiveNamespace,
+    isInitialized: i18n.isInitialized,
+    cacheRevision: i18n.cacheRevision,
+    addMessages: i18n.addMessages,
     setFallbackLocale: i18n.setFallbackLocale,
     defaultParams: i18n.defaultParams as VueUseI18nReturn<D>["defaultParams"],
     setDefaultParams: i18n.setDefaultParams,
-    onMissingKey: i18n.onMissingKey,
-    onLoadError: i18n.onLoadError,
-    clearTranslations: i18n.clearTranslations,
-    reloadTranslations: i18n.reloadTranslations,
+    clearMessages: i18n.clearMessages,
     hasLocale: i18n.hasLocale,
     hasTranslation: i18n.hasTranslation,
-    hasLocaleNow: i18n.hasLocaleNow,
-    hasTranslationNow: i18n.hasTranslationNow,
     loadedLocales: i18n.loadedLocales,
     activeNamespaces: i18n.activeNamespaces,
     defaultNamespace: i18n.defaultNamespace,
@@ -98,7 +91,6 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     formatRelativeTime: i18n.formatRelativeTime,
     dir: i18n.dir,
     destroy: i18n.destroy,
-    // Nuxt-specific
     locales: computed(() => publicConfig.locales as readonly string[]),
     defaultLocale: computed(() => publicConfig.defaultLocale),
   };

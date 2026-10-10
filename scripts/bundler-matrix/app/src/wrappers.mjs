@@ -1,0 +1,35 @@
+// Wrapper tarballs (@comvi/react, @comvi/vue) bundled from their packed
+// artifacts. Wrapper <T> rendering itself needs a framework renderer + DOM,
+// so it is NOT exercised here. This fixture proves both published wrapper
+// graphs execute in plain Node without reviving core's ambient tag
+// registration: `<T>` imports the pure `@comvi/core/rich-text` seam, while the
+// string API keeps tag markup literal unless the app imports
+// `@comvi/core/tags` itself.
+import { createI18n } from "@comvi/core";
+import * as reactWrapper from "@comvi/react";
+import * as vueWrapper from "@comvi/vue";
+
+function assert(condition, label) {
+  if (!condition) {
+    console.error(`FAIL ${label}`);
+    process.exit(1);
+  }
+}
+
+// React/Vue components may be memo/forwardRef/defineComponent exotic objects.
+const isComponent = (c) => typeof c === "function" || (typeof c === "object" && c !== null);
+assert(typeof reactWrapper.useI18n === "function", "@comvi/react exports useI18n");
+assert(isComponent(reactWrapper.T), "@comvi/react exports T");
+assert(typeof vueWrapper.useI18n === "function", "@comvi/vue exports useI18n");
+assert(isComponent(vueWrapper.T), "@comvi/vue exports T");
+
+const i18n = createI18n({
+  locale: "en",
+  messages: { en: { msg: "a <b>c</b> d" } },
+});
+assert(
+  i18n.t("msg", { b: ({ children }) => `*${children}*` }) === "a <b>c</b> d",
+  "wrapper module graphs do not activate string-API tags",
+);
+
+console.log("BUNDLER_MATRIX_OK wrappers");

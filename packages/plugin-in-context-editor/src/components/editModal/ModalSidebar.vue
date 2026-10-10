@@ -26,6 +26,8 @@ const usePluralForms = computed({
   },
 });
 
+const isSaving = computed<boolean>(() => translationManager?.isSaving?.value ?? false);
+
 const variableName = computed({
   get: () => translationManager?.pluralVariable.value ?? "",
   set: (value: string) => {
@@ -81,7 +83,7 @@ function validateVariableName(): void {
         </h3>
         <div class="mb-3">
           <label for="use-plural-forms" class="flex items-center cursor-pointer gap-2">
-            <Checkbox id="use-plural-forms" v-model="usePluralForms" />
+            <Checkbox id="use-plural-forms" v-model="usePluralForms" :disabled="isSaving" />
             <span class="text-sm">Use plural forms</span>
           </label>
         </div>
@@ -98,6 +100,7 @@ function validateVariableName(): void {
               id="plural-variable-name"
               v-model="variableName"
               type="text"
+              :disabled="isSaving"
               :class="variableNameError ? 'border-destructive focus-visible:ring-destructive' : ''"
               :placeholder="DEFAULT_PLURAL_VARIABLE"
               :aria-invalid="!!variableNameError"

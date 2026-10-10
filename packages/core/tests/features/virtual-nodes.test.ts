@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n } from "../../src";
-import type { VirtualNode } from "../../src";
+import { I18n } from "../helpers/composedInstance";
+import { createElement } from "../helpers/composedInstance";
+import { createTextNode } from "../../src/virtualNode";
 
-describe("Virtual Node Interpolation", () => {
+const NODE = createElement("strong", {}, ["Bold"]);
+const NODES = [createTextNode("One"), createTextNode("Two")];
+
+describe("tRaw() with node params", () => {
   let i18n: I18n;
 
   beforeEach(() => {
@@ -10,69 +14,81 @@ describe("Virtual Node Interpolation", () => {
   });
 
   it("interpolates a virtual node param into an array result", () => {
-    const vNode: VirtualNode = { type: "element", tag: "strong", props: {}, children: ["Bold"] };
+    i18n.addMessages({ en: { text: "This is {bold} text" } });
 
-    i18n.addTranslations({
-      en: { text: "This is {bold} text" },
-    });
+    const result = i18n.tRaw("text", { bold: NODE });
 
-    const result = i18n.tRaw("text", { bold: vNode });
+    expect(result).toEqual(["This is ", NODE, " text"]);
+  });
 
-    expect(result).toHaveLength(3);
-    expect(result[0]).toBe("This is ");
-    expect(result[1]).toBe(vNode);
-    expect(result[2]).toBe(" text");
-    expect(i18n.t("text", { bold: vNode })).toBe("This is Bold text");
+  it("passes the caller's node through by reference rather than cloning it", () => {
+    i18n.addMessages({ en: { text: "This is {bold} text" } });
+
+    const result = i18n.tRaw("text", { bold: NODE });
+
+    expect(result[1]).toBe(NODE);
+  });
+
+  it("t() flattens a virtual node param to its inner text", () => {
+    i18n.addMessages({ en: { text: "This is {bold} text" } });
+
+    expect(i18n.t("text", { bold: NODE })).toBe("This is Bold text");
   });
 
   it("flattens arrays of virtual nodes", () => {
-    const vNodes = [
-      { type: "text", text: "One" },
-      { type: "text", text: "Two" },
-    ] as VirtualNode[];
+    i18n.addMessages({ en: { list: "Items: {items}" } });
 
-    i18n.addTranslations({
-      en: { list: "Items: {items}" },
-    });
+    const result = i18n.tRaw("list", { items: NODES });
 
-    const result = i18n.tRaw("list", { items: vNodes });
-
-    expect(result).toHaveLength(3);
-    expect(result[0]).toBe("Items: ");
-    expect(result[1]).toBe(vNodes[0]);
-    expect(result[2]).toBe(vNodes[1]);
-    expect(i18n.t("list", { items: vNodes })).toBe("Items: OneTwo");
+    expect(result).toEqual(["Items: ", NODES[0], NODES[1]]);
   });
 
-  it("returns a single string when no virtual nodes are present", () => {
-    i18n.addTranslations({ en: { simple: "Simple text" } });
-    expect(i18n.t("simple")).toBe("Simple text");
+  it("passes each node of an array param through by reference", () => {
+    i18n.addMessages({ en: { list: "Items: {items}" } });
+
+    const result = i18n.tRaw("list", { items: NODES });
+
+    expect(result[1]).toBe(NODES[0]);
+    expect(result[2]).toBe(NODES[1]);
+  });
+
+  it("t() flattens an array of virtual node params to their text", () => {
+    i18n.addMessages({ en: { list: "Items: {items}" } });
+
+    expect(i18n.t("list", { items: NODES })).toBe("Items: OneTwo");
+  });
+
+  it("tRaw() returns a single string when no virtual nodes are present", () => {
+    i18n.addMessages({ en: { simple: "Simple text" } });
+
+    expect(i18n.tRaw("simple")).toBe("Simple text");
   });
 
   it("supports virtual nodes inside plural options", () => {
-    const vNode: VirtualNode = { type: "element", tag: "span", props: {}, children: ["5"] };
+    const vNode = createElement("span", {}, ["5"]);
 
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         plural: "{count, plural, other {Count: {badge}}}",
       },
     });
 
     const result = i18n.tRaw("plural", { count: 5, badge: vNode });
+
     expect(result).toEqual(["Count: ", vNode]);
     expect(i18n.t("plural", { count: 5, badge: vNode })).toBe("Count: 5");
   });
 
-  it("treats Vue-style VNodes as node values for interpolation", () => {
+  it("treats a Vue-style VNode as data, since nothing about it is unforgeable", () => {
     const vueVNode = { __v_isVNode: true, type: "span", children: ["Vue"] };
 
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { text: "This is {node} text" },
     });
 
     const result = i18n.tRaw("text", { node: vueVNode as any });
 
-    expect(result).toEqual(["This is ", vueVNode, " text"]);
+    expect(result).toBe("This is [object Object] text");
   });
 
   it("treats React-style elements as node values for interpolation", () => {
@@ -82,7 +98,7 @@ describe("Virtual Node Interpolation", () => {
       props: { children: "React" },
     };
 
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { text: "This is {node} text" },
     });
 

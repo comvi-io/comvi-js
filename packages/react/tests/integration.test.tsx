@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
-import { useState } from "react";
-import { createI18n } from "../src";
+import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
+import { useEffect, useState } from "react";
+import { attachLoader, createI18n } from "../src/index";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
+import { useI18nLoader } from "../src/capabilityHooks";
 import { T } from "../src/T";
-import { createDeferred, setLocale } from "./test-utils";
+import { createDeferred } from "./test-utils";
 
-// Type declarations for test translation keys
 declare module "@comvi/core" {
   interface TranslationKeys {
     title: never;
@@ -21,7 +21,7 @@ describe("Integration Tests", () => {
   it("handles a language switcher workflow (hook + T)", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: { title: "Welcome", switchLang: "Switch Language" },
         fr: { title: "Bienvenue", switchLang: "Changer de langue" },
       },
@@ -36,10 +36,10 @@ describe("Integration Tests", () => {
             <T i18nKey="title" />
           </h1>
           <div data-testid="lang">{locale}</div>
-          <button data-testid="btn-fr" onClick={async () => await setLocale(i18n, "fr")}>
+          <button data-testid="btn-fr" onClick={() => void i18n.setLocale("fr")}>
             Fr
           </button>
-          <button data-testid="btn-en" onClick={async () => await setLocale(i18n, "en")}>
+          <button data-testid="btn-en" onClick={() => void i18n.setLocale("en")}>
             En
           </button>
           <div data-testid="switch-text">{t("switchLang")}</div>
@@ -57,42 +57,44 @@ describe("Integration Tests", () => {
     expect(screen.getByTestId("lang").textContent).toBe("en");
     expect(screen.getByTestId("switch-text").textContent).toBe("Switch Language");
 
-    screen.getByTestId("btn-fr").click();
+    fireEvent.click(screen.getByTestId("btn-fr"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("title").textContent).toBe("Bienvenue");
       expect(screen.getByTestId("lang").textContent).toBe("fr");
-      expect(screen.getByTestId("switch-text").textContent).toBe("Changer de langue");
     });
+    expect(screen.getByTestId("title").textContent).toBe("Bienvenue");
+    expect(screen.getByTestId("switch-text").textContent).toBe("Changer de langue");
 
-    screen.getByTestId("btn-en").click();
+    fireEvent.click(screen.getByTestId("btn-en"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("title").textContent).toBe("Welcome");
       expect(screen.getByTestId("lang").textContent).toBe("en");
     });
+    expect(screen.getByTestId("title").textContent).toBe("Welcome");
+    expect(screen.getByTestId("switch-text").textContent).toBe("Switch Language");
   });
 
   it("loads a dynamic namespace and updates loading state", async () => {
     const deferred = createDeferred<Record<string, string>>();
-    const loader = vi.fn(() => deferred.promise);
+    const loader = vi.fn((_locale: string, _namespace: string) => deferred.promise);
 
+    // `attachLoader` rather than `loader(map)`: this registers a raw `LoaderFn`,
+    // not an import map.
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { home: "Home", loading: "Loading..." },
       },
-    });
+    }).use(attachLoader);
 
-    i18n.use((i18n) => {
-      i18n.registerLoader((locale, namespace) => loader(locale, namespace));
-    });
+    i18n.registerLoader((locale, namespace) => loader(locale, namespace));
 
     await i18n.init();
 
     const App = () => {
-      const { t, isLoading, addActiveNamespace } = useI18n();
+      const { t, isLoading } = useI18n();
+      const { addActiveNamespace } = useI18nLoader();
       const [showDashboard, setShowDashboard] = useState(false);
 
       const loadDashboard = async () => {
@@ -121,10 +123,9 @@ describe("Integration Tests", () => {
     expect(screen.getByTestId("home").textContent).toBe("Home");
 
     await act(async () => {
-      screen.getByTestId("load").click();
+      fireEvent.click(screen.getByTestId("load"));
     });
 
-    // While the deferred is pending, verify loading indicator is shown
     await waitFor(() => {
       expect(screen.getByTestId("loading").textContent).toBe("Loading...");
     });
@@ -134,5 +135,62 @@ describe("Integration Tests", () => {
     await waitFor(() => {
       expect(screen.getByTestId("dashboard").textContent).toBe("Dashboard");
     });
+  });
+
+  it("clears the loading state and reports the failure when a namespace load rejects", async () => {
+    const deferred = createDeferred<Record<string, string>>();
+    const i18n = createI18n({
+      locale: "en",
+      defaultNs: "common",
+      messages: { en: { home: "Home", loading: "Loading..." } },
+    }).use(attachLoader);
+
+    i18n.registerLoader(() => deferred.promise);
+
+    await i18n.init();
+
+    const loadErrors: string[] = [];
+
+    const App = () => {
+      const { isLoading } = useI18n();
+      const { addActiveNamespace, onLoadError } = useI18nLoader();
+      useEffect(() => onLoadError((_l, ns) => loadErrors.push(ns)), [onLoadError]);
+
+      return (
+        <div>
+          <div data-testid="state">{isLoading ? "loading" : "idle"}</div>
+          <button
+            data-testid="load"
+            onClick={() => {
+              void addActiveNamespace("dashboard").catch(() => {});
+            }}
+          >
+            Load
+          </button>
+        </div>
+      );
+    };
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <App />
+      </I18nProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("load"));
+    });
+
+    expect(screen.getByTestId("state").textContent).toBe("loading");
+
+    await act(async () => {
+      deferred.reject(new Error("catalog 500"));
+      await deferred.promise.catch(() => {});
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("state").textContent).toBe("idle");
+    });
+    expect(loadErrors).toEqual(["dashboard"]);
   });
 });

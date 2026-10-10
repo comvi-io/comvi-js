@@ -1,84 +1,118 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createI18n } from "../../src";
+import { createI18n } from "../helpers/composedInstance";
 import { clearTemplateCache, isStaticTemplate, _templateCacheSize } from "../../src/core/translate";
-import { parsePluralChoices } from "../../src/core/translate/parser";
+import { parsePluralChoices, icuCompiler } from "../../src/core/translate/compile-icu";
+import { effectiveExtBits, getCompilerId } from "../../src/core/translate/syntax";
 
-// Reset the module-level template cache before each test so tests are isolated.
+// The composed-host helper registers tag syntax ambiently and wires the ICU
+// compiler, so the cache variant its instances use — `rootVariant` below — is
+// (icu, ambient bits).
+const rootVariant = () => [getCompilerId(icuCompiler), effectiveExtBits()] as const;
+
+// The template cache is MODULE-level, so it must be reset between tests.
 beforeEach(() => {
   clearTemplateCache();
 });
 
+// Mirrors `TEMPLATE_CACHE_MAX` in src/core/translate.ts; eviction is FIFO with
+// one delete per insert past the cap, so the size settles exactly at the cap.
+const CACHE_MAX = 1000;
+const OVER_CAP = CACHE_MAX + 50;
+const HOT_KEY = `key_${OVER_CAP - 1}`;
+
 describe("templateCache eviction", () => {
-  it("reuses the context-tagged cache entry for plain static templates", () => {
+  // needs-seam: "the entry was REUSED, not rebuilt" has no public observable —
+  // `isStaticTemplate` is the only window onto the cached verdict.
+  it("reuses the context-tagged cache entry across repeated renders of a static template", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello world" } },
+      messages: { en: { greeting: "Hello world" } },
     });
+    const [compilerId, extBits] = rootVariant();
+    expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBeUndefined();
+    expect(i18n.t("greeting" as never)).toBe("Hello world");
+    expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBe(true);
 
-    expect(isStaticTemplate("Hello world")).toBeUndefined();
-    expect(i18n.t("greeting" as never)).toBe("Hello world");
-    expect(isStaticTemplate("Hello world")).toBe(true);
-    expect(i18n.t("greeting" as never)).toBe("Hello world");
-    expect(isStaticTemplate("Hello world")).toBe(true);
+    const repeated = i18n.t("greeting" as never);
+
+    expect(repeated).toBe("Hello world");
+    expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBe(true);
+  });
+
+  // Folded in from translate-cache-hit-eviction.test.ts, which duplicated this
+  // file's cap constant and its insert-past-the-cap setup.
+  it("re-rendering an already cached template evicts nothing", () => {
+    const translations: Record<string, string> = {};
+    for (let n = 0; n < OVER_CAP; n++) {
+      translations[`key_${n}`] = `Value number ${n}`;
+    }
+    const i18n = createI18n({ locale: "en", messages: { en: translations } });
+    // Per-call options skip the host's static fast path, so every call really
+    // does reach the cache.
+    for (let n = 0; n < OVER_CAP; n++) {
+      i18n.t(`key_${n}` as never, { locale: "en" } as never);
+    }
+
+    i18n.t(HOT_KEY as never, { locale: "en" } as never);
+
+    expect(_templateCacheSize()).toBe(CACHE_MAX);
   });
 
   it("keeps size at or below the cap after inserting many distinct templates", () => {
     const i18n = createI18n({ locale: "en" });
     const translations: Record<string, string> = {};
-    // Insert TEMPLATE_CACHE_MAX + 50 distinct parametrized templates so eviction fires.
-    const total = 1050;
-    for (let n = 0; n < total; n++) {
+    // Enough distinct parametrized templates that eviction has to fire.
+    for (let n = 0; n < OVER_CAP; n++) {
       translations[`key_${n}`] = `Value ${n} for {name}`;
     }
-    i18n.addTranslations({ en: translations });
+    i18n.addMessages({ en: translations });
 
-    for (let n = 0; n < total; n++) {
+    for (let n = 0; n < OVER_CAP; n++) {
       i18n.t(`key_${n}` as never, { name: "World" } as never);
     }
 
-    expect(_templateCacheSize()).toBeLessThanOrEqual(1000);
+    expect(_templateCacheSize()).toBe(CACHE_MAX);
   });
 
   it("static templates (no special chars) are also subject to the cap", () => {
-    clearTemplateCache();
     const i18n = createI18n({ locale: "en" });
     const translations: Record<string, string> = {};
-    // Pure static strings (no {, ', <, &) — the fast-path caches them too.
-    for (let n = 0; n < 1050; n++) {
+    // Pure static strings (no {, ', <, &) — the fast path caches them too.
+    for (let n = 0; n < OVER_CAP; n++) {
       translations[`static_${n}`] = `Hello world number ${n}`;
     }
-    i18n.addTranslations({ en: translations });
+    i18n.addMessages({ en: translations });
 
-    for (let n = 0; n < 1050; n++) {
+    for (let n = 0; n < OVER_CAP; n++) {
       i18n.t(`static_${n}` as never);
     }
 
-    expect(_templateCacheSize()).toBeLessThanOrEqual(1000);
+    expect(_templateCacheSize()).toBe(CACHE_MAX);
   });
 });
 
-describe("templateCache correctness after clearTranslations", () => {
-  it("translates correctly after clearTranslations() + re-add", () => {
+describe("templateCache correctness after clearMessages", () => {
+  it("translates correctly after clearMessages() + re-add", () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ en: { greeting: "Hello, {name}!" } });
+    i18n.addMessages({ en: { greeting: "Hello, {name}!" } });
 
     expect(i18n.t("greeting" as never, { name: "Alice" } as never)).toBe("Hello, Alice!");
 
-    i18n.clearTranslations();
-    i18n.addTranslations({ en: { greeting: "Hello, {name}!" } });
+    i18n.clearMessages();
+    i18n.addMessages({ en: { greeting: "Hello, {name}!" } });
 
-    // Template is still compiled in the module-level cache; translation must still work.
+    // Still compiled in the module-level cache, so translation must still work.
     expect(i18n.t("greeting" as never, { name: "Bob" } as never)).toBe("Hello, Bob!");
   });
 
-  it("returns updated translation value after clearTranslations() + re-add with new text", () => {
+  it("returns updated translation value after clearMessages() + re-add with new text", () => {
     const i18n = createI18n({ locale: "en" });
-    i18n.addTranslations({ en: { msg: "Old {value}" } });
+    i18n.addMessages({ en: { msg: "Old {value}" } });
 
     expect(i18n.t("msg" as never, { value: "text" } as never)).toBe("Old text");
 
-    i18n.clearTranslations();
-    i18n.addTranslations({ en: { msg: "New {value}" } });
+    i18n.clearMessages();
+    i18n.addMessages({ en: { msg: "New {value}" } });
 
     expect(i18n.t("msg" as never, { value: "text" } as never)).toBe("New text");
   });
@@ -94,10 +128,9 @@ describe("templateCache cross-instance isolation", () => {
     const i18nA = createI18n({ locale: "en" });
     const i18nB = createI18n({ locale: "en" });
 
-    i18nA.addTranslations({ en: { shared: template } });
-    i18nB.addTranslations({ en: { shared: template } });
+    i18nA.addMessages({ en: { shared: template } });
+    i18nB.addMessages({ en: { shared: template } });
 
-    // Populate the shared template cache from both instances.
     expect(i18nA.t(key, params)).toBe(expected);
     expect(i18nB.t(key, params)).toBe(expected);
 
@@ -107,22 +140,21 @@ describe("templateCache cross-instance isolation", () => {
     expect(i18nB.t(key, params)).toBe(expected);
   });
 
-  it("clearTranslations() on instance A does not break instance B", () => {
+  it("clearMessages() on instance A does not break instance B", () => {
     const key = "hello" as never;
     const template = "Hi {name}";
 
     const i18nA = createI18n({ locale: "en" });
     const i18nB = createI18n({ locale: "en" });
 
-    i18nA.addTranslations({ en: { hello: template } });
-    i18nB.addTranslations({ en: { hello: template } });
+    i18nA.addMessages({ en: { hello: template } });
+    i18nB.addMessages({ en: { hello: template } });
 
     i18nA.t(key, { name: "X" } as never);
     i18nB.t(key, { name: "Y" } as never);
 
-    i18nA.clearTranslations();
+    i18nA.clearMessages();
 
-    // B still has its translation data and the template cache should be intact.
     expect(i18nB.t(key, { name: "Z" } as never)).toBe("Hi Z");
   });
 });
@@ -131,7 +163,7 @@ describe("context-sensitive cache keys", () => {
   it("does not collide with a top-level template that starts with the context marker", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: {
           plural: "{count, plural, other {'#'}}",
           topLevel: "\u0001'#'",
@@ -146,7 +178,7 @@ describe("context-sensitive cache keys", () => {
   it("does not collide when the marker-prefixed top-level template is cached first", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: {
           topLevel: "\u0001'#'",
           plural: "{count, plural, other {'#'}}",
@@ -158,29 +190,26 @@ describe("context-sensitive cache keys", () => {
     expect(i18n.t("plural" as never, { count: 2 } as never)).toBe("#");
   });
 
-  it("keeps plural-choice caches separate when source text starts with the context marker", () => {
+  // Same source, two hash contexts: with `#` as syntax the `'#}'` span is
+  // quoted and both choices parse; without it the quote is literal text, the
+  // first sub-message ends early and the leftovers are a malformed list.
+  it("keeps plural-choice parses separate when source text starts with the context marker", () => {
     const source = "other {'#}'} another {x}";
-    clearTemplateCache();
-    const expectedMarkedChoices = parsePluralChoices(`\u0001${source}`, true);
 
-    clearTemplateCache();
     const unmarkedChoices = parsePluralChoices(source, false);
     const markedChoices = parsePluralChoices(`\u0001${source}`, true);
 
-    expect(markedChoices).toEqual(expectedMarkedChoices);
-    expect(markedChoices).not.toEqual(unmarkedChoices);
+    expect(markedChoices).toEqual({ other: "'#}'", another: "x" });
+    expect(unmarkedChoices).toBeNull();
   });
 
-  it("keeps plural-choice caches separate in the reverse insertion order", () => {
+  it("keeps plural-choice parses separate in the reverse insertion order", () => {
     const source = "other {'#}'} another {x}";
-    clearTemplateCache();
-    const expectedUnmarkedChoices = parsePluralChoices(source, false);
 
-    clearTemplateCache();
     const markedChoices = parsePluralChoices(`\u0001${source}`, true);
     const unmarkedChoices = parsePluralChoices(source, false);
 
-    expect(unmarkedChoices).toEqual(expectedUnmarkedChoices);
-    expect(unmarkedChoices).not.toEqual(markedChoices);
+    expect(markedChoices).toEqual({ other: "'#}'", another: "x" });
+    expect(unmarkedChoices).toBeNull();
   });
 });

@@ -1,10 +1,5 @@
 // @vitest-environment node
-/**
- * SSR coverage via react-dom/server.renderToString. Exercises the
- * `getServerSnapshot` paths that happy-dom doesn't hit. Verifies
- * `ssrInitialLocale` / `ssrInitialIsLoading` / `ssrInitialIsInitializing`
- * flow through to consumers.
- */
+/** Exercises the `getServerSnapshot` paths that happy-dom does not hit. */
 
 import { describe, it, expect } from "vitest";
 import React from "react";
@@ -19,7 +14,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   it("renderToString uses the configured locale via getServerSnapshot", () => {
     const i18n = createI18n({
       locale: "fr",
-      translation: { fr: { greeting: "Bonjour" }, en: { greeting: "Hello" } },
+      messages: { fr: { greeting: "Bonjour" }, en: { greeting: "Hello" } },
     });
 
     const html = renderToString(
@@ -28,16 +23,13 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
       </I18nProvider>,
     );
 
-    expect(html).toContain("Bonjour");
+    expect(html.replaceAll("<!-- -->", "")).toBe("Bonjour");
   });
 
-  it("ssrInitialLocale overrides the i18n.locale on the server snapshot path", () => {
-    // Instance defaults to 'en' but we tell the provider the SSR locale is
-    // 'de'. The server snapshot getter should return 'de' for any consumer
-    // that uses useLocale() / useI18n().locale.
+  it("ssrLocale overrides the i18n.locale on the server snapshot path", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: { greeting: "Hello" },
         de: { greeting: "Hallo" },
       },
@@ -49,7 +41,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
     }
 
     const html = renderToString(
-      <I18nProvider i18n={i18n} autoInit={false} ssrInitialLocale="de">
+      <I18nProvider i18n={i18n} autoInit={false} ssrLocale="de">
         <Show />
       </I18nProvider>,
     );
@@ -59,7 +51,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   });
 
   it("ssrInitialIsLoading flows through useIsLoading on the server snapshot path", () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { x: "x" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { x: "x" } } });
 
     function Show() {
       const { isLoading, isInitializing } = useIsLoading();
@@ -83,7 +75,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   it("useI18n on the server snapshot path returns the configured locale + a valid t()", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello" } },
+      messages: { en: { greeting: "Hello" } },
     });
 
     function Show() {
@@ -97,7 +89,163 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
       </I18nProvider>,
     );
 
-    expect(html).toContain("Hello");
-    expect(html).toContain('data-locale="en"');
+    expect(html.replaceAll("<!-- -->", "")).toBe('<span data-locale="en">Hello</span>');
+  });
+
+  it("falls back to the live host state when no ssrInitial* prop is given", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { x: "x" } } });
+
+    function Show() {
+      const { isLoading, isInitializing } = useIsLoading();
+      return (
+        <span data-loading={String(isLoading)} data-init={String(isInitializing)}>
+          state
+        </span>
+      );
+    }
+
+    const html = renderToString(
+      <I18nProvider i18n={i18n} autoInit={false}>
+        <Show />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-loading="false"');
+    expect(html).toContain('data-init="false"');
+  });
+});
+
+/**
+ * Under a server-rendered provider the instance locale is the host's static
+ * configured one, not the request's. Every locale-sensitive member of
+ * `useI18n()` has to read the provider's locale instead — `hasTranslation`
+ * included, since it gates whether callers even ask for a string.
+ */
+describe("@comvi/react SSR — useI18n().hasTranslation follows the provider locale", () => {
+  it("answers for ssrLocale, not the instance locale", () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: {}, fr: { greeting: "Bonjour" } },
+      exposeGlobal: false,
+    });
+    const Probe = () => <>{`has:${useI18n().hasTranslation("greeting")}`}</>;
+
+    const html = renderToString(
+      <I18nProvider i18n={i18n} autoInit={false} ssrLocale="fr">
+        <Probe />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("has:true");
+  });
+
+  it("reports false for a key the provider locale does not have", () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello" }, fr: {} },
+      exposeGlobal: false,
+    });
+    const Probe = () => <>{`has:${useI18n().hasTranslation("greeting")}`}</>;
+
+    const html = renderToString(
+      <I18nProvider i18n={i18n} autoInit={false} ssrLocale="fr">
+        <Probe />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("has:false");
+  });
+});
+
+/**
+ * Regression guard for the client-only tag boundary added in `T.tsx`: React
+ * error boundaries do not run during `renderToString`, so a component or
+ * element tag handler that throws still tears the SERVER render down. The
+ * client boundary must not create the impression that server renders degrade.
+ */
+describe("@comvi/react SSR — a throwing tag handler is NOT contained on the server", () => {
+  it("renderToString rethrows the handler's error instead of rendering the children", () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { msg: "Click <link>here</link>" } },
+      exposeGlobal: false,
+    });
+    const Exploding = (): React.ReactElement => {
+      throw new Error("handler exploded");
+    };
+
+    const renderServerSide = () =>
+      renderToString(
+        <I18nProvider i18n={i18n} autoInit={false}>
+          <T i18nKey={"msg" as never} components={{ link: <Exploding /> }} />
+        </I18nProvider>,
+      );
+
+    expect(renderServerSide).toThrow(new Error("handler exploded"));
+  });
+});
+
+/**
+ * `ssrLocale` is the render locale's one name across bindings (`@comvi/vue`
+ * and `@comvi/nuxt` use it too).
+ */
+describe("@comvi/react SSR — ssrLocale", () => {
+  const withGreeting = () =>
+    createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello" }, de: { greeting: "Hallo" } },
+      exposeGlobal: false,
+    });
+
+  function Show() {
+    const { locale, t } = useI18n();
+    return <span data-locale={locale}>{t("greeting" as never)}</span>;
+  }
+
+  it("seeds the server snapshot locale and the translations rendered in it", () => {
+    const html = renderToString(
+      <I18nProvider i18n={withGreeting()} autoInit={false} ssrLocale="de">
+        <Show />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-locale="de"');
+    expect(html.replaceAll("<!-- -->", "")).toContain("Hallo");
+  });
+});
+
+/**
+ * W4/Q2 — the `fallback` gate reads the SAME `isInitializing` the contexts
+ * carry, which on the server is whatever the SSR snapshot says. Default
+ * `ssrInitialIsInitializing` is `false`, so a server render is never gated.
+ */
+describe("@comvi/react SSR — fallback follows the server snapshot", () => {
+  const host = () =>
+    createI18n({ locale: "en", messages: { en: { greeting: "Hello" } }, exposeGlobal: false });
+
+  it("renders children, not the fallback, on the default server snapshot", () => {
+    const html = renderToString(
+      <I18nProvider i18n={host()} autoInit={false} fallback={<span>gate</span>}>
+        <T i18nKey={"greeting" as never} />
+      </I18nProvider>,
+    );
+
+    expect(html.replaceAll("<!-- -->", "")).toBe("Hello");
+  });
+
+  it("renders the fallback when ssrInitialIsInitializing says the host is initializing", () => {
+    const html = renderToString(
+      <I18nProvider
+        i18n={host()}
+        autoInit={false}
+        ssrInitialIsInitializing
+        fallback={<span>gate</span>}
+      >
+        <T i18nKey={"greeting" as never} />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("<span>gate</span>");
+    expect(html).not.toContain("Hello");
   });
 });

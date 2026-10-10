@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/cli</h1>
 
-<p align="center">CLI for the Comvi TMS — type generation, translation sync, project management.</p>
+<p align="center">CLI for the Comvi platform: type generation and translation sync from your terminal and CI.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/cli"><img src="https://img.shields.io/npm/v/@comvi/cli?color=blue" alt="npm"></a>
@@ -16,141 +16,89 @@
 
 ---
 
-`@comvi/cli` connects your codebase to the [Comvi Translation Management System](https://comvi.io). It generates a strict `TranslationKeys` interface from your TMS schema and syncs translation files between local JSON and the TMS — with optional SSE-based watch mode for live regeneration.
-
-**Use `@comvi/cli`** if your translations live in the Comvi TMS and you want to sync them to your repo or generate types from the live schema.
-**Use `@comvi/vite-plugin`** if your translations live as local JSON files and you want autocomplete in your editor.
-
-📖 **Documentation:** https://comvi.io/docs/cli/
-
-## About Comvi i18n
-
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~8 kB minified + gzipped (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
-
-- **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS.
-- **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
-
-See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
-
-## Why @comvi/cli?
-
-- **Type generation from the live TMS schema.** No manual `i18n.d.ts` upkeep — types stay in sync with your platform.
-- **Pull & push translations.** Download from the TMS to local JSON, or upload changes back without leaving your terminal.
-- **Watch mode with SSE.** Use `--watch` to live-regenerate types as translators ship changes to the platform.
+`@comvi/cli` moves translations between your repository and your Comvi project and generates a
+TypeScript declaration from the project's keys. For catalogs that live as local JSON, use
+[`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) instead; both emit the same
+file. The full guide is [Comvi CLI](https://comvi.io/docs/cli) on the docs site.
 
 ## Install
 
 ```bash
 npm install -D @comvi/cli
+# Node 22 or newer.
 ```
 
-## Quick start
+Run it as `npx comvi <command>` once it is a dev dependency, or as
+`npx --package @comvi/cli comvi <command>` with nothing installed.
 
-```bash
-export COMVI_API_KEY=cmv_xxxxxxxxxxxxxxxx
+## Authenticate
 
-npx comvi init                    # creates .comvirc.json
-npx comvi generate-types          # generate TranslationKeys.d.ts from the TMS
-npx comvi generate-types --watch  # live-regenerate via SSE
-npx comvi pull                    # download translations from the TMS
-npx comvi push                    # upload local translations to the TMS
+```bash title="Terminal"
+export COMVI_API_KEY=comvi_xxxxxxxxxxxxxxxx
+npx comvi pull
 ```
 
-**Recommended:** keep the API key in the `COMVI_API_KEY` environment variable. Storing `apiKey` in `.comvirc.json` works but is discouraged — env vars take precedence and won't end up in version control by accident.
+Every command reads `COMVI_API_KEY`. The key selects the project, so there is no project id to
+configure. The CLI also loads the nearest `.env` file before each command, walking up from the
+working directory and stopping at the first `package.json`, so `COMVI_API_KEY=...` in `.env` works
+with no wrapper. Real environment variables always win over the file.
 
-The CLI auto-loads the nearest `.env` by walking up from your current working directory (bounded by the project root) before each command — drop `COMVI_API_KEY=...` in `.env` and it just works, no `dotenv-cli` wrapper needed. Real env vars always win over the file (CI-safe). Use `--no-env-file` (or `COMVI_NO_ENV=1`) to opt out, or `--env-file <path>` to point at a specific file.
+## Config file
 
-### Filter what you pull/push
+```bash title="Terminal"
+npx comvi init
+```
 
-Declare a namespace/locale subset in `.comvirc.json` so it's not repeated in every `package.json` script:
-
-```json
+```json title=".comvirc.json"
 {
-  "namespaces": ["forest", "share_experience"],
-  "locales": ["en", "uk"]
+  "apiBaseUrl": "https://api.comvi.io",
+  "outputPath": "src/types/i18n.d.ts",
+  "strictParams": true,
+  "translationsPath": "./src/locales",
+  "fileTemplate": "{namespace}/{languageTag}.json",
+  "format": "json",
+  "locales": ["en", "de"],
+  "namespaces": ["common", "auth"],
+  "push": { "forceMode": "ask" },
+  "pull": { "emptyDir": false }
 }
 ```
 
-`comvi pull` and `comvi push` then operate on that subset by default. CLI flags (`--ns`, `--locale`) fully override the config for one-off runs (no merge). If a value in the config doesn't exist on the server (typo, deleted namespace), `pull` fails fast with exit code 4 instead of silently writing empty files.
+`comvi init` writes `.comvirc.json` in the current directory without `locales` or `namespaces`;
+add those by hand. It does write `push` and `pull` with their defaults, `"forceMode": "ask"` and
+`"emptyDir": false`. The file is looked up by walking up from the working directory
+and stopping at the first `package.json`, so in a monorepo a command run in `apps/web` does not
+inherit a config at the workspace root; point at it with `--config ../../.comvirc.json`.
 
-For all commands and flags, the full `.comvirc.json` reference, and the programmatic API (`TypeGenerator`, `ApiClient`, `TranslationSync`, etc.), see the [documentation](https://comvi.io/docs/cli/).
+## Commands
 
-## What you get
+| Command                 | What it does                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `comvi init`            | Writes `.comvirc.json`.                                                          |
+| `comvi pull`            | Downloads the project's translations into local JSON files.                      |
+| `comvi push`            | Uploads local JSON files to the project.                                         |
+| `comvi typegen`         | Writes the `TranslationKeys` declaration from the project's keys.                |
+| `comvi typegen --watch` | Generates once, then regenerates on every schema change over Server-Sent Events. |
+| `comvi typegen --check` | Writes nothing; exits `1` when the file on disk is outdated. For CI.             |
 
-Run `npx comvi generate-types` and the CLI writes a `TranslationKeys` declaration straight from your TMS schema:
-
-```typescript
-// src/types/i18n.d.ts — generated, do not edit
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    welcome: { name: string };
-    items: { count: number };
-    greeting: never;
-    "errors:NOT_FOUND": never;
-    "errors:INVALID_INPUT": { field: string };
-  }
-}
+```bash title="Terminal"
+npx comvi pull
+npx comvi typegen --check
+npx tsc --noEmit
 ```
 
-Every `t()` call across your project is now strictly typed against the live TMS schema:
+`pull` writes flat files with dotted keys, and `push` accepts either shape: nested objects are
+flattened to dotted keys on push. Every leaf must be a string; a number, boolean, null or array
+fails the push with exit code `4` and names the file and key. The generated declaration augments
+`@comvi/core` when `package.json` declares it, otherwise the first framework binding it declares;
+set `augment` in `.comvirc.json` to name a different module.
 
-```ts
-import { useI18n } from "@comvi/react"; // or vue, solid, svelte, @comvi/next/client; Nuxt auto-imports it
-const { t } = useI18n();
+## Next steps
 
-// ✓ Compiles — name required, type-checked
-t("welcome", { name: "Alice" });
-
-// ✓ No params needed
-t("greeting");
-
-// ✓ Namespaced keys use the ns option
-t("INVALID_INPUT", { ns: "errors", field: "email" });
-```
-
-**What TypeScript catches:**
-
-```ts
-// ✗ Expected 2 arguments, but got 1
-t("welcome");
-
-// ✗ Property 'name' is missing in type '{ age: number }'
-t("welcome", { age: 5 });
-
-// ✗ Type 'number' is not assignable to type 'string'
-t("welcome", { name: 42 });
-
-// ✗ Argument of type '"typo"' is not assignable to parameter
-t("typo", { name: "Alice" });
-```
-
-### Live regeneration with `--watch`
-
-Run `npx comvi generate-types --watch` once at the start of your dev session. The CLI opens a Server-Sent Events connection to the TMS — when a translator adds, renames, or removes a key, your local `.d.ts` regenerates within seconds and your editor's autocomplete updates without a restart.
-
-### Workflow: pull/push for translations
-
-```bash
-npx comvi pull   # writes the TMS state to local JSON files
-npx comvi push   # uploads local edits back to the TMS
-```
-
-Use `pull` to bootstrap a fresh checkout or to grab a translator's recent changes for offline review. Use `push` to ship a developer-side copy fix without leaving the editor.
-
-By default, v0.3 stores the namespace marked as default in the TMS at the locale root and stores other namespaces in namespace folders:
-
-```txt
-src/locales/
-├── en.json
-├── uk.json
-└── review_list/
-    ├── en.json
-    └── uk.json
-```
-
-To keep the v0.2 layout, set `"fileTemplate": "{languageTag}/{namespace}.json"` in `.comvirc.json`.
+- [Comvi CLI](https://comvi.io/docs/cli): environment variables, every config key, exit codes.
+- [comvi typegen](https://comvi.io/docs/cli/typegen): flags, check and watch modes, the emitter.
+- [comvi pull](https://comvi.io/docs/cli/pull) and [comvi push](https://comvi.io/docs/cli/push): file layout, filters, force modes.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): how the generated file reaches `t()`.
 
 ## License
 

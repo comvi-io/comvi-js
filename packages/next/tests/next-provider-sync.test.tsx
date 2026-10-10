@@ -1,0 +1,321 @@
+/**
+ * What the Next <I18nProvider> writes onto the instance, and when.
+ *
+ * Nothing is written during render: a render React abandons, and every server
+ * render, must leave the shared instance as it was. The first client render
+ * still renders in the handed-over locale and translates from the handed-over
+ * catalog; the instance receives both at commit, and neither is re-applied on
+ * a render that changed nothing.
+ */
+
+import React from "react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, act } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { createI18n, useI18n, useIsLoading, useLocale } from "@comvi/react";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+
+import { I18nProvider } from "../src/client/I18nProvider";
+import type { MessagesMap } from "../src/client/I18nProvider";
+
+const MESSAGES: MessagesMap = { "fr:default": { greeting: "Bonjour" } };
+
+/**
+ * Shadows the prototype accessor with an own property that records writes, so
+ * "assigned the same locale again" is distinguishable from "left it alone".
+ */
+const recordLocaleWrites = (fake: FakeI18n): string[] => {
+  const writes: string[] = [];
+  let current = fake.locale;
+  Object.defineProperty(fake, "locale", {
+    get: () => current,
+    set: (value: string) => {
+      writes.push(value);
+      current = value;
+    },
+    configurable: true,
+  });
+  return writes;
+};
+
+describe("Next <I18nProvider> instance sync", () => {
+  it("renders the first client render in the locale, and applies it at commit", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const atRender: string[] = [];
+    const LocaleAtRenderTime = () => {
+      atRender.push(`${useLocale()}/${fake.locale}`);
+      return null;
+    };
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+        <LocaleAtRenderTime />
+      </I18nProvider>,
+    );
+
+    // The tree is in `fr` from its first render; the instance was not written by it.
+    expect(atRender[0]).toBe("fr/en");
+    expect(fake.locale).toBe("fr");
+  });
+
+  it("leaves the locale alone when the instance already carries it", () => {
+    const fake = new FakeI18n({ language: "fr" });
+    const writes = recordLocaleWrites(fake);
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(writes).toEqual([]);
+  });
+
+  it("writes the locale when the instance carries a different one", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const writes = recordLocaleWrites(fake);
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(writes).toEqual(["fr"]);
+  });
+
+  // Client navigation to a different `[locale]` segment reaches the instance
+  // through the same layout effect as the first mount, and nothing else.
+  it("applies a new locale handed over on a later render", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const writes = recordLocaleWrites(fake);
+    const { rerender } = render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    rerender(
+      <I18nProvider i18n={fake.asI18n()} locale="de" autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(writes).toEqual(["fr", "de"]);
+    expect(fake.locale).toBe("de");
+  });
+
+  it("does not apply a later locale the routing config rejects", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const writes = recordLocaleWrites(fake);
+    const routing = { locales: ["en", "fr"], defaultLocale: "en" };
+    const { rerender } = render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" routing={routing} autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    rerender(
+      <I18nProvider i18n={fake.asI18n()} locale="zz" routing={routing} autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(writes).toEqual(["fr"]);
+  });
+
+  it("translates the first render from pre-loaded messages, and adds them once at commit", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: {} }, exposeGlobal: false });
+    const atRender: string[] = [];
+    const MessagesAtRenderTime = () => {
+      const { t } = useI18n();
+      atRender.push(`${t("greeting")}/${i18n.hasLocale("fr")}`);
+      return <span data-testid="at-render">{t("greeting")}</span>;
+    };
+    const addMessages = vi.spyOn(i18n, "addMessages");
+
+    render(
+      <I18nProvider i18n={i18n} locale="fr" messages={MESSAGES} autoInit={false}>
+        <MessagesAtRenderTime />
+      </I18nProvider>,
+    );
+
+    // The text came from the handover before the instance held it.
+    expect(atRender[0]).toBe("Bonjour/false");
+    expect(screen.getByTestId("at-render").textContent).toBe("Bonjour");
+    expect(i18n.hasLocale("fr")).toBe(true);
+    expect(i18n.locale).toBe("fr");
+    expect(addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+  });
+
+  it("does not re-add the same messages object on a later render", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { rerender } = render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" messages={MESSAGES} autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    rerender(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" messages={MESSAGES} autoInit={false}>
+        <div data-testid="second" />
+      </I18nProvider>,
+    );
+
+    expect(fake.addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+  });
+
+  it("does not re-apply the messages when StrictMode renders the tree twice", () => {
+    const fake = new FakeI18n({ language: "en" });
+
+    render(
+      <React.StrictMode>
+        <I18nProvider i18n={fake.asI18n()} locale="fr" messages={MESSAGES} autoInit={false}>
+          <div />
+        </I18nProvider>
+      </React.StrictMode>,
+    );
+
+    expect(fake.addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+  });
+
+  it("adds a different messages object handed over on a later render", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const moreMessages: MessagesMap = { "fr:admin": { title: "Console" } };
+    const { rerender } = render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" messages={MESSAGES} autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    rerender(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" messages={moreMessages} autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(fake.addMessages.mock.calls).toEqual([[MESSAGES], [moreMessages]]);
+  });
+
+  it("renders without messages instead of adding an empty catalog", () => {
+    const fake = new FakeI18n({ language: "en" });
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+        <div data-testid="child" />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByTestId("child")).toBeDefined();
+    expect(fake.addMessages).not.toHaveBeenCalled();
+  });
+
+  it("initializes the instance on mount by default", async () => {
+    const fake = new FakeI18n({ language: "fr" });
+
+    await act(async () => {
+      render(
+        <I18nProvider i18n={fake.asI18n()} locale="fr">
+          <div />
+        </I18nProvider>,
+      );
+    });
+
+    expect(fake.init).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the instance uninitialized when autoInit is off", async () => {
+    const fake = new FakeI18n({ language: "fr" });
+
+    await act(async () => {
+      render(
+        <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+          <div />
+        </I18nProvider>,
+      );
+    });
+
+    expect(fake.init).not.toHaveBeenCalled();
+  });
+
+  it("tells the server renderer that nothing is loading", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: {} }, exposeGlobal: false });
+    const LoadingProbe = () => {
+      const { isLoading, isInitializing } = useIsLoading();
+      return <span>{`isLoading:${isLoading} isInitializing:${isInitializing}`}</span>;
+    };
+
+    const html = renderToString(
+      <I18nProvider i18n={i18n} locale="en" autoInit={false}>
+        <LoadingProbe />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("isLoading:false isInitializing:false");
+  });
+
+  it("identifies itself as I18nProvider in the component tree", () => {
+    expect(I18nProvider.displayName).toBe("I18nProvider");
+  });
+});
+
+describe("Next <I18nProvider> misconfiguration report", () => {
+  it("names the locale and every configured locale in the report", () => {
+    const fake = new FakeI18n({ language: "en" });
+
+    render(
+      <I18nProvider
+        i18n={fake.asI18n()}
+        locale="zz"
+        routing={{ locales: ["en", "fr", "de"], defaultLocale: "en" }}
+        autoInit={false}
+      >
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(fake.reportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          '[@comvi/next] <I18nProvider>: locale "zz" is not in routing.locales (en, fr, de). Skipping locale sync.',
+      }),
+      { source: "init", locale: "zz" },
+    );
+  });
+
+  it("does not add messages for a locale the routing config rejects", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const writes = recordLocaleWrites(fake);
+
+    render(
+      <I18nProvider
+        i18n={fake.asI18n()}
+        locale="zz"
+        routing={{ locales: ["en", "fr"], defaultLocale: "en" }}
+        messages={MESSAGES}
+        autoInit={false}
+      >
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(writes).toEqual([]);
+    // The message catalog is independent of the locale guard: it still lands.
+    expect(fake.addMessages).toHaveBeenCalledExactlyOnceWith(MESSAGES);
+  });
+});
+
+describe("Next <I18nProvider> error reporting is silent when configured correctly", () => {
+  it("reports nothing when no routing config is supplied", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const reportSpy = vi.spyOn(fake, "reportError");
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} locale="zz" autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(reportSpy).not.toHaveBeenCalled();
+  });
+});

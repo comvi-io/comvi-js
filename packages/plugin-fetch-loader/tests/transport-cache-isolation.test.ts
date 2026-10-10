@@ -7,33 +7,16 @@
  * identical for every transport, so project metadata must be scoped by an
  * explicit cacheScope (or not cached at all).
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { fetchApiTranslations, fetchProjectInfo, clearProjectInfoCache } from "../src/index";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { fetchApiTranslations, fetchProjectInfo, clearProjectInfoCache } from "../src/api";
+import { deferred } from "./helpers/deferred";
+import { asFetch, jsonResponse } from "./helpers/transport";
 
 const BASE = "https://api.comvi.io";
 
-function jsonResponse(data: unknown): Response {
-  return new Response(JSON.stringify(data), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
 function fetchFnReturningProject(id: number) {
-  return vi.fn(async () => jsonResponse({ id, name: `project-${id}` }));
+  return vi.fn(async () => jsonResponse({ id }));
 }
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
-}
-
-beforeEach(() => {
-  clearProjectInfoCache();
-});
 
 describe("project-info cache isolation for custom transports", () => {
   it("sequential transports with different projects never share metadata", async () => {
@@ -98,7 +81,7 @@ describe("project-info cache isolation for custom transports", () => {
     expect(secondFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("a stale request cannot delete or overwrite the new pending owner", async () => {
+  it("lifecycle: a stale resolve, then a join, then a fresh call all observe the new owner", async () => {
     const staleResponse = deferred<Response>();
     const currentResponse = deferred<Response>();
     const staleFetch = vi.fn(() => staleResponse.promise);
@@ -116,13 +99,9 @@ describe("project-info cache isolation for custom transports", () => {
 
     await expect(current).resolves.toMatchObject({ id: 2 });
     await expect(joinedCurrent).resolves.toMatchObject({ id: 2 });
-    expect(unexpectedFetch).not.toHaveBeenCalled();
-
     await expect(
       fetchProjectInfo("", BASE, 5000, unexpectedFetch, "scope-a"),
-    ).resolves.toMatchObject({
-      id: 2,
-    });
+    ).resolves.toMatchObject({ id: 2 });
     expect(unexpectedFetch).not.toHaveBeenCalled();
   });
 
@@ -134,9 +113,15 @@ describe("project-info cache isolation for custom transports", () => {
   });
 });
 
-describe("timeout cancellation reaches the transport", () => {
+describe("fetchProjectInfo() cancellation", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("aborts the underlying fetchFn signal when the loader timeout fires", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     let observedSignal: AbortSignal | undefined;
+    const requested = deferred<void>();
     const neverResolves = vi.fn(
       (_input: RequestInfo | URL, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
@@ -144,29 +129,31 @@ describe("timeout cancellation reaches the transport", () => {
           init?.signal?.addEventListener("abort", () =>
             reject(new DOMException("The operation was aborted.", "AbortError")),
           );
+          requested.resolve();
         }),
     );
 
-    await expect(
-      fetchProjectInfo("", BASE, 50, neverResolves as unknown as typeof fetch, "scope-t"),
-    ).rejects.toThrow(/timeout after 50ms/);
+    const request = fetchProjectInfo("", BASE, 50, asFetch(neverResolves), "scope-t");
+    const rejection = expect(request).rejects.toThrow(/timeout after 50ms/);
+    await requested.promise;
+    await vi.advanceTimersByTimeAsync(51);
+    await rejection;
 
     expect(observedSignal).toBeDefined();
     expect(observedSignal?.aborted).toBe(true);
   });
+});
 
+describe("fetchApiTranslations() over a custom transport", () => {
   it("propagates external abort through the project-info fallback", async () => {
     const controller = new AbortController();
-    let projectRequestStarted!: () => void;
-    const started = new Promise<void>((resolveStarted) => {
-      projectRequestStarted = resolveStarted;
-    });
+    const projectRequestStarted = deferred<void>();
     const fetchFn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/v1/translations")) {
         return Promise.resolve(new Response(null, { status: 404 }));
       }
-      projectRequestStarted();
+      projectRequestStarted.resolve();
       return new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => {
           reject(new DOMException("The operation was aborted.", "AbortError"));
@@ -180,11 +167,11 @@ describe("timeout cancellation reaches the transport", () => {
       ["default"],
       BASE,
       5000,
-      fetchFn as typeof fetch,
+      asFetch(fetchFn),
       "scope-abort",
       { signal: controller.signal },
     );
-    await started;
+    await projectRequestStarted.promise;
     controller.abort();
 
     await expect(request).rejects.toMatchObject({ name: "AbortError" });
@@ -202,16 +189,9 @@ describe("timeout cancellation reaches the transport", () => {
     });
 
     await expect(
-      fetchApiTranslations(
-        "",
-        "en",
-        ["default"],
-        BASE,
-        5000,
-        fetchFn as typeof fetch,
-        "scope-cache",
-        { next: { revalidate: 60, tags: ["i18n"] } },
-      ),
+      fetchApiTranslations("", "en", ["default"], BASE, 5000, asFetch(fetchFn), "scope-cache", {
+        next: { revalidate: 60, tags: ["i18n"] },
+      }),
     ).resolves.toEqual(new Map([["en:default", { hello: "Hi" }]]));
 
     expect(calls).toHaveLength(3);
@@ -233,7 +213,7 @@ describe("timeout cancellation reaches the transport", () => {
     });
 
     await expect(
-      fetchApiTranslations("", "en", ["default"], BASE, 5000, fetchFn as typeof fetch, "scope"),
+      fetchApiTranslations("", "en", ["default"], BASE, 5000, asFetch(fetchFn), "scope"),
     ).rejects.toThrow(/Invalid JSON response from .*\/api\/v1\/api\/projects\/42\/export/);
   });
 
@@ -241,7 +221,7 @@ describe("timeout cancellation reaches the transport", () => {
     const fetchFn = vi.fn(async () => jsonResponse({ error: "upstream failure" }));
 
     await expect(
-      fetchApiTranslations("", "en", ["default"], BASE, 5000, fetchFn as typeof fetch, "scope"),
+      fetchApiTranslations("", "en", ["default"], BASE, 5000, asFetch(fetchFn), "scope"),
     ).rejects.toThrow(/namespaces/);
   });
 });

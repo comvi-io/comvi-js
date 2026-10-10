@@ -1,18 +1,36 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import ts from "typescript";
 import { TypeEmitter } from "../src/core/TypeEmitter";
+import { ErrorCodes } from "../src/utils/errors";
 import type { ProjectSchema } from "../src/types";
 
-/**
- * TypeEmitter Tests
- *
- * Tests for generating TypeScript declaration files from ProjectSchema.
- * Key format: "namespace:key" (colon separator)
- */
+/** Syntax errors in the emitted declarations, as TypeScript reports them. */
+function syntacticDiagnosticsOf(source: string): string[] {
+  const { diagnostics = [] } = ts.transpileModule(source, {
+    reportDiagnostics: true,
+    compilerOptions: { module: ts.ModuleKind.ESNext },
+  });
+
+  return diagnostics.map((diagnostic) =>
+    ts.flattenDiagnosticMessageText(diagnostic.messageText, " "),
+  );
+}
+
+/** The emitted `TranslationKeys` member lines, in emitted order, without indentation. */
+function keyLinesOf(output: string): string[] {
+  return (output.match(/^ {4}\S.*$/gm) ?? []).map((line) => line.trim());
+}
+
+/** Schema keys are flat, with a colon separating namespace from key. */
 describe("TypeEmitter", () => {
   let typeEmitter: TypeEmitter;
 
   beforeEach(() => {
     typeEmitter = new TypeEmitter();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("generate", () => {
@@ -30,12 +48,9 @@ describe("TypeEmitter", () => {
 
       expect(result).toContain("declare module '@comvi/core'");
       expect(result).toContain("interface TranslationKeys");
-      // Keys are flat with colon separator: "namespace:key"
-      expect(result).toContain("'common:greeting': { name: string };");
-      expect(result).toContain("'common:welcome': never;");
-      // @comvi/vue and @comvi/react re-export from @comvi/core,
-      // so augmenting @comvi/core is sufficient
-      expect(result).toContain("DO NOT EDIT MANUALLY");
+      expect(result).toContain('"common:greeting": { "name": string };');
+      expect(result).toContain('"common:welcome": never;');
+      expect(result).toContain("DO NOT EDIT");
     });
 
     it("should generate flat keys with colon namespace separator", () => {
@@ -48,12 +63,10 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Keys are flat with colon: "namespace:key"
-      expect(result).toContain("'auth:login': never;");
-      expect(result).toContain("'common:hello': never;");
-      // Should NOT have nested structure
-      expect(result).not.toContain("'common': {");
-      expect(result).not.toContain("'auth': {");
+      expect(result).toContain('"auth:login": never;');
+      expect(result).toContain('"common:hello": never;');
+      expect(result).not.toContain('"common": {');
+      expect(result).not.toContain('"auth": {');
     });
 
     it("should sort keys alphabetically", () => {
@@ -67,13 +80,11 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Keys are sorted alphabetically
-      const alphaIndex = result.indexOf("'alpha:key'");
-      const betaIndex = result.indexOf("'beta:key'");
-      const zebraIndex = result.indexOf("'zebra:key'");
-
-      expect(alphaIndex).toBeLessThan(betaIndex);
-      expect(betaIndex).toBeLessThan(zebraIndex);
+      expect(keyLinesOf(result)).toEqual([
+        '"alpha:key": never;',
+        '"beta:key": never;',
+        '"zebra:key": never;',
+      ]);
     });
 
     it("should sort keys from same namespace alphabetically", () => {
@@ -87,25 +98,27 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Keys sorted: common:apple, common:banana, common:zebra
-      const appleIndex = result.indexOf("'common:apple'");
-      const bananaIndex = result.indexOf("'common:banana'");
-      const zebraIndex = result.indexOf("'common:zebra'");
-
-      expect(appleIndex).toBeLessThan(bananaIndex);
-      expect(bananaIndex).toBeLessThan(zebraIndex);
+      expect(keyLinesOf(result)).toEqual([
+        '"common:apple": never;',
+        '"common:banana": never;',
+        '"common:zebra": never;',
+      ]);
     });
 
-    it("should include generation timestamp", () => {
+    it("stamps no timestamp, so regenerating an unchanged schema rewrites the same bytes", () => {
+      vi.useFakeTimers({ now: Date.UTC(2026, 0, 1) });
       const schema: ProjectSchema = {
         keys: {
           "test:key": { params: [] },
         },
       };
 
-      const result = typeEmitter.generate(schema);
+      const first = typeEmitter.generate(schema);
+      vi.setSystemTime(Date.UTC(2027, 5, 15));
+      const second = typeEmitter.generate(schema);
 
-      expect(result).toMatch(/Generated at: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+      expect(first).not.toContain("Generated at:");
+      expect(second).toBe(first);
     });
 
     it("should generate number type for number parameters", () => {
@@ -119,7 +132,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("'common:items': { count: number };");
+      expect(result).toContain('"common:items": { "count": number };');
     });
 
     it("should generate string type for string parameters", () => {
@@ -133,7 +146,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("'common:greeting': { name: string };");
+      expect(result).toContain('"common:greeting": { "name": string };');
     });
 
     it("should generate optional params when strictParams is false", () => {
@@ -150,7 +163,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { strictParams: false });
 
-      expect(result).toContain("'common:hello': { name?: string; title?: string };");
+      expect(result).toContain('"common:hello": { "name"?: string; "title"?: string };');
     });
 
     it("should generate required params when strictParams is true", () => {
@@ -164,7 +177,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { strictParams: true });
 
-      expect(result).toContain("'common:hello': { name: string };");
+      expect(result).toContain('"common:hello": { "name": string };');
       expect(result).not.toContain("name?:");
     });
 
@@ -186,7 +199,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("'hello': never;");
+      expect(result).toContain('"hello": never;');
     });
 
     it("should handle nested keys after namespace", () => {
@@ -200,8 +213,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Key preserves dots within the key part, colon separates namespace
-      expect(result).toContain("'common:nested.deep.key': { value: string };");
+      expect(result).toContain('"common:nested.deep.key": { "value": string };');
     });
 
     it("should handle keys with special characters", () => {
@@ -214,28 +226,8 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("'common:key-with-dashes': never;");
-      expect(result).toContain("'common:key_with_underscores': never;");
-    });
-
-    it("should handle multiple parameters", () => {
-      const schema: ProjectSchema = {
-        keys: {
-          "common:complex": {
-            params: [
-              { name: "firstName", type: "string" },
-              { name: "lastName", type: "string" },
-              { name: "age", type: "number" },
-            ],
-          },
-        },
-      };
-
-      const result = typeEmitter.generate(schema);
-
-      expect(result).toContain("firstName: string");
-      expect(result).toContain("lastName: string");
-      expect(result).toContain("age: number");
+      expect(result).toContain('"common:key-with-dashes": never;');
+      expect(result).toContain('"common:key_with_underscores": never;');
     });
 
     it("should handle keys that are TypeScript reserved words", () => {
@@ -249,9 +241,9 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("'test:class': never;");
-      expect(result).toContain("'test:interface': never;");
-      expect(result).toContain("'test:type': never;");
+      expect(result).toContain('"test:class": never;');
+      expect(result).toContain('"test:interface": never;');
+      expect(result).toContain('"test:type": never;');
     });
 
     it("should handle very long keys", () => {
@@ -264,7 +256,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain(`'test:${longKey}': never;`);
+      expect(result).toContain(`"test:${longKey}": never;`);
     });
 
     it("should handle Unicode characters in keys", () => {
@@ -278,9 +270,9 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("'test:emoji_😀': never;");
-      expect(result).toContain("'test:chinese_你好': never;");
-      expect(result).toContain("'test:arabic_مرحبا': never;");
+      expect(result).toContain('"test:emoji_😀": never;');
+      expect(result).toContain('"test:chinese_你好": never;');
+      expect(result).toContain('"test:arabic_مرحبا": never;');
     });
 
     it("should handle very large number of keys", () => {
@@ -292,46 +284,44 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("'test:key0': never;");
-      expect(result).toContain("'test:key999': never;");
+      const lines = keyLinesOf(result);
+      expect(lines).toHaveLength(1000);
+      expect(lines[0]).toBe('"test:key0": never;');
+      expect(lines.at(-1)).toBe('"test:key999": never;');
     });
 
-    it("should handle keys with many parameters", () => {
-      const params = Array.from({ length: 10 }, (_, i) => ({
-        name: `param${i}`,
-        type: "string" as const,
-      }));
-
-      const schema: ProjectSchema = {
-        keys: {
-          "test:many": { params },
-        },
-      };
+    it.each([
+      {
+        name: "several string params",
+        params: [
+          { name: "firstName", type: "string" as const },
+          { name: "lastName", type: "string" as const },
+        ],
+        expected: '"test:key": { "firstName": string; "lastName": string };',
+      },
+      {
+        name: "mixed string and number params",
+        params: [
+          { name: "name", type: "string" as const },
+          { name: "count", type: "number" as const },
+          { name: "price", type: "number" as const },
+        ],
+        expected: '"test:key": { "name": string; "count": number; "price": number };',
+      },
+      {
+        name: "ten params",
+        params: Array.from({ length: 10 }, (_, i) => ({
+          name: `param${i}`,
+          type: "string" as const,
+        })),
+        expected: `"test:key": { ${Array.from({ length: 10 }, (_, i) => `"param${i}": string`).join("; ")} };`,
+      },
+    ])("should render $name in declaration order", ({ params, expected }) => {
+      const schema: ProjectSchema = { keys: { "test:key": { params } } };
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("param0: string");
-      expect(result).toContain("param9: string");
-    });
-
-    it("should handle mixed parameter types", () => {
-      const schema: ProjectSchema = {
-        keys: {
-          "test:mixed": {
-            params: [
-              { name: "name", type: "string" },
-              { name: "count", type: "number" },
-              { name: "price", type: "number" },
-            ],
-          },
-        },
-      };
-
-      const result = typeEmitter.generate(schema);
-
-      expect(result).toContain("name: string");
-      expect(result).toContain("count: number");
-      expect(result).toContain("price: number");
+      expect(keyLinesOf(result)).toEqual([expected]);
     });
 
     it("should strip default namespace prefix from keys", () => {
@@ -348,17 +338,14 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { defaultNsName: "default" });
 
-      // Keys from the default namespace should have their prefix stripped
-      expect(result).toContain("'greeting': { name: string };");
-      expect(result).toContain("'welcome': never;");
+      expect(result).toContain('"greeting": { "name": string };');
+      expect(result).toContain('"welcome": never;');
 
-      // Keys from non-default namespaces should keep their prefix
-      expect(result).toContain("'admin:dashboard': never;");
-      expect(result).toContain("'errors:not_found': { code: number };");
+      expect(result).toContain('"admin:dashboard": never;');
+      expect(result).toContain('"errors:not_found": { "code": number };');
 
-      // The stripped keys should NOT appear with their original prefix
-      expect(result).not.toContain("'default:welcome'");
-      expect(result).not.toContain("'default:greeting'");
+      expect(result).not.toContain('"default:welcome"');
+      expect(result).not.toContain('"default:greeting"');
     });
 
     it("should strip custom default namespace prefix when configured", () => {
@@ -372,16 +359,28 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { defaultNsName: "common" });
 
-      // Keys from custom default namespace should have prefix stripped
-      expect(result).toContain("'goodbye': never;");
-      expect(result).toContain("'hello': never;");
+      expect(result).toContain('"goodbye": never;');
+      expect(result).toContain('"hello": never;');
 
-      // Non-default namespace keys keep their prefix
-      expect(result).toContain("'auth:login': never;");
+      expect(result).toContain('"auth:login": never;');
 
-      // Original prefixed keys should not appear
-      expect(result).not.toContain("'common:hello'");
-      expect(result).not.toContain("'common:goodbye'");
+      expect(result).not.toContain('"common:hello"');
+      expect(result).not.toContain('"common:goodbye"');
+    });
+
+    it("should strip the conventional 'default' namespace when none is configured", () => {
+      const schema: ProjectSchema = {
+        keys: {
+          "default:home.title": { params: [] },
+          "admin:dashboard": { params: [] },
+        },
+      };
+
+      const result = typeEmitter.generate(schema);
+
+      expect(result).toContain('"home.title": never;');
+      expect(result).not.toContain('"default:home.title"');
+      expect(result).toContain('"admin:dashboard": never;');
     });
 
     it("should reject key collisions after stripping the default namespace prefix", () => {
@@ -397,7 +396,7 @@ describe("TypeEmitter", () => {
       );
     });
 
-    it("should generate syntactically valid TypeScript declaration output", () => {
+    it("emits one declaration line per key, wrapped in the module augmentation", () => {
       const schema: ProjectSchema = {
         keys: {
           "common:welcome": { params: [] },
@@ -413,30 +412,95 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Verify the overall structure is valid TypeScript declaration syntax
-      // 1. Must start with comment header and import statement
-      expect(result).toMatch(/^\/\*\*[\s\S]*?\*\//);
-      expect(result).toContain("import '@comvi/core';");
+      expect(result).toBe(
+        [
+          "/**",
+          " * Auto-generated translation keys, augmenting '@comvi/core'",
+          " * DO NOT EDIT — this file is generated from your translation schema",
+          " */",
+          "",
+          "// Import to ensure module is resolved before augmentation",
+          "import '@comvi/core';",
+          "",
+          "declare module '@comvi/core' {",
+          "  interface TranslationKeys {",
+          '    "admin:dashboard": never;',
+          '    "common:greeting": { "name": string };',
+          '    "common:items": { "count": number };',
+          '    "common:welcome": never;',
+          "  }",
+          "}",
+          "",
+          "export {};",
+          "",
+        ].join("\n"),
+      );
+    });
+  });
 
-      // 2. Must have proper module declaration block
-      expect(result).toMatch(/declare module '@comvi\/core' \{/);
-      expect(result).toMatch(/\s+interface TranslationKeys \{/);
+  describe("escaping and validation", () => {
+    it("should emit a syntactically valid file for a key containing an apostrophe", () => {
+      const schema: ProjectSchema = {
+        keys: { "admin:errors.it's": { params: [] } },
+      };
 
-      // 3. Each key line must follow valid TypeScript interface member syntax
-      // Pattern: '  'key': never;' or '  'key': { param: type; ... };'
-      const keyLinePattern = /^\s+'[^']+': (never|\{[^}]+\});$/gm;
-      const keyLines = result.match(keyLinePattern);
-      expect(keyLines).not.toBeNull();
-      expect(keyLines!.length).toBe(4);
+      const result = typeEmitter.generate(schema);
 
-      // 4. Must close properly with } and export {}
-      expect(result).toMatch(/\s+\}\n\}\n/);
-      expect(result).toContain("export {};");
+      expect(syntacticDiagnosticsOf(result)).toEqual([]);
+    });
 
-      // 5. Braces must be balanced
-      const openBraces = (result.match(/\{/g) || []).length;
-      const closeBraces = (result.match(/\}/g) || []).length;
-      expect(openBraces).toBe(closeBraces);
+    it("should quote a param name that is not a bare identifier", () => {
+      const schema: ProjectSchema = {
+        keys: { "admin:greeting": { params: [{ name: "user-name", type: "string" }] } },
+      };
+
+      const result = typeEmitter.generate(schema);
+
+      expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "user-name": string };']);
+    });
+
+    it("should emit a syntactically valid file for a param name that is not a bare identifier", () => {
+      const schema: ProjectSchema = {
+        keys: { "admin:greeting": { params: [{ name: "user-name", type: "string" }] } },
+      };
+
+      const result = typeEmitter.generate(schema);
+
+      expect(syntacticDiagnosticsOf(result)).toEqual([]);
+    });
+
+    it("should reject a param type the emitter cannot express, naming key, param and type", () => {
+      const schema: ProjectSchema = {
+        keys: {
+          "admin:greeting": {
+            params: [{ name: "onDone", type: "() => void" as unknown as "string" }],
+          },
+        },
+      };
+
+      expect(() => typeEmitter.generate(schema)).toThrow(
+        expect.objectContaining({ code: ErrorCodes.VALIDATION_FAILED }),
+      );
+      expect(() => typeEmitter.generate(schema)).toThrow(/admin:greeting.*onDone.*\(\) => void/);
+    });
+
+    it("should accept the two param types it can express", () => {
+      const schema: ProjectSchema = {
+        keys: {
+          "admin:greeting": {
+            params: [
+              { name: "name", type: "string" },
+              { name: "count", type: "number" },
+            ],
+          },
+        },
+      };
+
+      const result = typeEmitter.generate(schema);
+
+      expect(keyLinesOf(result)).toEqual([
+        '"admin:greeting": { "name": string; "count": number };',
+      ]);
     });
   });
 });

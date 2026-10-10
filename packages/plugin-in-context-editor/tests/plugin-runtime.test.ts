@@ -1,0 +1,336 @@
+/**
+ * `inContextEditorPlugin`'s runtime contract on the host: the mappings bridge
+ * it publishes, the SSR/browser split, which host events it subscribes to, and
+ * what a teardown is obliged to give back. `Core` is a double — what the editor
+ * DOES to the page is covered by the Core suites; this is the wiring around it.
+ */
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { EDITOR_INITIAL_MAPPINGS_GLOBAL, readEditorMappings } from "@comvi/core/editor-bridge";
+import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedInstance";
+
+const { mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = await vi.hoisted(
+  () => import("./helpers/mockCore"),
+);
+
+vi.mock("../src/Core", mockCoreModule);
+
+import { inContextEditorPlugin, type EditorOptions } from "../src/index";
+import { getApiConfig, resetApiConfig } from "../src/config/api";
+import { getKeyMappings, registerKey, resetEncoder } from "../src/translation";
+
+/**
+ * The editor's install runs synchronously and always hands back its teardown,
+ * while `I18nPlugin`'s return type also covers the async and no-cleanup shapes
+ * other plugins use. Naming the concrete shape once here keeps every
+ * `cleanup?.()` below callable without re-narrowing at each site.
+ */
+function installEditor(options?: EditorOptions): (i18n: ComposedInstance) => () => void {
+  const plugin = inContextEditorPlugin(options);
+  return (i18n: ComposedInstance) => plugin(asPluginHost(i18n)) as () => void;
+}
+
+function makeI18n(
+  overrides: { apiKey?: string; defaultNs?: string; messages?: Record<string, unknown> } = {},
+): ComposedInstance {
+  const { defaultNs = "default", messages, ...rest } = overrides;
+  return createI18n({
+    locale: "en",
+    defaultNs,
+    exposeGlobal: false,
+    messages: (messages ?? { [`en:${defaultNs}`]: { hello: "Hello" } }) as never,
+    ...rest,
+  });
+}
+
+/**
+ * Wraps `i18n.on` so the unsubscribe handles it hands back become observable —
+ * a teardown that forgets one is otherwise invisible from outside the host.
+ */
+function watchSubscriptions(i18n: ComposedInstance) {
+  const events: string[] = [];
+  const unsubscribes: Array<ReturnType<typeof vi.fn>> = [];
+  const realOn = i18n.on.bind(i18n);
+
+  vi.spyOn(i18n, "on").mockImplementation(((event: never, handler: never) => {
+    events.push(event);
+    const off = vi.fn(realOn(event, handler));
+    unsubscribes.push(off);
+    return off;
+  }) as typeof i18n.on);
+
+  return { events, unsubscribeCalls: () => unsubscribes.map((off) => off.mock.calls.length) };
+}
+
+afterEach(() => {
+  resetCoreMocks();
+  resetApiConfig();
+  resetEncoder();
+});
+
+describe("inContextEditorPlugin mappings bridge", () => {
+  it("install → a mappings bridge is published on the host", () => {
+    const i18n = makeI18n();
+
+    const cleanup = installEditor()(i18n);
+
+    expect(readEditorMappings(i18n)).toBeDefined();
+    cleanup?.();
+  });
+
+  it("key ids restored through the bridge → the bridge reads them back", () => {
+    const i18n = makeI18n();
+    const cleanup = installEditor()(i18n);
+    const bridge = readEditorMappings(i18n);
+
+    bridge?.loadKeyMappings({ "default:hydrated": 7 });
+
+    expect(bridge?.getKeyMappings()).toEqual({ "default:hydrated": 7 });
+    cleanup?.();
+  });
+
+  it("keeps the bridge it already published when a second runtime installs on the same host", () => {
+    const i18n = makeI18n();
+    const first = installEditor()(i18n);
+    const published = readEditorMappings(i18n);
+
+    const second = installEditor()(i18n);
+
+    expect(readEditorMappings(i18n)).toBe(published);
+
+    second?.();
+    first?.();
+  });
+
+  it("keeps the bridge while another runtime on the same host is still live", () => {
+    const i18n = makeI18n();
+    const first = installEditor()(i18n);
+    const published = readEditorMappings(i18n);
+    const second = installEditor()(i18n);
+
+    second?.();
+    expect(readEditorMappings(i18n)).toBe(published);
+
+    first?.();
+    expect(readEditorMappings(i18n)).toBeUndefined();
+  });
+
+  it("withdraws the bridge when the runtime is torn down", () => {
+    const i18n = makeI18n();
+    const cleanup = installEditor()(i18n);
+
+    cleanup?.();
+
+    expect(readEditorMappings(i18n)).toBeUndefined();
+  });
+
+  it("adopts the server's key ids handed over on the host and consumes the handoff", () => {
+    const i18n = makeI18n();
+    (i18n as unknown as Record<string, unknown>)[EDITOR_INITIAL_MAPPINGS_GLOBAL] = {
+      "default:hello": 4,
+    };
+
+    const cleanup = installEditor()(i18n);
+
+    expect(getKeyMappings()).toEqual({ "default:hello": 4 });
+    expect(
+      (i18n as unknown as Record<string, unknown>)[EDITOR_INITIAL_MAPPINGS_GLOBAL],
+    ).toBeUndefined();
+
+    cleanup?.();
+  });
+});
+
+describe("inContextEditorPlugin on a server runtime", () => {
+  it("starts each server host from an empty key-id map, whatever the page-wide encoder holds", () => {
+    const i18n = makeI18n();
+    registerKey("leftover");
+    vi.stubGlobal("window", undefined);
+
+    const cleanup = installEditor()(i18n);
+
+    expect(readEditorMappings(i18n)?.getKeyMappings()).toEqual({});
+
+    cleanup?.();
+  });
+
+  describe("two overlapping server hosts", () => {
+    const cleanups: Array<() => void> = [];
+    afterEach(() => {
+      for (const cleanup of cleanups.splice(0).reverse()) cleanup();
+    });
+
+    /** Host `alpha` installed and rendered, host `beta` installed: two overlapping server requests. */
+    function overlappingHosts() {
+      vi.stubGlobal("window", undefined);
+      const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
+      const second = makeI18n({ messages: { "en:default": { beta: "Beta" } } });
+      cleanups.push(installEditor()(first));
+      first.t("alpha");
+      cleanups.push(installEditor()(second));
+      return { first, second };
+    }
+
+    it("first host renders alpha → its bridge maps alpha to id 1", () => {
+      vi.stubGlobal("window", undefined);
+      const first = makeI18n({ messages: { "en:default": { alpha: "Alpha" } } });
+      cleanups.push(installEditor()(first));
+
+      first.t("alpha");
+
+      expect(readEditorMappings(first)?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    });
+
+    it("second host renders beta → the first host's bridge is left alone", () => {
+      const { first, second } = overlappingHosts();
+
+      second.t("beta");
+
+      expect(readEditorMappings(first)?.getKeyMappings()).toEqual({ "default:alpha": 1 });
+    });
+
+    it("second host renders beta → its own bridge maps beta to id 1", () => {
+      const { second } = overlappingHosts();
+
+      second.t("beta");
+
+      expect(readEditorMappings(second)?.getKeyMappings()).toEqual({ "default:beta": 1 });
+    });
+  });
+
+  it("unsubscribes every host event it subscribed to when the runtime is torn down", () => {
+    const i18n = makeI18n();
+    const subscriptions = watchSubscriptions(i18n);
+    vi.stubGlobal("window", undefined);
+
+    const cleanup = installEditor()(i18n);
+    cleanup?.();
+
+    expect(subscriptions.events).toEqual(["namespaceLoaded", "localeChanged"]);
+    expect(subscriptions.unsubscribeCalls()).toEqual([1, 1]);
+  });
+
+  it("stops flushing pending keys once the runtime is torn down", () => {
+    const i18n = makeI18n();
+    vi.stubGlobal("window", undefined);
+    const cleanup = installEditor()(i18n);
+    i18n.addMessages({ "en:extra": { welcome: "Welcome" } });
+
+    cleanup?.();
+    i18n.t("hello");
+
+    // Only the post-processor's own registration survives; the queued
+    // "extra:welcome" is never flushed, so it is given no id.
+    expect(readEditorMappings(i18n)?.getKeyMappings()).toEqual({ "default:hello": 1 });
+  });
+});
+
+describe("inContextEditorPlugin key enqueueing", () => {
+  it("registers the keys of a namespace loaded after install at the next translation", () => {
+    const i18n = makeI18n();
+    const cleanup = installEditor()(i18n);
+
+    i18n.addMessages({ "en:extra": { welcome: "Welcome" } });
+    i18n.t("hello");
+
+    expect(getKeyMappings()).toEqual({ "default:hello": 1, "extra:welcome": 2 });
+
+    cleanup?.();
+  });
+
+  it("keeps every id it already assigned across a locale change", async () => {
+    const i18n = makeI18n({
+      messages: { "en:default": { hello: "Hello" }, "de:default": { hello: "Hallo" } },
+    });
+    const cleanup = installEditor()(i18n);
+    i18n.t("hello");
+    const beforeLocaleChange = getKeyMappings();
+
+    await i18n.setLocale("de");
+    i18n.t("hello");
+
+    expect(getKeyMappings()).toEqual(beforeLocaleChange);
+
+    cleanup?.();
+  });
+
+  it("assigns ids in sorted key order under a single-character namespace", () => {
+    const i18n = makeI18n({
+      defaultNs: "a",
+      messages: { "en:a": { zebra: "Zebra", apple: "Apple" } },
+    });
+    const cleanup = installEditor()(i18n);
+
+    i18n.t("zebra");
+
+    expect(getKeyMappings()).toEqual({ "a:apple": 1, "a:zebra": 2 });
+
+    cleanup?.();
+  });
+
+  it("keeps the ids an earlier browser runtime assigned when a later one installs", () => {
+    const first = makeI18n({ messages: { "en:default": { b_key: "B", a_key: "A" } } });
+    const cleanupFirst = installEditor()(first);
+    first.t("a_key");
+    cleanupFirst?.();
+
+    const cleanupSecond = installEditor()(makeI18n());
+
+    expect(getKeyMappings()).toEqual({ "default:a_key": 1, "default:b_key": 2 });
+
+    cleanupSecond?.();
+  });
+});
+
+describe("inContextEditorPlugin API configuration", () => {
+  it("prefers apiKeyOverride over the host's own apiKey", () => {
+    const i18n = makeI18n({ apiKey: "host-key" });
+
+    const cleanup = installEditor({ apiKeyOverride: "override-key" })(i18n);
+
+    expect(getApiConfig(FIRST_MOCK_CORE_ID).apiKey).toBe("override-key");
+
+    cleanup?.();
+  });
+
+  it("falls back to the host's apiKey when no override is given", () => {
+    const i18n = makeI18n({ apiKey: "host-key" });
+
+    const cleanup = installEditor()(i18n);
+
+    expect(getApiConfig(FIRST_MOCK_CORE_ID).apiKey).toBe("host-key");
+
+    cleanup?.();
+  });
+
+  it("drops the runtime's API configuration when it is torn down", () => {
+    const i18n = makeI18n({ apiKey: "host-key" });
+    const cleanup = installEditor()(i18n);
+
+    cleanup?.();
+
+    expect(() => getApiConfig(FIRST_MOCK_CORE_ID)).toThrow(/API configuration not initialized/);
+  });
+
+  it("unsubscribes every host event it subscribed to when the browser runtime is torn down", () => {
+    const i18n = makeI18n();
+    const subscriptions = watchSubscriptions(i18n);
+
+    const cleanup = installEditor()(i18n);
+    cleanup?.();
+
+    expect(subscriptions.events).toEqual(["namespaceLoaded", "localeChanged"]);
+    expect(subscriptions.unsubscribeCalls()).toEqual([1, 1]);
+  });
+
+  it("stops flushing pending keys once the browser runtime is torn down", () => {
+    const i18n = makeI18n();
+    const cleanup = installEditor()(i18n);
+    i18n.addMessages({ "en:extra": { welcome: "Welcome" } });
+
+    cleanup?.();
+    i18n.t("hello");
+
+    expect(getKeyMappings()).toEqual({ "default:hello": 1 });
+  });
+});

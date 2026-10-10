@@ -1,40 +1,19 @@
 /**
- * Characterization tests for T.svelte hasExplicitProp forwarding behavior.
- *
- * These tests pin the CURRENT behavior of the `$$props`-based `hasExplicitProp`
- * check so that the Svelte 5 runes migration can verify it preserves the same
- * semantics without regression.
- *
- * Core contract:
- *   - ns / locale / fallback / raw are forwarded into transportParams ONLY when
- *     explicitly provided as props; when omitted, the value in `params.*` wins.
- *   - `hasTranslation` uses the same forwarded locale/ns for its look-up.
+ * `ns` / `locale` / `fallback` / `markers` reach `transportParams` ONLY
+ * when explicitly passed as props; when
+ * omitted, the value in `params.*` wins. And
+ * `hasTranslation` looks up against the same forwarded locale/ns.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
 import TPropForwardingWrapper from "./TPropForwarding.test.svelte";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
-import type { TranslationResult } from "@comvi/core";
-
-// ---------------------------------------------------------------------------
-// Shared fake i18n factory
-// ---------------------------------------------------------------------------
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 const createI18n = (): FakeI18n => {
   const fake = new FakeI18n({ language: "en", defaultNamespace: "default" });
-  fake.addTranslations({ en: { probe: "x" }, fr: { probe: "x" }, "fr:admin": { probe: "x" } });
-  fake.tImplementation = (key, params): TranslationResult => {
-    // Echo reserved params so assertions can inspect what was forwarded
-    return `ns=${String(params?.ns)}|locale=${String(params?.locale)}|fallback=${String(
-      params?.fallback,
-    )}|raw=${String(params?.raw)}`;
-  };
+  fake.addMessages({ en: { probe: "x" }, fr: { probe: "x" }, "fr:admin": { probe: "x" } });
   return fake;
 };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 type WrapperProps = {
   i18n: ReturnType<FakeI18n["asI18n"]>;
@@ -46,13 +25,9 @@ type WrapperProps = {
   locale?: string;
   passFallback?: boolean;
   fallback?: string;
-  passRaw?: boolean;
-  raw?: boolean;
+  passMarkers?: boolean;
+  markers?: boolean;
 };
-
-// ---------------------------------------------------------------------------
-// Suite
-// ---------------------------------------------------------------------------
 
 describe("T.svelte hasExplicitProp forwarding characterization", () => {
   let fake: FakeI18n;
@@ -78,17 +53,13 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
     component = mount(TPropForwardingWrapper, { target, props });
   }
 
-  // -------------------------------------------------------------------------
-  // 1. When props are NOT passed, params.* values are used
-  // -------------------------------------------------------------------------
-
-  describe("when ns/locale/fallback/raw are NOT passed as props", () => {
+  describe("when ns/locale/fallback/markers are NOT passed as props", () => {
     it("does NOT inject ns into transportParams — params.ns reaches tRaw", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
         params: { ns: "admin" },
-        // passNs deliberately omitted (defaults false)
+        // passNs deliberately omitted.
       });
 
       expect(fake.tRaw).toHaveBeenLastCalledWith("probe", expect.objectContaining({ ns: "admin" }));
@@ -120,26 +91,29 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
       );
     });
 
-    it("does NOT inject raw into transportParams — params.raw reaches tRaw", () => {
+    it("does NOT inject markers into transportParams — params.markers reaches tRaw", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
-        params: { raw: true },
+        params: { markers: false },
       });
 
-      expect(fake.tRaw).toHaveBeenLastCalledWith("probe", expect.objectContaining({ raw: true }));
+      expect(fake.tRaw).toHaveBeenLastCalledWith(
+        "probe",
+        expect.objectContaining({ markers: false }),
+      );
     });
 
     it("passes all four via params when none forwarded as props", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
-        params: { ns: "admin", locale: "fr", fallback: "FB", raw: true },
+        params: { ns: "admin", locale: "fr", fallback: "FB", markers: false },
       });
 
       expect(fake.tRaw).toHaveBeenLastCalledWith(
         "probe",
-        expect.objectContaining({ ns: "admin", locale: "fr", fallback: "FB", raw: true }),
+        expect.objectContaining({ ns: "admin", locale: "fr", fallback: "FB", markers: false }),
       );
     });
 
@@ -154,11 +128,7 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // 2. When props ARE passed, they override params.*
-  // -------------------------------------------------------------------------
-
-  describe("when ns/locale/fallback/raw ARE passed as props", () => {
+  describe("when ns/locale/fallback/markers ARE passed as props", () => {
     it("prop ns overrides params.ns in transportParams", () => {
       mountWrapper({
         i18n: fake.asI18n(),
@@ -168,6 +138,9 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
         ns: "from-prop",
       });
 
+      // `ns={undefined}` is deliberately not covered: `prepareTranslation`
+      // forwards a reserved prop only when it is not `undefined` (the rule in
+      // all four wrappers), so the contract is that a CONCRETE value wins.
       expect(fake.tRaw).toHaveBeenLastCalledWith(
         "probe",
         expect.objectContaining({ ns: "from-prop" }),
@@ -204,31 +177,34 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
       );
     });
 
-    it("prop raw overrides params.raw in transportParams", () => {
+    it("prop markers overrides params.markers in transportParams", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
-        params: { raw: false },
-        passRaw: true,
-        raw: true,
+        params: { markers: true },
+        passMarkers: true,
+        markers: false,
       });
 
-      expect(fake.tRaw).toHaveBeenLastCalledWith("probe", expect.objectContaining({ raw: true }));
+      expect(fake.tRaw).toHaveBeenLastCalledWith(
+        "probe",
+        expect.objectContaining({ markers: false }),
+      );
     });
 
     it("all four props forwarded simultaneously override all four params values", () => {
       mountWrapper({
         i18n: fake.asI18n(),
         i18nKey: "probe",
-        params: { ns: "p-ns", locale: "de", fallback: "p-fb", raw: false },
+        params: { ns: "p-ns", locale: "de", fallback: "p-fb", markers: true },
         passNs: true,
         ns: "prop-ns",
         passLocale: true,
         locale: "fr",
         passFallback: true,
         fallback: "prop-fb",
-        passRaw: true,
-        raw: true,
+        passMarkers: true,
+        markers: false,
       });
 
       expect(fake.tRaw).toHaveBeenLastCalledWith(
@@ -237,7 +213,7 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
           ns: "prop-ns",
           locale: "fr",
           fallback: "prop-fb",
-          raw: true,
+          markers: false,
         }),
       );
     });
@@ -255,31 +231,7 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
 
       expect(fake.hasTranslation).toHaveBeenCalledWith("probe", "fr", "admin", true);
     });
-
-    // NOTE: passing ns={undefined} explicitly cannot be reliably distinguished from
-    // "prop omitted" in Svelte 5 runes mode — Svelte omits undefined-valued props
-    // from the compiled spread, so the UNSET sentinel remains and params.ns wins.
-    // This edge case is intentionally not tested; the meaningful contract is that
-    // a concrete string value (e.g. ns="admin") overrides params.ns.
-    it("forwarded prop ns with a concrete value overrides params.ns", () => {
-      mountWrapper({
-        i18n: fake.asI18n(),
-        i18nKey: "probe",
-        params: { ns: "from-params" },
-        passNs: true,
-        ns: "explicit-ns",
-      });
-
-      expect(fake.tRaw).toHaveBeenLastCalledWith(
-        "probe",
-        expect.objectContaining({ ns: "explicit-ns" }),
-      );
-    });
   });
-
-  // -------------------------------------------------------------------------
-  // 3. Non-reserved params keys are always forwarded unaffected
-  // -------------------------------------------------------------------------
 
   describe("non-reserved params keys are always forwarded", () => {
     it("custom param values reach tRaw regardless of which props are passed", () => {

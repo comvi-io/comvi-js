@@ -11,6 +11,9 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     environment: "happy-dom",
     setupFiles: ["./tests/setup.ts"],
     include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
@@ -34,16 +37,13 @@ export default defineConfig({
         "src/entry-production.ts", // Build-condition shim; behavior is covered through package contracts
       ],
       thresholds: {
-        // Raised gate after expanding coverage for runtime modules and services.
         lines: 85,
         functions: 85,
         branches: 65,
         statements: 85,
       },
     },
-    // Performance and debugging
     pool: "forks",
-    // Reporting
     reporters: ["verbose"],
     outputFile: {
       json: "./coverage/test-results.json",

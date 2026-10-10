@@ -6,7 +6,7 @@
 // fflate streams ~128KB chunks, so any tarball that decompresses to >128KB (every one
 // of ours) loses all but the final chunk → `untar([])` → `data[0].filename` throws
 // `Cannot read properties of undefined (reading 'filename')`. This hits the CLI and
-// every `createPackageFrom*` helper. See .omc/plans/types-attw-publint.md "#1 RISK".
+// every `createPackageFrom*` helper.
 //
 // This wrapper builds the in-memory file map itself: `pnpm pack` → `zlib.gunzipSync`
 // (single-shot, multi-chunk-safe) → `tar.Parser` → a `/node_modules/<name>/...` map
@@ -34,21 +34,41 @@ import { fileURLToPath } from "node:url";
 import { Parser } from "tar";
 import { Package, checkPackage } from "@arethetypeswrong/core";
 import { TYPED_PACKAGES } from "../tooling/typed-packages.mjs";
+import { moduleSpecifiers } from "../tooling/dts-specifier-scan.mjs";
 
 const rootDir = path.resolve(fileURLToPath(import.meta.url), "..", "..");
 const packagesDir = path.join(rootDir, "packages");
 
-// The packages are ESM-only and target bundler resolution (node16/nodenext is NOT a
-// target). Under `bundler`, the only meaningful resolution failures are an entry that
-// does not resolve at all (`NoResolution`) or an internal relative specifier that does
-// not resolve (`InternalResolutionError`). `FalseCJS`/`FalseESM` are node16-scoped and
-// never fire under bundler, so they are not gated. The PRIMARY post-migration gates are
-// the empty-types content check (below) + publint; attw@bundler is cheap insurance
-// against an unresolvable/extensionless declaration regression.
+// The meaningful resolution failures are an entry that does not resolve at all
+// (`NoResolution`) or an internal relative specifier that does not resolve
+// (`InternalResolutionError`). `FalseCJS`/`FalseESM` and `CJSResolvesToESM` are the
+// expected shape of an ESM-only package under a CJS resolver, so they are not gated.
 const GATING_PROBLEM_KINDS = new Set(["InternalResolutionError", "NoResolution"]);
 
-// We only evaluate the modern bundler resolution mode.
-const GATING_RESOLUTION_KINDS = new Set(["bundler"]);
+// attw is asked about `bundler` AND `node16`.
+//
+// node16 was previously excluded, and that single omission is what let
+// a fetch-loader entry point ship `export * from './cdn/index'` — a specifier
+// node16 cannot resolve, leaving the entry point with ZERO exported members and every
+// consumer with `TS2305: ... has no exported member 'cdnLoader'`. attw reports it
+// perfectly well (10 × `InternalResolutionError` on that package alone); the report was
+// being filtered away here.
+//
+// Two fields carry the mode, and BOTH have to allow node16 or the filter below silently
+// drops everything: entry-level problems (`NoResolution`) carry `resolutionKind`
+// (`bundler` / `node10` / `node16-esm` / `node16-cjs`), while `InternalResolutionError`
+// carries `resolutionOption` (`bundler` / `node10` / `node16`). `node10` stays out of
+// both: these packages are ESM-only and deliberately unresolvable by a node10 consumer.
+const GATING_RESOLUTION_KINDS = new Set(["bundler", "node16-esm"]);
+const GATING_RESOLUTION_OPTIONS = new Set(["bundler", "node16"]);
+
+// `svelte-package` emits `export { default as T } from "./T.svelte"`. attw reports that
+// as an `InternalResolutionError` under node16 because bare `tsc` needs
+// `allowArbitraryExtensions` to map `./T.svelte` onto `T.svelte.d.ts`. A Svelte consumer
+// resolves it through the Svelte toolchain, and a node16 `tsc --skipLibCheck false` over
+// the published package reports NO error for it — so it is an attw false positive here,
+// not a shipped defect. Scoped as narrowly as it can be: this exact extension.
+const ARBITRARY_EXTENSION_SPECIFIER = /\.svelte$/;
 
 // EMPTY-TYPES GUARD: attw passes any declaration file that *resolves*, even an
 // `export {}` stub that re-exports nothing (every public symbol then resolves to
@@ -57,16 +77,30 @@ const GATING_RESOLUTION_KINDS = new Set(["bundler"]);
 // whose code (comments/whitespace stripped) is only `export {}`, is treated as empty.
 const TRIVIAL_DTS_BYTES = 16;
 
+// One broken barrel can strand hundreds of specifiers; print enough to act on.
+const NODE16_REPORT_LIMIT = 10;
+
 // Gather every declaration file a consumer can resolve: the root `types`/`typings`
 // plus every `types` condition anywhere in the `exports` map.
+//
+// A `types` condition may hold a NESTED condition object rather than a path —
+// `"types": { "production": "./dist/production.d.ts", "default": "./dist/index.d.ts" }`
+// is how a package ships different declarations per runtime condition while still
+// putting `types` first. Every branch of such an object is resolvable by some
+// consumer, so all of them are collected; walking past a `types` key would silently
+// drop them from the empty-declaration guard below.
 function collectTypesEntries(manifest) {
   const entries = new Set();
   if (typeof manifest.types === "string") entries.add(manifest.types);
   if (typeof manifest.typings === "string") entries.add(manifest.typings);
+  const addAllPaths = (node) => {
+    if (typeof node === "string") entries.add(node);
+    else if (node && typeof node === "object") Object.values(node).forEach(addAllPaths);
+  };
   const walk = (node) => {
     if (!node || typeof node !== "object") return;
     for (const [key, val] of Object.entries(node)) {
-      if (key === "types" && typeof val === "string") entries.add(val);
+      if (key === "types") addAllPaths(val);
       else walk(val);
     }
   };
@@ -83,6 +117,92 @@ function declarationIsEmpty(text) {
     .replace(/(?<!\/)\/\/(?!\/)[^\n]*/g, "")
     .replace(/\s+/g, "");
   return stripped === "" || stripped === "export{}" || stripped === "export{};";
+}
+
+// ---------------------------------------------------------------------------
+// NODE16 RESOLUTION PROBE — for the entries attw's walk cannot reach
+// ---------------------------------------------------------------------------
+// attw (above, now with `node16` allowed through the filter) is the PRIMARY node16
+// gate and catches the extensionless-specifier defect everywhere it can see. This
+// probe exists for the one place it cannot see: attw resolves entry points with a
+// FIXED condition set (`import`, `types`, `node`, `default`), so a `types` branch
+// living under a custom condition is never visited.
+//
+// @comvi/plugin-in-context-editor has exactly that shape:
+//
+//     "." : { "types": { "production": "./dist/production.d.ts",
+//                        "default":    "./dist/index.d.ts" }, ... }
+//
+// attw walks `types.default` and stops. VERIFIED: un-qualify `production.d.ts` back
+// to `export * from './entry-production'`, run attw across all four resolution modes,
+// and it reports NOTHING — while any consumer resolving with the `production`
+// condition gets an entry point with zero exported members. `collectTypesEntries`
+// above deliberately collects EVERY branch of a nested conditional `types`, and this
+// probe is what checks the branches attw skipped.
+//
+// It also names the damage shape, which attw does not:
+//
+//   * `export * from <unresolved>` — the star contributes NO names, so the entry
+//     point ends up with zero exported members and every consumer import fails
+//     with `TS2305: ... has no exported member`.
+//   * `export { X } from <unresolved>` — X stays declared but binds to an
+//     unresolved module, so it silently becomes `any`. Under the `skipLibCheck:
+//     true` nearly every app sets, the consumer gets NO diagnostic: the package
+//     looks typed and type-checks nothing.
+const DECLARATION_SUFFIXES = [".d.ts", ".d.mts", ".d.cts"];
+
+// node16 maps a JS specifier back onto its declaration file: `./x.js` → `x.d.ts`.
+const DECLARATION_FOR_JS_EXT = { ".js": ".d.ts", ".mjs": ".d.mts", ".cjs": ".d.cts" };
+
+// POSIX-join a tarball-map key with a relative specifier.
+function joinKey(fromKey, specifier) {
+  const segments = fromKey.split("/").slice(0, -1);
+  for (const part of specifier.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") segments.pop();
+    else segments.push(part);
+  }
+  return segments.join("/");
+}
+
+// Resolve exactly as node16/nodenext ESM does: the specifier must name a FILE,
+// with its extension. No substitution, no `/index` fallback.
+function resolveNode16(files, fromKey, specifier) {
+  const target = joinKey(fromKey, specifier);
+  if (DECLARATION_SUFFIXES.some((suffix) => target.endsWith(suffix))) {
+    return target in files ? target : null;
+  }
+  const ext = Object.keys(DECLARATION_FOR_JS_EXT).find((e) => target.endsWith(e));
+  if (ext === undefined) return null; // extensionless — unresolvable under node16
+  const declaration = target.slice(0, -ext.length) + DECLARATION_FOR_JS_EXT[ext];
+  return declaration in files ? declaration : null;
+}
+
+// Walk the published declaration graph from every `types` entry; return every
+// relative specifier that node16 cannot resolve.
+function probeNode16(files, packageName, typesEntries) {
+  const prefix = `/node_modules/${packageName}/`;
+  const queue = typesEntries.map((rel) => prefix + rel.replace(/^\.\//, ""));
+  const seen = new Set();
+  const unresolved = [];
+
+  while (queue.length > 0) {
+    const key = queue.pop();
+    if (seen.has(key) || !(key in files)) continue;
+    seen.add(key);
+    const text = Buffer.from(files[key]).toString("utf8");
+    for (const { specifier, kind } of moduleSpecifiers(text)) {
+      if (!specifier.startsWith(".")) continue;
+      if (ARBITRARY_EXTENSION_SPECIFIER.test(specifier)) continue;
+      const resolved = resolveNode16(files, key, specifier);
+      if (resolved === null) {
+        unresolved.push({ file: key.slice(prefix.length), specifier, kind });
+      } else {
+        queue.push(resolved);
+      }
+    }
+  }
+  return unresolved;
 }
 
 // `pnpm pack` the package into a temp dir and return the tarball's absolute path.
@@ -184,8 +304,9 @@ async function checkOne(pkg) {
 
     // EMPTY-TYPES GUARD: every declared types entry must have real content. Catches the
     // `export {}` stub class that attw resolves but that leaves all symbols as `any`.
+    const typesEntries = collectTypesEntries(manifest);
     const emptyTypes = [];
-    for (const rel of collectTypesEntries(manifest)) {
+    for (const rel of typesEntries) {
       const key = `/node_modules/${packageName}/${rel.replace(/^\.\//, "")}`;
       const bytes = files[key];
       if (bytes === undefined) {
@@ -203,13 +324,23 @@ async function checkOne(pkg) {
 
     const problems = (result.problems ?? []).filter((p) => {
       if (!GATING_PROBLEM_KINDS.has(p.kind)) return false;
-      // Resolution-scoped problems carry resolutionKind; gate only the bundler mode.
+      // A `./T.svelte` specifier is resolved by the Svelte toolchain, not by tsc's
+      // extension substitution — attw flags it, node16 `tsc` does not. See the
+      // constant's comment. This sits BEFORE the mode filter, so it suppresses the
+      // specifier under `bundler` as well as `node16`. That is deliberate and costs
+      // nothing: bundler resolution has never reported it, so there is no verdict to
+      // lose, and one rule beats two that could disagree.
+      if (p.moduleSpecifier && ARBITRARY_EXTENSION_SPECIFIER.test(p.moduleSpecifier)) return false;
+      // Entry-level problems carry `resolutionKind`; InternalResolutionError carries
+      // `resolutionOption`. Both must allow node16 or the whole node16 report is lost.
       if (p.resolutionKind) return GATING_RESOLUTION_KINDS.has(p.resolutionKind);
-      if (p.resolutionOption) return p.resolutionOption === "bundler";
+      if (p.resolutionOption) return GATING_RESOLUTION_OPTIONS.has(p.resolutionOption);
       return true;
     });
 
-    return { name: packageName, fileCount, problems, emptyTypes };
+    const node16 = probeNode16(files, packageName, typesEntries);
+
+    return { name: packageName, fileCount, problems, emptyTypes, node16 };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -221,12 +352,13 @@ const targets = requested.length > 0 ? requested : TYPED_PACKAGES;
 let failed = false;
 for (const pkg of targets) {
   try {
-    const { name, fileCount, problems, emptyTypes } = await checkOne(pkg);
-    if (problems.length === 0 && emptyTypes.length === 0) {
+    const { name, fileCount, problems, emptyTypes, node16 } = await checkOne(pkg);
+    if (problems.length === 0 && emptyTypes.length === 0 && node16.length === 0) {
       console.log(`PASS ${name}: 0 gating problems (${fileCount} files extracted)`);
     } else {
       failed = true;
-      console.error(`FAIL ${name}: ${problems.length + emptyTypes.length} gating problem(s):`);
+      const total = problems.length + emptyTypes.length + node16.length;
+      console.error(`FAIL ${name}: ${total} gating problem(s):`);
       for (const p of problems) {
         const where = p.resolutionKind ?? p.resolutionOption ?? "";
         // FilePairProblem (FalseCJS/FalseESM) carries types/implementation file names;
@@ -241,6 +373,22 @@ for (const pkg of targets) {
       }
       for (const e of emptyTypes) {
         console.error(`  - EmptyTypes ${e.entry}: ${e.reason}`);
+      }
+      // Star re-exports first: those are the ones a consumer sees as TS2305.
+      const ordered = [...node16].sort((a, b) =>
+        a.kind === b.kind ? 0 : a.kind === "star" ? -1 : 1,
+      );
+      for (const u of ordered.slice(0, NODE16_REPORT_LIMIT)) {
+        const effect =
+          u.kind === "star"
+            ? "export * contributes NO names → TS2305 in the consumer"
+            : "named re-export silently degrades to any";
+        console.error(`  - Node16Unresolved [node16-esm] ${u.file} → '${u.specifier}' (${effect})`);
+      }
+      if (ordered.length > NODE16_REPORT_LIMIT) {
+        console.error(
+          `  - ... and ${ordered.length - NODE16_REPORT_LIMIT} more unresolved specifier(s)`,
+        );
       }
     }
   } catch (err) {

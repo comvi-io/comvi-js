@@ -5,14 +5,10 @@ import { useLocale } from "@comvi/react";
 import { useCallback } from "react";
 import { useRoutingConfig } from "./context";
 import { getCanonicalPathname, localizeHref, stripLocalePrefix } from "./utils";
+import { getSwitchRouting, writeLocaleCookie } from "./localeSwitch";
 
 /**
- * Get pathname without locale prefix
- *
- * This hook returns the current pathname with the locale prefix removed,
- * making it easier to work with routes in a locale-agnostic way.
- *
- * @returns Pathname without locale prefix
+ * Get pathname without locale prefix.
  *
  * @example
  * ```tsx
@@ -35,7 +31,7 @@ export function usePathname(): string {
     return getCanonicalPathname(publicPathname, routing, locale);
   }
 
-  // Fallback: remove locale prefix based on current locale only
+  // No routing config: strip the current locale only.
   if (pathname.startsWith(`/${locale}/`)) {
     return pathname.slice(locale.length + 1);
   }
@@ -45,31 +41,26 @@ export function usePathname(): string {
   return pathname;
 }
 
-/**
- * Return type for useLocalizedRouter
- */
 export interface LocalizedRouter {
   /** Navigate to a localized path */
   push: (href: string, locale?: string) => void;
   /** Replace current history entry with a localized path */
   replace: (href: string, locale?: string) => void;
-  /** Navigate back */
   back: () => void;
-  /** Navigate forward */
   forward: () => void;
-  /** Refresh the current page */
   refresh: () => void;
   /** Prefetch a localized path */
   prefetch: (href: string, locale?: string) => void;
 }
 
 /**
- * Localized router with automatic locale prefixing
+ * Wraps Next.js useRouter and adds locale prefixes to the navigation methods.
  *
- * This hook wraps Next.js useRouter and automatically adds locale
- * prefixes to navigation methods.
- *
- * @returns Localized router object
+ * `push` and `replace` with a locale record it in the locale cookie, and with
+ * another locale than the current one they navigate to the locale-prefixed URL,
+ * which the middleware redirects to the public one. That is what lets a switch
+ * to the default locale win under `localePrefix: "as-needed"`. `prefetch`
+ * does neither.
  *
  * @example
  * ```tsx
@@ -95,22 +86,37 @@ export function useLocalizedRouter(): LocalizedRouter {
   const locale = useLocale();
   const routing = useRoutingConfig();
 
+  // The href to navigate to. Naming a locale records it in the locale cookie,
+  // and naming ANOTHER locale is a switch, which goes to the locale-prefixed
+  // URL: see `localeSwitch.ts`.
+  const localizeNavigation = useCallback(
+    (href: string, targetLocale?: string): string => {
+      if (targetLocale === undefined) {
+        return localizeHref(href, locale, routing ?? undefined);
+      }
+      writeLocaleCookie(routing, targetLocale);
+      const isSwitch = routing !== null && targetLocale !== locale;
+      return localizeHref(
+        href,
+        targetLocale,
+        isSwitch ? getSwitchRouting(routing) : (routing ?? undefined),
+      );
+    },
+    [locale, routing],
+  );
+
   const push = useCallback(
     (href: string, targetLocale?: string) => {
-      const resolvedLocale = targetLocale ?? locale;
-      const localizedHref = localizeHref(href, resolvedLocale, routing ?? undefined);
-      router.push(localizedHref);
+      router.push(localizeNavigation(href, targetLocale));
     },
-    [router, locale, routing],
+    [router, localizeNavigation],
   );
 
   const replace = useCallback(
     (href: string, targetLocale?: string) => {
-      const resolvedLocale = targetLocale ?? locale;
-      const localizedHref = localizeHref(href, resolvedLocale, routing ?? undefined);
-      router.replace(localizedHref);
+      router.replace(localizeNavigation(href, targetLocale));
     },
-    [router, locale, routing],
+    [router, localizeNavigation],
   );
 
   const prefetch = useCallback(

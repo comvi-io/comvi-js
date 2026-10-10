@@ -1,11 +1,3 @@
-/**
- * FileSystemWriter - Abstraction for file system operations
- *
- * This abstraction follows the Dependency Inversion Principle (DIP),
- * allowing us to inject different file system implementations for
- * testing or alternative environments (e.g., in-memory, cloud storage).
- */
-
 import { promises as fs } from "fs";
 import { dirname } from "path";
 import { wrapError, ErrorCodes } from "../utils/errors";
@@ -16,9 +8,6 @@ export interface FileWriteOptions {
   mode?: number;
 }
 
-/**
- * File system interface for dependency injection
- */
 export interface FileSystem {
   mkdir(path: string, options?: { recursive: boolean }): Promise<void>;
   writeFile(path: string, content: string, options?: FileWriteOptions): Promise<void>;
@@ -30,9 +19,6 @@ export interface FileSystem {
   unlink?(path: string): Promise<void>;
 }
 
-/**
- * Node.js file system implementation
- */
 export class NodeFileSystem implements FileSystem {
   async mkdir(path: string, options?: { recursive: boolean }): Promise<void> {
     await fs.mkdir(path, options);
@@ -63,16 +49,12 @@ export class NodeFileSystem implements FileSystem {
   }
 }
 
-/**
- * In-memory file system for testing
- */
 export class InMemoryFileSystem implements FileSystem {
   private files: Map<string, string> = new Map();
   private directories: Set<string> = new Set();
 
   async mkdir(path: string, options?: { recursive: boolean }): Promise<void> {
     if (options?.recursive) {
-      // Create all parent directories
       const parts = path.split("/").filter(Boolean);
       let current = "";
 
@@ -106,7 +88,6 @@ export class InMemoryFileSystem implements FileSystem {
     }
   }
 
-  // Test helpers
   getFile(path: string): string | undefined {
     return this.files.get(path);
   }
@@ -125,15 +106,9 @@ export class InMemoryFileSystem implements FileSystem {
   }
 }
 
-/**
- * File system writer with directory management
- */
 export class FileSystemWriter {
   constructor(private fs: FileSystem = new NodeFileSystem()) {}
 
-  /**
-   * Ensure directory exists, creating it recursively if needed
-   */
   private async ensureDirectory(path: string): Promise<void> {
     try {
       await this.fs.mkdir(path, { recursive: true });
@@ -142,12 +117,8 @@ export class FileSystemWriter {
     }
   }
 
-  /**
-   * Write content to file, ensuring directory exists
-   */
   async write(filePath: string, content: string): Promise<void> {
     try {
-      // Ensure parent directory exists
       await this.ensureDirectory(dirname(filePath));
 
       // Atomic when the backing fs supports rename, so an interrupted run
@@ -169,9 +140,6 @@ export class FileSystemWriter {
     }
   }
 
-  /**
-   * Read content from file
-   */
   async read(filePath: string): Promise<string> {
     try {
       return await this.fs.readFile(filePath);
@@ -180,9 +148,6 @@ export class FileSystemWriter {
     }
   }
 
-  /**
-   * Check if file exists
-   */
   async exists(filePath: string): Promise<boolean> {
     try {
       await this.fs.access(filePath);

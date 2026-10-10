@@ -1,7 +1,11 @@
 import { useHead, useRuntimeConfig, useRoute, useRequestURL } from "#app";
+// A pure function of the locale string — no instance, no capability, no state. The
+// runtime already imports values from `@comvi/core`'s root (useI18n.ts), so
+// this adds no package edge and nothing that could pull the base instance in.
+import { getTextDirection } from "@comvi/core";
 import { useLocaleState } from "../utils/locale-state";
 import type { ComputedRef } from "vue";
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { stripLocalePrefix, buildLocalizedPath } from "../utils/locale-path";
 
 export interface LocaleHeadOptions {
@@ -30,7 +34,13 @@ export interface LocaleHeadOptions {
   addCanonical?: boolean;
 
   /**
-   * Add dir attribute to html
+   * Add dir attribute to html.
+   *
+   * The value is the locale object's own `dir` when it declares one, and
+   * otherwise the text direction of the same tag `lang` uses (`iso`, or the
+   * locale code) — so `locales: ["en", "ar"]`, with no locale objects at all,
+   * still ships `<html dir="rtl">` on Arabic.
+   *
    * @default true
    */
   addDir?: boolean;
@@ -43,15 +53,8 @@ export interface LocaleHeadOptions {
 }
 
 /**
- * Composable for SEO-related head tags
- *
- * Automatically sets:
- * - html lang and dir attributes
- * - Canonical URL
- * - Alternate hreflang links
- * - OpenGraph locale tags
- *
- * @param options - Configuration options
+ * Composable for SEO-related head tags: html lang/dir, canonical URL, hreflang
+ * alternates and OpenGraph locale tags.
  *
  * @example
  * ```vue
@@ -76,7 +79,6 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     addLang = true,
   } = options;
 
-  // Try to get base URL from options, request URL, or environment
   const getBaseUrl = () => {
     if (options.baseUrl) {
       return options.baseUrl.replace(/\/$/, "");
@@ -89,55 +91,60 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     }
   };
 
-  // Get clean path without locale prefix
   const getCleanPath = () => {
     return stripLocalePrefix(route.path, locales);
   };
 
-  // Build locale-prefixed URL
   const buildLocalizedUrl = (baseUrl: string, path: string, locale: string) => {
     const localizedPath = buildLocalizedPath(path, locale, defaultLocale, localePrefix);
     return `${baseUrl}${localizedPath}`;
   };
 
-  // Compute head configuration
   const headConfig = computed(() => {
     const currentLocale = localeState.value || defaultLocale;
-    const localeObj = localeObjects[currentLocale] || { code: currentLocale };
+    const localeObj = localeObjects[currentLocale];
     const baseUrl = getBaseUrl();
     const cleanPath = getCleanPath();
 
     const head: Record<string, unknown> = {};
 
-    // HTML attributes
+    // The tag that names this locale to the outside world: `iso` when the
+    // locale object carries one, the key otherwise. `lang` and `dir` are two
+    // statements about the SAME locale, so they are derived from the same
+    // string — a locale keyed `foo` with `iso: "ar"` must not ship
+    // `lang="ar" dir="ltr"`.
+    const languageTag = localeObj?.iso || currentLocale;
+
     const htmlAttrs: Record<string, string> = {};
     if (addLang) {
-      htmlAttrs.lang = localeObj.iso || currentLocale;
+      htmlAttrs.lang = languageTag;
     }
-    if (addDir && localeObj.dir) {
-      htmlAttrs.dir = localeObj.dir;
+    if (addDir) {
+      // A DECLARED direction wins: an author who wrote `dir` meant it, even
+      // when it disagrees with the language. Otherwise fall back to the
+      // locale's own direction rather than omitting the attribute — `dir` is
+      // documented as defaulting to "ltr" and `addDir` as on by default, and
+      // omitting it honoured neither: an app configured the way the docs open
+      // (`locales: ["en", "de"]`) shipped <html> with no direction at all.
+      htmlAttrs.dir = localeObj?.dir ?? getTextDirection(languageTag);
     }
     if (Object.keys(htmlAttrs).length > 0) {
       head.htmlAttrs = htmlAttrs;
     }
 
-    // Meta tags
     const meta: Array<Record<string, string>> = [];
 
     if (addOgLocale) {
-      // Current locale
       meta.push({
         property: "og:locale",
-        content: (localeObj.iso || currentLocale).replace("-", "_"),
+        content: (localeObj?.iso || currentLocale).replace(/-/g, "_"),
       });
 
-      // Alternate locales
       for (const locale of locales) {
         if (locale !== currentLocale) {
-          const altLocaleObj = localeObjects[locale] || { code: locale };
           meta.push({
             property: "og:locale:alternate",
-            content: (altLocaleObj.iso || locale).replace("-", "_"),
+            content: (localeObjects[locale]?.iso || locale).replace(/-/g, "_"),
           });
         }
       }
@@ -147,7 +154,6 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
       head.meta = meta;
     }
 
-    // Link tags
     const link: Array<Record<string, string>> = [];
 
     if (baseUrl) {
@@ -159,17 +165,15 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
       }
 
       if (addAlternateLinks) {
-        // Alternate links for each locale
         for (const locale of locales) {
-          const altLocaleInfo = localeObjects[locale] || { code: locale };
           link.push({
             rel: "alternate",
-            hreflang: altLocaleInfo.iso || locale,
+            hreflang: localeObjects[locale]?.iso || locale,
             href: buildLocalizedUrl(baseUrl, cleanPath, locale),
           });
         }
 
-        // x-default link (points to default locale)
+        // x-default points at the default locale.
         link.push({
           rel: "alternate",
           hreflang: "x-default",
@@ -185,8 +189,40 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     return head;
   });
 
-  // Apply head configuration
   useHead(headConfig as ComputedRef<Record<string, unknown>>);
+
+  if (!import.meta.server) {
+    // The head renderer patches the DOM a task after Vue's render: unhead
+    // debounces it to `setTimeout(0)`, and Nuxt pauses it from `page:start`
+    // to `page:finish`. The text `t()` renders switches in Vue's flush, so a
+    // browser could paint the new language under the old `<html lang/dir>`.
+    // A post-flush watcher writes both in the same flush as that render: the
+    // locale state and the wrapper's `locale` ref change in one synchronous
+    // `localeChanged` emit. Not immediate, so hydration keeps the server's
+    // attributes; the head renderer later writes the same values.
+    //
+    // Only an attribute this composable owns is written: one whose value in
+    // the DOM is still the one it produced last. An app's own higher-priority
+    // `useHead({ htmlAttrs: { lang } })` puts a different value there, and is
+    // left alone. (Unhead would restore it on its next render anyway, since it
+    // compares against the live DOM, but not before a frame could paint.)
+    const root = document.documentElement;
+    watch(
+      () => {
+        const attrs = headConfig.value.htmlAttrs as Record<string, string> | undefined;
+        return [attrs?.lang, attrs?.dir] as const;
+      },
+      ([lang, dir], [prevLang, prevDir]) => {
+        if (lang !== undefined && lang !== prevLang && root.getAttribute("lang") === prevLang) {
+          root.setAttribute("lang", lang);
+        }
+        if (dir !== undefined && dir !== prevDir && root.getAttribute("dir") === prevDir) {
+          root.setAttribute("dir", dir);
+        }
+      },
+      { flush: "post" },
+    );
+  }
 
   return headConfig;
 }

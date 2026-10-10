@@ -1,16 +1,6 @@
 <script setup lang="ts">
-const { locale, t, isLoading } = useI18n();
-
-watch(
-  locale,
-  (loc) => {
-    if (import.meta.client) {
-      document.documentElement.dir = loc === "ar" ? "rtl" : "ltr";
-      document.documentElement.lang = loc;
-    }
-  },
-  { immediate: true },
-);
+// `<html lang dir>` comes from the module (`comvi.head`, on by default).
+const { t, isLoading } = useI18n();
 
 const navItems = [
   { path: "/", label: "nav.home" },

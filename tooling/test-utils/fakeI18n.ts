@@ -4,6 +4,7 @@ import type {
   I18nEvent,
   I18nEventData,
   I18n,
+  LoaderFn,
   TranslationParams,
   TranslationResult,
   DefaultTranslationParams,
@@ -12,7 +13,7 @@ import {
   assertInterpolationDefaults,
   assertPreservesDefaultParamKeys,
 } from "../../packages/core/src/utils/defaultParams";
-import { FakeI18nCore, type FakeI18nCoreOptions, type FakeTranslationCache } from "./fakeI18nCore";
+import { FakeI18nCore, type FakeI18nCoreOptions, type FakeMessagesCache } from "./fakeI18nCore";
 
 type FakeI18nOptions = Pick<FakeI18nCoreOptions, "language" | "defaultNamespace"> & {
   defaultParams?: DefaultTranslationParams;
@@ -23,6 +24,9 @@ export class FakeI18n {
   private readonly guaranteedDefaultParamKeys: string[];
   private currentDefaultParams: DefaultTranslationParams | undefined;
   private currentConfigRevision = 0;
+  private loader: LoaderFn | undefined;
+  private localeDetector: (() => string | Promise<string>) | undefined;
+  private readonly pluginData = new Map<string, unknown>();
 
   constructor(options: FakeI18nOptions = {}) {
     assertInterpolationDefaults(options.defaultParams);
@@ -73,13 +77,13 @@ export class FakeI18n {
     await this.core.setLanguageAsync(language);
   });
 
-  public readonly setLocaleAsync = vi.fn(async (locale: string): Promise<void> => {
-    await this.core.setLocaleAsync(locale);
+  public readonly setLocale = vi.fn(async (locale: string): Promise<void> => {
+    await this.core.setLocale(locale);
   });
 
-  public readonly addTranslations = vi.fn(
+  public readonly addMessages = vi.fn(
     (translations: Record<string, Record<string, unknown>>): void => {
-      this.core.addTranslations(translations);
+      this.core.addMessages(translations);
     },
   );
 
@@ -87,14 +91,44 @@ export class FakeI18n {
     await this.core.addActiveNamespace(namespace);
   });
 
-  public readonly reloadTranslations = vi.fn(
+  public readonly reloadMessages = vi.fn(
     async (language?: string, namespace?: string): Promise<void> => {
-      await this.core.reloadTranslations(language, namespace);
+      await this.core.reloadMessages(language, namespace);
     },
   );
 
-  public readonly clearTranslations = vi.fn((language?: string, namespace?: string): void => {
-    this.core.clearTranslations(language, namespace);
+  // ===== I18nLoaderApi completeness =====
+  //
+  // `asI18n()` claims a ROOT instance, and a root instance carries the WHOLE
+  // `@comvi/core/loader` surface. Core's `hasLoaderApi` guard checks every
+  // public member, so a double that implements only the
+  // three above is structurally NOT loader-capable and makes every wrapper's
+  // `useI18nLoader()` throw `missingCapability("loader")` on a fake host.
+
+  public readonly addActiveNamespaces = vi.fn(async (namespaces: string[]): Promise<void> => {
+    for (const namespace of namespaces) {
+      await this.core.addActiveNamespace(namespace);
+    }
+  });
+
+  public readonly removeActiveNamespace = vi.fn((namespace: string): void => {
+    this.core.removeActiveNamespace(namespace);
+  });
+
+  public readonly removeActiveNamespaces = vi.fn((namespaces: string[]): void => {
+    this.core.removeActiveNamespaces(namespaces);
+  });
+
+  public readonly registerLoader = vi.fn((loader: LoaderFn): void => {
+    this.loader = loader;
+  });
+
+  public readonly getLoader = vi.fn((): LoaderFn | undefined => {
+    return this.loader;
+  });
+
+  public readonly clearMessages = vi.fn((language?: string, namespace?: string): void => {
+    this.core.clearMessages(language, namespace);
   });
 
   public readonly setFallbackLanguage = vi.fn((fallback: string | string[]): void => {
@@ -121,6 +155,10 @@ export class FakeI18n {
     return this.currentConfigRevision;
   }
 
+  get localeRevision(): number {
+    return this.core.localeRevision;
+  }
+
   public readonly onMissingKey = vi.fn(
     (
       callback: (key: string, language: string, namespace: string) => TranslationResult | void,
@@ -134,6 +172,38 @@ export class FakeI18n {
       return this.core.onLoadError(callback);
     },
   );
+
+  // ===== I18nPluginApi completeness =====
+  //
+  // Same reason as the loader block above: `hasPluginApi` checks all seven
+  // public members, and `onMissingKey` alone does not make the double a
+  // plugin host. The registration members are inert recorders — no wrapper
+  // test drives plugin behavior through the fake; they exist so the fake is
+  // structurally what `asI18n()` says it is.
+
+  public readonly use = vi.fn((_plugin: unknown, _options?: unknown): FakeI18n => {
+    return this;
+  });
+
+  public readonly registerLocaleDetector = vi.fn(
+    (detector: () => string | Promise<string>): void => {
+      this.localeDetector = detector;
+    },
+  );
+
+  public readonly getLanguageDetector = vi.fn((): (() => string | Promise<string>) | undefined => {
+    return this.localeDetector;
+  });
+
+  public readonly registerPostProcessor = vi.fn((_fn: unknown): void => {});
+
+  public readonly setPluginData = vi.fn((key: string, data: unknown): void => {
+    this.pluginData.set(key, data);
+  });
+
+  public readonly getPluginData = vi.fn(<T = unknown>(key: string): T | undefined => {
+    return this.pluginData.get(key) as T | undefined;
+  });
 
   public readonly reportError = vi.fn((error: unknown, context?: ErrorReportContext): void => {
     this.core.reportError(error, context);
@@ -163,12 +233,16 @@ export class FakeI18n {
     return this.core.getDefaultNamespace();
   });
 
+  public readonly setDefaultNamespace = vi.fn((namespace: string): void => {
+    this.core.setDefaultNamespace(namespace);
+  });
+
   public readonly getFallbackLocales = vi.fn((): string[] => {
     return this.core.getFallbackLocales();
   });
 
-  public readonly getTranslations = vi.fn((): Record<string, Record<string, unknown>> => {
-    return this.core.getTranslations();
+  public readonly getMessages = vi.fn((): Record<string, Record<string, unknown>> => {
+    return this.core.getMessages();
   });
 
   public readonly t = vi.fn((key: string, params?: TranslationParams): TranslationResult => {
@@ -184,6 +258,17 @@ export class FakeI18n {
       return this.core.hasTranslation(key, language, namespace, checkFallbacks);
     },
   );
+
+  /**
+   * A read view that delegates to the fake's own lookups: the catalogs are
+   * not consulted. A test that asserts text rendered from a provider's
+   * `messages` uses a real instance.
+   */
+  public readonly withMessages = vi.fn((_catalogs: unknown) => ({
+    t: this.t,
+    tRaw: this.tRaw,
+    hasTranslation: this.hasTranslation,
+  }));
 
   get language(): string {
     return this.core.language;
@@ -209,8 +294,8 @@ export class FakeI18n {
     return true;
   }
 
-  get translationCache(): FakeTranslationCache {
-    return this.core.translationCache;
+  get messagesCache(): FakeMessagesCache {
+    return this.core.messagesCache;
   }
 
   get isLoading(): boolean {

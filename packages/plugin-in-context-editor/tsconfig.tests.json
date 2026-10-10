@@ -1,0 +1,17 @@
+{
+  // Type-checks the runtime test files (tests/**) that tsconfig.app.json
+  // deliberately excludes. Run with vue-tsc so the SFC imports the suites
+  // reach for resolve. `tests/types/**` stays with tsconfig.test-types.json.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["vitest/globals", "node"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "tests/**/*.ts"],
+  "exclude": ["tests/types/**", "tests/e2e/**"]
+}

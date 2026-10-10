@@ -1,73 +1,37 @@
-/**
- * Generate Types command - Generate TypeScript types from TMS
- *
- * Usage:
- *   comvi typegen                     # One-time generation (preferred name)
- *   comvi typegen --watch             # Real-time updates via SSE
- *   comvi typegen --check             # CI mode: check if types are up to date
- *
- * Aliases:
- *   comvi generate-types              # Original verbose name
- *   comvi generate                    # Short legacy alias (one-time only)
- */
-
 import { Command } from "commander";
 import { TypeGenerator } from "../core/TypeGenerator";
 import { ConfigLoader } from "../core/ConfigLoader";
+import { ErrorCodes, EXIT_VALIDATION, isTypegenError, type TypegenError } from "../utils/errors";
+import type { CheckResult } from "../types";
 
-export function createGenerateTypesCommand(): Command {
-  return new Command("generate-types")
+/** `--check` reached no verdict because the TMS request failed. */
+const EXIT_CHECK_FAILED = 2;
+/** Errors that mean the check never got to compare anything. */
+const CHECK_BLOCKING_CODES: readonly string[] = [
+  ErrorCodes.API_CONNECTION_FAILED,
+  ErrorCodes.API_AUTH_FAILED,
+  ErrorCodes.API_FETCH_FAILED,
+  ErrorCodes.API_TIMEOUT,
+  ErrorCodes.API_INVALID_RESPONSE,
+];
+
+const CHECK_DESCRIPTION =
+  "CI mode: verify the generated types are up to date " +
+  "(exit 1 = outdated, 2 = check could not run, 4 = invalid config or a schema that cannot be emitted)";
+
+export function createTypegenCommand(): Command {
+  return new Command("typegen")
     .description("Generate TypeScript types from TMS")
     .option("-c, --config <path>", "Path to .comvirc.json file")
     .option("-w, --watch", "Watch for changes via SSE and regenerate types")
-    .option("--check", "CI mode: check if types are up to date (exit 1 if outdated)")
-    .action(async (options) => {
-      try {
-        console.log("🔄 Loading configuration...");
-
-        // Load configuration
-        const config = await ConfigLoader.load(options.config);
-        const generatorOptions = ConfigLoader.toGeneratorOptions(config);
-
-        // Create generator
-        const generator = new TypeGenerator(generatorOptions);
-
-        if (options.check) {
-          // CI mode: check if types are up to date
-          await runCheckMode(generator);
-        } else if (options.watch) {
-          // Watch mode: subscribe to SSE updates
-          await runWatchMode(generator);
-        } else {
-          // One-time generation
-          await runGenerateOnce(generator);
-        }
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error(`✗ Error: ${error.message}`);
-        }
-        process.exit(1);
-      }
-    });
-}
-
-/**
- * 'typegen' alias for 'generate-types' — short, canonical name used by the docs.
- * Mirrors the full feature set (--watch, --check) so every documented invocation
- * works regardless of which name the user types.
- */
-export function createTypegenCommand(): Command {
-  return new Command("typegen")
-    .description("Generate TypeScript types from TMS (alias for generate-types)")
-    .option("-c, --config <path>", "Path to .comvirc.json file")
-    .option("-w, --watch", "Watch for changes via SSE and regenerate types")
-    .option("--check", "CI mode: check if types are up to date (exit 1 if outdated)")
+    .option("--check", CHECK_DESCRIPTION)
     .action(async (options) => {
       try {
         console.log("🔄 Loading configuration...");
 
         const config = await ConfigLoader.load(options.config);
         const generatorOptions = ConfigLoader.toGeneratorOptions(config);
+
         const generator = new TypeGenerator(generatorOptions);
 
         if (options.check) {
@@ -81,43 +45,25 @@ export function createTypegenCommand(): Command {
         if (error instanceof Error) {
           console.error(`✗ Error: ${error.message}`);
         }
-        process.exit(1);
+        process.exit(exitCodeFor(error));
       }
     });
 }
 
-/**
- * Backward compatibility: 'generate' command that aliases to 'generate-types'
- */
-export function createGenerateCommand(): Command {
-  return new Command("generate")
-    .description("Generate TypeScript types from TMS (alias for generate-types)")
-    .option("-c, --config <path>", "Path to .comvirc.json file")
-    .action(async (options) => {
-      try {
-        console.log("🔄 Loading configuration...");
-
-        // Load configuration
-        const config = await ConfigLoader.load(options.config);
-        const generatorOptions = ConfigLoader.toGeneratorOptions(config);
-
-        // Create generator
-        const generator = new TypeGenerator(generatorOptions);
-
-        // One-time generation
-        await runGenerateOnce(generator);
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error(`✗ Error: ${error.message}`);
-        }
-        process.exit(1);
-      }
-    });
+function exitCodeFor(error: unknown): number {
+  if (
+    isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
+    isTypegenError(error, ErrorCodes.CONFIG_INVALID)
+  ) {
+    return EXIT_VALIDATION;
+  }
+  return 1;
 }
 
-/**
- * Run one-time type generation
- */
+function isCheckBlocked(error: unknown): error is TypegenError {
+  return CHECK_BLOCKING_CODES.some((code) => isTypegenError(error, code));
+}
+
 async function runGenerateOnce(generator: TypeGenerator): Promise<void> {
   console.log("🔄 Fetching schema from TMS...");
   const result = await generator.generate();
@@ -131,11 +77,7 @@ async function runGenerateOnce(generator: TypeGenerator): Promise<void> {
   }
 }
 
-/**
- * Run watch mode with SSE subscription
- */
 async function runWatchMode(generator: TypeGenerator): Promise<void> {
-  // Initial generation
   console.log("🔄 Fetching initial schema from TMS...");
   const result = await generator.generate();
 
@@ -146,7 +88,6 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
 
   console.log(`✓ Generated ${result.keysGenerated} keys → ${result.filePath}`);
 
-  // Subscribe to SSE updates
   console.log("\n👀 Subscribing to real-time updates...");
 
   const apiClient = generator.getApiClient();
@@ -165,7 +106,6 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
   console.log("✓ Watching for changes...");
   console.log("Press Ctrl+C to stop\n");
 
-  // Handle graceful shutdown
   process.on("SIGINT", () => {
     console.log("\n\n🛑 Closing SSE connection...");
     cleanup();
@@ -177,13 +117,21 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
   process.stdin.resume();
 }
 
-/**
- * Run check mode for CI
- */
 async function runCheckMode(generator: TypeGenerator): Promise<void> {
   console.log("🔄 Checking if types are up to date...");
 
-  const result = await generator.check();
+  let result: CheckResult;
+  try {
+    result = await generator.check();
+  } catch (error) {
+    // A TMS failure is not a verdict: exiting 1 would be indistinguishable from
+    // genuinely outdated types, so CI could not tell a blip from a real drift.
+    if (isCheckBlocked(error)) {
+      console.error(`✗ Check could not run: ${error.message}`);
+      process.exit(EXIT_CHECK_FAILED);
+    }
+    throw error;
+  }
 
   if (result.upToDate) {
     console.log(`✓ Types are up to date (${result.keysGenerated} keys)`);

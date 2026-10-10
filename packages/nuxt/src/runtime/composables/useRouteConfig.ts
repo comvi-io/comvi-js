@@ -2,47 +2,33 @@ import { useRuntimeConfig } from "#app";
 import { buildLocalizedPath } from "../utils/locale-path";
 
 export interface GetPathnameOptions {
-  /** Target locale */
   locale: string;
   /** The pathname (without locale prefix) */
   href: string;
 }
 
 /**
- * Get routing configuration and helpers
+ * Get routing configuration and helpers — for alternate-link lists, language
+ * switchers and other routing utilities.
  *
- * Useful for sitemap generation and other routing utilities
- *
- * @example
- * ```typescript
- * // server/routes/sitemap.xml.ts
- * import { useRouteConfig } from '#imports'
- *
- * export default defineEventHandler(() => {
- *   const { locales, defaultLocale, getPathname } = useRouteConfig()
- *
- *   const pages = ['/', '/about', '/contact']
- *   const urls = pages.flatMap((page) =>
- *     locales.map((locale) => ({
- *       loc: `https://example.com${getPathname({ locale, href: page })}`,
- *       // ...
- *     }))
- *   )
- * })
- * ```
+ * APP-SIDE ONLY. The module auto-imports this through `addImports`, which
+ * populates `#imports` for the Nuxt app, not the Nitro server — and it reads
+ * `useRuntimeConfig()` from `#app` with no event, so a Nitro route calling it
+ * fails at request time. In a server route read the same values off the event:
+ * `useRuntimeConfig(event).public.comvi`.
  *
  * @example
- * ```typescript
- * // Integration with @nuxtjs/sitemap
- * // nuxt.config.ts
- * export default defineNuxtConfig({
- *   sitemap: {
- *     urls: () => {
- *       const { locales, getPathname } = useRouteConfig()
- *       // generate localized URLs...
- *     }
- *   }
- * })
+ * ```vue
+ * <!-- components/AlternateLinks.vue -->
+ * <script setup lang="ts">
+ * // Pass the UNPREFIXED path; each returned `path` carries its locale prefix.
+ * const { getAllLocalizedPaths } = useRouteConfig()
+ *
+ * const alternates = getAllLocalizedPaths('/about').map(({ locale, path }) => ({
+ *   locale,
+ *   href: `https://example.com${path}`,
+ * }))
+ * </script>
  * ```
  */
 export function useRouteConfig() {

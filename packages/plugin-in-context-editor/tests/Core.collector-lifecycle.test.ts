@@ -8,6 +8,7 @@ const domWatcherStartMock = vi.fn();
 const domWatcherStopMock = vi.fn();
 
 const registryDestroyMock = vi.fn();
+const translationScannerCtorMock = vi.fn();
 
 const callOrder: string[] = [];
 
@@ -57,7 +58,8 @@ vi.mock("../src/TranslationRegistry", () => ({
 }));
 
 vi.mock("../src/TranslationScanner", () => ({
-  TranslationScanner: function MockTranslationScanner() {
+  TranslationScanner: function MockTranslationScanner(...args: unknown[]) {
+    translationScannerCtorMock(...args);
     return { destroy: vi.fn() };
   },
 }));
@@ -81,27 +83,39 @@ describe("Core <-> Collector wiring", () => {
     domWatcherStartMock.mockReset();
     domWatcherStopMock.mockReset();
     registryDestroyMock.mockReset();
+    translationScannerCtorMock.mockReset();
     callOrder.length = 0;
   });
 
-  it("constructs the Collector with the EventBus, registry, instance id, and enabled option", () => {
+  it("Core built with default options → the Collector shares the scanner's bus and registry, is scoped to the instance id and enabled", () => {
     const core = new Core({});
-    const instanceId = core.getInstanceId();
 
-    expect(collectorCtorMock).toHaveBeenCalledTimes(1);
     const [eventBusArg, registryArg, scopeIdArg, optionsArg] = collectorCtorMock.mock.calls[0] as [
       unknown,
       unknown,
       string,
       { enabled: boolean },
     ];
-    expect(eventBusArg).toBeDefined();
-    expect(registryArg).toBeDefined();
-    expect(scopeIdArg).toBe(instanceId);
-    expect(optionsArg).toEqual({ enabled: true });
+    const [scannerEventBus, scannerRegistry] = translationScannerCtorMock.mock.calls[0] as [
+      unknown,
+      unknown,
+    ];
+    expect({
+      collectorsBuilt: collectorCtorMock.mock.calls.length,
+      sameBus: eventBusArg === scannerEventBus,
+      sameRegistry: registryArg === scannerRegistry,
+      scopeId: scopeIdArg,
+      options: optionsArg,
+    }).toEqual({
+      collectorsBuilt: 1,
+      sameBus: true,
+      sameRegistry: true,
+      scopeId: core.getInstanceId(),
+      options: { enabled: true },
+    });
   });
 
-  it("defaults collectContext to enabled, and honors collectContext: false", () => {
+  it("honors collectContext: false", () => {
     new Core({ collectContext: false });
     const [, , , options] = collectorCtorMock.mock.calls[0] as [
       unknown,
@@ -137,15 +151,14 @@ describe("Core <-> Collector wiring", () => {
     core.start();
     core.stop();
 
-    const collectorDestroyIndex = callOrder.indexOf("collector.destroy");
-    const registryDestroyIndex = callOrder.indexOf("registry.destroy");
-    const domWatcherStopIndex = callOrder.indexOf("domWatcher.stop");
-
-    expect(collectorDestroyIndex).toBeGreaterThanOrEqual(0);
-    expect(registryDestroyIndex).toBeGreaterThan(collectorDestroyIndex);
-    // "FIRST in stop()" — ahead of the other teardown steps stop() performs,
-    // not literally index 0 of the whole test (start() ran calls earlier).
-    expect(collectorDestroyIndex).toBeLessThan(domWatcherStopIndex);
-    expect(collectorDestroyIndex).toBeLessThan(registryDestroyIndex);
+    // "FIRST in stop()" means ahead of the other teardown steps stop() performs,
+    // not index 0 of the whole sequence — start() ran calls earlier.
+    expect(callOrder).toEqual([
+      "domWatcher.start",
+      "collector.start",
+      "collector.destroy",
+      "domWatcher.stop",
+      "registry.destroy",
+    ]);
   });
 });

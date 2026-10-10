@@ -21,8 +21,6 @@ describe("CLI API endpoint contract", () => {
       API_ENDPOINTS.projectImportCommit(123),
     ];
 
-    for (const path of paths) {
-      expect(path).not.toContain("/api/v1");
-    }
+    expect(paths.filter((path) => path.includes("/api/v1"))).toEqual([]);
   });
 });

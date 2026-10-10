@@ -1,8 +1,12 @@
 import type { InjectionKey } from "vue";
-import type { VueI18n } from "./VueI18n";
+import type { AnyVueI18n } from "./VueI18n";
 
 /**
- * Injection key for Vue's provide/inject pattern
- * Used to inject the i18n instance into Vue components
+ * The core is seen BASE-typed through this key: a component cannot know how
+ * the app composed its instance, so `i18n.core` exposes only the capability-free
+ * `WrapperI18nInstance` surface and `i18n.core.reloadMessages(...)` is a
+ * compile error. Components acquire capabilities through `useI18nLoader()` /
+ * `useI18nPlugins()`, which check for them; the exact instance type `C` survives
+ * only where the factory result is held.
  */
-export const I18N_INJECTION_KEY: InjectionKey<VueI18n> = Symbol("i18n");
+export const I18N_INJECTION_KEY: InjectionKey<AnyVueI18n> = Symbol("i18n");

@@ -6,145 +6,99 @@ import {
   createMemo,
   getOwner,
   runWithOwner,
+  splitProps,
 } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { useI18nContextValue } from "./context";
-import { createElement as createVirtualElement } from "@comvi/core";
+// The PURE rich-text seam, NOT `@comvi/core/tags`: importing the tags entry
+// would register tag syntax AMBIENTLY, so every app rendering `<T>` would also
+// start parsing `<tag>` markup in plain string-API `t()`. `prepareTranslation`
+// passes the tag extension per call, so the ambient switch stays the app's own.
+import { isVirtualNode, prepareTranslation, type PendingHandler } from "@comvi/core/rich-text";
 import type {
   TranslationParams,
   VirtualNode,
   TranslationResult,
-  TagCallbackParams,
   TranslationKeys,
   PermissiveKey,
 } from "@comvi/core";
 import type { ComponentMap } from "./types";
 
-const MARKER_PREFIX = "__solid_component_";
-const MARKER_SUFFIX = "__";
 type ReportTagError = (error: unknown, tagName: string) => void;
 
-// ============ Helper functions ============
+/** Marker tag → JSX handler resolved from `pendingHandlers`. */
+type MarkerHandlers = Map<string, (children: JSX.Element) => JSX.Element>;
 
-function childrenToArray(children: TranslationResult): (string | VirtualNode)[] {
-  if (typeof children === "string") {
-    return children ? [children] : [];
-  }
-  return children || [];
-}
+const NO_HANDLERS: MarkerHandlers = new Map();
 
-function buildTagHandlers(
-  comps: ComponentMap,
-  solidHandlers: Map<string, (children: JSX.Element) => JSX.Element>,
+/**
+ * Component handlers render through JSX rather than being invoked as bare
+ * functions, so they get real Solid component semantics: their own owner,
+ * context, and untracked setup.
+ */
+function buildMarkerHandlers(
+  pendingHandlers: PendingHandler[],
   reportTagError: ReportTagError,
-): Record<string, (p: TagCallbackParams) => VirtualNode> {
-  const handlers: Record<string, (p: TagCallbackParams) => VirtualNode> = {};
-  for (const [tagName, mapping] of Object.entries(comps)) {
-    if (typeof mapping === "string") {
-      handlers[tagName] = ({ children }: TagCallbackParams) => {
-        return createVirtualElement(mapping, {}, childrenToArray(children));
-      };
-    } else if (typeof mapping === "function") {
-      // Render through JSX (createComponent) — the same path as the
-      // { tag: Component } object form below — so the mapping runs with proper
-      // Solid component semantics (its own owner, context, untracked setup)
-      // instead of being invoked as a bare function.
-      const Comp = mapping;
-      solidHandlers.set(tagName, (children) => {
+): MarkerHandlers {
+  const handlers: MarkerHandlers = new Map();
+  for (const pending of pendingHandlers) {
+    const target = pending.handler;
+    if (typeof target === "function") {
+      const Comp = target as (props: Record<string, unknown>) => JSX.Element;
+      handlers.set(pending.marker, (children) => {
         try {
-          return <Comp>{children}</Comp>;
+          return <Comp {...(pending.props ?? {})}>{children}</Comp>;
         } catch (error) {
-          reportTagError(error, tagName);
+          reportTagError(error, pending.name);
           return <>{children}</>;
         }
       });
-      handlers[tagName] = ({ children }: TagCallbackParams) => {
-        return createVirtualElement(
-          `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-          {},
-          childrenToArray(children),
-        );
-      };
-    } else if (typeof mapping === "object" && mapping !== null) {
-      if (typeof mapping.tag === "string") {
-        handlers[tagName] = ({ children }: TagCallbackParams) => {
-          return createVirtualElement(
-            mapping.tag as string,
-            mapping.props || {},
-            childrenToArray(children),
-          );
-        };
-      } else if (typeof mapping.tag === "function") {
-        solidHandlers.set(tagName, (children) => {
-          try {
-            const Tag = mapping.tag as (props: any) => JSX.Element;
-            return <Tag {...(mapping.props || {})}>{children}</Tag>;
-          } catch (error) {
-            reportTagError(error, tagName);
-            return <>{children}</>;
-          }
-        });
-        handlers[tagName] = ({ children }: TagCallbackParams) => {
-          return createVirtualElement(
-            `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-            {},
-            childrenToArray(children),
-          );
-        };
-      }
+    } else {
+      // Non-invokable opaque handler — degrade to the tag's children.
+      handlers.set(pending.marker, (children) => <>{children}</>);
     }
   }
   return handlers;
 }
 
-// ============ JSX Rendering Functions ============
-
-/**
- * Renders a VirtualNode to JSX elements
- */
 function renderNode(
   node: VirtualNode,
-  solidHandlers: Map<string, (children: JSX.Element) => JSX.Element>,
+  markerHandlers: MarkerHandlers,
   reportTagError: ReportTagError,
 ): JSX.Element {
+  // Not a node the library built, so it is data and renders as text. A param
+  // is whatever the app was handed, and an object parsed from JSON can be
+  // shaped like a node; it cannot carry core's brand.
+  if (!isVirtualNode(node)) {
+    return String(node);
+  }
+
   if (node.type === "text") {
     return <>{node.text}</>;
   }
 
   if (node.type === "fragment") {
-    return <>{renderContent(node.children as TranslationResult, solidHandlers, reportTagError)}</>;
+    return <>{renderContent(node.children as TranslationResult, markerHandlers, reportTagError)}</>;
   }
 
-  // Element node
   const tag = node.tag;
   const childResult = node.children as TranslationResult;
 
-  if (tag.startsWith(MARKER_PREFIX) && tag.endsWith(MARKER_SUFFIX)) {
-    const handlerName = tag.slice(MARKER_PREFIX.length, -MARKER_SUFFIX.length);
-    const handler = solidHandlers.get(handlerName);
-    if (handler) {
-      try {
-        return handler(renderContent(childResult, solidHandlers, reportTagError));
-      } catch (error) {
-        reportTagError(error, handlerName);
-        return <>{renderContent(childResult, solidHandlers, reportTagError)}</>;
-      }
-    }
+  const handler = markerHandlers.get(tag);
+  if (handler) {
+    return handler(renderContent(childResult, markerHandlers, reportTagError));
   }
 
   return (
     <Dynamic component={tag} {...(node.props || {})}>
-      {renderContent(childResult, solidHandlers, reportTagError)}
+      {renderContent(childResult, markerHandlers, reportTagError)}
     </Dynamic>
   );
 }
 
-/**
- * Renders TranslationResult (string or array) to JSX elements
- */
 function renderContent(
   content: TranslationResult,
-  solidHandlers: Map<string, (children: JSX.Element) => JSX.Element>,
+  markerHandlers: MarkerHandlers,
   reportTagError: ReportTagError,
 ): JSX.Element {
   if (typeof content === "string") {
@@ -158,131 +112,155 @@ function renderContent(
   return (
     <>
       {content.map((item) =>
-        typeof item === "string" ? item : renderNode(item, solidHandlers, reportTagError),
+        typeof item === "string" ? item : renderNode(item, markerHandlers, reportTagError),
       )}
     </>
   );
 }
 
-// ============ Main Component ============
-
-export interface TProps {
-  /** The translation key to look up */
+interface TBaseProps {
   i18nKey: keyof TranslationKeys | PermissiveKey;
-  /** Optional parameters for interpolation */
   params?: TranslationParams;
-  /** Override namespace for this translation */
   ns?: string;
-  /** Override locale for this translation */
   locale?: string;
-  /** Fallback text if translation is not found */
+  /** Text shown when the translation is missing. Takes priority over children. */
   fallback?: string;
-  /** Skip post-processing if true */
-  raw?: boolean;
-  /** Component mapping for tag interpolation */
-  components?: ComponentMap;
   /**
-   * Fallback content if translation is not found.
+   * `false` turns the in-context editor's invisible markers off for this call. Use it when
+   * they cause a problem: a comparison or sort that sees extra characters, a width-sensitive
+   * layout, a canvas or library that counts characters. Nothing else reads it; the string
+   * is then not editable in context.
    */
+  markers?: boolean;
+  /** Tag-name → handler map for tag interpolation. */
+  components?: ComponentMap;
+  /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: JSX.Element;
 }
 
 /**
- * Translation component for rendering translations with tag interpolation
+ * Every prop that is not declared above is an interpolation param, so the type
+ * has to accept a key it never declared — the same widening `@comvi/react`'s
+ * `TProps` has.
+ */
+export type TProps = TBaseProps & Record<string, unknown>;
+
+/** The props that carry their own meaning; everything else is a param. */
+const DECLARED_PROPS = [
+  "i18nKey",
+  "params",
+  "ns",
+  "locale",
+  "fallback",
+  "markers",
+  "components",
+  "children",
+] as const;
+
+/**
+ * Renders a translation.
  *
- * @example Basic usage
+ * Params may be written as `params={{ … }}` or as direct props.
+ *
+ * @example
  * ```tsx
  * <T i18nKey="greeting" />
+ * <T i18nKey="cart.items" count={2} name="Ada" />
  * ```
  */
 export const T: Component<TProps> = (props) => {
   const ctx = useI18nContextValue();
 
-  // Resolve fallback children lazily — only when a translation is actually
-  // missing. Resolving eagerly here would create (and run side effects in) the
-  // fallback subtree on every render even when the translation exists. The
-  // `children()` helper is created once, under the component owner via
-  // `runWithOwner`, so it survives memo recomputes and is disposed with the
-  // component (not recreated/disposed on each recompute, which would churn).
+  // Everything outside `DECLARED_PROPS` is an interpolation param, matching the
+  // react wrapper: `<T i18nKey="cart" count={2} />` is `params: { count: 2 }`.
+  const [local, directParams] = splitProps(props, DECLARED_PROPS);
+
+  // Fallback children resolve LAZILY: resolving eagerly would build the
+  // fallback subtree — and run its side effects — on every render, translation
+  // present or not. The `children()` helper is created once under the
+  // component owner, so it survives memo recomputes and is disposed with the
+  // component rather than churning on each recompute.
   const owner = getOwner();
   let resolveFallback: (() => ResolvedChildren) | undefined;
   const fallbackChildren = (): ResolvedChildren => {
     if (!resolveFallback) {
-      resolveFallback = runWithOwner(owner, () => resolveChildren(() => props.children))!;
+      resolveFallback = runWithOwner(owner, () => resolveChildren(() => local.children))!;
     }
     return resolveFallback();
   };
 
   const finalContent = createMemo(() => {
-    // Access signals to track dependencies from the latest memoized signals.
     ctx.signals.cacheRevision();
-    const keyString = props.i18nKey as string;
+    const keyString = local.i18nKey as string;
 
-    // Only subscribe to the global locale signal when no explicit locale is
-    // pinned, so <T locale="…"> does not recompute on unrelated global locale
-    // changes (the `??` short-circuits the signal read when props.locale is set).
-    const targetLocale = props.locale ?? ctx.signals.locale();
-    const targetNamespace = props.ns ?? ctx.signals.defaultNamespace();
-    const translationExists = ctx.i18n.hasTranslation(
-      keyString,
-      targetLocale,
-      targetNamespace,
-      true,
-    );
+    // The `??` short-circuits the signal read when `local.locale` is set, so
+    // `<T locale="…">` does not recompute on unrelated global locale changes.
+    const targetLocale = local.locale ?? ctx.signals.locale();
+    const targetNamespace = local.ns ?? ctx.signals.defaultNamespace();
 
     const reportTagError: ReportTagError = (error, tagName) => {
       ctx.i18n.reportError(error, { source: "translation", tagName });
     };
 
-    const solidHandlers = new Map<string, (children: JSX.Element) => JSX.Element>();
-    const tagHandlers = props.components
-      ? buildTagHandlers(props.components, solidHandlers, reportTagError)
-      : undefined;
-    const hasTagHandlers = tagHandlers !== undefined && Object.keys(tagHandlers).length > 0;
-    const hasParams = props.params !== undefined && Object.keys(props.params).length > 0;
+    // The spread is what SUBSCRIBES to each direct param, so it happens inside
+    // the memo. A direct prop wins a name collision with `params`, as in react.
+    const hasDirectParams = Object.keys(directParams).length > 0;
+    const allParams = hasDirectParams
+      ? ({ ...local.params, ...directParams } as TranslationParams)
+      : local.params;
+
+    const hasComponents =
+      local.components !== undefined && Object.keys(local.components).length > 0;
+    const hasParams = allParams !== undefined && Object.keys(allParams).length > 0;
     const hasOverrides =
-      props.ns !== undefined ||
-      props.locale !== undefined ||
-      props.fallback !== undefined ||
-      props.raw !== undefined;
+      local.ns !== undefined ||
+      local.locale !== undefined ||
+      local.fallback !== undefined ||
+      local.markers === false;
 
-    const content: TranslationResult =
-      !hasTagHandlers && !hasParams && !hasOverrides
-        ? ctx.i18n.tRaw(keyString as any)
-        : (() => {
-            const transportParams: TranslationParams = {};
-            if (hasParams) {
-              Object.assign(transportParams, props.params);
-            }
-            if (hasTagHandlers) {
-              Object.assign(transportParams, tagHandlers);
-            }
-            if (props.ns !== undefined) {
-              transportParams.ns = props.ns;
-            }
-            if (props.locale !== undefined) {
-              transportParams.locale = props.locale;
-            }
-            if (props.fallback !== undefined) {
-              transportParams.fallback = props.fallback;
-            }
-            if (props.raw !== undefined) {
-              transportParams.raw = props.raw;
-            }
-            return ctx.i18n.tRaw(keyString as any, transportParams);
-          })();
+    // Fast path: a bare `tRaw` call keeps core's static-template cache hit
+    // (zero per-render allocation) for the common shape — a plain-text template
+    // rendered with nothing but the key.
+    //
+    // It cannot be unconditional. The tag grammar is handed over PER CALL, so a
+    // template that still contains markup must go through `prepareTranslation`
+    // to be parsed at all; `indexOf("<")` on the resolved string is what tells
+    // the two apart. A non-string result is already structured.
+    if (!hasComponents && !hasParams && !hasOverrides) {
+      const content = ctx.i18n.tRaw(keyString as never);
+      if (typeof content !== "string" || content.indexOf("<") === -1) {
+        const isMissing =
+          typeof content === "string" &&
+          content === keyString &&
+          !ctx.i18n.hasTranslation(keyString, targetLocale, targetNamespace, true);
 
-    const isMissingTranslation =
-      !translationExists &&
-      props.fallback === undefined &&
-      typeof content === "string" &&
-      content === keyString;
+        if (isMissing && local.children !== undefined) {
+          return fallbackChildren();
+        }
 
-    if (isMissingTranslation && props.children !== undefined) {
+        return renderContent(content, NO_HANDLERS, reportTagError);
+      }
+    }
+
+    const { content, pendingHandlers, isMissing } = prepareTranslation(ctx.i18n, {
+      i18nKey: keyString,
+      params: allParams,
+      ns: local.ns,
+      locale: local.locale,
+      fallback: local.fallback,
+      markers: local.markers,
+      components: local.components,
+    });
+
+    if (isMissing && local.children !== undefined) {
       return fallbackChildren();
     }
 
-    return renderContent(content, solidHandlers, reportTagError);
+    return renderContent(
+      content,
+      buildMarkerHandlers(pendingHandlers, reportTagError),
+      reportTagError,
+    );
   });
 
   return <>{finalContent()}</>;

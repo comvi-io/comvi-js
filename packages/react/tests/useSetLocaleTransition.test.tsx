@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { render, renderHook, act, waitFor } from "@testing-library/react";
+import { StrictMode, useLayoutEffect, type ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useSetLocaleTransition } from "../src/useSetLocaleTransition";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import { createDeferred } from "./test-utils";
 
 const createWrapper = (fake: FakeI18n) => {
   return ({ children }: { children: ReactNode }) => (
@@ -23,7 +24,7 @@ describe("useSetLocaleTransition", () => {
     expect(result.current.isPending).toBe(false);
   });
 
-  it("calls i18n.setLocaleAsync with the given locale", async () => {
+  it("calls i18n.setLocale with the given locale", async () => {
     const fake = new FakeI18n();
     const { result } = renderHook(() => useSetLocaleTransition(), {
       wrapper: createWrapper(fake),
@@ -33,20 +34,15 @@ describe("useSetLocaleTransition", () => {
       result.current.setLocale("fr");
     });
 
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("fr");
+    expect(fake.setLocale).toHaveBeenCalledWith("fr");
   });
 
   it("keeps isPending true until the async locale change settles", async () => {
     const fake = new FakeI18n();
 
-    let resolveFn!: () => void;
-    const deferred = new Promise<void>((resolve) => {
-      resolveFn = resolve;
-    });
+    const deferred = createDeferred<void>();
 
-    fake.setLocaleAsync.mockImplementation(async () => {
-      await deferred;
-    });
+    fake.setLocale.mockImplementation(() => deferred.promise);
 
     const { result } = renderHook(() => useSetLocaleTransition(), {
       wrapper: createWrapper(fake),
@@ -61,14 +57,14 @@ describe("useSetLocaleTransition", () => {
     expect(result.current.isPending).toBe(true);
 
     await act(async () => {
-      resolveFn();
-      await deferred;
+      deferred.resolve();
+      await deferred.promise;
     });
 
     await waitFor(() => {
       expect(result.current.isPending).toBe(false);
     });
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("fr");
+    expect(fake.setLocale).toHaveBeenCalledWith("fr");
   });
 
   it("locale is updated after setLocale resolves", async () => {
@@ -82,19 +78,239 @@ describe("useSetLocaleTransition", () => {
       result.current.setLocale("de");
     });
 
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("de");
+    expect(fake.setLocale).toHaveBeenCalledWith("de");
     expect(fake.language).toBe("de");
   });
 
   it("throws when used outside I18nProvider", () => {
-    const originalError = console.error;
-    console.error = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => renderHook(() => useSetLocaleTransition())).toThrow(
-      "[i18n] Hooks must be used within an I18nProvider",
+      "[@comvi/react] Hooks must be used within an I18nProvider",
+    );
+  });
+
+  it("clears isPending and reports the error when the locale change rejects", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocale.mockImplementation(() => deferred.promise);
+
+    const { result } = renderHook(() => useSetLocaleTransition(), {
+      wrapper: createWrapper(fake),
+    });
+
+    await act(async () => {
+      result.current.setLocale("fr");
+    });
+
+    expect(result.current.isPending).toBe(true);
+
+    await act(async () => {
+      deferred.reject(new Error("catalog 500"));
+      await deferred.promise.catch(() => {});
+    });
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(false);
+    });
+    expect(fake.reportError).toHaveBeenCalledWith(new Error("catalog 500"), {
+      source: "setLocale",
+      locale: "fr",
+    });
+  });
+
+  it("normalizes a non-Error locale-change rejection before reporting it", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocale.mockImplementation(() => deferred.promise);
+
+    const { result } = renderHook(() => useSetLocaleTransition(), {
+      wrapper: createWrapper(fake),
+    });
+
+    await act(async () => {
+      result.current.setLocale("fr");
+    });
+    await act(async () => {
+      deferred.reject("catalog exploded");
+      await deferred.promise.catch(() => {});
+    });
+
+    await waitFor(() => {
+      expect(fake.reportError).toHaveBeenCalledWith(new Error("catalog exploded"), {
+        source: "setLocale",
+        locale: "fr",
+      });
+    });
+  });
+
+  // A sequence scenario on purpose: the pending COUNT, not a boolean, is what
+  // keeps overlapping locale changes from clearing each other's pending state.
+  it("keeps isPending true until every overlapping locale change settles", async () => {
+    const fake = new FakeI18n();
+    const firstChange = createDeferred<void>();
+    const secondChange = createDeferred<void>();
+    const inFlight = [firstChange.promise, secondChange.promise];
+    fake.setLocale.mockImplementation(() => inFlight.shift()!);
+
+    const { result } = renderHook(() => useSetLocaleTransition(), {
+      wrapper: createWrapper(fake),
+    });
+
+    await act(async () => {
+      result.current.setLocale("fr");
+    });
+    await act(async () => {
+      result.current.setLocale("de");
+    });
+
+    await act(async () => {
+      firstChange.resolve();
+      await firstChange.promise;
+    });
+
+    expect(result.current.isPending).toBe(true);
+
+    await act(async () => {
+      secondChange.resolve();
+      await secondChange.promise;
+    });
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(false);
+    });
+  });
+
+  it("rebinds setLocale to the new instance when the i18n prop changes", async () => {
+    const first = new FakeI18n();
+    const second = new FakeI18n();
+    let setLocale: ((locale: string) => void) | undefined;
+
+    const Probe = () => {
+      setLocale = useSetLocaleTransition().setLocale;
+      return null;
+    };
+    const Host = ({ fake }: { fake: FakeI18n }) => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
     );
 
-    console.error = originalError;
+    const { rerender } = render(<Host fake={first} />);
+    rerender(<Host fake={second} />);
+
+    await act(async () => {
+      setLocale!("fr");
+    });
+
+    expect(second.setLocale).toHaveBeenCalledWith("fr");
+    expect(first.setLocale).not.toHaveBeenCalled();
+  });
+
+  // StrictMode mounts, tears down and remounts every effect. The unmount guard
+  // has to come back up on the second mount, or the hook spends the rest of the
+  // session believing the component is gone and never reports pending again.
+  it("reports isPending under StrictMode, whose double-mount runs the cleanup", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocale.mockImplementation(() => deferred.promise);
+
+    // `render`, not `renderHook`: only a real element tree gets StrictMode's
+    // mount -> cleanup -> mount effect sequence.
+    let api!: ReturnType<typeof useSetLocaleTransition>;
+    const Probe = () => {
+      api = useSetLocaleTransition();
+      return <span>{String(api.isPending)}</span>;
+    };
+
+    render(
+      <StrictMode>
+        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+          <Probe />
+        </I18nProvider>
+      </StrictMode>,
+    );
+
+    expect(api.isPending).toBe(false);
+
+    await act(async () => {
+      api.setLocale("de");
+    });
+
+    expect(api.isPending).toBe(true);
+
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(api.isPending).toBe(false);
+    });
+    expect(fake.setLocale).toHaveBeenCalledWith("de");
+  });
+
+  // REGRESSION GUARD (passes before and after): re-arming the mount flag on
+  // every effect run must not resurrect the real unmount case.
+  it("does not update state after a real unmount", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocale.mockImplementation(() => deferred.promise);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { result, unmount } = renderHook(() => useSetLocaleTransition(), {
+      wrapper: createWrapper(fake),
+    });
+
+    await act(async () => {
+      result.current.setLocale("fr");
+    });
+
+    unmount();
+
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  // Layout effects run BEFORE this hook's own passive mount effect, so this is
+  // the earliest point a consumer can reach `setLocale` — and the only place
+  // the initial value of the mount flag is observable.
+  it("reports isPending for a setLocale issued from a mount layout effect", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocale.mockImplementation(() => deferred.promise);
+
+    let api!: ReturnType<typeof useSetLocaleTransition>;
+    const Probe = () => {
+      api = useSetLocaleTransition();
+      useLayoutEffect(() => {
+        api.setLocale("fr");
+      }, []);
+      return <span>{String(api.isPending)}</span>;
+    };
+
+    await act(async () => {
+      render(
+        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+          <Probe />
+        </I18nProvider>,
+      );
+    });
+
+    expect(api.isPending).toBe(true);
+
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(api.isPending).toBe(false);
+    });
   });
 
   it("setLocale reference is stable across re-renders", () => {

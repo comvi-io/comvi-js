@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { hasLocale, routing, loadTranslations } from "../../i18n";
+import { hasLocale, routing, loadMessages } from "../../i18n";
 import { I18nClientProvider } from "./I18nClientProvider";
 import { Navigation } from "../../components/Navigation";
 import "../globals.css";
@@ -15,13 +15,12 @@ export default async function LocaleLayout({
 }) {
   const { locale } = await params;
 
-  // Validate locale
   if (!hasLocale(routing.locales, locale)) {
     notFound();
   }
 
   // Load translations for server + pass to client (avoids extra fetch)
-  const messages = await loadTranslations(locale);
+  const messages = await loadMessages(locale);
 
   return (
     <html lang={locale}>

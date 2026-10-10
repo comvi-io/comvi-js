@@ -1,7 +1,8 @@
 import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mockRuntimeConfig, resetMocks, setMockI18n, useState } from "./mocks/nuxt-app";
+import { resetMocks, setMockI18n, useState } from "./mocks/nuxt-app";
 import { useI18n } from "../src/runtime/composables/useI18n";
+import type * as ComviCore from "@comvi/core";
 
 const { createBoundTranslation, boundT } = vi.hoisted(() => {
   const t = vi.fn(() => [
@@ -15,26 +16,31 @@ const { createBoundTranslation, boundT } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@comvi/core", () => ({
+// The composable takes `createBoundTranslation` from the SLIM entry: it runs on
+// a bare WrapperI18nInstance, which is all `$i18n` promises.
+vi.mock("@comvi/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof ComviCore>()),
   createBoundTranslation,
 }));
 
+// The composable is a pass-through map over the WHOLE host surface, so a
+// partial stub would hand back `undefined` where the contract promises a member.
 function createI18nStub() {
+  const locale = ref("en");
   return {
-    locale: ref("en"),
-    setLocale: vi.fn(async () => undefined),
-    translationCache: computed(() => new Map()),
+    locale,
+    // A switch that resolves has applied, as on a real host.
+    setLocale: vi.fn(async (next: string) => {
+      locale.value = next;
+    }),
+    messagesCache: computed(() => new Map()),
     isLoading: ref(false),
     isInitializing: ref(false),
-    addTranslations: vi.fn(),
-    addActiveNamespace: vi.fn(async () => undefined),
+    addMessages: vi.fn(),
     setFallbackLocale: vi.fn(),
     defaultParams: computed(() => ({ formality: "formal" })),
     setDefaultParams: vi.fn(),
-    onMissingKey: vi.fn(() => () => undefined),
-    onLoadError: vi.fn(() => () => undefined),
-    clearTranslations: vi.fn(),
-    reloadTranslations: vi.fn(async () => undefined),
+    clearMessages: vi.fn(),
     hasLocale: vi.fn(() => computed(() => true)),
     hasTranslation: vi.fn(() => computed(() => true)),
     loadedLocales: computed(() => ["en"]),
@@ -60,11 +66,11 @@ describe("useI18n composable", () => {
 
   it("throws when i18n plugin is not initialized", () => {
     expect(() => useI18n()).toThrow(
-      "[@comvi/nuxt] i18n not initialized. Make sure @comvi/nuxt module is configured in nuxt.config.ts",
+      '[@comvi/nuxt] i18n not configured. Add "@comvi/nuxt" to `modules` in nuxt.config.ts.',
     );
   });
 
-  it("returns bound API and syncs locale state on setLanguage", async () => {
+  it("returns bound API and syncs locale state on setLocale", async () => {
     const i18n = createI18nStub();
     setMockI18n(i18n);
 
@@ -78,12 +84,47 @@ describe("useI18n composable", () => {
       { type: "element", tag: "strong", props: {}, children: ["Alice"] },
       "!",
     ]);
-    expect(api.locales.value).toEqual(mockRuntimeConfig.public.comvi.locales);
-    expect(api.defaultLocale.value).toBe(mockRuntimeConfig.public.comvi.defaultLocale);
+    expect(api.locales.value).toEqual(["en", "de", "uk"]);
+    expect(api.defaultLocale.value).toBe("en");
 
     await api.setLocale("de");
     expect(i18n.setLocale).toHaveBeenCalledWith("de");
     expect(useState<string>("i18n-locale").value).toBe("de");
+  });
+
+  it("leaves locale state on the newer locale when an earlier setLocale is superseded", async () => {
+    // Core's loader switch: the first request is still loading when a second
+    // one starts; the second applies, and the first then resolves WITHOUT
+    // applying. Writing its locale anyway flipped the state (and so
+    // `<html lang>`, and through the plugin's watcher the locale itself) back.
+    const i18n = createI18nStub();
+    const pending = new Map<string, () => void>();
+    let latest = "";
+    i18n.setLocale.mockImplementation(
+      (next: string) =>
+        new Promise<void>((resolve) => {
+          latest = next;
+          pending.set(next, () => {
+            if (latest === next) {
+              i18n.locale.value = next;
+            }
+            resolve();
+          });
+        }),
+    );
+    setMockI18n(i18n);
+    const localeState = useState<string>("i18n-locale", () => "en");
+    const api = useI18n();
+
+    const first = api.setLocale("de");
+    const second = api.setLocale("uk");
+    pending.get("uk")!();
+    await second;
+    pending.get("de")!();
+    await first;
+
+    expect(i18n.locale.value).toBe("uk");
+    expect(localeState.value).toBe("uk");
   });
 
   it("creates bound translation with the correct namespace argument", () => {
@@ -92,7 +133,6 @@ describe("useI18n composable", () => {
 
     useI18n("dashboard");
 
-    // createBoundTranslation should be called with the i18n instance and namespace
     expect(createBoundTranslation).toHaveBeenCalledTimes(1);
     expect(createBoundTranslation).toHaveBeenCalledWith(i18n, "dashboard");
   });
@@ -103,7 +143,6 @@ describe("useI18n composable", () => {
 
     useI18n();
 
-    // createBoundTranslation called with i18n and undefined (no default ns override)
     expect(createBoundTranslation).toHaveBeenCalledTimes(1);
     expect(createBoundTranslation).toHaveBeenCalledWith(i18n, undefined);
   });
@@ -114,10 +153,9 @@ describe("useI18n composable", () => {
 
     const api = useI18n();
 
-    // locale should be the same reactive ref from the i18n stub
     expect(api.locale.value).toBe("en");
 
-    // Mutating the source ref should be visible through api.locale
+    // The ref is shared, not copied.
     i18n.locale.value = "fr";
     expect(api.locale.value).toBe("fr");
   });
@@ -132,9 +170,8 @@ describe("useI18n composable", () => {
     api.setDefaultParams({ formality: "informal" });
     expect(i18n.setDefaultParams).toHaveBeenCalledWith({ formality: "informal" });
 
-    // Call methods through the composable and verify they delegate to the i18n stub
-    api.addTranslations({ "en:common": { greeting: "Hello" } });
-    expect(i18n.addTranslations).toHaveBeenCalledWith({ "en:common": { greeting: "Hello" } });
+    api.addMessages({ "en:common": { greeting: "Hello" } });
+    expect(i18n.addMessages).toHaveBeenCalledWith({ "en:common": { greeting: "Hello" } });
 
     expect(api.hasLocale("en", "common").value).toBe(true);
     expect(i18n.hasLocale).toHaveBeenCalledWith("en", "common");

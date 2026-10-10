@@ -2,10 +2,6 @@ import { defineConfig } from "vitest/config";
 import { resolve } from "path";
 
 export default defineConfig({
-  define: {
-    "import.meta.env.VITE_API_BASE_URL": JSON.stringify("http://localhost:3000"),
-    "import.meta.env.VITE_CDN_BASE_URL": JSON.stringify("https://cdn.thebestfrontend.com"),
-  },
   test: {
     environment: "happy-dom",
     include: ["tests/**/*.test.ts"],
@@ -22,6 +18,9 @@ export default defineConfig({
       },
     },
     globals: true,
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     setupFiles: ["./tests/setup.ts"],
   },
   resolve: {

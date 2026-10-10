@@ -1,16 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, provide, type PropType } from "vue";
-import { useI18n } from "../src";
-import { VueI18n } from "../src/VueI18n";
+import { icuCompiler, useI18n } from "../src";
+import type { VueI18nOptions } from "../src";
+import { createI18n } from "../src/createI18n";
+import type { VueI18n } from "../src/VueI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
-
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    review: never;
-  }
-}
 
 const REVIEW_SELECT: Record<string, Record<string, string>> = {
   en: { review: "Your review" },
@@ -19,11 +15,20 @@ const REVIEW_SELECT: Record<string, Record<string, string>> = {
 };
 
 function createInstance(locale: string, formality?: string) {
-  return new VueI18n({
+  // The catalog is ICU `select`, so the constructor names the compiler that
+  // understands it — the base host's simple compiler does not.
+  // The options are annotated so every instance here shares one `D`: inferring
+  // it per call would make the formality-carrying instance a different
+  // `VueI18n` type from the plain one, and the two are provided through the
+  // same injection key below.
+  const options: VueI18nOptions = {
     locale,
-    translation: REVIEW_SELECT,
+    compiler: icuCompiler,
+    messages: REVIEW_SELECT,
     ...(formality ? { defaultParams: { formality } } : {}),
-  });
+  };
+
+  return createI18n(options);
 }
 
 const ReviewText = defineComponent({
@@ -65,10 +70,11 @@ describe("Subtree instance shadowing via I18N_INJECTION_KEY", () => {
       global: { provide: { [I18N_INJECTION_KEY as symbol]: appI18n } },
     });
 
-    const sections = wrapper.findAll("section");
-    expect(wrapper.find("span.app").text()).toBe("Your review");
-    expect(sections[0].text()).toBe("Ihre BewertungIhre Bewertung");
-    expect(sections[1].text()).toBe("Ton avis");
+    const deScope = wrapper.get("section.de");
+    expect(wrapper.get("span.app").text()).toBe("Your review");
+    expect(deScope.get("span").text()).toBe("Ihre Bewertung");
+    expect(deScope.text()).toBe("Ihre BewertungIhre Bewertung");
+    expect(wrapper.get("section.fr").text()).toBe("Ton avis");
   });
 
   it("call-level params still override the subtree instance defaults", () => {

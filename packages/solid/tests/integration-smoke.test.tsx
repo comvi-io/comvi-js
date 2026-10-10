@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { render } from "solid-js/web";
-import { createI18n } from "@comvi/core";
+import { attachLoader, createI18n } from "../src/index";
+import type { LoaderResult } from "@comvi/core/loader";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { T } from "../src/T";
+import { flushMicrotasks, renderSolid } from "./test-utils";
 
 describe("solid integration smoke", () => {
   it("renders with real core and reacts to locale changes", async () => {
-    const container = document.createElement("div");
     const i18n = createI18n({
       locale: "en",
-      translation: {
+      messages: {
         en: { greeting: "Hello" },
         fr: { greeting: "Bonjour" },
       },
@@ -29,37 +29,30 @@ describe("solid integration smoke", () => {
       );
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={i18n}>
-          <App />
-        </I18nProvider>
-      ),
-      container,
-    );
+    const container = renderSolid(() => (
+      <I18nProvider i18n={i18n}>
+        <App />
+      </I18nProvider>
+    ));
 
-    expect(container.textContent).toContain("en");
-    expect(container.textContent).toContain("Hello");
+    expect(container.textContent).toBe("enHello");
 
-    await i18n.setLocaleAsync("fr");
-    await Promise.resolve();
+    await i18n.setLocale("fr");
+    await flushMicrotasks();
 
-    expect(container.textContent).toContain("fr");
-    expect(container.textContent).toContain("Bonjour");
-
-    dispose();
+    expect(container.textContent).toBe("frBonjour");
   });
 
   it("loads namespace with real core and exposes it through useI18n", async () => {
-    const container = document.createElement("div");
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { hello: "Hello" },
       },
-    });
-    i18n.registerLoader(async (_language, namespace) => {
+      // `attachLoader` rather than `loader(map)`: this drives a raw `LoaderFn`.
+    }).use(attachLoader);
+    i18n.registerLoader(async (_language, namespace): Promise<LoaderResult> => {
       if (namespace === "admin") return { title: "Admin Panel" };
       return {};
     });
@@ -70,31 +63,25 @@ describe("solid integration smoke", () => {
       return <div>{t("title" as never, { ns: "admin" })}</div>;
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={i18n}>
-          <App />
-        </I18nProvider>
-      ),
-      container,
-    );
+    const container = renderSolid(() => (
+      <I18nProvider i18n={i18n}>
+        <App />
+      </I18nProvider>
+    ));
 
     expect(container.textContent).toBe("title");
 
     await i18n.addActiveNamespace("admin");
-    await Promise.resolve();
+    await flushMicrotasks();
 
     expect(container.textContent).toBe("Admin Panel");
-
-    dispose();
   });
 
   it("reacts to default namespace changes for useI18n() and <T>", async () => {
-    const container = document.createElement("div");
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         "en:common": { title: "Common Title" },
         "en:admin": { title: "Admin Title" },
       },
@@ -113,22 +100,17 @@ describe("solid integration smoke", () => {
       );
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={i18n}>
-          <App />
-        </I18nProvider>
-      ),
-      container,
-    );
+    const container = renderSolid(() => (
+      <I18nProvider i18n={i18n}>
+        <App />
+      </I18nProvider>
+    ));
 
-    expect(container.textContent).toContain("Common Title");
+    expect(container.textContent).toBe("Common TitleCommon Title");
 
     i18n.setDefaultNamespace("admin");
-    await Promise.resolve();
+    await flushMicrotasks();
 
-    expect(container.textContent).toContain("Admin Title");
-
-    dispose();
+    expect(container.textContent).toBe("Admin TitleAdmin Title");
   });
 });

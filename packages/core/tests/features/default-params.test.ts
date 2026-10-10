@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedInstance";
+import type { DefaultTranslationParams } from "../../src/types";
 
 const FORMALITY_SELECT = "{formality, select, formal {Ihre Bewertung} other {Deine Bewertung}}";
 
 function createInstance(defaultParams?: Record<string, string>) {
   const i18n = new I18n({ locale: "de", defaultParams });
-  i18n.addTranslations({
+  i18n.addMessages({
     de: {
       review: FORMALITY_SELECT,
       greeting: "Hallo {name}!",
@@ -16,7 +17,7 @@ function createInstance(defaultParams?: Record<string, string>) {
   return i18n;
 }
 
-describe("Instance-level defaultParams", () => {
+describe("defaultParams — the constructor option and setDefaultParams()", () => {
   it("renders select branches from instance defaults without call-level params", () => {
     const i18n = createInstance({ formality: "formal" });
     expect(i18n.t("review")).toBe("Ihre Bewertung");
@@ -75,7 +76,9 @@ describe("Instance-level defaultParams", () => {
     options.formality = "informal";
     expect(i18n.t("review")).toBe("Ihre Bewertung");
 
-    const exposed = i18n.defaultParams!;
+    // The snapshot is `Readonly`; writing through it is exactly the misuse
+    // this case proves the instance survives.
+    const exposed = i18n.defaultParams! as DefaultTranslationParams;
     exposed.formality = "informal";
     expect(i18n.t("review")).toBe("Ihre Bewertung");
   });
@@ -96,7 +99,7 @@ describe("Instance-level defaultParams", () => {
     expect(i18n.defaultParams).toEqual({ formality: "formal" });
   });
 
-  it.each(["locale", "ns", "fallback", "raw"])(
+  it.each(["locale", "ns", "fallback", "markers", "tagInterpolation"])(
     "rejects the reserved call-control key %s in constructor defaults",
     (key) => {
       expect(
@@ -105,7 +108,7 @@ describe("Instance-level defaultParams", () => {
             locale: "en",
             defaultParams: { [key]: "invalid" } as never,
           }),
-      ).toThrow(/defaultParams.*locale.*ns.*fallback.*raw/i);
+      ).toThrow(/defaultParams.*locale.*ns.*fallback.*markers/i);
     },
   );
 
@@ -113,7 +116,7 @@ describe("Instance-level defaultParams", () => {
     const i18n = createInstance();
 
     expect(() => i18n.setDefaultParams({ locale: "de" } as never)).toThrow(
-      /defaultParams.*locale.*ns.*fallback.*raw/i,
+      /defaultParams.*locale.*ns.*fallback.*markers/i,
     );
   });
 
@@ -142,6 +145,22 @@ describe("Instance-level defaultParams", () => {
     expect(() => i18n.setDefaultParams({ formality: undefined } as never)).toThrow(
       /defaultParams.*null.*undefined/i,
     );
+
+    expect(i18n.t("review")).toBe("Ihre Bewertung");
+  });
+
+  it("accepts a replacement that keeps every constructor-guaranteed key", () => {
+    const i18n = createInstance({ formality: "formal" });
+
+    i18n.setDefaultParams({ formality: "informal" });
+
+    expect(i18n.t("review")).toBe("Deine Bewertung");
+  });
+
+  it("accepts extra keys alongside a constructor-guaranteed one", () => {
+    const i18n = createInstance({ formality: "formal" });
+
+    i18n.setDefaultParams({ formality: "formal", name: "Ada" });
 
     expect(i18n.t("review")).toBe("Ihre Bewertung");
   });

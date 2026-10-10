@@ -16,48 +16,38 @@ import {
 } from "../utils/locale-path";
 import { resolveAcceptLanguage } from "../utils/resolve-locale";
 import { isServer } from "../utils/runtime";
-import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../defaults";
+import { resolveAcceptLanguage as customResolveAcceptLanguage } from "#build/comvi.detection";
 
 /**
- * Global route middleware for locale detection and URL prefix handling
+ * Global route middleware for locale detection and URL prefix handling.
  *
- * This middleware:
- * 1. Detects locale from URL path
- * 2. Falls back to the configured query parameter, then cookie, then Accept-Language header
- * 3. Handles URL prefix modes (always, as-needed, never)
- * 4. Persists locale in cookie
- * 5. Syncs locale with Nuxt state
+ * Locale precedence: the URL path prefix, then `localeDetection.order`
+ * (default: the query parameter, the cookie, the Accept-Language header), then
+ * `defaultLocale`. Under `as-needed` a prefixless non-root path IS the default
+ * locale's URL: it is decided after any `query` sources that lead the order
+ * and before the rest. So is the prefixless URL of a locale switch to the
+ * default locale, the root path included.
  */
-export default defineNuxtRouteMiddleware(async (to) => {
+export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
   const config = useRuntimeConfig();
-  const { locales, defaultLocale, localePrefix, cookieName, detectBrowserLanguage } =
-    config.public.comvi;
+  const {
+    locales,
+    defaultLocale,
+    localePrefix,
+    localeCookie: cookieConfig,
+    localeDetection: detectConfig,
+  } = config.public.comvi;
 
-  // Get locale state
   const localeState = useLocaleState();
 
-  const detectConfig =
-    detectBrowserLanguage === false
-      ? false
-      : {
-          ...DEFAULT_DETECT_BROWSER_LANGUAGE,
-          ...(typeof detectBrowserLanguage === "object" ? detectBrowserLanguage : {}),
-        };
-
-  const useCookieForDetection = detectConfig !== false && detectConfig.useCookie === true;
-
-  // Get locale cookie
-  const detectCfg = typeof detectBrowserLanguage === "object" ? detectBrowserLanguage : undefined;
-  const cookieSecure = detectCfg?.cookieSecure ?? true;
-
-  const localeCookie = useCookieForDetection
-    ? useCookie(cookieName, {
-        maxAge: detectCfg?.cookieMaxAge ?? DEFAULT_DETECT_BROWSER_LANGUAGE.cookieMaxAge,
+  const localeCookie = cookieConfig
+    ? useCookie(cookieConfig.name, {
+        maxAge: cookieConfig.maxAge,
         path: "/",
-        sameSite: detectCfg?.sameSite ?? "lax",
-        domain: detectCfg?.domain,
+        sameSite: cookieConfig.sameSite,
+        domain: cookieConfig.domain,
         // Secure in production, disabled in dev so localhost HTTP works
-        secure: import.meta.dev ? false : cookieSecure,
+        secure: import.meta.dev ? false : cookieConfig.secure,
       })
     : null;
 
@@ -70,68 +60,83 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return;
   }
 
-  // 1. Extract locale from URL path
   const pathLocale = extractLocaleFromPath(pathname, locales);
 
-  // 2. Detect locale from various sources
   let detectedLocale: string | undefined;
   let detectedSource: "path" | "query" | "cookie" | "header" | "fallback" = "fallback";
-  const queryParam = detectConfig !== false ? detectConfig.queryParam : undefined;
-  const rawQueryValue = queryParam ? to.query?.[queryParam] : undefined;
+  const queryParam = detectConfig ? detectConfig.queryParam : undefined;
   const hasQueryParam =
     queryParam !== undefined && Object.prototype.hasOwnProperty.call(to.query ?? {}, queryParam);
+
+  // A locale switch to the default locale: a navigation from a locale-prefixed
+  // URL to the SAME page without a prefix, which is what `useSwitchLocalePath()`
+  // returns for the default locale under `as-needed`. It is the user's explicit
+  // choice, so the URL decides, the root path included, and the cookie records
+  // the default locale instead of keeping the one being switched away from.
+  // The first run of a visit never matches: its `from` is the target itself on
+  // the server, and the router's start location (`/`) in the browser.
+  const isSwitchToDefault =
+    localePrefix === "as-needed" &&
+    pathLocale === undefined &&
+    from !== undefined &&
+    extractLocaleFromPath(from.path, locales) !== undefined &&
+    stripLocalePrefix(from.path, locales) === pathname;
+  const isPathImpliedDefaultCandidate =
+    isSwitchToDefault || (localePrefix === "as-needed" && pathname !== "/" && pathname !== "");
 
   if (pathLocale) {
     detectedLocale = pathLocale;
     detectedSource = "path";
   }
 
-  // Explicit query parameter (e.g. ?lang=de) beats the implied default of a
-  // prefixless path and stored preferences, but not an explicit path prefix.
-  if (!detectedLocale && queryParam) {
-    const queryLocale = Array.isArray(rawQueryValue) ? rawQueryValue[0] : rawQueryValue;
-    if (typeof queryLocale === "string" && locales.includes(queryLocale)) {
-      detectedLocale = queryLocale;
-      detectedSource = "query";
+  const accept = (candidate: unknown): string | undefined =>
+    typeof candidate === "string" && locales.includes(candidate) ? candidate : undefined;
+
+  for (const source of detectConfig ? detectConfig.order : []) {
+    if (detectedLocale) break;
+    // An explicit query parameter (e.g. ?lang=de) beats the implied default of
+    // a prefixless path, but no other source does.
+    if (source !== "query" && isPathImpliedDefaultCandidate) break;
+    if (source === "query") {
+      const raw = queryParam ? to.query?.[queryParam] : undefined;
+      detectedLocale = accept(Array.isArray(raw) ? raw[0] : raw);
+      if (detectedLocale) detectedSource = "query";
+    } else if (source === "cookie") {
+      detectedLocale = accept(localeCookie?.value);
+      if (detectedLocale) detectedSource = "cookie";
+    } else if (isServer()) {
+      // Request headers exist on the server only.
+      if (source === "header") {
+        const headerName = detectConfig ? detectConfig.headerName : undefined;
+        // Nuxt keys the result in lower case, whatever case was asked for.
+        const header = headerName?.toLowerCase();
+        detectedLocale = header ? accept(useRequestHeaders([header])[header]) : undefined;
+      } else if (source === "accept-language") {
+        // The matcher's answer is taken as-is, as in `@comvi/next`: one outside
+        // `locales` ends detection and falls back below. An unknown entry in
+        // `order` is ignored, as the server `useTranslation` ignores it.
+        const acceptLanguage = useRequestHeaders(["accept-language"])["accept-language"];
+        detectedLocale = acceptLanguage
+          ? (customResolveAcceptLanguage ?? resolveAcceptLanguage)(
+              acceptLanguage,
+              locales,
+              defaultLocale,
+            )
+          : undefined;
+      }
+      if (detectedLocale) detectedSource = "header";
     }
   }
 
-  if (!detectedLocale && localePrefix === "as-needed" && pathname !== "/" && pathname !== "") {
+  if (!detectedLocale && isPathImpliedDefaultCandidate) {
     detectedLocale = defaultLocale;
     detectedSource = "path";
   }
 
-  if (!detectedLocale && localeCookie?.value && locales.includes(localeCookie.value)) {
-    detectedLocale = localeCookie.value;
-    detectedSource = "cookie";
-  }
-
-  // Then Accept-Language (server-side only)
-  if (!detectedLocale && isServer() && detectConfig !== false) {
-    const headers = useRequestHeaders(["accept-language"]);
-    const acceptLanguage = headers["accept-language"];
-    if (acceptLanguage) {
-      detectedLocale = resolveAcceptLanguage(acceptLanguage, locales);
-      if (detectedLocale) {
-        detectedSource = "header";
-      }
-    }
-  }
-
-  // Fallback to default locale
-  const fallbackLocale =
-    detectConfig && "fallbackLocale" in detectConfig && detectConfig.fallbackLocale
-      ? detectConfig.fallbackLocale
-      : defaultLocale;
-  const resolvedFallbackLocale = Array.isArray(fallbackLocale)
-    ? (fallbackLocale.find((locale) => locales.includes(locale)) ?? defaultLocale)
-    : locales.includes(fallbackLocale)
-      ? fallbackLocale
-      : defaultLocale;
   const locale =
-    detectedLocale && locales.includes(detectedLocale) ? detectedLocale : resolvedFallbackLocale;
+    detectedLocale && locales.includes(detectedLocale) ? detectedLocale : defaultLocale;
 
-  // 3. Handle locale prefix modes using the locale that actually rendered.
+  // Prefix modes are applied against the locale that actually rendered.
   const getRedirectPathForLocale = (targetLocale: string): string | null => {
     const cleanPath = stripLocalePrefix(pathname, locales);
     const localizedPath = buildLocalizedPath(cleanPath, targetLocale, defaultLocale, localePrefix);
@@ -141,6 +146,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const isPathImpliedDefault = detectedSource === "path" && pathLocale === undefined;
   const preservedPreference =
     isPathImpliedDefault &&
+    !isSwitchToDefault &&
     localeCookie?.value &&
     locales.includes(localeCookie.value) &&
     localeCookie.value !== locale
@@ -171,15 +177,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
     localeCookie.value = renderedLocale;
   }
 
-  // 5. Redirect if needed
-  // `redirectOnFirstVisit` only gates redirects triggered by header detection.
-  // Path-based redirects and route normalization should still happen regardless.
-  const allowHeaderDetectionRedirect =
-    detectConfig === false || detectConfig.redirectOnFirstVisit !== false;
-  const allowFirstVisitRedirect = detectedSource !== "header" || allowHeaderDetectionRedirect;
   const redirectPath = getRedirectPathForLocale(renderedLocale);
 
-  if (redirectPath && redirectPath !== pathname && (pathLocale || allowFirstVisitRedirect)) {
+  if (redirectPath && redirectPath !== pathname) {
     const redirectSuffix =
       pathLocale && queryParam && hasQueryParam
         ? setQueryParamInSuffix(suffix, queryParam, renderedLocale)

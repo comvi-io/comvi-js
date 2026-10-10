@@ -27,11 +27,11 @@
     "comvi",
     "translation",
     "ssr",
-    "ssg",
-    "server-components"
+    "ssg"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/comvi-react.js",
   "types": "./dist/index.d.ts",
@@ -42,14 +42,18 @@
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
-    "build": "tsc && vite build",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "build": "node ../../tooling/clean-dist.mjs && tsc && vite build && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-open.json && tsc --noEmit -p tsconfig.keys-via-binding.json",
+    "test": "vitest run && pnpm test:types",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
@@ -63,9 +67,11 @@
     "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@comvi/locale-routing": "workspace:*",
+    "@comvi/test-utils": "workspace:*",
+    "@comvi/vite-config": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.13.0",
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^8.58.0",

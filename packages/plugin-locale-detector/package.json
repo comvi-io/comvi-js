@@ -25,25 +25,31 @@
     "plugin"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "development": "./dist/index.dev.js",
       "default": "./dist/index.js"
     }
   },
   "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
-    "build": "tsc && vite build",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "build": "node ../../tooling/clean-dist.mjs && tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json",
+    "test": "vitest run && pnpm test:types",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
@@ -54,6 +60,7 @@
   },
   "devDependencies": {
     "@comvi/core": "workspace:*",
+    "@comvi/test-utils": "workspace:*",
     "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.13.0",
     "typescript": "~6.0.2",

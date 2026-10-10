@@ -46,7 +46,7 @@ export function abortProxyRequest(payload: unknown, sender: chrome.runtime.Messa
 
 // --- request handling ---
 
-function failure(id: string, error: string): ApiProxyResponsePayload {
+export function failure(id: string, error: string): ApiProxyResponsePayload {
   return { id, ok: false, status: 0, statusText: "", body: "", networkError: error };
 }
 
@@ -138,7 +138,9 @@ export async function handleProxyRequest(
       }
       return { ok: false as const, pendingActivation: true as const };
     }
-    if (session.documentId && sender.documentId !== session.documentId) {
+    // Active authority always carries the promoting document's identity; a
+    // record without one fails closed rather than skipping the check.
+    if (!session.documentId || sender.documentId !== session.documentId) {
       return { ok: false as const, response: failure(rawId, "Stale document") };
     }
     if ((await getNavGen(tabId)) !== session.navGen) {

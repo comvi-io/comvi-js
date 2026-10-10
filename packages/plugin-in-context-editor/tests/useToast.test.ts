@@ -10,7 +10,7 @@ describe("useToast", () => {
     vi.useRealTimers();
   });
 
-  it("should start with empty toasts", () => {
+  it("a new manager has no toasts", () => {
     const { toasts } = createToastManager();
     expect(toasts.value).toEqual([]);
   });
@@ -32,23 +32,34 @@ describe("useToast", () => {
   });
 
   it("should assign unique ids to toasts", () => {
-    const { toasts, addToast } = createToastManager();
-    addToast({ title: "First", variant: "success" });
-    addToast({ title: "Second", variant: "error" });
+    const first = createToastManager();
+    const second = createToastManager();
+    first.addToast({ title: "First", variant: "success" });
+    first.addToast({ title: "Second", variant: "error" });
+    second.addToast({ title: "Third", variant: "success" });
 
-    expect(toasts.value[0]!.id).not.toBe(toasts.value[1]!.id);
+    const ids = [...first.toasts.value.map((t) => t.id), second.toasts.value[0]!.id];
+
+    // The id counter is module-level, so it must stay unique across managers too.
+    expect(new Set(ids).size).toBe(3);
   });
 
-  it("should auto-remove toast after 3 seconds", () => {
+  it("toast added, 2999ms elapsed → it is still shown", () => {
     const { toasts, addToast } = createToastManager();
     addToast({ title: "Temporary", variant: "success" });
 
-    expect(toasts.value).toHaveLength(1);
-
     vi.advanceTimersByTime(2999);
+
     expect(toasts.value).toHaveLength(1);
+  });
+
+  it("toast added, 3000ms elapsed → it is removed", () => {
+    const { toasts, addToast } = createToastManager();
+    addToast({ title: "Temporary", variant: "success" });
+    vi.advanceTimersByTime(2999);
 
     vi.advanceTimersByTime(1);
+
     expect(toasts.value).toHaveLength(0);
   });
 
@@ -64,7 +75,7 @@ describe("useToast", () => {
     expect(toasts.value[0]!.title).toBe("Second");
   });
 
-  it("should handle removing non-existent toast gracefully", () => {
+  it("removeToast() with an unknown id → the existing toast stays", () => {
     const { toasts, addToast, removeToast } = createToastManager();
     addToast({ title: "Only", variant: "success" });
 
@@ -72,22 +83,50 @@ describe("useToast", () => {
     expect(toasts.value).toHaveLength(1);
   });
 
-  it("should auto-remove multiple toasts independently", () => {
-    const { toasts, addToast } = createToastManager();
-    addToast({ title: "First", variant: "success" });
+  it("should leave the list intact when the auto-remove timer fires after a manual removal", () => {
+    const { toasts, addToast, removeToast } = createToastManager();
+    addToast({ title: "Removed early", variant: "success" });
+    addToast({ title: "Kept", variant: "error" });
 
-    vi.advanceTimersByTime(1000);
-    addToast({ title: "Second", variant: "error" });
+    removeToast(toasts.value[0]!.id);
+    vi.advanceTimersByTime(3000);
 
-    expect(toasts.value).toHaveLength(2);
+    expect(toasts.value).toEqual([]);
+  });
 
-    // First toast removed at 3000ms
-    vi.advanceTimersByTime(2000);
-    expect(toasts.value).toHaveLength(1);
-    expect(toasts.value[0]!.title).toBe("Second");
+  describe("two toasts added 1000ms apart", () => {
+    function addStaggeredToasts() {
+      const manager = createToastManager();
+      manager.addToast({ title: "First", variant: "success" });
+      vi.advanceTimersByTime(1000);
+      return manager;
+    }
 
-    // Second toast removed at 4000ms
-    vi.advanceTimersByTime(1000);
-    expect(toasts.value).toHaveLength(0);
+    it("second toast added → both are shown", () => {
+      const { toasts, addToast } = addStaggeredToasts();
+
+      addToast({ title: "Second", variant: "error" });
+
+      expect(toasts.value).toHaveLength(2);
+    });
+
+    it("first toast's 3000ms elapsed → only the second remains", () => {
+      const { toasts, addToast } = addStaggeredToasts();
+      addToast({ title: "Second", variant: "error" });
+
+      vi.advanceTimersByTime(2000);
+
+      expect(toasts.value.map((toast) => toast.title)).toEqual(["Second"]);
+    });
+
+    it("second toast's 3000ms elapsed too → none remain", () => {
+      const { toasts, addToast } = addStaggeredToasts();
+      addToast({ title: "Second", variant: "error" });
+      vi.advanceTimersByTime(2000);
+
+      vi.advanceTimersByTime(1000);
+
+      expect(toasts.value).toHaveLength(0);
+    });
   });
 });

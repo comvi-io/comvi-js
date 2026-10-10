@@ -1,88 +1,147 @@
 import React from "react";
 import { useI18n } from "./useI18n";
-import { isVirtualNode } from "./utils";
-import type {
-  TranslationParams,
-  TagCallbackParams,
-  VirtualNode,
-  TranslationResult,
-  PermissiveKey,
-} from "@comvi/core";
-import { createElement as createVirtualElement } from "@comvi/core";
+import { isVirtualNode } from "@comvi/core";
+import type { TranslationParams, TranslationKeys, VirtualNode, PermissiveKey } from "@comvi/core";
+// The PURE rich-text seam, NOT `@comvi/core/tags`: importing the tags entry
+// would register tag syntax AMBIENTLY, so every app rendering `<T>` would also
+// start parsing `<tag>` markup in plain string-API `t()`. `prepareTranslation`
+// passes the tag extension per call, so the ambient switch stays the app's own.
+import {
+  prepareTranslation,
+  type PendingHandler,
+  type TagComponentConfig,
+} from "@comvi/core/rich-text";
 
-/**
- * Marker prefix for React component handling in tag interpolation
- * Used to identify VirtualNodes that should be converted to React elements
- */
-const MARKER_PREFIX = "__react_component_";
-const MARKER_SUFFIX = "__";
-
-/**
- * Component handler types for the `components` prop
- */
-type ComponentHandler =
+/** What a tag can resolve to in React. */
+type ComponentTarget =
   | string // HTML tag name: "strong", "em", etc.
   | React.ReactElement // React element - children auto-injected
-  | ((params: { children: React.ReactNode }) => React.ReactElement); // Function handler
+  | ((params: { children: React.ReactNode }) => React.ReactElement); // Function component
 
 /**
- * Components prop type for tag interpolation
+ * A config entry's target. Looser than `ComponentTarget` on purpose: the
+ * entry's own `props` supply whatever the component needs beyond `children`,
+ * so a component with REQUIRED extra props belongs here — the bare-handler
+ * signature would reject it by contravariance, which is precisely the case
+ * `props` exists to serve.
  */
-type ComponentsMap = Record<string, ComponentHandler>;
+type ComponentConfigTarget =
+  | string // HTML tag name: "strong", "em", etc.
+  | React.ReactElement // React element - `props` merged over its own
+  | ((props: any) => React.ReactElement); // Function component fed from `props`
 
 /**
- * Base props shared by all key modes
+ * Core's `{ tag | component, props }` entry form, narrowed to React targets.
+ * `tag` (solid/svelte convention) and `component` (vue convention) are
+ * aliases; `props` is merged into the resolved handler. Intersecting core's
+ * own `TagComponentConfig` keeps the field set from drifting away from the
+ * `prepareTranslation` pipeline that actually reads it; requiring ONE of the
+ * two spellings keeps the guarantee core's all-optional shape gives up, since
+ * an entry with neither is not a config at all — `isTagComponentConfig`
+ * rejects it and the object is passed on as an opaque handler.
  */
-interface TBaseProps {
+type ComponentConfig = Omit<TagComponentConfig, "props"> & {
   /**
-   * Namespace to use (optional)
+   * `any`, not core's `Record<string, unknown>`: an INTERFACE-typed props
+   * object is not assignable to `Record<string, unknown>` (only type-literal
+   * objects are), so core's stricter value type would reject props a caller
+   * legitimately holds. Matches `@comvi/solid`.
    */
+  props?: Record<string, any>;
+} & (
+    | { tag: ComponentConfigTarget; component?: ComponentConfigTarget }
+    | { component: ComponentConfigTarget; tag?: ComponentConfigTarget }
+  );
+
+type ComponentHandler = ComponentTarget | ComponentConfig;
+
+/**
+ * Tag-name → handler map for `<T>`'s tag interpolation: an HTML tag name, a
+ * React element, a render function, or a `{ tag | component, props }` config.
+ * The same name in all four bindings, so a `components` map can be typed.
+ */
+export type ComponentMap = Record<string, ComponentHandler>;
+
+interface TagBoundaryProps {
+  tagName: string;
+  onTagError: (error: unknown, tagName: string) => void;
+  /** The tag's converted children, rendered in the failed handler's place. */
+  fallback: React.ReactNode;
+  children: React.ReactNode;
+}
+
+/**
+ * Every tag handler ends up as an element React renders AFTER `<T>` has
+ * returned, so no try/catch in `<T>` can see a throw inside it. React has no
+ * hook-based boundary, so this class reports the error with the tag name as
+ * written, then renders the tag's children instead.
+ *
+ * Client-side only, by React's design: `renderToString` has no boundaries, so
+ * a server render still throws (the same as the Svelte binding).
+ *
+ * Once it has caught, a boundary stays failed for the life of that `<T>`
+ * position: a later render whose handler would work keeps showing the tag's
+ * children until the surrounding tree remounts. `<svelte:boundary>` behaves the
+ * same, and resetting on handler identity would re-throw on every render for a
+ * handler that is permanently broken.
+ */
+class TagBoundary extends React.Component<TagBoundaryProps, { failed: boolean }> {
+  public state = { failed: false };
+
+  public static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  public componentDidCatch(error: unknown) {
+    this.props.onTagError(error, this.props.tagName);
+  }
+
+  public render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+interface TBaseProps {
   ns?: string;
 
-  /**
-   * Specific locale to use (optional)
-   */
   locale?: string;
 
-  /**
-   * Parameters for interpolation
-   * Can also be passed as direct props
-   */
+  /** Interpolation parameters; the same values may be passed as direct props. */
   params?: TranslationParams;
 
-  /**
-   * Explicit fallback text to display if translation is missing (optional)
-   * Takes priority over children fallback
-   */
+  /** Text shown when the translation is missing. Takes priority over children. */
   fallback?: string;
 
   /**
-   * Skip post-processing (optional)
-   * When true, prevents post-processors like IncontextEditor from adding invisible marker characters
+   * `false` turns the in-context editor's invisible markers off for this call. Use it when
+   * they cause a problem: a comparison or sort that sees extra characters, a width-sensitive
+   * layout, a canvas or library that counts characters. Nothing else reads it; the string
+   * is then not editable in context.
    */
-  raw?: boolean;
+  markers?: boolean;
 
-  /**
-   * Fallback content to display if translation is missing (optional)
-   * Will be rendered if the translation key is not found and no fallback prop is provided
-   */
+  /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: React.ReactNode;
 
   /**
-   * Components map for tag interpolation (optional)
-   * Maps tag names to their handlers (React element or function)
+   * Tag-name → handler map for tag interpolation.
+   *
+   * A function handler is a component: define it outside render, as with any
+   * component, or its subtree remounts on every render.
    *
    * @example
+   * const Button = ({ children }) => <button>{children}</button>;
+   *
    * {
    *   bold: <strong />,                    // React element - children injected
    *   link: <a href="/help" />,            // Props preserved
-   *   btn: ({ children }) => <button>{children}</button>  // Function handler
+   *   btn: Button,                         // Function component
    * }
    */
-  components?: ComponentsMap;
+  components?: ComponentMap;
 }
 
-type TranslationKeysMap = import("@comvi/core").TranslationKeys;
+type TranslationKeysMap = TranslationKeys;
 type TypedKey = keyof TranslationKeysMap;
 
 type KeyRequiredParams<K extends TypedKey> = TranslationKeysMap[K] extends never
@@ -105,67 +164,34 @@ type PermissiveTProps = [TypedKey] extends [never]
   : never;
 
 /**
- * Props for the T component
- * For required params keys, provide either:
- * - `params={{ ...required }}` OR
- * - direct props with required fields (e.g. `<T i18nKey="x" count={1} />`)
+ * For a key with required params, provide either `params={{ ...required }}` or
+ * direct props carrying the required fields (`<T i18nKey="x" count={1} />`).
  */
 export type TProps = StrictTypedProps | PermissiveTProps;
 
 /**
- * Translation component for React
- * Renders translated content with support for dynamic parameters via props
+ * Renders a translation. Params may be React nodes, and a `<T>` child is the
+ * fallback for a missing key.
  *
  * @example
  * ```tsx
- * // Simple usage
- * <T i18nKey="greeting" />
- *
- * // With parameters
- * <T i18nKey="welcome" name="John" />
- *
- * // With params object
- * <T i18nKey="welcome" params={{ name: "John" }} />
- *
- * // With React components as parameters
- * <T
- *   i18nKey="greeting"
- *   name={<strong>{userName}</strong>}
- * />
- *
- * // With specific namespace
- * <T i18nKey="button.submit" ns="forms" />
- *
- * // With specific locale
- * <T i18nKey="greeting" locale="fr" />
- *
- * // With fallback content
+ * <T i18nKey="welcome" name={<strong>{userName}</strong>} />
+ * <T i18nKey="button.submit" ns="forms" locale="fr" />
  * <T i18nKey="missing.key">Fallback Text</T>
  * ```
  */
-/**
- * Convert TranslationResult children to format suitable for tag handler
- */
-function childrenToArray(children: TranslationResult): (string | VirtualNode)[] {
-  if (typeof children === "string") {
-    return children ? [children] : [];
-  }
-  return Array.isArray(children) ? children : [];
-}
-
 const TComponent = function T({
   i18nKey,
   ns,
   locale,
   params = {},
   fallback,
-  raw,
+  markers,
   children,
   components,
   ...restProps
 }: TProps) {
   const {
-    t,
     tRaw,
     locale: currentLocale,
     hasTranslation,
@@ -173,134 +199,132 @@ const TComponent = function T({
     reportError,
   } = useI18n();
 
-  const translate =
-    tRaw ??
-    ((key: string, params?: TranslationParams) =>
-      t(key as never, params) as unknown as TranslationResult);
-
-  // Remove 'components' from restProps to avoid passing it as a translation param
+  // Peeled off restProps so it is never passed as a translation param.
   const { components: _, ...cleanRestProps } = restProps as {
-    components?: ComponentsMap;
+    components?: ComponentMap;
     [key: string]: unknown;
   };
 
-  // Only allocate when consumer passes a `components` prop.
-  let reactHandlers: Map<string, (children: React.ReactNode[]) => React.ReactElement> | null = null;
-  let tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> | null =
-    null;
-
-  if (components) {
-    reactHandlers = new Map();
-    tagHandlers = {};
-
-    const registerHandler = (
-      tagName: string,
-      reactHandler: (children: React.ReactNode[]) => React.ReactElement,
-    ) => {
-      reactHandlers!.set(tagName, (children) => {
-        try {
-          return reactHandler(children);
-        } catch (error) {
-          reportError(error, { source: "translation", tagName });
-          return <>{children}</>;
-        }
-      });
-      tagHandlers![tagName] = ({ children }: TagCallbackParams) =>
-        createVirtualElement(
-          `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-          {},
-          childrenToArray(children),
-        );
-    };
-
-    for (const [tagName, handler] of Object.entries(components)) {
-      if (typeof handler === "string") {
-        tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-          createVirtualElement(handler, {}, childrenToArray(children));
-      } else if (React.isValidElement(handler)) {
-        registerHandler(tagName, (children) =>
-          React.createElement(handler.type, handler.props, ...children),
-        );
-      } else if (typeof handler === "function") {
-        registerHandler(tagName, (children) => handler({ children: <>{children}</> }));
-      }
-    }
-  }
-
-  const allParams = { ...params, ...cleanRestProps, ...(tagHandlers ?? undefined) };
-
   const keyString = String(i18nKey);
-  const targetLocale = locale ?? currentLocale;
-  const targetNamespace = ns ?? getDefaultNamespace();
-  const translationExists = hasTranslation(keyString, targetLocale, targetNamespace, true);
 
-  // Get translated content
-  const transportParams: TranslationParams = { ...(allParams as TranslationParams) };
-  if (ns !== undefined) {
-    transportParams.ns = ns;
-  }
-  if (locale !== undefined) {
-    transportParams.locale = locale;
-  }
-  if (fallback !== undefined) {
-    transportParams.fallback = fallback;
-  }
-  if (raw !== undefined) {
-    transportParams.raw = raw;
-  }
+  const reportTagError = (error: unknown, tagName: string) =>
+    reportError(error, { source: "translation", tagName });
 
-  const content = translate(keyString as never, transportParams);
+  // Direct props take precedence over same-named `params` entries.
+  const allParams = { ...params, ...cleanRestProps } as TranslationParams;
 
-  // Use children as fallback if translation is missing and no explicit fallback provided
-  // Priority: translation (including processed fallback/onMissing) > children fallback > key
-  const isMissingTranslation =
-    !translationExists &&
-    fallback === undefined &&
-    typeof content === "string" &&
-    content === keyString;
-  const finalContent = isMissingTranslation && children !== undefined ? children : content;
+  // Transports opaque React handlers as marker nodes and passes the tag syntax
+  // extension per call.
+  const { content, pendingHandlers, isMissing } = prepareTranslation(
+    {
+      tRaw,
+      // Default the lookup to the React-tracked render locale / default
+      // namespace so missing-translation detection matches what `tRaw`
+      // resolves against (not the mutable instance locale).
+      hasTranslation: (key, lookupLocale, lookupNs, checkFallbacks) =>
+        hasTranslation(
+          key,
+          lookupLocale ?? currentLocale,
+          lookupNs ?? getDefaultNamespace(),
+          checkFallbacks,
+        ),
+    },
+    {
+      i18nKey: keyString,
+      params: allParams,
+      ns,
+      locale,
+      fallback,
+      markers,
+      components,
+    },
+  );
 
-  // Handle different content types
+  // Priority: translation (including a processed fallback/onMissing) > children
+  // > the key itself.
+  const finalContent = isMissing && children !== undefined ? children : content;
+
   if (typeof finalContent === "string") {
     return <>{finalContent}</>;
   }
 
-  // If children was used as fallback and it's not an array, return it directly
   if (finalContent === children) {
     return <>{children}</>;
   }
 
-  // Helper to convert VirtualNode children to React nodes (recursively handles markers)
-  // Runtime can include raw React nodes here (e.g., <bold>{name}</bold> with name={<em/>}),
-  // so we must preserve non-VirtualNode values.
-  const convertChildren = (childResult: unknown): React.ReactNode[] => {
-    if (typeof childResult === "string") {
-      return childResult ? [childResult] : [];
-    }
+  // Marker lookup for the opaque handlers `prepareTranslation` transported.
+  const pendingByMarker = new Map<string, PendingHandler>();
+  for (const pending of pendingHandlers) {
+    pendingByMarker.set(pending.marker, pending);
+  }
 
+  // What is neither a node the library built nor one of React's own is DATA,
+  // and renders as text. React marks its nodes with a symbol `$$typeof` for the
+  // same reason core brands its own: an object parsed from JSON cannot have it.
+  const inert = (value: unknown): React.ReactNode =>
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { $$typeof?: unknown }).$$typeof !== "symbol"
+      ? String(value)
+      : (value as React.ReactNode);
+
+  // Children can hold raw React nodes at runtime (`<bold>{name}</bold>` with
+  // `name={<em/>}`), so non-VirtualNode values must survive the conversion.
+  const convertChildren = (childResult: unknown): React.ReactNode[] => {
     if (!Array.isArray(childResult)) {
-      return childResult == null ? [] : [childResult as React.ReactNode];
+      return childResult == null ? [] : [inert(childResult)];
     }
 
     return childResult.map((child, index) => {
-      if (typeof child === "string") {
-        return child;
-      }
       if (isVirtualNode(child)) {
         return convertNode(child, index);
       }
-      return child as React.ReactNode;
+      return inert(child);
     });
   };
 
-  // Helper to convert VirtualNode to React element, handling markers
+  const resolvePending = (
+    pending: PendingHandler,
+    convertedChildren: React.ReactNode[],
+  ): React.ReactNode => {
+    const handler = pending.handler;
+
+    // React renders the element LATER, outside this function, so a throw from
+    // the handler's own render needs the boundary.
+    const guarded = (element: React.ReactNode) => (
+      <TagBoundary tagName={pending.name} onTagError={reportTagError} fallback={convertedChildren}>
+        {element}
+      </TagBoundary>
+    );
+
+    if (React.isValidElement(handler)) {
+      const baseProps = handler.props as Record<string, unknown>;
+      const mergedProps = pending.props ? { ...baseProps, ...pending.props } : baseProps;
+      return guarded(React.createElement(handler.type, mergedProps, ...convertedChildren));
+    }
+
+    // A function handler is a component: React renders it with its own hooks,
+    // never called here, where its hooks would belong to `<T>` and change with
+    // the translation's tags.
+    if (typeof handler === "function") {
+      return guarded(
+        React.createElement(
+          handler as React.FunctionComponent<Record<string, unknown>>,
+          pending.props ?? null,
+          ...convertedChildren,
+        ),
+      );
+    }
+
+    // Non-invokable opaque handler — degrade to the tag's children.
+    return convertedChildren;
+  };
+
   const convertNode = (node: VirtualNode, index: number): React.ReactElement => {
-    // Handle text nodes
     if (node.type === "text") {
       return <React.Fragment key={`${keyString}-${index}`}>{node.text}</React.Fragment>;
     }
 
-    // Handle fragment nodes
     if (node.type === "fragment") {
       const convertedChildren = convertChildren(node.children);
       return (
@@ -310,58 +334,38 @@ const TComponent = function T({
       );
     }
 
-    // Element node
     const tag = node.tag;
     const reactKey = node.key ?? `${keyString}-${index}`;
     const childResult = node.children;
 
-    // Always convert children first (handles nested markers)
     const convertedChildren = convertChildren(childResult);
 
-    // Check for React component marker
-    if (tag.startsWith(MARKER_PREFIX) && tag.endsWith(MARKER_SUFFIX)) {
-      const handlerName = tag.slice(MARKER_PREFIX.length, -MARKER_SUFFIX.length);
-      const handler = reactHandlers?.get(handlerName);
-      if (handler) {
-        try {
-          const result = handler(convertedChildren);
-          if (!React.isValidElement(result)) {
-            throw new Error(`Tag handler for "${handlerName}" must return a React element`);
-          }
-          return <React.Fragment key={reactKey}>{result}</React.Fragment>;
-        } catch (error) {
-          reportError(error, { source: "translation", tagName: handlerName });
-          return <React.Fragment key={`${keyString}-${index}`}>{convertedChildren}</React.Fragment>;
-        }
-      }
+    const pending = pendingByMarker.get(tag);
+    if (pending) {
+      return (
+        <React.Fragment key={reactKey}>{resolvePending(pending, convertedChildren)}</React.Fragment>
+      );
     }
 
-    // Regular ElementNode - convert to React element
     return React.createElement(tag, { ...node.props, key: reactKey }, ...convertedChildren);
   };
 
-  // Convert result array to React nodes
   const resultArray = finalContent as Array<string | VirtualNode | React.ReactNode>;
   return (
     <>
       {resultArray.map((item, index) => {
-        if (typeof item === "string") {
-          return <React.Fragment key={`${keyString}-${index}`}>{item}</React.Fragment>;
-        }
-        // Check if it's a VirtualNode (from tag interpolation) or a React element (from ICU params)
         if (isVirtualNode(item)) {
           return convertNode(item, index);
         }
-        // React element passed directly through ICU interpolation
-        return (
-          <React.Fragment key={`${keyString}-${index}`}>{item as React.ReactNode}</React.Fragment>
-        );
+        return <React.Fragment key={`${keyString}-${index}`}>{inert(item)}</React.Fragment>;
       })}
     </>
   );
 };
 
-export const T = React.memo(TComponent) as React.NamedExoticComponent<TProps>;
+// Without /*@__PURE__*/ the top-level `React.memo(...)` call is an unremovable
+// side effect, pinning the component — and the `@comvi/core/rich-text` pipeline
+// behind it — into apps that never render `<T>`.
+export const T = /*@__PURE__*/ React.memo(TComponent) as React.NamedExoticComponent<TProps>;
 
-// Add display name for React DevTools
 T.displayName = "T";

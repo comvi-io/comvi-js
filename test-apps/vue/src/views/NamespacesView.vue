@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { useI18n } from "@comvi/vue";
+import { useI18n, useI18nLoader } from "@comvi/vue";
 import { ref } from "vue";
 
-const { t, addActiveNamespace, isLoading } = useI18n();
+const { t, isLoading } = useI18n();
+const { addActiveNamespace } = useI18nLoader();
 const isAdminLoaded = ref(false);
 
 const loadAdmin = async () => {

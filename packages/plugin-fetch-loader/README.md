@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/plugin-fetch-loader</h1>
 
-<p align="center">HTTP translation loader for Comvi i18n — load translations from a CDN or the Comvi API.</p>
+<p align="center">Load Comvi i18n translations over HTTP: from the CDN, or from the platform API.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/plugin-fetch-loader"><img src="https://img.shields.io/npm/v/@comvi/plugin-fetch-loader?color=blue" alt="npm"></a>
@@ -17,140 +17,122 @@
 
 ---
 
-`FetchLoader` registers a translation loader that fetches JSON over HTTP.
-
-### CDN mode vs API mode
-
-| Mode    | Use case                                                                                                                                         |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **CDN** | Static, public translations served from `https://cdn.comvi.io/<distribution-id>`. Fast, cached at the edge. Best for production.                 |
-| **API** | Authenticated requests to Comvi API. Supports draft translations, private projects, and SSR fetch caching. Use for staging / auth-gated content. |
-
-## About Comvi i18n
-
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~8 kB minified + gzipped (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
-
-- **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS.
-- **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
-
-See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
-
-### Why @comvi/plugin-fetch-loader?
-
-- **Request deduplication.** Concurrent requests for the same locale/namespace are merged into a single fetch.
-- **Automatic reload on locale change.** Translations re-fetch whenever the active locale changes — no manual cache invalidation.
-- **Namespace-on-demand loading.** Fetch only the translation files your app actually uses.
-
-📖 **Documentation:** https://comvi.io/docs/i18n/plugins/fetch-loader/
+`@comvi/plugin-fetch-loader` fetches each locale's JSON over HTTP. The package root reads the
+public CDN and is the smaller entry; `@comvi/plugin-fetch-loader/api` also talks to the platform API. The full guide is
+[Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader) on the docs site.
 
 ## Install
 
 ```bash
 npm install @comvi/plugin-fetch-loader
-# Peer: @comvi/core
+# Peer: @comvi/core, which every framework package already brings
 ```
 
-## Quick start
+## Load from the CDN
 
-```ts
-import { createI18n } from "@comvi/core";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
-
-const i18n = createI18n({ locale: "en" }).use(
-  FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
-);
-
-await i18n.init();
-```
-
-## CDN namespace layout
-
-By default, `FetchLoader` keeps its existing URL convention: the i18n instance's
-`defaultNs` loads from `{cdnUrl}/{locale}.json`, and every other namespace loads
-from `{cdnUrl}/{namespace}/{locale}.json`.
-
-If the namespace stored at the CDN root differs from the namespace your app uses
-as `defaultNs`, configure that storage identity explicitly:
-
-```ts
-const i18n = createI18n({
-  locale: "en",
-  defaultNs: "storefront",
-  ns: ["storefront", "default"],
-}).use(
-  FetchLoader({
-    cdnUrl: "https://cdn.comvi.io/your-distribution-id",
-    cdnLayout: { rootNamespace: "default" },
-  }),
-);
-```
-
-This maps `storefront` to `storefront/en.json` and `default` to `en.json`.
-For a custom CDN where every namespace has its own folder, use
-`cdnLayout: { rootNamespace: false }`.
-
-`cdnLayout` affects CDN mode only. When `createI18n({ apiKey })` enables API
-mode, namespaces are sent explicitly in the API request.
-
-## API mode
-
-Pass an `apiKey` on `createI18n` to switch to authenticated API mode — used for staging, draft translations, or auth-gated content:
-
-```ts
-import { createI18n } from "@comvi/core";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
-
-const i18n = createI18n({
-  locale: "en",
-  apiKey: process.env.COMVI_API_KEY, // triggers API mode
-}).use(
-  FetchLoader({
-    cdnUrl: "https://cdn.comvi.io/your-distribution-id", // required by the loader
-    apiBaseUrl: process.env.COMVI_API_URL || "https://api.comvi.io",
-  }),
-);
-
-await i18n.init();
-```
-
-API mode requests run with `Authorization: Bearer <apiKey>` and hit the platform API instead of the public CDN. Use a project API key with project read and translation read access. `cdnUrl` is still required by the loader options for CDN mode, but API-mode fallback uses the optional `fallback` import map. Concurrent requests for the same `locale:namespace` are deduplicated automatically.
-
-## Pair with your framework
-
-Same setup, framework-idiomatic integration. The plugin lives on the underlying `@comvi/core` instance, so it works identically across every binding:
-
-**React**
-
-```tsx
+```tsx title="src/main.tsx" check=group=fetch-loader-1
+import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import App from "./App";
 
-const i18n = createI18n({ locale: "en" }).use(
-  FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+const i18n = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
+
+createRoot(document.getElementById("root")!).render(
+  <I18nProvider i18n={i18n} fallback={<p>Loading…</p>}>
+    <App />
+  </I18nProvider>,
 );
-
-<I18nProvider i18n={i18n}>{/* ... */}</I18nProvider>;
 ```
 
-**Vue**
+`.use(cdnLoader({ cdnUrl }))` adds HTTP loading to the instance; nothing else is needed. `fallback` paints
+until the first catalog is in. Omitting `cdnUrl` throws at composition time with
+`[@comvi/plugin-fetch-loader] cdnUrl is required`. On Vue the same `.use()` goes on the wrapper
+`createI18n` returns; on Nuxt it goes in the `comvi.i18n.ts` factory. The CDN URL comes from
+**Settings → Content Deploy** in the Comvi project; see
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
+(`{count, plural, …}`), add `compiler: icuCompiler` as on
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
+independent, and either works without the other.
 
-```ts
-import { createApp } from "vue";
-import { createI18n } from "@comvi/vue";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+## Bundled fallback
 
-const i18n = createI18n({ locale: "en" }).use(
-  FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+```ts title="src/i18n.ts" check=group=fetch-loader-2
+import { createI18n } from "@comvi/core";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
+
+export const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(
+  cdnLoader({
+    cdnUrl: "https://cdn.comvi.io/<project-token>",
+    fallback: {
+      en: () => import("./locales/en.json"),
+      de: () => import("./locales/de.json"),
+      "en:admin": () => import("./locales/en/admin.json"),
+    },
+  }),
 );
 
-createApp(App).use(i18n).mount("#app");
+await i18n.init();
 ```
 
-**Next.js / Nuxt** — pair with `loadTranslations()` for SSR. See the [`@comvi/next`](../next) and [`@comvi/nuxt`](../nuxt) READMEs.
+When a network load fails, the loader serves the matching import: the exact `'locale:namespace'`
+key first, then the `'locale'` shorthand for the default namespace.
 
-For SSR fetch-cache integration, offline fallbacks, lazy namespace loading, the full options reference, and the lower-level helpers exported for `@comvi/next` / `@comvi/nuxt`, see the [documentation](https://comvi.io/docs/i18n/plugins/fetch-loader/).
+## CDN mode vs API mode
+
+```ts title="src/i18n.server.ts" check=group=fetch-loader-3
+import { createI18n } from "@comvi/core";
+import { fetchLoader } from "@comvi/plugin-fetch-loader/api";
+
+export const i18n = createI18n({
+  locale: "en",
+  apiKey: process.env.COMVI_API_KEY,
+}).use(
+  fetchLoader({
+    cdnUrl: "https://cdn.comvi.io/<project-token>",
+    baseUrl: process.env.COMVI_API_URL,
+  }),
+);
+
+await i18n.init();
+```
+
+`fetchLoader()` from `/api` reads the CDN, and switches to the platform API when the i18n instance
+carries an `apiKey`: draft translations and private projects are reachable. The key needs project
+read and translation read access. `cdnLoader` never builds an API URL. API mode is server-side
+only: the `apiKey` is a credential, so compose `fetchLoader` with a key only in a server render, a
+prerender, a CLI or a script; in the browser use `cdnLoader`.
+
+## Options
+
+| Option          | Default                        | Entry | Behaviour                                                                              |
+| --------------- | ------------------------------ | ----- | -------------------------------------------------------------------------------------- |
+| `cdnUrl`        | required                       | both  | The CDN base URL from **Settings → Content Deploy**.                                   |
+| `baseUrl`       | `https://api.comvi.io`         | api   | The API host. `NEXT_PUBLIC_COMVI_API_URL` replaces the default; see below.             |
+| `fallback`      | none                           | both  | Import map served when a network load fails.                                           |
+| `onLoadError`   | none                           | both  | `(locale, namespace, error)` when a pair fails and no fallback produced data.          |
+| `onLoadSuccess` | none                           | both  | `(locale, namespace)` when a pair loads, including from `fallback`.                    |
+| `timeout`       | `10000`                        | both  | Per-request budget in milliseconds, covering the body.                                 |
+| `retry`         | `true`                         | api   | Retries the project-info request after a 429, 5xx or transport failure, twice at most. |
+| `loadOnInit`    | `true`                         | both  | Whether the plugin loads at install time.                                              |
+| `cdnLayout`     | `{ rootNamespace: defaultNs }` | both  | Which namespace lives at `{cdnUrl}/{locale}.json`.                                     |
+| `cache`         | none                           | both  | `{ revalidate, tags }` for the Next.js data cache; other runtimes ignore it.           |
+
+Naming an `/api`-only option on `cdnLoader` is a compile error. Concurrent requests for one
+`locale:namespace` are deduplicated, and `destroy()` aborts everything in flight.
+
+`NEXT_PUBLIC_COMVI_API_URL` is read from `process.env` on the server; the name follows Next's
+convention, and only Next can inline it into a browser bundle. Anywhere else, pass `baseUrl`.
+
+## Next steps
+
+- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the CDN layout, every option in full, `baseUrl`.
+- [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi): the CDN URL, the status filter and the first plural.
+- [Loading translations](https://comvi.io/docs/i18n/loading-translations): import maps, custom loaders and namespaces.
+- [Loader API](https://comvi.io/docs/i18n/api/core-loader): every member the loader capability adds.
 
 ## License
 

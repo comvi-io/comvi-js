@@ -1,12 +1,17 @@
 /**
- * Verifies the optional `locale` argument on `formatNumber` / `formatDate` /
- * `formatCurrency` / `formatRelativeTime`: instance locale is used when
- * omitted, override locale wins when passed, and the Intl cache keys on
- * the active locale.
+ * The optional `locale` argument on the format* helpers: the instance locale is
+ * used when it is omitted, and the override wins when passed.
+ *
+ * Expectations are literals wherever the CLDR output is stable; the `Intl.*`
+ * oracle is kept only for the cases parametrized over a locale, where a literal
+ * table would restate CLDR rather than the contract.
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { I18n, formatNumber, formatDate, formatCurrency, formatRelativeTime } from "../../src";
+
+const DATE = new Date(Date.UTC(2026, 4, 19));
+const MONTH: Intl.DateTimeFormatOptions = { month: "long", timeZone: "UTC" };
 
 describe("Formatters — optional `locale` override", () => {
   let i18n: I18n;
@@ -17,79 +22,79 @@ describe("Formatters — optional `locale` override", () => {
 
   describe("formatNumber", () => {
     it("uses instance locale when no override is provided", () => {
-      // en-US: grouping with comma
+      // en-US: comma grouping.
       expect(formatNumber(i18n, 1234567)).toBe("1,234,567");
     });
 
     it("uses the override locale when provided", () => {
-      // de-DE: grouping with period
+      // de-DE: period grouping.
       expect(formatNumber(i18n, 1234567, undefined, "de")).toBe("1.234.567");
-      // Instance locale unchanged
       expect(i18n.locale).toBe("en");
     });
 
-    it("re-uses cached Intl.NumberFormat per (locale, options)", () => {
-      // Just call twice; correctness is the same value, and the impl asserts
-      // by cache-key construction. Coverage of the cache key including
-      // override locale is the real win here.
-      expect(formatNumber(i18n, 1, undefined, "fr")).toBe("1");
-      expect(formatNumber(i18n, 2, undefined, "fr")).toBe("2");
-      expect(formatNumber(i18n, 2, undefined, "de")).toBe("2");
+    it("uses the instance locale after i18n.locale changes", () => {
+      i18n.locale = "de";
+
+      expect(formatNumber(i18n, 1234.5)).toBe("1.234,5");
     });
+
+    it.each(["fr", "de", "en"])(
+      "keys the formatter on the override locale %s, not the instance locale",
+      (locale) => {
+        // A grouped value is what makes the locales distinguishable at all.
+        const expected = new Intl.NumberFormat(locale).format(1234567.5);
+
+        expect(formatNumber(i18n, 1234567.5, undefined, locale)).toBe(expected);
+      },
+    );
   });
 
   describe("formatDate", () => {
     it("uses instance locale when no override is provided", () => {
-      const result = formatDate(i18n, new Date("2026-05-19"), { month: "long" });
-      expect(result).toBe("May");
+      expect(formatDate(i18n, DATE, MONTH)).toBe("May");
     });
 
     it("uses the override locale when provided", () => {
-      const result = formatDate(i18n, new Date("2026-05-19"), { month: "long" }, "de");
-      expect(result).toBe("Mai");
+      expect(formatDate(i18n, DATE, MONTH, "de")).toBe("Mai");
       expect(i18n.locale).toBe("en");
     });
   });
 
   describe("formatCurrency", () => {
     it("uses instance locale when no override is provided", () => {
-      // en-US: "$1,234.00"
-      expect(formatCurrency(i18n, 1234, "USD")).toMatch(/\$1,234/);
+      expect(formatCurrency(i18n, 1234, "USD")).toBe("$1,234.00");
     });
 
     it("uses the override locale when provided", () => {
-      // de-DE for EUR — symbol may vary by ICU but locale-specific grouping
-      // dot must appear.
-      const result = formatCurrency(i18n, 1234, "EUR", undefined, "de");
-      expect(result).toContain("1.234");
+      // de-DE puts the symbol last, after a NO-BREAK SPACE.
+      expect(formatCurrency(i18n, 1234, "EUR", undefined, "de")).toBe("1.234,00\u00A0€");
       expect(i18n.locale).toBe("en");
     });
   });
 
   describe("formatRelativeTime", () => {
     it("uses instance locale when no override is provided", () => {
-      expect(formatRelativeTime(i18n, -1, "day")).toMatch(/yesterday|1 day ago/i);
+      expect(formatRelativeTime(i18n, -1, "day")).toBe("1 day ago");
+    });
+
+    it("formats a future value in the instance locale", () => {
+      expect(formatRelativeTime(i18n, 3, "day")).toBe("in 3 days");
     });
 
     it("uses the override locale when provided", () => {
-      const result = formatRelativeTime(i18n, -1, "day", undefined, "fr");
-      expect(result.toLowerCase()).toMatch(/hier|il y a 1 jour/);
+      expect(formatRelativeTime(i18n, -1, "day", undefined, "fr")).toBe("il y a 1 jour");
       expect(i18n.locale).toBe("en");
     });
   });
 
   describe("backwards compatibility", () => {
-    it("existing 2-arg / 3-arg call sites still compile and behave identically", () => {
-      // Vue / Svelte / Solid pass options without locale today; behavior
-      // must be unchanged.
-      const n = formatNumber(i18n, 1, { maximumFractionDigits: 0 });
-      const d = formatDate(i18n, new Date("2026-01-01"), { day: "numeric" });
-      const c = formatCurrency(i18n, 0.5, "USD", { minimumFractionDigits: 1 });
-      const r = formatRelativeTime(i18n, 0, "second", { numeric: "auto" });
-      expect(typeof n).toBe("string");
-      expect(typeof d).toBe("string");
-      expect(typeof c).toBe("string");
-      expect(typeof r).toBe("string");
+    it("a 3-arg call (options, no locale) keeps formatting in the instance locale", () => {
+      const date = new Date(Date.UTC(2026, 0, 1));
+
+      expect(formatNumber(i18n, 1, { maximumFractionDigits: 0 })).toBe("1");
+      expect(formatDate(i18n, date, { day: "numeric", timeZone: "UTC" })).toBe("1");
+      expect(formatCurrency(i18n, 0.5, "USD", { minimumFractionDigits: 1 })).toBe("$0.5");
+      expect(formatRelativeTime(i18n, 0, "second", { numeric: "auto" })).toBe("now");
     });
   });
 });

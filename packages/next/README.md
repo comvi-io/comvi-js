@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/next</h1>
 
-<p align="center">Next.js App Router integration for Comvi i18n — SSR, middleware, and locale routing.</p>
+<p align="center">Next.js App Router bindings for Comvi i18n: server helpers, client hooks, middleware.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/next"><img src="https://img.shields.io/npm/v/@comvi/next?color=blue" alt="npm"></a>
@@ -17,170 +17,52 @@
 
 ---
 
-`@comvi/next` builds on [`@comvi/react`](../react) with SSR utilities and locale routing for the Next.js App Router. `createNextI18n()` handles i18n setup plus routing config; server-only functions load translations on the server side; client-only entries provide the React provider and locale-aware navigation.
-
-Designed for Next.js 14+ / 15+ with React 18+ / 19+.
-
-📖 **Documentation:** https://comvi.io/docs/i18n/next/
-
-⚖️ **Comparison:** [Comvi vs next-intl](https://comvi.io/compare/next-intl/)
-
-## Why Comvi i18n?
-
-Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
-
-- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
-- **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~8 kB minified + gzipped (as bundled by your app), zero runtime dependencies.** No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`. You only ship what you use.
-- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
-- **First-class SSR.** `@comvi/next` and `@comvi/nuxt` ship server-side translation loading, locale-routed layouts, and middleware for redirect-on-detect — no flash of untranslated content.
-
-## Why @comvi/next?
-
-- **No client-side translation flash.** `loadTranslations()` loads translations server-side for Server Components — users see complete content on first load, no suspense waterfall for i18n.
-- **Built-in `[locale]` segment routing.** `createNextI18n()` creates routing config for your `[locale]/layout.tsx` setup and pairs it with `createMiddleware()` for automatic locale detection and redirect-on-first-visit.
-- **Server-side cache friendly.** Use `loadTranslations()` in Server Components; Next.js can dedupe underlying `fetch()` calls within a request, while the core loader deduplicates concurrent locale/namespace loads.
+Translate a Next.js App Router app with `@comvi/next`: one config module, a next.config plugin
+that points the library at it, and `t()` in Server and Client Components alike. One install
+brings `@comvi/core` and the React bindings. The full guide is
+[Next.js](https://comvi.io/docs/i18n/next) on the docs site.
 
 ## Install
 
 ```bash
 npm install @comvi/next
-# Peers: next ^14 || ^15, react ^18 || ^19
+# Peers: next ^15 || ^16, react ^18.2 || ^19
 ```
 
-Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
+## Setup
 
-## Quick start
+```ts title="next.config.ts" check=group=quick-start-next-1
+import { withComvi } from "@comvi/next/plugin";
 
-```ts
-// src/i18n/config.ts
+export default withComvi({ config: "./src/i18n/config.ts" })({});
+```
+
+```ts title="src/i18n/routing.ts" check=group=quick-start-next-1
+import { defineRouting } from "@comvi/next/routing";
+
+export const routing = defineRouting({ locales: ["en", "uk"], defaultLocale: "en" });
+```
+
+```ts title="src/i18n/config.ts" check=group=quick-start-next-1
 import { createNextI18n } from "@comvi/next";
+import { routing } from "./routing";
 
-export const nextI18n = createNextI18n({
-  locales: ["en", "uk", "de"],
-  defaultLocale: "en",
-  localePrefix: "as-needed",
-  fallbackLocale: "en",
+export const { i18n } = createNextI18n({
+  ...routing,
+  messages: {
+    en: { greeting: "Hello, {name}!" },
+    uk: { greeting: "Привіт, {name}!" },
+  },
 });
 
-nextI18n.i18n.registerLoader({
-  en: () => import("./locales/en.json"),
-  uk: () => import("./locales/uk.json"),
-  de: () => import("./locales/de.json"),
-});
-
-export const { i18n, routing } = nextI18n;
+export { routing };
 ```
 
-```ts
-// src/i18n/server.ts
-import "server-only";
-import { setI18n } from "@comvi/next/server";
-import { i18n } from "./config";
-
-setI18n(i18n);
-```
-
-```tsx
-// src/i18n/ComviProvider.tsx
-"use client";
-
-import { I18nProvider, type MessagesMap } from "@comvi/next/client";
-import { i18n, routing } from "./config";
-
-export function ComviProvider({
-  children,
-  locale,
-  messages,
-}: {
-  children: React.ReactNode;
-  locale: string;
-  messages: MessagesMap;
-}) {
-  return (
-    <I18nProvider i18n={i18n} locale={locale} messages={messages} routing={routing}>
-      {children}
-    </I18nProvider>
-  );
-}
-```
-
-```ts
-// src/middleware.ts
-import { createMiddleware } from "@comvi/next/middleware";
-import { routing } from "./i18n/config";
-
-export default createMiddleware(routing);
-export const config = { matcher: ["/((?!api|_next|.*\\..*).*)"] };
-```
-
-The full setup also includes a `[locale]/layout.tsx` that imports the server registration once, calls `loadTranslations(locale)`, and renders the client wrapper above. See the [documentation](https://comvi.io/docs/i18n/next/) for locale-aware `<Link>`, `useLocalizedRouter`, server/client subpath imports, and the lazy-plugin API.
-
-## Optimizations in v0.3
-
-**Routing components now use `useLocale()`** — `<Link>`, `usePathname()`, and `useLocalizedRouter()` internally switched to the new `useLocale()` hook in v0.3. No behavior change for consumers; routing continues to work identically. Under the hood, this means locale-aware routing skips re-renders on namespace loads and loading-state changes (measurement-confirmed P1 performance improvement).
-
-**Render-time mutation removed** — The internal `i18n.locale` assignment and `i18n.addTranslations()` calls that used to happen in `<I18nProvider>`'s render body have been moved into a `useState` initializer. This is a quality improvement (removes side effects from render) with no API change — `<I18nProvider>` props work identically.
-
-## Error Boundaries
-
-Wrap the client provider in an Error Boundary to handle initialization failures:
-
-```tsx
-import React from "react";
-import { I18nProvider } from "@comvi/next/client";
-
-class I18nErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) {
-      return <div>Failed to load translations. Please refresh the page.</div>;
-    }
-    return this.props.children;
-  }
-}
-
-export function ComviProvider({
-  children,
-  locale,
-  messages,
-}: {
-  children: React.ReactNode;
-  locale: string;
-  messages: MessagesMap;
-}) {
-  return (
-    <I18nErrorBoundary>
-      <I18nProvider i18n={i18n} locale={locale} messages={messages} routing={routing}>
-        {children}
-      </I18nProvider>
-    </I18nErrorBoundary>
-  );
-}
-```
-
-Or use [react-error-boundary](https://github.com/bvaughn/react-error-boundary) for convenience.
-
-## Server-side translation loading
-
-`loadTranslations()` is a server-only function that loads translations for a locale using the i18n instance registered with `setI18n(i18n)`. Call it in Server Components or Server Actions, and pass the result to `<I18nProvider>` to hydrate the client without a flash of untranslated content.
-
-```tsx
-// app/[locale]/layout.tsx
-import "@/i18n/server";
-import { loadTranslations } from "@comvi/next/server";
-import { ComviProvider } from "@/i18n/ComviProvider";
+```tsx title="src/app/[locale]/layout.tsx" check=group=quick-start-next-1
+import { notFound } from "next/navigation";
+import { hasLocale } from "@comvi/next/routing";
+import { ComviProvider } from "@comvi/next/server";
+import { routing } from "@/i18n/routing";
 
 export default async function LocaleLayout({
   children,
@@ -190,124 +72,103 @@ export default async function LocaleLayout({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const messages = await loadTranslations(locale);
+  if (!hasLocale(routing.locales, locale)) notFound();
 
   return (
     <html lang={locale}>
       <body>
-        <ComviProvider locale={locale} messages={messages}>
-          {children}
-        </ComviProvider>
+        <ComviProvider locale={locale}>{children}</ComviProvider>
       </body>
     </html>
   );
 }
 ```
 
-Next.js deduplicates `fetch()` calls across Server Components within a single request, and the core loader deduplicates concurrent requests for the same locale/namespace.
+`createNextI18n` builds the i18n instance, and `withComvi` points the library at the module that
+exports it. A relative `config` path resolves against the directory you run `next` in, so run it
+from the app directory or pass an absolute path. `withComvi` loads from `next.config.ts`, `.mjs` and `.js` alike, and it wraps an
+object or a function config. The server helpers and `<ComviProvider>` read the i18n instance from there, so you write no
+registration module and no `"use client"` wrapper. `<ComviProvider>` loads the locale's
+catalogs on the server and hands them to the client's i18n instance, so Client Components render the right
+language on the first paint. `@comvi/next/server` guards itself: a Client Component that imports
+it fails `next build`. Without a `middleware.ts` the only routes are `/en` and `/uk`; see
+[Locale routing](https://comvi.io/docs/i18n/guides/next-routing).
 
-## Locale routing
+## Use in components
 
-Create a `[locale]` dynamic segment in your app directory, and use `createMiddleware()` in `middleware.ts` for locale detection and redirect-on-first-visit.
+```tsx title="src/app/[locale]/page.tsx" check=group=quick-start-next-1
+import Link from "next/link";
+import { getI18n } from "@comvi/next/server";
 
-```tsx
-// middleware.ts
-import { createMiddleware } from "@comvi/next/middleware";
-import { routing } from "@/i18n/config";
+export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  const { t } = await getI18n({ locale });
 
-export default createMiddleware(routing);
-export const config = { matcher: ["/((?!api|_next|.*\\..*).*)"] };
-```
-
-The middleware extracts locale from the URL path first, then checks cookies and the Accept-Language header in your configured order. On first visit without a stored locale, it detects the user's language and redirects to the localized URL while persisting the choice in a cookie.
-
-For more routing details and custom locale-aware navigation helpers, see the [documentation](https://comvi.io/docs/i18n/next/).
-
-## Rich text with `<T>`
-
-The `<T>` component is inherited from [`@comvi/react`](../react). Embed components in translation strings without raw HTML or unsafe DOM injection.
-
-```json
-{ "help": "Click <link>here</link> for more information." }
-```
-
-```tsx
-import { T } from "@comvi/next/client";
-
-export function Help() {
   return (
-    <T
-      i18nKey="help"
-      components={{
-        link: <a href="/help" />,
-      }}
-    />
+    <div>
+      <h1>{t("greeting", { name: "Alice" })}</h1>
+      <Link href={locale === "en" ? "/uk" : "/en"}>Switch</Link>
+    </div>
   );
 }
 ```
 
-See the [React README](../react) for the full Rich Text section with tag interpolation examples and validation options.
+In a Server Component `getI18n({ locale })` returns `t`, `hasTranslation` and `locale`, bound to
+the locale you pass. Pass it explicitly: Next can render the page before the layout. In a Client
+Component `useI18n()`, `<T>` and the other React hooks come from `@comvi/next/client`, under
+`<ComviProvider>`.
 
-## ICU MessageFormat — locale-correct grammar, not just singular/plural
+## Load from Comvi
 
-ICU MessageFormat handles plurals, ordinals, and select with locale-correct grammar via `Intl.PluralRules` — Comvi i18n inherits the full ICU runtime from the underlying binding.
-
-```tsx
-import { useI18n } from "@comvi/next/client";
-
-function Stats() {
-  const { t } = useI18n();
-  return <p>{t("items", { count: 5 })}</p>;
-}
+```bash
+npm install @comvi/plugin-fetch-loader
 ```
 
-See the [@comvi/react ICU section](../react#icu-messageformat--locale-correct-grammar-not-just-singularplural) for the full multilingual examples, ordinals, and select.
+```ts title="src/i18n/config.ts" check=group=next-2
+import { createNextI18n } from "@comvi/next";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { routing } from "./routing";
 
-## Type-safe translation keys
+export const { i18n } = createNextI18n({ ...routing }).use(
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }),
+);
 
-Extend the `TranslationKeys` interface via declaration merging for autocomplete and parameter validation. Type definitions can be generated automatically from the Comvi Platform via `@comvi/cli` or from local JSON files via `@comvi/vite-plugin`.
-
-```typescript
-// src/types/i18n.d.ts
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    welcome: { name: string };
-    greeting: never;
-    "errors:NOT_FOUND": never;
-  }
-}
+export { routing };
 ```
 
-```tsx
-import { useI18n } from "@comvi/next/client";
+Replace the inline catalog with the loader; every other file stays as it is. `<ComviProvider>`
+fetches the locale on the server and seeds the client with it, so the first paint never races the
+CDN. The CDN URL is on [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If
+your keys use ICU (`{count, plural, …}`), add `compiler: icuCompiler` as on
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
+independent, and either works without the other.
 
-export function Welcome() {
-  const { t } = useI18n();
+## Specific to Next.js
 
-  // ✓ Autocomplete, params required
-  const msg = t("welcome", { name: "Alice" });
+Seven entries: `@comvi/next`, `/client`, `/server`, `/navigation`, `/routing`, `/middleware` and
+`/plugin`. `/routing` and `/middleware` carry no i18n instance, and `/plugin` runs only in next.config.
+`src/i18n/config.ts` is bundled into the server build and into the client build, and each build
+evaluates it once, so it must be client-safe. Never compose a locale detector on this i18n instance: the config module is
+process-wide on the server, so the first request's headers would pin the locale for everyone.
+Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'client' })`; see
+[Plugin scoping](https://comvi.io/docs/i18n/guides/next-server-client#plugin-scoping).
 
-  return <h1>{msg}</h1>;
-}
-```
+`createMiddleware` takes the same two locale options as `@comvi/nuxt`, with the same defaults
+except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
+or `false` to persist nothing. `localeDetection` takes `{ order, queryParam, headerName,
+resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge.
 
-**What TypeScript catches:**
+### Advanced
 
-```ts
-// ✗ Expected 2 arguments, but got 1
-t("welcome");
+A loader that needs server-only code cannot live in the client-safe config module. Build that
+i18n instance with `createNextI18nFromInstance` in a server-only module, or hand one over with
+`setI18n(i18n)`, and wrap `<I18nProvider>` in your own `"use client"` component.
 
-// ✗ Property 'name' is missing in type '{ age: number }'
-t("welcome", { age: 5 });
+## Next steps
 
-// ✗ Type 'number' is not assignable to type 'string'
-t("welcome", { name: 42 });
-
-// ✗ Argument of type '"typo"' is not assignable to parameter
-t("typo", { name: "Alice" });
-```
-
-For CDN-delivered translations and visual in-context editing, pair with the [Comvi Platform](https://comvi.io) via [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader) and [`@comvi/plugin-in-context-editor`](../plugin-in-context-editor).
+- [Next.js guide](https://comvi.io/docs/i18n/next): `withComvi`, `<ComviProvider>`, `loadMessages()`, two runtimes, errors.
+- [Locale routing](https://comvi.io/docs/i18n/guides/next-routing): `defineRouting`, the middleware and localized links.
+- [Next.js API reference](https://comvi.io/docs/i18n/api/next): every export of the seven entries.
 
 ## License
 

@@ -1,0 +1,10 @@
+{
+  // A SECOND, isolated program that type-checks `src` with `TranslationKeys`
+  // CLOSED — the condition under which `t`'s key parameter narrows to the
+  // registered literals. It MUST be its own program: `declare module
+  // "@comvi/core"` is global to whichever program contains it, so putting the
+  // augmentation in the main test-types project would close the registry for
+  // every other test file there.
+  "extends": "./tsconfig.test-types.json",
+  "include": ["./src/**/*.ts", "./src/**/*.d.ts", "./tests/types-keys-closed/**/*.test-d.ts"]
+}

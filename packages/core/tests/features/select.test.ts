@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedInstance";
 
-describe("Select Format Features", () => {
+describe("t() with ICU select", () => {
   let i18n: I18n;
 
   beforeEach(() => {
@@ -9,7 +9,7 @@ describe("Select Format Features", () => {
   });
 
   it("should select based on exact string match", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         gender: "{gender, select, male {He} female {She} other {They}} went to the store.",
       },
@@ -21,7 +21,7 @@ describe("Select Format Features", () => {
   });
 
   it("should support 'other' as fallback", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         status: "Status: {val, select, active {Green} other {Gray}}",
       },
@@ -30,7 +30,7 @@ describe("Select Format Features", () => {
   });
 
   it("should support nested select statements", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         profile:
           "{gender, select, male {His status is {status, select, online {Online} other {Offline}}} other {Their status is unknown}}",
@@ -42,7 +42,7 @@ describe("Select Format Features", () => {
   });
 
   it("should support plural inside select", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         party:
           "{host, select, me {I have {guestCount, plural, one {one guest} other {# guests}}} other {{host} has {guestCount, plural, one {one guest} other {# guests}}}}",
@@ -55,7 +55,7 @@ describe("Select Format Features", () => {
   });
 
   it("should handle prototype-like select values safely", () => {
-    i18n.addTranslations({
+    i18n.addMessages({
       en: {
         fallback: "{val, select, active {Green} other {Gray}}",
         proto: "{val, select, __proto__ {Proto} other {Other}}",
@@ -65,5 +65,35 @@ describe("Select Format Features", () => {
     expect(i18n.t("fallback", { val: "toString" })).toBe("Gray");
     expect(i18n.t("fallback", { val: "constructor" })).toBe("Gray");
     expect(i18n.t("proto", { val: "__proto__" })).toBe("Proto");
+  });
+
+  it("matches a branch by the string form of a non-string value", () => {
+    i18n.addMessages({
+      en: {
+        count: "{n, select, 2 {a pair} other {some}}",
+      },
+    });
+
+    expect(i18n.t("count", { n: 2 })).toBe("a pair");
+  });
+
+  it("falls back to other when the select value is null", () => {
+    i18n.addMessages({
+      en: {
+        status: "Status: {val, select, active {Green} other {Gray}}",
+      },
+    });
+
+    expect(i18n.t("status", { val: null })).toBe("Status: Gray");
+  });
+
+  it("renders empty when no branch matches and there is no other branch", () => {
+    i18n.addMessages({
+      en: {
+        strict: "{val, select, active {Green}}",
+      },
+    });
+
+    expect(i18n.t("strict", { val: "unknown" })).toBe("");
   });
 });

@@ -1,0 +1,14 @@
+{
+  "name": "next",
+  "version": "15.0.0",
+  "private": true,
+  "type": "module",
+  "description": "INERT STAND-IN for the `next` peer dependency — NOT Next.js. Installed via `file:` so the matrix app resolves `next/*` exactly the way npm would, and versioned 15.0.0 only so @comvi/next's peer range (^15 || ^16) is satisfiable without pulling ~200 MB of Next.js and its server runtime into a plain-node bundle. 15.0.0 is deliberately the FLOOR of that range rather than its newest major: a stub pinned to the top would stop proving the lowest supported Next still resolves. `node tooling/check-package-contracts.mjs` asserts this version satisfies packages/next's declared range, so widening or narrowing the range there fails the gate until this file agrees. The gate measures the COMVI module graph; the size harness externalizes next for the same reason (scripts/size-budgets.json: external [\"next\", \"next/*\"]). Every export throws if called: the fixtures reach these APIs through @comvi/next but never invoke them, and a stub that silently returned data could hide a real regression.",
+  "exports": {
+    "./headers": "./headers.js",
+    "./link": "./link.js",
+    "./navigation": "./navigation.js",
+    "./server": "./server.js"
+  },
+  "sideEffects": false
+}

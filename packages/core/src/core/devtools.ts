@@ -1,0 +1,231 @@
+// Browser-extension discovery capability — the implementation half of
+// `@comvi/core/devtools`.
+//
+// Everything that makes an instance findable by a devtools extension lives
+// here and NOWHERE else: the `window.__COMVI__` protocol probe, the version
+// stamp, the instance-id counter, and the identity-based removal on destroy.
+// A base `@comvi/core` instance therefore never carries the protocol —
+// it is absent from the module graph, not disabled by a flag.
+//
+// ONE implementation, TWO install surfaces, exactly like `core/loader.ts`:
+// `core/full.ts` installs the prototype descriptors and calls `_initDevtools`
+// from its constructor; `attachDevtools(i18n)` copies the same descriptors onto
+// a base instance and then exposes it. The descriptor copy (never a plain
+// `i._x = fn` assignment) is what keeps the hooks NON-ENUMERABLE, which the
+// reflective contract asserts: `{ ...i18n }` must carry data only, never
+// behaviour.
+//
+// MANGLING CONTRACT: `_globalEntry`, `_initDevtools` and `_disposeDevtools` are
+// renamed by the single shared terser nameCache in
+// `vite.shared.ts#mangleInternalProps`. Dot access only — never a string key.
+import type { ComviHook, ComviQueueEntry, DefaultTranslationParams } from "../types";
+import { I18n as I18nBase, type I18nInternal } from "./i18n";
+
+declare const __VERSION__: string | undefined;
+
+const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.1.0";
+
+// The default-id sequence, in a slot every copy of core on the page shares —
+// the same cross-copy channel `duplicateGuard.ts` claims for the version. A
+// module-scoped counter belongs to ONE copy, so a CDN global plus a bundled npm
+// copy (or a binding pinned to another patch) would both mint `comvi-1`, and a
+// consumer keyed on the id — both shipped ones are — would only ever see one of
+// the two. Nothing about minting reads the page's `__COMVI__`: an id is chosen
+// before the protocol is probed, and a hostile hook must not be able to throw
+// out of, or spin, construction.
+const COUNTER_KEY = Symbol.for("comvi.core.instanceCounter");
+
+let fallbackCounter = 0;
+
+/**
+ * v1 legacy registry shape (`register` WITHOUT `remove`) — mixed-version
+ * interop only: an old core on the same page may have installed it.
+ */
+interface LegacyComviRegistry {
+  register(id: string, instance: I18nBase): void;
+  unregister?(id: string): void;
+}
+
+/** The next `comvi-<n>`, counted once per page rather than once per copy. */
+function mintInstanceId(): string {
+  let n = ++fallbackCounter;
+  try {
+    const slot = globalThis as unknown as Record<symbol, unknown>;
+    const previous = slot[COUNTER_KEY];
+    // A page may have put anything in the slot; only a non-negative number
+    // continues the sequence (NaN fails the comparison and restarts it).
+    const next = (typeof previous === "number" && previous >= 0 ? previous : 0) + 1;
+    slot[COUNTER_KEY] = next;
+    n = next;
+  } catch {
+    // An unwritable or throwing slot must not break construction; the
+    // per-copy count stands in.
+  }
+  return `comvi-${n}`;
+}
+
+/** Discovery options; the same two fields the composite reads off `I18nOptions`. */
+export interface DevtoolsOptions {
+  /** Stable id for this instance. Auto-generated (`comvi-<n>`) when omitted. */
+  instanceId?: string;
+  /** Expose on `window.__COMVI__`. Defaults to `true` in a browser, `false` under SSR. */
+  exposeGlobal?: boolean;
+}
+
+/**
+ * The discovery capability. Not exported from any entry point: the composite
+ * installs its prototype descriptors in `core/full.ts`, a base instance gets
+ * them from `attachDevtools`.
+ */
+export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I18nBase<D> {
+  /** Entry pushed onto `window.__COMVI__` — kept for identity-based removal. */
+  declare protected _globalEntry?: ComviQueueEntry;
+
+  /**
+   * Assign the instance id and expose on the discovery queue. Called by the
+   * composite's constructor and by `attachDevtools`; this class declares no
+   * constructor of its own.
+   */
+  protected _initDevtools(instanceId?: string, exposeGlobal?: boolean): void {
+    if (!(exposeGlobal ?? typeof window !== "undefined")) return;
+
+    const self = this as unknown as I18nInternal;
+    self.instanceId = instanceId || mintInstanceId();
+    if (typeof window === "undefined") return;
+
+    // Mixed-version-safe discovery (protocol v2). Pages may run two core
+    // versions: probe order is array → hook (push AND remove) → legacy
+    // registry (register WITHOUT remove) → install fresh queue. A truthy
+    // non-conforming global is left untouched (never clobber).
+    const entry: ComviQueueEntry = { v: VERSION, i: this as unknown as ComviQueueEntry["i"] };
+    this._globalEntry = entry;
+    try {
+      const g = window.__COMVI__ as unknown;
+      if (Array.isArray(g)) {
+        // raw v2 queue array — or the editor's array-masquerading hook
+        // whose OWN push/remove shadow Array.prototype
+        g.push(entry);
+      } else if (
+        g &&
+        typeof (g as ComviHook).push === "function" &&
+        typeof (g as ComviHook).remove === "function"
+      ) {
+        // v2 hook object — incl. dual-protocol hooks that also expose
+        // register; probed BEFORE legacy so new/new never downgrades to v1
+        (g as ComviHook).push(entry);
+      } else if (g && typeof (g as LegacyComviRegistry).register === "function") {
+        // register-WITHOUT-remove ⇒ genuine legacy registry; two-arg
+        // signature so its get(id) actually resolves
+        (g as LegacyComviRegistry).register(self.instanceId, this);
+      } else if (!g) {
+        window.__COMVI__ = [entry];
+      }
+      // truthy non-conforming global: leave it alone, skip exposure
+    } catch {
+      /* discovery must never break construction */
+    }
+  }
+
+  /**
+   * @internal `_disposeDevtools` hook — identity-based removal from the global
+   * `__COMVI__` queue, probed in the same order as exposure: array (raw queue
+   * splice, or a masquerading hook's OWN remove) → hook remove → legacy
+   * unregister. `Array.isArray` FIRST is what keeps a page-defined
+   * `Array.prototype.remove` polyfill out of the raw-queue path: consulting
+   * `g.remove` first would hand our entry OBJECT to a polyfill expecting an
+   * index, which coerces to 0 and splices someone else's live entry, and the
+   * try/catch below cannot see it because the wrong thing succeeded.
+   * Runs at the very top of `destroy()`.
+   */
+  protected _disposeDevtools(): void {
+    if (!this.instanceId || typeof window === "undefined") return;
+    try {
+      const g = window.__COMVI__ as unknown;
+      const entry = this._globalEntry;
+      if (Array.isArray(g)) {
+        // A masquerading consumer hook's OWN remove shadows Array.prototype,
+        // so it still gets the identity-based call it published.
+        if (
+          Object.prototype.hasOwnProperty.call(g, "remove") &&
+          typeof (g as unknown as ComviHook).remove === "function"
+        ) {
+          if (entry) (g as unknown as ComviHook).remove(entry);
+        } else {
+          const idx = entry ? g.indexOf(entry) : -1;
+          if (idx !== -1) g.splice(idx, 1);
+        }
+      } else if (g && typeof (g as ComviHook).remove === "function") {
+        if (entry) (g as ComviHook).remove(entry);
+      } else if (g && typeof (g as LegacyComviRegistry).unregister === "function") {
+        (g as LegacyComviRegistry).unregister!(this.instanceId);
+      }
+    } catch {
+      /* removal must never break destroy */
+    }
+    this._globalEntry = undefined;
+  }
+}
+
+/**
+ * Make a base instance discoverable by browser devtools extensions.
+ *
+ * ```ts
+ * import { createI18n } from "@comvi/core";
+ * import { attachDevtools } from "@comvi/core/devtools";
+ *
+ * const i18n = attachDevtools(createI18n({ locale: "en" }));
+ * i18n.instanceId; // "comvi-1"
+ * ```
+ *
+ * `instanceId` / `exposeGlobal` are passed HERE, not to `createI18n`: the base
+ * instance has no discovery code to configure, so those two constructor options are
+ * inert until this capability is composed on. The composite installs it in its
+ * constructor and therefore still reads both options off `I18nOptions`.
+ *
+ * Idempotent via a dot-access probe on an installed hook — never `in`, never a
+ * string key (see the mangling contract above). The members land as
+ * non-enumerable own properties, so `Object.keys(i18n)` and spread copies see
+ * only the public `instanceId`.
+ *
+ * IDEMPOTENCY IS PER EXPOSURE, NOT PER INSTALL. `_initDevtools` returns early
+ * on `exposeGlobal: false`, so an install-only probe would let an instance that
+ * opted out — the SSR construct — stay unexposed forever once the client
+ * flipped `exposeGlobal` back on:
+ *
+ * ```ts
+ * const i18n = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
+ * // …hydrate…
+ * i18n.use(devtools({ exposeGlobal: true, instanceId: "app" })); // now exposes
+ * ```
+ *
+ * Exposure therefore re-runs while the instance has NOT been exposed, and
+ * `instanceId` is the receipt for that — not `_globalEntry`. Assigning an id
+ * is the FIRST thing exposure does and the one thing it always does:
+ * `_initDevtools` assigns the id and then returns before `_globalEntry` when
+ * there is no `window`, so probing the queue entry would re-fire on every later
+ * call under SSR, reassigning the id and bumping the instance counter. Opting
+ * out assigns no id, which is exactly what makes this probe the right one.
+ *
+ * An instance exposed WITHOUT a window therefore stays quiet even if a `window`
+ * appears later: it has an id, so it is done. That is deliberate — the client
+ * constructs its own instance rather than re-attaching the server's. The
+ * flip-it-on case above works because opting out never assigned an id at all.
+ *
+ * Once exposed, every later call is a true no-op: the `instanceId` assigned
+ * first wins, nothing is pushed twice, and a `destroy()`d instance (which clears
+ * `_globalEntry` but keeps its id) is not resurrected.
+ */
+export function attachDevtools<T extends I18nBase<any>>(i18n: T, options?: DevtoolsOptions): T {
+  const i = i18n as unknown as I18nInternal;
+  const fresh = i._disposeDevtools === undefined;
+  if (fresh) {
+    const { constructor: _ctor, ...api } = Object.getOwnPropertyDescriptors(
+      I18nWithDevtools.prototype,
+    );
+    Object.defineProperties(i, api);
+  }
+  if (fresh || i.instanceId === undefined) {
+    i._initDevtools!(options?.instanceId, options?.exposeGlobal);
+  }
+  return i18n;
+}

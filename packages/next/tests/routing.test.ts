@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { defineRouting, createGetPathname } from "../src/routing/defineRouting";
+import { describe, it, expect, vi } from "vitest";
+import { defineRouting, createGetPathname, hasLocale } from "../src/routing/defineRouting";
 import {
   getCanonicalPathname,
   localizeHref,
@@ -7,20 +7,49 @@ import {
   stripLocalePrefix,
 } from "../src/routing/utils";
 
+// Both configs are immutable, so one instance of each serves every case.
+const ROUTING_DE_ONLY = defineRouting({
+  locales: ["en", "de"],
+  defaultLocale: "en",
+  localePrefix: "as-needed",
+  pathnames: {
+    "/about": {
+      de: "/ueber-uns",
+    },
+  },
+});
+
+const ROUTING_BOTH = defineRouting({
+  locales: ["en", "de"],
+  defaultLocale: "en",
+  localePrefix: "as-needed",
+  pathnames: {
+    "/about": {
+      en: "/about-us",
+      de: "/ueber-uns",
+    },
+  },
+});
+
+// One route's German slug is another route's canonical English path: the
+// collision is what makes the exact-match precedence observable.
+const ROUTING_SLUG_COLLISION = defineRouting({
+  locales: ["en", "de"],
+  defaultLocale: "en",
+  localePrefix: "as-needed",
+  pathnames: {
+    "/about": {
+      de: "/ueber-uns",
+    },
+    "/team": {
+      de: "/about",
+    },
+  },
+});
+
 describe("routing helpers", () => {
   it("creates localized pathnames with as-needed prefix", () => {
-    const routing = defineRouting({
-      locales: ["en", "de"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-      pathnames: {
-        "/about": {
-          de: "/ueber-uns",
-        },
-      },
-    });
-
-    const getPathname = createGetPathname(routing);
+    const getPathname = createGetPathname(ROUTING_DE_ONLY);
 
     expect(getPathname({ locale: "en", href: "/about" })).toBe("/about");
     expect(getPathname({ locale: "de", href: "/about" })).toBe("/de/ueber-uns");
@@ -28,35 +57,36 @@ describe("routing helpers", () => {
   });
 
   it("keeps external hrefs intact and preserves query/hash", () => {
-    const routing = defineRouting({
-      locales: ["en", "de"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-      pathnames: {
-        "/about": {
-          de: "/ueber-uns",
-        },
-      },
-    });
-
-    expect(localizeHref("https://example.com/about", "de", routing)).toBe(
+    expect(localizeHref("https://example.com/about", "de", ROUTING_DE_ONLY)).toBe(
       "https://example.com/about",
     );
-    expect(localizeHref("HTTPS://example.com/about", "de", routing)).toBe(
+    expect(localizeHref("HTTPS://example.com/about", "de", ROUTING_DE_ONLY)).toBe(
       "HTTPS://example.com/about",
     );
-    expect(localizeHref("//cdn.example.com/app.js", "de", routing)).toBe(
+    expect(localizeHref("//cdn.example.com/app.js", "de", ROUTING_DE_ONLY)).toBe(
       "//cdn.example.com/app.js",
     );
-    expect(localizeHref("/about?x=1#top", "de", routing)).toBe("/de/ueber-uns?x=1#top");
-    expect(localizeHref("#top", "de", routing)).toBe("#top");
-    expect(localizeHref("?tab=1", "de", routing)).toBe("?tab=1");
+    expect(localizeHref("/about?x=1#top", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns?x=1#top");
+    expect(localizeHref("#top", "de", ROUTING_DE_ONLY)).toBe("#top");
+    expect(localizeHref("?tab=1", "de", ROUTING_DE_ONLY)).toBe("?tab=1");
   });
 
   it("strips locale prefixes from pathnames", () => {
     expect(stripLocalePrefix("/en/about", ["en", "de"])).toBe("/about");
     expect(stripLocalePrefix("/de", ["en", "de"])).toBe("/");
     expect(stripLocalePrefix("/about", ["en", "de"])).toBe("/about");
+    expect(stripLocalePrefix("", ["en", "de"])).toBe("/");
+    // Segment-based matching: `/ensemble` is not the `en` prefix.
+    expect(stripLocalePrefix("/ensemble", ["en", "de"])).toBe("/ensemble");
+    expect(stripLocalePrefix("/fr/about", ["en", "de"])).toBe("/fr/about");
+    expect(stripLocalePrefix("/de/about/", ["en", "de"])).toBe("/about/");
+  });
+
+  it("prefixes a locale that is absent from routing.locales like any other", () => {
+    // `localizeHref` is a formatter, not a validator: an unknown locale gets no
+    // slug mapping, but it is still prefixed rather than rejected or dropped.
+    expect(localizeHref("/about", "fr", ROUTING_BOTH)).toBe("/fr/about");
+    expect(localizeHref("/ueber-uns", "fr", ROUTING_BOTH)).toBe("/fr/about");
   });
 
   it("localizes href without routing config by normalizing path", () => {
@@ -68,18 +98,9 @@ describe("routing helpers", () => {
   });
 
   it("localizes UrlObject pathnames and keeps protocol URLs unchanged", () => {
-    const routing = defineRouting({
-      locales: ["en", "de"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-      pathnames: {
-        "/about": {
-          de: "/ueber-uns",
-        },
-      },
-    });
-
-    expect(localizeUrlObject({ pathname: "/about", query: { x: "1" } }, "de", routing)).toEqual({
+    expect(
+      localizeUrlObject({ pathname: "/about", query: { x: "1" } }, "de", ROUTING_DE_ONLY),
+    ).toEqual({
       pathname: "/de/ueber-uns",
       query: { x: "1" },
     });
@@ -88,7 +109,7 @@ describe("routing helpers", () => {
       localizeUrlObject(
         { protocol: "https:", pathname: "/about", host: "example.com" },
         "de",
-        routing,
+        ROUTING_DE_ONLY,
       ),
     ).toEqual({
       protocol: "https:",
@@ -98,38 +119,213 @@ describe("routing helpers", () => {
   });
 
   it("maps localized slugs back to canonical route keys", () => {
-    const routing = defineRouting({
-      locales: ["en", "de"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-      pathnames: {
-        "/about": {
-          en: "/about-us",
-          de: "/ueber-uns",
-        },
-      },
-    });
-
-    expect(getCanonicalPathname("/about", routing, "de")).toBe("/about");
-    expect(getCanonicalPathname("/about-us", routing, "en")).toBe("/about");
-    expect(getCanonicalPathname("/ueber-uns", routing, "de")).toBe("/about");
+    expect(getCanonicalPathname("/about", ROUTING_BOTH, "de")).toBe("/about");
+    expect(getCanonicalPathname("/about-us", ROUTING_BOTH, "en")).toBe("/about");
+    expect(getCanonicalPathname("/ueber-uns", ROUTING_BOTH, "de")).toBe("/about");
   });
 
   it("re-localizes already localized slugs across locales", () => {
-    const routing = defineRouting({
+    expect(localizeHref("/de/ueber-uns", "en", ROUTING_BOTH)).toBe("/about-us");
+    expect(localizeHref("/about-us", "de", ROUTING_BOTH)).toBe("/de/ueber-uns");
+    expect(localizeHref("/ueber-uns", "en", ROUTING_BOTH)).toBe("/about-us");
+  });
+  it("localizes a path whose segment contains a colon", () => {
+    // Only a leading scheme makes an href external; a colon inside a segment
+    // is an ordinary character.
+    expect(localizeHref("/notes:2024", "de", ROUTING_DE_ONLY)).toBe("/de/notes:2024");
+  });
+
+  it("leaves a path that matches no configured route alone", () => {
+    expect(getCanonicalPathname("/contact", ROUTING_DE_ONLY, "de")).toBe("/contact");
+  });
+
+  it("maps a localized slug back when only that locale is configured for it", () => {
+    expect(getCanonicalPathname("/ueber-uns", ROUTING_DE_ONLY, "de")).toBe("/about");
+  });
+
+  it("treats an empty href as the root path", () => {
+    expect(localizeHref("", "de", ROUTING_DE_ONLY)).toBe("/de");
+    expect(localizeUrlObject({ pathname: "" }, "de")).toEqual({ pathname: "/de" });
+  });
+
+  it("resolves an empty pathname to the root route", () => {
+    expect(getCanonicalPathname("", ROUTING_DE_ONLY, "de")).toBe("/");
+  });
+
+  it("maps a localized slug back without being told which locale to prefer", () => {
+    expect(getCanonicalPathname("/ueber-uns", ROUTING_DE_ONLY)).toBe("/about");
+  });
+
+  it("prefers an exact canonical route over another route's localized slug", () => {
+    expect(getCanonicalPathname("/about", ROUTING_SLUG_COLLISION, "de")).toBe("/about");
+  });
+
+  it("localizes a UrlObject without routing config and defaults a missing pathname to root", () => {
+    expect(localizeUrlObject({ pathname: "/about", query: { x: "1" } }, "de")).toEqual({
+      pathname: "/de/about",
+      query: { x: "1" },
+    });
+    expect(localizeUrlObject({ pathname: "about" }, "de")).toEqual({ pathname: "/de/about" });
+    expect(localizeUrlObject({ query: { x: "1" } }, "de")).toEqual({
+      pathname: "/de",
+      query: { x: "1" },
+    });
+    expect(localizeUrlObject({ query: { x: "1" } }, "de", ROUTING_DE_ONLY)).toEqual({
+      pathname: "/de",
+      query: { x: "1" },
+    });
+  });
+
+  /**
+   * `stripLocalePrefix` preserves trailing slashes and never rewrites interior
+   * bytes, so `/en/about/` strips to `/about/` and `/en//about` to `//about`.
+   * Both used to miss the `pathnames` map entirely: the slug was silently
+   * bypassed and, for a leading `//`, the locale prefix was applied twice.
+   * The map lookup is slash-insensitive now; the OUTPUT still carries the
+   * trailing slash the input had (which is where 0.4.1 differs — it dropped
+   * the slash whenever a locale prefix happened to be stripped).
+   */
+  describe("cosmetic slashes do not bypass the pathnames map", () => {
+    const NO_PATHNAMES = defineRouting({
       locales: ["en", "de"],
       defaultLocale: "en",
       localePrefix: "as-needed",
-      pathnames: {
-        "/about": {
-          en: "/about-us",
-          de: "/ueber-uns",
-        },
-      },
     });
 
-    expect(localizeHref("/de/ueber-uns", "en", routing)).toBe("/about-us");
-    expect(localizeHref("/about-us", "de", routing)).toBe("/de/ueber-uns");
-    expect(localizeHref("/ueber-uns", "en", routing)).toBe("/about-us");
+    it("maps a trailing-slash path to the localized slug and keeps the slash", () => {
+      expect(localizeHref("/en/about/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/about/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/de/ueber-uns/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/en/about/?x=1#top", "de", ROUTING_DE_ONLY)).toBe(
+        "/de/ueber-uns/?x=1#top",
+      );
+    });
+
+    it("maps a path with a duplicated interior slash to the localized slug", () => {
+      expect(localizeHref("/en//about", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns");
+    });
+
+    it("resolves a slash variant back to its canonical route key", () => {
+      // What usePathname() returns for /de/ueber-uns/ and /de/about/.
+      expect(getCanonicalPathname("/ueber-uns/", ROUTING_DE_ONLY, "de")).toBe("/about/");
+      expect(getCanonicalPathname("/about/", ROUTING_DE_ONLY, "de")).toBe("/about/");
+      expect(getCanonicalPathname("//about", ROUTING_DE_ONLY, "en")).toBe("/about");
+    });
+
+    it("localizes a UrlObject slash variant through the map", () => {
+      expect(localizeUrlObject({ pathname: "/en/about/" }, "de", ROUTING_DE_ONLY)).toEqual({
+        pathname: "/de/ueber-uns/",
+      });
+    });
+
+    it("leaves a protocol-relative UrlObject pathname alone instead of prefixing it twice", () => {
+      expect(localizeUrlObject({ pathname: "//de/about" }, "de", ROUTING_DE_ONLY)).toEqual({
+        pathname: "//de/about",
+      });
+      // …matching `localizeHref`, which has always treated `//` as external.
+      expect(localizeHref("//de/about", "de", ROUTING_DE_ONLY)).toBe("//de/about");
+    });
+
+    it("matches a pathnames key or value that itself ends in a slash", () => {
+      // Under `trailingSlash: true` people write the map entries WITH the
+      // slash. Comparing a trimmed input against an untrimmed key or value
+      // missed both directions: the key form self-redirected forever, the
+      // value form lost its reverse mapping (a 404).
+      const KEY_WITH_SLASH = defineRouting({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "always",
+        pathnames: { "/about/": { en: "/about", de: "/ueber-uns" } },
+      });
+      expect(getCanonicalPathname("/about/", KEY_WITH_SLASH, "de")).toBe("/about/");
+      expect(getCanonicalPathname("/about", KEY_WITH_SLASH, "de")).toBe("/about");
+      expect(getCanonicalPathname("/ueber-uns/", KEY_WITH_SLASH, "de")).toBe("/about/");
+      // The exact key wins and its value is returned verbatim (no slash added).
+      expect(localizeHref("/de/about/", "de", KEY_WITH_SLASH)).toBe("/de/ueber-uns");
+      expect(localizeHref("/de/about", "de", KEY_WITH_SLASH)).toBe("/de/ueber-uns");
+
+      const VALUE_WITH_SLASH = defineRouting({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "always",
+        pathnames: { "/about": { en: "/about/", de: "/ueber-uns/" } },
+      });
+      expect(getCanonicalPathname("/ueber-uns/", VALUE_WITH_SLASH, "de")).toBe("/about/");
+      expect(getCanonicalPathname("/ueber-uns", VALUE_WITH_SLASH, "de")).toBe("/about");
+    });
+
+    it("never turns a same-origin path into a protocol-relative href", () => {
+      // `/en//evil.com` strips to `//evil.com` on the default locale, and
+      // `new URL("//evil.com", origin)` is another origin.
+      expect(localizeHref("/en//evil.com", "en", NO_PATHNAMES)).toBe("/evil.com");
+      expect(localizeHref("//evil.com", "en", NO_PATHNAMES)).toBe("//evil.com"); // external, untouched
+      const NEVER = defineRouting({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "never",
+      });
+      expect(localizeHref("/de//evil.com", "de", NEVER)).toBe("/evil.com");
+      expect(localizeUrlObject({ pathname: "/en//evil.com" }, "en", NO_PATHNAMES)).toEqual({
+        pathname: "/evil.com",
+      });
+    });
+
+    it("keeps the trailing slash when no pathnames map is configured", () => {
+      // Nothing to look up, so only the slash rules apply: the trailing slash
+      // survives, and a run of slashes left at the START after the locale
+      // prefix is stripped collapses to one (the same run that would make
+      // `/en//evil.com` protocol-relative). 0.4.1 collapsed everything.
+      expect(localizeHref("/en/about/", "de", NO_PATHNAMES)).toBe("/de/about/");
+      expect(localizeHref("/en//about", "de", NO_PATHNAMES)).toBe("/de/about");
+      expect(getCanonicalPathname("/about/", NO_PATHNAMES, "de")).toBe("/about/");
+    });
+  });
+
+  it("recognizes configured locales and rejects the rest", () => {
+    expect(hasLocale(["en", "de"], "de")).toBe(true);
+    expect(hasLocale(["en", "de"], "fr")).toBe(false);
+  });
+
+  it("warns when getPathname is asked for a locale outside the configured set", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const getPathname = createGetPathname(ROUTING_DE_ONLY);
+
+    expect(getPathname({ locale: "fr", href: "/about" })).toBe("/fr/about");
+
+    expect(warn).toHaveBeenCalledWith(
+      '[@comvi/next] getPathname: unknown locale "fr". Expected one of: en, de',
+    );
+  });
+
+  it("does not warn for a configured locale", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const getPathname = createGetPathname(ROUTING_DE_ONLY);
+
+    expect(getPathname({ locale: "de", href: "/about" })).toBe("/de/ueber-uns");
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("defineRouting: the shared options schema", () => {
+  it("normalizes, through the shared schema, to what the middleware gets from the raw input", async () => {
+    const { normalizeRoutingOptions } = await import("@comvi/locale-routing");
+    const { defineRouting, NEXT_LOCALE_COOKIE } = await import("../src/routing/defineRouting");
+    const input = { locales: ["en", "de"], defaultLocale: "en" } as const;
+    const options = { cookieNameDefault: NEXT_LOCALE_COOKIE };
+
+    expect(normalizeRoutingOptions(defineRouting(input), options)).toEqual(
+      normalizeRoutingOptions(input, options),
+    );
+  });
+
+  it("names the shared default prefix mode and next's cookie, and normalizes nothing", async () => {
+    const { DEFAULT_LOCALE_PREFIX } = await import("@comvi/locale-routing");
+    const { defineRouting } = await import("../src/routing/defineRouting");
+
+    const routing = defineRouting({ locales: ["en"], defaultLocale: "en" });
+
+    expect(routing.localePrefix).toBe(DEFAULT_LOCALE_PREFIX);
+    expect(routing.localeCookie).toBe("NEXT_LOCALE");
   });
 });

@@ -5,8 +5,12 @@
  * lands in this fake.
  */
 import { vi } from "vitest";
+import { clearTabLimits } from "../proxy-handler";
 
 type Listener = (...args: unknown[]) => unknown;
+
+/** Enough rounds for the longest fire-and-forget chain: badge render → storage read → setIcon. */
+const FLUSH_ROUNDS = 5;
 
 class FakeStorageArea {
   private data = new Map<string, unknown>();
@@ -24,6 +28,9 @@ class FakeStorageArea {
   set = async (items: Record<string, unknown>): Promise<void> => {
     for (const [key, value] of Object.entries(items)) this.data.set(key, value);
   };
+
+  /** Present by default, like every Chrome the manifest allows. */
+  setAccessLevel?: (options: { accessLevel: string }) => Promise<void> = async () => undefined;
 
   remove = async (keys: string | string[]): Promise<void> => {
     for (const key of Array.isArray(keys) ? keys : [keys]) this.data.delete(key);
@@ -62,20 +69,48 @@ export interface FakeChrome {
   };
 }
 
+/** A fake extension Port, so tests can drive the popup lifecycle channel directly. */
+export interface FakePort {
+  /** What the service worker sent back over the port. */
+  postMessage: ReturnType<typeof vi.fn>;
+  /** Deliver a message from the popup end of the port. */
+  send(message: unknown): void;
+  disconnect(): void;
+}
+
 export interface Harness {
   chrome: FakeChrome;
   /** Configure what chrome.tabs.get reports for a tab. */
   setTabUrl(tabId: number, url: string | undefined): void;
   /** Deliver a runtime message exactly like Chrome would; resolves with sendResponse's value. */
   dispatchMessage(message: unknown, sender: chrome.runtime.MessageSender): Promise<unknown>;
+  /**
+   * Deliver a message and also report whether a listener asked Chrome to hold
+   * the response channel open (`return true`), which leaks the port when the
+   * handler has already answered synchronously.
+   */
+  dispatchMessageWithChannel(
+    message: unknown,
+    sender: chrome.runtime.MessageSender,
+  ): Promise<{ response: unknown; keptOpen: boolean }>;
   fireTabRemoved(tabId: number): void;
   fireDocumentReady(tabId: number, documentId?: string): Promise<unknown>;
   fireTabUpdated(tabId: number, changeInfo: { status?: string; url?: string }): void;
   fireInstalled(reason: "install" | "update"): void;
-  openPopupLease(leaseId: string): { disconnect(): void };
+  /**
+   * Decide how a document answers the worker's liveness message. The default
+   * answers for every document; a replaced or cached document rejects, as
+   * Chrome does when no receiving end exists.
+   */
+  respondToDocumentPing(responder: (documentId: string | undefined) => Promise<unknown>): void;
+  markDocumentGone(documentId: string): void;
+  /** Open a raw port; `sender` defaults to an extension page (no tab). */
+  connectPort(options?: { name?: string; sender?: chrome.runtime.MessageSender }): FakePort;
+  openPopupLease(leaseId: string): FakePort;
   /** Wait for handlers that respond synchronously but do async follow-up work. */
   flush(): Promise<void>;
-  reset(): void;
+  /** Re-stub `chrome`, clear storage and mock history, and clear the proxy rate limits of `tabIds`. */
+  reset(...tabIds: number[]): void;
 }
 
 export function installFakeChrome(): Harness {
@@ -85,6 +120,24 @@ export function installFakeChrome(): Harness {
   const connectListeners: Listener[] = [];
   const installedListeners: Listener[] = [];
   const tabUrls = new Map<number, string | undefined>();
+  const goneDocuments = new Set<string>();
+  const defaultPingResponder = async (documentId: string | undefined): Promise<unknown> => {
+    if (documentId !== undefined && goneDocuments.has(documentId)) {
+      throw new Error("Could not establish connection. Receiving end does not exist.");
+    }
+    return { alive: true };
+  };
+  let pingResponder = defaultPingResponder;
+
+  // Every shared fake keeps its default behaviour here, so reset() can undo a
+  // test's mockResolvedValue/mockImplementation instead of leaking it into
+  // whichever test runs next.
+  const defaults: Array<[ReturnType<typeof vi.fn>, (...args: never[]) => unknown]> = [];
+  function defaultFn<T extends (...args: never[]) => unknown>(impl: T) {
+    const mock = vi.fn(impl);
+    defaults.push([mock as unknown as ReturnType<typeof vi.fn>, impl]);
+    return mock;
+  }
 
   const fake: FakeChrome = {
     storage: { session: new FakeStorageArea(), local: new FakeStorageArea() },
@@ -92,51 +145,84 @@ export function installFakeChrome(): Harness {
       onMessage: { addListener: (fn) => messageListeners.push(fn) },
       onConnect: { addListener: (fn) => connectListeners.push(fn) },
       onInstalled: { addListener: (fn) => installedListeners.push(fn) },
-      sendMessage: vi.fn((_message: unknown, callback?: () => void) => callback?.()),
+      sendMessage: defaultFn((_message: unknown, callback?: () => void) => callback?.()),
       lastError: undefined,
     },
     tabs: {
-      get: vi.fn(async (tabId: number) => {
+      get: defaultFn(async (tabId: number) => {
         if (!tabUrls.has(tabId)) throw new Error(`No tab with id ${tabId}`);
         return { id: tabId, url: tabUrls.get(tabId) };
       }),
-      query: vi.fn(async () =>
+      query: defaultFn(async () =>
         [...tabUrls.entries()].map(([id, url]) => ({ id, url }) as chrome.tabs.Tab),
       ),
-      sendMessage: vi.fn((_tabId: number, _message: unknown, callback?: () => void) =>
-        callback?.(),
+      sendMessage: defaultFn(
+        (
+          _tabId: number,
+          message: unknown,
+          optionsOrCallback?: { documentId?: string } | (() => void),
+          maybeCallback?: () => void,
+        ) => {
+          const callback =
+            typeof optionsOrCallback === "function" ? optionsOrCallback : maybeCallback;
+          if ((message as { type?: unknown } | undefined)?.type === "PING_DOCUMENT") {
+            const options = typeof optionsOrCallback === "object" ? optionsOrCallback : {};
+            return pingResponder(options.documentId);
+          }
+          callback?.();
+          return undefined;
+        },
       ),
       onRemoved: { addListener: (fn) => removedListeners.push(fn) },
       onUpdated: { addListener: (fn) => updatedListeners.push(fn) },
     },
     action: {
-      setIcon: vi.fn(async () => undefined),
-      setBadgeText: vi.fn(async () => undefined),
-      setBadgeBackgroundColor: vi.fn(async () => undefined),
-      setBadgeTextColor: vi.fn(async () => undefined),
+      setIcon: defaultFn(async () => undefined),
+      setBadgeText: defaultFn(async () => undefined),
+      setBadgeBackgroundColor: defaultFn(async () => undefined),
+      setBadgeTextColor: defaultFn(async () => undefined),
     },
   };
 
   vi.stubGlobal("chrome", fake);
 
+  function dispatchMessageWithChannel(
+    message: unknown,
+    sender: chrome.runtime.MessageSender,
+  ): Promise<{ response: unknown; keptOpen: boolean }> {
+    return new Promise((resolve) => {
+      let responded = false;
+      let response: unknown;
+      let keptOpen = false;
+      let dispatched = false;
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        resolve({ response, keptOpen });
+      };
+
+      for (const listener of messageListeners) {
+        const result = listener(message, sender, (value: unknown) => {
+          responded = true;
+          response = value;
+          // A synchronous answer must not settle before every listener has
+          // returned, or its `return true` would go unseen.
+          if (dispatched) settle();
+        });
+        if (result === true) keptOpen = true;
+      }
+      dispatched = true;
+
+      if (responded || !keptOpen) settle();
+    });
+  }
+
   function dispatchMessage(
     message: unknown,
     sender: chrome.runtime.MessageSender,
   ): Promise<unknown> {
-    return new Promise((resolve) => {
-      let responded = false;
-      let keptOpen = false;
-      for (const listener of messageListeners) {
-        const result = listener(message, sender, (response: unknown) => {
-          responded = true;
-          resolve(response);
-        });
-        if (result === true) keptOpen = true;
-      }
-      if (!keptOpen && !responded) {
-        void Promise.resolve().then(() => resolve(undefined));
-      }
-    });
+    return dispatchMessageWithChannel(message, sender).then((result) => result.response);
   }
 
   return {
@@ -145,6 +231,7 @@ export function installFakeChrome(): Harness {
       tabUrls.set(tabId, url);
     },
     dispatchMessage,
+    dispatchMessageWithChannel,
     fireTabRemoved(tabId) {
       for (const listener of removedListeners) listener(tabId);
     },
@@ -166,40 +253,61 @@ export function installFakeChrome(): Harness {
     fireInstalled(reason) {
       for (const listener of installedListeners) listener({ reason });
     },
-    openPopupLease(leaseId) {
+    respondToDocumentPing(responder) {
+      pingResponder = responder;
+    },
+    markDocumentGone(documentId) {
+      goneDocuments.add(documentId);
+    },
+    connectPort({ name = "comvi-popup-lifecycle", sender = {} } = {}) {
       const portMessageListeners: Listener[] = [];
       const disconnectListeners: Listener[] = [];
+      const postMessage = vi.fn();
       const port = {
-        name: "comvi-popup-lifecycle",
-        sender: {},
+        name,
+        sender,
         onMessage: { addListener: (fn: Listener) => portMessageListeners.push(fn) },
         onDisconnect: { addListener: (fn: Listener) => disconnectListeners.push(fn) },
-        postMessage: vi.fn(),
+        postMessage,
       } as unknown as chrome.runtime.Port;
       for (const listener of connectListeners) listener(port);
-      for (const listener of portMessageListeners) {
-        listener({ type: "REGISTER_POPUP", leaseId });
-      }
       return {
+        postMessage,
+        send(message) {
+          for (const listener of portMessageListeners) listener(message);
+        },
         disconnect() {
           for (const listener of disconnectListeners) listener();
         },
       };
     },
+    openPopupLease(leaseId) {
+      const port = this.connectPort();
+      port.send({ type: "REGISTER_POPUP", leaseId });
+      return port;
+    },
     async flush() {
       // Drain a few macrotask/microtask rounds for fire-and-forget handlers.
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < FLUSH_ROUNDS; i++) {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     },
-    reset() {
+    reset(...tabIds: number[]) {
+      // `unstubGlobals` tears the fake down after every test, but the service
+      // worker was imported once and holds listeners in THIS object.
+      vi.stubGlobal("chrome", fake);
       fake.storage.session.clear();
       fake.storage.local.clear();
-      fake.action.setIcon.mockClear();
-      fake.action.setBadgeText.mockClear();
-      fake.runtime.sendMessage.mockClear();
-      fake.tabs.sendMessage.mockClear();
+      for (const [mock, impl] of defaults) {
+        mock.mockReset();
+        mock.mockImplementation(impl);
+      }
       tabUrls.clear();
+      goneDocuments.clear();
+      pingResponder = defaultPingResponder;
+      // proxy-work keeps a module-level per-tab request log with a 60s window;
+      // without this the suite's own requests accumulate against the rate cap.
+      for (const tabId of tabIds) clearTabLimits(tabId);
     },
   };
 }

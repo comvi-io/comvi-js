@@ -1,5 +1,5 @@
 /**
- * The visible-set change-gate (P3, hard rule 2): a pass proceeds only if the
+ * The visible-set change-gate: a pass proceeds only if the
  * set of visible (namespace,key) pairs for the current screenGroup differs
  * from the previous pass. This is a cheap, in-memory string comparison —
  * no DOM measurement happens here; callers must only call `enumerate`

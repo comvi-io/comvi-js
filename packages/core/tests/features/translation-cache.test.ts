@@ -1,9 +1,31 @@
 import { describe, it, expect } from "vitest";
-import { TranslationCache } from "../../src";
+import { MessagesCache } from "../../src";
 
-describe("TranslationCache", () => {
+/** Two locales set, plus a clone that has been mutated away from the cache. */
+function cacheWithMutatedClone() {
+  const cache = new MessagesCache();
+  cache.set("en", "default", { hello: "Hello" });
+  cache.set("fr", "default", { bonjour: "Bonjour" });
+
+  const cloned = cache.clone();
+  cloned.delete("en:default");
+  cloned.set("de:default", { hallo: "Hallo" });
+
+  return cache;
+}
+
+/** Two locales, one of them with two namespaces. */
+function threeEntries() {
+  const cache = new MessagesCache();
+  cache.set("en", "default", { hello: "Hello" });
+  cache.set("en", "admin", { title: "Admin" });
+  cache.set("fr", "default", { hello: "Bonjour" });
+  return cache;
+}
+
+describe("MessagesCache", () => {
   it("uses configured default namespace for get/has", () => {
-    const cache = new TranslationCache({ defaultNs: "common" });
+    const cache = new MessagesCache({ defaultNs: "common" });
     const common = { greeting: "Hello" };
 
     cache.set("en", "common", common);
@@ -14,47 +36,74 @@ describe("TranslationCache", () => {
     expect(cache.has("en", "common")).toBe(true);
   });
 
-  it("tracks size, languages and keys across set/delete operations", () => {
-    const cache = new TranslationCache();
-
-    cache.set("en", "default", { hello: "Hello" });
-    cache.set("en", "admin", { title: "Admin" });
-    cache.set("fr", "default", { hello: "Bonjour" });
+  it("tracks size, locales and keys after a bulk set", () => {
+    const cache = threeEntries();
 
     expect(cache.size).toBe(3);
     expect(cache.getLocales().sort()).toEqual(["en", "fr"]);
     expect(Array.from(cache.keys()).sort()).toEqual(["en:admin", "en:default", "fr:default"]);
-
-    cache.delete("en", "admin");
-    expect(cache.size).toBe(2);
-    expect(cache.has("en", "admin")).toBe(false);
-    expect(cache.getLocales().sort()).toEqual(["en", "fr"]);
-
-    cache.delete("fr");
-    expect(cache.size).toBe(1);
-    expect(cache.getLocales()).toEqual(["en"]);
-    expect(Array.from(cache.keys())).toEqual(["en:default"]);
   });
 
-  it("returns a flat locale:namespace map via clone()", () => {
-    const cache = new TranslationCache();
+  it("drops one namespace from size and keys on delete(locale, namespace)", () => {
+    const cache = threeEntries();
+
+    cache.delete("en", "admin");
+
+    expect(cache.size).toBe(2);
+    expect(cache.has("en", "admin")).toBe(false);
+    expect(Array.from(cache.keys()).sort()).toEqual(["en:default", "fr:default"]);
+  });
+
+  it("drops every namespace of the locale on delete(locale)", () => {
+    const cache = threeEntries();
+
+    cache.delete("fr");
+
+    expect(cache.size).toBe(2);
+    expect(cache.getLocales()).toEqual(["en"]);
+    expect(Array.from(cache.keys()).sort()).toEqual(["en:admin", "en:default"]);
+  });
+
+  it("clone() keys an entry by locale:namespace", () => {
+    const cache = new MessagesCache();
 
     cache.set("en", "default", { hello: "Hello" });
+
     expect(cache.clone().get("en:default")).toEqual({ hello: "Hello" });
+  });
+
+  it("clone() picks up a locale added after an earlier clone", () => {
+    const cache = new MessagesCache();
+    cache.set("en", "default", { hello: "Hello" });
+    cache.clone();
 
     cache.set("fr", "default", { hello: "Bonjour" });
+
     expect(cache.clone().get("fr:default")).toEqual({ hello: "Bonjour" });
+  });
+
+  it("clone() drops an entry deleted from the cache and keeps the rest", () => {
+    const cache = new MessagesCache();
+    cache.set("en", "default", { hello: "Hello" });
+    cache.set("fr", "default", { hello: "Bonjour" });
 
     cache.delete("en", "default");
+
     expect(cache.clone().has("en:default")).toBe(false);
     expect(cache.clone().has("fr:default")).toBe(true);
+  });
+
+  it("clone() is empty after clear()", () => {
+    const cache = new MessagesCache();
+    cache.set("en", "default", { hello: "Hello" });
 
     cache.clear();
+
     expect(cache.clone().size).toBe(0);
   });
 
   it("getInternalMap() returns the same reference when revision has not changed", () => {
-    const cache = new TranslationCache();
+    const cache = new MessagesCache();
 
     cache.set("en", "default", { hello: "Hello" });
 
@@ -65,7 +114,7 @@ describe("TranslationCache", () => {
   });
 
   it("clone() returns a fresh copy on each call", () => {
-    const cache = new TranslationCache();
+    const cache = new MessagesCache();
 
     cache.set("en", "default", { hello: "Hello" });
     const clone1 = cache.clone();
@@ -75,8 +124,8 @@ describe("TranslationCache", () => {
     expect(clone1).toEqual(clone2);
   });
 
-  it("getInternalMap() returns a new readonly snapshot after a mutation", () => {
-    const cache = new TranslationCache();
+  it("getInternalMap() returns a new snapshot after a mutation", () => {
+    const cache = new MessagesCache();
 
     cache.set("en", "default", { hello: "Hello" });
     const snapshot1 = cache.getInternalMap();
@@ -89,22 +138,15 @@ describe("TranslationCache", () => {
   });
 
   it("mutating a clone does not poison future clone(), keys(), or getInternalMap() calls", () => {
-    const cache = new TranslationCache();
-
-    cache.set("en", "default", { hello: "Hello" });
-    cache.set("fr", "default", { bonjour: "Bonjour" });
-
-    const cloned = cache.clone();
-    cloned.delete("en:default");
-    cloned.set("de:default", { hallo: "Hallo" });
+    const cache = cacheWithMutatedClone();
 
     expect(Array.from(cache.clone().keys()).sort()).toEqual(["en:default", "fr:default"]);
     expect(Array.from(cache.keys()).sort()).toEqual(["en:default", "fr:default"]);
     expect(Array.from(cache.getInternalMap().keys()).sort()).toEqual(["en:default", "fr:default"]);
   });
 
-  it("exposes an internal snapshot (readonly at the type level)", () => {
-    const cache = new TranslationCache();
+  it("getInternalMap() exposes the current entries", () => {
+    const cache = new MessagesCache();
 
     cache.set("en", "default", { hello: "Hello" });
     const snapshot = cache.getInternalMap();
@@ -114,14 +156,7 @@ describe("TranslationCache", () => {
   });
 
   it("mutating the cloned Map does not corrupt get/has/size lookups on the cache", () => {
-    const cache = new TranslationCache();
-
-    cache.set("en", "default", { hello: "Hello" });
-    cache.set("fr", "default", { bonjour: "Bonjour" });
-
-    const cloned = cache.clone();
-    cloned.delete("en:default");
-    cloned.set("de:default", { hallo: "Hallo" });
+    const cache = cacheWithMutatedClone();
 
     expect(cache.get("en", "default")).toEqual({ hello: "Hello" });
     expect(cache.get("fr", "default")).toEqual({ bonjour: "Bonjour" });
@@ -132,7 +167,7 @@ describe("TranslationCache", () => {
   });
 
   it("set() called twice for same locale:namespace pair does not double-increment size", () => {
-    const cache = new TranslationCache();
+    const cache = new MessagesCache();
 
     cache.set("en", "default", { hello: "Hello" });
     expect(cache.size).toBe(1);
@@ -141,31 +176,35 @@ describe("TranslationCache", () => {
     expect(cache.size).toBe(1);
   });
 
-  it("increments revision on mutations and keeps it stable on reads", () => {
-    const cache = new TranslationCache();
-    const initialRevision = cache.getRevision();
-    expect(initialRevision).toBe(0);
+  it("increments the revision once per set, delete and clear, in that sequence", () => {
+    const cache = new MessagesCache();
+    expect(cache.getRevision()).toBe(0);
 
     cache.set("en", "default", { hello: "Hello" });
-    const afterSet = cache.getRevision();
-    expect(afterSet).toBe(initialRevision + 1);
+    expect(cache.getRevision()).toBe(1);
+
+    cache.delete("en", "default");
+    expect(cache.getRevision()).toBe(2);
+
+    cache.clear();
+
+    expect(cache.getRevision()).toBe(3);
+  });
+
+  it("keeps the revision stable across get, has, clone and getInternalMap", () => {
+    const cache = new MessagesCache();
+    cache.set("en", "default", { hello: "Hello" });
 
     cache.get("en", "default");
     cache.has("en", "default");
     cache.clone();
     cache.getInternalMap();
-    expect(cache.getRevision()).toBe(afterSet);
 
-    cache.delete("en", "default");
-    const afterDelete = cache.getRevision();
-    expect(afterDelete).toBe(afterSet + 1);
-
-    cache.clear();
-    expect(cache.getRevision()).toBe(afterDelete + 1);
+    expect(cache.getRevision()).toBe(1);
   });
 
   it("clone() reflects merged updates without reusing mutated snapshots", () => {
-    const cache = new TranslationCache();
+    const cache = new MessagesCache();
 
     cache.set("en", "default", { hello: "Hello" });
     const firstClone = cache.clone();
@@ -175,5 +214,26 @@ describe("TranslationCache", () => {
     expect(firstClone).not.toBe(secondClone);
     expect(firstClone.get("en:default")).toEqual({ hello: "Hello" });
     expect(secondClone.get("en:default")).toEqual({ hello: "Hello Updated" });
+  });
+
+  it("get()/has() return undefined/false for an absent locale or namespace", () => {
+    const cache = new MessagesCache();
+    cache.set("en", "default", { hello: "Hello" });
+
+    expect(cache.get("zz")).toBeUndefined();
+    expect(cache.get("en", "nope")).toBeUndefined();
+    expect(cache.has("zz")).toBe(false);
+    expect(cache.has("en", "nope")).toBe(false);
+  });
+
+  it("delete() for an absent locale or namespace leaves the entries untouched", () => {
+    const cache = new MessagesCache();
+    cache.set("en", "default", { hello: "Hello" });
+
+    cache.delete("zz");
+    cache.delete("en", "nope");
+
+    expect(cache.size).toBe(1);
+    expect(Array.from(cache.keys())).toEqual(["en:default"]);
   });
 });

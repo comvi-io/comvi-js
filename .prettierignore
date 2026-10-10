@@ -12,3 +12,9 @@ test-results
 packages/benchmark/results
 pnpm-lock.yaml
 .omx
+scripts/bundler-matrix/app/out
+
+# Fixture built from the real shapes on the docs site — indented fences inside
+# <Tabs>/<Steps> and a 4-backtick close that prettier would normalise away, which
+# is exactly what scripts/docs-snippets/extract.test.mjs asserts about.
+scripts/docs-snippets/__fixtures__

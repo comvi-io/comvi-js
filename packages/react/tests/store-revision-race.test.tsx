@@ -3,23 +3,28 @@ import { render, waitFor } from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
-import { createI18n } from "@comvi/core";
+import { createI18n, icuCompiler } from "../src/index";
 
 describe("useStoreRevision — commit→subscribe (t2) window", () => {
   it("re-renders when defaultParams change during the commit→subscribe window", async () => {
     const i18n = createI18n<{ formality: "formal" | "informal" }>({
       locale: "en",
+      // `{…, select, …}` is ICU, and the base host's compiler rejects it — the
+      // capability is an explicit `compiler:`, never an implicit default.
+      compiler: icuCompiler,
       defaultParams: { formality: "formal" },
-      translation: {
+      messages: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
       },
     });
 
-    let rendered = "";
     function Consumer() {
       const { t, defaultParams } = useI18n<{ formality: "formal" | "informal" }>();
-      rendered = `${defaultParams.formality}:${t("review" as never)}`;
-      return <span>{rendered}</span>;
+      return (
+        <span data-testid="out">
+          {defaultParams.formality}:{t("review" as never)}
+        </span>
+      );
     }
 
     function Injector() {
@@ -29,7 +34,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       return null;
     }
 
-    render(
+    const { getByTestId } = render(
       <I18nProvider i18n={i18n} autoInit={false}>
         <Injector />
         <Consumer />
@@ -37,7 +42,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
     );
 
     await waitFor(() => {
-      expect(rendered).toBe("informal:Informal");
+      expect(getByTestId("out").textContent).toBe("informal:Informal");
     });
   });
 
@@ -45,16 +50,14 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
     const i18n = createI18n({
       locale: "fr",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { fallbackOnly: "Fallback" },
       },
     });
 
-    let rendered = "";
     function Consumer() {
       const { t } = useI18n();
-      rendered = t("fallbackOnly" as never) as string;
-      return <span data-testid="out">{rendered}</span>;
+      return <span data-testid="out">{t("fallbackOnly" as never)}</span>;
     }
 
     // Layout effect runs during commit, before the consumer's passive subscribe (t2).
@@ -65,19 +68,19 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       return null;
     }
 
-    const revisionBefore = i18n.translationCache.getRevision();
+    const revisionBefore = i18n.messagesCache.getRevision();
 
-    render(
+    const { getByTestId } = render(
       <I18nProvider i18n={i18n} autoInit={false}>
         <Injector />
         <Consumer />
       </I18nProvider>,
     );
 
-    expect(i18n.translationCache.getRevision()).toBe(revisionBefore);
+    expect(i18n.messagesCache.getRevision()).toBe(revisionBefore);
 
     await waitFor(() => {
-      expect(rendered).toBe("Fallback");
+      expect(getByTestId("out").textContent).toBe("Fallback");
     });
   });
 });

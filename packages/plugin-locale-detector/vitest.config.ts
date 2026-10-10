@@ -18,11 +18,17 @@ export default defineConfig({
       },
     },
     globals: true,
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     setupFiles: ["./tests/setup.ts"],
   },
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
     },
+  },
+  define: {
+    __DEV__: JSON.stringify(true),
   },
 });

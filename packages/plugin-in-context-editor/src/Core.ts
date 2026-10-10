@@ -1,13 +1,3 @@
-/**
- * Core - Main orchestrator for the in-context editor
- *
- * Creates and connects all components for translation editing.
- * Refactored to use:
- * - TranslationRegistry (decoupled from ElementHighlighter)
- * - TranslationScanner (with proper lifecycle)
- * - Event-based communication through EventBus
- */
-
 import { DOMWatcher } from "./DOMWatcher";
 import { TranslationScanner } from "./TranslationScanner";
 import { TranslationRegistry } from "./TranslationRegistry";
@@ -15,8 +5,15 @@ import { EventBus } from "./EventBus";
 import { ElementHighlighter } from "./ElementHighlighter";
 import { Collector } from "./collector/Collector";
 import type { TranslationSystemOptions, TranslationSystemInnerOptions } from "./types";
-import type { I18n } from "@comvi/core";
+import type { I18nCoreInstance, I18nCoreExtraApi } from "@comvi/core";
 import { TAG_ATTRIBUTES } from "./constants";
+
+/**
+ * The public instance surface the editor needs. Instances arrive from both
+ * directions — the discovery queue hands over base `@comvi/core` instances,
+ * the plugin entry hands over a composed instance — and both satisfy this.
+ */
+export type EditorI18n = I18nCoreInstance & I18nCoreExtraApi;
 
 type EditModalModule = typeof import("./EditModal");
 type KeySelectorModule = typeof import("./KeySelector");
@@ -52,14 +49,14 @@ function loadKeySelector(): Promise<KeySelectorModule> {
 
 // Map to store i18n instances by Core instance ID
 // Allows multiple plugin instances on the same page
-const i18nInstances = new Map<string, I18n>();
+const i18nInstances = new Map<string, EditorI18n>();
 let instanceCounter = 0;
 
 /**
  * Get the i18n instance for a specific Core instance
  * @param instanceId - The Core instance ID (optional, returns first if not specified for backward compatibility)
  */
-export function getI18nInstance(instanceId?: string): I18n | null {
+export function getI18nInstance(instanceId?: string): EditorI18n | null {
   if (instanceId) {
     return i18nInstances.get(instanceId) || null;
   }
@@ -72,7 +69,7 @@ export function getI18nInstance(instanceId?: string): I18n | null {
  * Register an i18n instance with a specific ID
  * @internal
  */
-export function registerI18nInstance(instanceId: string, i18n: I18n): void {
+export function registerI18nInstance(instanceId: string, i18n: EditorI18n): void {
   i18nInstances.set(instanceId, i18n);
 }
 
@@ -98,10 +95,12 @@ export class Core {
 
   private handleElementClick = (element: Element): void => {
     const nodes = this.translationRegistry.get(element)?.nodes;
-    const nodeDataArray = Array.from(nodes?.values() || []);
+    // A node carrying several keys lists them all in `markers`.
+    const nodeDataArray = Array.from(nodes?.values() || []).flatMap(
+      (nodeData) => nodeData.markers ?? [nodeData],
+    );
 
     if (nodeDataArray.length > 1) {
-      // Multiple keys found - show selector dropdown
       const keyData = nodeDataArray.map((nodeData) => ({
         key: nodeData.key,
         ns: nodeData.ns,
@@ -118,64 +117,62 @@ export class Core {
               if (!this.stopped) showModal(selectedKey, selectedNs, this.instanceId);
             },
             this.defaultNs,
+            this.instanceId,
           );
         })
         .catch((error: unknown) => {
-          if (!this.stopped) console.error("[comvi] Failed to load editor UI:", error);
+          if (!this.stopped)
+            console.error("[@comvi/plugin-in-context-editor] Failed to load editor UI:", error);
         });
     } else if (nodeDataArray.length === 1) {
-      // Single key - open modal directly
       void loadEditModal()
         .then(({ showModal }) => {
           if (this.stopped) return;
           showModal(nodeDataArray[0]!.key, nodeDataArray[0]!.ns, this.instanceId);
         })
         .catch((error: unknown) => {
-          if (!this.stopped) console.error("[comvi] Failed to load editor UI:", error);
+          if (!this.stopped)
+            console.error("[@comvi/plugin-in-context-editor] Failed to load editor UI:", error);
         });
     }
   };
 
-  constructor(options?: TranslationSystemOptions, i18n?: I18n) {
+  constructor(options?: TranslationSystemOptions, i18n?: EditorI18n) {
     this.instanceId = `core-${++instanceCounter}`;
     this.options = {
       targetElement: options?.targetElement || document,
       tagAttributes: options?.tagAttributes || TAG_ATTRIBUTES,
     };
 
-    // Register i18n instance with unique ID for multi-instance support
     if (i18n) {
       registerI18nInstance(this.instanceId, i18n);
     }
 
     this.defaultNs = i18n?.getDefaultNamespace?.();
 
-    // Create EventBus first (shared communication channel)
+    // EventBus wiring: DOMWatcher and TranslationRegistry emit, while
+    // TranslationScanner and ElementHighlighter only listen.
     this.eventBus = new EventBus();
 
-    // Create ElementHighlighter with EventBus (listens for translation events)
     this.elementHighlighter = new ElementHighlighter(this.eventBus, this.handleElementClick, {
       debug: options?.debug,
       highlightStyle: options?.highlightStyle,
       defaultNs: i18n?.getDefaultNamespace?.(),
     });
 
-    // Create TranslationRegistry with EventBus (emits translation events)
     this.translationRegistry = new TranslationRegistry(this.eventBus);
 
-    // Create DOMWatcher (emits DOM mutation events)
     this.domWatcher = new DOMWatcher(this.eventBus, this.options);
 
-    // Create TranslationScanner (listens for DOM events, updates registry)
     this.translationScanner = new TranslationScanner(
       this.eventBus,
       this.translationRegistry,
       this.options,
     );
 
-    // Create the passive context collector (extension channel only — RALPLAN
-    // wave-2a). Constructed here so both activation paths (standalone.ts and
-    // index.ts) cover it; it only does anything once start()/stop() run.
+    // Passive context collector (any runtime with an API key or transport). Constructed here so
+    // both activation paths (standalone.ts and index.ts) cover it; it does
+    // nothing until start()/stop() run.
     this.collector = new Collector(this.eventBus, this.translationRegistry, this.instanceId, {
       enabled: options?.collectContext !== false,
       screenGroupResolver: options?.screenGroupResolver,
@@ -196,41 +193,24 @@ export class Core {
     // tears down state it depends on.
     this.collector.destroy();
 
-    // Stop DOM watching first
     this.domWatcher.stop();
-
-    // Destroy scanner (unsubscribes from events)
     this.translationScanner.destroy();
-
-    // Cleanup highlighter (removes event listeners)
     this.elementHighlighter.cleanup();
-
-    // Destroy registry (clears data, emits removal events)
     this.translationRegistry.destroy();
-
-    // Remove all event listeners from EventBus
     this.eventBus.removeAllListeners();
 
-    // Cleanup UI only when its lazy chunk has been loaded.
-    editModalModule?.cleanup();
-    keySelectorModule?.cleanup();
+    // Cleanup UI only when its lazy chunk has been loaded, and only the UI
+    // this instance opened: another active Core may own what is on screen.
+    editModalModule?.cleanup(this.instanceId);
+    keySelectorModule?.cleanup(this.instanceId);
 
-    // Unregister i18n instance
     unregisterI18nInstance(this.instanceId);
   }
 
-  /**
-   * Get the instance ID for this Core
-   * Useful for debugging multi-instance scenarios
-   */
   public getInstanceId(): string {
     return this.instanceId;
   }
 
-  /**
-   * Get the translation registry
-   * Useful for testing and debugging
-   */
   public getRegistry(): TranslationRegistry {
     return this.translationRegistry;
   }

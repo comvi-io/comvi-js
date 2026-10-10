@@ -31,45 +31,68 @@
     "server-components"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "development": "./dist/index.dev.js",
       "default": "./dist/index.js"
     },
     "./server": {
       "types": "./dist/server.d.ts",
+      "development": "./dist/server.dev.js",
       "default": "./dist/server.js"
     },
     "./client": {
       "types": "./dist/client.d.ts",
+      "development": "./dist/client.dev.js",
       "default": "./dist/client.js"
     },
     "./middleware": {
       "types": "./dist/middleware.d.ts",
+      "development": "./dist/middleware.dev.js",
       "default": "./dist/middleware.js"
     },
     "./routing": {
       "types": "./dist/routing.d.ts",
+      "development": "./dist/routing.dev.js",
       "default": "./dist/routing.js"
     },
     "./navigation": {
       "types": "./dist/navigation.d.ts",
+      "development": "./dist/navigation.dev.js",
       "default": "./dist/navigation.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "import": "./dist/plugin.js",
+      "require": "./dist/plugin.cjs"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
-  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": [
+    "./dist/server.js",
+    "./dist/server.dev.js"
+  ],
   "scripts": {
     "dev": "vite build --watch",
-    "build": "tsc && vite build",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "build": "node ../../tooling/clean-dist.mjs && tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist && esbuild src/plugin.ts --bundle --platform=node --format=cjs --target=node18 --external:next --log-level=warning --outfile=dist/plugin.cjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
+    "test": "vitest run && pnpm test:types",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-closed.json && tsc --noEmit -p tsconfig.keys-via-binding.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
@@ -78,13 +101,16 @@
   },
   "dependencies": {
     "@comvi/core": "workspace:*",
-    "@comvi/react": "workspace:*"
+    "@comvi/react": "workspace:*",
+    "server-only": "^0.0.1"
   },
   "peerDependencies": {
-    "next": "^14.0.0 || ^15.0.0",
-    "react": "^18.0.0 || ^19.0.0"
+    "next": "^15.0.0 || ^16.0.0",
+    "react": "^18.2.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@comvi/locale-routing": "workspace:*",
+    "@comvi/test-utils": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.13.0",
     "@types/react": "^19.2.14",
@@ -92,6 +118,7 @@
     "@typescript-eslint/parser": "^8.58.0",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.2",
+    "esbuild": "^0.28.0",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "happy-dom": "^20.8.9",

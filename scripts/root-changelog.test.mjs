@@ -3,9 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   collectChangesets,
   coordinatedVersion,
+  fixedGroupNames,
   getPublishablePackages,
   parseChangeset,
   renderRootReleaseSection,
@@ -13,6 +15,9 @@ import {
   updateRootChangelogContent,
   updateRootChangelogFile,
 } from "./root-changelog.mjs";
+
+/** This repo's root — the `fixedGroupNames` test reads the real config. */
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const baseChangelog = `# Changelog
 
@@ -42,7 +47,33 @@ Instance-level defaults:
     { name: "@comvi/core", type: "minor" },
     { name: "@comvi/react", type: "patch" },
   ]);
-  assert.equal(summarizeChangeset(changeset.body), "Instance-level defaults");
+  assert.equal(
+    changeset.body.trim(),
+    "Instance-level defaults:\n\n- Details stay in package changelogs.",
+  );
+});
+
+test("summarizeChangeset joins a soft-wrapped first paragraph into one line", () => {
+  assert.equal(
+    summarizeChangeset(
+      "**BREAKING: the default host is the base\nhost.** Migration follows.\n\nDetails.",
+    ),
+    "**BREAKING: the default host is the base host.** Migration follows.",
+  );
+});
+
+test("summarizeChangeset stops a list item before its nested detail", () => {
+  assert.equal(
+    summarizeChangeset("- **Removed** the old API.\n  - Nested detail."),
+    "**Removed** the old API.",
+  );
+});
+
+test("summarizeChangeset drops the colon that introduces a list", () => {
+  assert.equal(
+    summarizeChangeset("Instance-level defaults:\n\n- Details stay in package changelogs.\n"),
+    "Instance-level defaults",
+  );
 });
 
 test("renderRootReleaseSection emits each changeset once and groups by highest bump", () => {
@@ -70,6 +101,10 @@ test("renderRootReleaseSection emits each changeset once and groups by highest b
   });
 
   assert.match(section, /^## \[0\.5\.0\] - 2026-08-01/m);
+  assert.match(
+    section,
+    /Independently versioned packages included below keep their own versions\./,
+  );
   assert.match(section, /- \*\*All packages\*\* — Shared framework API\./);
   assert.match(section, /- \*\*@comvi\/core, @comvi\/react\*\* — React integration update\./);
   assert.match(section, /### Patch Changes\n\n- \*\*@comvi\/core\*\* — Parser bug fix\./);
@@ -107,8 +142,8 @@ test("updateRootChangelogContent prepends a release and its link", () => {
   });
 
   assert.equal(result.changed, true);
-  assert.ok(result.content.indexOf("## [0.5.0]") < result.content.indexOf("## [0.2.0]"));
-  assert.ok(result.content.indexOf("[0.5.0]:") < result.content.indexOf("[0.2.0]:"));
+  assert.deepEqual(result.content.match(/^## \[[\d.]+\]/gm), ["## [0.5.0]", "## [0.2.0]"]);
+  assert.deepEqual(result.content.match(/^\[[\d.]+\]:/gm), ["[0.5.0]:", "[0.2.0]:"]);
 });
 
 test("updateRootChangelogContent is idempotent for an existing version", () => {
@@ -142,22 +177,18 @@ test("updateRootChangelogContent is idempotent for an existing version", () => {
   assert.equal(second.content.match(/^## \[0\.5\.0\]/gm)?.length, 1);
 });
 
-test("parseChangeset rejects malformed entries", () => {
+test("parseChangeset rejects a release entry whose bump type is not a semver keyword", () => {
   assert.throws(
     () => parseChangeset("---\n@comvi/core: feature\n---\nSummary"),
     /invalid release entry/,
   );
+});
+
+test("parseChangeset rejects a changeset with no summary", () => {
   assert.throws(() => parseChangeset("---\n@comvi/core: minor\n---\n"), /no summary/);
 });
 
 test("coordinatedVersion rejects a partial fixed-group bump", () => {
-  assert.equal(
-    coordinatedVersion([
-      { name: "@comvi/core", version: "0.5.0" },
-      { name: "@comvi/react", version: "0.5.0" },
-    ]),
-    "0.5.0",
-  );
   assert.throws(
     () =>
       coordinatedVersion([
@@ -168,45 +199,127 @@ test("coordinatedVersion rejects a partial fixed-group bump", () => {
   );
 });
 
-test("filesystem helpers generate one deterministic release entry", () => {
+test("coordinatedVersion returns the version the fixed group shares, ignoring independently versioned packages", () => {
+  assert.equal(
+    coordinatedVersion([
+      { name: "@comvi/core", version: "0.5.0" },
+      { name: "@comvi/react", version: "0.5.0" },
+    ]),
+    "0.5.0",
+  );
+  // The `fixed` group decides. A publishable package outside it carries its own
+  // version and must not be compared against the train's — the repo has none
+  // today (every publishable package is in the group), which is exactly why the
+  // set is passed in rather than hard-coded.
+  assert.equal(
+    coordinatedVersion(
+      [
+        { name: "@comvi/core", version: "0.5.0" },
+        { name: "@comvi/standalone", version: "0.1.0" },
+        { name: "@comvi/react", version: "0.5.0" },
+      ],
+      new Set(["@comvi/core", "@comvi/react"]),
+    ),
+    "0.5.0",
+    "a package outside the fixed group is versioned independently and must not decide the release version",
+  );
+});
+
+test("coordinatedVersion rejects a package set with nothing coordinated in it", () => {
+  assert.throws(
+    () =>
+      coordinatedVersion(
+        [{ name: "@comvi/standalone", version: "0.1.0" }],
+        new Set(["@comvi/core"]),
+      ),
+    /no publishable packages found/,
+  );
+});
+
+test("fixedGroupNames reads the release train out of .changeset/config.json", () => {
+  const names = fixedGroupNames(REPO);
+
+  assert.ok(names.has("@comvi/core"), "@comvi/core is in the release train");
+  // The two workspace-private packages are in `ignore`, never in `fixed`.
+  assert.ok(!names.has("@comvi/locale-routing"));
+  assert.ok(!names.has("@comvi/typegen"));
+  // Every publishable package is in the group: coordinatedVersion over the real
+  // repo therefore filters nothing away, which is the property the cut relies on.
+  assert.deepEqual(
+    getPublishablePackages(REPO)
+      .map((pkg) => pkg.name)
+      .filter((name) => !names.has(name)),
+    [],
+    "a publishable package outside the fixed group would be versioned independently",
+  );
+});
+
+/**
+ * A repo root the filesystem helpers can read: two changesets whose filenames
+ * are deliberately out of authoring order, one private package, and a root
+ * CHANGELOG.md to prepend to.
+ */
+function makeFixtureRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-root-changelog-test-"));
-  try {
-    fs.mkdirSync(path.join(root, ".changeset"));
-    fs.mkdirSync(path.join(root, "packages/core"), { recursive: true });
-    fs.mkdirSync(path.join(root, "packages/react"), { recursive: true });
-    fs.writeFileSync(path.join(root, ".changeset/README.md"), "ignored");
-    fs.writeFileSync(
-      path.join(root, ".changeset/z-last.md"),
-      '---\n"@comvi/react": patch\n---\n\nReact fix.\n',
-    );
-    fs.writeFileSync(
-      path.join(root, ".changeset/a-first.md"),
-      '---\n"@comvi/core": minor\n---\n\nCore feature.\n',
-    );
-    fs.writeFileSync(
-      path.join(root, "packages/core/package.json"),
-      '{"name":"@comvi/core","version":"0.5.0"}\n',
-    );
-    fs.writeFileSync(
-      path.join(root, "packages/react/package.json"),
-      '{"name":"@comvi/react","version":"0.5.0"}\n',
-    );
-    fs.writeFileSync(path.join(root, "CHANGELOG.md"), baseChangelog);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-    const changesets = collectChangesets(root);
-    const packages = getPublishablePackages(root);
-    assert.deepEqual(
-      changesets.map((changeset) => changeset.id),
-      ["a-first.md", "z-last.md"],
-    );
-    assert.equal(coordinatedVersion(packages), "0.5.0");
-    assert.equal(updateRootChangelogFile({ root, version: "0.5.0", changesets, packages }), true);
-    assert.equal(updateRootChangelogFile({ root, version: "0.5.0", changesets, packages }), false);
+  fs.mkdirSync(path.join(root, ".changeset"));
+  fs.writeFileSync(path.join(root, ".changeset/README.md"), "ignored");
+  fs.writeFileSync(
+    path.join(root, ".changeset/z-last.md"),
+    '---\n"@comvi/react": patch\n---\n\nReact fix.\n',
+  );
+  fs.writeFileSync(
+    path.join(root, ".changeset/a-first.md"),
+    '---\n"@comvi/core": minor\n---\n\nCore feature.\n',
+  );
 
-    const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
-    assert.equal(changelog.match(/^## \[0\.5\.0\]/gm)?.length, 1);
-    assert.ok(changelog.indexOf("Core feature.") < changelog.indexOf("React fix."));
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+  for (const [dir, manifest] of [
+    ["core", '{"name":"@comvi/core","version":"0.5.0"}\n'],
+    ["react", '{"name":"@comvi/react","version":"0.5.0"}\n'],
+    ["internal", '{"name":"@comvi/internal","version":"0.0.0","private":true}\n'],
+  ]) {
+    fs.mkdirSync(path.join(root, "packages", dir), { recursive: true });
+    fs.writeFileSync(path.join(root, "packages", dir, "package.json"), manifest);
   }
+  fs.writeFileSync(path.join(root, "CHANGELOG.md"), baseChangelog);
+  return root;
+}
+
+test("collectChangesets returns every changeset sorted by filename, skipping README.md", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const changesets = collectChangesets(root);
+
+  assert.deepEqual(
+    changesets.map((changeset) => changeset.id),
+    ["a-first.md", "z-last.md"],
+  );
+});
+
+test("getPublishablePackages reads each manifest and skips private packages", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const packages = getPublishablePackages(root);
+
+  assert.deepEqual(packages, [
+    { name: "@comvi/core", version: "0.5.0" },
+    { name: "@comvi/react", version: "0.5.0" },
+  ]);
+  assert.equal(coordinatedVersion(packages), "0.5.0");
+});
+
+test("updateRootChangelogFile writes one release entry and is a no-op the second time", (t) => {
+  const root = makeFixtureRoot(t);
+  const changesets = collectChangesets(root);
+  const packages = getPublishablePackages(root);
+
+  const first = updateRootChangelogFile({ root, version: "0.5.0", changesets, packages });
+  const second = updateRootChangelogFile({ root, version: "0.5.0", changesets, packages });
+
+  assert.equal(first, true);
+  assert.equal(second, false);
+  const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
+  assert.deepEqual(changelog.match(/^## \[[\d.]+\]/gm), ["## [0.5.0]", "## [0.2.0]"]);
+  assert.deepEqual(changelog.match(/Core feature\.|React fix\./g), ["Core feature.", "React fix."]);
 });

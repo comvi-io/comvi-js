@@ -1,20 +1,15 @@
-import type {
-  TranslationParams,
-  TranslationResult,
-  TagInterpolationOptions,
-  TagCallback,
-} from "../types";
+import type { TranslationParams, TranslationResult, TagInterpolationOptions } from "../types";
 import type { VirtualNode } from "../virtualNode";
-import { createElement } from "../virtualNode";
 import { warn } from "../logger";
 import { isPrimitive, isVNodeLoose } from "./translate/params";
 import {
-  getPluralRules,
+  hashValue,
+  TK_HASH,
   TK_PARAM,
   TK_PLURAL,
   TK_SELECT,
-  TK_TAG,
   TK_TEXT,
+  TF_HAS_HASH,
   TF_HAS_PLURAL,
   TF_HAS_SELECT,
   TF_HAS_TAGS,
@@ -22,32 +17,36 @@ import {
   TF_STATIC,
   type TemplateFlags,
   type ParsedToken,
-  type TagToken,
+  type PluralToken,
+  type SelectToken,
+  type TextToken,
   type CachedTemplate,
 } from "./translate/cache";
+import { parseTemplate } from "./translate/parser";
 import {
-  parseTemplate,
-  parsePluralChoices,
-  clearPluralChoicesCache,
-  replaceTopLevelHash,
-} from "./translate/parser";
+  effectiveExtensions,
+  effectiveExtBits,
+  getCompilerId,
+  type MessageCompiler,
+  type MissingParamMode,
+  type SyntaxExtension,
+  type TranslateCtx,
+} from "./translate/syntax";
 
 declare const __DEV__: boolean | undefined;
 
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-// Character codes for fast comparison
 const CHAR_OPEN_BRACE = 123; // {
 const CHAR_APOSTROPHE = 39; // '
 const CHAR_LESS_THAN = 60; // <
 const CHAR_AMPERSAND = 38; // &
 
-// Template compilation cache for performance
-// Key: template string, Value: cached template with metadata
+// Module-global and shared by every entry/instance in the process: the KEY,
+// not the instance, carries compiler identity and the effective extension set.
 const templateCache = new Map<string, CachedTemplate>();
 
-// Maximum number of compiled templates to hold before evicting oldest entries.
-// Insertion-order eviction (Map iteration is insertion-order in JS).
+// Eviction is insertion-order, which works because JS Map iteration is.
 const TEMPLATE_CACHE_MAX = 1000;
 
 /** @internal */
@@ -55,10 +54,7 @@ export function _templateCacheSize(): number {
   return templateCache.size;
 }
 
-/**
- * Insert a compiled template into the cache, evicting the oldest entry when the
- * cap is reached. Use instead of raw templateCache.set() everywhere.
- */
+/** Use instead of a raw `templateCache.set()` — this is what enforces the cap. */
 function cacheTemplate(key: string, value: CachedTemplate): void {
   if (templateCache.size >= TEMPLATE_CACHE_MAX) {
     templateCache.delete(templateCache.keys().next().value!);
@@ -67,62 +63,82 @@ function cacheTemplate(key: string, value: CachedTemplate): void {
 }
 
 /**
- * Clears all translation-related caches.
- * Exported for power-user / test use; not called automatically on reload/destroy
- * to avoid cross-instance cache invalidation.
+ * Deliberately NOT called on reload/destroy — the cache is shared, so that would
+ * invalidate other instances. Registering or disposing a syntax extension never
+ * requires clearing either: the keys differ by construction.
  */
 export function clearTemplateCache(): void {
   templateCache.clear();
-  clearPluralChoicesCache();
 }
 
 /**
- * Check if a template is known to be static (no interpolation).
- * Returns undefined if not yet analyzed.
+ * Check if a template is known to be static (no interpolation) FOR THE GIVEN
+ * CACHE VARIANT. "Static" is a property of a parse, and a parse is defined by
+ * the full key (template, hashIsSyntax, compilerId, extBits) — there is no
+ * cross-variant fallback. Returns undefined if that variant is not yet
+ * analyzed.
  */
-export function isStaticTemplate(template: string): boolean | undefined {
-  return templateCache.get(templateCacheKey(template, false))?.isStatic;
+export function isStaticTemplate(
+  template: string,
+  hashIsSyntax: boolean,
+  compilerId: number,
+  extBits: number,
+): boolean | undefined {
+  return templateCache.get(templateCacheKey(template, hashIsSyntax, compilerId, extBits))?.isStatic;
 }
 
 /**
- * Cache key for a compiled template. Parsing depends on whether `#` is
- * syntax (inside a plural/selectordinal sub-message), so the same string
+ * Cache key for a compiled template. Parsing depends on whether `#` is syntax
+ * (inside a plural/selectordinal sub-message), on the compiler that built the
+ * tokens, and on the effective syntax-extension set — so the same string
  * compiles differently per context and needs distinct cache entries.
+ *
+ * Two-char prefix with non-overlapping fields (headroom by construction):
+ * char 1 carries the hash bit plus the extension bits (15 usable bits),
+ * char 2 carries the full compiler id.
  */
-function templateCacheKey(template: string, hashIsSyntax: boolean): string {
-  return `${hashIsSyntax ? "\u0001" : "\u0000"}${template}`;
+function templateCacheKey(
+  template: string,
+  hashIsSyntax: boolean,
+  compilerId: number,
+  extBits: number,
+): string {
+  return (
+    String.fromCharCode((hashIsSyntax ? 1 : 0) | (extBits << 1)) +
+    String.fromCharCode(compilerId) +
+    template
+  );
 }
 
-/**
- * Create cached template with optimization metadata.
- */
-function createCachedTemplate(template: string, hashIsSyntax: boolean): CachedTemplate {
-  const tokens = parseTemplate(template, hashIsSyntax);
+function createCachedTemplate(
+  template: string,
+  hashIsSyntax: boolean,
+  extensions: readonly SyntaxExtension[],
+  compiler: MessageCompiler,
+): CachedTemplate {
+  const tokens = parseTemplate(template, hashIsSyntax, extensions, compiler);
   let flags: TemplateFlags = TF_STATIC;
 
   if (!(tokens.length === 0 || (tokens.length === 1 && tokens[0][0] === TK_TEXT))) {
     let hasDynamic = false;
     for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-      const kind = token[0];
+      const kind = tokens[i][0];
       if (kind === TK_PARAM) {
         hasDynamic = true;
       } else if (kind === TK_PLURAL) {
-        if (token[3] === undefined) {
-          token[3] = parsePluralChoices(token[2]);
-        }
-        if (token[4] === undefined) {
-          token[4] = token[2].indexOf("=") !== -1 ? 1 : 0;
-        }
         flags |= TF_HAS_PLURAL;
         hasDynamic = true;
       } else if (kind === TK_SELECT) {
-        if (token[3] === undefined) {
-          token[3] = parsePluralChoices(token[2], hashIsSyntax);
-        }
         flags |= TF_HAS_SELECT;
         hasDynamic = true;
-      } else if (kind === TK_TAG) {
+      } else if (kind === TK_HASH) {
+        // Its own flag, not TF_HAS_TAGS: a `#` renders to a string, so a
+        // hash-only branch must not be pushed onto the vnode path. The flag
+        // still has to be set, or the branch would be classified
+        // TF_SIMPLE_PARAMS and rendered by a fast path that knows no `#`.
+        flags |= TF_HAS_HASH;
+        hasDynamic = true;
+      } else if (kind !== TK_TEXT) {
         flags |= TF_HAS_TAGS;
         hasDynamic = true;
       }
@@ -136,12 +152,14 @@ function createCachedTemplate(template: string, hashIsSyntax: boolean): CachedTe
   // mean "rendered output is byte-equal to the template". Quoting and escape
   // sequences ('', '{...}', &lt;, \<) produce text-only tokens whose output
   // differs from the raw template; those must keep rendering through tokens.
+  // `flags === TF_STATIC` with one token means that token is TK_TEXT — every
+  // other kind sets a flag or `hasDynamic` above — which is what the cast
+  // asserts; a nullary TK_HASH token would read `undefined` and stay non-static.
   const isStatic =
     flags === TF_STATIC &&
-    (tokens.length === 0 || (tokens.length === 1 && tokens[0][1] === template));
+    (tokens.length === 0 || (tokens.length === 1 && (tokens[0] as TextToken)[1] === template));
   const cached: CachedTemplate = { tokens, flags, isStatic };
 
-  // Pre-compute single param template parts for fast-path
   if (
     flags === TF_SIMPLE_PARAMS &&
     tokens.length === 3 &&
@@ -153,7 +171,6 @@ function createCachedTemplate(template: string, hashIsSyntax: boolean): CachedTe
     cached.singleParamName = tokens[1][1];
     cached.suffix = tokens[2][1];
   } else if (flags === TF_SIMPLE_PARAMS && tokens.length === 2) {
-    // Handle "{param}suffix" or "prefix{param}"
     if (tokens[0][0] === TK_PARAM && tokens[1][0] === TK_TEXT) {
       cached.prefix = "";
       cached.singleParamName = tokens[0][1];
@@ -164,7 +181,6 @@ function createCachedTemplate(template: string, hashIsSyntax: boolean): CachedTe
       cached.suffix = "";
     }
   } else if (flags === TF_SIMPLE_PARAMS && tokens.length === 1 && tokens[0][0] === TK_PARAM) {
-    // Handle "{param}" only
     cached.prefix = "";
     cached.singleParamName = tokens[0][1];
     cached.suffix = "";
@@ -173,26 +189,84 @@ function createCachedTemplate(template: string, hashIsSyntax: boolean): CachedTe
   return cached;
 }
 
-// Empty params object singleton to avoid allocations
+// Shared singleton: a paramless call must not allocate.
 const EMPTY_PARAMS: TranslationParams = Object.freeze({});
 
+/** Dev-only dedup of missing-parameter warnings per (template, param) pair. */
+const missingParamWarned = IS_DEV ? new Set<string>() : undefined;
+
+/** @internal Test teardown: forgets which (template, param) pairs already warned. */
+export function _resetMissingParamWarnings(): void {
+  missingParamWarned?.clear();
+}
+
 /**
- * Main translation function.
+ * Literal rendering of a missing (absent or `undefined`) parameter under
+ * `missingParam: "literal"`; warns once per (template, param) pair in dev.
  */
+function missingParamText(name: string, ctx: TranslateCtx): string {
+  if (IS_DEV && missingParamWarned !== undefined) {
+    const dedupKey = ctx.template + "\u0000" + name;
+    if (!missingParamWarned.has(dedupKey)) {
+      missingParamWarned.add(dedupKey);
+      warn(`[@comvi/core] Missing parameter "${name}" for template "${ctx.template}"`);
+    }
+  }
+  return "{" + name + "}";
+}
+
+function makeCtx(
+  template: string,
+  params: TranslationParams,
+  locale: string,
+  tagInterpolation: TagInterpolationOptions | undefined,
+  compiler: MessageCompiler,
+  missingParam: MissingParamMode,
+): TranslateCtx {
+  const perCall = tagInterpolation?.extensions;
+  return {
+    template,
+    params,
+    locale,
+    tagInterpolation,
+    compiler,
+    compilerId: getCompilerId(compiler),
+    extensions: effectiveExtensions(perCall),
+    extBits: effectiveExtBits(perCall),
+    missingParam,
+    pluralRules: undefined,
+  };
+}
+
 export function translate(
   template: string,
   locale: string,
-  params?: TranslationParams,
-  tagInterpolation?: TagInterpolationOptions,
+  params: TranslationParams | undefined,
+  tagInterpolation: TagInterpolationOptions | undefined,
+  compiler: MessageCompiler,
+  missingParam: MissingParamMode = "literal",
 ): TranslationResult {
-  const cached = templateCache.get(templateCacheKey(template, false));
+  const perCall = tagInterpolation?.extensions;
+  const cacheKey = templateCacheKey(
+    template,
+    false,
+    getCompilerId(compiler),
+    effectiveExtBits(perCall),
+  );
+  const cached = templateCache.get(cacheKey);
   if (cached) {
-    // Already cached - use cached analysis
     if (cached.isStatic) {
       return template;
     }
-    const safeParams = params ?? EMPTY_PARAMS;
-    return translateTemplateWithCache(cached, safeParams, locale, tagInterpolation);
+    const ctx = makeCtx(
+      template,
+      params ?? EMPTY_PARAMS,
+      locale,
+      tagInterpolation,
+      compiler,
+      missingParam,
+    );
+    return translateTemplateWithCache(cached, ctx, false);
   }
 
   let hasSpecialChar = false;
@@ -209,7 +283,7 @@ export function translate(
     }
   }
   if (!hasSpecialChar) {
-    cacheTemplate(templateCacheKey(template, false), {
+    cacheTemplate(cacheKey, {
       tokens: [],
       flags: TF_STATIC,
       isStatic: true,
@@ -217,82 +291,84 @@ export function translate(
     return template;
   }
 
-  const safeParams = params ?? EMPTY_PARAMS;
-  return translateTemplate(template, safeParams, locale, tagInterpolation);
-}
-
-/**
- * Process template with pre-existing cached data.
- */
-function translateTemplateWithCache(
-  cached: CachedTemplate,
-  params: TranslationParams,
-  locale: string,
-  tagInterpolation?: TagInterpolationOptions,
-  hashIsSyntax = false,
-): TranslationResult {
-  // Fast path for single-param templates: "Hello, {name}!" -> prefix + value + suffix
-  if (cached.singleParamName !== undefined) {
-    const value = params[cached.singleParamName];
-    if (value !== undefined && value !== null) {
-      const t = typeof value;
-      if (t === "string") {
-        return cached.prefix! + value + cached.suffix!;
-      }
-      if (t === "number" || t === "boolean") {
-        return cached.prefix! + value + cached.suffix!;
-      }
-      // Non-primitive value - fall through to full processing
-    } else {
-      // undefined/null param - combine prefix + suffix
-      const prefix = cached.prefix!;
-      const suffix = cached.suffix!;
-      return prefix ? (suffix ? prefix + suffix : prefix) : suffix;
-    }
-  }
-
-  if (cached.flags === TF_SIMPLE_PARAMS) {
-    return processSimpleParams(cached.tokens, params);
-  }
-
-  // Full processing for complex templates
-  const pluralRules = (cached.flags & TF_HAS_PLURAL) !== 0 ? getPluralRules(locale) : undefined;
-  const resultParts = processTokens(
-    cached.tokens,
-    params,
+  const ctx = makeCtx(
+    template,
+    params ?? EMPTY_PARAMS,
     locale,
     tagInterpolation,
-    pluralRules,
-    hashIsSyntax,
+    compiler,
+    missingParam,
   );
-  return finalizeResult(resultParts);
+  return translateSegment(template, ctx, false);
 }
 
 /**
- * Processes the template.
+ * Nested dynamic segments reuse the PARENT ctx, so their parses land in the
+ * same cache variant.
  */
+export function translateSegment(
+  segment: string,
+  ctx: TranslateCtx,
+  hashIsSyntax: boolean,
+): TranslationResult {
+  const cacheKey = templateCacheKey(segment, hashIsSyntax, ctx.compilerId, ctx.extBits);
+  let cached = templateCache.get(cacheKey);
+  if (!cached) {
+    cached = createCachedTemplate(segment, hashIsSyntax, ctx.extensions, ctx.compiler);
+    cacheTemplate(cacheKey, cached);
+  }
+  // `translate()` stores static templates as a token-less placeholder; rendering that entry
+  // through the token path would yield "" (a per-call `fallback` equal to a catalog value hit this).
+  if (cached.isStatic) return segment;
+  return translateTemplateWithCache(cached, ctx, hashIsSyntax);
+}
+
 export function translateTemplate(
   template: string,
   params: TranslationParams,
   locale: string,
-  tagInterpolation?: TagInterpolationOptions,
+  tagInterpolation: TagInterpolationOptions | undefined,
+  compiler: MessageCompiler,
+  missingParam: MissingParamMode = "literal",
   hashIsSyntax = false,
 ): TranslationResult {
-  // Get or create cached template with metadata
-  const cacheKey = templateCacheKey(template, hashIsSyntax);
-  let cached = templateCache.get(cacheKey);
-  if (!cached) {
-    cached = createCachedTemplate(template, hashIsSyntax);
-    cacheTemplate(cacheKey, cached);
-  }
-
-  return translateTemplateWithCache(cached, params, locale, tagInterpolation, hashIsSyntax);
+  const ctx = makeCtx(template, params, locale, tagInterpolation, compiler, missingParam);
+  return translateSegment(template, ctx, hashIsSyntax);
 }
 
-/**
- * Fast path for templates with only text and simple params.
- */
-function processSimpleParams(tokens: ParsedToken[], params: TranslationParams): TranslationResult {
+function translateTemplateWithCache(
+  cached: CachedTemplate,
+  ctx: TranslateCtx,
+  hashIsSyntax: boolean,
+): TranslationResult {
+  if (cached.singleParamName !== undefined) {
+    const value = ctx.params[cached.singleParamName];
+    if (value !== undefined && value !== null) {
+      const t = typeof value;
+      if (t === "string" || t === "number" || t === "boolean") {
+        return cached.prefix! + value + cached.suffix!;
+      }
+    } else {
+      const prefix = cached.prefix!;
+      const suffix = cached.suffix!;
+      if (value === undefined && ctx.missingParam === "literal") {
+        return prefix + missingParamText(cached.singleParamName, ctx) + suffix;
+      }
+      return prefix + suffix;
+    }
+  }
+
+  if (cached.flags === TF_SIMPLE_PARAMS) {
+    return processSimpleParams(cached.tokens, ctx);
+  }
+
+  const resultParts = processTokens(cached.tokens, ctx, hashIsSyntax);
+  return finalizeResult(resultParts);
+}
+
+/** Fast path: text and simple params only — no plural, select or tag tokens. */
+function processSimpleParams(tokens: ParsedToken[], ctx: TranslateCtx): TranslationResult {
+  const params = ctx.params;
   let result = "";
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
@@ -316,28 +392,27 @@ function processSimpleParams(tokens: ParsedToken[], params: TranslationParams): 
             if (kind === TK_TEXT) {
               appendString(parts, token[1]);
             } else if (kind === TK_PARAM) {
-              appendParamValue(parts, params[token[1]]);
+              appendParamValue(parts, params[token[1]], token[1], ctx);
             }
           }
 
           return finalizeResult(parts);
         }
+      } else if (value === undefined && ctx.missingParam === "literal") {
+        result += missingParamText(token[1], ctx);
       }
     }
   }
   return result;
 }
 
-function finalizeResult(parts: Array<string | VirtualNode>): TranslationResult {
+export function finalizeResult(parts: Array<string | VirtualNode>): TranslationResult {
   if (parts.length === 1 && typeof parts[0] === "string") {
     return parts[0];
   }
   return parts.every(isPrimitive) ? parts.join("") : parts;
 }
 
-/**
- * Helper: append string to parts array, merging with last element if possible.
- */
 function appendString(parts: Array<string | VirtualNode>, str: string): void {
   const lastIdx = parts.length - 1;
   const lastPart = parts[lastIdx];
@@ -348,12 +423,22 @@ function appendString(parts: Array<string | VirtualNode>, str: string): void {
   }
 }
 
-/**
- * Helper: append a translation parameter value to parts.
- * Supports primitives, VNodes, and TranslationResult arrays.
- */
-function appendParamValue(parts: Array<string | VirtualNode>, value: unknown): void {
-  if (value == null) return;
+/** Missing (`undefined`) params follow `ctx.missingParam`; `null` always erases. */
+function appendParamValue(
+  parts: Array<string | VirtualNode>,
+  value: unknown,
+  name: string,
+  ctx: TranslateCtx,
+): void {
+  // The second test is the own-property check: `{constructor}` or `{valueOf}`
+  // in a message must not resolve to what every object inherits.
+  if (value === undefined || value === (Object.prototype as Record<string, unknown>)[name]) {
+    if (ctx.missingParam === "literal") {
+      appendString(parts, missingParamText(name, ctx));
+    }
+    return;
+  }
+  if (value === null) return;
   if (Array.isArray(value)) {
     for (const item of value) {
       if (item == null) continue;
@@ -373,108 +458,63 @@ function appendParamValue(parts: Array<string | VirtualNode>, value: unknown): v
 }
 
 /**
- * Processes a dynamic segment (outside single quotes).
- * It scans for balanced tokens and processes them.
- * Uses caching to avoid re-parsing the same template strings.
+ * Compiler-owned argument tokens (plural/select) dispatch through
+ * `ctx.compiler.processArgToken`; extension tokens (tags) dispatch through
+ * the effective extension set's process-hooks. Cache-variant keying
+ * guarantees a token kind only appears when its producer is present.
  */
-function processDynamicSegment(
-  segment: string,
-  params: TranslationParams,
-  locale: string,
-  tagInterpolation: TagInterpolationOptions | undefined,
+export function processTokens(
+  tokens: ParsedToken[],
+  ctx: TranslateCtx,
   hashIsSyntax: boolean,
 ): Array<string | VirtualNode> {
-  const result = translateTemplate(segment, params, locale, tagInterpolation, hashIsSyntax);
-  return Array.isArray(result) ? result : [result];
-}
-
-/**
- * Processes parsed tokens into result parts.
- */
-function processTokens(
-  tokens: ParsedToken[],
-  params: TranslationParams,
-  locale: string,
-  tagInterpolation?: TagInterpolationOptions,
-  pluralRules?: Intl.PluralRules,
-  hashIsSyntax = false,
-): Array<string | VirtualNode> {
   const parts: Array<string | VirtualNode> = [];
-  let lastIdx = parts.length - 1;
 
   for (const token of tokens) {
     const kind = token[0];
 
     if (kind === TK_TEXT) {
-      // Merge with previous string if possible
-      const lastPart = parts[lastIdx];
-      if (lastIdx >= 0 && typeof lastPart === "string") {
-        parts[lastIdx] = lastPart + token[1];
-      } else {
-        parts.push(token[1]);
-        lastIdx++;
-      }
+      appendString(parts, token[1]);
       continue;
     }
 
     if (kind === TK_PARAM) {
-      const value = params[token[1]];
-      if (value != null) {
-        const prevLength = parts.length;
-        appendParamValue(parts, value);
-        if (parts.length > prevLength) {
-          lastIdx = parts.length - 1;
-        }
+      const value = ctx.params[token[1]];
+      if (value !== undefined || ctx.missingParam === "literal") {
+        appendParamValue(parts, value, token[1], ctx);
       }
       continue;
     }
 
-    // Less common cases: plural, select, tag
-    if (kind === TK_PLURAL) {
-      const pluralResult = processPlural(
-        token[1],
-        token[2],
-        token[3] ?? parsePluralChoices(token[2]),
-        token[4] === 1,
-        token[5] === 1,
-        params,
-        locale,
-        tagInterpolation,
-        pluralRules,
-      );
-      appendResult(parts, pluralResult);
-      lastIdx = parts.length - 1;
+    if (kind === TK_HASH) {
+      // Only the parser produces this token, and only under `hashIsSyntax`,
+      // which only `processPlural` turns on — after setting `hashValue`.
+      appendString(parts, hashValue!);
       continue;
     }
 
-    if (kind === TK_SELECT) {
-      const selectResult = processSelect(
-        token[1],
-        token[3] ?? parsePluralChoices(token[2], hashIsSyntax),
-        params,
-        locale,
-        tagInterpolation,
-        hashIsSyntax,
-      );
-      appendResult(parts, selectResult);
-      lastIdx = parts.length - 1;
+    if (kind === TK_PLURAL || kind === TK_SELECT) {
+      const processArg = ctx.compiler.processArgToken;
+      if (processArg !== undefined) {
+        appendResult(parts, processArg(token as PluralToken | SelectToken, ctx, hashIsSyntax));
+      }
       continue;
     }
 
-    if (kind === TK_TAG) {
-      const tagResult = processTag(token, params, locale, tagInterpolation, hashIsSyntax);
-      appendResult(parts, tagResult);
-      lastIdx = parts.length - 1;
+    // An extension token — tags, today.
+    for (let e = 0; e < ctx.extensions.length; e++) {
+      const result = ctx.extensions[e].processHook(token, ctx, hashIsSyntax);
+      if (result !== undefined) {
+        appendResult(parts, result);
+        break;
+      }
     }
   }
 
   return parts;
 }
 
-/**
- * Helper to append a result (string, VNode, or array) to parts array.
- * Merges consecutive strings for efficiency.
- */
+/** Merges consecutive strings rather than pushing them as separate parts. */
 function appendResult(
   parts: Array<string | VirtualNode>,
   result: string | VirtualNode | Array<string | VirtualNode>,
@@ -489,160 +529,4 @@ function appendResult(
   } else {
     parts.push(result);
   }
-}
-
-/**
- * Processes an ICU plural token.
- */
-function processPlural(
-  param: string,
-  choicesStr: string,
-  choices: Record<string, string>,
-  hasExactSelectors: boolean,
-  isOrdinal: boolean,
-  params: TranslationParams,
-  locale: string,
-  tagInterpolation?: TagInterpolationOptions,
-  pluralRules?: Intl.PluralRules,
-): string | Array<string | VirtualNode> {
-  const count = Number(params[param]);
-  if (isNaN(count)) {
-    warn(
-      IS_DEV
-        ? `[i18n] Invalid plural parameter value for "${param}": expected number, got ${typeof params[param]}`
-        : "E_INVALID_PLURAL_PARAM",
-      { param, value: params[param] },
-    );
-    return `{${param}, ${isOrdinal ? "selectordinal" : "plural"}, ${choicesStr}}`;
-  }
-
-  let selected: string | undefined;
-  if (hasExactSelectors) {
-    selected = choices["=" + count];
-  }
-  if (selected === undefined) {
-    const rules = isOrdinal
-      ? getPluralRules(locale, true)
-      : (pluralRules ?? getPluralRules(locale));
-    const category = rules.select(count);
-    selected = choices[category] ?? choices.other ?? "";
-  }
-
-  selected = replaceTopLevelHash(selected, String(count));
-
-  if (
-    selected.indexOf("{") !== -1 ||
-    selected.indexOf("<") !== -1 ||
-    selected.indexOf("'") !== -1
-  ) {
-    const nestedResult = processDynamicSegment(selected, params, locale, tagInterpolation, true);
-    return finalizeResult(nestedResult);
-  }
-
-  return selected;
-}
-
-/**
- * Processes an ICU select token.
- * Expects choices string of the form:
- *   male {He} female {She} other {They}
- * Matches param value directly to keys.
- */
-function processSelect(
-  param: string,
-  choices: Record<string, string>,
-  params: TranslationParams,
-  locale: string,
-  tagInterpolation: TagInterpolationOptions | undefined,
-  hashIsSyntax: boolean,
-): string | Array<string | VirtualNode> {
-  const value = String(params[param] ?? "");
-
-  // Direct match or fallback to 'other'
-  const selected = choices[value] ?? choices.other ?? "";
-
-  // Process nested tokens if they exist (ICU params, tags or quoting)
-  if (selected.includes("{") || selected.includes("<") || selected.includes("'")) {
-    const nestedResult = processDynamicSegment(
-      selected,
-      params,
-      locale,
-      tagInterpolation,
-      hashIsSyntax,
-    );
-    return finalizeResult(nestedResult);
-  }
-
-  return selected;
-}
-
-/**
- * Processes a tag token.
- * Handles:
- * - Tag handlers from params (TagCallback functions)
- * - Basic HTML tags from whitelist
- * - Strict mode behavior (fallback, warn, error)
- */
-function processTag(
-  token: TagToken,
-  params: TranslationParams,
-  locale: string,
-  tagInterpolation?: TagInterpolationOptions,
-  hashIsSyntax = false,
-): string | VirtualNode | Array<string | VirtualNode> {
-  const tagName = token[1];
-  const children = token[2];
-  const isSelfClosing = token[3] === 1;
-
-  // Process children first to get their result
-  const childrenResult = processTokens(
-    children,
-    params,
-    locale,
-    tagInterpolation,
-    undefined,
-    hashIsSyntax,
-  );
-  const flattenedChildren = finalizeResult(childrenResult);
-
-  // Check for tag handler in params
-  const handler = params[tagName];
-  if (typeof handler === "function") {
-    return (handler as TagCallback)({
-      children: flattenedChildren,
-      name: tagName,
-    });
-  }
-
-  // Check for basic HTML tags whitelist
-  if (tagInterpolation?.basicHtmlTags?.includes(tagName)) {
-    // Render as basic HTML VNode
-    return createElement(tagName, {}, isSelfClosing ? [] : childrenResult);
-  }
-
-  // Handle missing handler based on strict mode
-  const strict = tagInterpolation?.strict;
-
-  if (strict === true) {
-    throw new Error(
-      IS_DEV ? `[i18n] Missing handler for tag: <${tagName}>` : "E_MISSING_TAG_HANDLER",
-    );
-  }
-
-  if (strict === "warn") {
-    const message = IS_DEV
-      ? `[i18n] Missing handler for tag: <${tagName}>. Falling back to inner text.`
-      : "E_MISSING_TAG_FALLBACK";
-    if (tagInterpolation?.onTagWarning) {
-      try {
-        tagInterpolation.onTagWarning(tagName);
-      } catch {
-        warn(message);
-      }
-    } else {
-      warn(message);
-    }
-  }
-
-  return flattenedChildren;
 }

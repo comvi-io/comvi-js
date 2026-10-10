@@ -1,43 +1,35 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render } from "solid-js/web";
+import { describe, it, expect, beforeEach } from "vitest";
 import type { JSX } from "solid-js";
 import { I18nProvider } from "../src/context";
 import { T } from "../src/T";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { createI18n } from "../src/index";
+import type { ComponentMap } from "../src/types";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import type { TagCallbackParams, TranslationResult } from "@comvi/core";
+import { createElement, createFragment, createTextNode } from "@comvi/core/rich-text";
+import { flushMicrotasks, renderSolid } from "./test-utils";
 
 describe("T.tsx", () => {
   let fake: FakeI18n;
   let container: HTMLDivElement;
-  let dispose: (() => void) | undefined;
 
   const renderWithProvider = (ui: () => JSX.Element) => {
-    dispose = render(
-      () => (
-        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
-          {ui()}
-        </I18nProvider>
-      ),
-      container,
-    );
+    container = renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        {ui()}
+      </I18nProvider>
+    ));
   };
 
   beforeEach(() => {
     fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    container = document.createElement("div");
     fake.hasTranslation.mockImplementation((key: string) => key !== "missing.key");
-  });
-
-  afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-    container.textContent = "";
   });
 
   it("renders existing translation result", () => {
     fake.tImplementation = (key) => (key === "existing" ? "Existing Translation" : key);
 
-    renderWithProvider(() => <T i18nKey={"existing" as never}>Slot fallback</T>);
+    renderWithProvider(() => <T i18nKey={"existing" as never} />);
 
     expect(container.textContent).toBe("Existing Translation");
   });
@@ -121,7 +113,10 @@ describe("T.tsx", () => {
     ));
 
     expect(container.innerHTML).toContain("<span>fallback</span>");
-    expect(created).toBeGreaterThan(0);
+    // Two: the fallback subtree is evaluated once to decide it is non-empty and
+    // once to render it. The exact number is what the mirror test's `toBe(0)`
+    // is being compared against.
+    expect(created).toBe(2);
   });
 
   it("renders string tag handler mappings", () => {
@@ -258,11 +253,8 @@ describe("T.tsx", () => {
   it("renders text and fragment virtual nodes", () => {
     fake.tImplementation = () =>
       [
-        { type: "text", text: "Hello" },
-        {
-          type: "fragment",
-          children: [" ", { type: "element", tag: "strong", props: {}, children: ["World"] }],
-        },
+        createTextNode("Hello"),
+        createFragment([" ", createElement("strong", {}, ["World"])]),
       ] as unknown as TranslationResult;
 
     renderWithProvider(() => <T i18nKey={"msg" as never} />);
@@ -299,16 +291,33 @@ describe("T.tsx", () => {
   it("does not recompute when global locale changes and locale prop is pinned", async () => {
     fake.tImplementation = (_key, params) => `locale=${String(params?.locale ?? fake.language)}`;
 
-    renderWithProvider(() => <T i18nKey={"greeting" as never} locale="fr" />);
+    // The unpinned sibling is the positive control: it proves the locale flip
+    // DID reach a `<T>` in the same flush, so the pinned one's unchanged call
+    // count is a real negative rather than a not-yet.
+    renderWithProvider(() => (
+      <>
+        <span data-testid="pinned">
+          <T i18nKey={"greeting" as never} locale="fr" />
+        </span>
+        <span data-testid="unpinned">
+          <T i18nKey={"greeting" as never} />
+        </span>
+      </>
+    ));
 
-    expect(container.textContent).toBe("locale=fr");
+    const pinned = container.querySelector('[data-testid="pinned"]')!;
+    const unpinned = container.querySelector('[data-testid="unpinned"]')!;
+
+    expect(pinned.textContent).toBe("locale=fr");
+    expect(unpinned.textContent).toBe("locale=en");
     const callsAfterRender = fake.tRaw.mock.calls.length;
 
-    await fake.setLocaleAsync("de");
-    await Promise.resolve();
+    await fake.setLocale("de");
+    await flushMicrotasks(2);
 
-    expect(container.textContent).toBe("locale=fr");
-    expect(fake.tRaw).toHaveBeenCalledTimes(callsAfterRender);
+    expect(unpinned.textContent).toBe("locale=de");
+    expect(pinned.textContent).toBe("locale=fr");
+    expect(fake.tRaw).toHaveBeenCalledTimes(callsAfterRender + 1);
   });
 
   it("passes params to the translation call for interpolation", () => {
@@ -319,12 +328,22 @@ describe("T.tsx", () => {
     expect(container.textContent).toBe("Hello Alice");
   });
 
-  it("passes raw flag to skip post-processing", () => {
-    fake.tImplementation = (_key, params) => (params?.raw ? "raw content" : "processed content");
+  it("forwards markers={false} to the translation call", () => {
+    fake.tImplementation = (_key, params) =>
+      params?.markers === false ? "unmarked content" : "processed content";
 
-    renderWithProvider(() => <T i18nKey={"msg" as never} raw />);
+    renderWithProvider(() => <T i18nKey={"msg" as never} markers={false} />);
 
-    expect(container.textContent).toBe("raw content");
+    expect(container.textContent).toBe("unmarked content");
+  });
+
+  it("applies post-processing when markers is not set", () => {
+    fake.tImplementation = (_key, params) =>
+      params?.markers === false ? "unmarked content" : "processed content";
+
+    renderWithProvider(() => <T i18nKey={"msg" as never} />);
+
+    expect(container.textContent).toBe("processed content");
   });
 
   it("reactively updates when locale changes", async () => {
@@ -338,9 +357,179 @@ describe("T.tsx", () => {
 
     expect(container.textContent).toBe("Hello");
 
-    await fake.setLocaleAsync("fr");
-    await Promise.resolve();
+    await fake.setLocale("fr");
+    await flushMicrotasks();
 
     expect(container.textContent).toBe("Bonjour");
+  });
+
+  it("re-renders when translations are added to the host catalog", async () => {
+    renderWithProvider(() => <T i18nKey={"greeting" as never} />);
+
+    expect(container.textContent).toBe("greeting");
+
+    fake.addMessages({ en: { greeting: "Hello" } });
+    await flushMicrotasks();
+
+    expect(container.textContent).toBe("Hello");
+  });
+
+  it("degrades a non-invokable handler to the tag's children without reporting an error", () => {
+    // A JS consumer passing an already-created element where a component
+    // function belongs: unusable as a component, but not an error either.
+    const alreadyRendered = document.createElement("mark");
+    fake.tImplementation = (_key, params) => {
+      const badge = (params?.badge as (payload: TagCallbackParams) => TranslationResult)({
+        children: "gold",
+        name: "badge",
+      });
+      return ["You earned ", badge] as TranslationResult;
+    };
+
+    renderWithProvider(() => (
+      <T
+        i18nKey={"earned" as never}
+        components={{ badge: alreadyRendered } as unknown as ComponentMap}
+      />
+    ));
+
+    expect(container.textContent).toBe("You earned gold");
+    expect(container.innerHTML).not.toContain("__comvi_handler");
+    expect(fake.reportError).not.toHaveBeenCalled();
+  });
+
+  it("renders nothing when the host resolves the key to no content", () => {
+    fake.tImplementation = () => null as unknown as TranslationResult;
+
+    renderWithProvider(() => <T i18nKey={"msg" as never} />);
+
+    expect(container.textContent).toBe("");
+  });
+
+  it("keeps the same fallback DOM node when the translation is still missing after a recompute", async () => {
+    fake.hasTranslation.mockImplementation(() => false);
+    fake.tImplementation = (key) => key;
+
+    renderWithProvider(() => (
+      <T i18nKey={"missing.key" as never}>
+        <span>Slot fallback</span>
+      </T>
+    ));
+    const mounted = container.querySelector("span");
+
+    await fake.setLocale("fr");
+    await flushMicrotasks(2);
+
+    expect(container.querySelector("span")).toBe(mounted);
+  });
+
+  it("scopes the missing-key check to the active locale and default namespace", () => {
+    fake.hasTranslation.mockImplementation(() => false);
+    fake.tImplementation = (key) => key;
+
+    renderWithProvider(() => (
+      <T i18nKey={"missing.key" as never}>
+        <span>Slot fallback</span>
+      </T>
+    ));
+
+    expect(fake.hasTranslation).toHaveBeenCalledWith("missing.key", "en", "common", true);
+  });
+
+  it("keeps a key that resolves only through the fallback locale out of the missing path", () => {
+    // "ok" translates to the literal string "ok", so the resolved text alone
+    // cannot tell present from missing — only the fallback-aware host check can.
+    fake = new FakeI18n({ language: "de", defaultNamespace: "common" });
+    fake.addMessages({ "en:common": { ok: "ok" } });
+    fake.setFallbackLocale("en");
+
+    renderWithProvider(() => (
+      <T i18nKey={"ok" as never}>
+        <span>Slot fallback</span>
+      </T>
+    ));
+
+    expect(container.textContent).toBe("ok");
+  });
+
+  it("asks the host for the key alone when no params, components or overrides are given", () => {
+    fake.tImplementation = () => "Hello";
+
+    renderWithProvider(() => <T i18nKey={"greeting" as never} />);
+
+    expect(container.textContent).toBe("Hello");
+    expect(fake.tRaw.mock.calls).toEqual([["greeting"]]);
+  });
+
+  it("asks the host for the key alone when the components map is empty", () => {
+    fake.tImplementation = () => "Hello";
+
+    renderWithProvider(() => <T i18nKey={"greeting" as never} components={{}} />);
+
+    expect(container.textContent).toBe("Hello");
+    expect(fake.tRaw.mock.calls).toEqual([["greeting"]]);
+  });
+
+  it("asks the host for the key alone when the params object is empty", () => {
+    fake.tImplementation = () => "Hello";
+
+    renderWithProvider(() => <T i18nKey={"greeting" as never} params={{}} />);
+
+    expect(container.textContent).toBe("Hello");
+    expect(fake.tRaw.mock.calls).toEqual([["greeting"]]);
+  });
+
+  it("renders children fallback for a missing key when params are given", () => {
+    fake.hasTranslation.mockImplementation(() => false);
+    fake.tImplementation = (key) => key;
+
+    renderWithProvider(() => (
+      <T i18nKey={"missing.key" as never} params={{ name: "Ada" }}>
+        <span>Slot fallback</span>
+      </T>
+    ));
+
+    expect(container.innerHTML).toContain("<span>Slot fallback</span>");
+  });
+
+  it("renders the key itself for a missing key with params and no children", () => {
+    fake.hasTranslation.mockImplementation(() => false);
+    fake.tImplementation = (key) => key;
+
+    renderWithProvider(() => <T i18nKey={"missing.key" as never} params={{ name: "Ada" }} />);
+
+    expect(container.textContent).toBe("missing.key");
+  });
+
+  it("renders the translation over children when the key resolves and params are given", () => {
+    fake.tImplementation = (_key, params) => `Hello ${String(params?.name)}`;
+
+    renderWithProvider(() => (
+      <T i18nKey={"greeting" as never} params={{ name: "Ada" }}>
+        <span>Slot fallback</span>
+      </T>
+    ));
+
+    expect(container.textContent).toBe("Hello Ada");
+    expect(container.innerHTML).not.toContain("Slot fallback");
+  });
+});
+
+describe("<T /> markup without a components map (real core)", () => {
+  it("parses tag markup in the translation and falls unmapped tags back to inner text", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      messages: { en: { note: "Read the <b>fine</b> print" } },
+    });
+    await i18n.init();
+
+    const container = renderSolid(() => (
+      <I18nProvider i18n={i18n} autoInit={false}>
+        <T i18nKey={"note" as never} />
+      </I18nProvider>
+    ));
+
+    expect(container.textContent).toBe("Read the fine print");
   });
 });

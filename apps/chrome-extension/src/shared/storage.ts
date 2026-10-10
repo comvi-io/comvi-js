@@ -1,6 +1,5 @@
 /**
- * Storage utilities for Chrome extension
- * Stores credentials per-origin for multi-project support
+ * Per-origin credential storage, so one browser can hold several projects.
  *
  * Keys are persisted only after the service worker has validated them
  * against the API, and can be removed by the user from the popup

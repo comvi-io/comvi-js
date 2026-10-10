@@ -1,29 +1,41 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { get } from "svelte/store";
-import { createI18n } from "@comvi/core";
+import { createI18n } from "../src/index";
 import {
   createLocaleStore,
-  createLanguageStore,
   createLoadingStore,
   createInitializingStore,
   createInitializedStore,
   createCacheRevisionStore,
+  createDefaultParamsStore,
+  createDefaultNamespaceStore,
 } from "../src/stores";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import type { I18n } from "@comvi/core";
+
+const memoizedStoreFactories: ReadonlyArray<readonly [string, (i18n: I18n) => unknown]> = [
+  ["createLocaleStore", createLocaleStore],
+  ["createLoadingStore", createLoadingStore],
+  ["createInitializingStore", createInitializingStore],
+  ["createInitializedStore", createInitializedStore],
+  ["createCacheRevisionStore", createCacheRevisionStore],
+  ["createDefaultParamsStore", createDefaultParamsStore],
+  ["createDefaultNamespaceStore", createDefaultNamespaceStore],
+];
 
 describe("Svelte stores", () => {
   let fake: FakeI18n;
 
   beforeEach(() => {
     fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({
+    fake.addMessages({
       en: { hello: "Hello" },
       fr: { hello: "Bonjour" },
     });
   });
 
   it("reflects the current language and updates when it changes", async () => {
-    const language = createLanguageStore(fake.asI18n());
+    const language = createLocaleStore(fake.asI18n());
     const values: string[] = [];
     const unsubscribe = language.subscribe((value) => values.push(value));
 
@@ -65,7 +77,7 @@ describe("Svelte stores", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { hello: "Hello" },
       },
     });
@@ -76,6 +88,13 @@ describe("Svelte stores", () => {
     const unsubscribeInitializing = initializing.subscribe((value) => {
       initializingValues.push(value);
     });
+    // A persistent subscriber, so the assertions below read what the store
+    // PUSHED. A bare get() on an unsubscribed store re-runs the start function
+    // and re-syncs from the host, which passes even if no event is tracked.
+    const initializedValues: boolean[] = [];
+    const unsubscribeInitialized = initialized.subscribe((value) => {
+      initializedValues.push(value);
+    });
 
     const pendingInit = i18n.init();
 
@@ -84,29 +103,65 @@ describe("Svelte stores", () => {
 
     await pendingInit;
 
-    expect(initializingValues).toContain(true);
+    expect(initializingValues).toEqual([false, true, false]);
     expect(get(initializing)).toBe(false);
     expect(get(initialized)).toBe(true);
 
     await i18n.destroy();
 
     expect(get(initialized)).toBe(false);
+    expect(initializedValues).toEqual([false, true, false]);
 
     unsubscribeInitializing();
+    unsubscribeInitialized();
+  });
+
+  it("shows a subscriber attaching after init the current state, not the creation-time value", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      defaultNs: "common",
+      messages: {
+        en: { hello: "Hello" },
+      },
+    });
+    const initialized = createInitializedStore(i18n);
+
+    await i18n.init();
+
+    const values: boolean[] = [];
+    const unsubscribe = initialized.subscribe((value) => values.push(value));
+
+    expect(values).toEqual([true]);
+
+    unsubscribe();
+    await i18n.destroy();
+  });
+
+  it("removes both host listeners when the last subscriber unsubscribes", () => {
+    const initialized = createInitializedStore(fake.asI18n());
+    const unsubscribe = initialized.subscribe(() => {});
+    const whileSubscribed = [
+      fake.listenerCount("initialized"),
+      fake.listenerCount("destroyed"),
+    ] as const;
+
+    unsubscribe();
+
+    expect(whileSubscribed).toEqual([1, 1]);
+    expect([fake.listenerCount("initialized"), fake.listenerCount("destroyed")]).toEqual([0, 0]);
   });
 
   it("tracks cache revisions as translations are added and cleared", () => {
     const cacheRevision = createCacheRevisionStore(fake.asI18n());
-    // Use a persistent subscriber so the store's internal monotonic counter
-    // stays alive between events (bare get() creates a transient subscription
-    // that resets the counter each call).
+    // A persistent subscriber keeps the store's monotonic counter alive: a
+    // bare get() creates a transient subscription that resets it each call.
     const values: number[] = [];
     const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
     const before = values.at(-1)!;
 
-    fake.addTranslations({ en: { welcome: "Welcome" } });
+    fake.addMessages({ en: { welcome: "Welcome" } });
     const afterAdd = values.at(-1)!;
-    fake.clearTranslations("en", "common");
+    fake.clearMessages("en", "common");
     const afterClear = values.at(-1)!;
 
     expect(afterAdd).toBeGreaterThan(before);
@@ -116,7 +171,7 @@ describe("Svelte stores", () => {
   });
 
   it("gives new subscribers the latest value", async () => {
-    const language = createLanguageStore(fake.asI18n());
+    const language = createLocaleStore(fake.asI18n());
     const values1: string[] = [];
     const unsubscribe1 = language.subscribe((value) => values1.push(value));
 
@@ -134,11 +189,117 @@ describe("Svelte stores", () => {
     unsubscribe2();
   });
 
-  it("createLocaleStore and createLanguageStore are the same store (deprecated alias)", () => {
-    const i18n = fake.asI18n();
-    expect(createLocaleStore(i18n)).toBe(createLanguageStore(i18n));
+  it("gives a new loading subscriber the host's current state, not the one captured at creation", async () => {
+    const loading = createLoadingStore(fake.asI18n());
+    let resolveLoad: (() => void) | undefined;
+    fake.namespaceLoadResult = new Promise<void>((resolve) => {
+      resolveLoad = resolve;
+    });
+    const pendingNamespace = fake.addActiveNamespace("admin");
+
+    const values: boolean[] = [];
+    const unsubscribe = loading.subscribe((value) => values.push(value));
+
+    expect(values).toEqual([true]);
+
+    unsubscribe();
+    resolveLoad?.();
+    await pendingNamespace;
   });
 
+  it("gives a new initializing subscriber the host's current state, not the one captured at creation", async () => {
+    const initializing = createInitializingStore(fake.asI18n());
+    const pendingInit = fake.init();
+
+    const values: boolean[] = [];
+    const unsubscribe = initializing.subscribe((value) => values.push(value));
+
+    expect(values).toEqual([true]);
+
+    unsubscribe();
+    await pendingInit;
+  });
+
+  it("gives a new defaultParams subscriber the host's current defaults, not the ones captured at creation", () => {
+    const defaultParams = createDefaultParamsStore(fake.asI18n());
+    fake.setDefaultParams({ formality: "formal" });
+
+    const values: unknown[] = [];
+    const unsubscribe = defaultParams.subscribe((value) => values.push(value));
+
+    expect(values).toEqual([{ formality: "formal" }]);
+
+    unsubscribe();
+  });
+
+  it("writes a defaultParams assignment through to the host", () => {
+    const i18n = fake.asI18n();
+    const defaultParams = createDefaultParamsStore(i18n);
+    const values: unknown[] = [];
+    const unsubscribe = defaultParams.subscribe((value) => values.push(value));
+
+    defaultParams.set({ formality: "formal" });
+
+    // Written THROUGH `setDefaultParams`, not assigned into the store: the
+    // host is the source of truth, so it reports the new defaults and the
+    // subscriber sees them from the host's own `configChanged`.
+    expect(fake.defaultParams).toEqual({ formality: "formal" });
+    expect(values).toEqual([undefined, { formality: "formal" }]);
+
+    // Named keys rather than `{ ...current, … }`: `DefaultTranslationParams`
+    // types the reserved names as `ns?: never` (and friends), which a spread
+    // turns into an `undefined`-valued index signature core's value type
+    // excludes — the same shape solid's `setDefaultParams` setter takes.
+    defaultParams.update((current) => ({
+      formality: current?.formality ?? "formal",
+      tone: "warm",
+    }));
+
+    expect(fake.defaultParams).toEqual({ formality: "formal", tone: "warm" });
+
+    unsubscribe();
+  });
+
+  it("reflects the current default namespace and updates when the host changes it", () => {
+    const defaultNamespace = createDefaultNamespaceStore(fake.asI18n());
+    const values: string[] = [];
+    const unsubscribe = defaultNamespace.subscribe((value) => values.push(value));
+
+    expect(get(defaultNamespace)).toBe("common");
+
+    fake.setDefaultNamespace("admin");
+
+    expect(get(defaultNamespace)).toBe("admin");
+    expect(values).toEqual(["common", "admin"]);
+
+    unsubscribe();
+  });
+
+  it("writes a defaultNamespace assignment through to the host", () => {
+    const i18n = fake.asI18n();
+    const defaultNamespace = createDefaultNamespaceStore(i18n);
+    const values: string[] = [];
+    const unsubscribe = defaultNamespace.subscribe((value) => values.push(value));
+
+    defaultNamespace.set("admin");
+
+    expect(fake.getDefaultNamespace()).toBe("admin");
+    expect(values).toEqual(["common", "admin"]);
+
+    unsubscribe();
+  });
+
+  it.each(memoizedStoreFactories)(
+    "%s returns the same store instance for repeated calls on one host",
+    (_name, createStore) => {
+      const host = fake.asI18n();
+
+      expect(createStore(host)).toBe(createStore(host));
+    },
+  );
+
+  // `setFallbackLocale` is the production caller; the event is emitted directly
+  // here so the store's reaction is tested without the setter in the way.
   it("cacheRevision store updates when configChanged is emitted (e.g. setFallbackLocale)", () => {
     const cacheRevision = createCacheRevisionStore(fake.asI18n());
     const values: number[] = [];
@@ -153,44 +314,119 @@ describe("Svelte stores", () => {
   });
 
   it("cacheRevision is strictly monotonic across all tracked events — no dropped updates", () => {
-    // Use a fresh FakeI18n so the store's internal revision counter starts at 0
-    // and is not shared with the memoized instance from beforeEach.
+    // A fresh FakeI18n, so the revision counter starts at 0 rather than
+    // carrying the addMessages() the beforeEach instance has already seen.
     const fresh = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fresh.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+    fresh.addMessages({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
 
     const cacheRevision = createCacheRevisionStore(fresh.asI18n());
     const values: number[] = [];
     const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
 
-    // 1. namespaceLoaded — translation cache changed
+    // namespaceLoaded — cache change
     fresh.emit("namespaceLoaded", { namespace: "common", locale: "en" });
 
-    // 2. configChanged (fallbackLocale) — config-only change, no cache change.
-    //    Under the old sum-based counter this could collide with step 1 and be
-    //    dropped; the monotonic counter guarantees a bump.
+    // configChanged — config-only, no cache change: the step the old
+    // sum-based counter could collide with the one above and drop.
     fresh.emit("configChanged", { source: "fallbackLocale" });
 
-    // 3. translationsCleared — cache change
-    fresh.emit("translationsCleared", { locale: "en", namespace: "common" });
+    // messagesCleared — cache change
+    fresh.emit("messagesCleared", { locale: "en", namespace: "common" });
 
-    // 4. defaultNamespaceChanged — config change
+    // defaultNamespaceChanged — config change
     fresh.emit("defaultNamespaceChanged", { from: "common", to: "admin" });
 
-    // 5. configChanged (translationsAdded) — second config-only change in a row.
-    //    Two consecutive config events must also never collide.
-    fresh.emit("configChanged", { source: "translationsAdded" });
+    // configChanged again — two consecutive config-only events must not
+    // collide either.
+    fresh.emit("configChanged", { source: "defaultParams" });
 
-    // 6. initialized — initialization complete
+    // initialized
     fresh.emit("initialized", undefined);
 
     unsubscribe();
 
-    // We should have received the initial value + one notification per event.
-    expect(values.length).toBe(7); // initial + 6 events
+    // The whole sequence, so a failure names the step that stalled rather than
+    // just "index i is not greater than i-1": initial + one per event.
+    expect(values).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+});
 
-    // Every successive value must be strictly greater than the one before it.
-    for (let i = 1; i < values.length; i++) {
-      expect(values[i]).toBeGreaterThan(values[i - 1]);
-    }
+/**
+ * The revision store must NOT bump on the locale and loading axes: they have
+ * their own stores, and `<T locale="…">` pins a locale precisely so a global
+ * locale change cannot make it recompute. Mirrors
+ * `solid/src/primitives.ts:createCacheRevisionSignal`.
+ */
+describe("Svelte cacheRevision store excludes the locale and loading axes", () => {
+  let fake: FakeI18n;
+
+  beforeEach(() => {
+    fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
+    fake.addMessages({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+  });
+
+  it("does not bump on localeChanged", async () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
+    const before = values.at(-1)!;
+
+    await fake.setLanguageAsync("fr");
+
+    expect(values.at(-1)!).toBe(before);
+    unsubscribe();
+  });
+
+  it("does not bump on loadingStateChanged", () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
+    const before = values.at(-1)!;
+
+    fake.emit("loadingStateChanged", { isLoading: true, isInitializing: false });
+
+    expect(values.at(-1)!).toBe(before);
+    unsubscribe();
+  });
+
+  it("starts a fresh subscription at 0 rather than the cache's own revision", () => {
+    fake.addMessages({ de: { hello: "Hallo" } });
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
+
+    expect(values[0]).toBe(0);
+    unsubscribe();
+  });
+
+  // The counter is per-subscription-cycle: `readable`'s stored value survives
+  // the last unsubscribe, but the local `revision` restarts at 0, so without
+  // the explicit reset a resubscriber would see a stale high value and then a
+  // LOWER one on the next bump.
+  it("resets to 0 when a new subscription cycle starts", () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const first: number[] = [];
+    const unsubscribeFirst = cacheRevision.subscribe((v) => first.push(v));
+    fake.addMessages({ en: { welcome: "Welcome" } });
+    expect(first.at(-1)!).toBeGreaterThan(0);
+    unsubscribeFirst();
+
+    const second: number[] = [];
+    const unsubscribeSecond = cacheRevision.subscribe((v) => second.push(v));
+
+    expect(second[0]).toBe(0);
+    unsubscribeSecond();
+  });
+
+  it("still bumps on a cache change", () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
+    const before = values.at(-1)!;
+
+    fake.addMessages({ en: { welcome: "Welcome" } });
+
+    expect(values.at(-1)!).toBeGreaterThan(before);
+    unsubscribe();
   });
 });

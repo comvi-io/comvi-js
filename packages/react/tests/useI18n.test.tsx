@@ -1,10 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { render, renderHook, act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { createElement, createTextNode } from "@comvi/core/rich-text";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
-import { createI18n, type TranslationResult } from "@comvi/core";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { createI18n, icuCompiler } from "../src/index";
+import type { TranslationResult } from "../src/index";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import { flushMicrotasks } from "./test-utils";
 
 const createWrapper = (fake: FakeI18n) => {
   return ({ children }: { children: ReactNode }) => (
@@ -35,9 +38,8 @@ describe("useI18n", () => {
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
 
     expect(result.current.t("title" as never)).toBe("title|admin");
-    // tRaw injects the React-tracked locale into every call so translations
-    // resolve against the locale-at-render-time, not the mutable instance
-    // locale.
+    // `tRaw` injects the React-tracked locale into every call, so lookups
+    // resolve against the render-time locale, not the mutable instance one.
     expect(fake.tRaw).toHaveBeenLastCalledWith("title", { ns: "admin", locale: "en" });
   });
 
@@ -45,8 +47,8 @@ describe("useI18n", () => {
     const fake = new FakeI18n();
     const raw: TranslationResult = [
       "Hello ",
-      { type: "text", text: "world" },
-      { type: "element", tag: "strong", props: {}, children: ["!"] },
+      createTextNode("world"),
+      createElement("strong", {}, ["!"]),
     ];
     fake.tImplementation = () => raw;
 
@@ -68,11 +70,9 @@ describe("useI18n", () => {
   });
 
   it("rebuilds t() reference on locale change so callers re-translate with new locale", async () => {
-    // t/tRaw rebuild when locale changes so the closure captures the new
-    // React-tracked locale — identity churning is the intended behavior to
-    // prevent tearing during startTransition-wrapped locale flips.
-    // await act + Promise.resolve() flushes the queueMicrotask deferral
-    // inside useSubscribe before asserting on re-rendered state.
+    // The identity churn is intended: a rebuilt closure captures the new
+    // locale, which is what prevents tearing during a transition-wrapped flip.
+    // The act-wrapped flush drains `useSubscribe`'s microtask.
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
     const tBefore = result.current.t;
@@ -81,7 +81,7 @@ describe("useI18n", () => {
     await act(async () => {
       fake.language = "fr";
       fake.emit("localeChanged", { from: "en", to: "fr" });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(result.current.locale).toBe("fr");
@@ -95,17 +95,13 @@ describe("useI18n", () => {
     const formatNumberFromEnglishRender = result.current.formatNumber;
     const setLocaleBefore = result.current.setLocale;
 
-    // Mutate language without emitting — no re-render yet.
-    act(() => {
-      fake.language = "de";
-    });
+    fake.language = "de";
 
     expect(formatNumberFromEnglishRender(1234)).toBe("1,234");
 
-    // Emit localeChanged and flush the queueMicrotask deferral before asserting.
     await act(async () => {
       fake.emit("localeChanged", { from: "en", to: "de" });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(result.current.locale).toBe("de");
@@ -113,11 +109,48 @@ describe("useI18n", () => {
     expect(result.current.setLocale).toBe(setLocaleBefore);
   });
 
+  it("exposes isInitialized and cacheRevision as render snapshots", async () => {
+    const fake = new FakeI18n();
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.isInitialized).toBe(false);
+    const revisionBefore = result.current.cacheRevision;
+    expect(revisionBefore).toBe(fake.messagesCache.getRevision());
+
+    await act(async () => {
+      await fake.init();
+      await flushMicrotasks();
+    });
+    expect(result.current.isInitialized).toBe(true);
+
+    await act(async () => {
+      fake.addMessages({ en: { hello: "Hello" } });
+      await flushMicrotasks();
+    });
+    expect(result.current.cacheRevision).toBe(revisionBefore + 1);
+  });
+
+  it("formatters honour a trailing locale override over the render locale", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.formatNumber(1234)).toBe("1,234");
+    expect(result.current.formatNumber(1234, undefined, "de")).toBe("1.234");
+    // ICU joins the amount and the symbol with a no-break space.
+    expect(
+      result.current.formatCurrency(1234, "EUR", undefined, "de").replace(/\u00a0/g, " "),
+    ).toBe("1.234,00 €");
+    expect(result.current.formatDate(Date.UTC(2024, 0, 15), { timeZone: "UTC" }, "de")).toBe(
+      "15.1.2024",
+    );
+    expect(result.current.formatRelativeTime(-2, "hour", undefined, "de")).toBe("vor 2 Stunden");
+  });
+
   it("re-renders when fallback config changes without a cache revision change", async () => {
     const i18n = createI18n({
       locale: "fr",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { fallbackOnly: "Fallback" },
       },
     });
@@ -127,7 +160,7 @@ describe("useI18n", () => {
       </I18nProvider>
     );
     const { result } = renderHook(() => useI18n(), { wrapper });
-    const revisionBefore = i18n.translationCache.getRevision();
+    const revisionBefore = i18n.messagesCache.getRevision();
 
     expect(result.current.t("fallbackOnly" as never)).toBe("fallbackOnly");
 
@@ -135,7 +168,7 @@ describe("useI18n", () => {
       i18n.setFallbackLocale("en");
     });
 
-    expect(i18n.translationCache.getRevision()).toBe(revisionBefore);
+    expect(i18n.messagesCache.getRevision()).toBe(revisionBefore);
     await waitFor(() => {
       expect(result.current.t("fallbackOnly" as never)).toBe("Fallback");
     });
@@ -144,8 +177,11 @@ describe("useI18n", () => {
   it("exposes defaultParams and re-renders after setDefaultParams", async () => {
     const i18n = createI18n({
       locale: "en",
+      // `{…, select, …}` is ICU: the base host does not compile it unless the
+      // app asks, and this one asks in the same call.
+      compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
-      translation: {
+      messages: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
       },
     });
@@ -169,7 +205,7 @@ describe("useI18n", () => {
     });
   });
 
-  it("proxies setLocale() to i18n.setLocaleAsync()", async () => {
+  it("proxies setLocale() to i18n.setLocale()", async () => {
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
 
@@ -177,22 +213,22 @@ describe("useI18n", () => {
       await result.current.setLocale("fr");
     });
 
-    expect(fake.setLocaleAsync).toHaveBeenCalledWith("fr");
+    expect(fake.setLocale).toHaveBeenCalledWith("fr");
   });
 
-  it("proxies addTranslations() and updates translation cache reference data", () => {
+  it("proxies addMessages() and updates messages cache reference data", () => {
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
 
-    const revisionBefore = fake.translationCache.getRevision();
+    const revisionBefore = fake.messagesCache.getRevision();
 
     act(() => {
-      result.current.addTranslations({ en: { hello: "Hello" } });
+      result.current.addMessages({ en: { hello: "Hello" } });
     });
 
-    expect(fake.addTranslations).toHaveBeenCalledWith({ en: { hello: "Hello" } });
-    expect(fake.translationCache.getRevision()).toBe(revisionBefore + 1);
-    expect(result.current.translationCache.has("en:default")).toBe(true);
+    expect(fake.addMessages).toHaveBeenCalledWith({ en: { hello: "Hello" } });
+    expect(fake.messagesCache.getRevision()).toBe(revisionBefore + 1);
+    expect(result.current.messagesCache.has("en:default")).toBe(true);
   });
 
   it("exposes on() with unsubscribe behavior", () => {
@@ -240,14 +276,129 @@ describe("useI18n", () => {
     expect(result.current.on).toBe(onBefore);
   });
 
-  it("throws when used outside I18nProvider", () => {
-    const originalError = console.error;
-    console.error = vi.fn();
+  it("formats dates with the render locale in the requested time zone", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
 
-    expect(() => renderHook(() => useI18n())).toThrow(
-      "[i18n] Hooks must be used within an I18nProvider",
+    const formatted = result.current.formatDate(Date.UTC(2024, 0, 15), {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    expect(formatted).toBe("01/15/2024");
+  });
+
+  it("formats currency with the render locale", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.formatCurrency(1234.5, "EUR")).toBe("€1,234.50");
+  });
+
+  it("formats relative time with the render locale", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.formatRelativeTime(-2, "hour")).toBe("2 hours ago");
+  });
+
+  it("reports rtl direction for a right-to-left render locale", () => {
+    const fake = new FakeI18n({ language: "ar" });
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.dir).toBe("rtl");
+  });
+
+  it("rebinds host methods to the new instance when the i18n prop changes", async () => {
+    const first = new FakeI18n();
+    const second = new FakeI18n();
+    let setLocale: ((locale: string) => Promise<void>) | undefined;
+
+    const Probe = () => {
+      setLocale = useI18n().setLocale;
+      return null;
+    };
+    const Host = ({ fake }: { fake: FakeI18n }) => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
     );
 
-    console.error = originalError;
+    const { rerender } = render(<Host fake={first} />);
+    rerender(<Host fake={second} />);
+
+    await act(async () => {
+      await setLocale!("fr");
+    });
+
+    expect(second.setLocale).toHaveBeenCalledWith("fr");
+    expect(first.setLocale).not.toHaveBeenCalled();
+  });
+
+  it("throws when used outside I18nProvider", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => renderHook(() => useI18n())).toThrow(
+      "[@comvi/react] Hooks must be used within an I18nProvider",
+    );
+  });
+});
+
+/**
+ * `t()` and the formatters resolve against the locale the tree is rendering in
+ * (the provider's, tracked through React), not the mutable instance locale.
+ * `hasTranslation` has to answer the same question, or a guard like
+ * `hasTranslation(k) ? t(k) : null` hides a string `t()` would have rendered.
+ * The server-render divergence is proved in `ssr.node.test.tsx`; this file
+ * pins the argument contract.
+ */
+describe("useI18n().hasTranslation locale", () => {
+  it("passes the render-time locale as the locale argument", () => {
+    const fake = new FakeI18n();
+    fake.language = "fr";
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+    result.current.hasTranslation("greeting");
+
+    expect(fake.hasTranslation).toHaveBeenCalledWith("greeting", "fr", undefined, undefined);
+  });
+
+  it("passes the namespace and checkFallbacks arguments through", () => {
+    const fake = new FakeI18n();
+    fake.language = "fr";
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+    result.current.hasTranslation("greeting", undefined, "admin", true);
+
+    expect(fake.hasTranslation).toHaveBeenCalledWith("greeting", "fr", "admin", true);
+  });
+
+  it("still honours an explicit locale argument", () => {
+    const fake = new FakeI18n();
+    fake.language = "fr";
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+    result.current.hasTranslation("greeting", "en");
+
+    expect(fake.hasTranslation).toHaveBeenCalledWith("greeting", "en", undefined, undefined);
+  });
+
+  it("follows a locale change instead of pinning the mount-time locale", async () => {
+    const fake = new FakeI18n();
+    fake.language = "en";
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    await act(async () => {
+      fake.language = "fr";
+      fake.emit("localeChanged", { from: "en", to: "fr" });
+      await flushMicrotasks();
+    });
+    result.current.hasTranslation("greeting");
+
+    expect(fake.hasTranslation).toHaveBeenLastCalledWith("greeting", "fr", undefined, undefined);
   });
 });

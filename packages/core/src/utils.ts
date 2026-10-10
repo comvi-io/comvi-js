@@ -4,21 +4,21 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /**
- * Normalize a leaf catalog value to a string.
- * Returns undefined for null/undefined (key treated as missing) and coerces
- * other non-strings with String() so translate() never crashes on lookup.
+ * `undefined` for a null/undefined leaf (the key is then simply missing); every
+ * other non-string is coerced with `String()`, so `translate()` can never crash
+ * on a lookup.
  */
 function normalizeLeafValue(key: string, value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (value == null) {
     if (IS_DEV) {
-      warn(`[i18n] Dropping translation "${key}": value is ${String(value)}`);
+      warn(`[@comvi/core] Dropping translation "${key}": value is ${String(value)}`);
     }
     return undefined;
   }
   if (IS_DEV) {
     warn(
-      `[i18n] Translation "${key}" is not a string (got ${
+      `[@comvi/core] Translation "${key}" is not a string (got ${
         Array.isArray(value) ? "array" : typeof value
       }); coercing with String()`,
     );
@@ -27,17 +27,14 @@ function normalizeLeafValue(key: string, value: unknown): string | undefined {
 }
 
 /**
- * Converts a nested object structure to a flattened structure with dot notation keys.
- * Uses iterative approach with a stack for better performance.
- * @param obj - The nested object to flatten
- * @param prefix - The prefix to add to each key (optional)
- * @returns A flattened object with dot notation keys (no prototype)
+ * Flatten a nested catalog to dot-notation keys. Iterative rather than
+ * recursive, and the result has a NULL PROTOTYPE — which is what makes it safe
+ * to store directly.
  */
 export function flattenNestedObject(
   obj: Record<string, any>,
   prefix: string = "",
 ): Record<string, string> {
-  // Create object without prototype for faster property access
   const result: Record<string, string> = Object.create(null);
   const objectStack: Record<string, any>[] = [obj];
   const prefixStack: string[] = [prefix];
@@ -53,7 +50,6 @@ export function flattenNestedObject(
       const newKey = currentPrefix ? currentPrefix + "." + key : key;
 
       if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-        // Push nested object to stack for processing
         objectStack.push(value);
         prefixStack.push(newKey);
       } else {
@@ -67,29 +63,34 @@ export function flattenNestedObject(
 }
 
 /**
- * Normalizes translation input into the prototype-less flat shape used by the cache.
- * Never mutates the caller's object: flat catalogs are shallow-copied, nested
- * catalogs are flattened. Prototype-less input is assumed already normalized.
+ * True when every own value is already a string — i.e. the object IS the shape
+ * the cache stores, and adopting it whole changes nothing.
+ *
+ * A missing prototype is NOT that proof. `Object.create(null)` is a normal way
+ * to build a nested catalog, and one adopted on its prototype alone stored an
+ * object-valued leaf: `t("nav.home")` answered with the key, and `t("nav")`
+ * crashed trying to render the object.
  */
-export function normalizeTranslationObject(obj: Record<string, any>): Record<string, string> {
-  if (Object.getPrototypeOf(obj) === null) {
-    return obj as Record<string, string>;
-  }
-
+function isFlatCatalog(obj: Record<string, any>): boolean {
   const keys = Object.keys(obj);
   for (let i = 0; i < keys.length; i++) {
-    const value = obj[keys[i]];
-    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-      return flattenNestedObject(obj);
-    }
+    if (typeof obj[keys[i]] !== "string") return false;
   }
+  return true;
+}
 
-  const result: Record<string, string> = Object.create(null);
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    const leaf = normalizeLeafValue(key, obj[key]);
-    if (leaf !== undefined) result[key] = leaf;
-  }
-
-  return result;
+/**
+ * Normalize catalog input to the prototype-less flat shape the cache stores.
+ * NEVER mutates the caller's object: a flat catalog is just the depth-1 case,
+ * where the prefix stays empty and every key passes through unchanged.
+ *
+ * Prototype-less input whose leaves are all strings is adopted WITHOUT a copy —
+ * the contract that keeps re-ingesting an already-normalized catalog (a loader
+ * result, a previous flatten) off `Object.assign`'s ~130 ns per key. The leaf
+ * scan is one `typeof` per key on the ingestion path only.
+ */
+export function normalizeTranslationObject(obj: Record<string, any>): Record<string, string> {
+  return Object.getPrototypeOf(obj) === null && isFlatCatalog(obj)
+    ? (obj as Record<string, string>)
+    : flattenNestedObject(obj);
 }

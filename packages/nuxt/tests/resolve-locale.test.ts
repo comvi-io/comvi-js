@@ -52,4 +52,36 @@ describe("resolveAcceptLanguage", () => {
     const withRegional = ["en-US", "en", "de"];
     expect(resolveAcceptLanguage("en-US;q=0.9,en;q=0.8", withRegional)).toBe("en-US");
   });
+
+  it("trims whitespace that survives the quality-value split", () => {
+    expect(resolveAcceptLanguage("de ;q=0.9", locales)).toBe("de");
+  });
+
+  it("keeps trying lower-quality languages after one fails every match strategy", () => {
+    expect(resolveAcceptLanguage("ja,de;q=0.5", locales)).toBe("de");
+  });
+
+  /**
+   * Parity with `@comvi/next` (packages/next/tests/middleware.test.ts, "ignores
+   * a language explicitly refused with q=0"). RFC 9110: `q=0` means "not
+   * acceptable", so the entry is dropped before matching rather than merely
+   * sorted last.
+   */
+  it("ignores a language explicitly refused with q=0", () => {
+    expect(resolveAcceptLanguage("fr;q=0", ["en", "fr"])).toBeUndefined();
+    expect(resolveAcceptLanguage("fr;q=0,en;q=0.8", ["en", "fr"])).toBe("en");
+  });
+
+  it("ignores a refused language whose region or base would otherwise match", () => {
+    expect(resolveAcceptLanguage("fr-CA;q=0,de;q=0.5", locales)).toBe("de");
+    expect(resolveAcceptLanguage("fr;q=0.000", locales)).toBeUndefined();
+  });
+
+  it("keeps a language whose quality is merely low", () => {
+    expect(resolveAcceptLanguage("fr;q=0.001", locales)).toBe("fr");
+  });
+
+  it("skips an entry with no language tag", () => {
+    expect(resolveAcceptLanguage(",de;q=0.5", locales)).toBe("de");
+  });
 });

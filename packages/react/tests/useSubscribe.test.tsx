@@ -1,16 +1,15 @@
 /**
- * useSubscribe identity stability: rest-args + a join-key derivation so
- * callback identity churns iff the event-list contents change (not on every
- * render with a fresh literal).
+ * Callback identity must churn iff the event-list CONTENTS change — a fresh
+ * array literal each render (the production shape) must not churn it.
  */
 
 import React, { useEffect, useRef } from "react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, act } from "@testing-library/react";
 
 import { useSubscribe } from "../src/I18nProvider";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
-import type { I18nEvent } from "@comvi/core";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import type { I18nEvent, I18nEventData } from "@comvi/core";
 
 describe("useSubscribe — rest-args + stable join-key deps", () => {
   function Probe({
@@ -39,8 +38,7 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
       <Probe fake={fake} events={["localeChanged", "initialized"]} onSub={(s) => subs.push(s)} />,
     );
 
-    // Same content, different array identity — must NOT trigger a new
-    // subscribe identity (fresh literal each render is the production shape).
+    // Same contents, different array identity.
     rerender(
       <Probe fake={fake} events={["localeChanged", "initialized"]} onSub={(s) => subs.push(s)} />,
     );
@@ -60,21 +58,18 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
     );
     expect(subs.length).toBe(1);
 
-    // Add an event — identity MUST change so a useEffect using sub as a dep
-    // re-runs and re-subscribes to the new event set. This is the fragility
-    // the fix targets.
+    // Identity MUST change so a `useEffect` holding `sub` as a dep re-runs and
+    // subscribes to the new event set.
     rerender(
       <Probe fake={fake} events={["localeChanged", "initialized"]} onSub={(s) => subs.push(s)} />,
     );
     expect(subs.length).toBe(2);
 
-    // Reorder — different join("|") key — also a new identity.
     rerender(
       <Probe fake={fake} events={["initialized", "localeChanged"]} onSub={(s) => subs.push(s)} />,
     );
     expect(subs.length).toBe(3);
 
-    // Drop one — different join("|") key — also a new identity.
     rerender(<Probe fake={fake} events={["initialized"]} onSub={(s) => subs.push(s)} />);
     expect(subs.length).toBe(4);
   });
@@ -113,7 +108,6 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
       firedCount += 1;
     });
 
-    // Both subscribed events should trigger the callback.
     await act(async () => {
       fake.emit("localeChanged", { from: "en", to: "fr" });
     });
@@ -124,17 +118,70 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
     });
     expect(firedCount).toBe(2);
 
-    // An UN-subscribed event must NOT fire.
     await act(async () => {
-      fake.emit("loadingStateChanged", { isLoading: true });
+      // Nothing subscribes to `loadingStateChanged` here — this emit is the
+      // negative control, so the payload stands in for the full event shape.
+      fake.emit("loadingStateChanged", {
+        isLoading: true,
+      } as I18nEventData["loadingStateChanged"]);
     });
     expect(firedCount).toBe(2);
 
-    // After unsubscribe, no more deliveries.
     unsubscribe();
     await act(async () => {
       fake.emit("localeChanged", { from: "fr", to: "de" });
     });
     expect(firedCount).toBe(2);
+  });
+
+  /** Renders `useSubscribe` and hands back the subscribe function it produced. */
+  const captureSubscribe = (fake: FakeI18n, ...events: I18nEvent[]) => {
+    const box: { current: ((cb: () => void) => () => void) | null } = { current: null };
+
+    function Driver() {
+      const sub = useSubscribe(fake.asI18n(), ...events);
+      useEffect(() => {
+        box.current = sub;
+      }, [sub]);
+      return null;
+    }
+
+    render(<Driver />);
+
+    if (!box.current) {
+      throw new Error("useSubscribe produced no subscribe function");
+    }
+    return box.current;
+  };
+
+  // The callback is deferred out of core's synchronous `_emit` stack, so an
+  // event can land while the subscription is still live and only reach the
+  // callback after it has been torn down.
+  it("ignores an event emitted before unsubscribe once the deferral runs", async () => {
+    const fake = new FakeI18n();
+    const subscribe = captureSubscribe(fake, "localeChanged");
+    const callback = vi.fn();
+
+    const unsubscribe = subscribe(callback);
+    fake.emit("localeChanged", { from: "en", to: "fr" });
+    unsubscribe();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("removes its host listeners on unsubscribe", () => {
+    const fake = new FakeI18n();
+    const subscribe = captureSubscribe(fake, "localeChanged", "initialized");
+
+    const unsubscribe = subscribe(() => {});
+    const whileSubscribed = fake.listenerCount("localeChanged");
+    unsubscribe();
+
+    expect(whileSubscribed).toBe(1);
+    expect(fake.listenerCount("localeChanged")).toBe(0);
+    expect(fake.listenerCount("initialized")).toBe(0);
   });
 });

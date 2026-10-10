@@ -1,18 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { ApiClient } from "../src/core/ApiClient";
+import { ErrorCodes } from "../src/utils/errors";
 import type { ProjectSchema, ProjectInfo } from "../src/types";
-
-// Polyfill DOMException for Node.js environment
-if (typeof DOMException === "undefined") {
-  (global as any).DOMException = class DOMException extends Error {
-    constructor(
-      message: string,
-      public name: string,
-    ) {
-      super(message);
-    }
-  };
-}
 
 const mockProjectInfo: ProjectInfo = {
   id: 123,
@@ -22,22 +11,36 @@ const mockProjectInfo: ProjectInfo = {
   sourceLocale: "en",
 };
 
+/** Enough for the retry ladder: 500 ms + 1000 ms of backoff between 3 attempts. */
+const RETRY_LADDER_MS = 2000;
+
 describe("ApiClient", () => {
   let apiClient: ApiClient;
+  let fetchMock: MockedFunction<typeof fetch>;
+
+  function requestBodyOfCall(n: number): Record<string, any> {
+    const call = fetchMock.mock.calls[n - 1];
+    if (!call) {
+      throw new Error(`expected at least ${n} fetch calls, got ${fetchMock.mock.calls.length}`);
+    }
+    return JSON.parse(String((call[1] as RequestInit).body));
+  }
 
   beforeEach(() => {
+    vi.useFakeTimers();
+
     apiClient = new ApiClient({
       apiKey: "test-api-key",
       apiBaseUrl: "https://api.test.com",
       timeout: 5000,
     });
 
-    // Mock global fetch
-    global.fetch = vi.fn();
+    fetchMock = vi.fn() as MockedFunction<typeof fetch>;
+    vi.stubGlobal("fetch", fetchMock);
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   describe("fetchSchema", () => {
@@ -54,20 +57,20 @@ describe("ApiClient", () => {
         },
       };
 
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockSchema,
-        });
+        } as Response);
 
       const result = await apiClient.fetchSchema();
 
       expect(result).toEqual(mockSchema);
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/projects/123/schema",
         expect.objectContaining({
           method: "GET",
@@ -80,46 +83,51 @@ describe("ApiClient", () => {
     });
 
     it("should throw error on 401 unauthorized", async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: false,
         status: 401,
         statusText: "Unauthorized",
-      });
+      } as Response);
 
       await expect(apiClient.fetchSchema()).rejects.toThrow("Invalid API key");
     });
 
     it("should throw error on 403 forbidden", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: false,
           status: 403,
           statusText: "Forbidden",
-        });
+        } as Response);
 
       await expect(apiClient.fetchSchema()).rejects.toThrow("Access denied to this project");
     });
 
     it("should throw error on other failed requests", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
-        // 5xx responses are retried with backoff, so keep failing for every attempt
+        } as Response)
         .mockResolvedValue({
           ok: false,
           status: 500,
           statusText: "Internal Server Error",
-        });
+        } as Response);
 
-      await expect(apiClient.fetchSchema()).rejects.toThrow(
+      const promise = apiClient.fetchSchema();
+      // the rejection handler must be attached before the backoff timers run
+      const assertion = expect(promise).rejects.toThrow(
         "Failed to fetch schema: 500 Internal Server Error",
       );
+      await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
+
+      await assertion;
+      expect(fetchMock).toHaveBeenCalledTimes(4); // project lookup + 3 schema attempts
     });
 
     it("should handle timeout", async () => {
@@ -129,48 +137,58 @@ describe("ApiClient", () => {
         timeout: 100,
       });
 
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockImplementationOnce(
-          (_url: string, options: any) =>
-            new Promise((resolve, reject) => {
-              // Simulate abort signal
-              if (options?.signal) {
-                options.signal.addEventListener("abort", () => {
-                  reject(new DOMException("The operation was aborted", "AbortError"));
-                });
-              }
-
-              setTimeout(() => {
-                resolve({
-                  ok: true,
-                  json: async () => ({ keys: {} }),
-                });
-              }, 200);
+          (_url, options) =>
+            new Promise<Response>((_resolve, reject) => {
+              options!.signal!.addEventListener("abort", () => {
+                reject(new DOMException("The operation was aborted", "AbortError"));
+              });
             }),
         );
 
-      await expect(slowClient.fetchSchema()).rejects.toThrow("Request timeout after 100ms");
+      const promise = slowClient.fetchSchema();
+      const assertion = expect(promise).rejects.toThrow("Request timeout after 100ms");
+      await vi.advanceTimersByTimeAsync(100);
+
+      await assertion;
     });
 
     it("should surface project lookup network errors before fetching schema", async () => {
-      (global.fetch as any).mockRejectedValueOnce(new Error("Network error"));
+      fetchMock.mockRejectedValue(new Error("Network error"));
 
-      await expect(apiClient.fetchSchema()).rejects.toThrow("Failed to validate API key");
+      const promise = apiClient.fetchSchema();
+      const assertion = expect(promise).rejects.toMatchObject({
+        message: "Failed to validate API key: Network error",
+        code: ErrorCodes.API_FETCH_FAILED,
+      });
+      await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
+
+      await assertion;
+      expect(fetchMock).toHaveBeenCalledTimes(3); // initial + 2 retries
     });
 
     it("should handle schema fetch network errors", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
-        .mockRejectedValueOnce(new Error("Network error"));
+        } as Response)
+        .mockRejectedValue(new Error("Network error"));
 
-      await expect(apiClient.fetchSchema()).rejects.toThrow("Failed to fetch schema");
+      const promise = apiClient.fetchSchema();
+      const assertion = expect(promise).rejects.toMatchObject({
+        message: "Failed to fetch schema: Network error",
+        code: ErrorCodes.API_FETCH_FAILED,
+      });
+      await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
+
+      await assertion;
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
     it("should remove trailing slash from base URL", async () => {
@@ -179,36 +197,36 @@ describe("ApiClient", () => {
         apiBaseUrl: "https://api.test.com/",
       });
 
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({ keys: {} }),
-        });
+        } as Response);
 
       await client.fetchSchema();
 
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/projects/123/schema",
-        expect.any(Object),
+        expect.objectContaining({ method: "GET" }),
       );
     });
   });
 
   describe("validateApiKey", () => {
     it("should return project info for valid API key", async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => mockProjectInfo,
-      });
+      } as Response);
 
       const result = await apiClient.validateApiKey();
 
       expect(result).toEqual(mockProjectInfo);
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/project",
         expect.objectContaining({
           method: "GET",
@@ -220,11 +238,11 @@ describe("ApiClient", () => {
     });
 
     it("should throw error for invalid API key", async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: false,
         status: 401,
         statusText: "Unauthorized",
-      });
+      } as Response);
 
       await expect(apiClient.validateApiKey()).rejects.toThrow("Invalid API key");
     });
@@ -232,15 +250,15 @@ describe("ApiClient", () => {
 
   describe("validateConnection", () => {
     it("should return true for valid connection", async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => mockProjectInfo,
-      });
+      } as Response);
 
       const result = await apiClient.validateConnection();
 
       expect(result).toBe(true);
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/project",
         expect.objectContaining({
           method: "GET",
@@ -252,10 +270,10 @@ describe("ApiClient", () => {
     });
 
     it("should return false for invalid connection", async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: false,
         status: 401,
-      });
+      } as Response);
 
       const result = await apiClient.validateConnection();
 
@@ -263,11 +281,13 @@ describe("ApiClient", () => {
     });
 
     it("should return false on network error", async () => {
-      (global.fetch as any).mockRejectedValueOnce(new Error("Network error"));
+      fetchMock.mockRejectedValue(new Error("Network error"));
 
-      const result = await apiClient.validateConnection();
+      const promise = apiClient.validateConnection();
+      await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
 
-      expect(result).toBe(false);
+      await expect(promise).resolves.toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -283,10 +303,10 @@ describe("ApiClient", () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
-      });
+      } as Response);
 
       const result = await apiClient.fetchTranslations();
 
@@ -298,7 +318,7 @@ describe("ApiClient", () => {
           uk: { common: { greeting: "Привіт" } },
         },
       });
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/translations",
         expect.objectContaining({
           method: "GET",
@@ -312,30 +332,80 @@ describe("ApiClient", () => {
         namespaces: { common: { en: { greeting: "Hello" } } },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
-      });
+      } as Response);
 
       await apiClient.fetchTranslations({
         locales: ["en", "uk"],
         namespaces: ["common", "admin"],
       });
 
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/translations?locales=en%2Cuk&namespaces=common%2Cadmin",
-        expect.any(Object),
+        expect.objectContaining({ method: "GET" }),
       );
+    });
+
+    it("should throw error on 403 forbidden", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(apiClient.fetchTranslations()).rejects.toMatchObject({
+        message: "Access denied to this project",
+        code: ErrorCodes.API_AUTH_FAILED,
+      });
+    });
+  });
+
+  describe("fetchNamespaces", () => {
+    it("should reject a response body that is not an array", async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockProjectInfo,
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ namespaces: [] }),
+        } as Response);
+
+      await expect(apiClient.fetchNamespaces()).rejects.toMatchObject({
+        message: "Invalid namespaces response: expected an array",
+        code: ErrorCodes.API_INVALID_RESPONSE,
+      });
+    });
+
+    it("should throw error on 403 forbidden", async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockProjectInfo,
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          statusText: "Forbidden",
+        } as Response);
+
+      await expect(apiClient.fetchNamespaces()).rejects.toMatchObject({
+        message: "Access denied to project namespaces",
+        code: ErrorCodes.API_AUTH_FAILED,
+      });
     });
   });
 
   describe("fetchDefaultNamespace", () => {
     it("should fetch the backend default namespace", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => [
@@ -358,10 +428,10 @@ describe("ApiClient", () => {
               updatedAt: "2026-01-01T00:00:00.000Z",
             },
           ],
-        });
+        } as Response);
 
       await expect(apiClient.fetchDefaultNamespace()).resolves.toBe("common");
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/projects/123/namespaces",
         expect.objectContaining({
           method: "GET",
@@ -370,11 +440,11 @@ describe("ApiClient", () => {
     });
 
     it("should reject when the backend does not return exactly one default namespace", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => [
@@ -388,7 +458,7 @@ describe("ApiClient", () => {
               updatedAt: "2026-01-01T00:00:00.000Z",
             },
           ],
-        });
+        } as Response);
 
       await expect(apiClient.fetchDefaultNamespace()).rejects.toThrow(
         "Project has no default namespace",
@@ -396,11 +466,11 @@ describe("ApiClient", () => {
     });
 
     it("should reject when the backend returns multiple default namespaces", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => [
@@ -423,7 +493,7 @@ describe("ApiClient", () => {
               updatedAt: "2026-01-01T00:00:00.000Z",
             },
           ],
-        });
+        } as Response);
 
       await expect(apiClient.fetchDefaultNamespace()).rejects.toThrow(
         "Project has multiple default namespaces",
@@ -433,11 +503,11 @@ describe("ApiClient", () => {
 
   describe("pushTranslations", () => {
     it("should push translations through the bulk import endpoint", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
@@ -451,7 +521,7 @@ describe("ApiClient", () => {
               namespacesCreated: [],
             },
           }),
-        });
+        } as Response);
 
       const result = await apiClient.pushTranslations({
         translations: { en: { common: { greeting: "Hello" } } },
@@ -459,16 +529,13 @@ describe("ApiClient", () => {
       });
 
       expect(result).toEqual({ created: 1, updated: 0, skipped: 0 });
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/projects/123/import/commit",
         expect.objectContaining({
           method: "POST",
         }),
       );
-
-      const callArgs = (global.fetch as any).mock.calls[1];
-      const requestBody = JSON.parse(callArgs[1].body);
-      expect(requestBody).toEqual({
+      expect(requestBodyOfCall(2)).toEqual({
         namespaces: {
           common: {
             en: { greeting: "Hello" },
@@ -483,18 +550,18 @@ describe("ApiClient", () => {
     });
 
     it("should send keep_server conflict resolution for keep mode", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
             locales: ["en"],
             namespaces: { common: { en: { greeting: "Remote" } } },
           }),
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
@@ -508,7 +575,7 @@ describe("ApiClient", () => {
               namespacesCreated: [],
             },
           }),
-        });
+        } as Response);
 
       const result = await apiClient.pushTranslations({
         translations: { en: { common: { greeting: "Local" } } },
@@ -516,16 +583,15 @@ describe("ApiClient", () => {
       });
 
       expect(result).toEqual({ created: 0, updated: 0, skipped: 1 });
-      const requestBody = JSON.parse((global.fetch as any).mock.calls[2][1].body);
-      expect(requestBody.options.conflictResolution).toBe("keep_server");
+      expect(requestBodyOfCall(3).options.conflictResolution).toBe("keep_server");
     });
 
     it("should use the bulk response translationsUpdated count", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
@@ -539,7 +605,7 @@ describe("ApiClient", () => {
               namespacesCreated: [],
             },
           }),
-        });
+        } as Response);
 
       const result = await apiClient.pushTranslations({
         translations: { en: { common: { greeting: "Hello" } } },
@@ -550,11 +616,11 @@ describe("ApiClient", () => {
     });
 
     it("should reject failed bulk import responses", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
@@ -569,7 +635,7 @@ describe("ApiClient", () => {
             },
             errors: [{ namespace: "common", key: "greeting", message: "Invalid value" }],
           }),
-        });
+        } as Response);
 
       await expect(
         apiClient.pushTranslations({
@@ -580,18 +646,18 @@ describe("ApiClient", () => {
     });
 
     it("should abort before writing when forceMode is abort and conflicts exist", async () => {
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
             locales: ["en"],
             namespaces: { common: { en: { greeting: "Remote" } } },
           }),
-        });
+        } as Response);
 
       await expect(
         apiClient.pushTranslations({
@@ -600,16 +666,16 @@ describe("ApiClient", () => {
         }),
       ).rejects.toThrow("Conflict detected for 1 translations");
 
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it("should report push progress once after the bulk request completes", async () => {
       const onProgress = vi.fn();
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockProjectInfo,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
@@ -623,7 +689,7 @@ describe("ApiClient", () => {
               namespacesCreated: [],
             },
           }),
-        });
+        } as Response);
 
       await apiClient.pushTranslations({
         translations: {
@@ -680,5 +746,13 @@ describe("ApiClient", () => {
           }),
       ).toThrow("Timeout must be a positive number");
     });
+  });
+});
+
+describe("ApiClient base URL policy", () => {
+  it("refuses a base URL that is not http(s)", () => {
+    expect(() => new ApiClient({ apiKey: "k", apiBaseUrl: "ftp://api.test.com" })).toThrow(
+      "Invalid API base URL: ftp://api.test.com",
+    );
   });
 });

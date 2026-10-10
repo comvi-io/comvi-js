@@ -1,11 +1,11 @@
 /**
- * Verifies <T> does not allocate Map/object instances when `components` is
- * undefined. Counts via a Map-constructor wrapper and compares <div> vs <T>
- * subtrees with the same provider, isolating <T>'s own allocation behavior.
+ * `<T>` must not allocate a Map when `components` is undefined. Counted with a
+ * Map-constructor wrapper, comparing <div> and <T> subtrees under the same
+ * provider so the delta isolates `<T>`'s own allocations.
  */
 
 import React from "react";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 
 import { createI18n } from "../src";
@@ -14,30 +14,27 @@ import { T } from "../src/T";
 
 const OriginalMap = globalThis.Map;
 
-describe("<T> allocation behavior", () => {
-  let mapCount: number;
-
-  beforeEach(() => {
-    mapCount = 0;
-    class CountingMap<K, V> extends OriginalMap<K, V> {
-      constructor(entries?: readonly (readonly [K, V])[] | null) {
-        super(entries ?? undefined);
-        mapCount += 1;
-      }
+/** Swaps in a counting Map for the current test only; `unstubGlobals` restores it. */
+const countMapAllocations = () => {
+  const counter = { n: 0 };
+  class CountingMap<K, V> extends OriginalMap<K, V> {
+    constructor(entries?: readonly (readonly [K, V])[] | null) {
+      super(entries ?? undefined);
+      counter.n += 1;
     }
-    globalThis.Map = CountingMap as unknown as MapConstructor;
-  });
+  }
+  vi.stubGlobal("Map", CountingMap);
+  return counter;
+};
 
-  afterEach(() => {
-    globalThis.Map = OriginalMap;
-  });
-
+describe("<T> allocation behavior", () => {
   it("attributes zero extra Maps to <T> when `components` prop is undefined", async () => {
-    const i18nDiv = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const i18nDiv = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     await i18nDiv.init();
 
-    // Baseline: provider + N <div> children. Captures all framework +
-    // provider Maps that scale with child count.
+    const counter = countMapAllocations();
+
+    // Baseline captures the framework/provider Maps that scale with children.
     const divBaseline = render(
       <I18nProvider i18n={i18nDiv}>
         <div />
@@ -45,13 +42,12 @@ describe("<T> allocation behavior", () => {
         <div />
       </I18nProvider>,
     );
-    const divMaps = mapCount;
+    const divMaps = counter.n;
     divBaseline.unmount();
 
-    // Same provider, same N children, swap <div> for <T>. Delta isolates T.
-    const i18nT = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const i18nT = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     await i18nT.init();
-    mapCount = 0;
+    counter.n = 0;
     render(
       <I18nProvider i18n={i18nT}>
         <T i18nKey={"greeting" as never} />
@@ -59,35 +55,32 @@ describe("<T> allocation behavior", () => {
         <T i18nKey={"greeting" as never} />
       </I18nProvider>,
     );
-    const tMaps = mapCount;
+    const tMaps = counter.n;
 
-    // T must NOT exceed div baseline. (Equal or fewer = optimization works.)
-    // We allow a small constant slack of 3 to absorb any React-internal
-    // bookkeeping that differs between div and T fiber types; the audit
-    // bug allocated 2 Maps PER T (= 6 for 3 Ts), well above this slack.
+    // Slack of 3 absorbs React-internal bookkeeping that differs between div
+    // and T fiber types; the regression this pins allocated 2 Maps PER T.
     expect(tMaps - divMaps).toBeLessThan(3);
   });
 
   it("at least one Map IS allocated when `components` prop is provided", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { greeting: "Hello <bold>world</bold>" } },
+      messages: { en: { greeting: "Hello <bold>world</bold>" } },
     });
     await i18n.init();
 
-    mapCount = 0;
+    const counter = countMapAllocations();
     render(
       <I18nProvider i18n={i18n}>
         <T i18nKey={"greeting" as never} components={{ bold: "strong" }} />
       </I18nProvider>,
     );
 
-    // Sanity: the `if (components)` branch DID allocate the bag.
-    expect(mapCount).toBeGreaterThan(0);
+    expect(counter.n).toBeGreaterThan(0);
   });
 
   it("plain text rendering is unchanged for the common case (no components)", async () => {
-    const i18n = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
     await i18n.init();
 
     const { container } = render(
@@ -101,7 +94,7 @@ describe("<T> allocation behavior", () => {
   it("tag-interpolation still works with components prop", async () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { rich: "Hello <bold>world</bold>" } },
+      messages: { en: { rich: "Hello <bold>world</bold>" } },
     });
     await i18n.init();
 

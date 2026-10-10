@@ -12,6 +12,14 @@ export default defineConfig({
   build: createPluginBuildOptions({
     entry: resolve(__dirname, "src/index.ts"),
     name: "ComviLocaleDetector",
-    external: ["@comvi/core"],
+    // Every `@comvi/core` specifier stays external so the host's code is
+    // never duplicated into this bundle.
+    external: ["@comvi/core", "@comvi/core/plugins"],
   }),
+  define: {
+    // The default artifact is the PROD one: the development-only warning ships
+    // in dist/index.dev.js (vite.config.dev.ts), reachable through the
+    // "development" export condition.
+    __DEV__: JSON.stringify(false),
+  },
 });

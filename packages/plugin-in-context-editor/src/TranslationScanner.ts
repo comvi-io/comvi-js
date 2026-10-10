@@ -1,20 +1,14 @@
 /**
- * TranslationScanner - Scans DOM nodes for encoded translation keys
- *
- * This class listens for DOM change events and processes nodes to find
- * translation keys encoded as invisible characters.
- *
- * Features:
- * - Proper lifecycle management (destroy method)
- * - Shared utility functions
- * - Event-based architecture via EventBus
+ * Listens for DOM change events and scans the affected nodes for translation
+ * keys encoded as invisible characters.
  */
 
 import type { TranslationSystemInnerOptions } from "./types";
+import type { NodeData } from "./types/translation";
 import type { TranslationRegistry } from "./TranslationRegistry";
 import { EventBus } from "./EventBus";
 import { containsInvisibleCharacters, decodeInvisibleToKey } from "./translation";
-import { IGNORED_NODES } from "./constants";
+import { ENCODING_LENGTH, IGNORED_NODES, INVISIBLE_CHARS } from "./constants";
 import {
   getNearestElementNode,
   findCorrespondingNode,
@@ -22,9 +16,109 @@ import {
   createTreeWalker,
 } from "./utils";
 
+interface DecodedMarker {
+  key: string;
+  ns: string;
+  /** The visible text between the previous marker and this one. */
+  textPreview: string;
+  /** Offset of the marker's first character in the scanned text. */
+  start: number;
+}
+
+function isInvisibleChar(char: string): boolean {
+  return (INVISIBLE_CHARS as readonly string[]).includes(char);
+}
+
 /**
- * Scans DOM for encoded translation keys and registers them
+ * Every whole marker in `text`. A run of invisible characters whose length is
+ * not a multiple of ENCODING_LENGTH holds a fragment, and its alignment is
+ * unknown, so the whole run decodes to nothing rather than to a wrong key.
  */
+function decodeMarkers(text: string): DecodedMarker[] {
+  const markers: DecodedMarker[] = [];
+  let segmentStart = 0;
+  let index = 0;
+  while (index < text.length) {
+    if (!isInvisibleChar(text[index]!)) {
+      index++;
+      continue;
+    }
+    const runStart = index;
+    while (index < text.length && isInvisibleChar(text[index]!)) {
+      index++;
+    }
+    if ((index - runStart) % ENCODING_LENGTH === 0) {
+      const textPreview = text.slice(segmentStart, runStart).trim();
+      for (let start = runStart; start < index; start += ENCODING_LENGTH) {
+        const decoded = decodeInvisibleToKey(text.slice(start, start + ENCODING_LENGTH));
+        if (decoded && typeof decoded === "object") {
+          markers.push({ key: decoded.key, ns: decoded.ns, textPreview, start });
+        }
+      }
+    }
+    segmentStart = index;
+  }
+  return markers;
+}
+
+/** The node's data, or null without markers. `wholePreview` keeps a lone key's preview as before. */
+function toNodeData(markers: DecodedMarker[], wholePreview: string): NodeData | null {
+  const distinct = markers.filter(
+    (marker, index) =>
+      markers.findIndex((other) => other.key === marker.key && other.ns === marker.ns) === index,
+  );
+  const first = distinct[0];
+  if (!first) {
+    return null;
+  }
+  if (distinct.length === 1) {
+    return { key: first.key, ns: first.ns, textPreview: wholePreview };
+  }
+  return {
+    key: first.key,
+    ns: first.ns,
+    textPreview: first.textPreview,
+    markers: distinct.map(({ key, ns, textPreview }) => ({ key, ns, textPreview })),
+  };
+}
+
+/** `textNode` and its adjacent text siblings, in document order. */
+function textRun(textNode: Text): Text[] {
+  let first: Node = textNode;
+  while (first.previousSibling?.nodeType === Node.TEXT_NODE) {
+    first = first.previousSibling;
+  }
+  const run: Text[] = [];
+  for (
+    let current: Node | null = first;
+    current?.nodeType === Node.TEXT_NODE;
+    current = current.nextSibling
+  ) {
+    run.push(current as Text);
+  }
+  return run;
+}
+
+/**
+ * The markers that start in `textNode`. Adjacent text siblings are read as
+ * one string, so a marker split across them still decodes, on the node where
+ * it starts.
+ */
+function decodeTextNodeMarkers(textNode: Text): DecodedMarker[] {
+  let text = "";
+  let nodeStart = 0;
+  let nodeEnd = 0;
+  for (const current of textRun(textNode)) {
+    if (current === textNode) nodeStart = text.length;
+    text += current.nodeValue ?? "";
+    if (current === textNode) nodeEnd = text.length;
+  }
+
+  return decodeMarkers(text).filter(
+    (marker) => marker.start >= nodeStart && marker.start < nodeEnd,
+  );
+}
+
 export class TranslationScanner {
   private eventBus: EventBus;
   private registry: TranslationRegistry;
@@ -43,18 +137,12 @@ export class TranslationScanner {
     this.registerEventHandlers();
   }
 
-  /**
-   * Registers event handlers for DOM changes
-   * Stores unsubscribe functions for cleanup
-   */
   private registerEventHandlers(): void {
     this.unsubscribers.push(
       this.eventBus.on("textChanges", (nodes: Node[]) => {
-        nodes.forEach((node) => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            this.processTextNode(node as Text);
-          }
-        });
+        this.processTextRuns(
+          nodes.filter((node): node is Text => node.nodeType === Node.TEXT_NODE),
+        );
       }),
     );
 
@@ -85,9 +173,6 @@ export class TranslationScanner {
     );
   }
 
-  /**
-   * Destroys the scanner and unsubscribes from all events
-   */
   public destroy(): void {
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
@@ -106,9 +191,6 @@ export class TranslationScanner {
     }
   }
 
-  /**
-   * Processes a text node to find encoded translation keys
-   */
   private processTextNode(textNode: Text): void {
     const nearestElementNode = getNearestElementNode(textNode);
     if (!nearestElementNode) {
@@ -132,12 +214,10 @@ export class TranslationScanner {
       return;
     }
 
-    const decoded = decodeInvisibleToKey(text);
-    if (decoded && typeof decoded === "object") {
-      const { key, ns } = decoded;
-      const textPreview = removeInvisibleCharacters(text);
+    const nodeData = toNodeData(decodeTextNodeMarkers(textNode), removeInvisibleCharacters(text));
+    if (nodeData) {
       this.registry.addOrUpdate(correspondingNode, {
-        nodes: new Map([[textNode, { key, ns, textPreview }]]),
+        nodes: new Map([[textNode, nodeData]]),
       });
       return;
     }
@@ -145,10 +225,7 @@ export class TranslationScanner {
     this.registry.removeNodesForElement(correspondingNode, (node) => node === textNode);
   }
 
-  /**
-   * Gets the list of attributes to check for a given element
-   * Combines tag-specific and universal (*) attributes from options
-   */
+  /** Tag-specific attributes plus the universal `*` entry. */
   private getAttributesToCheck(element: Element): string[] {
     const tagName = element.tagName.toLowerCase();
     const attributesToCheck = new Set<string>();
@@ -172,9 +249,6 @@ export class TranslationScanner {
     return Array.from(attributesToCheck);
   }
 
-  /**
-   * Finds and returns attributes that contain invisible character encodings
-   */
   private findEncodedAttributes(element: Element, attributeNames: string[]): Attr[] {
     return attributeNames
       .filter((attributeName) => element.hasAttribute(attributeName))
@@ -185,9 +259,6 @@ export class TranslationScanner {
       );
   }
 
-  /**
-   * Processes an element's attributes to find encoded translation keys
-   */
   private processAttributeNode(element: Element): void {
     if (IGNORED_NODES.includes(element.tagName.toLowerCase())) {
       return;
@@ -215,21 +286,22 @@ export class TranslationScanner {
     });
 
     matchingAttributes.forEach((attribute) => {
-      const decoded = decodeInvisibleToKey(attribute.value);
-      if (decoded && typeof decoded === "object") {
-        const { key, ns } = decoded;
-        const textPreview = removeInvisibleCharacters(attribute.value);
+      const nodeData = toNodeData(
+        decodeMarkers(attribute.value),
+        removeInvisibleCharacters(attribute.value),
+      );
+      if (nodeData) {
         this.registry.addOrUpdate(element, {
-          nodes: new Map([[attribute, { key, ns, textPreview }]]),
+          nodes: new Map([[attribute, nodeData]]),
         });
+      } else {
+        // Invisible characters that no longer decode: the same Attr stays on
+        // the element, so it has to be dropped explicitly.
+        this.registry.removeNodesForElement(element, (node) => node === attribute);
       }
     });
   }
 
-  /**
-   * Traverses a node tree and processes all text nodes and element attributes
-   * Uses shared utility for TreeWalker creation
-   */
   private traverseAndProcessNodes(node: Node): void {
     const walker = createTreeWalker(node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
 
@@ -245,9 +317,6 @@ export class TranslationScanner {
     }
   }
 
-  /**
-   * Processes a structural node change (new element added to DOM)
-   */
   private processStructureNode(node: Node): void {
     if (
       node.nodeType === Node.ELEMENT_NODE &&
@@ -256,18 +325,33 @@ export class TranslationScanner {
       return;
     }
 
-    // Process the node itself first
     if (node.nodeType === Node.ELEMENT_NODE) {
       this.processAttributeNode(node as Element);
     }
 
     if (node.nodeType === Node.TEXT_NODE) {
-      this.processTextNode(node as Text);
+      this.processTextRuns([node as Text]);
       return;
     }
 
-    // Traverse and process all descendant nodes
     this.traverseAndProcessNodes(node);
+  }
+
+  /**
+   * Reconciles every node of each changed node's adjacent text run: a marker
+   * can start in one node and end in the next, so a change to either one
+   * changes what the other decodes to.
+   */
+  private processTextRuns(textNodes: Text[]): void {
+    const processed = new Set<Text>();
+    textNodes.forEach((textNode) => {
+      textRun(textNode).forEach((member) => {
+        if (!processed.has(member)) {
+          processed.add(member);
+          this.processTextNode(member);
+        }
+      });
+    });
   }
 
   private normalizeStructureRoots(nodes: Node[]): Node[] {

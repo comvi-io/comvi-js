@@ -1,27 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
-import { h, defineComponent, markRaw } from "vue";
-import { VueI18n } from "../src/VueI18n";
+import { h, defineComponent, markRaw, type VNode } from "vue";
+import { createI18n as createRootI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
+import { icuCompiler } from "../src";
 
-// Type declarations for test translation keys
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    "tagged.simple": never;
-    "tagged.multiple": never;
-    "tagged.nested": never;
-    "tagged.self-closing": never;
-    "tagged.with-params": { name: string };
-    "tagged.html": never;
-  }
-}
+// A tag slot is handed the flattened children: a bare string when the tag
+// wraps a lone text node, the node list otherwise.
+type TagSlotProps = { children: string | (string | VNode)[] };
 
 describe("<T /> component - Tag Interpolation", () => {
   const createI18n = (translations: Record<string, string>, options?: any) => {
-    return new VueI18n({
+    return createRootI18n({
       locale: "en",
-      translation: { en: translations },
+      messages: { en: translations },
       ...options,
     });
   };
@@ -42,8 +35,8 @@ describe("<T /> component - Tag Interpolation", () => {
 
       expect(wrapper.find("a").exists()).toBe(true);
       expect(wrapper.find("a").text()).toBe("here");
-      expect(wrapper.text()).toContain("Click");
-      expect(wrapper.text()).toContain("for help");
+      // No whitespace is injected at the slot boundaries.
+      expect(wrapper.text()).toBe("Clickherefor help");
     });
 
     it("should handle nested tags with slots", () => {
@@ -116,8 +109,7 @@ describe("<T /> component - Tag Interpolation", () => {
         msg: "Click <btn>Submit</btn>",
       });
 
-      // markRaw prevents Vue from making the component reactive
-      // (avoids performance overhead warning)
+      // markRaw, or Vue makes the component reactive and warns about the cost.
       const MyButton = markRaw(
         defineComponent({
           name: "MyButton",
@@ -157,21 +149,20 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Components prop should win
       expect(wrapper.find("span").exists()).toBe(true);
       expect(wrapper.find("div").exists()).toBe(false);
     });
 
     it("should allow handlers named like optional transport params when prop is unset", () => {
       const i18n = createI18n({
-        msg: "Hello <raw>world</raw> and <fallback>friends</fallback>",
+        msg: "Hello <markers>world</markers> and <fallback>friends</fallback>",
       });
 
       const wrapper = mount(T, {
         props: {
           i18nKey: "msg",
           components: {
-            raw: "strong",
+            markers: "strong",
             fallback: "em",
           },
         },
@@ -187,9 +178,9 @@ describe("<T /> component - Tag Interpolation", () => {
 
   describe("Basic HTML Tags Whitelist", () => {
     it("should render whitelisted HTML tags without handler", () => {
-      const i18n = new VueI18n({
+      const i18n = createRootI18n({
         locale: "en",
-        translation: { en: { msg: "This is <strong>bold</strong> text" } },
+        messages: { en: { msg: "This is <strong>bold</strong> text" } },
         tagInterpolation: {
           basicHtmlTags: ["strong", "em", "br"],
         },
@@ -205,9 +196,9 @@ describe("<T /> component - Tag Interpolation", () => {
     });
 
     it("should render self-closing whitelisted tags", () => {
-      const i18n = new VueI18n({
+      const i18n = createRootI18n({
         locale: "en",
-        translation: { en: { msg: "Line 1<br/>Line 2" } },
+        messages: { en: { msg: "Line 1<br/>Line 2" } },
         tagInterpolation: {
           basicHtmlTags: ["br"],
         },
@@ -222,9 +213,9 @@ describe("<T /> component - Tag Interpolation", () => {
     });
 
     it("should prioritize explicit handler over whitelist", () => {
-      const i18n = new VueI18n({
+      const i18n = createRootI18n({
         locale: "en",
-        translation: { en: { msg: "<strong>text</strong>" } },
+        messages: { en: { msg: "<strong>text</strong>" } },
         tagInterpolation: {
           basicHtmlTags: ["strong"],
         },
@@ -238,7 +229,7 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should use <b> from components, not <strong> from whitelist
+      // `<b>` from components wins over `<strong>` from the whitelist.
       expect(wrapper.find("b").exists()).toBe(true);
       expect(wrapper.find("strong").exists()).toBe(false);
     });
@@ -255,7 +246,7 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // No slot or components for "link", should show inner text
+      // No handler for "link", so only its inner text survives.
       expect(wrapper.text()).toBe("Click here for help");
       expect(wrapper.find("a").exists()).toBe(false);
     });
@@ -287,21 +278,30 @@ describe("<T /> component - Tag Interpolation", () => {
           tagInterpolation: { strict: "warn" },
         },
       );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const wrapper = mount(T, {
         props: { i18nKey: "msg" },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
+      // The warning is the only thing separating "warn" from the plain
+      // no-handler fallback two tests above.
       expect(wrapper.text()).toBe("Click here for help");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("link"));
     });
   });
 
   describe("Integration with ICU Parameters", () => {
     it("should handle tags with pluralization", () => {
-      const i18n = createI18n({
-        msg: "You have <bold>{count, plural, one {# item} other {# items}}</bold>",
-      });
+      // An inline ICU plural, so the compiler is named in the same constructor
+      // call; `<bold>` still comes from `<T>`'s per-call tag grammar.
+      const i18n = createI18n(
+        {
+          msg: "You have <bold>{count, plural, one {# item} other {# items}}</bold>",
+        },
+        { compiler: icuCompiler },
+      );
 
       const wrapper = mount(T, {
         props: {
@@ -336,9 +336,9 @@ describe("<T /> component - Tag Interpolation", () => {
 
   describe("Reactivity", () => {
     it("should update when locale changes", async () => {
-      const i18n = new VueI18n({
+      const i18n = createRootI18n({
         locale: "en",
-        translation: {
+        messages: {
           en: { msg: "<bold>Hello</bold>" },
           fr: { msg: "<bold>Bonjour</bold>" },
         },
@@ -390,7 +390,7 @@ describe("<T /> component - Tag Interpolation", () => {
       const wrapper = mount(T, {
         props: { i18nKey: "msg" },
         slots: {
-          link: ({ children }: { children: unknown }) => {
+          link: ({ children }: TagSlotProps) => {
             receivedChildren = children;
             return h("a", { href: "#" }, children);
           },
@@ -398,7 +398,7 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // children should be "click here" (string), not ["click here"] (array)
+      // A string, not a one-element array.
       expect(receivedChildren).toBe("click here");
       expect(wrapper.find("a").text()).toBe("click here");
     });
@@ -412,17 +412,20 @@ describe("<T /> component - Tag Interpolation", () => {
       const wrapper = mount(T, {
         props: { i18nKey: "msg" },
         slots: {
-          wrapper: ({ children }: { children: unknown }) => {
+          wrapper: ({ children }: TagSlotProps) => {
             receivedChildren = children;
             return h("div", {}, children);
           },
-          bold: ({ children }: { children: unknown }) => h("strong", {}, children),
+          bold: ({ children }: TagSlotProps) => h("strong", {}, children),
         },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // children should be array when mixed content
+      // An array, because the content is mixed: text, element, text. All three
+      // arrive as VNodes — the text segments included — so the claim is
+      // array-ness plus the node count, not the element types.
       expect(Array.isArray(receivedChildren)).toBe(true);
+      expect(receivedChildren).toHaveLength(3);
       expect(wrapper.text()).toBe("Hello world!");
     });
   });

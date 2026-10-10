@@ -1,9 +1,4 @@
-/**
- * Vite config for standalone IIFE build
- * This builds the plugin for CDN loading by Chrome extension
- *
- * Output: dist/standalone.iife.js
- */
+/** The IIFE the Chrome extension loads from the CDN: dist/standalone.iife.js. */
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
@@ -32,7 +27,7 @@ export default defineConfig({
       // (it accesses window.__COMVI__ instead)
       external: [],
       output: {
-        // Inline all CSS into JS
+        // CSS must be inlined: the IIFE is loaded as a single file.
         assetFileNames: "standalone.[ext]",
       },
       treeshake: {
@@ -42,7 +37,6 @@ export default defineConfig({
     },
   },
   define: {
-    // Mark as production
     "process.env.NODE_ENV": JSON.stringify("production"),
   },
 });

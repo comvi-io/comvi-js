@@ -21,7 +21,7 @@ const LANGUAGES: Language[] = [
   },
 ];
 
-describe("validation utilities", () => {
+describe("validateTranslations()", () => {
   it("reports errors when plural form values exceed max length", () => {
     const veryLongValue = "x".repeat(5001);
     const translations: Record<string, PluralFormTranslation> = {
@@ -31,10 +31,32 @@ describe("validation utilities", () => {
 
     const result = validateTranslations(LANGUAGES, translations);
 
-    expect(result.isValid).toBe(false);
-    expect(result.errors).toHaveLength(2);
-    expect(result.errors[0]?.languageId).toBe("en");
-    expect(result.errors[1]?.languageId).toBe("uk");
+    expect(result).toEqual({
+      isValid: false,
+      errors: [
+        {
+          languageId: "en",
+          pluralForm: "one",
+          message: 'Translation for "one" form exceeds maximum length of 5000 characters',
+        },
+        {
+          languageId: "uk",
+          pluralForm: "few",
+          message: 'Translation for "few" form exceeds maximum length of 5000 characters',
+        },
+      ],
+      warnings: [],
+    });
+  });
+
+  it("accepts a value of exactly the 5000-character maximum", () => {
+    const translations: Record<string, PluralFormTranslation> = {
+      en: { other: "x".repeat(5000) },
+    };
+
+    const result = validateTranslations(LANGUAGES, translations);
+
+    expect(result).toEqual({ isValid: true, errors: [], warnings: [] });
   });
 
   it("allows empty and missing plural forms", () => {
@@ -45,19 +67,183 @@ describe("validation utilities", () => {
 
     const result = validateTranslations(LANGUAGES, translations);
 
-    expect(result.isValid).toBe(true);
-    expect(result.errors).toEqual([]);
+    expect(result).toEqual({ isValid: true, errors: [], warnings: [] });
+  });
+});
+
+describe("validateField()", () => {
+  it.each([
+    ["", "empty string"],
+    ["   ", "whitespace only"],
+  ])('validateField(%j, true) → "This field is required" (%s)', (value) => {
+    expect(validateField(value, true)).toBe("This field is required");
   });
 
-  it("validates required field rule", () => {
-    expect(validateField("", true)).toBe("This field is required");
-    expect(validateField("   ", true)).toBe("This field is required");
+  it("a required field with a value → no error", () => {
+    expect(validateField("Valid value", true)).toBeNull();
   });
 
-  it("validates max field length rule", () => {
+  it("a value within the limit and not required → no error", () => {
+    expect(validateField("Valid value")).toBeNull();
+  });
+
+  it("an empty value that is not required → no error", () => {
+    expect(validateField("")).toBeNull();
+  });
+
+  it("a value longer than 5000 characters → the max-length error", () => {
     expect(validateField("x".repeat(5001))).toBe(
       "Translation exceeds maximum length of 5000 characters",
     );
-    expect(validateField("Valid value")).toBeNull();
+  });
+
+  it("a value of exactly 5000 characters → no error", () => {
+    expect(validateField("x".repeat(5000))).toBeNull();
+  });
+});
+
+describe("validateTranslations — placeholder warnings", () => {
+  const lang = { code: "de", name: "German", pluralForms: ["one", "other"] } as never;
+
+  it("warns when a form's placeholders differ from the first form → names the missing and unexpected ones", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name}", other: "Hallo {nom}" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: name; unexpected: nom",
+      },
+    ]);
+  });
+
+  it("a placeholder mismatch stays non-blocking → isValid remains true and errors stay empty", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name}", other: "Hallo" },
+    });
+
+    expect(result).toEqual({
+      isValid: true,
+      errors: [],
+      warnings: [
+        {
+          languageId: "de",
+          pluralForm: "other",
+          message: "Placeholders differ from the first form; missing: name",
+        },
+      ],
+    });
+  });
+
+  it("matching placeholders across forms → no warnings", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name}", other: "Hi {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("double-brace placeholders name the variable inside them → no brace-prefixed phantom is reported", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {{name}}", other: "Hallo {{nom}}" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: name; unexpected: nom",
+      },
+    ]);
+  });
+
+  it("a double-brace and a single-brace spelling of one variable are the same placeholder → no warning", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {{name}}", other: "Hallo {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("a form dropping two of the first form's placeholders → the warning lists both missing names", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {anrede} {name} {tag}", other: "Hallo {tag}" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: anrede, name",
+      },
+    ]);
+  });
+
+  it("a form adding two placeholders on top of the first form's → the warning lists only the unexpected ones", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {anrede}", other: "Hallo {anrede} {name} {tag}" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; unexpected: name, tag",
+      },
+    ]);
+  });
+
+  it("the same placeholders written in a different order → no warning", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name} {tag}", other: "{tag}, hallo {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("a placeholder padded with spaces names the same variable → no warning", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo { name }", other: "Hallo {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("a plural form the language has not translated at all → no warning, only translated forms are compared", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("percent placeholders are compared by name → the warning lists the missing one", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo %anrede% %name%", other: "Hallo %name%" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: anrede",
+      },
+    ]);
+  });
+
+  it("an indexed <n> tag placeholder is compared by its whole index → the warning names the missing <10>", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo <0> und <10>", other: "Hallo <0>" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: 10",
+      },
+    ]);
   });
 });

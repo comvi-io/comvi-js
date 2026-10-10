@@ -1,22 +1,24 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { TranslationRegistry } from "../src/TranslationRegistry";
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
+import { TranslationRegistry, type ElementData, type NodeData } from "../src/TranslationRegistry";
 import { EventBus } from "../src/EventBus";
 import { cleanupDOM } from "./helpers";
 
-describe("translatedElementsMap.ts - Element Translation Map", () => {
+describe("TranslationRegistry", () => {
   let map: TranslationRegistry;
   let eventBus: EventBus;
-  let onTranslationRegistered: ReturnType<typeof vi.fn>;
-  let onTranslationRemoved: ReturnType<typeof vi.fn>;
+  let onTranslationRegistered: Mock<(element: Element, data: ElementData) => void>;
+  let onTranslationRemoved: Mock<(element: Element) => void>;
+  let onTranslationUpdated: Mock<(element: Element, data: ElementData) => void>;
 
   beforeEach(() => {
     eventBus = new EventBus();
-    onTranslationRegistered = vi.fn();
-    onTranslationRemoved = vi.fn();
+    onTranslationRegistered = vi.fn<(element: Element, data: ElementData) => void>();
+    onTranslationRemoved = vi.fn<(element: Element) => void>();
+    onTranslationUpdated = vi.fn<(element: Element, data: ElementData) => void>();
 
-    // Subscribe to events to verify they are emitted
     eventBus.on("translationRegistered", onTranslationRegistered);
     eventBus.on("translationRemoved", onTranslationRemoved);
+    eventBus.on("translationUpdated", onTranslationUpdated);
 
     map = new TranslationRegistry(eventBus);
   });
@@ -30,7 +32,7 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const element = document.createElement("div");
       const textNode = document.createTextNode("test");
       const data = {
-        nodes: new Map([[textNode, { key: "test.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "test.key", ns: "default" }]]),
       };
 
       map.add(element, data);
@@ -42,7 +44,9 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
     it("should emit translationRegistered event when adding", () => {
       const element = document.createElement("div");
       const data = {
-        nodes: new Map([[document.createTextNode("test"), { key: "test.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "test.key", ns: "default" }],
+        ]),
       };
 
       map.add(element, data);
@@ -53,17 +57,21 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
     it("should not add duplicate elements", () => {
       const element = document.createElement("div");
       const data1 = {
-        nodes: new Map([[document.createTextNode("test1"), { key: "key1" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test1"), { key: "key1", ns: "default" }],
+        ]),
       };
       const data2 = {
-        nodes: new Map([[document.createTextNode("test2"), { key: "key2" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test2"), { key: "key2", ns: "default" }],
+        ]),
       };
 
       map.add(element, data1);
       map.add(element, data2);
 
-      // Should keep original data
       expect(map.get(element)).toEqual(data1);
+      expect(onTranslationRegistered).toHaveBeenCalledTimes(1);
     });
 
     it("should throw error for null element", () => {
@@ -71,7 +79,7 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
         map.add(null as any, {
           nodes: new Map(),
         });
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
     it("should throw error for undefined element", () => {
@@ -79,43 +87,78 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
         map.add(undefined as any, {
           nodes: new Map(),
         });
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
-    it("should handle multiple different elements", () => {
+    it("three different elements added → all three are tracked", () => {
       const div = document.createElement("div");
       const span = document.createElement("span");
       const p = document.createElement("p");
 
-      map.add(div, { nodes: new Map([[document.createTextNode("div"), { key: "1" }]]) });
-      map.add(span, { nodes: new Map([[document.createTextNode("span"), { key: "2" }]]) });
-      map.add(p, { nodes: new Map([[document.createTextNode("p"), { key: "3" }]]) });
+      map.add(div, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("div"), { key: "1", ns: "default" }],
+        ]),
+      });
+      map.add(span, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("span"), { key: "2", ns: "default" }],
+        ]),
+      });
+      map.add(p, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("p"), { key: "3", ns: "default" }],
+        ]),
+      });
 
       expect(map.size()).toBe(3);
       expect(map.has(div)).toBe(true);
       expect(map.has(span)).toBe(true);
       expect(map.has(p)).toBe(true);
     });
+
+    it("should emit one translationRegistered per added element", () => {
+      const elements = [
+        document.createElement("div"),
+        document.createElement("span"),
+        document.createElement("p"),
+      ];
+
+      elements.forEach((el, i) => {
+        map.add(el, {
+          nodes: new Map<Node | Attr, NodeData>([
+            [document.createTextNode("test"), { key: String(i), ns: "default" }],
+          ]),
+        });
+      });
+
+      expect(onTranslationRegistered.mock.calls.map(([el]) => el)).toEqual(elements);
+    });
   });
 
   describe("remove", () => {
-    it("should remove element from map", () => {
+    it("tracked element removed → has() is false and get() returns undefined", () => {
       const element = document.createElement("div");
-      const data = {
-        nodes: new Map([[document.createTextNode("test"), { key: "key" }]]),
-      };
-
-      map.add(element, data);
-      expect(map.has(element)).toBe(true);
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "key", ns: "default" }],
+        ]),
+      });
 
       map.remove(element);
-      expect(map.has(element)).toBe(false);
+
+      expect({ has: map.has(element), data: map.get(element) }).toEqual({
+        has: false,
+        data: undefined,
+      });
     });
 
     it("should emit translationRemoved event when removing", () => {
       const element = document.createElement("div");
       const data = {
-        nodes: new Map([[document.createTextNode("test"), { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "key", ns: "default" }],
+        ]),
       };
 
       map.add(element, data);
@@ -124,7 +167,7 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(onTranslationRemoved).toHaveBeenCalledWith(element);
     });
 
-    it("should handle removing non-existent element", () => {
+    it("remove() of an untracked element → nothing changes and no removal is announced", () => {
       const element = document.createElement("div");
       map.remove(element);
 
@@ -135,13 +178,13 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
     it("should throw error for null element", () => {
       expect(() => {
         map.remove(null as any);
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
 
     it("should throw error for undefined element", () => {
       expect(() => {
         map.remove(undefined as any);
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
     });
   });
 
@@ -150,13 +193,13 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const element = document.createElement("div");
       const textNode = document.createTextNode("test");
       const data = {
-        nodes: new Map([[textNode, { key: "test.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "test.key", ns: "default" }]]),
       };
 
       map.addOrUpdate(element, data);
 
       expect(map.has(element)).toBe(true);
-      expect(map.get(element)?.nodes.get(textNode)).toEqual({ key: "test.key" });
+      expect(map.get(element)?.nodes.get(textNode)).toEqual({ key: "test.key", ns: "default" });
     });
 
     it("should update element if it exists", () => {
@@ -165,10 +208,10 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const textNode2 = document.createTextNode("test2");
 
       const data1 = {
-        nodes: new Map([[textNode1, { key: "key1" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode1, { key: "key1", ns: "default" }]]),
       };
       const data2 = {
-        nodes: new Map([[textNode2, { key: "key2" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode2, { key: "key2", ns: "default" }]]),
       };
 
       map.add(element, data1);
@@ -176,8 +219,8 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
 
       const result = map.get(element);
       expect(result?.nodes.size).toBe(2);
-      expect(result?.nodes.get(textNode1)).toEqual({ key: "key1" });
-      expect(result?.nodes.get(textNode2)).toEqual({ key: "key2" });
+      expect(result?.nodes.get(textNode1)).toEqual({ key: "key1", ns: "default" });
+      expect(result?.nodes.get(textNode2)).toEqual({ key: "key2", ns: "default" });
     });
 
     it("should merge multiple node data", () => {
@@ -188,13 +231,15 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const ariaAttr = document.createAttribute("aria-label");
 
       map.addOrUpdate(element, {
-        nodes: new Map([[attrNode, { key: "placeholder.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [attrNode, { key: "placeholder.key", ns: "default" }],
+        ]),
       });
       map.addOrUpdate(element, {
-        nodes: new Map([[titleAttr, { key: "title.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[titleAttr, { key: "title.key", ns: "default" }]]),
       });
       map.addOrUpdate(element, {
-        nodes: new Map([[ariaAttr, { key: "aria.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[ariaAttr, { key: "aria.key", ns: "default" }]]),
       });
 
       const result = map.get(element);
@@ -206,20 +251,105 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const textNode = document.createTextNode("test");
 
       map.addOrUpdate(element, {
-        nodes: new Map([[textNode, { key: "old.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "old.key", ns: "default" }]]),
       });
       map.addOrUpdate(element, {
-        nodes: new Map([[textNode, { key: "new.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "new.key", ns: "default" }]]),
       });
 
       const result = map.get(element);
-      expect(result?.nodes.get(textNode)).toEqual({ key: "new.key" });
+      expect(result?.nodes.get(textNode)).toEqual({ key: "new.key", ns: "default" });
     });
 
     it("should throw error for null element", () => {
       expect(() => {
         map.addOrUpdate(null as any, { nodes: new Map() });
-      }).toThrow("Element cannot be null or undefined");
+      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
+    });
+
+    it("should emit translationUpdated with the merged data for an already registered element", () => {
+      const element = document.createElement("div");
+      const first = document.createTextNode("first");
+      const second = document.createTextNode("second");
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([[first, { key: "first.key", ns: "default" }]]),
+      });
+
+      map.addOrUpdate(element, {
+        nodes: new Map<Node | Attr, NodeData>([[second, { key: "second.key", ns: "default" }]]),
+      });
+
+      expect(onTranslationUpdated).toHaveBeenCalledExactlyOnceWith(element, map.get(element));
+      expect([...(map.get(element)?.nodes.keys() ?? [])]).toEqual([first, second]);
+    });
+  });
+
+  describe("removeNodesForElement", () => {
+    it("should keep the element untouched and emit nothing when the predicate matches no node", () => {
+      const element = document.createElement("div");
+      const textNode = document.createTextNode("text");
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "kept.key", ns: "default" }]]),
+      });
+
+      map.removeNodesForElement(element, () => false);
+
+      expect(map.get(element)?.nodes.get(textNode)).toEqual({ key: "kept.key", ns: "default" });
+      expect(onTranslationUpdated).not.toHaveBeenCalled();
+      expect(onTranslationRemoved).not.toHaveBeenCalled();
+    });
+
+    it("should emit translationUpdated and keep the element when only some nodes match", () => {
+      const element = document.createElement("div");
+      const doomed = document.createTextNode("gone");
+      const kept = document.createTextNode("kept");
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [doomed, { key: "gone.key", ns: "default" }],
+          [kept, { key: "kept.key", ns: "default" }],
+        ]),
+      });
+
+      map.removeNodesForElement(element, (node) => node === doomed);
+
+      expect([...(map.get(element)?.nodes.keys() ?? [])]).toEqual([kept]);
+      expect(onTranslationUpdated).toHaveBeenCalledExactlyOnceWith(element, map.get(element));
+      expect(onTranslationRemoved).not.toHaveBeenCalled();
+    });
+
+    it("should remove the element once its last node matches", () => {
+      const element = document.createElement("div");
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("text"), { key: "only.key", ns: "default" }],
+        ]),
+      });
+
+      map.removeNodesForElement(element, () => true);
+
+      expect(map.has(element)).toBe(false);
+      expect(onTranslationRemoved).toHaveBeenCalledExactlyOnceWith(element);
+    });
+
+    it("should emit nothing for an element that is not registered", () => {
+      map.removeNodesForElement(document.createElement("div"), () => true);
+
+      expect(onTranslationUpdated).not.toHaveBeenCalled();
+      expect(onTranslationRemoved).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("destroy", () => {
+    it("should empty the registry and emit translationRemoved for every tracked element", () => {
+      const first = document.createElement("div");
+      const second = document.createElement("span");
+      map.add(first, { nodes: new Map() });
+      map.add(second, { nodes: new Map() });
+
+      map.destroy();
+
+      expect(map.size()).toBe(0);
+      expect(onTranslationRemoved.mock.calls.map(([element]) => element)).toEqual([first, second]);
     });
   });
 
@@ -227,7 +357,9 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
     it("should return element data if exists", () => {
       const element = document.createElement("div");
       const data = {
-        nodes: new Map([[document.createTextNode("test"), { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "key", ns: "default" }],
+        ]),
       };
 
       map.add(element, data);
@@ -243,15 +375,23 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(result).toBeUndefined();
     });
 
+    it("should return undefined for null rather than throwing like add/remove", () => {
+      expect(map.get(null as any)).toBeUndefined();
+    });
+
     it("should return correct data for multiple elements", () => {
       const div = document.createElement("div");
       const span = document.createElement("span");
 
       const divData = {
-        nodes: new Map([[document.createTextNode("div"), { key: "div.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("div"), { key: "div.key", ns: "default" }],
+        ]),
       };
       const spanData = {
-        nodes: new Map([[document.createTextNode("span"), { key: "span.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("span"), { key: "span.key", ns: "default" }],
+        ]),
       };
 
       map.add(div, divData);
@@ -274,28 +414,40 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const element = document.createElement("div");
       expect(map.has(element)).toBe(false);
     });
+
+    it("should return false for null rather than throwing like add/remove", () => {
+      expect(map.has(null as any)).toBe(false);
+    });
   });
 
   describe("clear", () => {
-    it("should remove all elements", () => {
+    function addThreeElements(): Element[] {
       const elements = [
         document.createElement("div"),
         document.createElement("span"),
         document.createElement("p"),
       ];
+      elements.forEach((el) => map.add(el, { nodes: new Map() }));
+      return elements;
+    }
 
-      elements.forEach((el) => {
-        map.add(el, { nodes: new Map() });
-      });
-
-      expect(map.size()).toBe(3);
+    it("three tracked elements, clear() → none is tracked any more", () => {
+      const elements = addThreeElements();
 
       map.clear();
 
-      expect(map.size()).toBe(0);
-      elements.forEach((el) => {
-        expect(map.has(el)).toBe(false);
+      expect({ size: map.size(), has: elements.map((el) => map.has(el)) }).toEqual({
+        size: 0,
+        has: [false, false, false],
       });
+    });
+
+    it("three tracked elements, clear() → each removal is announced, in insertion order", () => {
+      const elements = addThreeElements();
+
+      map.clear();
+
+      expect(onTranslationRemoved.mock.calls.map(([el]) => el)).toEqual(elements);
     });
   });
 
@@ -304,30 +456,33 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(map.size()).toBe(0);
     });
 
-    it("should return correct count", () => {
-      map.add(document.createElement("div"), { nodes: new Map() });
-      expect(map.size()).toBe(1);
+    it.each([1, 2, 3])("%i elements added → size() is %i", (count) => {
+      const tags = ["div", "span", "p"].slice(0, count);
 
-      map.add(document.createElement("span"), { nodes: new Map() });
-      expect(map.size()).toBe(2);
+      tags.forEach((tag) => map.add(document.createElement(tag), { nodes: new Map() }));
 
-      map.add(document.createElement("p"), { nodes: new Map() });
-      expect(map.size()).toBe(3);
+      expect(map.size()).toBe(count);
     });
 
-    it("should update when elements are removed", () => {
+    it("two tracked elements, one removed → size() is 1", () => {
       const div = document.createElement("div");
-      const span = document.createElement("span");
-
       map.add(div, { nodes: new Map() });
-      map.add(span, { nodes: new Map() });
-
-      expect(map.size()).toBe(2);
+      map.add(document.createElement("span"), { nodes: new Map() });
 
       map.remove(div);
+
       expect(map.size()).toBe(1);
+    });
+
+    it("two tracked elements, both removed → size() is 0", () => {
+      const div = document.createElement("div");
+      const span = document.createElement("span");
+      map.add(div, { nodes: new Map() });
+      map.add(span, { nodes: new Map() });
+      map.remove(div);
 
       map.remove(span);
+
       expect(map.size()).toBe(0);
     });
   });
@@ -349,9 +504,9 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const textNode2 = document.createTextNode("remove");
 
       map.add(element, {
-        nodes: new Map([
-          [textNode1, { key: "key1" }],
-          [textNode2, { key: "key2" }],
+        nodes: new Map<Node | Attr, NodeData>([
+          [textNode1, { key: "key1", ns: "default" }],
+          [textNode2, { key: "key2", ns: "default" }],
         ]),
       });
 
@@ -362,6 +517,8 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(result?.nodes.size).toBe(1);
       expect(result?.nodes.has(textNode1)).toBe(true);
       expect(result?.nodes.has(textNode2)).toBe(false);
+      expect(onTranslationUpdated).toHaveBeenCalledWith(element, result);
+      expect(onTranslationRemoved).not.toHaveBeenCalled();
     });
 
     it("should remove element if all nodes are removed", () => {
@@ -369,7 +526,7 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const textNode = document.createTextNode("test");
 
       map.add(element, {
-        nodes: new Map([[textNode, { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "key", ns: "default" }]]),
       });
 
       const removedNodes = new Set<Node | Attr>([textNode]);
@@ -378,7 +535,7 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(map.has(element)).toBe(false);
     });
 
-    it("should handle node contained within removed node", () => {
+    it("removed parent contains a tracked element's only node → that element is dropped and announced", () => {
       const parent = document.createElement("div");
       const child = document.createElement("span");
       const textNode = document.createTextNode("text");
@@ -387,27 +544,25 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       parent.appendChild(child);
 
       map.add(child, {
-        nodes: new Map([[textNode, { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "key", ns: "default" }]]),
       });
 
-      // Remove parent (should affect child)
       const removedNodes = new Set<Node | Attr>([parent]);
       map.cleanupRemovedNodes(removedNodes);
 
-      // Child's text node should be detected as affected
-      const result = map.get(child);
-      if (result) {
-        expect(result.nodes.size).toBe(0);
-      }
+      // The child's only node is contained in the removed parent, so the child
+      // loses every node and is dropped from the registry entirely.
+      expect(map.has(child)).toBe(false);
+      expect(onTranslationRemoved).toHaveBeenCalledWith(child);
     });
 
-    it("should handle attribute whose owner element was removed", () => {
+    it("tracked attribute's owner element removed → the element is dropped", () => {
       const element = document.createElement("div");
       const attr = document.createAttribute("title");
       element.setAttributeNode(attr);
 
       map.add(element, {
-        nodes: new Map([[attr, { key: "attr.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[attr, { key: "attr.key", ns: "default" }]]),
       });
 
       const removedNodes = new Set<Node | Attr>([element]);
@@ -416,9 +571,13 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(map.has(element)).toBe(false);
     });
 
-    it("should handle empty removedNodes set", () => {
+    it("cleanupRemovedNodes() with an empty set → tracked elements stay", () => {
       const element = document.createElement("div");
-      map.add(element, { nodes: new Map([[document.createTextNode("test"), { key: "key" }]]) });
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "key", ns: "default" }],
+        ]),
+      });
 
       const removedNodes = new Set<Node | Attr>();
       map.cleanupRemovedNodes(removedNodes);
@@ -426,7 +585,7 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(map.has(element)).toBe(true);
     });
 
-    it("should handle multiple elements and nodes", () => {
+    it("one node of a two-node element and all of another element removed → the first keeps its other node, the second is dropped", () => {
       const div = document.createElement("div");
       const span = document.createElement("span");
       const textNode1 = document.createTextNode("text1");
@@ -434,31 +593,88 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const textNode3 = document.createTextNode("text3");
 
       map.add(div, {
-        nodes: new Map([
-          [textNode1, { key: "key1" }],
-          [textNode2, { key: "key2" }],
+        nodes: new Map<Node | Attr, NodeData>([
+          [textNode1, { key: "key1", ns: "default" }],
+          [textNode2, { key: "key2", ns: "default" }],
         ]),
       });
       map.add(span, {
-        nodes: new Map([[textNode3, { key: "key3" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode3, { key: "key3", ns: "default" }]]),
       });
 
       const removedNodes = new Set<Node | Attr>([textNode2, span]);
+
       map.cleanupRemovedNodes(removedNodes);
 
-      // div should still exist but with only textNode1
-      expect(map.has(div)).toBe(true);
-      const divResult = map.get(div);
-      expect(divResult?.nodes.size).toBe(1);
-      expect(divResult?.nodes.has(textNode1)).toBe(true);
+      expect({
+        divNodes: [...(map.get(div)?.nodes.keys() ?? [])],
+        spanTracked: map.has(span),
+      }).toEqual({ divNodes: [textNode1], spanTracked: false });
+    });
 
-      // span should be removed
-      expect(map.has(span)).toBe(false);
+    it("should emit nothing for a registered element none of whose nodes were removed", () => {
+      const element = document.createElement("div");
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("text"), { key: "key", ns: "default" }],
+        ]),
+      });
+
+      map.cleanupRemovedNodes(new Set([document.createTextNode("unrelated")]));
+
+      expect(map.has(element)).toBe(true);
+      expect(onTranslationUpdated).not.toHaveBeenCalled();
+    });
+
+    it("should drop a tracked attribute reported removed on its own", () => {
+      const element = document.createElement("div");
+      const attr = document.createAttribute("title");
+      element.setAttributeNode(attr);
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([[attr, { key: "attr.key", ns: "default" }]]),
+      });
+
+      map.cleanupRemovedNodes(new Set([attr]));
+
+      expect(map.has(element)).toBe(false);
+    });
+
+    it("should drop an element whose ancestor was removed, tracked attribute included", () => {
+      const ancestor = document.createElement("section");
+      const element = document.createElement("div");
+      ancestor.appendChild(element);
+      const attr = document.createAttribute("title");
+      element.setAttributeNode(attr);
+      const textNode = document.createTextNode("text");
+      element.appendChild(textNode);
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [textNode, { key: "text.key", ns: "default" }],
+          [attr, { key: "attr.key", ns: "default" }],
+        ]),
+      });
+
+      map.cleanupRemovedNodes(new Set([ancestor]));
+
+      expect(map.has(element)).toBe(false);
+    });
+
+    it("should keep a tracked attribute when only an unrelated node was removed", () => {
+      const element = document.createElement("div");
+      const attr = document.createAttribute("title");
+      element.setAttributeNode(attr);
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([[attr, { key: "attr.key", ns: "default" }]]),
+      });
+
+      map.cleanupRemovedNodes(new Set([document.createTextNode("unrelated")]));
+
+      expect(map.get(element)?.nodes.get(attr)).toEqual({ key: "attr.key", ns: "default" });
     });
   });
 
   describe("Complex scenarios", () => {
-    it("should handle element with multiple translation nodes", () => {
+    it("element tracked with a text node and two attributes → all three nodes are kept with their keys", () => {
       const element = document.createElement("button");
       const textNode = document.createTextNode("Click me");
       const ariaAttr = document.createAttribute("aria-label");
@@ -469,23 +685,32 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       element.setAttributeNode(titleAttr);
 
       map.add(element, {
-        nodes: new Map([
-          [textNode, { key: "button.text" }],
-          [ariaAttr, { key: "button.aria" }],
-          [titleAttr, { key: "button.title" }],
+        nodes: new Map<Node | Attr, NodeData>([
+          [textNode, { key: "button.text", ns: "default" }],
+          [ariaAttr, { key: "button.aria", ns: "default" }],
+          [titleAttr, { key: "button.title", ns: "default" }],
         ]),
       });
 
-      const result = map.get(element);
-      expect(result?.nodes.size).toBe(3);
+      expect(map.get(element)?.nodes).toEqual(
+        new Map<Node | Attr, NodeData>([
+          [textNode, { key: "button.text", ns: "default" }],
+          [ariaAttr, { key: "button.aria", ns: "default" }],
+          [titleAttr, { key: "button.title", ns: "default" }],
+        ]),
+      );
     });
 
     it("should track numeric key IDs", () => {
       const element = document.createElement("div");
       const textNode = document.createTextNode("test");
 
+      // `NodeData.key` is a string, and the scanner only ever stores decoded
+      // string keys. The cast is the point of the test: the registry is an
+      // opaque container that hands back whatever it was given, so it is fed a
+      // value its own type forbids.
       map.add(element, {
-        nodes: new Map([[textNode, { key: 12345 }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: 12345 } as unknown as NodeData]]),
       });
 
       const result = map.get(element);
@@ -501,15 +726,22 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       container.appendChild(child2);
 
       map.add(child1, {
-        nodes: new Map([[document.createTextNode("child1"), { key: "child1.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("child1"), { key: "child1.key", ns: "default" }],
+        ]),
       });
       map.add(child2, {
-        nodes: new Map([[document.createTextNode("child2"), { key: "child2.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("child2"), { key: "child2.key", ns: "default" }],
+        ]),
       });
 
-      expect(map.get(child1)?.nodes.size).toBe(1);
-      expect(map.get(child2)?.nodes.size).toBe(1);
-      expect(map.get(child1)).not.toEqual(map.get(child2));
+      expect([...(map.get(child1)?.nodes.values() ?? [])]).toEqual([
+        { key: "child1.key", ns: "default" },
+      ]);
+      expect([...(map.get(child2)?.nodes.values() ?? [])]).toEqual([
+        { key: "child2.key", ns: "default" },
+      ]);
     });
   });
 });

@@ -25,12 +25,11 @@ export default defineNuxtConfig({
     defaultLocale: "en",
     localePrefix: "as-needed",
     defaultNs: "default",
+    // Explicit on purpose: nuxt4 relies on the `./comvi.i18n.*` convention, so
+    // this app keeps the `i18nModule` path exercised by a real build.
+    i18nModule: "./comvi.i18n.ts",
     fallbackLocale: "en",
-    detectBrowserLanguage: {
-      useCookie: true,
-      cookieName: "i18n_locale",
-      redirectOnFirstVisit: true,
-    },
+    localeCookie: "i18n_locale",
     basicHtmlTags: ["strong", "em", "a", "br"],
   },
 

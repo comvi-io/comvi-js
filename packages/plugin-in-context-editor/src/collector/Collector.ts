@@ -1,15 +1,15 @@
 /**
  * Collector — orchestrates passive context collection inside an active ICE
- * session (RALPLAN wave-2a, Item 2).
+ * session.
  *
- * Hard invariants this class exists to uphold (RALPLAN §0):
+ * Hard invariants this class exists to uphold:
  *   - collection lives ONLY inside an active session: constructed by `Core`,
  *     started in `Core.start()`, destroyed FIRST in `Core.stop()`.
  *   - event-driven, no polling: passes only run on trigger settle. IO-only
  *     settles are gated on the visible-key SET; mutation-class triggers force
  *     re-evaluation past the set gates (same-key signal drift), with the
  *     transport's per-item hash gate as the network authority.
- *   - every entry point is fault-isolated (RC3/P8): a handshake rejection,
+ *   - every entry point is fault-isolated: a handshake rejection,
  *     network failure, or unexpected throw anywhere in a pass silently
  *     disables collection for the rest of the session and NEVER reaches the
  *     editor's critical path.
@@ -40,7 +40,7 @@ export interface CollectorOptions {
 export class Collector {
   private readonly transport: CollectorTransport;
   private readonly triggers: CollectorTriggers;
-  /** M1 pre-gate: registry key-set + screenGroup, checked BEFORE any rect measurement. */
+  /** Pre-gate: registry key-set + screenGroup, checked BEFORE any rect measurement. */
   private readonly registryGate = new VisibleSetGate();
   /** Post-gate: the VISIBLE key-set, checked after enumeration has measured rects. */
   private readonly gate = new VisibleSetGate();
@@ -73,7 +73,7 @@ export class Collector {
     // it instead of debugging a mysteriously-inert collector.
     if (this.destroyed) {
       console.warn(
-        "[ComviInContextEditor] Collector.start() called after destroy(); this instance will not restart.",
+        "[@comvi/plugin-in-context-editor] Collector.start() called after destroy(); this instance will not restart.",
       );
       return;
     }
@@ -97,28 +97,43 @@ export class Collector {
     } catch (error) {
       this.disabled = true;
       console.error(
-        "[ComviInContextEditor] Collector failed to start; context collection disabled for this session.",
+        "[@comvi/plugin-in-context-editor] Collector failed to start; context collection disabled for this session.",
         error,
       );
     }
   }
 
   public destroy(): void {
+    if (this.destroyed) {
+      return;
+    }
     this.destroyed = true;
     try {
       this.triggers.destroy();
-      if (typeof window !== "undefined") {
-        window.removeEventListener("pagehide", this.handlePageHide);
-      }
       if (!this.disabled) {
         this.transport.flushOnTeardown(this.lastPass);
       }
     } catch (error) {
-      console.error("[ComviInContextEditor] Collector teardown failed (ignored).", error);
+      console.error(
+        "[@comvi/plugin-in-context-editor] Collector teardown failed (ignored).",
+        error,
+      );
+    } finally {
+      this.removePageHideListener();
+    }
+  }
+
+  private removePageHideListener(): void {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("pagehide", this.handlePageHide);
     }
   }
 
   private handlePageHide = (): void => {
+    // A destroyed or crashed collector sends nothing, whatever listener is left.
+    if (this.destroyed || this.disabled) {
+      return;
+    }
     try {
       this.transport.flushOnTeardown(this.lastPass);
     } catch {
@@ -158,7 +173,7 @@ export class Collector {
       // re-evaluations off the network when nothing actually changed.
       const forcePass = this.triggers.consumeMutationFlag();
 
-      // M1: cheap pre-gate over the currently-VISIBLE key SET (the
+      // Cheap pre-gate over the currently-VISIBLE key SET (the
       // IntersectionObserver-intersecting elements mapped to {ns,key}, no rect
       // access at all) before any per-element measurement. Because this is
       // visibility-sensitive, a scroll that reveals a static element changes
@@ -231,14 +246,14 @@ export class Collector {
         // candidate and retries on the next pass (mutation-forced or
         // signature-changing) instead of needing a dedicated retry loop here.
         console.error(
-          "[ComviInContextEditor] Collector pass failed to send; will retry on a later pass.",
+          "[@comvi/plugin-in-context-editor] Collector pass failed to send; will retry on a later pass.",
           error,
         );
       });
     } catch (error) {
       this.disabled = true;
       console.error(
-        "[ComviInContextEditor] Collector pass crashed; context collection disabled for this session.",
+        "[@comvi/plugin-in-context-editor] Collector pass crashed; context collection disabled for this session.",
         error,
       );
       try {
@@ -246,6 +261,7 @@ export class Collector {
       } catch {
         // ignore — already disabling
       }
+      this.removePageHideListener();
     }
   }
 }

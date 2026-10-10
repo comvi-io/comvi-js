@@ -1,18 +1,19 @@
-// Server-side i18n entry point
-// Import this module to ensure i18n is configured before any translations
+// MANUAL SETUP (advanced), kept on purpose as the backward-compatibility proof.
+// The standard setup is `withComvi({ config })` in next.config plus
+// `<ComviProvider>` from "@comvi/next/server" — see packages/next/README.md and
+// examples/next. This app registers the instance by hand with setI18n() and
+// ships its own client provider, so both paths stay built and tested.
+//
+// Imported for its side effect: i18n must be configured before any translation.
 import "server-only";
 
 import { setI18n } from "@comvi/next/server";
 import { i18n, routing } from "./config";
 
-// Configure for server-side usage (called once at module load)
 setI18n(i18n);
 
-// Re-export from config
 export { i18n, routing };
 
-// Re-export server functions
-export { getI18n, loadTranslations } from "@comvi/next/server";
+export { getI18n, loadMessages } from "@comvi/next/server";
 
-// Re-export routing utilities
 export { hasLocale } from "@comvi/next/routing";

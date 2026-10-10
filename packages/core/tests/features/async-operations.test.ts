@@ -1,59 +1,48 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../../src";
-import type { I18nPlugin } from "../../src";
+import { I18n } from "../helpers/composedInstance";
+import type { I18nPlugin } from "../helpers/composedInstance";
+import { createDeferred, type Deferred } from "../helpers/deferred";
 
-const createDeferred = <T>() => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
-};
+type Catalog = Record<string, string>;
 
-describe("Async Operations", () => {
-  it("setLocaleAsync uses latest request and ignores stale results", async () => {
-    const deferreds = new Map<string, ReturnType<typeof createDeferred<Record<string, string>>>>();
-
-    const loaderPlugin: I18nPlugin = (i18n) => {
-      i18n.registerLoader(async (lang, ns) => {
-        const key = `${lang}:${ns}`;
-        if (!deferreds.has(key)) {
-          deferreds.set(key, createDeferred());
-        }
-        return deferreds.get(key)!.promise;
-      });
+describe("setLocale() / addActiveNamespace() concurrency", () => {
+  it("setLocale uses latest request and ignores stale results", async () => {
+    const deferreds = new Map<string, Deferred<Catalog>>();
+    const pending = (key: string): Deferred<Catalog> => {
+      const existing = deferreds.get(key);
+      if (existing) return existing;
+      const created = createDeferred<Catalog>();
+      deferreds.set(key, created);
+      return created;
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const loaderPlugin: I18nPlugin = (i18n) => {
+      i18n.registerLoader(async (lang, ns) => pending(`${lang}:${ns}`).promise);
+    };
+
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
 
-    // Ensure a namespace is active so loaders run on language change
-    const enKey = "en:common";
-    deferreds.set(enKey, createDeferred());
     const addPromise = i18n.addActiveNamespace("common");
-    deferreds.get(enKey)!.resolve({ key: "value_en" });
+    pending("en:common").resolve({ key: "value_en" });
     await addPromise;
 
-    const p1 = i18n.setLocaleAsync("fr");
-    const p2 = i18n.setLocaleAsync("de");
-    const p3 = i18n.setLocaleAsync("es");
+    const toFr = i18n.setLocale("fr");
+    const toDe = i18n.setLocale("de");
+    const toEs = i18n.setLocale("es");
 
-    // Resolve latest language first, then stale ones
-    deferreds.get("es:common")!.resolve({ key: "value_es" });
-    deferreds.get("fr:common")!.resolve({ key: "value_fr" });
-    deferreds.get("de:common")!.resolve({ key: "value_de" });
-
-    await Promise.all([p1, p2, p3]);
+    pending("es:common").resolve({ key: "value_es" });
+    pending("fr:common").resolve({ key: "value_fr" });
+    pending("de:common").resolve({ key: "value_de" });
+    await Promise.all([toFr, toDe, toEs]);
 
     expect(i18n.locale).toBe("es");
-
-    // Verify that the active translation is from the winning language (es)
     expect(i18n.t("key", { ns: "common" })).toBe("value_es");
   });
 
   it("deduplicates concurrent namespace loads", async () => {
     const loader = vi.fn();
-    const deferred = createDeferred<Record<string, string>>();
+    const deferred = createDeferred<Catalog>();
 
     const loaderPlugin: I18nPlugin = (i18n) => {
       i18n.registerLoader(async (lang, ns) => {
@@ -62,33 +51,51 @@ describe("Async Operations", () => {
       });
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
 
-    const p1 = i18n.addActiveNamespace("shared");
-    const p2 = i18n.addActiveNamespace("shared");
-    const p3 = i18n.addActiveNamespace("shared");
+    const activations = [
+      i18n.addActiveNamespace("shared"),
+      i18n.addActiveNamespace("shared"),
+      i18n.addActiveNamespace("shared"),
+    ];
+    deferred.resolve({ key: "value" });
+    await Promise.all(activations);
 
     expect(loader).toHaveBeenCalledTimes(1);
+    expect(loader).toHaveBeenCalledWith("en", "shared");
+    expect(i18n.t("key", { ns: "shared" })).toBe("value");
+  });
 
-    deferred.resolve({ key: "value" });
-    await Promise.all([p1, p2, p3]);
+  it("does not re-invoke the loader for an already-loaded namespace", async () => {
+    const loader = vi.fn();
 
-    // Verify the translation data was actually stored correctly
+    const loaderPlugin: I18nPlugin = (i18n) => {
+      i18n.registerLoader(async (lang, ns) => {
+        loader(lang, ns);
+        return { key: "value" };
+      });
+    };
+
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
+    await i18n.init();
+    await i18n.addActiveNamespace("shared");
+
+    await i18n.addActiveNamespace("shared");
+
+    expect(loader).toHaveBeenCalledTimes(1);
     expect(i18n.t("key", { ns: "shared" })).toBe("value");
   });
 
   it("keeps isLoading true until all overlapping loads finish", async () => {
-    const ns1 = createDeferred<Record<string, string>>();
-    const ns2 = createDeferred<Record<string, string>>();
+    const ns1 = createDeferred<Catalog>();
+    const ns2 = createDeferred<Catalog>();
 
     const loaderPlugin: I18nPlugin = (i18n) => {
-      i18n.registerLoader(async (_lang, ns) => {
-        return ns === "ns1" ? ns1.promise : ns2.promise;
-      });
+      i18n.registerLoader(async (_lang, ns) => (ns === "ns1" ? ns1.promise : ns2.promise));
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
 
     const p1 = i18n.addActiveNamespace("ns1");
@@ -115,10 +122,12 @@ describe("Async Operations", () => {
       });
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
 
-    await expect(i18n.addActiveNamespace("failing")).rejects.toThrow();
+    await expect(i18n.addActiveNamespace("failing")).rejects.toThrow(
+      '[@comvi/core] Failed to load all namespaces for locale "en": failing',
+    );
     expect(i18n.isLoading).toBe(false);
   });
 });

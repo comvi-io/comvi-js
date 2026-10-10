@@ -1,15 +1,5 @@
-import type {
-  TranslationParams,
-  NamespacedKeys,
-  Namespaces,
-  NamespacedParamsArg,
-  ParamsArg,
-  PermissiveKey,
-} from "@comvi/core";
+import type { AcceptedKey, ArgsFor, NamespacedKeys, Namespaces } from "@comvi/core";
 
-/**
- * Options for getI18n function
- */
 export interface GetI18nOptions {
   /** Explicit locale (for generateMetadata, etc.) - defaults to request locale */
   locale?: string;
@@ -18,20 +8,23 @@ export interface GetI18nOptions {
 }
 
 /**
- * Translation function type for Server Components (returns string)
+ * The Server Component translation function: returns a plain string, never a
+ * `TranslationResult`.
+ *
+ * ONE signature, keyed through core's `AcceptedKey` / `ArgsFor` pair exactly as
+ * every client binding is — see `AcceptedKey` for why the key union is spelled
+ * out inline rather than named.
  */
 export interface TranslationFunction {
-  <NS extends Namespaces, K extends NamespacedKeys<NS>>(
+  <
+    K extends { [P in AcceptedKey]: P }[AcceptedKey] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
     key: K,
-    ...params: NamespacedParamsArg<NS, K>
+    ...params: ArgsFor<K, undefined, {}, N>
   ): string;
-  <K extends import("@comvi/core").DefaultNsKeys>(key: K, ...params: ParamsArg<K>): string;
-  (key: PermissiveKey, params?: TranslationParams): string;
 }
 
-/**
- * Options for hasTranslation check
- */
 export interface HasTranslationOptions {
   /** Namespace to check (defaults to defaultNamespace) */
   ns?: string;
@@ -39,19 +32,45 @@ export interface HasTranslationOptions {
   locale?: string;
 }
 
-/**
- * Result returned by getI18n
- */
 export interface ServerI18n {
-  /** Translation function */
   t: TranslationFunction;
-  /** Check if a translation key exists */
   hasTranslation: (key: string, options?: HasTranslationOptions) => boolean;
+  /**
+   * The locale this call resolved — the explicit `locale` option when given,
+   * otherwise the request locale — and the exact string `t` closes over. Read
+   * it instead of calling `getLocale()` a second time, which can only differ.
+   *
+   * The same member `@comvi/nuxt`'s `useTranslation` returns: both server
+   * helpers are `{ t, hasTranslation, locale }`. See
+   * `docs/design/next-nuxt-parity.md`.
+   */
+  locale: string;
+}
+
+export interface RequestStore {
+  locale: string | undefined;
+  /**
+   * `locale:namespace` pairs whose load failed during this request. They are
+   * not retried before the request ends: the render already went without
+   * them, and a later success would hand the client a catalog the server
+   * render never used.
+   */
+  failedLoads?: Set<string>;
 }
 
 /**
- * Internal request store interface
+ * The per-request half of a `getI18n()` call — everything a lookup needs that
+ * the process-wide instance must not supply.
+ *
+ * `getI18n` resolves both fields once and closes over them; `t` and
+ * `hasTranslation` read nothing else request-shaped. Naming the shape keeps the
+ * split visible: the shared instance contributes catalog and loader only.
+ *
+ * @internal
  */
-export interface RequestStore {
-  locale: string | undefined;
+export interface RequestView {
+  /** The locale resolved for THIS request, passed explicitly into every lookup. */
+  locale: string;
+  /** The namespace bound into `t()` when the caller names none. */
+  defaultNs: string;
 }

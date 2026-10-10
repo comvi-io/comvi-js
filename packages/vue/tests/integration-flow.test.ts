@@ -1,71 +1,51 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { createI18n, useI18n, T } from "../src";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { Mock } from "vitest";
+import { createI18n as createCore } from "@comvi/core";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, createI18nFromCore, useI18n, T } from "../src";
+import type { LoaderFn } from "../src";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, nextTick } from "vue";
 
 describe("Integration Flow", () => {
-  let mockLanguageDetector: ReturnType<typeof vi.fn>;
-  let mockLoader: ReturnType<typeof vi.fn>;
+  let mockLanguageDetector: Mock<() => string>;
+  let mockLoader: Mock<LoaderFn>;
   let loadedLanguages: Set<string>;
 
   beforeEach(() => {
     loadedLanguages = new Set();
 
-    // Mock language detector
-    mockLanguageDetector = vi.fn(() => "fr");
+    mockLanguageDetector = vi.fn<() => string>(() => "fr");
 
-    // Mock loader
-    mockLoader = vi.fn(async (locale: string, namespace: string) => {
+    mockLoader = vi.fn<LoaderFn>(async (locale: string, namespace: string) => {
       loadedLanguages.add(`${locale}:${namespace}`);
 
       const translations: Record<string, Record<string, string>> = {
-        "en:common": {
-          hello: "Hello",
-          welcome: "Welcome {name}",
-          items: "{count, plural, one {# item} other {# items}}",
-        },
-        "en:admin": {
-          title: "Admin Panel",
-        },
-        "fr:common": {
-          hello: "Bonjour",
-          welcome: "Bienvenue {name}",
-          items: "{count, plural, one {# élément} other {# éléments}}",
-        },
-        "fr:admin": {
-          title: "Panneau d'administration",
-        },
-        "de:common": {
-          hello: "Hallo",
-          welcome: "Willkommen {name}",
-        },
-        "de:admin": {
-          title: "Adminbereich",
-        },
+        "en:common": { hello: "Hello", welcome: "Welcome {name}" },
+        "fr:common": { hello: "Bonjour", welcome: "Bienvenue {name}" },
+        "de:common": { hello: "Hallo", welcome: "Willkommen {name}" },
+        "de:admin": { title: "Adminbereich" },
       };
 
       return translations[`${locale}:${namespace}`] || {};
     });
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("initializes with detector/loader and updates components + namespaces", async () => {
-    const i18n = createI18n({
-      locale: "en",
-      fallbackLocale: "en",
-      defaultNs: "common",
-    });
+    // The detector is a plugin-host member and the loader its own capability,
+    // so both are composed onto the host explicitly.
+    const i18n = createI18nFromCore(
+      createCore({
+        locale: "en",
+        fallbackLocale: "en",
+        defaultNs: "common",
+      })
+        .use(attachLoader)
+        .use(attachPlugins),
+    );
 
-    i18n.use((i18n) => {
-      i18n.registerLocaleDetector(() => mockLanguageDetector());
-    });
-
-    i18n.use((i18n) => {
-      i18n.registerLoader(mockLoader);
-    });
+    i18n.core.registerLocaleDetector(mockLanguageDetector);
+    i18n.core.registerLoader(mockLoader);
 
     await i18n.init();
 
@@ -104,26 +84,25 @@ describe("Integration Flow", () => {
     expect(wrapper.find('[data-testid="lang"]').text()).toBe("de");
     expect(wrapper.find('[data-testid="welcome"]').text()).toBe("Willkommen Marie");
 
-    await i18n.addActiveNamespace("admin");
+    await i18n.core.addActiveNamespace("admin");
     expect(i18n.t("title", { ns: "admin" })).toBe("Adminbereich");
   });
 
   it("handles rapid locale switches without ending in stale state", async () => {
-    const i18n = createI18n({
-      locale: "en",
-      defaultNs: "common",
-    });
+    const i18n = createI18nFromCore(
+      createCore({
+        locale: "en",
+        defaultNs: "common",
+      }).use(attachLoader),
+    );
 
-    i18n.use((i18n) => {
-      i18n.registerLoader(mockLoader);
-    });
+    i18n.core.registerLoader(mockLoader);
 
     await i18n.init();
 
-    const finalLocale = "de";
-    const localeChanged = new Promise<void>((resolve) => {
+    const settledOnGerman = new Promise<void>((resolve) => {
       const unsubscribe = i18n.on("localeChanged", ({ to }) => {
-        if (to === finalLocale) {
+        if (to === "de") {
           unsubscribe();
           resolve();
         }
@@ -132,16 +111,11 @@ describe("Integration Flow", () => {
 
     i18n.locale = "fr";
     i18n.locale = "en";
-    i18n.locale = finalLocale;
+    i18n.locale = "de";
 
-    await localeChanged;
+    await settledOnGerman;
 
-    expect(i18n.locale.value).toBe(finalLocale);
-    const expectedHello: Record<string, string> = {
-      en: "Hello",
-      fr: "Bonjour",
-      de: "Hallo",
-    };
-    expect(i18n.t("hello")).toBe(expectedHello[finalLocale]);
+    expect(i18n.locale.value).toBe("de");
+    expect(i18n.t("hello")).toBe("Hallo");
   });
 });

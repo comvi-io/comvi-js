@@ -5,8 +5,6 @@ import { fileURLToPath, URL } from "node:url";
 import { comviDevConfig } from "@comvi/vite-config";
 import { comviTypes } from "@comvi/vite-plugin";
 
-// Get shared Comvi development configuration
-// This enables transparent HMR for workspace packages
 const comviConfig = comviDevConfig({
   rootDir: "../..",
 });

@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ConfigLoader } from "../src/core/ConfigLoader";
 import { promises as fs } from "fs";
 import { resolve } from "path";
 import type { ComviConfig } from "../src/types";
+import { ErrorCodes, TypegenError } from "../src/utils/errors";
+import { rejectionOf } from "./helpers";
 
 vi.mock("fs", () => ({
   promises: {
@@ -15,6 +17,22 @@ vi.mock("fs", () => ({
   },
 }));
 
+const mockReadFile = vi.mocked(fs.readFile);
+const mockWriteFile = vi.mocked(fs.writeFile);
+const mockAccess = vi.mocked(fs.access);
+
+function writtenConfigText(): string {
+  const call = mockWriteFile.mock.calls[0];
+  if (!call) {
+    throw new Error("expected ConfigLoader to have written a config file");
+  }
+  return call[1] as string;
+}
+
+function writtenConfig(): Record<string, any> {
+  return JSON.parse(writtenConfigText());
+}
+
 describe("ConfigLoader", () => {
   const mockConfig: ComviConfig = {
     apiKey: "test-api-key",
@@ -23,7 +41,6 @@ describe("ConfigLoader", () => {
     strictParams: true,
   };
 
-  // Config without apiKey (apiKey comes from env var)
   const mockConfigWithoutApiKey = {
     apiBaseUrl: "https://api.test.com",
     outputPath: "src/types/i18n.d.ts",
@@ -31,18 +48,16 @@ describe("ConfigLoader", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+    // Reset, not clear: a test that installs a path-aware `fs.access`
+    // implementation must not leak it into the next one.
+    vi.resetAllMocks();
+    vi.stubEnv("COMVI_API_KEY", undefined);
+    vi.stubEnv("COMVI_API_BASE_URL", undefined);
   });
 
   describe("load", () => {
     it("should load config from specified path", async () => {
       const configPath = "/project/.comvirc.json";
-      const mockReadFile = vi.mocked(fs.readFile);
-      const mockAccess = vi.mocked(fs.access);
 
       mockAccess.mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
@@ -53,54 +68,36 @@ describe("ConfigLoader", () => {
       expect(mockReadFile).toHaveBeenCalledWith(resolve(configPath), "utf-8");
     });
 
-    it("warns and ignores legacy defaultNsName from config files", async () => {
-      const configPath = "/project/.comvirc.json";
-      const mockReadFile = vi.mocked(fs.readFile);
-      const mockAccess = vi.mocked(fs.access);
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it.each([
+      [
+        "languages",
+        ["en", "uk"],
+        '".comvirc.json" field "languages" is not an option: use "locales".',
+      ],
+      [
+        "defaultNsName",
+        "common",
+        '".comvirc.json" field "defaultNsName" is not an option: the default namespace is read from the TMS, so delete it.',
+      ],
+      ["outputDir", "src/types", '".comvirc.json" field "outputDir" is not an option.'],
+    ])(
+      "refuses the unknown field %s and names what to write instead",
+      async (key, value, message) => {
+        const configPath = "/project/.comvirc.json";
 
-      mockAccess.mockResolvedValueOnce(undefined);
-      mockReadFile.mockResolvedValueOnce(
-        JSON.stringify({
-          ...mockConfig,
-          defaultNsName: "common",
-        }),
-      );
+        mockAccess.mockResolvedValueOnce(undefined);
+        mockReadFile.mockResolvedValueOnce(JSON.stringify({ ...mockConfig, [key]: value }));
 
-      const result = await ConfigLoader.load(configPath);
+        const error = await ConfigLoader.load(configPath).catch((e: unknown) => e);
 
-      expect(warn).toHaveBeenCalledWith(
-        '[comvi] Ignoring deprecated ".comvirc.json" field "defaultNsName"; default namespace is read from the TMS.',
-      );
-      expect("defaultNsName" in result).toBe(false);
-    });
-
-    it("warns and ignores legacy languages field from config files", async () => {
-      const configPath = "/project/.comvirc.json";
-      const mockReadFile = vi.mocked(fs.readFile);
-      const mockAccess = vi.mocked(fs.access);
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      mockAccess.mockResolvedValueOnce(undefined);
-      mockReadFile.mockResolvedValueOnce(
-        JSON.stringify({
-          ...mockConfig,
-          languages: ["en", "uk"],
-        }),
-      );
-
-      const result = await ConfigLoader.load(configPath);
-
-      expect(warn).toHaveBeenCalledWith(
-        '[comvi] Ignoring deprecated ".comvirc.json" field "languages"; it was renamed to "locales".',
-      );
-      expect("languages" in result).toBe(false);
-    });
+        expect(error).toBeInstanceOf(TypegenError);
+        expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+        expect((error as TypegenError).message).toBe(message);
+      },
+    );
 
     it("does not warn about languages when only locales is present", async () => {
       const configPath = "/project/.comvirc.json";
-      const mockReadFile = vi.mocked(fs.readFile);
-      const mockAccess = vi.mocked(fs.access);
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       mockAccess.mockResolvedValueOnce(undefined);
@@ -116,32 +113,40 @@ describe("ConfigLoader", () => {
       expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('"languages"'));
     });
 
-    it("should auto-discover config file when no path provided", async () => {
-      const mockReadFile = vi.mocked(fs.readFile);
-      const mockAccess = vi.mocked(fs.access);
-
-      // Mock directory traversal - fail first, succeed second
-      mockAccess.mockRejectedValueOnce(new Error("Not found")).mockResolvedValueOnce(undefined);
-
+    it("discovers .comvirc.json in the current working directory", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
 
       const result = await ConfigLoader.load();
 
       expect(result).toEqual(mockConfig);
+      expect(mockReadFile).toHaveBeenCalledWith(resolve(process.cwd(), ".comvirc.json"), "utf-8");
+    });
+
+    it("should auto-discover config file when no path provided", async () => {
+      mockAccess
+        // no .comvirc.json in cwd, and no package.json marking cwd as the root
+        .mockRejectedValueOnce(new Error("Not found"))
+        .mockRejectedValueOnce(new Error("Not found"))
+        .mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
+
+      const result = await ConfigLoader.load();
+
+      expect(result).toEqual(mockConfig);
+      expect(mockReadFile).toHaveBeenCalledWith(
+        resolve(process.cwd(), "..", ".comvirc.json"),
+        "utf-8",
+      );
     });
 
     it("should throw error if config file not found", async () => {
-      const mockAccess = vi.mocked(fs.access);
-
-      // Simulate searching up to root without finding config
       mockAccess.mockRejectedValue(new Error("Not found"));
 
       await expect(ConfigLoader.load()).rejects.toThrow("No .comvirc.json found");
     });
 
     it("should throw error if specified config file not found", async () => {
-      const mockAccess = vi.mocked(fs.access);
-
       mockAccess.mockRejectedValueOnce(new Error("Not found"));
 
       await expect(ConfigLoader.load("/non-existent/.comvirc.json")).rejects.toThrow(
@@ -150,9 +155,6 @@ describe("ConfigLoader", () => {
     });
 
     it("should throw error for invalid JSON", async () => {
-      const mockAccess = vi.mocked(fs.access);
-      const mockReadFile = vi.mocked(fs.readFile);
-
       mockAccess.mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce("{ invalid json }");
 
@@ -160,27 +162,160 @@ describe("ConfigLoader", () => {
     });
 
     it("should throw error when apiKey missing and no env var", async () => {
-      const mockAccess = vi.mocked(fs.access);
-      const mockReadFile = vi.mocked(fs.readFile);
-
-      const invalidConfig = {
-        // No apiKey - and no COMVI_API_KEY env var
-        outputPath: "src/types/i18n.d.ts",
-      };
-
       mockAccess.mockResolvedValueOnce(undefined);
-      mockReadFile.mockResolvedValueOnce(JSON.stringify(invalidConfig));
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ outputPath: "src/types/i18n.d.ts" }));
 
       await expect(ConfigLoader.load("/project/.comvirc.json")).rejects.toThrow(
         "Invalid configuration",
       );
     });
+
+    it("does not adopt a .comvirc.json above the project root", async () => {
+      const cwd = process.cwd();
+      mockAccess.mockImplementation(async (path) => {
+        if (String(path) === resolve(cwd, "package.json")) return undefined;
+        if (String(path) === resolve(cwd, "..", ".comvirc.json")) return undefined;
+        throw new Error("Not found");
+      });
+      mockReadFile.mockResolvedValue(JSON.stringify(mockConfig));
+
+      await expect(ConfigLoader.load()).rejects.toThrow("No .comvirc.json found");
+    });
+
+    it("falls back to a config file at the filesystem root", async () => {
+      vi.spyOn(process, "cwd").mockReturnValue("/");
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
+
+      const result = await ConfigLoader.load();
+
+      expect(result).toEqual(mockConfig);
+      expect(mockReadFile).toHaveBeenCalledWith(resolve("/", ".comvirc.json"), "utf-8");
+    });
+
+    it("propagates a non-JSON read failure without reporting invalid JSON", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      const readError = new Error("EISDIR: illegal operation on a directory, read");
+      mockReadFile.mockRejectedValueOnce(readError);
+
+      await expect(ConfigLoader.load("/project/.comvirc.json")).rejects.toBe(readError);
+    });
+
+    it("rejects a whitespace-only apiKey with the full guidance message", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "   " }));
+
+      const error = await rejectionOf(ConfigLoader.load("/project/.comvirc.json"));
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain("Invalid configuration");
+      expect((error as TypegenError).message).toMatch(/ {2}- apiKey is required\n/);
+      expect((error as TypegenError).message).toContain("COMVI_API_KEY");
+    });
+
+    it("rejects a non-string apiKey", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: 42 }));
+
+      const error = await rejectionOf(ConfigLoader.load("/project/.comvirc.json"));
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain("apiKey is required");
+    });
+
+    it("does not warn when the config has no legacy fields", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
+
+      await ConfigLoader.load("/project/.comvirc.json");
+
+      expect(warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("known field value validation", () => {
+    const loadWith = async (extra: Record<string, unknown>) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    it("accepts the documented values", async () => {
+      const cfg = await loadWith({
+        apiBaseUrl: "http://localhost:3000/",
+        outputPath: "src/i18n.d.ts",
+        translationsPath: "./src/locales",
+        fileTemplate: "{namespace}/{languageTag}.json",
+        format: "json",
+      });
+      expect(cfg.format).toBe("json");
+    });
+
+    it("treats an empty apiBaseUrl as unset", async () => {
+      const cfg = await loadWith({ apiBaseUrl: "" });
+      expect(cfg.apiBaseUrl).toBeUndefined();
+    });
+
+    it("blames COMVI_API_BASE_URL, not the file, when the variable is not an http(s) URL", async () => {
+      vi.stubEnv("COMVI_API_BASE_URL", "ftp://api.comvi.io");
+
+      const error = await rejectionOf(loadWith({ apiBaseUrl: "https://api.test.com" }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain("(from COMVI_API_BASE_URL)");
+    });
+
+    it("reports a non-string augment as CONFIG_INVALID naming the field", async () => {
+      const error = await rejectionOf(loadWith({ augment: 3 }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain('"augment" must be a non-empty string');
+    });
+
+    it.each([
+      "{namespace}/{languageTag}.json",
+      "{languageTag}/{namespace}.{extension}",
+      "{namespace}.{languageTag}.json",
+    ])("accepts the file template %s", async (fileTemplate) => {
+      const cfg = await loadWith({ fileTemplate });
+      expect(cfg.fileTemplate).toBe(fileTemplate);
+    });
+
+    it.each([
+      ["format", "yaml", 'string "yaml"'],
+      ["format", 7, "number 7"],
+      ["translationsPath", 42, "number 42"],
+      ["translationsPath", "  ", 'string "  "'],
+      ["outputPath", ["a"], 'array ["a"]'],
+      ["outputPath", "", 'string ""'],
+      ["fileTemplate", false, "boolean false"],
+      ["fileTemplate", "", 'string ""'],
+      ["fileTemplate", "{namespace}/{languageTag}.yaml", 'string "{namespace}/{languageTag}.yaml"'],
+      ["fileTemplate", "{languageTag}.json", 'string "{languageTag}.json"'],
+      ["fileTemplate", "{namespace}.json", 'string "{namespace}.json"'],
+      [
+        "fileTemplate",
+        "{namespace}/{namespace}/{languageTag}.json",
+        'string "{namespace}/{namespace}/{languageTag}.json"',
+      ],
+      ["apiBaseUrl", 5, "number 5"],
+      ["apiBaseUrl", "not a url", 'string "not a url"'],
+      ["apiBaseUrl", "ftp://api.comvi.io", 'string "ftp://api.comvi.io"'],
+    ])("rejects %s = %j as CONFIG_INVALID naming the field", async (field, value, received) => {
+      const error = await rejectionOf(loadWith({ [field]: value }));
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain(`"${field}"`);
+      expect((error as TypegenError).message).toContain(`received ${received}`);
+    });
   });
 
   describe("namespaces / locales filter validation", () => {
     const loadWith = async (extra: Record<string, unknown>) => {
-      const mockAccess = vi.mocked(fs.access);
-      const mockReadFile = vi.mocked(fs.readFile);
       mockAccess.mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
       return ConfigLoader.load("/project/.comvirc.json");
@@ -237,6 +372,179 @@ describe("ConfigLoader", () => {
         /"namespaces" contains duplicate values: forest/,
       );
     });
+
+    it("lists every duplicate value separated by commas", async () => {
+      await expect(
+        loadWith({ namespaces: ["forest", "forest", "meadow", "meadow"] }),
+      ).rejects.toThrow(/"namespaces" contains duplicate values: forest, meadow/);
+    });
+  });
+
+  /**
+   * `pull.emptyDir` decides whether a pull deletes the catalog first, and a
+   * string is truthy: `"false"` used to read as "yes, delete". A switch that
+   * can destroy files has to be a boolean or absent, and it has to be refused
+   * during `load` — before the pull opens a socket or touches the directory.
+   */
+  describe("boolean switch validation", () => {
+    const loadWith = async (extra: Record<string, unknown>) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    const switches: Array<[key: string, config: (value: unknown) => Record<string, unknown>]> = [
+      ["pull.emptyDir", (value) => ({ pull: { emptyDir: value } })],
+      ["strictParams", (value) => ({ strictParams: value })],
+    ];
+
+    describe.each(switches)("%s", (key, configFor) => {
+      const invalid: Array<[label: string, value: unknown, type: string]> = [
+        ['the string "false"', "false", "string"],
+        ['the string "true"', "true", "string"],
+        ["a number", 1, "number"],
+        ["an object", {}, "object"],
+        ["an array", [], "array"],
+        ["null", null, "null"],
+      ];
+
+      it.each(invalid)("rejects %s", async (_label, value, type) => {
+        const error = await rejectionOf(loadWith(configFor(value)));
+
+        expect(error).toBeInstanceOf(TypegenError);
+        expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+        expect((error as TypegenError).message).toContain(`"${key}"`);
+        expect((error as TypegenError).message).toContain(type);
+      });
+
+      it.each([true, false])("accepts %s", async (value) => {
+        await expect(loadWith(configFor(value))).resolves.toBeDefined();
+      });
+
+      it("accepts the field being absent", async () => {
+        await expect(loadWith({})).resolves.toBeDefined();
+      });
+    });
+
+    it("names a null value once, not twice", async () => {
+      const error = await rejectionOf(loadWith({ pull: { emptyDir: null } }));
+
+      expect((error as TypegenError).message).toContain('"pull.emptyDir" must be a boolean');
+      expect((error as TypegenError).message).toContain("received null");
+      expect((error as TypegenError).message).not.toContain("null null");
+    });
+
+    it("rejects a pull section that is not an object", async () => {
+      const error = await rejectionOf(loadWith({ pull: "false" }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain('"pull"');
+      expect((error as TypegenError).message).toContain("string");
+    });
+
+    it("rejects a push section that is not an object", async () => {
+      const error = await rejectionOf(loadWith({ push: ["override"] }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain('"push"');
+      expect((error as TypegenError).message).toContain("array");
+    });
+  });
+
+  /**
+   * `null`, an array or a scalar is valid JSON but not a config: it used to
+   * reach `Object.keys` and escape as a raw TypeError (exit 1, not 4).
+   */
+  describe("config root", () => {
+    it.each([
+      ["null", "null", "null"],
+      ["an array", "[]", "array"],
+      ["a string", '"apiKey"', "string"],
+      ["a number", "42", "number"],
+      ["a boolean", "true", "boolean"],
+    ])("refuses %s as the whole config", async (_label, content, type) => {
+      vi.stubEnv("COMVI_API_KEY", "from-env");
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(content);
+
+      const error = await rejectionOf(ConfigLoader.load("/project/.comvirc.json"));
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        `Invalid configuration in ${resolve("/project/.comvirc.json")}: expected a JSON object, received ${type}`,
+      );
+    });
+  });
+
+  /**
+   * The strict-field rule covers the `push` and `pull` sections too: a typo in
+   * a destructive switch must not leave the CLI quietly using the default.
+   */
+  describe("nested section fields", () => {
+    const loadWith = async (extra: Record<string, unknown>) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    it.each([
+      ["pull.emptyDr", { pull: { emptyDr: true } }],
+      ["push.forceMod", { push: { forceMod: "override" } }],
+      ["pull.forceMode", { pull: { forceMode: "keep" } }],
+    ])("refuses the unknown field %s", async (key, extra) => {
+      const error = await rejectionOf(loadWith(extra));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        `".comvirc.json" field "${key}" is not an option.`,
+      );
+    });
+
+    it.each([["overide"], ["OVERRIDE"], [""], [true], [null]])(
+      "refuses push.forceMode %j",
+      async (value) => {
+        const error = await rejectionOf(loadWith({ push: { forceMode: value } }));
+
+        expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+        expect((error as TypegenError).message).toContain('"push.forceMode" must be one of');
+      },
+    );
+
+    it.each([["override"], ["keep"], ["ask"], ["abort"]])(
+      "accepts push.forceMode %s",
+      async (value) => {
+        await expect(loadWith({ push: { forceMode: value } })).resolves.toBeDefined();
+      },
+    );
+  });
+
+  describe("augment", () => {
+    const loadWith = async (augment: unknown) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", augment }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    it.each([
+      ["a quote-and-newline injection", "wrapper';\ndeclare global { var injected: true }\n//"],
+      ["a single quote", "a'b"],
+      ["a backslash", "a\\b"],
+      ["a newline", "a\nb"],
+      ["inner whitespace", "my wrapper"],
+    ])("refuses %s", async (_label, augment) => {
+      const error = await rejectionOf(loadWith(augment));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain('"augment" must be a module specifier');
+    });
+
+    it.each([["@acme/i18n"], ["@acme/i18n/types"], ["acme-i18n"], ["  @acme/i18n  "]])(
+      "accepts %j",
+      async (augment) => {
+        await expect(loadWith(augment)).resolves.toMatchObject({ augment: augment.trim() });
+      },
+    );
   });
 
   describe("toGeneratorOptions", () => {
@@ -281,47 +589,38 @@ describe("ConfigLoader", () => {
 
       expect(result.strictParams).toBe(true);
     });
+
+    it("should throw when the config has no apiKey", () => {
+      expect(() => ConfigLoader.toGeneratorOptions({} as ComviConfig)).toThrow(
+        "API key is required",
+      );
+    });
   });
 
   describe("create", () => {
     it("should create config file with apiKey when explicitly provided", async () => {
-      const mockWriteFile = vi.mocked(fs.writeFile);
       mockWriteFile.mockResolvedValueOnce(undefined);
 
-      const partialConfig: Partial<ComviConfig> = {
-        apiKey: "explicit-key",
-      };
-
-      const result = await ConfigLoader.create(partialConfig);
+      const result = await ConfigLoader.create({ apiKey: "explicit-key" });
 
       expect(result).toBe(resolve(process.cwd(), ".comvirc.json"));
-      const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-      expect(writtenContent).toContain("explicit-key");
+      expect(writtenConfig().apiKey).toBe("explicit-key");
     });
 
     it("should create config WITHOUT apiKey when not provided", async () => {
-      const mockWriteFile = vi.mocked(fs.writeFile);
       mockWriteFile.mockResolvedValueOnce(undefined);
 
-      // No apiKey provided - should use env var at runtime
-      const partialConfig: Partial<ComviConfig> = {};
+      await ConfigLoader.create({});
 
-      await ConfigLoader.create(partialConfig);
-
-      const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-      const writtenConfig = JSON.parse(writtenContent);
-
-      // apiKey should NOT be in the config
-      expect(writtenConfig.apiKey).toBeUndefined();
-      // But other defaults should be present
-      expect(writtenConfig.apiBaseUrl).toBe("https://api.comvi.io");
-      expect(writtenConfig.outputPath).toBe("src/types/i18n.d.ts");
+      const config = writtenConfig();
+      expect(config.apiKey).toBeUndefined();
+      expect(config.apiBaseUrl).toBe("https://api.comvi.io");
+      expect(config.outputPath).toBe("src/types/i18n.d.ts");
     });
 
     it("persists namespaces / locales when set (load → modify → save preserves filters)", async () => {
-      // Regression: previously create() omitted these fields, so a
-      // load → modify → save round-trip silently dropped user filters.
-      const mockWriteFile = vi.mocked(fs.writeFile);
+      // Regression: create() used to omit these fields, so a load → modify → save
+      // round-trip silently dropped user filters.
       mockWriteFile.mockResolvedValueOnce(undefined);
 
       await ConfigLoader.create({
@@ -330,36 +629,27 @@ describe("ConfigLoader", () => {
         locales: ["en", "uk"],
       });
 
-      const writtenConfig = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
-      expect(writtenConfig.namespaces).toEqual(["forest", "share_experience"]);
-      expect(writtenConfig.locales).toEqual(["en", "uk"]);
+      const config = writtenConfig();
+      expect(config.namespaces).toEqual(["forest", "share_experience"]);
+      expect(config.locales).toEqual(["en", "uk"]);
     });
 
     it("omits namespaces / locales when undefined (init produces clean config without baked-in filters)", async () => {
-      const mockWriteFile = vi.mocked(fs.writeFile);
       mockWriteFile.mockResolvedValueOnce(undefined);
 
       await ConfigLoader.create({});
 
-      const writtenConfig = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
-      expect("namespaces" in writtenConfig).toBe(false);
-      expect("locales" in writtenConfig).toBe(false);
+      const config = writtenConfig();
+      expect("namespaces" in config).toBe(false);
+      expect("locales" in config).toBe(false);
     });
 
     it("should create config with default values", async () => {
-      const mockWriteFile = vi.mocked(fs.writeFile);
       mockWriteFile.mockResolvedValueOnce(undefined);
 
-      const partialConfig: Partial<ComviConfig> = {
-        apiKey: "test-key",
-      };
+      await ConfigLoader.create({ apiKey: "test-key" });
 
-      await ConfigLoader.create(partialConfig);
-
-      const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-      const writtenConfig = JSON.parse(writtenContent);
-
-      expect(writtenConfig).toMatchObject({
+      expect(writtenConfig()).toEqual({
         apiKey: "test-key",
         apiBaseUrl: "https://api.comvi.io",
         outputPath: "src/types/i18n.d.ts",
@@ -367,87 +657,75 @@ describe("ConfigLoader", () => {
         translationsPath: "./src/locales",
         fileTemplate: "{namespace}/{languageTag}.json",
         format: "json",
+        push: { forceMode: "ask" },
+        pull: { emptyDir: false },
       });
     });
 
-    it("should format JSON with proper indentation", async () => {
-      const mockWriteFile = vi.mocked(fs.writeFile);
+    it("persists a modified outputPath", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
       mockWriteFile.mockResolvedValueOnce(undefined);
 
-      const partialConfig: Partial<ComviConfig> = {};
+      const config = await ConfigLoader.load("/project/.comvirc.json");
+      await ConfigLoader.create({ ...config, outputPath: "new/path/i18n.d.ts" });
 
-      await ConfigLoader.create(partialConfig);
+      expect(writtenConfig().outputPath).toBe("new/path/i18n.d.ts");
+    });
 
-      const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
+    it("should format JSON with proper indentation", async () => {
+      mockWriteFile.mockResolvedValueOnce(undefined);
 
-      // Check for proper indentation (2 spaces)
-      expect(writtenContent).toContain('  "apiBaseUrl"');
-      expect(writtenContent).toMatch(/\n}/); // Proper closing brace
+      await ConfigLoader.create({});
+
+      expect(writtenConfigText()).toBe(
+        [
+          "{",
+          '  "apiBaseUrl": "https://api.comvi.io",',
+          '  "outputPath": "src/types/i18n.d.ts",',
+          '  "strictParams": true,',
+          '  "translationsPath": "./src/locales",',
+          '  "fileTemplate": "{namespace}/{languageTag}.json",',
+          '  "format": "json",',
+          '  "push": {',
+          '    "forceMode": "ask"',
+          "  },",
+          '  "pull": {',
+          '    "emptyDir": false',
+          "  }",
+          "}",
+        ].join("\n"),
+      );
     });
 
     it("should throw error if write fails", async () => {
-      const mockWriteFile = vi.mocked(fs.writeFile);
       mockWriteFile.mockRejectedValueOnce(new Error("Permission denied"));
 
-      const partialConfig: Partial<ComviConfig> = {};
-
-      await expect(ConfigLoader.create(partialConfig)).rejects.toThrow(
-        "Failed to create config file",
-      );
-    });
-  });
-
-  describe("findConfigFile", () => {
-    it("should find config in current directory", async () => {
-      const mockAccess = vi.mocked(fs.access);
-      mockAccess.mockResolvedValueOnce(undefined);
-
-      const result = await (ConfigLoader as any).findConfigFile();
-
-      expect(result).toBe(resolve(process.cwd(), ".comvirc.json"));
+      await expect(ConfigLoader.create({})).rejects.toThrow("Failed to create config file");
     });
 
-    it("should search up directory tree", async () => {
-      const mockAccess = vi.mocked(fs.access);
+    it("persists pull.emptyDir when explicitly enabled", async () => {
+      mockWriteFile.mockResolvedValueOnce(undefined);
 
-      // Fail current dir, succeed parent
-      mockAccess.mockRejectedValueOnce(new Error("Not found")).mockResolvedValueOnce(undefined);
+      await ConfigLoader.create({ apiKey: "k", pull: { emptyDir: true } });
 
-      const result = await (ConfigLoader as any).findConfigFile();
-
-      const parentDir = resolve(process.cwd(), "..");
-      expect(result).toBe(resolve(parentDir, ".comvirc.json"));
+      expect(writtenConfig().pull.emptyDir).toBe(true);
     });
 
-    it("should return null when reaching filesystem root", async () => {
-      const mockAccess = vi.mocked(fs.access);
-      mockAccess.mockRejectedValue(new Error("Not found"));
+    it("passes through a non-Error write rejection unchanged", async () => {
+      mockWriteFile.mockRejectedValueOnce("disk detached");
+      // The failed temp write is cleaned up; the real `unlink` returns a promise.
+      vi.mocked(fs.unlink).mockResolvedValueOnce(undefined);
 
-      const result = await (ConfigLoader as any).findConfigFile();
-
-      expect(result).toBeNull();
+      await expect(ConfigLoader.create({})).rejects.toBe("disk detached");
     });
   });
 
   describe("environment variable overrides", () => {
-    const originalEnv = process.env;
-
-    beforeEach(() => {
-      process.env = { ...originalEnv };
-    });
-
-    afterEach(() => {
-      process.env = originalEnv;
-    });
-
     it("should use apiKey from COMVI_API_KEY when not in config", async () => {
-      const mockAccess = vi.mocked(fs.access);
-      const mockReadFile = vi.mocked(fs.readFile);
-
-      process.env.COMVI_API_KEY = "env-api-key";
+      vi.stubEnv("COMVI_API_KEY", "env-api-key");
 
       mockAccess.mockResolvedValueOnce(undefined);
-      // Config without apiKey
       mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfigWithoutApiKey));
 
       const result = await ConfigLoader.load("/project/.comvirc.json");
@@ -456,10 +734,7 @@ describe("ConfigLoader", () => {
     });
 
     it("should override config apiKey with COMVI_API_KEY", async () => {
-      const mockAccess = vi.mocked(fs.access);
-      const mockReadFile = vi.mocked(fs.readFile);
-
-      process.env.COMVI_API_KEY = "env-api-key";
+      vi.stubEnv("COMVI_API_KEY", "env-api-key");
 
       mockAccess.mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
@@ -470,10 +745,7 @@ describe("ConfigLoader", () => {
     });
 
     it("should override apiBaseUrl from COMVI_API_BASE_URL", async () => {
-      const mockAccess = vi.mocked(fs.access);
-      const mockReadFile = vi.mocked(fs.readFile);
-
-      process.env.COMVI_API_BASE_URL = "https://custom.api.com";
+      vi.stubEnv("COMVI_API_BASE_URL", "https://custom.api.com");
 
       mockAccess.mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
@@ -484,32 +756,12 @@ describe("ConfigLoader", () => {
     });
   });
 
-  describe("integration scenarios", () => {
-    it("should handle complete load-modify-save workflow", async () => {
-      const mockAccess = vi.mocked(fs.access);
-      const mockReadFile = vi.mocked(fs.readFile);
-      const mockWriteFile = vi.mocked(fs.writeFile);
+  describe("defaultConfigPath", () => {
+    it("derives the default config path from the .comvirc.json filename", async () => {
+      vi.resetModules();
+      const { ConfigLoader: FreshConfigLoader } = await import("../src/core/ConfigLoader");
 
-      // Mock file exists check and load existing config
-      mockAccess.mockResolvedValueOnce(undefined);
-      mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
-
-      const config = await ConfigLoader.load("/project/.comvirc.json");
-
-      // Modify config
-      const modifiedConfig = {
-        ...config,
-        outputPath: "new/path/i18n.d.ts",
-      };
-
-      // Save modified config
-      mockWriteFile.mockResolvedValueOnce(undefined);
-      await ConfigLoader.create(modifiedConfig);
-
-      const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-      const writtenConfig = JSON.parse(writtenContent);
-
-      expect(writtenConfig.outputPath).toBe("new/path/i18n.d.ts");
+      expect(FreshConfigLoader.defaultConfigPath()).toBe(resolve(process.cwd(), ".comvirc.json"));
     });
   });
 });

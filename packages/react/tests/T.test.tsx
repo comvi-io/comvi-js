@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import React from "react";
+import { createElement } from "@comvi/core";
 import type { TranslationParams, TranslationResult } from "../src";
 
 const { mockUseI18n } = vi.hoisted(() => ({
@@ -26,14 +27,21 @@ type UseI18nStub = {
   reportError: (error: unknown, context?: Record<string, unknown>) => void;
 };
 
-const createHookStub = (overrides: Partial<UseI18nStub> = {}): UseI18nStub => ({
-  t: ((key, params) => params?.fallback ?? key) as UseI18nStub["t"],
-  locale: "en",
-  hasTranslation: () => true,
-  getDefaultNamespace: () => "default",
-  reportError: vi.fn(),
-  ...overrides,
-});
+// The real `useI18n()` always returns `tRaw` (its type is not optional), and
+// `<T>` translates through it alone; the stub's `t` doubles as `tRaw`.
+const createHookStub = (
+  overrides: Partial<UseI18nStub> = {},
+): UseI18nStub & { tRaw: UseI18nStub["t"] } => {
+  const stub: UseI18nStub = {
+    t: ((key, params) => params?.fallback ?? key) as UseI18nStub["t"],
+    locale: "en",
+    hasTranslation: () => true,
+    getDefaultNamespace: () => "default",
+    reportError: vi.fn(),
+    ...overrides,
+  };
+  return { ...stub, tRaw: stub.t };
+};
 
 describe("<T />", () => {
   beforeEach(() => {
@@ -42,11 +50,7 @@ describe("<T />", () => {
 
   it("renders VirtualNode arrays as React elements", () => {
     const t = vi.fn(
-      () =>
-        [
-          "Hello ",
-          { type: "element", tag: "strong", props: {}, children: ["World"] },
-        ] as unknown as TranslationResult,
+      () => ["Hello ", createElement("strong", {}, ["World"])] as unknown as TranslationResult,
     );
     mockUseI18n.mockReturnValue(createHookStub({ t }));
 
@@ -99,7 +103,7 @@ describe("<T />", () => {
     });
     mockUseI18n.mockReturnValue(createHookStub({ t, reportError }));
 
-    render(
+    const { container } = render(
       <T
         i18nKey="msg"
         components={{
@@ -110,14 +114,14 @@ describe("<T />", () => {
       />,
     );
 
-    expect(screen.getByText("Click here").textContent).toBe("Click here");
+    expect(container.textContent).toBe("Click here");
     expect(reportError).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({ source: "translation", tagName: "link" }),
     );
   });
 
-  it("reports and degrades when handler returns a non-element", () => {
+  it("renders nothing for a function component that returns null, like React does", () => {
     const reportError = vi.fn();
     const t = vi.fn((_key: string, params?: TranslationParams) => {
       const node = (params?.link as (args: { children: string; name: string }) => unknown)({
@@ -128,7 +132,7 @@ describe("<T />", () => {
     });
     mockUseI18n.mockReturnValue(createHookStub({ t, reportError }));
 
-    render(
+    const { container } = render(
       <T
         i18nKey="msg"
         components={{
@@ -141,36 +145,8 @@ describe("<T />", () => {
       />,
     );
 
-    expect(screen.getByText("Click here").textContent).toBe("Click here");
-    expect(reportError).toHaveBeenCalledWith(
-      expect.any(Error),
-      expect.objectContaining({ source: "translation", tagName: "link" }),
-    );
-  });
-
-  it("reports and degrades when a function handler throws synchronously", () => {
-    // Exercises the registerHandler try/catch via a function handler that
-    // throws synchronously when invoked.
-    const reportError = vi.fn();
-    const t = vi.fn((_key: string, params?: TranslationParams) => {
-      const node = (params?.link as (args: { children: string; name: string }) => unknown)({
-        children: "here",
-        name: "link",
-      });
-      return ["Click ", node] as unknown as TranslationResult;
-    });
-    const badHandler = vi.fn(() => {
-      throw new Error("handler failed");
-    });
-    mockUseI18n.mockReturnValue(createHookStub({ t, reportError }));
-
-    render(<T i18nKey="msg" components={{ link: badHandler }} />);
-
-    expect(screen.getByText("Click here").textContent).toBe("Click here");
-    expect(reportError).toHaveBeenCalledWith(
-      expect.any(Error),
-      expect.objectContaining({ source: "translation", tagName: "link" }),
-    );
+    expect(container.textContent).toBe("Click ");
+    expect(reportError).not.toHaveBeenCalled();
   });
 
   it("keeps raw React nodes from translation result arrays", () => {

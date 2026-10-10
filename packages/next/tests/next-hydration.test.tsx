@@ -1,14 +1,10 @@
 /**
- * Verifies:
- *  - renderToString produces locale-specific text (setup runs before the
- *    inner React provider renders descendants)
- *  - hydrateRoot of the SSR output emits no console.error/warn
- *  - Boundary: no instance-locale mutation outside `syncLocaleSafely` in
- *    `next/client/I18nProvider.tsx` (a future refactor that reintroduces
- *    render-time mutation will fail this test)
+ * Includes a source boundary: no instance-locale mutation outside
+ * `applyLocale` in `next/client/I18nProvider.tsx`, so a future refactor
+ * that reintroduces render-time mutation fails here.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -19,11 +15,12 @@ import { act } from "@testing-library/react";
 
 import { createI18n, T } from "@comvi/react";
 import { I18nProvider } from "../src/client/I18nProvider";
+import { flushMicrotasks, renderWarnings, spyOnConsoleError } from "./helpers/consoleWarnings";
 
 function makeProviderTree(locale: string, messages: Record<string, Record<string, string>>) {
   // createI18n requires SOMETHING valid; we pass placeholders and let the
   // provider sync locale + messages via the lazy initializer on render.
-  const i18n = createI18n({ locale: "placeholder", translation: { placeholder: {} } });
+  const i18n = createI18n({ locale: "placeholder", messages: { placeholder: {} } });
   return (
     <I18nProvider i18n={i18n} locale={locale} messages={messages} autoInit={false}>
       <span data-testid="greeting">
@@ -33,52 +30,51 @@ function makeProviderTree(locale: string, messages: Record<string, Record<string
   );
 }
 
+function mountSsrOutput(html: string): HTMLDivElement {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  return container;
+}
+
 describe("Next <I18nProvider> SSR + hydration", () => {
   it("renderToString emits the correct locale-specific text", () => {
     const tree = makeProviderTree("fr", { fr: { greeting: "Bonjour" } });
+
     const html = renderToString(tree);
+
     expect(html).toContain("Bonjour");
   });
 
   it("renderToString for a different locale emits the matching text", () => {
     const tree = makeProviderTree("de", { de: { greeting: "Hallo" } });
+
     const html = renderToString(tree);
+
     expect(html).toContain("Hallo");
   });
 
   describe("hydrateRoot — zero console warnings", () => {
-    let errorSpy: ReturnType<typeof vi.spyOn>;
-    let warnSpy: ReturnType<typeof vi.spyOn>;
+    let errorSpy: ReturnType<typeof spyOnConsoleError>;
+    let warnSpy: ReturnType<typeof spyOnConsoleError>;
 
     beforeEach(() => {
-      errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      errorSpy = spyOnConsoleError();
       warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    });
-
-    afterEach(() => {
-      errorSpy.mockRestore();
-      warnSpy.mockRestore();
     });
 
     it("hydrating the SSR output emits no error / warning calls", async () => {
       const messages = { fr: { greeting: "Bonjour" } };
-      const tree = makeProviderTree("fr", messages);
+      const html = renderToString(makeProviderTree("fr", messages));
+      const container = mountSsrOutput(html);
 
-      const html = renderToString(tree);
-      expect(html).toContain("Bonjour");
-
-      const container = document.createElement("div");
-      container.innerHTML = html;
-      document.body.appendChild(container);
-
-      const clientTree = makeProviderTree("fr", messages);
       let root!: ReturnType<typeof hydrateRoot>;
       await act(async () => {
-        root = hydrateRoot(container, clientTree);
+        root = hydrateRoot(container, makeProviderTree("fr", messages));
       });
 
       expect(container.textContent).toContain("Bonjour");
-      // A hydration mismatch would emit console.error; neither should fire.
+      // A hydration mismatch would emit console.error.
       expect(errorSpy).not.toHaveBeenCalled();
       expect(warnSpy).not.toHaveBeenCalled();
 
@@ -90,17 +86,12 @@ describe("Next <I18nProvider> SSR + hydration", () => {
 
     it("hydrating an alternative locale also produces no warnings", async () => {
       const messages = { de: { greeting: "Hallo" } };
-      const tree = makeProviderTree("de", messages);
+      const html = renderToString(makeProviderTree("de", messages));
+      const container = mountSsrOutput(html);
 
-      const html = renderToString(tree);
-      const container = document.createElement("div");
-      container.innerHTML = html;
-      document.body.appendChild(container);
-
-      const clientTree = makeProviderTree("de", messages);
       let root!: ReturnType<typeof hydrateRoot>;
       await act(async () => {
-        root = hydrateRoot(container, clientTree);
+        root = hydrateRoot(container, makeProviderTree("de", messages));
       });
 
       expect(container.textContent).toContain("Hallo");
@@ -115,53 +106,63 @@ describe("Next <I18nProvider> SSR + hydration", () => {
 
     it("prop-only re-render after hydrateRoot with same messages reference emits no 'Cannot update a component' error", async () => {
       const messages = { fr: { greeting: "Bonjour" } };
-      const i18n = createI18n({ locale: "placeholder", translation: { placeholder: {} } });
-
-      const html = renderToString(
+      const i18n = createI18n({ locale: "placeholder", messages: { placeholder: {} } });
+      // The shared i18n + messages identity IS the scenario, so one element is
+      // rendered on the server, hydrated, and re-rendered — React elements are
+      // immutable, so reusing it changes nothing but the noise.
+      const tree = (
         <I18nProvider i18n={i18n} locale="fr" messages={messages} autoInit={false}>
           <span data-testid="greeting">
             <T i18nKey={"greeting" as never} />
           </span>
-        </I18nProvider>,
+        </I18nProvider>
       );
 
-      const container = document.createElement("div");
-      container.innerHTML = html;
-      document.body.appendChild(container);
+      const container = mountSsrOutput(renderToString(tree));
 
       let root!: ReturnType<typeof hydrateRoot>;
       await act(async () => {
-        root = hydrateRoot(
-          container,
-          <I18nProvider i18n={i18n} locale="fr" messages={messages} autoInit={false}>
-            <span data-testid="greeting">
-              <T i18nKey={"greeting" as never} />
-            </span>
-          </I18nProvider>,
-        );
+        root = hydrateRoot(container, tree);
       });
 
       expect(container.textContent).toContain("Bonjour");
 
-      // Prop-only re-render with the SAME messages reference. The
-      // useIsomorphicLayoutEffect guard (messages === lastAddedMessagesRef.current)
-      // prevents addTranslations from being called again — no emit, no warning.
-      // Verify microtask deferral does not introduce any new error path here.
+      // Same messages reference: the useIsomorphicLayoutEffect identity guard
+      // must skip addMessages, so nothing is emitted.
       await act(async () => {
-        root.render(
-          <I18nProvider i18n={i18n} locale="fr" messages={messages} autoInit={false}>
-            <span data-testid="greeting">
-              <T i18nKey={"greeting" as never} />
-            </span>
-          </I18nProvider>,
-        );
-        await Promise.resolve();
+        root.render(tree);
+        await flushMicrotasks();
       });
 
-      const renderWarnings = errorSpy.mock.calls.filter(
-        (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
+      expect(renderWarnings(errorSpy)).toHaveLength(0);
+
+      await act(async () => {
+        root.unmount();
+      });
+      document.body.removeChild(container);
+    });
+
+    it("POSITIVE CONTROL: a server/client locale mismatch does reach the console.error spy", async () => {
+      // Without this case, every `expect(errorSpy).not.toHaveBeenCalled()` in
+      // this family would still pass if the spy were mis-wired, the console
+      // swallowed, or React stopped emitting the warning altogether.
+      const html = renderToString(makeProviderTree("fr", { fr: { greeting: "Bonjour" } }));
+      const container = mountSsrOutput(html);
+
+      let root!: ReturnType<typeof hydrateRoot>;
+      await act(async () => {
+        root = hydrateRoot(container, makeProviderTree("de", { de: { greeting: "Hallo" } }));
+      });
+
+      // React 19 hands console.error an Error object, not a format string.
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining(
+            "Hydration failed because the server rendered text didn't match",
+          ),
+        }),
       );
-      expect(renderWarnings).toHaveLength(0);
+      expect(container.textContent).toContain("Hallo");
 
       await act(async () => {
         root.unmount();
@@ -171,16 +172,76 @@ describe("Next <I18nProvider> SSR + hydration", () => {
   });
 
   describe("Architectural boundary — no render-time i18n.locale mutation", () => {
-    it("`i18n.locale =` only appears inside the syncLocaleSafely helper", () => {
+    it("`i18n.locale =` only appears inside the applyLocale helper", () => {
       const source = readFileSync(resolve(__dirname, "../src/client/I18nProvider.tsx"), "utf8");
-      // Strip out the syncLocaleSafely function body (the one place this
-      // mutation is allowed to live).
+
+      // applyLocale is the one place this mutation is allowed to live. The
+      // strip is coupled to that helper's NAME and to its closing brace
+      // sitting at column 0: renaming or reformatting it fails this test with a
+      // mismatch on the raw source rather than an explanation.
       const stripped = source.replace(
-        /function syncLocaleSafely[\s\S]*?\n\}/m,
-        "/* syncLocaleSafely stripped for boundary check */",
+        /function applyLocale[\s\S]*?\n\}/m,
+        "/* applyLocale stripped for boundary check */",
       );
-      // Anywhere else: forbidden.
+
       expect(stripped).not.toMatch(/i18n\.locale\s*=\s*[^=]/);
+      expect(stripped).toContain("applyLocale stripped for boundary check");
     });
+  });
+});
+
+/**
+ * REGRESSION GUARD (passes before and after the server-write fix): the request
+ * locale has to reach the markup and survive hydration even when the host was
+ * configured for a different one. The red proof that the SERVER render leaves
+ * the host alone lives in `next-provider-server-render.test.tsx`, which runs
+ * under the `node` environment — this file's DOM environment takes the client
+ * branch of the provider's `typeof window` guard.
+ */
+describe("Next <I18nProvider> on a host configured for a different locale", () => {
+  let errorSpy: ReturnType<typeof spyOnConsoleError>;
+  let warnSpy: ReturnType<typeof spyOnConsoleError>;
+
+  beforeEach(() => {
+    errorSpy = spyOnConsoleError();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("renders and hydrates 'fr' on a host configured for 'en'", async () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
+    const tree = (
+      <I18nProvider
+        i18n={i18n}
+        locale="fr"
+        messages={{ fr: { greeting: "Bonjour" } }}
+        autoInit={false}
+      >
+        <span data-testid="greeting">
+          <T i18nKey={"greeting" as never} />
+        </span>
+      </I18nProvider>
+    );
+
+    const html = renderToString(tree);
+
+    expect(html).toContain("Bonjour");
+    expect(html).not.toContain("Hello");
+
+    const container = mountSsrOutput(html);
+    let root!: ReturnType<typeof hydrateRoot>;
+    await act(async () => {
+      root = hydrateRoot(container, tree);
+    });
+
+    expect(container.textContent).toContain("Bonjour");
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    // The client applies the locale before its first commit.
+    expect(i18n.locale).toBe("fr");
+
+    await act(async () => {
+      root.unmount();
+    });
+    document.body.removeChild(container);
   });
 });

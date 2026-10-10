@@ -1,16 +1,65 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../../src";
-import type { I18nPlugin } from "../../src";
+import { I18n } from "../helpers/composedInstance";
+import type { I18nPlugin } from "../helpers/composedInstance";
+import { createDeferred } from "../helpers/deferred";
 
-const createDeferred = <T>() => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
+/**
+ * `registerPlugin(plugin, options?)` — the plugin host's raw queue. Renamed
+ * from `use()` by decision E, which gave `use` to the composition pipe: these
+ * cases pin the queue's OWN contract under the new name, so the rename cannot
+ * quietly turn a queued plugin into a synchronously-run installer.
+ */
+describe("I18n#registerPlugin()", () => {
+  it("is the plugin host's member and is chainable, returning the host", () => {
+    const i18n = new I18n({ locale: "en" });
+
+    expect(i18n.registerPlugin(() => {})).toBe(i18n);
+    expect("use" in i18n).toBe(true); // the composition pipe, a different member
+    expect(i18n.registerPlugin).not.toBe(i18n.use);
   });
-  return { promise, resolve };
-};
 
-describe("Plugin System", () => {
+  it("defers: nothing runs before init(), everything runs inside it", async () => {
+    const ran: string[] = [];
+    const i18n = new I18n({ locale: "en", ns: [] })
+      .registerPlugin(() => void ran.push("a"))
+      .registerPlugin(() => void ran.push("b"));
+
+    expect(ran).toEqual([]);
+    await i18n.init();
+    expect(ran).toEqual(["a", "b"]);
+  });
+
+  it("warns in development when called after init(): the plugin does not run now, the next init() drains it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const i18n = new I18n({ locale: "en", ns: [] });
+      const early = vi.fn();
+      i18n.registerPlugin(early);
+      await i18n.init();
+      expect(early).toHaveBeenCalledTimes(1);
+
+      const late = vi.fn();
+      i18n.registerPlugin(late);
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]![0]).toContain("registerPlugin() was called after init()");
+      // The warning's whole point: nothing happened. It is NOT discarded
+      // though, which is what the warning now says — see below.
+      expect(late).not.toHaveBeenCalled();
+
+      await i18n.init();
+
+      expect(late).toHaveBeenCalledTimes(1);
+      // Together with everything already queued, which is the cost the
+      // warning names.
+      expect(early).toHaveBeenCalledTimes(2);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("I18n#registerPlugin() — execution, ordering and failure", () => {
   it("executes plugins sequentially and in order", async () => {
     const executionOrder: string[] = [];
     const gate = createDeferred<void>();
@@ -26,12 +75,15 @@ describe("Plugin System", () => {
       executionOrder.push("end-2");
     };
 
-    const i18n = new I18n({ locale: "en" }).use(plugin1).use(plugin2);
+    const i18n = new I18n({ locale: "en" }).registerPlugin(plugin1).registerPlugin(plugin2);
 
     const initPromise = i18n.init();
-    await Promise.resolve();
 
-    expect(executionOrder).toEqual(["start-1"]);
+    // Plugin 1 is parked on the gate and plugin 2 must not have started,
+    // because `init()` runs the queue sequentially. waitFor rather than a
+    // counted `await Promise.resolve()`: the claim is the ordering, not how
+    // many microtasks `init()` spends before the first plugin runs.
+    await vi.waitFor(() => expect(executionOrder).toEqual(["start-1"]));
 
     gate.resolve();
     await initPromise;
@@ -46,7 +98,7 @@ describe("Plugin System", () => {
       i18n.registerLoader(loader);
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
     await i18n.addActiveNamespace("test");
 
@@ -64,8 +116,8 @@ describe("Plugin System", () => {
       i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}[suffix]` : val));
     };
 
-    const i18n = new I18n({ locale: "en" }).use(addPrefix).use(addSuffix);
-    i18n.addTranslations({ en: { test: "value" } });
+    const i18n = new I18n({ locale: "en" }).registerPlugin(addPrefix).registerPlugin(addSuffix);
+    i18n.addMessages({ en: { test: "value" } });
     await i18n.init();
 
     expect(i18n.t("test")).toBe("[prefix]value[suffix]");
@@ -82,8 +134,10 @@ describe("Plugin System", () => {
       i18n.registerPostProcessor((val) => (typeof val === "string" ? val.toUpperCase() : val));
     };
 
-    const i18n = new I18n({ locale: "en" }).use(throwingPlugin).use(upperCasePlugin);
-    i18n.addTranslations({ en: { test: "hello" } });
+    const i18n = new I18n({ locale: "en" })
+      .registerPlugin(throwingPlugin)
+      .registerPlugin(upperCasePlugin);
+    i18n.addMessages({ en: { test: "hello" } });
     await i18n.init();
 
     expect(i18n.t("test")).toBe("HELLO");
@@ -94,18 +148,70 @@ describe("Plugin System", () => {
     i18n.registerPostProcessor(() => {
       throw new Error("single processor failed");
     });
-    i18n.addTranslations({ en: { test: "value" } });
+    i18n.addMessages({ en: { test: "value" } });
 
     await i18n.init();
 
     expect(i18n.t("test")).toBe("value");
   });
 
+  // The `postProcess` constructor option is UNIVERSAL (it works on a bare base
+  // host), while the chain is the capability's. Where the two meet, the option
+  // is the HEAD of the chain — registering never displaces it.
+  it("keeps the constructor postProcess at the head of the registered chain", () => {
+    const i18n = new I18n({
+      locale: "en",
+      postProcess: (val) => (typeof val === "string" ? `[option]${val}` : val),
+    });
+    i18n.addMessages({ en: { test: "value" } });
+
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-a` : val));
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-b` : val));
+
+    expect(i18n.t("test")).toBe("[option]value-a-b");
+  });
+
+  it("continues the chain when the constructor postProcess throws", () => {
+    const onError = vi.fn();
+    const i18n = new I18n({
+      locale: "en",
+      onError,
+      postProcess: () => {
+        throw new Error("option processor failed");
+      },
+    });
+    i18n.addMessages({ en: { test: "value" } });
+
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? val.toUpperCase() : val));
+
+    expect(i18n.t("test")).toBe("VALUE");
+    expect(onError).toHaveBeenCalledWith(expect.any(Error), {
+      source: "post-processor",
+      key: "test",
+      namespace: "default",
+    });
+  });
+
+  // `destroy()` drops the chain, not just the constructor option: a processor
+  // registered afterwards must start a FRESH chain, never append to the one the
+  // destroyed host had.
+  it("drops the registered chain on destroy, so a later registration starts fresh", async () => {
+    const i18n = new I18n({ locale: "en" });
+    i18n.addMessages({ en: { test: "value" } });
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-before` : val));
+
+    await i18n.destroy();
+    i18n.addMessages({ en: { test: "value" } });
+    i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}-after` : val));
+
+    expect(i18n.t("test")).toBe("value-after");
+  });
+
   it("rejects non-function post processors", () => {
     const i18n = new I18n({ locale: "en" });
 
     expect(() => i18n.registerPostProcessor("invalid" as any)).toThrow(
-      /registerPostProcessor\(\).*function|E_REGISTER_POST_PROCESSOR/,
+      /registerPostProcessor\(\): argument must be a function/,
     );
   });
 });

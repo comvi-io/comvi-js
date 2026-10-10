@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/plugin-in-context-editor</h1>
 
-<p align="center">Edit translations directly inside your running app — point, click, save.</p>
+<p align="center">Edit translations inside your running app: hold Alt, click the text, save to Comvi.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/plugin-in-context-editor"><img src="https://img.shields.io/npm/v/@comvi/plugin-in-context-editor?color=blue" alt="npm"></a>
@@ -17,55 +17,120 @@
 
 ---
 
-> ⚠️ **Requires the [Comvi Platform](https://comvi.io)** — this plugin saves edits back to the Comvi TMS via API, so it doesn't work standalone. You'll need a Comvi account and an API key.
-
-The In-Context Editor overlays a visual editor on your app: hovering highlights translated strings, clicking opens a modal to edit the source value, and saved changes are pushed back to the Comvi TMS. It's the fastest way for translators and product managers to fix copy without redeploying.
-
-**Who benefits:**
-
-- **For translators:** Edit copy where it actually appears in your app, in context, instead of guessing from a string ID in a spreadsheet.
-- **For product / engineering:** Ship copy fixes instantly without a code change or redeploy.
-
-The editor renders independently of your app's framework — works with Vue, React, Solid, Svelte, Next.js, and Nuxt.
-
-## About Comvi i18n
-
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~8 kB minified + gzipped (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
-
-- **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS.
-- **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
-
-See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
-
-📖 **Documentation:** https://comvi.io/docs/i18n/plugins/in-context-editor/
+`@comvi/plugin-in-context-editor` injects invisible key markers into `t()` output so a translator
+can click any rendered text and edit it in the browser. Saves go to the
+[Comvi platform](https://comvi.io) over its API, so it needs a project and an API key; it has no
+offline mode. The full guide is
+[In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor) on the docs site.
 
 ## Install
 
 ```bash
 npm install @comvi/plugin-in-context-editor
-# Peer: @comvi/core
+# Peer: @comvi/core, which every framework package already brings
 ```
 
-## Quick start
+## Set up
 
-```ts
+```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
-import { InContextEditorPlugin } from "@comvi/plugin-in-context-editor";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
-const i18n = createI18n({
+export const i18n = createI18n({
   locale: "en",
-  // Dev/preview editor key used to create and edit keys/translations.
-  apiKey: import.meta.env.VITE_COMVI_EDITOR_API_KEY,
-}).use(InContextEditorPlugin());
+  apiKey: import.meta.env.DEV ? import.meta.env.VITE_COMVI_EDITOR_API_KEY : undefined,
+})
+  .use(cdnLoader({ cdnUrl: import.meta.env.VITE_COMVI_CDN_URL }))
+  .use(inContextEditor());
 
 await i18n.init();
 ```
 
-Without an API key the editor runs in **demo mode** — the UI mounts but edits are not persisted. The app-bundle production export is a no-op, so normal production builds do not ship the editor runtime. Production editing is handled by the browser extension: a translator opens the live site, enters their API key, and the extension injects the standalone editor. The API key needs project read plus translation read/write scopes.
+Create an API key in the project's settings with project read plus translation read and write;
+read alone loads the editor but every save fails. The editor reads the key off `i18n.apiKey`, the
+same option the fetch loader reads for API mode. Compose a loader or an inline `messages`
+catalog next to it: the editor can only edit text the app rendered through `t()`.
 
-For target-element scoping, the full options reference, and the standalone bundle (used by the Comvi Chrome extension), see the [documentation](https://comvi.io/docs/i18n/plugins/in-context-editor/).
+**An API key in a browser bundle is readable by every visitor, and this one can overwrite
+translations, so the editor key must never be in a production build or a public preview build.**
+The `import.meta.env.DEV` test is what keeps it out: Vite replaces it with `false` in a build, and
+the bundler drops the key with the dead branch.
+
+| Do this                                  | And                                                         |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Hold `Alt` (`Option` on macOS) and hover | translated elements light up with an overlay naming the key |
+| `Alt` + click a highlighted element      | the edit modal opens on that key                            |
+| `Cmd` or `Ctrl` + `S` in the modal       | saves without closing                                       |
+| `Escape`                                 | closes the modal, or asks about unsaved edits               |
+
+With no key configured the plugin starts in demo mode: the console says
+`[@comvi/plugin-in-context-editor] Running in demo mode - API key not configured. Changes cannot be saved.` once,
+and every click opens one panel naming the key, with no translation list.
+
+## Gate it out of production
+
+```ts title="src/i18n.ts"
+import { createI18n } from "@comvi/core";
+import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { inContextEditor } from "@comvi/plugin-in-context-editor";
+
+const editorEnabled = import.meta.env.DEV;
+
+const base = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+  apiKey: editorEnabled ? import.meta.env.VITE_COMVI_EDITOR_API_KEY : undefined,
+}).use(cdnLoader({ cdnUrl: import.meta.env.VITE_COMVI_CDN_URL }));
+
+export const i18n = editorEnabled ? base.use(inContextEditor()) : base;
+
+await i18n.init();
+```
+
+Gating the key is required. Two things keep the editor code out of a production build: the
+package's `production` export condition resolves to an entry whose installer is `(i18n) => i18n`,
+with no editor bytes, and `inContextEditorPlugin()` returns a no-op when `process.env.NODE_ENV` is
+`"production"`. Neither touches your own `createI18n` call, so an ungated `apiKey` still ships in
+`dist/assets`, where anyone can read it and overwrite translations with it. Put the key and the
+installer behind the same condition, and never widen that condition with a flag a deployed build
+can set: a preview deployment is a production build, so the editor would not run there and the key
+would still ship. The installer returns the i18n instance type unchanged, so both branches of the
+ternary have the same type. On a live site or a preview deployment a translator uses the browser
+extension instead: it injects the standalone editor runtime into the page and keeps the key in the
+extension.
+
+## Options
+
+| Option                | Default                                                                                  | Behaviour                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `targetElement`       | `document.body`                                                                          | The DOM subtree to watch.                                                                |
+| `tagAttributes`       | built-in map                                                                             | HTML tag name to the attributes treated as translated values. Replaces the built-in map. |
+| `debug`               | `false`                                                                                  | Verbose console logging.                                                                 |
+| `highlightStyle`      | `{ borderColor: '#D97706', backgroundColor: 'rgba(217, 119, 6, 0.12)', borderWidth: 2 }` | The overlay. Its `z-index: 10000` is fixed.                                              |
+| `collectContext`      | `true`                                                                                   | Passive context collection while the editor runs. See below for what it sends.           |
+| `screenGroupResolver` | none                                                                                     | `() => '/users/:id'`, a PII-free route template shown instead of a URL digest.           |
+| `apiKeyOverride`      | none                                                                                     | Overrides `i18n.apiKey` for this plugin only; used by the extension.                     |
+
+`tagAttributes` replaces the built-in map, so `{ img: ['alt'] }` stops the scan of `aria-label`,
+`placeholder` and the rest; copy the default and spread it to add to the map. Pass `markers: false`
+to `t()` to turn the invisible markers off for one call when they cause a problem: a comparison
+or sort that sees extra characters, a width-sensitive layout, a canvas or library that counts
+characters. That string is then not editable in context. On `<T>` the equivalent is
+`markers={false}`.
+
+With an API key or the extension, context collection sends the page origin, the keys on screen with
+their screen group, and structural and layout signals to the Comvi API; it never sends rendered
+text. Grouping screens by a digest or a `screenGroupResolver` template does not hide the origin. Set
+`collectContext: false` on the plugin to turn it off. Set it on `createI18n` to also ask the
+extension to stop. The extension follows that setting on a page that reports it honestly, but a
+hostile page can report it as on; the extension README describes this limit.
+
+## Next steps
+
+- [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor): the default `tagAttributes` map, extension discovery, the standalone runtime.
+- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the loader the editor edits on top of.
+- [Devtools API](https://comvi.io/docs/i18n/api/core-devtools): `devtools()`, `instanceId` and `exposeGlobal`.
 
 ## License
 

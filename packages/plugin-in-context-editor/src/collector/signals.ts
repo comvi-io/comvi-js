@@ -1,18 +1,15 @@
 /**
- * Signal extraction (2b) — ported from the recovered collector v3
- * (docs/context-collection/recovered-collector/context-collector-v3.ts):
- * extractSemanticSignals, extractConstraintSignals, buildNeighborCandidates.
+ * Semantic signals, constraint signals, and neighbor candidates.
  *
- * Two deliberate departures from v3, both required by RC4 ("neighbors and
- * targets transmit key references + structural/semantic/geometry signals
- * only — never rendered text"):
+ * Neighbors and targets transmit key references plus structural, semantic and
+ * geometry signals only — never rendered text. Two consequences:
  *   - every field that used to carry rendered text (aria-label content,
  *     container/heading title text, neighbor `rawText`) is now a presence
  *     boolean or omitted entirely; text is read locally only to DECIDE
  *     inclusion (the drop filter below), then discarded.
  *   - target-aware ranking (`rankNeighbors`, `NEIGHBOR_ROLE_WEIGHTS`,
  *     `assessConfidence`) is NOT ported here — that runs server-side against
- *     the full candidate set (RALPLAN Item 1c). The client only gathers and
+ *     the full candidate set. The client only gathers and
  *     filters candidates.
  */
 
@@ -165,7 +162,7 @@ function inferSemanticRole(
 }
 
 /**
- * Ported from v3 `extractSemanticSignals`. Walks up to 5 ancestors from the
+ * Walks up to 5 ancestors from the
  * target, finding the first "semantic" element (button/heading/label/etc.)
  * then up to 3 useful containers above it.
  */
@@ -218,7 +215,7 @@ export function extractSemanticSignals(element: Element): SemanticSignals {
   return { semanticRole, ariaRole, hasAriaLabel, htmlType, hasPlaceholder, ancestry };
 }
 
-/** Ported from v3 `extractConstraintSignals`, unchanged — buckets only, no rendered text. */
+/** Buckets only, never rendered text. */
 export function extractConstraintSignals(element: Element, rect: DOMRect): ConstraintSignals {
   const style = getComputedStyle(element);
   const fontSize = parseFloat(style.fontSize) || 14;
@@ -284,8 +281,8 @@ const MOSTLY_NUMERIC = /^\d[\d\s.,%-]*$/;
 const MAX_NEIGHBOR_TEXT_LENGTH = 80;
 
 /**
- * Client-side drop filter (RC4/2g — the branch's `sanitizeNeighbors` tests
- * move here since the server never sees text): reads the neighbor's local
+ * Client-side drop filter — the server never sees text, so this reads the
+ * neighbor's local
  * text ONLY to decide inclusion, then the caller discards it. Dedupe by
  * (namespace,key) is handled by the caller.
  */
@@ -302,7 +299,7 @@ function shouldIncludeNeighbor(rawText: string | undefined, semanticRole: Semant
 }
 
 /**
- * Ported from v3 `buildNeighborCandidates`. `all` must already carry
+ * `all` must already carry
  * precomputed semantic signals (computed once per element, not per
  * target/neighbor pair, to avoid an O(n^2) `getComputedStyle` blowup).
  */

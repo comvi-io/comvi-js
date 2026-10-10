@@ -1,5 +1,5 @@
 import { useContext, useMemo } from "react";
-import { LocaleContext, useI18nInstance, useStoreRevision } from "./I18nProvider";
+import { LocaleContext, useI18nInstanceContext, useStoreRevision } from "./I18nProvider";
 import {
   createBoundTranslation,
   formatCurrency,
@@ -7,21 +7,21 @@ import {
   formatNumber,
   formatRelativeTime,
   getTextDirection,
+  isVirtualNode,
 } from "@comvi/core";
 import type {
   TranslationParams,
   TranslationResult,
+  NamespaceBoundTranslateFn,
   VirtualNode,
-  FlattenedTranslations,
-  TranslationValue,
+  FlattenedMessages,
+  MessagesMap,
   I18nEvent,
   I18nEventData,
-  I18n,
+  WrapperI18nInstance,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
 } from "@comvi/core";
-
-import { isVirtualNode } from "./utils";
 
 type ReactElementLike = {
   $$typeof: unknown;
@@ -60,9 +60,6 @@ function reactNodeToText(node: unknown): string {
   if (node == null || typeof node === "boolean") {
     return "";
   }
-  if (typeof node === "string" || typeof node === "number") {
-    return String(node);
-  }
   if (Array.isArray(node)) {
     let text = "";
     for (const item of node) {
@@ -80,16 +77,15 @@ function reactNodeToText(node: unknown): string {
 }
 
 function translationResultToString(result: TranslationResult): string {
+  // PERF GUARD, not dead code: every plain-string t() call lands here, and
+  // iterating a string as parts costs ~72x (measured 11ns -> 794ns per call).
+  // Mutation-equivalent by output, kept for the hot path — see the registry
+  // entry for useI18n.ts "if (typeof result === \"string\")".
   if (typeof result === "string") {
     return result;
   }
-
   let text = "";
   for (const part of result as Array<unknown>) {
-    if (typeof part === "string") {
-      text += part;
-      continue;
-    }
     if (isVirtualNode(part)) {
       text += virtualNodeToText(part);
       continue;
@@ -103,16 +99,30 @@ function translationResultToString(result: TranslationResult): string {
   return text;
 }
 
+/**
+ * Generic in `D`, like the other three wrappers: a non-generic alias collapses
+ * `D` to `{}` for every member reached through it, which silently un-typed
+ * `setDefaultParams` (see `tests/types/default-params.test-d.ts`).
+ */
+type Instance<D extends DefaultTranslationParams = {}> = WrapperI18nInstance<D>;
+
+/**
+ * No loader or plugin member is here — `addActiveNamespace(s)`,
+ * `removeActiveNamespace(s)`, `reloadMessages`, `onLoadError` and
+ * `onMissingKey` among them. They belong to capabilities a base instance does not
+ * have, so binding them eagerly would crash at bind time. `useI18nLoader()` /
+ * `useI18nPlugins()` acquire them instead.
+ *
+ * `hasTranslation` is not here either: a raw bind resolves against the mutable
+ * instance locale, so it is wrapped below to default to the render-time locale
+ * like `t` does.
+ */
 const BIND_METHODS = [
-  "addTranslations",
-  "addActiveNamespace",
+  "addMessages",
   "setFallbackLocale",
   "setDefaultParams",
-  "onLoadError",
-  "clearTranslations",
-  "reloadTranslations",
+  "clearMessages",
   "hasLocale",
-  "hasTranslation",
   "getLoadedLocales",
   "getActiveNamespaces",
   "getDefaultNamespace",
@@ -120,102 +130,90 @@ const BIND_METHODS = [
   "reportError",
 ] as const;
 
-export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
-  /** Translate a namespaced key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
-  t<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
-  ): string;
-  /** Translate a typed key. Returns plain text. */
-  t<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): string;
-  /** Permissive overload — active only when `TranslationKeys` is empty. */
-  t(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
+/**
+ * The base-instance translation surface. Loader and plugin members are not
+ * part of it — they do not exist on a base instance, so a type promising them
+ * would be lying; `useI18nLoader()` / `useI18nPlugins()` acquire those.
+ *
+ * `NS` is the namespace `useI18n(ns)` bound, and narrows `t` / `tRaw` through
+ * core's `NamespaceBoundTranslateFn` exactly as the other three wrappers do.
+ */
+export interface UseI18nReturn<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+> {
+  /** Translate a key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
+  t: NamespaceBoundTranslateFn<NS, D, string>;
 
-  /** Raw translation function returning the full core `TranslationResult` (string or structured array). */
-  tRaw<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
-  ): TranslationResult;
-  tRaw<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): TranslationResult;
-  tRaw(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): TranslationResult;
+  /** The full core `TranslationResult`: a string or a structured array. */
+  tRaw: NamespaceBoundTranslateFn<NS, D, TranslationResult>;
 
   locale: string;
-  translationCache: ReadonlyMap<string, FlattenedTranslations>;
+  /**
+   * The i18n instance's cache. Catalogs the provider's `messages` prop has
+   * not added yet are not in it, though `t` already reads them.
+   */
+  messagesCache: ReadonlyMap<string, FlattenedMessages>;
   isLoading: boolean;
   isInitializing: boolean;
+  isInitialized: boolean;
+
+  /**
+   * The i18n instance's cache revision for this render; changes on cache
+   * mutation. It does not move when `messages` are only overlaid.
+   */
+  cacheRevision: number;
 
   /** Change the current locale and wait for translations to load. */
   setLocale: (locale: string) => Promise<void>;
-  /** Add translations programmatically at runtime. */
-  addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
-  /** Load a new namespace dynamically. */
-  addActiveNamespace: (namespace: string) => Promise<void>;
+  addMessages: (messages: MessagesMap) => void;
 
-  /** Configure fallback locale chain. */
   setFallbackLocale: (locales: string | string[]) => void;
   /** Current interpolation defaults for this render (shallow snapshot). */
   defaultParams: DefaultParamsSnapshot<D>;
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: I18n<D>["setDefaultParams"];
-  /** Register callback for missing keys. */
-  onMissingKey: (
-    callback: (key: string, locale: string, namespace: string) => string | void,
-  ) => () => void;
-  /** Register callback for load errors. */
-  onLoadError: (callback: (locale: string, namespace: string, error: Error) => void) => () => void;
-  /** Clear translations from cache. */
-  clearTranslations: (locale?: string, namespace?: string) => void;
-  /** Force reload translations from loader. */
-  reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
+  setDefaultParams: Instance<D>["setDefaultParams"];
+  clearMessages: (locale?: string, namespace?: string) => void;
 
-  /** Check if a locale is loaded for a namespace. */
   hasLocale: (locale: string, namespace?: string) => boolean;
-  /** Check if a translation exists. */
   hasTranslation: (
     key: string,
     locale?: string,
     namespace?: string,
     checkFallbacks?: boolean,
   ) => boolean;
-  /** Get list of all loaded locale codes. */
   getLoadedLocales: () => string[];
-  /** Get list of active namespaces. */
   getActiveNamespaces: () => string[];
-  /** Get default namespace. */
   getDefaultNamespace: () => string;
 
-  /** Format a number using the current locale. */
-  formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
-  /** Format a date using the current locale. */
-  formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) => string;
-  /** Format a number as currency using the current locale. */
-  formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) => string;
-  /** Format a relative time ("2 hours ago"). */
+  // The formatters below default to the render-time locale; the trailing
+  // `locale` overrides it for one call, as in the other three bindings.
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
+  formatDate: (
+    value: Date | number,
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ) => string;
+  formatCurrency: (
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ) => string;
+  /** e.g. "2 hours ago". */
   formatRelativeTime: (
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
     options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
   ) => string;
 
-  /** Text direction for the current locale. */
   dir: "ltr" | "rtl";
 
   /** Subscribe to i18n events. Returns an unsubscribe function. */
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
   /** Report an error to the configured onError handler. */
-  reportError: I18n["reportError"];
+  reportError: Instance["reportError"];
 }
 
 /**
@@ -234,44 +232,63 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
  * }
  * ```
  */
-export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
-  const { i18n, isLoading, isInitializing } = useI18nInstance();
+export function useI18n<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+>(ns?: NS): UseI18nReturn<D, NS> {
+  const { i18n, view, isLoading, isInitializing } = useI18nInstanceContext();
   const locale = useContext(LocaleContext) ?? "";
 
-  // Load-bearing: subscribes this component to re-render on these events (return unused).
-  useStoreRevision(
-    i18n,
-    "namespaceLoaded",
-    "initialized",
-    "translationsCleared",
-    "configChanged",
-    "defaultNamespaceChanged",
-  );
-  const translationCache = i18n.translationCache.getInternalMap();
+  // Load-bearing: subscribes this component to re-render on the canonical
+  // revision event set (return unused). The three reads below are render
+  // snapshots of state that set is keyed on, so they are fresh per render.
+  useStoreRevision(i18n);
+  const messagesCache = i18n.messagesCache.getInternalMap();
+  const isInitialized = i18n.isInitialized;
+  const cacheRevision = i18n.messagesCache.getRevision();
 
   // Inject the React-tracked `locale` into every bound call so descendant
   // translations resolve against the render-time locale (not the mutable
   // instance locale). Explicit `params.locale` wins via spread order.
   const tRaw = useMemo(() => {
-    const bound = createBoundTranslation(i18n, ns) as (
+    const bound = createBoundTranslation(view, ns) as (
       key: string,
       params?: TranslationParams,
     ) => TranslationResult;
+    // ONE options object per render locale, reused by every no-params call:
+    // `t("row.label")` down a 1 000-row list allocated 1 000 of these. Only the
+    // UN-NAMESPACED form is allocation-free end to end; with a namespace bound,
+    // `createBoundTranslation` still rebuilds `{ ns, ...userParams }` per call.
+    //
+    // Core takes the opposite trade on purpose — `createBoundTranslation.ts`
+    // allocates a fresh object per call so a shared one cannot leak mutations
+    // across calls. Sharing is safe HERE only because the object is frozen: a
+    // user `postProcess` that writes to its `params` argument throws rather
+    // than leaking, and core catches that per processor and reports it with
+    // `source: "post-processor"` instead of crashing the render.
+    //
+    // Solid drops the options object entirely for this case
+    // (`packages/solid/src/useI18n.ts`); react cannot, because the locale it
+    // injects is the RENDER locale, which is not always the instance's own.
+    const localeOnly = Object.freeze({ locale }) as TranslationParams;
     const wrapper = (key: string, params?: TranslationParams): TranslationResult =>
-      bound(key, { locale, ...params });
-    return wrapper as UseI18nReturn<D>["tRaw"];
-  }, [i18n, ns, locale]);
+      bound(key, params == null ? localeOnly : { locale, ...params });
+    return wrapper as UseI18nReturn<D, NS>["tRaw"];
+  }, [view, ns, locale]);
 
   const t = useMemo(
     () =>
       ((key: string, params?: TranslationParams) =>
-        translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"],
+        translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<
+        D,
+        NS
+      >["t"],
     [tRaw],
   );
 
   const boundMethods = useMemo(() => {
     type BoundName = (typeof BIND_METHODS)[number];
-    type Bound = { [K in BoundName]: I18n[K] };
+    type Bound = { [K in BoundName]: Instance[K] };
     const methods = {} as Bound;
     const bag = methods as Record<BoundName, unknown>;
     for (const m of BIND_METHODS) {
@@ -279,28 +296,41 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     }
     return {
       ...methods,
-      setLocale: (loc: string) => i18n.setLocaleAsync(loc),
-      onMissingKey: (callback: (key: string, locale: string, namespace: string) => string | void) =>
-        i18n.onMissingKey((key, loc, ns) => {
-          const result = callback(key, loc, ns);
-          return typeof result === "string" || result === undefined ? result : String(result);
-        }),
+      setLocale: (loc: string) => i18n.setLocale(loc),
     };
   }, [i18n]);
 
+  // Defaults to the render-time locale, like `t`. A raw bind would answer for
+  // `i18n.locale`, which under a server-rendered provider is the instance's static
+  // configured locale rather than the one this tree is rendering.
+  const hasTranslation = useMemo(
+    () =>
+      ((key: string, loc: string = locale, ns?: string, checkFallbacks?: boolean) =>
+        view.hasTranslation(key, loc, ns, checkFallbacks)) as UseI18nReturn<
+        D,
+        NS
+      >["hasTranslation"],
+    [view, locale],
+  );
+
   const formatters = useMemo(
     () => ({
-      formatNumber: (value: number, options?: Intl.NumberFormatOptions) =>
-        formatNumber(i18n, value, options, locale),
-      formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) =>
-        formatDate(i18n, value, options, locale),
-      formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) =>
-        formatCurrency(i18n, value, currency, options, locale),
+      formatNumber: (value: number, options?: Intl.NumberFormatOptions, loc?: string) =>
+        formatNumber(i18n, value, options, loc ?? locale),
+      formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions, loc?: string) =>
+        formatDate(i18n, value, options, loc ?? locale),
+      formatCurrency: (
+        value: number,
+        currency: string,
+        options?: Intl.NumberFormatOptions,
+        loc?: string,
+      ) => formatCurrency(i18n, value, currency, options, loc ?? locale),
       formatRelativeTime: (
         value: number,
         unit: Intl.RelativeTimeFormatUnit,
         options?: Intl.RelativeTimeFormatOptions,
-      ) => formatRelativeTime(i18n, value, unit, options, locale),
+        loc?: string,
+      ) => formatRelativeTime(i18n, value, unit, options, loc ?? locale),
     }),
     [i18n, locale],
   );
@@ -309,19 +339,25 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     t,
     tRaw,
     locale,
-    translationCache,
+    messagesCache,
     isLoading,
     isInitializing,
+    isInitialized,
+    cacheRevision,
     defaultParams: i18n.defaultParams as DefaultParamsSnapshot<D>,
     dir: getTextDirection(locale || i18n.locale),
+    hasTranslation,
     ...(boundMethods as Omit<
-      UseI18nReturn<D>,
+      UseI18nReturn<D, NS>,
       | "t"
       | "tRaw"
+      | "hasTranslation"
       | "locale"
-      | "translationCache"
+      | "messagesCache"
       | "isLoading"
       | "isInitializing"
+      | "isInitialized"
+      | "cacheRevision"
       | "defaultParams"
       | "dir"
       | "formatNumber"

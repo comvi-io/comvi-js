@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 describe("FakeI18n defaultParams contract", () => {
-  it.each(["locale", "ns", "fallback", "raw"])(
+  it.each(["locale", "ns", "fallback", "markers"])(
     "rejects the reserved call-control key %s",
     (key) => {
       expect(
@@ -10,7 +10,7 @@ describe("FakeI18n defaultParams contract", () => {
           new FakeI18n({
             defaultParams: { [key]: "invalid" },
           } as never),
-      ).toThrow(/defaultParams.*locale.*ns.*fallback.*raw/i);
+      ).toThrow(/defaultParams.*locale.*ns.*fallback.*markers/i);
     },
   );
 
@@ -26,8 +26,8 @@ describe("FakeI18n defaultParams contract", () => {
   it("validates runtime replacements before changing state", () => {
     const fake = new FakeI18n();
 
-    expect(() => fake.setDefaultParams({ locale: "de" })).toThrow(
-      /defaultParams.*locale.*ns.*fallback.*raw/i,
+    expect(() => fake.setDefaultParams({ locale: "de" } as never)).toThrow(
+      /defaultParams.*locale.*ns.*fallback.*markers/i,
     );
     expect(() => fake.setDefaultParams({ formality: null } as never)).toThrow(
       /defaultParams.*null.*undefined/i,
@@ -44,5 +44,13 @@ describe("FakeI18n defaultParams contract", () => {
     expect(() => fake.setDefaultParams(undefined)).toThrow(/formality/);
     expect(() => fake.setDefaultParams({})).toThrow(/formality/);
     expect(fake.defaultParams).toEqual({ formality: "formal" });
+  });
+
+  it("accepts a valid replacement and exposes it on defaultParams", () => {
+    const fake = new FakeI18n({ defaultParams: { formality: "formal" } } as never);
+
+    fake.setDefaultParams({ formality: "informal" });
+
+    expect(fake.defaultParams).toEqual({ formality: "informal" });
   });
 });

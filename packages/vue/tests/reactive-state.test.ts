@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n, useI18n, T } from "../src";
+import { createI18n as createCore } from "@comvi/core";
+import { attachLoader, createI18n, createI18nFromCore, useI18n, T } from "../src";
+import type { I18nOptions } from "../src";
 import { watch, computed, nextTick } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
@@ -12,6 +14,13 @@ const createDeferred = <T>() => {
   return { promise, resolve };
 };
 
+// The loader is a capability, not part of the base host vue's preset builds,
+// so every case below composes it explicitly — including the "no loader
+// registered" case, which needs the capability present to show that a host
+// without a loader FUNCTION still behaves.
+const createLoaderI18n = (options: I18nOptions) =>
+  createI18nFromCore(createCore(options).use(attachLoader));
+
 describe("Reactive State Transitions", () => {
   describe("Language Reactivity", () => {
     it("should trigger reactivity when locale changes", async () => {
@@ -22,7 +31,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -30,11 +39,10 @@ describe("Reactive State Transitions", () => {
       const watchSpy = vi.fn();
       watch(i18n.locale, watchSpy);
 
-      // Change locale
       i18n.locale = "fr";
       await nextTick();
 
-      expect(watchSpy).toHaveBeenCalledWith("fr", "en", expect.anything());
+      expect(watchSpy).toHaveBeenCalledWith("fr", "en", expect.any(Function));
     });
 
     it("should update computed properties when locale changes", async () => {
@@ -45,7 +53,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -54,7 +62,6 @@ describe("Reactive State Transitions", () => {
 
       expect(greeting.value).toBe("Hello");
 
-      // Change locale
       i18n.locale = "fr";
       await nextTick();
 
@@ -74,8 +81,7 @@ describe("Reactive State Transitions", () => {
       const greeting = computed(() => i18n.t("hello"));
       expect(greeting.value).toBe("hello"); // Missing key
 
-      // Add translation
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
       });
 
@@ -83,8 +89,7 @@ describe("Reactive State Transitions", () => {
 
       expect(greeting.value).toBe("Hello");
 
-      // Update translation
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hi" },
       });
 
@@ -92,15 +97,14 @@ describe("Reactive State Transitions", () => {
 
       expect(greeting.value).toBe("Hi");
 
-      // Clear translations
-      i18n.clearTranslations("en", "common");
+      i18n.clearMessages("en", "common");
       await nextTick();
 
       expect(greeting.value).toBe("hello");
     });
 
     it("should react when namespace is loaded", async () => {
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
@@ -109,9 +113,7 @@ describe("Reactive State Transitions", () => {
         adminTitle: "Admin Panel",
       }));
 
-      i18n.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
@@ -119,15 +121,14 @@ describe("Reactive State Transitions", () => {
 
       expect(adminTitle.value).toBe("adminTitle"); // Not loaded yet
 
-      // Load admin namespace
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(adminTitle.value).toBe("Admin Panel");
     });
 
     it("should react when translations are reloaded", async () => {
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
@@ -135,9 +136,7 @@ describe("Reactive State Transitions", () => {
       let currentTranslations = { hello: "Hello" };
       const loader = vi.fn(async () => currentTranslations);
 
-      i18n.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
@@ -145,7 +144,7 @@ describe("Reactive State Transitions", () => {
       expect(greeting.value).toBe("Hello");
 
       currentTranslations = { hello: "Hi" };
-      await i18n.reloadTranslations("en", "common");
+      await i18n.core.reloadMessages("en", "common");
       await nextTick();
 
       expect(greeting.value).toBe("Hi");
@@ -162,7 +161,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello", goodbye: "Goodbye" },
         fr: { hello: "Bonjour", goodbye: "Au revoir" },
       });
@@ -201,7 +200,7 @@ describe("Reactive State Transitions", () => {
 
   describe("Loading State Reactivity", () => {
     it("should react to loading state in components", async () => {
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
@@ -214,9 +213,7 @@ describe("Reactive State Transitions", () => {
         return { hello: "Hello" };
       });
 
-      i18n.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       const TestComponent = defineComponent({
         setup() {
@@ -230,15 +227,14 @@ describe("Reactive State Transitions", () => {
         global: { plugins: [i18n] },
       });
 
-      // Note: install() auto-calls init(), so isLoading is initially true
-      // Wait for init to complete first
+      // install() auto-calls init(), so isLoading starts out true.
       await vi.waitFor(() => {
         expect(i18n.isLoading.value).toBe(false);
       });
 
       expect(wrapper.text()).toBe("Ready");
 
-      const loadPromise = i18n.addActiveNamespace("admin");
+      const loadPromise = i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(wrapper.text()).toBe("Loading...");
@@ -263,30 +259,25 @@ describe("Reactive State Transitions", () => {
         return translations[`${locale}:${namespace}`] || {};
       });
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
 
-      i18n.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
-      // Load admin namespace
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
 
       expect(loader).toHaveBeenCalledWith("en", "common");
       expect(loader).toHaveBeenCalledWith("en", "admin");
 
       loader.mockClear();
 
-      // Change locale - should reload both namespaces
       i18n.locale = "fr";
       await nextTick();
 
-      // Wait for loaders to complete and reactivity to trigger
       await vi.waitFor(() => {
         expect(loader).toHaveBeenCalledWith("fr", "common");
         expect(loader).toHaveBeenCalledWith("fr", "admin");
@@ -303,28 +294,24 @@ describe("Reactive State Transitions", () => {
         return { hello: "Hello" };
       });
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
 
-      i18n.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       const errorSpy = vi.fn();
-      i18n.use((i18n) => {
-        i18n.onLoadError(errorSpy);
-      });
+      i18n.core.onLoadError(errorSpy);
 
       await i18n.init();
 
       expect(i18n.t("hello")).toBe("Hello");
 
-      // Switch to French - should fail (catch to avoid console.error from setter)
-      await i18n.setLocale("fr").catch(() => {});
+      await expect(i18n.setLocale("fr")).rejects.toThrow(
+        '[@comvi/core] Failed to load all namespaces for locale "fr": common',
+      );
 
-      // Wait for error with specific arguments
       await vi.waitFor(() => {
         expect(errorSpy).toHaveBeenCalledWith("fr", "common", expect.any(Error));
       });
@@ -342,7 +329,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.loadedLocales.value).not.toContain("fr");
 
-      i18n.addTranslations({ fr: { hello: "Bonjour" } });
+      i18n.addMessages({ fr: { hello: "Bonjour" } });
       await nextTick();
 
       expect(i18n.loadedLocales.value).toContain("fr");
@@ -353,23 +340,23 @@ describe("Reactive State Transitions", () => {
         [`hello_${locale}`]: `Hello in ${locale}`,
       }));
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
 
-      i18n.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
-      expect(i18n.loadedLocales.value).toContain("en");
+      expect(i18n.loadedLocales.value).toEqual(["en"]);
+      expect(i18n.hasTranslationNow("hello_en", { namespace: "admin" })).toBe(false);
 
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
-      expect(i18n.loadedLocales.value).toContain("en");
+      expect(i18n.loadedLocales.value).toEqual(["en"]);
+      expect(i18n.hasTranslationNow("hello_en", { namespace: "admin" })).toBe(true);
     });
   });
 
@@ -377,23 +364,43 @@ describe("Reactive State Transitions", () => {
     it("should update activeNamespaces after addActiveNamespace", async () => {
       const loader = vi.fn(async () => ({ title: "Admin" }));
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
 
-      i18n.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
       expect(i18n.activeNamespaces.value).not.toContain("admin");
 
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(i18n.activeNamespaces.value).toContain("admin");
+    });
+
+    it("should update activeNamespaces after removeActiveNamespace", async () => {
+      const loader = vi.fn(async () => ({ title: "Admin" }));
+
+      const i18n = createLoaderI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      i18n.core.registerLoader(loader);
+
+      await i18n.init();
+      await i18n.core.addActiveNamespace("admin");
+      await nextTick();
+
+      expect(i18n.activeNamespaces.value).toContain("admin");
+
+      i18n.core.removeActiveNamespace("admin");
+      await nextTick();
+
+      expect(i18n.activeNamespaces.value).not.toContain("admin");
     });
 
     it("should include defaultNs in activeNamespaces from the start", async () => {
@@ -420,7 +427,7 @@ describe("Reactive State Transitions", () => {
       const has = i18n.hasTranslation("greeting");
       expect(has.value).toBe(false);
 
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await nextTick();
 
       expect(has.value).toBe(true);
@@ -434,13 +441,13 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await nextTick();
 
       const has = i18n.hasTranslation("greeting");
       expect(has.value).toBe(true);
 
-      i18n.clearTranslations("en", "common");
+      i18n.clearMessages("en", "common");
       await nextTick();
 
       expect(has.value).toBe(false);
@@ -459,7 +466,7 @@ describe("Reactive State Transitions", () => {
       const isUk = i18n.hasLocale("uk");
       expect(isUk.value).toBe(false);
 
-      i18n.addTranslations({ uk: { hello: "Привіт" } });
+      i18n.addMessages({ uk: { hello: "Привіт" } });
       await nextTick();
 
       expect(isUk.value).toBe(true);
@@ -473,13 +480,13 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ fr: { hello: "Bonjour" } });
+      i18n.addMessages({ fr: { hello: "Bonjour" } });
       await nextTick();
 
       const isFr = i18n.hasLocale("fr");
       expect(isFr.value).toBe(true);
 
-      i18n.clearTranslations("fr", "common");
+      i18n.clearMessages("fr", "common");
       await nextTick();
 
       expect(isFr.value).toBe(false);
@@ -496,31 +503,29 @@ describe("Reactive State Transitions", () => {
         return { hello: "Hello" };
       });
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
         onError,
       });
 
-      i18n.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
-      const consoleErr = vi.spyOn(console, "error");
+      const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
 
       i18n.locale = "badlocale";
       await flushPromises();
 
-      // Error must be routed through user's onError handler (not console.error).
-      // The exact `source` may be "namespace-load" (reported by core during
-      // namespace-loading failure) or "setLocale" (reported by VueI18n's catch
-      // wrapper); both are valid — what matters is no leak to console.
-      expect(onError).toHaveBeenCalled();
+      // Either `source` is valid — core reports "namespace-load", VueI18n's
+      // catch wrapper reports "setLocale". What matters is that nothing leaks
+      // to console.error instead of the user's onError handler.
+      expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
+      expect(onError.mock.calls[0][0].message).toBe(
+        '[@comvi/core] Failed to load all namespaces for locale "badlocale": common',
+      );
       expect(consoleErr).not.toHaveBeenCalled();
-
-      consoleErr.mockRestore();
     });
   });
 
@@ -533,7 +538,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
 
       const hasFoo = i18n.hasTranslation("foo", { checkFallbacks: true });
       expect(hasFoo.value).toBe(false);
@@ -552,7 +557,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
 
       const fallbackText = computed(() => i18n.t("foo"));
       expect(fallbackText.value).toBe("foo");
@@ -564,8 +569,8 @@ describe("Reactive State Transitions", () => {
     });
   });
 
-  describe("addTranslations programmatic reactivity", () => {
-    it("should update t() result after addTranslations", async () => {
+  describe("addMessages programmatic reactivity", () => {
+    it("should update t() result after addMessages", async () => {
       const i18n = createI18n({
         locale: "en",
         defaultNs: "common",
@@ -575,7 +580,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.t("foo")).toBe("foo");
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
       await nextTick();
 
       expect(i18n.t("foo")).toBe("bar");
@@ -584,7 +589,7 @@ describe("Reactive State Transitions", () => {
 
   describe("addActiveNamespace no-loader reactivity", () => {
     it("should include namespace in activeNamespaces without a loader", async () => {
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
@@ -593,7 +598,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.activeNamespaces.value).not.toContain("admin");
 
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(i18n.activeNamespaces.value).toContain("admin");
@@ -611,17 +616,41 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.defaultNamespace.value).toBe("common");
 
-      // VueI18n doesn't proxy setDefaultNamespace; call via core cast
-      (
-        i18n as unknown as { _core: { setDefaultNamespace: (ns: string) => void } }
-      )._core.setDefaultNamespace("admin");
+      // VueI18n does not proxy setDefaultNamespace; drive the host directly.
+      i18n.core.setDefaultNamespace("admin");
       await nextTick();
 
       expect(i18n.defaultNamespace.value).toBe("admin");
     });
   });
 
-  describe("translationCache Ref Identity", () => {
+  describe("defaultParams notification scope", () => {
+    it("notifies defaultParams watchers on setDefaultParams but not on clearMessages", async () => {
+      const i18n = createI18n<{ name: string }>({
+        locale: "en",
+        defaultNs: "common",
+        defaultParams: { name: "Ada" },
+      });
+
+      await i18n.init();
+
+      i18n.addMessages({ en: { greeting: "Hello" } });
+      const watchSpy = vi.fn();
+      watch(i18n.defaultParams, watchSpy);
+
+      i18n.clearMessages("en", "common");
+      await nextTick();
+
+      expect(watchSpy).not.toHaveBeenCalled();
+
+      i18n.setDefaultParams({ name: "Grace" });
+      await nextTick();
+
+      expect(watchSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("messagesCache Ref Identity", () => {
     it("should return the same Ref instance across mutations", async () => {
       const i18n = createI18n({
         locale: "en",
@@ -630,15 +659,14 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      const ref1 = i18n.translationCache;
+      const ref1 = i18n.messagesCache;
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
       await nextTick();
 
-      expect(i18n.translationCache).toBe(ref1);
-      // ref1.value is a ReadonlyMapView (Map-like). Duck-type the API surface.
-      expect(typeof ref1.value.has).toBe("function");
-      expect(typeof ref1.value.get).toBe("function");
+      expect(i18n.messagesCache).toBe(ref1);
+      expect(ref1.value.has("en:common")).toBe(true);
+      expect(ref1.value.get("en:common")).toEqual({ foo: "bar" });
     });
 
     it("should reflect updated translations in the same Ref after mutation", async () => {
@@ -649,14 +677,31 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      const ref1 = i18n.translationCache;
+      const ref1 = i18n.messagesCache;
       expect(ref1.value.has("en:common")).toBe(false);
 
-      i18n.addTranslations({ en: { foo: "bar" } });
+      i18n.addMessages({ en: { foo: "bar" } });
       await nextTick();
 
       expect(ref1.value.has("en:common")).toBe(true);
-      expect(i18n.translationCache).toBe(ref1);
+      expect(i18n.messagesCache).toBe(ref1);
     });
+  });
+});
+
+describe("hasLocale reactivity across a default-namespace change", () => {
+  it("re-evaluates when the default namespace changes, agreeing with hasLocaleNow", async () => {
+    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    await i18n.init();
+    i18n.addMessages({ "en:admin": { title: "Admin" } });
+
+    const has = i18n.hasLocale("en");
+    expect(has.value).toBe(false);
+
+    i18n.core.setDefaultNamespace("admin");
+    await nextTick();
+
+    expect(i18n.hasLocaleNow("en")).toBe(true);
+    expect(has.value).toBe(true);
   });
 });

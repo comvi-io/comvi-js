@@ -1,0 +1,14 @@
+{
+  // A SECOND, isolated program that type-checks `src` with `TranslationKeys`
+  // CLOSED — the condition under which `tRaw`/`t`'s overloads narrow their key
+  // parameter to the registered literals. A runtime `string` key matches none
+  // of them, so a mistake here breaks every consumer app that generates types
+  // while the package's own build (keys OPEN, permissive fallback) stays green.
+  //
+  // It MUST be its own program: `declare module "@comvi/core"` is global to
+  // whichever program contains it, so putting the augmentation in the main
+  // test-types project would close the registry for every other test file
+  // there and break the open-key assertions those make.
+  "extends": "./tsconfig.test-types.json",
+  "include": ["src/**/*.ts", "tests/types-keys-closed/**/*.test-d.ts"]
+}

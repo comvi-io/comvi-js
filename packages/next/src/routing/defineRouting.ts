@@ -1,12 +1,13 @@
+import { buildLocalizedPath, DEFAULT_LOCALE_PREFIX } from "@comvi/locale-routing";
 import type { RoutingConfig } from "./types";
 
+/** next's default locale cookie name, what next-intl apps already have. */
+export const NEXT_LOCALE_COOKIE = "NEXT_LOCALE";
+
 /**
- * Define routing configuration for your app
+ * Define routing configuration for your app: used by both the middleware and
+ * the navigation components.
  *
- * This configuration is used by both the middleware and navigation components
- * to handle localized routing.
- *
- * @param config - Routing configuration
  * @returns The same configuration with defaults applied
  *
  * @example
@@ -24,23 +25,21 @@ import type { RoutingConfig } from "./types";
 export function defineRouting<T extends string>(
   config: RoutingConfig<T>,
 ): Required<RoutingConfig<T>> {
+  // Declarative on purpose: only `createMiddleware` reads `localeCookie`, and
+  // it normalizes it through the shared schema there.
   return {
     ...config,
-    localePrefix: config.localePrefix ?? "as-needed",
-    localeCookie: config.localeCookie ?? "NEXT_LOCALE",
+    localePrefix: config.localePrefix ?? DEFAULT_LOCALE_PREFIX,
+    localeCookie: config.localeCookie ?? NEXT_LOCALE_COOKIE,
     pathnames: config.pathnames ?? {},
   };
 }
 
 /**
- * Type guard to check if a string is a valid locale
+ * Type guard to check if a string is a valid locale.
  *
- * Use this in layouts/pages to validate the locale parameter
- * and get proper TypeScript narrowing.
- *
- * @param locales - Array of supported locales
- * @param locale - String to check
- * @returns True if locale is valid
+ * Use this in layouts/pages to validate the locale parameter and get proper
+ * TypeScript narrowing.
  *
  * @example
  * ```typescript
@@ -64,24 +63,17 @@ export function hasLocale<T extends string>(locales: readonly T[], locale: strin
   return locales.includes(locale as T);
 }
 
-/**
- * Options for getPathname function
- */
 export interface GetPathnameOptions {
-  /** Target locale */
   locale: string;
   /** The pathname (without locale prefix) */
   href: string;
 }
 
 /**
- * Creates a getPathname function bound to your routing configuration
+ * Creates a getPathname function bound to your routing configuration.
  *
- * Use this to construct localized pathnames for sitemaps, hreflang tags,
- * and canonical URLs.
- *
- * @param config - Your routing configuration
- * @returns A getPathname function
+ * Use this to construct localized pathnames for sitemaps, hreflang tags, and
+ * canonical URLs.
  *
  * @example
  * ```typescript
@@ -118,21 +110,6 @@ export interface GetPathnameOptions {
  *   );
  * }
  * ```
- *
- * @example
- * ```typescript
- * // Generate hreflang tags
- * import { getPathname } from '@/i18n/navigation';
- * import { routing } from '@/i18n/routing';
- *
- * function generateHreflangTags(currentPath: string) {
- *   return routing.locales.map((locale) => ({
- *     rel: 'alternate',
- *     hrefLang: locale,
- *     href: `https://example.com${getPathname({ locale, href: currentPath })}`,
- *   }));
- * }
- * ```
  */
 export function createGetPathname<T extends string>(
   config: Required<RoutingConfig<T>>,
@@ -140,38 +117,12 @@ export function createGetPathname<T extends string>(
   const { locales, defaultLocale, localePrefix, pathnames } = config;
 
   return function getPathname({ locale, href }: GetPathnameOptions): string {
-    // Validate locale
     if (!locales.includes(locale as T)) {
       console.warn(
-        `[getPathname] Unknown locale "${locale}". Expected one of: ${locales.join(", ")}`,
+        `[@comvi/next] getPathname: unknown locale "${locale}". Expected one of: ${locales.join(", ")}`,
       );
     }
 
-    // Check for custom pathname mapping
-    const localizedPath = pathnames[href]?.[locale as T] ?? href;
-
-    // Normalize path (ensure it starts with /)
-    const normalizedPath = localizedPath.startsWith("/") ? localizedPath : `/${localizedPath}`;
-
-    // Apply locale prefix based on mode
-    switch (localePrefix) {
-      case "always":
-        // Always add locale prefix
-        return `/${locale}${normalizedPath === "/" ? "" : normalizedPath}`;
-
-      case "as-needed":
-        // Only add prefix for non-default locales
-        if (locale === defaultLocale) {
-          return normalizedPath;
-        }
-        return `/${locale}${normalizedPath === "/" ? "" : normalizedPath}`;
-
-      case "never":
-        // Never add locale prefix
-        return normalizedPath;
-
-      default:
-        return normalizedPath;
-    }
+    return buildLocalizedPath(href, locale, { defaultLocale, localePrefix, pathnames });
   };
 }

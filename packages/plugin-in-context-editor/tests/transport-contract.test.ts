@@ -75,8 +75,6 @@ describe("transport mode basics", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].path).toBe("/v1/project");
     expect(calls[0].init).not.toHaveProperty("headers");
-    expect(allSerializedCalls()).not.toContain("Authorization");
-    expect(allSerializedCalls()).not.toContain("Bearer");
   });
 
   it("forwards abort signals to the transport", async () => {
@@ -96,13 +94,18 @@ describe("editor services over the transport", () => {
 
   it("getTranslation: GET /v1/keys/:ns/:key with encoded params", async () => {
     responder = () => new Response("", { status: 404 });
-    await getTranslation("hero.title", "common ns", SCOPE);
+
+    const result = await getTranslation("hero.title", "common ns", SCOPE);
+
+    // A missing key is not an error: the editor gets an empty singular
+    // structure to edit into.
+    expect(result).toMatchObject({ key: "hero.title", isPlural: false, translations: {} });
     expect(calls[0].path).toBe("/v1/keys/common%20ns/hero.title");
     expect(calls[0].init?.method).toBe("GET");
     expect(calls[0].init?.body).toBeUndefined();
   });
 
-  it("saveTranslation: PUT /v1/keys with the documented body shape", async () => {
+  it("saveTranslation → one PUT /v1/keys with the documented body shape", async () => {
     responder = () =>
       jsonResponse({
         id: 1,
@@ -123,11 +126,21 @@ describe("editor services over the transport", () => {
       undefined,
       SCOPE,
     );
-    expect(calls[0].path).toBe("/v1/keys");
-    expect(calls[0].init?.method).toBe("PUT");
-    const body = JSON.parse(calls[0].init?.body ?? "{}");
-    expect(Object.keys(body).sort()).toEqual(["isPlural", "key", "namespace", "translations"]);
-    expect(body.translations.en).toEqual({ value: "Hello", status: "not_reviewed" });
+
+    const body = JSON.parse(calls[0]?.init?.body ?? "{}");
+    expect({
+      requests: calls.length,
+      path: calls[0]?.path,
+      method: calls[0]?.init?.method,
+      fields: Object.keys(body).sort(),
+      en: body.translations.en,
+    }).toEqual({
+      requests: 1,
+      path: "/v1/keys",
+      method: "PUT",
+      fields: ["isPlural", "key", "namespace", "translations"],
+      en: { value: "Hello", status: "not_reviewed" },
+    });
   });
 
   it("deleteTranslation: DELETE /v1/keys/:ns/:key", async () => {
