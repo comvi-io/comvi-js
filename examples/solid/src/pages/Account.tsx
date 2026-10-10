@@ -37,7 +37,7 @@ export function Account() {
       <Card title={t("demo.lazy.title")} body={t("demo.lazy.body")}>
         <Show when={ready()} fallback={<p class="widget">{t("app.loading")}</p>}>
           <p class="widget" data-testid="account-signed-in">
-            {tAccount("profile.signed_in", { name })}
+            {tAccount("profile.signed_in", { name: name() })}
           </p>
           <p class="widget" data-testid="account-devices">
             {tAccount("profile.devices", { count: 3 })}

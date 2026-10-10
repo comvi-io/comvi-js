@@ -10,7 +10,7 @@ import { i18n } from "./i18n";
 // is in, so no frame renders a raw key.
 render(
   () => (
-    <I18nProvider i18n={i18n} fallback={<p class="status">Loading…</p>}>
+    <I18nProvider i18n={i18n} fallback={<div class="boot" role="status" aria-busy="true" />}>
       <Router root={App}>
         <Route path="/" component={Home} />
         <Route path="/about" component={Account} />

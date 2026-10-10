@@ -1,12 +1,9 @@
-import { createSignal } from "solid-js";
 import { useI18n } from "@comvi/solid";
 import { Card } from "../components/Card";
-import { name as initialName } from "../name";
+import { name, setName } from "../name";
 
 export function GreetingCard() {
   const { t } = useI18n();
-  const [name, setName] = createSignal(initialName);
-
   return (
     <Card title={t("demo.interpolation.title")} body={t("demo.interpolation.body")}>
       <label class="field">
