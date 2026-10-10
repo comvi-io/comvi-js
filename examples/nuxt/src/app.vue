@@ -1,7 +1,5 @@
-<!--
-  No `useLocaleHead()` here: the module writes <html lang dir> from the active
-  locale (`comvi.head`, on by default). Call it for canonical and hreflang links.
--->
+<!-- The module writes <html lang dir> itself; add `useLocaleHead()` here for
+     canonical and hreflang links. -->
 <template>
   <NuxtPage />
 </template>
