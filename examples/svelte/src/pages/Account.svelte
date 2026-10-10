@@ -32,7 +32,7 @@
     {#if !ready}
       <p class="widget">{$t('app.loading')}</p>
     {:else}
-      <p class="widget" data-testid="account-signed-in">{$tAccount('profile.signed_in', { name })}</p>
+      <p class="widget" data-testid="account-signed-in">{$tAccount('profile.signed_in', { name: $name })}</p>
       <p class="widget" data-testid="account-devices">{$tAccount('profile.devices', { count: 3 })}</p>
       <!-- Only the English account catalog has this key, so every locale shows it in English. -->
       <p class="widget" data-testid="account-only-en">{$tAccount('profile.only_en')}</p>

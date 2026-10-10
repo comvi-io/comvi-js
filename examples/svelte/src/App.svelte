@@ -19,7 +19,7 @@
 </script>
 
 {#if $isInitializing}
-  <main><p class="status">Loading…</p></main>
+  <div class="boot" role="status" aria-busy="true"></div>
 {:else}
   <main>
     <header>

@@ -11,7 +11,7 @@
         --fg: #16181d;
         --muted: #5f6672;
         --line: #e6e8ec;
-        --accent: #d97706;
+        --accent: #b45309;
         --card: #ffffff;
         --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
@@ -115,6 +115,25 @@
         margin: 0;
         padding: 0;
         list-style: none;
+      }
+      .boot {
+        width: 24px;
+        height: 24px;
+        margin: 96px auto;
+        border: 2px solid var(--line);
+        border-block-start-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(1turn);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot {
+          animation: none;
+        }
       }
       .cards {
         display: grid;
