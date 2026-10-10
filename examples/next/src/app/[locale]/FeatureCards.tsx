@@ -34,12 +34,12 @@ export function FeatureCards() {
       <FormalityCard />
       <TagsCard />
       <FormattingCard />
-      <LazyCard />
       <OptionsCard />
       <FallbackCard />
       <ErrorsCard />
       <MissingParamCard />
       <NavigationCard />
+      <LazyCard />
     </>
   );
 }
