@@ -10,7 +10,7 @@ export function FormattingCard() {
       <p class="widget">
         {t("stats.summary", {
           views: formatNumber(1234567),
-          date: formatDate(RELEASED, { dateStyle: "long" }),
+          date: formatDate(RELEASED, { dateStyle: "long", timeZone: "UTC" }),
         })}
       </p>
       <p class="widget">

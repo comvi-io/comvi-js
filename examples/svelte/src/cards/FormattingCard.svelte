@@ -10,7 +10,7 @@
   const summary = $derived(
     $t('stats.summary', {
       views: formatNumber(1234567),
-      date: formatDate(RELEASED, { dateStyle: 'long' }),
+      date: formatDate(RELEASED, { dateStyle: 'long', timeZone: 'UTC' }),
     }),
   );
   const price = $derived(

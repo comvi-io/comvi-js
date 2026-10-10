@@ -10,7 +10,7 @@
   const { t: tAccount } = useI18n('account');
   const { addActiveNamespace } = useI18nLoader();
 
-  // A failed load has already gone to `onError`; render either way.
+  // Show the rows once the load settles, whether it succeeded or failed.
   let ready = $state(false);
   const done = () => (ready = true);
   addActiveNamespace('account').then(done, done);
