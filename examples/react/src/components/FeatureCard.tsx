@@ -9,6 +9,8 @@ type Feature =
   | "tags"
   | "formatting"
   | "lazy"
+  | "options"
+  | "errors"
   | "fallback"
   | "missing"
   | "navigation";
