@@ -1,10 +1,12 @@
 import { getTextDirection } from "@comvi/core";
 import { i18n } from "./i18n";
-import { aboutPage, homePage } from "./components/pages";
+import { aboutPage, featuresPage, startPage } from "./components/pages";
 import { currentRoute, onRouteChange } from "./router";
 import { subscribe } from "./state";
 
 const root = document.getElementById("app")!;
+
+const pages = { start: startPage, features: featuresPage, about: aboutPage };
 
 let shown = currentRoute();
 const focusable = () => [...root.querySelectorAll<HTMLElement>("a, button, input")];
@@ -18,7 +20,7 @@ function render(): void {
   document.documentElement.lang = i18n.locale;
   // `rtl` for Arabic: the stylesheet uses logical properties, so the layout mirrors.
   document.documentElement.dir = getTextDirection(i18n.locale);
-  root.replaceChildren(...(route === "about" ? aboutPage() : homePage()));
+  root.replaceChildren(...pages[route]());
   if (focused >= 0) focusable()[focused]?.focus();
 }
 

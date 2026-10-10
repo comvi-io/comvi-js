@@ -32,7 +32,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
         </p>
         <Account />
         <p className="widget">
-          <Link data-testid="nav-home" href="/">
+          <Link data-testid="nav-home" href="/features">
             {t("nav.home")}
           </Link>
         </p>

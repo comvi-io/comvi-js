@@ -18,11 +18,26 @@ import {
   selectCard,
   tagsCard,
 } from "./cards";
-import { footer, header } from "./header";
+import { footer, header, switcher } from "./header";
 
-export function homePage(): Node[] {
+/** The whole integration on one screen: a title, a switcher, one translated line. */
+export function startPage(): Node[] {
+  return [
+    h("header", {}, h("h1", {}, i18n.t("app.title")), switcher()),
+    h("p", { class: "intro" }, i18n.t("demo.start.intro")),
+    h(
+      "p",
+      { class: "widget", "data-testid": "greeting" },
+      i18n.t("greeting.hello", { name: state.name }),
+    ),
+    h("p", {}, link("features", i18n.t("demo.start.cta"), "nav-features", "cta")),
+  ];
+}
+
+export function featuresPage(): Node[] {
   return [
     header(),
+    h("p", { class: "note" }, link("start", i18n.t("demo.start.back"), "nav-start")),
     interpolationCard(),
     pluralCard(),
     ordinalCard(),
@@ -89,7 +104,7 @@ export function aboutPage(): Node[] {
       h("h2", { class: "eyebrow" }, i18n.t("demo.navigation.title")),
       h("p", { class: "widget", "data-testid": "about-body" }, i18n.t("about.body")),
       ...accountRows(),
-      h("p", { class: "widget" }, link("home", i18n.t("nav.home"), "nav-home")),
+      h("p", { class: "widget" }, link("features", i18n.t("nav.home"), "nav-home")),
     ),
     h(
       "section",
