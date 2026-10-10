@@ -29,11 +29,11 @@ const count = ref(2);
     <FormalityCard />
     <MarkupCard />
     <FormattingCard />
-    <LazyLoadingCard />
     <CallOptionsCard />
     <FallbackCard />
     <MissingParamCard />
     <ErrorsCard />
     <NavigationCard />
+    <LazyLoadingCard />
   </div>
 </template>
