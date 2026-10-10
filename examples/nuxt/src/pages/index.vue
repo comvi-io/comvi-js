@@ -6,6 +6,7 @@
       <PluralCard />
       <OrdinalCard />
       <SelectCard />
+      <FormalityCard />
       <MarkupCard />
       <FormattingCard />
       <CatalogLoadingCard />
