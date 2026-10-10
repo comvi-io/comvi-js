@@ -9,10 +9,11 @@
  * rather than re-implemented (`examples-verify.mjs`, `docs-snippets/link-sdk.mjs`):
  *
  *   1. build the workspace and pack every package (skip with --no-build/--no-pack);
- *   2. per example: copy it to a temp dir outside every workspace, pin every
- *      `@comvi/*` to its tarball through `pnpm.overrides`, install, and refuse
- *      to continue unless the lockfile says every `@comvi` resolution is a
- *      local `file:` tarball;
+ *   2. per example: copy it to a temp dir outside every workspace, redirect
+ *      every declared `@comvi/*` to the candidate's version through
+ *      `pnpm.overrides`, serve the whole `@comvi` scope from the candidate
+ *      registry, install, and refuse to continue unless the lockfile's
+ *      integrity for every `@comvi` resolution is the candidate tarball's;
  *   3. `pnpm run build`, then start the built app the way a reader would —
  *      `vite preview`, `next start`, or Nitro's `.output/server/index.mjs` —
  *      on a free port;
@@ -35,10 +36,17 @@
  * `<dir>`, exactly as `scripts/publish-candidate.mjs pack` packed them and
  * the release workflow's publish job will publish them. It implies
  * `--no-build --no-pack`. After every install, each `@comvi/*` in the lockfile
- * — `file:` override or peer resolved through the candidate registry — must
- * carry the sha512 of the candidate's own file (`assertCandidateIntegrity`),
+ * must carry the sha512 of the candidate's own file (`assertCandidateIntegrity`),
  * which every run checks, candidate or not, against whichever tarballs it
  * installed.
+ *
+ * Every temp install, build and server runs the pnpm this repo pins
+ * (`packageManager`, 9.12.1 — what CI runs), not whatever `pnpm` is on PATH:
+ * the temp manifest carries the same `packageManager` field, and
+ * `assertPinnedPnpm` fails the example before its install under any other
+ * version. A laptop's corepack shim outside the repo otherwise runs its own
+ * default (10.x), which accepted overrides pnpm 9 rejects; `withOverrides` in
+ * `examples-verify.mjs` says why the overrides are now keyed by declared spec.
  *
  * Each example runs up to three builds of the same copy: `main` (every step
  * but k2, s, z and the CDN-steering steps), `cdn-down` under `--cdn` (k2, z,
@@ -87,6 +95,7 @@ import {
   EXAMPLE_NPMRC,
   KINDS,
   assertLocalResolutions,
+  assertPinnedPnpm,
   copyTree,
   declaredComviDeps,
   exampleDirs,
@@ -478,6 +487,7 @@ async function e2eExample(example, packages, options, cdn) {
       path.join(target, ".npmrc"),
       EXAMPLE_NPMRC + scopeRegistryLine(options.registryUrl),
     );
+    assertPinnedPnpm(target, { env: childEnv(kind) });
     const ctx = {
       example,
       kind,

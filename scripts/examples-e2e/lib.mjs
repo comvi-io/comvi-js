@@ -967,7 +967,8 @@ export function comviLockEntries(lockfile, installDir) {
  * tarball, byte for byte, whichever way it was resolved:
  *
  *   - a `file:` entry must name the candidate's file, and
- *   - a version entry (a peer resolved through the candidate registry) must
+ *   - a version entry (resolved through the candidate registry, which is how
+ *     every `@comvi` package resolves since the overrides carry versions) must
  *     carry the candidate's version,
  *
  * and in both cases the lockfile's integrity must equal the sha512 of the

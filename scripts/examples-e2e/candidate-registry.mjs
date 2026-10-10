@@ -2,21 +2,22 @@
 /**
  * A registry for the `@comvi` scope that knows only the candidate's tarballs.
  *
- * `pnpm.overrides` pins every `@comvi/*` DEPENDENCY to a local tarball, but
- * not a PEER that nothing in the example declares. `@comvi/plugin-fetch-loader`
- * peers on `@comvi/core`; the Nuxt example declares the plugin and not core
- * (the binding brings core), and pnpm's peer de-duplication then asks the
- * registry for `@comvi/core@<version>` by version, past the override. With
- * today's version already on npm that lookup silently succeeds; with a release
- * candidate's version it fails the install (`ERR_PNPM_NO_MATCHING_VERSION`).
+ * `pnpm.overrides` only bridges the ranges an example DECLARES (`^0.5.0`) to
+ * the candidate's version; it reaches neither a transitive `@comvi`
+ * dependency nor a PEER that nothing in the example declares.
+ * `@comvi/plugin-fetch-loader` peers on `@comvi/core`; the Nuxt example
+ * declares the plugin and not core (the binding brings core), and pnpm asks
+ * the registry for `@comvi/core@<version>` by version. With today's version
+ * already on npm that lookup would silently succeed against the PUBLISHED core;
+ * with a release candidate's version it fails the install.
  *
  * So the temp install's `.npmrc` points the whole `@comvi` scope here:
  * `@comvi:registry=<url>`. Every `@comvi/*` lookup pnpm makes — dependency,
  * peer or de-duplication — is answered from the candidate, and a name the
  * candidate does not have is a 404 that fails the install. Nothing in the
- * scope can come from npmjs.org. The overrides stay, so the lockfile still
- * records each package as the candidate's `file:` tarball, which the
- * provenance assertions check.
+ * scope can come from npmjs.org, and each lockfile entry carries the integrity
+ * this registry served, the candidate file's sha512, which
+ * `assertCandidateIntegrity` checks.
  *
  * In-process (`startCandidateRegistry`) for `examples:e2e`, whose children run
  * asynchronously; as a child process (the CLI below) for `examples:verify`,
