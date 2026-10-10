@@ -124,6 +124,22 @@ h1 {
   border-color: var(--accent);
   color: var(--accent);
 }
+.field {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.field input {
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  max-width: 320px;
+}
 .language-list {
   margin: 0;
   padding-inline-start: 20px;
