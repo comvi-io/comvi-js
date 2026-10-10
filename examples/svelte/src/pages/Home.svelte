@@ -25,10 +25,10 @@
   <FormalityCard />
   <TagsCard />
   <FormattingCard />
-  <LazyCard />
   <CallOptionsCard />
   <FallbackCard />
   <MissingParamCard />
   <ErrorsCard />
   <NavigationCard />
+  <LazyCard />
 </div>
