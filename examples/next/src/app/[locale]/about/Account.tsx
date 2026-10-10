@@ -25,10 +25,14 @@ export function Account() {
 
   return (
     <>
-      <p data-testid="account-signed-in">{t("profile.signed_in", { name })}</p>
+      <p className="widget" data-testid="account-signed-in">
+        {t("profile.signed_in", { name })}
+      </p>
       {/* Only `account/en.json` has this key: the fallback chain is walked
           inside the same namespace, and the provider shipped en's catalog too. */}
-      <p data-testid="account-only-en">{t("profile.only_en")}</p>
+      <p className="widget" data-testid="account-only-en">
+        {t("profile.only_en")}
+      </p>
     </>
   );
 }

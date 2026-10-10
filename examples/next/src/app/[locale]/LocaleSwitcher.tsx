@@ -11,14 +11,14 @@ export function LocaleSwitcher() {
   // The locale lives in the URL here, so the switcher NAVIGATES rather than
   // calling `setLocale`: `usePathname()` is the path with the locale prefix
   // already removed, and `useLocalizedRouter().push(path, locale)` puts the new
-  // one back on. <I18nProvider locale> then syncs `i18n.locale` on arrival.
+  // one back on. <ComviProvider locale> then syncs `i18n.locale` on arrival.
   const pathname = usePathname();
   const router = useLocalizedRouter();
 
   return (
-    <section>
-      <h2>{t("app.language")}</h2>
-      <div className="row">
+    <div className="switcher-row">
+      <span className="label">{t("app.language")}</span>
+      <div className="switcher" role="group" aria-label={t("app.language")}>
         {locales.map((code) => (
           <button
             key={code}
@@ -41,8 +41,9 @@ export function LocaleSwitcher() {
         >
           {rtlLocale}
         </button>
-        {isLoading && <code>{t("app.loading")}</code>}
       </div>
-    </section>
+      {/* Last in the row, so its text appears and goes without moving anything. */}
+      {isLoading && <span className="loading">{t("app.loading")}</span>}
+    </div>
   );
 }
