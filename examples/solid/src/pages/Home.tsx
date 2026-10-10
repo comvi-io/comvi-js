@@ -3,6 +3,7 @@ import { GreetingCard } from "../cards/GreetingCard";
 import { PluralCard } from "../cards/PluralCard";
 import { OrdinalCard } from "../cards/OrdinalCard";
 import { SelectCard } from "../cards/SelectCard";
+import { FormalityCard } from "../cards/FormalityCard";
 import { TagsCard } from "../cards/TagsCard";
 import { FormattingCard } from "../cards/FormattingCard";
 import { LazyCard } from "../cards/LazyCard";
@@ -22,6 +23,7 @@ export function Home() {
       <PluralCard count={count()} onChange={setCount} />
       <OrdinalCard count={count()} />
       <SelectCard />
+      <FormalityCard />
       <TagsCard />
       <FormattingCard />
       <LazyCard />
