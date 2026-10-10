@@ -5,6 +5,7 @@ import { state, update } from "../state";
 import {
   errorsCard,
   fallbackCard,
+  formalityCard,
   formattingCard,
   interpolationCard,
   lazyCard,
@@ -26,6 +27,7 @@ export function homePage(): Node[] {
     pluralCard(),
     ordinalCard(),
     selectCard(),
+    formalityCard(),
     tagsCard(),
     formattingCard(),
     lazyCard(),
