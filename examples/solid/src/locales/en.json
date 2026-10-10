@@ -37,7 +37,8 @@
     },
     "interpolation": {
       "title": "Parameters",
-      "body": "A value drops in where the translator put the placeholder, so the word order stays the translator's call."
+      "body": "A value drops in where the translator put the placeholder, so the word order stays the translator's call.",
+      "label": "Your name"
     },
     "plural": {
       "title": "Plurals that know the language",

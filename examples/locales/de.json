@@ -37,7 +37,8 @@
     },
     "interpolation": {
       "title": "Parameter",
-      "body": "Ein Wert landet dort, wo die Übersetzerin den Platzhalter gesetzt hat; die Wortstellung bleibt ihre Entscheidung."
+      "body": "Ein Wert landet dort, wo die Übersetzerin den Platzhalter gesetzt hat; die Wortstellung bleibt ihre Entscheidung.",
+      "label": "Ihr Name"
     },
     "plural": {
       "title": "Pluralformen, die die Sprache kennen",
