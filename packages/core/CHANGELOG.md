@@ -1,5 +1,11 @@
 # @comvi/core
 
+## 0.4.1
+
+### Patch Changes
+
+- 67780e8: Support underscores in interpolation tag names, including paired and self-closing `snake_case` tags in ICU message branches.
+
 ## 0.4.0
 
 ### Minor Changes
