@@ -50,11 +50,20 @@ the editor cannot start, the popup names one reason and one remedy:
 | Comvi i18n vX found, but it cannot load the editor       | `@comvi/core` older than 0.5.1                                           |
 | This site's Content Security Policy blocked the editor   | `script-src` does not allow `https://cdn.jsdelivr.net`, or Trusted Types |
 | The editor could not be downloaded from cdn.jsdelivr.net | Network, a filter, or a pinned version that does not exist               |
-| The editor did not finish loading … within 10 seconds    | The CDN did not answer in time                                           |
+| The editor did not finish loading … in time              | The CDN did not answer in time                                           |
 | cdn.jsdelivr.net answered, but …                         | The file served was not the editor                                       |
 
-The host in these messages is a constant of the extension. A host reported by
-the page is never shown.
+Every word of these messages is the extension's own, including the host. The
+popup never shows a sentence the page wrote: a failure travels from the page as
+a code from a fixed list, and anything else becomes "The editor could not start
+on this page." The only page-reported strings the popup shows are the SDK and
+editor versions, and only when they look like a version (three numbers, an
+optional `-`/`+` suffix of letters, digits, `.`, `+`, `-`, 32 characters at
+most), so they cannot carry a sentence.
+
+While the popup says the editor cannot start here, it asks the page again every
+second, so a site that creates its i18n instance late moves to **Enable editor**
+without the popup being reopened.
 
 ## Security model
 

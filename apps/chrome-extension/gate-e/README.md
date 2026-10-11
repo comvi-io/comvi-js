@@ -76,10 +76,13 @@ exactly that, and that telemetry for another origin, another project's export
 and the key all stay out of reach.
 
 The second case in that file is the same risk through the editor-loader hook: the
-page plants its own hook and a fake `ComviInContextEditor`. A forged failure
-cannot make the popup recommend the page's host, a forged success gives the fake
-the editor's own routes for the validated project and nothing else, and the
-extension loads neither the forged URL nor the CDN.
+page plants its own hook. A forged hook failure cannot make the popup recommend
+the page's host. A forged activation failure carrying a sentence ("Send your API
+key to …") leaves the popup with its own text and nothing of the page's. A forged
+success whose `load()` plants a fake `ComviInContextEditor` gives the fake the
+editor's own routes for the validated project and nothing else; the extension
+loads neither the forged URL nor the CDN, the page never holds the key, and a
+replayed activation after Disable opens nothing.
 
 `editor-loader.spec.ts` covers how the editor reaches the page:
 
