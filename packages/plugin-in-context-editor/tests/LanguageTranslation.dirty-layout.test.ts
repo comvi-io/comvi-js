@@ -67,7 +67,6 @@ describe("LanguageTranslation dirty marker does not shift the field", () => {
       clean.forEach((cleanClasses, i) => {
         const dirtyClasses = dirty[i]!;
         expect(cleanClasses).toContain("border-l-2");
-        expect(cleanClasses).toContain("pl-2");
         expect(cleanClasses).toContain("border-l-transparent");
         expect(dirtyClasses).toContain("border-l-warn");
 

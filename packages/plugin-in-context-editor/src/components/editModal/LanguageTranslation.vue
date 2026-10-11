@@ -157,10 +157,11 @@ const updateCustomVariable = (value: string) => {
 
 const selectForms = computed(() => selectConfig.value?.options || []);
 
-// The marker's 2px border and 8px padding are always reserved so the field
-// does not shift sideways the moment it becomes dirty; only the colour changes.
+// The marker hangs in the gutter (-ml-2.5 = 2px border + 8px padding), so the field stays
+// aligned with its section and does not shift sideways when it becomes dirty; only the
+// border colour changes.
 const fieldWrapperClass = (form: string) => [
-  "transition-colors border-l-2 pl-2",
+  "transition-colors -ml-2.5 border-l-2 pl-2",
   isFieldDirty(form) ? "border-l-warn" : "border-l-transparent",
 ];
 
