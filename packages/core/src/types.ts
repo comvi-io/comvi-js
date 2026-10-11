@@ -687,8 +687,8 @@ export interface I18nBaseOptions {
    */
   collectContext?: boolean;
   /**
-   * Discovery option for composed compatibility instances (the CDN/UMD instance and
-   * `@comvi/next`'s composed preset). The base `@comvi/core` instance accepts this
+   * Discovery option for the composed compatibility instance (the CDN/UMD
+   * instance). The base `@comvi/core` instance accepts this
    * shared option shape but does not install discovery; base-instance users compose
    * `devtools({ exposeGlobal })` or call `attachDevtools`. Passing it without
    * that capability does nothing, and `init()` says so in development.
@@ -696,7 +696,7 @@ export interface I18nBaseOptions {
    */
   exposeGlobal?: boolean;
   /**
-   * Discovery identifier for composed compatibility instances. Auto-generated
+   * Discovery identifier for the composed compatibility instance. Auto-generated
    * when the devtools capability is installed and no value is provided. On a
    * base instance, pass it to `devtools({ instanceId })` or `attachDevtools`.
    */
