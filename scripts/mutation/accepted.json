@@ -193,15 +193,6 @@
       "package": "packages/core",
       "file": "src/core/translate/compile-icu.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "choicesStr.indexOf(\"=\") !== -1 ? 1 : 0,",
-      "lineHint": 177,
-      "kind": "equivalent",
-      "reason": "indexOf(\"\") is 0, so hasExactSelectors stays set and the \"=N\" lookup simply misses, leaving the plural-category path unchanged."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["StringLiteral"],
       "snippet": ": \"E_INVALID_PLURAL_PARAM\",",
       "lineHint": 207,
       "kind": "equivalent",
@@ -1544,16 +1535,6 @@
       "lineHint": 155,
       "kind": "equivalent",
       "reason": "the branch is reachable at most once — it assigns secondComma and breaks — and on that single visit secondComma is still -1.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "choicesStr.indexOf(\"=\") !== -1 ? 1 : 0,",
-      "lineHint": 172,
-      "kind": "equivalent",
-      "reason": "forcing hasExactSelectors on only adds a choices[\"=\" + count] probe, and a choice key beginning with `=` cannot exist unless choicesStr contains `=` — which is exactly when the flag is set anyway. The probe misses and the plural-category path runs unchanged.",
       "round": 2
     },
     {

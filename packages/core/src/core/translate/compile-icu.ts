@@ -54,7 +54,9 @@ export function isPluralArgStart(str: string, braceIndex: number, len: number): 
   return type === "plural" || type === "selectordinal";
 }
 /**
- * Replaces every `#` in a plural sub-message with the count.
+ * Replaces every `#` in a plural sub-message with the count, formatted for the
+ * locale — and formats it only once a `#` has been found, so a branch without
+ * one ("many items") never reaches `Intl.NumberFormat`.
  *
  * Reached only from the TEXT-ONLY fast path in `processPlural`: a branch that
  * gets here holds none of the parser's syntax characters (`hasSyntaxChars`),
@@ -62,9 +64,11 @@ export function isPluralArgStart(str: string, braceIndex: number, len: number): 
  * to protect. Any branch that holds one of them is re-parsed instead, and its
  * `#` becomes a `TK_HASH` token the renderer resolves against `hashValue`.
  */
-export function replaceTopLevelHash(str: string, replacement: string): string {
+export function replaceTopLevelHash(str: string, locale: string, count: number): string {
   let at = str.indexOf("#");
   if (at === -1) return str;
+  // ICU: `#` is the count formatted for the locale, not its raw digits.
+  const replacement = formatHashCount(locale, count);
   // Sliced rather than `split("#").join(replacement)`: splitting allocates an
   // array to rebuild the string, which measured ~25 ns/op more on the perf
   // gate's plural case — the hottest shape this file has.
@@ -342,16 +346,17 @@ function processPlural(
     selected = choices[category] ?? choices.other ?? "";
   }
 
-  // ICU: `#` is the count formatted for the locale, not its raw digits.
-  const replacement = formatHashCount(ctx.locale, count);
-
   if (hasSyntaxChars(selected)) {
     // The branch goes to the parser UNCHANGED, so its cache entry is shared by
     // every count; `#` arrives as a token the renderer resolves against
     // `hashValue`. The previous count is restored afterwards — an inner plural
     // must not clobber the count an outer `#` after it still resolves against.
+    //
+    // The count is formatted only when the branch holds a `#` somewhere. A
+    // token for this plural's `#` can only come from the branch's own text, so
+    // without one `hashValue` is never read before it is restored.
     const prev = hashValue;
-    setHashValue(replacement);
+    if (selected.indexOf("#") !== -1) setHashValue(formatHashCount(ctx.locale, count));
     const result = translateSegment(selected, ctx, true);
     setHashValue(prev);
     return result;
@@ -359,7 +364,7 @@ function processPlural(
 
   // Text-only branch — the hottest plural shape ("# items"). No parse, no cache
   // entry, so substituting into the text costs nothing and saves the token pass.
-  return replaceTopLevelHash(selected, replacement);
+  return replaceTopLevelHash(selected, ctx.locale, count);
 }
 
 /** Choices are `male {He} female {She} other {They}`; the param value matches a key directly. */

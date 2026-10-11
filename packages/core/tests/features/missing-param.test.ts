@@ -245,4 +245,68 @@ describe("a function-valued param under a placeholder", () => {
 
     expect(i18n.t("msg", { link: { toString: () => "the docs" } } as Params)).toBe("See the docs.");
   });
+
+  // The two warnings are different advice, so one must not use up the other's
+  // once-per-(template, parameter) allowance — in either order.
+  const MISSING = '[@comvi/core] Missing parameter "link" for template "See {link}."';
+  const IS_FUNCTION =
+    '[@comvi/core] Parameter "link" for template "See {link}." is a function, and a placeholder renders text. Call it and pass the result, or write <link>…</link> to use it as a tag handler.';
+
+  it("absent first, then a function → both warnings", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = makeFull(undefined, { msg: "See {link}." });
+
+    i18n.t("msg", {});
+    i18n.t("msg", { link: handler });
+
+    expect(warn.mock.calls).toEqual([[MISSING], [IS_FUNCTION]]);
+  });
+
+  it("a function first, then absent → both warnings", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = makeFull(undefined, { msg: "See {link}." });
+
+    i18n.t("msg", { link: handler });
+    i18n.t("msg", {});
+
+    expect(warn.mock.calls).toEqual([[IS_FUNCTION], [MISSING]]);
+  });
+
+  it("a getter that answers undefined, then a function → read once, warned as missing", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = makeFull(undefined, { msg: "See {link}." });
+    let reads = 0;
+    const params = {
+      get link() {
+        return reads++ === 0 ? undefined : handler;
+      },
+    };
+
+    const rendered = i18n.t("msg", params as Params);
+
+    expect(rendered).toBe("See {link}.");
+    expect(reads).toBe(1);
+    expect(warn.mock.calls).toEqual([[MISSING]]);
+  });
+
+  it.each([
+    { given: "a plural", msg: "{n, plural, other {# for {link}}}", expected: "2 for {link}" },
+    { given: "a select", msg: "{kind, select, other {see {link}}}", expected: "see {link}" },
+  ])("a function inside the selected branch of $given → the literal placeholder", (row) => {
+    const i18n = makeFull(undefined, { msg: row.msg });
+
+    expect(i18n.t("msg", { n: 2, kind: "x", link: handler })).toBe(row.expected);
+  });
+
+  it.each([
+    { given: "a plural", msg: "{n, plural, other {# for {link}}}", expected: "2 for {link}" },
+    { given: "a select", msg: "{kind, select, other {see {link}}}", expected: "see {link}" },
+  ])(
+    "an absent parameter inside the selected branch of $given → the literal placeholder",
+    (row) => {
+      const i18n = makeFull(undefined, { msg: row.msg });
+
+      expect(i18n.t("msg", { n: 2, kind: "x" })).toBe(row.expected);
+    },
+  );
 });
