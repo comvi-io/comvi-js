@@ -28,8 +28,8 @@ editorVersion, url, load() }` (`contracts/chrome-extension-proxy.json`, `editorL
   `https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@<version>/dist/standalone.iife.js`.
   Nothing is requested before that click.
 - **`latest` by default, an exact version on request.** `devtools({ editorVersion: "0.5.1" })`
-  pins; anything that is not an exact `major.minor.patch` falls back to `latest` with a dev-only
-  warning. A `latest` URL carries `?comvi=<hour bucket>` so the browser's 7-day cache for a
+  pins; an exact `major.minor.patch`, optionally with a prerelease suffix such as `0.5.1-rc.1`, is
+  accepted, and any other value falls back to `latest` with a dev-only warning. A `latest` URL carries `?comvi=<hour bucket>` so the browser's 7-day cache for a
   version alias is bounded to an hour; an exact version is immutable and takes no query. The first
   instance on a page decides, and the UMD composite (`core/full.ts`) always loads `latest`.
 - **The slot is page-wide and protocol-versioned.** Every copy of core on the page meets the same
