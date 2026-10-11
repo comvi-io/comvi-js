@@ -48,6 +48,8 @@ describe("MAIN-world detector status reporting", () => {
         instanceCount: 1,
         editorActive: false,
         editorLoaded: false,
+        editorLoader: null,
+        editorVersion: null,
       },
     ]);
   });
@@ -89,6 +91,8 @@ describe("MAIN-world detector status reporting", () => {
         instanceCount: 3,
         editorActive: false,
         editorLoaded: false,
+        editorLoader: null,
+        editorVersion: null,
       },
     ]);
   });
@@ -106,6 +110,8 @@ describe("MAIN-world detector status reporting", () => {
         instanceCount: 1,
         editorActive: false,
         editorLoaded: false,
+        editorLoader: null,
+        editorVersion: null,
       },
     ]);
   });
@@ -122,7 +128,7 @@ describe("MAIN-world detector status reporting", () => {
   });
 
   it("reports the editor runtime as loaded in the ready handshake when it is present", async () => {
-    page.ComviInContextEditor = { isActive: () => false };
+    page.ComviInContextEditor = { isActive: () => false, activate: () => null };
     const detected = recordEvents(page, "comvi-extension:detected");
     await injectDetector();
 
@@ -154,6 +160,8 @@ describe("MAIN-world detector status reporting", () => {
         instanceCount: 0,
         editorActive: false,
         editorLoaded: false,
+        editorLoader: null,
+        editorVersion: null,
       },
     ]);
   });
@@ -174,7 +182,7 @@ describe("MAIN-world detector status reporting", () => {
 
   it("reports an active editor runtime", async () => {
     page.__COMVI__ = { version: "1.9.0", instances: new Map([["i18n", {}]]) };
-    page.ComviInContextEditor = { isActive: () => true };
+    page.ComviInContextEditor = { isActive: () => true, activate: () => null };
     await injectDetector();
 
     expect(status()).toEqual({
@@ -183,12 +191,14 @@ describe("MAIN-world detector status reporting", () => {
       instanceCount: 1,
       editorActive: true,
       editorLoaded: true,
+      editorLoader: null,
+      editorVersion: null,
     });
   });
 
   it("reports a loaded but idle editor runtime", async () => {
     page.__COMVI__ = { version: "1.9.0", instances: new Map([["i18n", {}]]) };
-    page.ComviInContextEditor = { isActive: () => false };
+    page.ComviInContextEditor = { isActive: () => false, activate: () => null };
     await injectDetector();
 
     expect(status()).toMatchObject({ editorActive: false, editorLoaded: true });
@@ -204,12 +214,14 @@ describe("MAIN-world detector status reporting", () => {
       instanceCount: 1,
       editorActive: false,
       editorLoaded: false,
+      editorLoader: null,
+      editorVersion: null,
     });
   });
 
   it("survives an editor runtime that exposes no isActive hook", async () => {
     page.__COMVI__ = { version: "1.9.0", instances: new Map([["i18n", {}]]) };
-    page.ComviInContextEditor = {};
+    page.ComviInContextEditor = { activate: () => null };
     await injectDetector();
 
     expect(status()).toMatchObject({ editorActive: false, editorLoaded: true });

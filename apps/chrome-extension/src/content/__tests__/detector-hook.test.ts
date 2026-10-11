@@ -488,6 +488,8 @@ describe("MAIN-world detector adoption guards", () => {
         instanceCount: 0,
         editorActive: false,
         editorLoaded: false,
+        editorLoader: null,
+        editorVersion: null,
       },
     ]);
   });
@@ -509,7 +511,7 @@ describe("MAIN-world detector adoption guards", () => {
 
     page.dispatchEvent(new CustomEvent("comvi-extension:activate", { detail: JSON.stringify({}) }));
 
-    expect(activated).toEqual([{ success: false, error: "Editor runtime is not loaded" }]);
+    expect(activated).toEqual([expect.objectContaining({ success: false, code: "no-loader" })]);
   });
 
   it("adopts a real queue array even when Object.prototype carries the marker", async () => {
@@ -526,6 +528,8 @@ describe("MAIN-world detector adoption guards", () => {
         instanceCount: 1,
         editorActive: false,
         editorLoaded: false,
+        editorLoader: null,
+        editorVersion: null,
       },
     ]);
     expect((page.__COMVI__ as { instances: Map<string, unknown> }).instances.size).toBe(1);

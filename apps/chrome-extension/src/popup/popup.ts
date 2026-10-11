@@ -10,13 +10,40 @@ import type {
   StartSessionResponse,
   SessionStatusResponse,
   SessionStateChangedPayload,
+  ActivationOutcomeCode,
 } from "../shared/messages";
+import { asDisplayVersion, editorAvailability } from "../shared/activation";
 
 type Theme = "light" | "dark";
 type View = "loading" | "not-detected" | "idle" | "active";
 type Operation = "enabling" | "disabling" | "forgetting" | null;
 
 const THEME_STORAGE_KEY = "comvi_theme";
+
+// The one host the page's SDK loads the editor from. The remedies below name
+// THIS constant: a host reported by the page is never shown, because a forged
+// one would tell the user to allow an attacker's domain.
+const EDITOR_CDN_HOST = "cdn.jsdelivr.net";
+
+const SDK_REQUIREMENT =
+  "In-context editing needs @comvi/core 0.5.1 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
+
+const ACTIVATION_FAILED = "The editor could not start on this page. Reload the page and try again.";
+
+const NOT_DETECTED_TITLE = "Comvi i18n not detected on this page.";
+const NOT_DETECTED_REMEDY =
+  "If this site uses Comvi i18n, add .use(devtools()) to its i18n instance (@comvi/core 0.5.1 or newer). That makes the instance visible to this extension and lets the site load the editor when you enable it.";
+
+/** One reason and one remedy for each way the page can fail to supply the editor. */
+const ACTIVATION_FAILURE_TEXT: Record<ActivationOutcomeCode, string> = {
+  "csp-blocked": `This site's Content Security Policy blocked the editor. Allow https://${EDITOR_CDN_HOST} in its script-src directive, then reload this page. If the site enforces Trusted Types, its policy must permit that URL too.`,
+  "load-error": `The editor could not be downloaded from ${EDITOR_CDN_HOST}. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.`,
+  timeout: `The editor did not finish loading from ${EDITOR_CDN_HOST} in time. Check your connection and try again.`,
+  "no-global": `${EDITOR_CDN_HOST} answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.`,
+  "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
+  unconfirmed: "The editor activation could not be confirmed. Try again.",
+  failed: ACTIVATION_FAILED,
+};
 
 const root = document.documentElement;
 const themeToggleBtn = document.getElementById("theme-toggle") as HTMLButtonElement;
@@ -35,6 +62,8 @@ const enableBtn = document.getElementById("enable-btn") as HTMLButtonElement;
 const disableBtn = document.getElementById("disable-btn") as HTMLButtonElement;
 const errorMsg = document.getElementById("error-msg")!;
 const versionLine = document.getElementById("version-line")!;
+const reasonTitle = document.getElementById("reason-title")!;
+const reasonRemedy = document.getElementById("reason-remedy")!;
 const operationStatus = document.getElementById("operation-status")!;
 const operationStatusText = document.getElementById("operation-status-text")!;
 
@@ -45,9 +74,15 @@ let popupLeaseReady: Promise<boolean> | null = null;
 let currentTabId: number | null = null;
 let currentOrigin = "";
 let editorActive = false;
-let editorLoaded = false;
 let comviDetected = false;
 let comviVersion: string | undefined;
+// Whether the page can supply the editor. Unknown until a source says so; an
+// unknown page is offered Enable and answers with a reason if it cannot.
+let editorAvailable: boolean | undefined;
+let editorVersion: string | undefined;
+// Instances the detector tracks. A truthy `window.__COMVI__` that holds none
+// is not a Comvi site, whatever else it claims.
+let instanceCount: number | undefined;
 let initialized = false;
 let operation: Operation = null;
 let forgetAvailable = false;
@@ -95,7 +130,24 @@ async function initTheme() {
 
 // --- View switching ---
 
+// A site may create its i18n instance after the popup opened (a lazy route),
+// and a second copy of core may install the loader hook later. While the popup
+// says the editor cannot start here, it keeps asking the page, so the view
+// moves to Enable without being reopened.
+const STATUS_RECHECK_MS = 1_000;
+let statusRecheck: number | null = null;
+
+function recheckStatusWhile(waiting: boolean) {
+  if (waiting && statusRecheck === null) {
+    statusRecheck = window.setInterval(() => void requestStatus(), STATUS_RECHECK_MS);
+  } else if (!waiting && statusRecheck !== null) {
+    window.clearInterval(statusRecheck);
+    statusRecheck = null;
+  }
+}
+
 function setView(view: View) {
+  recheckStatusWhile(view === "not-detected" && currentTabId !== null);
   for (const [id, el] of [
     ["loading", stateLoading],
     ["not-detected", stateNotDetected],
@@ -135,12 +187,30 @@ function render() {
   // Authority takes precedence over detector metadata. A delayed detector
   // response must never hide a successfully activated editor.
   if (editorActive) {
-    versionLine.textContent = comviVersion ? `Comvi i18n v${comviVersion}` : "";
+    // The only page-authored strings in the popup: each passed
+    // asDisplayVersion, and is set as text.
+    versionLine.textContent = [
+      comviVersion ? `Comvi i18n v${comviVersion}` : "",
+      editorVersion ? `editor v${editorVersion}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
     setView("active");
     return;
   }
 
-  if (!comviDetected) {
+  if (!comviDetected || instanceCount === 0) {
+    reasonTitle.textContent = NOT_DETECTED_TITLE;
+    reasonRemedy.textContent = NOT_DETECTED_REMEDY;
+    setView("not-detected");
+    return;
+  }
+
+  // An instance is there, but neither an editor nor the hook that loads one:
+  // the site runs @comvi/core older than 0.5.1.
+  if (editorAvailable === false) {
+    reasonTitle.textContent = `Comvi i18n${comviVersion ? ` v${comviVersion}` : ""} found, but it cannot load the editor.`;
+    reasonRemedy.textContent = SDK_REQUIREMENT;
     setView("not-detected");
     return;
   }
@@ -202,14 +272,33 @@ async function requestStatus(): Promise<boolean> {
   }
 }
 
+/**
+ * The editor is on the page once a session went active; ask which version it
+ * reports. Only that field is taken: detection was settled by the activation.
+ */
+async function refreshEditorVersion(): Promise<void> {
+  try {
+    const response = await sendToContentScript({ type: "GET_STATUS" });
+    const status = response?.payload as StatusResponsePayload | undefined;
+    const reported = asDisplayVersion(status?.editorVersion);
+    if (!reported) return;
+    editorVersion = reported;
+    render();
+  } catch {
+    // The version line is informational; the session does not depend on it.
+  }
+}
+
 function updateStatus(status: StatusResponsePayload) {
   // Page-reported status drives detection UI only. `editorActive` (which
   // gates the active view) comes from the service worker's session state —
   // a page cannot talk this popup into showing a fake "active" panel.
   liveStatusObserved = true;
   comviDetected = status.comviDetected;
-  editorLoaded = status.editorLoaded ?? editorLoaded;
-  if (status.version) comviVersion = status.version;
+  editorAvailable = editorAvailability(status) ?? editorAvailable;
+  if (typeof status.instanceCount === "number") instanceCount = status.instanceCount;
+  editorVersion = asDisplayVersion(status.editorVersion) ?? editorVersion;
+  comviVersion = asDisplayVersion(status.version) ?? comviVersion;
   render();
 }
 
@@ -259,8 +348,9 @@ function applySessionStatus(
   editorActive = status.active === true;
   if (applyCachedDetection && typeof status.comviDetected === "boolean") {
     comviDetected = status.comviDetected;
+    if (typeof status.editorAvailable === "boolean") editorAvailable = status.editorAvailable;
   }
-  if (status.version) comviVersion = status.version;
+  comviVersion = asDisplayVersion(status.version) ?? comviVersion;
 }
 
 /** Ask the service worker for the authoritative session state. */
@@ -310,9 +400,9 @@ function ensurePopupLease(): Promise<boolean> {
 
 /**
  * Re-resolve the active tab right before doing anything privileged, so a
- * navigation between popup-open and button-click can't redirect injection
- * or the session to a different origin (TOCTOU). The service worker repeats
- * these checks independently — this is UX-level early failure.
+ * navigation between popup-open and button-click can't redirect the session
+ * to a different origin (TOCTOU). The service worker repeats these checks
+ * independently — this is UX-level early failure.
  */
 async function getVerifiedTab(): Promise<{ tabId: number; origin: string } | null> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -333,7 +423,13 @@ function clearActivationTimeout() {
   }
 }
 
+// Set while this popup rolls its own pending activation back (its deadline
+// passed, or the page could not be told to activate). The worker's notice of
+// that rollback must not replace the message the popup shows for it.
+let ownRollback = false;
+
 async function rollbackActivation(tabId: number, nonce: string) {
+  ownRollback = true;
   await sendToServiceWorker({
     type: "ROLLBACK_ACTIVATION",
     payload: { tabId, nonce },
@@ -365,6 +461,7 @@ async function handleEnable() {
   }
 
   hideError();
+  ownRollback = false;
   setOperation("enabling", "Checking key…");
 
   try {
@@ -402,21 +499,12 @@ async function handleEnable() {
     setForgetVisible(true);
     // Arm before page activation: the acknowledgement can be synchronous.
     armActivationTimeout(verified.tabId, session.nonce);
-    setProgress("Starting editor…");
+    // The extension carries no editor. The page's own Comvi SDK loads it on
+    // this request, and the page answers with EDITOR_ACTIVATED when it runs.
+    setProgress("Loading editor…");
 
     try {
-      // 2. Inject the bundled editor runtime into the page's MAIN world. The
-      // runtime ships inside the extension package (MV3 forbids remote code).
-      if (!editorLoaded) {
-        await chrome.scripting.executeScript({
-          target: { tabId: verified.tabId },
-          files: ["editor.iife.js"],
-          world: "MAIN",
-        });
-        editorLoaded = true;
-      }
-
-      // 3. Activate with non-secret configuration. The nonce stays inside
+      // 2. Activate with non-secret configuration. The nonce stays inside
       // extension messaging (popup -> bridge) and ties the acknowledgement
       // to this exact activation.
       const activatePayload: ActivatePayload = {
@@ -424,9 +512,8 @@ async function handleEnable() {
         nonce: session.nonce,
       };
       await sendToContentScript({ type: "ACTIVATE_EDITOR", payload: activatePayload });
-      setProgress("Confirming activation…");
     } catch (err) {
-      // Injection or messaging failed — the pending session must not linger.
+      // Messaging failed — the pending session must not linger.
       clearActivationTimeout();
       await rollbackActivation(verified.tabId, session.nonce);
       throw err;
@@ -558,9 +645,16 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
     }
     if (state.active) {
       comviDetected = true;
+      editorAvailable = true;
       hideError();
-    } else if (operation === "enabling" && state.error) {
-      showError(state.error);
+      void refreshEditorVersion();
+    } else if (operation === "enabling" && !ownRollback) {
+      // An Enable that ends without an active session always says so, in the
+      // popup's own words: with the reason when the worker named one, and
+      // otherwise (the page navigated, the popup lost its lease, the page
+      // announced a deactivation) with the plain failure text. A rollback
+      // this popup asked for already has its own message.
+      showError((state.code && ACTIVATION_FAILURE_TEXT[state.code]) || ACTIVATION_FAILED);
     }
     clearActivationTimeout();
     setOperation(null);

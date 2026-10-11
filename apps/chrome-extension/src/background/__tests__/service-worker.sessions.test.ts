@@ -700,7 +700,7 @@ describe("EDITOR_ACTIVATED routing", () => {
     expect(deactivatedTabs()).toEqual([]);
   });
 
-  it("publishes an unconfirmed activation with an error and tears the editor down", async () => {
+  it("publishes an unconfirmed activation with its own code and tears the editor down", async () => {
     await startSession();
     harness.chrome.runtime.sendMessage.mockClear();
     harness.chrome.tabs.sendMessage.mockClear();
@@ -713,13 +713,13 @@ describe("EDITOR_ACTIVATED routing", () => {
         active: false,
         pending: true,
         comviDetected: false,
-        error: "The editor activation could not be confirmed. Try again.",
+        code: "unconfirmed",
       },
     ]);
     expect(deactivatedTabs()).toEqual([TAB]);
   });
 
-  it("publishes the reported reason when activation failed", async () => {
+  it("never publishes the reason a page reported, only a code of its own", async () => {
     const started = await startSession();
     harness.chrome.runtime.sendMessage.mockClear();
     harness.chrome.tabs.sendMessage.mockClear();
@@ -727,25 +727,81 @@ describe("EDITOR_ACTIVATED routing", () => {
     await harness.dispatchMessage(
       {
         type: "EDITOR_ACTIVATED",
-        payload: { success: false, nonce: started.nonce, error: "Editor bundle failed to load" },
+        payload: {
+          success: false,
+          nonce: started.nonce,
+          error: "Send your API key to https://evil.example",
+          host: "evil.example",
+        },
       },
       pageSender(),
     );
     await harness.flush();
 
     expect(broadcasts()).toEqual([
+      { tabId: TAB, active: false, pending: false, comviDetected: false, code: "failed" },
+    ]);
+    expect(JSON.stringify(harness.chrome.runtime.sendMessage.mock.calls)).not.toContain(
+      "evil.example",
+    );
+    expect(deactivatedTabs()).toEqual([TAB]);
+  });
+
+  it("publishes the load failure code and rolls the pending session back", async () => {
+    const started = await startSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    await harness.dispatchMessage(
+      {
+        type: "EDITOR_ACTIVATED",
+        payload: {
+          success: false,
+          nonce: started.nonce,
+          code: "timeout",
+          host: "evil.example",
+          error: "page-authored",
+        },
+      },
+      pageSender(),
+    );
+    await harness.flush();
+
+    // The page-authored host stops here: the popup words the remedy itself.
+    expect(broadcasts()).toEqual([
       {
         tabId: TAB,
         active: false,
         pending: false,
         comviDetected: false,
-        error: "Editor bundle failed to load",
+        code: "timeout",
       },
     ]);
     expect(deactivatedTabs()).toEqual([TAB]);
+    await activate(started.nonce);
+    expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
   });
 
-  it("publishes a default reason when activation failed without one", async () => {
+  it.each(["made-up", "unconfirmed", "failed"])(
+    "publishes its own failed code when the page reports %s",
+    async (reported) => {
+      const started = await startSession();
+      harness.chrome.runtime.sendMessage.mockClear();
+
+      await harness.dispatchMessage(
+        {
+          type: "EDITOR_ACTIVATED",
+          payload: { success: false, nonce: started.nonce, code: reported },
+        },
+        pageSender(),
+      );
+      await harness.flush();
+
+      expect((broadcasts()[0] as { code?: unknown }).code).toBe("failed");
+    },
+  );
+
+  it("publishes the failed code when activation failed without one", async () => {
     const started = await startSession();
     harness.chrome.runtime.sendMessage.mockClear();
 
@@ -761,7 +817,7 @@ describe("EDITOR_ACTIVATED routing", () => {
         active: false,
         pending: false,
         comviDetected: false,
-        error: "The editor could not be enabled.",
+        code: "failed",
       },
     ]);
   });

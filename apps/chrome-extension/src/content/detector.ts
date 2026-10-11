@@ -8,6 +8,12 @@
  * proxy transport that forwards API requests (path + body only) over DOM
  * events to the bridge, which relays them to the service worker where
  * credentials are attached and the target host is enforced.
+ *
+ * The extension carries no editor. When the page has none, the detector asks
+ * the page's own `devtools()` hook to load it (contracts/chrome-extension-proxy.json,
+ * `editorLoader`). That hook is page code: it is called under try/catch with a
+ * time limit, its answer is read field by field, and the detector never loads
+ * the hook's `url` — or any other script — itself.
  */
 
 interface ComviStatus {
@@ -16,6 +22,23 @@ interface ComviStatus {
   instanceCount: number;
   editorActive: boolean;
   editorLoaded: boolean;
+  /** The page's editor-loader hook, `null` when there is none. */
+  editorLoader: { protocol: number; sdkVersion?: string; editorVersion?: string } | null;
+  /** Version the loaded editor reports, `null` when unknown. */
+  editorVersion: string | null;
+}
+
+/** The slice of the page's editor-loader hook this script uses. */
+interface EditorLoaderSlot {
+  protocol: number;
+  sdkVersion?: unknown;
+  editorVersion?: unknown;
+  load(): unknown;
+}
+
+/** Why the editor is not on the page; `code` is from the contract's list, or `no-loader`. */
+interface EditorLoadFailure {
+  code: "csp-blocked" | "load-error" | "timeout" | "no-global" | "no-loader";
 }
 
 interface TransportInit {
@@ -276,6 +299,94 @@ function adoptComviGlobal(): ComviHookLike | null {
   }
 }
 
+const EDITOR_LOADER_KEY = Symbol.for("comvi.devtools.editorLoader");
+const LOAD_FAILURE_CODES = ["csp-blocked", "load-error", "timeout", "no-global"] as const;
+// The hook gives up after 10 s on its own. This bounds a hook that never
+// answers, inside the popup's 15 s activation budget.
+const EDITOR_LOAD_BUDGET_MS = 12_000;
+
+/** The page's editor runtime, when it is one: an object with `activate()`. */
+function pageEditor(): any {
+  const editor = (window as any).ComviInContextEditor;
+  return editor && typeof editor.activate === "function" ? editor : undefined;
+}
+
+/**
+ * The hook `devtools()` installed, or null. Never throws: the slot is
+ * page-controlled, so a getter that throws reads as "no hook".
+ */
+function readEditorLoader(): EditorLoaderSlot | null {
+  try {
+    const slot = (globalThis as any)[EDITOR_LOADER_KEY];
+    if (!slot || typeof slot !== "object" || typeof slot.load !== "function") {
+      return null;
+    }
+    return Number.isInteger(slot.protocol) && slot.protocol >= 1 ? slot : null;
+  } catch {
+    return null;
+  }
+}
+
+function describeEditorLoader(): ComviStatus["editorLoader"] {
+  const slot = readEditorLoader();
+  if (!slot) {
+    return null;
+  }
+  try {
+    return {
+      protocol: slot.protocol,
+      sdkVersion: typeof slot.sdkVersion === "string" ? slot.sdkVersion : undefined,
+      editorVersion: typeof slot.editorVersion === "string" ? slot.editorVersion : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function loadFailure(code: EditorLoadFailure["code"]): EditorLoadFailure {
+  return { code };
+}
+
+/** Turn the hook's page-authored answer into a failure, or null when the editor is there. */
+function readLoadResult(result: unknown): EditorLoadFailure | null {
+  try {
+    const raw = (result && typeof result === "object" ? result : {}) as Record<string, unknown>;
+    if (raw.ok === true) {
+      // The hook's word is not enough: activation needs the runtime itself.
+      return pageEditor() ? null : loadFailure("no-global");
+    }
+    // Read once, then judge: a getter may answer differently the next time.
+    // Nothing else of the answer is used; its host and message stay behind.
+    const reported = raw.code;
+    return loadFailure(LOAD_FAILURE_CODES.find((known) => known === reported) ?? "load-error");
+  } catch {
+    return loadFailure("load-error");
+  }
+}
+
+/**
+ * Ask the page's hook for the editor. Resolves null once the editor is on the
+ * page, otherwise the reason. Never rejects and always settles: a hook that
+ * throws, rejects or stays silent is a page fault with its own code.
+ */
+function requestEditor(slot: EditorLoaderSlot): Promise<EditorLoadFailure | null> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => resolve(loadFailure("timeout")), EDITOR_LOAD_BUDGET_MS);
+    const settle = (outcome: EditorLoadFailure | null): void => {
+      window.clearTimeout(timer);
+      resolve(outcome);
+    };
+    try {
+      Promise.resolve(slot.load()).then(
+        (result) => settle(readLoadResult(result)),
+        () => settle(loadFailure("load-error")),
+      );
+    } catch {
+      settle(loadFailure("load-error"));
+    }
+  });
+}
+
 const DETECTOR_FLAG = "__comviExtensionDetectorInstalled";
 
 // The popup may inject this script again on every open; run only once per
@@ -311,6 +422,8 @@ function installDetector() {
         instanceCount: 0,
         editorActive: false,
         editorLoaded: false,
+        editorLoader: null,
+        editorVersion: null,
       };
     }
   }
@@ -321,7 +434,9 @@ function installDetector() {
     const hook = adoptComviGlobal();
     const editor = (window as any).ComviInContextEditor;
     const editorActive: boolean = editor?.isActive?.() ?? false;
-    const editorLoaded = !!editor;
+    const editorLoaded = !!pageEditor();
+    const editorLoader = describeEditorLoader();
+    const editorVersion = typeof editor?.version === "string" ? editor.version : null;
 
     if (hook) {
       return {
@@ -330,6 +445,8 @@ function installDetector() {
         instanceCount: hook.instances.size,
         editorActive,
         editorLoaded,
+        editorLoader,
+        editorVersion,
       };
     }
 
@@ -347,6 +464,8 @@ function installDetector() {
       instanceCount: comvi?.instances?.size ?? 0,
       editorActive,
       editorLoaded,
+      editorLoader,
+      editorVersion,
     };
   }
 
@@ -366,14 +485,10 @@ function installDetector() {
     window.dispatchEvent(new CustomEvent("comvi-extension:not-found", { detail: status }));
   }
 
-  function notifyActivationFailed(error: unknown) {
+  // What the editor threw is page-authored text: it goes nowhere.
+  function notifyActivationFailed() {
     window.dispatchEvent(
-      new CustomEvent("comvi-extension:activated", {
-        detail: {
-          success: false,
-          error: error instanceof Error ? error.message : "Failed to activate editor",
-        },
-      }),
+      new CustomEvent("comvi-extension:activated", { detail: { success: false } }),
     );
   }
 
@@ -472,7 +587,9 @@ function installDetector() {
       version: typeof detail.version === "string" ? detail.version : null,
       instanceCount: typeof detail.instanceCount === "number" ? detail.instanceCount : 1,
       editorActive: false,
-      editorLoaded: !!(window as any).ComviInContextEditor,
+      editorLoaded: !!pageEditor(),
+      editorLoader: describeEditorLoader(),
+      editorVersion: null,
     };
     notifyDetected(status);
   }) as EventListener);
@@ -504,43 +621,9 @@ function installDetector() {
     window.dispatchEvent(new CustomEvent("comvi-extension:status", { detail: status }));
   });
 
-  // The activate payload carries only the non-secret base URL for path
-  // building; credentials never reach this world.
-  window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
-    let detail: any;
+  function activateEditor(apiBaseUrl: string | undefined) {
     try {
-      detail = typeof event.detail === "string" ? JSON.parse(event.detail) : event.detail || {};
-    } catch {
-      detail = {};
-    }
-    const apiBaseUrl = typeof detail.apiBaseUrl === "string" ? detail.apiBaseUrl : undefined;
-
-    const status = getComviStatus();
-
-    if (!status.detected) {
-      window.dispatchEvent(
-        new CustomEvent("comvi-extension:activated", {
-          detail: { success: false, error: "Comvi i18n not detected" },
-        }),
-      );
-      return;
-    }
-
-    // The editor runtime ships inside the extension package and is injected
-    // into the page by the popup (chrome.scripting) before this event fires.
-    const editor = (window as any).ComviInContextEditor;
-
-    if (!editor) {
-      window.dispatchEvent(
-        new CustomEvent("comvi-extension:activated", {
-          detail: { success: false, error: "Editor runtime is not loaded" },
-        }),
-      );
-      return;
-    }
-
-    try {
-      const result = editor.activate({
+      const result = pageEditor().activate({
         transport: proxyTransport,
         apiBaseUrl,
       });
@@ -554,12 +637,69 @@ function installDetector() {
           },
         }),
       );
-    } catch (error) {
-      notifyActivationFailed(error);
+    } catch {
+      notifyActivationFailed();
     }
+  }
+
+  // One activation is in flight at a time: a newer command, or a deactivation,
+  // retires an older one that is still waiting for the editor to load.
+  let activationAttempt = 0;
+
+  // The activate payload carries only the non-secret base URL for path
+  // building; credentials never reach this world.
+  window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
+    const attempt = ++activationAttempt;
+    let detail: any;
+    try {
+      detail = typeof event.detail === "string" ? JSON.parse(event.detail) : event.detail || {};
+    } catch {
+      detail = {};
+    }
+    const apiBaseUrl = typeof detail.apiBaseUrl === "string" ? detail.apiBaseUrl : undefined;
+
+    const status = getComviStatus();
+
+    if (!status.detected) {
+      window.dispatchEvent(
+        new CustomEvent("comvi-extension:activated", {
+          detail: { success: false },
+        }),
+      );
+      return;
+    }
+
+    // A page that already carries the editor (its app bundles it, or an
+    // earlier activation loaded it) needs no load.
+    if (pageEditor()) {
+      activateEditor(apiBaseUrl);
+      return;
+    }
+
+    const reportLoadFailure = (failure: EditorLoadFailure) => {
+      window.dispatchEvent(
+        new CustomEvent("comvi-extension:activated", { detail: { success: false, ...failure } }),
+      );
+    };
+
+    const slot = readEditorLoader();
+    if (!slot) {
+      reportLoadFailure(loadFailure("no-loader"));
+      return;
+    }
+
+    void requestEditor(slot).then((failure) => {
+      if (attempt !== activationAttempt) return;
+      if (failure) {
+        reportLoadFailure(failure);
+      } else {
+        activateEditor(apiBaseUrl);
+      }
+    });
   }) as EventListener);
 
   window.addEventListener("comvi-extension:deactivate", () => {
+    activationAttempt++;
     const editor = (window as any).ComviInContextEditor;
     if (editor?.isActive?.()) {
       editor.deactivate();
@@ -569,7 +709,7 @@ function installDetector() {
     } else {
       window.dispatchEvent(
         new CustomEvent("comvi-extension:deactivated", {
-          detail: { success: false, error: "Editor not active" },
+          detail: { success: false },
         }),
       );
     }

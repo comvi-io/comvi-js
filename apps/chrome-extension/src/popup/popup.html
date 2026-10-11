@@ -77,9 +77,10 @@
           <span>Checking this page…</span>
         </div>
 
-        <!-- State: not detected -->
+        <!-- State: the editor cannot start here (no Comvi i18n, or one that cannot load it) -->
         <div id="state-not-detected" class="comvi-view hidden">
-          <p class="text-sm text-muted-foreground">Comvi i18n not detected on this page.</p>
+          <p id="reason-title" class="text-sm text-foreground"></p>
+          <p id="reason-remedy" class="mt-2 text-xs leading-snug text-muted-foreground"></p>
         </div>
 
         <!-- State: idle (detected, editor off) -->

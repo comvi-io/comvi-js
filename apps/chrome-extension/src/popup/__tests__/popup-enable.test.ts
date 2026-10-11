@@ -9,8 +9,9 @@ const NONCE = "activation-nonce-1";
 
 /**
  * Enabling the editor is the popup's one privileged flow: it re-verifies the
- * tab, takes a lifecycle lease, opens a pending session with the key, injects
- * the bundled runtime and then waits for the service worker to confirm.
+ * tab, takes a lifecycle lease, opens a pending session with the key, asks
+ * the page to load and start the editor and then waits for the service worker
+ * to confirm.
  */
 describe("popup enable flow", () => {
   let popup: PopupHarness;
@@ -343,54 +344,15 @@ describe("popup enable flow", () => {
     expect(popup.enableBtn.disabled).toBe(false);
   });
 
-  // --- Injection and activation ---
+  // --- Activation: the page loads the editor, the extension carries none ---
 
-  it("injects the bundled editor runtime into the page's main world", async () => {
+  it("injects nothing into the page when the editor is enabled", async () => {
     await startIdle();
-    popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
-
-    await clickEnable();
-
-    expect(popup.executeScript).toHaveBeenCalledWith({
-      target: { tabId: TAB_ID },
-      files: ["editor.iife.js"],
-      world: "MAIN",
-    });
-  });
-
-  it("does not re-inject the runtime the page already loaded", async () => {
-    popup.setActiveTab({ id: TAB_ID, url: PAGE_URL });
-    popup.onServiceWorker("GET_SESSION_STATUS", { active: false, pending: false });
-    popup.onContentScript("GET_STATUS", {
-      payload: { comviDetected: true, editorActive: false, editorLoaded: true },
-    });
-    await popup.start();
     popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
 
     await clickEnable();
 
     expect(popup.executeScript).not.toHaveBeenCalled();
-  });
-
-  it("reports that the editor is starting while the runtime is injected", async () => {
-    await startIdle();
-    popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
-    popup.executeScript.mockImplementation(() => new Promise(() => {}));
-
-    await clickEnable();
-
-    expect(popup.operationStatusText.textContent).toBe("Starting editor…");
-  });
-
-  it("does not inject the runtime again on a second attempt", async () => {
-    await startIdle();
-    popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
-    popup.onContentScript("ACTIVATE_EDITOR", runtimeFailure("Receiving end does not exist"));
-    await clickEnable();
-
-    await clickEnable();
-
-    expect(popup.executeScript).toHaveBeenCalledTimes(1);
   });
 
   it("activates the editor with the API origin and the session nonce", async () => {
@@ -408,13 +370,13 @@ describe("popup enable flow", () => {
     });
   });
 
-  it("waits for the service worker after the page is told to activate", async () => {
+  it("reports that the editor is loading while the page fetches it", async () => {
     await startIdle();
     popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
 
     await clickEnable();
 
-    expect(popup.operationStatusText.textContent).toBe("Confirming activation…");
+    expect(popup.operationStatusText.textContent).toBe("Loading editor…");
     expect(popup.enableBtn.disabled).toBe(true);
   });
 
@@ -425,19 +387,6 @@ describe("popup enable flow", () => {
     await clickEnable();
 
     expect(popup.forgetKeyBtn.classList.contains("hidden")).toBe(false);
-  });
-
-  it("rolls the pending session back when injection is refused", async () => {
-    await startIdle();
-    popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
-    popup.executeScript.mockRejectedValue(new Error("Cannot access contents of the page"));
-
-    await clickEnable();
-
-    expect(messagesOfType("ROLLBACK_ACTIVATION")).toEqual([
-      { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB_ID, nonce: NONCE } },
-    ]);
-    expect(popup.errorMsg.textContent).toBe("Cannot access contents of the page");
   });
 
   it("rolls the pending session back when the page cannot be told to activate", async () => {
@@ -451,10 +400,10 @@ describe("popup enable flow", () => {
     expect(popup.errorMsg.textContent).toBe("Receiving end does not exist");
   });
 
-  it("cancels the activation deadline when injection is refused", async () => {
+  it("cancels the activation deadline when the page cannot be told to activate", async () => {
     await startIdle();
     popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
-    popup.executeScript.mockRejectedValue(new Error("Cannot access contents of the page"));
+    popup.onContentScript("ACTIVATE_EDITOR", runtimeFailure("Receiving end does not exist"));
 
     await clickEnable();
 
@@ -464,7 +413,7 @@ describe("popup enable flow", () => {
   it("releases the controls after a failed activation", async () => {
     await startIdle();
     popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
-    popup.executeScript.mockRejectedValue(new Error("Cannot access contents of the page"));
+    popup.onContentScript("ACTIVATE_EDITOR", runtimeFailure("Receiving end does not exist"));
 
     await clickEnable();
 
@@ -472,10 +421,9 @@ describe("popup enable flow", () => {
     expect(popup.enableBtn.textContent).toBe("Enable editor");
   });
 
-  it("reports a non-Error injection failure in plain language", async () => {
+  it("reports a failure that is not an Error in plain language", async () => {
     await startIdle();
-    popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
-    popup.executeScript.mockRejectedValue("frame removed");
+    popup.tabsQuery.mockRejectedValueOnce("tab gone");
 
     await clickEnable();
 

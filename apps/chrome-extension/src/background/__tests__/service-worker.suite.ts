@@ -3,6 +3,7 @@
  * the worker import, per-test reset, and the helpers the feature files use.
  * Importing this module registers the hooks for the importing test file.
  */
+import type { SessionStatusResponse } from "../../shared/messages";
 import { expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { installFakeChrome, type FakePort, type Harness } from "./harness";
 
@@ -161,7 +162,7 @@ export async function sessionStatus(tabId = TAB) {
   return (await harness.dispatchMessage(
     { type: "GET_SESSION_STATUS", payload: { tabId } },
     popupSender,
-  )) as { active: boolean; pending: boolean; comviDetected?: boolean; version?: string };
+  )) as SessionStatusResponse;
 }
 
 export const NO_RESPONSE = Symbol("no response");

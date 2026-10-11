@@ -68,17 +68,17 @@ describe("MAIN-world detector editor lifecycle", () => {
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: false, error: "Comvi i18n not detected" }]);
+    expect(results).toEqual([{ success: false }]);
     expect(activateOptions).toBeUndefined();
   });
 
-  it("reports a missing editor runtime", async () => {
+  it("reports a page with neither an editor nor a loader hook", async () => {
     const results = recordEvents(page, "comvi-extension:activated");
     await injectDetector();
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: false, error: "Editor runtime is not loaded" }]);
+    expect(results).toEqual([{ success: false, code: "no-loader" }]);
   });
 
   it("passes the base URL from a JSON activation command to the editor", async () => {
@@ -124,7 +124,7 @@ describe("MAIN-world detector editor lifecycle", () => {
     expect(results).toEqual([{ success: false, instanceId: undefined, collectContext: false }]);
   });
 
-  it("reports the reason an editor refused to activate", async () => {
+  it("reports a refused activation without the text the editor threw", async () => {
     installEditor({
       isActive: () => false,
       activate: () => {
@@ -136,10 +136,12 @@ describe("MAIN-world detector editor lifecycle", () => {
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: false, error: "no project selected" }]);
+    // The message is page-authored; nothing of it may travel toward the popup.
+    expect(results).toEqual([{ success: false }]);
+    expect(JSON.stringify(results)).not.toContain("no project selected");
   });
 
-  it("reports a generic reason when the editor throws something unreadable", async () => {
+  it("reports a bare failure when the editor throws something unreadable", async () => {
     installEditor({
       isActive: () => false,
       activate: () => {
@@ -151,7 +153,7 @@ describe("MAIN-world detector editor lifecycle", () => {
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: false, error: "Failed to activate editor" }]);
+    expect(results).toEqual([{ success: false }]);
   });
 
   it("deactivates an active editor and acknowledges it", async () => {
@@ -178,7 +180,7 @@ describe("MAIN-world detector editor lifecycle", () => {
 
     page.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
 
-    expect(results).toEqual([{ success: false, error: "Editor not active" }]);
+    expect(results).toEqual([{ success: false }]);
   });
 
   it("refuses to deactivate an editor runtime that exposes no isActive hook", async () => {
@@ -188,7 +190,7 @@ describe("MAIN-world detector editor lifecycle", () => {
 
     page.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
 
-    expect(results).toEqual([{ success: false, error: "Editor not active" }]);
+    expect(results).toEqual([{ success: false }]);
   });
 
   it("refuses to deactivate when no editor runtime is loaded", async () => {
@@ -197,7 +199,7 @@ describe("MAIN-world detector editor lifecycle", () => {
 
     page.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
 
-    expect(results).toEqual([{ success: false, error: "Editor not active" }]);
+    expect(results).toEqual([{ success: false }]);
   });
 });
 

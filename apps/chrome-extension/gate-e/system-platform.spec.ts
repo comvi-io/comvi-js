@@ -3,7 +3,13 @@ import { readFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { extensionWorker, openPopup, requireEnv, reservePort } from "./helpers";
+import {
+  extensionWorker,
+  openPopup,
+  requireEnv,
+  reservePort,
+  serveEditorFromLocalBuild,
+} from "./helpers";
 import type { CredentialStore, SessionStore } from "./helpers";
 import { EXPECTED_CONTENT_SCRIPTS } from "../src/shared/__fixtures__/manifest-content-scripts";
 
@@ -129,6 +135,7 @@ test("real platform persists editor writes and SDK-configured context through th
   const connections: Browser[] = [];
 
   try {
+    await serveEditorFromLocalBuild(context);
     const worker = await extensionWorker(context);
     const extensionId = new URL(worker.url()).host;
     const startupPages = context.pages();
