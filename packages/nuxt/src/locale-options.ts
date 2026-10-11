@@ -1,3 +1,5 @@
+import { Script } from "node:vm";
+
 import type { ResolveAcceptLanguage } from "./types";
 
 /**
@@ -21,7 +23,7 @@ export function detectionTemplate(fn: ResolveAcceptLanguage | undefined): string
       // Parse only: the body is never run at build time. A bound or native
       // function's source is `function () { [native code] }`, which does not
       // parse, so it falls through to the error below.
-      new Function(`return ${expression};`);
+      new Script(`(${expression})`);
       return `export const resolveAcceptLanguage = ${expression};\n`;
     } catch {
       // Not this form; try the next.
