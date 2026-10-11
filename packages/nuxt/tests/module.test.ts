@@ -1115,6 +1115,22 @@ describe("nuxt module setup", () => {
         "[@comvi/nuxt] `localeDetection.resolveAcceptLanguage` could not be copied into the build.",
       );
     });
+
+    it("refuses a resolver whose source is not valid JavaScript", async () => {
+      const resolver = (header: string) => header;
+      const toString = vi
+        .spyOn(Function.prototype, "toString")
+        .mockImplementation(() => "(header => ) garbage {");
+
+      try {
+        await setupWith({ localeDetection: { resolveAcceptLanguage: resolver } });
+        expect(() => template("comvi.detection.mjs")?.getContents()).toThrow(
+          "[@comvi/nuxt] `localeDetection.resolveAcceptLanguage` could not be copied into the build.",
+        );
+      } finally {
+        toString.mockRestore();
+      }
+    });
   });
 
   describe("0.5 has no aliases: a removed key fails setup, naming its replacement", () => {
