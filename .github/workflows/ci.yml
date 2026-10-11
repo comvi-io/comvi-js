@@ -98,12 +98,12 @@ jobs:
         run: pnpm test:release-tools
 
       # Symbol-lint over the npm documentation surface: packages/*/README.md,
-      # the root README, examples/README.md and docs/design/. Catches 0.4 API that 0.5.0 removed and
-      # 0.5 API a page never mentions — neither of which a type-check reports,
-      # since both are about which symbols a page names rather than about
-      # whether its code compiles. The type-check half is the `build` job's
-      # `check:snippets:types`, which needs dist; this half needs nothing and
-      # runs in seconds.
+      # the root README, examples/README.md and docs/design/. Catches 0.4 API
+      # that 0.5.0 removed and 0.5 API a page never mentions — neither of which
+      # a type-check reports, since both are about which symbols a page names
+      # rather than about whether its code compiles. The type-check half is the
+      # `build` job's `check:snippets:types`, which needs dist; this half needs
+      # nothing and runs in seconds.
       - name: Docs snippet gate (READMEs, symbols)
         run: pnpm check:snippets
 

@@ -22,7 +22,7 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
   `"Hello, {name}!"` gives `"Hello, {name}!"` in 0.5, where 0.4 gave `"Hello, !"`, plus one
   development warning per template and parameter. An explicit `null` still renders as an empty
   string. Opt out with `missingParam: "drop"`. This is 0.5's most visible behaviour change; the
-  [0.5.0 release notes](https://github.com/comvi-io/comvi-js/blob/main/.github/release-notes/0.5.0.md#breaking-changes-for-a-04-app)
+  [0.5.0 release notes](https://github.com/comvi-io/comvi-js/blob/v0.5.0/.github/release-notes/0.5.0.md#breaking-changes-for-a-04-app)
   list it among the breaking changes for a 0.4 app.
 - **ICU is off unless you name it.** Without `compiler: icuCompiler` a plural throws in development
   and renders literally in production. This is a choice, not an omission — the alternative is a
@@ -92,8 +92,8 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 ## Typed keys: three shapes `t()` does not check
 
 `t()` has one call signature, which is what makes a wrong call report the real problem on its first
-line. Three shapes fall outside it. Each is a consequence of that one signature, not a bug to be fixed in
-isolation.
+line. Three shapes fall outside it. Each is a consequence of that one signature, not a bug to be
+fixed in isolation.
 
 - **A key the call site could not narrow to one literal gets loose params.**
   `t(cond ? "greeting" : "farewell")` compiles even when `greeting` declares required params, and
