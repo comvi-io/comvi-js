@@ -157,6 +157,13 @@ const updateCustomVariable = (value: string) => {
 
 const selectForms = computed(() => selectConfig.value?.options || []);
 
+// The marker's 2px border and 8px padding are always reserved so the field
+// does not shift sideways the moment it becomes dirty; only the colour changes.
+const fieldWrapperClass = (form: string) => [
+  "transition-colors border-l-2 pl-2",
+  isFieldDirty(form) ? "border-l-warn" : "border-l-transparent",
+];
+
 const formChipClass =
   "inline-flex items-center font-mono text-[10px] tracking-mono font-medium uppercase px-2 py-0.5 border";
 </script>
@@ -273,12 +280,7 @@ const formChipClass =
           This message uses ICU syntax the form fields cannot rebuild exactly, so it is edited as
           written.
         </p>
-        <div
-          :class="[
-            'transition-colors',
-            isFieldDirty('other') ? 'border-l-2 border-l-warn pl-2' : '',
-          ]"
-        >
+        <div :class="fieldWrapperClass('other')">
           <HighlightedTextarea
             :disabled="isSaving"
             class="min-h-24 mb-1"
@@ -308,14 +310,7 @@ const formChipClass =
                   {{ pluralForm }}
                 </span>
               </div>
-              <div
-                :class="[
-                  'transition-colors',
-                  isFieldDirty(`${selectForm}:${pluralForm}`)
-                    ? 'border-l-2 border-l-warn pl-2'
-                    : '',
-                ]"
-              >
+              <div :class="fieldWrapperClass(`${selectForm}:${pluralForm}`)">
                 <HighlightedTextarea
                   :disabled="isSaving"
                   class="min-h-12 text-sm"
@@ -368,12 +363,7 @@ const formChipClass =
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <div
-                :class="[
-                  'transition-colors',
-                  isFieldDirty(form) ? 'border-l-2 border-l-warn pl-2' : '',
-                ]"
-              >
+              <div :class="fieldWrapperClass(form)">
                 <HighlightedTextarea
                   :disabled="isSaving"
                   class="min-h-16 mb-1"
@@ -401,12 +391,7 @@ const formChipClass =
               {{ form }}
             </span>
           </div>
-          <div
-            :class="[
-              'transition-colors',
-              isFieldDirty(form) ? 'border-l-2 border-l-warn pl-2' : '',
-            ]"
-          >
+          <div :class="fieldWrapperClass(form)">
             <HighlightedTextarea
               :disabled="isSaving"
               class="min-h-16 mb-1"
@@ -426,12 +411,7 @@ const formChipClass =
 
       <!-- SINGULAR mode -->
       <div v-else>
-        <div
-          :class="[
-            'transition-colors',
-            isFieldDirty('other') ? 'border-l-2 border-l-warn pl-2' : '',
-          ]"
-        >
+        <div :class="fieldWrapperClass('other')">
           <HighlightedTextarea
             :disabled="isSaving"
             class="min-h-24 mb-1"
