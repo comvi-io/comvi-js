@@ -33,6 +33,7 @@ describe("sanitizeStatus", () => {
         detected: true,
         editorActive: false,
         editorLoaded: true,
+        editorLoader: null,
         version: "1.2.3",
         instanceCount: 2,
       }),
@@ -40,6 +41,7 @@ describe("sanitizeStatus", () => {
       comviDetected: true,
       editorActive: false,
       editorLoaded: true,
+      editorLoader: null,
       version: "1.2.3",
       instanceCount: 2,
     });
@@ -80,13 +82,108 @@ describe("sanitizeStatus", () => {
       comviDetected: false,
       editorActive: false,
       editorLoaded: false,
+      editorLoader: null,
       version: undefined,
       instanceCount: 0,
     });
   });
 });
 
+describe("sanitizeStatus editor loader", () => {
+  it("keeps the loader hook's protocol and versions", () => {
+    const status = sanitizeStatus({
+      detected: true,
+      editorLoader: { protocol: 1, sdkVersion: "0.5.1", editorVersion: "latest" },
+      editorVersion: "0.5.1",
+    });
+
+    expect(status.editorLoader).toEqual({
+      protocol: 1,
+      sdkVersion: "0.5.1",
+      editorVersion: "latest",
+    });
+    expect(status.editorVersion).toBe("0.5.1");
+  });
+
+  it("accepts a protocol newer than this extension knows", () => {
+    expect(sanitizeStatus({ editorLoader: { protocol: 7 } }).editorLoader).toEqual({
+      protocol: 7,
+      sdkVersion: undefined,
+      editorVersion: undefined,
+    });
+  });
+
+  it("forwards nothing the hook carries beyond the three known fields", () => {
+    const status = sanitizeStatus({
+      editorLoader: { protocol: 1, url: "https://evil.example/x.js", load: "now" },
+    });
+
+    expect(Object.keys(status.editorLoader ?? {}).sort()).toEqual([
+      "editorVersion",
+      "protocol",
+      "sdkVersion",
+    ]);
+  });
+
+  it.each([
+    ["a missing loader", undefined],
+    ["a loader that is not an object", "protocol 1"],
+    ["protocol 0", { protocol: 0 }],
+    ["a fractional protocol", { protocol: 1.5 }],
+    ["a string protocol", { protocol: "1" }],
+    ["an infinite protocol", { protocol: Infinity }],
+  ])("reads %s as no loader", (_label, editorLoader) => {
+    expect(sanitizeStatus({ editorLoader }).editorLoader).toBeNull();
+  });
+
+  it("drops loader versions that are not strings of at most 64 characters", () => {
+    const status = sanitizeStatus({
+      editorLoader: { protocol: 1, sdkVersion: "v".repeat(65), editorVersion: 5 },
+    });
+
+    expect(status.editorLoader).toEqual({
+      protocol: 1,
+      sdkVersion: undefined,
+      editorVersion: undefined,
+    });
+  });
+
+  it("keeps a loader version of exactly the 64-character limit", () => {
+    const sdkVersion = "v".repeat(64);
+    expect(
+      sanitizeStatus({ editorLoader: { protocol: 1, sdkVersion } }).editorLoader?.sdkVersion,
+    ).toBe(sdkVersion);
+  });
+
+  it("drops an editor version past the limit or of another type", () => {
+    expect(sanitizeStatus({ editorVersion: "v".repeat(65) }).editorVersion).toBeUndefined();
+    expect(sanitizeStatus({ editorVersion: 5 }).editorVersion).toBeUndefined();
+  });
+});
+
 describe("sanitizeActivationResult", () => {
+  it("keeps a failure code from the fixed list and the reported host", () => {
+    const result = sanitizeActivationResult({
+      success: false,
+      code: "csp-blocked",
+      host: "cdn.jsdelivr.net",
+      error: "blocked",
+    });
+
+    expect(result).toMatchObject({ success: false, code: "csp-blocked", host: "cdn.jsdelivr.net" });
+  });
+
+  it("passes a code through by type and length only; the worker holds the list", () => {
+    expect(sanitizeActivationResult({ code: "anything" }).code).toBe("anything");
+    expect(sanitizeActivationResult({ code: "c".repeat(33) }).code).toBeUndefined();
+    expect(sanitizeActivationResult({ code: { toString: () => "timeout" } }).code).toBeUndefined();
+  });
+
+  it("drops a host past 64 characters or of another type", () => {
+    expect(sanitizeActivationResult({ host: "h".repeat(65) }).host).toBeUndefined();
+    expect(sanitizeActivationResult({ host: { toString: () => "evil" } }).host).toBeUndefined();
+  });
+
   it("accepts a success payload", () => {
     expect(
       sanitizeActivationResult({ success: true, instanceId: "abc", collectContext: true }),

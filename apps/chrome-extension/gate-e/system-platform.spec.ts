@@ -3,7 +3,13 @@ import { readFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { extensionWorker, openPopup, requireEnv, reservePort } from "./helpers";
+import {
+  extensionWorker,
+  openPopup,
+  requireEnv,
+  reservePort,
+  serveEditorFromLocalBuild,
+} from "./helpers";
 import type { CredentialStore, SessionStore } from "./helpers";
 import { EXPECTED_CONTENT_SCRIPTS } from "../src/shared/__fixtures__/manifest-content-scripts";
 
@@ -129,6 +135,7 @@ test("real platform persists editor writes and SDK-configured context through th
   const connections: Browser[] = [];
 
   try {
+    await serveEditorFromLocalBuild(context);
     const worker = await extensionWorker(context);
     const extensionId = new URL(worker.url()).host;
     const startupPages = context.pages();
@@ -151,7 +158,12 @@ test("real platform persists editor writes and SDK-configured context through th
 
     const popup = await openPopup(worker, extensionId, debuggingPort, connections);
     await page.evaluate(() => {
-      (globalThis as any).__COMVI__.get().collectContext = false;
+      // The page runs the real @comvi/core, whose `collectContext` is a
+      // read-only accessor: an own property stands in for the site's option.
+      Object.defineProperty((globalThis as any).__COMVI__.get(), "collectContext", {
+        value: false,
+        configurable: true,
+      });
     });
     await activate(popup, worker, tabId);
     await popup.close();
@@ -188,7 +200,10 @@ test("real platform persists editor writes and SDK-configured context through th
     await test.step("context observations persist once the SDK enables collection", async () => {
       await deactivate(page, worker, tabId);
       await page.evaluate(() => {
-        delete (globalThis as any).__COMVI__.get().collectContext;
+        Object.defineProperty((globalThis as any).__COMVI__.get(), "collectContext", {
+          value: undefined,
+          configurable: true,
+        });
       });
 
       const telemetryPopup = await openPopup(worker, extensionId, debuggingPort, connections);

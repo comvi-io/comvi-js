@@ -602,12 +602,12 @@ describe("popup session lifecycle", () => {
     await popup.flush();
   }
 
-  it("shows the starting progress until the page acknowledges", async () => {
+  it("shows the loading progress until the page acknowledges", async () => {
     await startIdle();
 
     await enableAgainstSilentPage();
 
-    expect(popup.operationStatusText.textContent).toBe("Starting editor…");
+    expect(popup.operationStatusText.textContent).toBe("Loading editor…");
   });
 
   it("reports progress as soon as the page acknowledges, before the command settles", async () => {

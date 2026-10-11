@@ -9,7 +9,7 @@
  * worker a spoof yields UI noise, not secrets.
  */
 
-import type { StatusResponsePayload, EditorActivatedPayload } from "./messages";
+import type { StatusResponsePayload, EditorActivatedPayload, EditorLoaderStatus } from "./messages";
 
 /** Parse a CustomEvent detail that may be a JSON string or an object. Never throws. */
 export function parseEventDetail(detail: unknown): Record<string, unknown> {
@@ -36,6 +36,19 @@ function asCount(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
+function asEditorLoader(value: unknown): EditorLoaderStatus | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.protocol !== "number" || !Number.isInteger(raw.protocol) || raw.protocol < 1) {
+    return null;
+  }
+  return {
+    protocol: raw.protocol,
+    sdkVersion: asOptionalString(raw.sdkVersion, 64),
+    editorVersion: asOptionalString(raw.editorVersion, 64),
+  };
+}
+
 /** Coerce an untrusted detector status payload into a fixed shape. */
 export function sanitizeStatus(detail: unknown): StatusResponsePayload {
   const raw = parseEventDetail(detail);
@@ -43,6 +56,8 @@ export function sanitizeStatus(detail: unknown): StatusResponsePayload {
     comviDetected: asBoolean(raw.detected) || asBoolean(raw.comviDetected),
     editorActive: asBoolean(raw.editorActive),
     editorLoaded: asBoolean(raw.editorLoaded),
+    editorLoader: asEditorLoader(raw.editorLoader),
+    editorVersion: asOptionalString(raw.editorVersion, 64),
     version: asOptionalString(raw.version, 64),
     instanceCount: asCount(raw.instanceCount),
   };
@@ -54,6 +69,10 @@ export function sanitizeActivationResult(detail: unknown): EditorActivatedPayloa
   return {
     success: asBoolean(raw.success),
     error: asOptionalString(raw.error, 512),
+    // Type and length only: the service worker holds the list of known codes
+    // and drops any other before the popup sees it.
+    code: asOptionalString(raw.code, 32),
+    host: asOptionalString(raw.host, 64),
     instanceId: asOptionalString(raw.instanceId, 128),
     collectContext: asBoolean(raw.collectContext),
   };

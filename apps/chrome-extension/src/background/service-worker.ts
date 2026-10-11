@@ -18,6 +18,7 @@ import type {
   SessionStateChangedPayload,
 } from "../shared/messages";
 import { ensureStorageSchema } from "../shared/storage";
+import { asActivationFailureCode, editorAvailability } from "../shared/activation";
 import {
   startSession,
   confirmActivation,
@@ -375,6 +376,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
           const state: TabState = {
             comviDetected: true,
             version: typeof payload.version === "string" ? payload.version : undefined,
+            editorAvailable: editorAvailability(payload),
             documentId: (await getTabState(tabId))?.documentId,
           };
           await putTabState(tabId, state);
@@ -436,6 +438,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
             tabId,
             ...status,
             error: detail.error ?? "The editor could not be enabled.",
+            code: asActivationFailureCode(detail.code),
           });
           deactivatePageRuntime(tabId);
         });

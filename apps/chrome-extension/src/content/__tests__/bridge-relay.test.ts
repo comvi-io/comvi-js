@@ -55,6 +55,7 @@ describe("ISOLATED-world bridge page-event relay", () => {
           comviDetected: true,
           editorActive: false,
           editorLoaded: true,
+          editorLoader: null,
           version: "1.2.3",
           instanceCount: 2,
         },
@@ -78,6 +79,7 @@ describe("ISOLATED-world bridge page-event relay", () => {
           comviDetected: true,
           editorActive: false,
           editorLoaded: false,
+          editorLoader: null,
           version: undefined,
           instanceCount: 1,
         },
@@ -90,6 +92,53 @@ describe("ISOLATED-world bridge page-event relay", () => {
     dispatch("comvi-extension:status", { detected: true });
 
     expect(relayed().map((message) => message.type)).toEqual(["COMVI_DETECTED"]);
+  });
+
+  it("announces detection again when a later status first shows a loader hook", () => {
+    dispatch("comvi-extension:status", { detected: true, editorLoader: null });
+    dispatch("comvi-extension:status", { detected: true, editorLoader: { protocol: 1 } });
+    dispatch("comvi-extension:status", { detected: true, editorLoader: { protocol: 1 } });
+
+    expect(relayed().map((message) => message.type)).toEqual(["COMVI_DETECTED", "COMVI_DETECTED"]);
+    expect(relayed()[1]?.payload).toMatchObject({ editorLoader: { protocol: 1 } });
+  });
+
+  it("relays a load failure with its code, and only the known fields", () => {
+    dispatch("comvi-extension:activated", {
+      success: false,
+      code: "csp-blocked",
+      host: "cdn.jsdelivr.net",
+      error: "blocked",
+      url: "https://evil.example/x.js",
+    });
+
+    expect(relayed()).toEqual([
+      {
+        type: "EDITOR_ACTIVATED",
+        payload: {
+          success: false,
+          error: "blocked",
+          code: "csp-blocked",
+          host: "cdn.jsdelivr.net",
+          instanceId: undefined,
+          collectContext: false,
+          nonce: undefined,
+        },
+      },
+    ]);
+  });
+
+  it("announces detection again when the page gains the editor itself", () => {
+    dispatch("comvi-extension:status", { detected: true, editorLoader: null });
+    dispatch("comvi-extension:status", { detected: true, editorLoader: null, editorLoaded: true });
+
+    expect(relayed().map((message) => message.type)).toEqual(["COMVI_DETECTED", "COMVI_DETECTED"]);
+  });
+
+  it("drops a failure code that is not a short string", () => {
+    dispatch("comvi-extension:activated", { success: false, code: "c".repeat(33) });
+
+    expect((relayed()[0]?.payload as { code?: unknown }).code).toBeUndefined();
   });
 
   it("stays quiet while the page reports no Comvi in a status update", () => {

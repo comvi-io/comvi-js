@@ -40,6 +40,8 @@ export interface SessionRecord {
 export interface TabState {
   comviDetected: boolean;
   version?: string;
+  /** Whether the page can supply the editor; absent while unknown. */
+  editorAvailable?: boolean;
   /** Top-level Chrome document identity that owns this cached state. */
   documentId?: string;
 }

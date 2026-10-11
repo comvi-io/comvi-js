@@ -745,6 +745,58 @@ describe("EDITOR_ACTIVATED routing", () => {
     expect(deactivatedTabs()).toEqual([TAB]);
   });
 
+  it("publishes the load failure code and rolls the pending session back", async () => {
+    const started = await startSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    await harness.dispatchMessage(
+      {
+        type: "EDITOR_ACTIVATED",
+        payload: {
+          success: false,
+          nonce: started.nonce,
+          code: "timeout",
+          host: "evil.example",
+          error: "The in-context editor could not be loaded (timeout)",
+        },
+      },
+      pageSender(),
+    );
+    await harness.flush();
+
+    // The page-authored host stops here: the popup words the remedy itself.
+    expect(broadcasts()).toEqual([
+      {
+        tabId: TAB,
+        active: false,
+        pending: false,
+        comviDetected: false,
+        error: "The in-context editor could not be loaded (timeout)",
+        code: "timeout",
+      },
+    ]);
+    expect(deactivatedTabs()).toEqual([TAB]);
+    await activate(started.nonce);
+    expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
+  });
+
+  it("publishes no code for one outside the fixed list", async () => {
+    const started = await startSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+
+    await harness.dispatchMessage(
+      {
+        type: "EDITOR_ACTIVATED",
+        payload: { success: false, nonce: started.nonce, code: "made-up" },
+      },
+      pageSender(),
+    );
+    await harness.flush();
+
+    expect((broadcasts()[0] as { code?: unknown }).code).toBeUndefined();
+  });
+
   it("publishes a default reason when activation failed without one", async () => {
     const started = await startSession();
     harness.chrome.runtime.sendMessage.mockClear();

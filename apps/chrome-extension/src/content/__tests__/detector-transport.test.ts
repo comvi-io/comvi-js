@@ -72,13 +72,19 @@ describe("MAIN-world detector editor lifecycle", () => {
     expect(activateOptions).toBeUndefined();
   });
 
-  it("reports a missing editor runtime", async () => {
+  it("reports a page with neither an editor nor a loader hook", async () => {
     const results = recordEvents(page, "comvi-extension:activated");
     await injectDetector();
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: false, error: "Editor runtime is not loaded" }]);
+    expect(results).toEqual([
+      {
+        success: false,
+        code: "no-loader",
+        error: "This page's Comvi i18n has no editor loader (@comvi/core 0.5.1 or newer)",
+      },
+    ]);
   });
 
   it("passes the base URL from a JSON activation command to the editor", async () => {

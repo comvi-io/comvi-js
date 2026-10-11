@@ -55,7 +55,7 @@
     <h1>Comvi Gate-E — adversarial smoke test (hostile page)</h1>
     <p class="muted">
       This page mimics a Comvi-enabled site and then <strong>attacks</strong> the extension's proxy
-      boundary. It defines a fake <code>window.__COMVI__</code> and fires forged detection /
+      boundary. It runs the real <code>@comvi/core</code> global build and fires forged detection /
       activation events; every probe uses the real <code>comvi-extension:*</code> DOM channel.
       Ground truth for egress is the mock server log (<code>/__log</code>): if the service worker
       ever performs an unauthorized request, it appears there.
@@ -98,41 +98,22 @@
     <div id="results"></div>
     <div id="summary"></div>
 
+    <script src="/__core.js"></script>
     <script>
-      // --- fake Comvi site so the real editor can activate ---
-      const i18nStub = {
-        apiKey: undefined,
+      // --- a real Comvi site, so the real editor can load and activate ---
+      // `/__core.js` is the built UMD global of @comvi/core. Its instance
+      // composes devtools: constructing one announces it on window.__COMVI__
+      // (discovery protocol v2) and installs the editor-loader hook the
+      // extension calls (contracts/chrome-extension-proxy.json, editorLoader).
+      // The extension's MAIN-world detector swaps the queue array for its
+      // dual-protocol hook.
+      window.__GATE_E_I18N__ = new ComviCore.I18n({
+        locale: "en",
         collectContext: false,
-        // Keep one loaded locale/namespace so activation exercises the real
-        // refreshMessages path through the extension proxy.
-        getLoadedLocales: () => ["en"],
-        getActiveNamespaces: () => ["messages"],
-        getDefaultNamespace: () => "translation",
-        hasLocale: () => false,
-        getMessages: () => ({}),
-        addMessages: () => {},
-        registerPostProcessor: () => {},
-        on: () => () => {},
-        off: () => {},
-      };
-      // Announce ourselves like @comvi/core does — discovery protocol v2
-      // (contracts/chrome-extension-proxy.json, coreToPage.probeOrder): push a
-      // {v, i} envelope into an existing queue/hook, register into a genuine
-      // v1 legacy registry, or install a fresh queue array. The extension's
-      // MAIN-world detector swaps the array for its dual-protocol hook.
-      (() => {
-        const entry = { v: "9.9.9-gate-e", i: i18nStub };
-        const g = window.__COMVI__;
-        if (Array.isArray(g)) {
-          g.push(entry);
-        } else if (g && typeof g.push === "function" && typeof g.remove === "function") {
-          g.push(entry);
-        } else if (g && typeof g.register === "function") {
-          g.register("gate-e", i18nStub);
-        } else if (!g) {
-          window.__COMVI__ = [entry];
-        }
-      })();
+        // One loaded locale, so activation exercises the real refreshMessages
+        // path through the extension proxy.
+        messages: { en: { greeting: "Hello from Gate E" } },
+      });
 
       // --- page-side egress monitor: prove the PAGE never sends credentials ---
       window.__PAGE_EGRESS__ = [];

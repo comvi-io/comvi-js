@@ -33,10 +33,33 @@ export interface Message {
   payload?: unknown;
 }
 
+/**
+ * Why the page's `devtools()` hook could not put the editor on the page
+ * (contracts/chrome-extension-proxy.json, `editorLoader.failureCodes`).
+ */
+export type EditorLoadFailureCode = "csp-blocked" | "load-error" | "timeout" | "no-global";
+
+/**
+ * A hook code, or the extension's own `no-loader`: the page has a Comvi i18n
+ * instance but no editor and no hook to load one (@comvi/core before 0.5.1).
+ */
+export type ActivationFailureCode = EditorLoadFailureCode | "no-loader";
+
+/** The page's editor-loader hook as the detector read it. Page-authored. */
+export interface EditorLoaderStatus {
+  protocol: number;
+  sdkVersion?: string;
+  editorVersion?: string;
+}
+
 export interface StatusResponsePayload {
   comviDetected: boolean;
   editorActive: boolean;
   editorLoaded?: boolean;
+  /** `null`: the detector looked and the page has no loader hook. */
+  editorLoader?: EditorLoaderStatus | null;
+  /** Version the loaded editor reports about itself. */
+  editorVersion?: string;
   version?: string;
   instanceCount?: number;
 }
@@ -75,6 +98,8 @@ export interface SessionStatusResponse {
   /** Cached detector state, used to render the popup without reinjection. */
   comviDetected?: boolean;
   version?: string;
+  /** Cached: whether the page can supply the editor (loaded, or a loader hook). */
+  editorAvailable?: boolean;
   /** Set when the worker could not determine the state (reported as inactive). */
   unavailable?: string;
 }
@@ -83,6 +108,8 @@ export interface SessionStatusResponse {
 export interface SessionStateChangedPayload extends SessionStatusResponse {
   tabId: number;
   error?: string;
+  /** Why the editor could not be put on the page; the popup words the remedy. */
+  code?: ActivationFailureCode;
 }
 
 /** bridge -> service worker: proxied API request from the editor runtime. */
@@ -108,6 +135,13 @@ export interface ApiProxyResponsePayload {
 export interface EditorActivatedPayload {
   success: boolean;
   error?: string;
+  /**
+   * Why the editor could not be put on the page. Page-authored: a known
+   * {@link ActivationFailureCode} only once the service worker checked it.
+   */
+  code?: string;
+  /** Page-authored host from the hook's result. Never rendered. */
+  host?: string;
   instanceId?: string;
   /** Untrusted effective value derived by the editor from the site's i18n config. */
   collectContext?: boolean;

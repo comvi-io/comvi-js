@@ -6,6 +6,7 @@ import {
   type Page,
   type Worker,
 } from "@playwright/test";
+import { existsSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -86,7 +87,7 @@ export async function expectPopupView(
   popup: Page,
   worker: Worker,
   page: Page,
-  view: "idle" | "active",
+  view: "idle" | "active" | "not-detected",
   tabId?: number,
   timeout = 10_000,
 ): Promise<void> {
@@ -190,12 +191,59 @@ export async function activateEditor(
   }
 }
 
+const EDITOR_BUILD = resolve(
+  import.meta.dirname,
+  "../../../packages/plugin-in-context-editor/dist/standalone.iife.js",
+);
+
+/**
+ * The URL the page's `devtools()` hook loads the editor from: any version, and
+ * the `?comvi=<hour>` cache salt it appends on `latest`.
+ */
+const EDITOR_CDN_URL =
+  /^https:\/\/cdn\.jsdelivr\.net\/npm\/@comvi\/plugin-in-context-editor@[^/]+\/dist\/standalone\.iife\.js(\?.*)?$/;
+
+/**
+ * Stand in for jsDelivr: the extension carries no editor, the page's own
+ * Comvi SDK loads it from the CDN. Every request for it is answered with the
+ * locally built editor (or refused, for the unreachable-CDN case), so the gate
+ * tests the editor of this commit and never touches the network. Nothing in
+ * the extension or the SDK knows about this. Returns the URLs requested.
+ */
+export async function serveEditorFromLocalBuild(
+  context: BrowserContext,
+  cdn: "local-build" | "unreachable" = "local-build",
+): Promise<string[]> {
+  if (!existsSync(EDITOR_BUILD)) {
+    throw new Error(
+      `No editor build at ${EDITOR_BUILD}. Run: pnpm exec turbo run build --filter @comvi/plugin-in-context-editor`,
+    );
+  }
+  const requested: string[] = [];
+  // Anything else on the CDN host is a request the harness does not expect.
+  await context.route("https://cdn.jsdelivr.net/**", (route) => {
+    const url = route.request().url();
+    requested.push(url);
+    if (cdn === "unreachable" || !EDITOR_CDN_URL.test(url)) return route.abort("failed");
+    return route.fulfill({
+      path: EDITOR_BUILD,
+      contentType: "application/javascript; charset=utf-8",
+      headers: { "access-control-allow-origin": "*" },
+    });
+  });
+  return requested;
+}
+
 /** Launch Chromium with the unpacked Gate E build and return its worker and extension id. */
-export async function launchGateE(options: { backForwardCache?: boolean } = {}): Promise<{
+export async function launchGateE(
+  options: { backForwardCache?: boolean; cdn?: "local-build" | "unreachable" } = {},
+): Promise<{
   context: BrowserContext;
   worker: Worker;
   extensionId: string;
   debuggingPort: number;
+  /** Every URL the page requested from the editor CDN. */
+  cdnRequests: string[];
 }> {
   const extensionPath = resolve(import.meta.dirname, "../dist-gate-e");
   const userDataDir = await mkdtemp(join(tmpdir(), "comvi-gate-e-"));
@@ -212,8 +260,15 @@ export async function launchGateE(options: { backForwardCache?: boolean } = {}):
     // restores cached documents, which is the case under test.
     ...(options.backForwardCache ? { ignoreDefaultArgs: ["--disable-back-forward-cache"] } : {}),
   });
+  const cdnRequests = await serveEditorFromLocalBuild(context, options.cdn);
   const worker = await extensionWorker(context);
-  return { context, worker, extensionId: new URL(worker.url()).host, debuggingPort };
+  return {
+    context,
+    worker,
+    extensionId: new URL(worker.url()).host,
+    debuggingPort,
+    cdnRequests,
+  };
 }
 
 /** The active tab id as the extension sees it. */

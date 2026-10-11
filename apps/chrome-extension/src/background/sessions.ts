@@ -536,6 +536,12 @@ export async function getSessionStatus(
   return {
     active: session?.status === "active",
     pending: session?.status === "pending",
-    ...(tabState ? { comviDetected: tabState.comviDetected, version: tabState.version } : {}),
+    ...(tabState
+      ? {
+          comviDetected: tabState.comviDetected,
+          version: tabState.version,
+          editorAvailable: tabState.editorAvailable,
+        }
+      : {}),
   };
 }
