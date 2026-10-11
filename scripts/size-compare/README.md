@@ -32,11 +32,13 @@ gate's own fixtures the two agree to the byte on all but one (see the Comvi-only
 The metafile lists every package that landed in each bundle; the results table prints them with
 the resolved version, so a figure can be traced to what it contains.
 
-Each fixture is the smallest app that does the same job: one message with one parameter, one `t()`
-call, plus whatever the library needs to make that call. Two fixtures are retention fixtures
-instead: `use-intl (react)` and `next-intl (client)` import the provider and the hook and reference
-them, with no message of their own, because those entries are the framework glue and a `t()` call
-there would not change what the bundler keeps.
+Each library fixture is the smallest app that does the same job: one message with one parameter,
+one `t()` call, plus whatever the library needs to make that call. The exceptions are named in the
+results table: `use-intl (react)` and `next-intl (client)` are retention fixtures that import the
+provider and the hook and reference them, with no message of their own, because those entries are
+the framework glue and a `t()` call there would not change what the bundler keeps; the Comvi-only
+rows reuse the size gate's fixtures as they are (the server-provider and middleware fixtures also
+retain exports rather than call `t()`); the ICU Nuxt app's message has two parameters.
 
 | Group            | Comvi                                                                                                    | Other                                                                                                                                        |
 | ---------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -96,8 +98,12 @@ median reported, run three times. Four scenarios:
   digits (`String(count)`); `intl-messageformat` localizes it. The two do different work here by
   design, so this row is shown but not cited.
 - **catalog**: one instance per library holding 5,000 distinct messages, each formatted exactly
-  once per round (parse plus format). Message ids are unique across warmup and all rounds, so no
-  module-level cache from an earlier round can serve a later one. `intl-messageformat` appears
+  once per round; the timer covers building the instance with its catalog, parsing and the first
+  format of every message, with the count passed pre-formatted (`{n}`), so it measures setup and
+  parsing, not number formatting. Message ids are unique across warmup and all rounds, so no
+  module-level cache from an earlier round can serve a later one, and they restart at the same
+  fixed width for every library so none parses longer text than another; one message of a fresh
+  catalog is asserted before timing. `intl-messageformat` appears
   twice, with a formatters object shared across its instances (its best case) and with the default
   per-instance formatters. This is the "first render of a catalog" case.
 - `vue-i18n` has no ICU; it runs on its own pipe-plural syntax
@@ -197,7 +203,7 @@ hold. Public pages should cite the figure measured on the released version, not 
 
 `@nuxtjs/i18n` depends on Nuxt's virtual modules and cannot be bundled by esbuild on its own, so
 the two Nuxt modules are compared with `nuxi build` instead. `nuxt/apps/` holds four one-string
-apps (`bare`, `nuxt-i18n`, `comvi-nuxt`, `comvi-nuxt-icu`) with the same rendered output;
+apps (`bare`, `nuxt-i18n`, `comvi-nuxt`, `comvi-nuxt-icu`); the first three render `Hello, world!`, the ICU app renders a plural, and the messages sit outside the measured JavaScript in every app;
 `nuxt/measure.mjs` sums every client JavaScript file under `.output/public/_nuxt/` (minified, gzip
 level 9, brotli 11) and reports the delta over the bare app, for the whole build and for the entry
 file alone (entry-file bytes exclude the other chunks and anything a browser may prefetch in the

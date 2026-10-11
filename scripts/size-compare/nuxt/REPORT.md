@@ -1,6 +1,6 @@
 # Nuxt client-bundle cost: @nuxtjs/i18n vs @comvi/nuxt (real `nuxi build`)
 
-Date: 2026-10-10. Three minimal Nuxt 4 apps, identical except for the i18n layer, built with
+Date: 2026-10-10 (three apps) and 2026-10-11 (the `comvi-nuxt-icu` app). Minimal Nuxt 4 apps, identical except for the i18n layer, built with
 `nuxi build` (production). Every `.js` under `.output/public/_nuxt/` was measured (recursively;
 `builds/meta/*.json` is not JS). gzip = node `zlib.gzipSync` level 9 per file, summed.
 brotli = `zlib.brotliCompressSync` quality 11 per file, summed.
@@ -15,7 +15,7 @@ brotli = `zlib.brotliCompressSync` quality 11 per file, summed.
 | nuxt-i18n  | 5        | 229147    | 82571        | 73043           | +84204        | +28118         | +24090           |
 | comvi-nuxt | 4        | 184255    | 66719        | 59630           | +39312        | +12266         | +10677           |
 
-### Entry chunk only (the single file the home page loads)
+### Entry-file bytes only; excludes other chunks and prefetch
 
 The entry chunk is the one `<script type="module" src>` + `modulepreload` in the server-rendered HTML.
 The other chunks are `rel="prefetch"` (error-404, error-500, a tiny `__vccOpts` helper and, for
@@ -47,7 +47,11 @@ built and measured the same way on 2026-10-11 (`measure-2026-10-11.txt`); its se
 | nuxt-i18n                     | 5        | 229 147   | 82 571       | 73 043          | +28 118        | 79 515           | +30 348         |
 
 The ICU compiler costs 973 B gzip in this build (2 690 B minified). The nuxt-i18n app always
-carries vue-i18n's message compiler and plural rules, so the ICU row is the equal-work pair.
+carries vue-i18n's message compiler and plural rules, so the ICU row is the configuration whose
+runtime is capable of the same work. The messages themselves differ (`Hello, world!` in the
+nuxt-i18n app, `2 items for world` here) and sit outside the measured JavaScript in both apps,
+so the byte deltas are unaffected; a reader who wants identical rendered output should give the
+nuxt-i18n app a pipe-plural message and rebuild.
 
 ### Per-chunk listing with string attribution
 
@@ -113,7 +117,7 @@ listed rows add to 82,718 B (nuxt-i18n) and 38,411 B (comvi-nuxt); the remaining
 901 B are packages under the 300 B display threshold, the shifted framework bytes described
 above, and chunk boilerplate.
 
-Full per-package tables (all packages ≥ 300 B) for all three apps are in `attribute.out`.
+Full per-package tables (all packages ≥ 300 B) for the three 2026-10-10 apps are in `attribute-2026-10-10.txt`; the ICU app was not attributed.
 
 ### SSR verification
 
@@ -160,7 +164,7 @@ leftover `.output/server/index.mjs` processes afterwards.
 
 ## 4. Exact app sources
 
-The sources of the three apps (no node_modules / .nuxt / .output) are under `apps/<app>/`.
+The sources of the four apps (no node_modules / .nuxt / .output) are under `apps/<app>/`; `comvi-nuxt-icu` differs from `comvi-nuxt` only by `icu: true` and a plural message.
 
 ### bare
 
@@ -319,13 +323,14 @@ npm view nuxt version            # 4.6.1
 npm view @nuxtjs/i18n version    # 10.6.0
 npm view @comvi/nuxt versions    # ... 0.5.0
 
-# per app (bare, nuxt-i18n, comvi-nuxt)
+# per app (bare, nuxt-i18n, comvi-nuxt, comvi-nuxt-icu)
 cd apps/<app> && pnpm install --ignore-workspace && pnpm nuxi build
 
-# sizes + entry chunk + per-chunk tables (first arg is the baseline)
-node measure.mjs apps/bare apps/nuxt-i18n apps/comvi-nuxt
+# sizes + entry file + per-chunk tables (first arg is the baseline)
+node measure.mjs apps/bare apps/nuxt-i18n apps/comvi-nuxt apps/comvi-nuxt-icu
 
-# SSR check, one app at a time (kill only the PID you started)
+# SSR check, one app at a time (kill only the PID you started); expect `Hello, world!`,
+# and `2 items for world` for comvi-nuxt-icu
 cd apps/<app> && PORT=3451 node .output/server/index.mjs & echo $! > server.pid
 curl -s http://localhost:3451/ | grep -c 'Hello, world!'   # expect 1
 kill "$(cat server.pid)"

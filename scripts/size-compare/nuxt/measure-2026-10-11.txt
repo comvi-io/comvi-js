@@ -7,7 +7,7 @@
 | comvi-nuxt-icu | 4 | 186945 | 67692 | 60506 | +42002 | +13239 | +11553 |
 | nuxt-i18n | 5 | 229147 | 82571 | 73043 | +84204 | +28118 | +24090 |
 
-## Entry chunk only (what the home page loads)
+## Entry-file bytes only; excludes other chunks and prefetch
 
 | app | entry chunk | min | gzip-9 | brotli-11 | Δ min vs base | Δ gzip vs base | Δ brotli vs base |
 |---|---|---|---|---|---|---|---|

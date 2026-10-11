@@ -12,7 +12,9 @@
 //   warm, default #    the same message written with `#`, as a user would write it; unequal work by design.
 //   catalog            one instance per library holding N distinct messages; every message is formatted
 //                      exactly once per round. Message ids are unique across warmup and rounds so no
-//                      module-level cache from an earlier round can serve a later one. This is the
+//                      module-level cache from an earlier round can serve a later one; they restart at the
+//                      same fixed width for every library, and one message of a fresh catalog is asserted
+//                      before timing. This is the
 //                      "first render of a catalog" case: parse plus format, once per message.
 // Medians of ROUNDS rounds are printed; run the script three times and keep each output.
 if (process.env.NODE_ENV !== "production") {
@@ -34,7 +36,6 @@ const VUE_EQUAL = "{n} item in {name} | {n} items in {name}"; // vue-i18n has no
 const N_WARM = 200_000,
   ROUNDS = 7,
   CATALOG = 5_000;
-let uid = 0;
 
 function bench(label, fn, n) {
   for (let i = 0; i < Math.min(n, 5000); i++) fn(i);
@@ -52,9 +53,21 @@ function bench(label, fn, n) {
 }
 // Catalog scenario: `make(ids)` builds one instance holding the messages for the given ids and
 // returns a function formatting message `id`; a fresh set of ids is generated for every round.
-function benchCatalog(label, make) {
+function benchCatalog(label, make, want) {
+  // Ids are unique across this library's warmup and rounds and restart at the same
+  // fixed width for every library, so no library parses systematically longer text.
+  let uid = 0;
+  const nextIds = () => Array.from({ length: CATALOG }, () => `m${String(uid++).padStart(6, "0")}`);
+  // Correctness first: the library must render one message of a fresh catalog correctly
+  // before any timing; a fallback path would otherwise look like a fast result.
+  {
+    const ids = nextIds();
+    const got = make(ids)(ids[7]);
+    if (got !== want(ids[7]))
+      throw new Error(`${label}: ${JSON.stringify(got)} != ${JSON.stringify(want(ids[7]))}`);
+  }
   const run = () => {
-    const ids = Array.from({ length: CATALOG }, () => `m${uid++}`);
+    const ids = nextIds();
     const t0 = process.hrtime.bigint();
     const t = make(ids);
     for (const id of ids) t(id);
@@ -206,51 +219,76 @@ console.log(
   `\n## catalog: one instance, ${CATALOG} distinct messages formatted once each (parse + format), fresh ids every round`,
 );
 const text = (id) => `{count, plural, one {{n} item} other {{n} items}} in {name} ${id}`;
-benchCatalog("@comvi/core + icuCompiler", (ids) => {
-  const i18n = createI18n({
-    locale: "en",
-    messages: { en: Object.fromEntries(ids.map((id) => [id, text(id)])) },
-    compiler: icuCompiler,
-  });
-  return (id) => i18n.t(id, P);
-});
-benchCatalog("intl-messageformat, new instance per message, shared formatters", (ids) => {
-  const shared = new IntlMessageFormat("x", "en").formatters;
-  const msgs = Object.fromEntries(ids.map((id) => [id, text(id)]));
-  return (id) => new IntlMessageFormat(msgs[id], "en", undefined, { formatters: shared }).format(P);
-});
-benchCatalog("intl-messageformat, new instance per message, default formatters", (ids) => {
-  const msgs = Object.fromEntries(ids.map((id) => [id, text(id)]));
-  return (id) => new IntlMessageFormat(msgs[id], "en").format(P);
-});
-benchCatalog("i18next + i18next-icu, one instance", (ids) => {
-  const inst = i18next.createInstance();
-  inst.use(ICU).init({
-    lng: "en",
-    initImmediate: false,
-    resources: { en: { translation: Object.fromEntries(ids.map((id) => [id, text(id)])) } },
-  });
-  return (id) => inst.t(id, P);
-});
-benchCatalog("use-intl/core, one translator", (ids) => {
-  const t = createTranslator({
-    locale: "en",
-    messages: Object.fromEntries(ids.map((id) => [id, text(id)])),
-  });
-  return (id) => t(id, P);
-});
-benchCatalog("vue-i18n, one instance (pipe plural)", (ids) => {
-  const v = createVueI18n({
-    legacy: false,
-    locale: "en",
-    messages: {
-      en: Object.fromEntries(
-        ids.map((id) => [id, `{n} item in {name} ${id} | {n} items in {name} ${id}`]),
-      ),
-    },
-  });
-  return (id) => v.global.t(id, P, 2);
-});
+benchCatalog(
+  "@comvi/core + icuCompiler",
+  (ids) => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: Object.fromEntries(ids.map((id) => [id, text(id)])) },
+      compiler: icuCompiler,
+    });
+    return (id) => i18n.t(id, P);
+  },
+  (id) => `2 items in cart ${id}`,
+);
+benchCatalog(
+  "intl-messageformat, new instance per message, shared formatters",
+  (ids) => {
+    const shared = new IntlMessageFormat("x", "en").formatters;
+    const msgs = Object.fromEntries(ids.map((id) => [id, text(id)]));
+    return (id) =>
+      new IntlMessageFormat(msgs[id], "en", undefined, { formatters: shared }).format(P);
+  },
+  (id) => `2 items in cart ${id}`,
+);
+benchCatalog(
+  "intl-messageformat, new instance per message, default formatters",
+  (ids) => {
+    const msgs = Object.fromEntries(ids.map((id) => [id, text(id)]));
+    return (id) => new IntlMessageFormat(msgs[id], "en").format(P);
+  },
+  (id) => `2 items in cart ${id}`,
+);
+benchCatalog(
+  "i18next + i18next-icu, one instance",
+  (ids) => {
+    const inst = i18next.createInstance();
+    inst.use(ICU).init({
+      lng: "en",
+      initImmediate: false,
+      resources: { en: { translation: Object.fromEntries(ids.map((id) => [id, text(id)])) } },
+    });
+    return (id) => inst.t(id, P);
+  },
+  (id) => `2 items in cart ${id}`,
+);
+benchCatalog(
+  "use-intl/core, one translator",
+  (ids) => {
+    const t = createTranslator({
+      locale: "en",
+      messages: Object.fromEntries(ids.map((id) => [id, text(id)])),
+    });
+    return (id) => t(id, P);
+  },
+  (id) => `2 items in cart ${id}`,
+);
+benchCatalog(
+  "vue-i18n, one instance (pipe plural)",
+  (ids) => {
+    const v = createVueI18n({
+      legacy: false,
+      locale: "en",
+      messages: {
+        en: Object.fromEntries(
+          ids.map((id) => [id, `{n} item in {name} ${id} | {n} items in {name} ${id}`]),
+        ),
+      },
+    });
+    return (id) => v.global.t(id, P, 2);
+  },
+  (id) => `2 items in cart ${id}`,
+);
 
 console.log(
   `\nnode ${process.version} | ${os.platform()} ${os.arch()} | ${os.cpus()[0]?.model ?? "cpu ?"} | NODE_ENV=${process.env.NODE_ENV}`,

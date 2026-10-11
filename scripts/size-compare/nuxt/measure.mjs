@@ -87,7 +87,7 @@ for (const app of apps) {
     `| ${name(app)} | ${r.files} | ${r.min} | ${r.gz} | ${r.br} | ${sign(r.min - base.min)} | ${sign(r.gz - base.gz)} | ${sign(r.br - base.br)} |`,
   );
 }
-console.log("\n## Entry chunk only (what the home page loads)\n");
+console.log("\n## Entry-file bytes only; excludes other chunks and prefetch\n");
 console.log(
   "| app | entry chunk | min | gzip-9 | brotli-11 | Δ min vs base | Δ gzip vs base | Δ brotli vs base |",
 );
