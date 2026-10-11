@@ -44,10 +44,17 @@ declare global {
  */
 export type EditorLoadFailureCode = "csp-blocked" | "load-error" | "timeout" | "no-global";
 
-/** What `EditorLoaderSlot.load()` resolves with. It never rejects. */
+/**
+ * What `EditorLoaderSlot.load()` resolves with. It never rejects. Every key
+ * below except `message` is always present; one that does not apply holds
+ * `undefined`.
+ */
 export interface EditorLoadResult {
   ok: boolean;
-  /** The URL requested — on `latest` this carries the hourly cache salt. */
+  /**
+   * The URL requested — on `latest` this carries the hourly cache salt. The
+   * salt-free slot URL when the editor was already on the page.
+   */
   url: string;
   /** The `@comvi/core` version that installed the slot. */
   sdkVersion: string;
@@ -55,11 +62,14 @@ export interface EditorLoadResult {
   protocol: number;
   /** The editor's own reported version when `ok`; `undefined` for an editor older than 0.5.1. */
   editorVersion?: string;
-  /** Present when `ok` is false. */
+  /**
+   * Set when `ok` is false. `csp-blocked` covers both a `script-src` policy and
+   * Trusted Types refusing the script.
+   */
   code?: EditorLoadFailureCode;
-  /** Present when `ok` is false: the host a Content Security Policy has to allow. */
+  /** Set when `ok` is false: the host a Content Security Policy has to allow. */
   host?: string;
-  /** Optional, human-readable. */
+  /** Optional, human-readable. Reserved: core never sets it today. */
   message?: string;
 }
 
@@ -78,7 +88,7 @@ export interface EditorLoaderSlot {
   editorVersion: string;
   /** The salt-free URL the hook loads the editor from. */
   url: string;
-  /** Load the editor once per page; later calls return the same promise until a load fails. */
+  /** Load the editor once per page; later calls return the same promise unless the load failed. */
   load(): Promise<EditorLoadResult>;
 }
 

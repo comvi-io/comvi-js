@@ -69,9 +69,17 @@ function holdScripts(): void {
   });
 }
 
-function violation(blockedURI: string, effectiveDirective: string): void {
+function violation(
+  blockedURI: string,
+  effectiveDirective: string,
+  disposition: "enforce" | "report" = "enforce",
+): void {
   document.dispatchEvent(
-    Object.assign(new Event("securitypolicyviolation"), { blockedURI, effectiveDirective }),
+    Object.assign(new Event("securitypolicyviolation"), {
+      blockedURI,
+      effectiveDirective,
+      disposition,
+    }),
   );
 }
 
@@ -219,6 +227,20 @@ describe("editorVersion", () => {
     "0.5.3\n",
     "x0.5.3",
     "next",
+    // URL metacharacters inside the prerelease part: the character class is
+    // what keeps them out of the path.
+    "0.5.3-a/b",
+    "0.5.3-a/../../../gh/evil/repo",
+    "0.5.3-a?b",
+    "0.5.3-a#b",
+    "0.5.3-a%2fb",
+    "0.5.3-a@b",
+    "0.5.3-a b",
+    "0.5.3-a\tb",
+    "0.5.3-a\nb",
+    "0.5.3-a\\b",
+    "0.5.3-a:b",
+    "0.5.3-",
   ])("invalid version %j → latest and one development warning", (version) => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -229,17 +251,78 @@ describe("editorVersion", () => {
     expect(warn.mock.calls[0][0]).toContain("falls back to latest");
   });
 
-  it("a non-string version → latest, and construction survives", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("dots in the prerelease part → accepted, and the URL stays inside the editor package", () => {
+    // `..` is legal there under the contract's pattern. It is not a path
+    // segment of its own, so URL normalisation leaves the path alone.
+    const slot = install("0.5.3-..");
 
-    const slot = install({ toString: () => "0.5.3/../evil" } as never);
+    expect(slot.editorVersion).toBe("0.5.3-..");
+    expect(new URL(slot.url).href).toBe(
+      "https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@0.5.3-../dist/standalone.iife.js",
+    );
+  });
 
-    expect(slot).toMatchObject({ editorVersion: "latest", url: LATEST_URL });
+  /** Prints a valid version the first time it is coerced and a path escape after that. */
+  const stateful = (method: "toString" | "valueOf"): object => {
+    let calls = 0;
+    const print = (): string =>
+      calls++ === 0 ? "0.5.3" : "0.0.0/../../../../gh/attacker/repo/evil.js";
+    return method === "toString" ? { toString: print } : { valueOf: print, toString: undefined };
+  };
+
+  it.each([
+    ["an object with a stateful toString", stateful("toString")],
+    ["an object with a stateful valueOf", stateful("valueOf")],
+    ["an object whose toString prints a valid version", { toString: () => "0.5.3" }],
+    ["a String object", new String("0.5.3")],
+    ["a number", 5],
+    ["an array", ["0.5.3"]],
+    ["null", null],
+    ["a boolean", true],
+  ])("%s as editorVersion → latest, a string in the slot, the latest URL requested", (_l, pin) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const slot = install(pin as never);
+    void slot.load();
+
+    expect(slot.editorVersion).toBe("latest");
+    expect(slot.url).toBe(LATEST_URL);
+    expect(scripts()[0].src.startsWith(`${LATEST_URL}?comvi=`)).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("an options object whose editorVersion getter throws → construction survives, no slot", () => {
+    const options = Object.create({
+      get editorVersion(): string {
+        throw new Error("hostile");
+      },
+    }) as { instanceId?: string };
+    options.instanceId = "survivor";
+
+    const i18n = createI18n({ locale: "en" }).use(devtools(options));
+
+    expect(i18n.instanceId).toBe("survivor");
+    expect(window.__COMVI__).toEqual([expect.objectContaining({ i: i18n })]);
+    expect(LOADER_KEY in slots).toBe(false);
+  });
+
+  it("editorVersion → read off the options exactly once", () => {
+    let reads = 0;
+    const options = {
+      get editorVersion(): string {
+        return reads++ === 0 ? "0.5.3" : "9.9.9";
+      },
+    };
+
+    createI18n({ locale: "en" }).use(devtools(options));
+
+    expect(reads).toBe(1);
+    expect(liveSlot().url).toContain("@0.5.3/");
   });
 });
 
 describe("load()", () => {
-  it("first call → creates exactly one async, anonymous-CORS script in the document", () => {
+  it("first call → creates exactly one anonymous-CORS script in the document", () => {
     const slot = install("0.5.3");
 
     void slot.load();
@@ -247,7 +330,6 @@ describe("load()", () => {
     const [script, ...rest] = scripts();
     expect(rest).toHaveLength(0);
     expect(script.parentNode).toBe(document.documentElement);
-    expect(script.async).toBe(true);
     expect(script.getAttribute("crossorigin")).toBe("anonymous");
     expect(script.hasAttribute("integrity")).toBe(false);
   });
@@ -340,17 +422,27 @@ describe("load()", () => {
     expect(result.editorVersion).toBeUndefined();
   });
 
-  it("after a successful load → later calls resolve ok without a second script", async () => {
+  it("after a successful load → later calls return the same promise, no second script", async () => {
     const slot = install();
     const first = slot.load();
     win.ComviInContextEditor = { activate: () => {} };
     scripts()[0].dispatchEvent(new Event("load"));
-    await first;
+    const result = await first;
 
-    const again = await slot.load();
+    const again = slot.load();
 
-    expect(again.ok).toBe(true);
+    expect(again).toBe(first);
+    expect(result.url).toBe(scripts()[0].src);
     expect(scripts()).toHaveLength(1);
+  });
+
+  it("editor injected by someone else while a load is pending → still the pending promise", () => {
+    const slot = install();
+    const first = slot.load();
+
+    win.ComviInContextEditor = { activate: () => {} };
+
+    expect(slot.load()).toBe(first);
   });
 
   it("editor global already on the page → ok at once, no script, salt-free url", async () => {
@@ -419,6 +511,9 @@ describe("load() failures", () => {
     ["the CDN origin under script-src-attr", "https://cdn.jsdelivr.net", "script-src-attr"],
     ["another origin", "https://evil.example", "script-src-elem"],
     ["a look-alike origin", "https://cdn.jsdelivr.net.evil.example", "script-src"],
+    ["the editor URL under an unrelated directive", LATEST_URL, "img-src"],
+    ["the editor URL under script-src-attr", LATEST_URL, "script-src-attr"],
+    ["the editor URL under the Trusted Types directive", LATEST_URL, "require-trusted-types-for"],
   ])("CSP violation for %s, then error → load-error", async (_label, uri, directive) => {
     const promise = install().load();
 
@@ -426,6 +521,67 @@ describe("load() failures", () => {
     scripts()[0].dispatchEvent(new Event("error"));
 
     expect((await promise).code).toBe("load-error");
+  });
+
+  it.each([
+    ["the editor URL", LATEST_URL],
+    ["the CDN origin", "https://cdn.jsdelivr.net"],
+  ])("report-only violation for %s, then a network error → load-error", async (_label, uri) => {
+    const promise = install().load();
+
+    violation(uri, "script-src-elem", "report");
+    scripts()[0].dispatchEvent(new Event("error"));
+
+    expect((await promise).code).toBe("load-error");
+  });
+
+  it("report-only violation, then the script loads → ok", async () => {
+    const promise = install().load();
+
+    violation(scripts()[0].src, "script-src-elem", "report");
+    win.ComviInContextEditor = { activate: () => {} };
+    scripts()[0].dispatchEvent(new Event("load"));
+
+    expect((await promise).ok).toBe(true);
+  });
+
+  it("a violation event with no disposition → not taken for an enforced block", async () => {
+    const promise = install().load();
+
+    document.dispatchEvent(
+      Object.assign(new Event("securitypolicyviolation"), {
+        blockedURI: scripts()[0].src,
+        effectiveDirective: "script-src-elem",
+      }),
+    );
+    scripts()[0].dispatchEvent(new Event("error"));
+
+    expect((await promise).code).toBe("load-error");
+  });
+
+  it("Trusted Types refuses the src assignment → csp-blocked, nothing left behind", async () => {
+    vi.useFakeTimers();
+    const removeListener = vi.spyOn(document, "removeEventListener");
+    const createElement = document.createElement.bind(document);
+    let created: HTMLScriptElement | undefined;
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      created = createElement(tag) as HTMLScriptElement;
+      Object.defineProperty(created, "src", {
+        set() {
+          throw new TypeError("This document requires 'TrustedScriptURL' assignment.");
+        },
+      });
+      return created;
+    });
+    const slot = install();
+
+    const result = await slot.load();
+
+    expect(result).toMatchObject({ ok: false, code: "csp-blocked", host: "cdn.jsdelivr.net" });
+    expect(created!.isConnected).toBe(false);
+    expect(slots[LOAD_KEY]).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(removeListener).toHaveBeenCalledWith("securitypolicyviolation", expect.any(Function));
   });
 
   it("a malformed securitypolicyviolation event → ignored, the load carries on", async () => {
@@ -478,8 +634,63 @@ describe("load() failures", () => {
     script.dispatchEvent(new Event("load"));
 
     expect((await promise).code).toBe("timeout");
-    expect(script.onload).toBeNull();
-    expect(script.onerror).toBeNull();
+  });
+
+  it("a stale script firing after a newer attempt started → leaves the newer attempt alone", async () => {
+    vi.useFakeTimers();
+    const slot = install();
+    const first = slot.load();
+    const stale = scripts()[0];
+    await vi.advanceTimersByTimeAsync(10_000);
+    await first;
+    const second = slot.load();
+
+    stale.dispatchEvent(new Event("error"));
+    stale.dispatchEvent(new Event("load"));
+
+    expect(slots[LOAD_KEY]).toBe(second);
+    expect(slot.load()).toBe(second);
+    expect(scripts()).toHaveLength(1);
+  });
+
+  it("the load key was replaced during a load that then fails → the replacement is left in place", async () => {
+    const promise = install().load();
+    const foreign = Promise.resolve();
+    slots[LOAD_KEY] = foreign;
+
+    scripts()[0].dispatchEvent(new Event("error"));
+    await promise;
+
+    expect(slots[LOAD_KEY]).toBe(foreign);
+  });
+
+  it("the load key turns read-only during a load → the promise still settles, the script is removed", async () => {
+    vi.useFakeTimers();
+    const promise = install().load();
+    Object.defineProperty(slots, LOAD_KEY, { configurable: true, writable: false, value: promise });
+    let result: EditorLoadResult | undefined;
+    void promise.then((value) => (result = value));
+
+    scripts()[0].dispatchEvent(new Event("error"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(result).toMatchObject({ ok: false, code: "load-error" });
+    expect(scripts()).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("the load key is read-only before the load → resolves load-error, never throws", async () => {
+    Object.defineProperty(slots, LOAD_KEY, {
+      configurable: true,
+      writable: false,
+      value: undefined,
+    });
+    const slot = install();
+
+    const result = await slot.load();
+
+    expect(result).toMatchObject({ ok: false, code: "load-error" });
+    expect(scripts()).toHaveLength(0);
   });
 
   it("a settled load → leaves no timer and no CSP listener behind", async () => {

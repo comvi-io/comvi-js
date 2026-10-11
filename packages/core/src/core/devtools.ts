@@ -130,17 +130,25 @@ function loadedEditor(url: string): EditorLoadResult | undefined {
  * Install the page-level editor loader unless a slot of the same or a newer
  * protocol is already there. Touches no DOM: the `<script>` is created by
  * `load()`, which only the extension calls.
+ *
+ * Takes the options object, not the pin: `editorVersion` is read HERE, once,
+ * inside the guard, so a throwing getter costs the slot and nothing else, and
+ * the value that was validated is the value that reaches the URL.
  */
-function installEditorLoader(pin?: string): void {
+function installEditorLoader(options?: DevtoolsOptions): void {
   try {
+    const pin: unknown = options && options.editorVersion;
     let editorVersion = "latest";
     if (pin !== undefined && pin !== editorVersion) {
-      if (EDITOR_VERSION.test(pin)) {
+      // A string and nothing else: an object is coerced anew on every use, so
+      // one that passes the pattern could still print something else into the URL.
+      if (typeof pin === "string" && EDITOR_VERSION.test(pin)) {
         editorVersion = pin;
       } else if (IS_DEV) {
         console.warn(
-          `[@comvi/core] devtools({ editorVersion: ${JSON.stringify(pin)} }) is not an exact ` +
-            `version (major.minor.patch); the editor loader falls back to latest.`,
+          `[@comvi/core] devtools({ editorVersion }) got ` +
+            `${typeof pin === "string" ? JSON.stringify(pin) : `a value of type ${typeof pin}`}, ` +
+            `which is not an exact version (major.minor.patch); the editor loader falls back to latest.`,
         );
       }
     }
@@ -149,6 +157,13 @@ function installEditorLoader(pin?: string): void {
     const existing = slots[LOADER_KEY] as EditorLoaderSlot | undefined;
     // Anything a page may have planted here that is not a slot of at least
     // this protocol is replaced (NaN and non-numbers fail the comparison).
+    //
+    // ACCEPTED LIMITS. Both keys are the page's own globals, and a page that
+    // rewrites them only breaks its own editor: a foreign slot of a newer
+    // protocol is deferred to as it is, a promise planted under the load key is
+    // returned as it is (no timeout is wrapped around it — the extension's own
+    // activation timeout bounds it), and a page that deletes the load key
+    // between two calls gets a second `<script>`.
     if (existing && existing.protocol >= EDITOR_LOADER_PROTOCOL) {
       if (IS_DEV && pin !== undefined && existing.editorVersion !== editorVersion) {
         console.warn(
@@ -166,64 +181,73 @@ function installEditorLoader(pin?: string): void {
       editorVersion,
       url,
       load() {
-        // An old extension injected its bundled copy, the site bundled the
-        // standalone itself, or an earlier load finished.
-        const loaded = loadedEditor(url);
-        if (loaded) return Promise.resolve(loaded);
+        // A pending load, or one that succeeded: the same promise every time.
         const pending = slots[LOAD_KEY] as Promise<EditorLoadResult> | undefined;
         if (pending) return pending;
+        // An old extension injected its bundled copy, or the site bundled the
+        // standalone itself: nothing to request.
+        const loaded = loadedEditor(url);
+        if (loaded) return Promise.resolve(loaded);
 
         // `latest` is cached by the browser for 7 days; the hour bucket bounds
         // that to an hour. An exact version is immutable and takes no query.
         const src =
           editorVersion === "latest" ? `${url}?comvi=${Math.floor(Date.now() / 3_600_000)}` : url;
         let resolve!: (result: EditorLoadResult) => void;
-        // Stored BEFORE any DOM work, so a load that settles synchronously
-        // still clears it.
-        const promise = (slots[LOAD_KEY] = new Promise<EditorLoadResult>((r) => (resolve = r)));
+        const promise = new Promise<EditorLoadResult>((r) => (resolve = r));
         let script: HTMLScriptElement | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
         let blocked: boolean | undefined;
         const onViolation = (event: SecurityPolicyViolationEvent): void => {
           const uri = String(event.blockedURI);
-          // Chrome reports the full URL; a report may be truncated to the origin.
+          // An ENFORCED script policy that names this script: Chrome reports the
+          // full URL, query included; other engines truncate it to the origin. A
+          // report-only policy, or another directive, blocks nothing here.
           if (
-            uri.startsWith(url) ||
-            (uri === EDITOR_CDN_ORIGIN && /^script-src(-elem)?$/.test(event.effectiveDirective))
+            event.disposition === "enforce" &&
+            /^script-src(-elem)?$/.test(event.effectiveDirective) &&
+            (uri.startsWith(url) || uri === EDITOR_CDN_ORIGIN)
           ) {
             blocked = true;
           }
         };
         const settle = (code?: EditorLoadFailureCode): void => {
-          clearTimeout(timer);
-          if (script) {
-            document.removeEventListener("securitypolicyviolation", onViolation);
-            // A removed script may still fire: it must not settle a later load.
-            script.onload = script.onerror = null;
-          }
           const result = (!code && loadedEditor(src)) || loadResult(src, code || "no-global");
-          if (!result.ok) {
-            // A failure is never cached: the next load() starts fresh, for
-            // instance after the site's CSP was fixed.
-            slots[LOAD_KEY] = undefined;
-            if (script) script.remove();
-          }
+          // FIRST, so that nothing below can strand the caller.
           resolve(result);
+          clearTimeout(timer);
+          try {
+            if (script) {
+              document.removeEventListener("securitypolicyviolation", onViolation);
+              if (!result.ok) script.remove();
+            }
+            // A failure is never cached: the next load() starts fresh, for
+            // instance after the site's CSP was fixed. Only this attempt's own
+            // promise is cleared — a script removed by an earlier attempt may
+            // still fire — and last, because the key may not be writable.
+            if (!result.ok && slots[LOAD_KEY] === promise) slots[LOAD_KEY] = undefined;
+          } catch {
+            /* cleanup must never throw into an event handler */
+          }
         };
         try {
+          // Stored BEFORE any DOM work, so a load that settles synchronously
+          // still clears it.
+          slots[LOAD_KEY] = promise;
           script = document.createElement("script");
           document.addEventListener("securitypolicyviolation", onViolation);
           script.onload = () => settle();
           // The violation event is dispatched before the element's error.
           script.onerror = () => settle(blocked ? "csp-blocked" : "load-error");
           timer = setTimeout(settle, LOAD_TIMEOUT_MS, "timeout");
-          script.async = true;
           script.crossOrigin = "anonymous";
           script.src = src;
           document.documentElement.appendChild(script);
         } catch {
-          // No document, or a page that forbids creating the element.
-          settle("load-error");
+          // With the element in hand, what refused is the page's policy —
+          // Trusted Types rejects the `src` assignment by throwing. Without it
+          // there is no document to load into.
+          settle(script ? "csp-blocked" : "load-error");
         }
         return promise;
       },
@@ -266,7 +290,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
   protected _initDevtools(
     instanceId?: string,
     exposeGlobal?: boolean,
-    editorVersion?: string,
+    options?: DevtoolsOptions,
   ): void {
     if (!(exposeGlobal ?? typeof window !== "undefined")) return;
 
@@ -305,7 +329,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
     } catch {
       /* discovery must never break construction */
     }
-    installEditorLoader(editorVersion);
+    installEditorLoader(options);
   }
 
   /**
@@ -407,7 +431,7 @@ export function attachDevtools<T extends I18nBase<any>>(i18n: T, options?: Devto
     Object.defineProperties(i, api);
   }
   if (fresh || i.instanceId === undefined) {
-    i._initDevtools!(options?.instanceId, options?.exposeGlobal, options?.editorVersion);
+    i._initDevtools!(options?.instanceId, options?.exposeGlobal, options);
   }
   return i18n;
 }
