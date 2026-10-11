@@ -177,3 +177,11 @@ previous baselines dated 2026-09-12 to 2026-10-05 sat 1–4 % below the code tha
 folds that drift in. Only `platform-path-react` crossed its old budget (11921 B), by 32 B. Every
 budget is now the new baseline + 5 %, rounded up, the rule `scripts/docs-snippets/run.test.mjs`
 enforces for every row (`platform-path-react` 12551 B, `core-base-icu` 6978 B, `core-base` 5724 B).
+
+## 2026-10-11: `createNextI18n` composes no discovery
+
+`createNextI18n` no longer attaches devtools discovery (COM-140), so the `@comvi/core/devtools`
+graph left the `fw-next-root-composed` fixture, which composes the loader and a scoped plugin and
+no `devtools()`. Only that row was re-baselined: 10286 → 9909 B min+gz (28740 → 27569 B min),
+budget 10801 → 10405 B (baseline + 5 %, rounded up). The other five Next rows did not move. No row
+measures the Next root with `.use(devtools())`.

@@ -5493,15 +5493,6 @@
     },
     {
       "package": "packages/next",
-      "file": "src/composedInstance.ts",
-      "mutators": ["ObjectLiteral"],
-      "snippet": "attachDevtools(instance, { instanceId, exposeGlobal });",
-      "lineHint": 82,
-      "kind": "equivalent",
-      "reason": "createNextI18n is the only caller and never supplies either option, so both are always undefined — same as {}. Hand-applied; green."
-    },
-    {
-      "package": "packages/next",
       "file": "src/middleware/createMiddleware.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "default:",

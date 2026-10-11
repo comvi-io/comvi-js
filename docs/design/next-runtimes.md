@@ -27,8 +27,9 @@ need three, which is the question a reader asks once and then never again.
 - **The shared instance contributes the catalog and the loader; the locale belongs to the request**
   and is passed explicitly to every `getI18n()` lookup.
 - **`createNextI18n` composes capabilities and does not pick a compiler.** It composes ambient tag
-  syntax, the loader with both `registerLoader` overloads, the plugin host, default params and
-  devtools discovery; the `icuCompiler` default is gone.
+  syntax, the loader with both `registerLoader` overloads, the plugin host and default params; the
+  `icuCompiler` default is gone. Discovery is opt-in as in every binding: the browser extension
+  sees a Next app only after `.use(devtools())` on the result.
 - **`<I18nProvider>` passes `ssrInitialIsInitializing={false}` on the app's behalf**, so a `fallback`
   in a Next app gates only what the CLIENT host still has to initialize after hydration.
 
@@ -51,7 +52,7 @@ request with no determinable locale throws before it triggers that one-time init
 ### Why the URL rules live in a third file
 
 A `middleware.ts` that does `import { routing } from "./i18n/config"` pulls core, the loader, the
-plugin host, devtools, the tag grammar and whatever compiler the config names into the Edge isolate
+plugin host, the tag grammar and whatever compiler the config names into the Edge isolate
 — and runs `createNextI18n()` and `registerLoader()` there — for one plain object: 30.3 KB across 25
 modules, against 3.8 KB across 7 with a `defineRouting` file (esbuild, minified, Next's externals,
 measured on a config that names `compiler: icuCompiler`).
@@ -114,7 +115,8 @@ meaning differs: Next takes a module that exports an instance.
 ## Alternatives rejected
 
 - **Handing the composed host from a Server Component to a Client Component** — Next cannot pass a
-  class instance across that boundary; `I18nClientProvider` is the workaround every quickstart uses.
+  class instance across that boundary; a `"use client"` wrapper that imports the instance itself
+  (`ClientProvider` in the manual setup) is the workaround.
 - **A separate client-only config module** — the two hosts then diverge on any option one side
   forgets, with nothing to catch it.
 - **Importing `routing` from the config module in `middleware.ts`** — 30.3 KB across 25 modules in
