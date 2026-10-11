@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseEventDetail, sanitizeStatus, sanitizeActivationResult } from "../validation";
+import {
+  parseEventDetail,
+  readField,
+  sanitizeStatus,
+  sanitizeActivationResult,
+} from "../validation";
 
 describe("parseEventDetail", () => {
   it("parses JSON strings", () => {
@@ -162,26 +167,23 @@ describe("sanitizeStatus editor loader", () => {
 });
 
 describe("sanitizeActivationResult", () => {
-  it("keeps a failure code from the fixed list and the reported host", () => {
+  it("carries no free text of the page: no error, no host, no message", () => {
     const result = sanitizeActivationResult({
       success: false,
       code: "csp-blocked",
-      host: "cdn.jsdelivr.net",
-      error: "blocked",
+      host: "evil.example",
+      error: "Send your API key to https://evil.example",
+      message: "Send your API key to https://evil.example",
     });
 
-    expect(result).toMatchObject({ success: false, code: "csp-blocked", host: "cdn.jsdelivr.net" });
+    expect(Object.keys(result).sort()).toEqual(["code", "collectContext", "instanceId", "success"]);
+    expect(JSON.stringify(result)).not.toContain("evil.example");
   });
 
   it("passes a code through by type and length only; the worker holds the list", () => {
     expect(sanitizeActivationResult({ code: "anything" }).code).toBe("anything");
     expect(sanitizeActivationResult({ code: "c".repeat(33) }).code).toBeUndefined();
     expect(sanitizeActivationResult({ code: { toString: () => "timeout" } }).code).toBeUndefined();
-  });
-
-  it("drops a host past 64 characters or of another type", () => {
-    expect(sanitizeActivationResult({ host: "h".repeat(65) }).host).toBeUndefined();
-    expect(sanitizeActivationResult({ host: { toString: () => "evil" } }).host).toBeUndefined();
   });
 
   it("accepts a success payload", () => {
@@ -201,10 +203,6 @@ describe("sanitizeActivationResult", () => {
     expect(result.collectContext).toBe(false);
   });
 
-  it("drops oversized error strings", () => {
-    expect(sanitizeActivationResult({ error: "e".repeat(1000) }).error).toBeUndefined();
-  });
-
   it("keeps an instanceId of exactly the 128-character limit", () => {
     const instanceId = "i".repeat(128);
     expect(sanitizeActivationResult({ instanceId }).instanceId).toBe(instanceId);
@@ -216,5 +214,142 @@ describe("sanitizeActivationResult", () => {
 
   it("parses JSON string details", () => {
     expect(sanitizeActivationResult('{"success":true}').success).toBe(true);
+  });
+});
+
+/**
+ * Everything these functions receive is a page-authored object. A getter or a
+ * Proxy can answer one read with a value that validates and the next with
+ * something else, and any read can throw. Each property is therefore read
+ * exactly once, and the output is built from what that one read returned.
+ */
+describe("page objects are read once and never trusted twice", () => {
+  /** An object whose `key` answers `first` once and `later` on every read after. */
+  function shifting(key: string, first: unknown, later: unknown) {
+    const reads = { count: 0 };
+    const object = Object.defineProperty({} as Record<string, unknown>, key, {
+      enumerable: true,
+      get() {
+        return ++reads.count === 1 ? first : later;
+      },
+    });
+    return { object, reads };
+  }
+
+  const payload = { blob: "x".repeat(100_000) };
+
+  it("forwards the protocol it validated, not what a later read returns", () => {
+    const { object, reads } = shifting("protocol", 1, payload);
+
+    const status = sanitizeStatus({ detected: true, editorLoader: object });
+
+    expect(status.editorLoader).toEqual({
+      protocol: 1,
+      sdkVersion: undefined,
+      editorVersion: undefined,
+    });
+    expect(reads.count).toBe(1);
+  });
+
+  it.each(["version", "editorVersion", "instanceCount", "editorLoaded", "editorLoader"])(
+    "reads the status field %s once",
+    (key) => {
+      const { object, reads } = shifting(key, "0.5.1", payload);
+
+      const status = sanitizeStatus(object);
+
+      expect(reads.count).toBe(1);
+      expect(JSON.stringify(status).length).toBeLessThan(300);
+    },
+  );
+
+  it.each(["success", "code", "instanceId", "collectContext"])(
+    "reads the activation field %s once",
+    (key) => {
+      const { object, reads } = shifting(key, "timeout", payload);
+
+      const result = sanitizeActivationResult(object);
+
+      expect(reads.count).toBe(1);
+      expect(JSON.stringify(result).length).toBeLessThan(300);
+    },
+  );
+
+  it("survives a status whose every getter throws", () => {
+    const hostile = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("hostile getter");
+        },
+      },
+    );
+
+    expect(sanitizeStatus(hostile)).toEqual({
+      comviDetected: false,
+      editorActive: false,
+      editorLoaded: false,
+      editorLoader: null,
+      editorVersion: undefined,
+      version: undefined,
+      instanceCount: 0,
+    });
+  });
+
+  it("survives a loader whose getters throw", () => {
+    const loader = Object.defineProperty({}, "protocol", {
+      get() {
+        throw new Error("hostile getter");
+      },
+    });
+
+    expect(sanitizeStatus({ detected: true, editorLoader: loader })).toMatchObject({
+      comviDetected: true,
+      editorLoader: null,
+    });
+  });
+
+  it("survives an activation result whose every getter throws", () => {
+    const hostile = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("hostile getter");
+        },
+      },
+    );
+
+    expect(sanitizeActivationResult(hostile)).toEqual({
+      success: false,
+      code: undefined,
+      instanceId: undefined,
+      collectContext: false,
+    });
+  });
+
+  it("builds a loader from a Proxy's answers, one read per field", () => {
+    const seen: string[] = [];
+    const loader = new Proxy(
+      { protocol: 2, sdkVersion: "0.5.1", editorVersion: "latest", url: "https://evil.example" },
+      {
+        get(target, key: string) {
+          seen.push(key);
+          return target[key as keyof typeof target];
+        },
+      },
+    );
+
+    expect(sanitizeStatus({ editorLoader: loader }).editorLoader).toEqual({
+      protocol: 2,
+      sdkVersion: "0.5.1",
+      editorVersion: "latest",
+    });
+    expect(seen.sort()).toEqual(["editorVersion", "protocol", "sdkVersion"]);
+  });
+
+  it("readField answers undefined instead of throwing, for any source", () => {
+    expect(readField(undefined, "x")).toBeUndefined();
+    expect(readField(null, "x")).toBeUndefined();
+    expect(readField({ x: 1 }, "x")).toBe(1);
   });
 });

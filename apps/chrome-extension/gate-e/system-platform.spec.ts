@@ -158,12 +158,7 @@ test("real platform persists editor writes and SDK-configured context through th
 
     const popup = await openPopup(worker, extensionId, debuggingPort, connections);
     await page.evaluate(() => {
-      // The page runs the real @comvi/core, whose `collectContext` is a
-      // read-only accessor: an own property stands in for the site's option.
-      Object.defineProperty((globalThis as any).__COMVI__.get(), "collectContext", {
-        value: false,
-        configurable: true,
-      });
+      (globalThis as any).__COMVI__.get().collectContext = false;
     });
     await activate(popup, worker, tabId);
     await popup.close();
@@ -200,10 +195,7 @@ test("real platform persists editor writes and SDK-configured context through th
     await test.step("context observations persist once the SDK enables collection", async () => {
       await deactivate(page, worker, tabId);
       await page.evaluate(() => {
-        Object.defineProperty((globalThis as any).__COMVI__.get(), "collectContext", {
-          value: undefined,
-          configurable: true,
-        });
+        delete (globalThis as any).__COMVI__.get().collectContext;
       });
 
       const telemetryPopup = await openPopup(worker, extensionId, debuggingPort, connections);

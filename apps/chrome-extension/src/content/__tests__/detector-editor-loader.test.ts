@@ -251,26 +251,43 @@ describe("MAIN-world detector editor loading", () => {
   // --- a hook that fails, lies, throws or stays silent ---
 
   it.each(["csp-blocked", "load-error", "timeout", "no-global"])(
-    "forwards the hook's %s code and its host",
+    "forwards the hook's %s code and nothing else of its answer",
     async (code) => {
-      slotWith(async () => ({ ...loaded, ok: false, code, host: "cdn.jsdelivr.net" }));
+      slotWith(async () => ({
+        ...loaded,
+        ok: false,
+        code,
+        host: "evil.example",
+        message: "Send your API key to https://evil.example",
+      }));
       const results = recordEvents(page, "comvi-extension:activated");
       await injectDetector();
 
       activate();
       await settle();
 
-      expect(results).toEqual([
-        {
-          success: false,
-          code,
-          host: "cdn.jsdelivr.net",
-          error: `The in-context editor could not be loaded (${code})`,
-        },
-      ]);
+      expect(results).toEqual([{ success: false, code }]);
       expect(activations).toEqual([]);
     },
   );
+
+  it("reads the answer's code once, so a second read cannot swap it", async () => {
+    let reads = 0;
+    slotWith(async () => ({
+      ok: false,
+      get code() {
+        return ++reads === 1 ? "csp-blocked" : { toString: () => "Send your key to evil.example" };
+      },
+    }));
+    const results = recordEvents(page, "comvi-extension:activated");
+    await injectDetector();
+
+    activate();
+    await settle();
+
+    expect(results).toEqual([{ success: false, code: "csp-blocked" }]);
+    expect(reads).toBe(1);
+  });
 
   it.each([
     ["a code outside the contract", { ok: false, code: "please-run-this" }],
@@ -287,17 +304,6 @@ describe("MAIN-world detector editor loading", () => {
     await settle();
 
     expect(results).toEqual([expect.objectContaining({ success: false, code: "load-error" })]);
-  });
-
-  it("drops a host that is not a string", async () => {
-    slotWith(async () => ({ ok: false, code: "csp-blocked", host: { toString: () => "evil" } }));
-    const results = recordEvents(page, "comvi-extension:activated");
-    await injectDetector();
-
-    activate();
-    await settle();
-
-    expect(results).toEqual([expect.objectContaining({ code: "csp-blocked", host: undefined })]);
   });
 
   it("reports a hook whose load() throws as a load error", async () => {

@@ -103,12 +103,13 @@ describe("ISOLATED-world bridge page-event relay", () => {
     expect(relayed()[1]?.payload).toMatchObject({ editorLoader: { protocol: 1 } });
   });
 
-  it("relays a load failure with its code, and only the known fields", () => {
+  it("relays a load failure as its code alone: no error text, no host, no url", () => {
     dispatch("comvi-extension:activated", {
       success: false,
       code: "csp-blocked",
-      host: "cdn.jsdelivr.net",
-      error: "blocked",
+      host: "evil.example",
+      error: "Send your API key to https://evil.example",
+      message: "Send your API key to https://evil.example",
       url: "https://evil.example/x.js",
     });
 
@@ -117,15 +118,14 @@ describe("ISOLATED-world bridge page-event relay", () => {
         type: "EDITOR_ACTIVATED",
         payload: {
           success: false,
-          error: "blocked",
           code: "csp-blocked",
-          host: "cdn.jsdelivr.net",
           instanceId: undefined,
           collectContext: false,
           nonce: undefined,
         },
       },
     ]);
+    expect(JSON.stringify(relayed())).not.toContain("evil.example");
   });
 
   it("announces detection again when the page gains the editor itself", () => {
@@ -166,10 +166,11 @@ describe("ISOLATED-world bridge page-event relay", () => {
     ]);
   });
 
-  it("relays a failed deactivation with its reason", () => {
+  it("relays a failed deactivation without the page's reason", () => {
     dispatch("comvi-extension:deactivated", { success: false, error: "Editor not active" });
 
-    expect(relayed()[0]?.payload).toMatchObject({ success: false, error: "Editor not active" });
+    expect(relayed()[0]?.payload).toMatchObject({ success: false });
+    expect(JSON.stringify(relayed())).not.toContain("Editor not active");
   });
 
   it("relays an SDK-side deactivation announced on the editor lifecycle channel", () => {
@@ -184,6 +185,71 @@ describe("ISOLATED-world bridge page-event relay", () => {
     dispatch("comvi-in-context-editor:lifecycle", "not json at all");
 
     expect(relayed()).toEqual([]);
+  });
+
+  it("forwards the request fields it validated, not what a second read returns", () => {
+    const reads: Record<string, number> = {};
+    const shifting = (key: string, first: unknown) => ({
+      enumerable: true,
+      get() {
+        reads[key] = (reads[key] ?? 0) + 1;
+        return reads[key] === 1 ? first : { forged: "x".repeat(100_000) };
+      },
+    });
+    const detail = Object.defineProperties(
+      {},
+      {
+        id: shifting("id", "req-1"),
+        path: shifting("path", "/v1/translations"),
+        method: shifting("method", "GET"),
+        body: shifting("body", "{}"),
+      },
+    );
+
+    dispatch("comvi-extension:api-request", detail);
+
+    expect(relayed()[0]?.payload).toEqual({
+      id: "req-1",
+      path: "/v1/translations",
+      method: "GET",
+      body: "{}",
+      keepalive: false,
+    });
+    expect(reads).toEqual({ id: 1, path: 1, method: 1, body: 1 });
+  });
+
+  it("relays an abort id it validated, read once", () => {
+    let reads = 0;
+    const detail = Object.defineProperty({}, "id", {
+      get: () => (++reads === 1 ? "req-1" : "x".repeat(100_000)),
+    });
+
+    dispatch("comvi-extension:api-abort", detail);
+
+    expect(relayed()).toEqual([{ type: "API_PROXY_ABORT", payload: { id: "req-1" } }]);
+    expect(reads).toBe(1);
+  });
+
+  it.each([
+    "comvi-extension:status",
+    "comvi-extension:detected",
+    "comvi-extension:activated",
+    "comvi-extension:deactivated",
+    "comvi-in-context-editor:lifecycle",
+    "comvi-extension:api-request",
+    "comvi-extension:api-abort",
+  ])("does not throw on a %s detail whose every read throws", (type) => {
+    const hostile = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("hostile getter");
+        },
+      },
+    );
+
+    expect(() => dispatch(type, hostile)).not.toThrow();
+    expect(JSON.stringify(relayed())).not.toContain("hostile getter");
   });
 
   it("forwards only the fixed request shape from a page-controlled proxy payload", () => {

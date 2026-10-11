@@ -45,6 +45,15 @@ export type EditorLoadFailureCode = "csp-blocked" | "load-error" | "timeout" | "
  */
 export type ActivationFailureCode = EditorLoadFailureCode | "no-loader";
 
+/**
+ * What the service worker tells the popup about a failed activation: a code
+ * the page reported (checked against the list), or one of the worker's own —
+ * `unconfirmed` (the acknowledgement did not match the pending session) and
+ * `failed` (the page reported a failure without a known code). The popup words
+ * every one of them itself; no text from the page travels with it.
+ */
+export type ActivationOutcomeCode = ActivationFailureCode | "unconfirmed" | "failed";
+
 /** The page's editor-loader hook as the detector read it. Page-authored. */
 export interface EditorLoaderStatus {
   protocol: number;
@@ -107,9 +116,8 @@ export interface SessionStatusResponse {
 /** service worker -> popup: authoritative lifecycle completion for one tab. */
 export interface SessionStateChangedPayload extends SessionStatusResponse {
   tabId: number;
-  error?: string;
-  /** Why the editor could not be put on the page; the popup words the remedy. */
-  code?: ActivationFailureCode;
+  /** Why the activation failed; the popup words the reason and the remedy. */
+  code?: ActivationOutcomeCode;
 }
 
 /** bridge -> service worker: proxied API request from the editor runtime. */
@@ -134,14 +142,12 @@ export interface ApiProxyResponsePayload {
 
 export interface EditorActivatedPayload {
   success: boolean;
-  error?: string;
   /**
    * Why the editor could not be put on the page. Page-authored: a known
    * {@link ActivationFailureCode} only once the service worker checked it.
+   * No free text from the page is carried: the popup would have to show it.
    */
   code?: string;
-  /** Page-authored host from the hook's result. Never rendered. */
-  host?: string;
   instanceId?: string;
   /** Untrusted effective value derived by the editor from the site's i18n config. */
   collectContext?: boolean;

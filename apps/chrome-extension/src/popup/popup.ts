@@ -10,9 +10,9 @@ import type {
   StartSessionResponse,
   SessionStatusResponse,
   SessionStateChangedPayload,
-  ActivationFailureCode,
+  ActivationOutcomeCode,
 } from "../shared/messages";
-import { editorAvailability } from "../shared/activation";
+import { asDisplayVersion, editorAvailability } from "../shared/activation";
 
 type Theme = "light" | "dark";
 type View = "loading" | "not-detected" | "idle" | "active";
@@ -28,17 +28,21 @@ const EDITOR_CDN_HOST = "cdn.jsdelivr.net";
 const SDK_REQUIREMENT =
   "In-context editing needs @comvi/core 0.5.1 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
 
+const ACTIVATION_FAILED = "The editor could not start on this page. Reload the page and try again.";
+
 const NOT_DETECTED_TITLE = "Comvi i18n not detected on this page.";
 const NOT_DETECTED_REMEDY =
   "If this site uses Comvi i18n, add .use(devtools()) to its i18n instance (@comvi/core 0.5.1 or newer). That makes the instance visible to this extension and lets the site load the editor when you enable it.";
 
 /** One reason and one remedy for each way the page can fail to supply the editor. */
-const ACTIVATION_FAILURE_TEXT: Record<ActivationFailureCode, string> = {
+const ACTIVATION_FAILURE_TEXT: Record<ActivationOutcomeCode, string> = {
   "csp-blocked": `This site's Content Security Policy blocked the editor. Allow https://${EDITOR_CDN_HOST} in its script-src directive, then reload this page. If the site enforces Trusted Types, its policy must permit that URL too.`,
   "load-error": `The editor could not be downloaded from ${EDITOR_CDN_HOST}. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.`,
-  timeout: `The editor did not finish loading from ${EDITOR_CDN_HOST} within 10 seconds. Check your connection and try again.`,
+  timeout: `The editor did not finish loading from ${EDITOR_CDN_HOST} in time. Check your connection and try again.`,
   "no-global": `${EDITOR_CDN_HOST} answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.`,
   "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
+  unconfirmed: "The editor activation could not be confirmed. Try again.",
+  failed: ACTIVATION_FAILED,
 };
 
 const root = document.documentElement;
@@ -76,6 +80,9 @@ let comviVersion: string | undefined;
 // unknown page is offered Enable and answers with a reason if it cannot.
 let editorAvailable: boolean | undefined;
 let editorVersion: string | undefined;
+// Instances the detector tracks. A truthy `window.__COMVI__` that holds none
+// is not a Comvi site, whatever else it claims.
+let instanceCount: number | undefined;
 let initialized = false;
 let operation: Operation = null;
 let forgetAvailable = false;
@@ -123,7 +130,24 @@ async function initTheme() {
 
 // --- View switching ---
 
+// A site may create its i18n instance after the popup opened (a lazy route),
+// and a second copy of core may install the loader hook later. While the popup
+// says the editor cannot start here, it keeps asking the page, so the view
+// moves to Enable without being reopened.
+const STATUS_RECHECK_MS = 1_000;
+let statusRecheck: number | null = null;
+
+function recheckStatusWhile(waiting: boolean) {
+  if (waiting && statusRecheck === null) {
+    statusRecheck = window.setInterval(() => void requestStatus(), STATUS_RECHECK_MS);
+  } else if (!waiting && statusRecheck !== null) {
+    window.clearInterval(statusRecheck);
+    statusRecheck = null;
+  }
+}
+
 function setView(view: View) {
+  recheckStatusWhile(view === "not-detected" && currentTabId !== null);
   for (const [id, el] of [
     ["loading", stateLoading],
     ["not-detected", stateNotDetected],
@@ -163,7 +187,8 @@ function render() {
   // Authority takes precedence over detector metadata. A delayed detector
   // response must never hide a successfully activated editor.
   if (editorActive) {
-    // Page-authored strings: text only, never markup.
+    // The only page-authored strings in the popup: each passed
+    // asDisplayVersion, and is set as text.
     versionLine.textContent = [
       comviVersion ? `Comvi i18n v${comviVersion}` : "",
       editorVersion ? `editor v${editorVersion}` : "",
@@ -174,7 +199,7 @@ function render() {
     return;
   }
 
-  if (!comviDetected) {
+  if (!comviDetected || instanceCount === 0) {
     reasonTitle.textContent = NOT_DETECTED_TITLE;
     reasonRemedy.textContent = NOT_DETECTED_REMEDY;
     setView("not-detected");
@@ -255,8 +280,9 @@ async function refreshEditorVersion(): Promise<void> {
   try {
     const response = await sendToContentScript({ type: "GET_STATUS" });
     const status = response?.payload as StatusResponsePayload | undefined;
-    if (typeof status?.editorVersion !== "string") return;
-    editorVersion = status.editorVersion;
+    const reported = asDisplayVersion(status?.editorVersion);
+    if (!reported) return;
+    editorVersion = reported;
     render();
   } catch {
     // The version line is informational; the session does not depend on it.
@@ -270,8 +296,9 @@ function updateStatus(status: StatusResponsePayload) {
   liveStatusObserved = true;
   comviDetected = status.comviDetected;
   editorAvailable = editorAvailability(status) ?? editorAvailable;
-  if (status.editorVersion) editorVersion = status.editorVersion;
-  if (status.version) comviVersion = status.version;
+  if (typeof status.instanceCount === "number") instanceCount = status.instanceCount;
+  editorVersion = asDisplayVersion(status.editorVersion) ?? editorVersion;
+  comviVersion = asDisplayVersion(status.version) ?? comviVersion;
   render();
 }
 
@@ -323,7 +350,7 @@ function applySessionStatus(
     comviDetected = status.comviDetected;
     if (typeof status.editorAvailable === "boolean") editorAvailable = status.editorAvailable;
   }
-  if (status.version) comviVersion = status.version;
+  comviVersion = asDisplayVersion(status.version) ?? comviVersion;
 }
 
 /** Ask the service worker for the authoritative session state. */
@@ -614,10 +641,9 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
       editorAvailable = true;
       hideError();
       void refreshEditorVersion();
-    } else if (operation === "enabling" && state.code && ACTIVATION_FAILURE_TEXT[state.code]) {
-      showError(ACTIVATION_FAILURE_TEXT[state.code]);
-    } else if (operation === "enabling" && state.error) {
-      showError(state.error);
+    } else if (operation === "enabling" && state.code) {
+      // Every word is the popup's own: a code it does not know still gets one.
+      showError(ACTIVATION_FAILURE_TEXT[state.code] ?? ACTIVATION_FAILED);
     }
     clearActivationTimeout();
     setOperation(null);

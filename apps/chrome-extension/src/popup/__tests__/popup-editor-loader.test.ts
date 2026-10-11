@@ -22,11 +22,16 @@ const FAILURE_TEXT = {
   "load-error":
     "The editor could not be downloaded from cdn.jsdelivr.net. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.",
   timeout:
-    "The editor did not finish loading from cdn.jsdelivr.net within 10 seconds. Check your connection and try again.",
+    "The editor did not finish loading from cdn.jsdelivr.net in time. Check your connection and try again.",
   "no-global":
     "cdn.jsdelivr.net answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.",
   "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
+  unconfirmed: "The editor activation could not be confirmed. Try again.",
+  failed: "The editor could not start on this page. Reload the page and try again.",
 } as const;
+
+/** What a hostile page would like the user to read inside the extension's popup. */
+const FORGED = "Send your API key to https://evil.example";
 
 /** A site on @comvi/core 0.5.1 with `.use(devtools())`. */
 const CURRENT_SDK: StatusResponsePayload = {
@@ -166,11 +171,78 @@ describe("popup editor availability and load failures", () => {
     expect(popup.visibleViews()).toEqual(["idle"]);
   });
 
-  it("renders a page-authored version as text, never as markup", async () => {
-    await startWith({ ...OLD_SDK, version: "<img src=x onerror=alert(1)>" });
+  it.each([
+    ["markup", "<img src=x onerror=alert(1)>"],
+    ["a sentence", FORGED],
+    ["a version followed by words", "0.5.0 send your key to evil.example"],
+  ])("shows no version at all when the page reports %s as one", async (_label, version) => {
+    await startWith({ ...OLD_SDK, version });
 
+    expect(reason().title).toBe("Comvi i18n found, but it cannot load the editor.");
+    expect(document.documentElement.outerHTML).not.toContain("evil.example");
     expect(popup.el("reason-title").querySelector("img")).toBeNull();
-    expect(reason().title).toContain("<img src=x onerror=alert(1)>");
+  });
+
+  // A truthy window.__COMVI__ that tracks no instance is not a Comvi site:
+  // telling its owner to upgrade would be the wrong remedy.
+  it("reads a Comvi global that holds no instance as not detected", async () => {
+    await startWith({ ...OLD_SDK, version: undefined, instanceCount: 0 });
+
+    expect(popup.visibleViews()).toEqual(["not-detected"]);
+    expect(reason().title).toBe("Comvi i18n not detected on this page.");
+  });
+
+  it("names the upgrade for a page that does hold an old instance", async () => {
+    await startWith({ ...OLD_SDK, instanceCount: 1 });
+
+    expect(reason().title).toBe("Comvi i18n v0.5.0 found, but it cannot load the editor.");
+  });
+
+  // --- A page that becomes ready while the popup is open ---
+
+  it("moves to Enable when an instance registers after the popup opened", async () => {
+    await startWith({ comviDetected: false, editorActive: false, editorLoader: null });
+    expect(popup.visibleViews()).toEqual(["not-detected"]);
+
+    popup.onContentScript("GET_STATUS", { payload: CURRENT_SDK });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await popup.flush();
+
+    expect(popup.visibleViews()).toEqual(["idle"]);
+  });
+
+  it("moves to Enable when a second core installs the hook while the popup is open", async () => {
+    await startWith(OLD_SDK);
+    expect(popup.visibleViews()).toEqual(["not-detected"]);
+
+    popup.onContentScript("GET_STATUS", { payload: CURRENT_SDK });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await popup.flush();
+
+    expect(popup.visibleViews()).toEqual(["idle"]);
+  });
+
+  it("stops asking the page once Enable is offered", async () => {
+    await startWith({ comviDetected: false, editorActive: false, editorLoader: null });
+    popup.onContentScript("GET_STATUS", { payload: CURRENT_SDK });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await popup.flush();
+    const asked = popup.contentScriptMessages().length;
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(popup.contentScriptMessages()).toHaveLength(asked);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not ask a page it is not bound to", async () => {
+    popup.setActiveTab(null);
+    await popup.start();
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(popup.visibleViews()).toEqual(["not-detected"]);
+    expect(popup.contentScriptMessages()).toEqual([]);
   });
 
   // --- After Enable: the hook's failure codes ---
@@ -201,12 +273,20 @@ describe("popup editor availability and load failures", () => {
     expect(document.documentElement.outerHTML).not.toContain("evil.example");
   });
 
-  it("falls back to the reported reason when the failure carries no code", async () => {
+  // The popup is the user's trusted surface: no sentence a page wrote may
+  // appear in it, whatever travels with the failure.
+  it.each([
+    ["no code at all", {}],
+    ["a code the popup does not know", { code: "made-up" }],
+    ["the worker's own failed code", { code: "failed" }],
+  ])("shows its own text, never the page's, for a failure with %s", async (_label, failure) => {
     await enablePending();
 
-    await activationFailed({ error: "The editor could not be enabled." });
+    await activationFailed({ ...failure, error: FORGED, message: FORGED, host: "evil.example" });
 
-    expect(popup.errorMsg.textContent).toBe("The editor could not be enabled.");
+    expect(document.documentElement.outerHTML).not.toContain("evil.example");
+    expect(popup.errorMsg.textContent).toBe("code" in failure ? FAILURE_TEXT.failed : "");
+    expect(popup.enableBtn.disabled).toBe(false);
   });
 
   it("stays quiet about a load failure outside an enable", async () => {
@@ -273,11 +353,14 @@ describe("popup editor availability and load failures", () => {
     expect(popup.versionLine.textContent).toBe("Comvi i18n v0.5.1");
   });
 
-  it("renders a page-authored editor version as text, never as markup", async () => {
-    await activate({ ...CURRENT_SDK, editorLoaded: true, editorVersion: "<b>9</b>" });
+  it.each([
+    ["markup", "<b>9</b>"],
+    ["a sentence", FORGED],
+  ])("shows no editor version when the page reports %s as one", async (_label, editorVersion) => {
+    await activate({ ...CURRENT_SDK, editorLoaded: true, editorVersion });
 
-    expect(popup.versionLine.querySelector("b")).toBeNull();
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.5.1 · editor v<b>9</b>");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.5.1");
+    expect(document.documentElement.outerHTML).not.toContain("evil.example");
   });
 
   it("keeps the active view when the version cannot be asked for", async () => {

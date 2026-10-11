@@ -39,8 +39,6 @@ interface EditorLoaderSlot {
 /** Why the editor is not on the page; `code` is from the contract's list, or `no-loader`. */
 interface EditorLoadFailure {
   code: "csp-blocked" | "load-error" | "timeout" | "no-global" | "no-loader";
-  host?: string;
-  error: string;
 }
 
 interface TransportInit {
@@ -345,8 +343,8 @@ function describeEditorLoader(): ComviStatus["editorLoader"] {
   }
 }
 
-function loadFailure(code: EditorLoadFailure["code"], host?: string): EditorLoadFailure {
-  return { code, host, error: `The in-context editor could not be loaded (${code})` };
+function loadFailure(code: EditorLoadFailure["code"]): EditorLoadFailure {
+  return { code };
 }
 
 /** Turn the hook's page-authored answer into a failure, or null when the editor is there. */
@@ -357,8 +355,10 @@ function readLoadResult(result: unknown): EditorLoadFailure | null {
       // The hook's word is not enough: activation needs the runtime itself.
       return pageEditor() ? null : loadFailure("no-global");
     }
-    const code = LOAD_FAILURE_CODES.find((known) => known === raw.code) ?? "load-error";
-    return loadFailure(code, typeof raw.host === "string" ? raw.host : undefined);
+    // Read once, then judge: a getter may answer differently the next time.
+    // Nothing else of the answer is used; its host and message stay behind.
+    const reported = raw.code;
+    return loadFailure(LOAD_FAILURE_CODES.find((known) => known === reported) ?? "load-error");
   } catch {
     return loadFailure("load-error");
   }
@@ -485,14 +485,10 @@ function installDetector() {
     window.dispatchEvent(new CustomEvent("comvi-extension:not-found", { detail: status }));
   }
 
-  function notifyActivationFailed(error: unknown) {
+  // What the editor threw is page-authored text: it goes nowhere.
+  function notifyActivationFailed() {
     window.dispatchEvent(
-      new CustomEvent("comvi-extension:activated", {
-        detail: {
-          success: false,
-          error: error instanceof Error ? error.message : "Failed to activate editor",
-        },
-      }),
+      new CustomEvent("comvi-extension:activated", { detail: { success: false } }),
     );
   }
 
@@ -641,8 +637,8 @@ function installDetector() {
           },
         }),
       );
-    } catch (error) {
-      notifyActivationFailed(error);
+    } catch {
+      notifyActivationFailed();
     }
   }
 
@@ -667,7 +663,7 @@ function installDetector() {
     if (!status.detected) {
       window.dispatchEvent(
         new CustomEvent("comvi-extension:activated", {
-          detail: { success: false, error: "Comvi i18n not detected" },
+          detail: { success: false },
         }),
       );
       return;
@@ -688,10 +684,7 @@ function installDetector() {
 
     const slot = readEditorLoader();
     if (!slot) {
-      reportLoadFailure({
-        code: "no-loader",
-        error: "This page's Comvi i18n has no editor loader (@comvi/core 0.5.1 or newer)",
-      });
+      reportLoadFailure(loadFailure("no-loader"));
       return;
     }
 
@@ -716,7 +709,7 @@ function installDetector() {
     } else {
       window.dispatchEvent(
         new CustomEvent("comvi-extension:deactivated", {
-          detail: { success: false, error: "Editor not active" },
+          detail: { success: false },
         }),
       );
     }

@@ -22,6 +22,21 @@ export function asActivationFailureCode(value: unknown): ActivationFailureCode |
   return ACTIVATION_FAILURE_CODES.find((code) => code === value);
 }
 
+// Three numbers, then an optional pre-release or build suffix; 32 characters
+// at most. No whitespace can pass, so a version cannot carry a sentence.
+const DISPLAY_VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/;
+
+/**
+ * A page-reported version the popup may show, or nothing. The SDK and editor
+ * versions are the only page-authored strings the popup ever renders, so they
+ * must look like a version and nothing else.
+ */
+export function asDisplayVersion(value: unknown): string | undefined {
+  return typeof value === "string" && value.length <= 32 && DISPLAY_VERSION.test(value)
+    ? value
+    : undefined;
+}
+
 /**
  * Whether the page can supply the editor: it is already loaded, or a loader
  * hook is there to load it. `undefined` when the status does not say.

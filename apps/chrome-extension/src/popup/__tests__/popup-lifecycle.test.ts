@@ -453,11 +453,13 @@ describe("popup session lifecycle", () => {
         tabId: TAB_ID,
         active: false,
         pending: false,
-        error: "The editor could not start",
+        code: "failed",
       },
     });
 
-    expect(popup.errorMsg.textContent).toBe("The editor could not start");
+    expect(popup.errorMsg.textContent).toBe(
+      "The editor could not start on this page. Reload the page and try again.",
+    );
     expect(popup.enableBtn.disabled).toBe(false);
   });
 

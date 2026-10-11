@@ -418,9 +418,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
             broadcastSessionState({
               tabId,
               ...status,
-              ...(!active
-                ? { error: "The editor activation could not be confirmed. Try again." }
-                : {}),
+              ...(!active ? { code: "unconfirmed" as const } : {}),
             });
             if (!active) deactivatePageRuntime(tabId);
           },
@@ -437,8 +435,8 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
           broadcastSessionState({
             tabId,
             ...status,
-            error: detail.error ?? "The editor could not be enabled.",
-            code: asActivationFailureCode(detail.code),
+            // Only a code from the fixed list leaves here; the popup words it.
+            code: asActivationFailureCode(detail.code) ?? "failed",
           });
           deactivatePageRuntime(tabId);
         });
