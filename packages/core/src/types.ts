@@ -38,6 +38,60 @@ declare global {
   }
 }
 
+/**
+ * Why an editor load failed (see `contracts/chrome-extension-proxy.json`,
+ * `editorLoader.failureCodes`).
+ */
+export type EditorLoadFailureCode = "csp-blocked" | "load-error" | "timeout" | "no-global";
+
+/**
+ * What `EditorLoaderSlot.load()` resolves with. It never rejects. Every key
+ * below except `message` is always present; one that does not apply holds
+ * `undefined`.
+ */
+export interface EditorLoadResult {
+  ok: boolean;
+  /**
+   * The URL requested — on `latest` this carries the hourly cache salt. The
+   * salt-free slot URL when the editor was already on the page.
+   */
+  url: string;
+  /** The `@comvi/core` version that installed the slot. */
+  sdkVersion: string;
+  /** The hook↔editor protocol version of the slot that ran the load. */
+  protocol: number;
+  /** The editor's own reported version when `ok`; `undefined` for an editor older than 0.5.1. */
+  editorVersion?: string;
+  /**
+   * Set when `ok` is false. `csp-blocked` covers both a `script-src` policy and
+   * Trusted Types refusing the script.
+   */
+  code?: EditorLoadFailureCode;
+  /** Set when `ok` is false: the host a Content Security Policy has to allow. */
+  host?: string;
+  /** Optional, human-readable. Reserved: core never sets it today. */
+  message?: string;
+}
+
+/**
+ * The page-level editor loader the devtools capability installs on
+ * `globalThis[Symbol.for("comvi.devtools.editorLoader")]` (protocol 1 — see
+ * `contracts/chrome-extension-proxy.json`, `editorLoader`). Fields released
+ * under a protocol are never removed or retyped.
+ */
+export interface EditorLoaderSlot {
+  /** The hook↔editor protocol version. */
+  protocol: number;
+  /** The `@comvi/core` version that installed the slot. */
+  sdkVersion: string;
+  /** The pin from `devtools({ editorVersion })` when valid, otherwise `"latest"`. */
+  editorVersion: string;
+  /** The salt-free URL the hook loads the editor from. */
+  url: string;
+  /** Load the editor once per page; later calls return the same promise unless the load failed. */
+  load(): Promise<EditorLoadResult>;
+}
+
 export type I18nEvent =
   | "initialized"
   | "destroyed"

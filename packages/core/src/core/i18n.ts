@@ -120,7 +120,11 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   /** Capability state initializers, installed with the capability's methods. */
   _initLoader?: () => void;
   _initPlugins?: () => void;
-  _initDevtools?: (instanceId?: string, exposeGlobal?: boolean) => void;
+  _initDevtools?: (
+    instanceId?: string,
+    exposeGlobal?: boolean,
+    options?: { editorVersion?: string },
+  ) => void;
 
   _loadNs?: (locale: string, namespaces: string[], skipLoaded: boolean) => Promise<void>;
   _cancelNs?: (locale?: string, namespace?: string) => void;

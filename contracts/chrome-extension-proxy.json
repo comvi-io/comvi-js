@@ -35,7 +35,50 @@
       "new-core+old-extension": "UNSUPPORTED — the one broken pairing; the old extension never drains the queue array. Release notes pin the minimum extension version.",
       "new-core+new-extension": "target protocol (v2)",
       "old-core+new-core-same-page": "supported — new core detects the legacy object (register without remove) and calls register(id, instance); the new extension's hook speaks both protocols. Ids may collide (old core also minted `comvi-<n>`); the hook's dedupe and identity-safe removal keep both instances discoverable (see pageToExtension.idCollisions).",
-      "new-core+new-core-same-page": "supported — two copies of new core (CDN global plus bundled npm copy, or a binding on another patch) both push onto one queue/hook. The second copy skips an id a consumer hook already tracks, and a consumer draining a raw queue dedupes colliding ids, so both instances stay discoverable and destroying one leaves the other tracked."
+      "new-core+new-core-same-page": "supported — two copies of new core (CDN global plus bundled npm copy, or a binding on another patch) both push onto one queue/hook. The second copy skips an id a consumer hook already tracks, and a consumer draining a raw queue dedupes colliding ids, so both instances stay discoverable and destroying one leaves the other tracked.",
+      "new-extension-0.5.1+core-0.5.0": "detected, not activatable — the extension no longer carries an editor; the popup explains"
+    }
+  },
+  "editorLoader": {
+    "protocol": 1,
+    "slot": "globalThis[Symbol.for(\"comvi.devtools.editorLoader\")]",
+    "installedBy": "the devtools capability (`.use(devtools())` / `attachDevtools`) at exposure time in a browser, once per page; never by a base instance; the composite (`core/full.ts`) installs it too",
+    "replacement": "a later core installs over an existing slot only when its `protocol` is strictly greater; same or lower protocol reuses the existing slot. The load promise lives under the second key `Symbol.for(\"comvi.devtools.editorLoad\")`, so a replacement reuses a pending or finished load and never creates a second <script>; a core that reuses a slot with a different editorVersion warns once in development",
+    "hookCompatibility": "TWO-DIRECTIONAL. (a) Hook fields released under a protocol are never removed or retyped — new fields only; a protocol bump adds fields or load() result members, never changes protocol-1 semantics. (b) The editor treats ANY protocol ≥ 1 as usable, reads only the protocol-1 fields it knows, and ignores unknown fields; it never refuses a newer hook. (c) The hook reads nothing off window.ComviInContextEditor except `activate` (to decide already-loaded / no-global) and, optionally, `version`. Older editor + newer hook is a permanent pairing (editorVersion pins and the browser cache guarantee it), as is newer editor + older hook",
+    "shape": {
+      "protocol": "1 — integer; the hook↔editor protocol version. Every future editor must work with every released protocol, and every released editor with every future protocol (see hookCompatibility)",
+      "sdkVersion": "the @comvi/core version that installed the slot (string, __VERSION__)",
+      "editorVersion": "the pin from devtools({ editorVersion }) when it is a string primitive matching ^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$, otherwise \"latest\" — the exact string used in the URL. The option is read once; a non-string (an object with toString/valueOf, a String object, a number) is never coerced and falls back to \"latest\"; an option whose getter throws installs no slot and construction carries on",
+      "url": "the full URL the hook will load; host and path are constants in core: https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@<editorVersion>/dist/standalone.iife.js — plus, ONLY when editorVersion is \"latest\", the cache salt `?comvi=<floor(Date.now()/3600000)>` (hour bucket; bounds browser staleness to ≤ 1 h). An exact pin has no query string (immutable file). The salt is computed at load() time, so `url` on the slot is the salt-free base and the result's `url` is what was requested",
+      "load()": "returns Promise<EditorLoadResult>; idempotent — the first call creates ONE <script crossorigin=\"anonymous\"> and caches the promise under the second key; later calls return the same promise, while the load is pending and after it succeeded; a settled failure is NOT cached, so a retry after the user fixed the CSP creates a fresh script. Internal timeout 10 000 ms: strictly inside the popup's 15 s activation budget and the worker's 30 s pending-session TTL, so the hook's failure code — not the popup's generic \"did not respond\" — is what the user sees",
+      "EditorLoadResult": {
+        "ok": "true | false. Every result carries the keys ok, url, sdkVersion, protocol, editorVersion, code and host; a key that does not apply holds undefined — it is not omitted",
+        "url": "the URL requested (with the cache salt on \"latest\"); the salt-free slot url when the editor was already on the page and nothing was requested",
+        "sdkVersion": "string",
+        "protocol": "1",
+        "editorVersion": "the editor's own reported version when ok (window.ComviInContextEditor.version, present from editor 0.5.1); undefined for an older editor and when ok is false",
+        "code": "when ok is false: \"csp-blocked\" | \"load-error\" | \"timeout\" | \"no-global\"; undefined when ok is true",
+        "host": "when ok is false: \"cdn.jsdelivr.net\" — the host the popup tells the user to allow; undefined when ok is true",
+        "message": "optional, human-readable, ≤ 256 chars; reserved — core 0.5.1 never sets it"
+      },
+      "failureCodes": {
+        "csp-blocked": "the page's own policy refused the script. Two cases: (1) a `securitypolicyviolation` event on document whose disposition is not \"report\" (an engine that omits the field is taken to enforce), effectiveDirective script-src-elem or script-src, and a blockedURI that starts with the editor URL (Chromium reports the full URL, query included) or equals the CDN origin, observed before the script's error event — it takes precedence over load-error; a report-only violation or one under another directive does not count; (2) the page enforces Trusted Types (`require-trusted-types-for 'script'`) and assigning the script's src threw (only that assignment; a throw from the insertion is load-error). The remedy differs: (1) allow https://cdn.jsdelivr.net in script-src; (2) the site needs a Trusted Types policy that permits that URL — allowing the host alone does not help",
+        "load-error": "the <script> element fired `error` with no matching CSP violation (DNS, offline, 404 for a bad pin, corporate filter), or the script could not be inserted (no document, no root element)",
+        "timeout": "neither load nor error within 10 000 ms (the script element is removed; a later load() starts fresh)",
+        "no-global": "`load` fired but window.ComviInContextEditor is not an object with an activate() function (a wrong file served, or a corrupted copy)"
+      },
+      "already-loaded": "if no load is pending or finished and window.ComviInContextEditor already exists when load() is called (an old extension injected its bundled copy, or the site bundled the standalone itself), load() resolves a fresh { ok: true } result immediately without creating a script; its url is the salt-free slot url"
+    },
+    "detectorToPage": "the detector reads the slot synchronously for status (`editorLoader: { protocol, sdkVersion, editorVersion } | null`) and calls `load()` inside the comvi-extension:activate handler before activate(), under try/catch (a throwing or lying slot is a page fault, reported as { success:false, code:\"load-error\" }); the detector NEVER reads `url` to load anything itself. The result's code/host/message are forwarded on comvi-extension:activated as { success:false, code, host, error }; the popup renders the remedy with its OWN constant host string, never the page-authored one",
+    "pageToEditor": "the standalone editor reads the slot at boot (after ensureComviHook) and records { protocol, sdkVersion } in getStatus().hook; it must tolerate a missing slot (old extension injected it) and ANY protocol ≥ 1, including ones newer than itself, per hookCompatibility",
+    "extensionStatusAdditions": "StatusResponsePayload gains editorLoader?: { protocol: number; sdkVersion?: string; editorVersion?: string } | null and editorVersion?: string; EditorActivatedPayload gains code?: EditorLoadFailureCode and host?: string; bridge sanitizers allowlist both",
+    "versionPairing": {
+      "new-extension+sdk-0.5.0": "detected, slot absent → popup names the 0.5.1 requirement; Enable disabled",
+      "old-extension+sdk-0.5.1": "supported — the old extension injects its bundled editor; the slot is unused",
+      "new-extension+sdk-0.5.1": "target",
+      "old-editor+newer-hook": "supported forever — the editor reads protocol-1 fields only; the hook never removes or retypes them",
+      "two-cores": "one slot per page; highest protocol wins; the load promise is shared under the second key, so one script",
+      "umd-composite": "the CDN global (core/full.ts) always loads @latest; pinning exists only through devtools({ editorVersion })"
     }
   },
   "routes": [

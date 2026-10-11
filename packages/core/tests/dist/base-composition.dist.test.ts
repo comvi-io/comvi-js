@@ -48,6 +48,9 @@ const DEV_ONLY_STRINGS = [
   "comviShim",
   "compose capabilities before init()",
   "capabilityShim",
+  // The editor loader's two warnings (`core/devtools.ts`).
+  "falls back to latest",
+  "editorVersion ignored",
 ] as const;
 
 function distFiles(dev: boolean): string[] {
@@ -184,6 +187,32 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     await i18n.destroy();
 
     expect(queue).toHaveLength(0);
+  });
+
+  it("installs the editor loader with its public keys intact in the mangled build", async () => {
+    const { createI18n } = await import("../../dist/comvi-core.js");
+    const { devtools } = await import("../../dist/comvi-core-devtools.js");
+    const slots = globalThis as unknown as Record<symbol, unknown>;
+    const key = Symbol.for("comvi.devtools.editorLoader");
+    delete slots[key];
+
+    // The slot is a wire contract read by other programs: none of its keys
+    // may be renamed by the property mangler, and the pin has to survive the
+    // mangled `_initDevtools` call that carries it.
+    createI18n({ locale: "en" }).use(devtools({ editorVersion: "0.5.3" }));
+    const slot = slots[key] as Record<string, unknown>;
+    delete slots[key];
+
+    expect(Object.keys(slot).sort()).toEqual([
+      "editorVersion",
+      "load",
+      "protocol",
+      "sdkVersion",
+      "url",
+    ]);
+    expect(slot.url).toBe(
+      "https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@0.5.3/dist/standalone.iife.js",
+    );
   });
 
   it("a BARE host flattens a nested catalog against the mangled build (C1)", async () => {
