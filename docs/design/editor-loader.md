@@ -51,9 +51,17 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   entry is empty, so a site that gated `devtools()` with it was invisible to the extension exactly
   where the extension is the only way to edit. `@comvi/next` no longer composes discovery on its
   own; `.use(devtools())` on the `createNextI18n` result is the one line a Next app adds.
-- **Bytes move from the extension to the site.** `devtools()` costs about 0.7 kB min+gz for the
-  loader on every row that composes it (`scripts/size-budgets.md`, 2026-10-11) and nothing on any
-  other row. The extension's `dist/` carries no editor and its artifact test fails if one appears.
+- **Bytes move from the extension to the site.** `devtools()` costs about 1.2 kB min+gz over the
+  base instance, of which about 0.7 kB is the loader, new in 0.5.1, and the rest the discovery
+  that 0.5.0 already shipped (`scripts/size-budgets.md`, 2026-10-11 and 2026-10-12). An app that
+  does not call `devtools()` carries none of it. The extension's `dist/` carries no editor and its
+  artifact test fails if one appears.
+
+  | Row (`scripts/size-budgets.json`)         | min+gz |
+  | ----------------------------------------- | ------ |
+  | `core-base`                               | 5451 B |
+  | `core-base-devtools` (`.use(devtools())`) | 6672 B |
+
 - **A site with a Content Security Policy must allow `https://cdn.jsdelivr.net` in `script-src`**,
   and a site that enforces Trusted Types needs a `default` policy whose `createScriptURL` accepts
   that URL, since the loader assigns `script.src` as a plain string. No `style-src` change where
