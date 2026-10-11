@@ -264,6 +264,33 @@ describe("`#` is formatted for the locale (ICU MessageFormat semantics)", () => 
     expect(en.t("literal", { count: 1234 })).toBe("# is 1,234 ");
   });
 
+  it("keeps the sign of negative zero, like Intl", () => {
+    const en = new I18n({ locale: "en" });
+    en.addMessages({ en: { items: "{count, plural, other {# items}}" } });
+    expect(en.t("items", { count: -0 })).toBe(`${nf("en", -0)} items`);
+    expect(en.t("items", { count: -0 })).toBe("-0 items");
+    expect(en.t("items", { count: 0 })).toBe("0 items");
+  });
+
+  it("uses the locale's digits and minus sign below the plain-integer range", () => {
+    const eg = new I18n({ locale: "ar-EG" });
+    eg.addMessages({ "ar-EG": { items: "{count, plural, other {# items}}" } });
+    expect(eg.t("items", { count: 5 })).toBe(`${nf("ar-EG", 5)} items`);
+
+    const sv = new I18n({ locale: "sv" });
+    sv.addMessages({ sv: { items: "{count, plural, other {# items}}" } });
+    expect(sv.t("items", { count: -5 })).toBe(`${nf("sv", -5)} items`);
+  });
+
+  it("groups integers at and beyond +-1000", () => {
+    const en = new I18n({ locale: "en" });
+    en.addMessages({ en: { items: "{count, plural, other {# items}}" } });
+    expect(en.t("items", { count: 1000 })).toBe("1,000 items");
+    expect(en.t("items", { count: -1000 })).toBe(`${nf("en", -1000)} items`);
+    expect(en.t("items", { count: -1234 })).toBe(`${nf("en", -1234)} items`);
+    expect(en.t("items", { count: -999 })).toBe("-999 items");
+  });
+
   it("falls back to the runtime default locale for an invalid locale tag", () => {
     const odd = new I18n({ locale: "not a locale" });
     odd.addMessages({ "not a locale": { items: "{count, plural, other {# items}}" } });

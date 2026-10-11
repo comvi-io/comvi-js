@@ -123,7 +123,14 @@ export function formatHashCount(locale: string, count: number): string {
     lastHashFormat = getHashFormat(locale);
     lastHashLocale = locale;
   }
-  if (lastHashFormat.plainInts && count > -1000 && count < 1000 && count % 1 === 0) {
+  // `String(-0)` is "0" where Intl keeps the sign, so negative zero takes the slow path.
+  if (
+    lastHashFormat.plainInts &&
+    count > -1000 &&
+    count < 1000 &&
+    count % 1 === 0 &&
+    (count !== 0 || 1 / count > 0)
+  ) {
     return String(count);
   }
   return lastHashFormat.format.format(count);
