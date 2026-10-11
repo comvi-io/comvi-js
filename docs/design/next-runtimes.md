@@ -27,8 +27,9 @@ need three, which is the question a reader asks once and then never again.
 - **The shared instance contributes the catalog and the loader; the locale belongs to the request**
   and is passed explicitly to every `getI18n()` lookup.
 - **`createNextI18n` composes capabilities and does not pick a compiler.** It composes ambient tag
-  syntax, the loader with both `registerLoader` overloads, the plugin host, default params and
-  devtools discovery; the `icuCompiler` default is gone.
+  syntax, the loader with both `registerLoader` overloads, the plugin host and default params; the
+  `icuCompiler` default is gone. Discovery is opt-in as in every binding: the browser extension
+  sees a Next app only after `.use(devtools())` on the result.
 - **`<I18nProvider>` passes `ssrInitialIsInitializing={false}` on the app's behalf**, so a `fallback`
   in a Next app gates only what the CLIENT host still has to initialize after hydration.
 
@@ -51,7 +52,7 @@ request with no determinable locale throws before it triggers that one-time init
 ### Why the URL rules live in a third file
 
 A `middleware.ts` that does `import { routing } from "./i18n/config"` pulls core, the loader, the
-plugin host, devtools, the tag grammar and whatever compiler the config names into the Edge isolate
+plugin host, the tag grammar and whatever compiler the config names into the Edge isolate
 — and runs `createNextI18n()` and `registerLoader()` there — for one plain object: 30.3 KB across 25
 modules, against 3.8 KB across 7 with a `defineRouting` file (esbuild, minified, Next's externals,
 measured on a config that names `compiler: icuCompiler`).

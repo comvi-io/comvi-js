@@ -1,8 +1,15 @@
 // The PUBLISHED `@comvi/next` root type contract: `createNextI18n` returns the
 // exact, explicitly published `NextComposedI18n<D>` the non-exported builder
 // produces. `tests/composed-contract.test.ts` is the behavioural half.
-import type { NextComposedI18n, NextPluginOptions } from "@comvi/next";
-import { createNextI18n, definePlugin, loader, nextPlugin, nextPluginLazy } from "@comvi/next";
+import type { CreateNextI18nOptions, NextComposedI18n, NextPluginOptions } from "@comvi/next";
+import {
+  createNextI18n,
+  definePlugin,
+  devtools,
+  loader,
+  nextPlugin,
+  nextPluginLazy,
+} from "@comvi/next";
 import { defineRouting } from "../../src/routing";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
 import type { I18n, I18nLoaderApi, I18nPlugin, I18nPluginApi, LoaderFn } from "@comvi/core";
@@ -163,3 +170,18 @@ export type _RoutingSpreadsIntoFactory = Expect<Equal<typeof _spread.i18n, NextC
 const LOCALES = ["en", "de"] as const;
 const _fromTuple = createNextI18n({ locales: LOCALES, defaultLocale: "en" });
 export type _AsConstLocalesAccepted = Expect<Equal<typeof _fromTuple.i18n, NextComposedI18n<{}>>>;
+
+// Discovery is opt-in: the factory takes no discovery option, and the
+// installer composes onto the result without changing the instance type.
+export type _NoDiscoveryOptions = Expect<
+  Equal<Extract<keyof CreateNextI18nOptions, "instanceId" | "exposeGlobal">, never>
+>;
+// @ts-expect-error -- `instanceId` belongs to `devtools({ instanceId })`
+createNextI18n({ locales: ["en"], defaultLocale: "en", instanceId: "app" });
+// @ts-expect-error -- `exposeGlobal` belongs to `devtools({ exposeGlobal })`
+createNextI18n({ locales: ["en"], defaultLocale: "en", exposeGlobal: true });
+
+const _discoverable = createNextI18n({ locales: ["en"], defaultLocale: "en" }).use(
+  devtools({ instanceId: "app" }),
+);
+export type _DevtoolsKeepsComposedType = Expect<Equal<typeof _discoverable.i18n, NextComposedI18n>>;

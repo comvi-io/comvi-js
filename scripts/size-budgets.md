@@ -178,22 +178,10 @@ folds that drift in. Only `platform-path-react` crossed its old budget (11921 B)
 budget is now the new baseline + 5 %, rounded up, the rule `scripts/docs-snippets/run.test.mjs`
 enforces for every row (`platform-path-react` 12551 B, `core-base-icu` 6978 B, `core-base` 5724 B).
 
-## 2026-10-11: the editor loader in `devtools()`
+## 2026-10-11: `createNextI18n` composes no discovery
 
-The devtools capability now installs the page-level editor loader the browser extension calls
-(`contracts/chrome-extension-proxy.json`, `editorLoader`): the slot, the version check, the hourly
-cache salt, one `<script>` with a 10 s timeout, and the four failure codes including the CSP
-listener. It costs about 690 B min+gz (1,500 B minified) on every row whose graph composes
-devtools, and no code on any other row. Measured on one machine against `develop` @ 41661e12, per
-row: `core-full-composite` 9600 → 10292 B (+692), `fw-react-full-composite` 12542 → 13233 (+691),
-`fw-solid-full-composite` 11921 → 12615 (+694), `fw-svelte-full-composite` 12630 → 13319 (+689),
-`fw-vue-full-composite` 12578 → 13277 (+699), `fw-next-root-composed` 10303 → 10993 (+690),
-`fw-nuxt-full-composite` 13500 → 14203 (+703), `fw-nuxt-i18n` 8671 → 9371 (+700).
-
-On the previous budgets those eight rows are 43–283 B over, so they were re-baselined to the
-figures above; the rise is the loader (the previous baselines, recorded the same day, sit 14–18 B
-below the `develop` figures above). The other fifteen rows keep their baselines and budgets. Their
-minified size is unchanged to the byte; their gzip figure moved by −5…0 B (`fw-svelte-default`
-7075 → 7070, `fw-react-default` 7430 → 7428, `core-base` 5457 → 5457), because the core build
-shares one terser name cache across chunks and an edit to the devtools chunk reassigns the mangled
-letters in the others.
+`createNextI18n` no longer attaches devtools discovery (COM-140), so the `@comvi/core/devtools`
+graph left the `fw-next-root-composed` fixture, which composes the loader and a scoped plugin and
+no `devtools()`. Only that row was re-baselined: 10286 → 9909 B min+gz (28740 → 27569 B min),
+budget 10801 → 10405 B (baseline + 5 %, rounded up). The other five Next rows did not move. No row
+measures the Next root with `.use(devtools())`.
