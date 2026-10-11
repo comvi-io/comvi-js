@@ -330,6 +330,7 @@ describe("standalone lifecycle notifications", () => {
       comviDetected: true,
       comviVersion: "0.3.0",
       instanceCount: 1,
+      hook: null,
     });
 
     first?.stop();
@@ -340,6 +341,7 @@ describe("standalone lifecycle notifications", () => {
       comviDetected: true,
       comviVersion: "0.3.0",
       instanceCount: 1,
+      hook: null,
     });
   });
 
