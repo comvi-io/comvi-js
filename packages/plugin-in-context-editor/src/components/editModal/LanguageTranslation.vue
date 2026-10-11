@@ -169,7 +169,7 @@ const formChipClass =
 </script>
 
 <template>
-  <div :class="['p-4', lang.isSource ? 'bg-accent-soft/30' : '']">
+  <div class="p-4">
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2">
         <Button
@@ -184,7 +184,7 @@ const formChipClass =
           <ChevronDown v-else class="h-4 w-4" />
         </Button>
         <span class="font-medium">{{ lang.name }}</span>
-        <Badge v-if="lang.isSource" variant="accent">Source</Badge>
+        <Badge v-if="lang.isSource" variant="role">Source</Badge>
       </div>
     </div>
 

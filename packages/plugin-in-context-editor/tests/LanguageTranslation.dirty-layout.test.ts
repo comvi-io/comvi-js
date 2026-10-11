@@ -77,3 +77,32 @@ describe("LanguageTranslation dirty marker does not shift the field", () => {
     });
   }
 });
+
+describe("LanguageTranslation source section", () => {
+  const mountLang = (isSource: boolean) =>
+    mount(LanguageTranslation, {
+      props: { lang: { ...GERMAN, isSource }, translations: {} },
+      global: {
+        provide: {
+          translationManager: {
+            isPlural: computed(() => false),
+            getSelectConfig: () => undefined,
+            isFieldDirty: () => false,
+            isRawLanguage: () => false,
+          },
+        },
+        stubs: { Tooltip: true, TooltipTrigger: true, TooltipContent: true },
+      },
+    });
+
+  it("has no background tint and shows a neutral Source badge", () => {
+    const wrapper = mountLang(true);
+
+    expect(wrapper.element.className).not.toMatch(/\bbg-/);
+    const badge = wrapper.findAll("div").find((el) => el.text() === "Source");
+    expect(badge, "Source badge").toBeDefined();
+    expect(badge!.classes()).toContain("bg-surface-2");
+    expect(badge!.classes()).not.toContain("bg-accent-soft");
+    expect(badge!.classes()).not.toContain("text-primary");
+  });
+});
