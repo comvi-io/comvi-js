@@ -91,11 +91,12 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   Enable is what the loader replaces.
 - **An exact version as the default** — the site would then pin the editor to whatever
   `@comvi/core` it was built with, and an editor fix would again wait for every site to rebuild.
-  With `latest`, a fix reaches the page without a rebuild, in two steps: jsDelivr's edge serves the
-  alias for up to 12 hours (`s-maxage=43200`) unless the purge the release workflow requests
-  succeeds, and the hourly salt bounds the browser's own copy to an hour on top of that. So within
-  the hour after a successful purge, up to 13 hours without one. A site that wants the pin has
-  `editorVersion`.
+  With `latest`, a fix reaches the page without a rebuild, in two steps. jsDelivr's edge keeps the
+  alias until the purge the release workflow requests succeeds; without one, for 12 hours by the
+  header it sends today (`s-maxage=43200`, observed 2026-10-12), while jsDelivr's README documents
+  up to 7 days for a version alias. The hourly salt then bounds the browser's own copy to an hour.
+  So within the hour after a successful purge, and 13 hours by today's header without one. A site
+  that wants the pin has `editorVersion`.
 - **Comvi's own CDN** — a second origin to run, purge and keep in every site's CSP, for a file npm
   already publishes. jsDelivr serves the published tarball, caches an exact version indefinitely
   and takes a purge call for the alias.
