@@ -33,6 +33,11 @@ function makeWorkspace(t, packages) {
     for (const [file, source] of Object.entries(pkg.configs ?? {})) {
       fs.writeFileSync(path.join(dir, file), source);
     }
+    for (const [dependency, version] of Object.entries(pkg.installed ?? {})) {
+      const target = path.join(dir, "node_modules", dependency, "package.json");
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, `${JSON.stringify({ name: dependency, version })}\n`);
+    }
     if (pkg.dist) {
       for (const [file, source] of Object.entries(pkg.dist)) {
         const target = path.join(dir, "dist", file);
@@ -49,6 +54,92 @@ test("collectVersionLiterals finds quoted semver strings, prerelease included", 
   assert.deepEqual(collectVersionLiterals(`var VERSION = '0.5.0-rc.3';`), ["0.5.0-rc.3"]);
   assert.deepEqual(collectVersionLiterals(`let a="0.4.0",b="1.2.3"`), ["0.4.0", "1.2.3"]);
   assert.deepEqual(collectVersionLiterals(`const notAVersion = "0.5"`), []);
+});
+
+test("collectVersionLiterals finds a version a minifier wrote as a template literal", () => {
+  assert.deepEqual(collectVersionLiterals("var RM=`0.5.0`,zM=Symbol.for(`x`)"), ["0.5.0"]);
+});
+
+const EDITOR = {
+  dir: "plugin-in-context-editor",
+  name: "@comvi/plugin-in-context-editor",
+  version: "0.5.1",
+  configs: { "vite.config.standalone.ts": INLINING_CONFIG },
+};
+
+test("a bundled dependency's own version literal passes while it is the installed version", (t) => {
+  const root = makeWorkspace(t, [
+    {
+      ...EDITOR,
+      installed: { vue: "3.5.32" },
+      dist: {
+        "standalone.iife.js": "var Gu=`3.5.32`,RM=`0.5.1`",
+        "EditModal-abc.js": `const version = "3.5.32";`,
+      },
+    },
+  ]);
+
+  assert.deepEqual(checkInlinedVersions({ root, log() {} }).problems, []);
+});
+
+test("a stale own version fails next to a bundled dependency's literal", (t) => {
+  const root = makeWorkspace(t, [
+    {
+      ...EDITOR,
+      installed: { vue: "3.5.32" },
+      dist: { "standalone.iife.js": "var Gu=`3.5.32`,RM=`0.5.0`" },
+    },
+  ]);
+
+  const { problems } = checkInlinedVersions({ root, log() {} });
+  assert.equal(problems.length, 2);
+  assert.match(
+    problems[0],
+    /standalone\.iife\.js inlines version "0\.5\.0" but the manifest says 0\.5\.1/,
+  );
+  assert.match(problems[1], /no built file inlines the manifest version 0\.5\.1/);
+});
+
+test("a literal that is not the installed version of the bundled dependency fails", (t) => {
+  const root = makeWorkspace(t, [
+    {
+      ...EDITOR,
+      installed: { vue: "3.5.32" },
+      dist: { "standalone.iife.js": "var Gu=`3.4.0`,RM=`0.5.1`" },
+    },
+  ]);
+
+  const { problems } = checkInlinedVersions({ root, log() {} });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /inlines version "3\.4\.0"/);
+});
+
+test("a bundled dependency that is not installed is reported, not waved through", (t) => {
+  const root = makeWorkspace(t, [
+    { ...EDITOR, dist: { "standalone.iife.js": "var Gu=`3.5.32`,RM=`0.5.1`" } },
+  ]);
+
+  const { problems } = checkInlinedVersions({ root, log() {} });
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /bundled dependency vue is not installed/);
+  assert.match(problems[1], /inlines version "3\.5\.32"/);
+});
+
+test("the bundled-dependency record is per package: another package's same literal still fails", (t) => {
+  const root = makeWorkspace(t, [
+    {
+      dir: "core",
+      name: "@comvi/core",
+      version: "0.5.1",
+      configs: { "vite.config.ts": INLINING_CONFIG },
+      installed: { vue: "3.5.32" },
+      dist: { "core.js": `const a="0.5.1",b="3.5.32"` },
+    },
+  ]);
+
+  const { problems } = checkInlinedVersions({ root, log() {} });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /@comvi\/core: dist\/core\.js inlines version "3\.5\.32"/);
 });
 
 test("discovery only picks packages whose vite config defines __VERSION__", (t) => {

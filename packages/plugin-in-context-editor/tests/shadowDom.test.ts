@@ -1,20 +1,76 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import editorCss from "../src/assets/index.css?inline";
 import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "../src/constants";
 import { createShadowDomContainer, removeShadowDomContainer } from "../src/utils/shadowDom";
+
+/**
+ * The module keeps the constructed sheet for the page's lifetime, so a suite
+ * that takes constructable stylesheets away needs a module that never built one.
+ */
+async function freshCreateShadowDomContainer(): Promise<typeof createShadowDomContainer> {
+  vi.resetModules();
+  return (await import("../src/utils/shadowDom")).createShadowDomContainer;
+}
 
 describe("createShadowDomContainer()", () => {
   afterEach(() => {
     document.body.innerHTML = "";
   });
 
-  it("creates an isolated shadow container with styles and mount point", () => {
+  it("creates an isolated shadow container with a mount point", () => {
     const { container, shadowRoot, mountPoint } = createShadowDomContainer();
 
     expect(document.body.contains(container)).toBe(true);
     expect(container.getAttribute(EDITOR_UI_SHADOW_HOST_ATTRIBUTE)).toBe("true");
     expect(container.shadowRoot).toBe(shadowRoot);
-    expect(shadowRoot.querySelector("style")).not.toBeNull();
     expect(shadowRoot.contains(mountPoint)).toBe(true);
+  });
+
+  it("browser with constructable stylesheets → the shadow root adopts the editor stylesheet", () => {
+    const { shadowRoot } = createShadowDomContainer();
+
+    expect(shadowRoot.adoptedStyleSheets).toHaveLength(1);
+    expect(shadowRoot.adoptedStyleSheets[0]).toBeInstanceOf(CSSStyleSheet);
+  });
+
+  it("browser with constructable stylesheets → no <style> element is created, so CSP style-src has nothing to block", () => {
+    const { shadowRoot } = createShadowDomContainer();
+
+    expect(shadowRoot.querySelector("style")).toBeNull();
+  });
+
+  it("two containers → both shadow roots adopt the same stylesheet object, parsed once", async () => {
+    const create = await freshCreateShadowDomContainer();
+    const replaceSync = vi.spyOn(CSSStyleSheet.prototype, "replaceSync");
+
+    const first = create();
+    const second = create();
+
+    expect(second.shadowRoot.adoptedStyleSheets[0]).toBe(first.shadowRoot.adoptedStyleSheets[0]);
+    expect(replaceSync).toHaveBeenCalledExactlyOnceWith(editorCss);
+  });
+
+  it("browser without the CSSStyleSheet constructor → falls back to a <style> element with the stylesheet text", async () => {
+    const create = await freshCreateShadowDomContainer();
+    vi.stubGlobal("CSSStyleSheet", undefined);
+
+    const { shadowRoot } = create();
+
+    expect(shadowRoot.querySelectorAll("style")).toHaveLength(1);
+    expect(shadowRoot.querySelector("style")?.textContent).toBe(editorCss);
+  });
+
+  it("shadow root that rejects adoptedStyleSheets → falls back to a <style> element placed before the mount point", async () => {
+    const create = await freshCreateShadowDomContainer();
+    vi.spyOn(ShadowRoot.prototype, "adoptedStyleSheets", "set").mockImplementation(() => {
+      throw new TypeError("adoptedStyleSheets is not supported");
+    });
+
+    const { shadowRoot, mountPoint } = create();
+
+    expect(shadowRoot.querySelector("style")?.textContent).toBe(editorCss);
+    expect(shadowRoot.firstElementChild?.tagName).toBe("STYLE");
+    expect(shadowRoot.lastElementChild).toBe(mountPoint);
   });
 
   it("gives each call its own host, root and mount point", () => {

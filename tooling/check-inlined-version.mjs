@@ -23,7 +23,12 @@
  * such literals are the inlined copies themselves, so a stale build is caught
  * in both directions (missing new version, or a leftover old one). If a package
  * ever ships an unrelated semver literal in `dist`, this gate is where to
- * record it.
+ * record it: `BUNDLED_DEPENDENCY_VERSIONS` names the dependencies a package
+ * bundles together with their own version string. Such a literal is accepted
+ * only while it equals the version of the dependency that is installed.
+ *
+ * A minified build writes its strings as template literals, so a backtick
+ * quotes a version as well as `"` and `'` do.
  *
  * Usage: `node tooling/check-inlined-version.mjs` from the repo root.
  */
@@ -33,7 +38,33 @@ import { fileURLToPath } from "node:url";
 
 const BUILT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
 const VITE_CONFIG = /^vite\.config.*\.(ts|mts|js|mjs)$/;
-const SEMVER_LITERAL = /["'](\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)["']/g;
+const SEMVER_LITERAL = /["'`](\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)["'`]/g;
+
+/**
+ * Dependencies whose own version string a package bundles into `dist`.
+ * `@comvi/plugin-in-context-editor` bundles Vue, whose runtime carries
+ * `version`, into the standalone IIFE and the lazily loaded editor chunks.
+ */
+export const BUNDLED_DEPENDENCY_VERSIONS = {
+  "@comvi/plugin-in-context-editor": ["vue"],
+};
+
+/** The installed version of every dependency `pkg` is recorded as bundling. */
+function bundledDependencyVersions(pkg, problems) {
+  const versions = new Set();
+  for (const dependency of BUNDLED_DEPENDENCY_VERSIONS[pkg.name] ?? []) {
+    const manifestPath = path.join(pkg.dir, "node_modules", dependency, "package.json");
+    if (!fs.existsSync(manifestPath)) {
+      problems.push(
+        `${pkg.name}: bundled dependency ${dependency} is not installed, so its version ` +
+          `literal cannot be told apart from a stale one — run pnpm install before this gate`,
+      );
+      continue;
+    }
+    versions.add(JSON.parse(fs.readFileSync(manifestPath, "utf8")).version);
+  }
+  return versions;
+}
 
 /** Package directories whose vite config inlines `__VERSION__`. */
 export function packagesInliningVersion(root) {
@@ -81,12 +112,13 @@ export function checkPackage(pkg) {
     };
   }
 
+  const bundled = bundledDependencyVersions(pkg, problems);
   let matched = 0;
   for (const file of builtFiles(distDir)) {
     const literals = collectVersionLiterals(fs.readFileSync(file, "utf8"));
     for (const literal of literals) {
       if (literal === pkg.version) matched += 1;
-      else
+      else if (!bundled.has(literal))
         problems.push(
           `${pkg.name}: ${path.relative(pkg.dir, file)} inlines version "${literal}" but the ` +
             `manifest says ${pkg.version} — the build ran against a different manifest ` +

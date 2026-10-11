@@ -14,6 +14,29 @@ export interface ShadowDomContainer {
   mountPoint: HTMLElement;
 }
 
+let editorSheet: CSSStyleSheet | undefined;
+
+/**
+ * Adopts the editor stylesheet as one constructable sheet shared by every
+ * editor shadow root. CSSOM is outside CSP's `style-src`, which blocks an
+ * inline `<style>` element — in a shadow root too — on a site that allows
+ * neither `'unsafe-inline'` nor a nonce. Returns false where the browser has
+ * no constructable stylesheets; the caller then falls back to `<style>`.
+ */
+function adoptEditorStyles(shadowRoot: ShadowRoot): boolean {
+  try {
+    if (!editorSheet) {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(style);
+      editorSheet = sheet;
+    }
+    shadowRoot.adoptedStyleSheets = [editorSheet];
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The plugin's own CSS is injected INTO the shadow root, so host page styles
  * cannot reach the editor UI and the editor's cannot leak out.
@@ -36,9 +59,11 @@ export function createShadowDomContainer(): ShadowDomContainer {
 
   const shadowRoot = container.attachShadow({ mode: "open" });
 
-  const styleElement = document.createElement("style");
-  styleElement.textContent = style;
-  shadowRoot.appendChild(styleElement);
+  if (!adoptEditorStyles(shadowRoot)) {
+    const styleElement = document.createElement("style");
+    styleElement.textContent = style;
+    shadowRoot.appendChild(styleElement);
+  }
 
   const mountPoint = document.createElement("div");
   shadowRoot.appendChild(mountPoint);

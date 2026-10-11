@@ -21,6 +21,47 @@ let activeLifecycleCallback: ((detail: EditorLifecycleDetail) => void) | undefin
 // later render refresh, not this merge.
 let activeRefreshController: AbortController | undefined;
 
+// Stamped by the standalone build; the editor loader reports it as the
+// loaded editor's version.
+declare const __VERSION__: string;
+
+/** The editor's own package version. */
+export const version: string = __VERSION__;
+
+const EDITOR_LOADER_KEY = Symbol.for("comvi.devtools.editorLoader");
+
+/** What the editor records of the `devtools()` loader slot that is on the page. */
+export interface EditorLoaderHookStatus {
+  protocol: number;
+  sdkVersion: string | undefined;
+}
+
+let editorLoaderHook: EditorLoaderHookStatus | null = null;
+
+/**
+ * Reads the editor-loader slot (`contracts/chrome-extension-proxy.json`,
+ * "editorLoader"). The slot is page-authored: there is none when an extension
+ * that bundles the editor injected it, and a core newer than this editor
+ * installs a higher protocol with fields this editor does not know. Every
+ * protocol from 1 up is accepted and only protocol-1 fields are read.
+ */
+function readEditorLoaderHook(): EditorLoaderHookStatus | null {
+  try {
+    const slot = (globalThis as unknown as Record<symbol, unknown>)[EDITOR_LOADER_KEY] as
+      | { protocol?: unknown; sdkVersion?: unknown }
+      | null
+      | undefined;
+    const protocol = slot?.protocol;
+    if (typeof protocol !== "number" || !Number.isInteger(protocol) || protocol < 1) {
+      return null;
+    }
+    const sdkVersion = slot?.sdkVersion;
+    return { protocol, sdkVersion: typeof sdkVersion === "string" ? sdkVersion : undefined };
+  } catch {
+    return null;
+  }
+}
+
 /** Public, credential-free lifecycle event emitted by the standalone runtime. */
 export const EDITOR_LIFECYCLE_EVENT = "comvi-in-context-editor:lifecycle";
 
@@ -362,11 +403,14 @@ export function getStatus(): {
   comviDetected: boolean;
   comviVersion: string | null;
   instanceCount: number;
+  /** The `devtools()` editor-loader slot read at boot; `null` when the page had none. */
+  hook: EditorLoaderHookStatus | null;
 } {
   return {
     active: activeCore !== null,
     instanceId: activeCore?.getInstanceId() ?? null,
     ...readComviGlobalStatus(),
+    hook: editorLoaderHook,
   };
 }
 
@@ -381,6 +425,7 @@ declare global {
       isActive: typeof isActive;
       getStatus: typeof getStatus;
       inContextEditorPlugin: typeof inContextEditorPlugin;
+      version: string;
     };
   }
 }
@@ -390,11 +435,13 @@ declare global {
 // entries pushed between now and activate() are never lost.
 if (typeof window !== "undefined") {
   ensureComviHook();
+  editorLoaderHook = readEditorLoaderHook();
   window.ComviInContextEditor = {
     activate,
     deactivate,
     isActive,
     getStatus,
     inContextEditorPlugin,
+    version,
   };
 }
