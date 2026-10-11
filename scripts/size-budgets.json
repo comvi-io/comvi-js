@@ -12,7 +12,7 @@
         "@comvi/core/devtools"
       ],
       "fixture": "core-full-composite.ts",
-      "gzipBudgetBytes": 9859,
+      "gzipBudgetBytes": 10062,
       "baseline": {
         "minBytes": 26796,
         "gzipBytes": 9582,
@@ -24,7 +24,7 @@
       "name": "core-base",
       "entry": "@comvi/core",
       "fixture": "core-base.ts",
-      "gzipBudgetBytes": 5534,
+      "gzipBudgetBytes": 5724,
       "baseline": {
         "minBytes": 14609,
         "gzipBytes": 5451,
@@ -36,7 +36,7 @@
       "name": "core-base-icu",
       "entry": ["@comvi/core", "@comvi/core/icu"],
       "fixture": "core-base-icu.ts",
-      "gzipBudgetBytes": 6828,
+      "gzipBudgetBytes": 6978,
       "baseline": {
         "minBytes": 17696,
         "gzipBytes": 6645,
@@ -49,7 +49,7 @@
       "entry": ["@comvi/react"],
       "fixture": "framework/react-default.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 7738,
+      "gzipBudgetBytes": 7796,
       "baseline": {
         "minBytes": 20075,
         "gzipBytes": 7424,
@@ -62,7 +62,7 @@
       "entry": ["@comvi/react"],
       "fixture": "framework/react-full-composite.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 12876,
+      "gzipBudgetBytes": 13153,
       "baseline": {
         "minBytes": 34957,
         "gzipBytes": 12526,
@@ -75,7 +75,7 @@
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-default.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 6921,
+      "gzipBudgetBytes": 7208,
       "baseline": {
         "minBytes": 19258,
         "gzipBytes": 6864,
@@ -88,7 +88,7 @@
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-full-composite.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 12310,
+      "gzipBudgetBytes": 12502,
       "baseline": {
         "minBytes": 34164,
         "gzipBytes": 11906,
@@ -101,7 +101,7 @@
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-default.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 7421,
+      "gzipBudgetBytes": 7419,
       "baseline": {
         "minBytes": 19560,
         "gzipBytes": 7065,
@@ -114,7 +114,7 @@
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-full-composite.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 12936,
+      "gzipBudgetBytes": 13247,
       "baseline": {
         "minBytes": 35611,
         "gzipBytes": 12616,
@@ -127,7 +127,7 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-default.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 7636,
+      "gzipBudgetBytes": 7920,
       "baseline": {
         "minBytes": 22805,
         "gzipBytes": 7542,
@@ -140,7 +140,7 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 13010,
+      "gzipBudgetBytes": 13193,
       "baseline": {
         "minBytes": 37673,
         "gzipBytes": 12564,
@@ -153,7 +153,7 @@
       "entry": ["@comvi/next/server"],
       "fixture": "framework/next-server-default-loader.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 8207,
+      "gzipBudgetBytes": 8593,
       "baseline": {
         "minBytes": 21901,
         "gzipBytes": 8183,
@@ -166,7 +166,7 @@
       "entry": ["@comvi/next/client"],
       "fixture": "framework/next-client-default.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 8155,
+      "gzipBudgetBytes": 8448,
       "baseline": {
         "minBytes": 21840,
         "gzipBytes": 8045,
@@ -179,7 +179,7 @@
       "entry": ["@comvi/next"],
       "fixture": "framework/next-root-composed.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 10441,
+      "gzipBudgetBytes": 10801,
       "baseline": {
         "minBytes": 28740,
         "gzipBytes": 10286,
@@ -199,7 +199,7 @@
         "@comvi/next/config",
         "*/client/ComviClientProvider.js"
       ],
-      "gzipBudgetBytes": 2128,
+      "gzipBudgetBytes": 2155,
       "baseline": {
         "minBytes": 4383,
         "gzipBytes": 2052,
@@ -212,7 +212,7 @@
       "entry": ["@comvi/next/plugin"],
       "fixture": "framework/next-plugin-node.ts",
       "external": ["next", "next/*", "node:*"],
-      "gzipBudgetBytes": 984,
+      "gzipBudgetBytes": 986,
       "baseline": {
         "minBytes": 1668,
         "gzipBytes": 939,
@@ -225,7 +225,7 @@
       "entry": ["@comvi/next/middleware"],
       "fixture": "framework/next-middleware-edge.ts",
       "external": ["next", "next/*"],
-      "gzipBudgetBytes": 2097,
+      "gzipBudgetBytes": 2148,
       "baseline": {
         "minBytes": 4829,
         "gzipBytes": 2045,
@@ -253,7 +253,7 @@
         "import.meta.client": "true",
         "import.meta.dev": "false"
       },
-      "gzipBudgetBytes": 13940,
+      "gzipBudgetBytes": 14160,
       "baseline": {
         "minBytes": 39721,
         "gzipBytes": 13485,
@@ -275,7 +275,7 @@
         "import.meta.client": "true",
         "import.meta.dev": "false"
       },
-      "gzipBudgetBytes": 8718,
+      "gzipBudgetBytes": 8992,
       "baseline": {
         "minBytes": 25410,
         "gzipBytes": 8563,
@@ -287,7 +287,7 @@
       "name": "fw-nuxt-i18n",
       "entry": ["@comvi/nuxt/i18n"],
       "fixture": "framework/nuxt-i18n.ts",
-      "gzipBudgetBytes": 8836,
+      "gzipBudgetBytes": 9088,
       "baseline": {
         "minBytes": 24068,
         "gzipBytes": 8655,
@@ -299,7 +299,7 @@
       "name": "plugin-fetch-loader-api",
       "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader/api"],
       "fixture": "plugin-fetch-loader-api.ts",
-      "gzipBudgetBytes": 12297,
+      "gzipBudgetBytes": 12568,
       "baseline": {
         "minBytes": 32842,
         "gzipBytes": 11969,
@@ -311,7 +311,7 @@
       "name": "plugin-fetch-loader",
       "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
       "fixture": "plugin-fetch-loader.ts",
-      "gzipBudgetBytes": 10177,
+      "gzipBudgetBytes": 10527,
       "baseline": {
         "minBytes": 27198,
         "gzipBytes": 10025,

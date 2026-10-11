@@ -174,6 +174,6 @@ below 1000 on the `String()` fast path. Against the 0.5.0 code on `main` the cha
 All rows were re-baselined on this date. Most of the recorded movement is not this change: the
 previous baselines dated 2026-09-12 to 2026-10-05 sat 1–4 % below the code that shipped as 0.5.0
 (see `scripts/size-compare/README.md`, "Where the Comvi figures come from"), and this re-baseline
-folds that drift in. Only `platform-path-react` crossed its budget (11921 B), by 32 B; its budget
-is the new baseline + 5 % (12551 B), the same rule as its 10-04 re-baseline. The other budgets
-still hold and stay.
+folds that drift in. Only `platform-path-react` crossed its old budget (11921 B), by 32 B. Every
+budget is now the new baseline + 5 %, rounded up, the rule `scripts/docs-snippets/run.test.mjs`
+enforces for every row (`platform-path-react` 12551 B, `core-base-icu` 6978 B, `core-base` 5724 B).
