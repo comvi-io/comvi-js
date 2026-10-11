@@ -46,8 +46,8 @@ export type EditorLoadFailureCode = "csp-blocked" | "load-error" | "timeout" | "
 
 /**
  * What `EditorLoaderSlot.load()` resolves with. It never rejects. Every key
- * below except `message` is always present; one that does not apply holds
- * `undefined`.
+ * below except `message` is always present — one that does not apply holds
+ * `undefined`, it is not omitted.
  */
 export interface EditorLoadResult {
   ok: boolean;
@@ -60,15 +60,21 @@ export interface EditorLoadResult {
   sdkVersion: string;
   /** The hook↔editor protocol version of the slot that ran the load. */
   protocol: number;
-  /** The editor's own reported version when `ok`; `undefined` for an editor older than 0.5.1. */
-  editorVersion?: string;
   /**
-   * Set when `ok` is false. `csp-blocked` covers both a `script-src` policy and
-   * Trusted Types refusing the script.
+   * The editor's own reported version when `ok`; `undefined` for an editor
+   * older than 0.5.1, and when `ok` is false.
    */
-  code?: EditorLoadFailureCode;
-  /** Set when `ok` is false: the host a Content Security Policy has to allow. */
-  host?: string;
+  editorVersion: string | undefined;
+  /**
+   * The failure code when `ok` is false, otherwise `undefined`. `csp-blocked`
+   * covers both a `script-src` policy and Trusted Types refusing the script.
+   */
+  code: EditorLoadFailureCode | undefined;
+  /**
+   * When `ok` is false, the host a Content Security Policy has to allow;
+   * otherwise `undefined`.
+   */
+  host: string | undefined;
   /** Optional, human-readable. Reserved: core never sets it today. */
   message?: string;
 }

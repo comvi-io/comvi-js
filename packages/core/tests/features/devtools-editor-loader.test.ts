@@ -895,16 +895,83 @@ describe("the protocol-1 contract", () => {
     expect(slot.editorVersion).toBe(fixture.editorVersion);
   });
 
-  it("live ok result → every member of the fixture's result, with the same type", async () => {
+  /** The frozen result literals, one per outcome. */
+  const frozenResults = async (): Promise<Record<string, EditorLoadResult>> =>
+    (await import(PROTOCOL_1_FIXTURE)).results as Record<string, EditorLoadResult>;
+
+  it("the fixture's own load() → resolves with its frozen ok literal", async () => {
     const fixture = (await import(PROTOCOL_1_FIXTURE)).default as EditorLoaderSlot;
-    const expected = await fixture.load();
+
+    expect(await fixture.load()).toBe((await frozenResults()).ok);
+  });
+
+  it("every frozen result → the same seven own keys", async () => {
+    const keys = Object.values(await frozenResults()).map((result) => Object.keys(result).sort());
+
+    expect(new Set(keys.map(String))).toEqual(
+      new Set(["code,editorVersion,host,ok,protocol,sdkVersion,url"]),
+    );
+  });
+
+  it("live ok result → exactly the fixture's keys and value types", async () => {
+    const expected = (await frozenResults()).ok;
+    win.ComviInContextEditor = { activate: () => {}, version: "0.5.1" };
+
+    const result = await install().load();
+
+    expect(shape(result)).toEqual(shape(expected));
+    expect(result).toEqual({ ...expected, sdkVersion: pkg.version });
+  });
+
+  it("live ok result from an editor older than 0.5.1 → exactly the fixture's keys and value types", async () => {
+    const expected = (await frozenResults())["ok-editor-before-0.5.1"];
     win.ComviInContextEditor = { activate: () => {} };
 
-    const result: EditorLoadResult = await install().load();
+    const result = await install().load();
 
-    expect(shape(result)).toMatchObject(shape(expected));
-    expect(result.url).toBe(expected.url);
-    expect(result.protocol).toBe(expected.protocol);
+    expect(shape(result)).toEqual(shape(expected));
+    expect(result).toEqual({ ...expected, sdkVersion: pkg.version });
+  });
+
+  it.each([
+    [
+      "csp-blocked",
+      (script: HTMLScriptElement): void => {
+        violation(script.src, "script-src-elem");
+        script.dispatchEvent(new Event("error"));
+      },
+    ],
+    [
+      "load-error",
+      (script: HTMLScriptElement): void => {
+        script.dispatchEvent(new Event("error"));
+      },
+    ],
+    [
+      "timeout",
+      (): void => {
+        vi.advanceTimersByTime(10_000);
+      },
+    ],
+    [
+      "no-global",
+      (script: HTMLScriptElement): void => {
+        script.dispatchEvent(new Event("load"));
+      },
+    ],
+  ] as const)("live %s result → exactly the fixture's keys and value types", async (code, fail) => {
+    vi.useFakeTimers();
+    const expected = (await frozenResults())[code];
+    const promise = install().load();
+    const script = scripts()[0];
+
+    fail(script);
+    const result = await promise;
+
+    expect(shape(result)).toEqual(shape(expected));
+    // Equal apart from what varies by build and by hour: the version and the salt.
+    expect(result).toEqual({ ...expected, sdkVersion: pkg.version, url: script.src });
+    expect(script.src.startsWith(`${expected.url}?comvi=`)).toBe(true);
   });
 });
 
