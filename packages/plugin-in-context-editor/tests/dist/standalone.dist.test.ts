@@ -2,7 +2,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import pkg from "../package.json";
+import ts from "typescript";
+import pkg from "../../package.json";
 
 /**
  * The built standalone bundle, `dist/standalone.iife.js` — the file jsDelivr
@@ -13,9 +14,10 @@ import pkg from "../package.json";
  * src-level run cannot see either: vitest has its own `__VERSION__` define and
  * imports the stylesheet uncompiled. This suite boots the real file.
  *
- * Requires a fresh build.
+ * Requires a fresh build: without `dist/` every test here fails, none is
+ * skipped.
  */
-const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
+const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../dist");
 
 interface StandaloneGlobal {
   version: string;
@@ -44,21 +46,26 @@ function bootBundle(): StandaloneGlobal {
   return new Function(`${bundle}\n;return ComviInContextEditor;`)() as StandaloneGlobal;
 }
 
+/** A string holds a stylesheet when it has this many `selector{property:value}` blocks. */
+const STYLESHEET_RULES = 20;
+
 /**
- * Every stylesheet the build inlined as a string literal, found by its
- * Tailwind banner: the character before the banner is the literal's quote.
+ * Every stylesheet the build inlined as a string literal. The file is parsed,
+ * and a literal counts by its content: neither a banner the CSS toolchain
+ * writes nor the quote the minifier picked is relied on.
  */
 function inlinedStylesheets(source: string): string[] {
   const sheets: string[] = [];
-  const banner = "/*! tailwindcss";
-  for (let at = source.indexOf(banner); at !== -1; at = source.indexOf(banner, at + 1)) {
-    const quote = source[at - 1];
-    let end = at;
-    while (source[end] !== quote) {
-      end += source[end] === "\\" ? 2 : 1;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isStringLiteralLike(node) &&
+      (node.text.match(/\{[^{}]*:[^{}]*\}/g) ?? []).length >= STYLESHEET_RULES
+    ) {
+      sheets.push(node.text);
     }
-    sheets.push(source.slice(at, end));
-  }
+    ts.forEachChild(node, visit);
+  };
+  visit(ts.createSourceFile("bundle.js", source, ts.ScriptTarget.Latest, false));
   return sheets;
 }
 

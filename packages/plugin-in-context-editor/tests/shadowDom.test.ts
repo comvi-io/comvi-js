@@ -116,6 +116,38 @@ describe("createShadowDomContainer()", () => {
     expect(shadowRoot.querySelector("style")).toBeNull();
   });
 
+  it("setter that keeps a sheet of its own in front of the editor's → the sheet counts as adopted, no <style> fallback", async () => {
+    const create = await freshCreateShadowDomContainer();
+    const foreign = new CSSStyleSheet();
+    let adopted: CSSStyleSheet[] = [];
+    vi.spyOn(ShadowRoot.prototype, "adoptedStyleSheets", "set").mockImplementation((sheets) => {
+      adopted = [foreign, ...sheets];
+    });
+    vi.spyOn(ShadowRoot.prototype, "adoptedStyleSheets", "get").mockImplementation(() => adopted);
+
+    const { shadowRoot } = create();
+
+    expect(adopted).toHaveLength(2);
+    expect(adopted[0]).toBe(foreign);
+    expect(shadowRoot.querySelector("style")).toBeNull();
+  });
+
+  it("sheet adopted, but the read-back throws → <style> fallback and the adoption is taken back, so the styles apply once", async () => {
+    const create = await freshCreateShadowDomContainer();
+    let adopted: CSSStyleSheet[] = [];
+    vi.spyOn(ShadowRoot.prototype, "adoptedStyleSheets", "set").mockImplementation((sheets) => {
+      adopted = [...sheets];
+    });
+    vi.spyOn(ShadowRoot.prototype, "adoptedStyleSheets", "get").mockImplementation(() => {
+      throw new TypeError("adoptedStyleSheets cannot be read");
+    });
+
+    const { shadowRoot } = create();
+
+    expect(shadowRoot.querySelectorAll("style")).toHaveLength(1);
+    expect(adopted).toEqual([]);
+  });
+
   it("gives each call its own host, root and mount point", () => {
     const first = createShadowDomContainer();
     const second = createShadowDomContainer();

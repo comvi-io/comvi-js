@@ -22,13 +22,14 @@ let editorSheet: CSSStyleSheet | undefined;
  * inline `<style>` element — in a shadow root too — on a site that allows
  * neither `'unsafe-inline'` nor a nonce. Returns false where the sheet cannot
  * be constructed or does not end up adopted; the caller then falls back to
- * `<style>`.
+ * `<style>`, and whatever the root did adopt is taken back first, so the
+ * stylesheet never applies twice.
  */
 function adoptEditorStyles(shadowRoot: ShadowRoot): boolean {
+  if (!("adoptedStyleSheets" in shadowRoot)) {
+    return false;
+  }
   try {
-    if (!("adoptedStyleSheets" in shadowRoot)) {
-      return false;
-    }
     if (!editorSheet) {
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(style);
@@ -36,11 +37,20 @@ function adoptEditorStyles(shadowRoot: ShadowRoot): boolean {
     }
     shadowRoot.adoptedStyleSheets = [editorSheet];
     // An engine or a page-patched setter can take the assignment and adopt
-    // nothing; only a sheet that is really on the root counts.
-    return shadowRoot.adoptedStyleSheets[0] === editorSheet;
+    // nothing, or keep sheets of its own beside ours; only a sheet that is
+    // really on the root counts, at whatever index.
+    if (shadowRoot.adoptedStyleSheets.includes(editorSheet)) {
+      return true;
+    }
   } catch {
-    return false;
+    // Falls through to the reset below.
   }
+  try {
+    shadowRoot.adoptedStyleSheets = [];
+  } catch {
+    // A root that refuses the assignment adopted nothing.
+  }
+  return false;
 }
 
 /**
