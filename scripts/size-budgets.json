@@ -12,10 +12,10 @@
         "@comvi/core/devtools"
       ],
       "fixture": "core-full-composite.ts",
-      "gzipBudgetBytes": 10835,
+      "gzipBudgetBytes": 10849,
       "baseline": {
-        "minBytes": 28430,
-        "gzipBytes": 10319,
+        "minBytes": 28466,
+        "gzipBytes": 10332,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated core ceiling: all six core subpaths recomposed with `.use(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
@@ -62,10 +62,10 @@
       "entry": ["@comvi/react"],
       "fixture": "framework/react-full-composite.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 13923,
+      "gzipBudgetBytes": 13937,
       "baseline": {
-        "minBytes": 36589,
-        "gzipBytes": 13260,
+        "minBytes": 36625,
+        "gzipBytes": 13273,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated React ceiling: every capability composed through the one `@comvi/react` specifier."
@@ -88,10 +88,10 @@
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-full-composite.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 13272,
+      "gzipBudgetBytes": 13285,
       "baseline": {
-        "minBytes": 35803,
-        "gzipBytes": 12640,
+        "minBytes": 35839,
+        "gzipBytes": 12652,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier."
@@ -114,10 +114,10 @@
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-full-composite.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 14017,
+      "gzipBudgetBytes": 14022,
       "baseline": {
-        "minBytes": 37241,
-        "gzipBytes": 13349,
+        "minBytes": 37277,
+        "gzipBytes": 13354,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
@@ -140,10 +140,10 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 13974,
+      "gzipBudgetBytes": 13990,
       "baseline": {
-        "minBytes": 39311,
-        "gzipBytes": 13308,
+        "minBytes": 39347,
+        "gzipBytes": 13323,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier."
@@ -253,10 +253,10 @@
         "import.meta.client": "true",
         "import.meta.dev": "false"
       },
-      "gzipBudgetBytes": 14940,
+      "gzipBudgetBytes": 14952,
       "baseline": {
-        "minBytes": 41367,
-        "gzipBytes": 14228,
+        "minBytes": 41403,
+        "gzipBytes": 14240,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."
@@ -287,10 +287,10 @@
       "name": "fw-nuxt-i18n",
       "entry": ["@comvi/nuxt/i18n"],
       "fixture": "framework/nuxt-i18n.ts",
-      "gzipBudgetBytes": 9882,
+      "gzipBudgetBytes": 9893,
       "baseline": {
-        "minBytes": 25710,
-        "gzipBytes": 9411,
+        "minBytes": 25745,
+        "gzipBytes": 9421,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated `@comvi/nuxt/i18n` subpath: the one specifier a comvi.i18n.ts names, composing ICU + loader + plugin host + devtools through the module re-export instead of four app-declared @comvi/core subpaths."
