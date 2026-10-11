@@ -21,7 +21,7 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 - **A missing interpolation parameter renders as its own placeholder.** `t("greet")` on
   `"Hello, {name}!"` gives `"Hello, {name}!"` in 0.5, where 0.4 gave `"Hello, !"`, plus one
   development warning per template and parameter. An explicit `null` still renders as an empty
-  string. Opt out with `missingParam: "drop"`. This is 0.5's most visible behaviour change; the
+  string, and a function value renders as a missing parameter does. Opt out with `missingParam: "drop"`. This is 0.5's most visible behaviour change; the
   [0.5.0 release notes](https://github.com/comvi-io/comvi-js/blob/v0.5.0/.github/release-notes/0.5.0.md#breaking-changes-for-a-04-app)
   list it among the breaking changes for a 0.4 app.
 - **ICU is off unless you name it.** Without `compiler: icuCompiler` a plural throws in development

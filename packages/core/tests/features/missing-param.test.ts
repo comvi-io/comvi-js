@@ -173,8 +173,9 @@ describe("missingParam — dev warning", () => {
 /**
  * A function-valued parameter is a tag handler (`<link>…</link>`), never a
  * value for a `{link}` placeholder: the placeholder renders exactly as a
- * missing one does, in both modes, with the same development warning. Every
- * other non-primitive value is still coerced with `String()`.
+ * missing one does, in both modes; the development warning says what was
+ * passed instead of calling it missing. Every other non-primitive value is
+ * still coerced with `String()`.
  */
 describe("a function-valued param under a placeholder", () => {
   const handler = ({ children }: { children: unknown }) => `[${String(children)}]`;
@@ -203,7 +204,7 @@ describe("a function-valued param under a placeholder", () => {
     expect(i18n.t("msg", { link: handler })).toBe("[docs] and {link}");
   });
 
-  it("warns once, as for a missing parameter", () => {
+  it("warns once, naming the function rather than calling the parameter missing", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = makeFull(undefined, { msg: "See {link}." });
 
@@ -211,7 +212,31 @@ describe("a function-valued param under a placeholder", () => {
     i18n.t("msg", { link: handler });
 
     expect(warn.mock.calls).toEqual([
+      [
+        '[@comvi/core] Parameter "link" for template "See {link}." is a function, and a placeholder renders text. Call it and pass the result, or write <link>…</link> to use it as a tag handler.',
+      ],
+    ]);
+  });
+
+  it("an absent parameter in the same template → still the missing-parameter warning", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = makeFull(undefined, { msg: "See {link}." });
+
+    i18n.t("msg", {});
+
+    expect(warn.mock.calls).toEqual([
       ['[@comvi/core] Missing parameter "link" for template "See {link}."'],
+    ]);
+  });
+
+  it("an inherited member nobody passed → still the missing-parameter warning", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = makeFull(undefined, { msg: "See {constructor}." });
+
+    i18n.t("msg", {});
+
+    expect(warn.mock.calls).toEqual([
+      ['[@comvi/core] Missing parameter "constructor" for template "See {constructor}."'],
     ]);
   });
 
