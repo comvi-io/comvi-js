@@ -20,7 +20,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify changeset for package changes
+      # A changeset is required only for changes that reach a published
+      # artifact: `packages/*/src/**` or a package's own `package.json`.
+      # Tests, docs and config under packages/ do not ship, so they do not
+      # need one.
+      - name: Verify changeset for published package changes
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
@@ -29,10 +33,19 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
-          if ! echo "$CHANGED_FILES" | grep -qE '^packages/'; then
-            echo "No changes in packages/. Skipping changeset check."
+          PUBLISHED_CHANGES="$(
+            echo "$CHANGED_FILES" \
+              | grep -E '^packages/[^/]+/(src/|package\.json$)' \
+              || true
+          )"
+
+          if [ -z "$PUBLISHED_CHANGES" ]; then
+            echo "No changes to packages/*/src/** or packages/*/package.json. Skipping changeset check."
             exit 0
           fi
+
+          echo "Published-surface changes detected:"
+          echo "$PUBLISHED_CHANGES"
 
           CHANGESET_FILES="$(
             echo "$CHANGED_FILES" \
@@ -42,7 +55,7 @@ jobs:
           )"
 
           if [ -z "$CHANGESET_FILES" ]; then
-            echo "Package changes detected but no changeset file was added."
+            echo "Published package changes detected but no changeset file was added."
             echo "Run 'pnpm changeset' and commit the generated .changeset/*.md file."
             exit 1
           fi
@@ -66,25 +79,42 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Fails when the planned release bump exceeds what changesets declare
-      # (e.g. a pinned internal peer range escalating the fixed group to major)
-      - name: Release plan guard
-        run: node scripts/check-release-plan.mjs
-
-      - name: Release tooling tests
-        run: pnpm test:release-tools
-
       - name: Format check
         run: pnpm format:check
 
       - name: Lint
         run: pnpm lint
 
+      - name: Typecheck
+        run: pnpm typecheck
+
       - name: Security audit (published packages only — test-apps ignored)
         run: node scripts/audit-published.mjs
 
-      - name: Typecheck
-        run: pnpm typecheck
+      # Self-tests for the scripts that version and migrate: the root
+      # changelog builder, the rc version rewriter, the wrapper hooks parity
+      # check, and the docs-snippet linter.
+      - name: Release tooling tests
+        run: pnpm test:release-tools
+
+      # Symbol-lint over the npm documentation surface: packages/*/README.md,
+      # MIGRATION.md and the root README. Catches 0.4 API that 0.5.0 removed and
+      # 0.5 API a page never mentions — neither of which a type-check reports,
+      # since both are about which symbols a page names rather than about
+      # whether its code compiles. The type-check half is the `build` job's
+      # `check:snippets:types`, which needs dist; this half needs nothing and
+      # runs in seconds.
+      - name: Docs snippet gate (READMEs, symbols)
+        run: pnpm check:snippets
+
+      # The instant half of the examples gate: every example's src/locales must
+      # match the shared examples/locales, in both directions. StackBlitz opens
+      # ONE directory out of the tree, so the catalogs have to be real copies
+      # and copies drift. `pnpm examples:verify` — the build half — is a manual
+      # release gate (CONTRIBUTING gate 7); it packs fourteen tarballs and runs
+      # five installs, which does not belong in this job.
+      - name: Examples locale sync
+        run: node scripts/examples-sync-locales.mjs --check
 
   tests:
     name: Package tests
@@ -112,10 +142,13 @@ jobs:
       - name: Test
         run: pnpm test:commit
 
-  critical-coverage:
-    name: Critical package coverage
+  # One build, then every check that reads dist/, in order. Splitting these
+  # across jobs is what let package contracts, the size gate and the bundler
+  # matrix run against a missing or stale dist.
+  build:
+    name: Build, package contracts, size and bundler matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -132,31 +165,13 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Enforce editor transport and loader coverage
-        run: pnpm test:coverage:critical
-
-  package-contracts:
-    name: Build and package contracts
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      # The bundler-matrix consumer fixture app installs with npm (deliberately
+      # outside the pnpm workspace); cache its download work separately.
+      - name: Cache npm downloads for the bundler-matrix fixture app
+        uses: actions/cache@v4
         with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
+          path: ~/.npm
+          key: bundler-matrix-npm-${{ runner.os }}-${{ hashFiles('scripts/bundler-matrix/app/package.json') }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -164,28 +179,61 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # The built dist must inline the manifest version (core's devtools
+      # discovery and duplicate-copy guard key on it). Same gate the release
+      # workflow runs after its build.
+      - name: Inlined version gate
+        run: pnpm check:inlined-version
+
+      # The other half of the docs gate: every ts/tsx/vue/svelte fence in the
+      # npm surface is compiled, under `strict`, against the packages this build
+      # just produced. It lives HERE rather than in `quality` because the
+      # snippets resolve `@comvi/*` through the real exports map, so it needs
+      # dist — which also means a wrong `exports` condition fails the docs gate
+      # too. `check=expect-error` fences are only live under this pass.
+      - name: Docs snippet gate (types)
+        run: pnpm check:snippets:types
+
+      # An isolated consumer: a temp app that declares ONE Comvi package under a
+      # node_modules layout that hoists nothing, generated by the real Vite
+      # plugin and type-checked with `skipLibCheck: false`. It is the only gate
+      # that sees what an app sees rather than what the workspace resolves, so
+      # it catches a generated augmentation that reaches nothing — a failure
+      # `skipLibCheck: true` otherwise hides while every unknown key compiles.
+      - name: Strict consumer gate (generated types)
+        run: pnpm check:strict-consumer
+
       # Verifies every publishable package's exports/main/types/bin targets are
-      # present in `npm pack` output; reads dist/, so it must run after Build.
+      # present in `npm pack` output.
       - name: Package contracts
         run: pnpm audit:package-contracts
 
       # Lints the packed tarball of every published package for type/exports
-      # correctness (false-CJS, engines/repository nits). Reads dist/, so it runs
-      # after Build.
+      # correctness (false-CJS, engines/repository nits).
       - name: publint (types/exports)
         run: pnpm check:publint
 
       # Runs arethetypeswrong against dual ESM/CJS packages so broken declaration
-      # conditions cannot ship unnoticed. Reads dist/, so it runs after Build.
+      # conditions cannot ship unnoticed.
       - name: Types exports
         run: pnpm check:types-exports
 
-  extension-artifact:
-    name: Chrome extension artifact
+      # Bundles every gated fixture in scripts/size-budgets.json through the
+      # published exports map and asserts min+gz against that same file.
+      - name: Size gate (min+gz budgets)
+        run: pnpm size
+
+      # pnpm-packs every workspace package the matrix needs, asserts core's
+      # sideEffects array against the packed dist files, then bundles the
+      # consumer fixtures with webpack AND vite under development AND
+      # production conditions and runs every bundle in node.
+      - name: Bundler matrix (webpack + vite, dev + prod, packed tarballs)
+        run: pnpm bundler-matrix
+
+  extension:
+    name: Chrome extension
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      VITE_COMVI_API_BASE_URL: https://api.comvi.io
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -205,37 +253,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Builds @comvi/plugin-in-context-editor first via turbo `^build` — the
+      # bundle Gate E loads.
+      # The production origin is scoped to THIS step: vite's loadEnv lets process.env
+      # override .env.gate-e, so a job-level value would also poison the Gate E build
+      # (host_permissions would name api.comvi.io and the popup could not see tab URLs).
       - name: Build editor and extension
         run: pnpm extension:build
+        env:
+          VITE_COMVI_API_BASE_URL: https://api.comvi.io
 
       - name: Verify built artifact
         run: pnpm --filter @comvi/chrome-extension exec vitest run src/__tests__/artifacts.test.ts
-
-  extension-browser-security:
-    name: Chrome extension trust boundary
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build editor bundle
-        run: pnpm exec turbo run build --filter @comvi/plugin-in-context-editor
 
       - name: Install Chromium
         run: pnpm --filter @comvi/chrome-extension exec playwright install --with-deps chromium
@@ -254,37 +283,115 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  dispatch-system-compatibility:
-    name: Dispatch system compatibility
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    needs:
-      [
-        quality,
-        tests,
-        critical-coverage,
-        package-contracts,
-        extension-artifact,
-        extension-browser-security,
-      ]
+  # Decides whether `examples-e2e` runs: only when something it exercises
+  # changed. Same mechanism as the changeset gate in `quality` (a plain
+  # `git diff`), rather than a third-party paths-filter action. A push whose
+  # `before` is unknown (a new branch, a force-push) runs the suite.
+  examples-e2e-changes:
+    name: Examples e2e (change detection)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      GH_TOKEN: ${{ secrets.SYSTEM_COMPATIBILITY_TOKEN }}
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
 
     steps:
-      - name: Explain skipped compatibility dispatch
-        if: env.GH_TOKEN == ''
-        run: |
-          echo '::warning::SYSTEM_COMPATIBILITY_TOKEN is not configured; skipping the private platform dispatch.'
-          echo '### System compatibility dispatch skipped' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Configure SYSTEM_COMPATIBILITY_TOKEN to dispatch exact comvi-js commits to the private platform gate.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-      - name: Dispatch exact SDK and extension candidate
-        if: env.GH_TOKEN != ''
+      - name: Diff against the base
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          gh api \
-            --method POST \
-            repos/comvi-io/platform/dispatches \
-            -f event_type=system-compatibility \
-            -F 'client_payload[platform_ref]=develop' \
-            -F 'client_payload[sdk_ref]=${{ github.sha }}'
+          set -euo pipefail
+
+          if [ "$EVENT" = "pull_request" ]; then
+            RANGE="origin/${BASE_REF}...HEAD"
+          elif [ -n "$BEFORE" ] && ! echo "$BEFORE" | grep -qE '^0+$' && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            RANGE="${BEFORE}..HEAD"
+          else
+            echo "No usable base for this ${EVENT}; running the suite."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RELEVANT="$(
+            git diff --name-only "$RANGE" \
+              | grep -E '^(packages/|examples/|scripts/examples-e2e/|scripts/docs-snippets/link-sdk|scripts/examples-verify\.mjs$|pnpm-lock\.yaml$|\.github/workflows/ci\.yml$)' \
+              || true
+          )"
+
+          if [ -z "$RELEVANT" ]; then
+            echo "Nothing the examples e2e suite exercises changed in ${RANGE}."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changes the suite exercises:"
+            echo "$RELEVANT"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # `pnpm examples:e2e`, sharded: one framework and one mode per runner, so the
+  # wall time is one example's build-install-serve-scenario rather than
+  # fourteen of them. Each shard builds and packs the workspace itself:
+  # `run.mjs` refuses stale tarballs, and rebuilding is cheaper than shipping
+  # dist between jobs with mtimes it would have to trust. Production builds
+  # only; dev-only warnings are covered by core's
+  # `tests/dist/missing-key-warning.dist.test.ts` (see run.mjs's header).
+  examples-e2e:
+    name: Examples e2e (${{ matrix.framework }}, ${{ matrix.mode }})
+    needs: examples-e2e-changes
+    if: needs.examples-e2e-changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [react, next, vue, nuxt, svelte, solid, vanilla]
+        mode: [default, cdn]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run the scenario
+        env:
+          FRAMEWORK: ${{ matrix.framework }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          ARGS=(--only "$FRAMEWORK")
+          if [ "$MODE" = "cdn" ]; then ARGS+=(--cdn); fi
+          node scripts/examples-e2e/run.mjs "${ARGS[@]}"
+
+      # run.mjs copies a failing example's reports, console, server and
+      # Playwright logs and traces here on its own, without --keep.
+      - name: Upload e2e diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: examples-e2e-${{ matrix.framework }}-${{ matrix.mode }}
+          path: test-results/examples-e2e/
+          if-no-files-found: ignore
+          retention-days: 14

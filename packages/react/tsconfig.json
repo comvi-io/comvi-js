@@ -4,6 +4,9 @@
     "composite": true,
     "jsx": "react-jsx",
     "outDir": "./dist",
+    // A map points at ../src, which is not packed: it would only send "go to
+    // source" nowhere.
+    "declarationMap": false,
     "rootDir": "./src"
   },
   "include": ["src/**/*"],

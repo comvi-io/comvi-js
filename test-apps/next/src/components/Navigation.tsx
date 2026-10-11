@@ -18,13 +18,11 @@ export function Navigation() {
   const { t, isLoading, locale } = useI18n();
   const pathname = usePathname();
 
-  // Handle RTL for Arabic
   useEffect(() => {
     document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
     document.documentElement.lang = locale;
   }, [locale]);
 
-  // Extract the path without locale prefix
   const pathWithoutLocale = pathname.replace(/^\/[a-z]{2}(?=\/|$)/, "") || "/";
 
   return (

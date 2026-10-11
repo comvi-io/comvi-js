@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedInstance";
 
-describe("Advanced Pluralization Features", () => {
-  let i18n: I18n;
+describe("t() with ICU plural", () => {
+  describe("English (one/other)", () => {
+    let i18n: I18n;
 
-  beforeEach(() => {
-    i18n = new I18n({ locale: "en" });
-  });
+    beforeEach(() => {
+      i18n = new I18n({ locale: "en" });
+    });
 
-  describe("Standard English Pluralization (one/other)", () => {
     it("should handle singular and plural forms", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           apples: "{count, plural, one {one apple} other {# apples}}",
         },
@@ -23,7 +23,7 @@ describe("Advanced Pluralization Features", () => {
     });
 
     it("should support exact matches (=0, =1)", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           messages: "{count, plural, =0 {No messages} one {1 message} other {# messages}}",
         },
@@ -35,16 +35,14 @@ describe("Advanced Pluralization Features", () => {
     });
   });
 
-  describe("Ukrainian Pluralization (one/few/many/other)", () => {
-    // Ukrainian Rules:
-    // one: ends in 1, excluding 11 (1, 21, 31, 101)
-    // few: ends in 2-4, excluding 12-14 (2, 3, 4, 22, 23, 24)
-    // many: 0, 5-9, 11-14, etc.
-    // other: fractions
+  // Why these counts: Ukrainian one = ends in 1 except 11; few = ends in 2-4
+  // except 12-14; many = 0, 5-9 and 11-14; other = fractions only.
+  describe("Ukrainian (one/few/many/other)", () => {
+    let i18n: I18n;
 
     beforeEach(() => {
       i18n = new I18n({ locale: "uk" });
-      i18n.addTranslations({
+      i18n.addMessages({
         uk: {
           days: "{count, plural, one {# день} few {# дні} many {# днів} other {# дня}}",
         },
@@ -77,20 +75,26 @@ describe("Advanced Pluralization Features", () => {
     });
   });
 
-  describe("Plural Formatting Edge Cases", () => {
+  describe("edge cases", () => {
+    let i18n: I18n;
+
+    beforeEach(() => {
+      i18n = new I18n({ locale: "en" });
+    });
+
     it("should handle negative numbers", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           change: "{count, plural, =0 {no change} one {# change} other {# changes}}",
         },
       });
-      // In English, -1 is "one"
+
       expect(i18n.t("change", { count: -1 })).toBe("-1 change");
       expect(i18n.t("change", { count: -2 })).toBe("-2 changes");
     });
 
     it("should allow nested interpolation inside plural options", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           found:
             "{count, plural, =0 {No items found in {folder}} other {# items found in {folder}}}",
@@ -103,8 +107,29 @@ describe("Advanced Pluralization Features", () => {
       expect(i18n.t("found", { count: 5, folder: "Downloads" })).toBe("5 items found in Downloads");
     });
 
+    it("renders empty when no category matches and there is no other branch", () => {
+      i18n.addMessages({
+        en: {
+          partial: "{count, plural, one {# one}}",
+        },
+      });
+
+      expect(i18n.t("partial", { count: 1 })).toBe("1 one");
+      expect(i18n.t("partial", { count: 5 })).toBe("");
+    });
+
+    it("ignores a branch named after an unknown plural category", () => {
+      i18n.addMessages({
+        en: {
+          bogus: "{count, plural, quux {# quux} other {# other}}",
+        },
+      });
+
+      expect(i18n.t("bogus", { count: 3 })).toBe("3 other");
+    });
+
     it("treats quoted braces in plural options as literal text", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           literal: "{count, plural, one {'{count} literal item'} other {'{count} literal items'}}",
         },
@@ -115,9 +140,15 @@ describe("Advanced Pluralization Features", () => {
     });
   });
 
-  describe("Nested plurals", () => {
+  describe("nested plurals", () => {
+    let i18n: I18n;
+
+    beforeEach(() => {
+      i18n = new I18n({ locale: "en" });
+    });
+
     it("binds # to the nearest enclosing plural, not the outer one", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           msg:
             "{files, plural, " +
@@ -134,10 +165,10 @@ describe("Advanced Pluralization Features", () => {
     });
 
     it("does not replace a quoted # with the count", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
-          // The interpolation ensures the branch is run through the template
-          // processor so the quoted literal is unwrapped.
+          // The interpolation forces the branch through the template processor,
+          // which is what unwraps the quoted literal.
           price: "{count, plural, other {'#'# {label}}}",
         },
       });
@@ -146,7 +177,7 @@ describe("Advanced Pluralization Features", () => {
     });
 
     it("keeps # bound to the enclosing plural inside a nested select", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           msg:
             "{count, plural, " +
@@ -160,7 +191,7 @@ describe("Advanced Pluralization Features", () => {
     });
 
     it("rebinds # only for a plural nested inside a select inside a plural", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           msg:
             "{files, plural, other {{gender, select, " +

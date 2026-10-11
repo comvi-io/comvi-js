@@ -2,17 +2,14 @@ import type { NextRequest } from "next/server";
 import type { RoutingConfig } from "../routing/types";
 
 /**
- * Locale detection source types
+ * A detection source. The URL path is always consulted first and is not one of
+ * these. `query` reads `queryParam`, `header` reads `headerName`; each is inert
+ * until its name is set.
  */
-export type LocaleDetectionSource = "cookie" | "header" | "accept-language";
+export type LocaleDetectionSource = "query" | "cookie" | "header" | "accept-language";
 
 /**
- * Function type for custom Accept-Language resolution
- *
- * @param acceptLanguage - The Accept-Language header value
- * @param locales - Array of supported locales
- * @param defaultLocale - The default locale to fall back to
- * @returns The matched locale or undefined
+ * Function type for custom Accept-Language resolution.
  *
  * @example Using @formatjs/intl-localematcher (recommended for production)
  * ```typescript
@@ -38,28 +35,49 @@ export type ResolveAcceptLanguage = (
 ) => string | undefined;
 
 /**
- * Configuration for locale detection
+ * The locale cookie's attributes. The same object, with the same defaults
+ * except the name, is `@comvi/nuxt`'s `localeCookie`.
  */
+export interface LocaleCookieOptions {
+  /** @default 'NEXT_LOCALE' */
+  name?: string;
+  /**
+   * Lifetime in seconds.
+   * @default 31536000 (one year)
+   */
+  maxAge?: number;
+  /**
+   * Set the Secure flag, so the cookie is only sent over HTTPS. Always off in
+   * development (`NODE_ENV=development`), so localhost over HTTP keeps it.
+   * @default true
+   */
+  secure?: boolean;
+  /** @default 'lax' */
+  sameSite?: "lax" | "strict" | "none";
+  /** Send the cookie to this domain and its subdomains. Unset: the host only. */
+  domain?: string;
+}
+
+/**
+ * Where the locale preference is persisted: `false` writes and reads no cookie,
+ * a string is the cookie name, an object sets its attributes.
+ */
+export type LocaleCookieConfig = false | string | LocaleCookieOptions;
+
 export interface LocaleDetectionConfig {
   /**
-   * Detection order (URL path is always checked first)
-   * @default ['cookie', 'accept-language']
+   * Detection order. The URL path is always checked first; `query` and
+   * `header` do nothing until `queryParam` and `headerName` are set.
+   * @default ['query', 'cookie', 'accept-language']
    */
   order?: LocaleDetectionSource[];
 
   /**
-   * Cookie name for storing locale preference
-   * @default 'NEXT_LOCALE'
+   * Query parameter to read an explicit locale from (`"lang"` reads `?lang=de`).
+   * Values outside `locales` are ignored.
+   * @default undefined (not checked)
    */
-  cookieName?: string;
-
-  /**
-   * Set the Secure flag on the locale cookie.
-   * When true, the cookie is only sent over HTTPS.
-   * Automatically disabled in development (NODE_ENV=development) regardless of this setting.
-   * @default true
-   */
-  cookieSecure?: boolean;
+  queryParam?: string;
 
   /**
    * Custom header name to read locale from
@@ -69,20 +87,15 @@ export interface LocaleDetectionConfig {
   headerName?: string;
 
   /**
-   * Custom Accept-Language resolution function (pluggable)
-   *
-   * By default, uses a simple parser that handles common cases.
-   * For production apps with diverse locales (especially CJK languages),
-   * consider using @formatjs/intl-localematcher for RFC-compliant matching.
+   * The built-in default is a simple parser that handles common cases. For
+   * production apps with diverse locales (especially CJK), consider
+   * @formatjs/intl-localematcher for RFC-compliant matching.
    *
    * @default Built-in simple parser
    */
   resolveAcceptLanguage?: ResolveAcceptLanguage;
 }
 
-/**
- * Configuration for i18n middleware
- */
 export interface MiddlewareConfig extends RoutingConfig {
   /**
    * Custom locale detection logic (optional)
@@ -92,8 +105,8 @@ export interface MiddlewareConfig extends RoutingConfig {
   detectLocale?: (request: NextRequest) => string | undefined;
 
   /**
-   * Locale detection configuration
-   * Allows customizing detection sources and their order
+   * Where the locale comes from after the URL path. `false` turns detection
+   * off: the path decides, otherwise `defaultLocale`.
    */
-  localeDetection?: LocaleDetectionConfig;
+  localeDetection?: false | LocaleDetectionConfig;
 }

@@ -1,14 +1,6 @@
-/**
- * TypeGenerator - Main orchestrator for type generation
- *
- * Simplified flow:
- * 1. Fetch schema and the backend default namespace
- * 2. Convert schema to .d.ts using TypeEmitter
- * 3. Write to file
- */
-
+import { countKeyLines, normalizeGenerated } from "@comvi/typegen";
 import { ApiClient } from "./ApiClient";
-import { TypeEmitter } from "./TypeEmitter";
+import { cliAugmentationTarget, emitCliDeclarations } from "./TypeEmitter";
 import { FileSystemWriter } from "./FileSystemWriter";
 import { ConsoleReporter, type GenerationReporter } from "./GenerationReporter";
 import type { GeneratorOptions, GenerationResult, ProjectSchema, CheckResult } from "../types";
@@ -17,7 +9,6 @@ import { createLogger, type Logger } from "../utils/logger";
 
 export class TypeGenerator {
   private apiClient: ApiClient;
-  private typeEmitter: TypeEmitter;
   private writer: FileSystemWriter;
   private reporter: GenerationReporter;
   private options: GeneratorOptions;
@@ -38,28 +29,18 @@ export class TypeGenerator {
       ...options,
     };
 
-    // Initialize logger
     this.logger = dependencies?.logger ?? createLogger();
 
-    // Initialize API client
     this.apiClient = new ApiClient({
       apiKey: this.options.apiKey,
       apiBaseUrl: this.options.apiBaseUrl,
     });
 
-    // Initialize type emitter
-    this.typeEmitter = new TypeEmitter();
-
-    // Initialize file writer (injectable for testing)
     this.writer = dependencies?.writer ?? new FileSystemWriter();
 
-    // Initialize reporter (injectable for testing/customization)
     this.reporter = dependencies?.reporter ?? new ConsoleReporter(this.logger);
   }
 
-  /**
-   * Validate connection to the TMS API
-   */
   async validateConnection(): Promise<boolean> {
     try {
       return await this.apiClient.validateConnection();
@@ -69,23 +50,18 @@ export class TypeGenerator {
     }
   }
 
-  /**
-   * Generate TypeScript types from the TMS
-   */
   async generate(): Promise<GenerationResult> {
     const startTime = Date.now();
 
     try {
       this.reporter.reportStart();
 
-      // Fetch schema from TMS
       this.reporter.reportFetching();
       const [schema, defaultNsName] = await Promise.all([
         this.apiClient.fetchSchema(),
         this.getDefaultNamespaceName(),
       ]);
 
-      // Generate and write types
       return await this.generateFromSchema(schema, startTime, defaultNsName);
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -116,33 +92,30 @@ export class TypeGenerator {
     }
   }
 
-  /**
-   * Check if types are up to date (CI mode)
-   */
+  /** CI mode: compares the file on disk against freshly generated output. */
   async check(): Promise<CheckResult> {
     try {
-      // Fetch schema from TMS
       const [schema, defaultNsName] = await Promise.all([
         this.apiClient.fetchSchema(),
         this.getDefaultNamespaceName(),
       ]);
       const keyCount = Object.keys(schema.keys).length;
 
-      // Generate expected types
-      const expectedTypes = this.typeEmitter.generate(schema, {
+      // The same question the write path asks, answered from the same
+      // manifest: a check that guessed a different target would report drift
+      // no regeneration could clear.
+      const expectedTypes = emitCliDeclarations(schema, {
         strictParams: this.options.strictParams,
         defaultNsName,
+        augment: cliAugmentationTarget(this.options.augment),
       });
 
-      // Read current types file
       let currentTypes: string | null = null;
       let currentKeyCount = 0;
 
       try {
         currentTypes = await this.writer.read(this.options.outputPath);
-        // Count keys in current file (simple heuristic: count lines with type definitions)
-        const keyMatches = currentTypes.match(/^\s+'[^']+':.*$/gm);
-        currentKeyCount = keyMatches?.length ?? 0;
+        currentKeyCount = countKeyLines(currentTypes);
       } catch {
         // File doesn't exist
         return {
@@ -153,11 +126,10 @@ export class TypeGenerator {
         };
       }
 
-      // Compare (normalize whitespace for comparison)
-      const normalizeContent = (content: string) =>
-        content.replace(/Generated at:.*$/gm, "").trim();
-
-      const upToDate = normalizeContent(currentTypes) === normalizeContent(expectedTypes);
+      // A file written by @comvi/cli 0.4 carries a `Generated at:` line that
+      // this CLI no longer emits; normalizing drops it from both sides, so an
+      // upgrade does not report every existing repo as stale.
+      const upToDate = normalizeGenerated(currentTypes) === normalizeGenerated(expectedTypes);
 
       return {
         upToDate,
@@ -173,10 +145,7 @@ export class TypeGenerator {
     }
   }
 
-  /**
-   * Generate types from an already-fetched schema
-   * Used by SSE handler to avoid re-fetching
-   */
+  /** Used by the SSE handler, which already holds the schema. */
   async generateFromSchema(
     schema: ProjectSchema,
     startTime: number = Date.now(),
@@ -186,14 +155,20 @@ export class TypeGenerator {
       const keyCount = Object.keys(schema.keys).length;
       const resolvedDefaultNsName = defaultNsName ?? (await this.getDefaultNamespaceName());
 
-      // Generate TypeScript declarations
       this.reporter.reportGenerating();
-      const typeDeclarations = this.typeEmitter.generate(schema, {
+
+      // Resolved before the write: a project that declares no Comvi package
+      // has no module the declarations could augment, and a file that augments
+      // an unresolvable one is silently inert — TypeScript reports TS2882 on
+      // the generated import and `skipLibCheck: true` hides even that.
+      const augment = cliAugmentationTarget(this.options.augment);
+
+      const typeDeclarations = emitCliDeclarations(schema, {
         strictParams: this.options.strictParams,
         defaultNsName: resolvedDefaultNsName,
+        augment,
       });
 
-      // Write to file
       await this.writer.write(this.options.outputPath, typeDeclarations);
 
       const duration = Date.now() - startTime;
@@ -230,9 +205,7 @@ export class TypeGenerator {
     }
   }
 
-  /**
-   * Get the API client for SSE subscription
-   */
+  /** Exposed so the watch command can open an SSE subscription. */
   getApiClient(): ApiClient {
     return this.apiClient;
   }

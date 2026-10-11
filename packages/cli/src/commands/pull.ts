@@ -1,23 +1,10 @@
-/**
- * Pull command - Download translations from TMS to local files
- *
- * Usage:
- *   comvi pull                         # All locales, all namespaces
- *   comvi pull --locale en,uk          # Filter by locales
- *   comvi pull --ns common,admin       # Filter by namespaces
- *   comvi pull --path ./locales        # Override output path
- *   comvi pull --empty-dir             # Clear directory before pull
- */
-
 import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
-import { ErrorCodes, isTypegenError } from "../utils/errors";
+import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
-
-const EXIT_VALIDATION = 4;
 
 export function createPullCommand(): Command {
   return new Command("pull")
@@ -32,7 +19,6 @@ export function createPullCommand(): Command {
       try {
         console.log("🔄 Loading configuration...");
 
-        // Load configuration (validates apiKey is present)
         const config = await ConfigLoader.load(options.config);
 
         // apiKey is validated by ConfigLoader.load(), so it's guaranteed to be set
@@ -40,13 +26,11 @@ export function createPullCommand(): Command {
           throw new Error("API key is required. Set COMVI_API_KEY environment variable.");
         }
 
-        // Create API client
         const apiClient = new ApiClient({
           apiKey: config.apiKey,
           apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
         });
 
-        // Create translation sync
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
           translationsPath: options.path || config.translationsPath || "./src/locales",
@@ -65,17 +49,6 @@ export function createPullCommand(): Command {
           console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
         }
 
-        // Empty directory if requested
-        if (options.emptyDir || config.pull?.emptyDir) {
-          if (options.dryRun) {
-            console.log("🗑️  [dry-run] Would clear translations directory");
-          } else {
-            console.log("🗑️  Clearing translations directory...");
-            await sync.clearDirectory();
-          }
-        }
-
-        // Fetch translations
         console.log("🔄 Fetching translations from TMS...");
         const translations = await apiClient.fetchTranslations({
           locales: locs.value,
@@ -87,12 +60,34 @@ export function createPullCommand(): Command {
         assertAllReturned("namespaces", nss.value, translations.namespaces);
         assertAllReturned("locales", locs.value, translations.locales);
 
-        // Write to files
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
           ? await apiClient.fetchDefaultNamespace()
           : undefined;
 
+        // Judge every name and every resolved path before the clear: the clear
+        // runs first, so a name the CLI refuses mid-write would delete the
+        // catalog and restore only part of it.
+        await sync.assertWritable(translations, { defaultNamespace });
+
+        // The clear runs only once the fetch has returned everything that was
+        // asked for, and only over the locales and namespaces being pulled: a
+        // failed request, or one missing a requested namespace, must leave the
+        // working copy exactly as it was.
+        const emptyDir = Boolean(options.emptyDir || config.pull?.emptyDir);
+        const scope = {
+          locales: locs.value,
+          namespaces: nss.value,
+          defaultNamespace,
+        };
+
         if (options.dryRun) {
+          if (emptyDir) {
+            const removable = await sync.previewClear(scope);
+            console.log(`\n🗑️  [dry-run] Would remove ${removable.length} files:`);
+            for (const file of removable) {
+              console.log(`  ${file}`);
+            }
+          }
           const preview = sync.previewTranslations(translations, { defaultNamespace });
           console.log(`\n✓ [dry-run] Would write ${preview.files.length} files:`);
           for (const file of preview.files) {
@@ -101,8 +96,17 @@ export function createPullCommand(): Command {
           process.exit(0);
         }
 
-        console.log("📝 Writing translation files...");
-        const result = await sync.writeTranslations(translations, { defaultNamespace });
+        let result;
+        if (emptyDir) {
+          // Clear and write as one operation: a write that fails partway
+          // restores the catalog as it was before the pull.
+          console.log("🗑️  Clearing translations directory...");
+          console.log("📝 Writing translation files...");
+          result = await sync.replaceTranslations(translations, scope, { defaultNamespace });
+        } else {
+          console.log("📝 Writing translation files...");
+          result = await sync.writeTranslations(translations, { defaultNamespace });
+        }
 
         console.log(`\n✓ Pull complete!`);
         console.log(`  Locales: ${result.locales.join(", ")}`);

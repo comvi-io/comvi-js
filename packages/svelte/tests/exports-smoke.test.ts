@@ -1,16 +1,11 @@
 /**
- * Consumer-resolution smoke test (F0b)
- *
- * Validates the published package's exports map by importing through the
- * dist/ path — the same path a consumer gets via the `svelte` / `import`
- * export condition.  Does NOT use the workspace alias (@comvi/svelte →
- * src/index.ts); it goes straight to the compiled artefacts so that a broken
- * build or missing dist file is caught here.
+ * Validates the published exports map through the dist/ path — what a consumer
+ * gets via the `svelte` / `import` condition — deliberately NOT the workspace
+ * alias, so a broken build or a missing dist file is caught here.
  *
  * dist/ is gitignored and CI runs `pnpm test` before `pnpm build`, so a static
  * `import` of dist would fail on a clean checkout and could pass against stale
- * artefacts locally. To stay correct regardless of run order, we build the
- * package in `beforeAll` (fresh dist every run) and load it via dynamic import.
+ * artefacts locally. Hence the `beforeAll` build plus dynamic import.
  */
 
 import { execSync } from "child_process";
@@ -22,14 +17,53 @@ import { beforeAll, describe, expect, it } from "vitest";
 const pkgRoot = resolve(__dirname, "..");
 const distDir = resolve(pkgRoot, "dist");
 
-// Populated in beforeAll, after a fresh build.
 let pkg: typeof import("../dist/index.js");
 
 beforeAll(async () => {
-  // Build fresh so the smoke check never runs against missing/stale dist.
   execSync("pnpm build", { cwd: pkgRoot, stdio: "pipe" });
   pkg = await import(pathToFileURL(resolve(distDir, "index.js")).href);
 }, 120_000);
+
+/**
+ * Code with comments removed, string literals preserved. The seam assertion
+ * below matches an import SPECIFIER, and these artifacts are transpiled rather
+ * than bundled, so their comments reach `dist` — where they legitimately quote
+ * the very specifier the assertion forbids.
+ *
+ * A bug here would silently weaken the negative assertion, so the same stripper
+ * carries a POSITIVE assertion (`rich-text` import present) in the same test.
+ */
+function stripComments(code: string): string {
+  let out = "";
+  let i = 0;
+  while (i < code.length) {
+    const char = code[i];
+    if (char === "/" && code[i + 1] === "/") {
+      while (i < code.length && code[i] !== "\n") i++;
+    } else if (char === "/" && code[i + 1] === "*") {
+      i += 2;
+      while (i < code.length && !(code[i] === "*" && code[i + 1] === "/")) i++;
+      i += 2;
+    } else if (char === '"' || char === "'" || char === "`") {
+      out += char;
+      i++;
+      while (i < code.length) {
+        if (code[i] === "\\") {
+          out += code[i] + (code[i + 1] ?? "");
+          i += 2;
+          continue;
+        }
+        out += code[i];
+        i++;
+        if (code[i - 1] === char) break;
+      }
+    } else {
+      out += char;
+      i++;
+    }
+  }
+  return out;
+}
 
 describe("exports map smoke (F0b)", () => {
   it("dist/index.js exports T as a function (Svelte component)", () => {
@@ -44,9 +78,9 @@ describe("exports map smoke (F0b)", () => {
     expect(typeof pkg.createI18n).toBe("function");
   });
 
-  it("dist/index.js exports setI18nContext and getI18nContext", () => {
+  it("dist/index.js exports setI18nContext and useI18nInstance", () => {
     expect(typeof pkg.setI18nContext).toBe("function");
-    expect(typeof pkg.getI18nContext).toBe("function");
+    expect(typeof pkg.useI18nInstance).toBe("function");
   });
 
   it("dist/index.js exports store factories", () => {
@@ -63,22 +97,18 @@ describe("exports map smoke (F0b)", () => {
 
   it("dist/T.svelte contains Svelte 5 runes syntax (not Svelte 4 reactive declarations)", () => {
     const source = readFileSync(resolve(distDir, "T.svelte"), "utf-8");
-    // Must use $props() rune — the Svelte 5 way to declare component props
     expect(source).toContain("$props()");
-    // Must NOT use Svelte 4 export let syntax for props
     expect(source).not.toContain("export let ");
-    // Must NOT use Svelte 4 reactive label ($:) for derived state
-    expect(source).not.toContain("\n\t$:");
+    expect(source).not.toMatch(/^\s*\$:/m);
   });
 
   it("dist/T.svelte is preprocessed to plain JS — no TypeScript types/imports", () => {
-    // The published .svelte must have its <script> TS-stripped (see
-    // CHANGELOG 0.2.0): raw `import type` / type annotations break consumers
-    // and bundle analyzers without a TS-aware Svelte preprocessor.
+    // The published .svelte must have its <script> TS-stripped: raw
+    // `import type` / type annotations break consumers and bundle analyzers
+    // that have no TS-aware Svelte preprocessor.
     const source = readFileSync(resolve(distDir, "T.svelte"), "utf-8");
     expect(source).not.toMatch(/\bimport\s+type\b/);
-    // No `import type {`-style or inline `: Type` annotations should survive.
-    // Probe a few annotations known to exist in the source component.
+    // Probes annotations known to exist in the source component.
     expect(source).not.toContain(": TranslationParams");
     expect(source).not.toContain("(tag: string");
   });
@@ -91,18 +121,84 @@ describe("exports map smoke (F0b)", () => {
     const pkgJson = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf-8"));
     const dotExport = pkgJson.exports?.["."];
     expect(dotExport).toBeDefined();
-    // No `require` condition should be present — this is intentional. The
-    // `attw` script ignores two rules that are structural for this package:
+    // No `require` condition, deliberately. The `attw` script ignores the two
+    // rules that follow from it:
     //   - cjs-resolves-to-esm: ESM-only package, no CJS path advertised, so a
-    //     node16-from-CJS require() correctly resolves to ESM (dynamic import).
+    //     node16-from-CJS require() correctly resolves to ESM.
     //   - internal-resolution-error: svelte-package emits extensionless .ts
     //     imports and a `./T.svelte` import in dist/*.d.ts that node16 cannot
-    //     resolve; Svelte consumers use bundler resolution (🟢), the supported
-    //     target. All other attw rules remain enforced.
+    //     resolve; Svelte consumers use bundler resolution, the supported
+    //     target. Every other attw rule stays enforced.
     expect(dotExport).not.toHaveProperty("require");
-    // `types` condition must come first (before import/default) so TypeScript
-    // under moduleResolution:bundler picks it up in the right order.
+    // `types` must come first, before import/default, or TypeScript under
+    // moduleResolution:bundler resolves the wrong one.
     const keys = Object.keys(dotExport);
     expect(keys.indexOf("types")).toBeLessThan(keys.indexOf("import"));
+  });
+
+  it("publishes exactly ONE entry — the retired /slim subpath is gone", () => {
+    // A second entry would be a second name for the same modules — and, in a
+    // wrapper whose build does NOT preserve modules, a second context object.
+    const pkgJson = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf-8"));
+
+    expect(Object.keys(pkgJson.exports)).toEqual(["."]);
+    expect(existsSync(resolve(distDir, "slim.js"))).toBe(false);
+    expect(existsSync(resolve(distDir, "slim.d.ts"))).toBe(false);
+  });
+
+  it("dist/index.js exports the capability toolkit; `I18n` is a type, so it is absent", () => {
+    // Named re-exports of core's own bindings, so what this asserts through
+    // dist is that svelte-package emitted them at all.
+    const surface = pkg as unknown as Record<string, unknown>;
+    expect(surface).not.toHaveProperty("I18n");
+
+    for (const name of ["loader", "attachLoader", "plugins", "devtools"]) {
+      expect(typeof surface[name], `${name} must be callable`).toBe("function");
+    }
+
+    // P4: the low-level `attach*` pair for plugins/devtools stays off this
+    // root — `@comvi/core/plugins` and `@comvi/core/devtools` carry it.
+    expect(surface).not.toHaveProperty("attachPlugins");
+    expect(surface).not.toHaveProperty("attachDevtools");
+
+    // `icuCompiler` is the odd one out on purpose: a `MessageCompiler` record,
+    // not a factory. It is what `createI18n({ compiler })` takes, and it is the
+    // ONLY way ICU is enabled — there is no `icu` installer beside it.
+    expect(typeof surface.icuCompiler).toBe("object");
+    expect(surface.icuCompiler).not.toBeNull();
+    expect(surface).not.toHaveProperty("icu");
+  });
+
+  it("ships no unsubstituted `__DEV__` guard in dist/T.svelte", () => {
+    // `svelte-package` copies `.svelte` files verbatim and substitutes no
+    // build-time defines, and no consumer defines `__DEV__`: a guard written
+    // in the component would ship as an always-false check.
+    const tComponent = readFileSync(resolve(distDir, "T.svelte"), "utf-8");
+    expect(tComponent).not.toContain("__DEV__");
+  });
+
+  it("names the PURE core seam and never the side-effectful tags entry", () => {
+    // The specifier-level claim, against the BUILT artifacts. Importing
+    // `@comvi/core/tags` registers tag syntax AMBIENTLY, so an app that merely
+    // renders `<T>` would also start parsing `<tag>` markup in plain
+    // string-API `t()`. `svelte-package` preserves modules: `dist/T.svelte` is
+    // where the seam is named and `dist/index.js` is what an app imports, so
+    // both must be clean or importing the root registers on its own.
+    //
+    // COMMENTS ARE STRIPPED FIRST, and that is not fussiness: transpiled, not
+    // bundled, both artifacts carry the source prose explaining why nothing
+    // imports the tags subpath — the literal `import "@comvi/core/tags"`
+    // recipe included. A substring check would fail on the very comment that
+    // documents the rule.
+    const importsTags = /\b(?:from|import)\s*\(?\s*["']@comvi\/core\/tags["']/;
+    const importsRichText = /\b(?:from|import)\s*\(?\s*["']@comvi\/core\/rich-text["']/;
+
+    for (const file of ["index.js", "T.svelte"]) {
+      const code = stripComments(readFileSync(resolve(distDir, file), "utf-8"));
+      expect(importsTags.test(code), `dist/${file} must not import @comvi/core/tags`).toBe(false);
+    }
+
+    const tComponent = stripComments(readFileSync(resolve(distDir, "T.svelte"), "utf-8"));
+    expect(importsRichText.test(tComponent), "dist/T.svelte must import the pure seam").toBe(true);
   });
 });

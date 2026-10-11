@@ -1,0 +1,24 @@
+{
+  "name": "comvi-example-svelte",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@comvi/plugin-fetch-loader": "^0.5.0",
+    "@comvi/plugin-locale-detector": "^0.5.0",
+    "@comvi/svelte": "^0.5.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "svelte": "^5.55.1",
+    "svelte-check": "^4.4.6",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3"
+  }
+}

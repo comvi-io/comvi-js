@@ -1,16 +1,6 @@
 import { warn } from "../../logger";
-import {
-  TK_PARAM,
-  TK_PLURAL,
-  TK_SELECT,
-  TK_TAG,
-  TK_TEXT,
-  type ParsedToken,
-  type TagToken,
-  type ParamToken,
-  type PluralToken,
-  type SelectToken,
-} from "./cache";
+import { TK_HASH, TK_TEXT, type ParsedToken } from "./cache";
+import type { MessageCompiler, SyntaxExtension } from "./syntax";
 
 declare const __DEV__: boolean | undefined;
 
@@ -22,40 +12,7 @@ const AMPERSAND = 38;
 const OPEN_BRACE = 123;
 const CLOSE_BRACE = 125;
 const LESS_THAN = 60;
-const GREATER_THAN = 62;
-const SLASH = 47;
-const COMMA = 44;
-const HYPHEN = 45;
-const UNDERSCORE = 95;
-const SPACE = 32;
 const HASH = 35;
-const DIGIT_0 = 48;
-const DIGIT_9 = 57;
-const UPPER_A = 65;
-const UPPER_Z = 90;
-const LOWER_A = 97;
-const LOWER_Z = 122;
-
-// Plural choices cache
-const pluralChoicesCache = new Map<string, Record<string, string>>();
-
-export function clearPluralChoicesCache(): void {
-  pluralChoicesCache.clear();
-}
-
-function isTagNameStartChar(code: number): boolean {
-  return (code >= UPPER_A && code <= UPPER_Z) || (code >= LOWER_A && code <= LOWER_Z);
-}
-
-function isTagNameChar(code: number): boolean {
-  return (
-    (code >= UPPER_A && code <= UPPER_Z) ||
-    (code >= LOWER_A && code <= LOWER_Z) ||
-    (code >= DIGIT_0 && code <= DIGIT_9) ||
-    code === HYPHEN ||
-    code === UNDERSCORE
-  );
-}
 
 /**
  * ICU DOUBLE_OPTIONAL quoting (same as ICU4J, FormatJS, i18next, Tolgee):
@@ -76,8 +33,83 @@ function isQuoteStart(str: string, index: number, len: number, hashIsSyntax: boo
   return hashIsSyntax && nextCode === HASH;
 }
 
-/** Skip a quoted section, returns index after closing quote */
-function skipQuotedSection(str: string, startIndex: number, len: number): number {
+/**
+ * Tag syntax through the string API (`t("click <b>here</b>")`) is literal text
+ * when no extension claims `<`, and it stays literal in production: unlike an
+ * ICU plural, a literal `<b>` is visibly broken in any UI review, so a dev
+ * warning plus that visibility is deliberately chosen over a throw.
+ *
+ * Once per template, and only for genuinely tag-like input (`<` followed by an
+ * ASCII letter) — the bare `<` in "a < b" is arithmetic, not markup. Behind
+ * `IS_DEV`, so production pays nothing.
+ */
+const warnedTagTemplates = IS_DEV ? new Set<string>() : undefined;
+
+/** @internal Test teardown: forgets which templates already raised the unclaimed-tag warning. */
+export function _resetTagWarnings(): void {
+  warnedTagTemplates?.clear();
+}
+
+/** `id` of the built-in tag extension (`@comvi/core/tags`). DEV diagnostics only. */
+const TAGS_EXTENSION_ID = "comvi:tags";
+
+/**
+ * True when `<` opens something the tag extension WOULD recognise but refuses
+ * because it carries attributes — mirrors `tags.ts#parseTag`, which accepts
+ * only `>` or `/>` after the tag name.
+ */
+function refusedForAttributes(str: string, index: number, len: number): boolean {
+  let i = index + 1;
+  // Both scans also stop on their own — `charCodeAt` past the end is NaN, which
+  // fails every comparison below — but the `i < len` bounds stay: a scan that
+  // can only terminate on NaN becomes an infinite loop the moment its predicate
+  // is wrong, and this runs inside `t()`.
+  for (; i < len; i++) {
+    const c = str.charCodeAt(i);
+    const isNameChar =
+      (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 45 || c === 95;
+    if (!isNameChar) break;
+  }
+  while (i < len && str.charCodeAt(i) <= 32) i++;
+  if (i >= len) return false;
+  const code = str.charCodeAt(i);
+  // `>` closes the tag and `/` opens `/>`; anything else in that position is
+  // what `parseTag` refused, and in practice that is an attribute.
+  return code !== 62 && code !== 47;
+}
+
+function warnUnclaimedTag(
+  template: string,
+  index: number,
+  len: number,
+  extensions: readonly SyntaxExtension[],
+): void {
+  const next = index + 1 < len ? template.charCodeAt(index + 1) : 0;
+  const isLetter = (next >= 65 && next <= 90) || (next >= 97 && next <= 122);
+  if (!isLetter || warnedTagTemplates === undefined || warnedTagTemplates.has(template)) return;
+  warnedTagTemplates.add(template);
+
+  // Telling an app that already imported "@comvi/core/tags" to import it is the
+  // one message guaranteed not to help; when the extension IS present, the only
+  // reason it left a tag-like `<` unclaimed is an unsupported attribute.
+  const hasTags = extensions.some((e) => e.id === TAGS_EXTENSION_ID);
+  warn(
+    `[@comvi/core] Tag syntax in "${template}" is rendering as literal text: ` +
+      (hasTags && refusedForAttributes(template, index, len)
+        ? `attributes are not supported in tag syntax; pass them via the ` +
+          `\`components\` config (\`{ tag: "a", props: { href } }\`).`
+        : `no tag extension claims "<". Render it with your framework's <T> ` +
+          `component, or import "@comvi/core/tags" to register tag syntax for ` +
+          `the string API.`),
+  );
+}
+
+/**
+ * Index just past the apostrophe that CLOSES the quoted section opened at
+ * `startIndex`, or -1 when nothing closes it. A `''` inside the section is a
+ * literal apostrophe and does not close it.
+ */
+function closingQuoteEnd(str: string, startIndex: number, len: number): number {
   let i = startIndex + 1;
   while (i < len) {
     const code = str.charCodeAt(i);
@@ -91,10 +123,10 @@ function skipQuotedSection(str: string, startIndex: number, len: number): number
       i++;
     }
   }
-  return i;
+  return -1;
 }
 
-function advancePastApostrophe(
+export function advancePastApostrophe(
   str: string,
   index: number,
   len: number,
@@ -104,76 +136,88 @@ function advancePastApostrophe(
     return index + 2;
   }
   if (isQuoteStart(str, index, len, hashIsSyntax)) {
-    return skipQuotedSection(str, index, len);
+    // An unterminated quote runs to the end of the message, which is ICU's
+    // DOUBLE_OPTIONAL rule and what the token scanner wants.
+    const end = closingQuoteEnd(str, index, len);
+    return end === -1 ? len : end;
   }
   return index + 1;
 }
 
 /**
- * Detects whether the `{` at braceIndex starts a plural/selectordinal argument
- * (`{name, plural, ...}`), i.e. a scope that rebinds `#` to its own count.
+ * `advancePastApostrophe` for a scan that must not be swallowed by a quote
+ * that never closes — today the closing-tag scan in `tags.ts`.
+ *
+ * A BALANCED quoted section is skipped exactly as the message parser skips it,
+ * so a `</b>` written inside one keeps its protection. An apostrophe whose own
+ * quote is never closed advances by one instead, as the literal it looks like:
+ * `<b>l'{name}</b>` is French elision, not a quote, and swallowing the rest of
+ * the message would leave the tag unclosed and show its markup as text.
+ *
+ * The decision is per apostrophe, which is what lets one message hold both
+ * shapes — `<b>'{x </b> y}' l'{name}</b>` protects the first and ignores the
+ * second.
  */
-function isPluralArgStart(str: string, braceIndex: number, len: number): boolean {
-  let i = braceIndex + 1;
-  while (i < len) {
-    const code = str.charCodeAt(i);
-    if (code === COMMA) break;
-    if (code === OPEN_BRACE || code === CLOSE_BRACE) return false;
-    i++;
+export function advancePastBalancedApostrophe(
+  str: string,
+  index: number,
+  len: number,
+  hashIsSyntax: boolean,
+): number {
+  if (index + 1 < len && str.charCodeAt(index + 1) === APOSTROPHE) {
+    return index + 2;
   }
-  if (i >= len) return false;
-  i++;
-  while (i < len && str.charCodeAt(i) <= SPACE) i++;
-  const typeStart = i;
-  while (i < len) {
-    const code = str.charCodeAt(i);
-    if (code === COMMA || code <= SPACE || code === OPEN_BRACE || code === CLOSE_BRACE) break;
-    i++;
+  if (isQuoteStart(str, index, len, hashIsSyntax)) {
+    const end = closingQuoteEnd(str, index, len);
+    if (end !== -1) return end;
   }
-  const type = str.slice(typeStart, i);
-  return type === "plural" || type === "selectordinal";
+  return index + 1;
 }
 
 /**
- * Replaces `#` octothorpes bound to the current plural with `replacement`.
- * Per ICU MessageFormat, only a nested plural/selectordinal rebinds `#`, so
- * those blocks are skipped wholesale while other nested arguments (select,
- * params) stay transparent. Quoted `'…'` literals are never touched.
+ * Every character `parseTemplate` treats as something other than literal
+ * text, minus `#` (which is syntax only under `hashIsSyntax`, so its callers
+ * ask separately): `{` opens a core argument, `'` starts ICU quoting, and
+ * `<`, `&` and `\` are the three positions the scanner offers to the syntax
+ * extensions.
+ *
+ * Exported so a compiler deciding whether a sub-message can be used as the
+ * text it already is tests the SAME set the scanner acts on. `&` used to be
+ * missing from the ICU compiler's copy of this list, which left `&amp;`
+ * escaped inside a plain plural/select branch while the identical text one
+ * level up decoded — and made adding a parameter to the branch change it.
+ *
+ * `&` is narrowed to one that can actually OPEN something: an entity is `&`
+ * plus a name or a `#`. A bare `&` is ordinary copy ("Terms & Conditions"),
+ * and treating it as a trigger sent branches of plain text through the parser
+ * for byte-identical output at +27% on the perf gate's own case. The parser
+ * still offers every `&` to the extensions, so nothing an extension claims is
+ * lost: the narrowing only decides when re-parsing is worth doing at all, and
+ * a `&` followed by anything else is claimed by no shipped grammar. `\` stays
+ * broad — only `\<` is an escape, but a lone backslash in translation copy is
+ * rare enough that narrowing it buys nothing measurable.
  */
-export function replaceTopLevelHash(str: string, replacement: string): string {
-  if (str.indexOf("#") === -1) return str;
+const SYNTAX_CHARS = /['{<\\]|&[#A-Za-z]/;
 
-  const len = str.length;
-  let out = "";
-  let segStart = 0;
-  let i = 0;
-
-  while (i < len) {
-    const code = str.charCodeAt(i);
-    if (code === APOSTROPHE) {
-      i = advancePastApostrophe(str, i, len, true);
-      continue;
-    }
-    if (code === OPEN_BRACE && isPluralArgStart(str, i, len)) {
-      const end = findMatchingBraceEnd(str, i + 1, len, true);
-      i = end === -1 ? len : end;
-      continue;
-    }
-    if (code === HASH) {
-      out += str.slice(segStart, i) + replacement;
-      segStart = i + 1;
-    }
-    i++;
-  }
-
-  return out + str.slice(segStart);
+/** True when `str` holds anything the parser would not pass through as text. */
+export function hasSyntaxChars(str: string): boolean {
+  return SYNTAX_CHARS.test(str);
 }
 
-function findMatchingBraceEnd(
+/**
+ * Signature of `MessageCompiler.argOpensHashScope`: whether the `{` at
+ * braceIndex starts an argument that rebinds `#` (ICU plural/selectordinal).
+ * Compilers without such syntax leave it unset and the parser never treats
+ * `#` as syntax — the detection code stays out of the base graph.
+ */
+export type ArgOpensHashScope = (str: string, braceIndex: number, len: number) => boolean;
+
+export function findMatchingBraceEnd(
   str: string,
   startIndex: number,
   len: number,
   hashIsSyntax: boolean,
+  opensHashScope?: ArgOpensHashScope,
 ): number {
   let braceCount = 1;
   let i = startIndex;
@@ -191,7 +235,7 @@ function findMatchingBraceEnd(
     if (code === OPEN_BRACE) {
       braceCount++;
       contextStack.push(context);
-      if (!context && isPluralArgStart(str, i, len)) context = true;
+      if (!context && opensHashScope !== undefined && opensHashScope(str, i, len)) context = true;
     } else if (code === CLOSE_BRACE) {
       braceCount--;
       if (contextStack.length > 0) context = contextStack.pop()!;
@@ -202,158 +246,39 @@ function findMatchingBraceEnd(
   return braceCount === 0 ? i : -1;
 }
 
-function parseTag(
-  str: string,
-  startIndex: number,
-  len: number,
+/**
+ * Parse a template into tokens.
+ *
+ * `extensions` is the EFFECTIVE syntax-extension set (ambient ∪ per-call),
+ * computed once per translate call by the pipeline and threaded down — this
+ * function never reads the module-global registry.
+ *
+ * The core grammar owns `{...}` arguments and ICU `'` quoting. `<`, `&` and
+ * `\` are EXTENSION territory: the scanner offers each of them to the
+ * effective extension set and, when nothing claims the position, lets the
+ * character flow through as literal text. The tag extension
+ * (`@comvi/core/tags`) is what claims all three today — `<tag>…</tag>`, the
+ * `&lt;` / `&gt;` / `&amp;` entities and the `\<` escape are one grammar and
+ * they cost nothing in a graph that has no tags.
+ *
+ * `compiler` decides what a balanced `{...}` argument compiles to.
+ *
+ * `silenceUnclaimedTagWarning` is the ingestion preflight's opt-out from the
+ * dev unclaimed-tag warning, and nothing else reads it. The preflight parses
+ * every ingested string, but a catalog entry carrying `<b>` is only a mistake
+ * once a `t()` call renders it literally — an app that renders it through `<T>`
+ * hands the tag grammar in per call and never registers it on the instance, so
+ * warning at ingestion is a false positive AND, because the warning dedupes per
+ * template, it pre-empts the truthful one from the render path. Read only
+ * inside the `IS_DEV` branch below, so production folds it away.
+ */
+export function parseTemplate(
+  template: string,
   hashIsSyntax: boolean,
-): { token?: TagToken; endIndex: number; isTag: boolean } {
-  let i = startIndex + 1;
-
-  if (i < len && str.charCodeAt(i) === SLASH) {
-    return { endIndex: startIndex + 1, isTag: false };
-  }
-
-  if (i >= len || !isTagNameStartChar(str.charCodeAt(i))) {
-    return { endIndex: startIndex + 1, isTag: false };
-  }
-
-  const tagNameStart = i;
-  while (i < len && isTagNameChar(str.charCodeAt(i))) i++;
-  const tagName = str.slice(tagNameStart, i);
-
-  while (i < len && str.charCodeAt(i) <= SPACE) i++;
-
-  if (i >= len) {
-    return { endIndex: startIndex + 1, isTag: false };
-  }
-
-  const code = str.charCodeAt(i);
-
-  // Self-closing: <tag/>
-  if (code === SLASH) {
-    if (i + 1 < len && str.charCodeAt(i + 1) === GREATER_THAN) {
-      return {
-        token: [TK_TAG, tagName, [], 1],
-        endIndex: i + 2,
-        isTag: true,
-      };
-    }
-    return { endIndex: startIndex + 1, isTag: false };
-  }
-
-  // Opening: <tag>
-  if (code === GREATER_THAN) {
-    i++;
-    const contentStart = i;
-    const result = findClosingTag(str, i, len, tagName);
-
-    if (!result) {
-      return { endIndex: startIndex + 1, isTag: false };
-    }
-
-    const [closingStart, endIndex] = result;
-
-    const innerContent = str.slice(contentStart, closingStart);
-    const children = parseTemplate(innerContent, hashIsSyntax);
-
-    return {
-      token: [TK_TAG, tagName, children, 0],
-      endIndex,
-      isTag: true,
-    };
-  }
-
-  return { endIndex: startIndex + 1, isTag: false };
-}
-
-function findClosingTag(
-  str: string,
-  startIndex: number,
-  len: number,
-  tagName: string,
-): [closingStart: number, endIndex: number] | undefined {
-  const tagStack: string[] = [tagName];
-  let i = startIndex;
-
-  while (i < len && tagStack.length > 0) {
-    const code = str.charCodeAt(i);
-
-    if (code === BACKSLASH) {
-      i += 2;
-      continue;
-    }
-
-    if (code === LESS_THAN) {
-      const nextCode = i + 1 < len ? str.charCodeAt(i + 1) : 0;
-
-      // Closing tag
-      if (nextCode === SLASH) {
-        const closeTagStart = i;
-        i += 2;
-        const closeNameStart = i;
-        while (i < len && isTagNameChar(str.charCodeAt(i))) i++;
-        const closeName = str.slice(closeNameStart, i);
-        while (i < len && str.charCodeAt(i) <= SPACE) i++;
-
-        if (i < len && str.charCodeAt(i) === GREATER_THAN) {
-          i++;
-          const expectedTag = tagStack[tagStack.length - 1];
-          if (closeName === expectedTag) {
-            tagStack.pop();
-            if (tagStack.length === 0) {
-              return [closeTagStart, i];
-            }
-          } else {
-            if (IS_DEV) {
-              warn(`[i18n] Tag mismatch: expected </${expectedTag}>, found </${closeName}>`);
-            }
-            return undefined;
-          }
-        }
-        continue;
-      }
-
-      // Opening tag
-      if (isTagNameStartChar(nextCode)) {
-        const openTagStart = i;
-        i++;
-        const openNameStart = i;
-        while (i < len && isTagNameChar(str.charCodeAt(i))) i++;
-        const openName = str.slice(openNameStart, i);
-        while (i < len && str.charCodeAt(i) <= SPACE) i++;
-
-        if (i < len) {
-          const afterNameCode = str.charCodeAt(i);
-          if (afterNameCode === SLASH && i + 1 < len && str.charCodeAt(i + 1) === GREATER_THAN) {
-            i += 2;
-            continue;
-          }
-          if (afterNameCode === GREATER_THAN) {
-            i++;
-            tagStack.push(openName);
-            continue;
-          }
-        }
-        i = openTagStart + 1;
-        continue;
-      }
-    }
-
-    i++;
-  }
-
-  if (tagStack.length > 0) {
-    if (IS_DEV) {
-      warn(`[i18n] Unclosed tag: <${tagStack[tagStack.length - 1]}>`);
-    }
-    return undefined;
-  }
-
-  return undefined;
-}
-
-export function parseTemplate(template: string, hashIsSyntax = false): ParsedToken[] {
+  extensions: readonly SyntaxExtension[],
+  compiler: MessageCompiler,
+  silenceUnclaimedTagWarning?: boolean,
+): ParsedToken[] {
   const tokens: ParsedToken[] = [];
   const len = template.length;
   let lastIndex = 0;
@@ -377,51 +302,37 @@ export function parseTemplate(template: string, hashIsSyntax = false): ParsedTok
       } else {
         i++;
       }
-    } else if (code === AMPERSAND && !isQuoted) {
-      let entityLength = 0;
-      let entityChar = "";
-      if (template.slice(i, i + 4) === "&lt;") {
-        entityLength = 4;
-        entityChar = "<";
-      } else if (template.slice(i, i + 4) === "&gt;") {
-        entityLength = 4;
-        entityChar = ">";
-      } else if (template.slice(i, i + 5) === "&amp;") {
-        entityLength = 5;
-        entityChar = "&";
+    } else if (!isQuoted && (code === LESS_THAN || code === AMPERSAND || code === BACKSLASH)) {
+      let hookResult: { token: ParsedToken; endIndex: number } | undefined;
+      for (let e = 0; e < extensions.length; e++) {
+        hookResult = extensions[e].parseHook(template, i, len, hashIsSyntax, extensions, compiler);
+        if (hookResult !== undefined) break;
       }
-      if (entityLength !== 0) {
+      if (hookResult !== undefined) {
         if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
-        tokens.push([TK_TEXT, entityChar]);
-        i += entityLength;
-        lastIndex = i;
-        continue;
-      }
-      i++;
-    } else if (
-      code === BACKSLASH &&
-      !isQuoted &&
-      i + 1 < len &&
-      template.charCodeAt(i + 1) === LESS_THAN
-    ) {
-      if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
-      tokens.push([TK_TEXT, "<"]);
-      i += 2;
-      lastIndex = i;
-    } else if (code === LESS_THAN && !isQuoted) {
-      const tagResult = parseTag(template, i, len, hashIsSyntax);
-
-      if (tagResult.isTag && tagResult.token) {
-        if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
-        tokens.push(tagResult.token);
-        i = tagResult.endIndex;
+        tokens.push(hookResult.token);
+        i = hookResult.endIndex;
         lastIndex = i;
       } else {
+        // No extension claims the position — the character is literal text.
+        // A real tags extension never reaches here: it claimed the `<`.
+        if (IS_DEV && code === LESS_THAN && !silenceUnclaimedTagWarning) {
+          warnUnclaimedTag(template, i, len, extensions);
+        }
         i++;
       }
+    } else if (code === HASH && hashIsSyntax && !isQuoted) {
+      // A `#` bound to the enclosing plural's count. It becomes a token rather
+      // than being substituted into the branch text before the parse, so one
+      // cache entry serves every count. A quoted `'#'` never reaches here:
+      // `isQuoteStart` claims it above and `isQuoted` is set.
+      if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
+      tokens.push([TK_HASH]);
+      i++;
+      lastIndex = i;
     } else if (code === OPEN_BRACE && !isQuoted) {
       if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
-      const tokenResult = extractToken(template, i, hashIsSyntax);
+      const tokenResult = extractToken(template, i, hashIsSyntax, compiler);
       if (tokenResult.token) {
         tokens.push(tokenResult.token);
       } else {
@@ -442,115 +353,32 @@ export function parseTemplate(template: string, hashIsSyntax = false): ParsedTok
 export function extractToken(
   segment: string,
   startIndex: number,
-  hashIsSyntax = false,
+  hashIsSyntax: boolean,
+  compiler: MessageCompiler,
 ): { token?: ParsedToken; endIndex: number; shouldBreak: boolean } {
   const len = segment.length;
-  const contentHashIsSyntax = hashIsSyntax || isPluralArgStart(segment, startIndex, len);
-  const endIndex = findMatchingBraceEnd(segment, startIndex + 1, len, contentHashIsSyntax);
+  const opensHashScope = compiler.argOpensHashScope;
+  const contentHashIsSyntax =
+    hashIsSyntax || (opensHashScope !== undefined && opensHashScope(segment, startIndex, len));
+  const endIndex = findMatchingBraceEnd(
+    segment,
+    startIndex + 1,
+    len,
+    contentHashIsSyntax,
+    opensHashScope,
+  );
 
   if (endIndex === -1) {
     if (IS_DEV) {
-      warn("[i18n] Unbalanced braces in template");
+      warn("[@comvi/core] Unbalanced braces in template");
     }
     return { endIndex: len, shouldBreak: true };
   }
 
   const tokenContent = segment.slice(startIndex + 1, endIndex - 1);
   return {
-    token: createTokenFromContent(tokenContent, contentHashIsSyntax),
+    token: compiler.makeArgToken(tokenContent, contentHashIsSyntax, segment),
     endIndex,
     shouldBreak: false,
   };
-}
-
-export function createTokenFromContent(
-  tokenContent: string,
-  hashIsSyntax = false,
-): ParamToken | PluralToken | SelectToken {
-  let firstComma = -1;
-  let secondComma = -1;
-  let depth = 0;
-  const len = tokenContent.length;
-
-  for (let k = 0; k < len; k++) {
-    const code = tokenContent.charCodeAt(k);
-
-    if (code === APOSTROPHE) {
-      k = advancePastApostrophe(tokenContent, k, len, hashIsSyntax) - 1;
-      continue;
-    }
-
-    if (code === OPEN_BRACE) depth++;
-    else if (code === CLOSE_BRACE) depth--;
-    else if (code === COMMA && depth === 0) {
-      if (firstComma === -1) firstComma = k;
-      else if (secondComma === -1) {
-        secondComma = k;
-        break;
-      }
-    }
-  }
-
-  if (firstComma !== -1 && secondComma !== -1) {
-    const paramName = tokenContent.slice(0, firstComma).trim();
-    const typeStr = tokenContent.slice(firstComma + 1, secondComma).trim();
-    if (typeStr === "plural" || typeStr === "selectordinal") {
-      const choicesStr = tokenContent.slice(secondComma + 1).trim();
-      return [
-        TK_PLURAL,
-        paramName,
-        choicesStr,
-        undefined,
-        undefined,
-        typeStr === "selectordinal" ? 1 : 0,
-      ];
-    }
-    if (typeStr === "select") {
-      const choicesStr = tokenContent.slice(secondComma + 1).trim();
-      return [TK_SELECT, paramName, choicesStr, undefined];
-    }
-  }
-
-  return [TK_PARAM, tokenContent.trim()];
-}
-
-export function parsePluralChoices(
-  choicesStr: string,
-  hashIsSyntax = true,
-): Record<string, string> {
-  const cacheKey = `${hashIsSyntax ? "\u0001" : "\u0000"}${choicesStr}`;
-  const cached = pluralChoicesCache.get(cacheKey);
-  if (cached) return cached;
-
-  const choices = Object.create(null) as Record<string, string>;
-  const len = choicesStr.length;
-  let i = 0;
-
-  while (i < len) {
-    while (i < len && choicesStr.charCodeAt(i) <= SPACE) i++;
-    if (i >= len) break;
-
-    const keyStart = i;
-    while (i < len) {
-      const code = choicesStr.charCodeAt(i);
-      if (code <= SPACE || code === OPEN_BRACE) break;
-      i++;
-    }
-    const key = choicesStr.slice(keyStart, i);
-
-    while (i < len && choicesStr.charCodeAt(i) <= SPACE) i++;
-    if (i >= len || choicesStr.charCodeAt(i) !== OPEN_BRACE) {
-      break;
-    }
-
-    const valueStart = i + 1;
-    const endIndex = findMatchingBraceEnd(choicesStr, valueStart, len, hashIsSyntax);
-    if (endIndex === -1) break;
-
-    choices[key] = choicesStr.slice(valueStart, endIndex - 1);
-    i = endIndex;
-  }
-
-  pluralChoicesCache.set(cacheKey, choices);
-  return choices;
 }

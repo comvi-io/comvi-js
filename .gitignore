@@ -1,5 +1,10 @@
 node_modules
 dist
+# ...except the dist-level canary suites, which are source, not build output.
+!packages/core/tests/dist/
+!packages/react/tests/dist/
+!packages/next/tests/dist/
+!packages/cli/tests/dist/
 coverage
 *.local
 .DS_Store
@@ -23,6 +28,8 @@ pnpm-debug.log*
 
 # Environment variables
 .env*
+# Tracked on purpose: `vite build --mode gate-e` reads it, and it holds only a local mock URL.
+!apps/chrome-extension/.env.gate-e
 
 # Comvi config (contains API keys)
 .comvirc.json
@@ -51,11 +58,50 @@ test-apps/**/*.js.map
 # Svelte
 .svelte-kit
 .svelte-types
+# ...except the docs gate's stand-in for SvelteKit's generated `./$types`, which
+# is a checked-in fixture and not build output. Git will not descend into an
+# excluded directory, so the directory has to be re-included before the file can
+# be. Without both lines the fixture is silently absent from every commit, and a
+# pristine checkout throws ENOENT in sfc-check.mjs on the first page with
+# `src/routes` — which is `ssr.mdx` and `svelte.mdx`.
+!scripts/docs-snippets/fixtures/.svelte-kit
+!scripts/docs-snippets/fixtures/.svelte-kit/**
 
 # oh-my-claudecode
 .omc
+.omp
 .omx
 
 # Bundle analysis
 dist-analyze
 .claude/
+
+# Playwright artifacts
+playwright-report/
+test-results/
+
+# Smithers run store (ephemeral — never commit)
+smithers.db
+smithers.db-shm
+smithers.db-wal
+
+# mutation testing (scripts/mutation/run.mjs)
+.stryker/
+.stryker-tmp*/
+
+# perf reference builds (scripts/perf.mjs --compare-ref)
+.perf-ref/
+
+# tarballs from `pnpm pack:release` (one per publishable package; the docs gate
+# installs them; they are build output, not source)
+packages/*/*.tgz
+# the root LICENSE, copied into each publishable package by tooling/copy-license.mjs
+packages/*/LICENSE
+# the release job's candidate (scripts/publish-candidate.mjs): packed, verified, published
+release-candidate/
+
+# Local git worktrees used for parallel lots (never committed)
+.worktrees/
+
+# Review and build-proof artifacts live in .omc/reviews (ignored); docs/design holds the ADRs.
+docs/reviews/

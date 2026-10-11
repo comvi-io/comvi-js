@@ -17,7 +17,7 @@ const props = defineProps<{
 const translationManager = inject<any>("translationManager");
 
 if (!translationManager) {
-  throw new Error("translationManager not provided");
+  throw new Error("[@comvi/plugin-in-context-editor] translationManager not provided");
 }
 </script>
 
@@ -25,9 +25,11 @@ if (!translationManager) {
   <div class="flex flex-grow overflow-hidden" style="height: calc(90vh - 130px)">
     <ModalSidebar :languages="languages" />
 
-    <!-- Loading skeleton -->
     <div
-      v-if="translationManager.state.value.isLoading || isLoadingLanguages"
+      v-if="
+        (translationManager.state.value.isLoading && !translationManager.isSaving.value) ||
+        isLoadingLanguages
+      "
       class="flex-1 overflow-y-auto p-4 space-y-6"
     >
       <div v-for="i in 3" :key="i" class="space-y-3 animate-pulse">
@@ -39,7 +41,6 @@ if (!translationManager) {
       </div>
     </div>
 
-    <!-- Full-page error state -->
     <div
       v-else-if="translationManager.state.value.error && !translationManager.state.value.data"
       class="flex-1 flex items-center justify-center"
@@ -65,7 +66,6 @@ if (!translationManager) {
       </div>
     </div>
 
-    <!-- Content with optional inline error banner -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
       <div
         v-if="translationManager.state.value.error"

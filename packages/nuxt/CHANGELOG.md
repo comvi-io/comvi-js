@@ -1,5 +1,851 @@
 # @comvi/nuxt
 
+## 0.5.0
+
+### Minor Changes
+
+- 09029b0: **BREAKING (breaking change on a 0.x minor): the auto-imported `useI18n()` no longer returns `hasTranslationNow` / `hasLocaleNow`.** It extends `@comvi/vue`'s return type, which dropped the pair because `hasTranslation` / `hasLocale` are already the non-reactive form in the other bindings. Both are unchanged on the instance: `useNuxtApp().$i18n.hasTranslationNow(key, opts?)`.
+- 09029b0: **BREAKING (breaking change on a 0.x minor): the generated default instance is the base instance.**
+  `@comvi/nuxt` keeps every published entry, composable, component, middleware and server
+  utility. What changes is the build-time `#build/comvi.i18n` template when `i18nModule` is
+  unset: it builds text + `{param}` interpolation, the cache, events and default params, and
+  NOTHING ELSE. ICU throws `E_ICU_SYNTAX` in development and renders literally in production;
+  the loader, plugins capability and devtools discovery are absent until the app composes them; and
+  string-API tag syntax is literal (dev-warned). A nested inline catalog is NOT on that list:
+  the base instance flattens one itself, so `comvi.messages` works nested or flat.
+
+  `i18nModule` is the composition escape and, for any app that loads translations
+  asynchronously, the migration path. (`icu: true` is the one exception — see
+  `nuxt-icu-option.md`.)
+
+  ```ts
+  // nuxt.config.ts → comvi: { …, i18nModule: "./comvi.i18n.ts" }
+  // comvi.i18n.ts — return a FRESH instance per call
+  import { createI18n } from "@comvi/core";
+  import { icuCompiler } from "@comvi/core/icu";
+  import { loader } from "@comvi/core/loader";
+  import type { NuxtInstanceFactory } from "@comvi/nuxt";
+
+  export default ((options) =>
+    createI18n({ ...options, compiler: icuCompiler }).use(
+      loader({ de: () => import("./locales/de.json") }),
+    )) satisfies NuxtInstanceFactory;
+  ```
+
+  Add `.use(plugins())` and `.use(devtools())` as the app needs them; their order among
+  themselves is free, and all three only have to be composed before `init()`. ICU is not
+  composed: it is the `compiler` option, and it covers every catalog source.
+
+  **The factory receives Nuxt's resolved instance options** — `locale` (render locale on the
+  client, request locale on the server), `fallbackLocale`, `defaultNs`, `defaultParams`,
+  `tagInterpolation` from `basicHtmlTags`, `devMode` and `apiKey` — so spreading `options`
+  into `createI18n` preserves every existing configuration and request-locale contract. A
+  factory written earlier in 0.5.0 development that accepts no argument still works.
+  `NuxtInstanceFactory` / `NuxtInstanceFactoryOptions` are public types for it. The branch stays
+  build-time, and the factory is called once for the client plugin and once per
+  request-scoped server instance.
+
+  **Server instance types now tell the truth.** `NuxtServerInstance` is the base `WrapperI18nInstance` the
+  server utilities accept; `NuxtServerLoaderInstance` is that instance plus `I18nLoaderApi`, the shape
+  SSR loading needs. Utilities narrow with `hasLoaderApi` before driving the loader, so a base
+  instance with cached or setup-provided translations renders them, a base instance with an empty
+  catalog warns once naming the `i18nModule` + `.use(loader(map))` fix, and no path calls an
+  absent loader member.
+
+  `comvi.setup` still receives a `VueI18n`, and its removed capability proxies remain a
+  breaking migration: move them to `i18n.core.*`, composing that capability in the instance
+  factory first. `const { reloadMessages } = useI18n()` becomes `useI18nLoader()`, and
+  `onMissingKey` moves to `useI18nPlugins()`. The proxy calls in `.vue` / `comvi.setup.*` files
+  are the ones to read carefully: `i18n.reloadMessages()` may be a `VueI18n` proxy that moves
+  to `i18n.core.*` or an already-correct raw core instance, and only you can tell which. See the
+  [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §6.
+
+- 09029b0: **BREAKING (breaking change on a 0.x minor): `comvi.cdnUrl` and `comvi.apiBaseUrl` are removed.**
+
+  Both were documented with `@example "https://cdn.comvi.io/your-distribution-id"` and written into
+  `runtimeConfig.public.comvi`, and no runtime code in this package ever read either one. An app
+  that set them got a config key, a serialized payload entry, and no loading — the exact shape of a
+  setting that looks configured and does nothing. They are removed rather than wired: this module
+  composes nothing on your behalf, which is the same rule that makes `i18nModule` the only way to
+  get a loader.
+
+  **Migration.** A 0.4 app that set `cdnUrl` composes the loader in its `comvi.i18n.ts` file instead:
+
+  ```ts
+  // comvi.i18n.ts
+  import { createI18n, type NuxtInstanceFactory } from "@comvi/nuxt/i18n";
+  import { cdnLoader } from "@comvi/plugin-fetch-loader";
+
+  export default ((options) =>
+    createI18n(options).use(
+      cdnLoader({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
+    )) satisfies NuxtInstanceFactory;
+  ```
+
+  …and points `comvi.i18nModule` at it. `apiBaseUrl` moves the same way, into the loader plugin's own `baseUrl`
+  option.
+
+  `comvi.apiKey` STAYS: it is forwarded to the instance as `i18n.apiKey`, where a loader plugin such as
+  `@comvi/plugin-fetch-loader` reads it. Its doc comment no longer implies this module does CDN or
+  API loading.
+
+- 09029b0: **BREAKING (breaking change on a 0.x minor): the instance under `@comvi/nuxt` is core's base instance.**
+  Nuxt is the one package this convergence did not repackage — every published entry,
+  composable, component, middleware and server utility stays exactly where it was. What
+  changed sits underneath all of them: the generated `#build/comvi.i18n` template builds
+  core's base instance, so ICU, async loading, the plugins capability, devtools discovery and ambient tag
+  syntax became things a Nuxt app composes. `nuxt-framework-slim.md` carries the recipe and
+  the migration table; this entry states the three contracts that are Nuxt's alone.
+
+  **ICU is a compiler option.** The module hands the factory its resolved options, and the
+  factory takes `compiler: icuCompiler` in the same call (or the `icu` module option, for an
+  app with no `i18nModule`). One option covers every catalog source, whether translations
+  arrive from `nuxt.config`, from `comvi.setup` or from a loader. Under the default compiler
+  an ICU template never renders as a plural — development throws `E_ICU_SYNTAX` at ingestion,
+  production renders the braced segment literally and reports it through `onError` (or
+  `console.error`). **ICU is never enabled automatically.**
+
+  **The capability toolkit is deliberately not re-exported here.** Every other converged
+  package re-exports core's installers so an app never names a capability subpath;
+  `@comvi/nuxt` does not, on purpose. Its published surface is a Nuxt module, not an
+  application import, and composition happens in `comvi.i18n.ts` — an ordinary app file that
+  names `createI18n` plus `icuCompiler` / `loader` / `plugins` / `devtools` from core's own
+  pure subpaths directly. Relaying them through the module entry would put the whole toolkit
+  in the build-time graph of every app, including the ones that compose nothing. What
+  `@comvi/nuxt` does publish for that file is the type vocabulary: `NuxtInstanceFactory`,
+  `NuxtInstanceFactoryOptions`, `NuxtServerInstance` and `NuxtServerLoaderInstance`.
+
+  **Vue's convergence rides through.** Nuxt's rendering layer is `@comvi/vue`: `comvi.setup`
+  receives a `VueI18n`, and the auto-imported `<T>` is vue's component verbatim. Vue's `<T>`
+  moved onto the pure `@comvi/core/rich-text` seam, so rendering rich text no longer switches
+  string-API tag parsing on for every plain `t()` call behind your back —
+  `t("Click <b>here</b>")` returns that markup as text until you `import "@comvi/core/tags"`
+  in a Nuxt plugin. The capability calls that used to sit on `VueI18n`'s proxies move to
+  `i18n.core.*`. See `vue-single-entry-convergence.md` and
+  `core-single-entry-convergence.md`.
+
+- 09029b0: The module now writes `<html lang dir>` from the active locale by default (`comvi.head: false` turns it off), so the call is optional for those two attributes; `useLocaleHead()` is still needed for canonical, hreflang and `og:locale` tags, and the `lang` and `dir` it writes agree with the module's. `defineComviI18n()` from `@comvi/nuxt/i18n` types a `comvi.i18n.ts` factory without `satisfies NuxtInstanceFactory`, and in development the module throws when the factory returns the same instance twice.
+- 09029b0: `comvi.i18n.ts` is found by convention, `icu: true` reaches a `comvi.i18n` module, and a typed
+  `comvi.setup.ts` names one specifier.
+  - **`comvi.i18n.*` is auto-detected.** The module looks for `./comvi.i18n.*` under `srcDir`, then
+    `rootDir`, the same way it already found `./comvi.setup`. `i18nModule` stays the explicit
+    override, and a set `i18nModule` that does not resolve is still a build error. The detected
+    path is logged at build time so a stray file that changed the instance is visible, and a near
+    miss (a `comvi.i18n.cjs` it found but could not resolve) is warned about, naming the file and
+    the specifier it looked for. The choice between the generated and the composed instance is still made in codegen.
+  - **`icu: true` is no longer ignored when a `comvi.i18n` module exists.** It used to be dropped with a
+    build-time warning. Now the module puts `compiler: icuCompiler` into the resolved options the
+    factory receives — as the last key, so a factory that writes `createI18n({ ...options })` gets
+    ICU and one that writes `createI18n({ ...options, compiler: mine })` keeps its own. With
+    `icu: false` the generated module imports nothing from `@comvi/core/icu`, on both branches.
+    `NuxtInstanceFactoryOptions` gained the matching `compiler?: MessageCompiler`.
+  - **`I18nLoaderApi` and `LoaderFn` are re-exported (type-only) from the `@comvi/nuxt` root**, so a
+    hook typed `NuxtI18nSetup<I18n & I18nLoaderApi>` imports all three types from `@comvi/nuxt`,
+    the package the app declared, instead of `@comvi/core` and `@comvi/core/loader`, which it did
+    not.
+  - **The near-miss probe is exact.** It matched any entry starting with `comvi.setup`, so a
+    `comvi.setup.d.ts`, a `comvi.setup.ts.bak` or a `comvi.setup/` directory was reported as the
+    hook that failed to resolve. It now requires a regular file named `comvi.setup.<ext>` (one
+    extension), and the new `comvi.i18n` probe has the same shape.
+
+  **Migrating a `comvi.setup.ts` that only registered an import-map loader.** A setup hook whose
+  whole body was `core.registerLoader(createImportMapLoader({ … }, () => core.getDefaultNamespace()))`
+  is what `loader(map)` from `@comvi/nuxt/i18n` already does — it attaches the loader capability AND
+  registers the map. Move the map into `comvi.i18n.ts` and delete the setup file:
+
+  ```ts
+  // comvi.i18n.ts
+  import { createI18n, loader, type NuxtInstanceFactory } from "@comvi/nuxt/i18n";
+
+  export default ((options) =>
+    createI18n(options).use(
+      loader({
+        en: () => import("./locales/en.json"),
+        "en:admin": () => import("./locales/admin/en.json"),
+      }),
+    )) satisfies NuxtInstanceFactory;
+  ```
+
+  That file needs no dependency the app did not install; the old setup file resolved
+  `@comvi/core/loader` only under a hoisted `node_modules`. A setup hook that does something else
+  (a plugin, a runtime-dependent decision) stays where it is, and can now type its context with
+  `import type { I18n, I18nLoaderApi, NuxtI18nSetup } from "@comvi/nuxt"`.
+
+- 09029b0: New `@comvi/nuxt/i18n` subpath, so a `comvi.i18n.ts` can be written after installing
+  `@comvi/nuxt` and nothing else.
+
+  The documented `comvi.i18n.ts` recipe composed `createI18n` from `@comvi/core` plus `@comvi/core/icu` and
+  `@comvi/core/loader`. None of those is a dependency of the APP — they are dependencies of this
+  package — so under pnpm's default layout the recipe did not resolve from a clean install, and the
+  error arrived as a module-resolution failure rather than a missing install. The new subpath
+  re-exports exactly the composition surface: `createI18n`, `icuCompiler`, `loader`,
+  `attachLoader`, `plugins`, `devtools`, `definePlugin`, and the `NuxtInstanceFactory` type. The
+  low-level `attachPlugins` / `attachDevtools` pair is NOT on it, the same call the binding roots
+  made: `plugins()` / `devtools()` are the configured installers a `comvi.i18n.ts` file writes, and the pair
+  stays on `@comvi/core/plugins` / `@comvi/core/devtools`. `attachLoader` is not a synonym of
+  `loader(map)` — it is the attach-only loader installer — so it is here.
+
+  ```ts
+  // comvi.i18n.ts
+  import { createI18n, icuCompiler, loader, type NuxtInstanceFactory } from "@comvi/nuxt/i18n";
+
+  export default ((options) =>
+    createI18n({ ...options, compiler: icuCompiler }).use(
+      loader({ de: () => import("./locales/de.json") }),
+    )) satisfies NuxtInstanceFactory;
+  ```
+
+  Named re-exports only, one hop straight from `@comvi/core` or one of its pure subpaths, and the
+  entry is gated by its own `scripts/size-budgets.json` row like every other published entry.
+  `flattenCatalog` is deliberately not re-exported: the base instance flattens a nested catalog itself,
+  so pre-flattening by hand stays on the `@comvi/core` root. Additive — importing core's subpaths
+  directly still works for an app that declares `@comvi/core`.
+
+- 09029b0: New module option `icu: boolean` (default `false`). The generated default instance is the base
+  instance and has no `.use()` seam of yours to compose on, so an app without `i18nModule` had no
+  way to choose the ICU compiler at all. With `icu: true` the generated `comvi.i18n` imports
+  `icuCompiler` from `@comvi/core/icu` and passes `compiler: icuCompiler` to both the vue
+  wrapper and the raw core constructor; with the default `false` the generated module does not
+  mention `@comvi/core/icu`, so the choice costs nothing when unmade. When `i18nModule` is set
+  the option is ignored with a one-line build-time warning — a composed instance picks its own
+  compiler.
+
+  Loader, plugins capability and devtools discovery still arrive only through `i18nModule`. ICU is
+  the one capability that is a constructor argument rather than something `.use()` can pipe
+  on, which is why it alone gets a module option. **ICU is never enabled automatically.**
+
+- 09029b0: New module option `comvi.messages` — inline catalogs, so the two-line module-options floor
+  produces an app that can actually show a translation.
+
+  `NuxtI18nOptions` had no inline-catalog option at all. Without `i18nModule` the generated instance is
+  core's BASE instance, which has no loader, so an app that configured only `locales` and
+  `defaultLocale` had no way to get a catalog in and every key rendered as itself. The option takes
+  `I18nOptions["messages"]` verbatim — keys are `locale` or `"locale:namespace"` — and travels
+  through `runtimeConfig.public.comvi` into BOTH construction paths: the client runtime plugin and
+  each per-request server instance. A `i18nModule` factory receives it in its resolved options too, so
+  a composed instance that spreads `options` keeps it without doing anything.
+
+  ```ts
+  // nuxt.config.ts — a complete working app, no comvi.i18n.ts file
+  comvi: {
+    locales: ["en", "de"],
+    defaultLocale: "en",
+    messages: {
+      en: { greeting: "Hello" },
+      de: { greeting: "Hallo" },
+    },
+  }
+  ```
+
+  It is public runtime config, so it must stay JSON-serializable and must not hold anything
+  private. Additive: an app that loads its catalogs through a `i18nModule` loader is unaffected.
+
+- 09029b0: The catalog cache returned by `useI18n()` is `messagesCache`; `translationCache` is removed.
+- 09029b0: The inline catalog module option is `comvi.messages`, published as `runtimeConfig.public.comvi.messages`, so `NUXT_PUBLIC_COMVI_MESSAGES` overrides it. The server util is `loadMessages()` with `LoadMessagesOptions` and a `MessagesMap` result; `comvi.translation` and `loadTranslations()` are removed.
+- 09029b0: `useI18nLoader()` now hands out `removeActiveNamespace(ns)` and `removeActiveNamespaces(ns[])`
+  alongside `addActiveNamespace(s)`.
+
+  They are core's new deactivation: the namespace leaves `getActiveNamespaces()`, its in-flight
+  load is cancelled, and a `configChanged` event re-renders anything reading the active set.
+  Content already in the cache is untouched — `clearMessages()` is content-only in every form
+  now, so it no longer deactivates anything.
+
+- 09029b0: The `comvi.setup` context now hands you the instance directly as `core`.
+
+  `context.i18n` is a union — a `VueI18n` in the app plugin, the instance itself in a server utility —
+  so every capability call needed a `'core' in i18n` narrowing first, even though the JSDoc example
+  did not show one. `core` is that instance on both runtimes:
+
+  ```ts
+  export default (({ core }) => {
+    core.registerLoader(myLoader);
+  }) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
+  ```
+
+  `i18n` is unchanged, so existing hooks keep working.
+
+- 09029b0: A `comvi.setup` hook's instance type is read from `comvi.i18n.ts` instead of asserted about it.
+
+  `NuxtI18nSetup<I18n & I18nLoaderApi>` was an unverified claim about a different file reached by a
+  string path: it compiled whether or not `comvi.i18n.ts` ever composed the loader, and a base instance
+  carries no capability shim, so `core.registerLoader(...)` threw a raw `TypeError` on the first
+  call. The module now generates `.nuxt/types/comvi-i18n.ts`, which declares the instance as
+  `ReturnType<typeof import("<your comvi.i18n>").default>` and publishes it through the new
+  `ComviNuxtInstanceRegistry` interface, so `NuxtI18nSetup` / `NuxtI18nSetupContext` default to the instance
+  your factory actually returns — write the hook with no type argument at all and the capabilities you
+  composed are the ones that compile. Naming the instance by hand stays supported for a factory this
+  package cannot see, and the generated file cross-checks that claim through the new
+  `CheckedNuxtI18nSetup<Instance, Hook>`, so a hook that asks for a capability the factory never composed
+  is a build error naming both sides rather than a `TypeError` at request time. With no `comvi.i18n`
+  file the declaration names core's base `I18n`, which is what that branch really builds.
+
+- 09029b0: The module takes the locale options `@comvi/next` takes, normalized by one shared schema: `localeCookie` and `localeDetection` (with `order`, `headerName` and `resolveAcceptLanguage`), plus `comvi.ns`, and `useTranslation(event)` reads the locale from the path and `queryParam` in the route middleware's order. `detectBrowserLanguage`, `fallbackLanguage` and `useTranslation`'s `namespace` are gone and module setup fails naming the replacement; runtime config carries `localeCookie` and `localeDetection`, so `NUXT_PUBLIC_COMVI_*` overrides use those keys.
+- 09029b0: Locale path utilities (`runtime/utils/locale-path.ts`) are now thin adapters over one shared implementation, the same one `@comvi/next` uses. The shared code is workspace-private and ships inside this package's runtime — **no new dependency, nothing extra to install**. `extractLocaleFromPath`, `buildLocalizedPath`, `splitPathAndSuffix`, and `setQueryParamInSuffix` behave byte-identically; `stripLocalePrefix`'s matching was already effectively segment-based and keeps its results, with one edge-case diff:
+  - Inputs are normalized to a leading slash: `stripLocalePrefix("about", locales)` now returns `/about` (was `about`, unchanged), and `""` now returns `/` (was `""`).
+
+  The middleware and composables always pass leading-slash router paths, so no observable routing change is expected in real apps. Trailing-slash preservation (`/de/about/` → `/about/`) is unchanged — it is now the shared behavior for Next too.
+
+- 09029b0: **`.use(installer)` is the ONE composition verb.** 0.5 shipped two verbs for two contracts — `.with(installer)`, a synchronous widening pipe on the base instance, and `.use(plugin)`, a deferred queue on the plugins capability. Two verbs one letter apart, with opposite timing, is a coin toss at every call site, and `with` needed explaining every time. `use` does not: Vue's `app.use(plugin)` calls `install(app)` synchronously and hands the app back for chaining, and Express's `app.use` and i18next's `.use(module)` are synchronous registration too. So `use` is now the only verb, and it means what every reader already thinks it means.
+
+  ```ts
+  import { createI18n, icuCompiler, definePlugin } from "@comvi/vue";
+  import { cdnLoader } from "@comvi/plugin-fetch-loader";
+  import { localeDetector } from "@comvi/plugin-locale-detector";
+
+  const i18n = createI18n({ locale: "en", fallbackLocale: "en", compiler: icuCompiler })
+    .use(cdnLoader({ cdnUrl }))
+    .use(localeDetector({ order: ["querystring", "navigator"] }))
+    .use(
+      definePlugin((i18n) => {
+        /* my own plugin */
+      }),
+    );
+
+  createApp(App).use(i18n).mount("#app"); // vue's own `use`, unchanged
+  ```
+
+  ### The renames
+
+  | 0.5 (before)                | 0.5 (now)                              | What it is                                             |
+  | --------------------------- | -------------------------------------- | ------------------------------------------------------ |
+  | `i18n.with(installer)`      | `i18n.use(installer)`                  | the composition pipe, on the BASE instance             |
+  | `VueI18n.with(installer)`   | `VueI18n.use(installer)`               | the same pipe on vue's wrapper, running on `i18n.core` |
+  | `i18n.use(plugin, options)` | `i18n.registerPlugin(plugin, options)` | the deferred plugin queue, on the plugins capability   |
+  | —                           | `definePlugin(fn, options?)`           | NEW: registers your own inline plugin through `.use`   |
+  | `E_WITH_HOST_IDENTITY`      | `E_USE_INSTANCE_IDENTITY`              | vue: the installer returned a different object         |
+  | `WithHostIdentityError`     | `UseInstanceIdentityError`             | the exported type for that error                       |
+  | `E_INSTALLER_NESTED_USE`    | `E_INSTALLER_AS_PLUGIN`                | an installer was registered as a plugin                |
+  | —                           | `E_USE_NOT_INSTALLER`                  | NEW: `.use(f)` got something that is not an installer  |
+
+  `registerPlugin` lines up with the neighbours it sits beside on that capability — `registerLoader`, `registerLocaleDetector`, `registerPostProcessor` — and it is no longer a composition verb, so nothing reads as if it belonged in a `.use` chain. `definePlugin(fn)` is `attachPlugins(instance).registerPlugin(fn, options)` wrapped as an installer: it attaches the plugins capability if the chain has not already and queues exactly one plugin, so an app never touches the raw queue. It is exported from `@comvi/core/plugins` and re-exported by every binding root (`@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`, `@comvi/next/client`, `@comvi/next/server`) beside `plugins`; the low-level `attachPlugins` stays on `@comvi/core/plugins` alone. `plugins()` attaches the plugins CAPABILITY; `definePlugin(fn)` registers ONE plugin on it.
+
+  `E_USE_NOT_INSTALLER` is what makes one verb safe. The rule is IDENTITY: **an installer widens the instance in place and returns the instance it was given**, so `.use(f)` throws unless `f` handed back that same object. A shape probe ("did it return an object?") would not have been enough — `fetchLoaderPlugin(…)` and friends are async functions, so calling one returns a Promise, which is an object; the plugin would have run at composition time with its rejection unhandled. Identity catches sync and async raw plugins alike, and `.use` — core's and vue's alike — also swallows the rejection an already-invoked async plugin left behind, so the actionable error is the only thing you see. In development the message states the rule, NAMES what came back (`typeof`, and whether an object was thenable — which is what separates "you passed an async plugin" from "you passed nothing"), and names both ways out; in production it is the bare code. This is the same rule vue's wrapper has always enforced over `i18n.core`, reported there under the wrapper's own code and with the same development wording, so the branchable `code` set is now three: `E_ICU_SYNTAX`, `E_USE_INSTANCE_IDENTITY`, `E_USE_NOT_INSTALLER`.
+
+  The rule is also stated in the TYPE: `use<T extends this>(installer: (instance: this) => T): T`, so all three misuses — a derived object, an async installer, an installer that returns nothing — are compile errors, while every widening installer still infers and widens. The runtime guard stays for JS and `any`-typed callers. Vue's `use` keeps its `T extends WrapperI18nInstance<D>` bound, which already refuses the same three shapes.
+
+  One consequence for hand-written installers: a step that returned a DERIVED object (`.use((i18n) => ({ i18n, dispose }))`) is no longer a valid installer. Widen in place and return the instance, and keep whatever else you built beside the chain.
+
+  Everything else keeps its name: `loader()`, `plugins()`, `devtools()`, `attachLoader`, `attachPlugins`, `attachDevtools`, `fetchLoader()`, `cdnLoader()`, `localeDetector()`, `inContextEditor()`, `icuCompiler`, the `compiler:` option, `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `createI18nFromCore`, `createNextI18nFromInstance`, Nuxt's `i18nModule`. (`@comvi/vue`'s `createCore` alias is gone — see `vue-drop-create-core.md`; `attachPlugins` / `attachDevtools` keep their names on `@comvi/core/plugins` / `@comvi/core/devtools`, off the binding roots — see `roots-drop-attach-pair.md`.) (`createNextI18n(...).use` becomes the same installer pipe in wave 2 — see the `@comvi/next` entry.) Vue's `app.use(i18n)` and Nuxt's `nuxtApp.use` were never ours and are untouched.
+
+  ### Migration
+
+  ```diff
+  - import { createI18n, icuCompiler, loader, plugins } from "@comvi/react";
+  - import { LocaleDetector } from "@comvi/plugin-locale-detector";
+  + import { createI18n, icuCompiler, loader, definePlugin } from "@comvi/react";
+  + import { localeDetector } from "@comvi/plugin-locale-detector";
+
+    export const i18n = createI18n({ locale: "en", compiler: icuCompiler })
+  -   .with(loader({ uk: () => import("./uk.json") }))
+  -   .with(plugins())
+  -   .use(LocaleDetector({ order: ["navigator"] }))
+  -   .use((i18n) => {
+  -     track(i18n.locale);
+  -   });
+  +   .use(loader({ uk: () => import("./uk.json") }))
+  +   .use(localeDetector({ order: ["navigator"] }))
+  +   .use(
+  +     definePlugin((i18n) => {
+  +       track(i18n.locale);
+  +     }),
+  +   );
+  ```
+
+  Three mechanical steps, in this order:
+  1. `.with(` → `.use(` everywhere, including on vue's `VueI18n`.
+  2. Every remaining `i18n.use(rawPlugin)` → `i18n.registerPlugin(rawPlugin)`. A "raw plugin" is a function that returns nothing or a cleanup function: your own inline plugin, or a `*Plugin` factory's result (`localeDetectorPlugin()`, `fetchLoaderPlugin()`, `inContextEditorPlugin()`).
+  3. Prefer composing instead of queuing: an inline plugin becomes `.use(definePlugin(fn))`, and a plugin package's `*Plugin` factory becomes its bare-name installer in the chain (`localeDetector()`, `fetchLoader()`, `cdnLoader()`, `inContextEditor()`).
+
+  No `with` alias survives anywhere, and the old error identities are gone: a `catch` that branched on `E_WITH_HOST_IDENTITY` or `E_INSTALLER_NESTED_USE`, or a type import of `WithHostIdentityError`, must be updated. Step 2 has no compile error on an instance typed as `any`, and a raw plugin left in `.use()` now throws `E_USE_NOT_INSTALLER` at composition time — loudly, with the fix in the message — rather than running at the wrong moment.
+
+### Patch Changes
+
+- 09029b0: `publishConfig.access` is now declared as `public` in every published manifest.
+
+  `access: "public"` previously lived only in `.changeset/config.json`, so it applied to
+  `changeset publish` and nothing else. Any other publish path had to remember `--access public`
+  or npm would refuse the scoped package as private. The declaration now travels with each
+  manifest. No code changed.
+
+- 09029b0: Docs: the ICU failure mode is now stated in one sentence, identical on the root README and all seven package READMEs — development throws `E_ICU_SYNTAX` the moment the catalog is loaded, before anything renders; production renders the message text literally and reports through `onError`, or `console.error` when no handler is set. The design note in `docs/design/icu.md` gains a paragraph placing that behaviour against the other runtimes: the production half is what most of them do, and the development throw at catalog load is the part unique to Comvi, because a throw at the `t()` call only finds the ICU keys someone actually rendered.
+- 09029b0: Docs: the house ICU failure sentence was only true of an INLINE catalog, and every quickstart that carries it prescribes a loader. It now states both paths, in the same words on the root README, all seven package READMEs and `docs/design/icu.md`: development fails at ingestion before anything renders, inline by throwing `E_ICU_SYNTAX` at the call that carries the catalog, and over a loader by failing that namespace's load — `E_ICU_SYNTAX` reaches `onLoadError`, the namespace stays empty, and `init()` rejects with `[@comvi/core] Failed to load all namespaces …` rather than with `E_ICU_SYNTAX`, so a provider with a `fallback` keeps painting it. The production half is unchanged. What a reader saw before was a promise of an error code that never reaches their `onError` and a spinner that never clears, described as "before anything renders".
+
+  New tests pin the loader path rather than the mechanism: `packages/core/tests/features/loader-icu-preflight.test.ts` for what `init()` rejects with, where `E_ICU_SYNTAX` is delivered, and the partial-failure case where `init()` still resolves; `packages/react/tests/loader-icu-fallback.test.tsx` for the fallback that stays painted and the error the provider reports.
+
+  [The 0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md) §7 gains the same correction plus three fixes: `E_USE_INSTANCE_IDENTITY` is raised by `@comvi/next` as well as `@comvi/vue` (the `createNextI18n` result's `.use(f)`, when `f` hands back a different object), `E_LOADER_IMPORT_MAP` gets the row and the exact dev/prod text it was missing, and the section now says which names are branchable `code` properties and which — the capability-missing pair included — are message text only.
+
+- 09029b0: Docs: the "Connect to Comvi" step now reads as three questions, in the same order and the same words on every README — which parser (`compiler: icuCompiler`, with the failure mode spelled out: development throws `E_ICU_SYNTAX` at ingestion, production renders the braced message literally and reports it once), where the catalog comes from (`.use(cdnLoader({ cdnUrl }))`), and what to paint while it is in flight. Only the third answer differs between frameworks, and three of the seven have no gate to write at all; the code fences are unchanged.
+
+  The root README also gains a **Reading the type errors** section: the three diagnostics a 0.4 app meets first — a typed key called without a required parameter, a member that moved off `useI18n()`, and a raw plugin factory in the `.use(…)` slot — each quoted verbatim from `tsc` or node, with the two compile errors pinned by `check=expect-error` so a drifting message is a docs-gate failure rather than a stale paragraph.
+
+- 09029b0: The shipped `.d.ts` files now use extension-qualified relative specifiers (`./options.js`,
+  `./cdn/index.js`), so the published types resolve under `moduleResolution: node16` and
+  `nodenext` — the mode a Node ESM package or a `"type": "module"` app gets by default.
+
+  Previously every relative specifier in the emitted declarations was extensionless, inherited
+  verbatim from sources written for `moduleResolution: "bundler"`. Bundler resolution
+  substitutes extensions; node16 does not, and it has no directory-index lookup either. The
+  damage had two shapes, and only one of them was loud:
+  - The `@comvi/plugin-fetch-loader` entry that carries `cdnLoader` was built as
+    `export * from './cdn/index'`. A star re-export from an unresolved module contributes no
+    names, so the entry point had **zero exported members**, and importing `cdnLoader` failed
+    with `TS2305 ... has no exported member 'cdnLoader'`. `@comvi/core` and
+    `@comvi/plugin-in-context-editor` had the same shape on `export type * from './types'` and
+    `export * from './entry-production'`.
+  - Every other entry used named re-exports (`export { X } from './options'`). Those keep the
+    name but bind it to an unresolved module, so `X` silently became `any`. With the
+    `skipLibCheck: true` nearly every app sets, a node16 consumer got **no diagnostic at
+    all**: `createI18n(123)` type-checked. The packages looked typed and checked nothing.
+
+  **On upgrade, a `node16`/`nodenext` project may see NEW type errors in its own code.** Those
+  errors were always there — the types that would have reported them were `any`. Code written
+  against the real signatures needs no change.
+
+  Bundler-resolution consumers (Vite, and Next.js projects on the `bundler` default) were
+  never affected — their types were correct throughout. Consumers on `node16`/`nodenext` get
+  real types for the first time, with one exception outside our control: `@comvi/next`'s
+  middleware and routing declarations import `next/server` and `next/link`, and `next@15.5.9`
+  ships no `exports` field, so those subpaths still do not resolve under `node16` (3 ×
+  TS2307 raised inside `@comvi/next`'s own declarations). Next.js projects on the `bundler`
+  resolution its own tooling sets are unaffected.
+
+  `pnpm check:types-exports` now gates attw's `node16` resolution mode in addition to
+  `bundler`. attw detects this defect perfectly well — 10 × `InternalResolutionError` on
+  `@comvi/plugin-fetch-loader` alone, `./cdn/index` among them. It was a single line in the
+  repo's own wrapper that suppressed the entire node16 report, so the gate was green on a
+  broken tree. The gate also grew a small probe for the one thing attw cannot reach: attw
+  resolves entry points with a fixed condition set, so a `types` branch under a custom
+  condition — `@comvi/plugin-in-context-editor`'s `"types": { "production": … }` — is never
+  visited, and that is exactly where `export * from './entry-production'` was hiding.
+
+  `@comvi/svelte` and `@comvi/nuxt` were previously excluded from that gate as "covered by
+  publint". They were not: publint validates the manifest, not resolution inside a declaration
+  file, and printed "All good!" on both broken trees. Every published package is now gated.
+
+  Follow-up, deliberately NOT in this release: the declarations are corrected by a post-build
+  rewrite (`tooling/qualify-dts-specifiers.mjs`) wired into each package's build. Writing the
+  `.js` extension in the SOURCES instead is legal under `moduleResolution: "bundler"` and is
+  emitted verbatim, which would let the rewriter be deleted and would cover `svelte-package`
+  and `nuxt-module-build` without per-package wiring — one mechanical sweep over 566
+  extensionless relative imports across 161 files. Neither `moduleResolution: node16` in the emitting
+  tsconfig nor `rewriteRelativeImportExtensions` is a substitute.
+
+- 09029b0: New `@comvi/core/editor-bridge` subpath: the typed contract for the in-context editor
+  mappings bridge, previously hand-copied in two places. It exports `EDITOR_MAPPINGS_GLOBAL` /
+  `EDITOR_INITIAL_MAPPINGS_GLOBAL` (the property keys on the instance), the `InContextEditorMappings`
+  interface, the `toRecordOfNumbers()` payload validator and the `readEditorMappings(instance)`
+  guard. The module is pure and invisible to non-importers.
+
+  `@comvi/plugin-in-context-editor` and `@comvi/nuxt` now consume this shared contract instead
+  of their local copies. No behaviour change — SSR key-mapping transfer between the editor
+  plugin and the Nuxt runtime works exactly as before — but the property keys and bridge shape
+  can no longer drift apart.
+
+- 09029b0: Node 18 reached end of life; the packages now declare `node >= 20`. No code changed.
+
+  `@comvi/cli` and `@comvi/vite-plugin` are build-time tooling and keep their existing
+  `node >= 22`.
+
+- 09029b0: The two packages 0.5 extracted so that shared code has one copy — locale routing (next, nuxt) and the declaration emitter (cli, vite-plugin) — stay internal to the repository instead of being published. Each of these four packages now carries the shared implementation inside its own build, so **none of them gained a runtime dependency**: next bundles the routing primitives, nuxt ships them vendored into its runtime, and cli and vite-plugin bundle the emitter along with its declarations, so their published `.d.ts` still declare `SchemaParam`, `KeySchema` and `ProjectSchema` themselves. Nothing about the four packages' APIs changes and nothing extra is installed; the release train is 12 packages on one version.
+- 09029b0: **The server adapters no longer repeat a fallback load core has made.** `@comvi/core` now loads the
+  fallback chain itself at `init()` and on a namespace activation. The Next and Nuxt server paths
+  went on loading it as well, so a fallback catalog that fails to load was requested and reported
+  twice per request, and in Nuxt a chain reload racing core's activation cancelled and refetched
+  catalogs that were loading fine. A catalog that fails inside core's own load is now remembered for
+  the request and not attempted again, and Nuxt runs its own chain load after the activation
+  instead of beside it. A pair that failed on the server is not in the hydration payload, so the
+  browser asks for it once.
+- 09029b0: Two build-time diagnostics in the Nuxt module: a `i18nModule` factory that returns the wrong
+  shape is now rejected by name, and a missed `comvi.setup` auto-detect is no longer silent.
+  - **The `i18nModule` guard accepted a `VueI18n` and double-wrapped it.** It checked only that the
+    returned value had a `t` function — and a `VueI18n` has one — so a factory returning
+    `@comvi/vue`'s `createI18n(...)` passed, then got handed to `createI18nFromCore`, wrapping a
+    wrapper. The old error message named that very import as the fix. The guard now also requires
+    `init` and rejects anything carrying `core`, and the message names `createI18n` from
+    `@comvi/nuxt/i18n` with a `.use(loader(map))` example.
+  - **A missed `comvi.setup` auto-detect produced an empty hook with no explanation.** The existing
+    error only fired when `comvi.setup` was set explicitly; with the option unset and nothing
+    resolved, codegen emitted `runComviSetup() {}` and the app booted with none of its hooks. When
+    a file matching `comvi.setup*` exists under the source or root directory but did not resolve
+    (a `.cjs`, a typo after the prefix), the module now logs the near miss at build time, naming
+    the file it found and the specifier it looked for.
+
+- 09029b0: The per-request server instance is now destroyed once the request is answered.
+
+  A Nitro request built one instance per locale and parked it in a WeakMap, and the app plugin built one
+  more for the SSR render itself; all of them were collectable but never destroyed, so a plugin's
+  cleanup — an interval, a socket, a subscription — ran on the client at teardown and never on the
+  server. The module now registers a Nitro server plugin that destroys every instance the request made,
+  the app plugin's included.
+  `afterResponse` is the signal that means both "the handler returned" and "the response is written",
+  so a still-running render is never handed a destroyed instance — which matters for
+  `defineCachedEventHandler` and `swr` / `isr` routes, where an aborted request still completes and
+  writes its render into the cache. A bare h3 app with no Nitro plugin falls back to the response's
+  `close` event, deferring on an abort until the response ends or one macrotask passes.
+
+  Two smaller consequences. `useTranslation()` / `loadMessages()` on a request whose instances were
+  already destroyed now throws a named error instead of quietly building an instance nothing will ever
+  tear down. And a `destroy()` that fails is reported through the instance's `onError` with the new
+  `ErrorReportContext` source `"request-cleanup"` rather than thrown into a response that has already
+  been sent.
+
+- 09029b0: Runtime errors and warnings say "i18n instance", and the no-loader remedy names `@comvi/nuxt/i18n`.
+- 09029b0: `useLocaleHead` now writes `<html dir>` for locales that declare none, using the locale's text
+  direction; previously the attribute was omitted.
+
+  `addDir` defaults to `true` and a locale object's `dir` is documented as defaulting to `"ltr"`,
+  but the composable emitted the attribute only when the locale object itself carried one. An app
+  configured the way the docs open it — `locales: ["en", "de"]`, or objects with `code` and `name`
+  — therefore shipped `<html>` with no direction at all, and an Arabic locale rendered LTR unless
+  its author had remembered `dir: "rtl"`. The value now falls back to `getTextDirection()` from
+  `@comvi/core` — a pure function of the locale string — applied to the same tag `lang` is built
+  from, so a locale keyed `foo` with `iso: "ar"` gets `lang="ar" dir="rtl"` rather than the two
+  attributes disagreeing. A declared `dir` still wins, including when it disagrees with the
+  language, and `addDir: false` still omits the attribute.
+
+- 09029b0: Fix `useLocaleHead()` updating `<html lang>` and `<html dir>` a frame after the translated text on a client-side locale switch, so the page no longer briefly shows the new language under the old `lang` and `dir`; a `lang` or `dir` your app sets itself with a higher-priority `useHead()` still wins.
+
+  Fix `useI18n().setLocale()` switching back to an earlier locale when a newer `setLocale()` call overtook it.
+
+- 09029b0: The locale state and cookie now follow the instance on `localeChanged`, so a `comvi.setup` listener that switches again no longer leaves them stale.
+- 09029b0: A locale switch can return to the default locale under `localePrefix: "as-needed"`. `useSwitchLocalePath()` and `<NuxtLinkLocale locale>` produce the unprefixed URL for the default locale; the route middleware resolved the root path from the `i18n_locale` cookie, which still held the locale being left, and redirected straight back to `/de`.
+
+  The middleware now reads a navigation from a locale-prefixed URL to the same page without a prefix as a switch to the default locale: the URL decides, the root path included, and the cookie records the default locale. A clicked `<NuxtLinkLocale locale>` writes the cookie before it navigates, with the name and attributes `localeCookie` configures, so a link to another page in another locale lands in that locale too, under `"never"` as well.
+
+  A first visit without a cookie is detected as before, and a direct visit to `/` with a stored locale is still redirected to that locale.
+
+- 09029b0: Internal cleanup, behavior-preserving: `useLocaleHead` no longer builds a `{ code }` fallback
+  object for a locale that has no entry in `localeObjects`. The composable only ever read `.iso`
+  and `.dir` off those objects, never `.code`, so the three fallbacks were dead weight; the reads
+  are now optional-chained (`localeObjects[locale]?.iso || locale`) and produce byte-identical
+  head output for every configuration, including a locale with no locale object at all.
+- 09029b0: The route middleware now ignores an unknown `localeDetection.order` entry instead of reading `Accept-Language` for it.
+- 09029b0: `useLocaleHead()` now replaces every hyphen (global replace) in an `iso` when it emits `og:locale` / `og:locale:alternate`: a script-and-region code such as `zh-Hant-TW` becomes `zh_Hant_TW`, not `zh_Hant-TW`. Two-part codes were unaffected.
+- 09029b0: Locale-routing fixes.
+
+  `useLocalePath()` (and `<NuxtLinkLocale>`, which routes its `to` through it) no longer prefixes a
+  target that is not an app-internal path: `https://example.com/a` came back as
+  `/de/https://example.com/a`, `mailto:` and `tel:` links broke the same way, and a bare
+  `?tab=billing` or `#details` jumped to the locale root instead of staying on the current page.
+  Those forms are now returned as written. A route object whose own `path` is external is answered
+  without consulting the router — vue-router resolves such a path relative to the current route,
+  which produced `/en/https://example.com/a` — and the object's `query` and `hash` are written onto
+  it in URL order. A route object carrying only `query`/`hash` is still a vue-router location: it
+  resolves against the current route, so `/en/pricing` with `{ query: { a: "b" } }` and locale `de`
+  gives `/de/pricing?a=b`, keeping the page the caller is on.
+
+  `useLocalePath()` and `useSwitchLocalePath()` no longer emit a protocol-relative path when
+  stripping the locale prefix leaves a doubled slash: `/en//evil.com` resolved to `//evil.com`, an
+  off-site link. The leading slash run is collapsed; interior slashes are untouched.
+
+  Accept-Language detection no longer selects a language the client refused with `q=0`. A request
+  sending `uk;q=0` was redirected to `/uk` by the route middleware, and `useTranslation()` served
+  that locale on the server.
+
+  Localized route clones now localize `alias` and `redirect`. A page `/legacy` with
+  `alias: ["/old", "/archive"]` and `redirect: "/new"` produced a `/de/legacy` clone that still
+  answered on the unprefixed aliases — even under `localePrefix: "always"`, where the unlocalized
+  records are removed — and still redirected out of the locale. A locale prefix the alias or
+  redirect already carries is replaced rather than stacked, so `/de/already` cloned for `en` is
+  `/en/already`, not `/en/de/already`. External and protocol-relative targets, relative child
+  aliases and function redirects are left untouched; a `name` redirect is retargeted at the clone of
+  the same locale when a cloned page defines that name.
+
+  `useLocaleRoute()` returns `undefined` for an off-site target instead of a route record that
+  matches nothing: an external or protocol-relative URL resolved to a record whose path was the URL
+  glued onto the current route, such as `/en/https://example.com/a`. Use `useLocalePath()` when you
+  want the href itself.
+
+- 09029b0: README: the setup snippets name the files where a Nuxt 4 app has them, `app/app.vue` and `app/pages/index.vue`.
+- 09029b0: `getRequestI18n()` now forwards `basicHtmlTags` as `tagInterpolation` to the request-scoped instance, the same way the app plugin does. A server route that renders rich text off the request instance keeps the whitelisted elements instead of flattening them to text.
+- 09029b0: The root now exports `NuxtDefaultTranslationParams`, `NuxtI18nSetupNuxtApp`, `NuxtI18nSetupEvent`, `NuxtI18nSetupRuntimeConfig`, `RegisteredNuxtInstance` and `MessagesMap`.
+- 09029b0: A production build of an app without `comvi.messages` no longer answers every page with HTTP 500 `E_MESSAGES_NOT_OBJECT`.
+
+  This hit any app that loads its catalogs through a `comvi.i18n.ts` loader or the CDN, which is the documented Connect to Comvi setup. `nuxt dev` was not affected. The module wrote unset options into the public runtime config as `undefined`, and Nitro turns `undefined` into `""` when it serializes that config. The runtime then passed `messages: ""` to `createI18n`, which rejects a string catalog. The module now leaves unset options out of the runtime config. The client plugin and the per-request server instance also treat an empty `messages` as no catalog, so an empty `NUXT_PUBLIC_COMVI_MESSAGES` override is safe too.
+
+- 09029b0: Internal typing fixes to the `#app` / `@nuxt/schema` shims. No published types change (`dist` is
+  byte-identical), and no runtime behaviour changes.
+  - **`declare module "@nuxt/schema"` no longer shadows the real package.** The block lived in
+    `src/shims-nuxt.d.ts`, a global script file, so it was an ambient module _declaration_ rather
+    than an augmentation: `@nuxt/kit`'s own declarations resolved through a stub of four empty
+    interfaces, `defineNuxtModule` and `extendPages` degraded to `any`, and `src/module.ts` could
+    not be type-checked at all — `tsconfig.typecheck.json` excluded it, which hid eight errors.
+    The block is replaced by a module-scoped `src/shims-nuxt-schema.d.ts` whose only job is to put
+    `@nuxt/schema` in the program so the real augmentation in `src/types.ts` has a target.
+    `src/module.ts` is now type-checked, as are the two test suites that import it.
+  - **`defineNuxtPlugin` and `defineNuxtRouteMiddleware` keep their call signatures.** Both shims
+    returned `unknown`, so the default export of every plugin and middleware module arrived
+    without one and each consumer had to cast before invoking it. Both are now identity-typed,
+    matching Nuxt's real signatures.
+
+- 09029b0: `useTranslation(event, { … })` on the server now takes `ns` for the namespace, the same word core's
+  `t(key, { ns })` and `@comvi/next`'s `getI18n({ ns })` use — nuxt's helper was the only place in the
+  library that spelled it `namespace`. `namespace` still works for all of 0.5 and warns once in dev; if
+  you pass both, `ns` wins. It is removed in 0.6.
+
+  `Accept-Language` matching now comes from the shared locale routing source `@comvi/next` uses
+  instead of this package's own copy, so the two frameworks provably answer identically for the same
+  header — a shared input table asserts both. No header changes the locale it resolved to in this
+  release.
+
+- 09029b0: The Nitro server utilities work in a Nitro route. `useTranslation(event)`, `loadMessages(event, locale)` and `getRequestI18n(event, locale)` imported the module's generated `#build/*` modules, which Nuxt refuses anywhere in the Nitro build: an app with one `server/api` route that called `useTranslation(event)` failed `nuxt build` with "Vue app aliases are not allowed in server runtime". The module now registers the same generated modules as Nitro virtual modules, and the utilities import those.
+
+  `getServerRuntimeConfig(event)` reads Nitro's own `useRuntimeConfig(event)`. It read `event.context`, where Nitro puts nothing until that function is called for the event, so a route got an empty fallback: no locales, the locale cookie and `Accept-Language` ignored, every request answered in `en`.
+
+- 09029b0: **Fix: SSR now loads the `fallbackLocale` chain, so a key that exists only in a fallback catalog
+  renders its fallback text.** Before, the server loaded only the requested locale. Fallback lookups
+  worked only when `fallbackLocale` was the same as `defaultLocale`; otherwise the server rendered the
+  raw key. The app plugin now loads the active namespaces for every fallback locale before the render,
+  and those catalogs reach the client in the payload. A namespace a page activates during the render
+  with `useI18nLoader().addActiveNamespace()` loads its fallback catalogs too, before the awaited call
+  resolves. An activation the page does not await still renders the raw key for a fallback-only
+  key, as it already did for the request locale. The server `loadMessages()` returns the
+  requested locale and its fallback chain, keyed `locale:namespace`, and `useTranslation()` loads the
+  chain for its namespace even when the request locale is already cached. A fallback catalog that
+  fails to load is reported through `loadError`, and `onError` fires as well; the render continues.
+  A failed catalog is attempted once per request, so the payload carries what the render read.
+- 09029b0: Internal dedupe, behavior-preserving: the private `translationResultToString` copy in `src/runtime/utils.ts` is deleted; the composable imports it from `@comvi/core` (identical implementation).
+- 09029b0: Docs: the CDN endpoint is named what the dashboard names it. "Distribution id" was terminology the
+  product does not have — the dashboard shows a **CDN Endpoint** card holding the endpoint as a full
+  URL with a **Copy URL** button, and the path segment is an opaque per-project token assembled
+  server-side. So the old placeholder `https://cdn.comvi.io/your-distribution-id` was wrong in shape
+  as well as in name: it asked the reader to assemble a URL out of a part they were never handed,
+  when what is in their clipboard is the whole thing. Every README now shows the complete endpoint
+  and says to paste what the card gives them; the `@example` doc comments on `fetchLoaderPlugin` and
+  `cdnLoaderPlugin` match. The navigation was already correct and is unchanged. 23 occurrences across
+  12 files, comments only in the two `.ts` files.
+
+  The root README's quick start is also runnable for the first time, which is a repository-surface
+  change rather than a package one: step 1 gained the `npm create vite` scaffold it never had (its
+  fence imports `react-dom/client`, and `@comvi/react` peer-depends on `react` only, so following the
+  README alone ended in `ERR_MODULE_NOT_FOUND`), gained the `src/App.tsx` that actually calls `t()`
+  instead of describing it in prose, and closes with the dev command and the literal strings to
+  expect. Step 2 now rewrites `src/main.tsx` as one copy-pasteable fence, matching the docs site
+  instead of inventing a second project shape around a new `src/i18n.ts`.
+
+- 09029b0: Every package README is now the short form: what the package is, install, the inline catalog,
+  connecting to Comvi, and the handful of things specific to that framework. The API references, the
+  SSR walkthroughs, the typed-keys sections and the composing-by-hand references moved to
+  comvi.io/docs/i18n, which is now the canonical place for all of it — each removed section has a
+  page there, linked from the README that used to carry it. No code changed.
+
+  The READMEs are published files, so this is what a reader sees on npm. They were 204 to 595 lines
+  each and most of that was reference material that drifts: a package README cannot be re-verified
+  against the build the way a docs page can, and eight of ten competitor READMEs carry no API
+  reference at all. What stays is deliberately the part a reader runs in the first minute, plus the
+  facts that only exist in this repo — one measured size figure per package, named by the fixture in
+  `scripts/size-budgets.json` so the `prose/stale-size-figure` gate still grades it, and the house
+  paragraphs (the ICU failure mode, the instance definition, the `@comvi/core` formatters caveat, the
+  Content Deploy sentence), kept byte-identical.
+
+- 09029b0: `defineComviHost()` is now `defineComviI18n()`, the `comvi.host.ts` file convention is now `comvi.i18n.ts`, the `@comvi/nuxt/host` entry is now `@comvi/nuxt/i18n`, and the `hostModule` option is now `i18nModule`.
+- 09029b0: `NuxtHostFactory` is now `NuxtInstanceFactory`, `NuxtHostFactoryOptions` is now `NuxtInstanceFactoryOptions`, `NuxtServerHost` is now `NuxtServerInstance`, `NuxtServerLoaderHost` is now `NuxtServerLoaderInstance`, `ComviNuxtHostRegistry` is now `ComviNuxtInstanceRegistry` with an `instance` key, `RegisteredNuxtHost` is now `RegisteredNuxtInstance`, and `ResolvedNuxtHost` is now `ResolvedNuxtInstance`.
+- 09029b0: `t()` reports a wrong call on the first line: one call signature instead of three overloads. No
+  runtime change.
+
+  With typed keys generated, every mistake used to open with TS2769 "No overload matches this call"
+  followed by the failure of each overload in turn, and the one useful line came last. A forgotten
+  required parameter was worse — "Argument of type '\"welcome\"' is not assignable to parameter of
+  type 'null'" — because the only overload that accepted a single argument was the permissive one,
+  whose key parameter is `never` once the registry is closed.
+
+  `t` and `tRaw` now have ONE signature. The key parameter is `AcceptedKey`, the union of the keys
+  that call site may use, and `ArgsFor` dispatches the params on the key that was passed, so
+  TypeScript names the actual problem:
+
+  | the mistake                   | before                             | now                                                |
+  | ----------------------------- | ---------------------------------- | -------------------------------------------------- |
+  | unknown key                   | TS2769, 7 lines                    | TS2345, 1 line, naming the declared keys           |
+  | required param forgotten      | TS2345 "not assignable to `null`"  | TS2554 "Expected 2 arguments, but got 1"           |
+  | wrong params                  | TS2769, 8 lines                    | TS2345, 2 lines, the second naming what is missing |
+  | wrong param value             | TS2769, 7 lines                    | TS2322, 1 line                                     |
+  | bare key of another namespace | TS2345 "not assignable to `never`" | TS2345, naming the keys the call site can use      |
+
+  The last row is why the key union depends on the namespace in scope rather than holding every
+  namespace's bare keys. A bare key is only meaningful next to the namespace that declares it, and
+  there are two ways to supply one: `useI18n("admin")` binds it at the call site, and an explicit
+  `{ ns: "shop" }` names it in the params. So `useI18n("admin").t("checkout")` is rejected on the KEY,
+  naming `admin`'s keys, while `t("checkout", { ns: "shop" })` compiles unchanged.
+
+  The key sets, the namespace-bound narrowing of `useI18n(ns)`, the `{ ns }` form, the qualified
+  `"ns:key"` spelling on the core instance, the `t(null)` no-op, a runtime `ns`, and the permissive
+  path for a project with no generated types all behave exactly as before. `TranslationKeys`,
+  `Namespaces`, `NamespacedKeys`, `DefaultNsKeys`, `PermissiveKey`, `ParamsArg`,
+  `NamespacedParamsArg`, `NamespaceBoundParamsArg` and `MissingParams` keep their meaning.
+  `AcceptedKey`, `AcceptedCoreKey` and `ArgsFor` are new exports, which is why this is a minor.
+
+  Three type-level shapes DO change, all of them consequences of there being one signature rather
+  than an overload set that could instantiate its key parameter to `string`. All three are listed in
+  `docs/design/limitations.md`.
+
+  A **union key** — `t(cond ? "greeting" : "farewell")` — now gets loose params and compiles, where
+  the overload set rejected it against the permissive overload's `null` key. The key is still
+  checked; the params are not. Closing it needs the arms' params intersected, and that costs the
+  check on `t("key", { ns })`, which would silently accept a wrong namespace.
+
+  **`Parameters<typeof t>` is `never`** with a closed registry, where it used to be the permissive
+  overload's tuple. The key parameter's type depends on a second, inferred type parameter and
+  `Parameters` cannot see through that. Reach the argument list through `ArgsFor<"your.key">`, which
+  resolves normally.
+
+  **`t` is no longer assignable to a `(key: string) => string` callback** with a closed registry —
+  the common "hand `t` to a third-party helper" shape. Cast it: `t as (k: string) => string`. The
+  two-argument variant never accepted `t`.
+
+  `@comvi/next`'s `TranslationFunction`, `@comvi/nuxt`'s `ServerTranslationFunction` and
+  `@comvi/vue`'s `VueI18n.t` / `tRaw` declared their own copies of the overload set and now declare
+  the single signature instead. Their names and behaviour are unchanged.
+
+  `createBoundTranslation(i18n, ns)` threads `ns` into its RETURN type, so the result narrows to that
+  namespace's keys — `createBoundTranslation(i18n, "admin")("dashboard")` compiles, which is what its
+  own `@example` documents. Bind the namespace with a literal; a `string` variable leaves the result
+  unbound and loose, as a runtime namespace always was.
+
+  Also fixed in `@comvi/nuxt`: `useTranslation`'s server `t` passed its runtime string key straight
+  to core, which does not type-check once an app generates types. It now uses the `as never` escape
+  hatch every binding's `<T>` already uses. Type-level only — the call was always correct at runtime.
+
+- 09029b0: `destroy()` now returns a promise that resolves when plugin cleanup has finished.
+
+  `VueI18n.destroy()` drives the instance's async `destroy()`, and returned `void`: there was no way to
+  wait for a plugin's cleanup — an interval, a socket, a subscription — to actually finish, which a
+  test tearing an instance down between cases and a request-scoped instance on the server both need.
+  `await i18n.destroy()` (and `await destroy()` from `useI18n()`, in `@comvi/vue` and `@comvi/nuxt`)
+  now means the cleanup is done. Fire-and-forget callers are unaffected: the promise RESOLVES even
+  when the instance's cleanup rejects, and that error still reaches `onError` with source
+  `"plugin-cleanup"`. A repeat call returns the same promise rather than tearing down twice.
+
+- 09029b0: **Solid and svelte each gain the one per-axis primitive they were missing.** Solid shipped
+  `createDefaultNamespaceSignal` with no default-params counterpart; svelte shipped
+  `createDefaultParamsStore` with no default-namespace counterpart. Both sets now cover the same
+  axes: solid gains `createDefaultParamsSignal(i18n)` and svelte gains
+  `createDefaultNamespaceStore(i18n)` — the latter a writable store, memoized per instance like its
+  siblings, where assigning into it (`store.set(ns)`) writes through to `i18n.setDefaultNamespace`.
+
+  Both axes are also WRITABLE in both, each in its framework's own shape, so neither set is the
+  read-only one. **Solid's primitives now follow one naming rule: `create*Signal` READS —
+  an `Accessor` mirroring the instance, on all seven axes — and `create*State` READS AND WRITES,
+  returning `[accessor, setter]`.** So `createDefaultParamsSignal(i18n)` returns
+  `Accessor<DefaultParamsSnapshot<D>>`, and the tuple lives on the two `State` primitives:
+  `createDefaultParamsState(i18n)` (setter → `i18n.setDefaultParams`) and
+  `createDefaultNamespaceState(i18n)` (setter → `i18n.setDefaultNamespace`). Svelte keeps stores as
+  its write path, so `createDefaultNamespaceStore` and `createDefaultParamsStore` are both
+  `Writable`, their `set` / `update` calling the instance. Every setter writes THROUGH to the instance,
+  which stays the source of truth; nothing assigns a local value. React and vue are unaffected.
+
+  **BREAKING (breaking change on a 0.x minor): `<T raw>` is renamed to `<T markers={false}>`, in
+  all four bindings, with the polarity inverted.** `raw` meant two unrelated things — `tRaw()`
+  returns the structured result; `<T raw>` kept the in-context editor's invisible markers out of
+  the output — and only the `<T>` prop is renamed; `tRaw` is untouched. The new name says the one
+  thing it does: `markers={false}` leaves this result unmarked, and nothing else reads it. Replace
+  `<T raw>` with `<T markers={false}>` wherever you render `<T>` — JSX and `.vue` (`:markers="false"`)
+  / `.svelte` template markup alike.
+
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+- Updated dependencies [09029b0]
+  - @comvi/core@0.5.0
+  - @comvi/vue@0.5.0
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [67780e8]
+  - @comvi/core@0.4.1
+  - @comvi/vue@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes

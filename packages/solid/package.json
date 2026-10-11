@@ -1,6 +1,6 @@
 {
   "name": "@comvi/solid",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "SolidJS integration for Comvi — reactive primitives and type-safe translations",
   "license": "MIT",
@@ -27,7 +27,8 @@
     "reactive"
   ],
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "module": "./dist/comvi-solid.js",
   "types": "./dist/index.d.ts",
@@ -38,14 +39,18 @@
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "build": "node ../../tooling/clean-dist.mjs && vite build && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-closed.json && tsc --noEmit -p tsconfig.keys-via-binding.json",
+    "test": "vitest run && pnpm test:types",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
@@ -59,8 +64,9 @@
     "solid-js": "^1.8.0"
   },
   "devDependencies": {
-    "@solidjs/testing-library": "^0.8.10",
+    "@comvi/test-utils": "workspace:*",
     "@comvi/vite-config": "workspace:*",
+    "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^22.13.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",

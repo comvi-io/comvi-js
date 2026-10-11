@@ -2,8 +2,10 @@
   import { onDestroy } from "svelte";
   import { setI18nContext } from "../src/context";
   import { useI18n } from "../src/useI18n";
+  import { useI18nLoader } from "../src/capabilities";
+  import type { WrapperI18nInstance } from "@comvi/core";
 
-  export let i18n: any;
+  export let i18n: WrapperI18nInstance;
   export let autoInit = false;
 
   setI18nContext(i18n, { autoInit });
@@ -19,9 +21,8 @@
     tRaw,
     setLocale,
     setDefaultParams,
-    addTranslations,
-    addActiveNamespace,
-    clearTranslations,
+    addMessages,
+    clearMessages,
     hasLocale,
     hasTranslation,
     getLoadedLocales,
@@ -34,6 +35,7 @@
     formatRelativeTime,
     dir,
   } = useI18n();
+  const { addActiveNamespace } = useI18nLoader();
 
   const { t: adminT } = useI18n("admin");
 
@@ -78,7 +80,7 @@
   }
 
   function addDynamicTranslations(): void {
-    addTranslations({
+    addMessages({
       en: { dynamic: "Dynamic" },
       fr: { dynamic: "Dynamique" },
       ar: { dynamic: "ديناميكي" },
@@ -86,7 +88,7 @@
   }
 
   function clearEnglishCommon(): void {
-    clearTranslations("en", "common");
+    clearMessages("en", "common");
   }
 
   $: {

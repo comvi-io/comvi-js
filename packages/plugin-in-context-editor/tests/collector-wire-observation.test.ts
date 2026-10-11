@@ -1,5 +1,5 @@
 /**
- * Cross-repo shape lock (RALPLAN wave-2a code-review B1). Drives an actual
+ * Cross-repo shape lock. Drives an actual
  * element through the FULL collector pipeline (enumerate -> signals ->
  * buildNeighborCandidates -> inferTargetType -> Observation construction ->
  * transport) and asserts the exact JSON sent on POST /v1/context/usages
@@ -7,12 +7,11 @@
  * byte-for-byte (well, structurally — JSON key order doesn't matter for
  * `toEqual`, but every field/value must match exactly).
  *
- * worker-platform validates a byte-identical copy of the fixture against the
+ * The platform validates a byte-identical copy of the fixture against the
  * server's `ObservationSchema`/`NeighborRefSchema`
- * (apps/api/src/modules/context/api.schemas.ts) — this is the seam test that
- * would have caught the B1 shape mismatch (stray `readingOrderIndex`/`debug`
- * top-level fields, extra `ariaRole`/`hasAriaLabel`/`textLength` on
- * neighbors) before it ever reached real traffic.
+ * (apps/api/src/modules/context/api.schemas.ts). This is the seam that catches
+ * a shape mismatch — stray `readingOrderIndex`/`debug` top-level fields, extra
+ * `ariaRole`/`hasAriaLabel`/`textLength` on neighbors — before real traffic.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +20,7 @@ import { TranslationRegistry } from "../src/TranslationRegistry";
 import { Collector } from "../src/collector/Collector";
 import { initApiConfig, resetApiConfig } from "../src/config/api";
 import { mockBoundingClientRect, cleanupDOM } from "./helpers";
+import type { Collector as CollectorType } from "../src/collector/Collector";
 import fixture from "../src/collector/hash/wire-observation.fixture.json";
 
 const SCOPE = "wire-observation-fixture-scope";
@@ -30,22 +30,20 @@ function mockOkResponse<T>(payload: T): Response {
 }
 
 describe("collector wire shape — cross-repo fixture lock (B1)", () => {
+  let collector: CollectorType | undefined;
+
   beforeEach(() => {
     initApiConfig("test-api-key", SCOPE);
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+    collector?.destroy();
+    collector = undefined;
     resetApiConfig(SCOPE);
     cleanupDOM();
   });
 
   it("produces the exact committed fixture when driven through the real pipeline", async () => {
-    (window as unknown as { happyDOM?: { setURL?: (url: string) => void } }).happyDOM?.setURL?.(
-      "https://example.com/checkout",
-    );
-
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValue(mockOkResponse({ entries: [] }));
     vi.stubGlobal("fetch", fetchMock);
@@ -100,22 +98,21 @@ describe("collector wire shape — cross-repo fixture lock (B1)", () => {
 
     // The fixture's "/checkout" models an integration-supplied route template;
     // without a resolver the default screenGroup is an opaque route digest.
-    const collector = new Collector(eventBus, registry, SCOPE, {
+    collector = new Collector(eventBus, registry, SCOPE, {
       enabled: true,
       screenGroupResolver: () => "/checkout",
     });
     await collector.start();
-    await Promise.resolve();
-    await Promise.resolve();
 
-    const usagesCall = fetchMock.mock.calls.find(([url]) =>
-      (url as string).includes("/v1/context/usages"),
-    );
-    expect(usagesCall).toBeDefined();
-    const body = JSON.parse((usagesCall![1] as RequestInit).body as string);
+    const usagesCall = await vi.waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) =>
+        (url as string).includes("/v1/context/usages"),
+      );
+      if (!call) throw new Error("no POST /v1/context/usages was made");
+      return call;
+    });
+    const body = JSON.parse((usagesCall[1] as RequestInit).body as string);
 
     expect(body.items).toEqual(fixture.items);
-
-    collector.destroy();
   });
 });

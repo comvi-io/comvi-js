@@ -2,22 +2,37 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useCallback,
+  useRef,
+  useState,
   useSyncExternalStore,
 } from "react";
-import type { I18n, FlattenedTranslations, I18nEvent } from "@comvi/core";
+import { flattenCatalog, subscribeToRevision } from "@comvi/core";
+import type {
+  AnyI18nInstance,
+  WrapperI18nInstance,
+  I18nEvent,
+  I18nMessagesView,
+  FlattenedMessages,
+  MessagesMap,
+} from "@comvi/core";
 
-interface I18nContextValue {
-  i18n: I18n;
-  locale: string;
-  translationCache: ReadonlyMap<string, FlattenedTranslations>;
-  isLoading: boolean;
-  isInitializing: boolean;
-}
+/** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
+type Instance = WrapperI18nInstance;
+
+// `useLayoutEffect` warns when it runs during a server render.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+// `AnyI18nInstance` is core's: the `strictFunctionTypes` invariance in `D` it
+// widens is documented there, once, for all three providers that accept it.
+export type { AnyI18nInstance };
 
 export interface I18nInstanceContextValue {
-  i18n: I18n;
+  i18n: Instance;
+  /** What this tree translates through: the i18n instance, or a read view over `messages`. */
+  view: I18nMessagesView;
   isLoading: boolean;
   isInitializing: boolean;
 }
@@ -29,7 +44,7 @@ export const LocaleContext = createContext<string | null>(null);
 const I18nInstanceContext = createContext<I18nInstanceContextValue | null>(null);
 
 /** @internal — exported for unit tests, not in the package index. */
-export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
+export function useSubscribe(i18n: Instance, ...events: I18nEvent[]) {
   const eventsKey = events.join("|");
   return useCallback(
     (callback: () => void) => {
@@ -37,13 +52,10 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
       const eventList = eventsKey.split("|") as I18nEvent[];
       const unsubs = eventList.map((e) =>
         i18n.on(e, () => {
-          // Defer React's store-update notification out of the synchronous
-          // _emit call stack (packages/core/src/core/i18n.ts:438-448).
-          // Without deferral, callback() runs inside the emit loop while a
-          // parent component is mid-render, causing scheduleUpdateOnFiber to
-          // target a sibling fiber and fire the "Cannot update a component
-          // while rendering a different component" warning.
-          // The disposed flag prevents stale callbacks after unsubscribe.
+          // Defer out of core's synchronous `_emit` stack: undeferred, this
+          // runs inside the emit loop while a parent component is mid-render,
+          // and React warns "Cannot update a component while rendering a
+          // different component".
           queueMicrotask(() => {
             if (!disposed) callback();
           });
@@ -59,35 +71,33 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
 }
 
 /** @internal — exported for unit tests, not in the package index. */
-export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
-  const eventsKey = events.join("|");
+export function useStoreRevision(i18n: Instance): string {
   const subscribe = useCallback(
     (callback: () => void) => {
       let disposed = false;
-      const eventList = eventsKey.split("|") as I18nEvent[];
-      const unsubs = eventList.map((event) =>
-        i18n.on(event, () => {
-          // Defer out of the synchronous _emit stack to avoid mid-render setState.
-          queueMicrotask(() => {
-            if (!disposed) callback();
-          });
-        }),
-      );
+      // Core's canonical revision event set: never hand-copy a subset here.
+      const unsubscribe = subscribeToRevision(i18n, () => {
+        // Defer out of the synchronous _emit stack to avoid mid-render setState.
+        queueMicrotask(() => {
+          if (!disposed) callback();
+        });
+      });
       return () => {
         disposed = true;
-        unsubs.forEach((unsub) => unsub());
+        unsubscribe();
       };
     },
-    [i18n, eventsKey],
+    [i18n],
   );
 
-  // Content-addressed snapshot (subscription-timing-independent) so events that fire
-  // before the subscribe effect attaches are still detected on the post-subscribe read.
+  // Content-addressed, not counter-based, so an event that fires before the
+  // subscribe effect attaches is still detected on the post-subscribe read.
   const getSnapshot = useCallback(
     () =>
-      `${i18n.translationCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
+      `${i18n.messagesCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
       `${i18n.getDefaultNamespace()}:${i18n.getActiveNamespaces().join(",")}:` +
-      `${i18n.getFallbackLocales().join(",")}:${i18n.configRevision}`,
+      `${i18n.getFallbackLocales().join(",")}:${i18n.configRevision}:` +
+      `${i18n.locale}:${i18n.isLoading ? 1 : 0}:${i18n.isInitializing ? 1 : 0}`,
     [i18n],
   );
 
@@ -96,11 +106,81 @@ export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
 
 export interface I18nProviderProps {
   children: React.ReactNode;
-  i18n: I18n;
+  /** Any instance, whatever default-params type it carries. */
+  i18n: AnyI18nInstance;
   /** Auto-initialize the i18n instance on mount (default: true). */
   autoInit?: boolean;
-  /** Initial locale for SSR hydration. */
-  ssrInitialLocale?: string;
+  /**
+   * Rendered INSTEAD of `children` until the instance is INITIALIZED, so no
+   * CLIENT paint is ever a flash of raw keys. Omit it and `children` render
+   * throughout, exactly as before this prop existed.
+   *
+   * The axis is `isInitialized`, not `isInitializing`: `init()` starts from an
+   * effect, after the first render, so a gate on "is it initializing" is open
+   * for exactly the frame the raw keys would paint in. With `autoInit: false`
+   * the fallback therefore stays until your app calls `i18n.init()` itself.
+   *
+   * On the server the SSR snapshot decides, and it is NOT gated by default:
+   * `ssrInitialIsInitializing` is `false`, so `children` render — the markup
+   * a server render whose catalog is not in yet emits with raw keys in it, and
+   * the hydration render reads that same snapshot, so the gate only re-applies
+   * afterwards on the client. To gate the server render too, pass
+   * `ssrInitialIsInitializing={true}` alongside `fallback`: the server and the
+   * hydration render both paint the fallback, and the children replace it once
+   * the client instance initializes. (`@comvi/next`'s provider passes `false` for
+   * you, because its server render already has the catalog, so a `fallback`
+   * there is a post-hydration gate only.)
+   *
+   * `undefined` is the same as omitting it; for a blank gate pass `false`.
+   *
+   * @example
+   * ```tsx
+   * <I18nProvider i18n={i18n} fallback={<Spinner />}>
+   *   <App />
+   * </I18nProvider>
+   * ```
+   */
+  fallback?: React.ReactNode;
+  /**
+   * Render locale for the server snapshot, under the cross-binding name
+   * `@comvi/vue` and `@comvi/nuxt` also use.
+   */
+  ssrLocale?: string;
+  /**
+   * The locale the caller is switching the i18n instance to, when the switch
+   * arrives with markup of its own: a route parameter, whose new `<html lang>`
+   * React commits in the same render. From the render in which `targetLocale`
+   * changes until the i18n instance's locale next changes, the tree renders in
+   * it, so the translated text commits together with that markup instead of
+   * one asynchronous `setLocale` later. After that the tree follows the i18n
+   * instance again, so a `setLocale` with no new `targetLocale` still
+   * re-renders. A switch that never sets the locale (a load that fails or is
+   * cancelled) does not end it: the tree stays in `targetLocale` until the
+   * i18n instance's locale actually moves.
+   *
+   * Only rendering moves: the caller still sets the i18n instance's locale,
+   * and the target's catalog must already be cached, or the tree renders its
+   * keys.
+   */
+  targetLocale?: string;
+  /**
+   * Catalogs that arrive with the render, keyed `"locale"` or
+   * `"locale:namespace"` as `addMessages` takes them: a server's handover, or
+   * a route's own catalog. The children of the render that brings them
+   * translate from them at once, before the i18n instance holds them, and the
+   * provider adds them to the i18n instance when that render commits. A render
+   * React abandons therefore never writes the i18n instance, and a server
+   * render never does. A new object is added again; the same object is added
+   * once. Keep the object stable across renders (module scope, `useMemo`, or
+   * the server payload): an inline literal is a new object on every parent
+   * render, and each one re-merges the catalog and re-renders every
+   * `useI18n()` consumer.
+   *
+   * Pair it with `targetLocale` to switch to a locale whose catalog comes with
+   * the switch: text in the new locale commits in the same render, and the
+   * i18n instance has the catalog before its locale moves, so no load starts.
+   */
+  messages?: MessagesMap;
   /** Initial loading state for SSR hydration. */
   ssrInitialIsLoading?: boolean;
   /** Initial initializing state for SSR hydration. */
@@ -115,7 +195,7 @@ export interface I18nProviderProps {
  *
  * @example
  * ```tsx
- * const i18n = createI18n({ locale: 'en', translation: {...} });
+ * const i18n = createI18n({ locale: 'en', messages: {...} });
  * <I18nProvider i18n={i18n}><App /></I18nProvider>
  * ```
  */
@@ -123,7 +203,10 @@ export function I18nProvider({
   children,
   i18n,
   autoInit = true,
-  ssrInitialLocale,
+  fallback,
+  ssrLocale,
+  targetLocale,
+  messages,
   ssrInitialIsLoading = false,
   ssrInitialIsInitializing = false,
   onError,
@@ -135,7 +218,7 @@ export function I18nProvider({
         if (onError) {
           onError(error);
         } else {
-          console.error("[i18n] Initialization failed:", error);
+          console.error("[@comvi/react] Initialization failed:", error);
         }
       });
     }
@@ -144,11 +227,75 @@ export function I18nProvider({
   const subLang = useSubscribe(i18n, "localeChanged", "initialized", "configChanged");
   const subLoading = useSubscribe(i18n, "loadingStateChanged", "initialized");
 
-  const locale = useSyncExternalStore(
+  const instanceLocale = useSyncExternalStore(
     subLang,
     () => i18n.locale,
-    () => ssrInitialLocale ?? i18n.locale,
+    () => ssrLocale ?? i18n.locale,
   );
+  // A locale that left and came back between two renders leaves the snapshot
+  // above unchanged; the i18n instance's locale REVISION still moved, and this
+  // re-renders for it. The same number on the server and while hydrating.
+  const getRevision = () => i18n.localeRevision;
+  useSyncExternalStore(subLang, getRevision, getRevision);
+
+  // `targetLocale`: a handover from the render it changed in until the i18n
+  // instance's locale moves. Derived state, keyed by the instance and the
+  // target — a setState in render, which React discards with an abandoned
+  // render, where a ref write would outlive it. It records the instance's
+  // REAL locale (not the snapshot, which is `ssrLocale` while hydrating) and
+  // its locale revision; any later move ends it, whether or not a render or a
+  // listener of this provider saw the move, so a switch back to that locale
+  // (a `setLocale` with no new target) is not mistaken for a handover.
+  // `[i18n, target, from, revision]`: a tuple, which minifies smaller than named keys.
+  const [hand, setHand] = useState<[Instance, string | undefined, string, number]>(() => [
+    i18n,
+    targetLocale,
+    i18n.locale,
+    i18n.localeRevision,
+  ]);
+  let [, target, from, revision] = hand;
+  if (hand[0] !== i18n || target !== targetLocale) {
+    setHand([
+      i18n,
+      (target = targetLocale),
+      (from = i18n.locale),
+      (revision = i18n.localeRevision),
+    ]);
+  }
+  const locale =
+    target !== undefined && target !== from && revision === i18n.localeRevision
+      ? target
+      : instanceLocale;
+
+  // `messages` reach the children through a read view until the i18n instance
+  // holds them, and the instance from the commit on, so a later `addMessages`
+  // (an editor save, a reload) wins again. The write is the layout effect's:
+  // children's layout effects run first, so a parent that moves the locale in
+  // its own (`@comvi/next`) finds the catalog cached and loads nothing.
+  const [published, setPublished] = useState<[Instance, MessagesMap]>();
+  const view = useMemo(() => {
+    if (!messages || (published?.[0] === i18n && published[1] === messages)) return i18n;
+    const ns = i18n.getDefaultNamespace();
+    const catalogs: Record<string, FlattenedMessages> = {};
+    // Keys naming one catalog (`en` and `en:default`) merge in input order,
+    // key by key, last write wins — as `addMessages` merges them. Into a new
+    // null-prototype object: `flattenCatalog` may hand back the caller's own,
+    // and an inherited `constructor` is not a translation.
+    for (const key of Object.keys(messages)) {
+      Object.assign(
+        (catalogs[key.includes(":") ? key : `${key}:${ns}`] ??= Object.create(null)),
+        flattenCatalog(messages[key] ?? {}),
+      );
+    }
+    return i18n.withMessages(catalogs);
+  }, [i18n, messages, published]);
+  const added = useRef<[Instance, MessagesMap]>(undefined);
+  useIsomorphicLayoutEffect(() => {
+    if (messages && (added.current?.[0] !== i18n || added.current[1] !== messages)) {
+      i18n.addMessages(messages);
+      setPublished((added.current = [i18n, messages]));
+    }
+  }, [i18n, messages]);
 
   const isLoading = useSyncExternalStore(
     subLoading,
@@ -160,15 +307,29 @@ export function I18nProvider({
     () => i18n.isInitializing,
     () => ssrInitialIsInitializing,
   );
+  // The `fallback` gate's axis. Same instance field `useI18n().isInitialized`
+  // reads and the same subscription the two above use — `initialized` is in
+  // it, and that is the event that flips this. On the server it is the
+  // negation of the initializing snapshot, so the SSR contract is unchanged:
+  // `ssrInitialIsInitializing: false` (the default) means "ready, render the
+  // children".
+  const isInitialized = useSyncExternalStore(
+    subLoading,
+    () => i18n.isInitialized,
+    () => !ssrInitialIsInitializing,
+  );
 
   const instanceValue = useMemo<I18nInstanceContextValue>(
-    () => ({ i18n, isLoading, isInitializing }),
-    [i18n, isLoading, isInitializing],
+    () => ({ i18n, view, isLoading, isInitializing }),
+    [i18n, view, isLoading, isInitializing],
   );
+
+  // Both branches sit inside the providers, so the fallback may use the hooks.
+  const gated = fallback !== undefined && !isInitialized;
 
   return (
     <I18nInstanceContext.Provider value={instanceValue}>
-      <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>
+      <LocaleContext.Provider value={locale}>{gated ? fallback : children}</LocaleContext.Provider>
     </I18nInstanceContext.Provider>
   );
 }
@@ -176,12 +337,24 @@ export function I18nProvider({
 I18nProvider.displayName = "I18nProvider";
 
 /** @internal */
-export function useI18nInstance(): I18nInstanceContextValue {
+export function useI18nInstanceContext(): I18nInstanceContextValue {
   const instance = useContext(I18nInstanceContext);
   if (!instance) {
-    throw new Error("[i18n] Hooks must be used within an I18nProvider.");
+    throw new Error("[@comvi/react] Hooks must be used within an I18nProvider.");
   }
   return instance;
+}
+
+/**
+ * The instance the nearest `<I18nProvider>` holds, as a bare `WrapperI18nInstance` —
+ * THE name for "give me the instance", the same in react, solid and svelte (vue's
+ * equivalent is `inject(I18N_INJECTION_KEY).core`). Not reactive on its own:
+ * pair it with `useI18n()` or a selector hook to re-render.
+ *
+ * @throws if called outside an `<I18nProvider>`.
+ */
+export function useI18nInstance(): WrapperI18nInstance {
+  return useI18nInstanceContext().i18n;
 }
 
 /**
@@ -192,39 +365,12 @@ export function useI18nInstance(): I18nInstanceContextValue {
 export function useLocale(): string {
   const locale = useContext(LocaleContext);
   if (locale === null) {
-    throw new Error("[i18n] useLocale must be used within an I18nProvider.");
+    throw new Error("[@comvi/react] useLocale must be used within an I18nProvider.");
   }
   return locale;
 }
 
-/** Read `{ isLoading, isInitializing }` slice. */
 export function useIsLoading(): { isLoading: boolean; isInitializing: boolean } {
-  const { isLoading, isInitializing } = useI18nInstance();
+  const { isLoading, isInitializing } = useI18nInstanceContext();
   return { isLoading, isInitializing };
-}
-
-/**
- * Legacy combined-context shape. Re-renders on every reactive axis.
- *
- * @deprecated Use `useI18n()` or the per-axis selector hooks `useLocale()` /
- *   `useIsLoading()`. Scheduled for removal in the next major.
- */
-export function useI18nContext(): I18nContextValue {
-  const { i18n, isLoading, isInitializing } = useI18nInstance();
-  const locale = useContext(LocaleContext) ?? "";
-
-  const storeRevision = useStoreRevision(
-    i18n,
-    "namespaceLoaded",
-    "initialized",
-    "translationsCleared",
-    "configChanged",
-    "defaultNamespaceChanged",
-  );
-  const translationCache = i18n.translationCache.getInternalMap();
-
-  return useMemo<I18nContextValue>(
-    () => ({ i18n, locale, translationCache, isLoading, isInitializing }),
-    [i18n, locale, translationCache, isLoading, isInitializing, storeRevision],
-  );
 }

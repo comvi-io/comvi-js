@@ -1,63 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
-import { I18n } from "@comvi/core";
-import type { LocaleDetectorOptions } from "../src/index";
-import { LocaleDetector, resolveLocale } from "../src/index";
-import { mockCookie, mockNavigator, mockWindowLocation } from "./setup";
+import { createI18n, initWithPlugin, installDetector } from "./helpers/init";
+import { resolveLocale } from "../src/index";
+import {
+  mockCookie,
+  mockNavigator,
+  mockNavigatorWithoutLanguages,
+  mockWindowLocation,
+  withDisabledBrowserGlobals,
+} from "./setup";
 
-function createI18n(locale: string = "en"): I18n {
-  return new I18n({ locale, exposeGlobal: false });
-}
-
-async function initWithPlugin(
-  options: LocaleDetectorOptions = {},
-  initialLocale: string = "en",
-): Promise<I18n> {
-  const i18n = createI18n(initialLocale);
-  i18n.use(LocaleDetector(options));
-  await i18n.init();
-  return i18n;
-}
-
-type BrowserGlobal = "window" | "document" | "navigator";
-
-async function withDisabledBrowserGlobals(run: () => Promise<void> | void): Promise<void> {
-  const keys: BrowserGlobal[] = ["window", "document", "navigator"];
-  const descriptors = new Map<BrowserGlobal, PropertyDescriptor | undefined>(
-    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
-  );
-
-  for (const key of keys) {
-    Object.defineProperty(globalThis, key, {
-      value: undefined,
-      configurable: true,
-      writable: true,
-    });
-  }
-
-  try {
-    await run();
-  } finally {
-    for (const key of keys) {
-      const descriptor = descriptors.get(key);
-      if (descriptor) {
-        Object.defineProperty(globalThis, key, descriptor);
-      } else {
-        Reflect.deleteProperty(globalThis, key);
-      }
-    }
-  }
-}
-
-describe("LocaleDetector plugin", () => {
+describe("localeDetectorPlugin plugin", () => {
   describe("initialization flow", () => {
     it("registers a detector without mutating locale before init", async () => {
       mockWindowLocation("?lng=fr");
 
       const i18n = createI18n("en");
-      const cleanup = LocaleDetector({
+      const cleanup = installDetector(i18n, {
         order: ["querystring"],
         caches: [],
-      })(i18n);
+      });
 
       expect(i18n.locale).toBe("en");
       expect(await i18n.getLanguageDetector()?.()).toBe("fr");
@@ -355,9 +316,8 @@ describe("LocaleDetector plugin", () => {
       expect(document.cookie).toContain("i18n_lang=fr");
     });
 
-    it("updates caches when the locale changes after init", async () => {
-      const cookieSetter = vi.spyOn(document, "cookie", "set");
-      const i18n = await initWithPlugin(
+    const initWithEveryCacheTarget = () =>
+      initWithPlugin(
         {
           order: ["navigator"],
           caches: ["localStorage", "sessionStorage", "cookie"],
@@ -375,18 +335,26 @@ describe("LocaleDetector plugin", () => {
         "en",
       );
 
-      await i18n.setLocaleAsync("pt");
+    it("writes every configured cache target on a post-init locale change", async () => {
+      const cookieSetter = vi.spyOn(document, "cookie", "set");
+      const i18n = await initWithEveryCacheTarget();
+
+      await i18n.setLocale("pt");
 
       expect(localStorage.getItem("custom_lang_key")).toBe("pt");
       expect(sessionStorage.getItem("session_lang_key")).toBe("pt");
+      expect(cookieSetter.mock.calls.at(-1)?.[0]).toContain("language=pt");
+    });
 
-      const cookieWrite = cookieSetter.mock.calls.at(-1)?.[0] as string;
-      expect(cookieWrite).toContain("language=pt");
-      expect(cookieWrite).toContain("max-age=86400");
-      expect(cookieWrite).toContain("path=/app");
-      expect(cookieWrite).toContain("domain=example.com");
-      expect(cookieWrite).toContain("samesite=strict");
-      expect(cookieWrite).toContain("secure");
+    it("serializes cookieOptions and cookieMaxAge into one cookie write", async () => {
+      const cookieSetter = vi.spyOn(document, "cookie", "set");
+      const i18n = await initWithEveryCacheTarget();
+
+      await i18n.setLocale("pt");
+
+      expect(cookieSetter.mock.calls.at(-1)?.[0]).toBe(
+        "language=pt; max-age=86400; path=/app; samesite=strict; domain=example.com; secure",
+      );
     });
 
     it("forces Secure when sameSite is none", async () => {
@@ -403,7 +371,7 @@ describe("LocaleDetector plugin", () => {
         "en",
       );
 
-      await i18n.setLocaleAsync("pt");
+      await i18n.setLocale("pt");
 
       const cookieWrite = cookieSetter.mock.calls.at(-1)?.[0] as string;
       expect(cookieWrite).toContain("samesite=none");
@@ -412,23 +380,25 @@ describe("LocaleDetector plugin", () => {
 
     it("returns a cleanup function that stops future cache writes", async () => {
       const i18n = createI18n("en");
-      const cleanup = LocaleDetector({
+      const cleanup = installDetector(i18n, {
         caches: ["localStorage"],
         lookupLocalStorage: "cleanup_test_key",
-      })(i18n);
+      });
 
-      await i18n.setLocaleAsync("fr");
+      await i18n.setLocale("fr");
       expect(localStorage.getItem("cleanup_test_key")).toBe("fr");
 
       cleanup?.();
 
-      await i18n.setLocaleAsync("de");
+      await i18n.setLocale("de");
       expect(localStorage.getItem("cleanup_test_key")).toBe("fr");
     });
 
     it("swallows storage write failures", async () => {
-      const originalSetItem = localStorage.setItem;
-      localStorage.setItem = vi.fn().mockImplementation(() => {
+      // Must be the INSTANCE: a `Storage.prototype` spy is never reached by
+      // `localStorage.setItem` in a full-file run, which makes this test vacuous.
+      // `restoreMocks` does not restore an inherited-member spy, hence the finally.
+      const setItemSpy = vi.spyOn(globalThis.localStorage, "setItem").mockImplementation(() => {
         throw new Error("Quota exceeded");
       });
 
@@ -441,10 +411,13 @@ describe("LocaleDetector plugin", () => {
           "en",
         );
 
-        await expect(i18n.setLocaleAsync("fr")).resolves.toBeUndefined();
+        await expect(i18n.setLocale("fr")).resolves.toBeUndefined();
         expect(i18n.locale).toBe("fr");
+        // Both writes (init's cache populate and the change above) really threw, so
+        // the resolution asserted above is the swallow and not an untaken path.
+        expect(setItemSpy.mock.results.map((result) => result.type)).toEqual(["throw", "throw"]);
       } finally {
-        localStorage.setItem = originalSetItem;
+        setItemSpy.mockRestore();
       }
     });
   });
@@ -596,6 +569,95 @@ describe("LocaleDetector plugin", () => {
 
       expect(i18n.locale).toBe("it");
     });
+
+    it("reads a sessionStorage cache target under the session key, not the localStorage key", async () => {
+      sessionStorage.setItem("sess_lang", "it");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["navigator"],
+          caches: ["sessionStorage"],
+          lookupSessionStorage: "sess_lang",
+          lookupLocalStorage: "local_lang",
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("it");
+    });
+
+    it("falls back to navigator.language when navigator.languages is absent", async () => {
+      mockNavigatorWithoutLanguages("ko");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["navigator"],
+          caches: [],
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("ko");
+    });
+
+    it("continues to the next source when reading storage throws", async () => {
+      // Privacy mode: `getItem` itself throws. Must be the INSTANCE spy — see the
+      // note on the write-failure test — and `restoreMocks` does not restore it.
+      const getItemSpy = vi.spyOn(globalThis.localStorage, "getItem").mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+
+      try {
+        mockNavigator(["fr-FR"], "fr-FR");
+
+        const i18n = await initWithPlugin(
+          {
+            order: ["localStorage", "navigator"],
+            caches: [],
+          },
+          "en",
+        );
+
+        expect(i18n.locale).toBe("fr");
+        expect(getItemSpy.mock.results.map((result) => result.type)).toEqual(["throw"]);
+      } finally {
+        getItemSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("locale tag validation", () => {
+    // 35 characters, the inclusive upper bound; the second is the same tag one character over.
+    const TAG_AT_LIMIT = "en-abcdefgh-abcdefgh-abcdefgh-abcde";
+    const TAG_OVER_LIMIT = "en-abcdefgh-abcdefgh-abcdefgh-abcdef";
+
+    it("accepts a 35-character tag", async () => {
+      mockWindowLocation(`?lng=${TAG_AT_LIMIT}`);
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring"],
+          caches: [],
+        },
+        "de",
+      );
+
+      expect(i18n.locale).toBe("en");
+    });
+
+    it("rejects a 36-character tag", async () => {
+      mockWindowLocation(`?lng=${TAG_OVER_LIMIT}`);
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring"],
+          caches: [],
+        },
+        "de",
+      );
+
+      expect(i18n.locale).toBe("de");
+    });
   });
 
   describe("caching edge cases", () => {
@@ -639,14 +701,148 @@ describe("LocaleDetector plugin", () => {
         "de",
       );
 
-      // Fallback resolution — caches should be empty
       expect(localStorage.getItem("i18n_locale")).toBeNull();
       expect(sessionStorage.getItem("i18n_locale")).toBeNull();
 
-      // Manual locale change — caches should be written
-      await i18n.setLocaleAsync("fr");
+      await i18n.setLocale("fr");
       expect(localStorage.getItem("i18n_locale")).toBe("fr");
       expect(sessionStorage.getItem("i18n_locale")).toBe("fr");
+    });
+
+    it("skips every cache target when browser globals are unavailable", async () => {
+      await withDisabledBrowserGlobals(async () => {
+        const i18n = createI18n("en");
+        const cleanup = installDetector(i18n, {
+          caches: ["localStorage", "sessionStorage", "cookie"],
+        });
+
+        await expect(i18n.setLocale("fr")).resolves.toBeUndefined();
+
+        expect(i18n.locale).toBe("fr");
+
+        cleanup?.();
+      });
+    });
+
+    it("does not persist a locale the registered detector only reported", async () => {
+      mockWindowLocation("?lng=fr");
+      const i18n = createI18n("en");
+      const cleanup = installDetector(i18n, {
+        order: ["querystring"],
+        caches: ["localStorage"],
+      });
+
+      const reported = await i18n.getLanguageDetector()?.();
+
+      expect(reported).toBe("fr");
+      expect(i18n.locale).toBe("en");
+      expect(localStorage.getItem("i18n_locale")).toBeNull();
+
+      cleanup?.();
+    });
+
+    it("fills the remaining cache targets when the cached locale already is the current locale", async () => {
+      localStorage.setItem("i18n_locale", "fr");
+      mockNavigator(["de-DE"], "de-DE");
+      const cookieSetter = vi.spyOn(document, "cookie", "set");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["navigator"],
+          caches: ["localStorage", "cookie"],
+        },
+        "fr",
+      );
+
+      expect(i18n.locale).toBe("fr");
+      expect(cookieSetter.mock.calls.at(-1)?.[0]).toContain("i18n_lang=fr");
+    });
+
+    it("persists a later locale change after the detector reported only the fallback", async () => {
+      mockWindowLocation("");
+      const i18n = createI18n("en");
+      const cleanup = installDetector(i18n, {
+        order: ["querystring"],
+        caches: ["localStorage"],
+        fallbackLocale: "fr",
+      });
+
+      expect(await i18n.getLanguageDetector()?.()).toBe("fr");
+
+      await i18n.setLocale("de");
+
+      expect(localStorage.getItem("i18n_locale")).toBe("de");
+
+      cleanup?.();
+    });
+
+    it("M8: does not let a PRE-init manual detect() suppress a later explicit choice of its own fallback locale", async () => {
+      mockWindowLocation("");
+      const i18n = createI18n("en");
+      // `installDetector` only wires the plugin up — `i18n.init()` is never
+      // called in this test at all, so `isInitializing` stays false exactly
+      // as it would for a real host that has not started `init()` yet.
+      const cleanup = installDetector(i18n, {
+        order: ["querystring"],
+        caches: ["localStorage"],
+        fallbackLocale: "it",
+      });
+
+      // A manual, PRE-init consultation of the detector — e.g. code that
+      // wants to know what locale would be picked before deciding whether to
+      // call init() at all. No querystring, so it falls back to "it", which
+      // differs from the current locale "en".
+      expect(await i18n.getLanguageDetector()?.()).toBe("it");
+      expect(i18n.isInitialized).toBe(false);
+
+      // The user (or the app) then explicitly chooses "it" themselves — a
+      // deliberate pick that happens to match the pre-init marker's fallback
+      // value. It must be cached like any other explicit choice: core never
+      // auto-applied this detect() call (init() was never even entered), so
+      // there is no "own follow-up" localeChanged for the marker to bridge to.
+      await i18n.setLocale("it");
+      expect(localStorage.getItem("i18n_locale")).toBe("it");
+
+      cleanup?.();
+    });
+
+    it("does not let a post-init manual detect() suppress a later explicit choice of its own fallback locale", async () => {
+      mockWindowLocation("");
+      const i18n = createI18n("en");
+      const cleanup = installDetector(i18n, {
+        order: ["querystring"],
+        caches: ["localStorage"],
+        cacheFirst: false,
+        fallbackLocale: "it",
+      });
+
+      // init() drives the ONE auto-applied detector call: no querystring, so
+      // it falls back to "it" — that fallback-only transition is correctly
+      // not cached (existing, documented behavior).
+      await i18n.init();
+      expect(i18n.locale).toBe("it");
+      expect(localStorage.getItem("i18n_locale")).toBeNull();
+
+      // An unrelated explicit change, made well after init.
+      await i18n.setLocale("de");
+      expect(localStorage.getItem("i18n_locale")).toBe("de");
+
+      // The app manually re-consults the detector post-init (e.g. a "reset to
+      // detected locale" affordance). It reports the fallback again, "it" —
+      // `isInitializing` is false here (init() settled long ago), so no
+      // marker is armed at all.
+      expect(await i18n.getLanguageDetector()?.()).toBe("it");
+
+      // The user then explicitly chooses "it" themselves — a deliberate pick
+      // that happens to match the stale marker's fallback value. It must be
+      // cached like any other explicit choice: this call was never the
+      // automatic follow-up detect()'s own value application, since detect()
+      // only auto-drives a locale change from inside init(), which has long
+      // since finished.
+      await i18n.setLocale("it");
+      expect(localStorage.getItem("i18n_locale")).toBe("it");
+
+      cleanup?.();
     });
   });
 
@@ -665,6 +861,18 @@ describe("LocaleDetector plugin", () => {
 
     it("supports underscore separators", () => {
       expect(resolveLocale("zh_CN", ["en", "zh-CN"])).toBe("zh-CN");
+    });
+
+    it("prefers an exact match over a sibling regional variant", () => {
+      expect(resolveLocale("pt-PT", ["pt-BR", "pt-PT"])).toBe("pt-PT");
+    });
+
+    it("prefers the base language over a sibling regional variant", () => {
+      expect(resolveLocale("de-DE", ["de-AT", "de"])).toBe("de");
+    });
+
+    it("prefers the base language when the detected tag uses an underscore separator", () => {
+      expect(resolveLocale("zh_CN", ["zh", "zh-CN"])).toBe("zh");
     });
 
     it("returns undefined when nothing matches", () => {

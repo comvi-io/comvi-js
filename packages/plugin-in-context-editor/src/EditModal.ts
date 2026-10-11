@@ -1,15 +1,9 @@
-/**
- * EditModal - Translation editor modal management
- *
- * Provides functions to show/hide the translation editing modal.
- * Uses Shadow DOM for style isolation from the host page.
- */
+/** Mounted in a shadow root so host page styles cannot reach the modal. */
 
 import { createApp, ref, type App as VueApp } from "vue";
 import App from "./App.vue";
 import { createShadowDomContainer } from "./utils/shadowDom";
 
-// Store app instance and container for reuse across modal opens
 let container: HTMLElement | null = null;
 let app: VueApp | null = null;
 
@@ -19,10 +13,13 @@ const currentNs = ref<string>("");
 const currentInstanceId = ref<string | undefined>(undefined);
 
 /**
- * Cleanup function for manual cleanup if needed
- * Unmounts the Vue app and removes the container from DOM
+ * Unmounts the modal. With `instanceId`, only when that instance owns it: a
+ * stopping Core must not tear down the modal another active Core opened.
  */
-export function cleanup() {
+export function cleanup(instanceId?: string) {
+  if (instanceId !== undefined && currentInstanceId.value !== undefined) {
+    if (currentInstanceId.value !== instanceId) return;
+  }
   if (app) {
     app.unmount();
     app = null;
@@ -38,9 +35,7 @@ export function cleanup() {
 }
 
 function mountApp(key: string, ns: string, instanceId?: string) {
-  // Initialize app and shadow DOM
   if (container) {
-    // Already mounted, just update refs
     isOpen.value = true;
     currentKey.value = key;
     currentNs.value = ns;
@@ -56,7 +51,6 @@ function mountApp(key: string, ns: string, instanceId?: string) {
   currentNs.value = ns;
   currentInstanceId.value = instanceId;
 
-  // Create and mount Vue app
   app = createApp(App, {
     translationKey: currentKey,
     translationNamespace: currentNs,

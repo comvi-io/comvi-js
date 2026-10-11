@@ -4,82 +4,110 @@ import {
   createInvisibleCharPostProcessor,
   registerPostProcessorOnce,
 } from "../src/postProcessor";
-import { registerKey, encodeKeyToInvisible, loadKeyMappings } from "../src/translation";
-import type { TranslationParams } from "@comvi/core";
+import { getKeyMappings, loadKeyMappings } from "../src/translation";
+import type { TranslationParams, VirtualNode } from "@comvi/core";
 
-describe("IncontextEditor Post-Processor", () => {
+// `loadKeyMappings({})` in beforeEach restarts the id sequence, so the first key
+// a test registers is id 1 and the second is id 2. These are those two ids as
+// 8 base-5 digits in the INVISIBLE_CHARS alphabet (index 0/1/2 = \u200B/\u200D/\u200C).
+const ENCODED_ID_1 = "\u200B".repeat(7) + "\u200D";
+const ENCODED_ID_2 = "\u200B".repeat(7) + "\u200C";
+
+describe("createInvisibleCharPostProcessor()", () => {
   beforeEach(() => {
-    // Clear key mappings before each test
     loadKeyMappings({});
   });
 
-  describe("Default behavior (without raw flag)", () => {
-    it("should inject invisible characters into string results", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const result = postProcessor("Hello World", "greeting", "default", {});
+  it("should append the key's invisible encoding to a string result", () => {
+    const postProcessor = createInvisibleCharPostProcessor();
 
-      expect(result).not.toBe("Hello World");
-      expect(result).toContain("Hello World");
-      expect(result.length).toBeGreaterThan("Hello World".length);
-    });
+    const result = postProcessor("Hello World", "greeting", "default", {});
 
-    it("should inject invisible characters into array results with string at end", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const result = postProcessor(["Hello", " ", "World"], "greeting", "default", {});
-
-      expect(Array.isArray(result)).toBe(true);
-      expect(result).toHaveLength(3);
-      expect(result[2]).not.toBe("World");
-      expect(result[2]).toContain("World");
-    });
-
-    it("should append invisible characters to array if last element is not string", () => {
-      const mockVNode = { type: "span", children: "test" };
-      const postProcessor = createInvisibleCharPostProcessor();
-      const result = postProcessor(["Hello", mockVNode], "greeting", "default", {});
-
-      expect(Array.isArray(result)).toBe(true);
-      expect(result).toHaveLength(3);
-      expect(typeof result[2]).toBe("string");
-    });
-
-    it("should register keys and encode them correctly", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const key = "test.key";
-      const ns = "custom";
-
-      const result = postProcessor("Translation", key, ns, {});
-
-      // Verify the key was registered and encoded
-      const id = registerKey(key, ns);
-      const expectedEncoding = encodeKeyToInvisible(id);
-
-      expect(result).toContain(expectedEncoding);
-    });
-
-    it("should produce consistent encodings for the same key", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-
-      const result1 = postProcessor("Text", "same.key", "default", {});
-      const result2 = postProcessor("Text", "same.key", "default", {});
-
-      expect(result1).toBe(result2);
-    });
-
-    it("should produce different encodings for different keys", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-
-      const result1 = postProcessor("Text", "key1", "default", {});
-      const result2 = postProcessor("Text", "key2", "default", {});
-
-      expect(result1).not.toBe(result2);
-    });
+    expect(result).toBe("Hello World" + ENCODED_ID_1);
+    expect(result).toContainInvisibleChars();
   });
 
-  describe("With raw flag set to true", () => {
+  it.each([
+    ["an empty params object", {} as TranslationParams],
+    ["no params at all", undefined as unknown as TranslationParams],
+    ["markers: true", { markers: true } as TranslationParams],
+    ["markers: true alongside other params", { markers: true, ns: "custom", locale: "en" }],
+  ])("should inject the encoding with %s", (_label, params) => {
+    const postProcessor = createInvisibleCharPostProcessor();
+
+    const result = postProcessor("Hello World", "greeting", "default", params);
+
+    expect(result).toBe("Hello World" + ENCODED_ID_1);
+  });
+
+  it("should append the encoding to the last string element of an array result", () => {
+    const postProcessor = createInvisibleCharPostProcessor();
+
+    const result = postProcessor(["Hello", " ", "World"], "greeting", "default", {});
+
+    expect(result).toEqual(["Hello", " ", "World" + ENCODED_ID_1]);
+  });
+
+  it("should append the encoding as a new element when the array ends in a VNode", () => {
+    const mockVNode: VirtualNode = { type: "element", tag: "span", props: {}, children: ["test"] };
+    const postProcessor = createInvisibleCharPostProcessor();
+
+    const result = postProcessor(["Hello", mockVNode], "greeting", "default", {});
+
+    expect(result).toEqual(["Hello", mockVNode, ENCODED_ID_1]);
+  });
+
+  it("should register the key under its namespace and append that key's encoding", () => {
+    const postProcessor = createInvisibleCharPostProcessor();
+
+    const result = postProcessor("Translation", "test.key", "custom", {});
+
+    expect(getKeyMappings()).toEqual({ "custom:test.key": 1 });
+    expect(result).toBe("Translation" + ENCODED_ID_1);
+  });
+
+  it("should produce consistent encodings for the same key", () => {
+    const postProcessor = createInvisibleCharPostProcessor();
+
+    const result1 = postProcessor("Text", "same.key", "default", {});
+    const result2 = postProcessor("Text", "same.key", "default", {});
+
+    expect(result1).toBe(result2);
+  });
+
+  it("should produce different encodings for different keys", () => {
+    const postProcessor = createInvisibleCharPostProcessor();
+
+    const result1 = postProcessor("Text", "key1", "default", {});
+    const result2 = postProcessor("Text", "key2", "default", {});
+
+    expect(result1).toBe("Text" + ENCODED_ID_1);
+    expect(result2).toBe("Text" + ENCODED_ID_2);
+  });
+
+  it("should return a result that is neither a string nor an array untouched", () => {
+    const postProcessor = createInvisibleCharPostProcessor();
+    const vnode = { type: "span", children: "test" };
+
+    expect(postProcessor(vnode as never, "greeting", "default", {})).toBe(vnode);
+  });
+
+  describe("markers: false", () => {
+    it("returns the untouched result for markers: false and appends the marker for true or absent", () => {
+      const postProcessor = createInvisibleCharPostProcessor();
+      const input = "Hello World";
+
+      expect(postProcessor(input, "greeting", "default", { markers: false })).toBe(input);
+      expect(postProcessor(input, "greeting", "default", { markers: true })).toBe(
+        input + ENCODED_ID_1,
+      );
+      expect(postProcessor(input, "greeting", "default", {})).toBe(input + ENCODED_ID_1);
+    });
+
     it("should skip invisible character injection for string results", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
+
       const result = postProcessor("Hello World", "greeting", "default", params);
 
       expect(result).toBe("Hello World");
@@ -87,8 +115,9 @@ describe("IncontextEditor Post-Processor", () => {
 
     it("should skip invisible character injection for array results", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
       const input = ["Hello", " ", "World"];
+
       const result = postProcessor(input, "greeting", "default", params);
 
       expect(result).toBe(input);
@@ -96,155 +125,150 @@ describe("IncontextEditor Post-Processor", () => {
     });
 
     it("should skip injection for VNode arrays", () => {
-      const mockVNode = { type: "span", children: "test" };
+      const mockVNode: VirtualNode = {
+        type: "element",
+        tag: "span",
+        props: {},
+        children: ["test"],
+      };
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
+      const params: TranslationParams = { markers: false };
       const input = ["Hello", mockVNode];
+
       const result = postProcessor(input, "greeting", "default", params);
 
       expect(result).toBe(input);
-      expect(Array.isArray(result)).toBe(true);
-      expect(result).toHaveLength(2);
     });
 
-    it("should not register keys when raw flag is set", () => {
+    it("should not register the key when markers is false", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
-
-      // Clear mappings
-      loadKeyMappings({});
+      const params: TranslationParams = { markers: false };
 
       postProcessor("Translation", "skip.this.key", "default", params);
 
-      // The key should still be registered (because registerKey is called before the check)
-      // but the encoding should not be appended to the result
-      const result = postProcessor("Translation", "skip.this.key", "default", params);
-      expect(result).toBe("Translation");
-    });
-  });
-
-  describe("With raw flag set to false (explicit)", () => {
-    it("should inject invisible characters when raw is explicitly false", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: false };
-      const result = postProcessor("Hello World", "greeting", "default", params);
-
-      expect(result).not.toBe("Hello World");
-      expect(result).toContain("Hello World");
-    });
-  });
-
-  describe("With raw flag undefined (no params)", () => {
-    it("should inject invisible characters when params is undefined", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const result = postProcessor("Hello World", "greeting", "default", undefined as any);
-
-      expect(result).not.toBe("Hello World");
-      expect(result).toContain("Hello World");
+      expect(getKeyMappings()).toEqual({});
     });
 
-    it("should inject invisible characters when params is empty object", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const result = postProcessor("Hello World", "greeting", "default", {});
-
-      expect(result).not.toBe("Hello World");
-      expect(result).toContain("Hello World");
-    });
-  });
-
-  describe("Mixed params with raw flag", () => {
-    it("should skip injection when raw is true along with other params", () => {
+    it("should skip injection when markers is false along with other params", () => {
       const postProcessor = createInvisibleCharPostProcessor();
       const params: TranslationParams = {
-        raw: true,
+        markers: false,
         ns: "custom",
         locale: "en",
         custom: "value",
       };
+
       const result = postProcessor("Translation", "key", "default", params);
 
       expect(result).toBe("Translation");
     });
 
-    it("should inject when raw is false along with other params", () => {
+    it("empty string with markers: false → returned unchanged", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = {
-        raw: false,
-        ns: "custom",
-        locale: "en",
-      };
-      const result = postProcessor("Translation", "key", "default", params);
+      const params: TranslationParams = { markers: false };
 
-      expect(result).not.toBe("Translation");
-      expect(result).toContain("Translation");
-    });
-  });
-
-  describe("Edge cases", () => {
-    it("should handle empty string with raw flag", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
       const result = postProcessor("", "empty", "default", params);
 
       expect(result).toBe("");
     });
 
-    it("should handle empty string without raw flag", () => {
+    it("empty array with markers: false → returned unchanged", () => {
       const postProcessor = createInvisibleCharPostProcessor();
-      const result = postProcessor("", "empty", "default", {});
+      const params: TranslationParams = { markers: false };
 
-      expect(typeof result).toBe("string");
-      expect(result.length).toBeGreaterThan(0); // Should have invisible chars
-    });
-
-    it("should handle empty array with raw flag", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const params: TranslationParams = { raw: true };
       const result = postProcessor([], "empty", "default", params);
 
       expect(result).toEqual([]);
     });
-
-    it("should handle empty array without raw flag", () => {
-      const postProcessor = createInvisibleCharPostProcessor();
-      const result = postProcessor([], "empty", "default", {});
-
-      // Should append invisible chars as a new element
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
-    });
   });
 
-  describe("Registration helpers", () => {
-    it("should register post-processor only once per i18n instance", () => {
-      const i18n = {
-        registerPostProcessor: vi.fn(),
-      };
+  describe("empty results", () => {
+    it("empty string with markers left on → becomes just the key's marker", () => {
+      const postProcessor = createInvisibleCharPostProcessor();
 
-      registerPostProcessorOnce(i18n as any);
-      registerPostProcessorOnce(i18n as any);
+      const result = postProcessor("", "empty", "default", {});
 
-      expect(i18n.registerPostProcessor).toHaveBeenCalledTimes(1);
+      expect(result).toBe(ENCODED_ID_1);
     });
 
-    it("should execute and cleanup beforeProcess hooks", () => {
-      const i18n = {
-        registerPostProcessor: vi.fn(),
-      };
-      const beforeProcessHook = vi.fn();
+    it("empty array with markers left on → becomes an array holding just the key's marker", () => {
+      const postProcessor = createInvisibleCharPostProcessor();
 
-      const removeHook = addBeforeProcessHook(i18n as any, beforeProcessHook);
-      registerPostProcessorOnce(i18n as any);
+      const result = postProcessor([], "empty", "default", {});
 
-      const processor = i18n.registerPostProcessor.mock.calls[0]?.[0];
-      expect(typeof processor).toBe("function");
-
-      processor("Hello", "greeting", "default", {});
-      expect(beforeProcessHook).toHaveBeenCalledTimes(1);
-
-      removeHook();
-      processor("Hello", "greeting", "default", {});
-      expect(beforeProcessHook).toHaveBeenCalledTimes(1);
+      expect(result).toEqual([ENCODED_ID_1]);
     });
+  });
+});
+
+describe("registerPostProcessorOnce()", () => {
+  beforeEach(() => {
+    loadKeyMappings({});
+  });
+
+  it("should register post-processor only once per i18n instance", () => {
+    const first = { registerPostProcessor: vi.fn() };
+    const second = { registerPostProcessor: vi.fn() };
+
+    registerPostProcessorOnce(first as never);
+    registerPostProcessorOnce(first as never);
+    registerPostProcessorOnce(second as never);
+
+    expect(first.registerPostProcessor).toHaveBeenCalledTimes(1);
+    expect(second.registerPostProcessor).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("addBeforeProcessHook()", () => {
+  beforeEach(() => {
+    loadKeyMappings({});
+  });
+
+  /** A registered post-processor with one beforeProcess hook added ahead of it. */
+  function processorWithHook(beforeProcessHook: () => void) {
+    const i18n = { registerPostProcessor: vi.fn() };
+    const removeHook = addBeforeProcessHook(i18n as never, beforeProcessHook);
+    registerPostProcessorOnce(i18n as never);
+    const processor = i18n.registerPostProcessor.mock.calls[0]![0];
+    return { processor, removeHook };
+  }
+
+  it("beforeProcess hook added → it runs once per processed translation", () => {
+    const beforeProcessHook = vi.fn();
+    const { processor } = processorWithHook(beforeProcessHook);
+
+    processor("Hello", "greeting", "default", {});
+
+    expect(beforeProcessHook).toHaveBeenCalledTimes(1);
+  });
+
+  it("beforeProcess hook removed after one run → the next translation does not run it", () => {
+    const beforeProcessHook = vi.fn();
+    const { processor, removeHook } = processorWithHook(beforeProcessHook);
+    processor("Hello", "greeting", "default", {});
+    removeHook();
+
+    processor("Hello", "greeting", "default", {});
+
+    expect(beforeProcessHook).toHaveBeenCalledTimes(1);
+  });
+
+  it("should run every registered hook and remove only the one asked for", () => {
+    const i18n = { registerPostProcessor: vi.fn() };
+    const first = vi.fn();
+    const second = vi.fn();
+
+    const removeFirst = addBeforeProcessHook(i18n as never, first);
+    addBeforeProcessHook(i18n as never, second);
+    registerPostProcessorOnce(i18n as never);
+    const processor = i18n.registerPostProcessor.mock.calls[0]![0];
+
+    processor("Hello", "greeting", "default", {});
+    removeFirst();
+    removeFirst();
+    processor("Hello", "greeting", "default", {});
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(2);
   });
 });

@@ -3,14 +3,19 @@
  * Produces dist/comvi-core.global.prod.js — the artifact pointed to by
  * the "unpkg" and "jsdelivr" fields in package.json.
  *
+ * The entry is `src/umd.ts`, NOT the ESM root: since the single-entry
+ * convergence the root is the bare base host, while a `<script src>` consumer
+ * has no import graph to extend, so the global keeps its batteries-included
+ * composition in a source file of its own (plan §2.5).
+ *
  * mangle.toplevel:true is safe here because UMD/IIFE is a closed scope —
  * the ed4cc12 Nuxt rebundle bug was ESM-specific (top-level names leaked
  * into the consumer's bundler scope; that cannot happen in a UMD wrapper).
  */
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import { treeshakeOptions } from "@comvi/vite-config";
 import pkg from "./package.json";
+import { coreTreeshake, keepRegisterSideEffect, mangleInternalProps } from "./vite.shared";
 
 const umdMinifyOptions = {
   compress: {
@@ -37,10 +42,11 @@ const umdMinifyOptions = {
 };
 
 export default defineConfig({
+  plugins: [keepRegisterSideEffect, mangleInternalProps()],
   build: {
     emptyOutDir: false, // main build already cleared dist/
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
+      entry: resolve(__dirname, "src/umd.ts"),
       name: "ComviCore",
     },
     minify: true,
@@ -56,7 +62,7 @@ export default defineConfig({
           minify: umdMinifyOptions,
         },
       ],
-      treeshake: treeshakeOptions,
+      treeshake: coreTreeshake,
     },
   },
   resolve: {

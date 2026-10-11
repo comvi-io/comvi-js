@@ -22,7 +22,6 @@ import {
   restoreSelectedLanguages,
 } from "@/utils/languageSelectionStorage";
 
-// Toast notifications
 const toast = inject(TOAST_INJECTION_KEY);
 
 const props = defineProps<{
@@ -73,7 +72,7 @@ async function loadLanguagesForCurrentInstance(): Promise<void> {
       return;
     }
 
-    console.error("Failed to load languages:", error);
+    console.error("[@comvi/plugin-in-context-editor] Failed to load languages:", error);
     languages.value = [];
     selectedLanguageCodes.value = [];
   } finally {
@@ -93,7 +92,6 @@ watch(
   { immediate: true },
 );
 
-// Watch selected languages and save to localStorage
 watch(
   selectedLanguageCodes,
   (newCodes) => {
@@ -105,23 +103,23 @@ watch(
   { deep: true },
 );
 
-// Compute filtered languages based on selection
 const filteredLanguages = computed(() => {
   return languages.value.filter((lang) => selectedLanguageCodes.value.includes(lang.code));
 });
 
-// Initialize translation state management
 const translationManager = useTranslations(languages, props.translationInstanceId);
 
-// Provide translation manager to child components
 provide("translationManager", translationManager);
 
-// Provide demo mode flag to child components
 provide("isInDemoMode", isInDemoMode);
 
-// Load translation when modal opens or when key/namespace changes while open
 watch(
-  () => [isOpenInternal.value, unref(props.translationKey), unref(props.translationNamespace)],
+  () => [
+    isOpenInternal.value,
+    unref(props.translationKey),
+    unref(props.translationNamespace),
+    unref(props.translationInstanceId),
+  ],
   () => {
     if (isOpenInternal.value) {
       translationManager.loadTranslation(
@@ -133,9 +131,16 @@ watch(
   { immediate: true },
 );
 
-// Handle save without closing
 async function handleSaveOnly() {
+  // A new load replaces the state object; a save that settles after that
+  // belongs to a session the user already left and reports nothing here.
+  const sessionState = translationManager.state.value;
+  // The outcome of this save replaces whatever an earlier one reported.
+  toast?.toasts.value.forEach((item) => toast.removeToast(item.id));
   const savedData = await translationManager.saveTranslation();
+  if (translationManager.state.value !== sessionState) {
+    return null;
+  }
   if (savedData) {
     toast?.addToast({
       title: "Saved",
@@ -152,7 +157,6 @@ async function handleSaveOnly() {
   return savedData;
 }
 
-// Handle save and close
 async function handleSaveAndClose() {
   const savedData = await handleSaveOnly();
   if (savedData) {
@@ -160,7 +164,6 @@ async function handleSaveAndClose() {
   }
 }
 
-// Provide save handlers to children
 provide("handleSaveOnly", handleSaveOnly);
 provide("handleSaveAndClose", handleSaveAndClose);
 
@@ -169,28 +172,37 @@ function handleKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key === "s") {
     event.preventDefault();
     event.stopPropagation();
-    if (translationManager.hasUnsavedChanges.value && !translationManager.state.value.isLoading) {
+    if (
+      translationManager.hasUnsavedChanges.value &&
+      !translationManager.state.value.isLoading &&
+      !translationManager.isSaving.value
+    ) {
       handleSaveOnly();
     }
   }
 }
 
-watch(isOpenInternal, (open) => {
-  if (open) {
-    document.addEventListener("keydown", handleKeydown);
-  } else {
-    document.removeEventListener("keydown", handleKeydown);
-  }
-});
+// Immediate: the modal is usually mounted already open, with no false → true change.
+watch(
+  isOpenInternal,
+  (open) => {
+    if (open) {
+      document.addEventListener("keydown", handleKeydown);
+    } else {
+      document.removeEventListener("keydown", handleKeydown);
+    }
+  },
+  { immediate: true },
+);
 
 onUnmounted(() => {
   document.removeEventListener("keydown", handleKeydown);
 });
 
-// Unsaved changes warning
 const showUnsavedWarning = ref(false);
 
 function tryClose() {
+  if (translationManager.isSaving.value) return;
   if (translationManager.hasUnsavedChanges.value) {
     showUnsavedWarning.value = true;
   } else {
@@ -199,11 +211,16 @@ function tryClose() {
 }
 
 function forceClose() {
+  if (translationManager.isSaving.value) return;
   showUnsavedWarning.value = false;
   isOpenInternal.value = false;
 }
 
 function handleEscapeKeyDown(event: KeyboardEvent) {
+  if (translationManager.isSaving.value) {
+    event.preventDefault();
+    return;
+  }
   if (translationManager.hasUnsavedChanges.value) {
     event.preventDefault();
     showUnsavedWarning.value = true;
@@ -211,6 +228,10 @@ function handleEscapeKeyDown(event: KeyboardEvent) {
 }
 
 function handleInteractOutside(event: Event) {
+  if (translationManager.isSaving.value) {
+    event.preventDefault();
+    return;
+  }
   if (translationManager.hasUnsavedChanges.value) {
     event.preventDefault();
     showUnsavedWarning.value = true;
@@ -229,7 +250,6 @@ function handleInteractOutside(event: Event) {
       @escape-key-down="handleEscapeKeyDown"
       @interact-outside="handleInteractOutside"
     >
-      <!-- Demo mode: simplified view -->
       <div v-if="isInDemoMode" class="flex flex-col p-6">
         <div class="flex items-center gap-3 mb-6">
           <div
@@ -274,7 +294,6 @@ function handleInteractOutside(event: Event) {
         <Button class="w-full" @click="isOpenInternal = false"> Close </Button>
       </div>
 
-      <!-- Normal mode: full editor -->
       <div v-else class="flex flex-col h-[90vh] max-h-[90vh]">
         <DialogHeader>
           <ModalHeader
@@ -297,7 +316,6 @@ function handleInteractOutside(event: Event) {
     </DialogContent>
   </Dialog>
 
-  <!-- Unsaved changes confirmation dialog -->
   <Dialog v-model:open="showUnsavedWarning">
     <DialogContent class="w-full max-w-sm p-6">
       <DialogHeader>
@@ -308,7 +326,12 @@ function handleInteractOutside(event: Event) {
       </DialogHeader>
       <div class="flex justify-end gap-2 mt-4">
         <Button variant="outline" @click="showUnsavedWarning = false">Keep Editing</Button>
-        <Button variant="destructive" @click="forceClose">Discard</Button>
+        <Button
+          variant="destructive"
+          :disabled="translationManager.isSaving.value"
+          @click="forceClose"
+          >Discard</Button
+        >
       </div>
     </DialogContent>
   </Dialog>

@@ -1,29 +1,25 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
+import { nextPlugin } from "../src/nextPlugin";
 import { getI18n, setI18n } from "../src/server";
+import { _resetServerI18n } from "../src/server/cache";
 import { getLocale } from "../src/server/getLocale";
 
 vi.mock("../src/server/getLocale", () => ({
   getLocale: vi.fn().mockResolvedValue("fr"),
 }));
 
+// `unstubEnvs` in vitest.config.ts restores NEXT_RUNTIME after every test.
 const runInServerRuntime = async (fn: () => Promise<void>) => {
-  const originalRuntime = process.env.NEXT_RUNTIME;
-  process.env.NEXT_RUNTIME = "nodejs";
-  try {
-    await fn();
-  } finally {
-    if (originalRuntime === undefined) {
-      delete process.env.NEXT_RUNTIME;
-    } else {
-      process.env.NEXT_RUNTIME = originalRuntime;
-    }
-  }
+  vi.stubEnv("NEXT_RUNTIME", "nodejs");
+  await fn();
 };
 
 describe("server getI18n", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    // The server i18n is a once-cell: a second setI18n with a different
+    // instance throws instead of overwriting.
+    _resetServerI18n();
   });
 
   it("falls back to getLocale when locale is not passed", async () => {
@@ -33,7 +29,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({ "en:common": { __seed: "seed" } });
+    i18n.addMessages({ "en:common": { __seed: "seed" } });
 
     const loaderMock = vi.fn(async (language: string, namespace: string) => {
       if (language === "fr" && namespace === "common") {
@@ -57,7 +53,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({ "en:common": { __seed: "seed" } });
+    i18n.addMessages({ "en:common": { __seed: "seed" } });
 
     const loaderMock = vi.fn(async () => ({ greeting: "Bonjour" }));
     i18n.registerLoader(loaderMock);
@@ -77,21 +73,22 @@ describe("server getI18n", () => {
       devMode: false,
     });
 
-    const hasTranslationSpy = vi.spyOn(i18n, "hasTranslation");
-    hasTranslationSpy
+    const hasTranslationSpy = vi
+      .spyOn(i18n, "hasTranslation")
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(true)
-      .mockReturnValueOnce(false);
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
 
-    i18n.addTranslations({ "fr:common": { __seed: "ok" } });
+    i18n.addMessages({ "fr:common": { __seed: "ok" } });
     setI18n(i18n);
 
     const { hasTranslation } = await getI18n({ locale: "fr" });
 
-    hasTranslation("greeting");
-    hasTranslation("title", { ns: "admin" });
-    hasTranslation("missing");
-    hasTranslation("greeting", { locale: "en" });
+    expect(hasTranslation("greeting")).toBe(true);
+    expect(hasTranslation("title", { ns: "admin" })).toBe(true);
+    expect(hasTranslation("missing")).toBe(false);
+    expect(hasTranslation("greeting", { locale: "en" })).toBe(true);
 
     expect(hasTranslationSpy).toHaveBeenNthCalledWith(1, "greeting", "fr", "common");
     expect(hasTranslationSpy).toHaveBeenNthCalledWith(2, "title", "fr", "admin");
@@ -111,9 +108,31 @@ describe("server getI18n", () => {
     setI18n(i18n);
 
     await expect(getI18n()).rejects.toMatchObject({
-      message: expect.stringContaining("Locale not set"),
+      message:
+        "[@comvi/next] Locale not set. " +
+        "Call setRequestLocale(locale) in your layout/page first, or configure middleware.",
       cause: expect.any(Error),
     });
+  });
+
+  it("loads the namespace asked for rather than the default one", async () => {
+    const { i18n } = createNextI18n({
+      locales: ["en", "fr"],
+      defaultLocale: "en",
+      defaultNs: "common",
+      devMode: false,
+    });
+    i18n.addMessages({ "fr:common": { greeting: "Bonjour" } });
+
+    const loaderMock = vi.fn(async () => ({ title: "Console" }));
+    i18n.registerLoader(loaderMock);
+    setI18n(i18n);
+
+    const { t } = await getI18n({ locale: "fr", ns: "admin" });
+
+    expect(loaderMock).toHaveBeenCalledWith("fr", "admin");
+    expect(loaderMock).not.toHaveBeenCalledWith("fr", "common");
+    expect(t("title")).toBe("Console");
   });
 
   it("does not load translations when locale/default namespace is already cached", async () => {
@@ -123,7 +142,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": { __seed: "seed" },
       "fr:common": { greeting: "Bonjour cached" },
     });
@@ -148,9 +167,9 @@ describe("server getI18n", () => {
       });
 
       const serverPlugin = vi.fn(async () => undefined);
-      nextI18n.useServer(serverPlugin);
+      nextI18n.use(nextPlugin(serverPlugin, { runtime: "server" }));
 
-      nextI18n.i18n.addTranslations({
+      nextI18n.i18n.addMessages({
         "fr:common": { greeting: "Bonjour cached" },
       });
 
@@ -169,7 +188,7 @@ describe("server getI18n", () => {
       defaultNs: "common",
       devMode: false,
     });
-    i18n.addTranslations({ "fr:common": { __seed: "ok" } });
+    i18n.addMessages({ "fr:common": { __seed: "ok" } });
 
     const tSpy = vi.spyOn(i18n, "tRaw").mockReturnValue("translated");
     setI18n(i18n);
@@ -197,7 +216,7 @@ describe("server getI18n", () => {
       devMode: false,
     });
 
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": {
         greeting: "Hello <strong>{name}</strong>",
       },

@@ -1,36 +1,19 @@
 /**
- * TranslationKeyEncoder - Encapsulated translation key encoding/decoding
- *
- * Encodes translation keys as invisible Unicode characters for embedding in translated text.
- * Each key is assigned a numeric ID, which is then encoded as a base-5 number using
- * 5 invisible Unicode characters.
+ * Each key gets a numeric ID, encoded as a base-5 number over 5 invisible
+ * Unicode characters and embedded in the translated text.
  */
 
 import { INVISIBLE_CHARS, ENCODING_LENGTH } from "../constants/encoding";
 import type { KeyInfo } from "../types/translation";
 
-// Re-export KeyInfo for convenience
 export type { KeyInfo };
 
-/**
- * TranslationKeyEncoder class for managing translation key encoding/decoding
- *
- * Unlike the old module-level implementation, this class:
- * - Encapsulates state (no global variables)
- * - Allows multiple independent instances
- * - Supports reset for testing
- */
 export class TranslationKeyEncoder {
   private keyToIdMap: Map<string, number> = new Map();
   private idToKeyMap: Map<number, string> = new Map();
   private nextId: number = 1;
 
-  /**
-   * Registers a translation key with namespace and assigns it a sequential ID
-   * @param key - The translation key to register
-   * @param ns - The namespace for the translation key (defaults to 'default')
-   * @returns The numeric ID assigned to the key
-   */
+  /** Assigns a sequential ID the first time this key/namespace pair is seen. */
   public registerKey(key: string, ns: string = "default"): number {
     const combinedKey = `${ns}:${key}`;
 
@@ -46,11 +29,6 @@ export class TranslationKeyEncoder {
     return id;
   }
 
-  /**
-   * Looks up the original translation key and namespace from an ID
-   * @param id - The numeric ID to look up
-   * @returns Object with key and namespace, or null if not found
-   */
   public getKeyFromId(id: number): KeyInfo | null {
     const combinedKey = this.idToKeyMap.get(id);
     if (!combinedKey) return null;
@@ -67,15 +45,10 @@ export class TranslationKeyEncoder {
     return { key, ns };
   }
 
-  /**
-   * Encodes a numeric ID as a sequence of invisible characters with fixed length
-   * @param id - The numeric ID to encode
-   * @returns A string of invisible Unicode characters
-   */
+  /** Always emits exactly ENCODING_LENGTH characters. */
   public encode(id: number): string {
     let encodedKey = this.numberToBase5(id);
 
-    // Pad with leading zeros to ensure fixed length
     while (encodedKey.length < ENCODING_LENGTH) {
       encodedKey = INVISIBLE_CHARS[0] + encodedKey;
     }
@@ -83,28 +56,18 @@ export class TranslationKeyEncoder {
     return encodedKey;
   }
 
-  /**
-   * Decodes text to find the first encoded translation key
-   * @param text - Text potentially containing invisible characters
-   * @returns The decoded key info, numeric ID if key not found, or null
-   */
+  /** Decodes the FIRST key only, falling back to the raw ID if unregistered. */
   public decode(text: string): KeyInfo | number | null {
     const keys = this.scanForKeys(text);
     return keys.length > 0 ? keys[0]! : null;
   }
 
-  /**
-   * Scans text for all encoded translation keys
-   * @param text - Text potentially containing invisible character sequences
-   * @returns Array of decoded key info or numeric IDs
-   */
   public scanForKeys(text: string): (KeyInfo | number)[] {
     const result: (KeyInfo | number)[] = [];
 
     for (let i = 0; i <= text.length - ENCODING_LENGTH; i++) {
       let isEncodedKey = true;
 
-      // Check if we have a sequence of ENCODING_LENGTH invisible characters
       for (let j = 0; j < ENCODING_LENGTH; j++) {
         const char = text[i + j];
         if (!INVISIBLE_CHARS.includes(char as (typeof INVISIBLE_CHARS)[number])) {
@@ -124,22 +87,12 @@ export class TranslationKeyEncoder {
     return result;
   }
 
-  /**
-   * Checks if text contains any invisible character encodings
-   * @param text - Text to check
-   * @returns True if text contains invisible characters
-   */
   public containsEncodedKey(text: string): boolean {
     return INVISIBLE_CHARS.some((char) => text.includes(char));
   }
 
-  /**
-   * Extracts all encoded IDs from text (including interleaved ones)
-   * @param text - Text potentially containing encoded IDs
-   * @returns Array of numeric IDs found
-   */
+  /** Finds every encoded ID, including sequences interleaved with visible text. */
   public extractAllIds(text: string): number[] {
-    // Extract all invisible characters
     let invisibleChars = "";
     for (let i = 0; i < text.length; i++) {
       if (INVISIBLE_CHARS.includes(text[i] as (typeof INVISIBLE_CHARS)[number])) {
@@ -170,10 +123,6 @@ export class TranslationKeyEncoder {
     return result;
   }
 
-  /**
-   * Loads existing key-to-ID mappings
-   * @param mappings - Object containing key-to-ID mappings
-   */
   public loadMappings(mappings: Record<string, number>): void {
     this.keyToIdMap.clear();
     this.idToKeyMap.clear();
@@ -189,10 +138,6 @@ export class TranslationKeyEncoder {
     this.nextId = maxId + 1;
   }
 
-  /**
-   * Gets the current key-to-ID mappings for saving
-   * @returns Object containing all current mappings
-   */
   public getMappings(): Record<string, number> {
     const mappings: Record<string, number> = {};
     this.keyToIdMap.forEach((id, key) => {
@@ -201,19 +146,12 @@ export class TranslationKeyEncoder {
     return mappings;
   }
 
-  /**
-   * Resets the encoder to initial state
-   * Useful for testing or reinitializing
-   */
   public reset(): void {
     this.keyToIdMap.clear();
     this.idToKeyMap.clear();
     this.nextId = 1;
   }
 
-  /**
-   * Converts a number to base-5 representation using invisible characters
-   */
   private numberToBase5(num: number): string {
     if (num === 0) return INVISIBLE_CHARS[0]!;
 
@@ -227,9 +165,6 @@ export class TranslationKeyEncoder {
     return result;
   }
 
-  /**
-   * Converts a base-5 representation back to a number
-   */
   private base5ToNumber(base5Str: string): number {
     let result = 0;
 

@@ -1,5 +1,169 @@
 # @comvi/plugin-locale-detector
 
+## 0.5.0
+
+### Minor Changes
+
+- 09029b0: **BREAKING (breaking change on a 0.x minor): the raw plugin factory is renamed `LocaleDetector` → `localeDetectorPlugin`.** It differed from the `localeDetector` installer by one capital, which is not a difference a reader notices and not one a type error explains well. The `Plugin` suffix names the thing you hand to `registerPlugin`.
+
+  ```diff
+  -import { LocaleDetector } from "@comvi/plugin-locale-detector";
+  +import { localeDetectorPlugin } from "@comvi/plugin-locale-detector";
+
+  -i18n.registerPlugin(LocaleDetector({ order: ["cookie"] }));
+  +i18n.registerPlugin(localeDetectorPlugin({ order: ["cookie"] }));
+  ```
+
+  The `localeDetector` installer, `LocaleDetectorOptions`, `LocaleDetectorInstaller` and `resolveLocale` keep their names, and behaviour is unchanged. On Next this is also the name inside `nextPlugin(localeDetectorPlugin(…), { runtime: "client" })`, still the only correct way to run the detector on an App Router instance. The old names are removed, with no deprecated aliases.
+
+- 09029b0: **Added: `localeDetector(options)` — the bare-name `.use(…)` installer.** `@comvi/core` is
+  the base instance now, so the plugins capability is an import you add; the installer composes it and
+  registers the plugin you already know.
+
+  ```ts
+  import { createI18n } from "@comvi/core";
+  import { localeDetector } from "@comvi/plugin-locale-detector";
+
+  const i18n = createI18n({ locale: "en" }).use(
+    localeDetector({ supportedLocales: ["en", "uk", "de"], caches: ["cookie"] }),
+  );
+  ```
+
+  That replaces `createI18n({ … }).use(attachPlugins)` followed by
+  `i18n.registerPlugin(localeDetectorPlugin({ … }))`. No loader capability is composed, deliberately: the
+  detector hands core a locale, it never loads a catalog.
+
+  `localeDetectorPlugin` behaves exactly as `LocaleDetector` did (the rename is in its
+  own changeset), and the installer re-implements no lifecycle: `required`,
+  `timeout`, `onError`, cleanup registration and LIFO destroy keep running inside the plugins capability,
+  because the installer's last act is `registerPlugin`. Composing onto an instance that already has the
+  capability installs nothing and keeps every plugin already registered. The exported installer
+  type is `LocaleDetectorInstaller`. Putting one in the other's slot is a type error and loud at
+  runtime.
+
+- 09029b0: **`.use(installer)` is the ONE composition verb.** 0.5 shipped two verbs for two contracts — `.with(installer)`, a synchronous widening pipe on the base instance, and `.use(plugin)`, a deferred queue on the plugins capability. Two verbs one letter apart, with opposite timing, is a coin toss at every call site, and `with` needed explaining every time. `use` does not: Vue's `app.use(plugin)` calls `install(app)` synchronously and hands the app back for chaining, and Express's `app.use` and i18next's `.use(module)` are synchronous registration too. So `use` is now the only verb, and it means what every reader already thinks it means.
+
+  ```ts
+  import { createI18n, icuCompiler, definePlugin } from "@comvi/vue";
+  import { cdnLoader } from "@comvi/plugin-fetch-loader";
+  import { localeDetector } from "@comvi/plugin-locale-detector";
+
+  const i18n = createI18n({ locale: "en", fallbackLocale: "en", compiler: icuCompiler })
+    .use(cdnLoader({ cdnUrl }))
+    .use(localeDetector({ order: ["querystring", "navigator"] }))
+    .use(
+      definePlugin((i18n) => {
+        /* my own plugin */
+      }),
+    );
+
+  createApp(App).use(i18n).mount("#app"); // vue's own `use`, unchanged
+  ```
+
+  ### The renames
+
+  | 0.5 (before)                | 0.5 (now)                              | What it is                                             |
+  | --------------------------- | -------------------------------------- | ------------------------------------------------------ |
+  | `i18n.with(installer)`      | `i18n.use(installer)`                  | the composition pipe, on the BASE instance             |
+  | `VueI18n.with(installer)`   | `VueI18n.use(installer)`               | the same pipe on vue's wrapper, running on `i18n.core` |
+  | `i18n.use(plugin, options)` | `i18n.registerPlugin(plugin, options)` | the deferred plugin queue, on the plugins capability   |
+  | —                           | `definePlugin(fn, options?)`           | NEW: registers your own inline plugin through `.use`   |
+  | `E_WITH_HOST_IDENTITY`      | `E_USE_INSTANCE_IDENTITY`              | vue: the installer returned a different object         |
+  | `WithHostIdentityError`     | `UseInstanceIdentityError`             | the exported type for that error                       |
+  | `E_INSTALLER_NESTED_USE`    | `E_INSTALLER_AS_PLUGIN`                | an installer was registered as a plugin                |
+  | —                           | `E_USE_NOT_INSTALLER`                  | NEW: `.use(f)` got something that is not an installer  |
+
+  `registerPlugin` lines up with the neighbours it sits beside on that capability — `registerLoader`, `registerLocaleDetector`, `registerPostProcessor` — and it is no longer a composition verb, so nothing reads as if it belonged in a `.use` chain. `definePlugin(fn)` is `attachPlugins(instance).registerPlugin(fn, options)` wrapped as an installer: it attaches the plugins capability if the chain has not already and queues exactly one plugin, so an app never touches the raw queue. It is exported from `@comvi/core/plugins` and re-exported by every binding root (`@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`, `@comvi/next/client`, `@comvi/next/server`) beside `plugins`; the low-level `attachPlugins` stays on `@comvi/core/plugins` alone. `plugins()` attaches the plugins CAPABILITY; `definePlugin(fn)` registers ONE plugin on it.
+
+  `E_USE_NOT_INSTALLER` is what makes one verb safe. The rule is IDENTITY: **an installer widens the instance in place and returns the instance it was given**, so `.use(f)` throws unless `f` handed back that same object. A shape probe ("did it return an object?") would not have been enough — `fetchLoaderPlugin(…)` and friends are async functions, so calling one returns a Promise, which is an object; the plugin would have run at composition time with its rejection unhandled. Identity catches sync and async raw plugins alike, and `.use` — core's and vue's alike — also swallows the rejection an already-invoked async plugin left behind, so the actionable error is the only thing you see. In development the message states the rule, NAMES what came back (`typeof`, and whether an object was thenable — which is what separates "you passed an async plugin" from "you passed nothing"), and names both ways out; in production it is the bare code. This is the same rule vue's wrapper has always enforced over `i18n.core`, reported there under the wrapper's own code and with the same development wording, so the branchable `code` set is now three: `E_ICU_SYNTAX`, `E_USE_INSTANCE_IDENTITY`, `E_USE_NOT_INSTALLER`.
+
+  The rule is also stated in the TYPE: `use<T extends this>(installer: (instance: this) => T): T`, so all three misuses — a derived object, an async installer, an installer that returns nothing — are compile errors, while every widening installer still infers and widens. The runtime guard stays for JS and `any`-typed callers. Vue's `use` keeps its `T extends WrapperI18nInstance<D>` bound, which already refuses the same three shapes.
+
+  One consequence for hand-written installers: a step that returned a DERIVED object (`.use((i18n) => ({ i18n, dispose }))`) is no longer a valid installer. Widen in place and return the instance, and keep whatever else you built beside the chain.
+
+  Everything else keeps its name: `loader()`, `plugins()`, `devtools()`, `attachLoader`, `attachPlugins`, `attachDevtools`, `fetchLoader()`, `cdnLoader()`, `localeDetector()`, `inContextEditor()`, `icuCompiler`, the `compiler:` option, `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `createI18nFromCore`, `createNextI18nFromInstance`, Nuxt's `i18nModule`. (`@comvi/vue`'s `createCore` alias is gone — see `vue-drop-create-core.md`; `attachPlugins` / `attachDevtools` keep their names on `@comvi/core/plugins` / `@comvi/core/devtools`, off the binding roots — see `roots-drop-attach-pair.md`.) (`createNextI18n(...).use` becomes the same installer pipe in wave 2 — see the `@comvi/next` entry.) Vue's `app.use(i18n)` and Nuxt's `nuxtApp.use` were never ours and are untouched.
+
+  ### Migration
+
+  ```diff
+  - import { createI18n, icuCompiler, loader, plugins } from "@comvi/react";
+  - import { LocaleDetector } from "@comvi/plugin-locale-detector";
+  + import { createI18n, icuCompiler, loader, definePlugin } from "@comvi/react";
+  + import { localeDetector } from "@comvi/plugin-locale-detector";
+
+    export const i18n = createI18n({ locale: "en", compiler: icuCompiler })
+  -   .with(loader({ uk: () => import("./uk.json") }))
+  -   .with(plugins())
+  -   .use(LocaleDetector({ order: ["navigator"] }))
+  -   .use((i18n) => {
+  -     track(i18n.locale);
+  -   });
+  +   .use(loader({ uk: () => import("./uk.json") }))
+  +   .use(localeDetector({ order: ["navigator"] }))
+  +   .use(
+  +     definePlugin((i18n) => {
+  +       track(i18n.locale);
+  +     }),
+  +   );
+  ```
+
+  Three mechanical steps, in this order:
+  1. `.with(` → `.use(` everywhere, including on vue's `VueI18n`.
+  2. Every remaining `i18n.use(rawPlugin)` → `i18n.registerPlugin(rawPlugin)`. A "raw plugin" is a function that returns nothing or a cleanup function: your own inline plugin, or a `*Plugin` factory's result (`localeDetectorPlugin()`, `fetchLoaderPlugin()`, `inContextEditorPlugin()`).
+  3. Prefer composing instead of queuing: an inline plugin becomes `.use(definePlugin(fn))`, and a plugin package's `*Plugin` factory becomes its bare-name installer in the chain (`localeDetector()`, `fetchLoader()`, `cdnLoader()`, `inContextEditor()`).
+
+  No `with` alias survives anywhere, and the old error identities are gone: a `catch` that branched on `E_WITH_HOST_IDENTITY` or `E_INSTALLER_NESTED_USE`, or a type import of `WithHostIdentityError`, must be updated. Step 2 has no compile error on an instance typed as `any`, and a raw plugin left in `.use()` now throws `E_USE_NOT_INSTALLER` at composition time — loudly, with the fix in the message — rather than running at the wrong moment.
+
+### Patch Changes
+
+- 09029b0: `publishConfig.access` is now declared as `public` in every published manifest.
+
+  `access: "public"` previously lived only in `.changeset/config.json`, so it applied to
+  `changeset publish` and nothing else. Any other publish path had to remember `--access public`
+  or npm would refuse the scoped package as private. The declaration now travels with each
+  manifest. No code changed.
+
+- 09029b0: Node 18 reached end of life; the packages now declare `node >= 20`. No code changed.
+
+  `@comvi/cli` and `@comvi/vite-plugin` are build-time tooling and keep their existing
+  `node >= 22`.
+
+- 09029b0: Internal cache-write config keys renamed from minified-style `{ck, ls, ss, co, ma}` to `{cookieKey, localStorageKey, sessionStorageKey, cookieOptions, maxAge}`. The object never crosses the package boundary (it is only passed to the internal `writeCaches` helper), so the public options (`lookupCookie`, `lookupLocalStorage`, …) and behavior are unchanged.
+- 09029b0: **A detected locale is cached only after `init()` has succeeded with it.** The detector wrote the
+  cache as soon as the detected locale was applied, which is before the first catalog is requested.
+  Without `supportedLocales`, a browser language the app has no catalog for was therefore cached and
+  then failed to load, and every later visit read it back and failed the same way: `?lng=en` lost to
+  the cached value, and an in-app `setLocale('en')` after the failed init did not rewrite it.
+
+  A locale detected during `init()` is now written when `initialized` fires. A `setLocale()` after
+  init is written at once, as before. When `init()` fails and a load for the locale the detector
+  read from its own cache has failed, that cached value is removed from every cache target that
+  still holds it; a value the app wrote over it in the meantime is left alone, and so is the cache
+  when the instance is destroyed mid-init without a load failure.
+
+  Unchanged: with a browser that keeps reporting an unshipped language and no `supportedLocales`,
+  each visit detects that language again and `init()` fails again. The detector does not pick
+  another locale on its own; pass `supportedLocales`.
+
+- 09029b0: **The locale detector warns in development when it has no `supportedLocales`.** Without the list
+  (and without `convertDetectedLocale`) any language the browser reports becomes the active locale
+  and is cached, including one the app has no translations for; `init()` then fails for that
+  visitor on every later visit. Development builds now say so once, when the plugin starts, and
+  name the option.
+
+  The package gains a development artifact for this, `dist/index.dev.js`, behind the `development`
+  export condition, the same split `@comvi/core` and `@comvi/vue` have. The default artifact is
+  byte-identical to the previous one: the check and its text exist only in the development file.
+  Runtime behaviour is unchanged in both.
+
+- 09029b0: **A locale switch made while `init()` is still loading stays the cached choice.** The detector
+  holds an init-time detection back until `initialized`; a `setLocale()` in that window was written
+  at once and then overwritten by the held detection, leaving the cache on one locale and the UI on
+  another. The switch now supersedes the held detection.
+- 09029b0: Fixed a manually re-consulted detector (e.g. via `getLanguageDetector()`, whether called before `init()` has ever run or long after it has settled) being able to leave a fallback-suppression marker that swallowed a later, unrelated explicit choice of that same locale. The marker is now armed only during `init()`'s own detector call, the one time core can auto-apply it.
+
+## 0.4.1
+
 ## 0.4.0
 
 ### Minor Changes

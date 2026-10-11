@@ -1,0 +1,125 @@
+{
+  "app": {
+    "title": "Comvi live example",
+    "language": "Language",
+    "loading": "Loading…"
+  },
+  "greeting": {
+    "hello": "Hello, {name}! Good to see you again."
+  },
+  "cart": {
+    "items": "{count, plural, =0 {Your cart is empty} one {# item in your cart} other {# items in your cart}}"
+  },
+  "docs": {
+    "read_more": "Read the <link>Comvi documentation</link> to go further."
+  },
+  "stats": {
+    "summary": "{views} downloads, last updated on {date}."
+  },
+  "loader": {
+    "fetched": "Catalogs fetched so far: {locales}"
+  },
+  "nav": {
+    "home": "Home",
+    "about": "About"
+  },
+  "about": {
+    "body": "This is a second page, translated like the first."
+  },
+  "fallback": {
+    "only_en": "This sentence is missing from the Ukrainian catalog."
+  },
+  "demo": {
+    "intro": "Every string on this page comes from a translation catalog. Switch the language and watch each feature react.",
+    "switcher": {
+      "title": "Switch the language",
+      "body": "One call re-renders every translated element, and the choice is remembered for your next visit."
+    },
+    "interpolation": {
+      "title": "Parameters",
+      "body": "A value drops in where the translator put the placeholder, so the word order stays the translator's call.",
+      "label": "Your name"
+    },
+    "plural": {
+      "title": "Plurals that know the language",
+      "body": "ICU plural rules: English has one and other, Ukrainian one, few and many. Change the count and compare.",
+      "dec": "Remove one item",
+      "inc": "Add one item"
+    },
+    "tags": {
+      "title": "Markup inside a translation",
+      "body": "The catalog wraps the words in a link tag. The translator chooses where the link sits in the sentence; your app decides what it points to and how it renders."
+    },
+    "formatting": {
+      "title": "Dates and numbers",
+      "body": "Intl formats follow the locale: thousands separators, month names and the date order.",
+      "price": "Total: {price}"
+    },
+    "lazy": {
+      "title": "Load translations on demand",
+      "body": "The selected language and its English fallback load first. Another language loads when you select it, and the account namespace when its page opens.",
+      "namespaces": "Namespaces active for every fetched locale: {namespaces}"
+    },
+    "fallback": {
+      "title": "Fallbacks and missing keys",
+      "body": "A key missing in Ukrainian falls back to English. A key missing everywhere shows its name, so you notice it in development."
+    },
+    "missing": {
+      "title": "A missing parameter stays visible",
+      "body": "The placeholder remains in the text instead of disappearing silently."
+    },
+    "navigation": {
+      "title": "A second page, the same locale",
+      "body": "The locale survives navigation, and the account namespace loads on demand.",
+      "cta": "Open the Account page"
+    },
+    "footer": {
+      "docs": "Documentation",
+      "source": "Source on GitHub",
+      "install": "Install"
+    },
+    "select": {
+      "title": "Select by a value",
+      "body": "ICU select picks a whole sentence by a value, here the reviewer's gender. In English only the pronoun changes; switch to Ukrainian and the verb ending changes too. The app passes one value, the translator writes each variant.",
+      "message": "{gender, select, female {She replied to your review} male {He replied to your review} other {They replied to your review}}",
+      "female": "she",
+      "male": "he",
+      "other": "they"
+    },
+    "ordinal": {
+      "title": "Ordinals",
+      "body": "selectordinal knows that English says 1st, 2nd, 3rd and Ukrainian does not. The number is the counter above, rendered as an ordinal.",
+      "message": "You are the {n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} visitor today."
+    },
+    "rtl": {
+      "body": "Arabic turns the whole page right-to-left: <html dir> follows the locale."
+    },
+    "options": {
+      "title": "Call options",
+      "body": "One call can read another locale or namespace. The names below render each language in its own language; switch languages to grow the list.",
+      "inOwn": "{name} in its own language",
+      "name": "English"
+    },
+    "typed": {
+      "title": "Typed keys",
+      "body": "The keys are generated from these JSON files: a misspelled key or a missing parameter is a compile error. Open src/i18n in the editor and try it."
+    },
+    "errors": {
+      "title": "Every failure reaches a hook",
+      "body": "t() never throws. A key that no catalog has is reported to onMissingKey, wired here to a counter you could send to your tracker. A catalog that fails to load is reported to onError, which this page does not show.",
+      "count": "Reported misses: {count}"
+    },
+    "formality": {
+      "title": "Formal or informal",
+      "body": "English has one way to address someone; German has Sie and du, Ukrainian Ви and ти. One select value lets each translator pick the register, and the English stays a single sentence.",
+      "message": "{formality, select, formal {Welcome back. Your seat is saved.} other {Welcome back. Your seat is saved.}}",
+      "formal": "formal",
+      "informal": "informal"
+    },
+    "start": {
+      "intro": "One package, one translated line, one switcher. This is the whole integration.",
+      "cta": "Explore all features",
+      "back": "Back to the start"
+    }
+  }
+}

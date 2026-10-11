@@ -1,141 +1,24 @@
-import { createI18n } from "@comvi/core";
-import type {
-  I18nOptions,
-  I18n,
-  I18nPlugin,
-  PluginOptions,
-  DefaultTranslationParams,
-} from "@comvi/core";
-import { defineRouting } from "./routing/defineRouting";
-import type { RoutingConfig, LocalePrefixMode } from "./routing/types";
+import { createComposedNextI18n, type NextComposedI18n } from "./composedInstance";
+import type { I18nOptions, DefaultTranslationParams, MessageCompiler } from "@comvi/core";
+import { resolveRouting } from "./nextI18nRouting";
+import type { NextRoutingOptions } from "./nextI18nRouting";
+import type { RoutingConfig } from "./routing/types";
 
-type PluginRuntimeTarget = "client" | "server";
-type PluginEnvironment = "all" | "development" | "production";
-type PluginReturn = ReturnType<I18nPlugin>;
-type AsyncPluginReturn = Promise<void> | Promise<Exclude<Awaited<PluginReturn>, void>>;
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-export interface ScopedPluginOptions extends PluginOptions {
-  /**
-   * Environment where plugin should run.
-   * @default "all"
-   */
-  environment?: PluginEnvironment;
+/** Thrown by {@link CreateNextI18nResult.use} when an installer hands back a different object. */
+export interface UseInstanceIdentityError extends Error {
+  code: "E_USE_INSTANCE_IDENTITY";
 }
 
-export type LazyPluginModule = I18nPlugin | { default: I18nPlugin };
-export type LazyPluginLoader = () => Promise<LazyPluginModule>;
-
-const resolveLazyPlugin = (moduleOrPlugin: LazyPluginModule): I18nPlugin => {
-  if (typeof moduleOrPlugin === "function") {
-    return moduleOrPlugin;
-  }
-  if (moduleOrPlugin && typeof moduleOrPlugin.default === "function") {
-    return moduleOrPlugin.default;
-  }
-  throw new Error(
-    "[comvi/next] Invalid lazy plugin module. " +
-      "Expected a plugin function or { default: pluginFunction }.",
-  );
-};
-
-const isClientRuntime = (): boolean => {
-  // Next.js sets NEXT_RUNTIME in server bundles (nodejs/edge).
-  if (process.env.NEXT_RUNTIME) {
-    return false;
-  }
-  return typeof window !== "undefined";
-};
-
-const shouldRunForRuntime = (runtime: PluginRuntimeTarget): boolean => {
-  const isClient = isClientRuntime();
-  return runtime === "client" ? isClient : !isClient;
-};
-
-const shouldRunForEnvironment = (environment: PluginEnvironment): boolean => {
-  if (environment === "all") {
-    return true;
-  }
-  const isProduction = process.env.NODE_ENV === "production";
-  return environment === (isProduction ? "production" : "development");
-};
-
-const createScopedPlugin = (
-  plugin: I18nPlugin,
-  runtime: PluginRuntimeTarget,
-  environment: PluginEnvironment,
-): I18nPlugin => {
-  return (i18n) => {
-    if (!shouldRunForRuntime(runtime) || !shouldRunForEnvironment(environment)) {
-      return;
-    }
-    return plugin(i18n);
-  };
-};
-
-const createScopedLazyPlugin = (
-  loadPlugin: LazyPluginLoader,
-  runtime: PluginRuntimeTarget,
-  environment: PluginEnvironment,
-): I18nPlugin => {
-  let pluginPromise: Promise<I18nPlugin> | null = null;
-
-  return (i18n) => {
-    if (!shouldRunForRuntime(runtime) || !shouldRunForEnvironment(environment)) {
-      return;
-    }
-    if (!pluginPromise) {
-      pluginPromise = loadPlugin().then(resolveLazyPlugin);
-    }
-    return pluginPromise.then((plugin) => plugin(i18n)) as AsyncPluginReturn;
-  };
-};
-
-const normalizeScopedOptions = (options?: ScopedPluginOptions) => {
-  const { environment = "all", ...pluginOptions } = options ?? {};
-  return { environment, pluginOptions };
-};
-
-/**
- * Options for createNextI18n factory
- */
-export interface CreateNextI18nBaseOptions {
-  // ============================================
-  // Routing config (required)
-  // ============================================
-
+export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   /**
-   * List of supported locales
-   * @example ['en', 'de', 'uk', 'fr']
-   */
-  locales: string[];
-
-  /**
-   * Default locale (used when no locale is detected)
-   * @example 'en'
-   */
-  defaultLocale: string;
-
-  /**
-   * Locale prefix mode for URLs
-   * - 'always': Always include locale in URL (/en/about, /de/about)
-   * - 'as-needed': Only include for non-default locales (/about, /de/about)
-   * - 'never': Never include locale in URL (use cookies/headers)
-   * @default 'as-needed'
-   */
-  localePrefix?: LocalePrefixMode;
-
-  /**
-   * Localized public pathnames for exact static routes.
-   * Keys are canonical internal routes, values are public localized slugs.
-   */
-  pathnames?: RoutingConfig["pathnames"];
-
-  // ============================================
-  // i18n config (optional)
-  // ============================================
-
-  /**
-   * API key available to plugins/loaders that need authenticated requests.
+   * Credential forwarded to the instance as `i18n.apiKey`, for a loader plugin
+   * that authenticates against a backend (`@comvi/plugin-fetch-loader` reads
+   * it there). This factory loads NOTHING on its own — it neither contacts a
+   * CDN nor an API — so the key is inert until you compose `cdnLoader`, or
+   * `fetchLoader` from `@comvi/plugin-fetch-loader/api`.
    */
   apiKey?: string;
 
@@ -146,9 +29,9 @@ export interface CreateNextI18nBaseOptions {
   ns?: I18nOptions["ns"];
 
   /**
-   * Static translations to seed i18n cache (no loader required).
+   * Inline catalogs to seed the i18n cache (no loader required).
    */
-  translation?: I18nOptions["translation"];
+  messages?: I18nOptions["messages"];
 
   /**
    * Fallback locale when translation is missing
@@ -163,10 +46,25 @@ export interface CreateNextI18nBaseOptions {
   defaultNs?: string;
 
   /**
-   * Development mode (uses API instead of CDN)
+   * Forwarded to the instance as `i18n.devMode`, for plugins to read. No
+   * Comvi loader reads it: `@comvi/plugin-fetch-loader` picks the API over the
+   * CDN by `apiKey`, not by this flag.
    * @default process.env.NODE_ENV === 'development'
    */
   devMode?: boolean;
+
+  /**
+   * Message compiler for the instance. Omitted, the instance uses core's default
+   * `{param}` compiler, which does NOT render `plural`, `select` or
+   * `selectordinal`: development throws `E_ICU_SYNTAX` at ingestion, and
+   * production renders the braced message literally and reports it once (to
+   * the console here — this factory forwards no `onError`). Pass
+   * `compiler: icuCompiler` from `@comvi/core/icu` to compile
+   * ICU in every catalog the instance ingests, whatever its source — the same rule
+   * as `createI18n` on `/client` and `/server`, and as every other
+   * constructor in the repo. ICU is never enabled automatically.
+   */
+  compiler?: MessageCompiler;
 
   /**
    * HTML tags allowed in translations (for tag interpolation)
@@ -183,70 +81,65 @@ export interface CreateNextI18nBaseOptions {
 export type CreateNextI18nOptions<D extends DefaultTranslationParams = {}> =
   CreateNextI18nBaseOptions & Pick<I18nOptions<D>, "defaultParams">;
 
-/**
- * Result of createNextI18n factory
- */
-export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
+export interface CreateNextI18nResult<
+  D extends DefaultTranslationParams = {},
+  C extends NextComposedI18n<D> = NextComposedI18n<D>,
+> {
   /**
-   * The i18n instance (use with I18nProvider and setI18n)
+   * The i18n instance (use with I18nProvider and setI18n).
    */
-  i18n: I18n<D>;
+  readonly i18n: C;
 
   /**
    * Routing configuration (use with middleware and navigation)
    */
-  routing: Required<RoutingConfig>;
+  readonly routing: Required<RoutingConfig>;
 
   /**
-   * Register an additional i18n plugin (chainable).
+   * Compose a capability onto the instance and keep this result: `use(f)` is
+   * `f(this.i18n)`, and the return value is this same result retyped so
+   * `i18n` carries whatever the installer widened the instance to. The one
+   * composition verb, with the same contract as core's `i18n.use(…)`.
    *
-   * @example
-   * ```typescript
-   * const nextI18n = createNextI18n({...})
-   *   .use(MyPlugin())
-   *   .use(AnotherPlugin(), { required: false });
+   * ```ts
+   * export const { i18n, routing } = createNextI18n({ ...routing, fallbackLocale: "en" })
+   *   .use(loader({ en: () => import("./locales/en.json") }))
+   *   .use(nextPlugin(localeDetectorPlugin({ order: ["cookie"] }), { runtime: "client" }));
    * ```
+   *
+   * A plugin scoped to one runtime or build environment goes through
+   * {@link nextPlugin} / {@link nextPluginLazy}; an unscoped one through
+   * `definePlugin(fn)`; a plugin package through its bare-name installer. ICU
+   * is not composed at all and is never on by default: it is the `compiler`
+   * option, `compiler: icuCompiler`.
+   *
+   * Never compose `localeDetector()` on this instance. It lives at module scope
+   * and is process-wide on the App Router, so the detector would run once, at
+   * the instance's `init()`, and the first request's headers would pin the locale
+   * for every later render. Use
+   * `nextPlugin(localeDetectorPlugin(…), { runtime: "client" })` instead: the
+   * browser has exactly one visitor.
+   *
+   * Installers widen the instance IN PLACE and return it, and everything else in
+   * this result — `setI18n(i18n)`, the provider, the server helpers — holds
+   * that one instance, so an installer that hands back a different object is
+   * refused with `code: "E_USE_INSTANCE_IDENTITY"`, reported over `this.i18n`
+   * (the composed instance), instead of leaving the app driving an instance nothing
+   * else sees. A raw ASYNC plugin handed here has already run by the time the
+   * check fires, so its rejection is swallowed and the identity error is the
+   * only thing the app sees; the development message names the ways out,
+   * exactly as core's does.
    */
-  use(plugin: I18nPlugin, options?: PluginOptions): CreateNextI18nResult<D>;
-
-  /**
-   * Register a client-only plugin.
-   */
-  useClient(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult<D>;
-
-  /**
-   * Register a server-only plugin.
-   */
-  useServer(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult<D>;
-
-  /**
-   * Register a lazily imported client-only plugin.
-   */
-  useClientLazy(
-    loadPlugin: LazyPluginLoader,
-    options?: ScopedPluginOptions,
-  ): CreateNextI18nResult<D>;
-
-  /**
-   * Register a lazily imported server-only plugin.
-   */
-  useServerLazy(
-    loadPlugin: LazyPluginLoader,
-    options?: ScopedPluginOptions,
-  ): CreateNextI18nResult<D>;
+  use<T extends C>(installer: (i18n: C) => T): CreateNextI18nResult<D, T>;
 }
 
 /**
  * Create a fully configured Next.js i18n setup with a single function call.
  *
- * This factory creates:
- * - i18n instance
- * - Routing configuration for middleware and navigation
- *
  * @example
  * ```typescript
  * // i18n/config.ts
- * import { createNextI18n } from "@comvi/next";
+ * import { createNextI18n, loader } from "@comvi/next";
  *
  * export const { i18n, routing } = createNextI18n({
  *   // Routing
@@ -255,122 +148,82 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
  *
  *   // Optional
  *   basicHtmlTags: ["strong", "em", "br", "a"],
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Optional plugin registration (same DX as core/react)
- * import { FetchLoader } from "@comvi/plugin-fetch-loader";
- *
- * const nextI18n = createNextI18n({
- *   locales: ["en", "de"],
- *   defaultLocale: "en",
- * })
- *   .use(
- *     FetchLoader({
- *       cdnUrl: "https://cdn.comvi.io/your-distribution-id",
- *       loadOnInit: false,
- *     }),
- *   )
- *   .useServer(MyServerPlugin())
- *   .useClientLazy(
- *     () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
- *     { environment: "development", required: false },
- *   )
- *   .use(MyPlugin())
- *   .use(AnotherPlugin(), { required: false });
- *
- * export const { i18n, routing } = nextI18n;
+ * }).use(loader({ en: () => import("./locales/en.json") }));
  * ```
  *
  * @example
  * ```typescript
  * // i18n/server.ts - Server entry point
- * import "server-only";
  * import { setI18n } from "@comvi/next/server";
  * import { i18n } from "./config";
  *
  * setI18n(i18n);
  *
  * export { i18n, routing } from "./config";
- * export { getI18n, loadTranslations } from "@comvi/next/server";
+ * export { getI18n, loadMessages } from "@comvi/next/server";
  * ```
  */
 export function createNextI18n<const D extends DefaultTranslationParams = {}>(
   options: CreateNextI18nOptions<D>,
 ): CreateNextI18nResult<D> {
   const {
-    // Routing
-    locales,
     defaultLocale,
-    localePrefix = "as-needed",
-    pathnames,
-
     apiKey,
     ns,
-    translation,
+    messages,
     defaultParams,
-    // i18n
     fallbackLocale = defaultLocale,
     defaultNs = "default",
     devMode: devModeOption,
+    compiler,
     basicHtmlTags,
     onMissingKey,
   } = options;
 
-  // Determine devMode - use explicit option or detect from NODE_ENV
-  // This works in Next.js because bundler replaces process.env.NODE_ENV at build time
+  // Statically analysable in Next.js: the bundler replaces process.env.NODE_ENV at build time.
   const devMode = devModeOption ?? process.env.NODE_ENV === "development";
 
-  // Create i18n instance
-  const i18n = createI18n<D>({
+  // Built through Next's own composed-instance builder so the published `i18n` is a
+  // `NextComposedI18n`, never core's base root instance.
+  const i18n = createComposedNextI18n<D>({
     locale: defaultLocale,
     fallbackLocale,
     defaultNs,
     ns,
-    translation,
+    messages,
     defaultParams,
     apiKey,
     devMode,
+    compiler,
     onMissingKey,
     tagInterpolation: basicHtmlTags ? { basicHtmlTags } : undefined,
   } as unknown as I18nOptions<D>);
 
-  // Create routing config
-  const routing = defineRouting({
-    locales,
-    defaultLocale,
-    localePrefix,
-    pathnames,
-  });
+  const routing = resolveRouting(options);
 
   const result: CreateNextI18nResult<D> = {
     i18n,
     routing,
-    use(plugin: I18nPlugin, pluginOptions?: PluginOptions) {
-      i18n.use(plugin, pluginOptions);
-      return result;
-    },
-    useClient(plugin: I18nPlugin, options?: ScopedPluginOptions) {
-      const { environment, pluginOptions } = normalizeScopedOptions(options);
-      i18n.use(createScopedPlugin(plugin, "client", environment), pluginOptions);
-      return result;
-    },
-    useServer(plugin: I18nPlugin, options?: ScopedPluginOptions) {
-      const { environment, pluginOptions } = normalizeScopedOptions(options);
-      i18n.use(createScopedPlugin(plugin, "server", environment), pluginOptions);
-      return result;
-    },
-    useClientLazy(loadPlugin: LazyPluginLoader, options?: ScopedPluginOptions) {
-      const { environment, pluginOptions } = normalizeScopedOptions(options);
-      i18n.use(createScopedLazyPlugin(loadPlugin, "client", environment), pluginOptions);
-      return result;
-    },
-    useServerLazy(loadPlugin: LazyPluginLoader, options?: ScopedPluginOptions) {
-      const { environment, pluginOptions } = normalizeScopedOptions(options);
-      i18n.use(createScopedLazyPlugin(loadPlugin, "server", environment), pluginOptions);
-      return result;
+    use<T extends NextComposedI18n<D>>(installer: (i18n: NextComposedI18n<D>) => T) {
+      const widened: unknown = installer(i18n);
+      if (widened !== i18n) {
+        // Same three lines core's `use` has, for the same reason: the function
+        // already RAN, so a raw ASYNC plugin has a live promise here. The error
+        // below is the report; that promise's rejection is not, and leaving it
+        // floating would print an unhandled rejection on top of an already-clear
+        // diagnostic. Swallow it, and only it.
+        if (typeof (widened as { then?: unknown } | null | undefined)?.then === "function") {
+          void (widened as Promise<unknown>).then(undefined, () => {});
+        }
+        const error = new Error(
+          IS_DEV
+            ? "[@comvi/next] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
+            : "E_USE_INSTANCE_IDENTITY",
+        ) as UseInstanceIdentityError;
+        error.code = "E_USE_INSTANCE_IDENTITY";
+        throw error;
+      }
+      return result as unknown as CreateNextI18nResult<D, T>;
     },
   };
 

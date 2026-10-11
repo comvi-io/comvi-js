@@ -2,8 +2,22 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
+      // A cache HIT restores these files over the existing `dist/` and deletes
+      // nothing, so files of earlier builds survive it. `pnpm build` therefore
+      // removes every dist before turbo runs (tooling/clean-dist.mjs --all).
       "outputs": ["dist/**"],
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      // Every package's `build` ends in tooling/qualify-dts-specifiers.mjs, which lives
+      // outside any package and so is invisible to turbo's default per-package hash.
+      // Without naming it, editing the qualifier would restore an un-qualified `dist/`
+      // straight from cache and the types gate would pass on stale output.
+      // `$TURBO_DEFAULT$` keeps the normal per-package inputs — dropping it would
+      // reduce every build's hash to these two files.
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tooling/qualify-dts-specifiers.mjs",
+        "$TURBO_ROOT$/tooling/dts-specifier-scan.mjs"
+      ]
     },
     "@test-apps/next#build": {
       "outputs": [".next/**"],
@@ -24,6 +38,37 @@
     "@comvi/chrome-extension#test": {
       "outputs": [],
       "dependsOn": ["^build"]
+    },
+    "//#size": {
+      "outputs": [],
+      // The framework fixtures (scripts/size-fixtures/framework/) resolve every
+      // wrapper through its published exports map, so every wrapper dist must
+      // exist. @comvi/plugin-fetch-loader is listed explicitly: it is in
+      // @comvi/next's server graph but not in its package dependencies.
+      "dependsOn": [
+        "@comvi/core#build",
+        "@comvi/react#build",
+        "@comvi/solid#build",
+        "@comvi/svelte#build",
+        "@comvi/vue#build",
+        "@comvi/next#build",
+        "@comvi/nuxt#build",
+        "@comvi/plugin-fetch-loader#build"
+      ]
+    },
+    // Every package scripts/bundler-matrix/run.mjs packs into the fixture app
+    // (the union of the active cases' `packages`). Listing fewer let the matrix
+    // start against a missing dist — "@comvi/solid has no build output".
+    "//#bundler-matrix": {
+      "outputs": [],
+      "dependsOn": [
+        "@comvi/core#build",
+        "@comvi/react#build",
+        "@comvi/solid#build",
+        "@comvi/svelte#build",
+        "@comvi/vue#build",
+        "@comvi/next#build"
+      ]
     },
     "test:coverage": {
       "outputs": ["coverage/**"],

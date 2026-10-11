@@ -18,7 +18,6 @@ type Operation = "enabling" | "disabling" | "forgetting" | null;
 
 const THEME_STORAGE_KEY = "comvi_theme";
 
-// DOM
 const root = document.documentElement;
 const themeToggleBtn = document.getElementById("theme-toggle") as HTMLButtonElement;
 const themeIconSun = document.getElementById("theme-icon-sun")!;
@@ -43,7 +42,6 @@ const popupLeaseId = crypto.randomUUID();
 let popupLifecyclePort: chrome.runtime.Port | null = null;
 let popupLeaseReady: Promise<boolean> | null = null;
 
-// State
 let currentTabId: number | null = null;
 let currentOrigin = "";
 let editorActive = false;

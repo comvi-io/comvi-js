@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useI18nInstance } from "./I18nProvider";
+import { useI18nInstanceContext } from "./I18nProvider";
 
 export interface UseSetLocaleTransitionReturn {
-  /** True while a setLocale transition is pending */
   isPending: boolean;
-  /** Initiate a locale change inside a React transition (non-blocking) */
   setLocale: (locale: string) => void;
 }
 
 /**
- * Wraps `i18n.setLocaleAsync()` in a React `useTransition` so the old UI
- * remains interactive while the new locale loads. Returns `{ isPending, setLocale }`.
+ * Wraps `i18n.setLocale()` in a React `useTransition` so the old UI
+ * remains interactive while the new locale loads.
+ *
+ * `isPending` covers the whole switch, including the async catalog load. The
+ * transition itself covers only the synchronous part of it.
  *
  * @example
  * function LangSwitcher() {
@@ -23,13 +24,20 @@ export interface UseSetLocaleTransitionReturn {
  * }
  */
 export function useSetLocaleTransition(): UseSetLocaleTransitionReturn {
-  const { i18n } = useI18nInstance();
+  const { i18n } = useI18nInstanceContext();
   const [isTransitionPending, startTransition] = useTransition();
   const [isAsyncPending, setIsAsyncPending] = useState(false);
+  // Starts true, not false: layout effects run BEFORE this hook's passive
+  // mount effect, so a consumer calling `setLocale` from one on mount would
+  // otherwise be told the component is gone and never see `isPending`.
   const mountedRef = useRef(true);
   const pendingCountRef = useRef(0);
 
   useEffect(() => {
+    // Re-armed on every effect run, not just initialised by `useRef`:
+    // StrictMode mounts, runs the cleanup, then mounts again, and a flag that
+    // only ever goes down would leave the hook believing it was unmounted.
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
@@ -44,7 +52,7 @@ export function useSetLocaleTransition(): UseSetLocaleTransitionReturn {
         }
 
         i18n
-          .setLocaleAsync(locale)
+          .setLocale(locale)
           .catch((err) => {
             const error = err instanceof Error ? err : new Error(String(err));
             i18n.reportError(error, { source: "setLocale", locale });

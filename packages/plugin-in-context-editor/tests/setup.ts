@@ -1,9 +1,4 @@
-/**
- * Vitest setup file - runs before all tests
- */
-
-// Extend matchers if needed
-import { expect, vi } from "vitest";
+import { beforeEach, expect, vi } from "vitest";
 import { installIntersectionObserverMock } from "./intersectionObserverMock";
 
 // happy-dom's IntersectionObserver never fires; install a controllable double
@@ -11,18 +6,21 @@ import { installIntersectionObserverMock } from "./intersectionObserverMock";
 // reports observed elements as intersecting (see intersectionObserverMock.ts).
 installIntersectionObserverMock();
 
-// The plugin reads `import.meta.env.VITE_API_BASE_URL` at build time. Pin it
-// to a known host so service tests can assert outgoing fetch URLs.
-vi.stubEnv("VITE_API_BASE_URL", "https://api.example.com");
+// `resolveBaseUrl()` reads `import.meta.env.VITE_API_BASE_URL` every time
+// `initApiConfig()` runs, so service tests can assert outgoing fetch URLs only
+// while it is pinned. This must be a hook, not a module-scope call: the suite's
+// `unstubEnvs` clears env stubs after every test, and setup-file hooks run
+// after Vitest's own `unstubAllEnvs`.
+beforeEach(() => {
+  vi.stubEnv("VITE_API_BASE_URL", "https://api.example.com");
+});
 
-// Global test utilities
 global.ResizeObserver = class ResizeObserver {
   observe() {}
   unobserve() {}
   disconnect() {}
 };
 
-// Mock window.matchMedia for responsive tests
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({
@@ -37,7 +35,6 @@ Object.defineProperty(window, "matchMedia", {
   }),
 });
 
-// Add custom matchers if needed
 expect.extend({
   toContainInvisibleChars(received: string) {
     const invisibleChars = ["\u200B", "\u200D", "\u200C", "\u2063", "\u2064"];
@@ -53,12 +50,12 @@ expect.extend({
   },
 });
 
-declare global {
-  // Vitest's documented way to add custom matcher types is namespace augmentation.
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace Vi {
-    interface Matchers<R = unknown> {
-      toContainInvisibleChars(): R;
-    }
+// Vitest 4 types custom matchers by augmenting its own `Matchers` interface;
+// the `Vi` global namespace this used to declare is no longer consulted. The
+// parameter defaults must match the shipped declaration exactly.
+declare module "vitest" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface Matchers<T = any> {
+    toContainInvisibleChars(): void;
   }
 }

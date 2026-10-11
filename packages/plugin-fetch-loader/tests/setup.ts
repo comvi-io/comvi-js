@@ -1,19 +1,17 @@
 import { beforeAll, afterEach, afterAll, beforeEach } from "vitest";
 import { setupServer } from "msw/node";
-import { delay, http, HttpResponse } from "msw";
+import { http, HttpResponse } from "msw";
 import type { ExportApiResponse } from "../src/types";
-import type { ProjectInfo } from "../src/index";
-import { clearProjectInfoCache } from "../src/index";
+import type { ProjectInfo } from "../src/api";
+import { clearProjectInfoCache } from "../src/api";
+import { deferred } from "./helpers/deferred";
 
-// Create MSW server for mocking HTTP requests
 export const server = setupServer();
 
-// Default test configuration
 export const TEST_CDN_URL = "https://cdn.comvi.io/test-project-123";
-export const TEST_PROJECT_ID = 456; // Now a number from API
+export const TEST_PROJECT_ID = 456;
 export const TEST_API_KEY = "test-api-key-789";
 
-// Mock project info response
 export const TEST_PROJECT_INFO: ProjectInfo = {
   id: TEST_PROJECT_ID,
   organizationId: 1,
@@ -22,15 +20,13 @@ export const TEST_PROJECT_INFO: ProjectInfo = {
   sourceLocale: "en",
 };
 
-// Start server before all tests
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 });
 
-// Clear project info cache and set up default handlers before each test
 beforeEach(() => {
   clearProjectInfoCache();
-  // Default handler for project info API (needed for dev mode tests)
+  // Dev-mode tests resolve the project before requesting translations.
   server.use(
     http.get(/\/v1\/project$/, ({ request }) => {
       const authHeader = request.headers.get("Authorization");
@@ -42,26 +38,18 @@ beforeEach(() => {
   );
 });
 
-// Reset handlers after each test
 afterEach(() => {
   server.resetHandlers();
 });
 
-// Clean up after all tests
 afterAll(() => {
   server.close();
 });
 
-// Helper to create mock translation data for CDN format (flat object)
-export function createMockTranslations(language: string, namespace: string) {
-  return {
-    [`${language}.${namespace}.key1`]: `Value 1 in ${language}`,
-    [`${language}.${namespace}.key2`]: `Value 2 in ${language}`,
-    [`${language}.${namespace}.nested.key`]: `Nested value in ${language}`,
-  };
+export function createMockTranslations(language: string) {
+  return { key: `Value in ${language}` };
 }
 
-// Helper to create mock API export response
 export function createMockApiResponse(
   locales: string[],
   namespaces: string[],
@@ -86,7 +74,6 @@ export function createMockApiResponse(
   return response;
 }
 
-// Build CDN URL for testing
 export function buildTestCdnUrl(
   language: string,
   namespace: string,
@@ -98,11 +85,10 @@ export function buildTestCdnUrl(
   return `${TEST_CDN_URL}/${namespace}/${language}.json`;
 }
 
-// Helper to setup CDN success response
 export function mockCdnSuccessResponse(
   language: string,
   namespace: string,
-  data: any,
+  data: Record<string, unknown>,
   defaultNs: string = "default",
 ) {
   const url = buildTestCdnUrl(language, namespace, defaultNs);
@@ -113,7 +99,27 @@ export function mockCdnSuccessResponse(
   );
 }
 
-// Helper to setup CDN error response
+/**
+ * Records the request the loader makes for one CDN key and answers it with
+ * `data`. The returned object is filled in when the request arrives.
+ */
+export function captureCdnRequest(
+  language: string,
+  namespace: string,
+  data: Record<string, unknown>,
+  defaultNs: string = "default",
+): { url?: string; headers?: Headers } {
+  const captured: { url?: string; headers?: Headers } = {};
+  server.use(
+    http.get(buildTestCdnUrl(language, namespace, defaultNs), ({ request }) => {
+      captured.url = request.url;
+      captured.headers = request.headers;
+      return HttpResponse.json(data);
+    }),
+  );
+  return captured;
+}
+
 export function mockCdnErrorResponse(
   language: string,
   namespace: string,
@@ -129,24 +135,47 @@ export function mockCdnErrorResponse(
   );
 }
 
-// Helper to setup delayed CDN response
-export function mockCdnDelayedResponse(
-  language: string,
-  namespace: string,
-  delayMs: number,
-  data: any,
-  defaultNs: string = "default",
-) {
-  const url = buildTestCdnUrl(language, namespace, defaultNs);
-  server.use(
-    http.get(url, async () => {
-      await delay(delayMs);
-      return HttpResponse.json(data);
-    }),
-  );
+export interface DeferredResponse {
+  /** Settles once the loader has actually issued the request. */
+  requested: Promise<void>;
+  /** Answers the in-flight request. Never calling it holds the request open forever. */
+  resolve: (data: Record<string, unknown>) => void;
 }
 
-// Helper to setup CDN network error
+function deferredHandlerBody(): DeferredResponse & { body: () => Promise<Response> } {
+  const requested = deferred<void>();
+  const answer = deferred<Record<string, unknown>>();
+  return {
+    requested: requested.promise,
+    resolve: answer.resolve,
+    body: async () => {
+      requested.resolve();
+      return HttpResponse.json(await answer.promise);
+    },
+  };
+}
+
+/**
+ * A CDN response the test releases by hand — the deterministic stand-in for a
+ * slow network. Left unresolved it is a request that never arrives.
+ */
+export function mockCdnDeferredResponse(
+  language: string,
+  namespace: string,
+  defaultNs: string = "default",
+): DeferredResponse {
+  const { requested, resolve, body } = deferredHandlerBody();
+  server.use(http.get(buildTestCdnUrl(language, namespace, defaultNs), body));
+  return { requested, resolve };
+}
+
+/** The `/v1/project` counterpart of {@link mockCdnDeferredResponse}. */
+export function mockProjectInfoDeferredResponse(): DeferredResponse {
+  const { requested, resolve, body } = deferredHandlerBody();
+  server.use(http.get(/\/v1\/project$/, body));
+  return { requested, resolve };
+}
+
 export function mockCdnNetworkError(
   language: string,
   namespace: string,
@@ -160,12 +189,7 @@ export function mockCdnNetworkError(
   );
 }
 
-// Helper to setup API success response
-export function mockApiSuccessResponse(
-  language: string,
-  namespaces: string[],
-  data: ExportApiResponse,
-) {
+export function mockApiSuccessResponse(data: ExportApiResponse) {
   server.use(
     http.get(/\/v1\/translations/, () => {
       return HttpResponse.json(data);
@@ -173,7 +197,6 @@ export function mockApiSuccessResponse(
   );
 }
 
-// Helper to setup API error response
 export function mockApiErrorResponse(status: number, message?: string) {
   server.use(
     http.get(/\/v1\/translations/, () => {

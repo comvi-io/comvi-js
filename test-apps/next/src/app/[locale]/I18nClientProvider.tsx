@@ -11,9 +11,8 @@ interface I18nClientProviderProps {
 }
 
 /**
- * Client-side wrapper that imports the i18n instance.
- * This is needed because we can't pass class instances from
- * Server Components to Client Components in Next.js.
+ * Client-side wrapper that imports the i18n instance: Next.js cannot pass class
+ * instances from Server Components to Client Components.
  */
 export function I18nClientProvider({ children, locale, messages }: I18nClientProviderProps) {
   return (

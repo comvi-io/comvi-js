@@ -1,14 +1,16 @@
-import { describe, it, expect, vi } from "vitest";
-import { FetchLoader, buildCdnUrl, buildApiExportUrl } from "../src/index";
-import { I18n } from "@comvi/core";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { fetchLoaderPlugin, buildCdnUrl, buildApiExportUrl } from "../src/api";
+import { I18n } from "./helpers/composedInstance";
 import { http, HttpResponse } from "msw";
 import {
   server,
+  buildTestCdnUrl,
+  captureCdnRequest,
   createMockTranslations,
   createMockApiResponse,
   mockCdnSuccessResponse,
   mockCdnErrorResponse,
-  mockCdnDelayedResponse,
+  mockCdnDeferredResponse,
   mockCdnNetworkError,
   mockApiSuccessResponse,
   mockApiErrorResponse,
@@ -16,21 +18,25 @@ import {
   TEST_API_KEY,
 } from "./setup";
 
-describe("FetchLoader Plugin", () => {
+describe("fetchLoaderPlugin Plugin", () => {
   describe("Configuration validation", () => {
     it("should throw error if cdnUrl is not provided", () => {
-      expect(() => FetchLoader({} as any)).toThrow("[FetchLoader] cdnUrl is required");
+      expect(() => fetchLoaderPlugin({} as any)).toThrow(
+        "[@comvi/plugin-fetch-loader] cdnUrl is required",
+      );
     });
 
     it("should throw error if options are undefined", () => {
-      expect(() => FetchLoader(undefined as any)).toThrow("[FetchLoader] cdnUrl is required");
+      expect(() => fetchLoaderPlugin(undefined as any)).toThrow(
+        "[@comvi/plugin-fetch-loader] cdnUrl is required",
+      );
     });
 
     it("should accept minimal valid configuration", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       mockCdnSuccessResponse("en", "default", { hello: "Hello" });
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(i18n.t("hello")).toBe("Hello");
@@ -38,36 +44,44 @@ describe("FetchLoader Plugin", () => {
   });
 
   describe("CDN URL layout", () => {
-    it("maps the default namespace to the root by default", () => {
-      expect(buildCdnUrl(TEST_CDN_URL, "de", "forest", "forest")).toBe(`${TEST_CDN_URL}/de.json`);
-      expect(buildCdnUrl(TEST_CDN_URL, "de", "badge", "forest")).toBe(
-        `${TEST_CDN_URL}/badge/de.json`,
+    it.each([
+      ["no layout: the consumer default lands at the root", "forest", undefined, "de.json"],
+      ["no layout: any other namespace lands in its folder", "badge", undefined, "badge/de.json"],
+      [
+        "rootNamespace false: the consumer default lands in its folder",
+        "forest",
+        { rootNamespace: false as const },
+        "forest/de.json",
+      ],
+      [
+        "rootNamespace false: any other namespace lands in its folder",
+        "badge",
+        { rootNamespace: false as const },
+        "badge/de.json",
+      ],
+      [
+        'rootNamespace "default": the consumer default lands in its folder',
+        "forest",
+        { rootNamespace: "default" },
+        "forest/de.json",
+      ],
+      [
+        'rootNamespace "default": the CDN root namespace lands at the root',
+        "default",
+        { rootNamespace: "default" },
+        "de.json",
+      ],
+    ])("%s", (_label, namespace, layout, expectedPath) => {
+      expect(buildCdnUrl(TEST_CDN_URL, "de", namespace, "forest", layout)).toBe(
+        `${TEST_CDN_URL}/${expectedPath}`,
       );
-    });
-
-    it("keeps every namespace in a folder when the root namespace is disabled", () => {
-      expect(buildCdnUrl(TEST_CDN_URL, "de", "forest", "forest", { rootNamespace: false })).toBe(
-        `${TEST_CDN_URL}/forest/de.json`,
-      );
-      expect(buildCdnUrl(TEST_CDN_URL, "de", "badge", "forest", { rootNamespace: false })).toBe(
-        `${TEST_CDN_URL}/badge/de.json`,
-      );
-    });
-
-    it("maps a CDN root namespace independently from the consumer default", () => {
-      expect(
-        buildCdnUrl(TEST_CDN_URL, "de", "forest", "forest", { rootNamespace: "default" }),
-      ).toBe(`${TEST_CDN_URL}/forest/de.json`);
-      expect(
-        buildCdnUrl(TEST_CDN_URL, "de", "default", "forest", { rootNamespace: "default" }),
-      ).toBe(`${TEST_CDN_URL}/de.json`);
     });
 
     it("loads the consumer default from its folder when the CDN root differs", async () => {
       const i18n = new I18n({ locale: "de", defaultNs: "forest", devMode: false });
       mockCdnSuccessResponse("de", "forest", { greeting: "Hallo" });
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         cdnLayout: { rootNamespace: "default" },
@@ -79,27 +93,39 @@ describe("FetchLoader Plugin", () => {
   });
 
   describe("Input validation", () => {
+    it.each(["en", "pt-BR", "zh-Hans-CN"])(
+      'puts the locale "%s" in the path unchanged',
+      (locale) => {
+        expect(buildCdnUrl(TEST_CDN_URL, locale, "default", "default")).toBe(
+          `${TEST_CDN_URL}/${locale}.json`,
+        );
+        expect(buildCdnUrl(TEST_CDN_URL, locale, "admin", "default")).toBe(
+          `${TEST_CDN_URL}/admin/${locale}.json`,
+        );
+      },
+    );
+
     it("should reject locale with path traversal characters", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "../etc", "default", "default")).toThrow(
-        '[FetchLoader] Invalid locale: "../etc"',
+        '[@comvi/plugin-fetch-loader] Invalid locale: "../etc"',
       );
     });
 
     it("should reject namespace with path traversal characters", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "en", "../../secret", "default")).toThrow(
-        '[FetchLoader] Invalid namespace: "../../secret"',
+        '[@comvi/plugin-fetch-loader] Invalid namespace: "../../secret"',
       );
     });
 
     it.each([".", ".."])('should reject the locale dot-segment "%s"', (locale) => {
       expect(() => buildCdnUrl(TEST_CDN_URL, locale, "default", "default")).toThrow(
-        `[FetchLoader] Invalid locale: "${locale}"`,
+        `[@comvi/plugin-fetch-loader] Invalid locale: "${locale}"`,
       );
     });
 
     it.each([".", ".."])('should reject the namespace dot-segment "%s"', (namespace) => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "en", namespace, "default")).toThrow(
-        `[FetchLoader] Invalid namespace: "${namespace}"`,
+        `[@comvi/plugin-fetch-loader] Invalid namespace: "${namespace}"`,
       );
     });
 
@@ -108,45 +134,57 @@ describe("FetchLoader Plugin", () => {
       (rootNamespace) => {
         expect(() =>
           buildCdnUrl(TEST_CDN_URL, "en", "default", "default", { rootNamespace }),
-        ).toThrow(`[FetchLoader] Invalid CDN root namespace: "${rootNamespace}"`);
+        ).toThrow(`[@comvi/plugin-fetch-loader] Invalid CDN root namespace: "${rootNamespace}"`);
       },
     );
 
     it("should reject empty locale", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "", "default", "default")).toThrow(
-        "[FetchLoader] Invalid locale",
+        "[@comvi/plugin-fetch-loader] Invalid locale",
       );
     });
 
     it("should reject locale with spaces", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "en US", "default", "default")).toThrow(
-        "[FetchLoader] Invalid locale",
+        "[@comvi/plugin-fetch-loader] Invalid locale",
       );
     });
 
-    it("should accept valid locale identifiers", () => {
-      expect(() => buildCdnUrl(TEST_CDN_URL, "en", "default", "default")).not.toThrow();
-      expect(() => buildCdnUrl(TEST_CDN_URL, "en-US", "default", "default")).not.toThrow();
-      expect(() => buildCdnUrl(TEST_CDN_URL, "zh_TW", "default", "default")).not.toThrow();
-      expect(() => buildCdnUrl(TEST_CDN_URL, "pt-BR", "ns", "default")).not.toThrow();
+    it.each([
+      ["en", "default", "en.json"],
+      ["en-US", "default", "en-US.json"],
+      ["zh_TW", "default", "zh_TW.json"],
+      ["pt-BR", "ns", "ns/pt-BR.json"],
+    ])('should accept the valid locale "%s" in namespace "%s"', (locale, namespace, path) => {
+      expect(buildCdnUrl(TEST_CDN_URL, locale, namespace, "default")).toBe(
+        `${TEST_CDN_URL}/${path}`,
+      );
     });
 
-    it("should accept valid namespace identifiers", () => {
-      expect(() => buildCdnUrl(TEST_CDN_URL, "en", "common", "default")).not.toThrow();
-      expect(() => buildCdnUrl(TEST_CDN_URL, "en", "my-namespace", "default")).not.toThrow();
-      expect(() => buildCdnUrl(TEST_CDN_URL, "en", "ns_v2", "default")).not.toThrow();
-      expect(() => buildCdnUrl(TEST_CDN_URL, "en", "@scope.pkg", "default")).not.toThrow();
-    });
+    it.each(["common", "my-namespace", "ns_v2", "@scope.pkg"])(
+      'should accept the valid namespace identifier "%s"',
+      (namespace) => {
+        expect(buildCdnUrl(TEST_CDN_URL, "en", namespace, "default")).toBe(
+          `${TEST_CDN_URL}/${namespace}/en.json`,
+        );
+      },
+    );
 
     it("should validate locale in buildApiExportUrl", () => {
       expect(() => buildApiExportUrl(1, "../hack", ["default"])).toThrow(
-        "[FetchLoader] Invalid locale",
+        "[@comvi/plugin-fetch-loader] Invalid locale",
       );
     });
 
     it("should validate namespaces in buildApiExportUrl", () => {
       expect(() => buildApiExportUrl(1, "en", ["valid", "../hack"])).toThrow(
-        "[FetchLoader] Invalid namespace",
+        "[@comvi/plugin-fetch-loader] Invalid namespace",
+      );
+    });
+
+    it("should build the export URL with locale and namespaces as query params", () => {
+      expect(buildApiExportUrl(42, "en", ["default", "dashboard"], "https://api.example.com")).toBe(
+        "https://api.example.com/v1/projects/42/export?locales=en&namespaces=default%2Cdashboard",
       );
     });
   });
@@ -155,77 +193,46 @@ describe("FetchLoader Plugin", () => {
     describe("URL building", () => {
       it("should fetch from {cdnUrl}/{lang}.json for default namespace", async () => {
         const i18n = new I18n({ locale: "en", devMode: false });
-        const mockData = createMockTranslations("en", "default");
-        let requestedUrl: string | undefined;
+        const request = captureCdnRequest("en", "default", createMockTranslations("en"));
 
-        server.use(
-          http.get(`${TEST_CDN_URL}/en.json`, ({ request }) => {
-            requestedUrl = request.url;
-            return HttpResponse.json(mockData);
-          }),
-        );
-
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
-        expect(requestedUrl).toBe(`${TEST_CDN_URL}/en.json`);
+        expect(request.url).toBe(`${TEST_CDN_URL}/en.json`);
       });
 
       it("should fetch from {cdnUrl}/{ns}/{lang}.json for non-default namespace", async () => {
         const i18n = new I18n({ locale: "en", defaultNs: "common", devMode: false });
-
         mockCdnSuccessResponse("en", "common", {}, "common");
+        const request = captureCdnRequest("en", "dashboard", { title: "Dashboard" }, "common");
 
-        let requestedUrl: string | undefined;
-        server.use(
-          http.get(`${TEST_CDN_URL}/dashboard/en.json`, ({ request }) => {
-            requestedUrl = request.url;
-            return HttpResponse.json({ title: "Dashboard" });
-          }),
-        );
-
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
-
         await i18n.addActiveNamespace("dashboard");
-        await expect.poll(() => requestedUrl, { timeout: 500 }).toBeTruthy();
-        expect(requestedUrl).toBe(`${TEST_CDN_URL}/dashboard/en.json`);
+
+        expect(request.url).toBe(`${TEST_CDN_URL}/dashboard/en.json`);
       });
     });
 
     describe("Authentication", () => {
       it("should not add Authorization header for CDN requests", async () => {
         const i18n = new I18n({ locale: "en", devMode: false });
-        let receivedHeaders: Headers | undefined;
+        const request = captureCdnRequest("en", "default", { key: "value" });
 
-        server.use(
-          http.get(`${TEST_CDN_URL}/en.json`, ({ request }) => {
-            receivedHeaders = request.headers;
-            return HttpResponse.json({ key: "value" });
-          }),
-        );
-
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
-        expect(receivedHeaders?.get("Authorization")).toBeNull();
+        expect(request.headers?.get("Authorization")).toBeNull();
       });
 
       it("should add Accept: application/json header", async () => {
         const i18n = new I18n({ locale: "en", devMode: false });
-        let receivedHeaders: Headers | undefined;
+        const request = captureCdnRequest("en", "default", { key: "value" });
 
-        server.use(
-          http.get(`${TEST_CDN_URL}/en.json`, ({ request }) => {
-            receivedHeaders = request.headers;
-            return HttpResponse.json({ key: "value" });
-          }),
-        );
-
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
-        expect(receivedHeaders?.get("Accept")).toBe("application/json");
+        expect(request.headers?.get("Accept")).toBe("application/json");
       });
     });
 
@@ -241,7 +248,7 @@ describe("FetchLoader Plugin", () => {
           }),
         );
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
         await plugin(i18n);
 
         const loaderFn = i18n.getLoader()!;
@@ -265,7 +272,7 @@ describe("FetchLoader Plugin", () => {
           }),
         );
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
         await plugin(i18n);
 
         const loaderFn = i18n.getLoader()!;
@@ -281,7 +288,7 @@ describe("FetchLoader Plugin", () => {
         mockCdnSuccessResponse("en", "default", { key: "Hello" });
         mockCdnSuccessResponse("fr", "default", { key: "Bonjour" });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
         await plugin(i18n);
 
         const loaderFn = i18n.getLoader()!;
@@ -296,37 +303,47 @@ describe("FetchLoader Plugin", () => {
     });
 
     describe("Timeout handling", () => {
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
       it("should report timeout error when request exceeds duration", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         const i18n = new I18n({ locale: "en", devMode: false });
         const onLoadError = vi.fn();
+        const response = mockCdnDeferredResponse("en", "default");
 
-        mockCdnDelayedResponse("en", "default", 5000, {});
-
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           timeout: 50,
           loadOnInit: true,
           onLoadError,
         });
+        const pending = plugin(i18n);
+        await response.requested;
+        await vi.advanceTimersByTimeAsync(51);
+        await pending;
 
-        await plugin(i18n);
-
-        expect(onLoadError).toHaveBeenCalledTimes(1);
-        expect(onLoadError.mock.calls[0][2].message).toContain("timeout");
+        expect(onLoadError).toHaveBeenCalledExactlyOnceWith(
+          "en",
+          "default",
+          expect.objectContaining({ message: expect.stringContaining("timeout") }),
+        );
       });
 
       it("should succeed when request completes within timeout", async () => {
         const i18n = new I18n({ locale: "en", devMode: false });
+        const response = mockCdnDeferredResponse("en", "default");
 
-        mockCdnDelayedResponse("en", "default", 20, { key: "value" });
-
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           timeout: 200,
           loadOnInit: true,
         });
-
-        await plugin(i18n);
+        const pending = plugin(i18n);
+        await response.requested;
+        response.resolve({ key: "value" });
+        await pending;
 
         expect(i18n.t("key")).toBe("value");
       });
@@ -339,7 +356,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "default", 404, "Not Found");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           onLoadError,
@@ -348,7 +365,10 @@ describe("FetchLoader Plugin", () => {
         await plugin(i18n);
 
         expect(onLoadError).toHaveBeenCalledWith("en", "default", expect.any(Error));
-        expect(onLoadError.mock.calls[0][2].message).toContain("404");
+        expect(onLoadError.mock.lastCall?.[2]).toHaveProperty(
+          "message",
+          expect.stringContaining("404"),
+        );
       });
 
       it("should call onLoadError on network error", async () => {
@@ -357,7 +377,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnNetworkError("en", "default");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           onLoadError,
@@ -374,7 +394,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", { key: "value" });
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           onLoadSuccess,
@@ -393,7 +413,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "common", 404, "Not Found", "common");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: {
@@ -412,7 +432,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "common", 404, "Not Found", "common");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: {
@@ -430,7 +450,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "common", 404, "Not Found", "common");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: {
@@ -450,7 +470,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", { key: "CDN value" });
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: { en: fallbackFn },
@@ -467,7 +487,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "default", 404);
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: {
@@ -478,17 +498,26 @@ describe("FetchLoader Plugin", () => {
 
         await plugin(i18n);
 
-        expect(onLoadError.mock.calls[0][2].message).toContain("Fallback failed");
+        expect(onLoadError).toHaveBeenCalledWith(
+          "en",
+          "default",
+          expect.objectContaining({ message: expect.stringContaining("Fallback failed") }),
+        );
       });
     });
 
     describe("loadOnInit", () => {
-      it("should not load translations when loadOnInit is false", async () => {
+      // Manual invocation is the ONLY path `loadOnInit` reaches: through
+      // `.use(fetchLoader(…))` or `registerPlugin(fetchLoaderPlugin(…))` the plugin body runs
+      // inside `init()`, where the install-time load is skipped either way and
+      // `init()` loads the initial namespaces itself. See
+      // `tests/installer.test.ts` and the option's JSDoc.
+      it("skips its own install-time load when loadOnInit is false and the plugin is invoked by hand", async () => {
         const i18n = new I18n({ locale: "en", devMode: false });
 
         mockCdnSuccessResponse("en", "default", { key: "value" });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
         await plugin(i18n);
 
         expect(i18n.hasLocale("en", "default")).toBe(false);
@@ -499,7 +528,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "main", { greeting: "Hello" }, "main");
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(i18n.hasLocale("en", "main")).toBe(true);
@@ -516,7 +545,7 @@ describe("FetchLoader Plugin", () => {
           "nested.welcome": "Welcome!",
         });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(i18n.t("greeting")).toBe("Hello");
@@ -529,7 +558,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", {});
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(i18n.hasLocale("en", "default")).toBe(true);
@@ -542,7 +571,7 @@ describe("FetchLoader Plugin", () => {
           level1: { level2: { level3: { deep: "Deep value" } } },
         });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(i18n.t("level1.level2.level3.deep")).toBe("Deep value");
@@ -555,7 +584,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", { key: "value" });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         const cleanup = await plugin(i18n);
 
         expect(typeof cleanup).toBe("function");
@@ -570,7 +599,7 @@ describe("FetchLoader Plugin", () => {
           ),
         );
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         const cleanup = await plugin(i18n);
 
         expect(typeof cleanup).toBe("function");
@@ -590,7 +619,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(receivedHeaders?.get("Authorization")).toBe(`Bearer ${TEST_API_KEY}`);
@@ -610,13 +639,13 @@ describe("FetchLoader Plugin", () => {
             }),
           );
         }),
-        http.get("https://cdn.comvi.io/test-project-123/en.json", () => {
+        http.get(buildTestCdnUrl("en", "default"), () => {
           cdnRequestCount++;
           return HttpResponse.json({ hello: "Hello from CDN" });
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(apiRequestCount).toBe(1);
@@ -629,17 +658,43 @@ describe("FetchLoader Plugin", () => {
       let cdnRequestCount = 0;
 
       server.use(
-        http.get("https://cdn.comvi.io/test-project-123/en.json", () => {
+        http.get(buildTestCdnUrl("en", "default"), () => {
           cdnRequestCount++;
           return HttpResponse.json({ hello: "Hello from CDN" });
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(cdnRequestCount).toBe(1);
       expect(i18n.t("hello")).toBe("Hello from CDN");
+    });
+
+    it("should send API requests to an explicit baseUrl", async () => {
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY });
+      let requestedUrl: string | undefined;
+
+      server.use(
+        http.get("https://explicit.example.com/v1/translations", ({ request }) => {
+          requestedUrl = request.url;
+          return HttpResponse.json(
+            createMockApiResponse(["en"], ["default"], {
+              default: { en: { hello: "Hello from explicit host" } },
+            }),
+          );
+        }),
+      );
+
+      const plugin = fetchLoaderPlugin({
+        cdnUrl: TEST_CDN_URL,
+        baseUrl: "https://explicit.example.com",
+        loadOnInit: true,
+      });
+      await plugin(i18n);
+
+      expect(requestedUrl).toContain("https://explicit.example.com/v1/translations");
+      expect(i18n.t("hello")).toBe("Hello from explicit host");
     });
 
     it("should load all namespaces in a single API request", async () => {
@@ -653,7 +708,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(requestCount).toBe(1);
@@ -666,9 +721,9 @@ describe("FetchLoader Plugin", () => {
         default: { en: { greeting: "Hello from API" } },
       });
 
-      mockApiSuccessResponse("en", ["default"], apiResponse);
+      mockApiSuccessResponse(apiResponse);
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(i18n.t("greeting")).toBe("Hello from API");
@@ -680,7 +735,7 @@ describe("FetchLoader Plugin", () => {
 
       mockApiErrorResponse(500, "Server Error");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         onLoadError,
@@ -696,7 +751,7 @@ describe("FetchLoader Plugin", () => {
 
       mockApiErrorResponse(500, "Server Error");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         fallback: {
@@ -706,7 +761,6 @@ describe("FetchLoader Plugin", () => {
 
       await plugin(i18n);
 
-      // Verify fallback was used by checking the dev cache provides data
       const loaderFn = i18n.getLoader()!;
       const data = await loaderFn("en", "default");
       expect(data).toEqual({ key: "Fallback value" });
@@ -721,7 +775,7 @@ describe("FetchLoader Plugin", () => {
         http.get(/\/v1\/project$/, () => new HttpResponse("Unauthorized", { status: 401 })),
       );
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         fallback: {
@@ -772,7 +826,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
 
       const loaderFn = i18n.getLoader()!;
@@ -792,7 +846,7 @@ describe("FetchLoader Plugin", () => {
 
       mockApiErrorResponse(500, "Server Error");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         fallback: {
@@ -803,8 +857,11 @@ describe("FetchLoader Plugin", () => {
 
       await plugin(i18n);
 
-      expect(onLoadError).toHaveBeenCalledTimes(1);
-      expect(onLoadError.mock.calls[0][2].message).toContain("Fallback failed");
+      expect(onLoadError).toHaveBeenCalledExactlyOnceWith(
+        "en",
+        "default",
+        expect.objectContaining({ message: expect.stringContaining("Fallback failed") }),
+      );
     });
 
     it("should call onLoadError when API response is missing the requested namespace", async () => {
@@ -817,7 +874,7 @@ describe("FetchLoader Plugin", () => {
         ),
       );
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: false,
         onLoadError,
@@ -826,13 +883,14 @@ describe("FetchLoader Plugin", () => {
 
       const loaderFn = i18n.getLoader()!;
       await expect(loaderFn("en", "missing")).rejects.toThrow(
-        "[FetchLoader] No translations found for en:missing",
+        "[@comvi/plugin-fetch-loader] No translations found for en:missing",
       );
 
-      expect(onLoadError).toHaveBeenCalledTimes(1);
-      expect(onLoadError.mock.calls[0][0]).toBe("en");
-      expect(onLoadError.mock.calls[0][1]).toBe("missing");
-      expect(onLoadError.mock.calls[0][2].message).toContain("No translations found");
+      expect(onLoadError).toHaveBeenCalledExactlyOnceWith(
+        "en",
+        "missing",
+        expect.objectContaining({ message: expect.stringContaining("No translations found") }),
+      );
     });
   });
 });

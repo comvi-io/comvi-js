@@ -1,4 +1,3 @@
-// Re-export encoding constants
 export * from "./encoding";
 
 export const TAG_ATTRIBUTES = {
@@ -19,3 +18,5 @@ export const TAG_ATTRIBUTES = {
 export const IGNORED_NODES = ["script", "style"];
 export const PROCESSED_TO_PARENT_NODES = ["option", "optgroup"];
 export const EDITOR_UI_SHADOW_HOST_ATTRIBUTE = "data-comvi-editor-ui-shadow-host";
+/** Marks the editor's own light-DOM nodes (highlight overlay, tooltip) so the watcher skips them. */
+export const EDITOR_UI_ATTRIBUTE = "data-comvi-editor-ui";

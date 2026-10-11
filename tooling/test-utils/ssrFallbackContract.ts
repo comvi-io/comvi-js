@@ -1,0 +1,295 @@
+/**
+ * The ONE server fallback-chain contract, run against `@comvi/next` and
+ * `@comvi/nuxt`.
+ *
+ * The contract: before the server translates, the namespace it needs is loaded
+ * for the request locale AND for every locale of the `fallbackLocale` chain, in
+ * the order core's lookup walks it. A primary catalog already in the cache does
+ * not skip the fallback loads. What the server could read for a render is what
+ * reaches the client, so hydration renders the same text. A catalog that fails
+ * to load is reported through `loadError`, never thrown, and the render
+ * continues, with server and client agreeing on the raw key.
+ *
+ * Each row is data only. The adapter suites run every row through a thin
+ * fixture:
+ * - `packages/next/tests/ssr-fallback-contract.test.tsx` — `setRequestLocale`
+ *   + `getI18n()`, then `loadMessages()`, then `<I18nProvider messages>`
+ *   through `renderToString` and `hydrateRoot`;
+ * - `packages/nuxt/tests/ssr-fallback-contract.test.ts` — the server
+ *   `useTranslation()` and `loadMessages()`, and the app plugin's SSR pass
+ *   (the row's namespace activated during the render, as a page does), its
+ *   payload and client hydration.
+ *
+ * Both fixtures also assert that hydration fetches nothing, and how often
+ * `onError` fires per `loadError`: {@link SSR_FALLBACK_ON_ERROR_PER_CORE_LOAD}
+ * for a pair core's own chain load attempted,
+ * {@link SSR_FALLBACK_ON_ERROR_PER_ADAPTER_LOAD} for one an adapter attempted.
+ *
+ * One table, two adapters: a row added here runs against both, and a row
+ * cannot be "fixed" for one adapter while the other fails. This file is a
+ * workspace-package export for the same reason as `acceptLanguageTable.ts`: it
+ * must resolve from inside a Stryker sandbox.
+ *
+ * Catalog pairs are spelled `locale:namespace` throughout, the key shape both
+ * adapters hand the client.
+ */
+
+/** Every row configures this namespace as the host's default. */
+export const SSR_FALLBACK_DEFAULT_NS = "common";
+
+/** Configured locales for every row. */
+export const SSR_FALLBACK_LOCALES = ["en", "de", "fr", "uk"] as const;
+
+/** What the loader answers, per `locale:namespace`. A pair absent here loads as `{}`. */
+export const SSR_FALLBACK_CATALOGS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  "en:common": { greeting: "Hello", onlyEn: "English only" },
+  "de:common": { greeting: "Hallo", onlyDe: "Nur Deutsch" },
+  "fr:common": { greeting: "Bonjour" },
+  "uk:common": { greeting: "Привіт" },
+  "en:admin": { title: "Admin" },
+  "de:admin": { title: "Verwaltung", onlyDeAdmin: "Nur Verwaltung" },
+  "fr:admin": { title: "Administration" },
+};
+
+/**
+ * `onError` reports per failed catalog load an ADAPTER made, counted against
+ * `loadError` events. It is 2, not 1, because of core and not the adapters: a
+ * single-pair `reloadMessages(locale, ns)` that fails reports
+ * `E_ALL_NAMESPACES_FAILED` from `_loadLocale` and then
+ * `E_FAILED_RELOAD_TRANSLATIONS` from `reloadMessages` itself
+ * (`packages/core/src/core/loader.ts`), and core exposes no non-reporting
+ * single-pair load. The day core reports once there, this constant is the one
+ * place to change.
+ */
+export const SSR_FALLBACK_ON_ERROR_PER_ADAPTER_LOAD = 2;
+
+/**
+ * `onError` reports per failed catalog load CORE made itself. Core loads the
+ * instance's own locale and its fallback chain at `init()`, on a namespace
+ * activation and on a locale switch, and a pair that fails there never goes
+ * through `reloadMessages`: it reports `E_ALL_NAMESPACES_FAILED` once and that
+ * is all. The adapters do not attempt such a pair again in the same request,
+ * so one `loadError` and one report is the whole of it.
+ */
+export const SSR_FALLBACK_ON_ERROR_PER_CORE_LOAD = 1;
+
+/**
+ * The `onError` reports a row's `loadErrors` add up to. `adapterLoads` is how
+ * many of them the adapter made through `reloadMessages`; the rest are core's.
+ */
+export const ssrFallbackOnErrorReports = (loadErrors: number, adapterLoads: number): number =>
+  SSR_FALLBACK_ON_ERROR_PER_ADAPTER_LOAD * adapterLoads +
+  SSR_FALLBACK_ON_ERROR_PER_CORE_LOAD * (loadErrors - adapterLoads);
+
+export interface SsrFallbackRequest {
+  /** The locale the request renders in. */
+  locale: string;
+  /**
+   * Key → the text the server renders AND the client renders after hydration.
+   * A key that resolves nowhere renders as itself.
+   */
+  expect: Readonly<Record<string, string>>;
+  /**
+   * The catalogs the client receives for the row's namespace, exactly, in
+   * core's lookup order: the request locale, then the fallback chain.
+   */
+  clientCatalogs: readonly string[];
+}
+
+export interface SsrFallbackCase {
+  /** What the row pins. Becomes the test name. */
+  name: string;
+  defaultLocale: string;
+  fallbackLocale: string | readonly string[];
+  /** The namespace the requests translate. Defaults to {@link SSR_FALLBACK_DEFAULT_NS}. */
+  ns?: string;
+  /** Catalogs already in the server host's cache before any request. */
+  cached?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  /** Pairs whose load rejects. */
+  failing?: readonly string[];
+  /** Run concurrently, each in its own request scope. */
+  requests: readonly SsrFallbackRequest[];
+  /** A client navigation after hydrating `requests[0]`. */
+  navigation?: SsrFallbackRequest;
+  /** Pairs the loader must have been asked for. */
+  fetched?: readonly string[];
+  /** Pairs the loader must never have been asked for. */
+  notFetched?: readonly string[];
+  /**
+   * Every `loadError` the server reports, with multiplicity, across the row's
+   * requests. A failed pair is attempted once per request: it is not retried
+   * before the request ends, so the client gets what the render read. The
+   * loader is asked for each failing pair exactly as often as it appears here.
+   */
+  loadErrors: readonly string[];
+  /**
+   * How many of `loadErrors` `@comvi/next` makes through its own loader
+   * rather than through core. Defaults to 0. Next's server instance is shared
+   * and stays on its default locale, so core's `init()` loads the default
+   * namespace for that locale and the fallback chain, and every other pair a
+   * request needs (another locale, another namespace) is next's own
+   * `reloadMessages`. `@comvi/nuxt` builds an instance per request on the request
+   * locale and activates a namespace through core, so there every failed load
+   * is core's.
+   */
+  nextAdapterLoadErrors?: number;
+}
+
+export const SSR_FALLBACK_CASES: readonly SsrFallbackCase[] = [
+  {
+    name: "defaultLocale ≠ fallbackLocale, key only in the fallback → the fallback text",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDe: "Nur Deutsch", greeting: "Bonjour" },
+        clientCatalogs: ["fr:common", "de:common"],
+      },
+    ],
+    loadErrors: [],
+  },
+  {
+    name: "primary catalog already cached, fallback absent → the fallback is loaded, not skipped",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    cached: { "fr:common": { greeting: "Bonjour" } },
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDe: "Nur Deutsch", greeting: "Bonjour" },
+        clientCatalogs: ["fr:common", "de:common"],
+      },
+    ],
+    fetched: ["de:common"],
+    notFetched: ["fr:common"],
+    loadErrors: [],
+  },
+  {
+    name: "key only in the last catalog of a multi-step chain → resolved",
+    defaultLocale: "uk",
+    fallbackLocale: ["de", "en"],
+    cached: { "fr:common": { greeting: "Bonjour" } },
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyEn: "English only", onlyDe: "Nur Deutsch" },
+        clientCatalogs: ["fr:common", "de:common", "en:common"],
+      },
+    ],
+    fetched: ["de:common", "en:common"],
+    loadErrors: [],
+  },
+  {
+    name: "a non-default namespace → its fallback is loaded for that namespace",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    ns: "admin",
+    cached: { "fr:admin": { title: "Administration" } },
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDeAdmin: "Nur Verwaltung", title: "Administration" },
+        clientCatalogs: ["fr:admin", "de:admin"],
+      },
+    ],
+    fetched: ["de:admin"],
+    notFetched: ["fr:admin"],
+    loadErrors: [],
+  },
+  {
+    name: "a namespace first needed during the render (not cached, not active at init) → its fallback is loaded before the text renders",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    ns: "admin",
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDeAdmin: "Nur Verwaltung", title: "Administration" },
+        clientCatalogs: ["fr:admin", "de:admin"],
+      },
+    ],
+    fetched: ["fr:admin", "de:admin"],
+    loadErrors: [],
+  },
+  {
+    name: "the direct server helper without a prior loadMessages() → resolves through the chain",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDe: "Nur Deutsch" },
+        clientCatalogs: ["fr:common", "de:common"],
+      },
+    ],
+    fetched: ["fr:common", "de:common"],
+    loadErrors: [],
+  },
+  {
+    name: "SSR → hydration → client navigation → the fallback text survives each step",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDe: "Nur Deutsch", greeting: "Bonjour" },
+        clientCatalogs: ["fr:common", "de:common"],
+      },
+    ],
+    navigation: {
+      locale: "uk",
+      expect: { onlyDe: "Nur Deutsch", greeting: "Привіт" },
+      clientCatalogs: ["uk:common", "de:common"],
+    },
+    loadErrors: [],
+  },
+  {
+    name: "one fallback catalog fails to load → reported, the render continues, SSR and client agree",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    failing: ["de:common"],
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDe: "onlyDe", greeting: "Bonjour" },
+        clientCatalogs: ["fr:common"],
+      },
+    ],
+    loadErrors: ["de:common"],
+  },
+  {
+    name: "a fallback catalog of a non-default namespace fails to load → reported, the render continues",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    ns: "admin",
+    failing: ["de:admin"],
+    requests: [
+      {
+        locale: "fr",
+        expect: { onlyDeAdmin: "onlyDeAdmin", title: "Administration" },
+        clientCatalogs: ["fr:admin"],
+      },
+    ],
+    loadErrors: ["de:admin"],
+    nextAdapterLoadErrors: 1,
+  },
+  {
+    name: "concurrent requests in different locales → no locale or catalog leaks",
+    defaultLocale: "en",
+    fallbackLocale: "de",
+    requests: [
+      {
+        locale: "fr",
+        expect: { greeting: "Bonjour", onlyDe: "Nur Deutsch", onlyEn: "onlyEn" },
+        clientCatalogs: ["fr:common", "de:common"],
+      },
+      {
+        locale: "uk",
+        expect: { greeting: "Привіт", onlyDe: "Nur Deutsch", onlyEn: "onlyEn" },
+        clientCatalogs: ["uk:common", "de:common"],
+      },
+    ],
+    loadErrors: [],
+  },
+];

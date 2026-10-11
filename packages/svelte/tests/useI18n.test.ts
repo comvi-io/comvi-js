@@ -1,7 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import UseI18nHarness from "./UseI18nHarness.test.svelte";
+import NoContextHarness from "./NoContextHarness.test.svelte";
+import StoreCacheHarness from "./StoreCacheHarness.test.svelte";
+import MessagesCacheHarness from "./MessagesCacheHarness.test.svelte";
 
 describe("useI18n", () => {
   let fake: FakeI18n;
@@ -10,7 +13,7 @@ describe("useI18n", () => {
 
   beforeEach(() => {
     fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({
+    fake.addMessages({
       en: { hello: "Hello", goodbye: "Bye" },
       "en:admin": { title: "Admin" },
       fr: { hello: "Bonjour", goodbye: "Au revoir" },
@@ -94,10 +97,14 @@ describe("useI18n", () => {
       props: { i18n: fake.asI18n() },
     });
 
-    const initialNumber = text("number");
-    const initialCurrency = text("currency");
-    const initialDate = text("date");
-    const initialRelative = text("relative");
+    // The harness pins `timeZone: "UTC"` on the date, so every literal below
+    // is a function of the locale alone. NBSPs are escaped on purpose.
+    expect([text("number"), text("currency"), text("date"), text("relative")]).toEqual([
+      "1,234.5",
+      "$99.99",
+      "01/02/2024",
+      "2 days ago",
+    ]);
 
     click("switch-fr");
     await tick();
@@ -105,10 +112,12 @@ describe("useI18n", () => {
     expect(text("hello")).toBe("Bonjour");
     expect(text("language")).toBe("fr");
     expect(text("dir")).toBe("ltr");
-    expect(text("number")).not.toBe(initialNumber);
-    expect(text("currency")).not.toBe(initialCurrency);
-    expect(text("date")).not.toBe(initialDate);
-    expect(text("relative")).not.toBe(initialRelative);
+    expect([text("number"), text("currency"), text("date"), text("relative")]).toEqual([
+      "1\u202f234,5",
+      "99,99\u00a0$US",
+      "02/01/2024",
+      "il y a 2 jours",
+    ]);
 
     click("switch-ar");
     await tick();
@@ -136,14 +145,15 @@ describe("useI18n", () => {
     expect(text("active-namespaces")).toBe("admin,common");
 
     resolveLoad?.();
-    await Promise.resolve();
-    await tick();
 
-    expect(text("loading")).toBe("false");
+    await vi.waitFor(() => {
+      expect(text("loading")).toBe("false");
+    });
+
     expect(text("active-namespaces")).toBe("admin,common");
   });
 
-  it("reflects cache updates through addTranslations and clearTranslations", async () => {
+  it("reflects cache updates through addMessages and clearMessages", async () => {
     component = mount(UseI18nHarness, {
       target,
       props: { i18n: fake.asI18n() },
@@ -186,5 +196,43 @@ describe("useI18n", () => {
     await tick();
 
     expect(text("events")).toBe("en->fr");
+  });
+
+  it("exposes the host's messages cache map, keyed by locale:namespace", () => {
+    component = mount(MessagesCacheHarness, {
+      target,
+      props: { i18n: fake.asI18n() },
+    });
+
+    expect(text("cache-keys")).toBe("ar:admin,ar:common,en:admin,en:common,fr:admin,fr:common");
+    expect(text("cache-en-hello")).toBe("Hello");
+  });
+
+  it("hands repeated calls on one instance the same t and tRaw stores", () => {
+    component = mount(StoreCacheHarness, {
+      target,
+      props: { i18n: fake.asI18n() },
+    });
+
+    expect([text("t-stable"), text("traw-stable")]).toEqual(["true", "true"]);
+  });
+
+  it("keeps namespaces apart — each useI18n(ns) translates in its own namespace", () => {
+    fake.addMessages({ "en:billing": { title: "Billing" } });
+
+    component = mount(StoreCacheHarness, {
+      target,
+      props: { i18n: fake.asI18n() },
+    });
+
+    expect([text("admin-title"), text("billing-title")]).toEqual(["Admin", "Billing"]);
+    expect([text("admin-title-raw"), text("billing-title-raw")]).toEqual(["Admin", "Billing"]);
+  });
+
+  it("throws when called with no i18n context in the tree", () => {
+    expect(() => mount(NoContextHarness, { target })).toThrow(
+      "[@comvi/svelte] i18n context not found. " +
+        "Call setI18nContext(i18n) in your root component (e.g., App.svelte).",
+    );
   });
 });

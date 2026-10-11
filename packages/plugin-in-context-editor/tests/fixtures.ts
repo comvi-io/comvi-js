@@ -1,10 +1,3 @@
-/**
- * Test fixtures - sample data for tests
- */
-
-/**
- * Sample translation keys
- */
 export const SAMPLE_KEYS = {
   SIMPLE: "home.title",
   NESTED: "components.header.navigation.menu",
@@ -14,9 +7,6 @@ export const SAMPLE_KEYS = {
   SPECIAL_CHARS: "special_chars-test.key",
 } as const;
 
-/**
- * Sample translation key IDs (after registration)
- */
 export const SAMPLE_IDS = {
   ONE: 1,
   FIVE: 5,
@@ -25,9 +15,7 @@ export const SAMPLE_IDS = {
   MAX_SAFE: 390624, // Max for 8-char base-5 encoding (5^8 - 1)
 } as const;
 
-/**
- * Sample HTML templates with placeholder keys
- */
+/** `{{key:…}}` placeholders are substituted by `createElementWithKeys`. */
 export const HTML_TEMPLATES = {
   SIMPLE_TEXT: "<p>Hello {{key:title}}</p>",
   WITH_ATTRIBUTE: '<input placeholder="{{key:placeholder}}" />',
@@ -67,9 +55,6 @@ export const HTML_TEMPLATES = {
   `,
 } as const;
 
-/**
- * Sample DOM structures (without keys)
- */
 export const DOM_STRUCTURES = {
   EMPTY: "<div></div>",
   TEXT_ONLY: "<p>Plain text without translation</p>",
@@ -116,18 +101,12 @@ export const DOM_STRUCTURES = {
   `,
 } as const;
 
-/**
- * Ignored elements that should not be processed
- */
 export const IGNORED_ELEMENTS = {
   SCRIPT: '<script>console.log("should be ignored")</script>',
   STYLE: "<style>.class { color: red; }</style>",
   SCRIPT_WITH_KEY: '<script>var key = "{{key:test}}"</script>',
 } as const;
 
-/**
- * Edge case test data
- */
 export const EDGE_CASES = {
   EMPTY_STRING: "",
   WHITESPACE_ONLY: "   \n\t  ",
@@ -137,9 +116,6 @@ export const EDGE_CASES = {
   MIXED_INVISIBLE: "\u200B\u200C\u200D mixed with visible text",
 } as const;
 
-/**
- * Invalid/corrupted data for error handling tests
- */
 export const INVALID_DATA = {
   INVALID_BASE5: "\uFFFF\uFFFE",
   TOO_SHORT_ENCODING: "\u200B\u200C",
@@ -147,9 +123,6 @@ export const INVALID_DATA = {
   MIXED_VALID_INVALID: "\u200B\u200C\uFFFF\u200D",
 } as const;
 
-/**
- * Performance test data
- */
 export const PERFORMANCE = {
   MANY_ELEMENTS: (count: number) => {
     const elements = Array.from(
@@ -167,9 +140,6 @@ export const PERFORMANCE = {
   },
 } as const;
 
-/**
- * Mutation scenarios
- */
 export const MUTATIONS = {
   TEXT_CHANGE: {
     before: "<p>Old text</p>",
@@ -193,9 +163,6 @@ export const MUTATIONS = {
   },
 } as const;
 
-/**
- * Highlight test scenarios
- */
 export const HIGHLIGHT_SCENARIOS = {
   SINGLE_ELEMENT: "<button>Click {{key:button}}</button>",
   OVERLAPPING: `

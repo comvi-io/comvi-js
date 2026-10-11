@@ -10,7 +10,6 @@
 <div class="space-y-8">
   <h2 class="text-2xl font-bold">{$t('plurals.title')}</h2>
 
-  <!-- Notifications Example -->
   <div class="space-y-4 p-6 border rounded-lg bg-gray-50">
     <h3 class="font-semibold text-lg">Notifications (ICU Plural)</h3>
     <div class="flex flex-wrap gap-2">
@@ -30,7 +29,6 @@
     </p>
   </div>
 
-  <!-- Cart Items Example -->
   <div class="space-y-4 p-6 border rounded-lg bg-gray-50">
     <h3 class="font-semibold text-lg">Shopping Cart</h3>
     <div class="flex items-center gap-4">

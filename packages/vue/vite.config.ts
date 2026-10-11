@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import { resolve } from "path";
-import { createLibraryBuildOptions } from "@comvi/vite-config";
+import { vueBuild } from "./vite.shared";
 
 export default defineConfig({
   plugins: [
@@ -9,22 +9,17 @@ export default defineConfig({
       insertTypesEntry: true,
     }),
   ],
-  build: createLibraryBuildOptions({
-    entry: resolve(__dirname, "src/index.ts"),
-    name: "ComviVue",
-    fileNames: { es: "comvi-vue.js", cjs: "comvi-vue.cjs" },
-    external: ["vue", "@comvi/core"],
-    globals: {
-      vue: "Vue",
-      "@comvi/core": "ComviCore",
-    },
-  }),
+  build: vueBuild(__dirname, ""),
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
     },
   },
   define: {
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== "production"),
+    // The published comvi-vue.js is always the PROD artifact — `vite build`
+    // pins NODE_ENV=production, so reading it here only ever produced `false`.
+    // The dev-only diagnostics ship in comvi-vue.dev.js (vite.config.dev.ts),
+    // reachable via the "development" export condition.
+    __DEV__: JSON.stringify(false),
   },
 });

@@ -1,118 +1,113 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "solid-js/web";
 import { createSignal } from "solid-js";
-import { I18nProvider, useI18nContext } from "../src/context";
+import { I18nProvider, useI18nInstance } from "../src/context";
 import { useI18n } from "../src/useI18n";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import { flushMicrotasks, renderSolid } from "./test-utils";
 
 describe("solid context", () => {
   it("throws when context is requested outside provider", () => {
     const container = document.createElement("div");
     const Bad = () => {
-      useI18nContext();
+      useI18nInstance();
       return null;
     };
 
     expect(() => render(() => <Bad />, container)).toThrow(
-      "[@comvi/solid] i18n context not found.",
+      "[@comvi/solid] i18n context not found. Wrap your app with <I18nProvider i18n={i18n}>.",
     );
   });
 
-  it("useI18nContext returns the same i18n instance from provider", () => {
-    const container = document.createElement("div");
+  it("useI18nInstance returns the provider's host", () => {
     const fake = new FakeI18n({ language: "en" });
-    let received: unknown;
+    let host: unknown;
 
     const Probe = () => {
-      received = useI18nContext();
+      host = useI18nInstance();
       return null;
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
-          <Probe />
-        </I18nProvider>
-      ),
-      container,
-    );
+    renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
 
-    expect(received).toBe(fake.asI18n());
-    dispose();
+    expect(host).toBe(fake.asI18n());
+  });
+
+  it("useI18nInstance throws outside a provider", () => {
+    const container = document.createElement("div");
+    const Bad = () => {
+      useI18nInstance();
+      return null;
+    };
+    expect(() => render(() => <Bad />, container)).toThrow(
+      "[@comvi/solid] i18n context not found. Wrap your app with <I18nProvider i18n={i18n}>.",
+    );
   });
 
   it("auto-initializes when enabled and instance is not initialized", async () => {
-    const container = document.createElement("div");
     const fake = new FakeI18n({ language: "en" });
     const Probe = () => {
       const { isInitialized } = useI18n();
       return <div>{String(isInitialized())}</div>;
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={fake.asI18n()}>
-          <Probe />
-        </I18nProvider>
-      ),
-      container,
-    );
+    const container = renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()}>
+        <Probe />
+      </I18nProvider>
+    ));
 
     await vi.waitFor(() => {
       expect(container.textContent).toBe("true");
     });
-
-    dispose();
   });
 
   it("does not auto-init when autoInit is false", async () => {
-    const container = document.createElement("div");
     const fake = new FakeI18n({ language: "en" });
     const Probe = () => {
       const { isInitialized } = useI18n();
       return <div>{String(isInitialized())}</div>;
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
-          <Probe />
-        </I18nProvider>
-      ),
-      container,
-    );
+    const container = renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
 
-    await Promise.resolve();
+    await flushMicrotasks(3);
+
+    // `init` never being CALLED cannot pass late, which is what makes the
+    // rendered flag below a real negative rather than a not-yet.
+    expect(fake.init).not.toHaveBeenCalled();
     expect(container.textContent).toBe("false");
-    dispose();
   });
 
   it("keeps the subtree mounted when auto-init fails", async () => {
-    const container = document.createElement("div");
     const fake = new FakeI18n({ language: "en" });
     fake.initError = new Error("init failed");
     const Probe = () => {
       const { isInitialized } = useI18n();
-      return <div>{String(isInitialized())}</div>;
+      return <div data-testid="probe">{String(isInitialized())}</div>;
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={fake.asI18n()}>
-          <Probe />
-        </I18nProvider>
-      ),
-      container,
-    );
+    const container = renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()}>
+        <Probe />
+      </I18nProvider>
+    ));
 
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks(2);
+
+    expect(container.querySelector('[data-testid="probe"]')).not.toBeNull();
     expect(container.textContent).toBe("false");
-    dispose();
   });
 
   it("invokes onError when auto-init fails", async () => {
-    const container = document.createElement("div");
     const fake = new FakeI18n({ language: "en" });
     fake.initError = new Error("init failed");
     const errors: Error[] = [];
@@ -121,24 +116,19 @@ describe("solid context", () => {
       return null;
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={fake.asI18n()} onError={(e) => errors.push(e)}>
-          <Probe />
-        </I18nProvider>
-      ),
-      container,
-    );
+    renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} onError={(e) => errors.push(e)}>
+        <Probe />
+      </I18nProvider>
+    ));
 
     await vi.waitFor(() => {
       expect(errors).toHaveLength(1);
     });
     expect(errors[0].message).toBe("init failed");
-    dispose();
   });
 
   it("switches to the latest i18n instance when provider prop changes", async () => {
-    const container = document.createElement("div");
     const first = new FakeI18n({ language: "en" });
     const second = new FakeI18n({ language: "fr" });
     const [current, setCurrent] = createSignal(first.asI18n());
@@ -148,26 +138,21 @@ describe("solid context", () => {
       return <div>{locale()}</div>;
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={current()} autoInit={false}>
-          <Probe />
-        </I18nProvider>
-      ),
-      container,
-    );
+    const container = renderSolid(() => (
+      <I18nProvider i18n={current()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
 
     expect(container.textContent).toBe("en");
 
     setCurrent(second.asI18n());
-    await Promise.resolve();
+    await flushMicrotasks();
 
     expect(container.textContent).toBe("fr");
-    dispose();
   });
 
   it("ignores updates from the previous instance after provider prop changes", async () => {
-    const container = document.createElement("div");
     const first = new FakeI18n({ language: "en" });
     const second = new FakeI18n({ language: "fr" });
     const [current, setCurrent] = createSignal(first.asI18n());
@@ -177,25 +162,21 @@ describe("solid context", () => {
       return <div>{locale()}</div>;
     };
 
-    const dispose = render(
-      () => (
-        <I18nProvider i18n={current()} autoInit={false}>
-          <Probe />
-        </I18nProvider>
-      ),
-      container,
-    );
+    const container = renderSolid(() => (
+      <I18nProvider i18n={current()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
 
     expect(container.textContent).toBe("en");
 
     setCurrent(second.asI18n());
-    await Promise.resolve();
+    await flushMicrotasks();
     expect(container.textContent).toBe("fr");
 
-    await first.setLocaleAsync("de");
-    await Promise.resolve();
-    expect(container.textContent).toBe("fr");
+    await first.setLocale("de");
+    await flushMicrotasks(2);
 
-    dispose();
+    expect(container.textContent).toBe("fr");
   });
 });

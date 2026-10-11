@@ -38,7 +38,8 @@ export default defineConfig({
       fileName: (format, entryName) => `${entryName}.${format === "es" ? "es.js" : "cjs"}`,
     },
     rolldownOptions: {
-      external: ["@comvi/core"],
+      // Keep @comvi/core AND its subpaths (e.g. /editor-bridge) external.
+      external: [/^@comvi\/core(\/|$)/],
       treeshake: {
         moduleSideEffects: false,
         propertyReadSideEffects: false,

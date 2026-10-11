@@ -1,52 +1,66 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { I18n } from "../../src";
 
-describe("Security and Error Handling", () => {
+describe("t() with untrusted input", () => {
   let i18n: I18n;
 
   beforeEach(() => {
     i18n = new I18n({ locale: "en" });
   });
 
-  describe("String Safety (Passthrough)", () => {
-    // Comvi i18n itself is output-agnostic (returns strings/nodes).
-    // It should NOT strip tags automatically, as that might break valid HTML translations.
-    // It's the consumer's job to sanitize. Comvi i18n acts as a passthrough.
+  describe("parameter passthrough", () => {
+    // Deliberate passthrough: stripping tags automatically would break valid
+    // HTML translations, so sanitizing is the consumer's job.
 
     it("should interpolate malicious scripts into parameters without executing them (passthrough)", () => {
       const malicious = "<script>alert(1)</script>";
-      i18n.addTranslations({ en: { msg: "User: {name}" } });
+      i18n.addMessages({ en: { msg: "User: {name}" } });
+
       expect(i18n.t("msg", { name: malicious })).toBe(`User: ${malicious}`);
     });
 
     it("should pass through deeply nested/recursive HTML input unchanged", () => {
       const nested = "<div><div><div><script>alert('deep')</script></div></div></div>";
-      i18n.addTranslations({ en: { deep: "Content: {html}" } });
+      i18n.addMessages({ en: { deep: "Content: {html}" } });
+
       expect(i18n.t("deep", { html: nested })).toBe(`Content: ${nested}`);
     });
 
     it("should handle excessively long keys by returning the key itself when missing", () => {
       const longKey = "a".repeat(10000);
-      // It returns the key itself when it's missing
+
       expect(i18n.t(longKey)).toBe(longKey);
+    });
+
+    it("does not re-parse braces that arrive inside a parameter value", () => {
+      i18n.addMessages({ en: { msg: "User: {name}" } });
+
+      expect(i18n.t("msg", { name: "{injected}" })).toBe("User: {injected}");
+    });
+
+    it("does not resolve a placeholder smuggled in through another parameter's value", () => {
+      i18n.addMessages({ en: { msg: "User: {name}" } });
+
+      expect(i18n.t("msg", { name: "{injected}", injected: "owned" })).toBe("User: {injected}");
     });
   });
 
-  describe("Malformed Templates", () => {
+  describe("malformed templates", () => {
     it("should handle unclosed braces gracefully and warn", () => {
-      i18n.addTranslations({ en: { bad: "Hello {name" } });
+      i18n.addMessages({ en: { bad: "Hello {name" } });
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      // Parser returns best effort and warns about malformed template
+      // Best effort plus a warning; never a throw.
       expect(i18n.t("bad", { name: "World" })).toBe("Hello {name");
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unbalanced braces"));
-
-      warnSpy.mockRestore();
     });
 
-    it("should handle unexpected closing braces", () => {
-      i18n.addTranslations({ en: { bad: "Hello } name" } });
+    it("renders an unmatched closing brace literally and does not warn", () => {
+      i18n.addMessages({ en: { bad: "Hello } name" } });
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
       expect(i18n.t("bad")).toBe("Hello } name");
+      expect(warnSpy).not.toHaveBeenCalled();
     });
   });
 });

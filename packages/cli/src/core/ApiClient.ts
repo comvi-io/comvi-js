@@ -20,6 +20,8 @@ import type {
   ForceMode,
 } from "../types";
 import { wrapError, ErrorCodes, TypegenError } from "../utils/errors";
+import { isHttpUrl } from "./apiBaseUrl";
+import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
 export interface ApiClientOptions {
   apiKey: string;
@@ -51,8 +53,10 @@ export interface PushTranslationsOptions {
    */
   preloadedRemote?: TranslationsResponse;
   /**
-   * Called after each completed PUT, and once immediately if all work is
-   * skipped. Keep this callback lightweight because it runs on the push path.
+   * Called exactly once, after the bulk commit succeeds, with
+   * `completed === total` — the whole push is a single request, so there is no
+   * intermediate progress to report. `total` is 0 when the payload carries no
+   * translation values. A commit that fails reports nothing.
    */
   onProgress?: (progress: PushProgress) => void;
 }
@@ -76,6 +80,131 @@ interface BulkImportResponse {
     namespacesCreated: string[];
   };
   errors?: Array<{ key: string; namespace: string; message: string }>;
+}
+
+interface RequestJsonOptions {
+  /** Retry 429/5xx/network failures. Defaults to true; the commit POST opts out. */
+  retryTransient?: boolean;
+  /** Prefix of a non-2xx failure message, e.g. "Failed to fetch schema". */
+  failure: string;
+  /** Message for a 403; without it a 403 reports like any other failure. */
+  forbidden?: string;
+}
+
+/** Error bodies are read up to this many bytes; the rest is discarded. */
+const ERROR_BODY_LIMIT_BYTES = 64 * 1024;
+/** A platform message longer than this is cut, so one error stays one line. */
+const ERROR_MESSAGE_LIMIT_CHARS = 500;
+
+/**
+ * The error a non-2xx response that will not be retried turns into. The
+ * platform answers failures with `{ code, message, meta? }`; its `message` is
+ * the actionable part (which keys conflict, which locale is unknown), so it is
+ * read — under the caller's request timer — and appended to the status line.
+ * A body that is not that JSON shape falls back to the status line alone.
+ */
+async function httpError(response: Response, opts: RequestJsonOptions): Promise<TypegenError> {
+  if (response.status === 401) {
+    await discardBody(response);
+    return new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
+  }
+  if (response.status === 403 && opts.forbidden) {
+    await discardBody(response);
+    return new TypegenError(opts.forbidden, ErrorCodes.API_AUTH_FAILED);
+  }
+
+  const body = parseErrorBody(await readBoundedText(response));
+  const details: Record<string, unknown> = { status: response.status, ...body };
+  const statusLine = `${opts.failure}: ${response.status} ${response.statusText}`;
+  const message = body.message
+    ? `${statusLine}${body.code ? ` (${body.code})` : ""}: ${body.message}`
+    : statusLine;
+  return new TypegenError(message, ErrorCodes.API_FETCH_FAILED, undefined, details);
+}
+
+/**
+ * Releases a body the client will not read. The request timer stops when the
+ * attempt ends, so a server that keeps streaming would otherwise hold the
+ * socket open indefinitely.
+ */
+async function discardBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Already closed or errored: nothing left to release.
+  }
+}
+
+async function readBoundedText(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return typeof response.text === "function"
+      ? (await response.text()).slice(0, ERROR_BODY_LIMIT_BYTES)
+      : "";
+  }
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (size < ERROR_BODY_LIMIT_BYTES) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+    size += value.byteLength;
+  }
+  if (size >= ERROR_BODY_LIMIT_BYTES) {
+    await reader.cancel().catch(() => undefined);
+  }
+
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes.subarray(0, ERROR_BODY_LIMIT_BYTES));
+}
+
+function parseErrorBody(text: string): { code?: string; message?: string; meta?: unknown } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return {};
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return {};
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const result: { code?: string; message?: string; meta?: unknown } = {};
+  const message = oneLine(record.message);
+  if (message) {
+    result.message = message;
+  }
+  const code = oneLine(record.code);
+  if (code) {
+    result.code = code;
+  }
+  if (record.meta !== undefined) {
+    result.meta = record.meta;
+  }
+  return result;
+}
+
+/** A string field as one trimmed, bounded line; anything else is dropped. */
+function oneLine(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const line = value.replace(/[\p{Cc}\s]+/gu, " ").trim();
+  if (!line) {
+    return undefined;
+  }
+  return line.length > ERROR_MESSAGE_LIMIT_CHARS
+    ? `${line.slice(0, ERROR_MESSAGE_LIMIT_CHARS)}…`
+    : line;
 }
 
 const MAX_RETRIES = 2;
@@ -121,7 +250,6 @@ export class ApiClient {
   private projectInfoPromise?: Promise<ProjectInfo>;
 
   constructor(options: ApiClientOptions) {
-    // Validate API key
     if (!options.apiKey || typeof options.apiKey !== "string" || options.apiKey.trim() === "") {
       throw new TypegenError(
         "API key is required and must be a non-empty string",
@@ -129,7 +257,6 @@ export class ApiClient {
       );
     }
 
-    // Validate API base URL
     if (!options.apiBaseUrl || typeof options.apiBaseUrl !== "string") {
       throw new TypegenError(
         "API base URL is required and must be a string",
@@ -137,17 +264,13 @@ export class ApiClient {
       );
     }
 
-    // Validate URL format
-    try {
-      new URL(options.apiBaseUrl);
-    } catch {
+    if (!isHttpUrl(options.apiBaseUrl)) {
       throw new TypegenError(
         `Invalid API base URL: ${options.apiBaseUrl}`,
         ErrorCodes.INVALID_INPUT,
       );
     }
 
-    // Validate timeout if provided
     if (options.timeout !== undefined) {
       if (typeof options.timeout !== "number" || options.timeout <= 0) {
         throw new TypegenError("Timeout must be a positive number", ErrorCodes.INVALID_INPUT);
@@ -160,46 +283,56 @@ export class ApiClient {
   }
 
   /**
-   * Run a fetch with timeout and bounded retry.
-   * Retries 429, 5xx, and network errors only when `retryTransient` is set.
-   * Mutation requests opt out because a failed-after-send commit may already
-   * have been applied server-side.
+   * Fetch, check the status, and parse the JSON body under ONE timeout: the
+   * timer starts before `fetch` and is cleared only after the body is read, so
+   * a server that sends headers promptly and then stalls the body still times
+   * out. Retries 429, 5xx, and network errors only when `retryTransient` is
+   * set. Mutation requests opt out because a failed-after-send commit may
+   * already have been applied server-side. A timeout is never retried.
    */
-  private async request(
+  private async requestJson<T>(
     url: string,
     init: RequestInit,
-    opts: { retryTransient?: boolean } = {},
-  ): Promise<Response> {
+    opts: RequestJsonOptions,
+  ): Promise<T> {
     const retryTransient = opts.retryTransient ?? true;
     let attempt = 0;
 
     for (;;) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      let retryAfterMs: number | undefined;
 
-      let response: Response;
       try {
-        response = await fetch(url, { ...init, signal: controller.signal });
-      } catch (error) {
-        const isAbort = error instanceof Error && error.name === "AbortError";
-        if (retryTransient && !isAbort && attempt < MAX_RETRIES) {
-          attempt++;
-          await delay(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
-          continue;
+        let response: Response | undefined;
+        try {
+          response = await fetch(url, { ...init, signal: controller.signal });
+        } catch (error) {
+          const isAbort = error instanceof Error && error.name === "AbortError";
+          if (!(retryTransient && !isAbort && attempt < MAX_RETRIES)) {
+            throw error;
+          }
+          retryAfterMs = RETRY_BASE_DELAY_MS * 2 ** attempt;
         }
-        throw error;
+
+        if (response) {
+          if (response.ok) {
+            return (await response.json()) as T;
+          }
+
+          const retryable = retryTransient && (response.status === 429 || response.status >= 500);
+          if (!(retryable && attempt < MAX_RETRIES)) {
+            throw await httpError(response, opts);
+          }
+          retryAfterMs = retryDelayMs(response, attempt + 1);
+          await discardBody(response);
+        }
       } finally {
         clearTimeout(timeoutId);
       }
 
-      const retryable = retryTransient && (response.status === 429 || response.status >= 500);
-      if (retryable && attempt < MAX_RETRIES) {
-        attempt++;
-        await delay(retryDelayMs(response, attempt));
-        continue;
-      }
-
-      return response;
+      attempt++;
+      await delay(retryAfterMs ?? 0);
     }
   }
 
@@ -218,22 +351,11 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.project}`;
 
     try {
-      const response = await this.request(url, {
-        method: "GET",
-        headers: this.authHeaders(),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to validate API key: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      const projectInfo = (await response.json()) as ProjectInfo;
+      const projectInfo = await this.requestJson<ProjectInfo>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to validate API key" },
+      );
       this.projectInfo = projectInfo;
       return projectInfo;
     } catch (error) {
@@ -260,25 +382,11 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectSchema(project.id)}`;
 
     try {
-      const response = await this.request(url, {
-        method: "GET",
-        headers: this.authHeaders(),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        if (response.status === 403) {
-          throw new TypegenError("Access denied to this project", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to fetch schema: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      return (await response.json()) as ProjectSchema;
+      return await this.requestJson<ProjectSchema>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to fetch schema", forbidden: "Access denied to this project" },
+      );
     } catch (error) {
       if (error instanceof TypegenError) {
         throw error;
@@ -312,25 +420,12 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.translations}${queryString ? `?${queryString}` : ""}`;
 
     try {
-      const response = await this.request(url, {
-        method: "GET",
-        headers: this.authHeaders(),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        if (response.status === 403) {
-          throw new TypegenError("Access denied to this project", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to fetch translations: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      return normalizeTranslationsResponse((await response.json()) as ApiTranslationsResponse);
+      const body = await this.requestJson<ApiTranslationsResponse>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to fetch translations", forbidden: "Access denied to this project" },
+      );
+      return normalizeTranslationsResponse(body);
     } catch (error) {
       if (error instanceof TypegenError) {
         throw error;
@@ -355,25 +450,11 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectNamespaces(project.id)}`;
 
     try {
-      const response = await this.request(url, {
-        method: "GET",
-        headers: this.authHeaders(),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        if (response.status === 403) {
-          throw new TypegenError("Access denied to project namespaces", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to fetch namespaces: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      const namespaces = (await response.json()) as NamespaceInfo[];
+      const namespaces = await this.requestJson<NamespaceInfo[]>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to fetch namespaces", forbidden: "Access denied to project namespaces" },
+      );
       if (!Array.isArray(namespaces)) {
         throw new TypegenError(
           "Invalid namespaces response: expected an array",
@@ -446,7 +527,7 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectImportCommit(project.id)}`;
     try {
       // retryTransient: false — a commit that failed after send may already be applied
-      const response = await this.request(
+      const body = await this.requestJson<BulkImportResponse>(
         url,
         {
           method: "POST",
@@ -460,23 +541,12 @@ export class ApiClient {
             },
           }),
         },
-        { retryTransient: false },
+        {
+          retryTransient: false,
+          failure: "Failed to push translations",
+          forbidden: "Access denied to this project",
+        },
       );
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
-        }
-        if (response.status === 403) {
-          throw new TypegenError("Access denied to this project", ErrorCodes.API_AUTH_FAILED);
-        }
-        throw new TypegenError(
-          `Failed to push translations: ${response.status} ${response.statusText}`,
-          ErrorCodes.API_FETCH_FAILED,
-        );
-      }
-
-      const body = (await response.json()) as BulkImportResponse;
       if (!body.success) {
         const firstError = body.errors?.[0];
         throw new TypegenError(
@@ -552,7 +622,6 @@ export class ApiClient {
       return () => undefined;
     }
 
-    // Create EventSource with authorization
     const apiKey = this.apiKey;
     const eventSource = new EventSource(url, {
       fetch: (input, init) => {
@@ -581,17 +650,16 @@ export class ApiClient {
         })
         .catch((error) => {
           // Ignore malformed events (could be keep-alive comments)
-          console.error("[comvi] Failed to process SSE event:", error);
+          console.error("[@comvi/cli] Failed to process SSE event:", error);
         });
     };
 
     // Handle errors (auto-reconnects by default)
     eventSource.onerror = () => {
       // On reconnect, server sends current schema immediately
-      console.warn("[comvi] Schema update stream interrupted; reconnecting...");
+      console.warn("[@comvi/cli] Schema update stream interrupted; reconnecting...");
     };
 
-    // Return cleanup function
     return () => {
       eventSource.close();
       if (this.eventSource === eventSource) {
@@ -626,13 +694,19 @@ export class ApiClient {
 }
 
 function normalizeTranslationsResponse(response: ApiTranslationsResponse): TranslationsResponse {
-  const translations: TranslationData = {};
+  // All three levels are keyed by names the CLI does not control — the server
+  // chose the locales and namespaces, the project chose the keys — so all
+  // three are null-prototype maps, and `Object.entries` reads own keys only.
+  // The key level matters as much as the other two: a local key named
+  // `constructor` compared against a plain remote catalog found an inherited
+  // function and counted as a conflict against a key the remote never had.
+  const translations: TranslationData = emptyDictionary();
   const namespaceNames = Object.keys(response.namespaces);
 
   for (const [namespace, locales] of Object.entries(response.namespaces)) {
     for (const [locale, values] of Object.entries(locales)) {
-      translations[locale] ??= {};
-      translations[locale][namespace] = values;
+      translations[locale] ??= emptyDictionary();
+      translations[locale][namespace] = dictionaryFrom(values);
     }
   }
 
@@ -648,8 +722,12 @@ function countConflicts(local: TranslationData, remote: TranslationData): number
 
   for (const [locale, namespaces] of Object.entries(local)) {
     for (const [namespace, keys] of Object.entries(namespaces)) {
+      const remoteKeys = ownValue(ownValue(remote, locale), namespace);
+
       for (const [key, value] of Object.entries(keys)) {
-        const remoteValue = remote[locale]?.[namespace]?.[key];
+        // Own key only: `remoteKeys["toString"]` on a plain object answers with
+        // an inherited function for a key the remote catalog does not have.
+        const remoteValue = ownValue(remoteKeys, key);
         if (remoteValue !== undefined && remoteValue !== value) {
           conflicts++;
         }
@@ -658,6 +736,11 @@ function countConflicts(local: TranslationData, remote: TranslationData): number
   }
 
   return conflicts;
+}
+
+/** `map[key]`, but only when `key` is the map's own — never an inherited member. */
+function ownValue<T>(map: Record<string, T> | undefined, key: string): T | undefined {
+  return map && hasOwnKey(map, key) ? map[key] : undefined;
 }
 
 function countTranslationValues(translations: TranslationData): number {
@@ -675,11 +758,13 @@ function countTranslationValues(translations: TranslationData): number {
 function toNamespaceImportData(
   translations: TranslationData,
 ): Record<string, Record<string, Record<string, string>>> {
-  const namespaces: Record<string, Record<string, Record<string, string>>> = {};
+  // Same reason as `normalizeTranslationsResponse`: the namespace names come
+  // from the project's own directory layout, not from this code.
+  const namespaces: Record<string, Record<string, Record<string, string>>> = emptyDictionary();
 
   for (const [locale, namespaceMap] of Object.entries(translations)) {
     for (const [namespace, keys] of Object.entries(namespaceMap)) {
-      namespaces[namespace] ??= {};
+      namespaces[namespace] ??= emptyDictionary();
       namespaces[namespace][locale] = keys;
     }
   }

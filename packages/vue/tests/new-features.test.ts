@@ -1,26 +1,27 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n, useI18n } from "../src";
-import { nextTick, isRef, effectScope } from "vue";
+import { createI18n as createCore } from "@comvi/core";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, createI18n, createI18nFromCore, I18N_INJECTION_KEY, useI18n } from "../src";
+import type { VueI18n } from "../src";
+import { nextTick, isRef, effectScope, inject } from "vue";
 import { mount } from "@vue/test-utils";
 
 describe("New Features", () => {
-  describe("Cached translationCache computed", () => {
+  describe("Cached messagesCache computed", () => {
     it("should update cache ref when translations are added", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      const cache = i18n.translationCache;
+      const cache = i18n.messagesCache;
 
-      // Initially no translations loaded
       expect(cache.value.size).toBe(0);
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello", goodbye: "Bye" },
       });
 
       await nextTick();
 
-      // Cache should contain exactly the translations we added
       expect(cache.value.size).toBe(1);
       expect(cache.value.has("en:common")).toBe(true);
       const enCommon = cache.value.get("en:common");
@@ -31,9 +32,9 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      const cache = i18n.translationCache;
+      const cache = i18n.messagesCache;
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -50,10 +51,6 @@ describe("New Features", () => {
     it("should expose on() and fire callback when event is triggered", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
-
-      i18n.addTranslations({
-        en: { hello: "Hello" },
-      });
 
       const spy = vi.fn();
       const unsub = i18n.on("missingKey", spy);
@@ -74,7 +71,7 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
@@ -85,7 +82,6 @@ describe("New Features", () => {
       i18n.locale = "fr";
       await nextTick();
 
-      // Wait for async setLocale to complete
       await vi.waitFor(() => {
         expect(spy).toHaveBeenCalledWith({ from: "en", to: "fr" });
       });
@@ -97,7 +93,7 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
         de: { hello: "Hallo" },
@@ -113,47 +109,35 @@ describe("New Features", () => {
         expect(spy).toHaveBeenCalledTimes(1);
       });
 
-      // Unsubscribe
       unsubscribe();
 
-      // Change locale again
+      // A second, still-live subscription is the only proof that the
+      // localeChanged event has actually been dispatched; the ref settles on a
+      // different code path and can race the event.
+      const stillSubscribed = vi.fn();
+      i18n.on("localeChanged", stillSubscribed);
+
       i18n.locale = "de";
       await vi.waitFor(() => {
-        expect(i18n.locale.value).toBe("de");
+        expect(stillSubscribed).toHaveBeenCalledWith({ from: "fr", to: "de" });
       });
 
-      // Should still be 1 (not called again)
       expect(spy).toHaveBeenCalledTimes(1);
-    });
-
-    it("should subscribe to missingKey event", async () => {
-      const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      await i18n.init();
-
-      const spy = vi.fn();
-      i18n.on("missingKey", spy);
-
-      // Access missing key
-      i18n.t("nonexistent.key");
-
-      expect(spy).toHaveBeenCalledWith({
-        key: "nonexistent.key",
-        locale: "en",
-        namespace: "common",
-      });
     });
 
     it("should subscribe to namespaceLoaded event", async () => {
       const loader = vi.fn(async () => ({ title: "Title" }));
 
-      const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.use((i18n) => i18n.registerLoader(loader));
+      const i18n = createI18nFromCore(
+        createCore({ locale: "en", defaultNs: "common" }).use(attachLoader),
+      );
+      i18n.core.registerLoader(loader);
       await i18n.init();
 
       const spy = vi.fn();
       i18n.on("namespaceLoaded", spy);
 
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
 
       expect(spy).toHaveBeenCalledWith({
         namespace: "admin",
@@ -164,15 +148,13 @@ describe("New Features", () => {
 
   describe("SSR support (ssrLocale option)", () => {
     it("should use ssrLocale for initial locale state to prevent hydration mismatch", () => {
-      // When the server detects a locale (e.g., "fr"), ssrLocale ensures
-      // the client-side Vue ref matches the server-rendered HTML, preventing
-      // hydration warnings like "Text content does not match server-rendered HTML"
+      // `ssrLocale` makes the client-side ref match the server-rendered HTML,
+      // which is what keeps hydration from warning about mismatched text.
       const i18n = createI18n({
         locale: "en",
         ssrLocale: "fr",
       });
 
-      // Vue ref should have ssrLocale value
       expect(i18n.locale.value).toBe("fr");
     });
 
@@ -191,18 +173,17 @@ describe("New Features", () => {
         defaultNs: "common",
       });
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
 
-      // SSR locale should drive translations immediately (before init)
+      // `ssrLocale` drives translations before init, not after.
       expect(i18n.t("hello")).toBe("Bonjour");
       expect(i18n.locale.value).toBe("fr");
 
       await i18n.init();
 
-      // Without a detector override, ssrLocale remains the active locale
       expect(i18n.locale.value).toBe("fr");
       expect(i18n.t("hello")).toBe("Bonjour");
     });
@@ -214,16 +195,14 @@ describe("New Features", () => {
         defaultNs: "common",
       });
 
-      i18n.addTranslations({
+      i18n.addMessages({
         fr: { hello: "Bonjour" },
       });
 
-      // Before init, ssrLocale matches
       expect(i18n.locale.value).toBe("fr");
 
       await i18n.init();
 
-      // After init, locale should remain "fr" since ssrLocale matches core locale
       expect(i18n.locale.value).toBe("fr");
     });
   });
@@ -231,7 +210,7 @@ describe("New Features", () => {
   describe("hasTranslationNow / hasLocaleNow (imperative, non-reactive)", () => {
     it("hasTranslationNow returns a plain boolean (not a ref)", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await i18n.init();
 
       const result = i18n.hasTranslationNow("greeting");
@@ -241,7 +220,7 @@ describe("New Features", () => {
 
     it("hasTranslationNow returns true for an existing key and false for a missing key", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await i18n.init();
 
       expect(i18n.hasTranslationNow("greeting")).toBe(true);
@@ -250,7 +229,7 @@ describe("New Features", () => {
 
     it("hasTranslationNow result matches reactive hasTranslation().value", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await i18n.init();
 
       const scope = effectScope();
@@ -262,32 +241,31 @@ describe("New Features", () => {
       });
       scope.stop();
 
-      expect(i18n.hasTranslationNow("greeting")).toBe(reactiveHasGreeting);
-      expect(i18n.hasTranslationNow("missing.key")).toBe(reactiveHasMissing);
+      expect(reactiveHasGreeting).toBe(true);
+      expect(reactiveHasMissing).toBe(false);
+      expect(i18n.hasTranslationNow("greeting")).toBe(true);
+      expect(i18n.hasTranslationNow("missing.key")).toBe(false);
     });
 
     it("hasTranslationNow can be called in a loop outside any effectScope without throwing", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { key0: "v0", key1: "v1", key2: "v2" } });
+      i18n.addMessages({ en: { key0: "v0", key1: "v1", key2: "v2" } });
       await i18n.init();
 
       const results: boolean[] = [];
       expect(() => {
-        for (let i = 0; i < 50; i++) {
-          results.push(i18n.hasTranslationNow(`key${i % 3}`));
+        for (const key of ["key0", "key1", "key2"]) {
+          results.push(i18n.hasTranslationNow(key));
         }
       }).not.toThrow();
 
-      // All returned values are plain booleans
-      for (const r of results) {
-        expect(typeof r).toBe("boolean");
-        expect(isRef(r)).toBe(false);
-      }
+      expect(results).toEqual([true, true, true]);
+      expect(results.map(isRef)).toEqual([false, false, false]);
     });
 
     it("hasLocaleNow returns a plain boolean (not a ref)", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+      i18n.addMessages({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
       await i18n.init();
 
       const result = i18n.hasLocaleNow("en");
@@ -297,7 +275,7 @@ describe("New Features", () => {
 
     it("hasLocaleNow returns true for a loaded locale and false for an absent one", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { hello: "Hello" } });
+      i18n.addMessages({ en: { hello: "Hello" } });
       await i18n.init();
 
       expect(i18n.hasLocaleNow("en")).toBe(true);
@@ -306,7 +284,7 @@ describe("New Features", () => {
 
     it("hasLocaleNow result matches reactive hasLocale().value", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { hello: "Hello" } });
+      i18n.addMessages({ en: { hello: "Hello" } });
       await i18n.init();
 
       const scope = effectScope();
@@ -318,13 +296,15 @@ describe("New Features", () => {
       });
       scope.stop();
 
-      expect(i18n.hasLocaleNow("en")).toBe(reactiveHasEn);
-      expect(i18n.hasLocaleNow("fr")).toBe(reactiveHasFr);
+      expect(reactiveHasEn).toBe(true);
+      expect(reactiveHasFr).toBe(false);
+      expect(i18n.hasLocaleNow("en")).toBe(true);
+      expect(i18n.hasLocaleNow("fr")).toBe(false);
     });
 
     it("hasTranslation() returns a ComputedRef while hasTranslationNow() returns a primitive", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { greeting: "Hello" } });
+      i18n.addMessages({ en: { greeting: "Hello" } });
       await i18n.init();
 
       const scope = effectScope();
@@ -341,36 +321,47 @@ describe("New Features", () => {
       expect(isRef(imperativeResult)).toBe(false);
     });
 
-    it("hasTranslationNow and hasLocaleNow are reachable via useI18n()", async () => {
+    // `hasTranslation` / `hasLocale` ARE the non-reactive form in react, solid
+    // and svelte, so `useI18n()` carries no second spelling here: not in its
+    // type and not at runtime. The pair is the `VueI18n` class's, reachable through the
+    // injection key.
+    it("useI18n() does not return hasTranslationNow / hasLocaleNow, the class does", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ en: { hello: "Hello" } });
+      i18n.addMessages({ en: { hello: "Hello" } });
       await i18n.init();
 
-      let hasTranslationNowFn: ((key: string) => boolean) | undefined;
-      let hasLocaleNowFn: ((locale: string) => boolean) | undefined;
+      let composable: Record<string, unknown> | undefined;
+      let injected: VueI18n | undefined;
 
       const C = {
         setup() {
-          const composable = useI18n();
-          hasTranslationNowFn = composable.hasTranslationNow;
-          hasLocaleNowFn = composable.hasLocaleNow;
+          composable = useI18n() as unknown as Record<string, unknown>;
+          injected = inject(I18N_INJECTION_KEY) as unknown as VueI18n;
           return () => null;
         },
       };
 
       mount(C, { global: { plugins: [i18n] } });
 
-      expect(typeof hasTranslationNowFn).toBe("function");
-      expect(typeof hasLocaleNowFn).toBe("function");
-      expect(hasTranslationNowFn!("hello")).toBe(true);
-      expect(hasTranslationNowFn!("missing")).toBe(false);
-      expect(hasLocaleNowFn!("en")).toBe(true);
-      expect(hasLocaleNowFn!("fr")).toBe(false);
+      // Absent as KEYS, not merely undefined: a destructure finds nothing and
+      // `"hasLocaleNow" in bag` is false for anything walking the bag.
+      expect(Object.keys(composable!)).not.toContain("hasTranslationNow");
+      expect(Object.keys(composable!)).not.toContain("hasLocaleNow");
+      expect("hasTranslationNow" in composable!).toBe(false);
+      expect("hasLocaleNow" in composable!).toBe(false);
+
+      // Still reachable on the instance the key injects.
+      expect(typeof injected!.hasTranslationNow).toBe("function");
+      expect(typeof injected!.hasLocaleNow).toBe("function");
+      expect(injected!.hasTranslationNow("hello")).toBe(true);
+      expect(injected!.hasTranslationNow("missing")).toBe(false);
+      expect(injected!.hasLocaleNow("en")).toBe(true);
+      expect(injected!.hasLocaleNow("fr")).toBe(false);
     });
 
     it("hasTranslationNow respects locale and namespace opts", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ "fr:common": { bonjour: "Bonjour" } });
+      i18n.addMessages({ "fr:common": { bonjour: "Bonjour" } });
       await i18n.init();
 
       expect(i18n.hasTranslationNow("bonjour", { locale: "fr", namespace: "common" })).toBe(true);
@@ -379,7 +370,7 @@ describe("New Features", () => {
 
     it("hasLocaleNow respects optional namespace parameter", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.addTranslations({ "fr:admin": { title: "Admin" } });
+      i18n.addMessages({ "fr:admin": { title: "Admin" } });
       await i18n.init();
 
       expect(i18n.hasLocaleNow("fr", "admin")).toBe(true);
@@ -390,9 +381,11 @@ describe("New Features", () => {
   describe("destroy() cleanup", () => {
     it("should cleanup plugin resources on destroy", async () => {
       const cleanupSpy = vi.fn();
-      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      const i18n = createI18nFromCore(
+        createCore({ locale: "en", defaultNs: "common" }).use(attachPlugins),
+      );
 
-      i18n.use(() => () => cleanupSpy());
+      i18n.core.registerPlugin(() => () => cleanupSpy());
       await i18n.init();
 
       i18n.destroy();
@@ -404,8 +397,8 @@ describe("New Features", () => {
 
     it("should be safe to call destroy multiple times", async () => {
       const cleanupSpy = vi.fn();
-      const i18n = createI18n({ locale: "en" });
-      i18n.use(() => () => cleanupSpy());
+      const i18n = createI18nFromCore(createCore({ locale: "en" }).use(attachPlugins));
+      i18n.core.registerPlugin(() => () => cleanupSpy());
       await i18n.init();
 
       i18n.destroy();
@@ -421,26 +414,21 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       });
 
-      // Record the locale ref value before destroy
       const localeRef = i18n.locale;
       expect(localeRef.value).toBe("en");
 
-      // Destroy should unsubscribe all internal event listeners
       i18n.destroy();
 
-      // Attempt to change the locale after destroy
-      // The core still processes it, but the Vue ref should NOT update
-      // because the internal "localeChanged" listener was removed
-      await i18n.setLocale("fr").catch(() => {});
+      // The core still processes the change; the ref must not follow it,
+      // because destroy() removed the internal "localeChanged" listener.
+      await expect(i18n.setLocale("fr")).resolves.toBeUndefined();
       await nextTick();
 
-      // The locale ref should remain "en" since the internal
-      // event subscription was cleaned up by destroy
       expect(localeRef.value).toBe("en");
     });
   });

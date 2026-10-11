@@ -1,6 +1,3 @@
-/**
- * Mock Nuxt components for testing
- */
 import { defineComponent, h } from "vue";
 
 export const NuxtLink = defineComponent({

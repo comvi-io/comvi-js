@@ -1,13 +1,23 @@
-/**
- * Mock Nuxt app composables for testing
- */
-import { ref, reactive, computed } from "vue";
+import { ref, reactive, computed, customRef } from "vue";
+import type {
+  LocaleCookieConfig,
+  LocaleDetectionConfig,
+  NuxtI18nPrivateRuntimeConfig,
+  NuxtI18nRuntimeConfig,
+} from "../../src/types";
+import { runtimeLocaleKeys } from "./locale-options";
 
-// Mock state store
 const stateStore = new Map<string, any>();
 
-// Mock runtime config
-const defaultRuntimeConfig = {
+/**
+ * Typed as the module's own runtime-config shape, not inferred from the literal:
+ * tests reassign `localePrefix`, `localeCookie` and `localeDetection` across
+ * their full unions, which a literal-inferred type would pin to these defaults.
+ */
+const defaultRuntimeConfig: {
+  public: { comvi: NuxtI18nRuntimeConfig["comvi"] };
+  comvi: NuxtI18nPrivateRuntimeConfig["comvi"];
+} = {
   public: {
     comvi: {
       locales: ["en", "de", "uk"],
@@ -17,20 +27,11 @@ const defaultRuntimeConfig = {
         uk: { code: "uk", name: "Українська" },
       },
       defaultLocale: "en",
-      localePrefix: "as-needed" as const,
-      cookieName: "i18n_locale",
-      cdnUrl: "https://cdn.example.com",
-      apiBaseUrl: "https://api.example.com",
+      localePrefix: "as-needed",
       defaultNs: "default",
       fallbackLocale: "en",
       basicHtmlTags: ["strong", "em"],
-      detectBrowserLanguage: {
-        useCookie: true,
-        cookieName: "i18n_locale",
-        cookieMaxAge: 31536000,
-        redirectOnFirstVisit: true,
-        fallbackLocale: "en",
-      },
+      ...runtimeLocaleKeys(),
     },
   },
   comvi: {
@@ -41,13 +42,32 @@ const defaultRuntimeConfig = {
 const cloneRuntimeConfig = () => structuredClone(defaultRuntimeConfig);
 let mockRuntimeConfig = cloneRuntimeConfig();
 
-// Mock request headers
 let mockRequestHeaders: Record<string, string> = {};
 
-// Mock cookies
 const cookieStore = new Map<string, ReturnType<typeof ref>>();
+const cookieOptions = new Map<string, Record<string, unknown>>();
+const cookieWrites = new Map<string, Array<string | undefined>>();
 
-// Mock route state
+/**
+ * A Nuxt cookie ref records every assignment, not only the ones that change the
+ * value: writing an unchanged cookie still re-emits Set-Cookie.
+ */
+function createCookieRef(name: string) {
+  let current: string | undefined;
+  cookieWrites.set(name, []);
+  return customRef<string | undefined>((track, trigger) => ({
+    get() {
+      track();
+      return current;
+    },
+    set(next) {
+      cookieWrites.get(name)!.push(next);
+      current = next;
+      trigger();
+    },
+  }));
+}
+
 const defaultRouteState = {
   path: "/",
   params: {},
@@ -61,7 +81,6 @@ const defaultRouteState = {
 };
 const routeState = reactive({ ...defaultRouteState });
 
-// Mock Nuxt app
 const mockNuxtApp = {
   $i18n: null as any,
   provide: (key: string, value: any) => {
@@ -91,11 +110,25 @@ export function useRuntimeConfig() {
   return mockRuntimeConfig;
 }
 
-export function useCookie(name: string, _options?: any) {
+export function useCookie(name: string, options?: any) {
+  // Only a real caller passes options; `setMockCookie` must not clear them.
+  if (options !== undefined) {
+    cookieOptions.set(name, options);
+  }
   if (!cookieStore.has(name)) {
-    cookieStore.set(name, ref<string | undefined>(undefined));
+    cookieStore.set(name, createCookieRef(name));
   }
   return cookieStore.get(name)!;
+}
+
+/** Every assignment to the cookie, in order — including no-op rewrites. */
+export function getMockCookieWrites(name: string) {
+  return cookieWrites.get(name) ?? [];
+}
+
+/** The attributes the code under test asked Nuxt to write the cookie with. */
+export function getMockCookieOptions(name: string) {
+  return cookieOptions.get(name);
 }
 
 export function useRoute() {
@@ -162,19 +195,26 @@ export function useRequestURL() {
   return new URL("https://example.com/");
 }
 
+/**
+ * As Nuxt's own (`app/composables/ssr.js`): the request's headers are matched
+ * case-insensitively, and the returned object is keyed in LOWER case, whatever
+ * case the caller asked in.
+ */
 export function useRequestHeaders(keys?: string[]) {
-  if (!keys) return mockRequestHeaders;
+  const headers = Object.fromEntries(
+    Object.entries(mockRequestHeaders).map(([name, value]) => [name.toLowerCase(), value]),
+  );
+  if (!keys) return headers;
   const result: Record<string, string> = {};
-  for (const key of keys) {
-    if (mockRequestHeaders[key]) {
-      result[key] = mockRequestHeaders[key];
+  for (const key of keys.map((name) => name.toLowerCase())) {
+    if (headers[key]) {
+      result[key] = headers[key];
     }
   }
   return result;
 }
 
 export function useHead(config: any) {
-  // Mock useHead - just returns the config
   return computed(() => config.value || config);
 }
 
@@ -203,23 +243,32 @@ export function setMockRoute(partial: Partial<typeof routeState>) {
   Object.assign(routeState, partial);
 }
 
-export function setMockRuntimeConfig(partial: Partial<typeof mockRuntimeConfig>) {
-  mockRuntimeConfig = { ...mockRuntimeConfig, ...partial };
+/** What the module writes into runtime config for these options. */
+export function setLocaleOptions(
+  settings: {
+    localeCookie?: LocaleCookieConfig;
+    localeDetection?: false | LocaleDetectionConfig;
+  } = {},
+) {
+  Object.assign(mockRuntimeConfig.public.comvi, runtimeLocaleKeys(settings));
 }
 
-export function resetRuntimeConfig() {
+function resetRuntimeConfig() {
   mockRuntimeConfig = cloneRuntimeConfig();
 }
 
-// Reset mocks between tests
 export function resetMocks() {
   stateStore.clear();
   mockNuxtApp.$i18n = null;
   cookieStore.clear();
+  cookieOptions.clear();
+  cookieWrites.clear();
   mockRequestHeaders = {};
   routerResolveOverride = null;
   resetRuntimeConfig();
   Object.assign(routeState, defaultRouteState);
 }
 
-export { mockRuntimeConfig, mockNuxtApp };
+// Live binding: `resetRuntimeConfig` reassigns it, which is what makes
+// `resetMocks()` reach importers.
+export { mockRuntimeConfig };

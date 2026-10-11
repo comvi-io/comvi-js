@@ -1,8 +1,10 @@
-import type { I18nPlugin, I18nPluginFactory } from "@comvi/core";
+import type { I18n, I18nPlugin, I18nPluginFactory, I18nPluginApi } from "@comvi/core";
+import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 
-/**
- * Detection source types
- */
+declare const __DEV__: boolean | undefined;
+
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
 export type DetectorType =
   | "querystring"
   | "localStorage"
@@ -10,14 +12,9 @@ export type DetectorType =
   | "cookie"
   | "navigator";
 
-/**
- * Cache target types (subset of detector types that support writing)
- */
+/** The detector types that can also be written to. */
 export type CacheType = "localStorage" | "sessionStorage" | "cookie";
 
-/**
- * Cookie options for setting cookies
- */
 export interface CookieOptions {
   path?: string;
   domain?: string;
@@ -25,9 +22,6 @@ export interface CookieOptions {
   secure?: boolean;
 }
 
-/**
- * Options for LocaleDetector plugin
- */
 export interface LocaleDetectorOptions {
   /**
    * Order of detection methods to try (stops at first match)
@@ -36,7 +30,12 @@ export interface LocaleDetectorOptions {
   order?: DetectorType[];
 
   /**
-   * Where to cache the detected/changed locale
+   * Where to cache the detected/changed locale.
+   *
+   * A locale detected during `init()` is written once that init has succeeded;
+   * a later `setLocale()` is written at once. When `init()` fails because the
+   * locale read from the cache could not be loaded, that cached value is
+   * removed, so the next visit detects afresh instead of failing the same way.
    * @default ['localStorage']
    */
   caches?: CacheType[];
@@ -74,9 +73,6 @@ export interface LocaleDetectorOptions {
    */
   lookupSessionStorage?: string;
 
-  /**
-   * Cookie options
-   */
   cookieOptions?: CookieOptions;
 
   /**
@@ -98,12 +94,13 @@ export interface LocaleDetectorOptions {
    *   2. Base language match: "de-DE" → "de"
    *   3. Regional variant match: "de" → "de-DE" (if only regional variant is supported)
    *
-   * When not provided, the detected locale tag is truncated to the base language
-   * for backwards compatibility (e.g., "de-DE" → "de").
+   * Without `supportedLocales` or `convertDetectedLocale`, every detected and
+   * cached tag is shortened to its base language; every visit resolves `pt-BR`
+   * to `pt`. An app with a regional locale such as `pt-BR` must list it here.
    *
    * @example
    * ```typescript
-   * LocaleDetector({
+   * localeDetectorPlugin({
    *   supportedLocales: ['en', 'de', 'pt-BR', 'pt-PT', 'zh-Hans', 'zh-Hant'],
    * })
    * ```
@@ -117,7 +114,7 @@ export interface LocaleDetectorOptions {
    *
    * @example
    * ```typescript
-   * LocaleDetector({
+   * localeDetectorPlugin({
    *   convertDetectedLocale: (lng) => lng.replace('_', '-'),
    * })
    * ```
@@ -131,32 +128,27 @@ interface DetectionResult {
 }
 
 /**
- * Locale Detector Plugin
- *
- * Unified plugin for locale detection and persistence.
- * Combines detection from multiple sources with automatic caching.
- *
- * Features:
- * - Detects locale from: querystring, localStorage, sessionStorage, cookie, navigator
- * - Auto-caches detected locale to: localStorage, sessionStorage, cookie
- * - Configurable detection order
- * - SSR-safe with graceful fallbacks
+ * Locale detection plus persistence, for an i18n instance that already has the
+ * plugin capability; `localeDetector()` composes that capability for you. Every source and cache target is SSR-safe: a missing `window`
+ * or `document` falls through instead of throwing.
  *
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/core';
- * import { LocaleDetector } from '@comvi/plugin-locale-detector';
+ * import { localeDetector } from '@comvi/plugin-locale-detector';
  *
- * const i18n = createI18n({ locale: 'en' })
- *   .use(LocaleDetector({
+ * const i18n = createI18n({ locale: 'en' }).use(
+ *   localeDetector({
+ *     supportedLocales: ['en', 'de', 'pt-BR'],
  *     order: ['querystring', 'localStorage', 'cookie', 'navigator'],
  *     caches: ['localStorage', 'cookie'],
  *     lookupQuerystring: 'lang',
- *     cookieMaxAge: 365 * 24 * 60 * 60 // 1 year
- *   }));
+ *     cookieMaxAge: 365 * 24 * 60 * 60, // 1 year
+ *   }),
+ * );
  * ```
  */
-export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
+export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
   options = {},
 ): I18nPlugin => {
   const {
@@ -168,7 +160,7 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
     lookupLocalStorage = "i18n_locale",
     lookupSessionStorage = "i18n_locale",
     cookieOptions = {},
-    cookieMaxAge = 365 * 24 * 60 * 60, // 1 year
+    cookieMaxAge = 365 * 24 * 60 * 60,
   } = options;
 
   const supportedLocales = options.supportedLocales;
@@ -183,19 +175,49 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
   };
 
   const cfg = {
-    ck: lookupCookie,
-    ls: lookupLocalStorage,
-    ss: lookupSessionStorage,
-    co: cookieOptions,
-    ma: cookieMaxAge,
+    cookieKey: lookupCookie,
+    localStorageKey: lookupLocalStorage,
+    sessionStorageKey: lookupSessionStorage,
+    cookieOptions,
+    maxAge: cookieMaxAge,
   };
 
   return (i18n) => {
+    // Development only: `IS_DEV` is `false` in the default artifact, so the
+    // check and its text fold out of it.
+    if (IS_DEV && !supportedLocales && !convertDetectedLocale) {
+      console.warn(
+        "[@comvi/plugin-locale-detector] localeDetector() was given no supportedLocales, so any " +
+          "language the browser reports becomes the active locale and is cached, including one " +
+          "this app has no translations for. Pass the locales you ship: " +
+          'localeDetector({ supportedLocales: ["en", "de"] }).',
+      );
+    }
+
     const fallbackLocale = options.fallbackLocale ?? i18n.locale;
-    // `pendingInitResult` only bridges a single `detect()` call to the immediately
-    // following `localeChanged` event emitted by core during `init()`.
-    // It exists so we can suppress cache writes for fallback-only resolutions.
+    // Bridges a single `detect()` call to the `localeChanged` event core emits
+    // right after it, so a fallback-only resolution suppresses its cache write.
     let pendingInitResult: DetectionResult | null = null;
+    // A locale detected during `init()` is persisted once that init has
+    // succeeded, never before: written earlier, a language the app has no
+    // catalog for was cached ahead of the first load and failed every later
+    // visit the same way. Held here until `initialized`.
+    let deferredWrite: string | null = null;
+    // The raw value this init read from the cache, and whether a load for the
+    // locale it resolved to has failed since: together they say the cached
+    // value is what broke the init, which is the one case it is removed in.
+    let cachedRaw: string | null = null;
+    let cachedLocale: string | null = null;
+    let cachedLoadFailed = false;
+
+    /** Persist now, or once the init in progress has succeeded. */
+    const persist = (locale: string): void => {
+      if (i18n.isInitializing) {
+        deferredWrite = locale;
+      } else {
+        writeCaches(locale, caches, cfg);
+      }
+    };
 
     const process = (raw: string): DetectionResult | null => {
       if (convertDetectedLocale) {
@@ -228,17 +250,24 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
               firstCache === "sessionStorage" ? lookupSessionStorage : lookupLocalStorage,
             );
 
-      return raw && isValid(raw) ? process(raw) : null;
+      const result = raw && isValid(raw) ? process(raw) : null;
+      if (result && i18n.isInitializing) {
+        cachedRaw = raw;
+        cachedLocale = result.locale;
+        cachedLoadFailed = false;
+      }
+      return result;
     };
 
     const handleCurrentLocaleMatch = (result: DetectionResult): void => {
       if (result.cache && result.locale === i18n.locale) {
-        writeCaches(result.locale, caches, cfg);
+        persist(result.locale);
         pendingInitResult = null;
       }
     };
 
     const detect = (): string => {
+      deferredWrite = cachedRaw = cachedLocale = null;
       const cached = cacheFirst ? detectFromCache() : null;
       if (cached) {
         pendingInitResult = cached;
@@ -260,10 +289,24 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
         }
       }
 
-      pendingInitResult = { locale: fallbackLocale, cache: false };
-      if (fallbackLocale === i18n.locale) {
-        pendingInitResult = null;
-      }
+      // The fallback marker exists to bridge THIS `detect()` call to the one
+      // `localeChanged` event `i18n.init()` emits right after it (see the
+      // `pendingInitResult` declaration above). Core calls the registered
+      // detector from exactly one place — inside `init()`'s `_beforeInit()`
+      // step, which is bounded on both sides by `isInitializing` flipping
+      // true (just before) and false (once `init()` fully settles, well
+      // after `_beforeInit()` returns). `isInitializing` is therefore true
+      // for core's own auto-apply call and false for every other caller,
+      // BEFORE init() has ever run as much as AFTER it has finished — so a
+      // manual re-consultation (e.g. a consumer calling
+      // `getLanguageDetector()` directly, whether that happens before
+      // `init()` was ever called or long after it settled) must never arm a
+      // marker that could later swallow an unrelated, deliberate choice of
+      // this same locale.
+      pendingInitResult =
+        !i18n.isInitializing || fallbackLocale === i18n.locale
+          ? null
+          : { locale: fallbackLocale, cache: false };
 
       return fallbackLocale;
     };
@@ -275,20 +318,77 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
         const initResult = pendingInitResult;
         pendingInitResult = null;
 
-        if (initResult.locale === locale && !initResult.cache) {
+        if (initResult.locale === locale) {
+          // The init-time detection being applied; a deliberate switch made
+          // while init is still running is not this branch and is written now.
+          if (initResult.cache) persist(locale);
           return;
         }
       }
 
+      // A deliberate switch supersedes a detection still waiting for
+      // `initialized`, which would otherwise be written over it.
+      deferredWrite = null;
       writeCaches(locale, caches, cfg);
     });
 
+    const unsubInitialized = i18n.on("initialized", () => {
+      if (deferredWrite) writeCaches(deferredWrite, caches, cfg);
+      deferredWrite = cachedRaw = null;
+    });
+
+    const unsubLoadError = i18n.on("loadError", ({ locale }) => {
+      if (locale === cachedLocale) cachedLoadFailed = true;
+    });
+
     return () => {
-      pendingInitResult = null;
+      // Reached with `cachedRaw` still set only when the init that read it
+      // never succeeded. If its locale also failed to load, the cached value
+      // is what keeps breaking the app, so it goes; a value the app has
+      // written over it in the meantime is not this one and stays.
+      if (cachedRaw && cachedLoadFailed) removeCaches(cachedRaw, caches, cfg);
+      pendingInitResult = deferredWrite = cachedRaw = null;
       unsub();
+      unsubInitialized();
+      unsubLoadError();
     };
   };
 };
+
+/** The i18n instance surface `localeDetector` guarantees on the way out. */
+export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18nPluginApi;
+
+/**
+ * The locale detector as a `.use(…)` installer.
+ *
+ * ```ts
+ * const i18n = createI18n({ locale: "en" }).use(
+ *   localeDetector({ supportedLocales: ["en", "uk", "de"], caches: ["cookie"] }),
+ * );
+ * await i18n.init();
+ * ```
+ *
+ * The attach is idempotent: composing onto an i18n instance that already has the plugin
+ * capability keeps every plugin already registered, and composing twice
+ * registers the plugin twice, exactly as two `use` calls would. No loader
+ * capability is composed — the detector hands core a locale, and core loads
+ * namespaces through whatever loading the i18n instance already has.
+ *
+ * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
+ * not re-implemented here; they keep running inside `PluginI18nInstance`, because
+ * the last thing this installer does is call `registerPlugin`.
+ *
+ * `registerPlugin(localeDetector(…))` is a type error, and at runtime fails at
+ * `init()` on `ensureInstallable` before the plugin capability is attached.
+ * Hand the `localeDetectorPlugin` factory to `registerPlugin` instead.
+ */
+export function localeDetector(options?: LocaleDetectorOptions): LocaleDetectorInstaller {
+  return (i18n) => {
+    const instance = attachPlugins(ensureInstallable(i18n, "localeDetector"));
+    instance.registerPlugin(localeDetectorPlugin(options));
+    return instance;
+  };
+}
 
 const SR = /[-_]/;
 const VR = /^[a-z]{2,8}([_-][a-z\d]{1,8})*$/i;
@@ -337,26 +437,60 @@ function detectNav(): string | null {
       : navigator.language || null;
 }
 
-function writeCaches(
-  locale: string,
-  caches: CacheType[],
-  cfg: { ck: string; ls: string; ss: string; co: CookieOptions; ma: number },
-): void {
+interface CacheConfig {
+  cookieKey: string;
+  localStorageKey: string;
+  sessionStorageKey: string;
+  cookieOptions: CookieOptions;
+  maxAge: number;
+}
+
+function writeCaches(locale: string, caches: CacheType[], cfg: CacheConfig): void {
   for (const t of caches) {
     try {
       if (t === "cookie") {
         if (!doc()) continue;
-        const { path: p = "/", domain: d, sameSite: s = "lax", secure: sc = false } = cfg.co;
-        let v = `${cfg.ck}=${encodeURIComponent(locale)}; max-age=${cfg.ma}; path=${p}; samesite=${s}`;
+        const {
+          path: p = "/",
+          domain: d,
+          sameSite: s = "lax",
+          secure: sc = false,
+        } = cfg.cookieOptions;
+        let v =
+          `${cfg.cookieKey}=${encodeURIComponent(locale)}; ` +
+          `max-age=${cfg.maxAge}; path=${p}; samesite=${s}`;
         if (d) v += `; domain=${d}`;
         // browsers reject SameSite=None cookies without Secure
         if (sc || s === "none") v += "; secure";
         document.cookie = v;
       } else {
-        if (win()) window[t]?.setItem(t === "sessionStorage" ? cfg.ss : cfg.ls, locale);
+        if (win())
+          window[t]?.setItem(
+            t === "sessionStorage" ? cfg.sessionStorageKey : cfg.localStorageKey,
+            locale,
+          );
       }
     } catch {
       /* privacy mode, quota exceeded */
+    }
+  }
+}
+
+/** Remove `raw` from every cache target that still holds exactly that value. */
+function removeCaches(raw: string, caches: CacheType[], cfg: CacheConfig): void {
+  for (const t of caches) {
+    try {
+      if (t === "cookie") {
+        if (readCookie(cfg.cookieKey) === raw) {
+          const { path: p = "/", domain: d } = cfg.cookieOptions;
+          document.cookie = `${cfg.cookieKey}=; max-age=0; path=${p}` + (d ? `; domain=${d}` : "");
+        }
+      } else {
+        const key = t === "sessionStorage" ? cfg.sessionStorageKey : cfg.localStorageKey;
+        if (readStorage(t, key) === raw) window[t].removeItem(key);
+      }
+    } catch {
+      /* privacy mode */
     }
   }
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";
-import { createI18n } from "@comvi/core";
+import { createI18n } from "../src/index";
 import IntegrationSmoke from "./IntegrationSmoke.test.svelte";
 
 describe("svelte integration smoke", () => {
@@ -25,7 +25,7 @@ describe("svelte integration smoke", () => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      translation: {
+      messages: {
         en: { hello: "Hello" },
         fr: { hello: "Bonjour" },
       },
@@ -38,11 +38,13 @@ describe("svelte integration smoke", () => {
       props: { i18n },
     });
 
-    expect(target.textContent).toContain("Hello-en");
+    const hook = () => target.querySelector('[data-testid="hook"]')?.textContent;
 
-    await i18n.setLocaleAsync("fr");
+    expect(hook()).toBe("Hello-en");
+
+    await i18n.setLocale("fr");
     await tick();
 
-    expect(target.textContent).toContain("Bonjour-fr");
+    expect(hook()).toBe("Bonjour-fr");
   });
 });

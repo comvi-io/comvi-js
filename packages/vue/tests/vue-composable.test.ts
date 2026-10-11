@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick, defineComponent, ref } from "vue";
-import { createI18n } from "../src";
+import { createI18n, icuCompiler } from "../src";
 import { useI18n } from "../src/composables/useI18n";
 
 describe("useI18n composable", () => {
   it("throws when used without provider", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const C = {
       setup() {
@@ -16,15 +16,14 @@ describe("useI18n composable", () => {
     };
 
     expect(() => mount(C)).toThrow(
-      /useI18n must be used within a Vue app with i18n plugin installed/i,
+      "[@comvi/vue] useI18n must be used within a Vue app with i18n plugin installed. " +
+        "Make sure you called app.use(i18n) before using this composable.",
     );
-
-    warnSpy.mockRestore();
   });
 
   it("provides reactive locale and translates through installed plugin", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { k: "v" },
       fr: { k: "valeur" },
     });
@@ -50,7 +49,7 @@ describe("useI18n composable", () => {
 
   it("re-renders formatter output when locale changes", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { k: "v" },
       de: { k: "w" },
     });
@@ -74,9 +73,35 @@ describe("useI18n composable", () => {
     expect(wrapper.text()).toBe("1.234,5");
   });
 
+  it("exposes isInitialized and cacheRevision as reactive refs", async () => {
+    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    i18n.addMessages({ en: { k: "v" } });
+
+    const C = {
+      template: "<div>{{ isInitialized }}:{{ cacheRevision }}</div>",
+      setup() {
+        const { isInitialized, cacheRevision } = useI18n();
+        return { isInitialized, cacheRevision };
+      },
+    };
+
+    const wrapper = mount(C, { global: { plugins: [i18n] } });
+    const revisionBefore = i18n.core.messagesCache.getRevision();
+    expect(wrapper.text()).toBe(`false:${revisionBefore}`);
+
+    await i18n.init();
+    await nextTick();
+    expect(wrapper.text().startsWith("true:")).toBe(true);
+
+    i18n.addMessages({ en: { k2: "v2" } });
+    await nextTick();
+    expect(wrapper.text()).toBe(`true:${i18n.core.messagesCache.getRevision()}`);
+    expect(i18n.core.messagesCache.getRevision()).toBeGreaterThan(revisionBefore);
+  });
+
   it("binds the requested namespace for translations", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({
+    i18n.addMessages({
       "en:common": { key: "Common" },
       "en:admin": { key: "Admin" },
     });
@@ -98,20 +123,23 @@ describe("useI18n composable", () => {
   it("exposes reactive defaultParams and setDefaultParams through the composable", async () => {
     const i18n = createI18n({
       locale: "en",
+      compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
-      translation: {
+      messages: {
         en: {
           review: "{formality, select, formal {Formal} other {Informal}}",
         },
       },
     });
 
-    const C = {
-      template: '<div>{{ t("review") }}-{{ defaultParams?.formality }}</div>',
+    // `defineComponent` only so `wrapper.vm` below is typed from the setup
+    // return; a bare options object loses it.
+    const C = defineComponent({
       setup() {
         return useI18n<{ formality: "formal" | "informal" }>();
       },
-    };
+      template: '<div>{{ t("review") }}-{{ defaultParams?.formality }}</div>',
+    });
 
     const wrapper = mount(C, { global: { plugins: [i18n] } });
     expect(wrapper.text()).toBe("Formal-formal");
@@ -122,13 +150,17 @@ describe("useI18n composable", () => {
     expect(wrapper.text()).toBe("Informal-informal");
   });
 
-  it("returns plain text from t and structured content from tRaw", async () => {
+  it("returns plain text from t and leaves string-API tag markup literal", async () => {
+    // `basicHtmlTags` configures how tag TOKENS render, but the base host
+    // never claims `<` as syntax, so plain `t()` / `tRaw()` see one literal
+    // string. Rich text comes from `<T>` or an explicit `@comvi/core/tags`
+    // import — never as a side effect of `useI18n`.
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
       tagInterpolation: { basicHtmlTags: ["strong"] },
     });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { rich: "Hello <strong>Alice</strong>!" },
     });
     await i18n.init();
@@ -146,21 +178,19 @@ describe("useI18n composable", () => {
 
     const wrapper = mount(C, { global: { plugins: [i18n] } });
 
-    expect(wrapper.text()).toBe("Hello Alice!-true");
+    expect(wrapper.text()).toBe("Hello <strong>Alice</strong>!-false");
   });
 
-  it("supports destructured imperative methods and event subscriptions", async () => {
-    const onError = vi.fn();
+  const mountDestructuredHarness = (onError: (...args: never[]) => void) => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      onError,
+      onError: onError as never,
     });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
     });
-    await i18n.init();
 
     const C = defineComponent({
       setup() {
@@ -183,7 +213,14 @@ describe("useI18n composable", () => {
       `,
     });
 
-    const wrapper = mount(C, { global: { plugins: [i18n] } });
+    return { i18n, mount: () => mount(C, { global: { plugins: [i18n] } }) };
+  };
+
+  it("supports destructured imperative methods and event subscriptions", async () => {
+    const harness = mountDestructuredHarness(vi.fn());
+    await harness.i18n.init();
+
+    const wrapper = harness.mount();
 
     expect(wrapper.get('[data-testid="change-locale"]').text()).toBe("Hello");
     expect(wrapper.get('[data-testid="last-locale-change"]').text()).toBe("none");
@@ -194,6 +231,14 @@ describe("useI18n composable", () => {
       expect(wrapper.get('[data-testid="change-locale"]').text()).toBe("Bonjour");
       expect(wrapper.get('[data-testid="last-locale-change"]').text()).toBe("fr");
     });
+  });
+
+  it("routes a destructured reportError call to the configured onError handler", async () => {
+    const onError = vi.fn();
+    const harness = mountDestructuredHarness(onError);
+    await harness.i18n.init();
+
+    const wrapper = harness.mount();
 
     await wrapper.get('[data-testid="report-error"]').trigger("click");
 
@@ -204,7 +249,7 @@ describe("useI18n composable", () => {
 
   it("does not receive reactive updates after component unmount", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
-    i18n.addTranslations({
+    i18n.addMessages({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
     });

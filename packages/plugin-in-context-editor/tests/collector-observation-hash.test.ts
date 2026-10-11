@@ -2,16 +2,16 @@
  * Golden-vector conformance for the canonical observation hash
  * (`src/collector/hash/observation-hash.ts`).
  *
- * This file is a byte-identical copy of the platform's
- * `apps/api/src/modules/context/hash/observation-hash.ts` (RALPLAN
- * iteration-4 1b — the cross-repo hash-fold). This test mirrors the
- * platform's reference test (`apps/api/src/__tests__/unit/context-observation-hash.test.ts`)
+ * The hashed file is a byte-identical copy of the platform's
+ * `apps/api/src/modules/context/hash/observation-hash.ts`, and this test
+ * mirrors the platform's reference test
+ * (`apps/api/src/__tests__/unit/context-observation-hash.test.ts`),
  * so drift in EITHER the ported file or the committed fixture fails CI here
  * before it ships, per the versioned-spec contract.
  */
 
 import { createHash } from "node:crypto";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   computeObservationHash,
   serializeObservationForHash,
@@ -39,6 +39,9 @@ const fixtures = fixturesJson as unknown as Fixture;
 
 const nodeSha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 
+/** Index of the neighbour array inside the canonical tuple — part of the versioned spec. */
+const NEIGHBORS_FIELD = 6;
+
 describe("sha256Hex (self-contained pure SHA-256)", () => {
   it("matches known NIST vectors", () => {
     expect(sha256Hex("")).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
@@ -47,16 +50,27 @@ describe("sha256Hex (self-contained pure SHA-256)", () => {
     );
   });
 
-  it("matches node:crypto across ASCII, long, and unicode inputs", () => {
-    for (const msg of [
-      "The quick brown fox jumps over the lazy dog",
-      "a".repeat(1000),
-      "x".repeat(55), // block-boundary edge (55 bytes -> single block)
-      "y".repeat(56), // block-boundary edge (56 bytes -> two blocks)
-      "unicode: ключ café 日本語 🚀",
-    ]) {
-      expect(sha256Hex(msg)).toBe(nodeSha(msg));
-    }
+  it.each([
+    ["ascii sentence", "The quick brown fox jumps over the lazy dog"],
+    ["1000 repeated chars", "a".repeat(1000)],
+    ["55 bytes (single block)", "x".repeat(55)],
+    ["56 bytes (two blocks)", "y".repeat(56)],
+    ["unicode", "unicode: ключ café 日本語 🚀"],
+  ])("matches node:crypto for %s", (_label, msg) => {
+    expect(sha256Hex(msg)).toBe(nodeSha(msg));
+  });
+
+  // The 64 FIPS 180-4 round constants are built once when the module is first
+  // imported. Re-evaluating the module inside the test pins that table itself:
+  // the vectors above only exercise the copy imported at collection time.
+  it("still reproduces a NIST vector when the module is evaluated afresh", async () => {
+    vi.resetModules();
+
+    const fresh = await import("../src/collector/hash/observation-hash");
+
+    expect(fresh.sha256Hex("abc")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
   });
 });
 
@@ -64,14 +78,11 @@ describe("observation hash spec constants", () => {
   it("matches the committed fixture version + top-K", () => {
     expect(HASH_FN_VERSION).toBe(fixtures.hashFnVersion);
     expect(HASH_NEIGHBOR_TOP_K).toBe(fixtures.neighborTopK);
+    expect(fixtures.vectors.length).toBeGreaterThan(0);
   });
 });
 
 describe("golden-vector conformance", () => {
-  it("has vectors to check", () => {
-    expect(fixtures.vectors.length).toBeGreaterThan(0);
-  });
-
   for (const v of fixtures.vectors) {
     it(`reproduces canonical + hash for "${v.name}"`, () => {
       // The canonical serialization is byte-stable...
@@ -85,11 +96,13 @@ describe("golden-vector conformance", () => {
 });
 
 describe("top-K neighbor selection", () => {
-  it("caps the hashed neighbor set at HASH_NEIGHBOR_TOP_K", () => {
+  it("fixture with more neighbors than the cap → the hashed neighbor set holds HASH_NEIGHBOR_TOP_K", () => {
     const vector = fixtures.vectors.find((v) => v.name === "error-message-topk-truncation");
-    expect(vector).toBeDefined();
-    const neighborArray = JSON.parse(vector!.canonical)[6] as unknown[];
-    expect(neighborArray.length).toBe(HASH_NEIGHBOR_TOP_K);
+    if (!vector) throw new Error('fixture vector "error-message-topk-truncation" is missing');
+
+    const neighborArray = JSON.parse(vector.canonical)[NEIGHBORS_FIELD] as unknown[];
+
+    expect(neighborArray).toHaveLength(HASH_NEIGHBOR_TOP_K);
   });
 
   it("selects by readingOrderIndex, dropping later-reading neighbors", () => {
@@ -118,9 +131,104 @@ describe("top-K neighbor selection", () => {
         neighbors: many,
       }),
     );
-    const hashedKeys = (canonical[6] as string[][]).map((n) => n[1]);
+    const hashedKeys = (canonical[NEIGHBORS_FIELD] as string[][]).map((n) => n[1]);
     // Reading order 0..7 kept, 8..11 dropped.
     expect(hashedKeys).toEqual(["k00", "k01", "k02", "k03", "k04", "k05", "k06", "k07"]);
+  });
+
+  it("serializes an empty neighbor list as an empty array", () => {
+    const canonical = JSON.parse(
+      serializeObservationForHash({
+        uiType: "body-text",
+        translationRole: "descriptive-text",
+        mustBeShort: false,
+        singleLine: false,
+        widthBucket: "full",
+        neighbors: [],
+      }),
+    );
+
+    expect(canonical[NEIGHBORS_FIELD]).toEqual([]);
+  });
+});
+
+describe("neighbor selection order", () => {
+  const neighbor = (
+    key: string,
+    readingOrderIndex: number,
+    distance: number,
+  ): ObservationHashNeighbor => ({
+    namespace: "ns",
+    key,
+    relativePosition: "below",
+    sameContainerAs: null,
+    readingOrderIndex,
+    distance,
+  });
+
+  function hashedKeys(neighbors: ObservationHashNeighbor[]): string[] {
+    const canonical = JSON.parse(
+      serializeObservationForHash({
+        uiType: "body-text",
+        translationRole: "descriptive-text",
+        mustBeShort: false,
+        singleLine: false,
+        widthBucket: "full",
+        neighbors,
+      }),
+    );
+
+    return (canonical[NEIGHBORS_FIELD] as string[][]).map((entry) => entry[1]!);
+  }
+
+  const filler = Array.from({ length: 7 }, (_, i) => neighbor(`k${i}`, i, 10));
+
+  it("sorts the hashed set by (namespace,key), not by the order selection left them in", () => {
+    expect(hashedKeys([neighbor("b", 0, 10), neighbor("a", 1, 10)])).toEqual(["a", "b"]);
+  });
+
+  it("selects by readingOrderIndex even when distance ranks the neighbors the other way", () => {
+    // Input order and distance order both disagree with reading order, so only
+    // a reading-order-first selection can produce k00..k07.
+    const neighbors = Array.from({ length: 12 }, (_, i) =>
+      neighbor(`k${String(i).padStart(2, "0")}`, i, 1000 - i),
+    ).reverse();
+
+    expect(hashedKeys(neighbors)).toEqual(["k00", "k01", "k02", "k03", "k04", "k05", "k06", "k07"]);
+  });
+
+  it.each([
+    ["farthest first", [neighbor("a-far", 7, 500), neighbor("z-near", 7, 5)]],
+    ["nearest first", [neighbor("z-near", 7, 5), neighbor("a-far", 7, 500)]],
+  ])(
+    "breaks a readingOrderIndex tie by the smaller distance, given the pair %s",
+    (_label, tied) => {
+      expect(hashedKeys([...filler, ...tied])).toEqual([
+        "k0",
+        "k1",
+        "k2",
+        "k3",
+        "k4",
+        "k5",
+        "k6",
+        "z-near",
+      ]);
+    },
+  );
+
+  it("breaks a readingOrderIndex AND distance tie by the (namespace,key) tuple", () => {
+    const tied = [neighbor("z-second", 7, 5), neighbor("a-first", 7, 5)];
+
+    expect(hashedKeys([...filler, ...tied])).toEqual([
+      "a-first",
+      "k0",
+      "k1",
+      "k2",
+      "k3",
+      "k4",
+      "k5",
+      "k6",
+    ]);
   });
 });
 

@@ -1,29 +1,25 @@
-/**
- * Translation validation utilities
- */
+import type {
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+  Language,
+  PluralFormTranslation,
+} from "../types";
 
-import type { ValidationResult, ValidationError, Language, PluralFormTranslation } from "../types";
-
-/**
- * Validate translations for all languages
- * @param languages - Array of language configurations
- * @param translations - Translation data for all languages
- * @returns Validation result with errors
- */
 export function validateTranslations(
   languages: Language[],
   translations: Record<string, PluralFormTranslation>,
 ): ValidationResult {
   const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
 
   for (const language of languages) {
     const langTranslations = translations[language.code] || {};
 
-    // Check plural forms - only validate max length, allow empty fields
+    // Plural forms may be empty; only the max length is enforced.
     for (const form of language.pluralForms) {
       const value = langTranslations[form];
 
-      // Check max length only
       if (value && value.length > 5000) {
         errors.push({
           languageId: language.code,
@@ -33,20 +29,27 @@ export function validateTranslations(
       }
     }
 
-    // Validate variable placeholders consistency
+    // The first form carried by this language is the reference. When the language has no
+    // forms at all the reference is empty, and so is every form compared against it, so the
+    // loop below cannot warn about anything — it needs no guard of its own.
     const sourceForms = Object.values(langTranslations);
-    if (sourceForms.length > 0) {
-      const sourceVariables = extractVariables(sourceForms[0] || "");
+    const sourceVariables = extractVariables(sourceForms[0] || "");
 
-      for (const form of language.pluralForms) {
-        const formValue = langTranslations[form] || "";
-        const formVariables = extractVariables(formValue);
+    for (const form of language.pluralForms) {
+      const formValue = langTranslations[form] || "";
+      const formVariables = extractVariables(formValue);
 
-        // Check if variables match (warn only, not error)
-        if (formValue && !arraysEqual(sourceVariables, formVariables)) {
-          // This is a warning, not blocking
-          // Could add a warnings array to ValidationResult if needed
-        }
+      if (formValue && !arraysEqual(sourceVariables, formVariables)) {
+        const missing = sourceVariables.filter((v) => !formVariables.includes(v));
+        const extra = formVariables.filter((v) => !sourceVariables.includes(v));
+        warnings.push({
+          languageId: language.code,
+          pluralForm: form,
+          message:
+            `Placeholders differ from the first form` +
+            (missing.length ? `; missing: ${missing.join(", ")}` : "") +
+            (extra.length ? `; unexpected: ${extra.join(", ")}` : ""),
+        });
       }
     }
   }
@@ -54,19 +57,16 @@ export function validateTranslations(
   return {
     isValid: errors.length === 0,
     errors,
+    warnings,
   };
 }
 
-/**
- * Extract variable placeholders from text
- * Matches patterns like {{variable}}, {variable}, %variable%
- * @param text - Text to extract variables from
- * @returns Array of variable names
- */
+/** Matches `{variable}`, `{{variable}}`, `%variable%` and `<0>`. */
 function extractVariables(text: string): string[] {
   const patterns = [
-    /\{\{([^}]+)\}\}/g, // {{variable}}
-    /\{([^}]+)\}/g, // {variable}
+    // Braces are excluded from the name, so `{{variable}}` yields `variable`
+    // through this one pattern instead of an extra `{variable` phantom.
+    /\{([^{}]+)\}/g, // {variable} and the inner {variable} of {{variable}}
     /%([^%]+)%/g, // %variable%
     /<(\d+)>/g, // <0>, <1> for react-i18next trans component
   ];
@@ -85,9 +85,6 @@ function extractVariables(text: string): string[] {
   return Array.from(variables).sort();
 }
 
-/**
- * Check if two arrays are equal
- */
 function arraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -96,12 +93,6 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return true;
 }
 
-/**
- * Validate a single translation field
- * @param value - Translation value
- * @param isRequired - Whether the field is required
- * @returns Error message or null if valid
- */
 export function validateField(value: string, isRequired: boolean = false): string | null {
   if (isRequired && (!value || value.trim() === "")) {
     return "This field is required";

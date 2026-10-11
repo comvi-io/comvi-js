@@ -1,10 +1,10 @@
 /**
- * Post-processor for injecting invisible character encoding into translations
- * This allows the DOM watcher to detect which translation keys are present in elements
+ * Injects the invisible-character key encoding into translation results — how
+ * the DOM watcher later tells which key produced which element.
  */
 
 import type { TranslationParams, TranslationResult } from "@comvi/core";
-import { registerKey, encodeKeyToInvisible } from "./translation";
+import { defaultEncoder, type TranslationKeyEncoder } from "./encoding/TranslationKeyEncoder";
 
 export interface InvisibleCharPostProcessorOptions {
   /**
@@ -12,6 +12,8 @@ export interface InvisibleCharPostProcessorOptions {
    * Used by framework adapters/plugins to prepare deterministic key mappings.
    */
   beforeProcess?: () => void;
+  /** The key-id map this processor encodes with. Defaults to the page-wide one. */
+  encoder?: TranslationKeyEncoder;
 }
 
 type BeforeProcessHook = () => void;
@@ -19,6 +21,7 @@ type BeforeProcessHook = () => void;
 interface InContextPostProcessorState {
   registered: boolean;
   hooks: Set<BeforeProcessHook>;
+  encoder: TranslationKeyEncoder;
   processor: (
     result: TranslationResult,
     key: string,
@@ -43,12 +46,15 @@ type I18nWithPostProcessor = {
 /**
  * Returns a stable post-processor state object attached to the i18n instance.
  * Ensures the invisible-marker processor is registered at most once per i18n instance.
+ * `encoder` is used only when the state is created; afterwards the instance keeps
+ * the encoder it started with.
  */
 export function getOrCreatePostProcessorState(
   i18n: I18nWithPostProcessor,
+  encoder: TranslationKeyEncoder = defaultEncoder,
 ): InContextPostProcessorState {
-  const host = i18n as Record<string, unknown>;
-  const existing = host[POST_PROCESSOR_STATE_KEY] as InContextPostProcessorState | undefined;
+  const instance = i18n as Record<string, unknown>;
+  const existing = instance[POST_PROCESSOR_STATE_KEY] as InContextPostProcessorState | undefined;
 
   if (existing) {
     return existing;
@@ -59,21 +65,20 @@ export function getOrCreatePostProcessorState(
     beforeProcess: () => {
       hooks.forEach((hook) => hook());
     },
+    encoder,
   });
 
   const state: InContextPostProcessorState = {
     registered: false,
     hooks,
+    encoder,
     processor,
   };
 
-  host[POST_PROCESSOR_STATE_KEY] = state;
+  instance[POST_PROCESSOR_STATE_KEY] = state;
   return state;
 }
 
-/**
- * Registers the in-context post-processor once for the given i18n instance.
- */
 export function registerPostProcessorOnce(i18n: I18nWithPostProcessor): void {
   const state = getOrCreatePostProcessorState(i18n);
   if (state.registered) {
@@ -83,10 +88,6 @@ export function registerPostProcessorOnce(i18n: I18nWithPostProcessor): void {
   state.registered = true;
 }
 
-/**
- * Adds a before-process hook to the shared post-processor state.
- * Returns a cleanup function that removes the hook.
- */
 export function addBeforeProcessHook(
   i18n: I18nWithPostProcessor,
   hook: BeforeProcessHook,
@@ -98,11 +99,8 @@ export function addBeforeProcessHook(
   };
 }
 
-/**
- * Creates a post-processor that injects invisible character encodings
- * @returns Post-processor function compatible with PostProcessFn
- */
 export function createInvisibleCharPostProcessor(options: InvisibleCharPostProcessorOptions = {}) {
+  const encoder = options.encoder ?? defaultEncoder;
   return (
     result: TranslationResult,
     key: string,
@@ -111,39 +109,29 @@ export function createInvisibleCharPostProcessor(options: InvisibleCharPostProce
   ): TranslationResult => {
     options.beforeProcess?.();
 
-    // Skip marker injection if raw flag is set
-    if (params?.raw === true) {
+    if (params?.markers === false) {
       return result;
     }
 
-    // Register the key with namespace and get its encoded invisible characters
-    const id = registerKey(key, ns);
-    const encodedKey = encodeKeyToInvisible(id);
+    const encodedKey = encoder.encode(encoder.registerKey(key, ns));
 
-    // Handle string results
     if (typeof result === "string") {
       return `${result}${encodedKey}`;
     }
 
-    // Handle array results (with VNodes)
     if (Array.isArray(result)) {
-      // Append invisible characters to the last string element
-      // or add as a new string element if no strings exist
       const lastIndex = result.length - 1;
       const lastElement = result[lastIndex];
 
       if (typeof lastElement === "string") {
-        // Modify the last string element
         const modified = [...result];
         modified[lastIndex] = `${lastElement}${encodedKey}`;
         return modified;
       } else {
-        // Append as new string element
         return [...result, encodedKey];
       }
     }
 
-    // Fallback: return unchanged
     return result;
   };
 }

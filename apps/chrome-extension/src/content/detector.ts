@@ -1,10 +1,7 @@
 /**
- * Content script running in MAIN world to detect Comvi i18n
- *
- * Runs in the page's JavaScript context (direct access to window.__COMVI__)
- * and is preloaded by the manifest for automatic toolbar detection. The popup
- * may safely re-inject it for an immediate refresh. It talks to the
- * ISOLATED-world bridge via custom events.
+ * MAIN-world content script: detects Comvi i18n through direct access to
+ * window.__COMVI__ and talks to the ISOLATED-world bridge via custom events.
+ * The popup may safely re-inject it for an immediate refresh.
  *
  * Security model: this world is shared with arbitrary page scripts, so
  * nothing here ever sees an API key. The editor runtime is activated with a
@@ -28,38 +25,338 @@ interface TransportInit {
   signal?: AbortSignal;
 }
 
+// --- Discovery protocol v2 (contracts/chrome-extension-proxy.json) ---
+//
+// New @comvi/core announces instances by pushing `{v, i}` envelopes onto a
+// window.__COMVI__ queue array. Per the contract's pageToExtension rules the
+// consumer must drain-and-swap: replace the raw array with an
+// array-masquerading dual-protocol hook (own push/remove shadow
+// Array.prototype, plus the v1 register/unregister/get surface) so cores of
+// EITHER version that load later still attach. The hook carries the same
+// `__comviEditorHook` marker as the in-context editor's hook, so whichever
+// side installs first, the other reuses it instead of swapping again.
+//
+// v1 legacy registry objects (register fn / instances Map) are left alone, and
+// truthy non-conforming globals are never clobbered.
+
+interface I18nLike {
+  instanceId?: string;
+}
+
+/** v2 queue entry envelope pushed by new core. */
+interface ComviQueueEntry {
+  v?: string;
+  i: I18nLike;
+}
+
+/** Dual-protocol hook installed in place of the raw queue array. */
+interface ComviHookLike {
+  __comviEditorHook: true;
+  version: string | undefined;
+  instances: Map<string, I18nLike>;
+  push(entry: ComviQueueEntry | I18nLike): void;
+  remove(entry: ComviQueueEntry | I18nLike): void;
+  register(id: string, instance: I18nLike): void;
+  unregister(id: string): void;
+  get(id?: string): I18nLike | undefined;
+}
+
+let anonCounter = 0;
+let dedupeCounter = 0;
+
+// The MAIN-world global slot is untyped in this package; every read of it is
+// runtime-narrowed before use.
+const comviWindow = window as Window & { __COMVI__?: unknown };
+
+/**
+ * The marker alone is NOT enough: it is forgeable, and a page that pollutes
+ * `Object.prototype.__comviEditorHook` marks every object. Adopt only a global
+ * that also carries every member a consumer of this protocol then USES on it —
+ * the `push`/`remove` pair core requires before pushing (`core/devtools.ts`),
+ * the `instances` map the status probe reads, and `get`, which the editor
+ * runtime calls to resolve the instance to edit. A marked-but-non-conforming
+ * global is a truthy non-conforming global: left untouched, never adopted,
+ * never read.
+ */
+function isComviHook(g: unknown): g is ComviHookLike {
+  if (!g || typeof g !== "object") {
+    return false;
+  }
+  const h = g as Partial<ComviHookLike>;
+  return (
+    h.__comviEditorHook === true &&
+    h.instances instanceof Map &&
+    typeof h.push === "function" &&
+    typeof h.remove === "function" &&
+    typeof h.get === "function"
+  );
+}
+
+/**
+ * Accept either shape a queue slot may hold: a `{v, i}` envelope (new core)
+ * or a bare legacy instance drained from a pre-existing array. `i` is read as
+ * an OWN property: `in` walks the prototype chain, so a page with a polluted
+ * `Object.prototype.i` would otherwise have every bare instance read as an
+ * envelope and its own object tracked as the i18n instance.
+ */
+function toInstance(
+  entry: ComviQueueEntry | I18nLike,
+): { instance: I18nLike; version?: string } | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  if (Object.prototype.hasOwnProperty.call(entry, "i")) {
+    const envelope = entry as ComviQueueEntry;
+    if (!envelope.i || typeof envelope.i !== "object") {
+      return null;
+    }
+    return {
+      instance: envelope.i,
+      version: typeof envelope.v === "string" ? envelope.v : undefined,
+    };
+  }
+  return { instance: entry as I18nLike };
+}
+
+function createComviHook(): ComviHookLike {
+  const instances = new Map<string, I18nLike>();
+  const idsByInstance = new Map<I18nLike, string>();
+  // Ids an old core CLAIMED through `register(id, instance)`, kept apart from
+  // the live map: when the claim collided it was tracked under a deduped key,
+  // and `unregister(id)` must still reach the instance that asked for the id
+  // rather than whichever instance happens to hold it now.
+  const claimedIds = new Map<string, I18nLike>();
+
+  const forgetClaims = (instance: I18nLike): void => {
+    claimedIds.forEach((held, claimed) => {
+      if (held === instance) claimedIds.delete(claimed);
+    });
+  };
+
+  // Array-masquerading carrier: `Array.isArray(hook)` stays true, but the
+  // OWN push/remove assigned below shadow Array.prototype, so new core's
+  // Array.isArray-first probe still routes through the hook's push. Matched
+  // pair with core's probe order — never drop the masquerade independently.
+  const hook = [] as unknown as ComviHookLike;
+
+  const track = (instance: I18nLike, version?: string, id?: string): void => {
+    if (!instance || typeof instance !== "object") {
+      return;
+    }
+    let resolvedId =
+      id ?? idsByInstance.get(instance) ?? instance.instanceId ?? `comvi-anon-${++anonCounter}`;
+    if (id !== undefined) {
+      // One instance holds at most one claimed id: a re-register moves it.
+      forgetClaims(instance);
+      claimedIds.set(id, instance);
+    }
+    // Two copies of core on one page both mint `comvi-1`. Keying on the id
+    // alone would drop the first instance from discovery the moment the second
+    // announced itself, so a colliding id is DEDUPED rather than overwritten:
+    // both instances stay discoverable. The suffix is always appended to the
+    // ORIGINAL id, never to an already-suffixed one.
+    if (instances.has(resolvedId) && instances.get(resolvedId) !== instance) {
+      const claimed = resolvedId;
+      do {
+        resolvedId = `${claimed}#${++dedupeCounter}`;
+      } while (instances.has(resolvedId) && instances.get(resolvedId) !== instance);
+      console.warn(
+        `[ComviExtension] Two i18n instances announced the same instanceId "${claimed}"; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
+      );
+    }
+    const prevId = idsByInstance.get(instance);
+    if (prevId !== undefined && prevId !== resolvedId) {
+      instances.delete(prevId);
+    }
+    instances.set(resolvedId, instance);
+    idsByInstance.set(instance, resolvedId);
+    if (version !== undefined && hook.version === undefined) {
+      hook.version = version;
+    }
+  };
+
+  const untrack = (instance: I18nLike | undefined): void => {
+    if (!instance) {
+      return;
+    }
+    const id = idsByInstance.get(instance);
+    if (id === undefined) {
+      return;
+    }
+    idsByInstance.delete(instance);
+    forgetClaims(instance);
+    // Identity guard: only drop the slot while it still holds THIS instance.
+    // Without it, a destroyed instance whose id was taken over by another live
+    // one evicts that live one from discovery.
+    if (instances.get(id) === instance) {
+      instances.delete(id);
+    }
+  };
+
+  /**
+   * The instance a deduped id now lives under, when that is unambiguous: an
+   * `instanceId` is public (the popup shows it, the editor is activated with
+   * it), so an instance tracked as `<id>#<n>` must still be addressable by the
+   * id it announced once nothing holds the exact key. Two candidates mean the
+   * caller has to name the deduped key itself.
+   */
+  const resolveDeduped = (id: string): I18nLike | undefined => {
+    const prefix = `${id}#`;
+    let found: I18nLike | undefined;
+    for (const [key, instance] of instances) {
+      if (key.startsWith(prefix)) {
+        if (found) return undefined;
+        found = instance;
+      }
+    }
+    return found;
+  };
+
+  Object.assign(hook, {
+    __comviEditorHook: true as const,
+    version: undefined as string | undefined,
+    instances,
+    push(entry: ComviQueueEntry | I18nLike): void {
+      const resolved = toInstance(entry);
+      if (resolved) {
+        track(resolved.instance, resolved.version);
+      }
+    },
+    remove(entry: ComviQueueEntry | I18nLike): void {
+      untrack(toInstance(entry)?.instance);
+    },
+    register(id: string, instance: I18nLike): void {
+      track(instance, undefined, id);
+    },
+    unregister(id: string): void {
+      untrack(claimedIds.get(id) ?? instances.get(id));
+    },
+    get(id?: string): I18nLike | undefined {
+      if (id) {
+        return instances.get(id) ?? resolveDeduped(id);
+      }
+      return instances.values().next().value;
+    },
+  });
+
+  return hook;
+}
+
+/**
+ * Drain-and-swap: when window.__COMVI__ is a raw v2 queue array, swap the
+ * global to the dual-protocol hook FIRST (so instances constructed mid-boot
+ * push into it), then drain the snapshot. Returns the hook when the global
+ * is (or just became) hook-shaped; null for everything else — v1 legacy
+ * registry objects, truthy garbage, and empty slots are all left untouched.
+ */
+function adoptComviGlobal(): ComviHookLike | null {
+  try {
+    const existing: unknown = comviWindow.__COMVI__;
+    // `Array.isArray` is probed BEFORE the marker, matching core's probe order:
+    // a page that pollutes `Object.prototype.__comviEditorHook` must not be
+    // able to make a legitimate raw queue array look like an installed hook.
+    if (Array.isArray(existing)) {
+      // An array-masquerading hook (ours, or the in-context editor's) is
+      // already the drained-and-swapped global: reuse it, never swap twice.
+      if (isComviHook(existing)) {
+        return existing;
+      }
+      const snapshot = existing as Array<ComviQueueEntry | I18nLike>;
+      const hook = createComviHook();
+      comviWindow.__COMVI__ = hook;
+      for (const raw of snapshot) {
+        hook.push(raw);
+      }
+      return hook;
+    }
+    return isComviHook(existing) ? existing : null;
+  } catch {
+    // Discovery must never break the page.
+    return null;
+  }
+}
+
 const DETECTOR_FLAG = "__comviExtensionDetectorInstalled";
 
 // The popup may inject this script again on every open; run only once per
 // page load.
 if (!(window as any)[DETECTOR_FLAG]) {
   (window as any)[DETECTOR_FLAG] = true;
-  installDetector();
+  try {
+    installDetector();
+  } catch (error) {
+    // The flag is a re-injection guard, not a receipt. If installation could
+    // not finish, clear it so the popup's next chrome.scripting injection
+    // retries instead of being a permanent no-op for this page load.
+    (window as any)[DETECTOR_FLAG] = false;
+    throw error;
+  }
 }
 
 function installDetector() {
   let detectionComplete = false;
 
+  /**
+   * Never throws: every read below touches page-controlled objects, and a
+   * getter that throws must not be able to silence the detector — the bridge
+   * and the popup get "nothing detected" rather than no answer at all.
+   */
   function getComviStatus(): ComviStatus {
-    const comvi = (window as any).__COMVI__;
-    const editor = (window as any).ComviInContextEditor;
+    try {
+      return readComviStatus();
+    } catch {
+      return {
+        detected: false,
+        version: null,
+        instanceCount: 0,
+        editorActive: false,
+        editorLoaded: false,
+      };
+    }
+  }
 
+  function readComviStatus(): ComviStatus {
+    // Lazily adopt a raw v2 queue array whenever status is read: new core
+    // may install the queue at any point after document_start.
+    const hook = adoptComviGlobal();
+    const editor = (window as any).ComviInContextEditor;
+    const editorActive: boolean = editor?.isActive?.() ?? false;
+    const editorLoaded = !!editor;
+
+    if (hook) {
+      return {
+        detected: hook.instances.size > 0,
+        version: hook.version ?? null,
+        instanceCount: hook.instances.size,
+        editorActive,
+        editorLoaded,
+      };
+    }
+
+    // v1 path: legacy registry objects are duck-typed, and truthy
+    // non-conforming globals are reported but never touched. A global we
+    // refused to adopt lands HERE, not on `not-found`: it is reported the way
+    // any other truthy foreign value is (`detected: true` with whatever
+    // `instances.size` it happens to expose, usually 0), and activation then
+    // answers with a failure. `not-found` is for an empty slot, or for reads
+    // that throw, which `getComviStatus` turns into nothing-detected.
+    const comvi = (window as any).__COMVI__;
     return {
       detected: !!comvi,
       version: comvi?.version ?? null,
       instanceCount: comvi?.instances?.size ?? 0,
-      editorActive: editor?.isActive?.() ?? false,
-      editorLoaded: !!editor,
+      editorActive,
+      editorLoaded,
     };
   }
 
   function notifyDetected(status: ComviStatus) {
-    if (detectionComplete && status.detected) return; // Already notified
+    if (detectionComplete && status.detected) return;
     detectionComplete = status.detected;
 
     window.dispatchEvent(new CustomEvent("comvi-extension:detected", { detail: status }));
 
-    // Respond to Comvi i18n with COMVI_PLUGIN_READY (handshake)
+    // The handshake half Comvi i18n waits for.
     if (status.detected) {
       window.dispatchEvent(new CustomEvent("COMVI_PLUGIN_READY"));
     }
@@ -81,9 +378,8 @@ function installDetector() {
   }
 
   // --- API proxy transport ---
-  // Forwards editor API requests to the bridge over DOM events. Responses
-  // are matched by a per-request id. No credentials are involved on this
-  // side of the boundary.
+  // Forwards editor API requests to the bridge over DOM events, matched by a
+  // per-request id. No credentials are involved on this side of the boundary.
 
   const PROXY_TIMEOUT_MS = 30_000;
   let requestCounter = 0;
@@ -169,8 +465,6 @@ function installDetector() {
     });
   }
 
-  // --- Event-based detection (preferred) ---
-  // Listen for COMVI_READY event dispatched by @comvi/core when it loads
   window.addEventListener("COMVI_READY", ((event: CustomEvent) => {
     const detail = event.detail || {};
     const status: ComviStatus = {
@@ -183,11 +477,10 @@ function installDetector() {
     notifyDetected(status);
   }) as EventListener);
 
-  // --- Polling fallback ---
-  // For pages where Comvi i18n was loaded before this script
+  // Polling fallback, for pages where Comvi i18n loaded before this script.
   let pollCount = 0;
-  const MAX_POLLS = 30; // 3 seconds max
-  const POLL_INTERVAL = 100; // 100ms
+  const MAX_POLLS = 30;
+  const POLL_INTERVAL = 100;
 
   function pollForComvi() {
     const status = getComviStatus();
@@ -205,16 +498,14 @@ function installDetector() {
     }
   }
 
-  // --- Extension communication handlers ---
-
-  // Listen for status requests from content script (ISOLATED world)
+  // Status requests come from the ISOLATED-world bridge.
   window.addEventListener("comvi-extension:get-status", () => {
     const status = getComviStatus();
     window.dispatchEvent(new CustomEvent("comvi-extension:status", { detail: status }));
   });
 
-  // Listen for activate requests. The payload contains only the non-secret
-  // base URL for path building; credentials never reach this world.
+  // The activate payload carries only the non-secret base URL for path
+  // building; credentials never reach this world.
   window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
     let detail: any;
     try {
@@ -268,7 +559,6 @@ function installDetector() {
     }
   }) as EventListener);
 
-  // Listen for deactivate requests
   window.addEventListener("comvi-extension:deactivate", () => {
     const editor = (window as any).ComviInContextEditor;
     if (editor?.isActive?.()) {
@@ -285,13 +575,10 @@ function installDetector() {
     }
   });
 
-  // --- Initialization ---
-  // Check immediately (Comvi i18n might already be loaded)
   const initialStatus = getComviStatus();
   if (initialStatus.detected) {
     notifyDetected(initialStatus);
   } else {
-    // Start polling as fallback
     pollForComvi();
   }
 }

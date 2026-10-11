@@ -1,21 +1,25 @@
 /**
- * Standalone entry point for CDN loading
- *
- * This file is built as an IIFE that exposes ComviInContextEditor on window.
- * Used by Chrome extension to dynamically load the plugin into pages.
+ * Built as an IIFE that exposes `ComviInContextEditor` on `window`; the Chrome
+ * extension loads it into pages at runtime.
  */
 
-import { InContextEditorPlugin, type EditorOptions } from "./index";
+import { inContextEditorPlugin, type EditorOptions } from "./index";
+import { ensureComviHook, readComviGlobalStatus } from "./comviHook";
 import { Core } from "./Core";
 import { getApiConfig, initApiConfig, resetApiConfig, type ApiTransport } from "./config/api";
 import { apiFetch } from "./services/apiClient";
 import { registerPostProcessorOnce } from "./postProcessor";
-import { fetchApiTranslations, clearProjectInfoCache } from "@comvi/plugin-fetch-loader";
-import type { I18n, TranslationValue } from "@comvi/core";
+import { fetchApiTranslations, clearProjectInfoCache } from "@comvi/plugin-fetch-loader/api";
+import type { TranslationValue } from "@comvi/core";
+import type { EditorI18n } from "./Core";
 
-/** Active Core instance for cleanup */
 let activeCore: Core | null = null;
 let activeLifecycleCallback: ((detail: EditorLifecycleDetail) => void) | undefined;
+// Aborts any in-flight translation refresh on teardown/replacement, and its
+// signal is re-checked right before the refresh merges into the host i18n
+// instance — the identity check on `activeCore` alone only protected the
+// later render refresh, not this merge.
+let activeRefreshController: AbortController | undefined;
 
 /** Public, credential-free lifecycle event emitted by the standalone runtime. */
 export const EDITOR_LIFECYCLE_EVENT = "comvi-in-context-editor:lifecycle";
@@ -29,7 +33,7 @@ function notifyLifecycle(detail: EditorLifecycleDetail, callback = activeLifecyc
   try {
     callback?.(detail);
   } catch (error) {
-    console.warn("[ComviInContextEditor] Lifecycle callback failed.", error);
+    console.warn("[@comvi/plugin-in-context-editor] Lifecycle callback failed.", error);
   }
   window.dispatchEvent(new CustomEvent<EditorLifecycleDetail>(EDITOR_LIFECYCLE_EVENT, { detail }));
 }
@@ -58,7 +62,7 @@ export interface ActivateOptions extends EditorOptions {
    * Fetch fresh translations from the Comvi API before enabling click-to-edit.
    * Enabled by default for standalone/extension activation.
    */
-  refreshTranslations?: boolean;
+  refreshMessages?: boolean;
   /**
    * Observe standalone lifecycle changes without receiving API configuration
    * or credentials. Consumers must treat MAIN-world events as untrusted; a
@@ -68,9 +72,7 @@ export interface ActivateOptions extends EditorOptions {
 }
 
 export interface ActivateResult {
-  /** Stop the editor and clean up */
   stop: () => void;
-  /** The Core instance ID */
   instanceId: string;
   /** Effective context collection after the site-level opt-out is applied. */
   collectContext: boolean;
@@ -97,10 +99,11 @@ function createScopedFetch(scopeId: string): typeof fetch {
   };
 }
 
-async function refreshTranslationsFromApi(
-  i18n: I18n,
+async function refreshMessagesFromApi(
+  i18n: EditorI18n,
   apiKey: string | undefined,
   scopeId: string,
+  signal: AbortSignal,
 ): Promise<void> {
   const config = getApiConfig(scopeId);
   if (!apiKey && !config.transport) {
@@ -134,6 +137,7 @@ async function refreshTranslationsFromApi(
           // projects/transports. Scope cached project metadata to this
           // editor instance instead.
           config.transport ? scopeId : undefined,
+          { signal },
         );
         for (const [key, translations] of store) {
           updates[key] = translations as Record<string, TranslationValue>;
@@ -141,15 +145,29 @@ async function refreshTranslationsFromApi(
       }),
     );
 
+    // The identity guard must sit immediately before the merge itself, not
+    // only before the later render refresh: a replacement/teardown that
+    // happens while this refresh is in flight must stop the stale catalog
+    // from ever reaching addMessages, however non-empty it is.
+    if (signal.aborted) {
+      return;
+    }
+
     if (Object.keys(updates).length > 0) {
-      i18n.addTranslations(updates);
+      i18n.addMessages(updates);
     }
   } catch (error) {
-    console.warn("[ComviInContextEditor] Failed to refresh translations from API.", error);
+    if (signal.aborted) {
+      return;
+    }
+    console.warn(
+      "[@comvi/plugin-in-context-editor] Failed to refresh messages from the API.",
+      error,
+    );
   }
 }
 
-function refreshRenderedTranslations(i18n: I18n): void {
+function refreshRenderedTranslations(i18n: EditorI18n): void {
   // Re-add loaded translations after registering the post-processor so
   // framework bindings bump their cache revision and re-render marked text.
   const namespaces = new Set([i18n.getDefaultNamespace(), ...i18n.getActiveNamespaces()]);
@@ -161,10 +179,7 @@ function refreshRenderedTranslations(i18n: I18n): void {
         continue;
       }
 
-      const translations = i18n.getTranslations(locale, namespace) as Record<
-        string,
-        TranslationValue
-      >;
+      const translations = i18n.getMessages(locale, namespace) as Record<string, TranslationValue>;
       if (Object.keys(translations).length > 0) {
         updates[`${locale}:${namespace}`] = translations;
       }
@@ -172,15 +187,16 @@ function refreshRenderedTranslations(i18n: I18n): void {
   }
 
   if (Object.keys(updates).length > 0) {
-    i18n.addTranslations(updates);
+    i18n.addMessages(updates);
   }
 }
 
+function isEditable(i18n: object): boolean {
+  return typeof (i18n as { registerPostProcessor?: unknown }).registerPostProcessor === "function";
+}
+
 /**
- * Activate the in-context editor on the current page
- *
- * @param options - Editor options including apiKey
- * @returns Activation result with stop function, or null if failed
+ * Activate the in-context editor on the current page.
  *
  * @example
  * ```js
@@ -193,27 +209,36 @@ function refreshRenderedTranslations(i18n: I18n): void {
  * ```
  */
 export function activate(options: ActivateOptions): ActivateResult | null {
-  // Check if already active
   if (activeCore) {
-    console.warn("[ComviInContextEditor] Already active. Call deactivate() first.");
+    console.warn("[@comvi/plugin-in-context-editor] Already active. Call deactivate() first.");
     return null;
   }
 
-  // Find Comvi global
-  const comviGlobal = (window as any).__COMVI__;
-  if (!comviGlobal) {
+  // Drain-and-swap the __COMVI__ discovery queue (protocol v2, dual-protocol
+  // hook) and look the instance up in the hook.
+  const comviHook = ensureComviHook();
+  if (!comviHook || comviHook.instances.size === 0) {
     console.error(
-      "[ComviInContextEditor] No Comvi i18n found. Ensure @comvi/core is loaded on the page.",
+      "[@comvi/plugin-in-context-editor] No Comvi i18n found. Ensure @comvi/core is loaded on the page.",
     );
     return null;
   }
 
-  // Get i18n instance
-  const i18n = comviGlobal.get(options.instanceId) as I18n | undefined;
+  // Discovery also tracks base instances composed with devtools only; those
+  // lack `registerPostProcessor`, so the default pick prefers an editable one.
+  const i18n = options.instanceId
+    ? comviHook.get(options.instanceId)
+    : ([...comviHook.instances.values()].find(isEditable) ?? comviHook.get());
   if (!i18n) {
     console.error(
-      "[ComviInContextEditor] No i18n instance found.",
+      "[@comvi/plugin-in-context-editor] No i18n instance found.",
       options.instanceId ? `Instance ID: ${options.instanceId}` : "No instances registered.",
+    );
+    return null;
+  }
+  if (!isEditable(i18n)) {
+    console.error(
+      "[@comvi/plugin-in-context-editor] This i18n instance cannot be edited: it was created without the plugin capability (`@comvi/core/plugins`).",
     );
     return null;
   }
@@ -228,12 +253,12 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   // Otherwise fall back to any explicit caller value, else default on.
   const collectContext = i18n.collectContext === false ? false : (options.collectContext ?? true);
 
-  // Create and start Core
   activeCore = new Core(
     {
       targetElement: options.targetElement || document.body,
       tagAttributes: options.tagAttributes,
       debug: options.debug,
+      highlightStyle: options.highlightStyle,
       collectContext,
       screenGroupResolver: options.screenGroupResolver,
     },
@@ -260,15 +285,21 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   activeCore.start();
   activeLifecycleCallback = options.onLifecycle;
   notifyLifecycle({ state: "activated", instanceId });
-  console.info(`[ComviInContextEditor] Activated (instance: ${instanceId})`);
+  console.info(`[@comvi/plugin-in-context-editor] Activated (instance: ${instanceId})`);
 
-  if (options.refreshTranslations !== false) {
-    void refreshTranslationsFromApi(i18n, apiKey, instanceId).finally(() => {
+  if (options.refreshMessages !== false) {
+    const refreshController = new AbortController();
+    activeRefreshController = refreshController;
+    void refreshMessagesFromApi(i18n, apiKey, instanceId, refreshController.signal).finally(() => {
       if (activeCore === null || activeCore.getInstanceId() !== instanceId) {
         return;
       }
       refreshRenderedTranslations(i18n);
     });
+  } else {
+    // Only the API fetch is optional: text rendered before the processor was
+    // registered still needs the re-render that marks it.
+    refreshRenderedTranslations(i18n);
   }
 
   return {
@@ -281,7 +312,7 @@ export function activate(options: ActivateOptions): ActivateResult | null {
 function deactivateInstance(expectedInstanceId?: string): void {
   if (!activeCore) {
     if (expectedInstanceId === undefined) {
-      console.warn("[ComviInContextEditor] Not active.");
+      console.warn("[@comvi/plugin-in-context-editor] Not active.");
     }
     return;
   }
@@ -295,6 +326,8 @@ function deactivateInstance(expectedInstanceId?: string): void {
   const lifecycleCallback = activeLifecycleCallback;
   activeCore = null;
   activeLifecycleCallback = undefined;
+  activeRefreshController?.abort();
+  activeRefreshController = undefined;
   let cleanupError: unknown;
   try {
     core.stop();
@@ -309,29 +342,20 @@ function deactivateInstance(expectedInstanceId?: string): void {
   clearProjectInfoCache(instanceId);
   notifyLifecycle({ state: "deactivated", instanceId }, lifecycleCallback);
 
-  console.info("[ComviInContextEditor] Deactivated");
+  console.info("[@comvi/plugin-in-context-editor] Deactivated");
   if (cleanupError !== undefined) {
     throw cleanupError;
   }
 }
 
-/**
- * Deactivate the in-context editor and clean up resources
- */
 export function deactivate(): void {
   deactivateInstance();
 }
 
-/**
- * Check if the editor is currently active
- */
 export function isActive(): boolean {
   return activeCore !== null;
 }
 
-/**
- * Get information about the current state
- */
 export function getStatus(): {
   active: boolean;
   instanceId: string | null;
@@ -339,19 +363,14 @@ export function getStatus(): {
   comviVersion: string | null;
   instanceCount: number;
 } {
-  const comviGlobal = (window as any).__COMVI__;
-
   return {
     active: activeCore !== null,
     instanceId: activeCore?.getInstanceId() ?? null,
-    comviDetected: !!comviGlobal,
-    comviVersion: comviGlobal?.version ?? null,
-    instanceCount: comviGlobal?.instances?.size ?? 0,
+    ...readComviGlobalStatus(),
   };
 }
 
-// Also export the plugin factory for advanced usage
-export { InContextEditorPlugin };
+export { inContextEditorPlugin };
 
 // Expose on window for CDN usage
 declare global {
@@ -361,18 +380,21 @@ declare global {
       deactivate: typeof deactivate;
       isActive: typeof isActive;
       getStatus: typeof getStatus;
-      InContextEditorPlugin: typeof InContextEditorPlugin;
+      inContextEditorPlugin: typeof inContextEditorPlugin;
     };
   }
 }
 
-// Auto-expose when loaded
+// Boot-time drain-and-swap: replace a raw __COMVI__ queue (or a legacy v1
+// registry) with the dual-protocol hook BEFORE any instance lookup, so
+// entries pushed between now and activate() are never lost.
 if (typeof window !== "undefined") {
+  ensureComviHook();
   window.ComviInContextEditor = {
     activate,
     deactivate,
     isActive,
     getStatus,
-    InContextEditorPlugin,
+    inContextEditorPlugin,
   };
 }

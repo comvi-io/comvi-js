@@ -1,22 +1,23 @@
 import {
-  I18n,
   formatCurrency,
   formatDate,
   formatNumber,
   formatRelativeTime,
   getTextDirection,
+  subscribeToRevision,
+  translationResultToString,
 } from "@comvi/core";
 import type {
+  I18n,
   I18nOptions,
-  FlattenedTranslations,
-  TranslationParams,
+  FlattenedMessages,
   TranslationResult,
-  TranslationValue,
-  I18nPlugin,
+  MessagesMap,
   I18nEvent,
   I18nEventData,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
+  WrapperI18nInstance,
 } from "@comvi/core";
 import {
   shallowRef,
@@ -29,69 +30,88 @@ import {
   type App,
 } from "vue";
 import { I18N_INJECTION_KEY } from "./keys";
-import { translationResultToString } from "./utils";
+
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+/** Thrown by {@link VueI18n.use} when an installer hands back a different object. */
+export interface UseInstanceIdentityError extends Error {
+  code: "E_USE_INSTANCE_IDENTITY";
+}
 
 /**
- * Vue-specific i18n options extending core options
+ * Vue-layer options — the ones that do NOT configure the core.
+ *
+ * `createI18nFromCore` takes exactly these: the instance it is handed is already
+ * built, so every core option belongs to whoever built it.
  */
-export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOptions<D> & {
+export interface VueI18nCoreOptions {
   /**
-   * Initial locale for SSR hydration.
-   * Use this to prevent hydration mismatches when server renders with a different
-   * locale than what the client would detect.
+   * Render locale for SSR: set it when the server renders in a locale the
+   * client would not detect, or hydration mismatches.
+   *
+   * It paints on the first render when that locale's catalogs are already
+   * available (inline `messages`, or loaded earlier). Otherwise the first
+   * render is in the instance's current locale, and the switch lands when the
+   * load completes.
    */
   ssrLocale?: string;
-};
+}
+
+export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOptions<D> &
+  VueI18nCoreOptions;
 
 /**
- * Vue-specific wrapper around the core I18n using composition
- * Provides Vue reactivity integration and plugin installation
+ * Vue reactivity and plugin installation around a core instance.
+ *
+ * The instance stays reachable as {@link VueI18n.core}: everything the wrapper does
+ * not proxy — including the loader and plugin capabilities, when the instance
+ * has them — goes through it. Capabilities are composed with {@link VueI18n.use},
+ * which returns this same instance with `core` retyped: assign the result,
+ * since a discarded return leaves the binding's `C` unwidened. `C` is exact
+ * when you hold the factory result; through `inject(I18N_INJECTION_KEY)` the
+ * core is seen as a bare {@link WrapperI18nInstance}, so capability calls are a
+ * compile error there.
  */
-export class VueI18n<D extends DefaultTranslationParams = {}> {
-  private _core: I18n<D>;
+export class VueI18n<
+  D extends DefaultTranslationParams = {},
+  C extends WrapperI18nInstance<D> = I18n<D>,
+> {
+  readonly core: C;
 
   private _locale: ShallowRef<string>;
   private _localeComputed?: WritableComputedRef<string>;
   private _isLoading: ShallowRef<boolean>;
   private _isInitializing: ShallowRef<boolean>;
+  private _isInitialized: ShallowRef<boolean>;
   private _cacheRevision: ShallowRef<number>;
   private _configRevision: ShallowRef<number>;
   private _defaultParamsComputed?: ComputedRef<DefaultParamsSnapshot<D>>;
-  private _translationCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
+  private _messagesCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedMessages>>;
   private _unsubscribers: Array<() => void> = [];
   private _requestedLocale: string;
   private _localeQueue: Promise<void> = Promise.resolve();
   private _isLocaleQueueIdle = true;
-  private _isDestroyed = false;
+  /**
+   * Set by the first `destroy()` and never cleared: it is both the
+   * already-destroyed flag and what a repeat call returns.
+   */
+  private _destroyed?: Promise<void>;
+  private _warnedLateUse = false;
 
-  // Type declarations for dynamically generated proxy methods
-  declare addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
-  declare addActiveNamespace: (namespace: string) => Promise<void>;
-  declare clearTranslations: (language?: string, namespace?: string) => void;
-  declare reloadTranslations: (language?: string, namespace?: string) => Promise<void>;
-  declare registerLoader: (loader: Parameters<I18n["registerLoader"]>[0]) => void;
-  declare registerLocaleDetector: (detector: () => string | Promise<string>) => void;
-  declare registerPostProcessor: (
-    processor: (
-      result: TranslationResult,
-      key: string,
-      namespace: string,
-      params?: TranslationParams,
-    ) => TranslationResult,
-  ) => void;
-  declare onMissingKey: (
-    callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
-  ) => () => void;
-  declare onLoadError: (
-    callback: (locale: string, namespace: string, error: Error) => void,
-  ) => () => void;
+  // Declared here, assigned as bound proxies in the constructor.
+  declare addMessages: (messages: MessagesMap) => void;
+  declare clearMessages: (locale?: string, namespace?: string) => void;
   declare on: <E extends I18nEvent>(
     event: E,
     callback: (payload: I18nEventData[E]) => void,
   ) => () => void;
   declare setFallbackLocale: (locales: string | string[]) => void;
-  declare setDefaultParams: I18n<D>["setDefaultParams"];
-  declare reportError: (error: unknown, context?: Parameters<I18n["reportError"]>[1]) => void;
+  declare setDefaultParams: WrapperI18nInstance<D>["setDefaultParams"];
+  declare reportError: (
+    error: unknown,
+    context?: Parameters<WrapperI18nInstance["reportError"]>[1],
+  ) => void;
   declare formatNumber: (
     value: number,
     options?: Intl.NumberFormatOptions,
@@ -114,68 +134,93 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     options?: Intl.RelativeTimeFormatOptions,
     locale?: string,
   ) => string;
-  constructor(options: VueI18nOptions<D>) {
-    const initialLocale = options.ssrLocale ?? options.locale;
+  /**
+   * @param core - The instance this wrapper drives. Built for you by
+   *   {@link createI18n}; injected as-is by `createI18nFromCore`.
+   * @param options - Vue-layer options only (see {@link VueI18nCoreOptions}).
+   */
+  constructor(core: C, options: VueI18nCoreOptions = {}) {
+    this.core = core;
 
-    this._core = new I18n<D>({
-      ...options,
-      locale: initialLocale,
-    } as I18nOptions<D>);
-
-    this._locale = shallowRef(initialLocale);
+    // `ssrLocale` is written to the core, and the ref MIRRORS the core: it is
+    // seeded from `core.locale` after the write, never from the option. The
+    // core adopts the locale at once when its catalogs are available, and
+    // otherwise when their load completes (`localeChanged` then moves the
+    // ref), so the ref never reports a locale the instance is not in. (A
+    // no-op on the `createI18n` path, where the core was built with it.)
+    const initialLocale = options.ssrLocale ?? core.locale;
     this._requestedLocale = initialLocale;
-    this._isLoading = shallowRef(this._core.isLoading);
-    this._isInitializing = shallowRef(this._core.isInitializing);
-    this._cacheRevision = shallowRef(this._core.translationCache.getRevision());
+    if (core.locale !== initialLocale) {
+      core.locale = initialLocale;
+      if (core.locale !== initialLocale) {
+        // Still pending. If the load fails, the setter reports `loadError`:
+        // forget the request, so the same locale can be asked for again.
+        const off = core.on("loadError", ({ locale, namespace }) => {
+          if (namespace !== "locale-change" || locale !== initialLocale) return;
+          off();
+          if (this._requestedLocale === initialLocale) {
+            this._requestedLocale = this.core.locale;
+          }
+        });
+        this._unsubscribers.push(off);
+      }
+    }
+
+    this._locale = shallowRef(core.locale);
+    this._isLoading = shallowRef(this.core.isLoading);
+    this._isInitializing = shallowRef(this.core.isInitializing);
+    this._isInitialized = shallowRef(this.core.isInitialized);
+    this._cacheRevision = shallowRef(this.core.messagesCache.getRevision());
     this._configRevision = shallowRef(0);
     const syncCache = () => {
-      this._cacheRevision.value = this._core.translationCache.getRevision();
+      this._cacheRevision.value = this.core.messagesCache.getRevision();
     };
 
+    // Core's canonical revision event set: never hand-copy a subset here.
     this._unsubscribers.push(
-      this._core.on("localeChanged", ({ to }) => {
-        this._locale.value = to;
-        this._requestedLocale = to;
-      }),
-      this._core.on("namespaceLoaded", syncCache),
-      this._core.on("loadingStateChanged", ({ isLoading, isInitializing }) => {
-        this._isLoading.value = isLoading;
-        this._isInitializing.value = isInitializing;
-      }),
-      this._core.on("initialized", () => {
-        this._locale.value = this._core.locale;
-        syncCache();
-        this._isLoading.value = this._core.isLoading;
-        this._isInitializing.value = this._core.isInitializing;
-      }),
-      this._core.on("translationsCleared", syncCache),
-      this._core.on("defaultNamespaceChanged", () => {
-        syncCache();
-        this._configRevision.value++;
-      }),
-      this._core.on("configChanged", () => {
-        // Bump a separate revision so computed refs that depend on config
-        // (fallbackLocale, namespace activation without a loader, etc.) re-evaluate
-        // without interfering with _cacheRevision's sync to the real cache.
-        this._configRevision.value++;
+      subscribeToRevision(this.core, (event) => {
+        switch (event) {
+          case "localeChanged":
+            // `core.locale === payload.to`: core assigns before emitting.
+            this._locale.value = this.core.locale;
+            this._requestedLocale = this.core.locale;
+            break;
+          case "loadingStateChanged":
+            this._isLoading.value = this.core.isLoading;
+            this._isInitializing.value = this.core.isInitializing;
+            break;
+          case "initialized":
+            this._locale.value = this.core.locale;
+            syncCache();
+            this._isLoading.value = this.core.isLoading;
+            this._isInitializing.value = this.core.isInitializing;
+            this._isInitialized.value = this.core.isInitialized;
+            break;
+          case "namespaceLoaded":
+          case "messagesCleared":
+            syncCache();
+            break;
+          case "defaultNamespaceChanged":
+            syncCache();
+            this._configRevision.value++;
+            break;
+          case "configChanged":
+            // A separate revision, so config-dependent computeds re-evaluate
+            // without disturbing `_cacheRevision`'s sync to the real cache.
+            this._configRevision.value++;
+            break;
+        }
       }),
     );
 
-    // Explicit proxy bindings for spyability
-    const core = this._core;
-    this.addTranslations = core.addTranslations.bind(core);
-    this.addActiveNamespace = core.addActiveNamespace.bind(core);
-    this.clearTranslations = core.clearTranslations.bind(core);
-    this.reloadTranslations = core.reloadTranslations.bind(core);
-    this.registerLoader = core.registerLoader.bind(core);
-    this.registerPostProcessor = core.registerPostProcessor.bind(core);
-    this.onMissingKey = core.onMissingKey.bind(core);
-    this.onLoadError = core.onLoadError.bind(core);
+    // Bound explicitly rather than through a proxy, so tests can spy on them.
+    this.addMessages = core.addMessages.bind(core);
+    this.clearMessages = core.clearMessages.bind(core);
     this.on = core.on.bind(core);
     this.setFallbackLocale = core.setFallbackLocale.bind(core);
     this.setDefaultParams = core.setDefaultParams.bind(core);
     this.reportError = core.reportError.bind(core);
-    // Default to the reactive locale ref so template usages re-render on locale change
+    // Default to the reactive ref, so templates re-render on a locale change.
     this.formatNumber = (value, options, locale) =>
       formatNumber(core, value, options, locale ?? this._locale.value);
     this.formatDate = (value, options, locale) =>
@@ -184,9 +229,8 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       formatCurrency(core, value, currency, options, locale ?? this._locale.value);
     this.formatRelativeTime = (value, unit, options, locale) =>
       formatRelativeTime(core, value, unit, options, locale ?? this._locale.value);
-    this.registerLocaleDetector = core.registerLocaleDetector.bind(core);
 
-    // Bind own methods for destructuring support
+    // Bound so callers can destructure them.
     this.t = this.t.bind(this);
     this.tRaw = this.tRaw.bind(this);
     this.setLocale = this.setLocale.bind(this);
@@ -202,9 +246,16 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       this._localeComputed = computed({
         get: () => this._locale.value,
         set: (newLocale: string) => {
-          if (this._requestedLocale !== newLocale) {
+          // The second half covers a request the core dropped without an
+          // event (superseded by a direct `core.setLocale`): asking for the
+          // same locale again must not be a no-op. While this wrapper's own
+          // queue is still working on it, it is.
+          if (
+            this._requestedLocale !== newLocale ||
+            (this._isLocaleQueueIdle && this.core.locale !== newLocale)
+          ) {
             this.setLocale(newLocale).catch((error) => {
-              this._core.reportError(error, { source: "setLocale" });
+              this.core.reportError(error, { source: "setLocale" });
             });
           }
         },
@@ -215,23 +266,22 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
 
   set locale(value: string) {
     this.setLocale(value).catch((error) => {
-      this._core.reportError(error, { source: "setLocale" });
+      this.core.reportError(error, { source: "setLocale" });
     });
   }
 
-  /** Reactive shallow snapshot of the current interpolation defaults. */
+  /** Shallow snapshot of the current interpolation defaults. */
   get defaultParams(): ComputedRef<DefaultParamsSnapshot<D>> {
     if (!this._defaultParamsComputed) {
       this._defaultParamsComputed = computed(() => {
         void this._configRevision.value;
-        return this._core.defaultParams;
+        return this.core.defaultParams;
       });
     }
     return this._defaultParamsComputed;
   }
 
   private _dirComputed?: ComputedRef<"ltr" | "rtl">;
-  /** Text direction for the current locale, as a reactive computed ref */
   get dir(): ComputedRef<"ltr" | "rtl"> {
     if (!this._dirComputed) {
       this._dirComputed = computed(() => getTextDirection(this._locale.value));
@@ -244,7 +294,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     if (!this._loadedLocalesComputed) {
       this._loadedLocalesComputed = computed(() => {
         void this._cacheRevision.value;
-        return this._core.getLoadedLocales();
+        return this.core.getLoadedLocales();
       });
     }
     return this._loadedLocalesComputed;
@@ -256,30 +306,28 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       this._activeNamespacesComputed = computed(() => {
         void this._cacheRevision.value;
         void this._configRevision.value;
-        return this._core.getActiveNamespaces();
+        return this.core.getActiveNamespaces();
       });
     }
     return this._activeNamespacesComputed;
   }
 
   private _defaultNamespaceComputed?: ComputedRef<string>;
-  /** Current default namespace as a reactive ComputedRef */
   get defaultNamespace(): ComputedRef<string> {
     if (!this._defaultNamespaceComputed) {
       this._defaultNamespaceComputed = computed(() => {
         void this._cacheRevision.value;
         void this._configRevision.value;
-        return this._core.getDefaultNamespace();
+        return this.core.getDefaultNamespace();
       });
     }
     return this._defaultNamespaceComputed;
   }
 
   /**
-   * Reactive check for translation existence. Returns a ComputedRef that
-   * re-evaluates when locale, cache, or config changes. Call inside component setup
-   * (or an effectScope) — the underlying `computed()` registers with the
-   * active scope and disposes automatically.
+   * Re-evaluates when locale, cache or config changes. Call inside component
+   * setup (or an `effectScope`) so the underlying `computed()` registers with
+   * the active scope and disposes with it.
    */
   hasTranslation(
     key: string,
@@ -289,40 +337,46 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       void this._locale.value;
       void this._cacheRevision.value;
       void this._configRevision.value;
-      return this._core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
+      return this.core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
     });
   }
 
-  /**
-   * Reactive check for locale availability. Returns a ComputedRef that
-   * re-evaluates when the translation cache changes.
-   */
+  /** Re-evaluates when the messages cache or the default namespace changes. */
   hasLocale(locale: string, namespace?: string): ComputedRef<boolean> {
     return computed(() => {
       void this._cacheRevision.value;
-      return this._core.hasLocale(locale, namespace);
+      // With no explicit namespace the instance resolves against the DEFAULT
+      // namespace, which is config: on defaultNamespaceChanged the cache
+      // revision is re-assigned, not bumped, so it alone never triggers.
+      void this._configRevision.value;
+      return this.core.hasLocale(locale, namespace);
     });
   }
 
-  /** Imperative (non-reactive) translation-existence check — plain boolean, for use outside a reactive scope. */
+  /** Non-reactive: for use outside a reactive scope. */
   hasTranslationNow(
     key: string,
     opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
   ): boolean {
-    return this._core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
+    return this.core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
   }
 
-  /** Imperative (non-reactive) locale-availability check — plain boolean, for use outside a reactive scope. */
+  /** Non-reactive: for use outside a reactive scope. */
   hasLocaleNow(locale: string, namespace?: string): boolean {
-    return this._core.hasLocale(locale, namespace);
+    return this.core.hasLocale(locale, namespace);
   }
 
   async setLocale(locale: string): Promise<void> {
     const target = locale;
+    // Another target is still outstanding (a pending `ssrLocale` load, say).
+    // The request is then forwarded even when the core is already at
+    // `target`: the core's own early exit is what cancels the switch in
+    // flight, so the last request wins.
+    const supersedes = this._requestedLocale !== this.core.locale;
     this._requestedLocale = target;
     const run = async () => {
-      if (this._core.locale !== target) {
-        await this._core.setLocaleAsync(target);
+      if (supersedes || this.core.locale !== target) {
+        await this.core.setLocale(target);
       }
     };
 
@@ -341,20 +395,20 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       await task;
     } catch (error) {
       if (this._requestedLocale === target) {
-        this._requestedLocale = this._core.locale;
+        this._requestedLocale = this.core.locale;
       }
       throw error;
     }
   }
 
-  get translationCache(): ComputedRef<ReadonlyMap<string, FlattenedTranslations>> {
-    if (!this._translationCacheComputed) {
-      this._translationCacheComputed = computed(() => {
+  get messagesCache(): ComputedRef<ReadonlyMap<string, FlattenedMessages>> {
+    if (!this._messagesCacheComputed) {
+      this._messagesCacheComputed = computed(() => {
         void this._cacheRevision.value;
-        return this._core.translationCache.getInternalMap();
+        return this.core.messagesCache.getInternalMap();
       });
     }
-    return this._translationCacheComputed;
+    return this._messagesCacheComputed;
   }
 
   get isLoading(): Readonly<Ref<boolean>> {
@@ -365,72 +419,127 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     return readonly(this._isInitializing);
   }
 
-  /** Raw translation result for rich text renderers and advanced integrations. */
+  get isInitialized(): Readonly<Ref<boolean>> {
+    return readonly(this._isInitialized);
+  }
+
+  /** Core's translation-cache revision, reactive; read it to depend on cache changes. */
+  get cacheRevision(): Readonly<Ref<number>> {
+    return readonly(this._cacheRevision);
+  }
+
+  /**
+   * The rich-text half of `t()`: the full core `TranslationResult`. ONE
+   * signature, keyed through core's `AcceptedKey` / `ArgsFor` pair — see
+   * `AcceptedKey` for why the key union is spelled out inline.
+   */
   tRaw<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(key: K, ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>): TranslationResult;
-
-  /** Raw translation result for typed keys. */
-  tRaw<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): TranslationResult;
-
-  /** Raw translation result for permissive keys. */
-  tRaw(
-    key: import("@comvi/core").PermissiveKey,
-    params?: import("@comvi/core").TranslationParams,
-  ): TranslationResult;
+    K extends
+      | {
+          [P in import("@comvi/core").AcceptedKey]: P;
+        }[import("@comvi/core").AcceptedKey]
+      | import("@comvi/core").NamespacedKeys<N>,
+    N extends import("@comvi/core").Namespaces = never,
+  >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D, N>): TranslationResult;
 
   tRaw(key: string, ...params: [import("@comvi/core").TranslationParams?]): TranslationResult {
     void this._locale.value;
     void this._cacheRevision.value;
     void this._configRevision.value;
-    return this._core.tRaw(key as any, ...(params as any));
+    return this.core.tRaw(key as any, ...(params as any));
   }
 
-  /**
-   * Translate a namespaced key (when ns is provided). Always returns plain text.
-   */
+  /** Always plain text; tracks locale, cache and config reactively. */
   t<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(key: K, ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>): string;
-
-  /**
-   * Translate a key with Vue reactivity tracking - typed keys. Always returns plain text.
-   */
-  t<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): string;
-
-  /**
-   * Permissive overload - only active when TranslationKeys is empty. Always returns plain text.
-   */
-  t(
-    key: import("@comvi/core").PermissiveKey,
-    params?: import("@comvi/core").TranslationParams,
-  ): string;
+    K extends
+      | {
+          [P in import("@comvi/core").AcceptedKey]: P;
+        }[import("@comvi/core").AcceptedKey]
+      | import("@comvi/core").NamespacedKeys<N>,
+    N extends import("@comvi/core").Namespaces = never,
+  >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D, N>): string;
 
   t(key: string, ...params: [import("@comvi/core").TranslationParams?]): string {
     return translationResultToString(this.tRaw(key as any, ...(params as any)));
   }
 
+  /**
+   * Compose a capability onto the instance and keep this wrapper: `use(f)` is
+   * `f(this.core)`, and the return value is this same instance retyped so
+   * `core` carries whatever the installer widened the instance to.
+   *
+   * ```ts
+   * const i18n = createI18n({ locale: "en" }).use(loader(importMap));
+   * i18n.core.reloadMessages(); // typed: the loader is on `core`
+   * ```
+   *
+   * The one ordering rule: compose BEFORE `app.use(i18n)` — Vue's own `use`,
+   * not this one — because `install` starts `init()`, the only thing that
+   * drains the plugin queue, so a `plugins()` or `definePlugin(…)` composed
+   * later does not run now: it waits for the next `init()`, which re-runs the
+   * whole queue and accumulates another set of cleanups (development warns;
+   * the instance's own late-compose guards do not see the synchronous start of
+   * `init()`). ICU is not composed at all: it is `compiler: icuCompiler` in
+   * the options.
+   *
+   * Installers widen the instance IN PLACE and return it; the wrapper's bound
+   * proxies point at that one instance, so an installer that hands back a
+   * different object is refused (`code: "E_USE_INSTANCE_IDENTITY"`) instead of
+   * leaving the wrapper driving an instance the app never sees. A raw ASYNC plugin
+   * handed here has already run by the time the check fires, so its rejection
+   * is swallowed and the identity error is the only thing the app sees — and
+   * the development message names the ways out, exactly as core's does.
+   */
+  use<T extends WrapperI18nInstance<D>>(installer: (core: C) => T): VueI18n<D, T> {
+    if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateUse) {
+      this._warnedLateUse = true;
+      console.warn(
+        "[@comvi/vue] .use(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. A plugin queued now does not run until the next init(), which re-runs the whole queue and accumulates a second set of cleanups — so nothing has changed on this instance.",
+      );
+    }
+    const widened: unknown = installer(this.core);
+    if (widened !== this.core) {
+      // Same three lines core's `use` has, for the same reason: the function
+      // already RAN, so a raw ASYNC plugin has a live promise here. The error
+      // below is the report; that promise's rejection is not, and leaving it
+      // floating would print an unhandled rejection on top of an already-clear
+      // diagnostic. Swallow it, and only it.
+      if (typeof (widened as { then?: unknown } | null | undefined)?.then === "function") {
+        void (widened as Promise<unknown>).then(undefined, () => {});
+      }
+      const error = new Error(
+        IS_DEV
+          ? "[@comvi/vue] .use(installer) must return the instance it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
+          : "E_USE_INSTANCE_IDENTITY",
+      ) as UseInstanceIdentityError;
+      error.code = "E_USE_INSTANCE_IDENTITY";
+      throw error;
+    }
+    return this as unknown as VueI18n<D, T>;
+  }
+
   async init(): Promise<this> {
-    await this._core.init();
+    await this.core.init();
     return this;
   }
 
-  use(plugin: I18nPlugin, options?: Parameters<I18n["use"]>[1]): this {
-    this._core.use(plugin, options);
-    return this;
-  }
-
-  destroy(): void {
-    if (this._isDestroyed) return;
-    this._isDestroyed = true;
+  /**
+   * Unsubscribe from the instance, then tear the instance down.
+   *
+   * Returns the cleanup's promise, so `await i18n.destroy()` means the plugin
+   * cleanups have FINISHED — a test tearing an instance down between cases, or
+   * a request-scoped instance on the server, has something to wait for. Every
+   * existing fire-and-forget caller keeps working: the promise RESOLVES even
+   * when the instance's cleanup rejects, because a rejection nobody awaits is an
+   * unhandled rejection, and the error already has its channel
+   * (`onError`, source `plugin-cleanup`).
+   *
+   * A repeat call is the same promise, not a second teardown, so a second
+   * `await` cannot report "done" while the first cleanup is still running; once
+   * it has settled, a later call resolves immediately.
+   */
+  destroy(): Promise<void> {
+    if (this._destroyed) return this._destroyed;
 
     this._unsubscribers
       .slice()
@@ -438,55 +547,57 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       .forEach((unsub) => unsub());
     this._unsubscribers.length = 0;
 
-    this._core.destroy().catch((error) => {
-      this._core.reportError(error, { source: "plugin-cleanup" });
+    this._destroyed = this.core.destroy().catch((error: unknown) => {
+      this.core.reportError(error, { source: "plugin-cleanup" });
     });
+    return this._destroyed;
   }
 
   private _installedApps = new WeakSet<App>();
 
   /**
-   * Install the i18n plugin into a Vue app.
+   * Provides the instance under `I18N_INJECTION_KEY`, registers the `$t` /
+   * `$tRaw` / `$i18n` global properties, and — if the core is not initialized
+   * yet — kicks off `init()` fire-and-forget.
    *
-   * Side effects:
-   * - Provides the i18n instance via `I18N_INJECTION_KEY` so `useI18n()` works.
-   * - Registers `$t`, `$tRaw`, `$i18n` global properties for Options API + templates.
-   * - If the core isn't initialized yet, kicks off `init()` asynchronously (fire-and-forget).
-   *
-   * SSR note: on server-side rendering, call `await i18n.init()` BEFORE
-   * `renderToString(app)`. The fire-and-forget `init()` here is for client-side
-   * convenience only — on the server, rendering races against translation loading
-   * and you may serialize stale/empty caches.
+   * SSR: `await i18n.init()` BEFORE `renderToString(app)`. That fire-and-forget
+   * `init()` is a client-side convenience; on the server, rendering races
+   * translation loading and can serialize a stale or empty cache.
    */
   install(app: App): void {
     if (this._installedApps.has(app)) return;
     this._installedApps.add(app);
 
-    if (!this._core.isInitialized && !this._core.isInitializing) {
+    if (!this.core.isInitialized && !this.core.isInitializing) {
       this.init().catch((error) => {
-        this._core.reportError(error instanceof Error ? error : new Error(String(error)), {
+        this.core.reportError(error instanceof Error ? error : new Error(String(error)), {
           source: "init",
         });
       });
     }
 
-    app.provide(I18N_INJECTION_KEY, this);
-    app.config.globalProperties.$i18n = this;
+    // Ambient channels: the consumer cannot know this instance's `D` or instance
+    // type, so both erase to `AnyVueI18n`, as the injection key declares.
+    const ambient = this as unknown as AnyVueI18n;
+    app.provide(I18N_INJECTION_KEY, ambient);
+    app.config.globalProperties.$i18n = ambient;
     app.config.globalProperties.$t = this.t;
     app.config.globalProperties.$tRaw = this.tRaw;
   }
 }
 
-export function createI18n<const D extends DefaultTranslationParams = {}>(
-  options: VueI18nOptions<D>,
-): VueI18n<D> {
-  return new VueI18n(options);
-}
+/**
+ * What ambient consumers see — `inject(I18N_INJECTION_KEY)` and `$i18n`. `D`
+ * and the instance type `C` are both erased: a component is written against
+ * whatever the app installed, so it gets the capability-free instance surface and
+ * must acquire capabilities through `useI18nLoader()` / `useI18nPlugins()`.
+ */
+export type AnyVueI18n = VueI18n<{}, WrapperI18nInstance>;
 
 declare module "vue" {
   export interface ComponentCustomProperties {
     $t: VueI18n["t"];
     $tRaw: VueI18n["tRaw"];
-    $i18n: VueI18n;
+    $i18n: AnyVueI18n;
   }
 }

@@ -3,7 +3,7 @@
 // verdict. Mirrors the discovery + `private === true` skip of check-package-contracts.mjs
 // so the two contract checks cover the same fleet. publint independently catches the
 // false-CJS class (a `require` condition resolving to ESM-flavored types) plus
-// engines/repository nits — see .omc/plans/types-attw-publint.md Step 4.
+// engines/repository nits.
 //
 // We lint the PACKED tarball (`pack: 'pnpm'`), not the source tree, to validate exactly
 // what publishes — the same philosophy as audit:package-contracts. Run after `pnpm build`

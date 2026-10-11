@@ -1,50 +1,78 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n } from "@comvi/core";
-import { InContextEditorPlugin } from "../src/index";
-import { getKeyMappings } from "../src/translation";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createI18n } from "./helpers/composedInstance";
+import { inContextEditorPlugin } from "../src/index";
+import { readEditorMappings } from "@comvi/core/editor-bridge";
 
+// Declared out of sorted order on purpose: ids come from a sort of the pending
+// `namespace:key` set (`src/index.ts` flushPendingKeys), not from either the
+// catalog's declaration order or the order keys are first requested.
 const TRANSLATIONS = {
   "en:default": {
-    a_key: "A value",
     b_key: "B value",
+    a_key: "A value",
   },
-} as const;
+};
 
-async function createServerLikeI18n() {
-  // Force non-browser branch in plugin to avoid starting DOM watcher.
-  vi.stubGlobal("window", undefined);
-  vi.stubGlobal("document", undefined);
-
+async function createServerLikeI18n(
+  messages: Record<string, Record<string, string>> = TRANSLATIONS,
+) {
   const i18n = createI18n({
     locale: "en",
     defaultNs: "default",
-    translation: TRANSLATIONS,
+    messages,
   });
 
-  i18n.use(InContextEditorPlugin());
+  i18n.registerPlugin(inContextEditorPlugin());
   await i18n.init();
   return i18n;
 }
 
+/** The key ids a server host published for the client to adopt. */
+const hostMappings = (i18n: object) => readEditorMappings(i18n)?.getKeyMappings();
+
 describe("InContextEditor hydration stability", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
+  beforeEach(() => {
+    // Force the plugin's non-browser branch so no DOM watcher starts.
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("document", undefined);
   });
 
-  it("assigns stable marker IDs regardless of first t() call order", async () => {
-    const i18nFirstB = await createServerLikeI18n();
-    i18nFirstB.t("b_key");
-    i18nFirstB.t("a_key");
-    const firstRunMappings = getKeyMappings();
-    await i18nFirstB.destroy();
+  it("assigns the same sorted-key-order ids on every server run, independent of the catalog's declaration order", async () => {
+    const firstRun = await createServerLikeI18n();
+    // A single t() flushes the whole namespace, so which key triggers it — and
+    // in what order — cannot influence the ids. The catalog's order can, and is
+    // what this pins: b_key is declared first but still gets the second id.
+    firstRun.t("b_key");
+    const firstRunMappings = hostMappings(firstRun);
+    await firstRun.destroy();
 
-    const i18nFirstA = await createServerLikeI18n();
-    i18nFirstA.t("a_key");
-    i18nFirstA.t("b_key");
-    const secondRunMappings = getKeyMappings();
-    await i18nFirstA.destroy();
+    const secondRun = await createServerLikeI18n();
+    secondRun.t("a_key");
+    const secondRunMappings = hostMappings(secondRun);
+    await secondRun.destroy();
 
-    expect(firstRunMappings["default:a_key"]).toBe(secondRunMappings["default:a_key"]);
-    expect(firstRunMappings["default:b_key"]).toBe(secondRunMappings["default:b_key"]);
+    expect(firstRunMappings).toEqual({ "default:a_key": 1, "default:b_key": 2 });
+    expect(secondRunMappings).toEqual({ "default:a_key": 1, "default:b_key": 2 });
+  });
+
+  it("gives a key that only exists in a later run its own id, never one already in use", async () => {
+    const first = await createServerLikeI18n();
+    first.t("a_key");
+    const firstRunMappings = hostMappings(first);
+    await first.destroy();
+
+    const second = await createServerLikeI18n({
+      "en:default": { c_key: "C value", b_key: "B value", a_key: "A value" },
+    });
+    second.t("a_key");
+    const secondRunMappings = hostMappings(second);
+    await second.destroy();
+
+    expect(firstRunMappings).toEqual({ "default:a_key": 1, "default:b_key": 2 });
+    expect(secondRunMappings).toEqual({
+      "default:a_key": 1,
+      "default:b_key": 2,
+      "default:c_key": 3,
+    });
   });
 });

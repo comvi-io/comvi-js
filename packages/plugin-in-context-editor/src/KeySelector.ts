@@ -1,26 +1,27 @@
 /**
- * KeySelector - Translation key selection dropdown
- *
- * Shows a dropdown when an element has multiple translation keys,
- * allowing the user to select which key to edit.
- * Uses Shadow DOM for style isolation from the host page.
+ * The dropdown shown when one element carries several translation keys.
+ * Mounted in a shadow root so host page styles cannot reach it.
  */
 
 import { createApp, ref, type App as VueApp } from "vue";
 import KeySelectorApp from "./KeySelectorApp.vue";
 import { createShadowDomContainer } from "./utils/shadowDom";
 
-// Store app instance to prevent memory leaks
 let container: HTMLElement | null = null;
 let app: VueApp | null = null;
+/** The Core instance whose click opened the selector. */
+let ownerInstanceId: string | undefined;
 
 const isOpen = ref(false);
 
 /**
- * Cleanup function to prevent memory leaks
- * Unmounts the Vue app and removes the container from DOM
+ * Unmounts the selector. With `instanceId`, only when that instance owns it: a
+ * stopping Core must not tear down the selector another active Core opened.
  */
-export function cleanup() {
+export function cleanup(instanceId?: string) {
+  if (instanceId !== undefined && ownerInstanceId !== undefined) {
+    if (ownerInstanceId !== instanceId) return;
+  }
   if (app) {
     app.unmount();
     app = null;
@@ -30,38 +31,32 @@ export function cleanup() {
     container = null;
   }
   isOpen.value = false;
+  ownerInstanceId = undefined;
 }
 
-/**
- * Calculate position for the dropdown near the clicked element
- */
+/** Viewport coordinates: the dropdown is `position: fixed`, so page scroll never enters. */
 function calculatePosition(element: Element): { top: number; left: number } {
   const rect = element.getBoundingClientRect();
   const viewportHeight = window.innerHeight;
   const viewportWidth = window.innerWidth;
 
-  // Estimated dropdown height
+  // Estimate: the dropdown is not mounted yet, so it cannot be measured.
   const dropdownHeight = 300;
   const dropdownWidth = 400;
 
-  let top = rect.bottom + window.scrollY + 8; // 8px gap below element
-  let left = rect.left + window.scrollX;
+  let top = rect.bottom + 8; // 8px gap below element
+  let left = rect.left;
 
-  // Check if dropdown would overflow viewport bottom
   if (rect.bottom + dropdownHeight > viewportHeight) {
-    // Position above element instead
-    top = rect.top + window.scrollY - dropdownHeight - 8;
+    top = rect.top - dropdownHeight - 8;
   }
 
-  // Check if dropdown would overflow viewport right
   if (rect.left + dropdownWidth > viewportWidth) {
     left = viewportWidth - dropdownWidth - 16;
   }
 
-  // Ensure not off-screen on left
   left = Math.max(16, left);
 
-  // Ensure not off-screen on top
   top = Math.max(16, top);
 
   return { top, left };
@@ -72,28 +67,27 @@ function mountApp(
   element: Element,
   onSelect: (key: string, ns: string) => void,
   defaultNs?: string,
+  instanceId?: string,
 ) {
-  // Cleanup existing app before creating a new one
   cleanup();
+  ownerInstanceId = instanceId;
 
   const { container: newContainer, mountPoint } = createShadowDomContainer();
   container = newContainer;
 
   isOpen.value = true;
 
-  // Calculate position
   const position = calculatePosition(element);
 
-  // Store app instance for cleanup later
   app = createApp(KeySelectorApp, {
     keyData,
     position,
     open: isOpen,
     defaultNs,
+    instanceId,
     "onUpdate:open": (value: boolean) => {
       isOpen.value = value;
 
-      // Cleanup when closed
       if (!value) {
         cleanup();
       }
@@ -106,24 +100,17 @@ function mountApp(
   app.mount(mountPoint);
 }
 
-/**
- * Show the key selector dropdown
- * @param keysWithData - Array of key data objects with keys, namespaces and optional text previews
- * @param element - The element that was clicked (for positioning)
- * @param onSelect - Callback when a key is selected, receives key and namespace
- */
+/** @param element - The clicked element; the dropdown is positioned against it. */
 export function showKeySelector(
   keysWithData: Array<{ key: string; ns: string; textPreview?: string }>,
   element: Element,
   onSelect: (key: string, ns: string) => void,
   defaultNs?: string,
+  instanceId?: string,
 ) {
-  mountApp(keysWithData, element, onSelect, defaultNs);
+  mountApp(keysWithData, element, onSelect, defaultNs, instanceId);
 }
 
-/**
- * Close the key selector dropdown
- */
 export function closeKeySelector() {
   cleanup();
 }

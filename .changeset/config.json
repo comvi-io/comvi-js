@@ -26,6 +26,9 @@
     "onlyUpdatePeerDependentsWhenOutOfRange": true
   },
   "ignore": [
+    "@comvi/chrome-extension",
+    "@comvi/locale-routing",
+    "@comvi/typegen",
     "@comvi/vite-config",
     "@test-apps/next",
     "@test-apps/nuxt",

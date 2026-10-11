@@ -1,21 +1,31 @@
 /**
- * In-Context Editor Plugin for Comvi i18n
- *
- * This plugin integrates the in-context translation editor with @comvi/vue.
- * It automatically injects invisible character encodings into translations and provides
- * a visual editor for managing translations directly in the browser.
+ * Injects invisible-character key encodings into rendered translations and
+ * drives the in-browser visual editor over them.
  */
 
-import type { I18nPlugin, I18nPluginFactory, I18n } from "@comvi/core";
+import type { I18n, I18nPlugin, I18nPluginFactory, PluginI18nInstance } from "@comvi/core";
+import { attachDevtools } from "@comvi/core/devtools";
+import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
+import {
+  EDITOR_MAPPINGS_GLOBAL,
+  EDITOR_INITIAL_MAPPINGS_GLOBAL,
+  toRecordOfNumbers,
+  readEditorMappings,
+  type InContextEditorMappings,
+} from "@comvi/core/editor-bridge";
 import { Core } from "./Core";
-import { addBeforeProcessHook, registerPostProcessorOnce } from "./postProcessor";
+import {
+  addBeforeProcessHook,
+  getOrCreatePostProcessorState,
+  registerPostProcessorOnce,
+} from "./postProcessor";
 import { initApiConfig, resetApiConfig } from "./config/api";
-import { getKeyMappings, loadKeyMappings, registerKey, resetEncoder } from "./translation";
+import { TranslationKeyEncoder, defaultEncoder } from "./encoding/TranslationKeyEncoder";
 import type { TranslationSystemOptions } from "./types";
 
-/**
- * Configuration options for the In-Context Editor Plugin
- */
+// Declare process for bundler replacement (webpack/turbopack/vite replace process.env.NODE_ENV at build time)
+declare const process: { env?: { NODE_ENV?: string } } | undefined;
+
 export interface EditorOptions extends Omit<TranslationSystemOptions, "targetElement"> {
   /**
    * Optional DOM element to watch for translations
@@ -30,54 +40,23 @@ export interface EditorOptions extends Omit<TranslationSystemOptions, "targetEle
   apiKeyOverride?: string;
 }
 
-type InContextEditorMappingsBridge = {
-  getKeyMappings: () => Record<string, number>;
-  loadKeyMappings: (mappings: Record<string, number>) => void;
-};
-
-const MAPPINGS_BRIDGE_KEY = "__comviInContextEditorMappings";
-const INITIAL_MAPPINGS_KEY = "__comviInContextEditorInitialMappings";
 let runtimeIdCounter = 0;
 const activeBrowserEditorRuntimes = new Set<number>();
+/** Live browser runtimes per instance: the bridge goes only with the last one. */
+const bridgeUsers = new WeakMap<object, number>();
 
-function attachMappingsBridge(target: unknown): void {
-  if (!target || (typeof target !== "object" && typeof target !== "function")) {
+function attachMappingsBridge(target: object, encoder: TranslationKeyEncoder): void {
+  if (readEditorMappings(target)) {
     return;
   }
-  const host = target as Record<string, unknown>;
-  const existing = host[MAPPINGS_BRIDGE_KEY];
-  if (
-    existing &&
-    typeof existing === "object" &&
-    typeof (existing as { getKeyMappings?: unknown }).getKeyMappings === "function" &&
-    typeof (existing as { loadKeyMappings?: unknown }).loadKeyMappings === "function"
-  ) {
-    return;
-  }
-
-  host[MAPPINGS_BRIDGE_KEY] = {
-    getKeyMappings,
-    loadKeyMappings,
-  } satisfies InContextEditorMappingsBridge;
-}
-
-function toRecordOfNumbers(value: unknown): Record<string, number> | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  const entries = Object.entries(value as Record<string, unknown>);
-  const result: Record<string, number> = {};
-  for (const [key, item] of entries) {
-    if (typeof item !== "number" || !Number.isFinite(item)) {
-      return undefined;
-    }
-    result[key] = item;
-  }
-  return result;
+  (target as Record<string, unknown>)[EDITOR_MAPPINGS_GLOBAL] = {
+    getKeyMappings: () => encoder.getMappings(),
+    loadKeyMappings: (mappings) => encoder.loadMappings(mappings),
+  } satisfies InContextEditorMappings;
 }
 
 function enqueueNamespaceKeys(
-  i18n: I18n,
+  i18n: PluginI18nInstance,
   pendingCombinedKeys: Set<string>,
   locale: string,
   namespace: string,
@@ -86,13 +65,13 @@ function enqueueNamespaceKeys(
     return;
   }
 
-  const translations = i18n.getTranslations(locale, namespace) as Record<string, unknown>;
+  const translations = i18n.getMessages(locale, namespace) as Record<string, unknown>;
   for (const key of Object.keys(translations)) {
     pendingCombinedKeys.add(`${namespace}:${key}`);
   }
 }
 
-function enqueueLoadedKeys(i18n: I18n, pendingCombinedKeys: Set<string>): void {
+function enqueueLoadedKeys(i18n: PluginI18nInstance, pendingCombinedKeys: Set<string>): void {
   const namespaces = new Set<string>([i18n.getDefaultNamespace(), ...i18n.getActiveNamespaces()]);
   for (const locale of i18n.getLoadedLocales()) {
     for (const namespace of namespaces) {
@@ -101,7 +80,7 @@ function enqueueLoadedKeys(i18n: I18n, pendingCombinedKeys: Set<string>): void {
   }
 }
 
-function flushPendingKeys(pendingCombinedKeys: Set<string>): void {
+function flushPendingKeys(pendingCombinedKeys: Set<string>, encoder: TranslationKeyEncoder): void {
   if (pendingCombinedKeys.size === 0) {
     return;
   }
@@ -116,57 +95,77 @@ function flushPendingKeys(pendingCombinedKeys: Set<string>): void {
     }
     const namespace = combinedKey.slice(0, separatorIndex);
     const key = combinedKey.slice(separatorIndex + 1);
-    registerKey(key, namespace);
+    encoder.registerKey(key, namespace);
   }
 }
 
 /**
- * In-Context Editor Plugin Factory
+ * No-op plugin used when the full entry is evaluated under NODE_ENV=production.
  *
- * Creates a plugin that integrates with the Comvi i18n to provide
- * in-context translation editing capabilities.
- *
+ * Mirrors the real plugin's shape — accepts the i18n instance and returns a
+ * cleanup function — so `registerPlugin()` and teardown code behave identically,
+ * while the editor runtime never activates.
+ */
+const noopPlugin: I18nPlugin = () => {
+  return () => {
+    // no-op cleanup
+  };
+};
+
+/**
  * The plugin uses `i18n.apiKey` from createI18n options for authentication.
  * If no API key is configured, the editor runs in demo mode.
  *
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/vue';
- * import { InContextEditorPlugin } from '@comvi/plugin-in-context-editor';
+ * import { inContextEditorPlugin } from '@comvi/plugin-in-context-editor';
  *
  * const i18n = createI18n({
  *   locale: 'en',
  *   apiKey: 'your-api-key'
  * });
- * i18n.use(InContextEditorPlugin());
+ * i18n.registerPlugin(inContextEditorPlugin());
  *
  * await i18n.init();
  * ```
  */
-export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options): I18nPlugin => {
+export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options): I18nPlugin => {
+  // Belt-and-suspenders for bundlers that ignore the "production" export
+  // condition (which maps to the lightweight entry-production stub): never
+  // activate the editor runtime in production builds.
+  if (typeof process !== "undefined" && process.env?.NODE_ENV === "production") {
+    return noopPlugin;
+  }
   return (i18n) => {
     const isBrowserRuntime = typeof window !== "undefined" && typeof document !== "undefined";
 
+    // The browser shares one page-wide encoder: the DOM scanner decodes every
+    // instance's markers from the same page. A server instance gets its own, so
+    // overlapping requests never share or reset each other's key ids.
+    const { encoder } = getOrCreatePostProcessorState(
+      i18n,
+      isBrowserRuntime ? defaultEncoder : new TranslationKeyEncoder(),
+    );
+
     // Expose mapping bridge on i18n for framework adapters (Nuxt/Next) to transfer
     // SSR key mappings to the client before hydration.
-    attachMappingsBridge(i18n);
+    attachMappingsBridge(i18n, encoder);
 
-    const host = i18n as unknown as Record<string, unknown>;
-    const initialMappings = toRecordOfNumbers(host[INITIAL_MAPPINGS_KEY]);
-    delete host[INITIAL_MAPPINGS_KEY];
+    const instance = i18n as unknown as Record<string, unknown>;
+    const initialMappings = toRecordOfNumbers(instance[EDITOR_INITIAL_MAPPINGS_GLOBAL]);
+    delete instance[EDITOR_INITIAL_MAPPINGS_GLOBAL];
 
     if (initialMappings) {
       // Client hydration path: restore server key-id map before any translation work.
-      loadKeyMappings(initialMappings);
-    } else if (!isBrowserRuntime) {
-      // Keep encoder state request-scoped on server/SSR runtimes.
-      resetEncoder();
+      encoder.loadMappings(initialMappings);
     } else if (
+      isBrowserRuntime &&
       activeBrowserEditorRuntimes.size === 0 &&
-      Object.keys(getKeyMappings()).length === 0
+      Object.keys(encoder.getMappings()).length === 0
     ) {
       // First browser runtime on the page: start from a clean mapping.
-      resetEncoder();
+      encoder.reset();
     }
 
     const pendingCombinedKeys = new Set<string>();
@@ -183,13 +182,15 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     });
 
     const removeBeforeProcessHook = addBeforeProcessHook(i18n, () => {
-      flushPendingKeys(pendingCombinedKeys);
+      flushPendingKeys(pendingCombinedKeys, encoder);
     });
 
     // Register post-processor in all runtimes so SSR/client markup stays consistent.
     registerPostProcessorOnce(i18n);
 
-    // Browser-only editor runtime: no-op during SSR/server execution.
+    // Browser-only editor runtime: no-op during SSR/server execution. The
+    // bridge ref-count below tracks browser runtimes only: a server instance is
+    // discarded with its request, bridge and encoder included.
     if (!isBrowserRuntime) {
       return () => {
         removeBeforeProcessHook();
@@ -198,17 +199,22 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
       };
     }
 
-    // Initialize the editor core with i18n instance
+    // Context collection is ON by default. The site's `createI18n` option is
+    // the single developer-level opt-out and always wins: `collectContext:
+    // false` on the instance cannot be re-enabled by the plugin option. Otherwise
+    // the plugin option decides, and leaving it unset keeps Core's default.
+    const collectContext = i18n.collectContext === false ? false : options?.collectContext;
+
     const core = new Core(
       {
         targetElement: options?.targetElement || document.body,
         tagAttributes: options?.tagAttributes,
         debug: options?.debug,
         highlightStyle: options?.highlightStyle,
-        collectContext: options?.collectContext,
+        collectContext,
         screenGroupResolver: options?.screenGroupResolver,
       },
-      i18n, // Pass i18n instance to Core
+      i18n,
     );
     const instanceId = core.getInstanceId();
 
@@ -228,10 +234,10 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     // activates the standalone runtime with a proxy transport instead —
     // credentials stay in the extension's service worker.
 
-    // Start the editor
     core.start();
     const runtimeId = ++runtimeIdCounter;
     activeBrowserEditorRuntimes.add(runtimeId);
+    bridgeUsers.set(i18n, (bridgeUsers.get(i18n) ?? 0) + 1);
 
     return () => {
       removeBeforeProcessHook();
@@ -240,28 +246,66 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
       core.stop();
       resetApiConfig(instanceId);
       activeBrowserEditorRuntimes.delete(runtimeId);
-      // Clean up mappings bridge from i18n instance
-      const host = i18n as unknown as Record<string, unknown>;
-      if (host[MAPPINGS_BRIDGE_KEY]) {
-        delete host[MAPPINGS_BRIDGE_KEY];
+      const users = (bridgeUsers.get(i18n) ?? 0) - 1;
+      if (users > 0) {
+        bridgeUsers.set(i18n, users);
+      } else {
+        bridgeUsers.delete(i18n);
+        delete (i18n as unknown as Record<string, unknown>)[EDITOR_MAPPINGS_GLOBAL];
       }
     };
   };
 };
 
-// Export types
+/** The instance surface `inContextEditor` guarantees on the way out. */
+export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
+
+/**
+ * The in-context editor as a `.use(…)` installer.
+ *
+ * ```ts
+ * const i18n = createI18n({ locale: "en", apiKey }).use(inContextEditor());
+ * await i18n.init();
+ * ```
+ *
+ * Devtools is ensured BEFORE plugins on purpose: the editor's whole point is
+ * being driven from outside the page, so an editor-enabled instance announces
+ * itself on the `window.__COMVI__` queue without a second `.use(devtools())`.
+ * Both attaches are idempotent — an already-composed instance keeps its
+ * `instanceId`, its queue entry and every registered plugin.
+ *
+ * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
+ * not re-implemented here; they keep running inside `PluginI18nInstance`, because
+ * the last thing this installer does is call `registerPlugin`.
+ *
+ * The instance type comes back UNCHANGED, deliberately: the package's `production`
+ * condition ships this same signature with `(instance) => instance`, attaching nothing.
+ * Promising `I18nPluginApi` here would type a member present in dev and
+ * absent in production. Need `registerPlugin` yourself? Compose `.use(plugins())`.
+ *
+ * `registerPlugin(inContextEditor(…))` is a type error. Under this entry it fails at
+ * `init()` on `ensureInstallable`; under the `production` condition the
+ * identity no-op hands the instance back and the plugin capability's return-shape guard
+ * rejects it — a plugin may only return nothing or a cleanup function.
+ */
+export function inContextEditor(options?: EditorOptions): InContextEditorInstaller {
+  return (i18n) => {
+    const instance = attachPlugins(attachDevtools(ensureInstallable(i18n, "inContextEditor")));
+    instance.registerPlugin(inContextEditorPlugin(options));
+    return i18n;
+  };
+}
+
 export type { TranslationSystemOptions, HighlightStyleOptions } from "./types";
 export type { ElementData, NodeData, KeyInfo } from "./types/translation";
 
-// Re-export main initialization functions for backward compatibility
+// Kept for backward compatibility.
 export { init, stop } from "./main";
 
-// Export refactored classes
 export { TranslationRegistry } from "./TranslationRegistry";
 export { TranslationScanner } from "./TranslationScanner";
 export { TranslationKeyEncoder, defaultEncoder } from "./encoding/TranslationKeyEncoder";
 
-// Export encoding utilities
 export {
   encodeKeyToInvisible,
   decodeInvisibleToKey,
@@ -276,7 +320,6 @@ export {
   INVISIBLE_CHARS,
 } from "./translation";
 
-// Export utility functions
 export { debounce } from "./utils/debounce";
 export {
   collectElementAttributes,

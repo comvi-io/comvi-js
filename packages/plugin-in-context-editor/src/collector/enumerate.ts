@@ -1,9 +1,9 @@
 /**
- * Enumeration (2a) — walks the existing TranslationRegistry to build the set
+ * Walks the existing TranslationRegistry to build the set
  * of visible translation targets for this pass.
  *
- * The registry stores no geometry (RC3/P3 — no layout thrash outside a
- * pass); rects are measured here, and callers must only invoke this AFTER
+ * The registry stores no geometry — no layout thrash happens outside a
+ * pass; rects are measured here, and callers must only invoke this AFTER
  * the change-gate has already decided a pass is worth attempting.
  */
 
@@ -27,7 +27,7 @@ function isViewportIntersecting(rect: DOMRect): boolean {
 }
 
 /**
- * Elements the collector must never read (2g): input values are never read,
+ * Elements the collector must never read: input values are never read,
  * and password/contenteditable fields are skipped entirely — even as
  * potential targets — since their rendered content is untrusted by design.
  */
@@ -72,7 +72,9 @@ export function enumerateVisibleTargets(
     }
 
     for (const nodeData of data.nodes.values()) {
-      raw.push({ element, namespace: nodeData.ns, key: nodeData.key, rect });
+      for (const { ns, key } of nodeData.markers ?? [nodeData]) {
+        raw.push({ element, namespace: ns, key, rect });
+      }
     }
   };
 
@@ -107,7 +109,7 @@ export function enumerateVisibleTargets(
 
 /**
  * Every distinct {namespace,key} currently known to the registry, regardless
- * of visibility — used for the session-start handshake (2e), which wants the
+ * of visibility — used for the session-start handshake, which wants the
  * broadest possible hit rate against the server's stored profiles.
  */
 export function collectAllKeyRefs(registry: TranslationRegistry): KeyRef[] {
@@ -116,12 +118,14 @@ export function collectAllKeyRefs(registry: TranslationRegistry): KeyRef[] {
 
   for (const [, data] of registry.entries()) {
     for (const nodeData of data.nodes.values()) {
-      const compositeKey = nodeData.ns + "::" + nodeData.key;
-      if (seen.has(compositeKey)) {
-        continue;
+      for (const { ns, key } of nodeData.markers ?? [nodeData]) {
+        const compositeKey = ns + "::" + key;
+        if (seen.has(compositeKey)) {
+          continue;
+        }
+        seen.add(compositeKey);
+        refs.push({ namespace: ns, key });
       }
-      seen.add(compositeKey);
-      refs.push({ namespace: nodeData.ns, key: nodeData.key });
     }
   }
 
@@ -152,12 +156,14 @@ export function collectKeyRefsForElements(
       continue;
     }
     for (const nodeData of data.nodes.values()) {
-      const compositeKey = nodeData.ns + "::" + nodeData.key;
-      if (seen.has(compositeKey)) {
-        continue;
+      for (const { ns, key } of nodeData.markers ?? [nodeData]) {
+        const compositeKey = ns + "::" + key;
+        if (seen.has(compositeKey)) {
+          continue;
+        }
+        seen.add(compositeKey);
+        refs.push({ namespace: ns, key });
       }
-      seen.add(compositeKey);
-      refs.push({ namespace: nodeData.ns, key: nodeData.key });
     }
   }
 

@@ -1,10 +1,9 @@
 /**
- * Client-local mirror of `inferTargetType` (ported from
- * docs/context-collection/recovered-collector/context-collector-v3.ts).
+ * Client-local mirror of `inferTargetType`.
  *
  * This is a PURE function of the key name plus already-derived signals — no
  * rendered text, no server data. The platform ports its own authoritative
- * copy server-side (RALPLAN Item 1c) to build the stored `contextProfile`;
+ * copy server-side to build the stored `contextProfile`;
  * this client-side copy exists ONLY so the collector's local resend gate can
  * compute an `observationHash` comparable in shape to the server's. Keep the
  * two in sync manually — this is not the cross-repo hash-fold coordination

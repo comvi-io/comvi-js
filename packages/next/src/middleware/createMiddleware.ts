@@ -1,30 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  extractLocaleFromPath,
+  normalizeRoutingOptions,
+  resolveAcceptLanguage,
+} from "@comvi/locale-routing";
 import type { MiddlewareConfig, LocaleDetectionSource } from "./types";
-import { createGetPathname } from "../routing/defineRouting";
+import { createGetPathname, NEXT_LOCALE_COOKIE } from "../routing/defineRouting";
 import type { RoutingConfig } from "../routing/types";
 import { getCanonicalPathname, stripLocalePrefix } from "../routing/utils";
 
-/**
- * Header name for passing locale to Server Components
- */
+// Passes the resolved locale to Server Components.
 const LOCALE_HEADER = "x-comvi-locale";
 
 /**
- * Default detection order
- */
-const DEFAULT_DETECTION_ORDER: LocaleDetectionSource[] = ["cookie", "accept-language"];
-
-/**
- * Creates i18n middleware for Next.js
- *
- * The middleware handles:
- * - Locale detection from URL, cookie, header, and Accept-Language
- * - Locale persistence via cookie
- * - URL prefix handling based on localePrefix mode
- * - Setting x-comvi-locale header for Server Components
- *
- * @param config - Middleware configuration
- * @returns Next.js middleware function
+ * Creates i18n middleware for Next.js.
  *
  * @example
  * ```typescript
@@ -40,66 +29,73 @@ const DEFAULT_DETECTION_ORDER: LocaleDetectionSource[] = ["cookie", "accept-lang
  * // middleware.ts - Custom detection order
  * export default createMiddleware({
  *   ...routing,
+ *   localeCookie: 'MY_LOCALE',
  *   localeDetection: {
  *     order: ['header', 'cookie', 'accept-language'],
  *     headerName: 'x-user-locale',
- *     cookieName: 'MY_LOCALE',
  *   },
  * });
  * ```
  */
 export function createMiddleware(config: MiddlewareConfig) {
+  // Names, shapes and defaults come from the one schema `@comvi/nuxt` uses too.
   const {
     locales,
     defaultLocale,
-    localePrefix = "as-needed",
-    localeCookie = "NEXT_LOCALE",
-    detectLocale: customDetector,
-    localeDetection,
-  } = config;
+    localePrefix,
+    localeCookie: cookie,
+    localeDetection: detection,
+  } = normalizeRoutingOptions(config, { cookieNameDefault: NEXT_LOCALE_COOKIE });
+  const { detectLocale: customDetector } = config;
 
-  // Detection configuration
-  const detectionOrder = localeDetection?.order ?? DEFAULT_DETECTION_ORDER;
-  const cookieName = localeDetection?.cookieName ?? localeCookie;
-  const cookieSecureConfig = localeDetection?.cookieSecure ?? true;
+  const detectionOrder = detection ? detection.order : [];
   const isDev = process.env.NODE_ENV === "development";
-  const headerName = localeDetection?.headerName;
-  const resolveAcceptLanguage =
-    localeDetection?.resolveAcceptLanguage ?? defaultResolveAcceptLanguage;
+  const headerName = detection ? detection.headerName : undefined;
+  const queryParam = detection ? detection.queryParam : undefined;
+  // The shared matcher from the workspace locale-routing package, which
+  // `@comvi/nuxt` vendors the same source of. Its rules are documented there,
+  // once, for both frameworks — see `docs/design/next-nuxt-parity.md`.
+  const resolveHeader =
+    (detection ? detection.resolveAcceptLanguage : undefined) ?? resolveAcceptLanguage;
   const routing = {
     locales,
     defaultLocale,
     localePrefix,
-    localeCookie,
+    localeCookie: cookie,
     pathnames: config.pathnames ?? {},
   } satisfies Required<RoutingConfig>;
   const getPathname = createGetPathname(routing);
 
   return function middleware(request: NextRequest): NextResponse {
-    const { pathname } = request.nextUrl;
+    // Duplicate slashes are not a route: `//de/about` is the same request as
+    // `/de/about` to every router. `stripLocalePrefix` refuses to strip a
+    // prefix that is not at the very start of the path (deliberately — it
+    // never rewrites interior bytes), so without collapsing them here the
+    // locale prefix stayed in the canonical path and a second one was applied
+    // on the way out: `//de/about` redirected to `/de//de/about`. Next's own
+    // normalization catches these before middleware in the default config;
+    // this keeps the answer right when `skipTrailingSlashRedirect` is on.
+    const rawPathname = request.nextUrl.pathname;
+    const pathname = rawPathname.includes("//") ? rawPathname.replace(/\/{2,}/g, "/") : rawPathname;
 
-    // Skip internal paths
     if (shouldSkipPath(pathname)) {
       return NextResponse.next();
     }
 
-    // 1. Extract locale from URL path (always first priority)
     const pathLocale = extractLocaleFromPath(pathname, locales);
 
-    // 2. Detect locale using configured priority
+    // Precedence: custom detector, then the URL path, then the configured
+    // sources in order, then `defaultLocale`.
     let detectedLocale: string | undefined;
 
-    // Custom detector has highest priority
     if (customDetector) {
       detectedLocale = customDetector(request);
     }
 
-    // URL path is always checked after custom detector
     if (!detectedLocale && pathLocale) {
       detectedLocale = pathLocale;
     }
 
-    // Then check configured detection sources in order
     if (!detectedLocale) {
       for (const source of detectionOrder) {
         const detected = detectFromSource(
@@ -107,9 +103,10 @@ export function createMiddleware(config: MiddlewareConfig) {
           source,
           locales,
           defaultLocale,
-          cookieName,
+          cookie ? cookie.name : undefined,
           headerName,
-          resolveAcceptLanguage,
+          queryParam,
+          resolveHeader,
         );
         if (detected) {
           detectedLocale = detected;
@@ -118,7 +115,6 @@ export function createMiddleware(config: MiddlewareConfig) {
       }
     }
 
-    // Fallback to default locale
     const locale =
       detectedLocale && locales.includes(detectedLocale) ? detectedLocale : defaultLocale;
 
@@ -130,19 +126,23 @@ export function createMiddleware(config: MiddlewareConfig) {
       locale,
     );
 
-    // 3. Redirect to the canonical public pathname when needed.
     const publicPathname = getPathname({ locale, href: canonicalPathname });
     let response: NextResponse;
 
-    if (pathname !== publicPathname) {
+    // Both comparisons ignore a single trailing slash. Whether a URL keeps one
+    // is Next's `trailingSlash` decision, not ours, and comparing literally
+    // made `/de/` redirect to ITSELF forever: the public path is `/de`, but
+    // `nextUrl.clone()` re-serializes it with the slash the request carried,
+    // so the two strings never converged.
+    const isRedirect = withoutTrailingSlash(pathname) !== withoutTrailingSlash(publicPathname);
+    if (isRedirect) {
       const url = request.nextUrl.clone();
       url.pathname = publicPathname;
       response = NextResponse.redirect(url);
     } else {
-      // 4. Rewrite localized public paths to the internal app route shape.
       const internalPathname = getInternalPathname(locale, canonicalPathname);
       const middlewareInit = { request: { headers: requestHeaders } };
-      if (pathname === internalPathname) {
+      if (withoutTrailingSlash(pathname) === withoutTrailingSlash(internalPathname)) {
         response = NextResponse.next(middlewareInit);
       } else {
         const url = request.nextUrl.clone();
@@ -151,18 +151,32 @@ export function createMiddleware(config: MiddlewareConfig) {
       }
     }
 
-    // 5. Set locale header for Server Components to read
     response.headers.set(LOCALE_HEADER, locale);
 
-    // 6. Set/update locale cookie for persistence (if locale changed or not set)
-    const existingCookie = request.cookies.get(cookieName)?.value;
-    if (existingCookie !== locale) {
-      response.cookies.set(cookieName, locale, {
+    // The cookie is the record of the user's choice, so it follows the pages
+    // the browser LOADS, not the fetches Next's client router makes in the
+    // background: it prefetches a page's links, and Next 16 re-prefetches the
+    // links of the page being left after a navigation, which moved the cookie
+    // back to the locale just switched away from. Next removes its own
+    // prefetch header before middleware runs, so `Sec-Fetch-Dest` is the
+    // signal; a request without it (a non-browser client) counts as a load.
+    // A client-side switch records itself in the browser: `localeSwitch.ts`.
+    //
+    // One fetch still writes: a redirect away from a URL that names its locale
+    // leads to a URL that names none, and the cookie is all that tells the
+    // redirected request which locale that was.
+    const fetchDest = request.headers.get("sec-fetch-dest");
+    const recordsChoice =
+      fetchDest === null || fetchDest === "document" || (isRedirect && pathLocale !== undefined);
+
+    if (cookie && recordsChoice && request.cookies.get(cookie.name)?.value !== locale) {
+      response.cookies.set(cookie.name, locale, {
         path: "/",
-        maxAge: 365 * 24 * 60 * 60, // 1 year
-        sameSite: "lax",
+        maxAge: cookie.maxAge,
+        sameSite: cookie.sameSite,
         // Secure in production, disabled in dev so localhost HTTP works
-        secure: isDev ? false : cookieSecureConfig,
+        secure: isDev ? false : cookie.secure,
+        ...(cookie.domain === undefined ? {} : { domain: cookie.domain }),
       });
     }
 
@@ -170,24 +184,31 @@ export function createMiddleware(config: MiddlewareConfig) {
   };
 }
 
-/**
- * Detect locale from a specific source
- */
 function detectFromSource(
   request: NextRequest,
   source: LocaleDetectionSource,
   locales: readonly string[],
   defaultLocale: string,
-  cookieName: string,
+  cookieName: string | undefined,
   headerName: string | undefined,
-  resolveAcceptLanguage: (
+  queryParam: string | undefined,
+  resolveHeader: (
     header: string,
     locales: readonly string[],
     defaultLocale: string,
   ) => string | undefined,
 ): string | undefined {
   switch (source) {
+    case "query": {
+      if (!queryParam) return undefined;
+      const queryValue = request.nextUrl.searchParams.get(queryParam);
+      if (queryValue && locales.includes(queryValue)) {
+        return queryValue;
+      }
+      return undefined;
+    }
     case "cookie": {
+      if (!cookieName) return undefined;
       const cookieValue = request.cookies.get(cookieName)?.value;
       if (cookieValue && locales.includes(cookieValue)) {
         return cookieValue;
@@ -205,7 +226,7 @@ function detectFromSource(
     case "accept-language": {
       const acceptLanguage = request.headers.get("accept-language");
       if (!acceptLanguage) return undefined;
-      return resolveAcceptLanguage(acceptLanguage, locales, defaultLocale);
+      return resolveHeader(acceptLanguage, locales, defaultLocale);
     }
     default:
       return undefined;
@@ -213,7 +234,6 @@ function detectFromSource(
 }
 
 /**
- * Check if path should be skipped by middleware.
  * Static asset filtering is expected to be handled by Next.js matcher config.
  */
 function shouldSkipPath(pathname: string): boolean {
@@ -221,64 +241,9 @@ function shouldSkipPath(pathname: string): boolean {
   return pathname.startsWith("/_next") || isApiPath;
 }
 
-/**
- * Extract locale from URL path
- */
-function extractLocaleFromPath(pathname: string, locales: readonly string[]): string | undefined {
-  const segments = pathname.split("/").filter(Boolean);
-  const firstSegment = segments[0];
-  return locales.includes(firstSegment) ? firstSegment : undefined;
-}
-
-/**
- * Default Accept-Language resolver
- *
- * Handles common cases with a simple parser. For production apps with
- * diverse locales (CJK, regional variants), use @formatjs/intl-localematcher.
- *
- * Matching strategy:
- * 1. Try exact match (e.g., "en-US" matches "en-US")
- * 2. Try base language match (e.g., "en-US" matches "en")
- * 3. Try finding a locale that starts with the language (e.g., "en" matches "en-US")
- */
-function defaultResolveAcceptLanguage(
-  acceptLanguage: string,
-  locales: readonly string[],
-  _defaultLocale: string,
-): string | undefined {
-  // Parse Accept-Language header (e.g., "en-US,en;q=0.9,uk;q=0.8")
-  const languages = acceptLanguage
-    .split(",")
-    .map((lang) => {
-      const [code, q = "q=1"] = lang.trim().split(";");
-      const quality = parseFloat(q.split("=")[1] || "1");
-      return {
-        code: code.trim(),
-        quality: isNaN(quality) ? 1 : quality,
-      };
-    })
-    .filter(({ code, quality }) => code.length > 0 && quality > 0)
-    .sort((a, b) => b.quality - a.quality);
-
-  // Try to find a matching locale for each language preference
-  for (const { code } of languages) {
-    const normalizedCode = code.toLowerCase();
-
-    // 1. Exact match (e.g., "en-US" === "en-US")
-    const exactMatch = locales.find((locale) => locale.toLowerCase() === normalizedCode);
-    if (exactMatch) return exactMatch;
-
-    // 2. Base language match (e.g., "en-US" -> "en")
-    const baseLang = normalizedCode.split("-")[0];
-    const baseMatch = locales.find((locale) => locale.toLowerCase() === baseLang);
-    if (baseMatch) return baseMatch;
-
-    // 3. Find locale starting with the base language (e.g., "en" -> "en-US")
-    const prefixMatch = locales.find((locale) => locale.toLowerCase().startsWith(baseLang + "-"));
-    if (prefixMatch) return prefixMatch;
-  }
-
-  return undefined;
+/** Drop a single trailing slash; the root path keeps its only slash. */
+function withoutTrailingSlash(pathname: string): string {
+  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
 function getInternalPathname(locale: string, canonicalPathname: string): string {

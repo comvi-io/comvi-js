@@ -7,142 +7,127 @@ import {
   type Component,
   type VNode,
 } from "vue";
+// The PURE rich-text seam: `prepareTranslation` hands the tag grammar to core
+// per call, so rendering `<T>` never makes `<tag>` markup ambient for plain
+// string-API `t()`. Importing `@comvi/core/tags` would do exactly that.
+import {
+  isVirtualNode,
+  prepareTranslation,
+  type PendingHandler,
+  type PrepareTranslationSource,
+  type TagComponentConfig,
+} from "@comvi/core/rich-text";
+import type { TranslationParams, TranslationResult, VirtualNode } from "@comvi/core";
 import { I18N_INJECTION_KEY } from "../keys";
-import type {
-  TranslationParams,
-  TranslationResult,
-  TagCallbackParams,
-  VirtualNode,
-} from "@comvi/core";
-import { createElement } from "@comvi/core";
 
-/**
- * Marker prefix for Vue component/slot handling in tag interpolation
- * Used to identify VirtualNodes that should be converted to Vue-specific elements
- */
-const MARKER_PREFIX = "__vue_handler_";
-const MARKER_SUFFIX = "__";
-
-/**
- * Component handler types for the `components` prop
- */
-type ComponentHandler =
+/** What a tag can resolve to in Vue. */
+type ComponentTarget =
   | string // HTML tag name: "strong", "em", etc.
-  | Component // Vue component
-  | {
-      component: string | Component;
-      props?: Record<string, unknown>;
-    };
+  | Component; // Vue component
 
 /**
- * Components prop type for tag interpolation
+ * Core's `{ tag | component, props }` entry form, narrowed to Vue targets.
+ * `tag` (solid/svelte convention) and `component` (vue convention) are
+ * aliases — `prepareTranslation` reads `handler.tag ?? handler.component`, so
+ * both have always worked here and only the type said otherwise. Intersecting
+ * core's own `TagComponentConfig` keeps the field set from drifting away from
+ * the pipeline that actually reads it; requiring ONE of the two spellings
+ * keeps the guarantee core's all-optional shape gives up, since an entry with
+ * neither is not a config at all — `isTagComponentConfig` rejects it and the
+ * object is passed on as an opaque handler.
  */
-type ComponentsMap = Record<string, ComponentHandler>;
+type ComponentConfig = Omit<TagComponentConfig, "props"> & {
+  /**
+   * `any`, not core's `Record<string, unknown>`: an INTERFACE-typed props
+   * object is not assignable to `Record<string, unknown>` (only type-literal
+   * objects are), so core's stricter value type would reject props a caller
+   * legitimately holds. Matches `@comvi/solid`.
+   */
+  props?: Record<string, any>;
+} & (
+    | { tag: ComponentTarget; component?: ComponentTarget }
+    | { component: ComponentTarget; tag?: ComponentTarget }
+  );
+
+type ComponentHandler = ComponentTarget | ComponentConfig;
 
 /**
- * Convert TranslationResult children to format suitable for slot/component
+ * Tag-name → handler map for `<T>`'s tag interpolation: an HTML tag name, a
+ * Vue component, or a `{ tag | component, props }` config. The same name in all
+ * four bindings, so a `components` map can be typed.
  */
-function childrenToArray(children: TranslationResult): (string | VirtualNode)[] {
-  if (typeof children === "string") {
-    return children ? [children] : [];
-  }
-  return children;
-}
+export type ComponentMap = Record<string, ComponentHandler>;
 
 /**
- * Translation component for Vue
- * Renders translated content with support for slots and components prop as tag handlers
+ * Renders a translation. Named slots and the `components` prop both act as tag
+ * handlers; the default slot is the fallback for a missing key.
  *
  * @example
  * ```vue
- * <!-- Simple usage -->
- * <T i18nKey="greeting" />
+ * <T i18nKey="welcome" :params="{ name: 'John' }" ns="forms" locale="fr" />
  *
- * <!-- With parameters -->
- * <T i18nKey="welcome" :params="{ name: 'John' }" />
+ * <!-- Params may also be written as plain attributes. -->
+ * <T i18nKey="cart.items" :count="2" name="John" />
  *
- * <!-- With tag interpolation using slots -->
  * <T i18nKey="welcome_link">
  *   <template #link="{ children }">
  *     <a href="/help">{{ children }}</a>
  *   </template>
  * </T>
  *
- * <!-- With tag interpolation using components prop -->
- * <T
- *   i18nKey="welcome_link"
- *   :components="{
- *     link: { component: 'a', props: { href: '/help' } },
- *     bold: 'strong'
- *   }"
- * />
+ * <T i18nKey="welcome_link" :components="{ link: { component: 'a', props: { href: '/help' } } }" />
  *
- * <!-- With specific namespace -->
- * <T i18nKey="button.submit" ns="forms" />
- *
- * <!-- With specific locale -->
- * <T i18nKey="greeting" locale="fr" />
+ * <T i18nKey="maybe.missing">Shown when the key has no translation</T>
  * ```
  */
-export const T = defineComponent({
+const TComponent = /*@__PURE__*/ defineComponent({
   name: "T",
+
+  // Anything that is not a declared prop is an interpolation param, so no
+  // attribute may fall through to the rendered markup.
+  inheritAttrs: false,
+
   props: {
-    /**
-     * Translation key to look up
-     */
     i18nKey: {
       type: String,
       required: true,
     },
 
-    /**
-     * Parameters for interpolation
-     * These will be merged with slot content
-     */
+    /** Merged with slot content. */
     params: {
       type: Object as PropType<Record<string, unknown>>,
       default: () => ({}),
     },
 
-    /**
-     * Namespace to use (optional)
-     * If not specified, uses the default namespace
-     */
     ns: {
       type: String,
       default: undefined,
     },
 
-    /**
-     * Specific locale to use (optional)
-     * If not specified, uses the current locale
-     */
     locale: {
       type: String,
       default: undefined,
     },
 
-    /**
-     * Fallback text to display if translation is missing (optional)
-     * If not specified, returns the key itself
-     */
+    /** Shown when the key is missing; without it the key itself is rendered. */
     fallback: {
       type: String,
       default: undefined,
     },
 
     /**
-     * Skip post-processing (optional)
-     * When true, prevents post-processors like IncontextEditor from adding invisible marker characters
+     * `false` turns the in-context editor's invisible markers off for this call. Use it when
+     * they cause a problem: a comparison or sort that sees extra characters, a width-sensitive
+     * layout, a canvas or library that counts characters. Nothing else reads it; the string
+     * is then not editable in context.
      */
-    raw: {
+    markers: {
       type: Boolean,
       default: undefined,
     },
 
     /**
-     * Components map for tag interpolation (optional)
-     * Maps tag names to their handlers (string tag name, component, or config object)
+     * Tag-name → handler map for tag interpolation.
      *
      * @example
      * {
@@ -152,153 +137,150 @@ export const T = defineComponent({
      * }
      */
     components: {
-      type: Object as PropType<ComponentsMap>,
+      type: Object as PropType<ComponentMap>,
       default: undefined,
     },
   },
 
-  setup(props, { slots }) {
+  setup(props, { slots, attrs }) {
     const i18n = inject(I18N_INJECTION_KEY);
 
     if (!i18n) {
       throw new Error(
-        "[i18n] <T> component must be used within a Vue app with i18n plugin installed",
+        "[@comvi/vue] <T> component must be used within a Vue app with i18n plugin installed",
       );
     }
 
+    // `prepareTranslation` wants the core-shaped imperative `hasTranslation`,
+    // but VueI18n's returns a ComputedRef. Reactivity is carried by `tRaw`.
+    const source: PrepareTranslationSource = {
+      // `as never` because the key is a RUNTIME string: once an app closes
+      // `TranslationKeys`, `tRaw`'s overloads narrow their key parameter to
+      // the registered literals (and `never` for the namespaced overload), so
+      // an unconstrained `string` matches none of them and every key-closed
+      // program fails to build. Same idiom as `solid`'s `tRaw(keyString as
+      // never)` and `react`'s `t(key as never, params)`.
+      tRaw: (key, params) => i18n.tRaw(key as never, params),
+      hasTranslation: (key, locale, namespace, checkFallbacks) =>
+        i18n.hasTranslationNow(key, { locale, namespace, checkFallbacks }),
+    };
+
+    // Single-string arrays are flattened for template `{{ children }}`.
+    const flattenChildren = (children: (string | VNode)[]) =>
+      children.length === 1 && typeof children[0] === "string" ? children[0] : children;
+
     return () => {
-      const key = props.i18nKey;
-
-      // Store Vue component/slot handlers for later rendering
-      // Handlers receive already-converted Vue VNodes (not TranslationResult)
-      const vueHandlers = new Map<string, (children: (string | VNode)[]) => VNode>();
-
-      // Build tag handlers that return VirtualNode (core format)
-      // Priority: components prop > slots
-      const tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> = {};
-
-      // Shared: register a Vue handler + its marker tag handler
-      const registerVueHandler = (
-        tagName: string,
-        vueHandler: (children: (string | VNode)[]) => VNode,
-      ) => {
-        vueHandlers.set(tagName, (children) => {
-          try {
-            return vueHandler(children);
-          } catch (error) {
-            i18n.reportError(error, { source: "translation", tagName });
-            return h("span", {}, children);
-          }
-        });
-        tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-          createElement(
-            `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-            {},
-            childrenToArray(children),
-          );
-      };
-
-      // Flatten single-string arrays for template {{ children }} compatibility
-      const flattenChildren = (children: (string | VNode)[]) =>
-        children.length === 1 && typeof children[0] === "string" ? children[0] : children;
-
-      // Process components prop first (higher priority)
-      if (props.components) {
-        for (const [tagName, handler] of Object.entries(props.components)) {
-          if (typeof handler === "string") {
-            tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-              createElement(handler, {}, childrenToArray(children));
-          } else if (typeof handler === "object" && handler !== null && "component" in handler) {
-            const component = handler.component;
-            const componentProps = handler.props || {};
-            if (typeof component === "string") {
-              tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-                createElement(component, componentProps, childrenToArray(children));
-            } else {
-              registerVueHandler(tagName, (children) =>
-                h(component, componentProps, { default: () => flattenChildren(children) }),
-              );
-            }
-          } else {
-            registerVueHandler(tagName, (children) =>
-              h(handler as Component, {}, { default: () => flattenChildren(children) }),
-            );
-          }
+      // Slots act as tag handlers too; `components` wins a name collision.
+      const merged: Record<string, unknown> = {};
+      let hasHandlers = false;
+      for (const name of Object.keys(slots)) {
+        if (slots[name]) {
+          merged[name] = slots[name];
+          hasHandlers = true;
         }
       }
+      if (props.components) {
+        Object.assign(merged, props.components);
+        hasHandlers = true;
+      }
 
-      // Process slots (only if not already defined in components)
-      for (const [slotName, slot] of Object.entries(slots)) {
-        if (slot && !(slotName in tagHandlers)) {
-          registerVueHandler(slotName, (children) => {
+      // Every undeclared attribute is an interpolation param, matching the
+      // react wrapper: `<T i18nKey="cart" :count="2" />` is `params: { count: 2 }`.
+      // A direct prop wins a name collision with `params`, again as in react.
+      // Declared props (`ns`, `locale`, `fallback`, `markers`,
+      // `components`, `params`, `i18nKey`) never reach `attrs`, so they
+      // cannot leak in here.
+      const params = props.params as TranslationParams;
+      const allParams =
+        Object.keys(attrs).length === 0 ? params : ({ ...params, ...attrs } as TranslationParams);
+
+      const prepared = prepareTranslation(source, {
+        i18nKey: props.i18nKey,
+        params: allParams,
+        ns: props.ns,
+        locale: props.locale,
+        fallback: props.fallback,
+        markers: props.markers,
+        components: hasHandlers ? merged : undefined,
+      });
+
+      // Parity with the react/solid/svelte wrappers' children fallback.
+      const defaultSlot = slots.default;
+      if (prepared.isMissing && defaultSlot) {
+        return defaultSlot();
+      }
+
+      const content = prepared.content;
+      if (typeof content === "string") {
+        return content;
+      }
+
+      const pendingByMarker = new Map<string, PendingHandler>();
+      for (const pending of prepared.pendingHandlers) {
+        pendingByMarker.set(pending.marker, pending);
+      }
+
+      // Slot functions receive `{ children }`; Vue components receive them
+      // through their default slot.
+      const resolvePending = (pending: PendingHandler, children: (string | VNode)[]): VNode => {
+        try {
+          const slot = slots[pending.name];
+          if (slot && pending.handler === slot) {
             const rendered = slot({ children: flattenChildren(children) });
             const nodes = Array.isArray(rendered) ? rendered : [rendered];
             if (nodes.length <= 1) {
               return nodes.length === 0 ? h(Fragment, {}, []) : (nodes[0] as VNode);
             }
             return h(Fragment, {}, nodes);
+          }
+          return h(pending.handler as Component, pending.props ?? {}, {
+            default: () => flattenChildren(children),
           });
+        } catch (error) {
+          i18n.reportError(error, { source: "translation", tagName: pending.name });
+          return h("span", {}, children);
         }
-      }
-
-      // Build translation params
-      const translationParams: TranslationParams = {
-        ...props.params,
-        ...tagHandlers,
-      } as TranslationParams;
-      if (props.ns !== undefined) translationParams.ns = props.ns;
-      if (props.locale !== undefined) translationParams.locale = props.locale;
-      if (props.fallback !== undefined) translationParams.fallback = props.fallback;
-      if (props.raw !== undefined) translationParams.raw = props.raw;
-
-      // Get translated content
-      const content = i18n.tRaw(key, translationParams);
-
-      if (typeof content === "string") {
-        return content;
-      }
-
-      // Convert VirtualNode children to Vue VNodes (recursively handles markers)
-      const convertChildren = (childResult: TranslationResult): (string | VNode)[] => {
-        if (typeof childResult === "string") {
-          return childResult ? [childResult] : [];
-        }
-        return childResult.map((child) => (typeof child === "string" ? child : convertNode(child)));
       };
 
-      // Convert VirtualNode to Vue VNode, resolving marker nodes
+      const convertList = (items: TranslationResult): (string | VNode)[] => {
+        if (typeof items === "string") {
+          return items ? [items] : [];
+        }
+        return items.map((item) => (typeof item === "string" ? item : convertNode(item)));
+      };
+
       const convertNode = (node: VirtualNode): VNode | string => {
+        // Not a node the library built, so it is data and renders as text. A
+        // param is whatever the app was handed, and an object parsed from JSON
+        // can be shaped like a node; it cannot carry core's brand.
+        if (!isVirtualNode(node)) return String(node);
+
         if (node.type === "text") return node.text;
 
         if (node.type === "fragment") {
-          return h(
-            Fragment,
-            { key: node.key },
-            convertChildren(node.children as TranslationResult),
-          );
+          return h(Fragment, { key: node.key }, convertList(node.children as TranslationResult));
         }
 
-        const tag = node.tag;
-        const convertedChildren = convertChildren(node.children as TranslationResult);
-
-        // Check for Vue handler marker
-        if (tag.startsWith(MARKER_PREFIX) && tag.endsWith(MARKER_SUFFIX)) {
-          const handlerName = tag.slice(MARKER_PREFIX.length, -MARKER_SUFFIX.length);
-          const handler = vueHandlers.get(handlerName);
-          if (handler) {
-            try {
-              return handler(convertedChildren);
-            } catch (error) {
-              i18n.reportError(error, { source: "translation", tagName: handlerName });
-              return h("span", {}, convertedChildren);
-            }
-          }
+        const children = convertList(node.children as TranslationResult);
+        const pending = pendingByMarker.get(node.tag);
+        if (pending !== undefined) {
+          return resolvePending(pending, children);
         }
-
-        return h(tag, node.props, convertedChildren);
+        return h(node.tag, node.props, children);
       };
 
       return content.map((item) => (typeof item === "string" ? item : convertNode(item)));
     };
   },
 });
+
+/**
+ * `<T>` with the direct-param props opened up: any attribute that is not one
+ * of the declared props is an interpolation param at runtime, so the type has
+ * to accept it. Same widening as the react wrapper's `TProps`.
+ */
+export const T = TComponent as typeof TComponent & {
+  new (...args: ConstructorParameters<typeof TComponent>): InstanceType<typeof TComponent> & {
+    $props: InstanceType<typeof TComponent>["$props"] & Record<string, unknown>;
+  };
+};

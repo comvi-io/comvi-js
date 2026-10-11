@@ -1,11 +1,4 @@
-/**
- * Core type definitions for the in-context editor
- */
-
-/**
- * Language data from API response
- * Matches the API response from /v1/api/project/locales
- */
+/** Shape returned by `/v1/api/project/locales`. */
 export interface LanguageResponse {
   id: number;
   code: string;
@@ -13,26 +6,16 @@ export interface LanguageResponse {
   nativeName: string;
 }
 
-/**
- * Enriched language configuration for internal usage
- * Extends API response with plural forms and source language flag
- */
 export interface Language extends LanguageResponse {
   pluralForms: string[];
   isSource: boolean;
 }
 
-/**
- * Translation data for a single plural form
- */
 export interface PluralFormTranslation {
   [form: string]: string;
 }
 
-/**
- * Select configuration for a single language
- * Used when a language uses ICU select format
- */
+/** Per-language ICU `select` configuration. */
 export interface LanguageSelectConfig {
   /** Whether select is enabled for this language */
   enabled: boolean;
@@ -42,9 +25,6 @@ export interface LanguageSelectConfig {
   options: string[];
 }
 
-/**
- * Complete translation data for all languages
- */
 export interface TranslationData {
   key: string | number;
   description?: string;
@@ -53,6 +33,13 @@ export interface TranslationData {
   translations: Record<string, PluralFormTranslation>;
   /** Per-language select configuration (language code → config) */
   selectConfigs?: Record<string, LanguageSelectConfig>;
+  /**
+   * Languages whose stored value the structured editor cannot rebuild byte for
+   * byte. Each is edited as one plain-text value in `translations[lang].other`.
+   */
+  rawLanguages?: string[];
+  /** Each language's value as the API stored it. */
+  sourceValues?: Record<string, string>;
   metadata?: {
     lastModified?: string;
     createdAt?: string;
@@ -61,9 +48,6 @@ export interface TranslationData {
   };
 }
 
-/**
- * Translation state for UI management
- */
 export interface TranslationState {
   data: TranslationData | null;
   isLoading: boolean;
@@ -71,26 +55,25 @@ export interface TranslationState {
   isDirty: boolean; // Has unsaved changes
 }
 
-/**
- * Validation error for a translation
- */
 export interface ValidationError {
   languageId: string;
   pluralForm: string;
   message: string;
 }
 
-/**
- * Translation validation result
- */
+export interface ValidationWarning {
+  languageId: string;
+  pluralForm: string;
+  message: string;
+}
+
 export interface ValidationResult {
   isValid: boolean;
   errors: ValidationError[];
+  /** Non-blocking findings, e.g. a translation whose placeholders differ from the source form. */
+  warnings?: ValidationWarning[];
 }
 
-/**
- * Highlight style configuration for the visual overlay
- */
 export interface HighlightStyleOptions {
   /** Border color (CSS color value, e.g., "#6366f1" or "red") */
   borderColor?: string;
@@ -100,9 +83,6 @@ export interface HighlightStyleOptions {
   borderWidth?: number;
 }
 
-/**
- * Translation system options (external API)
- */
 export interface TranslationSystemOptions {
   targetElement?: Node;
   tagAttributes?: TagAttributesConfig;
@@ -110,9 +90,12 @@ export interface TranslationSystemOptions {
   /** Custom highlight style for the translation overlay */
   highlightStyle?: HighlightStyleOptions;
   /**
-   * Passive context collection inside an active ICE session (extension
-   * channel only — see `@comvi/plugin-in-context-editor/collector`).
-   * Defaults to enabled; set false to opt out.
+   * Passive context collection while the editor runs with an API key or a
+   * transport (never in demo mode), whether installed as a plugin or activated
+   * standalone. It sends the page origin, the keys on screen with their screen
+   * group, and structural and layout signals to the Comvi API; never rendered
+   * text. Defaults to enabled; set false to opt out. `collectContext: false` on
+   * the i18n instance wins over this option.
    */
   collectContext?: boolean;
   /**
@@ -124,22 +107,16 @@ export interface TranslationSystemOptions {
   screenGroupResolver?: () => string | null | undefined;
 }
 
-/**
- * Translation system internal options
- */
 export interface TranslationSystemInnerOptions {
   targetElement: Node;
   tagAttributes: TagAttributesConfig;
 }
 
-/**
- * Tag attributes configuration
- * Maps HTML tag names to arrays of attribute names to watch
- */
+/** HTML tag name → the attributes to watch on it. */
 export interface TagAttributesConfig {
   [tagName: string]: string[];
 }
 
-// EventBusEvents is defined in eventBus.ts for better type inference
-// Re-export for backward compatibility
+// Defined in eventBus.ts for better type inference; re-exported here for
+// backward compatibility.
 export type { EventBusEvents } from "./EventBus";

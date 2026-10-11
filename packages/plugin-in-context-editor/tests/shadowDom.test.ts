@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "../src/constants";
 import { createShadowDomContainer, removeShadowDomContainer } from "../src/utils/shadowDom";
 
-describe("shadowDom utilities", () => {
+describe("createShadowDomContainer()", () => {
   afterEach(() => {
     document.body.innerHTML = "";
   });
@@ -17,11 +17,35 @@ describe("shadowDom utilities", () => {
     expect(shadowRoot.contains(mountPoint)).toBe(true);
   });
 
-  it("removes created container safely", () => {
+  it("gives each call its own host, root and mount point", () => {
+    const first = createShadowDomContainer();
+    const second = createShadowDomContainer();
+
+    expect(second.container).not.toBe(first.container);
+    expect(second.shadowRoot).not.toBe(first.shadowRoot);
+    expect(second.mountPoint).not.toBe(first.mountPoint);
+    expect(document.body.querySelectorAll(`[${EDITOR_UI_SHADOW_HOST_ATTRIBUTE}]`)).toHaveLength(2);
+  });
+});
+
+describe("removeShadowDomContainer()", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("detaches the created container from the document", () => {
     const { container } = createShadowDomContainer();
 
     removeShadowDomContainer(container);
 
+    expect(document.body.contains(container)).toBe(false);
+  });
+
+  it("ignores a container that is already detached", () => {
+    const { container } = createShadowDomContainer();
+    removeShadowDomContainer(container);
+
+    expect(() => removeShadowDomContainer(container)).not.toThrow();
     expect(document.body.contains(container)).toBe(false);
   });
 

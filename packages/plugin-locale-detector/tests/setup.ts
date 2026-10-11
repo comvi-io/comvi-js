@@ -1,36 +1,21 @@
 import { beforeEach, afterEach } from "vitest";
 
-// Mock storage for testing
-class MockStorage implements Storage {
-  private store: Map<string, string> = new Map();
+type StubbedGlobal = readonly [holder: () => object, property: string];
 
-  get length(): number {
-    return this.store.size;
-  }
+/**
+ * Every browser property these helpers redefine, so `afterEach` can put the
+ * original descriptor back instead of leaving the stub in place for whatever
+ * runs next in the worker.
+ */
+const STUBBED: StubbedGlobal[] = [
+  [() => globalThis.navigator, "languages"],
+  [() => globalThis.navigator, "language"],
+  [() => globalThis.document, "cookie"],
+  [() => globalThis.window, "location"],
+];
 
-  clear(): void {
-    this.store.clear();
-  }
+const originalDescriptors = new Map<string, PropertyDescriptor | undefined>();
 
-  getItem(key: string): string | null {
-    return this.store.get(key) ?? null;
-  }
-
-  key(index: number): string | null {
-    const keys = Array.from(this.store.keys());
-    return keys[index] ?? null;
-  }
-
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-
-  setItem(key: string, value: string): void {
-    this.store.set(key, value);
-  }
-}
-
-// Mock navigator for language detection
 export function mockNavigator(languages: string[] = ["en-US", "en"], language: string = "en-US") {
   Object.defineProperty(globalThis.navigator, "languages", {
     value: languages,
@@ -45,7 +30,21 @@ export function mockNavigator(languages: string[] = ["en-US", "en"], language: s
   });
 }
 
-// Mock document.cookie
+/** Older/embedded browsers expose `navigator.language` but no `languages` array at all. */
+export function mockNavigatorWithoutLanguages(language: string) {
+  Object.defineProperty(globalThis.navigator, "languages", {
+    value: undefined,
+    writable: true,
+    configurable: true,
+  });
+
+  Object.defineProperty(globalThis.navigator, "language", {
+    value: language,
+    writable: true,
+    configurable: true,
+  });
+}
+
 export function mockCookie(value: string = "") {
   let cookieValue = value;
 
@@ -60,7 +59,6 @@ export function mockCookie(value: string = "") {
   });
 }
 
-// Mock URL search params
 export function mockWindowLocation(search: string = "") {
   Object.defineProperty(globalThis.window, "location", {
     value: {
@@ -79,26 +77,66 @@ export function mockWindowLocation(search: string = "") {
   });
 }
 
-// Reset all mocks before each test
+type BrowserGlobal = "window" | "document" | "navigator";
+
+/**
+ * Runs `run` with `window`/`document`/`navigator` absent, restoring the exact
+ * descriptors afterwards — the SSR-shaped environment the detector must survive.
+ */
+export async function withDisabledBrowserGlobals(run: () => Promise<void> | void): Promise<void> {
+  const keys: BrowserGlobal[] = ["window", "document", "navigator"];
+  const descriptors = new Map<BrowserGlobal, PropertyDescriptor | undefined>(
+    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
+  );
+
+  for (const key of keys) {
+    Object.defineProperty(globalThis, key, {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+  }
+
+  try {
+    await run();
+  } finally {
+    for (const key of keys) {
+      const descriptor = descriptors.get(key);
+      if (descriptor) {
+        Object.defineProperty(globalThis, key, descriptor);
+      } else {
+        Reflect.deleteProperty(globalThis, key);
+      }
+    }
+  }
+}
+
 beforeEach(() => {
-  // Clear storages
+  for (const [holder, property] of STUBBED) {
+    const id = `${property}`;
+    if (!originalDescriptors.has(id)) {
+      originalDescriptors.set(id, Object.getOwnPropertyDescriptor(holder(), property));
+    }
+  }
+
   localStorage.clear();
   sessionStorage.clear();
 
-  // Reset cookies
   mockCookie("");
-
-  // Reset location
   mockWindowLocation();
-
-  // Reset navigator
   mockNavigator();
 });
 
-// Clean up after each test
 afterEach(() => {
   localStorage.clear();
   sessionStorage.clear();
-});
 
-export { MockStorage };
+  for (const [holder, property] of STUBBED) {
+    const descriptor = originalDescriptors.get(`${property}`);
+    if (descriptor) {
+      Object.defineProperty(holder(), property, descriptor);
+    } else {
+      Reflect.deleteProperty(holder(), property);
+    }
+  }
+});

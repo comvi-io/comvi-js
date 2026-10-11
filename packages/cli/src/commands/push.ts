@@ -1,28 +1,15 @@
-/**
- * Push command - Upload local translations to TMS
- *
- * Usage:
- *   comvi push                         # All files
- *   comvi push --locale en             # Only specified locale
- *   comvi push --dry-run               # Preview changes without applying
- *   comvi push --force-mode override   # Overwrite existing translations
- *   comvi push --force-mode keep       # Keep existing translations
- */
-
 import { Command } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { ConfigLoader } from "../core/ConfigLoader";
-import { ApiClient } from "../core/ApiClient";
+import { ApiClient, type PushProgress } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
 import type { ForceMode } from "../types";
-import { ErrorCodes, isTypegenError } from "../utils/errors";
+import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import { parseListFlag, resolveFilter } from "../utils/filterResolution";
 
 type ApiPushForceMode = Exclude<ForceMode, "ask">;
-
-const EXIT_VALIDATION = 4;
 
 export function createPushCommand(): Command {
   return new Command("push")
@@ -32,12 +19,11 @@ export function createPushCommand(): Command {
     .option("-n, --ns <namespaces>", "Filter by namespaces (comma-separated)")
     .option("-p, --path <path>", "Override translations source path")
     .option("--dry-run", "Preview changes without applying")
-    .option("--force-mode <mode>", "Conflict resolution: override, keep, ask, abort", "ask")
+    .option("--force-mode <mode>", "Conflict resolution: override, keep, ask, abort (default: ask)")
     .action(async (options) => {
       try {
         console.log("🔄 Loading configuration...");
 
-        // Load configuration (validates apiKey is present)
         const config = await ConfigLoader.load(options.config);
 
         // apiKey is validated by ConfigLoader.load(), so it's guaranteed to be set
@@ -45,13 +31,11 @@ export function createPushCommand(): Command {
           throw new Error("API key is required. Set COMVI_API_KEY environment variable.");
         }
 
-        // Create API client
         const apiClient = new ApiClient({
           apiKey: config.apiKey,
           apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
         });
 
-        // Create translation sync
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
           translationsPath: options.path || config.translationsPath || "./src/locales",
@@ -72,16 +56,15 @@ export function createPushCommand(): Command {
           console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
         }
 
-        // Determine force mode
+        // Resolution: CLI flag > config > "ask". `--force-mode` deliberately declares no
+        // commander default; a default is always set, so it would shadow config.push.forceMode.
         const forceMode: ForceMode = options.forceMode || config.push?.forceMode || "ask";
 
-        // Validate force mode
         if (!["override", "keep", "ask", "abort"].includes(forceMode)) {
           console.error(`✗ Invalid force-mode: ${forceMode}. Use: override, keep, ask, or abort`);
-          process.exit(1);
+          process.exit(EXIT_VALIDATION);
         }
 
-        // Read local translations
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
           ? await apiClient.fetchDefaultNamespace()
           : undefined;
@@ -98,11 +81,9 @@ export function createPushCommand(): Command {
           process.exit(0);
         }
 
-        // Dry run mode
         if (options.dryRun) {
           console.log("\n📦 Push preview (dry run):");
 
-          // Fetch current TMS state to compare
           const remoteTranslations = await apiClient.fetchTranslations({
             locales,
             namespaces,
@@ -142,14 +123,13 @@ export function createPushCommand(): Command {
           apiForceMode = await promptConflictResolution(diff.conflicts);
         }
 
-        // Actual push
         console.log("🔄 Pushing translations to TMS...");
 
         const result = await apiClient.pushTranslations({
           translations: localTranslations.translations,
           forceMode: apiForceMode,
           preloadedRemote,
-          onProgress: createPushProgressReporter(),
+          onProgress: reportPushProgress,
         });
 
         console.log(`\n✓ Push complete!`);
@@ -175,33 +155,20 @@ export function createPushCommand(): Command {
     });
 }
 
-function createPushProgressReporter(): (progress: {
-  total: number;
-  completed: number;
-  created: number;
-  updated: number;
-  skipped: number;
-}) => void {
-  let lastReported = 0;
+/**
+ * `pushTranslations` reports once, after the single bulk commit, so this prints
+ * one summary line per push — and stays silent for a push that carries no
+ * translation values.
+ */
+function reportPushProgress(progress: PushProgress): void {
+  if (progress.total === 0) {
+    return;
+  }
 
-  return (progress) => {
-    if (progress.total === 0) {
-      return;
-    }
-
-    const shouldReport =
-      progress.completed === progress.total || progress.completed - lastReported >= 100;
-
-    if (!shouldReport) {
-      return;
-    }
-
-    lastReported = progress.completed;
-    console.log(
-      `  Progress: ${progress.completed}/${progress.total} ` +
-        `(created: ${progress.created}, updated: ${progress.updated}, skipped: ${progress.skipped})`,
-    );
-  };
+  console.log(
+    `  Progress: ${progress.completed}/${progress.total} ` +
+      `(created: ${progress.created}, updated: ${progress.updated}, skipped: ${progress.skipped})`,
+  );
 }
 
 async function promptConflictResolution(conflictCount: number): Promise<ApiPushForceMode> {

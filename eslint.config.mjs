@@ -32,6 +32,8 @@ export default [
       "**/.output/**",
       "**/.svelte-kit/**",
       "**/playwright-report/**",
+      "**/.stryker/**",
+      "**/.stryker-tmp*/**",
       "**/*.d.ts",
     ],
   },

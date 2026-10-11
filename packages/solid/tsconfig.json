@@ -7,6 +7,9 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "outDir": "./dist",
+    // A map points at ../src, which is not packed: it would only send "go to
+    // source" nowhere.
+    "declarationMap": false,
     "rootDir": "./src",
     "strict": true,
     "noUnusedLocals": true,

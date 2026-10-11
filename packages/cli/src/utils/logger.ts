@@ -1,6 +1,3 @@
-/**
- * Log levels for controlling verbosity
- */
 export enum LogLevel {
   ERROR = 0,
   WARN = 1,
@@ -8,9 +5,6 @@ export enum LogLevel {
   DEBUG = 3,
 }
 
-/**
- * Logger interface for dependency injection
- */
 export interface Logger {
   error(message: string, context?: unknown): void;
   warn(message: string, context?: unknown): void;
@@ -19,9 +13,6 @@ export interface Logger {
   setLevel(level: LogLevel): void;
 }
 
-/**
- * Console-based logger implementation
- */
 export class ConsoleLogger implements Logger {
   private level: LogLevel;
 
@@ -29,9 +20,6 @@ export class ConsoleLogger implements Logger {
     this.level = level ?? this.getDefaultLevel();
   }
 
-  /**
-   * Get log level from environment variable or default to INFO
-   */
   private getDefaultLevel(): LogLevel {
     const envLevel = process.env.COMVI_LOG_LEVEL?.toLowerCase();
 
@@ -56,9 +44,9 @@ export class ConsoleLogger implements Logger {
   error(message: string, context?: unknown): void {
     if (this.level >= LogLevel.ERROR) {
       if (context) {
-        console.error(`[comvi] ${message}`, context);
+        console.error(`[@comvi/cli] ${message}`, context);
       } else {
-        console.error(`[comvi] ${message}`);
+        console.error(`[@comvi/cli] ${message}`);
       }
     }
   }
@@ -66,9 +54,9 @@ export class ConsoleLogger implements Logger {
   warn(message: string, context?: unknown): void {
     if (this.level >= LogLevel.WARN) {
       if (context) {
-        console.warn(`[comvi] ${message}`, context);
+        console.warn(`[@comvi/cli] ${message}`, context);
       } else {
-        console.warn(`[comvi] ${message}`);
+        console.warn(`[@comvi/cli] ${message}`);
       }
     }
   }
@@ -76,9 +64,9 @@ export class ConsoleLogger implements Logger {
   info(message: string, context?: unknown): void {
     if (this.level >= LogLevel.INFO) {
       if (context) {
-        console.log(`[comvi] ${message}`, context);
+        console.log(`[@comvi/cli] ${message}`, context);
       } else {
-        console.log(`[comvi] ${message}`);
+        console.log(`[@comvi/cli] ${message}`);
       }
     }
   }
@@ -86,17 +74,14 @@ export class ConsoleLogger implements Logger {
   debug(message: string, context?: unknown): void {
     if (this.level >= LogLevel.DEBUG) {
       if (context) {
-        console.log(`[comvi] ${message}`, context);
+        console.log(`[@comvi/cli] ${message}`, context);
       } else {
-        console.log(`[comvi] ${message}`);
+        console.log(`[@comvi/cli] ${message}`);
       }
     }
   }
 }
 
-/**
- * Silent logger for testing or when logging should be disabled
- */
 export class SilentLogger implements Logger {
   error(): void {}
   warn(): void {}
@@ -105,9 +90,6 @@ export class SilentLogger implements Logger {
   setLevel(): void {}
 }
 
-/**
- * Create a default logger instance
- */
 export function createLogger(silent = false, level?: LogLevel): Logger {
   if (silent) {
     return new SilentLogger();

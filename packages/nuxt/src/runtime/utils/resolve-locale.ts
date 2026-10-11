@@ -1,50 +1,26 @@
 /**
- * Shared locale resolution utilities
- */
-
-/**
- * Resolve Accept-Language header to a supported locale.
+ * `Accept-Language` resolution, re-exported from the shared source.
  *
- * Matching strategy (in order):
- * 1. Exact match (e.g., "en-US" matches "en-US")
- * 2. Base language match (e.g., "en-US" matches "en")
- * 3. Prefix match — find a locale starting with the base (e.g., "en" matches "en-US")
+ * This file used to hold nuxt's own copy of the matcher. The copy is why `q=0`
+ * was honoured in `@comvi/next` from its first release and ignored here until
+ * 0.5: the same twenty lines, maintained twice. The rules now live in ONE
+ * place, documented at `resolveAcceptLanguage` in
+ * `packages/locale-routing/src/index.ts`, and both frameworks answer
+ * identically — pinned by the shared input table in
+ * `tooling/test-utils/acceptLanguageTable.ts`, asserted here and in
+ * `packages/next/tests/accept-language-parity.test.ts`.
  *
- * Languages are tried in quality-value order as specified by RFC 9110.
+ * The import is `../_vendor/locale-routing`, a COMMITTED copy of that source
+ * (`pnpm --filter @comvi/nuxt vendor`, pinned byte-for-byte by
+ * `tests/vendor-parity.test.ts`). `nuxt-module-build` transpiles `runtime/`
+ * file by file and leaves bare specifiers alone, so a workspace package
+ * imported here would ship as an unresolvable import; there is no bundling step
+ * to inline it with. Same reason `locale-path.ts` imports from `_vendor/`.
+ *
+ * The module path stays put: the route middleware and the Nitro server utils
+ * both import `resolveAcceptLanguage` from here, so this is the seam that keeps
+ * them on the shared matcher.
+ *
+ * See `docs/design/next-nuxt-parity.md`.
  */
-export function resolveAcceptLanguage(
-  acceptLanguage: string,
-  locales: readonly string[],
-): string | undefined {
-  // Parse Accept-Language header (e.g., "en-US,en;q=0.9,uk;q=0.8")
-  const languages = acceptLanguage
-    .split(",")
-    .map((lang) => {
-      const [code, q = "q=1"] = lang.trim().split(";");
-      const quality = parseFloat(q.split("=")[1] || "1");
-      return {
-        code: code.trim(),
-        quality: isNaN(quality) ? 1 : quality,
-      };
-    })
-    .sort((a, b) => b.quality - a.quality);
-
-  for (const { code } of languages) {
-    const normalizedCode = code.toLowerCase();
-
-    // 1. Exact match (e.g., "en-US" === "en-US")
-    const exactMatch = locales.find((locale) => locale.toLowerCase() === normalizedCode);
-    if (exactMatch) return exactMatch;
-
-    // 2. Base language match (e.g., "en-US" -> "en")
-    const baseLang = normalizedCode.split("-")[0];
-    const baseMatch = locales.find((locale) => locale.toLowerCase() === baseLang);
-    if (baseMatch) return baseMatch;
-
-    // 3. Find locale starting with the base language (e.g., "en" -> "en-US")
-    const prefixMatch = locales.find((locale) => locale.toLowerCase().startsWith(baseLang + "-"));
-    if (prefixMatch) return prefixMatch;
-  }
-
-  return undefined;
-}
+export { resolveAcceptLanguage } from "../_vendor/locale-routing";

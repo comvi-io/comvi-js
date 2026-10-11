@@ -1,6 +1,6 @@
-export const DEFAULT_DETECT_BROWSER_LANGUAGE = {
-  useCookie: true,
-  cookieName: "i18n_locale",
-  cookieMaxAge: 365 * 24 * 60 * 60,
-  redirectOnFirstVisit: true,
-} as const;
+/**
+ * The one default the two frameworks do not share: the cookie name, what an app
+ * in each ecosystem already has. Every other default lives in the shared
+ * `normalizeRoutingOptions` (`_vendor/locale-routing.ts`).
+ */
+export const DEFAULT_COOKIE_NAME = "i18n_locale";

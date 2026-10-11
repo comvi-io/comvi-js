@@ -1,0 +1,55 @@
+// THE DEFAULT react recipe. Every import comes from `@comvi/react`;
+// `@comvi/core` is never named by the app, which uses NO capability — the runner
+// asserts from the bundlers' module graphs that ICU, loader, plugins, devtools
+// and core's tag-registration pair all stay out, in development as well as
+// production. Core's BASE entry is present — its `createI18n` is what this app
+// constructs with — so it is never an absence sentinel.
+//
+// <T> rendering needs a DOM and is NOT exercised here. No top-level await: the
+// webpack leg emits commonjs2.
+import { createI18n, I18nProvider, useI18n } from "@comvi/react";
+
+function assert(condition, label) {
+  if (!condition) {
+    console.error(`FAIL ${label}`);
+    process.exit(1);
+  }
+}
+
+function assertEqual(actual, expected, label) {
+  if (actual !== expected) {
+    console.error(
+      `FAIL ${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+    );
+    process.exit(1);
+  }
+}
+
+const isComponent = (component) =>
+  typeof component === "function" || (typeof component === "object" && component !== null);
+assert(typeof createI18n === "function", "@comvi/react exports createI18n");
+assert(typeof useI18n === "function", "@comvi/react exports useI18n");
+assert(isComponent(I18nProvider), "@comvi/react exports I18nProvider");
+
+const i18n = createI18n({
+  locale: "en",
+  exposeGlobal: false,
+  messages: { en: { msg: "a <b>c</b> d" } },
+});
+
+// `I18n` is a TYPE from a binding root (P5), so the pin is structural: a base
+// core host, with the composition verb and no capability attached.
+assert(
+  typeof i18n.t === "function" && typeof i18n.use === "function",
+  "createI18n builds a core host",
+);
+assert(typeof i18n.reloadMessages === "undefined", "default host has no loader capability");
+assert(typeof i18n.onMissingKey === "undefined", "default host has no plugin capability");
+assert(typeof i18n.instanceId === "undefined", "default host has no devtools discovery");
+assertEqual(
+  i18n.t("msg", { b: ({ children }) => `*${children}*` }),
+  "a <b>c</b> d",
+  "tag markup stays literal without <T>",
+);
+
+console.log("BUNDLER_MATRIX_OK react-default");

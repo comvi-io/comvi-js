@@ -1,0 +1,336 @@
+{
+  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle through the published exports map, minify, gzip -9). Every row is gated: gzipBudgetBytes is ceil(baseline.gzipBytes * 1.05) from the one sweep baseline records. Rules and how to re-baseline live in scripts/size-budgets.md \u2014 read that before editing this file. Every note here is one line.",
+  "fixtures": [
+    {
+      "name": "core-full-composite",
+      "entry": [
+        "@comvi/core",
+        "@comvi/core/tags",
+        "@comvi/core/icu",
+        "@comvi/core/loader",
+        "@comvi/core/plugins",
+        "@comvi/core/devtools"
+      ],
+      "fixture": "core-full-composite.ts",
+      "gzipBudgetBytes": 9859,
+      "baseline": {
+        "minBytes": 26260,
+        "gzipBytes": 9389,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated core ceiling: all six core subpaths recomposed with `.use(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
+    },
+    {
+      "name": "core-base",
+      "entry": "@comvi/core",
+      "fixture": "core-base.ts",
+      "gzipBudgetBytes": 5534,
+      "baseline": {
+        "minBytes": 14287,
+        "gzipBytes": 5270,
+        "measuredAt": "2026-09-12"
+      },
+      "note": "Gated base floor: `@comvi/core` alone, no capability composed \u2014 the anchor every other core row is read against."
+    },
+    {
+      "name": "core-base-icu",
+      "entry": ["@comvi/core", "@comvi/core/icu"],
+      "fixture": "core-base-icu.ts",
+      "gzipBudgetBytes": 6828,
+      "baseline": {
+        "minBytes": 17354,
+        "gzipBytes": 6502,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated: base host + the ICU compiler as a constructor option."
+    },
+    {
+      "name": "fw-react-default",
+      "entry": ["@comvi/react"],
+      "fixture": "framework/react-default.ts",
+      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 7738,
+      "baseline": {
+        "minBytes": 20017,
+        "gzipBytes": 7369,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings \u2014 the anchor the React ceiling row is read against."
+    },
+    {
+      "name": "fw-react-full-composite",
+      "entry": ["@comvi/react"],
+      "fixture": "framework/react-full-composite.ts",
+      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 12876,
+      "baseline": {
+        "minBytes": 34212,
+        "gzipBytes": 12262,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated React ceiling: every capability composed through the one `@comvi/react` specifier."
+    },
+    {
+      "name": "fw-solid-default",
+      "entry": ["@comvi/solid"],
+      "fixture": "framework/solid-default.ts",
+      "external": ["solid-js", "solid-js/*"],
+      "gzipBudgetBytes": 6921,
+      "baseline": {
+        "minBytes": 18710,
+        "gzipBytes": 6591,
+        "measuredAt": "2026-09-12"
+      },
+      "note": "Gated Solid floor: one `@comvi/solid` specifier, base createI18n + bindings \u2014 the anchor the Solid ceiling row is read against."
+    },
+    {
+      "name": "fw-solid-full-composite",
+      "entry": ["@comvi/solid"],
+      "fixture": "framework/solid-full-composite.ts",
+      "external": ["solid-js", "solid-js/*"],
+      "gzipBudgetBytes": 12310,
+      "baseline": {
+        "minBytes": 33623,
+        "gzipBytes": 11723,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier."
+    },
+    {
+      "name": "fw-svelte-default",
+      "entry": ["@comvi/svelte"],
+      "fixture": "framework/svelte-default.ts",
+      "external": ["svelte", "svelte/*"],
+      "gzipBudgetBytes": 7421,
+      "baseline": {
+        "minBytes": 19592,
+        "gzipBytes": 7067,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings \u2014 the anchor the Svelte ceiling row is read against."
+    },
+    {
+      "name": "fw-svelte-full-composite",
+      "entry": ["@comvi/svelte"],
+      "fixture": "framework/svelte-full-composite.ts",
+      "external": ["svelte", "svelte/*"],
+      "gzipBudgetBytes": 12936,
+      "baseline": {
+        "minBytes": 34890,
+        "gzipBytes": 12320,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
+    },
+    {
+      "name": "fw-vue-default",
+      "entry": ["@comvi/vue"],
+      "fixture": "framework/vue-default.ts",
+      "external": ["vue"],
+      "gzipBudgetBytes": 7636,
+      "baseline": {
+        "minBytes": 22024,
+        "gzipBytes": 7272,
+        "measuredAt": "2026-09-12"
+      },
+      "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings \u2014 the anchor the Vue ceiling row is read against."
+    },
+    {
+      "name": "fw-vue-full-composite",
+      "entry": ["@comvi/vue"],
+      "fixture": "framework/vue-full-composite.ts",
+      "external": ["vue"],
+      "gzipBudgetBytes": 13010,
+      "baseline": {
+        "minBytes": 37111,
+        "gzipBytes": 12390,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier."
+    },
+    {
+      "name": "fw-next-server-default-loader",
+      "entry": ["@comvi/next/server"],
+      "fixture": "framework/next-server-default-loader.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 8207,
+      "baseline": {
+        "minBytes": 21244,
+        "gzipBytes": 7816,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated Next server floor: the `@comvi/next/server` entry with the loader composed."
+    },
+    {
+      "name": "fw-next-client-default",
+      "entry": ["@comvi/next/client"],
+      "fixture": "framework/next-client-default.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 8155,
+      "baseline": {
+        "minBytes": 21208,
+        "gzipBytes": 7766,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated Next client floor: the `@comvi/next/client` entry only, no server module in the graph."
+    },
+    {
+      "name": "fw-next-root-composed",
+      "entry": ["@comvi/next"],
+      "fixture": "framework/next-root-composed.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 10441,
+      "baseline": {
+        "minBytes": 27832,
+        "gzipBytes": 9943,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(\u2026)` composed through `.use`."
+    },
+    {
+      "name": "fw-next-server-provider",
+      "entry": ["@comvi/next/server"],
+      "fixture": "framework/next-server-provider.ts",
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*",
+        "@comvi/next/config",
+        "*/client/ComviClientProvider.js"
+      ],
+      "gzipBudgetBytes": 2128,
+      "baseline": {
+        "minBytes": 4319,
+        "gzipBytes": 2026,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated Next server graph of the withComvi setup: `<ComviProvider>` and `getI18n` from `@comvi/next/server`, the provider's client half external as the client reference Next keeps."
+    },
+    {
+      "name": "fw-next-plugin-node",
+      "entry": ["@comvi/next/plugin"],
+      "fixture": "framework/next-plugin-node.ts",
+      "external": ["next", "next/*", "node:*"],
+      "gzipBudgetBytes": 984,
+      "baseline": {
+        "minBytes": 1664,
+        "gzipBytes": 937,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated Next build plugin: `withComvi` from `@comvi/next/plugin`, Node only and never bundled into an app; guards against an accidental core or React import."
+    },
+    {
+      "name": "fw-next-middleware-edge",
+      "entry": ["@comvi/next/middleware"],
+      "fixture": "framework/next-middleware-edge.ts",
+      "external": ["next", "next/*"],
+      "gzipBudgetBytes": 2097,
+      "baseline": {
+        "minBytes": 4740,
+        "gzipBytes": 1997,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated Next Edge graph: `createMiddleware` from `@comvi/next/middleware`, what an app's middleware.ts ships to the Edge runtime."
+    },
+    {
+      "name": "fw-nuxt-full-composite",
+      "entry": [
+        "@comvi/nuxt/runtime/plugin.js",
+        "@comvi/nuxt/runtime/composables/useI18n.js",
+        "@comvi/nuxt/runtime/server/utils/loadMessages.js",
+        "@comvi/vue",
+        "@comvi/core",
+        "@comvi/core/icu",
+        "@comvi/core/loader",
+        "@comvi/core/plugins",
+        "@comvi/core/devtools"
+      ],
+      "fixture": "framework/nuxt-full-composite.ts",
+      "external": ["#app", "#build/*", "#comvi/*", "#imports", "vue", "vue-router", "h3"],
+      "define": {
+        "import.meta.server": "false",
+        "import.meta.client": "true",
+        "import.meta.dev": "false"
+      },
+      "gzipBudgetBytes": 13940,
+      "baseline": {
+        "minBytes": 39123,
+        "gzipBytes": 13276,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."
+    },
+    {
+      "name": "fw-nuxt-client-default",
+      "entry": [
+        "@comvi/nuxt/runtime/plugin.js",
+        "@comvi/nuxt/runtime/composables/useI18n.js",
+        "@comvi/vue"
+      ],
+      "fixture": "framework/nuxt-client-default.ts",
+      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "define": {
+        "import.meta.server": "false",
+        "import.meta.client": "true",
+        "import.meta.dev": "false"
+      },
+      "gzipBudgetBytes": 8718,
+      "baseline": {
+        "minBytes": 24917,
+        "gzipBytes": 8302,
+        "measuredAt": "2026-10-03"
+      },
+      "note": "Gated Nuxt client floor: the runtime client entry only \u2014 the anchor the Nuxt ceiling row is read against."
+    },
+    {
+      "name": "fw-nuxt-i18n",
+      "entry": ["@comvi/nuxt/i18n"],
+      "fixture": "framework/nuxt-i18n.ts",
+      "gzipBudgetBytes": 8836,
+      "baseline": {
+        "minBytes": 23424,
+        "gzipBytes": 8415,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated `@comvi/nuxt/i18n` subpath: the one specifier a comvi.i18n.ts names, composing ICU + loader + plugin host + devtools through the module re-export instead of four app-declared @comvi/core subpaths."
+    },
+    {
+      "name": "plugin-fetch-loader-api",
+      "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader/api"],
+      "fixture": "plugin-fetch-loader-api.ts",
+      "gzipBudgetBytes": 12297,
+      "baseline": {
+        "minBytes": 32195,
+        "gzipBytes": 11711,
+        "measuredAt": "2026-10-05"
+      },
+      "note": "Gated API-aware path: base host + ICU + `fetchLoader` from `@comvi/plugin-fetch-loader/api`, composed as the fetch-loader README API recipe. Renamed from `plugin-fetch-loader-cdn` on 2026-10-04 (first-impression lot), same graph. +233 B over the measurement at `831e739` (10861 B) \u2014 199 B for making the CDN request path ONE shared implementation both entries run, 34 B for the package-name error prefix; the recorded 03.09 baseline (10640 B) was already 221 B stale before this lot."
+    },
+    {
+      "name": "plugin-fetch-loader",
+      "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
+      "fixture": "plugin-fetch-loader.ts",
+      "gzipBudgetBytes": 10177,
+      "baseline": {
+        "minBytes": 26418,
+        "gzipBytes": 9692,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated CDN-ONLY path: base host + ICU + `cdnLoader` from the package root, composed as the fetch-loader README quickstart. Renamed from `plugin-fetch-loader-cdn-lite` on 2026-10-04 (first-impression lot), same graph. Paired with `plugin-fetch-loader-api`: the difference between the two rows IS the API request path a CDN-only app does not ship."
+    },
+    {
+      "name": "platform-path-react",
+      "entry": ["@comvi/react", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
+      "fixture": "framework/react-platform.ts",
+      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 11921,
+      "baseline": {
+        "minBytes": 31323,
+        "gzipBytes": 11353,
+        "measuredAt": "2026-10-04"
+      },
+      "note": "Gated platform CDN path on React: `@comvi/react` base host + ICU + the CDN-only package root (`cdnLoader`), composed as the React README's CDN recipe; the number the README quotes for the React platform path."
+    }
+  ]
+}

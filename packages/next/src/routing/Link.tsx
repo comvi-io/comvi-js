@@ -6,6 +6,7 @@ import React, { forwardRef } from "react";
 import type { ComponentProps } from "react";
 import { useRoutingConfig } from "./context";
 import { localizeHref, localizeUrlObject } from "./utils";
+import { getSwitchRouting, writeLocaleCookie } from "./localeSwitch";
 
 export interface LocalizedLinkProps extends Omit<ComponentProps<typeof NextLink>, "locale"> {
   /** Target locale (defaults to current locale) */
@@ -13,10 +14,8 @@ export interface LocalizedLinkProps extends Omit<ComponentProps<typeof NextLink>
 }
 
 /**
- * Localized Link component that adds locale prefix based on routing config
- *
- * This component wraps Next.js Link and prepends the current locale
- * using localePrefix/pathnames rules from the routing configuration.
+ * Wraps Next.js Link and prepends the locale, using the localePrefix /
+ * pathnames rules from the routing configuration.
  *
  * @example
  * ```tsx
@@ -28,23 +27,49 @@ export interface LocalizedLinkProps extends Omit<ComponentProps<typeof NextLink>
  * // Specify different locale
  * <Link href="/about" locale="de">German About</Link>
  * ```
+ *
+ * A link that names a locale records it in the locale cookie when clicked. A
+ * link to another locale than the current one points at the locale-prefixed
+ * URL, which the middleware redirects to the public one, and is not prefetched.
  */
 export const Link = forwardRef<HTMLAnchorElement, LocalizedLinkProps>(function Link(
-  { href, locale: targetLocale, ...props },
+  { href, locale: targetLocale, onClick, prefetch, ...props },
   ref,
 ) {
   const currentLocale = useLocale();
   const locale = targetLocale ?? currentLocale;
   const routing = useRoutingConfig();
 
-  // Prepend locale to href
+  // A link to ANOTHER locale is a locale switch (see `localeSwitch.ts`). It
+  // goes to the locale-prefixed URL, and it is never prefetched: a prefetch is
+  // a real request through the middleware, which would move the locale cookie
+  // to that locale without a click.
+  const isLocaleSwitch = targetLocale !== undefined && targetLocale !== currentLocale;
+  const hrefRouting =
+    routing && isLocaleSwitch ? getSwitchRouting(routing) : (routing ?? undefined);
+
   const localizedHref =
     typeof href === "string"
-      ? localizeHref(href, locale, routing ?? undefined)
-      : localizeUrlObject(href, locale, routing ?? undefined);
+      ? localizeHref(href, locale, hrefRouting)
+      : localizeUrlObject(href, locale, hrefRouting);
 
-  return <NextLink ref={ref} href={localizedHref} {...props} />;
+  // A link that names a locale records it in the locale cookie when clicked.
+  const handleClick: LocalizedLinkProps["onClick"] = (event) => {
+    onClick?.(event);
+    if (targetLocale !== undefined && !event.defaultPrevented) {
+      writeLocaleCookie(routing, targetLocale);
+    }
+  };
+
+  return (
+    <NextLink
+      ref={ref}
+      href={localizedHref}
+      prefetch={isLocaleSwitch ? false : prefetch}
+      onClick={handleClick}
+      {...props}
+    />
+  );
 });
 
-// Add display name for React DevTools
 Link.displayName = "LocalizedLink";

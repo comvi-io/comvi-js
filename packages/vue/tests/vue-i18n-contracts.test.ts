@@ -1,24 +1,26 @@
 import { describe, it, expect, vi } from "vitest";
 import { nextTick } from "vue";
-import { VueI18n } from "../src/VueI18n";
+import { createI18n } from "../src/createI18n";
+import { createI18n as createCore } from "@comvi/core";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, createI18nFromCore } from "../src";
+import type { I18nOptions, LoaderResult } from "../src";
 
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    hello: never;
-    fallbackOnly: never;
-    "unknown.key": never;
-  }
-}
+// Vue's preset builds the BASE host, so each contract below composes exactly
+// the capability it exercises: the loader for `registerLoader`/`onLoadError`/
+// `addActiveNamespace`, the plugin host for `use`/`onMissingKey`/the detector.
+const createLoaderI18n = (options: I18nOptions) =>
+  createI18nFromCore(createCore(options).use(attachLoader));
 
 describe("VueI18n contracts", () => {
   it("keeps the last requested locale when computed setter is called rapidly", async () => {
-    const i18n = new VueI18n({ locale: "en", defaultNs: "common" });
+    const i18n = createLoaderI18n({ locale: "en", defaultNs: "common" });
     let resolveFrench!: () => void;
     const frenchGate = new Promise<void>((resolve) => {
       resolveFrench = resolve;
     });
 
-    i18n.registerLoader(async (locale: string, namespace: string) => {
+    i18n.core.registerLoader(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace !== "common") {
         return {};
       }
@@ -45,14 +47,14 @@ describe("VueI18n contracts", () => {
   });
 
   it("ignores no-op computed locale assignments and updates on real changes", async () => {
-    const loader = vi.fn(async (locale: string, namespace: string) => {
+    const loader = vi.fn(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace !== "common") {
         return {};
       }
       return locale === "fr" ? { hello: "Bonjour" } : { hello: "Hello" };
     });
-    const i18n = new VueI18n({ locale: "en", defaultNs: "common" });
-    i18n.registerLoader(loader);
+    const i18n = createLoaderI18n({ locale: "en", defaultNs: "common" });
+    i18n.core.registerLoader(loader);
     await i18n.init();
     loader.mockClear();
     const localeChangedSpy = vi.fn();
@@ -75,8 +77,8 @@ describe("VueI18n contracts", () => {
   it("routes computed locale setter errors through onError with source: setLocale", async () => {
     const err = new Error("setLocale failed");
     const onError = vi.fn();
-    const i18n = new VueI18n({ locale: "en", defaultNs: "common", onError });
-    i18n.registerLoader(async (locale: string, namespace: string) => {
+    const i18n = createLoaderI18n({ locale: "en", defaultNs: "common", onError });
+    i18n.core.registerLoader(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace !== "common") return {};
       if (locale === "fr") throw err;
       return { hello: "Hello" };
@@ -86,28 +88,26 @@ describe("VueI18n contracts", () => {
 
     i18n.locale.value = "fr";
     await vi.waitFor(() => {
-      expect(onError).toHaveBeenCalled();
-      // Verify SOME call carried an Error matching our injected loader failure.
-      // We don't assert the exact `source` because the error may be reported by
-      // core (source: "namespace-load") before our VueI18n catch wrapper would
-      // re-report it (source: "setLocale"); either path satisfies the contract.
-      const errorCalls = onError.mock.calls.filter(
-        (call) => call[0] instanceof Error && /failed/i.test(call[0].message),
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '[@comvi/core] Failed to load all namespaces for locale "fr": common',
+        }),
+        // Core reports "namespace-load" before VueI18n's catch wrapper would
+        // report "setLocale"; either path satisfies the contract.
+        expect.objectContaining({ source: expect.stringMatching(/^(namespace-load|setLocale)$/) }),
       );
-      expect(errorCalls.length).toBeGreaterThan(0);
     });
 
     expect(consoleErr).not.toHaveBeenCalled();
     expect(i18n.locale.value).toBe("en");
     expect(i18n.t("hello")).toBe("Hello");
-    consoleErr.mockRestore();
   });
 
   it("routes imperative locale setter errors through onError with source: setLocale", async () => {
     const err = new Error("imperative set failed");
     const onError = vi.fn();
-    const i18n = new VueI18n({ locale: "en", defaultNs: "common", onError });
-    i18n.registerLoader(async (locale: string, namespace: string) => {
+    const i18n = createLoaderI18n({ locale: "en", defaultNs: "common", onError });
+    i18n.core.registerLoader(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace !== "common") return {};
       if (locale === "fr") throw err;
       return { hello: "Hello" };
@@ -117,27 +117,26 @@ describe("VueI18n contracts", () => {
 
     i18n.locale = "fr";
     await vi.waitFor(() => {
-      expect(onError).toHaveBeenCalled();
-      // Verify SOME call carried an Error matching our injected loader failure.
-      // We don't assert the exact `source` because the error may be reported by
-      // core (source: "namespace-load") before our VueI18n catch wrapper would
-      // re-report it (source: "setLocale"); either path satisfies the contract.
-      const errorCalls = onError.mock.calls.filter(
-        (call) => call[0] instanceof Error && /failed/i.test(call[0].message),
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '[@comvi/core] Failed to load all namespaces for locale "fr": common',
+        }),
+        // Core reports "namespace-load" before VueI18n's catch wrapper would
+        // report "setLocale"; either path satisfies the contract.
+        expect.objectContaining({ source: expect.stringMatching(/^(namespace-load|setLocale)$/) }),
       );
-      expect(errorCalls.length).toBeGreaterThan(0);
     });
 
     expect(consoleErr).not.toHaveBeenCalled();
     expect(i18n.locale.value).toBe("en");
     expect(i18n.t("hello")).toBe("Hello");
-    consoleErr.mockRestore();
   });
 
-  it("exposes public loader, detector, fallback, and formatting behavior", async () => {
-    const onError = vi.fn();
+  // This host drives BOTH: the detector is a plugin-host member and the loader
+  // its own capability, so it composes loader then plugins.
+  const createDetectedFrenchI18n = (onError?: I18nOptions["onError"]) => {
     const localeDetector = vi.fn(() => "fr");
-    const loader = vi.fn(async (locale: string, namespace: string) => {
+    const loader = vi.fn(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace === "admin") {
         throw new Error("admin load failed");
       }
@@ -147,17 +146,18 @@ describe("VueI18n contracts", () => {
       };
       return translations[`${locale}:${namespace}`] ?? {};
     });
-    const i18n = new VueI18n({
-      locale: "en",
-      defaultNs: "common",
-      onError,
-    });
-    const loadErrorSpy = vi.fn();
+    const i18n = createI18nFromCore(
+      createCore({ locale: "en", defaultNs: "common", ...(onError ? { onError } : {}) })
+        .use(attachLoader)
+        .use(attachPlugins),
+    );
+    i18n.core.registerLocaleDetector(localeDetector);
+    i18n.core.registerLoader(loader);
+    return { i18n, localeDetector, loader };
+  };
 
-    i18n.registerLocaleDetector(localeDetector);
-    i18n.registerLoader(loader);
-    const unsubscribeMissing = i18n.onMissingKey((key) => `fallback:${key}`);
-    const unsubscribeLoadError = i18n.onLoadError(loadErrorSpy);
+  it("exposes public loader, detector, fallback, and formatting behavior", async () => {
+    const { i18n, localeDetector } = createDetectedFrenchI18n();
 
     await i18n.init();
 
@@ -170,8 +170,9 @@ describe("VueI18n contracts", () => {
     expect(i18n.defaultNamespace.value).toBe("common");
     expect(i18n.activeNamespaces.value).toContain("common");
 
-    i18n.addTranslations({ en: { fallbackOnly: "Fallback only" } });
+    i18n.addMessages({ en: { fallbackOnly: "Fallback only" } });
     i18n.setFallbackLocale("en");
+
     expect(i18n.t("fallbackOnly")).toBe("Fallback only");
     expect(
       i18n.hasTranslation("fallbackOnly", {
@@ -182,38 +183,70 @@ describe("VueI18n contracts", () => {
     ).toBe(true);
     expect([...i18n.loadedLocales.value].sort()).toEqual(["en", "fr"]);
 
-    await expect(i18n.addActiveNamespace("admin")).rejects.toThrow(/failed|admin/i);
+    // The detected locale drives Intl too; `timeZone` is pinned so the date is
+    // not a function of the machine running the suite.
+    expect(i18n.formatNumber(1234.5)).toBe("1\u202f234,5");
+    expect(i18n.formatCurrency(12.5, "USD")).toBe("12,50\u00a0$US");
+    expect(i18n.formatDate(new Date("2026-01-01T00:00:00Z"), { timeZone: "UTC" })).toBe(
+      "01/01/2026",
+    );
+    expect(i18n.formatRelativeTime(-1, "day")).toBe("il y a 1 jour");
+  });
+
+  it("rejects addActiveNamespace and notifies onLoadError when that namespace fails to load", async () => {
+    // The host takes an onError so core's expected failure is routed to a
+    // handler rather than printed to the suite's stderr.
+    const { i18n } = createDetectedFrenchI18n(vi.fn());
+    const loadErrorSpy = vi.fn();
+    i18n.core.onLoadError(loadErrorSpy);
+
+    await i18n.init();
+
+    await expect(i18n.core.addActiveNamespace("admin")).rejects.toThrow(
+      '[@comvi/core] Failed to load all namespaces for locale "fr": admin',
+    );
+
     await vi.waitFor(() => {
-      expect(loadErrorSpy).toHaveBeenCalledWith("fr", "admin", expect.any(Error));
+      expect(loadErrorSpy).toHaveBeenCalledWith(
+        "fr",
+        "admin",
+        expect.objectContaining({ message: "admin load failed" }),
+      );
     });
+  });
 
+  it("forwards reportError arguments to the configured onError handler verbatim", async () => {
+    const onError = vi.fn();
+    const { i18n } = createDetectedFrenchI18n(onError);
+    await i18n.init();
     onError.mockClear();
-    i18n.reportError(new Error("boom"), { source: "translation", tagName: "link" });
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "boom" }), {
-      source: "translation",
-      tagName: "link",
-    });
 
-    expect(typeof i18n.formatNumber(1234.5)).toBe("string");
-    expect(typeof i18n.formatDate(new Date("2026-01-01T00:00:00Z"))).toBe("string");
-    expect(typeof i18n.formatCurrency(12.5, "USD")).toBe("string");
-    expect(typeof i18n.formatRelativeTime(-1, "day")).toBe("string");
+    const reported = new Error("boom");
+    i18n.reportError(reported, { source: "translation", tagName: "link" });
+
+    expect(onError).toHaveBeenCalledWith(reported, { source: "translation", tagName: "link" });
+  });
+
+  it("returns the raw key again once the onMissingKey handler unsubscribes", async () => {
+    const { i18n } = createDetectedFrenchI18n();
+    const unsubscribeMissing = i18n.core.onMissingKey((key) => `fallback:${key}`);
+    await i18n.init();
+
+    expect(i18n.t("unknown.key")).toBe("fallback:unknown.key");
 
     unsubscribeMissing();
-    unsubscribeLoadError();
+
     expect(i18n.t("unknown.key")).toBe("unknown.key");
   });
 
   it("reports async cleanup failures through the configured error handler", async () => {
     const onError = vi.fn();
-    const i18n = new VueI18n({
-      locale: "en",
-      defaultNs: "common",
-      onError,
-    });
+    const i18n = createI18nFromCore(
+      createCore({ locale: "en", defaultNs: "common", onError }).use(attachPlugins),
+    );
     const destroyError = new Error("destroy failed");
 
-    i18n.use(() => async () => {
+    i18n.core.registerPlugin(() => async () => {
       throw destroyError;
     });
     await i18n.init();
@@ -226,17 +259,23 @@ describe("VueI18n contracts", () => {
   });
 
   it("rejects init() after destroy() and requires a new wrapper instance", async () => {
-    const i18n = new VueI18n({ locale: "en", defaultNs: "common", ns: [] });
+    const i18n = createI18n({ locale: "en", defaultNs: "common", ns: [] });
     await i18n.init();
 
     i18n.destroy();
 
-    await expect(i18n.init()).rejects.toThrow(/destroy|E_INSTANCE_DESTROYED/);
+    // The unit project resolves ../src with __DEV__ true, so only the dev
+    // message is reachable here; the prod text is pinned in tests/js-contract/.
+    await expect(i18n.init()).rejects.toThrow(
+      "[@comvi/core] Cannot call init() after destroy(). Create a new i18n instance.",
+    );
   });
 
   it("supports fallback return values from onMissingKey callback", () => {
-    const i18n = new VueI18n({ locale: "en", defaultNs: "common" });
-    const unsubscribe = i18n.onMissingKey((key) => `fallback:${key}`);
+    const i18n = createI18nFromCore(
+      createCore({ locale: "en", defaultNs: "common" }).use(attachPlugins),
+    );
+    const unsubscribe = i18n.core.onMissingKey((key) => `fallback:${key}`);
 
     expect(i18n.t("unknown.key")).toBe("fallback:unknown.key");
 

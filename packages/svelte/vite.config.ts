@@ -6,18 +6,20 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { resolve } from "path";
-import { createLibraryBuildOptions } from "@comvi/vite-config";
+import { COMVI_CORE_EXTERNALS, createLibraryBuildOptions } from "@comvi/vite-config";
 
-// Externalize @comvi/core and all svelte subpaths (svelte/internal/client, etc.)
+// EVERY `@comvi/core` entry the wrapper names must be external, along with all
+// svelte subpaths: a missed core subpath is INLINED into the bundle, which is
+// the duplicate-graph bug `@comvi/vue` hit.
 const svelteExternal = (id: string) =>
-  id === "@comvi/core" || id === "svelte" || id.startsWith("svelte/");
+  COMVI_CORE_EXTERNALS.includes(id) || id === "svelte" || id.startsWith("svelte/");
 
 const baseBuild = createLibraryBuildOptions({
   entry: resolve(__dirname, "src/index.ts"),
-  // name is required by the interface but irrelevant here (no UMD output)
+  // Required by the interface; irrelevant with no UMD output.
   name: "ComviSvelte",
   fileNames: { es: "comvi-svelte.js", cjs: "comvi-svelte.cjs" },
-  external: ["@comvi/core"],
+  external: COMVI_CORE_EXTERNALS,
 });
 
 export default defineConfig({
@@ -33,8 +35,5 @@ export default defineConfig({
     alias: {
       "@": resolve(__dirname, "./src"),
     },
-  },
-  define: {
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== "production"),
   },
 });

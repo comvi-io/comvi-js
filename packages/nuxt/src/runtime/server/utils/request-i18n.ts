@@ -1,30 +1,31 @@
-import type { I18n } from "@comvi/core";
-import { createI18n } from "@comvi/core";
 import type { H3Event } from "h3";
-import { runComviSetup } from "#build/comvi.setup";
+// `#comvi/*`, not `#build/*`: this file runs in the Nitro build, where nuxt's
+// `impound` plugin refuses the Vue app's `#build/*` aliases. The module
+// registers the same generated modules there as Nitro virtual modules.
+import { runComviSetup } from "#comvi/setup";
+// Same build-time branch as the client plugin: with `i18nModule` set, the
+// generated template returns the app's own composed instance and nuxt's default
+// `@comvi/vue` construction path is not in the server graph.
+import { createComviCore } from "#comvi/i18n";
+import type { NuxtServerInstance } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
+// The registry and its teardown live outside this file, so the Nitro server
+// plugin reaches them without pulling the generated modules into its graph.
+import {
+  assertRequestLive,
+  getContextKey,
+  hookRequestCleanup,
+  requestI18nMap,
+} from "../internal/request-hosts";
+import { rememberFailedLoads } from "../../utils/load-catalogs";
 
-// Keep one i18n instance per locale within a single request.
-// This costs more than a single shared request instance, but it preserves
-// SSR correctness when server code resolves multiple locales concurrently.
-const requestI18nMap = new WeakMap<object, Map<string, Promise<I18n>>>();
-
-const getContextKey = (event: H3Event): object => {
-  if (event.context && typeof event.context === "object") {
-    return event.context as object;
-  }
-  return event as unknown as object;
-};
-
-/**
- * Get or create per-request i18n instance.
- * Uses WeakMap with event context as key for automatic cleanup.
- */
-export async function getRequestI18n(event: H3Event, locale: string): Promise<I18n> {
+/** Keyed by event context in a WeakMap, so cleanup is automatic. */
+export async function getRequestI18n(event: H3Event, locale: string): Promise<NuxtServerInstance> {
   const contextKey = getContextKey(event);
+  assertRequestLive(contextKey);
   let localeInstances = requestI18nMap.get(contextKey);
   if (!localeInstances) {
-    localeInstances = new Map<string, Promise<I18n>>();
+    localeInstances = new Map<string, Promise<NuxtServerInstance>>();
     requestI18nMap.set(contextKey, localeInstances);
   }
 
@@ -40,28 +41,57 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<I1
         locale: locale,
         fallbackLocale: publicConfig.fallbackLocale || publicConfig.defaultLocale || locale,
         defaultNs: publicConfig.defaultNs || "default",
+        ns: publicConfig.ns || undefined,
         devMode: process.env.NODE_ENV === "development",
         apiKey: privateConfig?.apiKey,
+        // Symmetric with the app plugin: the inline catalog is what makes an
+        // app with no `i18nModule` (and therefore no loader) render anything at
+        // all, so SSR must construct with the same one the client does.
+        // `||` treats the `""` that runtime config makes of an unset option as
+        // no catalog, exactly as the app plugin does.
+        messages: publicConfig.messages || undefined,
+        // Symmetric with the app plugin (runtime/plugin.ts): a server route that
+        // renders rich text off the request instance keeps the same whitelist the
+        // client render used. `ssrLocale` stays client-only.
+        tagInterpolation: publicConfig.basicHtmlTags
+          ? { basicHtmlTags: publicConfig.basicHtmlTags }
+          : undefined,
       };
       const i18n = publicConfig.defaultParams
-        ? createI18n({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
-        : createI18n(baseI18nOptions);
+        ? createComviCore({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
+        : createComviCore(baseI18nOptions);
+
+      // Both branches now receive the request locale in their options — the
+      // default branch constructs core with it, and a `i18nModule` factory is
+      // handed the same resolved options — so this is a no-op for any factory
+      // that forwards them. It stays because the factory is free to ignore
+      // them, and an instance on the wrong locale would load the wrong catalog:
+      // corrected here, before init(), so the first load is already right.
+      if (i18n.locale !== locale) {
+        i18n.locale = locale;
+      }
 
       await runComviSetup({
         i18n,
+        // The server utility's `i18n` IS the instance.
+        core: i18n,
         event,
         runtime: "server",
         runtimeConfig: config,
       });
 
+      rememberFailedLoads(i18n);
       await i18n.init();
       return i18n;
     })();
 
     localeInstances.set(locale, instancePromise);
+    // After the map holds something worth destroying, so the hook can never
+    // fire against an empty request.
+    hookRequestCleanup(event, contextKey);
   }
 
-  let i18n: I18n;
+  let i18n: NuxtServerInstance;
   try {
     i18n = await instancePromise;
   } catch (error) {
@@ -75,7 +105,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<I1
   }
 
   if (i18n.locale !== locale) {
-    await i18n.setLocaleAsync(locale);
+    await i18n.setLocale(locale);
   }
 
   return i18n;

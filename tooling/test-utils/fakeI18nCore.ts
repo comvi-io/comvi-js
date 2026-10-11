@@ -30,7 +30,7 @@ const normalizeLanguageNamespace = (
   };
 };
 
-export class FakeTranslationCache {
+export class FakeMessagesCache {
   private revision = 0;
   private readonly cache = new Map<string, TranslationTable>();
 
@@ -99,12 +99,12 @@ export class FakeTranslationCache {
 export class FakeI18nCore {
   private readonly listeners = new Map<I18nEvent, Set<Listener>>();
   private readonly activeNamespaces: Set<string>;
-  private readonly cache = new FakeTranslationCache();
+  private readonly cache = new FakeMessagesCache();
   private _language: string;
   private _isLoading = false;
   private _isInitializing = false;
   private _isInitialized = false;
-  private readonly defaultNamespace: string;
+  private defaultNamespace: string;
   private _tImplementation: (key: string, params?: TranslationParams) => TranslationResult;
 
   public initError: unknown = null;
@@ -156,7 +156,7 @@ export class FakeI18nCore {
     this._isInitialized = value;
   }
 
-  get translationCache(): FakeTranslationCache {
+  get messagesCache(): FakeMessagesCache {
     return this.cache;
   }
 
@@ -186,23 +186,23 @@ export class FakeI18nCore {
   }
 
   async setLanguageAsync(language: string): Promise<void> {
-    return this.setLocaleAsync(language);
+    return this.setLocale(language);
   }
 
-  async setLocaleAsync(locale: string): Promise<void> {
+  async setLocale(locale: string): Promise<void> {
     const from = this._language;
     this._language = locale;
     this.emit("localeChanged", { from, to: locale });
   }
 
-  addTranslations(translations: Record<string, TranslationTable>): void {
+  addMessages(translations: Record<string, TranslationTable>): void {
     for (const [languageOrComposite, values] of Object.entries(translations)) {
       const { language, namespace } = normalizeLanguageNamespace(
         languageOrComposite,
         this.defaultNamespace,
       );
       this.cache.set(language, namespace, values);
-      this.emit("namespaceLoaded", { language, namespace });
+      this.emit("namespaceLoaded", { locale: language, namespace });
     }
   }
 
@@ -212,17 +212,26 @@ export class FakeI18nCore {
     this.emit("loadingStateChanged", { isLoading: true, isInitializing: this._isInitializing });
     await this.namespaceLoadResult;
     this._isLoading = false;
-    this.emit("namespaceLoaded", { language: this._language, namespace });
+    this.emit("namespaceLoaded", { locale: this._language, namespace });
     this.emit("loadingStateChanged", { isLoading: false, isInitializing: this._isInitializing });
   }
 
-  async reloadTranslations(_language?: string, _namespace?: string): Promise<void> {
+  removeActiveNamespace(namespace: string): void {
+    this.removeActiveNamespaces([namespace]);
+  }
+
+  removeActiveNamespaces(namespaces: string[]): void {
+    for (const namespace of namespaces) this.activeNamespaces.delete(namespace);
+    this.emit("configChanged", { source: "namespaceDeactivated" });
+  }
+
+  async reloadMessages(_language?: string, _namespace?: string): Promise<void> {
     return Promise.resolve();
   }
 
-  clearTranslations(language?: string, namespace?: string): void {
+  clearMessages(language?: string, namespace?: string): void {
     this.cache.clear(language, namespace);
-    this.emit("translationsCleared", { language, namespace });
+    this.emit("messagesCleared", { locale: language, namespace });
   }
 
   setFallbackLanguage(fallback: string | string[]): void {
@@ -264,7 +273,14 @@ export class FakeI18nCore {
     return this.defaultNamespace;
   }
 
-  getTranslations(): Record<string, TranslationTable> {
+  setDefaultNamespace(namespace: string): void {
+    const from = this.defaultNamespace;
+    if (from === namespace) return;
+    this.defaultNamespace = namespace;
+    this.emit("defaultNamespaceChanged", { from, to: namespace });
+  }
+
+  getMessages(): Record<string, TranslationTable> {
     const result: Record<string, TranslationTable> = {};
     for (const [key, value] of this.cache.getInternalMap().entries()) {
       result[key] = { ...value };
@@ -313,7 +329,13 @@ export class FakeI18nCore {
     };
   }
 
+  /** As core counts it: once per `localeChanged`, before the listeners run. */
+  localeRevision = 0;
+
   emit<E extends I18nEvent>(event: E, payload: I18nEventData[E]): void {
+    if (event === "localeChanged") {
+      this.localeRevision++;
+    }
     const callbacks = this.listeners.get(event);
     if (!callbacks) {
       return;

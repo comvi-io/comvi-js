@@ -1,238 +1,142 @@
 <script lang="ts">
-  import { getI18nContext } from './context';
-  import { createLocaleStore, createCacheRevisionStore } from './stores';
-  import { createElement as createVirtualElement } from '@comvi/core';
-  import type { TranslationParams, VirtualNode, TranslationResult, TagCallbackParams } from '@comvi/core';
-  import type { ComponentMap, ComponentMapping, TProps } from './types';
+  // The PURE rich-text seam, NOT '@comvi/core/tags': importing the tags entry
+  // would register tag syntax AMBIENTLY, so every app rendering <T> would also
+  // start parsing `<tag>` markup in plain string-API `t()`. prepareTranslation
+  // passes the tag extension per call, so the ambient switch stays the app's.
+  import { isVirtualNode, prepareTranslation } from '@comvi/core/rich-text';
+  import type { PendingHandler } from '@comvi/core/rich-text';
+  import type { Component } from 'svelte';
+  import type { VirtualNode } from '@comvi/core';
+  import { useI18nInstance } from './context.js';
+  import { createLocaleStore, createCacheRevisionStore } from './stores.js';
+  import type { TProps } from './types';
 
-  // Sentinel value: distinguishes "prop not passed" from "prop passed as undefined".
-  // $$props is unavailable in runes mode; we use this symbol as the default so that
-  // `value !== UNSET` means the caller explicitly provided the prop.
-  const UNSET = Symbol('unset');
-
-  const DEFAULT_ALLOWED_TAGS = new Set([
-    'a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'code', 'data',
-    'del', 'dfn', 'em', 'hr', 'i', 'img', 'ins', 'kbd', 'mark',
-    'ol', 'li', 'p', 'pre', 'q', 'rp', 'rt', 'ruby', 's', 'samp',
-    'small', 'span', 'strong', 'sub', 'sup', 'time', 'u', 'ul',
-    'var', 'wbr',
-  ]);
-
+  // Every prop that is not declared here is an interpolation param, matching
+  // the react wrapper: `<T i18nKey="cart" count={2} />` is `params: { count: 2 }`.
   let {
     i18nKey,
     params = {},
-    ns = UNSET as unknown as string | undefined,
-    locale = UNSET as unknown as string | undefined,
-    fallback = UNSET as unknown as string | undefined,
-    raw = UNSET as unknown as boolean,
-    components = {} as ComponentMap,
-    allowedTags = undefined as Set<string> | undefined,
-    children = undefined as TProps['children'],
+    ns = undefined,
+    locale = undefined,
+    fallback = undefined,
+    markers = undefined,
+    components = undefined,
+    children = undefined,
+    ...directParams
   }: TProps = $props();
 
-  const i18n = getI18nContext();
+  const i18n = useI18nInstance();
   const languageStore = createLocaleStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
 
-  // Helper to convert children to array format for VirtualNode
-  function childrenToArray(ch: TranslationResult): (string | VirtualNode)[] {
-    if (typeof ch === 'string') {
-      return ch ? [ch] : [];
-    }
-    return ch;
-  }
-
-  function normalizeComponentMapping(mapping: ComponentMapping): {
-    tag: string;
-    props?: Record<string, string | boolean>;
-  } {
-    if (typeof mapping === 'string') {
-      return { tag: mapping };
-    }
-    return mapping;
-  }
-
-  // Returns true when the caller explicitly passed this prop (including as undefined).
-  // Uses the UNSET sentinel because $$props is not available in runes mode.
-  function hasExplicitProp(value: unknown): boolean {
-    return value !== UNSET;
-  }
-
-  // Build tag handlers from components prop
-  function buildTagHandlers(comps: ComponentMap): Record<string, (p: TagCallbackParams) => VirtualNode> {
-    const handlers: Record<string, (p: TagCallbackParams) => VirtualNode> = {};
-    for (const [tagName, mapping] of Object.entries(comps)) {
-      const normalizedMapping = normalizeComponentMapping(mapping);
-      handlers[tagName] = ({ children: ch }: TagCallbackParams) => {
-        return createVirtualElement(
-          normalizedMapping.tag,
-          normalizedMapping.props || {},
-          childrenToArray(ch),
-        );
-      };
-    }
-    return handlers;
-  }
-
-  function buildTransportParams(): TranslationParams {
-    const transportParams: TranslationParams = {
-      ...params,
-      ...buildTagHandlers(components),
-    };
-
-    if (hasExplicitProp(ns)) {
-      transportParams.ns = ns as string | undefined;
-    }
-    if (hasExplicitProp(locale)) {
-      transportParams.locale = locale as string | undefined;
-    }
-    if (hasExplicitProp(fallback)) {
-      transportParams.fallback = fallback as string | undefined;
-    }
-    if (hasExplicitProp(raw)) {
-      transportParams.raw = raw as boolean;
-    }
-
-    return transportParams;
-  }
-
-  // Reactive translation — reacts to all props and both stores.
-  const translationExists = $derived.by(() => {
-    void $languageStore;
+  const prepared = $derived.by(() => {
+    // This read IS the reactive dependency for the cache/config axis.
     void $cacheRevision;
+    // The locale axis is a dependency only when the locale is NOT pinned:
+    // reading `$languageStore` outside this branch would register the
+    // dependency anyway, and a `<T locale="de">` would recompute on every
+    // global locale change whose answer it cannot depend on.
+    if (locale === undefined) {
+      void $languageStore;
+    }
 
-    const targetLanguage = hasExplicitProp(locale) ? (locale as string | undefined) : params.locale;
-    const targetNamespace = hasExplicitProp(ns) ? (ns as string | undefined) : params.ns;
+    // The spread is what SUBSCRIBES to each direct param, so it happens inside
+    // the derived. A direct prop wins a name collision with `params`, as in react.
+    const allParams =
+      Object.keys(directParams).length === 0 ? params : { ...params, ...directParams };
 
-    return i18n.hasTranslation(i18nKey as string, targetLanguage, targetNamespace, true);
+    return prepareTranslation(i18n, {
+      i18nKey: i18nKey as string,
+      params: allParams,
+      ns,
+      locale,
+      fallback,
+      markers,
+      components,
+    });
   });
 
-  const result = $derived.by(() => {
-    // Access stores to establish reactive dependency
-    void $languageStore;
-    void $cacheRevision;
-
-    return i18n.tRaw(i18nKey as string, buildTransportParams());
+  const pendingByTag = $derived.by(() => {
+    const byTag: Record<string, PendingHandler> = Object.create(null);
+    for (const pending of prepared.pendingHandlers) {
+      byTag[pending.marker] = pending;
+    }
+    return byTag;
   });
 
-  // Validate attribute name: block event handlers and dangerous attributes
-  function isSafeAttrName(name: string): boolean {
-    const lower = name.toLowerCase();
-    return !lower.startsWith('on') && lower !== 'srcdoc' && lower !== 'formaction';
+  const renderSlot = $derived(prepared.isMissing && children != null);
+
+  // A boolean `false` prop means "omit the attribute", as in the other
+  // wrappers; a `<svelte:element>` spread would serialize it as `attr="false"`.
+  function elementProps(props: Record<string, unknown>): Record<string, unknown> {
+    let filtered: Record<string, unknown> | null = null;
+    for (const name in props) {
+      if (props[name] === false) {
+        filtered ??= { ...props };
+        delete filtered[name];
+      }
+    }
+    return filtered ?? props;
   }
-
-  // Helper to build attributes string.
-  // Safe defaults injected here for {@html} context:
-  //   - <a target="_blank"> without rel gets rel="noopener noreferrer" to prevent
-  //     tab-napping attacks.
-  //   - <img> without alt gets alt="" so screen readers skip decorative images.
-  function buildAttrs(tag: string, props: Record<string, string | boolean | unknown>): string {
-    const merged: Record<string, string | boolean | unknown> = { ...props };
-
-    if (tag === 'a' && merged['target'] === '_blank' && !('rel' in merged)) {
-      merged['rel'] = 'noopener noreferrer';
-    }
-    if (tag === 'img' && !('alt' in merged)) {
-      merged['alt'] = '';
-    }
-
-    return Object.entries(merged)
-      .filter(([key]) => isSafeAttrName(key))
-      .map(([key, value]) => {
-        if (typeof value === 'boolean') {
-          return value ? key : '';
-        }
-        return `${key}="${escapeAttr(String(value))}"`;
-      })
-      .filter(Boolean)
-      .join(' ');
-  }
-
-  // Helper to convert VirtualNode to HTML string
-  function virtualNodeToHtml(node: VirtualNode): string {
-    if (node.type === 'text') {
-      return escapeHtml(node.text);
-    }
-
-    if (node.type === 'fragment') {
-      return renderToHtml(node.children as TranslationResult);
-    }
-
-    // Element node — tagHandlers already resolved the correct tag/props
-    const tag = node.tag;
-    const props = node.props || {};
-    const nodeChildren = node.children as TranslationResult;
-
-    // Validate tag against allowed list to prevent XSS
-    const safeTags = allowedTags ?? DEFAULT_ALLOWED_TAGS;
-    if (!safeTags.has(tag)) {
-      return `<span>${renderToHtml(nodeChildren)}</span>`;
-    }
-
-    // Build attributes string (with a11y safe defaults injected)
-    const attrs = buildAttrs(tag, props);
-
-    // Self-closing tags
-    const selfClosing = ['br', 'hr', 'img', 'input', 'meta'].includes(tag);
-    if (selfClosing) {
-      return attrs ? `<${tag} ${attrs} />` : `<${tag} />`;
-    }
-
-    const openTag = attrs ? `<${tag} ${attrs}>` : `<${tag}>`;
-    const closeTag = `</${tag}>`;
-
-    return `${openTag}${renderToHtml(nodeChildren)}${closeTag}`;
-  }
-
-  // Convert TranslationResult to HTML string
-  function renderToHtml(content: TranslationResult): string {
-    if (typeof content === 'string') {
-      return escapeHtml(content);
-    }
-
-    return content
-      .map((item) => (typeof item === 'string' ? escapeHtml(item) : virtualNodeToHtml(item)))
-      .join('');
-  }
-
-  // Escape HTML content.
-  // NOTE: This function escapes only &, <, and > because it is used exclusively in
-  // TEXT/element-content context. Attribute values use escapeAttr separately, which
-  // additionally escapes quotes and apostrophes per OWASP recommendations.
-  function escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  // Escape attribute values per OWASP recommendations
-  function escapeAttr(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  // Derived rendering decisions
-  const isMissingTranslation = $derived(
-    !translationExists &&
-    (fallback === UNSET || fallback === undefined) &&
-    typeof result === 'string' &&
-    result === (i18nKey as string),
-  );
-
-  const renderSlot = $derived(isMissingTranslation && children != null);
-
-  const htmlOutput = $derived(
-    typeof result === 'string' ? escapeHtml(result) : renderToHtml(result),
-  );
 </script>
+
+<!--
+  Translation content can only ever produce text nodes and handler-mapped
+  elements — there is no HTML string sink, so untrusted translations cannot
+  inject markup. Params are held to the same rule: only a node the library
+  built is rendered as one. Anything else is data — an object parsed from JSON
+  can be shaped like a node, but cannot carry core's brand — and is text.
+-->
+{#snippet renderList(items: Array<VirtualNode | string>)}
+  {#each items as item, index (index)}
+    {#if isVirtualNode(item)}{@render renderNode(item)}{:else}{item}{/if}
+  {/each}
+{/snippet}
+
+{#snippet renderNode(node: VirtualNode)}
+  {#if node.type === 'text'}
+    {node.text}
+  {:else if node.type === 'fragment'}
+    {@render renderList(node.children)}
+  {:else}
+    {@const pending = pendingByTag[node.tag]}
+    {#if pending !== undefined}
+      {@const Handler = pending.handler as Component<Record<string, unknown>>}
+      <!--
+        A handler that throws degrades to the translation's own children rather
+        than taking the tree down with it — the same degradation the React
+        binding gives every handler form (react/src/T.tsx catches the handler
+        CALL synchronously and wraps every element it renders in its own
+        TagBoundary). Both bindings contain a client render only: neither a
+        <svelte:boundary> nor a React boundary runs during SSR. Both also stay
+        failed once they have caught, until the surrounding tree remounts.
+        Needs svelte >= 5.3 for <svelte:boundary>.
+      -->
+      <svelte:boundary
+        onerror={(error) =>
+          i18n.reportError(error as Error, { source: 'translation', tagName: pending.name })}
+      >
+        <Handler {...(pending.props ?? {})}>
+          {@render renderList(node.children)}
+        </Handler>
+        {#snippet failed()}
+          {@render renderList(node.children)}
+        {/snippet}
+      </svelte:boundary>
+    {:else if node.children.length === 0}
+      <svelte:element this={node.tag} {...elementProps(node.props)} />
+    {:else}
+      <svelte:element this={node.tag} {...elementProps(node.props)}
+        >{@render renderList(node.children)}</svelte:element
+      >
+    {/if}
+  {/if}
+{/snippet}
 
 {#if renderSlot}
   {@render children?.()}
+{:else if typeof prepared.content === 'string'}
+  {prepared.content}
 {:else}
-  {@html htmlOutput}
+  {@render renderList(prepared.content)}
 {/if}

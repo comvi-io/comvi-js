@@ -12,14 +12,14 @@ import { setRequestLocaleInternal } from "./cache";
  * @example
  * ```tsx
  * // app/[locale]/page.tsx
- * import { setRequestLocale } from '@comvi/next/server';
+ * import { getI18n, setRequestLocale } from '@comvi/next/server';
  *
  * export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
  *   const { locale } = await params;
  *   setRequestLocale(locale);
  *
- *   // Now you can use getTranslations()
- *   const t = await getTranslations('HomePage');
+ *   // Only now: getI18n() reads the locale this call cached.
+ *   const { t } = await getI18n();
  *   return <h1>{t('title')}</h1>;
  * }
  * ```

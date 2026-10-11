@@ -1,18 +1,24 @@
-import { describe, it, expect, vi } from "vitest";
-import { FetchLoader, fetchProjectInfo, clearProjectInfoCache } from "../src/index";
-import { I18n } from "@comvi/core";
-import { delay, http, HttpResponse } from "msw";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { fetchLoaderPlugin, fetchProjectInfo } from "../src/api";
+import { I18n } from "./helpers/composedInstance";
+import { http, HttpResponse } from "msw";
+import { deferred } from "./helpers/deferred";
 import {
   server,
   createMockTranslations,
   createMockApiResponse,
   mockCdnSuccessResponse,
+  mockCdnDeferredResponse,
   mockCdnErrorResponse,
+  mockProjectInfoDeferredResponse,
   TEST_CDN_URL,
   TEST_API_KEY,
 } from "./setup";
 
-describe("FetchLoader Integration Tests", () => {
+/** `expect.poll` defaults to a 50 ms retry interval; nothing here needs to wait that long. */
+const POLL = { interval: 1, timeout: 500 };
+
+describe("fetchLoaderPlugin plugin on a live host", () => {
   describe("Plugin lifecycle", () => {
     it("loads initial namespaces after later plugins have registered", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
@@ -24,8 +30,8 @@ describe("FetchLoader Integration Tests", () => {
         namespaceLoadedAfterLaterPlugin.push(laterPluginRan);
       });
 
-      i18n.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
-      i18n.use(() => {
+      i18n.registerPlugin(fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+      i18n.registerPlugin(() => {
         laterPluginRan = true;
       });
 
@@ -43,12 +49,12 @@ describe("FetchLoader Integration Tests", () => {
       mockCdnSuccessResponse("en", "default", { key: "Hello" });
       mockCdnSuccessResponse("fr", "default", { key: "Bonjour" });
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       i18n.locale = "fr";
 
-      await expect.poll(() => i18n.hasLocale("fr", "default"), { timeout: 500 }).toBe(true);
+      await expect.poll(() => i18n.hasLocale("fr", "default"), POLL).toBe(true);
     });
 
     it("should handle errors gracefully during auto-load", async () => {
@@ -58,7 +64,7 @@ describe("FetchLoader Integration Tests", () => {
       mockCdnSuccessResponse("en", "default", { key: "Hello" });
       mockCdnErrorResponse("fr", "default", 404, "Not Found");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         onLoadError,
@@ -67,7 +73,10 @@ describe("FetchLoader Integration Tests", () => {
       await plugin(i18n);
       i18n.locale = "fr";
 
-      await expect.poll(() => onLoadError.mock.calls.length > 0, { timeout: 500 }).toBe(true);
+      await vi.waitFor(
+        () => expect(onLoadError).toHaveBeenCalledWith("fr", "default", expect.any(Error)),
+        POLL,
+      );
       expect(i18n.hasLocale("fr", "default")).toBe(false);
     });
 
@@ -75,17 +84,17 @@ describe("FetchLoader Integration Tests", () => {
       const i18n = new I18n({ locale: "en", devMode: false });
 
       for (const lang of ["en", "fr", "de"]) {
-        mockCdnSuccessResponse(lang, "default", createMockTranslations(lang, "default"));
+        mockCdnSuccessResponse(lang, "default", createMockTranslations(lang));
       }
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       i18n.locale = "fr";
-      await expect.poll(() => i18n.hasLocale("fr", "default"), { timeout: 500 }).toBe(true);
+      await expect.poll(() => i18n.hasLocale("fr", "default"), POLL).toBe(true);
 
       i18n.locale = "de";
-      await expect.poll(() => i18n.hasLocale("de", "default"), { timeout: 500 }).toBe(true);
+      await expect.poll(() => i18n.hasLocale("de", "default"), POLL).toBe(true);
     });
   });
 
@@ -100,11 +109,11 @@ describe("FetchLoader Integration Tests", () => {
         ),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       await i18n.addActiveNamespace("dashboard");
-      await expect.poll(() => i18n.hasLocale("en", "dashboard"), { timeout: 500 }).toBe(true);
+      await expect.poll(() => i18n.hasLocale("en", "dashboard"), POLL).toBe(true);
     });
 
     it("should load all active namespaces when language changes", async () => {
@@ -119,14 +128,14 @@ describe("FetchLoader Integration Tests", () => {
         http.get(`${TEST_CDN_URL}/errors/fr.json`, () => HttpResponse.json({ error: "Erreur FR" })),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       await i18n.addActiveNamespace("errors");
-      await expect.poll(() => i18n.hasLocale("en", "errors"), { timeout: 500 }).toBe(true);
+      await expect.poll(() => i18n.hasLocale("en", "errors"), POLL).toBe(true);
 
       i18n.locale = "fr";
-      await expect.poll(() => i18n.hasLocale("fr", "errors"), { timeout: 500 }).toBe(true);
+      await expect.poll(() => i18n.hasLocale("fr", "errors"), POLL).toBe(true);
     });
   });
 
@@ -139,50 +148,45 @@ describe("FetchLoader Integration Tests", () => {
         server.use(
           http.get(`${TEST_CDN_URL}/${lang}.json`, () => {
             requestCounts[lang]++;
-            return HttpResponse.json(createMockTranslations(lang, "default"));
+            return HttpResponse.json(createMockTranslations(lang));
           }),
         );
       }
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       i18n.locale = "fr";
       i18n.locale = "de";
       i18n.locale = "fr";
 
-      await expect.poll(() => i18n.hasLocale("fr", "default"), { timeout: 500 }).toBe(true);
+      await expect.poll(() => i18n.hasLocale("fr", "default"), POLL).toBe(true);
 
-      expect(requestCounts.fr).toBeLessThanOrEqual(1);
-      expect(requestCounts.de).toBeLessThanOrEqual(1);
+      expect(requestCounts).toEqual({ en: 1, fr: 1, de: 1 });
     });
 
     it("should handle language change during ongoing load", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
 
-      // Slow EN response
-      server.use(
-        http.get(`${TEST_CDN_URL}/en.json`, async () => {
-          await delay(100);
-          return HttpResponse.json({ key: "Hello" });
-        }),
-      );
-      // Fast FR response
+      mockCdnSuccessResponse("en", "default", { key: "Hello" });
       mockCdnSuccessResponse("fr", "default", { key: "Bonjour" });
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
 
       await i18n.addActiveNamespace("default");
 
+      const enResponse = mockCdnDeferredResponse("en", "default");
       const loaderFn = i18n.getLoader()!;
       const enPromise = loaderFn("en", "default");
+      await enResponse.requested;
 
       // Change to FR while EN is still loading
       i18n.locale = "fr";
+      enResponse.resolve({ key: "Hello" });
 
       await enPromise;
-      await expect.poll(() => i18n.hasLocale("fr", "default"), { timeout: 500 }).toBe(true);
+      await expect.poll(() => i18n.hasLocale("fr", "default"), POLL).toBe(true);
       expect(i18n.hasLocale("en", "default")).toBe(true);
     });
 
@@ -190,14 +194,9 @@ describe("FetchLoader Integration Tests", () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const onLoadError = vi.fn();
 
-      server.use(
-        http.get(`${TEST_CDN_URL}/en.json`, async () => {
-          await delay(300);
-          return HttpResponse.json({ key: "Hello" });
-        }),
-      );
+      mockCdnDeferredResponse("en", "default");
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
       const cleanup = await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "default");
 
@@ -212,14 +211,9 @@ describe("FetchLoader Integration Tests", () => {
       const onLoadSuccess = vi.fn();
       const onLoadError = vi.fn();
 
-      server.use(
-        http.get(`${TEST_CDN_URL}/forest/en.json`, async () => {
-          await delay(300);
-          return HttpResponse.json({ key: "Hello" });
-        }),
-      );
+      mockCdnDeferredResponse("en", "forest", "default");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         cdnLayout: { rootNamespace: "default" },
         loadOnInit: false,
@@ -240,21 +234,15 @@ describe("FetchLoader Integration Tests", () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const onLoadSuccess = vi.fn();
       const onLoadError = vi.fn();
-      let resolveFallback!: (value: { default: { key: string } }) => void;
-      let fallbackStarted!: () => void;
-      const started = new Promise<void>((resolveStarted) => {
-        fallbackStarted = resolveStarted;
+      const fallbackResult = deferred<{ default: { key: string } }>();
+      const fallbackStarted = deferred<void>();
+      const fallback = vi.fn(() => {
+        fallbackStarted.resolve();
+        return fallbackResult.promise;
       });
-      const fallback = vi.fn(
-        () =>
-          new Promise<{ default: { key: string } }>((resolveValue) => {
-            resolveFallback = resolveValue;
-            fallbackStarted();
-          }),
-      );
       mockCdnErrorResponse("en", "default", 503, "Unavailable");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: false,
         fallback: { en: fallback },
@@ -263,10 +251,10 @@ describe("FetchLoader Integration Tests", () => {
       });
       const cleanup = await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "default");
-      await started;
+      await fallbackStarted.promise;
 
       (cleanup as () => void)();
-      resolveFallback({ default: { key: "Offline" } });
+      fallbackResult.resolve({ default: { key: "Offline" } });
 
       await expect(pendingLoad).rejects.toThrow(/aborted/i);
       expect(onLoadSuccess).not.toHaveBeenCalled();
@@ -289,7 +277,7 @@ describe("FetchLoader Integration Tests", () => {
         ),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
       await plugin(i18n);
 
       await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(
@@ -315,7 +303,7 @@ describe("FetchLoader Integration Tests", () => {
         ),
       );
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         cdnLayout: { rootNamespace: "default" },
         loadOnInit: false,
@@ -337,7 +325,7 @@ describe("FetchLoader Integration Tests", () => {
           HttpResponse.json(createMockApiResponse(["en"], ["default"])),
         ),
       );
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: false,
         cache: { revalidate: 3600, tags: ["i18n"] },
@@ -355,7 +343,7 @@ describe("FetchLoader Integration Tests", () => {
   });
 
   describe("Reload translations", () => {
-    it("should refetch API translations during reloadTranslations in dev mode", async () => {
+    it("should refetch API translations during reloadMessages in dev mode", async () => {
       const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: true });
       let requestCount = 0;
 
@@ -374,13 +362,13 @@ describe("FetchLoader Integration Tests", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
 
       await i18n.addActiveNamespace("default");
       expect(i18n.t("greeting")).toBe("Hello v1");
 
-      await i18n.reloadTranslations("en", "default");
+      await i18n.reloadMessages("en", "default");
 
       expect(requestCount).toBe(2);
       expect(i18n.t("greeting")).toBe("Hello v2");
@@ -393,7 +381,7 @@ describe("FetchLoader Integration Tests", () => {
 
       mockCdnErrorResponse("en", "default", 503, "Service Unavailable");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         fallback: {
           en: () => Promise.resolve({ default: { welcome: "Welcome from fallback" } }),
@@ -414,7 +402,7 @@ describe("FetchLoader Integration Tests", () => {
 
       const fallbackFn = vi.fn().mockResolvedValue({ default: { key: "fallback" } });
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         fallback: { en: fallbackFn, fr: fallbackFn },
         loadOnInit: true,
@@ -426,50 +414,44 @@ describe("FetchLoader Integration Tests", () => {
 
       i18n.locale = "fr";
 
-      await expect
-        .poll(() => fallbackFn.mock.calls.length, { timeout: 500 })
-        .toBeGreaterThanOrEqual(2);
+      await vi.waitFor(() => expect(fallbackFn).toHaveBeenCalledTimes(2), POLL);
     });
   });
 
   describe("fetchProjectInfo", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it("should timeout when API does not respond in time", async () => {
-      clearProjectInfoCache();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const response = mockProjectInfoDeferredResponse();
 
-      server.use(
-        http.get(/\/v1\/project$/, async () => {
-          await delay(500);
-          return HttpResponse.json({});
-        }),
-      );
+      const request = fetchProjectInfo("test-key", undefined, 50);
+      const rejection = expect(request).rejects.toThrow(/timeout/i);
+      await response.requested;
+      await vi.advanceTimersByTimeAsync(51);
 
-      await expect(fetchProjectInfo("test-key", undefined, 50)).rejects.toThrow(/timeout/i);
+      await rejection;
     });
 
     it("should succeed when API responds within timeout", async () => {
-      clearProjectInfoCache();
+      const response = mockProjectInfoDeferredResponse();
 
-      const projectInfo = {
+      const request = fetchProjectInfo("test-key", undefined, 200);
+      await response.requested;
+      response.resolve({
         id: 1,
         organizationId: 1,
         name: "Test",
         description: "Test",
         sourceLocale: "en",
-      };
+      });
 
-      server.use(
-        http.get(/\/v1\/project$/, async () => {
-          await delay(10);
-          return HttpResponse.json(projectInfo);
-        }),
-      );
-
-      const result = await fetchProjectInfo("test-key", undefined, 200);
-      expect(result.id).toBe(1);
+      await expect(request).resolves.toMatchObject({ id: 1 });
     });
 
     it("should cache project info separately for each apiBaseUrl", async () => {
-      clearProjectInfoCache();
       let apiARequests = 0;
       let apiBRequests = 0;
 
@@ -506,8 +488,6 @@ describe("FetchLoader Integration Tests", () => {
     });
 
     it("should fall back to legacy project info endpoint when /v1/project is unavailable", async () => {
-      clearProjectInfoCache();
-
       server.use(
         http.get("https://legacy-api.example.com/v1/project", () => {
           return new HttpResponse("Not Found", { status: 404 });
@@ -527,5 +507,149 @@ describe("FetchLoader Integration Tests", () => {
 
       expect(result.id).toBe(9);
     });
+  });
+  /**
+   * `clearMessages()` cancels the matching in-flight loads inside core
+   * before it announces the clear, so their results are already discarded. The
+   * plugin follows that announcement to release the sockets too.
+   */
+  describe("Clearing a scope cancels its in-flight request", () => {
+    it("aborts an in-flight CDN load when its own scope is cleared", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const onLoadError = vi.fn();
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
+
+      i18n.clearMessages("en", "default");
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+      expect(onLoadError).not.toHaveBeenCalled();
+    }, 2000);
+
+    it("aborts every in-flight CDN load when the whole cache is cleared", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const response = mockCdnDeferredResponse("fr", "dashboard");
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("fr", "dashboard");
+      await response.requested;
+
+      i18n.clearMessages();
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+    }, 2000);
+
+    it("leaves an in-flight CDN load for another locale running", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
+
+      i18n.clearMessages("fr", "default");
+
+      response.resolve({ key: "Hello" });
+      await expect(pendingLoad).resolves.toEqual({ key: "Hello" });
+    }, 2000);
+
+    it("leaves an in-flight CDN load for another namespace running", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
+
+      i18n.clearMessages(undefined, "dashboard");
+
+      response.resolve({ key: "Hello" });
+      await expect(pendingLoad).resolves.toEqual({ key: "Hello" });
+    }, 2000);
+
+    it("aborts the API batch that carries a cleared namespace", async () => {
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: false });
+      const onLoadError = vi.fn();
+      const requested = deferred<void>();
+      server.use(
+        http.get(/\/v1\/translations/, () => {
+          requested.resolve();
+          return new Promise<Response>(() => {});
+        }),
+      );
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await requested.promise;
+
+      i18n.clearMessages("en", "default");
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+      expect(onLoadError).not.toHaveBeenCalled();
+    }, 2000);
+
+    it("emits no loadError when the host clears a namespace it is loading", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const loadError = vi.fn();
+      i18n.on("loadError", loadError);
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      await plugin(i18n);
+      const activation = i18n.addActiveNamespace("default");
+      await response.requested;
+
+      i18n.clearMessages("en", "default");
+
+      await activation;
+      expect(loadError).not.toHaveBeenCalled();
+    }, 2000);
+
+    /**
+     * In API mode one request carries every active namespace, but a clear that
+     * names ONE of them cancels only that namespace inside core — the others
+     * are still awaited. Aborting the shared request would fail them.
+     */
+    it("leaves an API batch running when only one of its namespaces is cleared", async () => {
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: false });
+      const loadError = vi.fn();
+      i18n.on("loadError", loadError);
+      const onLoadError = vi.fn();
+      const requested = deferred<void>();
+      const answer = deferred<Response>();
+      server.use(
+        http.get(/\/v1\/translations/, () => {
+          requested.resolve();
+          return answer.promise;
+        }),
+      );
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+      const activation = i18n.addActiveNamespaces(["default", "dashboard"]);
+      await requested.promise;
+
+      i18n.clearMessages("en", "default");
+
+      answer.resolve(HttpResponse.json(createMockApiResponse(["en"], ["default", "dashboard"])));
+      await activation;
+      expect(loadError).not.toHaveBeenCalled();
+      expect(onLoadError).not.toHaveBeenCalled();
+      expect(i18n.hasLocale("en", "dashboard")).toBe(true);
+    }, 2000);
+
+    it("stops following the host once the plugin is cleaned up", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const cleanup = (await plugin(i18n)) as () => void;
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
+      cleanup();
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+
+      expect(() => i18n.clearMessages("en", "default")).not.toThrow();
+    }, 2000);
   });
 });

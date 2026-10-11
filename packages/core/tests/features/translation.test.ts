@@ -1,27 +1,34 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { I18n, createElement } from "../../src";
+import { I18n, createElement } from "../helpers/composedInstance";
+import type { PostProcessFn } from "../../src/types";
 
-describe("Core Translation Features", () => {
+/** The post-processor these tests reuse: brackets a string, passes nodes through. */
+const bracket: PostProcessFn = (result) => (typeof result === "string" ? `[${result}]` : result);
+
+const taggedHost = () =>
+  new I18n({ locale: "en", tagInterpolation: { basicHtmlTags: ["strong"] } });
+
+describe("t() / tRaw()", () => {
   let i18n: I18n;
 
   beforeEach(() => {
     i18n = new I18n({ locale: "en" });
   });
 
-  describe("Null Key Guard", () => {
+  describe("a null key", () => {
     it("should return empty string for null key", () => {
       expect(i18n.t(null as any)).toBe("");
     });
   });
 
-  describe("Basic Lookup", () => {
+  describe("key lookup", () => {
     it("should translate flat keys", () => {
-      i18n.addTranslations({ en: { hello: "Hello World" } });
+      i18n.addMessages({ en: { hello: "Hello World" } });
       expect(i18n.t("hello")).toBe("Hello World");
     });
 
     it("should translate nested keys", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           nav: {
             header: {
@@ -34,7 +41,7 @@ describe("Core Translation Features", () => {
     });
 
     it("should preserve mixed flat and nested keys", () => {
-      i18n.addTranslations({
+      i18n.addMessages({
         en: {
           "nav.header.title": "My App",
           nav: {
@@ -50,16 +57,18 @@ describe("Core Translation Features", () => {
     });
 
     it("normalizes already-flat translations added programmatically without mutating the input", () => {
-      const flatTranslations = {
-        "nav.header.title": "Original",
-      };
+      const flatTranslations = { "nav.header.title": "Original" };
 
-      i18n.addTranslations({
-        en: flatTranslations,
-      });
+      i18n.addMessages({ en: flatTranslations });
 
+      expect(flatTranslations).toEqual({ "nav.header.title": "Original" });
       expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
       expect(i18n.t("nav.header.title")).toBe("Original");
+    });
+
+    it("keeps Object.prototype members out of lookups after a flat add", () => {
+      i18n.addMessages({ en: { "nav.header.title": "Original" } });
+
       expect(i18n.hasTranslation("toString")).toBe(false);
     });
 
@@ -67,7 +76,7 @@ describe("Core Translation Features", () => {
       const i18nWithPostProcess = new I18n({
         locale: "en",
         postProcess: (result) => (typeof result === "string" ? `[${result}]` : result),
-        translation: {
+        messages: {
           en: { hello: "Hello" },
         },
       });
@@ -76,63 +85,60 @@ describe("Core Translation Features", () => {
     });
   });
 
-  describe("Interpolation", () => {
+  describe("parameter interpolation", () => {
     it("should interpolate named parameters", () => {
-      i18n.addTranslations({ en: { welcome: "Welcome, {name}!" } });
+      i18n.addMessages({ en: { welcome: "Welcome, {name}!" } });
       expect(i18n.t("welcome", { name: "Alice" })).toBe("Welcome, Alice!");
     });
 
     it("should interpolate multiple parameters", () => {
-      i18n.addTranslations({ en: { info: "{name} is {age} years old." } });
+      i18n.addMessages({ en: { info: "{name} is {age} years old." } });
       expect(i18n.t("info", { name: "Bob", age: 30 })).toBe("Bob is 30 years old.");
     });
 
     it("should handle number parameters", () => {
-      i18n.addTranslations({ en: { count: "Count: {n}" } });
+      i18n.addMessages({ en: { count: "Count: {n}" } });
       expect(i18n.t("count", { n: 0 })).toBe("Count: 0");
       expect(i18n.t("count", { n: 100 })).toBe("Count: 100");
       expect(i18n.t("count", { n: -5 })).toBe("Count: -5");
     });
 
     it("should handle boolean parameters (coerced to string)", () => {
-      i18n.addTranslations({ en: { status: "Active: {isActive}" } });
+      i18n.addMessages({ en: { status: "Active: {isActive}" } });
       expect(i18n.t("status", { isActive: true })).toBe("Active: true");
       expect(i18n.t("status", { isActive: false })).toBe("Active: false");
     });
 
-    it("should handle missing parameters by returning empty string for the param", () => {
-      i18n.addTranslations({ en: { greet: "Hello {name}!" } });
-      expect(i18n.t("greet", {})).toBe("Hello !");
-      expect(i18n.t("greet", { name: null })).toBe("Hello !");
-      expect(i18n.t("greet", { name: undefined })).toBe("Hello !");
+    // The full missingParam option matrix (both modes x all five compile paths)
+    // lives in missing-param.test.ts; this pins the default on the base host.
+    it.each([
+      ['an absent param as "Hello {name}!"', {}, "Hello {name}!"],
+      ['an undefined param as "Hello {name}!"', { name: undefined }, "Hello {name}!"],
+      ['a null param as "Hello !"', { name: null }, "Hello !"],
+    ])("renders %s (missingParam default)", (_label, params, expected) => {
+      i18n.addMessages({ en: { greet: "Hello {name}!" } });
+
+      expect(i18n.t("greet", params as never)).toBe(expected);
     });
 
     it("should allow whitespace in parameter placeholders", () => {
-      i18n.addTranslations({ en: { loose: "Hi { name }!" } });
+      i18n.addMessages({ en: { loose: "Hi { name }!" } });
       expect(i18n.t("loose", { name: "Trimmed" })).toBe("Hi Trimmed!");
     });
   });
 
-  describe("Missing Keys & Fallbacks", () => {
+  describe("missing keys and fallbacks", () => {
     it("should return the key itself if translation is missing", () => {
       expect(i18n.t("missing.key")).toBe("missing.key");
     });
 
     it("should trigger the missing key handler", () => {
-      let capturedKey = "";
-      let capturedLocale = "";
-      let capturedNamespace = "";
-      i18n.onMissingKey((key, locale, namespace) => {
-        capturedKey = key;
-        capturedLocale = locale;
-        capturedNamespace = namespace;
-      });
+      const onMissingKey = vi.fn();
+      i18n.onMissingKey(onMissingKey);
 
       i18n.t("unknown");
 
-      expect(capturedKey).toBe("unknown");
-      expect(capturedLocale).toBe("en");
-      expect(capturedNamespace).toBe("default");
+      expect(onMissingKey).toHaveBeenCalledWith("unknown", "en", "default");
     });
 
     it("should stop firing after onMissingKey cleanup is called", () => {
@@ -149,26 +155,16 @@ describe("Core Translation Features", () => {
     });
 
     it("should pass missing keys through post-processors", () => {
-      i18n.registerPostProcessor((result) => {
-        if (typeof result === "string") {
-          return `[${result}]`;
-        }
-        return result;
-      });
+      i18n.registerPostProcessor(bracket);
 
-      // The key itself is returned as missing result, then post-processed
+      // The key is the missing-result, and it is post-processed like any other.
       expect(i18n.t("missing.key")).toBe("[missing.key]");
     });
 
     it("should pass fallback values through post-processors", () => {
-      i18n.registerPostProcessor((result) => {
-        if (typeof result === "string") {
-          return `[${result}]`;
-        }
-        return result;
-      });
+      i18n.registerPostProcessor(bracket);
 
-      // The fallback is returned as missing result, then post-processed
+      // The fallback is the missing-result, and it too is post-processed.
       expect(i18n.t("missing.key", { fallback: "Fallback text" })).toBe("[Fallback text]");
     });
 
@@ -178,14 +174,17 @@ describe("Core Translation Features", () => {
 
       const result = i18n.tRaw("unknown.key");
 
-      expect(result).toHaveLength(2);
-      expect(result[0]).toBe("Missing ");
-      expect(result[1]).toBe(vnode);
+      expect(result).toEqual(["Missing ", vnode]);
+    });
+
+    it("stringifies a missing key handler's TranslationResult through t()", () => {
+      i18n.onMissingKey(() => ["Missing ", createElement("strong", {}, ["X"])]);
+
       expect(i18n.t("unknown.key")).toBe("Missing X");
     });
 
     it("should fallback to deep keys if parents are missing", () => {
-      i18n.addTranslations({ en: { a: "foo" } });
+      i18n.addMessages({ en: { a: "foo" } });
       expect(i18n.t("a.b")).toBe("a.b");
     });
 
@@ -194,7 +193,7 @@ describe("Core Translation Features", () => {
         locale: "de",
         fallbackLocale: "en",
       });
-      i18n.addTranslations({
+      i18n.addMessages({
         en: { greeting: "Hello" },
       });
       i18n.registerPostProcessor((result) =>
@@ -205,9 +204,9 @@ describe("Core Translation Features", () => {
     });
   });
 
-  describe("Per-Call Fallback Parameter", () => {
+  describe("a per-call fallback parameter", () => {
     beforeEach(() => {
-      i18n.addTranslations({ en: { existing: "I exist" } });
+      i18n.addMessages({ en: { existing: "I exist" } });
     });
 
     it("should use fallback text if key is missing", () => {
@@ -223,31 +222,31 @@ describe("Core Translation Features", () => {
     });
 
     it("should apply tag interpolation to fallback text", () => {
-      const i18nWithTags = new I18n({
-        locale: "en",
-        tagInterpolation: { basicHtmlTags: ["strong"] },
-      });
+      const i18nWithTags = taggedHost();
 
       const result = i18nWithTags.tRaw("missing", {
         fallback: "Hello <strong>world</strong>",
       });
 
-      expect(result).toHaveLength(2);
-      expect(result[0]).toBe("Hello ");
-      expect((result as any[])[1]).toMatchObject({ type: "element", tag: "strong" });
+      expect(result).toEqual([
+        "Hello ",
+        { type: "element", tag: "strong", props: {}, children: ["world"] },
+      ]);
+    });
+
+    it("flattens a tag-interpolated fallback to its inner text through t()", () => {
+      const i18nWithTags = taggedHost();
+
       expect(i18nWithTags.t("missing", { fallback: "Hello <strong>world</strong>" })).toBe(
         "Hello world",
       );
     });
 
     it("should not cache the fallback as the translation for the key", () => {
-      // First call uses fallback
       expect(i18n.t("missing", { fallback: "F1" })).toBe("F1");
 
-      // Second call with different fallback
       expect(i18n.t("missing", { fallback: "F2" })).toBe("F2");
 
-      // Third call without fallback returns key
       expect(i18n.t("missing")).toBe("missing");
     });
   });

@@ -22,13 +22,13 @@ export interface SessionRecord {
   apiKey: string;
   /** Project id captured during key validation. */
   projectId?: string | number;
-  /** Effective SDK context-collection setting for this session. */
+  /** Page-reported context-collection setting (advisory, not a boundary). */
   collectContext: boolean;
   /** Single-use activation nonce; travels popup -> bridge -> SW, never the page. */
   nonce: string;
   /** Popup Port lease that owns a pending activation. */
   popupLeaseId: string;
-  /** Document identity bound at activation (Chrome >= 106 senders). */
+  /** Document identity bound at activation; required for active sessions. */
   documentId?: string;
   /** Per-tab navigation generation the session was created under. */
   navGen: number;

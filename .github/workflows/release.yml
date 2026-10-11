@@ -2,6 +2,16 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      rc:
+        description: >-
+          RC rehearsal (release plan §7.1): publish every releasable package as
+          <next>-rc.<N> under the npm dist-tag `next` from the CURRENT ref, without
+          consuming changesets or touching main. Leave empty for the normal path,
+          which is refused on any ref other than main.
+        required: false
+        default: ""
+        type: string
   push:
     branches:
       - main
@@ -10,17 +20,258 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+# Nothing by default: every job names the least it needs.
+permissions: {}
+
+# Each release path is three jobs (GA: plus `ga-guard`, which refuses any ref
+# but main, and `version` for the release PR).
+#
+#   *pack     (contents: read; installs cold, without the Actions pnpm cache
+#             that verify and CI fill from untrusted installs) builds, packs
+#             ONCE into release-candidate/, writes SHA256SUMS — the only list
+#             of what may be published —
+#             and uploads it as the `release-candidate` artifact. Its outputs
+#             `sums` (sha256 of SHA256SUMS) and `pending` are the only job
+#             outputs the publishing job reads. No e2e, no browser.
+#   *verify   (contents: read, no id-token, credentials not persisted)
+#             downloads that artifact and runs examples:e2e in both modes
+#             against those files (`--tarballs`; no build, no pack). It
+#             installs every example with unpinned third-party packages and
+#             their lifecycle scripts, so it is treated as hostile: it writes
+#             no outputs, uploads only diagnostics, and its one effect on
+#             publishing is its exit status.
+#   *publish  (id-token: write; GA also contents: write for tags) installs
+#             and builds nothing. It downloads PACK's artifact, checks that
+#             SHA256SUMS hashes to pack's `sums`, that every listed tarball
+#             matches it and that the directory holds nothing else, reads each
+#             tarball's name and version from its own package.json, and runs
+#             `npm publish <tgz>` on exactly those bytes, under a staging
+#             dist-tag of that candidate (`release-<sums prefix>`). The
+#             SHA256SUMS set is one transaction: only once npm has EVERY
+#             candidate does `latest` (GA) or `next` (RC) move, package by
+#             package; GA then reports `published=true` (and creates the
+#             GitHub Release) only if every package is on `latest` and every
+#             package tag plus `v<version>` names the checked-out commit.
+#             Anything less exits 1 with a status table, and "Re-run failed
+#             jobs" on `publish` completes it.
+#
+# All publish jobs live in this workflow file, so the npm trusted-publisher
+# binding (which names the workflow file) holds for GA and RC alike.
 
 jobs:
-  release:
-    if: github.repository == 'comvi-io/comvi-js'
+  # RC rehearsal. Versions and peer ranges are rewritten in rc-pack's working
+  # tree only (scripts/rc-version.mjs); nothing is committed, no changeset is
+  # consumed, and no GitHub release is created. `--access public` is passed
+  # by the publish script because `access: public` lives only in the
+  # Changesets config.
+  rc-pack:
+    if: github.repository == 'comvi-io/comvi-js' && github.event_name == 'workflow_dispatch' && inputs.rc != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      pending: ${{ steps.pack.outputs.pending }}
+      sums: ${{ steps.pack.outputs.sums }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          # No `cache: pnpm`: verify and CI install untrusted examples into the pnpm store
+          # and save it to the Actions cache; the job that builds the release installs cold.
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The rewrite runs BEFORE the build: @comvi/core inlines its own version
+      # into dist (vite `define: __VERSION__`), and nothing between the rewrite
+      # and the pack rebuilds — no package has a prepack/prepublishOnly script.
+      # Building first published an rc tarball whose runtime reported the
+      # previous GA version, which also blinded the version-keyed duplicate-copy
+      # guard.
+      #
+      # The input reaches the shell through the environment, never through
+      # `${{ }}` inside the `run:` body: interpolation happens before the shell
+      # parses the line, so a `$(…)` in the input would execute even inside
+      # double quotes. rc-version.mjs's own `/^\d+$/` check runs far too late to
+      # help with that. The step NAME may interpolate — it is not executed.
+      - name: Rewrite versions to rc.${{ inputs.rc }} (working tree only)
+        env:
+          RC: ${{ inputs.rc }}
+        run: node scripts/rc-version.mjs --rc "$RC"
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify built artifacts inline the manifest version
+        run: node tooling/check-inlined-version.mjs
+
+      - name: Pack the candidate
+        id: pack
+        run: node scripts/publish-candidate.mjs pack --dir release-candidate
+
+      - name: Upload the candidate
+        if: steps.pack.outputs.pending == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-candidate
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 30
+
+  rc-verify:
+    needs: rc-pack
+    if: needs.rc-pack.outputs.pending == 'true'
+    runs-on: ubuntu-latest
+    # Two full examples:e2e runs (seven frameworks, both modes).
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Download the candidate
+        uses: actions/download-artifact@v5
+        with:
+          name: release-candidate
+          path: release-candidate
+
+      - name: Run examples:e2e against the candidate
+        run: node scripts/publish-candidate.mjs verify --dir release-candidate
+
+      # The run's verdicts as data, kept on success too: which candidate (the
+      # sha256 of its SHA256SUMS), which tarballs, every step of every example.
+      - name: Upload the e2e report (bundled catalogs)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-rc-e2e-report-default-${{ needs.rc-pack.outputs.sums }}
+          path: test-results/examples-e2e/report.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload the e2e report (--cdn)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-rc-e2e-report-cdn-${{ needs.rc-pack.outputs.sums }}
+          path: test-results/examples-e2e/report-cdn.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload e2e diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-rc-examples-e2e
+          path: test-results/examples-e2e/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  rc-publish:
+    needs: [rc-pack, rc-verify]
+    if: needs.rc-pack.outputs.pending == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          # setup-node v5 turns on dependency caching from `packageManager` by
+          # default and then looks for pnpm; this job installs nothing with
+          # pnpm and sets it up on purpose, so the cache stays off.
+          package-manager-cache: false
+
+      # setup-node cannot pin npm itself; this is npm's own package at an exact
+      # version, the one install this job makes. 11.21.0 is the first npm 11
+      # whose OIDC token also covers `npm dist-tag` (the promotion step); each
+      # package's trusted publisher must have "Allow npm dist-tag" enabled.
+      - name: Ensure npm 11.21.0+ for OIDC trusted publishing and dist-tags
+        run: npm install -g npm@11.21.0
+
+      - name: Download the candidate (from rc-pack)
+        uses: actions/download-artifact@v5
+        with:
+          name: release-candidate
+          path: release-candidate
+
+      - name: Publish the verified rc tarballs under dist-tag next
+        env:
+          SUMS: ${{ needs.rc-pack.outputs.sums }}
+        run: node scripts/publish-candidate.mjs publish --dir release-candidate --expect-sums "$SUMS" --tag next
+
+  # GA runs from main only. A dispatch without `rc` is the GA path whatever
+  # ref it names, and that path ends in `npm publish` under `latest`, git tags
+  # and a GitHub Release, none of which can be undone. Every GA job waits for
+  # this one, so a refused ref skips them all and the run is red with one
+  # message. The RC jobs do not wait for it: the rehearsal runs from any ref.
+  # scripts/release-workflow.test.mjs executes this step's shell.
+  ga-guard:
+    if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Refuse the GA path outside main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error title=GA release refused::This run is on $GITHUB_REF. The GA path (npm dist-tag latest, git tags, GitHub Release) runs only on refs/heads/main. For a rehearsal from this ref, dispatch again with the rc input set."
+            exit 1
+          fi
+          echo "On refs/heads/main: the GA path may run."
+
+  # GA: the release PR. With pending changesets, changesets/action opens or
+  # updates it through `pnpm release:version`; with none it does nothing (it
+  # is given no publish command — publishing is pack → verify → publish).
+  version:
+    needs: ga-guard
+    if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -37,36 +288,235 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Ensure npm 11.5.1+ for OIDC trusted publishing
-        # npm 12 rejects pnpm's --no-git-checks publish flag. Keep the OIDC-capable
-        # npm 11 line pinned until the pnpm/Changesets publish path supports npm 12.
-        run: npm install -g npm@11.11.0
-
-      - name: Build
-        run: pnpm build
-
-      - name: Create Release PR or Publish
-        id: changesets
+      - name: Create or update the release PR
         uses: changesets/action@v1
         with:
           commit: "chore: release packages"
           title: "chore: release packages"
           version: pnpm release:version
-          publish: npm exec --no -- changeset publish
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Runs after publish (needs publishedPackages output). If it fails, npm is live but GH Release is missing —
-      # re-run this step or run `PUBLISHED_PACKAGES=… node .github/scripts/create-combined-release.mjs` manually.
+  # GA: a push with no pending changesets is the merged release PR (or a push
+  # after a release, which finds nothing new on npm and stops here).
+  pack:
+    needs: ga-guard
+    if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      pending: ${{ steps.pack.outputs.pending }}
+      sums: ${{ steps.pack.outputs.sums }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # The same rule changesets/action uses to choose between the release PR
+      # and publishing: any changeset left means this is not a release commit.
+      - name: Pending changesets?
+        id: changesets
+        run: |
+          if find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' | grep -q .; then
+            echo "Changesets are pending: the version job handles this push."
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: steps.changesets.outputs.pending == 'false'
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        if: steps.changesets.outputs.pending == 'false'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          # No `cache: pnpm`: verify and CI install untrusted examples into the pnpm store
+          # and save it to the Actions cache; the job that builds the release installs cold.
+
+      - name: Install dependencies
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm build
+
+      # The checkout is already versioned here, so dist must inline the
+      # version npm is about to receive.
+      - name: Verify built artifacts inline the manifest version
+        if: steps.changesets.outputs.pending == 'false'
+        run: node tooling/check-inlined-version.mjs
+
+      # Writes pending=false when every version is already on npm.
+      - name: Pack the candidate
+        id: pack
+        if: steps.changesets.outputs.pending == 'false'
+        run: node scripts/publish-candidate.mjs pack --dir release-candidate
+
+      - name: Upload the candidate
+        if: steps.pack.outputs.pending == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-candidate
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 30
+
+  verify:
+    needs: pack
+    if: needs.pack.outputs.pending == 'true'
+    runs-on: ubuntu-latest
+    # Two full examples:e2e runs (seven frameworks, both modes).
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Download the candidate
+        uses: actions/download-artifact@v5
+        with:
+          name: release-candidate
+          path: release-candidate
+
+      - name: Run examples:e2e against the candidate
+        run: node scripts/publish-candidate.mjs verify --dir release-candidate
+
+      # The run's verdicts as data, kept on success too: which candidate (the
+      # sha256 of its SHA256SUMS), which tarballs, every step of every example.
+      - name: Upload the e2e report (bundled catalogs)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-ga-e2e-report-default-${{ needs.pack.outputs.sums }}
+          path: test-results/examples-e2e/report.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload the e2e report (--cdn)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-ga-e2e-report-cdn-${{ needs.pack.outputs.sums }}
+          path: test-results/examples-e2e/report-cdn.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload e2e diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-ga-examples-e2e
+          path: test-results/examples-e2e/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # GA: publish the verified bytes, tag them, release them. `ga-guard` already
+  # refused any other ref; the job that holds the npm token names main itself
+  # as well, so it does not depend on the `needs` chain alone.
+  publish:
+    needs: [pack, verify]
+    if: needs.pack.outputs.pending == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      # Credentials ARE persisted here: the publish script pushes the tags of
+      # what it published. Nothing in this job installs or builds anything
+      # beyond npm itself.
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          # setup-node v5 turns on dependency caching from `packageManager` by
+          # default and then looks for pnpm; this job installs nothing with
+          # pnpm and sets it up on purpose, so the cache stays off.
+          package-manager-cache: false
+
+      # setup-node cannot pin npm itself; this is npm's own package at an exact
+      # version, the one install this job makes. 11.21.0 is the first npm 11
+      # whose OIDC token also covers `npm dist-tag` (the promotion step); each
+      # package's trusted publisher must have "Allow npm dist-tag" enabled.
+      - name: Ensure npm 11.21.0+ for OIDC trusted publishing and dist-tags
+        run: npm install -g npm@11.21.0
+
+      - name: Download the candidate (from pack)
+        uses: actions/download-artifact@v5
+        with:
+          name: release-candidate
+          path: release-candidate
+
+      # Publishes every tarball SHA256SUMS lists that npm does not have yet
+      # (core first) under the candidate's staging dist-tag, continuing past a
+      # failed one; then asks npm about EVERY candidate and logs the table.
+      # Only a complete set moves `latest` (dist-tag add, per package, where
+      # it is not there yet), so users never resolve half a train, and a
+      # dist-tag is never moved backwards. Tags each version npm has at this
+      # checkout's commit (also ones an earlier run published but never
+      # tagged) and, once the whole set is on npm, `v<version>` too. A tag
+      # already at another commit is refused, and for versions already on
+      # npm that is checked BEFORE publishing, so a newer commit never
+      # completes an older train. `published=true` with the whole set only
+      # when complete; otherwise `published=false` and exit 1.
+      # "Re-run failed jobs" skips what npm has and finishes the rest.
+      - name: Publish the verified tarballs
+        id: publish
+        env:
+          SUMS: ${{ needs.pack.outputs.sums }}
+        run: node scripts/publish-candidate.mjs publish --dir release-candidate --expect-sums "$SUMS" --tag latest --git-tag --push-tags
+
+      # Runs only after a complete publish (no `always()`: a partial train must
+      # not get an archive). It refuses unless `v<version>` exists at this
+      # commit and the published set is all of SHA256SUMS, and passes
+      # `--verify-tag` so gh never creates the tag from the default branch. If
+      # the release already exists (an earlier asset upload failed), the
+      # archive is re-uploaded with --clobber.
+      # If it fails, npm is live but the GitHub Release is missing: re-run this
+      # job (everything is skipped on npm, the tags are verified, the full set
+      # is emitted again).
       - name: Create combined GitHub Release
-        if: steps.changesets.outputs.published == 'true'
+        if: steps.publish.outputs.published == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          PUBLISHED_PACKAGES: ${{ steps.publish.outputs.publishedPackages }}
+          COMVI_RELEASE_TARBALLS_DIR: release-candidate
         run: node .github/scripts/create-combined-release.mjs

@@ -1,13 +1,3 @@
-/**
- * Shared DOM utility functions for the in-context editor
- * Shared DOM utilities used by DOMWatcher, TranslationScanner, etc.
- */
-
-/**
- * Collects all attributes from an element
- * @param element - The element to collect attributes from
- * @returns Array of Attr objects
- */
 export function collectElementAttributes(element: Element): Attr[] {
   const attributes: Attr[] = [];
   for (let i = 0; i < element.attributes.length; i++) {
@@ -19,13 +9,7 @@ export function collectElementAttributes(element: Element): Attr[] {
   return attributes;
 }
 
-/**
- * Collects all descendant nodes (elements, text nodes, and their attributes)
- * from a root node using TreeWalker for efficient traversal
- *
- * @param root - The root node to start traversal from
- * @returns Set of all nodes and attributes found
- */
+/** Includes the root itself, element attributes, and open shadow roots. */
 export function collectAllDescendantNodes(root: Node): Set<Node | Attr> {
   const collection = new Set<Node | Attr>();
   const visitedRoots = new Set<Node>();
@@ -43,10 +27,8 @@ export function collectAllDescendantNodes(root: Node): Set<Node | Attr> {
     }
     visitedRoots.add(currentRoot);
 
-    // Add the root node itself
     collection.add(currentRoot);
 
-    // If root is an element, add its attributes and traverse attached shadow root
     if (currentRoot.nodeType === Node.ELEMENT_NODE) {
       const rootElement = currentRoot as Element;
       collectElementAttributes(rootElement).forEach((attr) => collection.add(attr));
@@ -55,7 +37,6 @@ export function collectAllDescendantNodes(root: Node): Set<Node | Attr> {
       }
     }
 
-    // Use TreeWalker for efficient traversal
     const walker = getDocumentForNode(currentRoot).createTreeWalker(
       currentRoot,
       NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
@@ -66,7 +47,6 @@ export function collectAllDescendantNodes(root: Node): Set<Node | Attr> {
     while (currentNode) {
       collection.add(currentNode);
 
-      // Add attributes for element nodes and traverse open shadow roots
       if (currentNode.nodeType === Node.ELEMENT_NODE) {
         const element = currentNode as Element;
         collectElementAttributes(element).forEach((attr) => collection.add(attr));
@@ -84,12 +64,6 @@ export function collectAllDescendantNodes(root: Node): Set<Node | Attr> {
   return collection;
 }
 
-/**
- * Creates a TreeWalker with standard configuration
- * @param root - The root node to walk
- * @param whatToShow - NodeFilter constants for what to show
- * @returns Configured TreeWalker
- */
 export function createTreeWalker(
   root: Node,
   whatToShow: number = NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
@@ -97,12 +71,6 @@ export function createTreeWalker(
   return document.createTreeWalker(root, whatToShow, null);
 }
 
-/**
- * Checks if a node is contained within any of the nodes in a set
- * @param node - The node to check
- * @param containerNodes - Set of potential container nodes
- * @returns True if node is contained within any container
- */
 export function isNodeContainedIn(node: Node, containerNodes: Set<Node>): boolean {
   for (const container of containerNodes) {
     if (container instanceof Node && container.contains(node)) {
@@ -112,12 +80,6 @@ export function isNodeContainedIn(node: Node, containerNodes: Set<Node>): boolea
   return false;
 }
 
-/**
- * Checks if an attribute's owner element is in the given set or contained by it
- * @param attr - The attribute to check
- * @param nodes - Set of nodes to check against
- * @returns True if the attribute's owner is affected
- */
 export function isAttributeAffectedByNodes(attr: Attr, nodes: Set<Node | Attr>): boolean {
   const ownerElement = attr.ownerElement;
   if (!ownerElement) return false;
@@ -132,14 +94,7 @@ export function isAttributeAffectedByNodes(attr: Attr, nodes: Set<Node | Attr>):
   return false;
 }
 
-/**
- * Gets the nearest Element Node ancestor for a given node
- * Works with text nodes, comment nodes, or any DOM node
- * Returns null if no element ancestor is found
- *
- * @param node - The node to find the nearest element ancestor for
- * @returns The nearest element ancestor or null
- */
+/** Accepts any node kind — text, comment, attribute. */
 export function getNearestElementNode(node: Node | null | undefined): Element | null {
   if (!node) {
     return null;
@@ -162,12 +117,8 @@ export function getNearestElementNode(node: Node | null | undefined): Element | 
 }
 
 /**
- * Finds the corresponding node for elements that should be processed at parent level
- * Used for option and optgroup elements which should be highlighted at the parent select level
- *
- * @param element - The element to find the corresponding node for
- * @param parentNodeNames - Array of node names that should return parent instead
- * @returns The corresponding node (parent for special nodes, self otherwise)
+ * `option`/`optgroup` must be highlighted on their parent `select`, so those
+ * node names resolve to the parent; everything else resolves to itself.
  */
 export function findCorrespondingNode(
   element: Element,
