@@ -2,6 +2,7 @@
 // it: their `<T>` passes the tag grammar per call.
 import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
+import { devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
 import { loader } from "@comvi/core/loader";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
@@ -52,4 +53,6 @@ export const i18n = createI18n({
       caches: ["localStorage"],
       fallbackLocale: "en",
     }),
-  );
+  )
+  // Makes the instance visible to the Comvi browser extension.
+  .use(devtools());
