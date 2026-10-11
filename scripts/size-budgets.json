@@ -45,6 +45,18 @@
       "note": "Gated: base host + the ICU compiler as a constructor option."
     },
     {
+      "name": "core-base-devtools",
+      "entry": ["@comvi/core", "@comvi/core/devtools"],
+      "fixture": "core-base-devtools.ts",
+      "gzipBudgetBytes": 7006,
+      "baseline": {
+        "minBytes": 17431,
+        "gzipBytes": 6672,
+        "measuredAt": "2026-10-12"
+      },
+      "note": "Gated: base host + `.use(devtools())` only \u2014 read against `core-base`, the difference is what discovery and the editor loader cost together."
+    },
+    {
       "name": "fw-react-default",
       "entry": ["@comvi/react"],
       "fixture": "framework/react-default.ts",
