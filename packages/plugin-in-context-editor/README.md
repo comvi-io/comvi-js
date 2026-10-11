@@ -106,7 +106,9 @@ and `devtools()` is what the extension needs. This snippet imports `devtools` fr
 
 On a page whose i18n instance composed `devtools()`, the Comvi browser extension loads the editor
 when a translator asks for it, and the API key stays in the extension. The site ships no editor
-code for this; `devtools()` adds the discovery protocol and a small loader.
+code for this; `devtools()` adds the discovery protocol and a small loader, about 1.2 kB min+gzip
+together over the base i18n instance (`core-base` and `core-base-devtools` in
+`scripts/size-budgets.json`), of which about 0.7 kB is the loader, new in 0.5.1.
 
 `devtools()` publishes the i18n instance to the extension and installs a loader the extension
 calls when a translator clicks **Enable editor**; the site's SDK then inserts one `<script>` from

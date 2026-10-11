@@ -45,6 +45,18 @@
       "note": "Gated: base host + the ICU compiler as a constructor option."
     },
     {
+      "name": "core-base-devtools",
+      "entry": ["@comvi/core", "@comvi/core/devtools"],
+      "fixture": "core-base-devtools.ts",
+      "gzipBudgetBytes": 7006,
+      "baseline": {
+        "minBytes": 17431,
+        "gzipBytes": 6672,
+        "measuredAt": "2026-10-12"
+      },
+      "note": "Gated: base host + `.use(devtools())` only \u2014 read against `core-base`, the difference is what discovery and the editor loader cost together."
+    },
+    {
       "name": "fw-react-default",
       "entry": ["@comvi/react"],
       "fixture": "framework/react-default.ts",
@@ -186,6 +198,19 @@
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(\u2026)` composed through `.use`."
+    },
+    {
+      "name": "fw-next-root-devtools",
+      "entry": ["@comvi/next"],
+      "fixture": "framework/next-root-devtools.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 11575,
+      "baseline": {
+        "minBytes": 30390,
+        "gzipBytes": 11023,
+        "measuredAt": "2026-10-12"
+      },
+      "note": "Gated Next recommended path with `.use(devtools())`: the `fw-next-root-composed` graph plus discovery and the editor loader, the only Next row that carries `@comvi/core/devtools`."
     },
     {
       "name": "fw-next-server-provider",

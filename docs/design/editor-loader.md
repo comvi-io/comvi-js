@@ -51,9 +51,17 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   entry is empty, so a site that gated `devtools()` with it was invisible to the extension exactly
   where the extension is the only way to edit. `@comvi/next` no longer composes discovery on its
   own; `.use(devtools())` on the `createNextI18n` result is the one line a Next app adds.
-- **Bytes move from the extension to the site.** `devtools()` costs about 0.7 kB min+gz for the
-  loader on every row that composes it (`scripts/size-budgets.md`, 2026-10-11) and nothing on any
-  other row. The extension's `dist/` carries no editor and its artifact test fails if one appears.
+- **Bytes move from the extension to the site.** `devtools()` costs about 1.2 kB min+gz over the
+  base instance, of which about 0.7 kB is the loader, new in 0.5.1, and the rest the discovery
+  that 0.5.0 already shipped (`scripts/size-budgets.md`, 2026-10-11 and 2026-10-12). An app that
+  does not call `devtools()` carries none of it. The extension's `dist/` carries no editor and its
+  artifact test fails if one appears.
+
+  | Row (`scripts/size-budgets.json`)         | min+gz |
+  | ----------------------------------------- | ------ |
+  | `core-base`                               | 5451 B |
+  | `core-base-devtools` (`.use(devtools())`) | 6672 B |
+
 - **A site with a Content Security Policy must allow `https://cdn.jsdelivr.net` in `script-src`**,
   and a site that enforces Trusted Types needs a `default` policy whose `createScriptURL` accepts
   that URL, since the loader assigns `script.src` as a plain string. No `style-src` change where
@@ -83,8 +91,12 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   Enable is what the loader replaces.
 - **An exact version as the default** — the site would then pin the editor to whatever
   `@comvi/core` it was built with, and an editor fix would again wait for every site to rebuild.
-  `latest` plus the hourly salt gets the fix to the page within an hour; a site that wants the pin
-  has `editorVersion`.
+  With `latest`, a fix reaches the page without a rebuild, in two steps. jsDelivr's edge keeps the
+  alias until the purge the release workflow requests succeeds; without one, for 12 hours by the
+  header it sends today (`s-maxage=43200`, observed 2026-10-12), while jsDelivr's README documents
+  up to 7 days for a version alias. The hourly salt then bounds the browser's own copy to an hour.
+  So within the hour after a successful purge, and 13 hours by today's header without one. A site
+  that wants the pin has `editorVersion`.
 - **Comvi's own CDN** — a second origin to run, purge and keep in every site's CSP, for a file npm
   already publishes. jsDelivr serves the published tarball, caches an exact version indefinitely
   and takes a purge call for the alias.

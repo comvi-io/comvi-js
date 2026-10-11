@@ -131,9 +131,9 @@ the bytes first, then decide whether they ship.
 
 ## Row inventory
 
-`core-base`, `core-base-icu`, `core-full-composite`; per framework
+`core-base`, `core-base-icu`, `core-base-devtools`, `core-full-composite`; per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
+`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-i18n`; the platform
 path `plugin-fetch-loader`, `plugin-fetch-loader-api`, `platform-path-react`.
 
@@ -206,3 +206,22 @@ unchanged to the byte; their gzip figure moved by −5…+2 B (`fw-svelte-defaul
 `fw-next-root-composed` 9923 → 9925, `core-base` 5458 → 5458), because the core build shares one
 terser name cache across chunks and an edit to the devtools chunk reassigns the mangled letters in
 the others.
+
+## 2026-10-12: rows for `devtools()` alone and in Next
+
+Two rows were added so that what `.use(devtools())` costs is a gated figure, not a subtraction
+between full composites. One sweep on `develop` @ e198fc9d measured both.
+
+`core-base-devtools` is the `core-base` fixture plus `.use(devtools())`: 6672 B min+gz (17431 B
+min), budget 7006 B. `core-base` measured 5458 B in that sweep, so discovery and the editor loader
+together cost 1214 B (1221 B against `core-base`'s recorded 5451 B). About 720 B of it is the
+editor loader (the section above); the rest is the discovery that shipped in 0.5.0.
+
+`fw-next-root-devtools` is the `fw-next-root-composed` fixture plus `.use(devtools())`, so the
+editor loader's weight is gated in Next as it is in the other bindings through their
+full-composite rows: 11023 B min+gz (30390 B min), budget 11575 B. `fw-next-root-composed` measured
+9925 B in that sweep, a difference of 1098 B.
+
+Both budgets are baseline + 5 %, rounded up. No other row was re-baselined: the 23 existing rows
+measured 0 to 35 B above their recorded baselines (core changes merged after each row's last
+sweep), each at least 4.3 % under its budget.

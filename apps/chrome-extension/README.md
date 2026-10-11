@@ -16,8 +16,11 @@ and activates it through an authenticated proxy (see below).
   that loads the editor. Without it the popup says "Comvi i18n not detected";
   on an older SDK it says the site must upgrade.
 - If the site sends a Content Security Policy: `https://cdn.jsdelivr.net` in
-  `script-src`. A site that enforces Trusted Types also needs a policy that
-  permits that URL. No `style-src` change is needed.
+  `script-src`. A site that enforces Trusted Types also needs a `default`
+  policy whose `createScriptURL` returns that script URL: the loader assigns
+  `script.src` as a plain string. `style-src` needs no change: the editor
+  adopts a constructable stylesheet, which every Chrome version this extension
+  supports provides.
 
 A site that already carries the editor (its app bundles the standalone build)
 is activated as it is, and nothing is loaded.
