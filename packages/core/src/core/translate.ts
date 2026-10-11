@@ -423,16 +423,26 @@ function appendString(parts: Array<string | VirtualNode>, str: string): void {
   }
 }
 
-/** Missing (`undefined`) params follow `ctx.missingParam`; `null` always erases. */
+/**
+ * Missing (`undefined`) params follow `ctx.missingParam`; `null` always erases.
+ * A function is a tag handler, never text, so it follows `ctx.missingParam` too.
+ */
 function appendParamValue(
   parts: Array<string | VirtualNode>,
   value: unknown,
   name: string,
   ctx: TranslateCtx,
 ): void {
-  // The second test is the own-property check: `{constructor}` or `{valueOf}`
-  // in a message must not resolve to what every object inherits.
-  if (value === undefined || value === (Object.prototype as Record<string, unknown>)[name]) {
+  // A function under a placeholder is a handler meant for `<name>…</name>`
+  // (`<T components>` passes each one as the parameter of that name); coercing
+  // it would put its source code on the page. The last test is the
+  // own-property check: `{constructor}` or `{valueOf}` in a message must not
+  // resolve to what every object inherits.
+  if (
+    value === undefined ||
+    typeof value === "function" ||
+    value === (Object.prototype as Record<string, unknown>)[name]
+  ) {
     if (ctx.missingParam === "literal") {
       appendString(parts, missingParamText(name, ctx));
     }

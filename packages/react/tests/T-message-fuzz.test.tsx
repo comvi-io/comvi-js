@@ -61,14 +61,6 @@ function renderBoth(message: string): { component: string | null; string: string
   return { component, string: i18n.t("message" as never, PARAMS as never) };
 }
 
-/**
- * A `{b}` or `{link}` PLACEHOLDER, named like an entry of `COMPONENTS`. `<T>`
- * hands each handler to core as the parameter of that name, so the placeholder
- * resolves to the handler — the one known place the two disagree, pinned by
- * the `it.fails` case at the bottom and excluded from the properties.
- */
-const PLACEHOLDER_NAMED_LIKE_A_COMPONENT = /\{\s*(b|link)\s*\}/;
-
 beforeEach(() => {
   // Malformed input warns by design (unbalanced braces, an unclosed tag), and
   // React objects to the DOM nesting a generated message asks for (`<a>` in `<a>`).
@@ -84,17 +76,13 @@ describe("<T> ≡ t() on generated messages", () => {
       let compared = 0;
 
       try {
-        checkMessages(
-          "<T> ≡ t(), tags registered",
-          (message) => {
-            const both = renderBoth(message);
-            if (both === undefined) return;
-            compared++;
+        checkMessages("<T> ≡ t(), tags registered", (message) => {
+          const both = renderBoth(message);
+          if (both === undefined) return;
+          compared++;
 
-            expect(both.component).toBe(both.string);
-          },
-          { where: (message) => !PLACEHOLDER_NAMED_LIKE_A_COMPONENT.test(message) },
-        );
+          expect(both.component).toBe(both.string);
+        });
       } finally {
         unregister();
       }
@@ -119,8 +107,7 @@ describe("<T> ≡ t() on generated messages", () => {
           expect(both.component).toBe(both.string);
         },
         {
-          where: (message) =>
-            !/[<&\\]/.test(message) && !PLACEHOLDER_NAMED_LIKE_A_COMPONENT.test(message),
+          where: (message) => !/[<&\\]/.test(message),
         },
       );
 
@@ -131,15 +118,12 @@ describe("<T> ≡ t() on generated messages", () => {
 });
 
 describe("counterexamples the fuzzer found", () => {
-  // BUG (medium): a `{link}` placeholder in a message rendered with
-  // `components={{ link: … }}` resolves to the HANDLER, and core stringifies
-  // it — the function's source code lands in the DOM. One mistyped character
-  // in a translation (`{link}` for `<link>`) is enough. Root cause is in core:
-  // `appendParamValue` renders a function-valued parameter with `String()`.
-  // Observed: "({ children }) => createElement(tag, props, …)".
-  // Expected: "{link}", what `t()` renders for the same message — a tag
-  // handler is not a value for a placeholder.
-  it.fails("a placeholder named like a `components` entry → the literal placeholder", () => {
+  // Fixed in COM-146: `<T>` hands each `components` entry to core as the
+  // parameter of that name, so a `{link}` placeholder resolved to the HANDLER
+  // and its source code landed in the DOM ("({ children }) => createElement(…").
+  // One mistyped character in a translation (`{link}` for `<link>`) was
+  // enough. A function is no longer a value for a placeholder.
+  it("a placeholder named like a `components` entry → the literal placeholder", () => {
     const both = renderBoth("{link}");
 
     expect(both?.component).toBe("{link}");

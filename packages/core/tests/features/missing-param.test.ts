@@ -169,3 +169,55 @@ describe("missingParam — dev warning", () => {
     );
   });
 });
+
+/**
+ * A function-valued parameter is a tag handler (`<link>…</link>`), never a
+ * value for a `{link}` placeholder: the placeholder renders exactly as a
+ * missing one does, in both modes, with the same development warning. Every
+ * other non-primitive value is still coerced with `String()`.
+ */
+describe("a function-valued param under a placeholder", () => {
+  const handler = ({ children }: { children: unknown }) => `[${String(children)}]`;
+
+  it("literal (default), single-param template → the literal placeholder", () => {
+    const i18n = makeFull(undefined, { msg: "See {link}." });
+
+    expect(i18n.t("msg", { link: handler })).toBe("See {link}.");
+  });
+
+  it("literal (default), template with a plural → the literal placeholder", () => {
+    const i18n = makeFull(undefined, { msg: "{link} {n, plural, other {# left}}" });
+
+    expect(i18n.t("msg", { link: handler, n: 2 })).toBe("{link} 2 left");
+  });
+
+  it("drop → an empty string", () => {
+    const i18n = makeFull("drop", { msg: "See {link}." });
+
+    expect(i18n.t("msg", { link: handler })).toBe("See .");
+  });
+
+  it("the same function as the handler of a real tag → still called", () => {
+    const i18n = makeFull(undefined, { msg: "<link>docs</link> and {link}" });
+
+    expect(i18n.t("msg", { link: handler })).toBe("[docs] and {link}");
+  });
+
+  it("warns once, as for a missing parameter", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = makeFull(undefined, { msg: "See {link}." });
+
+    i18n.t("msg", { link: handler });
+    i18n.t("msg", { link: handler });
+
+    expect(warn.mock.calls).toEqual([
+      ['[@comvi/core] Missing parameter "link" for template "See {link}."'],
+    ]);
+  });
+
+  it("an object param → still coerced with String()", () => {
+    const i18n = makeFull(undefined, { msg: "See {link}." });
+
+    expect(i18n.t("msg", { link: { toString: () => "the docs" } } as Params)).toBe("See the docs.");
+  });
+});
