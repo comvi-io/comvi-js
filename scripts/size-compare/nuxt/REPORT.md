@@ -46,13 +46,13 @@ built and measured the same way on 2026-10-11 (`measure-2026-10-11.txt`); its se
 | comvi-nuxt-icu (`icu: true`)  | 4        | 186 945   | 67 692       | 60 506          | +13 239        | 64 702           | +15 535         |
 | nuxt-i18n                     | 5        | 229 147   | 82 571       | 73 043          | +28 118        | 79 515           | +30 348         |
 
-The ICU compiler costs 973 B gzip in this build (2 690 B minified). The nuxt-i18n app always
-carries vue-i18n's message compiler and plural rules, so the ICU row is the configuration whose
-runtime is capable of the same work. The messages themselves differ (`Hello, world!` in the
-nuxt-i18n app, `2 items for world` here) and sit outside the measured JavaScript in both apps.
-The 973 B is the observed increment of this configuration (`icu: true` plus the plural call site);
-a reader who wants identical rendered output should give the nuxt-i18n app a pipe-plural message
-and rebuild.
+The ICU compiler costs 973 B gzip in this build (2 690 B minified). This is a comparison of
+configurations, not of equal work: the nuxt-i18n app formats `Hello, {name}!` and this app formats
+a plural, so the two rows do not perform the same message-formatting work. What they share is a
+runtime able to do it (vue-i18n always carries its message compiler and plural rules). The messages
+sit outside the measured JavaScript in both apps; the 973 B is the observed increment of this
+configuration (`icu: true` plus the plural call site). A reader who wants identical rendered output
+should give the nuxt-i18n app a pipe-plural message and rebuild.
 
 ### Per-chunk listing with string attribution
 
@@ -330,12 +330,16 @@ cd apps/<app> && pnpm install --ignore-workspace && pnpm nuxi build
 # sizes + entry file + per-chunk tables (first arg is the baseline)
 node measure.mjs apps/bare apps/nuxt-i18n apps/comvi-nuxt apps/comvi-nuxt-icu
 
-# SSR check, one app at a time (kill only the PID you started); expect `Hello, world!`,
-# and `2 items for world` for comvi-nuxt-icu
-cd apps/<app> && PORT=3451 node .output/server/index.mjs & echo $! > server.pid
-curl -s http://localhost:3451/ | grep -c "$EXPECT"   # expect 1; EXPECT='Hello, world!' for the
-                                                       # first three apps, '2 items for world' for comvi-nuxt-icu
-kill "$(cat server.pid)"
+# SSR check, one app at a time. Change directory first, then start the server and capture
+# ITS pid in the same shell (a backgrounded `cd … && node …` list would give the subshell's pid).
+cd apps/<app>
+EXPECT='Hello, world!'            # '2 items for world' for comvi-nuxt-icu
+PORT=3451 node .output/server/index.mjs &
+SERVER_PID=$!
+sleep 2
+curl -s http://localhost:3451/ | grep -c "$EXPECT"   # expect 1
+kill "$SERVER_PID"                # only the pid you started
+cd ../..
 
 # nuxt-i18n runtime catalog request (hash is build-specific, read it from the entry chunk)
 curl -s http://localhost:3452/_i18n/abe11550/en/messages.json
