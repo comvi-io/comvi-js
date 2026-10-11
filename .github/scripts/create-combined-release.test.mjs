@@ -655,3 +655,25 @@ test("an HTML comment in the notes → it is cut from the body with a ::warning 
   assert.match(dirty.stdout, /^::warning file=\.github\/release-notes\/0\.5\.0\.md,line=6,/m);
   assert.doesNotMatch(clean.stdout, /::warning/);
 });
+
+test("an HTML comment shown in a code block or a code span is content: the check passes and the body keeps it, with no warning", (t) => {
+  const notes =
+    "## Fixes\n\n- Mark the slot with `<!-- slot -->`:\n\n  ```html\n  <!-- example -->\n  ```\n";
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), {
+    files: { ".github/release-notes/0.5.0.md": notes },
+  });
+  const bodyFile = path.join(root, "release-body.md");
+
+  const check = runNotesCheck(root);
+  const result = runScript({
+    root,
+    archiveDir,
+    published: TRAIN,
+    env: { COMVI_RELEASE_BODY_FILE: bodyFile },
+  });
+
+  assert.equal(check.status, 0, check.stdout + check.stderr);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(fs.readFileSync(bodyFile, "utf8").includes(notes.trim()), true);
+  assert.doesNotMatch(result.stdout, /::warning/);
+});

@@ -15,7 +15,7 @@ import { basename, join } from "node:path";
 import { gzipSync } from "node:zlib";
 
 import { tarballName } from "../../scripts/examples-e2e/lib.mjs";
-import { htmlCommentLines } from "./check-release-notes.mjs";
+import { htmlCommentLines, stripHtmlComments } from "./check-release-notes.mjs";
 
 const published = JSON.parse(process.env.PUBLISHED_PACKAGES ?? "[]");
 if (published.length === 0) {
@@ -367,8 +367,9 @@ try {
 // If one does, npm is already live and the notes cannot change at this commit:
 // a refusal would leave the release without a GitHub Release that no re-run
 // can create. The comments are cut instead, with a warning, and the missing
-// text is added afterwards with `gh release edit`. A comment alone on its
-// lines takes those lines with it; an inline one takes the space before it.
+// text is added afterwards with `gh release edit`. Which comments those are
+// is check-release-notes.mjs's decision, shared with the pack job's check: a
+// comment shown in a code block or a code span is content and stays.
 for (const line of htmlCommentLines(highlights)) {
   console.log(
     `::warning file=.github/release-notes/${version}.md,line=${line},title=HTML comment cut from the release notes::` +
@@ -376,10 +377,7 @@ for (const line of htmlCommentLines(highlights)) {
       "If it marked missing text, add that text with `gh release edit`.",
   );
 }
-highlights = highlights
-  .replace(/^[ \t]*<!--[\s\S]*?(?:-->|$(?![\s\S]))[ \t]*\n?/gm, "")
-  .replace(/[ \t]*<!--[\s\S]*?(?:-->|$(?![\s\S]))/g, "")
-  .trim();
+highlights = stripHtmlComments(highlights).trim();
 if (highlights) {
   highlights = `${cutAtLine(highlights, Math.max(0, BODY_LIMIT - intro.length - overhead - 2))}\n\n`;
 }
