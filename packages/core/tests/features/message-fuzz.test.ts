@@ -11,6 +11,7 @@
  * Seed, run count and how to read a failure: `tests/helpers/messageFuzz.ts`.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createI18n } from "../../src";
 import {
   DEFAULT,
   DEFAULT_TAGS,
@@ -28,6 +29,9 @@ import {
   FUZZ_TIMEOUT_MS,
 } from "../helpers/messageFuzz";
 
+/** A plural/select/selectordinal argument header: `, plural,` with any ASCII whitespace. */
+const TYPED_ARGUMENT = /,\s*(plural|select|selectordinal)\s*,/;
+
 beforeEach(() => {
   // Malformed input warns by design (unbalanced braces, an unclosed tag, a
   // missing parameter, tag syntax no extension claims).
@@ -35,6 +39,8 @@ beforeEach(() => {
 });
 
 describe("t() on generated messages (development build)", () => {
+  // The generator's bounds (nesting, run length, message size) are part of
+  // this claim; they are stated in the production suite, with COM-147.
   it.each(VARIANTS)(
     "$name: any message → refused with E_ICU_SYNTAX at ingestion, or rendered to a string",
     (variant) => {
@@ -112,7 +118,7 @@ describe("t() on generated messages (development build)", () => {
     FUZZ_TIMEOUT_MS,
   );
 
-  // Both narrowings are explained in the production suite. "The same" covers
+  // The narrowing is explained in the production suite. "The same" covers
   // the refusal as well: `{price, number}` is refused by both.
   it(
     "a message without plural/select → the same outcome from both compilers",
@@ -125,7 +131,7 @@ describe("t() on generated messages (development build)", () => {
 
           expect(icu).toEqual(simple);
         },
-        { where: (message) => !/plural|select/.test(message) && !hasBuriedComma(message) },
+        { where: (message) => !TYPED_ARGUMENT.test(message) && !hasBuriedComma(message) },
       );
 
       expect(checked).toBeGreaterThan(FUZZ_RUNS / 4);
@@ -156,19 +162,64 @@ describe("t() on generated messages (development build)", () => {
 });
 
 describe("counterexamples the fuzzer found (development build)", () => {
-  // BUG (low): the development face of the production case in
-  // `tests/prod/message-fuzz.test.ts`. The default compiler refuses `{{,}\t}`
-  // as ICU syntax; `icuCompiler` accepts it as a parameter named `{,}`.
-  // Observed: accepted, renders "{{,}}". Expected: refused with E_ICU_SYNTAX.
-  it.fails("icuCompiler: a comma inside a nested brace group → refused at ingestion", () => {
-    const outcome = ingestAndRender("{{,}\t}", ICU);
+  const WRAPPED_PLURAL = "{{count, plural, one {# item} other {# items}}}";
+
+  // BUG (low): `icuCompiler` looks for the type-marking comma only at the
+  // argument's own brace depth, so a plural wrapped in a second pair of braces
+  // is to it a PARAMETER whose name is the whole inner argument. It is accepted
+  // and rendered literally, with nothing but a missing-parameter warning; the
+  // default compiler refuses the same catalog.
+  // Observed: accepted. Expected: refused with E_ICU_SYNTAX.
+  it.fails(
+    "icuCompiler: a plural wrapped in a second pair of braces → refused at ingestion",
+    () => {
+      const outcome = ingestAndRender(WRAPPED_PLURAL, ICU);
+
+      expect(outcome.rejected).toBe(true);
+    },
+  );
+
+  it("default compiler: a plural wrapped in a second pair of braces → refused at ingestion", () => {
+    const outcome = ingestAndRender(WRAPPED_PLURAL, DEFAULT);
 
     expect(outcome.rejected).toBe(true);
   });
 
-  it("default compiler: a comma inside a nested brace group → refused at ingestion", () => {
-    const outcome = ingestAndRender("{{,}\t}", DEFAULT);
+  // BUG (medium, COM-146): a FUNCTION-valued parameter is a tag handler, and
+  // a `{link}` placeholder of the same name puts its source code in the
+  // output. `String()` coercion of a non-primitive parameter is the documented
+  // behaviour (`docs/design/rich-text.md`, `TranslationParamValue` in
+  // `types.ts`); the fault is a function reaching text output at all.
+  // Observed: "() => \"handled\"". Expected: "{link}", as with no parameter.
+  it.fails.each([DEFAULT, ICU])(
+    "$name: a placeholder whose parameter is a tag handler → the literal placeholder",
+    (variant) => {
+      const i18n = createI18n({
+        locale: "en",
+        exposeGlobal: false,
+        ...variant.options,
+        messages: { en: { message: "{link}" } },
+      });
 
-    expect(outcome.rejected).toBe(true);
-  });
+      const rendered = i18n.t("message", { link: () => "handled" });
+
+      expect(rendered).toBe("{link}");
+    },
+  );
+
+  it.each([DEFAULT, ICU])(
+    "$name: a placeholder with no parameter of that name → the literal placeholder",
+    (variant) => {
+      const i18n = createI18n({
+        locale: "en",
+        exposeGlobal: false,
+        ...variant.options,
+        messages: { en: { message: "{link}" } },
+      });
+
+      const rendered = i18n.t("message", {});
+
+      expect(rendered).toBe("{link}");
+    },
+  );
 });

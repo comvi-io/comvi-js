@@ -272,23 +272,28 @@ export function anyMessage(rng: Rng): string {
 
 /**
  * True when a comma sits where the two shipped compilers classify the
- * argument around it differently: inside a nested brace group, or in an
- * argument of a message that also quotes. Brace depth is counted naively
- * (quotes ignored), which over-approximates on purpose.
+ * argument around it differently: inside a nested brace group, or after any
+ * `{` in a message that also quotes. Deliberately an over-approximation —
+ * brace depth is counted with quotes ignored, and a quoted brace can hide an
+ * argument from that count (`{'},'}`), so with a quote present every comma
+ * past the first `{` is treated as buried.
  *
  * The default compiler calls ANY comma between an argument's braces the ICU
  * type marker; `icuCompiler` only one at the argument's own depth and outside
  * a quote, and reads `{a {b,c}}` as a parameter named `a {b,c}`. See the
- * `it.fails` cases in `message-fuzz.test.ts`.
+ * `it.fails` case in `tests/features/message-fuzz.test.ts`.
  */
 export function hasBuriedComma(message: string): boolean {
   const quotes = message.includes("'");
   let depth = 0;
+  let opened = false;
   for (let i = 0; i < message.length; i++) {
     const char = message[i];
-    if (char === "{") depth++;
-    else if (char === "}") depth--;
-    else if (char === "," && (depth >= 2 || (depth >= 1 && quotes))) return true;
+    if (char === "{") {
+      depth++;
+      opened = true;
+    } else if (char === "}") depth--;
+    else if (char === "," && (depth >= 2 || (quotes && opened))) return true;
   }
   return false;
 }

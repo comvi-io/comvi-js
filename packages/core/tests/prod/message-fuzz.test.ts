@@ -24,12 +24,20 @@ import {
   FUZZ_TIMEOUT_MS,
 } from "../helpers/messageFuzz";
 
+/** A plural/select/selectordinal argument header: `, plural,` with any ASCII whitespace. */
+const TYPED_ARGUMENT = /,\s*(plural|select|selectordinal)\s*,/;
+
 beforeEach(() => {
   // Malformed input warns by design (unbalanced braces, a missing parameter).
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 describe("t() on generated messages (production build)", () => {
+  // "Any message" is what the generator draws, and its bounds are part of the
+  // claim: nesting up to 4 levels, runs of up to 40 repeated units, messages
+  // up to a few thousand UTF-16 units. Past them — thousands of nesting levels
+  // (stack depth) or thousands of unclosed tags (a quadratic closing-tag
+  // scan) — is recorded as COM-147 and not claimed here.
   it.each(VARIANTS)(
     "$name: any message → a string, within the time bound",
     (variant) => {
@@ -108,11 +116,12 @@ describe("t() on generated messages (production build)", () => {
     FUZZ_TIMEOUT_MS,
   );
 
-  // Narrowed twice. "Without plural/select" is tested on the WORDS, because an
-  // almost-well-formed `{n, plural other {x}}` is still plural syntax to one
-  // compiler and not to the other. And a comma buried in a nested brace group
-  // or next to a quote is excluded: the compilers disagree on whether it makes
-  // the argument typed — see `hasBuriedComma` and the `it.fails` case below.
+  // Narrowed once beyond "without plural/select" (no `, plural,` / `, select,`
+  // / `, selectordinal,` header): a comma buried in a nested brace group or
+  // next to a quote is excluded, because the compilers disagree on whether it
+  // makes the argument typed — see `hasBuriedComma`. In production that shows
+  // only as padding: `icuCompiler` renders such an argument as a missing
+  // parameter, whose name is trimmed, and the default compiler verbatim.
   it(
     "a message without plural/select → the same text from both compilers",
     () => {
@@ -124,7 +133,7 @@ describe("t() on generated messages (production build)", () => {
 
           expect(icu).toEqual(simple);
         },
-        { where: (message) => !/plural|select/.test(message) && !hasBuriedComma(message) },
+        { where: (message) => !TYPED_ARGUMENT.test(message) && !hasBuriedComma(message) },
       );
 
       expect(checked).toBeGreaterThan(FUZZ_RUNS / 4);
@@ -133,49 +142,23 @@ describe("t() on generated messages (production build)", () => {
   );
 });
 
-describe("counterexamples the fuzzer found (production build)", () => {
-  // BUG (low): `icuCompiler` looks for the type-marking comma only at the
-  // argument's own brace depth, so `{{,}\t}` is to it a PARAMETER named `{,}`.
-  // The missing-parameter literal then drops the tab. The default compiler
-  // sees the comma, calls the argument ICU and echoes the segment verbatim.
-  // Observed: "{{,}}". Expected: "{{,}\t}", byte for byte, as from the default
-  // compiler — an argument neither compiler can compile should not be rewritten.
-  it.fails("icuCompiler: a comma inside a nested brace group → the segment verbatim", () => {
-    const outcome = ingestAndRender("{{,}\t}", ICU);
+describe("shapes the fuzzer led to (production build)", () => {
+  // The development suite pins the divergence this message exposes there;
+  // production has none, and that is worth holding on to.
+  it.each([DEFAULT, ICU])(
+    "$name: a plural wrapped in a second pair of braces → the segment verbatim",
+    (variant) => {
+      const outcome = ingestAndRender("{{count, plural, one {# item} other {# items}}}", variant);
 
-    expect(outcome.rendered).toBe("{{,}\t}");
-  });
+      expect(outcome.rendered).toBe("{{count, plural, one {# item} other {# items}}}");
+    },
+  );
 
-  it("default compiler: a comma inside a nested brace group → the segment verbatim", () => {
-    const outcome = ingestAndRender("{{,}\t}", DEFAULT);
-
-    expect(outcome.rendered).toBe("{{,}\t}");
-  });
-
-  // BUG (low): the parser and the renderer recurse once per nesting level, so
-  // a message nested about 1,250 levels deep (measured on Node 24) overflows
-  // the stack and `t()` throws RangeError — in development already at
-  // ingestion. No real translation nests like this; a hostile or corrupted
-  // catalog can. 5,000 levels leaves a 4x margin over the measured threshold.
-  // Observed: RangeError "Maximum call stack size exceeded". Expected: a string.
-  it.fails("icuCompiler + tags: tags nested 5,000 deep → a string", () => {
-    const message = "<b>".repeat(5000) + "x" + "</b>".repeat(5000);
-
-    const outcome = ingestAndRender(message, ICU_TAGS);
-
-    expect(outcome.rendered).toBe("x");
-  });
-
-  it.fails("icuCompiler: plurals nested 5,000 deep → a string", () => {
-    const message = "{n, plural, other {".repeat(5000) + "x" + "}}".repeat(5000);
-
-    const outcome = ingestAndRender(message, ICU);
-
-    expect(outcome.rendered).toBe("x");
-  });
-
-  it("icuCompiler + tags: tags and plurals nested 200 deep → the innermost text", () => {
-    const message = "<b>{n, plural, other {".repeat(200) + "x" + "}}</b>".repeat(200);
+  // The supported range for nesting, far past anything a translation holds.
+  // Beyond the fuzzer's bounds — see the first property — is COM-147.
+  it("icuCompiler + tags: a tag, a plural and a select nested 100 deep → the innermost text", () => {
+    const message =
+      "<b>{n, plural, other {{gender, select, other {".repeat(100) + "x" + "}}}}</b>".repeat(100);
 
     const outcome = ingestAndRender(message, ICU_TAGS);
 

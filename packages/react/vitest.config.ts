@@ -87,7 +87,10 @@ export default defineConfig({
           include: ["tests/**/*.test.{ts,tsx}"],
           // Build-artifact tests exercise dist via a subprocess; under Stryker the
           // sandbox has no sibling core checkout and they kill no src mutants.
-          exclude: process.env.COMVI_MUTATION ? ["tests/dist/**"] : [],
+          // The fuzz suite would re-run for every mutant at seconds apiece.
+          exclude: process.env.COMVI_MUTATION
+            ? ["tests/dist/**", "tests/T-message-fuzz.test.tsx"]
+            : [],
         },
       },
       {
