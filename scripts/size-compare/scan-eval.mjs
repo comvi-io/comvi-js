@@ -19,7 +19,7 @@ const PACKAGES = [
   "next-intl",
   "vue-i18n",
 ];
-const PATTERN = /new Function\(|\beval\(/;
+const PATTERN = /\bnew\s+Function\s*\(|\beval\s*\(/;
 
 function* files(dir) {
   for (const entry of readdirSync(dir)) {

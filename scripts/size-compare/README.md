@@ -281,7 +281,7 @@ cookie.
 ## `eval` and `new Function`
 
 `scan-eval.mjs` reads every `.js`, `.mjs` and `.cjs` file of each compared package as installed and
-reports the ones that contain `eval(` or `new Function(`, the two constructs a Content Security
+reports the ones that contain `eval(` or `new Function(` (whitespace before the parenthesis allowed), the two constructs a Content Security
 Policy without `'unsafe-eval'` blocks. Result on 2026-10-11 (`scan-eval-2026-10-11.txt`): none of
 the browser bundles of any compared package, Comvi's included, contains either. The one match is
 `@comvi/nuxt/dist/module.mjs`, the Nuxt build-time module that runs in Node during `nuxi build`

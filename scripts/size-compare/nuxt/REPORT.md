@@ -177,7 +177,7 @@ The sources of the four apps (no node_modules / .nuxt / .output) are under `apps
   "private": true,
   "type": "module",
   "scripts": { "build": "nuxi build" },
-  "dependencies": { "nuxt": "4.6.1", "vue": "latest", "vue-router": "latest" }
+  "dependencies": { "nuxt": "4.6.1", "vue": "3.5.43", "vue-router": "5.4.0" }
 }
 ```
 
@@ -214,8 +214,8 @@ const name = "world";
   "scripts": { "build": "nuxi build" },
   "dependencies": {
     "nuxt": "4.6.1",
-    "vue": "latest",
-    "vue-router": "latest",
+    "vue": "3.5.43",
+    "vue-router": "5.4.0",
     "@nuxtjs/i18n": "10.6.0"
   }
 }
@@ -278,8 +278,8 @@ Configured per the installed `node_modules/@comvi/nuxt/README.md` "Setup" sectio
   "scripts": { "build": "nuxi build" },
   "dependencies": {
     "nuxt": "4.6.1",
-    "vue": "latest",
-    "vue-router": "latest",
+    "vue": "3.5.43",
+    "vue-router": "5.4.0",
     "@comvi/nuxt": "0.5.0",
     "@comvi/vue": "0.5.0",
     "@comvi/core": "0.5.0"
@@ -341,11 +341,24 @@ curl -s http://localhost:3451/ | grep -c "$EXPECT"   # expect 1
 kill "$SERVER_PID"                # only the pid you started
 cd ../..
 
-# nuxt-i18n runtime catalog request (hash is build-specific, read it from the entry chunk)
-curl -s http://localhost:3452/_i18n/abe11550/en/messages.json
+# nuxt-i18n runtime catalog request. The hash is build-specific: read it from the built entry chunk,
+# then request it from the running server (same pattern as the SSR check, nuxt-i18n on port 3452).
+cd apps/nuxt-i18n
+HASH=$(grep -oh '_i18n/[A-Za-z0-9]*' .output/public/_nuxt/*.js | head -1 | cut -d/ -f2)
+PORT=3452 node .output/server/index.mjs &
+SERVER_PID=$!
+sleep 2
+curl -s "http://localhost:3452/_i18n/$HASH/en/messages.json"   # {"en":{"greeting":"Hello, {name}!"}}
+kill "$SERVER_PID"
+cd ../..
 
-# per-package attribution: copies with sourcemap: { client: true, server: false }
-for a in bare nuxt-i18n comvi-nuxt; do (cd sm-$a && pnpm install --offline && pnpm nuxi build); done
+# per-package attribution: copies of the apps with sourcemap: { client: true, server: false }.
+# Create them first (they are not committed): copy the app, add the option, install, build.
+for a in bare nuxt-i18n comvi-nuxt; do
+  rm -rf sm-$a && cp -R apps/$a sm-$a && rm -rf sm-$a/.output sm-$a/.nuxt
+  perl -pi -e 's/defineNuxtConfig\(\{/defineNuxtConfig({\n  sourcemap: { client: true, server: false },/' sm-$a/nuxt.config.ts
+  (cd sm-$a && pnpm install --ignore-workspace && pnpm nuxi build)
+done
 node attribute.mjs > attribute.out
 ```
 
