@@ -15,6 +15,7 @@ import { basename, join } from "node:path";
 import { gzipSync } from "node:zlib";
 
 import { tarballName } from "../../scripts/examples-e2e/lib.mjs";
+import { htmlCommentLines } from "./check-release-notes.mjs";
 
 const published = JSON.parse(process.env.PUBLISHED_PACKAGES ?? "[]");
 if (published.length === 0) {
@@ -360,6 +361,21 @@ try {
   highlights = readFileSync(`.github/release-notes/${version}.md`, "utf8").trim();
 } catch {
   // no hand-written notes for this version
+}
+// The notes are published as they are and a re-run only re-uploads the asset,
+// so a comment left in them would stay in the release body. The pack job runs
+// the same check (check-release-notes.mjs) before anything is published, so
+// this should be unreachable. If it is reached, npm is already live and the
+// notes cannot change at this commit: the release has to be created by hand.
+const commentLines = htmlCommentLines(highlights);
+if (commentLines.length > 0) {
+  console.error(
+    `Refusing to create ${tag}: ` +
+      commentLines.map((line) => `.github/release-notes/${version}.md:${line}`).join(", ") +
+      " holds an HTML comment. The packages are on npm and the tags are pushed; a re-run reads " +
+      `the same file. Create the GitHub Release for ${tag} by hand, with the corrected notes.`,
+  );
+  process.exit(1);
 }
 if (highlights) {
   highlights = `${cutAtLine(highlights, Math.max(0, BODY_LIMIT - intro.length - overhead - 2))}\n\n`;

@@ -16,6 +16,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(new URL("./create-combined-release.mjs", import.meta.url));
+const notesCheckPath = fileURLToPath(new URL("./check-release-notes.mjs", import.meta.url));
+const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 // A synthetic train. The names are real published packages so the fixture reads
 // like a release, but the group is the fixture's own: the script reads whatever
@@ -566,4 +568,68 @@ test("an oversized highlights file is cut too: the body never exceeds the cap", 
 
   assert.equal(body.length < BODY_CAP, true, `body is ${body.length} characters`);
   assert.equal(body.match(/^### `@comvi\/[^`]+`$/gm).length, 3);
+});
+
+// ---------------------------------------------------------------------------
+// The hand-written notes are published as they are, and a re-run never repairs
+// a body: an HTML comment left in them (a draft marker, a "bullet goes here"
+// slot) must stop the release before it is created.
+// ---------------------------------------------------------------------------
+
+const WITH_COMMENT = "## Fixes\n\n- one fix\n<!-- the next bullet goes here -->\n";
+
+function runNotesCheck(cwd, ...args) {
+  return spawnSync(process.execPath, [notesCheckPath, ...args], { cwd, encoding: "utf8" });
+}
+
+test("this repo: the notes of the version @comvi/core is at hold no HTML comment", () => {
+  const result = runNotesCheck(repoRoot);
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test("notes check: an HTML comment in the notes of core's version → exit 1 with an ::error naming file and line", (t) => {
+  const { root } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), {
+    files: { ".github/release-notes/0.5.0.md": WITH_COMMENT },
+  });
+
+  const result = runNotesCheck(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(
+    result.stdout,
+    /^::error file=\.github\/release-notes\/0\.5\.0\.md,line=4,.*\.github\/release-notes\/0\.5\.0\.md:4 /m,
+  );
+});
+
+test("notes check: clean notes, or no notes for the version → exit 0", (t) => {
+  const clean = makeFixture(t, MIXED_PACKAGES.slice(0, 2), {
+    files: { ".github/release-notes/0.5.0.md": HIGHLIGHTS },
+  });
+  const none = makeFixture(t, MIXED_PACKAGES.slice(0, 2));
+
+  assert.equal(runNotesCheck(clean.root).status, 0);
+  assert.equal(runNotesCheck(none.root).status, 0);
+});
+
+test("notes check: a comment in another version's notes is not this release's business", (t) => {
+  const { root } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), {
+    files: { ".github/release-notes/0.5.1.md": WITH_COMMENT },
+  });
+
+  assert.equal(runNotesCheck(root).status, 0);
+  assert.equal(runNotesCheck(root, "0.5.1").status, 1);
+});
+
+test("an HTML comment in the notes → the release is refused before gh is reached, naming file and line", (t) => {
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), {
+    files: { ".github/release-notes/0.5.0.md": WITH_COMMENT },
+  });
+
+  const result = runScript({ root, archiveDir, published: TRAIN });
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stderr, /\.github\/release-notes\/0\.5\.0\.md:4\b.*HTML comment/);
+  assert.doesNotMatch(result.stdout, /Creating GitHub Release/);
+  assert.equal(fs.existsSync(archiveDir), false);
 });

@@ -185,7 +185,10 @@ function purgeStep() {
  * `body` is what a successful call prints. Returns the shell's result and the
  * arguments of every `curl` call.
  */
-function runPurge(t, { curlExits, body = '{"status":"finished","paths":{}}' }) {
+const PURGED =
+  '{"id":"x","status":"finished","paths":{"/npm/x":{"throttled":false,"providers":{"CF":true,"FY":true}}}}';
+
+function runPurge(t, { curlExits, body = PURGED }) {
   const script = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(purgeStep().text)?.[1];
   assert.ok(script, `\`${PURGE_STEP}\` has no \`run: |\` body`);
 
@@ -201,7 +204,7 @@ function runPurge(t, { curlExits, body = '{"status":"finished","paths":{}}' }) {
       `n=$(wc -l < "${calls}")`,
       `exits=(${curlExits.join(" ")})`,
       "status=${exits[$((n - 1))]:-${exits[${#exits[@]}-1]}}",
-      `if [ "$status" = 0 ]; then echo '${body}'; else echo "curl: (22) refused" >&2; fi`,
+      `if [ "$status" = 0 ]; then printf '%s\\n' '${body}'; else echo "curl: (22) refused" >&2; fi`,
       'exit "$status"',
       "",
     ].join("\n"),
@@ -284,4 +287,60 @@ test("purge answered but throttled → exit 0 with a ::warning, not a success li
   assert.equal(result.curl.length, 1);
   assert.match(result.stdout, /^::warning title=jsDelivr purge throttled::/m);
   assert.doesNotMatch(result.stdout, /accepted the purge/);
+});
+
+// Anything but a finished purge on every provider must leave a warning: the
+// rollout tells the owner to purge by hand only when the log warns.
+for (const [answer, body] of [
+  ["an HTML challenge page", "<html><title>Just a moment...</title></html>"],
+  ["an empty body", ""],
+  ["a failed status", '{"status":"failed"}'],
+  ["a pending status", '{"id":"x","status":"pending"}'],
+  [
+    "a provider that did not purge",
+    '{"status":"finished","paths":{"/npm/x":{"throttled":false,"providers":{"CF":false,"FY":true}}}}',
+  ],
+]) {
+  test(`purge answered with ${answer} → exit 0 with a ::warning, never "accepted"`, (t) => {
+    const result = runPurge(t, { curlExits: [0], body });
+
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(result.curl.length, 1);
+    assert.match(result.stdout, /^::warning title=jsDelivr purge not confirmed::.*12 hours/m);
+    assert.doesNotMatch(result.stdout, /accepted the purge/);
+  });
+}
+
+test("a response line that begins with :: is printed behind a prefix, not as a workflow command", (t) => {
+  const result = runPurge(t, { curlExits: [0], body: "::error::forged" });
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /^jsDelivr: ::error::forged$/m);
+  assert.doesNotMatch(result.stdout, /^::error/m);
+});
+
+// ---------------------------------------------------------------------------
+// The release notes gate. The changesets release PR is opened with
+// GITHUB_TOKEN and may get no CI run, so the GA path checks the notes itself,
+// in `pack`, before anything is built or published.
+// ---------------------------------------------------------------------------
+
+const NOTES_STEP = "Refuse release notes that still hold an HTML comment";
+
+test("the GA pack job checks the release notes on a release commit, before it installs or packs", () => {
+  const steps = readSteps(jobs.get("pack"));
+  const names = steps.map((step) => step.name);
+  const step = steps.find((s) => s.name === NOTES_STEP);
+
+  assert.ok(step, `the pack job has no \`${NOTES_STEP}\` step`);
+  assert.match(step.text, /^ {8}if: steps\.changesets\.outputs\.pending == 'false'$/m);
+  assert.match(step.text, /^ {8}run: node \.github\/scripts\/check-release-notes\.mjs$/m);
+  assert.doesNotMatch(step.text, /continue-on-error/);
+  assert.equal(names.indexOf(NOTES_STEP) > names.indexOf("Pending changesets?"), true);
+  assert.equal(names.indexOf(NOTES_STEP) < names.indexOf("Install dependencies"), true);
+  assert.equal(names.indexOf(NOTES_STEP) < names.indexOf("Pack the candidate"), true);
+});
+
+test("the job that publishes waits for the job that checks the notes", () => {
+  assert.equal(ancestry(jobs, "publish").has("pack"), true);
 });

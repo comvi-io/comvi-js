@@ -332,6 +332,16 @@ jobs:
             echo "pending=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The hand-written notes of this version become the GitHub Release body
+      # as they are, and a re-run never rewrites a body. An HTML comment left
+      # in them (a draft marker, a slot for a bullet) fails the release here,
+      # before anything is built or published; the message names the file and
+      # the line. The release PR is opened with GITHUB_TOKEN and may get no CI
+      # run, so this is the check that always runs.
+      - name: Refuse release notes that still hold an HTML comment
+        if: steps.changesets.outputs.pending == 'false'
+        run: node .github/scripts/check-release-notes.mjs
+
       - name: Setup pnpm
         if: steps.changesets.outputs.pending == 'false'
         uses: pnpm/action-setup@v6
@@ -510,7 +520,11 @@ jobs:
       # editor reaches sites up to half a day after npm has it. The endpoint
       # is public and takes no token. Never fatal: npm is already live when
       # this runs, so a refused, throttled or unreachable purge is a warning
-      # and the edge expires on its own. Two attempts, 30 s each.
+      # and the edge expires on its own. Two attempts, 30 s each. Only an
+      # answer shaped as jsDelivr's own purge page reads it counts as accepted
+      # (`"status":"finished"`, the path `"throttled":false`, no provider
+      # `false`); a challenge page, an empty body or a pending or failed
+      # status is a warning too, so the log never says "accepted" by default.
       # scripts/release-workflow.test.mjs executes this step's shell.
       - name: Purge jsDelivr's @latest editor file
         if: steps.publish.outputs.published == 'true'
@@ -521,11 +535,17 @@ jobs:
           stale="The release is published; jsDelivr's edge may serve the previous @latest editor for up to 12 hours. Purge by hand: https://www.jsdelivr.com/tools/purge"
           for attempt in 1 2; do
             if body="$(curl --fail --silent --show-error --max-time 30 "$url")"; then
-              echo "$body"
-              if printf '%s' "$body" | grep -Eq '"throttled": *true'; then
+              # Never at line start: a line that begins with `::` is a workflow command.
+              printf '%s\n' "$body" | head -c 2000 | sed 's/^/jsDelivr: /'
+              flat="$(printf '%s' "$body" | tr -d '\n')"
+              if printf '%s' "$flat" | grep -Eq '"throttled": *true'; then
                 echo "::warning title=jsDelivr purge throttled::jsDelivr rate-limited the purge of $url. $stale"
-              else
+              elif printf '%s' "$flat" | grep -Eq '"status": *"finished"' &&
+                printf '%s' "$flat" | grep -Eq '"throttled": *false' &&
+                ! printf '%s' "$flat" | grep -Eq '"providers": *\{[^}]*false'; then
                 echo "jsDelivr accepted the purge of $url (attempt $attempt)."
+              else
+                echo "::warning title=jsDelivr purge not confirmed::The answer to $url is not a finished purge on every provider. $stale"
               fi
               exit 0
             fi
