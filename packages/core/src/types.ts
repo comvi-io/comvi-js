@@ -638,7 +638,8 @@ export interface I18nBaseOptions {
    * - `"drop"`: the placeholder renders as an empty string
    *
    * A `null` param always renders as an empty string in both modes
-   * (explicit erasure).
+   * (explicit erasure). A function param is never rendered as text: it
+   * follows this option as if it were absent.
    * @default "literal"
    */
   missingParam?: MissingParamMode;

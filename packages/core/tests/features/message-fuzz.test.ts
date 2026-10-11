@@ -185,13 +185,13 @@ describe("counterexamples the fuzzer found (development build)", () => {
     expect(outcome.rejected).toBe(true);
   });
 
-  // BUG (medium, COM-146): a FUNCTION-valued parameter is a tag handler, and
-  // a `{link}` placeholder of the same name puts its source code in the
-  // output. `String()` coercion of a non-primitive parameter is the documented
-  // behaviour (`docs/design/rich-text.md`, `TranslationParamValue` in
-  // `types.ts`); the fault is a function reaching text output at all.
-  // Observed: "() => \"handled\"". Expected: "{link}", as with no parameter.
-  it.fails.each([DEFAULT, ICU])(
+  // Fixed in COM-146: a FUNCTION-valued parameter is a tag handler, and a
+  // `{link}` placeholder of the same name used to put its source code in the
+  // output ("() => \"handled\""). `String()` coercion of a non-primitive
+  // parameter is the documented behaviour (`docs/design/rich-text.md`,
+  // `TranslationParamValue` in `types.ts`) and still holds; a function is the
+  // one value that never reaches text.
+  it.each([DEFAULT, ICU])(
     "$name: a placeholder whose parameter is a tag handler → the literal placeholder",
     (variant) => {
       const i18n = createI18n({
