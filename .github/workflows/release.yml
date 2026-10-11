@@ -526,10 +526,12 @@ jobs:
       # (jsdelivr/www.jsdelivr.com, src/views/pages/tools/purge.html) gets an
       # `id` back and polls purge.jsdelivr.net/status/<id> until `status` is
       # "finished", so a "pending" first answer is polled here too: five
-      # times, 5 s apart. The `id` goes into a URL only when it is letters,
-      # digits, `_` and `-`. Only a finished answer counts as accepted
-      # (`"status":"finished"`, the path `"throttled":false`, no provider
-      # `false`); a challenge page, an empty body, a failed status, or one
+      # times, 5 s apart. The `id` goes into a URL only when it is 1 to 64
+      # letters, digits, `_` and `-`. The answer is parsed with jq (on the
+      # runner image), never matched as text. Only a finished answer counts as
+      # accepted: `status` is "finished", there is a path, and every path has
+      # `throttled` false and at least one provider, each `true`. A challenge
+      # page, an empty body, a value of another type, a failed status, or one
       # still pending after the last poll is a warning, so the log never says
       # "accepted" by default. Worst case 245 s: 30 + 10 + 30 for the two
       # attempts, then 5 × (5 + 30) for the polls.
@@ -541,38 +543,54 @@ jobs:
         run: |
           url="https://purge.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js"
           stale="The release is published; jsDelivr's edge may serve the previous @latest editor for up to 12 hours. Purge by hand: https://www.jsdelivr.com/tools/purge"
-          # Sets `flat` (the answer on one line) and prints its first 2000
-          # characters behind a prefix: a line that begins with `::` is a
-          # workflow command.
-          read_answer() {
-            printf '%s\n' "${1:0:2000}" | sed 's/^/jsDelivr: /'
-            flat="$(printf '%s' "$1" | tr -d '\n')"
+          # Prints the first 2000 characters behind a prefix: a line that
+          # begins with `::` is a workflow command.
+          show() { printf '%s\n' "${1:0:2000}" | sed 's/^/jsDelivr: /'; }
+          # The answer, read as JSON: accepted | throttled | pending |
+          # unconfirmed. Anything jq cannot parse, or more than one JSON
+          # value, falls through to the warning.
+          verdict() {
+            printf '%s' "$1" | jq -r '
+              if type != "object" then "unconfirmed"
+              elif [.paths | objects | .[] | objects | .throttled == true] | any then "throttled"
+              elif .status == "pending" then "pending"
+              elif .status == "finished"
+                and (.paths | type) == "object" and (.paths | length) > 0
+                and ([.paths[]
+                  | type == "object" and .throttled == false
+                    and (.providers | type) == "object" and (.providers | length) > 0
+                    and ([.providers[] == true] | all)] | all)
+              then "accepted"
+              else "unconfirmed" end' 2>/dev/null || echo unconfirmed
           }
           for attempt in 1 2; do
             if body="$(curl --fail --silent --show-error --max-time 30 "$url")"; then
-              read_answer "$body"
-              id="$(printf '%s' "$flat" | sed -nE 's/.*"id": *"([^"]*)".*/\1/p')"
+              show "$body"
+              answer="$(verdict "$body")"
               polls=0
-              while [ "$polls" -lt 5 ] &&
-                printf '%s' "$flat" | grep -Eq '"status": *"pending"' &&
-                [[ "$id" =~ ^[A-Za-z0-9_-]+$ ]]; do
+              while [ "$polls" -lt 5 ] && [ "$answer" = pending ]; do
+                id="$(printf '%s' "$body" | jq -r '.id | strings' 2>/dev/null || true)"
+                if ! [[ "$id" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then break; fi
                 polls=$((polls + 1))
                 sleep 5
                 if body="$(curl --fail --silent --show-error --max-time 30 "https://purge.jsdelivr.net/status/$id")"; then
-                  read_answer "$body"
+                  show "$body"
+                  answer="$(verdict "$body")"
                 else
-                  flat=""
+                  answer=unconfirmed
                 fi
               done
-              if printf '%s' "$flat" | grep -Eq '"throttled": *true'; then
-                echo "::warning title=jsDelivr purge throttled::jsDelivr rate-limited the purge of $url. $stale"
-              elif printf '%s' "$flat" | grep -Eq '"status": *"finished"' &&
-                printf '%s' "$flat" | grep -Eq '"throttled": *false' &&
-                ! printf '%s' "$flat" | grep -Eq '"providers": *\{[^}]*false'; then
-                echo "jsDelivr accepted the purge of $url (attempt $attempt, $polls status request(s))."
-              else
-                echo "::warning title=jsDelivr purge not confirmed::The answer to $url is not a finished purge on every provider. $stale"
-              fi
+              case "$answer" in
+                accepted)
+                  echo "jsDelivr accepted the purge of $url (attempt $attempt, $polls status request(s))."
+                  ;;
+                throttled)
+                  echo "::warning title=jsDelivr purge throttled::jsDelivr rate-limited the purge of $url. $stale"
+                  ;;
+                *)
+                  echo "::warning title=jsDelivr purge not confirmed::The answer to $url is not a finished purge on every provider. $stale"
+                  ;;
+              esac
               exit 0
             fi
             if [ "$attempt" = 1 ]; then sleep 10; fi
