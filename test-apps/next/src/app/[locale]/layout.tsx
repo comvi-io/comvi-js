@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { hasLocale, routing, loadMessages } from "../../i18n";
-import { I18nClientProvider } from "./I18nClientProvider";
+import { ClientProvider } from "./ClientProvider";
 import { Navigation } from "../../components/Navigation";
 import "../globals.css";
 
@@ -25,12 +25,12 @@ export default async function LocaleLayout({
   return (
     <html lang={locale}>
       <body className="min-h-screen bg-gray-50 font-sans">
-        <I18nClientProvider locale={locale} messages={messages}>
+        <ClientProvider locale={locale} messages={messages}>
           <Navigation />
           <main className="container mx-auto px-4 pb-12">
             <div className="bg-white rounded-lg shadow p-6 min-h-[300px]">{children}</div>
           </main>
-        </I18nClientProvider>
+        </ClientProvider>
       </body>
     </html>
   );
