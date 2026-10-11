@@ -10,6 +10,7 @@ import {
   type ParamToken,
   type PluralToken,
   type SelectToken,
+  formatHashCount,
 } from "./cache";
 import { advancePastApostrophe, findMatchingBraceEnd, hasSyntaxChars } from "./parser";
 import { setIcuHit, type IcuSyntaxError } from "./compile-simple";
@@ -341,7 +342,8 @@ function processPlural(
     selected = choices[category] ?? choices.other ?? "";
   }
 
-  const replacement = String(count);
+  // ICU: `#` is the count formatted for the locale, not its raw digits.
+  const replacement = formatHashCount(ctx.locale, count);
 
   if (hasSyntaxChars(selected)) {
     // The branch goes to the parser UNCHANGED, so its cache entry is shared by
