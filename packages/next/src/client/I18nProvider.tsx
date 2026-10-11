@@ -92,14 +92,14 @@ function applyLocale(i18n: import("@comvi/core").WrapperI18nInstance, locale: st
  *
  * @example
  * ```tsx
- * // app/[locale]/I18nClientProvider.tsx
+ * // app/[locale]/ComviProvider.tsx
  * "use client";
  *
  * import { I18nProvider } from '@comvi/next/client';
  * import type { MessagesMap } from '@comvi/next/client';
  * import { i18n } from '@/i18n/config';
  *
- * export function I18nClientProvider({
+ * export function ComviProvider({
  *   children,
  *   locale,
  *   messages,
@@ -119,7 +119,7 @@ function applyLocale(i18n: import("@comvi/core").WrapperI18nInstance, locale: st
  * @example
  * ```tsx
  * // app/[locale]/layout.tsx — a Server Component; no i18n import here
- * import { I18nClientProvider } from './I18nClientProvider';
+ * import { ComviProvider } from './ComviProvider';
  *
  * export default async function LocaleLayout({
  *   children,
@@ -133,7 +133,7 @@ function applyLocale(i18n: import("@comvi/core").WrapperI18nInstance, locale: st
  *   return (
  *     <html lang={locale}>
  *       <body>
- *         <I18nClientProvider locale={locale}>{children}</I18nClientProvider>
+ *         <ComviProvider locale={locale}>{children}</ComviProvider>
  *       </body>
  *     </html>
  *   );
