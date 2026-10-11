@@ -1,0 +1,27 @@
+{
+  "name": "eval-scan",
+  "private": true,
+  "dependencies": {
+    "@tolgee/web": "latest",
+    "@tolgee/format-icu": "latest",
+    "@lingui/core": "latest",
+    "typesafe-i18n": "latest",
+    "react-intl": "latest",
+    "@formatjs/intl": "latest",
+    "i18n-js": "latest",
+    "node-polyglot": "latest",
+    "intlayer": "latest",
+    "@inlang/paraglide-js": "latest",
+    "svelte-i18n": "latest",
+    "@solid-primitives/i18n": "latest",
+    "@nuxtjs/i18n": "latest",
+    "vue-i18n": "9.14.5",
+    "@intlify/core-base": "9.14.5",
+    "messageformat": "latest",
+    "@messageformat/core": "latest",
+    "i18next-icu": "latest",
+    "globalize": "latest",
+    "jed": "latest",
+    "ttag": "latest"
+  }
+}
