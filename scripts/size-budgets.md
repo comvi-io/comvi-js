@@ -118,13 +118,25 @@ warning names the remedy in full.
 
 ## How to re-baseline
 
+A baseline belongs to its row, not to the file. `baseline.measuredAt` dates the sweep that row's
+figures came from, and rows in the file may carry different dates: a new row is baselined from the
+sweep that introduces it, a row whose graph changed is re-baselined from the sweep of that change,
+and every other row keeps its dated baseline until its own re-baseline. That is how the editor
+loader (only the rows that compose `devtools()`), the Next discovery change (one row) and the two
+`devtools()` rows of 2026-10-12 were recorded; the `#` change re-baselined every row because the
+earlier baselines had all drifted. What is never mixed is one row's own figures, or one stated
+difference: `minBytes` and `gzipBytes` of a row come from the same run, and a delta between two
+rows is quoted from one sweep (or says which recorded baselines it subtracts).
+
 1. Build the dists the gate reads: `pnpm build`.
-2. Run **one** `node scripts/size-check.mjs`. That single run is authoritative — never mix figures
-   from separate runs into one file.
-3. For each row, set `baseline.{minBytes,gzipBytes}` to that run's numbers, `baseline.measuredAt` to
-   the date, and `gzipBudgetBytes` to `ceil(gzipBytes * 1.05)`.
+2. Run **one** `node scripts/size-check.mjs`. Every figure this change writes comes from that
+   single run.
+3. For each row you re-baseline, set `baseline.{minBytes,gzipBytes}` to that run's numbers,
+   `baseline.measuredAt` to the date, and `gzipBudgetBytes` to `ceil(gzipBytes * 1.05)`. Leave the
+   rows this change does not move as they are.
 4. Re-run `node scripts/size-check.mjs` and confirm every row is green.
-5. Say in the commit/handoff **which** sweep the file now records.
+5. Say in the commit/handoff **which** rows were re-baselined, from which sweep, and add a dated
+   section below.
 
 Re-baselining is not a way to pass a failing gate. A row that grew past +5 % is a finding: explain
 the bytes first, then decide whether they ship.

@@ -20,7 +20,11 @@ network); the API key stays in the extension.
   `globalThis[Symbol.for("comvi.devtools.editorLoader")]`: a slot `{ protocol, sdkVersion,
 editorVersion, url, load() }` (`contracts/chrome-extension-proxy.json`, `editorLoader`). A base
   instance installs nothing; an app that never calls `devtools()` is invisible to the extension and
-  carries none of this code.
+  carries none of this code. Two things compose `devtools()` on the app's behalf and so install
+  the loader without that call: the `<script>` global build of `@comvi/core` (`ComviCore.I18n`,
+  `ComviCore.createI18n`; `core/full.ts`), unless it is given `exposeGlobal: false`, and
+  `inContextEditor()` in a development build. Neither has an `editorVersion`; both load `latest`.
+  Every ESM entry, the bindings' `createI18n` included, builds the base instance.
 - **The extension calls `load()`, and nothing else.** The detector reads the slot, and on **Enable
   editor** calls `load()` under `try`/`catch` with its own 12 s budget above the hook's 10 s. It
   never reads `url` to load it and never creates a script element. The site's SDK inserts one
@@ -53,8 +57,8 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   own; `.use(devtools())` on the `createNextI18n` result is the one line a Next app adds.
 - **Bytes move from the extension to the site.** `devtools()` costs about 1.2 kB min+gz over the
   base instance, of which about 0.7 kB is the loader, new in 0.5.1, and the rest the discovery
-  that 0.5.0 already shipped (`scripts/size-budgets.md`, 2026-10-11 and 2026-10-12). An app that
-  does not call `devtools()` carries none of it. The extension's `dist/` carries no editor and its
+  that 0.5.0 already shipped (`scripts/size-budgets.md`, 2026-10-11 and 2026-10-12). An ESM app
+  that does not call `devtools()` carries none of it; the global build carries it always. The extension's `dist/` carries no editor and its
   artifact test fails if one appears.
 
   | Row (`scripts/size-budgets.json`)         | min+gz |
