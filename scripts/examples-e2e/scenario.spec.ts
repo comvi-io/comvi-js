@@ -394,6 +394,22 @@ test("a: the initial render shows real text, never a raw key", async ({ page }) 
   expect(rawKeysIn(text), "raw keys in the rendered page").toEqual([]);
 });
 
+test("a2: the instance is published on window.__COMVI__", async ({ page }) => {
+  await open(page);
+  await ready(page);
+  // The queue the browser extension reads: `devtools()` pushes `{ v, i }`, `i`
+  // being the live instance. An example that does not compose it leaves it empty.
+  const published = await page.evaluate(() => {
+    const queue = (window as unknown as { __COMVI__?: unknown }).__COMVI__;
+    const entries = Array.isArray(queue) ? (queue as Array<{ i?: { instanceId?: unknown } }>) : [];
+    return entries.map((entry) => ({
+      instanceId: typeof entry.i?.instanceId === "string" ? entry.i.instanceId : null,
+    }));
+  });
+  expect(published, "instances on window.__COMVI__").toHaveLength(1);
+  expect(published[0].instanceId, "the published instance's id").toMatch(/^comvi-\d+$/);
+});
+
 test("b: the switcher changes en → uk → de", async ({ page }) => {
   await open(page);
   await expect(page.getByTestId("locale-en")).toHaveAttribute("aria-pressed", "true");

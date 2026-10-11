@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import { createI18n, icuCompiler, loader } from "@comvi/svelte";
+import { createI18n, devtools, icuCompiler, loader } from "@comvi/svelte";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
@@ -56,4 +56,6 @@ export const i18n = createI18n({
       caches: ["localStorage"],
       fallbackLocale: "en",
     }),
-  );
+  )
+  // Makes the instance visible to the Comvi browser extension.
+  .use(devtools());

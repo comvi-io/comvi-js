@@ -1,4 +1,4 @@
-import { createI18n, defineComviI18n, icuCompiler, loader } from "@comvi/nuxt/i18n";
+import { createI18n, defineComviI18n, devtools, icuCompiler, loader } from "@comvi/nuxt/i18n";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { useRuntimeConfig } from "#imports";
 import { reportMissingKey } from "./composables/missingKeys";
@@ -25,15 +25,20 @@ export default defineComviI18n((options) => {
   const cdnUrl = useRuntimeConfig().public.comviCdnUrl as string;
   const catalogs = cdnUrl ? cdnLoader({ cdnUrl, fallback: localCatalogs }) : loader(localCatalogs);
 
-  return createI18n({
-    ...options,
-    // ICU is opt-in: without it `{count, plural, …}` is plain text.
-    compiler: icuCompiler,
-    // t() never throws: a missing key is reported here. The report arrives while
-    // a component renders, so the counter updates after the render has finished,
-    // and only in the browser, where the count is shown.
-    onMissingKey: ({ key }) => {
-      if (import.meta.client) queueMicrotask(() => reportMissingKey(key));
-    },
-  }).use(catalogs);
+  return (
+    createI18n({
+      ...options,
+      // ICU is opt-in: without it `{count, plural, …}` is plain text.
+      compiler: icuCompiler,
+      // t() never throws: a missing key is reported here. The report arrives while
+      // a component renders, so the counter updates after the render has finished,
+      // and only in the browser, where the count is shown.
+      onMissingKey: ({ key }) => {
+        if (import.meta.client) queueMicrotask(() => reportMissingKey(key));
+      },
+    })
+      .use(catalogs)
+      // Makes the instance visible to the Comvi browser extension.
+      .use(devtools())
+  );
 });

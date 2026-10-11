@@ -203,13 +203,24 @@ export function _resetMissingParamWarnings(): void {
 /**
  * Literal rendering of a missing (absent or `undefined`) parameter under
  * `missingParam: "literal"`; warns once per (template, param) pair in dev.
+ *
+ * A function-valued parameter renders the same way but was not forgotten — an
+ * uncalled getter, or a tag handler under a placeholder — so the warning says
+ * that. The value is read back from `ctx` inside the development branch, which
+ * keeps the distinction out of the production build entirely.
  */
 function missingParamText(name: string, ctx: TranslateCtx): string {
   if (IS_DEV && missingParamWarned !== undefined) {
     const dedupKey = ctx.template + "\u0000" + name;
     if (!missingParamWarned.has(dedupKey)) {
       missingParamWarned.add(dedupKey);
-      warn(`[@comvi/core] Missing parameter "${name}" for template "${ctx.template}"`);
+      const value = ctx.params[name];
+      warn(
+        // An inherited member (`{constructor}`) is a function nobody passed.
+        typeof value === "function" && value !== (Object.prototype as Record<string, unknown>)[name]
+          ? `[@comvi/core] Parameter "${name}" for template "${ctx.template}" is a function, and a placeholder renders text. Call it and pass the result, or write <${name}>…</${name}> to use it as a tag handler.`
+          : `[@comvi/core] Missing parameter "${name}" for template "${ctx.template}"`,
+      );
     }
   }
   return "{" + name + "}";
@@ -423,16 +434,26 @@ function appendString(parts: Array<string | VirtualNode>, str: string): void {
   }
 }
 
-/** Missing (`undefined`) params follow `ctx.missingParam`; `null` always erases. */
+/**
+ * Missing (`undefined`) params follow `ctx.missingParam`; `null` always erases.
+ * A function is a tag handler, never text, so it follows `ctx.missingParam` too.
+ */
 function appendParamValue(
   parts: Array<string | VirtualNode>,
   value: unknown,
   name: string,
   ctx: TranslateCtx,
 ): void {
-  // The second test is the own-property check: `{constructor}` or `{valueOf}`
-  // in a message must not resolve to what every object inherits.
-  if (value === undefined || value === (Object.prototype as Record<string, unknown>)[name]) {
+  // A function under a placeholder is a handler meant for `<name>…</name>`
+  // (`<T components>` passes each one as the parameter of that name); coercing
+  // it would put its source code on the page. The last test is the
+  // own-property check: `{constructor}` or `{valueOf}` in a message must not
+  // resolve to what every object inherits.
+  if (
+    value === undefined ||
+    typeof value === "function" ||
+    value === (Object.prototype as Record<string, unknown>)[name]
+  ) {
     if (ctx.missingParam === "literal") {
       appendString(parts, missingParamText(name, ctx));
     }

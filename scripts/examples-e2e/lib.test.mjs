@@ -558,7 +558,7 @@ test("renderTable: a row per framework; failures and skip reasons listed once pe
   const afterF = STEPS.length - STEPS.indexOf("f") - 1;
   assert.match(
     lines[2],
-    new RegExp(`^react\\s+ok\\s+ok\\s+ok\\s+ok\\s+ok\\s+ok\\s+skip(\\s+ok){${afterF}}$`),
+    new RegExp(`^react\\s+ok\\s+ok\\s+ok\\s+ok\\s+ok\\s+ok\\s+ok\\s+skip(\\s+ok){${afterF}}$`),
   );
   assert.match(lines[3], new RegExp(`^nuxt\\s+ok(\\s+FAIL){${STEPS.length}}$`));
   assert.match(lines[4], new RegExp(`^vue\\s+FAIL(\\s+·){${STEPS.length}}$`));

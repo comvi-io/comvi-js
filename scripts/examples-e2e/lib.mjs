@@ -21,6 +21,7 @@ import { packedManifest } from "./candidate-registry.mjs";
  */
 export const STEPS = [
   "a",
+  "a2",
   "b",
   "c",
   "d",
@@ -64,6 +65,7 @@ export const CDN_CONTROL_STEPS = ["t", "t2", "u", "v", "v2"];
 /** What each step asserts, printed under the table so a column id is never a riddle. */
 export const STEP_LEGEND = {
   a: "initial render shows real text, no raw keys",
+  a2: "the instance is published on window.__COMVI__, where the browser extension finds it",
   b: "switcher en → uk → de changes the greeting",
   c: "plural 0/1/2/5 in en, uk (one/few/many) and de",
   d: "<T> renders a real <a href> with translated text",
