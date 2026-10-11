@@ -1,8 +1,7 @@
 # The site loads the in-context editor; the browser extension only asks
 
-Status: accepted · Date: 2026-10-11 · Owner decision(s): COM-140 (`@latest` by default with an
-hourly cache salt, the hook's 10 s timeout inside the popup's budget, the CDN global always
-`@latest`), 11.10.2026
+Status: accepted · Date: 2026-10-11 · Owner decision(s): COM-140 — `@latest` by default with an
+hourly salt, a 10 s hook timeout, the CDN global always `@latest`, 11.10.2026
 
 ## Context
 
@@ -51,13 +50,15 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   entry is empty, so a site that gated `devtools()` with it was invisible to the extension exactly
   where the extension is the only way to edit. `@comvi/next` no longer composes discovery on its
   own; `.use(devtools())` on the `createNextI18n` result is the one line a Next app adds.
-- **Bytes move from the extension to the site.** `devtools()` costs about 1.2 kB min+gz on the rows
-  that compose it (about 0.7 kB of that is the loader; `scripts/size-budgets.md`, 2026-10-11) and
-  nothing on any other row. The extension's `dist/` carries no editor and its artifact test fails
+- **Bytes move from the extension to the site.** `devtools()` costs about 0.7 kB min+gz for the loader
+  on every row that composes it (`scripts/size-budgets.md`, 2026-10-11) and nothing on any other
+  row. The extension's `dist/` carries no editor and its artifact test fails
   if one appears.
 - **A site with a Content Security Policy must allow `https://cdn.jsdelivr.net` in `script-src`**,
-  and a Trusted Types policy must permit that URL. No `style-src` change: the editor applies its
-  styles through a constructable stylesheet adopted by its shadow root.
+  and a Trusted Types policy must permit that URL. No `style-src` change where the browser supports
+  it: the editor applies its styles through a constructable stylesheet adopted by its shadow root,
+  and falls back to an inline `<style>` element where `adoptedStyleSheets` is missing or the sheet
+  is not adopted (`shadowDom.ts`).
 - **Release order is fixed.** Extension 0.5.1 cannot start the editor on a site whose SDK is older
   than 0.5.1, and it loads whatever jsDelivr serves as `latest`, so the npm packages publish first,
   jsDelivr's `latest` is checked to serve the new version, and the store submission follows.
@@ -91,8 +92,8 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   calls is one function with one result shape, read field by field, and the detector already runs
   in that world.
 - **The extension creating the `<script>` from the slot's `url`** — then the extension loads a URL
-  the page named, which is remote code under the extension's own identity and the thing Manifest
-  V3 forbids. The site inserting its own script is first-party code on the page.
+  the page named: remote code under the extension's own identity, which Manifest V3 forbids. The
+  site inserting its own script is first-party code on the page.
 
 ## Where it lives
 

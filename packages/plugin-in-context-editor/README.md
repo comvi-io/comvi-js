@@ -96,14 +96,17 @@ with no editor bytes, and `inContextEditorPlugin()` returns a no-op when `proces
 `dist/assets`, where anyone can read it and overwrite translations with it. Put the key and the
 installer behind the same condition, and never widen that condition with a flag a deployed build
 can set: a preview deployment is a production build, so the editor would not run there and the key
-would still ship. `devtools()` stays outside the condition: on a live site or a preview deployment
-a translator edits through the browser extension, and `devtools()` is what the extension needs.
+would still ship. The condition decides only whether the development plugin is installed; the
+empty `production` entry is what keeps the editor out of a build. `devtools()` stays outside the
+condition: on a live site or a preview deployment a translator edits through the browser extension,
+and `devtools()` is what the extension needs. This snippet imports `devtools` from
+`@comvi/core/devtools`; every binding re-exports it from its root.
 
 ## The browser extension
 
 On a page whose i18n instance composed `devtools()`, the Comvi browser extension loads the editor
 when a translator asks for it, and the API key stays in the extension. The site ships no editor
-code for this; `devtools()` adds about 1.2 kB min+gz to the bundle.
+code for this; `devtools()` adds the discovery protocol and a small loader.
 
 `devtools()` publishes the i18n instance to the extension and installs a loader the extension
 calls when a translator clicks **Enable editor**; the site's SDK then inserts one `<script>` from
@@ -112,8 +115,8 @@ the exact version `devtools({ editorVersion: "0.5.1" })` names. Nothing is reque
 CDN before that click, and an app that does not call `devtools()` is invisible to the extension.
 This needs `@comvi/core` 0.5.1 or newer on the site and the 0.5.1 extension. If the site sends a
 Content Security Policy, `script-src` must allow `https://cdn.jsdelivr.net`, and a Trusted Types
-policy must permit that URL; `style-src` needs no change, because the editor styles itself through
-a constructable stylesheet.
+policy must permit that URL; `style-src` needs no change in current browsers, because the editor
+adopts a constructable stylesheet.
 
 ## Options
 

@@ -2,7 +2,7 @@
 
 Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 next single-entry convergence and
 the server request contract; `createNextI18n` stops defaulting the compiler, 14.09.2026
-Amended 2026-10-12: the Edge figures below were re-measured on 0.5.1, after `createNextI18n`
+Amended 2026-10-12: the Edge figures below were re-measured once, 2026-10-12, on 0.5.1, after `createNextI18n`
 stopped composing discovery (COM-140); the earlier figure, 30.3 KB across 25 modules, was taken
 when the config module's graph still composed `@comvi/core/devtools`.
 
