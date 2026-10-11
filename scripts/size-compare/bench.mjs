@@ -1,7 +1,9 @@
 // ICU runtime micro-benchmark on PUBLISHED packages, Node, production mode.
 // Run as: NODE_ENV=production node bench.mjs   (the script refuses to run otherwise)
 //
-// Scenarios, each on the same message text for every library that speaks ICU:
+// Scenarios, each on the same message text for every library:
+//   warm, static key    t("key") on a message with no parameters; the most common call in a UI.
+//   warm, one parameter t("key", { name }) on "Hello, {name}!" ("{{name}}" in i18next's own syntax).
 //   warm, equal work   the count is passed pre-formatted as {n}; both branches interpolate it, so every
 //                      library does the same job (plural selection + interpolation). Comvi's `#` is
 //                      inserted as plain digits while intl-messageformat localizes it, so a `#` message
@@ -130,6 +132,94 @@ console.log(`\n## warm, equal work: same key ${N_WARM} times, count pre-formatte
     (i) => v.global.t("m", { n: String(i & 3), name: "cart" }, i & 3),
     N_WARM,
   );
+}
+
+console.log(`\n## warm, static key: same key ${N_WARM} times, message "Saved" with no parameters`);
+{
+  const i18n = createI18n({ locale: "en", messages: { en: { s: "Saved", g: "Hello, {name}!" } } });
+  expect("comvi static", i18n.t("s"), "Saved");
+  bench("@comvi/core, simple compiler", () => i18n.t("s"), N_WARM);
+}
+{
+  const i18nIcu = createI18n({
+    locale: "en",
+    messages: { en: { s: "Saved", g: "Hello, {name}!" } },
+    compiler: icuCompiler,
+  });
+  expect("comvi icu static", i18nIcu.t("s"), "Saved");
+  bench("@comvi/core + icuCompiler", () => i18nIcu.t("s"), N_WARM);
+}
+{
+  const mf = new IntlMessageFormat("Saved", "en");
+  expect("imf static", mf.format(), "Saved");
+  bench("intl-messageformat (instance reused)", () => mf.format(), N_WARM);
+}
+{
+  const inst = i18next.createInstance();
+  await inst.init({
+    lng: "en",
+    resources: { en: { translation: { s: "Saved", g: "Hello, {{name}}!" } } },
+  });
+  expect("i18next static", inst.t("s"), "Saved");
+  bench("i18next (no plugins)", () => inst.t("s"), N_WARM);
+}
+{
+  const t = createTranslator({ locale: "en", messages: { s: "Saved", g: "Hello, {name}!" } });
+  expect("use-intl static", t("s"), "Saved");
+  bench("use-intl/core createTranslator", () => t("s"), N_WARM);
+}
+{
+  const v = createVueI18n({
+    legacy: false,
+    locale: "en",
+    messages: { en: { s: "Saved", g: "Hello, {name}!" } },
+  });
+  expect("vue-i18n static", v.global.t("s"), "Saved");
+  bench("vue-i18n", () => v.global.t("s"), N_WARM);
+}
+
+console.log(
+  `\n## warm, one parameter: same key ${N_WARM} times, "Hello, {name}!" with a changing name`,
+);
+const NAMES = ["Ann", "Bo", "Cy", "Di"];
+{
+  const i18n = createI18n({ locale: "en", messages: { en: { g: "Hello, {name}!" } } });
+  expect("comvi param", i18n.t("g", { name: "Ann" }), "Hello, Ann!");
+  bench("@comvi/core, simple compiler", (i) => i18n.t("g", { name: NAMES[i & 3] }), N_WARM);
+}
+{
+  const i18nIcu = createI18n({
+    locale: "en",
+    messages: { en: { g: "Hello, {name}!" } },
+    compiler: icuCompiler,
+  });
+  expect("comvi icu param", i18nIcu.t("g", { name: "Ann" }), "Hello, Ann!");
+  bench("@comvi/core + icuCompiler", (i) => i18nIcu.t("g", { name: NAMES[i & 3] }), N_WARM);
+}
+{
+  const mf = new IntlMessageFormat("Hello, {name}!", "en");
+  expect("imf param", mf.format({ name: "Ann" }), "Hello, Ann!");
+  bench("intl-messageformat (instance reused)", (i) => mf.format({ name: NAMES[i & 3] }), N_WARM);
+}
+{
+  const inst = i18next.createInstance();
+  await inst.init({ lng: "en", resources: { en: { translation: { g: "Hello, {{name}}!" } } } });
+  expect("i18next param", inst.t("g", { name: "Ann" }), "Hello, Ann!");
+  bench("i18next (no plugins), {{name}}", (i) => inst.t("g", { name: NAMES[i & 3] }), N_WARM);
+}
+{
+  const t = createTranslator({ locale: "en", messages: { g: "Hello, {name}!" } });
+  expect("use-intl param", t("g", { name: "Ann" }), "Hello, Ann!");
+  bench("use-intl/core createTranslator", (i) => t("g", { name: NAMES[i & 3] }), N_WARM);
+}
+{
+  const v = createVueI18n({
+    legacy: false,
+    locale: "en",
+    messages: { en: { g: "Hello, {name}!" } },
+  });
+  expect("vue-i18n param", v.global.t("g", { name: "Ann" }), "Hello, Ann!");
+  bench("vue-i18n, {name}", (i) => v.global.t("g", { name: NAMES[i & 3] }), N_WARM);
 }
 
 console.log(

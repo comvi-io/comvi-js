@@ -85,7 +85,12 @@ retain exports rather than call `t()`); the ICU Nuxt app's message has two param
 takes its production branch), the same message text for every library that speaks ICU, 7 rounds,
 median reported, run three times. Four scenarios:
 
-- **warm, same output** (the row the pages cite): the `#` message on the libraries that localize
+- **warm, static key**: `t("key")` on a message with no parameters, the most common call in a UI;
+  the `intl-messageformat` row is a reused formatter instance with no key lookup, so it is a floor
+  for the formatting step, not a library figure.
+- **warm, one parameter**: `t("key", { name })` on `Hello, {name}!` (`{{name}}` in i18next's own
+  syntax), the second most common call.
+- **warm, same output** (the row the pages cite for plurals): the `#` message on the libraries that localize
   `#` (`{count, plural, one {# item} other {# items}} in {name}`), and on the Comvi side the count
   formatted with Comvi's own `formatNumber()` (Intl.NumberFormat, cached) and passed as `{n}`.
   Every library produces the same localized string, `1,234 items in cart`, checked by assertion, so
@@ -111,8 +116,10 @@ median reported, run three times. Four scenarios:
   not an ICU implementation.
 
 Micro-benchmarks of a formatter that takes under a microsecond per call do not decide a UI; a
-page formats hundreds of strings, not millions. The catalog row is the one closest to what a user
-sees.
+page formats hundreds of strings, not millions, and on the client the difference is invisible. Where
+it shows is server-side rendering and edge functions, which pay the per-call cost on every request
+for every string on the page, and cold starts that create an instance and parse a catalog per
+request or per isolate, which is the catalog row.
 
 ## Results
 
@@ -161,28 +168,41 @@ because the page states this harness as its method; both numbers are recorded he
 
 Apple M1 Max, darwin arm64, Node v24.19.0, `NODE_ENV=production`. Warm rows in million calls per
 second, catalog rows in thousand messages per second (5,000 distinct messages, parse plus format,
-one instance). The pages cite the median of the three runs for the same-output and catalog rows.
+one instance). The pages cite the median of the three runs for the static-key, one-parameter, same-output and
+catalog rows; every run in this table comes from the same three invocations of `bench.mjs`.
 
 | Scenario                         | Library                                                            | run 1 | run 2 | run 3 |           median |
 | -------------------------------- | ------------------------------------------------------------------ | ----: | ----: | ----: | ---------------: |
-| warm, same output                | `@comvi/core` + `icuCompiler`, `formatNumber()` into `{n}`         |  0.93 |  0.91 |  0.99 |     **0.93 M/s** |
-| warm, same output                | `intl-messageformat`, instance reused, `#`                         |  0.63 |  0.55 |  0.63 |     **0.63 M/s** |
-| warm, same output                | `i18next` + `i18next-icu`, `#`                                     |  0.25 |  0.23 |  0.25 |     **0.25 M/s** |
-| warm, same output                | `use-intl/core` translator, `#`                                    |  0.21 |  0.21 |  0.21 |     **0.21 M/s** |
-| warm, same output                | `vue-i18n`, pipe plural, `n(x, "decimal")` into `{n}`              |  0.17 |  0.17 |  0.17 |     **0.17 M/s** |
-| warm, equal work (pre-formatted) | `@comvi/core` + `icuCompiler`                                      |  1.52 |  1.53 |  1.48 |         1.52 M/s |
-| warm, equal work (pre-formatted) | `intl-messageformat`, instance reused                              |  0.95 |  0.93 |  0.95 |         0.95 M/s |
-| warm, equal work (pre-formatted) | `i18next` + `i18next-icu`                                          |  0.30 |  0.29 |  0.30 |         0.30 M/s |
-| warm, equal work (pre-formatted) | `use-intl/core` translator                                         |  0.25 |  0.24 |  0.25 |         0.25 M/s |
-| warm, equal work (pre-formatted) | `vue-i18n`, pipe plural                                            |  0.23 |  0.22 |  0.23 |         0.23 M/s |
-| warm, default `#` (unequal work) | `@comvi/core` + `icuCompiler`                                      |  1.66 |  1.65 |  1.62 |         1.65 M/s |
-| warm, default `#` (unequal work) | `intl-messageformat`, instance reused                              |  0.65 |  0.65 |  0.64 |         0.65 M/s |
-| catalog                          | `@comvi/core` + `icuCompiler`                                      | 254.2 | 278.6 | 262.4 | **262 K msgs/s** |
-| catalog                          | `intl-messageformat`, new instance per message, shared formatters  |  99.8 |  99.0 |  92.0 |  **99 K msgs/s** |
-| catalog                          | `intl-messageformat`, new instance per message, default formatters |  50.8 |  50.6 |  48.8 |      51 K msgs/s |
-| catalog                          | `i18next` + `i18next-icu`, one instance                            |  38.0 |  36.9 |  37.3 |  **37 K msgs/s** |
-| catalog                          | `use-intl/core`, one translator                                    |  57.1 |  56.0 |  57.3 |  **57 K msgs/s** |
-| catalog                          | `vue-i18n`, one instance, pipe plural                              |  44.7 |  44.3 |  43.0 |  **44 K msgs/s** |
+| warm, static key                 | `@comvi/core`, simple compiler                                     | 23.39 | 23.50 | 22.84 |     **23.4 M/s** |
+| warm, static key                 | `@comvi/core` + `icuCompiler`                                      | 19.75 | 20.01 | 19.66 |     **19.8 M/s** |
+| warm, static key                 | `intl-messageformat`, instance reused (a formatter, no key lookup) | 44.25 | 50.25 | 41.61 |         44.3 M/s |
+| warm, static key                 | `i18next`, no plugins                                              |  0.64 |  0.64 |  0.54 |     **0.64 M/s** |
+| warm, static key                 | `use-intl/core` translator                                         |  7.12 |  6.95 |  6.71 |     **6.95 M/s** |
+| warm, static key                 | `vue-i18n`                                                         |  0.27 |  0.28 |  0.27 |     **0.27 M/s** |
+| warm, one parameter              | `@comvi/core`, simple compiler                                     |  6.49 |  6.18 |  6.09 |     **6.18 M/s** |
+| warm, one parameter              | `@comvi/core` + `icuCompiler`                                      |  6.51 |  5.65 |  6.30 |     **6.30 M/s** |
+| warm, one parameter              | `intl-messageformat`, instance reused                              |  5.38 |  5.42 |  5.43 |         5.42 M/s |
+| warm, one parameter              | `i18next`, no plugins, `{{name}}`                                  |  0.49 |  0.49 |  0.51 |     **0.49 M/s** |
+| warm, one parameter              | `use-intl/core` translator                                         |  0.32 |  0.32 |  0.32 |     **0.32 M/s** |
+| warm, one parameter              | `vue-i18n`, `{name}`                                               |  0.25 |  0.25 |  0.25 |     **0.25 M/s** |
+| warm, same output                | `@comvi/core` + `icuCompiler`, `formatNumber()` into `{n}`         |  0.90 |  0.93 |  0.89 |     **0.90 M/s** |
+| warm, same output                | `intl-messageformat`, instance reused, `#`                         |  0.56 |  0.58 |  0.58 |     **0.58 M/s** |
+| warm, same output                | `i18next` + `i18next-icu`, `#`                                     |  0.23 |  0.23 |  0.23 |     **0.23 M/s** |
+| warm, same output                | `use-intl/core` translator, `#`                                    |  0.20 |  0.21 |  0.21 |     **0.21 M/s** |
+| warm, same output                | `vue-i18n`, pipe plural, `n(x, "decimal")` into `{n}`              |  0.16 |  0.14 |  0.16 |     **0.16 M/s** |
+| warm, equal work (pre-formatted) | `@comvi/core` + `icuCompiler`                                      |  1.41 |  1.49 |  1.46 |         1.46 M/s |
+| warm, equal work (pre-formatted) | `intl-messageformat`, instance reused                              |  0.89 |  0.91 |  0.88 |         0.89 M/s |
+| warm, equal work (pre-formatted) | `i18next` + `i18next-icu`                                          |  0.28 |  0.29 |  0.28 |         0.28 M/s |
+| warm, equal work (pre-formatted) | `use-intl/core` translator                                         |  0.22 |  0.23 |  0.23 |         0.23 M/s |
+| warm, equal work (pre-formatted) | `vue-i18n`, pipe plural                                            |  0.22 |  0.22 |  0.20 |         0.22 M/s |
+| warm, default `#` (unequal work) | `@comvi/core` + `icuCompiler`                                      |  1.52 |  1.39 |  1.58 |         1.52 M/s |
+| warm, default `#` (unequal work) | `intl-messageformat`, instance reused                              |  0.58 |  0.51 |  0.61 |         0.58 M/s |
+| catalog                          | `@comvi/core` + `icuCompiler`                                      | 239.2 | 256.9 | 240.1 | **240 K msgs/s** |
+| catalog                          | `intl-messageformat`, new instance per message, shared formatters  |  87.1 |  90.8 |  97.0 |  **91 K msgs/s** |
+| catalog                          | `intl-messageformat`, new instance per message, default formatters |  45.3 |  44.5 |  49.3 |      45 K msgs/s |
+| catalog                          | `i18next` + `i18next-icu`, one instance                            |  32.7 |  32.6 |  36.1 |  **33 K msgs/s** |
+| catalog                          | `use-intl/core`, one translator                                    |  53.3 |  40.4 |  54.6 |  **53 K msgs/s** |
+| catalog                          | `vue-i18n`, one instance, pipe plural                              |  41.1 |  42.1 |  43.6 |  **42 K msgs/s** |
 
 The exact console output of each run is in `bench-2026-10-11-run1.txt`, `-run2.txt` and
 `-run3.txt`. An earlier version of this benchmark (2026-10-10) used a `#` message for every library
