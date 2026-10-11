@@ -71,7 +71,7 @@ describe("t() with ICU plural", () => {
     });
 
     it("should handle 'other' category (fractions in UK)", () => {
-      expect(i18n.t("days", { count: 1.5 })).toBe("1.5 дня");
+      expect(i18n.t("days", { count: 1.5 })).toBe("1,5 дня");
     });
   });
 
@@ -201,5 +201,74 @@ describe("t() with ICU plural", () => {
 
       expect(i18n.t("msg", { files: 3, folders: 5, gender: "x" })).toBe("5 folders and 3 files");
     });
+  });
+});
+
+describe("`#` is formatted for the locale (ICU MessageFormat semantics)", () => {
+  const nf = (locale: string, n: number) => new Intl.NumberFormat(locale).format(n);
+
+  it("groups digits the way the message locale does", () => {
+    const en = new I18n({ locale: "en" });
+    en.addMessages({ en: { items: "{count, plural, one {# item} other {# items}}" } });
+    expect(en.t("items", { count: 1234 })).toBe("1,234 items");
+    expect(en.t("items", { count: 1234567 })).toBe("1,234,567 items");
+    expect(en.t("items", { count: 12 })).toBe("12 items");
+
+    const de = new I18n({ locale: "de" });
+    de.addMessages({ de: { items: "{count, plural, one {# Artikel} other {# Artikel}}" } });
+    expect(de.t("items", { count: 1234 })).toBe("1.234 Artikel");
+
+    const uk = new I18n({ locale: "uk" });
+    uk.addMessages({
+      uk: {
+        items: "{count, plural, one {# товар} few {# товари} many {# товарів} other {# товару}}",
+      },
+    });
+    expect(uk.t("items", { count: 1234 })).toBe(`${nf("uk", 1234)} товари`);
+  });
+
+  it("formats a fractional count and keeps exact-match selectors on the number", () => {
+    const en = new I18n({ locale: "en" });
+    en.addMessages({
+      en: {
+        items: "{count, plural, =1000 {exactly a thousand} other {# items}}",
+        km: "{count, plural, one {# kilometer} other {# kilometers}}",
+      },
+    });
+    expect(en.t("items", { count: 1000 })).toBe("exactly a thousand");
+    expect(en.t("items", { count: 1001 })).toBe("1,001 items");
+    expect(en.t("km", { count: 1234.5 })).toBe("1,234.5 kilometers");
+  });
+
+  it("applies to `#` inside a branch that is re-parsed, and to selectordinal", () => {
+    const en = new I18n({ locale: "en" });
+    en.addMessages({
+      en: {
+        inbox: "{count, plural, one {# message for {name}} other {# messages for {name}}}",
+        place: "{n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      },
+    });
+    expect(en.t("inbox", { count: 2500, name: "Ann" })).toBe("2,500 messages for Ann");
+    expect(en.t("place", { n: 1001 })).toBe("1,001st");
+  });
+
+  it("leaves `{count}` as the raw value and a quoted '#' as a literal", () => {
+    const en = new I18n({ locale: "en" });
+    en.addMessages({
+      en: {
+        raw: "{count, plural, other {{count} items}}",
+        literal: "{count, plural, other {'#' is # }}",
+      },
+    });
+    expect(en.t("raw", { count: 1234 })).toBe("1234 items");
+    expect(en.t("literal", { count: 1234 })).toBe("# is 1,234 ");
+  });
+
+  it("falls back to the runtime default locale for an invalid locale tag", () => {
+    const odd = new I18n({ locale: "not a locale" });
+    odd.addMessages({ "not a locale": { items: "{count, plural, other {# items}}" } });
+    expect(odd.t("items", { count: 1234 })).toBe(
+      `${new Intl.NumberFormat(undefined).format(1234)} items`,
+    );
   });
 });
