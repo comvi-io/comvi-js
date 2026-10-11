@@ -191,14 +191,14 @@ measures the Next root with `.use(devtools())`.
 The devtools capability now installs the page-level editor loader the browser extension calls
 (`contracts/chrome-extension-proxy.json`, `editorLoader`): the slot, the version check, the hourly
 cache salt, one `<script>` with a 10 s timeout, and the four failure codes including the CSP
-listener. It costs about 710 B min+gz (1,560 B minified) on every row whose graph composes
-devtools, and no code on any other row. Measured on one machine against `develop` @ 4fc9b984, per
-row: `core-full-composite` 9600 → 10308 B (+708), `fw-react-full-composite` 12542 → 13248 (+706),
-`fw-solid-full-composite` 11921 → 12629 (+708), `fw-svelte-full-composite` 12630 → 13336 (+706),
-`fw-vue-full-composite` 12578 → 13298 (+720), `fw-nuxt-full-composite` 13500 → 14215 (+715),
-`fw-nuxt-i18n` 8671 → 9397 (+726).
+listener. It costs about 720 B min+gz (1,600 B minified) on every row whose graph composes
+devtools, and no code on any other row. Measured on one machine against `develop` @ bf88d7dd, per
+row: `core-full-composite` 9600 → 10319 B (+719), `fw-react-full-composite` 12542 → 13260 (+718),
+`fw-solid-full-composite` 11921 → 12640 (+719), `fw-svelte-full-composite` 12630 → 13349 (+719),
+`fw-vue-full-composite` 12578 → 13308 (+730), `fw-nuxt-full-composite` 13500 → 14228 (+728),
+`fw-nuxt-i18n` 8671 → 9411 (+740).
 
-On the previous budgets those seven rows are 55–309 B over, so they were re-baselined to the figures
+On the previous budgets those seven rows are 68–323 B over, so they were re-baselined to the figures
 above; the rise is the loader (the previous baselines, recorded the same day, sit 14–18 B below the
 `develop` figures above). The other sixteen rows keep their baselines and budgets, among them
 `fw-next-root-composed`, which composes no devtools since the entry above. Their minified size is
