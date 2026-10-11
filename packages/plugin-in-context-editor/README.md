@@ -116,8 +116,8 @@ calls when a translator clicks **Enable editor**; the site's SDK then inserts on
 the exact version `devtools({ editorVersion: "0.5.1" })` names. Nothing is requested from the
 CDN before that click, and an app that does not call `devtools()` is invisible to the extension.
 Two things call it for you: `inContextEditor()` in a development build, and the `<script>` global
-build of `@comvi/core` (`ComviCore.I18n`), which always loads `latest` and leaves the loader out
-only under `exposeGlobal: false`.
+build of `@comvi/core` (`ComviCore.I18n`), which always loads `latest`; `exposeGlobal: false`
+keeps it from installing the loader, and the code stays in that file.
 This needs `@comvi/core` 0.5.1 or newer on the site and the 0.5.1 extension. If the site sends a
 Content Security Policy, `script-src` must allow `https://cdn.jsdelivr.net`; if the site enforces
 Trusted Types, only a `default` policy whose `createScriptURL` accepts that URL lets the script

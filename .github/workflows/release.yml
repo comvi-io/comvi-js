@@ -548,7 +548,10 @@ jobs:
           show() { printf '%s\n' "${1:0:2000}" | sed 's/^/jsDelivr: /'; }
           # The answer, read as JSON: accepted | throttled | pending |
           # unconfirmed. Anything jq cannot parse, or more than one JSON
-          # value, falls through to the warning.
+          # value, falls through to the warning. Accepted limit: jq keeps the
+          # LAST of duplicate keys, so `"CF":false,"CF":true` reads as true;
+          # that is malformed JSON a server does not send, and it is not
+          # coded around.
           verdict() {
             printf '%s' "$1" | jq -r '
               if type != "object" then "unconfirmed"
@@ -568,9 +571,12 @@ jobs:
               show "$body"
               answer="$(verdict "$body")"
               polls=0
-              while [ "$polls" -lt 5 ] && [ "$answer" = pending ]; do
-                id="$(printf '%s' "$body" | jq -r '.id | strings' 2>/dev/null || true)"
-                if ! [[ "$id" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then break; fi
+              # Read once, from the answer to the purge request: a status
+              # answer need not repeat the id, and cannot redirect the poll.
+              # `$(…)` drops a trailing newline before the check, harmlessly.
+              id="$(printf '%s' "$body" | jq -r '.id | strings' 2>/dev/null || true)"
+              while [ "$polls" -lt 5 ] && [ "$answer" = pending ] &&
+                [[ "$id" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; do
                 polls=$((polls + 1))
                 sleep 5
                 if body="$(curl --fail --silent --show-error --max-time 30 "https://purge.jsdelivr.net/status/$id")"; then

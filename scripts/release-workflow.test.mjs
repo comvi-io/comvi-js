@@ -545,3 +545,28 @@ test("purge pending with a 64-character id, pretty-printed → polled on its sta
   assert.equal(result.curl[1].endsWith(`https://purge.jsdelivr.net/status/${id}`), true);
   assert.match(result.stdout, /accepted the purge/);
 });
+
+test("the id comes from the first answer: status answers without one are still polled, five times, on the same URL", (t) => {
+  const result = runPurge(t, {
+    curlExits: [0],
+    bodies: ['{"id":"abc","status":"pending"}', '{"status":"pending"}'],
+  });
+
+  assert.equal(result.curl.length, 6);
+  assert.deepEqual(
+    result.curl.slice(1).map((call) => call.split(" ").at(-1)),
+    Array(5).fill("https://purge.jsdelivr.net/status/abc"),
+  );
+  assert.match(result.stdout, /^::warning title=jsDelivr purge not confirmed::/m);
+});
+
+test("a status answer that names another id does not move the poll to it", (t) => {
+  const result = runPurge(t, {
+    curlExits: [0],
+    bodies: ['{"id":"abc","status":"pending"}', '{"id":"other","status":"pending"}', PURGED],
+  });
+
+  assert.equal(result.curl.length, 3);
+  assert.equal(result.curl[2].endsWith("https://purge.jsdelivr.net/status/abc"), true);
+  assert.match(result.stdout, /accepted the purge/);
+});

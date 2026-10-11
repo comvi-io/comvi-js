@@ -22,8 +22,9 @@ editorVersion, url, load() }` (`contracts/chrome-extension-proxy.json`, `editorL
   instance installs nothing; an app that never calls `devtools()` is invisible to the extension and
   carries none of this code. Two things compose `devtools()` on the app's behalf and so install
   the loader without that call: the `<script>` global build of `@comvi/core` (`ComviCore.I18n`,
-  `ComviCore.createI18n`; `core/full.ts`), unless it is given `exposeGlobal: false`, and
-  `inContextEditor()` in a development build. Neither has an `editorVersion`; both load `latest`.
+  `ComviCore.createI18n`; `core/full.ts`), where `exposeGlobal: false` stops the install but not
+  the bytes, and `inContextEditor()` in a development build. Neither has an `editorVersion`; both
+  load `latest`.
   Every ESM entry, the bindings' `createI18n` included, builds the base instance.
 - **The extension calls `load()`, and nothing else.** The detector reads the slot, and on **Enable
   editor** calls `load()` under `try`/`catch` with its own 12 s budget above the hook's 10 s. It

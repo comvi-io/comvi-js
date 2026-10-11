@@ -367,9 +367,9 @@ try {
 // If one does, npm is already live and the notes cannot change at this commit:
 // a refusal would leave the release without a GitHub Release that no re-run
 // can create. The comments are cut instead, with a warning, and the missing
-// text is added afterwards with `gh release edit`. Which comments those are
-// is check-release-notes.mjs's decision, shared with the pack job's check: a
-// comment shown in a code block or a code span is content and stays.
+// text is added afterwards with `gh release edit`. What counts as a comment is
+// check-release-notes.mjs's decision, shared with the pack job's check: every
+// `<!--`, wherever it is, code samples included.
 for (const line of htmlCommentLines(highlights)) {
   console.log(
     `::warning file=.github/release-notes/${version}.md,line=${line},title=HTML comment cut from the release notes::` +
