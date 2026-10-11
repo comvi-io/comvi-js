@@ -12,10 +12,10 @@
         "@comvi/core/devtools"
       ],
       "fixture": "core-full-composite.ts",
-      "gzipBudgetBytes": 10062,
+      "gzipBudgetBytes": 10807,
       "baseline": {
-        "minBytes": 26796,
-        "gzipBytes": 9582,
+        "minBytes": 28333,
+        "gzipBytes": 10292,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated core ceiling: all six core subpaths recomposed with `.use(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
@@ -62,10 +62,10 @@
       "entry": ["@comvi/react"],
       "fixture": "framework/react-full-composite.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 13153,
+      "gzipBudgetBytes": 13895,
       "baseline": {
-        "minBytes": 34957,
-        "gzipBytes": 12526,
+        "minBytes": 36492,
+        "gzipBytes": 13233,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated React ceiling: every capability composed through the one `@comvi/react` specifier."
@@ -88,10 +88,10 @@
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-full-composite.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 12502,
+      "gzipBudgetBytes": 13246,
       "baseline": {
-        "minBytes": 34164,
-        "gzipBytes": 11906,
+        "minBytes": 35704,
+        "gzipBytes": 12615,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier."
@@ -114,10 +114,10 @@
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-full-composite.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 13247,
+      "gzipBudgetBytes": 13985,
       "baseline": {
-        "minBytes": 35611,
-        "gzipBytes": 12616,
+        "minBytes": 37145,
+        "gzipBytes": 13319,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
@@ -140,10 +140,10 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 13193,
+      "gzipBudgetBytes": 13941,
       "baseline": {
-        "minBytes": 37673,
-        "gzipBytes": 12564,
+        "minBytes": 39211,
+        "gzipBytes": 13277,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier."
@@ -179,10 +179,10 @@
       "entry": ["@comvi/next"],
       "fixture": "framework/next-root-composed.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 10801,
+      "gzipBudgetBytes": 11543,
       "baseline": {
-        "minBytes": 28740,
-        "gzipBytes": 10286,
+        "minBytes": 30278,
+        "gzipBytes": 10993,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(\u2026)` composed through `.use`."
@@ -253,10 +253,10 @@
         "import.meta.client": "true",
         "import.meta.dev": "false"
       },
-      "gzipBudgetBytes": 14160,
+      "gzipBudgetBytes": 14914,
       "baseline": {
-        "minBytes": 39721,
-        "gzipBytes": 13485,
+        "minBytes": 41266,
+        "gzipBytes": 14203,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."
@@ -287,10 +287,10 @@
       "name": "fw-nuxt-i18n",
       "entry": ["@comvi/nuxt/i18n"],
       "fixture": "framework/nuxt-i18n.ts",
-      "gzipBudgetBytes": 9088,
+      "gzipBudgetBytes": 9840,
       "baseline": {
-        "minBytes": 24068,
-        "gzipBytes": 8655,
+        "minBytes": 25611,
+        "gzipBytes": 9371,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated `@comvi/nuxt/i18n` subpath: the one specifier a comvi.i18n.ts names, composing ICU + loader + plugin host + devtools through the module re-export instead of four app-declared @comvi/core subpaths."

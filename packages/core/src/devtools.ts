@@ -16,13 +16,27 @@
 // discovery code, so the `instanceId` / `exposeGlobal` CONSTRUCTOR options are
 // inert on it. The composite and `@comvi/next`'s instance do read both off
 // `I18nOptions`, because they compose this capability in the constructor.
+//
+// In a browser the capability also installs the page-level editor loader the
+// Comvi browser extension calls to load the in-context editor from jsDelivr
+// (`contracts/chrome-extension-proxy.json`, `editorLoader`). Nothing is
+// requested until the extension asks. `editorVersion` pins the editor to an
+// exact version; without it the loader requests `latest`. The CDN global (the
+// UMD composite) takes no such option and always loads `latest`.
 import type { I18n } from "./core/i18n";
 import type { DevtoolsOptions } from "./core/devtools";
 import { attachDevtools } from "./core/devtools";
 
 export { attachDevtools } from "./core/devtools";
 export type { DevtoolsOptions } from "./core/devtools";
-export type { ComviQueue, ComviQueueEntry, ComviHook } from "./types";
+export type {
+  ComviQueue,
+  ComviQueueEntry,
+  ComviHook,
+  EditorLoadResult,
+  EditorLoadFailureCode,
+  EditorLoaderSlot,
+} from "./types";
 
 /**
  * Discovery as a configured `.use(…)` installer.

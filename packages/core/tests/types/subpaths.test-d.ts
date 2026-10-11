@@ -33,6 +33,9 @@ import {
   type ComviQueue,
   type ComviQueueEntry,
   type DevtoolsOptions,
+  type EditorLoadFailureCode,
+  type EditorLoadResult,
+  type EditorLoaderSlot,
 } from "@comvi/core/devtools";
 import {
   acquirePluginsApi,
@@ -282,6 +285,19 @@ void devtoolsOptions;
 
 // @ts-expect-error — DevtoolsOptions has no `locale`
 attachDevtools(slim, { locale: "en" });
+
+// The editor pin is a devtools option, and the loader contract is reachable
+// from the subpath that installs it.
+attachDevtools(slim, { editorVersion: "0.5.1" });
+devtools({ editorVersion: "0.5.1" });
+declare const loaderSlot: EditorLoaderSlot;
+const loadResult: Promise<EditorLoadResult> = loaderSlot.load();
+void loadResult;
+const failureCode: EditorLoadFailureCode = "csp-blocked";
+void failureCode;
+// @ts-expect-error — not a failure code of protocol 1
+const unknownCode: EditorLoadFailureCode = "blocked";
+void unknownCode;
 
 // The queue contract is reachable from the subpath that produces it.
 const queueEntry: ComviQueueEntry = { v: "0.5.0", i: createI18n({ locale: "en" }) };

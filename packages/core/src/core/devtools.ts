@@ -18,12 +18,21 @@
 // MANGLING CONTRACT: `_globalEntry`, `_initDevtools` and `_disposeDevtools` are
 // renamed by the single shared terser nameCache in
 // `vite.shared.ts#mangleInternalProps`. Dot access only — never a string key.
-import type { ComviHook, ComviQueueEntry, DefaultTranslationParams } from "../types";
+import type {
+  ComviHook,
+  ComviQueueEntry,
+  DefaultTranslationParams,
+  EditorLoadFailureCode,
+  EditorLoadResult,
+  EditorLoaderSlot,
+} from "../types";
 import { I18n as I18nBase, type I18nInternal } from "./i18n";
 
 declare const __VERSION__: string | undefined;
+declare const __DEV__: boolean | undefined;
 
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.1.0";
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 // The default-id sequence, in a slot every copy of core on the page shares —
 // the same cross-copy channel `duplicateGuard.ts` claims for the version. A
@@ -64,12 +73,180 @@ function mintInstanceId(): string {
   return `comvi-${n}`;
 }
 
-/** Discovery options; the same two fields the composite reads off `I18nOptions`. */
+// The editor loader (protocol 1 — `contracts/chrome-extension-proxy.json`,
+// `editorLoader`). The Comvi browser extension carries no editor: it calls the
+// slot below and THIS code, shipped by the site, loads the standalone editor
+// into the page. Host and path are constants; the only variable part of the URL
+// is the version, taken from the app's own `devtools({ editorVersion })` and
+// accepted only when it is an exact version.
+const EDITOR_CDN_HOST = "cdn.jsdelivr.net";
+const EDITOR_CDN_ORIGIN = "https://" + EDITOR_CDN_HOST;
+const EDITOR_LOADER_PROTOCOL = 1;
+const LOAD_TIMEOUT_MS = 10_000;
+const EDITOR_VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+// Page-wide, like `COUNTER_KEY`: every copy of core on the page meets the same
+// slot. The load promise has a key of its own so that a core replacing an
+// older slot inherits a pending or finished load instead of starting a second.
+const LOADER_KEY = Symbol.for("comvi.devtools.editorLoader");
+const LOAD_KEY = Symbol.for("comvi.devtools.editorLoad");
+
+/**
+ * A load result. One literal for both outcomes: `code` and `host` are
+ * `undefined` on success, `editorVersion` on failure.
+ */
+const loadResult = (
+  url: string,
+  code?: EditorLoadFailureCode,
+  editorVersion?: string,
+): EditorLoadResult => ({
+  ok: !code,
+  url,
+  sdkVersion: VERSION,
+  protocol: EDITOR_LOADER_PROTOCOL,
+  editorVersion,
+  code,
+  host: code && EDITOR_CDN_HOST,
+});
+
+/**
+ * The success result when the editor global is on the page, otherwise
+ * `undefined`. `activate` and `version` are the ONLY members ever read off
+ * `window.ComviInContextEditor` — an editor of any version must satisfy this.
+ */
+function loadedEditor(url: string): EditorLoadResult | undefined {
+  try {
+    const editor = (window as unknown as { ComviInContextEditor: Record<string, unknown> })
+      .ComviInContextEditor;
+    if (typeof editor.activate === "function") {
+      const version = editor.version;
+      return loadResult(url, undefined, typeof version === "string" ? version : undefined);
+    }
+  } catch {
+    // No global, or one that throws when read: a missing editor either way.
+  }
+}
+
+/**
+ * Install the page-level editor loader unless a slot of the same or a newer
+ * protocol is already there. Touches no DOM: the `<script>` is created by
+ * `load()`, which only the extension calls.
+ */
+function installEditorLoader(pin?: string): void {
+  try {
+    let editorVersion = "latest";
+    if (pin !== undefined && pin !== editorVersion) {
+      if (EDITOR_VERSION.test(pin)) {
+        editorVersion = pin;
+      } else if (IS_DEV) {
+        console.warn(
+          `[@comvi/core] devtools({ editorVersion: ${JSON.stringify(pin)} }) is not an exact ` +
+            `version (major.minor.patch); the editor loader falls back to latest.`,
+        );
+      }
+    }
+
+    const slots = globalThis as unknown as Record<symbol, unknown>;
+    const existing = slots[LOADER_KEY] as EditorLoaderSlot | undefined;
+    // Anything a page may have planted here that is not a slot of at least
+    // this protocol is replaced (NaN and non-numbers fail the comparison).
+    if (existing && existing.protocol >= EDITOR_LOADER_PROTOCOL) {
+      if (IS_DEV && pin !== undefined && existing.editorVersion !== editorVersion) {
+        console.warn(
+          `[@comvi/core] editorVersion ignored: another instance already installed the editor ` +
+            `loader with ${JSON.stringify(existing.editorVersion)}.`,
+        );
+      }
+      return;
+    }
+
+    const url = `${EDITOR_CDN_ORIGIN}/npm/@comvi/plugin-in-context-editor@${editorVersion}/dist/standalone.iife.js`;
+    const slot: EditorLoaderSlot = {
+      protocol: EDITOR_LOADER_PROTOCOL,
+      sdkVersion: VERSION,
+      editorVersion,
+      url,
+      load() {
+        // An old extension injected its bundled copy, the site bundled the
+        // standalone itself, or an earlier load finished.
+        const loaded = loadedEditor(url);
+        if (loaded) return Promise.resolve(loaded);
+        const pending = slots[LOAD_KEY] as Promise<EditorLoadResult> | undefined;
+        if (pending) return pending;
+
+        // `latest` is cached by the browser for 7 days; the hour bucket bounds
+        // that to an hour. An exact version is immutable and takes no query.
+        const src =
+          editorVersion === "latest" ? `${url}?comvi=${Math.floor(Date.now() / 3_600_000)}` : url;
+        let resolve!: (result: EditorLoadResult) => void;
+        // Stored BEFORE any DOM work, so a load that settles synchronously
+        // still clears it.
+        const promise = (slots[LOAD_KEY] = new Promise<EditorLoadResult>((r) => (resolve = r)));
+        let script: HTMLScriptElement | undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let blocked: boolean | undefined;
+        const onViolation = (event: SecurityPolicyViolationEvent): void => {
+          const uri = String(event.blockedURI);
+          // Chrome reports the full URL; a report may be truncated to the origin.
+          if (
+            uri.startsWith(url) ||
+            (uri === EDITOR_CDN_ORIGIN && /^script-src(-elem)?$/.test(event.effectiveDirective))
+          ) {
+            blocked = true;
+          }
+        };
+        const settle = (code?: EditorLoadFailureCode): void => {
+          clearTimeout(timer);
+          if (script) {
+            document.removeEventListener("securitypolicyviolation", onViolation);
+            // A removed script may still fire: it must not settle a later load.
+            script.onload = script.onerror = null;
+          }
+          const result = (!code && loadedEditor(src)) || loadResult(src, code || "no-global");
+          if (!result.ok) {
+            // A failure is never cached: the next load() starts fresh, for
+            // instance after the site's CSP was fixed.
+            slots[LOAD_KEY] = undefined;
+            if (script) script.remove();
+          }
+          resolve(result);
+        };
+        try {
+          script = document.createElement("script");
+          document.addEventListener("securitypolicyviolation", onViolation);
+          script.onload = () => settle();
+          // The violation event is dispatched before the element's error.
+          script.onerror = () => settle(blocked ? "csp-blocked" : "load-error");
+          timer = setTimeout(settle, LOAD_TIMEOUT_MS, "timeout");
+          script.async = true;
+          script.crossOrigin = "anonymous";
+          script.src = src;
+          document.documentElement.appendChild(script);
+        } catch {
+          // No document, or a page that forbids creating the element.
+          settle("load-error");
+        }
+        return promise;
+      },
+    };
+    slots[LOADER_KEY] = slot;
+  } catch {
+    /* the editor loader must never break construction */
+  }
+}
+
+/** Discovery options; the composite reads the first two off `I18nOptions`. */
 export interface DevtoolsOptions {
   /** Stable id for this instance. Auto-generated (`comvi-<n>`) when omitted. */
   instanceId?: string;
   /** Expose on `window.__COMVI__`. Defaults to `true` in a browser, `false` under SSR. */
   exposeGlobal?: boolean;
+  /**
+   * Exact version of `@comvi/plugin-in-context-editor` the editor loader
+   * requests, for example `"0.5.1"`. Defaults to `"latest"`; anything that is
+   * not an exact version falls back to it. The first instance on a page
+   * decides. The CDN global (the UMD composite) cannot pin.
+   */
+  editorVersion?: string;
 }
 
 /**
@@ -86,7 +263,11 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
    * composite's constructor and by `attachDevtools`; this class declares no
    * constructor of its own.
    */
-  protected _initDevtools(instanceId?: string, exposeGlobal?: boolean): void {
+  protected _initDevtools(
+    instanceId?: string,
+    exposeGlobal?: boolean,
+    editorVersion?: string,
+  ): void {
     if (!(exposeGlobal ?? typeof window !== "undefined")) return;
 
     const self = this as unknown as I18nInternal;
@@ -124,6 +305,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
     } catch {
       /* discovery must never break construction */
     }
+    installEditorLoader(editorVersion);
   }
 
   /**
@@ -225,7 +407,7 @@ export function attachDevtools<T extends I18nBase<any>>(i18n: T, options?: Devto
     Object.defineProperties(i, api);
   }
   if (fresh || i.instanceId === undefined) {
-    i._initDevtools!(options?.instanceId, options?.exposeGlobal);
+    i._initDevtools!(options?.instanceId, options?.exposeGlobal, options?.editorVersion);
   }
   return i18n;
 }
