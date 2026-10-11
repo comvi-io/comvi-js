@@ -133,7 +133,7 @@ the bytes first, then decide whether they ship.
 
 `core-base`, `core-base-icu`, `core-full-composite`; per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
+`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-i18n`; the platform
 path `plugin-fetch-loader`, `plugin-fetch-loader-api`, `platform-path-react`.
 
@@ -206,3 +206,15 @@ unchanged to the byte; their gzip figure moved by −5…+2 B (`fw-svelte-defaul
 `fw-next-root-composed` 9923 → 9925, `core-base` 5458 → 5458), because the core build shares one
 terser name cache across chunks and an edit to the devtools chunk reassigns the mangled letters in
 the others.
+
+## 2026-10-12: a Next row with `devtools()`
+
+`fw-next-root-devtools` was added: the `fw-next-root-composed` fixture plus `.use(devtools())`, so
+the editor loader's weight is gated in Next as it is in the other bindings through their
+full-composite rows. One sweep on `develop` @ e198fc9d measured it at 11023 B min+gz (30390 B min),
+budget 11575 B (baseline + 5 %, rounded up). In that sweep `fw-next-root-composed` measured 9925 B,
+so discovery and the editor loader together cost a Next app 1098 B.
+
+No other row was re-baselined. In the same sweep the 23 existing rows measured 0 to 35 B above
+their recorded baselines (core changes merged after each row's last sweep), each at least 4.3 %
+under its budget.

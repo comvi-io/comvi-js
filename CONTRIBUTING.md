@@ -115,7 +115,7 @@ restore a partially staged file, so its formatter edits stay in the working tree
 
 ### 3. Size budgets
 
-`pnpm size` measures 18 gated bundle rows (`scripts/size-budgets.json`) by bundling each entry
+`pnpm size` measures 24 gated bundle rows (`scripts/size-budgets.json`) by bundling each entry
 through its **published** exports map with esbuild, minifying, and gzipping. It needs a build
 first.
 

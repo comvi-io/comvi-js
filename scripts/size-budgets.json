@@ -188,6 +188,19 @@
       "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(\u2026)` composed through `.use`."
     },
     {
+      "name": "fw-next-root-devtools",
+      "entry": ["@comvi/next"],
+      "fixture": "framework/next-root-devtools.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 11575,
+      "baseline": {
+        "minBytes": 30390,
+        "gzipBytes": 11023,
+        "measuredAt": "2026-10-12"
+      },
+      "note": "Gated Next recommended path with `.use(devtools())`: the `fw-next-root-composed` graph plus discovery and the editor loader, the only Next row that carries `@comvi/core/devtools`."
+    },
+    {
       "name": "fw-next-server-provider",
       "entry": ["@comvi/next/server"],
       "fixture": "framework/next-server-provider.ts",
