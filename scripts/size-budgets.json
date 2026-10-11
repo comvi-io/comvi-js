@@ -179,10 +179,10 @@
       "entry": ["@comvi/next"],
       "fixture": "framework/next-root-composed.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 10801,
+      "gzipBudgetBytes": 10405,
       "baseline": {
-        "minBytes": 28740,
-        "gzipBytes": 10286,
+        "minBytes": 27569,
+        "gzipBytes": 9909,
         "measuredAt": "2026-10-11"
       },
       "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(\u2026)` composed through `.use`."

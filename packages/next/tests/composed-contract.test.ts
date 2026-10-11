@@ -21,8 +21,8 @@ function make(options: Partial<Parameters<typeof createNextI18n>[0]> = {}) {
   return createNextI18n({ ...ROUTING, ...options });
 }
 
-// Every `make()` announces itself onto the discovery queue, so the global is
-// shared state for the whole file, not just for the two cases that read it.
+// Only the cases that compose `devtools()` announce themselves onto the
+// discovery queue; the global is still shared state for the whole file.
 afterEach(() => {
   delete (window as { __COMVI__?: unknown }).__COMVI__;
 });
@@ -147,29 +147,48 @@ describe("published createNextI18n — composed capabilities", () => {
     expect(log).toEqual(["init-a", "init-b", "cleanup-b", "cleanup-a"]);
   });
 
-  it("announces to the extension and removes its identity on destroy", async () => {
+  it("createNextI18n without devtools() → not on window.__COMVI__, no instanceId", () => {
     const win = window as { __COMVI__?: unknown };
 
-    const { i18n } = make();
+    const { i18n } = make({ messages: { en: { a: "A" } } });
 
-    const queue = win.__COMVI__ as Array<{ i: unknown }>;
-    expect(Array.isArray(queue)).toBe(true);
-    expect(queue).toHaveLength(1);
-    expect(queue[0]!.i).toBe(i18n);
-    // `createNextI18n` never took an `instanceId` option: discovery assigns
-    // the auto-generated one, exactly as the 0.4 root constructor did.
-    expect(typeof i18n.instanceId).toBe("string");
-
-    await i18n.destroy();
-
-    expect(queue).toHaveLength(0);
+    expect(win.__COMVI__).toBeUndefined();
+    expect(i18n.instanceId).toBeUndefined();
+    expect(Object.keys(i18n)).not.toContain("instanceId");
   });
 
-  it("keeps instanceId as the FINAL public own property", () => {
-    const { i18n } = make({ messages: { en: { a: "A" } } });
+  it.each([
+    ["@comvi/next", () => import("../src/index")],
+    ["@comvi/next/client", () => import("../src/client")],
+    ["@comvi/next/server", () => import("../src/server")],
+  ])(
+    "createNextI18n(…).use(devtools({ instanceId })) from %s → announced, removed on destroy",
+    async (_entry, importEntry) => {
+      const { devtools } = await importEntry();
+      const win = window as { __COMVI__?: unknown };
+
+      const { i18n } = make().use(devtools({ instanceId: "app" }));
+
+      const queue = win.__COMVI__ as Array<{ i: unknown }>;
+      expect(Array.isArray(queue)).toBe(true);
+      expect(queue).toHaveLength(1);
+      expect(queue[0]!.i).toBe(i18n);
+      expect(i18n.instanceId).toBe("app");
+
+      await i18n.destroy();
+
+      expect(queue).toHaveLength(0);
+    },
+  );
+
+  it("createNextI18n(…).use(devtools()) → instanceId is the FINAL public own property", async () => {
+    const { devtools } = await import("../src/index");
+
+    const { i18n } = make({ messages: { en: { a: "A" } } }).use(devtools());
 
     const publicKeys = Object.keys(i18n).filter((key) => !key.startsWith("_"));
 
+    expect(typeof i18n.instanceId).toBe("string");
     expect(publicKeys[publicKeys.length - 1]).toBe("instanceId");
   });
 

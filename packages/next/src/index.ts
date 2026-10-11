@@ -16,9 +16,9 @@ export type { NextPluginOptions, LazyPluginModule, LazyPluginLoader } from "./ne
 // The same capability toolkit `/client` and `/server` carry, so a shared
 // `i18n/config.ts` — imported by BOTH runtimes, which rules out the
 // `"use client"` entry and the `next/headers`-bound one — composes onto
-// `createNextI18n(…)` from this one specifier. The composed root reaches every
-// subpath already, so re-exporting them here costs its graph nothing; under
-// `sideEffects: false` the names an app does not call are pruned.
+// `createNextI18n(…)` from this one specifier. The composed root reaches the
+// loader and plugins subpaths already, and under `sideEffects: false` the
+// names an app does not call (`devtools`, `icuCompiler`) are pruned.
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";
 export { definePlugin, plugins } from "@comvi/core/plugins";
