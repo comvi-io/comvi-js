@@ -362,21 +362,24 @@ try {
 } catch {
   // no hand-written notes for this version
 }
-// The notes are published as they are and a re-run only re-uploads the asset,
-// so a comment left in them would stay in the release body. The pack job runs
-// the same check (check-release-notes.mjs) before anything is published, so
-// this should be unreachable. If it is reached, npm is already live and the
-// notes cannot change at this commit: the release has to be created by hand.
-const commentLines = htmlCommentLines(highlights);
-if (commentLines.length > 0) {
-  console.error(
-    `Refusing to create ${tag}: ` +
-      commentLines.map((line) => `.github/release-notes/${version}.md:${line}`).join(", ") +
-      " holds an HTML comment. The packages are on npm and the tags are pushed; a re-run reads " +
-      `the same file. Create the GitHub Release for ${tag} by hand, with the corrected notes.`,
+// The pack job fails a release whose notes hold an HTML comment
+// (check-release-notes.mjs), on this same commit, so none should arrive here.
+// If one does, npm is already live and the notes cannot change at this commit:
+// a refusal would leave the release without a GitHub Release that no re-run
+// can create. The comments are cut instead, with a warning, and the missing
+// text is added afterwards with `gh release edit`. A comment alone on its
+// lines takes those lines with it; an inline one takes the space before it.
+for (const line of htmlCommentLines(highlights)) {
+  console.log(
+    `::warning file=.github/release-notes/${version}.md,line=${line},title=HTML comment cut from the release notes::` +
+      `.github/release-notes/${version}.md:${line} holds an HTML comment; it is left out of the ${tag} release body. ` +
+      "If it marked missing text, add that text with `gh release edit`.",
   );
-  process.exit(1);
 }
+highlights = highlights
+  .replace(/^[ \t]*<!--[\s\S]*?(?:-->|$(?![\s\S]))[ \t]*\n?/gm, "")
+  .replace(/[ \t]*<!--[\s\S]*?(?:-->|$(?![\s\S]))/g, "")
+  .trim();
 if (highlights) {
   highlights = `${cutAtLine(highlights, Math.max(0, BODY_LIMIT - intro.length - overhead - 2))}\n\n`;
 }

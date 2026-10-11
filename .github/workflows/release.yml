@@ -520,30 +520,56 @@ jobs:
       # editor reaches sites up to half a day after npm has it. The endpoint
       # is public and takes no token. Never fatal: npm is already live when
       # this runs, so a refused, throttled or unreachable purge is a warning
-      # and the edge expires on its own. Two attempts, 30 s each. Only an
-      # answer shaped as jsDelivr's own purge page reads it counts as accepted
+      # and the edge expires on its own. Two attempts, 30 s each.
+      #
+      # The purge is asynchronous. jsDelivr's own purge page
+      # (jsdelivr/www.jsdelivr.com, src/views/pages/tools/purge.html) gets an
+      # `id` back and polls purge.jsdelivr.net/status/<id> until `status` is
+      # "finished", so a "pending" first answer is polled here too: five
+      # times, 5 s apart. The `id` goes into a URL only when it is letters,
+      # digits, `_` and `-`. Only a finished answer counts as accepted
       # (`"status":"finished"`, the path `"throttled":false`, no provider
-      # `false`); a challenge page, an empty body or a pending or failed
-      # status is a warning too, so the log never says "accepted" by default.
+      # `false`); a challenge page, an empty body, a failed status, or one
+      # still pending after the last poll is a warning, so the log never says
+      # "accepted" by default. Worst case 245 s: 30 + 10 + 30 for the two
+      # attempts, then 5 × (5 + 30) for the polls.
       # scripts/release-workflow.test.mjs executes this step's shell.
       - name: Purge jsDelivr's @latest editor file
         if: steps.publish.outputs.published == 'true'
-        timeout-minutes: 2
+        timeout-minutes: 5
         continue-on-error: true
         run: |
           url="https://purge.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js"
           stale="The release is published; jsDelivr's edge may serve the previous @latest editor for up to 12 hours. Purge by hand: https://www.jsdelivr.com/tools/purge"
+          # Sets `flat` (the answer on one line) and prints its first 2000
+          # characters behind a prefix: a line that begins with `::` is a
+          # workflow command.
+          read_answer() {
+            printf '%s\n' "${1:0:2000}" | sed 's/^/jsDelivr: /'
+            flat="$(printf '%s' "$1" | tr -d '\n')"
+          }
           for attempt in 1 2; do
             if body="$(curl --fail --silent --show-error --max-time 30 "$url")"; then
-              # Never at line start: a line that begins with `::` is a workflow command.
-              printf '%s\n' "$body" | head -c 2000 | sed 's/^/jsDelivr: /'
-              flat="$(printf '%s' "$body" | tr -d '\n')"
+              read_answer "$body"
+              id="$(printf '%s' "$flat" | sed -nE 's/.*"id": *"([^"]*)".*/\1/p')"
+              polls=0
+              while [ "$polls" -lt 5 ] &&
+                printf '%s' "$flat" | grep -Eq '"status": *"pending"' &&
+                [[ "$id" =~ ^[A-Za-z0-9_-]+$ ]]; do
+                polls=$((polls + 1))
+                sleep 5
+                if body="$(curl --fail --silent --show-error --max-time 30 "https://purge.jsdelivr.net/status/$id")"; then
+                  read_answer "$body"
+                else
+                  flat=""
+                fi
+              done
               if printf '%s' "$flat" | grep -Eq '"throttled": *true'; then
                 echo "::warning title=jsDelivr purge throttled::jsDelivr rate-limited the purge of $url. $stale"
               elif printf '%s' "$flat" | grep -Eq '"status": *"finished"' &&
                 printf '%s' "$flat" | grep -Eq '"throttled": *false' &&
                 ! printf '%s' "$flat" | grep -Eq '"providers": *\{[^}]*false'; then
-                echo "jsDelivr accepted the purge of $url (attempt $attempt)."
+                echo "jsDelivr accepted the purge of $url (attempt $attempt, $polls status request(s))."
               else
                 echo "::warning title=jsDelivr purge not confirmed::The answer to $url is not a finished purge on every provider. $stale"
               fi

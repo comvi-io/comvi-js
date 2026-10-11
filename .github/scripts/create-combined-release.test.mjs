@@ -621,15 +621,37 @@ test("notes check: a comment in another version's notes is not this release's bu
   assert.equal(runNotesCheck(root, "0.5.1").status, 1);
 });
 
-test("an HTML comment in the notes → the release is refused before gh is reached, naming file and line", (t) => {
-  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), {
-    files: { ".github/release-notes/0.5.0.md": WITH_COMMENT },
-  });
+test("an HTML comment in the notes → it is cut from the body with a ::warning naming file and line, and the rest of the body is unchanged", (t) => {
+  const notes = (slot) =>
+    `## Fixes\n\n- one fix\n${slot}- another fix, inline${slot && " <!-- b -->"}\n`;
+  const withComments = notes("<!-- the next bullet\n     goes here -->\n");
+  const body = (text, capture) => {
+    const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), {
+      files: { ".github/release-notes/0.5.0.md": text },
+    });
+    const bodyFile = path.join(root, "release-body.md");
+    const result = runScript({
+      root,
+      archiveDir,
+      published: TRAIN,
+      env: { COMVI_RELEASE_BODY_FILE: bodyFile },
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    capture.stdout = result.stdout;
+    return fs.readFileSync(bodyFile, "utf8");
+  };
+  const dirty = {};
+  const clean = {};
 
-  const result = runScript({ root, archiveDir, published: TRAIN });
+  const stripped = body(withComments, dirty);
+  const reference = body(notes(""), clean);
 
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.match(result.stderr, /\.github\/release-notes\/0\.5\.0\.md:4\b.*HTML comment/);
-  assert.doesNotMatch(result.stdout, /Creating GitHub Release/);
-  assert.equal(fs.existsSync(archiveDir), false);
+  assert.equal(stripped, reference);
+  assert.doesNotMatch(stripped, /<!--|-->|goes here/);
+  assert.match(
+    dirty.stdout,
+    /^::warning file=\.github\/release-notes\/0\.5\.0\.md,line=4,.*HTML comment/m,
+  );
+  assert.match(dirty.stdout, /^::warning file=\.github\/release-notes\/0\.5\.0\.md,line=6,/m);
+  assert.doesNotMatch(clean.stdout, /::warning/);
 });
