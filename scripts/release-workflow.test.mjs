@@ -10,10 +10,15 @@
  * scripts/examples-e2e/lib.test.mjs reads ci.yml: the repo declares no YAML
  * parser. The guard's own shell is executed, so its verdict is tested and not
  * only its presence.
+ *
+ * The jsDelivr purge of the GA `publish` job is pinned the same way: its shell
+ * runs here against a stub `curl`, so no request leaves the machine.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -147,4 +152,136 @@ test("the job that publishes under `latest` also names main in its own condition
     latest.map((job) => [job.name, job.if]),
     [["publish", "needs.pack.outputs.pending == 'true' && github.ref == 'refs/heads/main'"]],
   );
+});
+
+// ---------------------------------------------------------------------------
+// The jsDelivr purge. The devtools() editor loader requests one file under
+// `@latest`; the release asks jsDelivr to drop its edge copy once npm has the
+// whole train. The request is never allowed to fail a release that is already
+// on npm.
+// ---------------------------------------------------------------------------
+
+const PURGE_STEP = "Purge jsDelivr's @latest editor file";
+const PURGE_URL =
+  "https://purge.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js";
+
+/** The steps of a job, in order: each one's name and its text. */
+function readSteps(job) {
+  return (job?.text ?? "")
+    .split(/^ {6}- name: /m)
+    .slice(1)
+    .map((text) => ({ name: text.slice(0, text.indexOf("\n")), text }));
+}
+
+function purgeStep() {
+  const step = readSteps(jobs.get("publish")).find((s) => s.name === PURGE_STEP);
+  assert.ok(step, `the publish job has no \`${PURGE_STEP}\` step`);
+  return step;
+}
+
+/**
+ * Runs the purge step's shell with `curl` and `sleep` replaced by stubs.
+ * `curlExits` is the exit status of each call in turn (the last one repeats);
+ * `body` is what a successful call prints. Returns the shell's result and the
+ * arguments of every `curl` call.
+ */
+function runPurge(t, { curlExits, body = '{"status":"finished","paths":{}}' }) {
+  const script = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(purgeStep().text)?.[1];
+  assert.ok(script, `\`${PURGE_STEP}\` has no \`run: |\` body`);
+
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-purge-"));
+  t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
+  const calls = path.join(bin, "calls");
+  fs.writeFileSync(calls, "");
+  fs.writeFileSync(
+    path.join(bin, "curl"),
+    [
+      "#!/bin/bash",
+      `echo "$*" >> "${calls}"`,
+      `n=$(wc -l < "${calls}")`,
+      `exits=(${curlExits.join(" ")})`,
+      "status=${exits[$((n - 1))]:-${exits[${#exits[@]}-1]}}",
+      `if [ "$status" = 0 ]; then echo '${body}'; else echo "curl: (22) refused" >&2; fi`,
+      'exit "$status"',
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(path.join(bin, "sleep"), "#!/bin/bash\nexit 0\n", { mode: 0o755 });
+
+  const result = spawnSync("bash", ["-eo", "pipefail", "-c", script.replace(/^ {10}/gm, "")], {
+    encoding: "utf8",
+    env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+  });
+  return { ...result, curl: fs.readFileSync(calls, "utf8").split("\n").filter(Boolean) };
+}
+
+test("the purge step sits in the GA publish job right after the publish, behind published == 'true'", () => {
+  const steps = readSteps(jobs.get("publish"));
+  const index = steps.findIndex((step) => step.name === PURGE_STEP);
+
+  assert.equal(steps[index - 1]?.name, "Publish the verified tarballs");
+  assert.match(steps[index].text, /^ {8}if: steps\.publish\.outputs\.published == 'true'$/m);
+});
+
+test("the purge step cannot fail or stall the job: continue-on-error and a step timeout", () => {
+  const step = purgeStep();
+
+  assert.match(step.text, /^ {8}continue-on-error: true$/m);
+  assert.match(step.text, /^ {8}timeout-minutes: 2$/m);
+});
+
+test("the workflow names one purge URL, the @latest editor file, and only in the GA publish job", () => {
+  const urls = workflow.match(/https:\/\/purge\.jsdelivr\.net\/\S*?(?=["'\s])/g);
+  const jobsWithPurge = [...jobs.values()]
+    .filter((job) => /purge\.jsdelivr\.net/.test(job.text))
+    .map((job) => job.name);
+
+  assert.deepEqual(urls, [PURGE_URL]);
+  assert.deepEqual(jobsWithPurge, ["publish"]);
+});
+
+test("the purge takes no secret: the step has no env and names no token", () => {
+  const step = purgeStep();
+
+  assert.doesNotMatch(step.text, /^ {8}env:|secrets\.|[Tt]oken=|Authorization/m);
+});
+
+test("purge accepted on the first request → exit 0, one bounded curl call, no warning", (t) => {
+  const result = runPurge(t, { curlExits: [0] });
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.curl.length, 1);
+  assert.match(result.curl[0], /--fail\b.*--max-time 30\b/);
+  assert.equal(result.curl[0].endsWith(PURGE_URL), true, result.curl[0]);
+  assert.doesNotMatch(result.stdout, /::warning/);
+});
+
+test("purge refused once, then accepted → exit 0 after a single retry, no warning", (t) => {
+  const result = runPurge(t, { curlExits: [22, 0] });
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.curl.length, 2);
+  assert.doesNotMatch(result.stdout, /::warning/);
+});
+
+test("purge refused twice → exit 0 with a ::warning naming the URL and the 12 hours, and no third request", (t) => {
+  const result = runPurge(t, { curlExits: [22] });
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.curl.length, 2);
+  assert.match(result.stdout, /^::warning title=jsDelivr purge failed::.*12 hours/m);
+  assert.equal(result.stdout.includes(PURGE_URL), true, result.stdout);
+});
+
+test("purge answered but throttled → exit 0 with a ::warning, not a success line", (t) => {
+  const result = runPurge(t, {
+    curlExits: [0],
+    body: '{"status":"finished","paths":{"/npm/x":{"throttled":true}}}',
+  });
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.curl.length, 1);
+  assert.match(result.stdout, /^::warning title=jsDelivr purge throttled::/m);
+  assert.doesNotMatch(result.stdout, /accepted the purge/);
 });

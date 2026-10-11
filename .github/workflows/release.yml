@@ -504,6 +504,35 @@ jobs:
           SUMS: ${{ needs.pack.outputs.sums }}
         run: node scripts/publish-candidate.mjs publish --dir release-candidate --expect-sums "$SUMS" --tag latest --git-tag --push-tags
 
+      # The devtools() editor loader requests this one file under `@latest`
+      # (packages/core/src/core/devtools.ts), and jsDelivr's edge keeps a version
+      # alias for 12 hours (`s-maxage=43200`), so without a purge a fixed
+      # editor reaches sites up to half a day after npm has it. The endpoint
+      # is public and takes no token. Never fatal: npm is already live when
+      # this runs, so a refused, throttled or unreachable purge is a warning
+      # and the edge expires on its own. Two attempts, 30 s each.
+      # scripts/release-workflow.test.mjs executes this step's shell.
+      - name: Purge jsDelivr's @latest editor file
+        if: steps.publish.outputs.published == 'true'
+        timeout-minutes: 2
+        continue-on-error: true
+        run: |
+          url="https://purge.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js"
+          stale="The release is published; jsDelivr's edge may serve the previous @latest editor for up to 12 hours. Purge by hand: https://www.jsdelivr.com/tools/purge"
+          for attempt in 1 2; do
+            if body="$(curl --fail --silent --show-error --max-time 30 "$url")"; then
+              echo "$body"
+              if printf '%s' "$body" | grep -Eq '"throttled": *true'; then
+                echo "::warning title=jsDelivr purge throttled::jsDelivr rate-limited the purge of $url. $stale"
+              else
+                echo "jsDelivr accepted the purge of $url (attempt $attempt)."
+              fi
+              exit 0
+            fi
+            if [ "$attempt" = 1 ]; then sleep 10; fi
+          done
+          echo "::warning title=jsDelivr purge failed::Two requests to $url failed. $stale"
+
       # Runs only after a complete publish (no `always()`: a partial train must
       # not get an archive). It refuses unless `v<version>` exists at this
       # commit and the published set is all of SHA256SUMS, and passes
