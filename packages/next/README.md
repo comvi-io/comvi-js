@@ -154,8 +154,8 @@ Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'c
 [Plugin scoping](https://comvi.io/docs/i18n/guides/next-server-client#plugin-scoping).
 
 `createNextI18n` does not publish the i18n instance to the Comvi browser extension. To make the app
-visible to it, add `.use(devtools())` to the result in `src/i18n/config.ts`, with `devtools` imported
-from `@comvi/next`. On the server it does nothing.
+visible to it and let it load the in-context editor, add `.use(devtools())` to the result in
+`src/i18n/config.ts`, with `devtools` imported from `@comvi/next`. On the server it does nothing.
 
 `createMiddleware` takes the same two locale options as `@comvi/nuxt`, with the same defaults
 except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
