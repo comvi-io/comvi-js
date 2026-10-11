@@ -54,7 +54,7 @@ retain exports rather than call `t()`); the ICU Nuxt app's message has two param
 - The core row compares two libraries that each do interpolation in their own syntax; i18next's
   bare core also carries suffix-key plurals, Comvi's simple compiler does not. The rows with ICU on
   the Comvi side are the plural-to-plural comparison; `use-intl`, `next-intl` and `vue-i18n` always
-  carry their plural engine, so their equal-work pair is the Comvi row **with** ICU.
+  carry their plural engine, so their ICU compiler enabled is the Comvi row **with** ICU.
 - What ICU adds is measured on each side with the message text held constant: the plural message
   on Comvi's simple compiler against the same message on `icuCompiler`, and the same message on
   bare `i18next` against `i18next` + `i18next-icu`. Subtracting two fixtures with different texts
@@ -121,21 +121,21 @@ sees.
 Node v24.19.0, esbuild 0.28.0. The full table with the packages inside each bundle is in
 `results-2026-10-11.md`; the raw data in `results-2026-10-11.json`.
 
-| Group                                          |                            Comvi |                                                                        Other | Ratio |
-| ---------------------------------------------- | -------------------------------: | ---------------------------------------------------------------------------: | ----: |
-| core, interpolation only on the Comvi side     |              `@comvi/core` 5,452 |                                                             `i18next` 14,032 |  2.6× |
-| core+icu                                       |        `@comvi/core` + ICU 6,510 |                                             `i18next` + `i18next-icu` 25,707 |  3.9× |
-| core+icu                                       |                            6,510 |                                                       `use-intl/core` 11,277 |  1.7× |
-| what ICU adds, same message text on both sides |           +1,043 (6,510 − 5,467) | `i18next-icu` + `intl-messageformat` on `i18next`: +11,670 (25,707 − 14,037) | 11.2× |
-| the ICU engine alone, no ratio                 |                                — |                                   `intl-messageformat` with its parser 9,894 |     — |
-| react, no plural engine on either side         |             `@comvi/react` 7,425 |                                           `i18next` + `react-i18next` 19,615 |  2.6× |
-| react, ICU on both sides                       |       `@comvi/react` + ICU 8,470 |                                                            `use-intl` 11,567 |  1.4× |
-| react+icu+loader                               |                           11,837 |                      `i18next` + `react-i18next` + ICU + http-backend 33,826 |  2.9× |
-| vue, plural engine on both sides               |         `@comvi/vue` + ICU 8,605 |                                      `vue-i18n` runtime compiler kept 18,693 |  2.2× |
-| vue, plural engine on both sides               |                            8,605 |             `vue-i18n` precompiled message function, compiler dropped 13,764 |  1.6× |
-| vue, Comvi without ICU, for reference          |               `@comvi/vue` 7,540 |                                                                            — |     — |
-| next-client, ICU on both sides                 | `@comvi/next/client` + ICU 9,092 |                                                    `next-intl` client 12,512 |  1.4× |
-| next-client, Comvi without ICU, for reference  |       `@comvi/next/client` 8,044 |                                                                            — |     — |
+| Group                                                                                                                           |                            Comvi |                                                                        Other | Ratio |
+| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------: | ---------------------------------------------------------------------------: | ----: |
+| core, interpolation only on the Comvi side                                                                                      |              `@comvi/core` 5,452 |                                                             `i18next` 14,032 |  2.6× |
+| core+icu                                                                                                                        |        `@comvi/core` + ICU 6,510 |                                             `i18next` + `i18next-icu` 25,707 |  3.9× |
+| core+icu                                                                                                                        |                            6,510 |                                                       `use-intl/core` 11,277 |  1.7× |
+| what ICU adds, same message text on both sides                                                                                  |           +1,043 (6,510 − 5,467) | `i18next-icu` + `intl-messageformat` on `i18next`: +11,670 (25,707 − 14,037) | 11.2× |
+| the ICU engine alone, no ratio                                                                                                  |                                — |                                   `intl-messageformat` with its parser 9,894 |     — |
+| react, without the ICU compiler on the Comvi side and without `i18next-icu` on the other (i18next keeps its suffix-key plurals) |             `@comvi/react` 7,425 |                                           `i18next` + `react-i18next` 19,615 |  2.6× |
+| react, ICU on both sides                                                                                                        |       `@comvi/react` + ICU 8,470 |                                                            `use-intl` 11,567 |  1.4× |
+| react+icu+loader                                                                                                                |                           11,837 |                      `i18next` + `react-i18next` + ICU + http-backend 33,826 |  2.9× |
+| vue, plural engine on both sides                                                                                                |         `@comvi/vue` + ICU 8,605 |                                      `vue-i18n` runtime compiler kept 18,693 |  2.2× |
+| vue, plural engine on both sides                                                                                                |                            8,605 |             `vue-i18n` precompiled message function, compiler dropped 13,764 |  1.6× |
+| vue, Comvi without ICU, for reference                                                                                           |               `@comvi/vue` 7,540 |                                                                            — |     — |
+| next-client, ICU on both sides                                                                                                  | `@comvi/next/client` + ICU 9,092 |                                                    `next-intl` client 12,512 |  1.4× |
+| next-client, Comvi without ICU, for reference                                                                                   |       `@comvi/next/client` 8,044 |                                                                            — |     — |
 
 ### Comvi-only rows that the pages cite, published 0.5.0, min+gz bytes
 
@@ -205,7 +205,7 @@ hold. Public pages should cite the figure measured on the released version, not 
 
 `@nuxtjs/i18n` depends on Nuxt's virtual modules and cannot be bundled by esbuild on its own, so
 the two Nuxt modules are compared with `nuxi build` instead. `nuxt/apps/` holds four one-string
-apps (`bare`, `nuxt-i18n`, `comvi-nuxt`, `comvi-nuxt-icu`); the first three render `Hello, world!`, the ICU app renders a plural, and the messages sit outside the measured JavaScript in every app;
+apps (`bare`, `nuxt-i18n`, `comvi-nuxt`, `comvi-nuxt-icu`); the first three render `Hello, world!`, the ICU app renders a plural, and in the three i18n apps the messages sit outside the measured JavaScript;
 `nuxt/measure.mjs` sums every client JavaScript file under `.output/public/_nuxt/` (minified, gzip
 level 9, brotli 11) and reports the delta over the bare app, for the whole build and for the entry
 file alone (entry-file bytes exclude the other chunks and anything a browser may prefetch in the
@@ -223,12 +223,12 @@ cd ../.. && node measure.mjs apps/bare apps/comvi-nuxt apps/comvi-nuxt-icu apps/
 
 ### Results (Nuxt 4.6.1, @nuxtjs/i18n 10.6.0, @comvi/nuxt 0.5.0)
 
-| App                                        | JS files |   min B | gzip B | Δ gzip vs bare | entry file gzip | Δ entry vs bare |
-| ------------------------------------------ | -------: | ------: | -----: | -------------: | --------------: | --------------: |
-| bare                                       |        4 | 144,943 | 54,453 |              — |          49,167 |               — |
-| @nuxtjs/i18n                               |        5 | 229,147 | 82,571 |        +28,118 |          79,515 |         +30,348 |
-| @comvi/nuxt, default compiler              |        4 | 184,255 | 66,719 |        +12,266 |          63,729 |         +14,562 |
-| @comvi/nuxt, `icu: true` (equal-work pair) |        4 | 186,945 | 67,692 |        +13,239 |          64,702 |         +15,535 |
+| App                                             | JS files |   min B | gzip B | Δ gzip vs bare | entry file gzip | Δ entry vs bare |
+| ----------------------------------------------- | -------: | ------: | -----: | -------------: | --------------: | --------------: |
+| bare                                            |        4 | 144,943 | 54,453 |              — |          49,167 |               — |
+| @nuxtjs/i18n                                    |        5 | 229,147 | 82,571 |        +28,118 |          79,515 |         +30,348 |
+| @comvi/nuxt, default compiler                   |        4 | 184,255 | 66,719 |        +12,266 |          63,729 |         +14,562 |
+| @comvi/nuxt, `icu: true` (ICU compiler enabled) |        4 | 186,945 | 67,692 |        +13,239 |          64,702 |         +15,535 |
 
 Per package, minified bytes in the entry chunk (from the source-mapped build of the default-compiler
 app): `@nuxtjs/i18n` 21,479 + `@intlify/message-compiler` 16,905 + `@intlify/core-base` 14,966 +

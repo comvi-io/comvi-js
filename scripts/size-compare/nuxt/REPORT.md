@@ -49,9 +49,10 @@ built and measured the same way on 2026-10-11 (`measure-2026-10-11.txt`); its se
 The ICU compiler costs 973 B gzip in this build (2 690 B minified). The nuxt-i18n app always
 carries vue-i18n's message compiler and plural rules, so the ICU row is the configuration whose
 runtime is capable of the same work. The messages themselves differ (`Hello, world!` in the
-nuxt-i18n app, `2 items for world` here) and sit outside the measured JavaScript in both apps,
-so the byte deltas are unaffected; a reader who wants identical rendered output should give the
-nuxt-i18n app a pipe-plural message and rebuild.
+nuxt-i18n app, `2 items for world` here) and sit outside the measured JavaScript in both apps.
+The 973 B is the observed increment of this configuration (`icu: true` plus the plural call site);
+a reader who wants identical rendered output should give the nuxt-i18n app a pipe-plural message
+and rebuild.
 
 ### Per-chunk listing with string attribution
 
@@ -332,7 +333,8 @@ node measure.mjs apps/bare apps/nuxt-i18n apps/comvi-nuxt apps/comvi-nuxt-icu
 # SSR check, one app at a time (kill only the PID you started); expect `Hello, world!`,
 # and `2 items for world` for comvi-nuxt-icu
 cd apps/<app> && PORT=3451 node .output/server/index.mjs & echo $! > server.pid
-curl -s http://localhost:3451/ | grep -c 'Hello, world!'   # expect 1
+curl -s http://localhost:3451/ | grep -c "$EXPECT"   # expect 1; EXPECT='Hello, world!' for the
+                                                       # first three apps, '2 items for world' for comvi-nuxt-icu
 kill "$(cat server.pid)"
 
 # nuxt-i18n runtime catalog request (hash is build-specific, read it from the entry chunk)
