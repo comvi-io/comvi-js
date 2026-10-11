@@ -1,0 +1,13 @@
+@comvi/core                  none
+@comvi/react                 none
+@comvi/vue                   none
+@comvi/next                  none
+@comvi/nuxt                  dist/module.mjs:19
+@comvi/plugin-fetch-loader   none
+i18next                      none
+react-i18next                none
+i18next-icu                  none
+intl-messageformat           none
+use-intl                     none
+next-intl                    none
+vue-i18n                     none
