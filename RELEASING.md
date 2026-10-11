@@ -137,7 +137,9 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
       `gh release view` and re-uploads the archive with `gh release upload --clobber` instead of
       failing on "already exists". The release notes of the existing release are kept. The notes
       are built to stay under 100,000 characters, because GitHub rejects a body above 125,000:
-      `.github/release-notes/<version>.md` comes first when it exists, then one section per package
+      `.github/release-notes/<version>.md` comes first when it exists (it must not contain an HTML
+      comment, anywhere: the `pack` job fails on any `<!--`; to show one in a code sample, write
+      `&lt;!--` inside `<pre><code>`), then one section per package
       from its CHANGELOG, and a section that does not fit its share is cut at a line and ends with
       a link to that package's `CHANGELOG.md` at the release tag. To read the notes beforehand, run
       the script with `COMVI_RELEASE_DRY_RUN=1` and `COMVI_RELEASE_BODY_FILE=<path>`. The

@@ -14,7 +14,8 @@ and activates it through an authenticated proxy (see below).
 - `@comvi/core` 0.5.1 or newer, with `.use(devtools())` on the i18n instance.
   `devtools()` publishes the instance for the extension and installs the hook
   that loads the editor. Without it the popup says "Comvi i18n not detected";
-  on an older SDK it says the site must upgrade.
+  on an older SDK it says the site must upgrade. The `<script>` global build
+  of `@comvi/core` (`ComviCore.I18n`) composes `devtools()` on its own.
 - If the site sends a Content Security Policy: `https://cdn.jsdelivr.net` in
   `script-src`. A site that enforces Trusted Types also needs a `default`
   policy whose `createScriptURL` returns that script URL: the loader assigns

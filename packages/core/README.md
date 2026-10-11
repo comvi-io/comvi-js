@@ -30,7 +30,9 @@ npm install @comvi/core
 # Node 20 or newer. No peer dependencies.
 ```
 
-The package is ESM. A `<script src>` global build exists too, as `ComviCore.I18n`, fully composed.
+The package is ESM. A `<script src>` global build exists too, as `ComviCore.I18n`, fully composed:
+it includes `devtools()`, so it publishes the instance to the Comvi browser extension and installs
+the editor loader (`exposeGlobal: false` installs neither; the code stays in the file).
 
 ## Create the i18n instance
 

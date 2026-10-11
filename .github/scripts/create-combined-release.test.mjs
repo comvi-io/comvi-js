@@ -598,7 +598,7 @@ test("notes check: an HTML comment in the notes of core's version → exit 1 wit
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(
     result.stdout,
-    /^::error file=\.github\/release-notes\/0\.5\.0\.md,line=4,.*\.github\/release-notes\/0\.5\.0\.md:4 /m,
+    /^::error file=\.github\/release-notes\/0\.5\.0\.md,line=4,.*\.github\/release-notes\/0\.5\.0\.md:4: /m,
   );
 });
 
@@ -654,4 +654,34 @@ test("an HTML comment in the notes → it is cut from the body with a ::warning 
   );
   assert.match(dirty.stdout, /^::warning file=\.github\/release-notes\/0\.5\.0\.md,line=6,/m);
   assert.doesNotMatch(clean.stdout, /::warning/);
+});
+
+test("an HTML comment shown in a code block or a code span is a comment too: the check fails naming each line and the hint, and the body is published without them", (t) => {
+  const notes =
+    "## Fixes\n\n- Mark the slot with `<!-- slot -->`:\n\n  ```html\n  <!-- example -->\n  ```\n";
+  const { root, archiveDir } = makeFixture(t, MIXED_PACKAGES.slice(0, 2), {
+    files: { ".github/release-notes/0.5.0.md": notes },
+  });
+  const bodyFile = path.join(root, "release-body.md");
+
+  const check = runNotesCheck(root);
+  const result = runScript({
+    root,
+    archiveDir,
+    published: TRAIN,
+    env: { COMVI_RELEASE_BODY_FILE: bodyFile },
+  });
+
+  assert.equal(check.status, 1, check.stdout + check.stderr);
+  assert.deepEqual(check.stdout.match(/^::error file=[^,]+,line=\d+/gm), [
+    "::error file=.github/release-notes/0.5.0.md,line=3",
+    "::error file=.github/release-notes/0.5.0.md,line=6",
+  ]);
+  assert.match(
+    check.stdout,
+    /release notes must not contain an HTML comment; to show one in a code sample write `&lt;!--`/,
+  );
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.doesNotMatch(fs.readFileSync(bodyFile, "utf8"), /<!--/);
+  assert.match(result.stdout, /^::warning file=\.github\/release-notes\/0\.5\.0\.md,line=6,/m);
 });

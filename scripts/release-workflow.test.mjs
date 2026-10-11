@@ -214,11 +214,16 @@ function runPurge(t, { curlExits, body = PURGED, bodies = [body] }) {
   );
   fs.writeFileSync(path.join(bin, "sleep"), "#!/bin/bash\nexit 0\n", { mode: 0o755 });
 
+  // `sleep` is a stub, so a loop that never ends spins until this timeout kills
+  // it; the assertion turns that into a failure instead of a hung run.
   const result = spawnSync("bash", ["-eo", "pipefail", "-c", script.replace(/^ {10}/gm, "")], {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
+    timeout: 20_000,
     env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` },
   });
+  assert.equal(result.error, undefined, `the purge step did not end: ${result.error}`);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
   return { ...result, curl: fs.readFileSync(calls, "utf8").split("\n").filter(Boolean) };
 }
 
@@ -403,4 +408,165 @@ test("a 3 MB answer → the step still ends in exit 0 with a ::warning, and prin
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /^jsDelivr: x{2000}$/m);
   assert.match(result.stdout, /^::warning title=jsDelivr purge not confirmed::/m);
+});
+
+// The answer is JSON and is read as JSON: how it is spaced, ordered or
+// extended must not change the verdict, and a value of the wrong type is not
+// the value.
+const entry = (throttled, providers) => ({ throttled, providers });
+const answer = (status, paths, extra = {}) => ({ id: "x", status, paths, ...extra });
+const FAILED_PROVIDER = answer("finished", { "/npm/x": entry(false, { CF: false, FY: true }) });
+
+for (const [spacing, body] of [
+  [
+    "a tab after the colon",
+    '{"status":"finished","paths":{"/npm/x":{"throttled":false,"providers":\t{"CF":false,"FY":true}}}}',
+  ],
+  [
+    "a tab before the value",
+    '{"status":"finished","paths":{"/npm/x":{"throttled":false,"providers":{"CF":\tfalse,"FY":true}}}}',
+  ],
+  ["pretty-printed", JSON.stringify(FAILED_PROVIDER, null, 2)],
+  ["tab-indented", JSON.stringify(FAILED_PROVIDER, null, "\t")],
+  [
+    "providers before throttled",
+    '{"paths":{"/npm/x":{"providers":{"FY":true,"CF":false},"throttled":false}},"status":"finished"}',
+  ],
+]) {
+  test(`a provider that did not purge, ${spacing} → ::warning, never "accepted"`, (t) => {
+    const result = runPurge(t, { curlExits: [0], body });
+
+    assert.match(result.stdout, /^::warning title=jsDelivr purge not confirmed::/m);
+    assert.doesNotMatch(result.stdout, /accepted the purge/);
+  });
+}
+
+for (const [shape, body] of [
+  ["pretty-printed", JSON.stringify(JSON.parse(PURGED), null, 2)],
+  ["tab-indented", JSON.stringify(JSON.parse(PURGED), null, "\t")],
+  [
+    "keys in another order",
+    '{"paths":{"/npm/x":{"providers":{"FY":true,"CF":true},"throttled":false}},"status":"finished","id":"x"}',
+  ],
+  [
+    "with keys this step does not know",
+    JSON.stringify(
+      answer(
+        "finished",
+        { "/npm/x": { ...entry(false, { CF: true }), took: 12 } },
+        { region: { a: false } },
+      ),
+    ),
+  ],
+]) {
+  test(`a finished purge on every provider, ${shape} → accepted, no warning`, (t) => {
+    const result = runPurge(t, { curlExits: [0], body });
+
+    assert.match(result.stdout, /accepted the purge/);
+    assert.doesNotMatch(result.stdout, /::warning/);
+  });
+}
+
+for (const [shape, body] of [
+  ["a JSON string", '"finished"'],
+  ["an array", `[${PURGED}]`],
+  ["null", "null"],
+  ["a number", "200"],
+  ["two JSON values", `${PURGED} ${PURGED}`],
+  ["no paths", JSON.stringify(answer("finished", {}))],
+  ["paths as an array", JSON.stringify(answer("finished", [entry(false, { CF: true })]))],
+  ["a path with no providers", JSON.stringify(answer("finished", { "/npm/x": entry(false, {}) }))],
+  [
+    'throttled as the string "false"',
+    JSON.stringify(answer("finished", { "/npm/x": entry("false", { CF: true }) })),
+  ],
+  [
+    'a provider as the string "true"',
+    JSON.stringify(answer("finished", { "/npm/x": entry(false, { CF: "true" }) })),
+  ],
+  [
+    "a provider as the number 1",
+    JSON.stringify(answer("finished", { "/npm/x": entry(false, { CF: 1 }) })),
+  ],
+  [
+    "a failed status beside purged paths",
+    JSON.stringify(answer("failed", { "/npm/x": entry(false, { CF: true }) })),
+  ],
+  ["status as a number", JSON.stringify(answer(200, { "/npm/x": entry(false, { CF: true }) }))],
+  [
+    "one path of two not purged",
+    JSON.stringify(
+      answer("finished", { "/a": entry(false, { CF: true }), "/b": entry(false, { CF: false }) }),
+    ),
+  ],
+]) {
+  test(`purge answered with ${shape} → ::warning, never "accepted"`, (t) => {
+    const result = runPurge(t, { curlExits: [0], body });
+
+    assert.equal(result.curl.length, 1);
+    assert.match(result.stdout, /^::warning title=jsDelivr purge not confirmed::/m);
+    assert.doesNotMatch(result.stdout, /accepted the purge/);
+  });
+}
+
+test('purge throttled, pretty-printed and with the string "true" elsewhere → the throttled ::warning', (t) => {
+  const body = JSON.stringify(answer("finished", { "/npm/x": entry(true, { CF: true }) }), null, 2);
+
+  const result = runPurge(t, { curlExits: [0], body });
+
+  assert.match(result.stdout, /^::warning title=jsDelivr purge throttled::/m);
+});
+
+for (const [what, id] of [
+  ["65 characters long", "a".repeat(65)],
+  ["a number", 12345],
+  ["with a newline", "abc\n../x"],
+]) {
+  test(`purge pending with an id ${what} → no URL is built from it, ::warning`, (t) => {
+    const result = runPurge(t, {
+      curlExits: [0],
+      bodies: [JSON.stringify({ id, status: "pending" }), PURGED],
+    });
+
+    assert.equal(result.curl.length, 1);
+    assert.match(result.stdout, /^::warning title=jsDelivr purge not confirmed::/m);
+  });
+}
+
+test("purge pending with a 64-character id, pretty-printed → polled on its status URL", (t) => {
+  const id = "a".repeat(64);
+
+  const result = runPurge(t, {
+    curlExits: [0],
+    bodies: [JSON.stringify({ status: "pending", id }, null, 2), PURGED],
+  });
+
+  assert.equal(result.curl.length, 2);
+  assert.equal(result.curl[1].endsWith(`https://purge.jsdelivr.net/status/${id}`), true);
+  assert.match(result.stdout, /accepted the purge/);
+});
+
+test("the id comes from the first answer: status answers without one are still polled, five times, on the same URL", (t) => {
+  const result = runPurge(t, {
+    curlExits: [0],
+    bodies: ['{"id":"abc","status":"pending"}', '{"status":"pending"}'],
+  });
+
+  assert.equal(result.curl.length, 6);
+  assert.deepEqual(
+    result.curl.slice(1).map((call) => call.split(" ").at(-1)),
+    Array(5).fill("https://purge.jsdelivr.net/status/abc"),
+  );
+  assert.match(result.stdout, /^::warning title=jsDelivr purge not confirmed::/m);
+});
+
+test("a status answer that names another id does not move the poll to it", (t) => {
+  const result = runPurge(t, {
+    curlExits: [0],
+    bodies: ['{"id":"abc","status":"pending"}', '{"id":"other","status":"pending"}', PURGED],
+  });
+
+  assert.equal(result.curl.length, 3);
+  assert.equal(result.curl[2].endsWith("https://purge.jsdelivr.net/status/abc"), true);
+  assert.match(result.stdout, /accepted the purge/);
 });
