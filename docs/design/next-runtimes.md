@@ -114,7 +114,8 @@ meaning differs: Next takes a module that exports an instance.
 ## Alternatives rejected
 
 - **Handing the composed host from a Server Component to a Client Component** — Next cannot pass a
-  class instance across that boundary; `I18nClientProvider` is the workaround every quickstart uses.
+  class instance across that boundary; a `"use client"` wrapper that imports the instance itself
+  (`ClientProvider` in the manual setup) is the workaround.
 - **A separate client-only config module** — the two hosts then diverge on any option one side
   forgets, with nothing to catch it.
 - **Importing `routing` from the config module in `middleware.ts`** — 30.3 KB across 25 modules in
