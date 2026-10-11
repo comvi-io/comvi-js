@@ -27,8 +27,13 @@
  * bundles together with their own version string. Such a literal is accepted
  * only while it equals the version of the dependency that is installed.
  *
- * A minified build writes its strings as template literals, so a backtick
- * quotes a version as well as `"` and `'` do.
+ * A minified build writes its strings as template literals, so a version
+ * between two backticks is a literal too. That is a SECOND pass next to the
+ * `"`/`'` one, never one character class: with all three delimiters in one
+ * class, `` `0.5.1"0.5.0"` `` matches from the backtick to the first `"`,
+ * which consumes the opening quote of the stale literal behind it and hides
+ * it. The `"`/`'` pass is unchanged, so every literal the gate found before
+ * the template pass existed is still found.
  *
  * Usage: `node tooling/check-inlined-version.mjs` from the repo root.
  */
@@ -38,12 +43,24 @@ import { fileURLToPath } from "node:url";
 
 const BUILT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
 const VITE_CONFIG = /^vite\.config.*\.(ts|mts|js|mjs)$/;
-const SEMVER_LITERAL = /["'`](\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)["'`]/g;
+const SEMVER_LITERAL = /["'](\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)["']/g;
+const SEMVER_TEMPLATE_LITERAL = /`(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)`/g;
 
 /**
  * Dependencies whose own version string a package bundles into `dist`.
  * `@comvi/plugin-in-context-editor` bundles Vue, whose runtime carries
  * `version`, into the standalone IIFE and the lazily loaded editor chunks.
+ *
+ * What this admits, exactly: in that package's output, any literal equal to
+ * the version of the Vue that is installed for it — wherever it stands. A
+ * stale stamp of the package itself would slip through only if it equalled
+ * that Vue version.
+ *
+ * The exclusion is by value, not by provenance, on purpose: chunk names are
+ * hashed, and `standalone.iife.js` carries Vue's literal AND the editor's own
+ * stamp, so exempting files (or the region a dependency came from, which a
+ * minified single-file bundle no longer marks) would exempt the very file
+ * that has to be checked.
  */
 export const BUNDLED_DEPENDENCY_VERSIONS = {
   "@comvi/plugin-in-context-editor": ["vue"],
@@ -98,7 +115,9 @@ function builtFiles(distDir) {
 
 /** Every semver string literal in a built file, in source order. */
 export function collectVersionLiterals(source) {
-  return [...source.matchAll(SEMVER_LITERAL)].map((match) => match[1]);
+  return [...source.matchAll(SEMVER_LITERAL), ...source.matchAll(SEMVER_TEMPLATE_LITERAL)]
+    .sort((a, b) => a.index - b.index)
+    .map((match) => match[1]);
 }
 
 export function checkPackage(pkg) {

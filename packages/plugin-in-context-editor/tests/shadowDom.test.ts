@@ -73,6 +73,49 @@ describe("createShadowDomContainer()", () => {
     expect(shadowRoot.lastElementChild).toBe(mountPoint);
   });
 
+  it("engine whose shadow roots have no adoptedStyleSheets property → falls back to a <style> element", async () => {
+    const create = await freshCreateShadowDomContainer();
+    const descriptor = Object.getOwnPropertyDescriptor(ShadowRoot.prototype, "adoptedStyleSheets");
+    expect(descriptor).toBeDefined();
+    delete (ShadowRoot.prototype as { adoptedStyleSheets?: unknown }).adoptedStyleSheets;
+
+    try {
+      const { shadowRoot } = create();
+
+      expect("adoptedStyleSheets" in shadowRoot).toBe(false);
+      expect(shadowRoot.querySelector("style")?.textContent).toBe(editorCss);
+    } finally {
+      Object.defineProperty(ShadowRoot.prototype, "adoptedStyleSheets", descriptor!);
+    }
+  });
+
+  it("adoptedStyleSheets setter that ignores the assignment → falls back to a <style> element", async () => {
+    const create = await freshCreateShadowDomContainer();
+    vi.spyOn(ShadowRoot.prototype, "adoptedStyleSheets", "set").mockImplementation(() => undefined);
+
+    const { shadowRoot } = create();
+
+    expect(shadowRoot.adoptedStyleSheets).toHaveLength(0);
+    expect(shadowRoot.querySelector("style")?.textContent).toBe(editorCss);
+  });
+
+  it("engine that hands adoptedStyleSheets back as a frozen copy → the sheet is adopted, no <style> fallback", async () => {
+    const create = await freshCreateShadowDomContainer();
+    let adopted: readonly CSSStyleSheet[] = Object.freeze([]);
+    vi.spyOn(ShadowRoot.prototype, "adoptedStyleSheets", "set").mockImplementation((sheets) => {
+      adopted = Object.freeze([...sheets]);
+    });
+    vi.spyOn(ShadowRoot.prototype, "adoptedStyleSheets", "get").mockImplementation(
+      () => adopted as CSSStyleSheet[],
+    );
+
+    const { shadowRoot } = create();
+
+    expect(adopted).toHaveLength(1);
+    expect(adopted[0]).toBeInstanceOf(CSSStyleSheet);
+    expect(shadowRoot.querySelector("style")).toBeNull();
+  });
+
   it("gives each call its own host, root and mount point", () => {
     const first = createShadowDomContainer();
     const second = createShadowDomContainer();

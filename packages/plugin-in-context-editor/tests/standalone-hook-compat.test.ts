@@ -141,13 +141,33 @@ describe("standalone editor ↔ editor-loader slot", () => {
     expect(load).not.toHaveBeenCalled();
   });
 
-  it("slot whose sdkVersion is not a string → hook keeps the protocol and reports sdkVersion: undefined", async () => {
+  it("slot whose sdkVersion is not a string → hook keeps the protocol and carries no sdkVersion key", async () => {
     const editor = await bootEditorOnPage({
       ...protocol1,
       sdkVersion: { toString: () => "9.9.9" },
     });
 
-    expect(editor.getStatus().hook).toEqual({ protocol: 1, sdkVersion: undefined });
+    expect(editor.getStatus().hook).toStrictEqual({ protocol: 1 });
+  });
+
+  it("slot whose sdkVersion is longer than 64 characters → hook carries its first 64", async () => {
+    const editor = await bootEditorOnPage({ ...protocol1, sdkVersion: `0.5.1-${"x".repeat(500)}` });
+
+    expect(editor.getStatus().hook).toStrictEqual({
+      protocol: 1,
+      sdkVersion: `0.5.1-${"x".repeat(58)}`,
+    });
+  });
+
+  it("getStatus() called twice → each call hands out its own hook object, so a caller cannot edit the next answer", async () => {
+    const editor = await bootEditorOnPage(protocol1);
+    const first = editor.getStatus().hook;
+
+    first!.protocol = 99;
+    delete first!.sdkVersion;
+
+    expect(editor.getStatus().hook).not.toBe(first);
+    expect(editor.getStatus().hook).toStrictEqual({ protocol: 1, sdkVersion: "0.5.1" });
   });
 
   it.each([

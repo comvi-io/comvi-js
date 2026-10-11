@@ -60,6 +60,57 @@ test("collectVersionLiterals finds a version a minifier wrote as a template lite
   assert.deepEqual(collectVersionLiterals("var RM=`0.5.0`,zM=Symbol.for(`x`)"), ["0.5.0"]);
 });
 
+// The literal pass as it was before template literals were recognised. Whatever
+// it finds, the gate must still find: the template pass may only add.
+const QUOTED_ONLY = /["'](\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)["']/g;
+
+const DELIMITER_CASES = [
+  // A template literal whose text holds a quoted stale version: one character
+  // class for all three delimiters matched `0.5.1" and swallowed the quote.
+  ['const s = `0.5.1"0.5.0"`;', ["0.5.0"]],
+  ["const s = `0.5.1'0.5.0'`;", ["0.5.0"]],
+  ['const s = `0.5.0"0.5.1"`;', ["0.5.1"]],
+  ["const s = '0.5.1`0.5.0`';", ["0.5.0"]],
+  ['const s = "0.5.1`0.5.0`";', ["0.5.0"]],
+  ['a="0.5.1""0.5.0"', ["0.5.1", "0.5.0"]],
+  ["a='0.5.1''0.5.0'", ["0.5.1", "0.5.0"]],
+  ["a=`0.5.1``0.5.0`", ["0.5.1", "0.5.0"]],
+  ['a="0.5.1"`0.5.0`', ["0.5.1", "0.5.0"]],
+  ["a=`0.5.1`'0.5.0'", ["0.5.1", "0.5.0"]],
+  // A quote pair that does not match still counts, as it always has.
+  [`a='0.4.0"'`, ["0.4.0"]],
+  // A backtick closes only a backtick.
+  ['a=`0.4.0"', []],
+  ["a='0.4.0`", []],
+];
+
+for (const [source, expected] of DELIMITER_CASES) {
+  test(`collectVersionLiterals(${source}) → ${JSON.stringify(expected)}`, () => {
+    const found = collectVersionLiterals(source);
+    assert.deepEqual(found, expected);
+    for (const [, literal] of source.matchAll(QUOTED_ONLY)) {
+      assert.ok(found.includes(literal), `${literal} was found before template literals counted`);
+    }
+  });
+}
+
+test("a stale quoted version inside a template literal that starts with the manifest version fails", (t) => {
+  const root = makeWorkspace(t, [
+    {
+      dir: "core",
+      name: "@comvi/core",
+      version: "0.5.1",
+      configs: { "vite.config.ts": INLINING_CONFIG },
+      dist: { "core.js": 'const s = `0.5.1"0.5.0"`;' },
+    },
+  ]);
+
+  const { problems } = checkInlinedVersions({ root, log() {} });
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /inlines version "0\.5\.0" but the manifest says 0\.5\.1/);
+  assert.match(problems[1], /no built file inlines the manifest version 0\.5\.1/);
+});
+
 const EDITOR = {
   dir: "plugin-in-context-editor",
   name: "@comvi/plugin-in-context-editor",

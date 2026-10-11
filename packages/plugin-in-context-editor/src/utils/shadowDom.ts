@@ -20,18 +20,24 @@ let editorSheet: CSSStyleSheet | undefined;
  * Adopts the editor stylesheet as one constructable sheet shared by every
  * editor shadow root. CSSOM is outside CSP's `style-src`, which blocks an
  * inline `<style>` element — in a shadow root too — on a site that allows
- * neither `'unsafe-inline'` nor a nonce. Returns false where the browser has
- * no constructable stylesheets; the caller then falls back to `<style>`.
+ * neither `'unsafe-inline'` nor a nonce. Returns false where the sheet cannot
+ * be constructed or does not end up adopted; the caller then falls back to
+ * `<style>`.
  */
 function adoptEditorStyles(shadowRoot: ShadowRoot): boolean {
   try {
+    if (!("adoptedStyleSheets" in shadowRoot)) {
+      return false;
+    }
     if (!editorSheet) {
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(style);
       editorSheet = sheet;
     }
     shadowRoot.adoptedStyleSheets = [editorSheet];
-    return true;
+    // An engine or a page-patched setter can take the assignment and adopt
+    // nothing; only a sheet that is really on the root counts.
+    return shadowRoot.adoptedStyleSheets[0] === editorSheet;
   } catch {
     return false;
   }

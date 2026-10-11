@@ -33,8 +33,12 @@ const EDITOR_LOADER_KEY = Symbol.for("comvi.devtools.editorLoader");
 /** What the editor records of the `devtools()` loader slot that is on the page. */
 export interface EditorLoaderHookStatus {
   protocol: number;
-  sdkVersion: string | undefined;
+  /** Absent when the slot's `sdkVersion` is not a string. */
+  sdkVersion?: string;
 }
+
+// The slot is page-authored; a version string is far shorter than this.
+const SDK_VERSION_MAX_LENGTH = 64;
 
 let editorLoaderHook: EditorLoaderHookStatus | null = null;
 
@@ -56,7 +60,9 @@ function readEditorLoaderHook(): EditorLoaderHookStatus | null {
       return null;
     }
     const sdkVersion = slot?.sdkVersion;
-    return { protocol, sdkVersion: typeof sdkVersion === "string" ? sdkVersion : undefined };
+    return typeof sdkVersion === "string"
+      ? { protocol, sdkVersion: sdkVersion.slice(0, SDK_VERSION_MAX_LENGTH) }
+      : { protocol };
   } catch {
     return null;
   }
@@ -410,7 +416,7 @@ export function getStatus(): {
     active: activeCore !== null,
     instanceId: activeCore?.getInstanceId() ?? null,
     ...readComviGlobalStatus(),
-    hook: editorLoaderHook,
+    hook: editorLoaderHook && { ...editorLoaderHook },
   };
 }
 

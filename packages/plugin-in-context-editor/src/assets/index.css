@@ -231,3 +231,15 @@
     --tw-exit-translate-y: 0;
   }
 }
+
+/* reka-ui's SelectViewport ships these rules in an inline <style>, which a
+   strict style-src blocks; ui/select/SelectViewport.ts drops that element. */
+[data-reka-select-viewport] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+[data-reka-select-viewport]::-webkit-scrollbar {
+  display: none;
+}
