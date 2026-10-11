@@ -29,9 +29,10 @@ editorVersion, url, load() }` (`contracts/chrome-extension-proxy.json`, `editorL
   Nothing is requested before that click.
 - **`latest` by default, an exact version on request.** `devtools({ editorVersion: "0.5.1" })`
   pins; an exact `major.minor.patch`, optionally with a prerelease suffix such as `0.5.1-rc.1`, is
-  accepted, and any other value falls back to `latest` with a dev-only warning. A `latest` URL carries `?comvi=<hour bucket>` so the browser's 7-day cache for a
-  version alias is bounded to an hour; an exact version is immutable and takes no query. The first
-  instance on a page decides, and the UMD composite (`core/full.ts`) always loads `latest`.
+  accepted, and any other value falls back to `latest` with a dev-only warning. A `latest` URL
+  carries `?comvi=<hour bucket>` so the browser's 7-day cache for a version alias is bounded to an
+  hour; an exact version is immutable and takes no query. The first instance on a page decides,
+  and the UMD composite (`core/full.ts`) always loads `latest`.
 - **The slot is page-wide and protocol-versioned.** Every copy of core on the page meets the same
   slot and replaces it only with a strictly newer protocol; the load promise lives under a second
   key, so a replacing core inherits a pending or finished load instead of inserting a second
@@ -50,15 +51,15 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   entry is empty, so a site that gated `devtools()` with it was invisible to the extension exactly
   where the extension is the only way to edit. `@comvi/next` no longer composes discovery on its
   own; `.use(devtools())` on the `createNextI18n` result is the one line a Next app adds.
-- **Bytes move from the extension to the site.** `devtools()` costs about 0.7 kB min+gz for the loader
-  on every row that composes it (`scripts/size-budgets.md`, 2026-10-11) and nothing on any other
-  row. The extension's `dist/` carries no editor and its artifact test fails
-  if one appears.
+- **Bytes move from the extension to the site.** `devtools()` costs about 0.7 kB min+gz for the
+  loader on every row that composes it (`scripts/size-budgets.md`, 2026-10-11) and nothing on any
+  other row. The extension's `dist/` carries no editor and its artifact test fails if one appears.
 - **A site with a Content Security Policy must allow `https://cdn.jsdelivr.net` in `script-src`**,
-  and a Trusted Types policy must permit that URL. No `style-src` change where the browser supports
-  it: the editor applies its styles through a constructable stylesheet adopted by its shadow root,
-  and falls back to an inline `<style>` element where `adoptedStyleSheets` is missing or the sheet
-  is not adopted (`shadowDom.ts`).
+  and a site that enforces Trusted Types needs a `default` policy whose `createScriptURL` accepts
+  that URL, since the loader assigns `script.src` as a plain string. No `style-src` change where
+  the browser supports it: the editor applies its styles through a constructable stylesheet
+  adopted by its shadow root, and falls back to an inline `<style>` element where
+  `adoptedStyleSheets` is missing or the sheet is not adopted (`shadowDom.ts`).
 - **Release order is fixed.** Extension 0.5.1 cannot start the editor on a site whose SDK is older
   than 0.5.1, and it loads whatever jsDelivr serves as `latest`, so the npm packages publish first,
   jsDelivr's `latest` is checked to serve the new version, and the store submission follows.
@@ -80,10 +81,10 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
 - **Keep bundling the editor in the extension** — every editor fix waits for a store review, the
   translator's copy lags the site's SDK, and the `scripting` injection of a 135 kB file on every
   Enable is what the loader replaces.
-- **An exact version as the default** — the site would then pin the editor to whatever `@comvi/core`
-  it was built with, and an editor fix would again wait for every site to rebuild. `latest` plus
-  the hourly salt gets the fix to the page within an hour; a site that wants the pin has
-  `editorVersion`.
+- **An exact version as the default** — the site would then pin the editor to whatever
+  `@comvi/core` it was built with, and an editor fix would again wait for every site to rebuild.
+  `latest` plus the hourly salt gets the fix to the page within an hour; a site that wants the pin
+  has `editorVersion`.
 - **Comvi's own CDN** — a second origin to run, purge and keep in every site's CSP, for a file npm
   already publishes. jsDelivr serves the published tarball, caches an exact version indefinitely
   and takes a purge call for the alias.
@@ -103,9 +104,11 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
 - the `editorLoader` contract — `contracts/chrome-extension-proxy.json`; the hand-written
   protocol-1 fixture —
   `packages/plugin-in-context-editor/tests/fixtures/editor-loader-hooks/protocol-1.js`
-- `getStatus().hook` and the standalone `version` — `packages/plugin-in-context-editor/src/standalone.ts`;
-  the constructable stylesheet — `.../src/utils/shadowDom.ts`
-- the detector's `load()` call and `EDITOR_LOAD_BUDGET_MS` — `apps/chrome-extension/src/content/detector.ts`;
+- `getStatus().hook` and the standalone `version` —
+  `packages/plugin-in-context-editor/src/standalone.ts`; the constructable stylesheet —
+  `.../src/utils/shadowDom.ts`
+- the detector's `load()` call and `EDITOR_LOAD_BUDGET_MS` —
+  `apps/chrome-extension/src/content/detector.ts`;
   the reason texts and `EDITOR_CDN_HOST` — `.../src/popup/popup.ts`
 - the release order — `apps/chrome-extension/README.md`, "Release order"
 
