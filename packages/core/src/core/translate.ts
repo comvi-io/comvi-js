@@ -42,41 +42,86 @@ const CHAR_APOSTROPHE = 39; // '
 const CHAR_LESS_THAN = 60; // <
 const CHAR_AMPERSAND = 38; // &
 
-// Module-global and shared by every entry/instance in the process: the KEY,
-// not the instance, carries compiler identity and the effective extension set.
-const templateCache = new Map<string, CachedTemplate>();
+// Module-global and shared by every entry/instance in the process: the
+// PARTITION KEY, not the instance, carries compiler identity and the effective
+// extension set. Partition -> template -> compiled entry.
+const partitions = new Map<number, Map<string, CachedTemplate>>();
 
-// Eviction is insertion-order, which works because JS Map iteration is.
+// One global bound across all partitions, evicted per entry in insertion
+// (FIFO) order. A ring of parallel arrays records which bucket and template
+// every slot holds; hits never touch it.
 const TEMPLATE_CACHE_MAX = 1000;
+const ringPk: number[] = [];
+const ringBucket: Map<string, CachedTemplate>[] = [];
+const ringTpl: string[] = [];
+let ringHead = 0;
+let ringCount = 0;
 
-/** @internal */
+/** @internal Total entries across every partition. */
 export function _templateCacheSize(): number {
-  return templateCache.size;
+  return ringCount;
 }
 
-/** Use instead of a raw `templateCache.set()` — this is what enforces the cap. */
-function cacheTemplate(key: string, value: CachedTemplate): void {
-  if (templateCache.size >= TEMPLATE_CACHE_MAX) {
-    templateCache.delete(templateCache.keys().next().value!);
+/** @internal */
+export function _templatePartitionCount(): number {
+  return partitions.size;
+}
+
+/**
+ * Partition key for a compiled template. Parsing depends on whether `#` is
+ * syntax (inside a plural/selectordinal sub-message), on the compiler that
+ * built the tokens, and on the effective syntax-extension set — so the same
+ * string compiles differently per context and needs distinct cache entries.
+ *
+ * Bit 0 is the hash flag, bits 1-15 the extension set (15 usable bits), and
+ * the compiler id fills the rest: exact for integer ids 1 <= id < 2^37.
+ */
+function partitionKey(hashIsSyntax: boolean, compilerId: number, extBits: number): number {
+  return compilerId * 0x10000 + (((extBits & 0x7fff) << 1) | +hashIsSyntax);
+}
+
+/** Use instead of a raw bucket `set()` — this is what enforces the global cap. */
+function cacheTemplate(pk: number, template: string, value: CachedTemplate): void {
+  let bucket = partitions.get(pk);
+  // A re-entrant parse (a third-party parseHook) may have inserted this entry
+  // already: overwrite in place, so it neither takes a second slot nor evicts.
+  if (!bucket?.has(template)) {
+    const slot = (ringHead + ringCount) % TEMPLATE_CACHE_MAX;
+    if (ringCount === TEMPLATE_CACHE_MAX) {
+      // Full: `slot` is the oldest entry. Drop it, and its bucket once empty.
+      const old = ringBucket[slot];
+      old.delete(ringTpl[slot]);
+      if (!old.size && partitions.get(ringPk[slot]) === old) partitions.delete(ringPk[slot]);
+      ringHead = (ringHead + 1) % TEMPLATE_CACHE_MAX;
+    } else {
+      ringCount++;
+    }
+    // Looked up again: the eviction may just have dropped this very bucket.
+    bucket = partitions.get(pk);
+    if (!bucket) partitions.set(pk, (bucket = new Map()));
+    ringPk[slot] = pk;
+    ringBucket[slot] = bucket;
+    ringTpl[slot] = template;
   }
-  templateCache.set(key, value);
+  bucket.set(template, value);
 }
 
 /**
  * Deliberately NOT called on reload/destroy — the cache is shared, so that would
  * invalidate other instances. Registering or disposing a syntax extension never
- * requires clearing either: the keys differ by construction.
+ * requires clearing either: the partitions differ by construction.
  */
 export function clearTemplateCache(): void {
-  templateCache.clear();
+  partitions.clear();
+  ringPk.length = ringBucket.length = ringTpl.length = ringHead = ringCount = 0;
 }
 
 /**
  * Check if a template is known to be static (no interpolation) FOR THE GIVEN
  * CACHE VARIANT. "Static" is a property of a parse, and a parse is defined by
- * the full key (template, hashIsSyntax, compilerId, extBits) — there is no
+ * the full context (template, hashIsSyntax, compilerId, extBits) — there is no
  * cross-variant fallback. Returns undefined if that variant is not yet
- * analyzed.
+ * analyzed. A miss allocates nothing.
  */
 export function isStaticTemplate(
   template: string,
@@ -84,30 +129,7 @@ export function isStaticTemplate(
   compilerId: number,
   extBits: number,
 ): boolean | undefined {
-  return templateCache.get(templateCacheKey(template, hashIsSyntax, compilerId, extBits))?.isStatic;
-}
-
-/**
- * Cache key for a compiled template. Parsing depends on whether `#` is syntax
- * (inside a plural/selectordinal sub-message), on the compiler that built the
- * tokens, and on the effective syntax-extension set — so the same string
- * compiles differently per context and needs distinct cache entries.
- *
- * Two-char prefix with non-overlapping fields (headroom by construction):
- * char 1 carries the hash bit plus the extension bits (15 usable bits),
- * char 2 carries the full compiler id.
- */
-function templateCacheKey(
-  template: string,
-  hashIsSyntax: boolean,
-  compilerId: number,
-  extBits: number,
-): string {
-  return (
-    String.fromCharCode((hashIsSyntax ? 1 : 0) | (extBits << 1)) +
-    String.fromCharCode(compilerId) +
-    template
-  );
+  return partitions.get(partitionKey(hashIsSyntax, compilerId, extBits))?.get(template)?.isStatic;
 }
 
 function createCachedTemplate(
@@ -264,13 +286,8 @@ export function translate(
   missingParam: MissingParamMode = "literal",
 ): TranslationResult {
   const perCall = tagInterpolation?.extensions;
-  const cacheKey = templateCacheKey(
-    template,
-    false,
-    getCompilerId(compiler),
-    effectiveExtBits(perCall),
-  );
-  const cached = templateCache.get(cacheKey);
+  const pk = partitionKey(false, getCompilerId(compiler), effectiveExtBits(perCall));
+  const cached = partitions.get(pk)?.get(template);
   if (cached) {
     if (cached.isStatic) {
       return template;
@@ -300,7 +317,7 @@ export function translate(
     }
   }
   if (!hasSpecialChar) {
-    cacheTemplate(cacheKey, {
+    cacheTemplate(pk, template, {
       tokens: [],
       flags: TF_STATIC,
       isStatic: true,
@@ -328,11 +345,11 @@ export function translateSegment(
   ctx: TranslateCtx,
   hashIsSyntax: boolean,
 ): TranslationResult {
-  const cacheKey = templateCacheKey(segment, hashIsSyntax, ctx.compilerId, ctx.extBits);
-  let cached = templateCache.get(cacheKey);
+  const pk = partitionKey(hashIsSyntax, ctx.compilerId, ctx.extBits);
+  let cached = partitions.get(pk)?.get(segment);
   if (!cached) {
     cached = createCachedTemplate(segment, hashIsSyntax, ctx.extensions, ctx.compiler);
-    cacheTemplate(cacheKey, cached);
+    cacheTemplate(pk, segment, cached);
   }
   // `translate()` stores static templates as a token-less placeholder; rendering that entry
   // through the token path would yield "" (a per-call `fallback` equal to a catalog value hit this).
