@@ -22,14 +22,16 @@ export function asActivationFailureCode(value: unknown): ActivationFailureCode |
   return ACTIVATION_FAILURE_CODES.find((code) => code === value);
 }
 
-// Three numbers, then an optional pre-release or build suffix; 32 characters
-// at most. No whitespace can pass, so a version cannot carry a sentence.
-const DISPLAY_VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/;
+// Three numbers, then at most one lowercase pre-release word and one number:
+// `0.5.1`, `0.5.1-rc.1` (the only pre-release this repository publishes,
+// scripts/rc-version.mjs), `0.6.0-next.20261011`. No build metadata and no
+// second dotted word, so nothing that reads as a host name or a message.
+const DISPLAY_VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[a-z]{1,8}(?:\.\d{1,10})?)?$/;
 
 /**
  * A page-reported version the popup may show, or nothing. The SDK and editor
  * versions are the only page-authored strings the popup ever renders, so they
- * must look like a version and nothing else.
+ * must look like a version and nothing else. One that does not is not shown.
  */
 export function asDisplayVersion(value: unknown): string | undefined {
   return typeof value === "string" && value.length <= 32 && DISPLAY_VERSION.test(value)

@@ -423,7 +423,13 @@ function clearActivationTimeout() {
   }
 }
 
+// Set while this popup rolls its own pending activation back (its deadline
+// passed, or the page could not be told to activate). The worker's notice of
+// that rollback must not replace the message the popup shows for it.
+let ownRollback = false;
+
 async function rollbackActivation(tabId: number, nonce: string) {
+  ownRollback = true;
   await sendToServiceWorker({
     type: "ROLLBACK_ACTIVATION",
     payload: { tabId, nonce },
@@ -455,6 +461,7 @@ async function handleEnable() {
   }
 
   hideError();
+  ownRollback = false;
   setOperation("enabling", "Checking key…");
 
   try {
@@ -641,9 +648,13 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
       editorAvailable = true;
       hideError();
       void refreshEditorVersion();
-    } else if (operation === "enabling" && state.code) {
-      // Every word is the popup's own: a code it does not know still gets one.
-      showError(ACTIVATION_FAILURE_TEXT[state.code] ?? ACTIVATION_FAILED);
+    } else if (operation === "enabling" && !ownRollback) {
+      // An Enable that ends without an active session always says so, in the
+      // popup's own words: with the reason when the worker named one, and
+      // otherwise (the page navigated, the popup lost its lease, the page
+      // announced a deactivation) with the plain failure text. A rollback
+      // this popup asked for already has its own message.
+      showError((state.code && ACTIVATION_FAILURE_TEXT[state.code]) || ACTIVATION_FAILED);
     }
     clearActivationTimeout();
     setOperation(null);

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPopupHarness, type PopupHarness } from "./harness";
+import { createPopupHarness, runtimeFailure, type PopupHarness } from "./harness";
 import type { StatusResponsePayload } from "../../shared/messages";
 
 const PAGE_URL = "https://app.example.com/projects/1";
@@ -285,8 +285,102 @@ describe("popup editor availability and load failures", () => {
     await activationFailed({ ...failure, error: FORGED, message: FORGED, host: "evil.example" });
 
     expect(document.documentElement.outerHTML).not.toContain("evil.example");
-    expect(popup.errorMsg.textContent).toBe("code" in failure ? FAILURE_TEXT.failed : "");
+    expect(popup.errorMsg.textContent).toBe(FAILURE_TEXT.failed);
     expect(popup.enableBtn.disabled).toBe(false);
+  });
+
+  // --- An Enable that ends without a session always says so ---
+
+  it("says the editor could not start when the page navigates during Enable", async () => {
+    await enablePending();
+
+    // DOCUMENT_READY for the new document: the worker dropped the session.
+    await activationFailed({ comviDetected: false });
+
+    expect(popup.errorMsg.textContent).toBe(FAILURE_TEXT.failed);
+    expect(popup.errorMsg.classList.contains("hidden")).toBe(false);
+    expect(vi.getTimerCount()).toBeLessThanOrEqual(1); // only the not-detected recheck
+    expect(popup.enableBtn.disabled).toBe(false);
+  });
+
+  it("says the editor could not start when the page forges a deactivation during Enable", async () => {
+    await enablePending();
+
+    // A lifecycle `deactivated` from the page revokes the pending session;
+    // the worker's notice carries no code.
+    await activationFailed({});
+
+    expect(popup.visibleViews()).toEqual(["idle"]);
+    expect(popup.errorMsg.textContent).toBe(FAILURE_TEXT.failed);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("keeps its own timeout text when the worker's notice of the rollback arrives late", async () => {
+    await enablePending();
+    // The worker announces the rollback before it answers the popup's request.
+    let answerRollback: (reply: unknown) => void = () => {};
+    popup.onServiceWorker(
+      "ROLLBACK_ACTIVATION",
+      new Promise((resolve) => (answerRollback = resolve)),
+    );
+
+    await vi.advanceTimersByTimeAsync(POPUP_BUDGET_MS);
+    await popup.flush();
+    await activationFailed({});
+    answerRollback({ ok: true });
+    await popup.flush();
+
+    expect(popup.errorMsg.textContent).toBe(GENERIC_TIMEOUT);
+    expect(messagesOfType("ROLLBACK_ACTIVATION")).toHaveLength(1);
+  });
+
+  it("reports once when the popup rolls back because the page could not be told", async () => {
+    await startWith(CURRENT_SDK);
+    popup.onServiceWorker("START_SESSION", { ok: true, nonce: NONCE });
+    popup.onContentScript("ACTIVATE_EDITOR", runtimeFailure("Receiving end does not exist"));
+    // The worker announces the rollback before it answers the popup's request.
+    let answerRollback: (reply: unknown) => void = () => {};
+    popup.onServiceWorker(
+      "ROLLBACK_ACTIVATION",
+      new Promise((resolve) => (answerRollback = resolve)),
+    );
+    popup.apiKeyInput.value = "sk-live-key";
+
+    popup.enableBtn.click();
+    await popup.flush();
+    await activationFailed({});
+    answerRollback({ ok: true });
+    await popup.flush();
+
+    expect(popup.errorMsg.textContent).toBe("Receiving end does not exist");
+  });
+
+  it("reports a later failed Enable again after an earlier own rollback", async () => {
+    await enablePending();
+    await vi.advanceTimersByTimeAsync(POPUP_BUDGET_MS);
+    await popup.flush();
+
+    popup.enableBtn.click();
+    await popup.flush();
+    await activationFailed({});
+
+    expect(popup.errorMsg.textContent).toBe(FAILURE_TEXT.failed);
+  });
+
+  it("shows no error for an ordinary Disable", async () => {
+    await activate({ ...CURRENT_SDK, editorLoaded: true });
+    let answerDisable: (reply: unknown) => void = () => {};
+    popup.onServiceWorker("END_SESSION", new Promise((resolve) => (answerDisable = resolve)));
+
+    popup.disableBtn.click();
+    await popup.flush();
+    await activationFailed({});
+    answerDisable({ ok: true });
+    await popup.flush();
+
+    expect(popup.visibleViews()).toEqual(["idle"]);
+    expect(popup.errorMsg.classList.contains("hidden")).toBe(true);
+    expect(popup.errorMsg.textContent).toBe("");
   });
 
   it("stays quiet about a load failure outside an enable", async () => {

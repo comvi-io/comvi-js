@@ -57,9 +57,10 @@ Every word of these messages is the extension's own, including the host. The
 popup never shows a sentence the page wrote: a failure travels from the page as
 a code from a fixed list, and anything else becomes "The editor could not start
 on this page." The only page-reported strings the popup shows are the SDK and
-editor versions, and only when they look like a version (three numbers, an
-optional `-`/`+` suffix of letters, digits, `.`, `+`, `-`, 32 characters at
-most), so they cannot carry a sentence.
+editor versions, and only when they look like a version: three numbers and at
+most one lowercase pre-release word with one number (`0.5.1`, `0.5.1-rc.1`), 32
+characters at most. Any other value is not shown. An Enable that ends without
+an active session always says so, in the popup's own words.
 
 While the popup says the editor cannot start here, it asks the page again every
 second, so a site that creates its i18n instance late moves to **Enable editor**
