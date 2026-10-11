@@ -160,3 +160,20 @@ Renamed on 2026-10-04 (first-impression lot), when `cdnLoader` became the packag
 `fetchLoader` moved to `/api`: `plugin-fetch-loader-cdn-lite` is now `plugin-fetch-loader` and
 `plugin-fetch-loader-cdn` is now `plugin-fetch-loader-api`. Both measure the same module graph as
 before the rename, so their budgets carry over unchanged.
+
+## 2026-10-11: `#` formatted for the locale
+
+`icuCompiler` now renders a plural `#` through a cached `Intl.NumberFormat` for the message
+locale (ICU semantics: `1,234 items` in `en`), with a per-locale probe that keeps the integers
+below 1000 on the `String()` fast path. Against the 0.5.0 code on `main` the change adds about
+130 B min+gz to every row whose graph includes `@comvi/core/icu` and nothing to the others:
+`core-base-icu` 6510 → 6645 B, `fw-nuxt-i18n` 8525 → 8655 B, `fw-next-root-composed`
+10155 → 10286 B, `platform-path-react` 11837 → 11953 B; `core-base` 5452 → 5451 B,
+`fw-react-default` 7425 → 7424 B.
+
+All rows were re-baselined on this date. Most of the recorded movement is not this change: the
+previous baselines dated 2026-09-12 to 2026-10-05 sat 1–4 % below the code that shipped as 0.5.0
+(see `scripts/size-compare/README.md`, "Where the Comvi figures come from"), and this re-baseline
+folds that drift in. Only `platform-path-react` crossed its old budget (11921 B), by 32 B. Every
+budget is now the new baseline + 5 %, rounded up, the rule `scripts/docs-snippets/run.test.mjs`
+enforces for every row (`platform-path-react` 12551 B, `core-base-icu` 6978 B, `core-base` 5724 B).
