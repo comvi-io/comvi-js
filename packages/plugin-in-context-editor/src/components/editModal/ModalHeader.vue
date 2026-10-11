@@ -153,7 +153,7 @@ const theme = inject(THEME_INJECTION_KEY);
               <span class="flex-1">{{ lang.name }}</span>
               <span
                 v-if="lang.isSource"
-                class="text-[10px] font-mono tracking-mono uppercase text-primary font-medium"
+                class="text-[10px] font-mono tracking-mono uppercase text-muted-foreground font-medium"
                 >Source</span
               >
             </div>
