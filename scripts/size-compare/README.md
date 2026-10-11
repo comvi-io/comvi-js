@@ -165,31 +165,33 @@ one instance). The pages cite the median of the three runs for the same-output a
 
 | Scenario                         | Library                                                            | run 1 | run 2 | run 3 |           median |
 | -------------------------------- | ------------------------------------------------------------------ | ----: | ----: | ----: | ---------------: |
-| warm, same output                | `@comvi/core` + `icuCompiler`, `formatNumber()` into `{n}`         |  0.92 |  0.94 |  0.87 |     **0.92 M/s** |
-| warm, same output                | `intl-messageformat`, instance reused, `#`                         |  0.64 |  0.61 |  0.44 |     **0.61 M/s** |
-| warm, same output                | `i18next` + `i18next-icu`, `#`                                     |  0.25 |  0.25 |  0.23 |     **0.25 M/s** |
+| warm, same output                | `@comvi/core` + `icuCompiler`, `formatNumber()` into `{n}`         |  0.93 |  0.91 |  0.99 |     **0.93 M/s** |
+| warm, same output                | `intl-messageformat`, instance reused, `#`                         |  0.63 |  0.55 |  0.63 |     **0.63 M/s** |
+| warm, same output                | `i18next` + `i18next-icu`, `#`                                     |  0.25 |  0.23 |  0.25 |     **0.25 M/s** |
 | warm, same output                | `use-intl/core` translator, `#`                                    |  0.21 |  0.21 |  0.21 |     **0.21 M/s** |
-| warm, same output                | `vue-i18n`, pipe plural, `n(x, "decimal")` into `{n}`              |  0.17 |  0.16 |  0.17 |     **0.17 M/s** |
-| warm, equal work (pre-formatted) | `@comvi/core` + `icuCompiler`                                      |  1.50 |  1.31 |  1.51 |         1.50 M/s |
-| warm, equal work (pre-formatted) | `intl-messageformat`, instance reused                              |  0.93 |  0.92 |  0.93 |         0.93 M/s |
-| warm, equal work (pre-formatted) | `i18next` + `i18next-icu`                                          |  0.30 |  0.30 |  0.30 |         0.30 M/s |
-| warm, equal work (pre-formatted) | `use-intl/core` translator                                         |  0.24 |  0.25 |  0.15 |         0.24 M/s |
-| warm, equal work (pre-formatted) | `vue-i18n`, pipe plural                                            |  0.23 |  0.23 |  0.22 |         0.23 M/s |
-| warm, default `#` (unequal work) | `@comvi/core` + `icuCompiler`                                      |  1.67 |  1.53 |  1.63 |         1.63 M/s |
-| warm, default `#` (unequal work) | `intl-messageformat`, instance reused                              |  0.66 |  0.60 |  0.64 |         0.64 M/s |
-| catalog                          | `@comvi/core` + `icuCompiler`                                      | 283.1 | 226.1 | 269.0 | **269 K msgs/s** |
-| catalog                          | `intl-messageformat`, new instance per message, shared formatters  |  99.4 |  93.7 |  95.5 |  **96 K msgs/s** |
-| catalog                          | `intl-messageformat`, new instance per message, default formatters |  50.7 |  47.1 |  47.6 |      48 K msgs/s |
-| catalog                          | `i18next` + `i18next-icu`, one instance                            |  38.3 |  34.4 |  36.8 |  **37 K msgs/s** |
-| catalog                          | `use-intl/core`, one translator                                    |  54.8 |  54.0 |  55.8 |  **55 K msgs/s** |
-| catalog                          | `vue-i18n`, one instance, pipe plural                              |  45.5 |  42.1 |  43.3 |  **43 K msgs/s** |
+| warm, same output                | `vue-i18n`, pipe plural, `n(x, "decimal")` into `{n}`              |  0.17 |  0.17 |  0.17 |     **0.17 M/s** |
+| warm, equal work (pre-formatted) | `@comvi/core` + `icuCompiler`                                      |  1.52 |  1.53 |  1.48 |         1.52 M/s |
+| warm, equal work (pre-formatted) | `intl-messageformat`, instance reused                              |  0.95 |  0.93 |  0.95 |         0.95 M/s |
+| warm, equal work (pre-formatted) | `i18next` + `i18next-icu`                                          |  0.30 |  0.29 |  0.30 |         0.30 M/s |
+| warm, equal work (pre-formatted) | `use-intl/core` translator                                         |  0.25 |  0.24 |  0.25 |         0.25 M/s |
+| warm, equal work (pre-formatted) | `vue-i18n`, pipe plural                                            |  0.23 |  0.22 |  0.23 |         0.23 M/s |
+| warm, default `#` (unequal work) | `@comvi/core` + `icuCompiler`                                      |  1.66 |  1.65 |  1.62 |         1.65 M/s |
+| warm, default `#` (unequal work) | `intl-messageformat`, instance reused                              |  0.65 |  0.65 |  0.64 |         0.65 M/s |
+| catalog                          | `@comvi/core` + `icuCompiler`                                      | 254.2 | 278.6 | 262.4 | **262 K msgs/s** |
+| catalog                          | `intl-messageformat`, new instance per message, shared formatters  |  99.8 |  99.0 |  92.0 |  **99 K msgs/s** |
+| catalog                          | `intl-messageformat`, new instance per message, default formatters |  50.8 |  50.6 |  48.8 |      51 K msgs/s |
+| catalog                          | `i18next` + `i18next-icu`, one instance                            |  38.0 |  36.9 |  37.3 |  **37 K msgs/s** |
+| catalog                          | `use-intl/core`, one translator                                    |  57.1 |  56.0 |  57.3 |  **57 K msgs/s** |
+| catalog                          | `vue-i18n`, one instance, pipe plural                              |  44.7 |  44.3 |  43.0 |  **44 K msgs/s** |
 
 The exact console output of each run is in `bench-2026-10-11-run1.txt`, `-run2.txt` and
 `-run3.txt`. An earlier version of this benchmark (2026-10-10) used a `#` message for every library
 and a "cold" row that created a new instance per call with ids repeated across rounds; a review
 found both unfair (unequal work; a module-level cache in vue-i18n served later rounds; the
 `intl-messageformat` row paid Intl initialization per instance). Those rows were replaced by the
-scenarios above and the pages re-cited.
+scenarios above and the pages re-cited; a third review pass then made the catalog ids restart at a
+fixed width per library and added the catalog assertion, and the three runs above are from after
+that change.
 
 ## Where the Comvi figures come from
 
