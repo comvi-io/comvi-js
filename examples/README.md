@@ -53,7 +53,7 @@ Each example has its own README with the file where the setup lives.
 
 ## How an example is wired
 
-Every example composes one instance the same way, in its `src/i18n.ts` (Next: `src/i18n/config.ts`, Nuxt: `src/comvi.i18n.ts`): the base instance from the binding, a loader with one import per catalog, the locale detector, and `devtools()`, which makes the instance visible to the Comvi browser extension. React's, with the counter plumbing left out:
+Every example composes one instance the same way, in its `src/i18n.ts` (Next: `src/i18n/config.ts`, Nuxt: `src/comvi.i18n.ts`): the base instance from the binding, a loader with one import per catalog, the locale detector, and `devtools()`, which makes the instance visible to the Comvi browser extension and lets it load the in-context editor. React's, with the counter plumbing left out:
 
 ```ts title="src/i18n.ts"
 import { createI18n, devtools, icuCompiler, loader } from "@comvi/react";
