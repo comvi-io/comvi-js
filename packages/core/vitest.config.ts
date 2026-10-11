@@ -24,6 +24,11 @@ const sharedResolve = {
   },
 };
 
+// Under Stryker (`scripts/mutation/run.mjs` sets COMVI_MUTATION) the fuzz
+// suites are left out: they would re-run for every parser mutant at seconds
+// apiece, and what they kill, the named tests already do.
+const FUZZ = process.env.COMVI_MUTATION ? ["tests/**/message-fuzz.test.ts"] : [];
+
 export default defineConfig({
   test: {
     coverage: {
@@ -41,7 +46,7 @@ export default defineConfig({
           ...shared,
           name: "unit",
           include: ["tests/**/*.test.ts"],
-          exclude: ["tests/prod/**"],
+          exclude: ["tests/prod/**", ...FUZZ],
         },
       },
       {
@@ -54,6 +59,7 @@ export default defineConfig({
           ...shared,
           name: "prod",
           include: ["tests/prod/**/*.test.ts"],
+          exclude: FUZZ,
         },
       },
     ],
