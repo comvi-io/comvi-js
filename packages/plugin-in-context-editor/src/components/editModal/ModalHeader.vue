@@ -70,7 +70,7 @@ const theme = inject(THEME_INJECTION_KEY);
 </script>
 
 <template>
-  <div class="flex items-center justify-between p-4 border-b sticky top-0 bg-background">
+  <div class="flex items-center justify-between p-4 border-b sticky top-0 z-20 bg-background">
     <div class="flex items-center gap-3">
       <svg
         xmlns="http://www.w3.org/2000/svg"
