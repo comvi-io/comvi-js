@@ -206,18 +206,24 @@ export function _resetMissingParamWarnings(): void {
  *
  * A function-valued parameter renders the same way but was not forgotten — an
  * uncalled getter, or a tag handler under a placeholder — so the warning says
- * that. The value is read back from `ctx` inside the development branch, which
- * keeps the distinction out of the production build entirely.
+ * that. `value` is what the caller already read: reading the parameter again
+ * here would run a getter twice and could describe a different value from the
+ * one rendered. Callers that only get here for `undefined` leave it out. It is
+ * used inside the development branch alone.
+ *
+ * The two warnings are different advice, so each has its own entry in the
+ * dedup set: one must not silence the other for the same pair.
  */
-function missingParamText(name: string, ctx: TranslateCtx): string {
+function missingParamText(name: string, ctx: TranslateCtx, value?: unknown): string {
   if (IS_DEV && missingParamWarned !== undefined) {
-    const dedupKey = ctx.template + "\u0000" + name;
+    // An inherited member (`{constructor}`) is a function nobody passed.
+    const isFunction =
+      typeof value === "function" && value !== (Object.prototype as Record<string, unknown>)[name];
+    const dedupKey = ctx.template + "\u0000" + name + (isFunction ? "\u0000" : "");
     if (!missingParamWarned.has(dedupKey)) {
       missingParamWarned.add(dedupKey);
-      const value = ctx.params[name];
       warn(
-        // An inherited member (`{constructor}`) is a function nobody passed.
-        typeof value === "function" && value !== (Object.prototype as Record<string, unknown>)[name]
+        isFunction
           ? `[@comvi/core] Parameter "${name}" for template "${ctx.template}" is a function, and a placeholder renders text. Call it and pass the result, or write <${name}>…</${name}> to use it as a tag handler.`
           : `[@comvi/core] Missing parameter "${name}" for template "${ctx.template}"`,
       );
@@ -455,7 +461,7 @@ function appendParamValue(
     value === (Object.prototype as Record<string, unknown>)[name]
   ) {
     if (ctx.missingParam === "literal") {
-      appendString(parts, missingParamText(name, ctx));
+      appendString(parts, missingParamText(name, ctx, value));
     }
     return;
   }
