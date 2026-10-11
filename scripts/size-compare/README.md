@@ -277,3 +277,15 @@ cookie.
   both change what lands in the client, so the deltas describe these apps, not every Nuxt app.
 - Every build was started with `node .output/server/index.mjs` and `/` returned the expected
   string (`Hello, world!`, or `2 items for world` for the ICU app) before the numbers were taken.
+
+## `eval` and `new Function`
+
+`scan-eval.mjs` reads every `.js`, `.mjs` and `.cjs` file of each compared package as installed and
+reports the ones that contain `eval(` or `new Function(`, the two constructs a Content Security
+Policy without `'unsafe-eval'` blocks. Result on 2026-10-11 (`scan-eval-2026-10-11.txt`): none of
+the browser bundles of any compared package, Comvi's included, contains either. The one match is
+`@comvi/nuxt/dist/module.mjs`, the Nuxt build-time module that runs in Node during `nuxi build`
+and uses `new Function` to check that a user-supplied `resolveAcceptLanguage` function re-parses
+before writing it into the generated template; it never ships to the browser. So this is a fact
+about Comvi that the pages may state, not a difference from the compared libraries, whose current
+builds have none either.
