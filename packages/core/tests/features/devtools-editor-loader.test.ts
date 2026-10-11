@@ -436,6 +436,19 @@ describe("load()", () => {
     expect(scripts()).toHaveLength(1);
   });
 
+  it("after a successful load → the script stays, with its handlers detached", async () => {
+    const promise = install().load();
+    const script = scripts()[0];
+    win.ComviInContextEditor = { activate: () => {} };
+
+    script.dispatchEvent(new Event("load"));
+    await promise;
+
+    expect(script.isConnected).toBe(true);
+    expect(script.onload).toBeNull();
+    expect(script.onerror).toBeNull();
+  });
+
   it("editor injected by someone else while a load is pending → still the pending promise", () => {
     const slot = install();
     const first = slot.load();
@@ -545,7 +558,7 @@ describe("load() failures", () => {
     expect((await promise).ok).toBe(true);
   });
 
-  it("a violation event with no disposition → not taken for an enforced block", async () => {
+  it("a script-src violation with no disposition (an older engine) → taken as enforced", async () => {
     const promise = install().load();
 
     document.dispatchEvent(
@@ -556,7 +569,34 @@ describe("load() failures", () => {
     );
     scripts()[0].dispatchEvent(new Event("error"));
 
-    expect((await promise).code).toBe("load-error");
+    expect((await promise).code).toBe("csp-blocked");
+  });
+
+  it.each([
+    [
+      "the root element refuses the insertion",
+      (): void => {
+        vi.mocked(document.documentElement.appendChild).mockImplementation(() => {
+          throw new DOMException("HierarchyRequestError");
+        });
+      },
+    ],
+    [
+      "the document has no root element",
+      (): void => {
+        vi.spyOn(document, "documentElement", "get").mockReturnValue(null as never);
+      },
+    ],
+  ])("%s → load-error, not a policy block, nothing left behind", async (_label, arrange) => {
+    vi.useFakeTimers();
+    arrange();
+    const slot = install();
+
+    const result = await slot.load();
+
+    expect(result).toMatchObject({ ok: false, code: "load-error" });
+    expect(slots[LOAD_KEY]).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("Trusted Types refuses the src assignment → csp-blocked, nothing left behind", async () => {
@@ -645,9 +685,11 @@ describe("load() failures", () => {
     await first;
     const second = slot.load();
 
+    const detached = [stale.onload, stale.onerror];
     stale.dispatchEvent(new Event("error"));
     stale.dispatchEvent(new Event("load"));
 
+    expect(detached).toEqual([null, null]);
     expect(slots[LOAD_KEY]).toBe(second);
     expect(slot.load()).toBe(second);
     expect(scripts()).toHaveLength(1);

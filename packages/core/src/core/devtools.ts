@@ -198,13 +198,15 @@ function installEditorLoader(options?: DevtoolsOptions): void {
         let script: HTMLScriptElement | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
         let blocked: boolean | undefined;
+        let refused: boolean | undefined;
         const onViolation = (event: SecurityPolicyViolationEvent): void => {
           const uri = String(event.blockedURI);
-          // An ENFORCED script policy that names this script: Chrome reports the
-          // full URL, query included; other engines truncate it to the origin. A
-          // report-only policy, or another directive, blocks nothing here.
+          // A script policy that names this script and is not report-only (an
+          // engine that omits `disposition` is taken to enforce): Chrome reports
+          // the full URL, query included; other engines truncate it to the
+          // origin. A report-only policy, or another directive, blocks nothing here.
           if (
-            event.disposition === "enforce" &&
+            event.disposition !== "report" &&
             /^script-src(-elem)?$/.test(event.effectiveDirective) &&
             (uri.startsWith(url) || uri === EDITOR_CDN_ORIGIN)
           ) {
@@ -219,12 +221,14 @@ function installEditorLoader(options?: DevtoolsOptions): void {
           try {
             if (script) {
               document.removeEventListener("securitypolicyviolation", onViolation);
+              // For every outcome: a script that stays in the document must not
+              // keep this attempt's closures alive, and a removed one may still fire.
+              script.onload = script.onerror = null;
               if (!result.ok) script.remove();
             }
             // A failure is never cached: the next load() starts fresh, for
             // instance after the site's CSP was fixed. Only this attempt's own
-            // promise is cleared — a script removed by an earlier attempt may
-            // still fire — and last, because the key may not be writable.
+            // promise is cleared, and last, because the key may not be writable.
             if (!result.ok && slots[LOAD_KEY] === promise) slots[LOAD_KEY] = undefined;
           } catch {
             /* cleanup must never throw into an event handler */
@@ -241,13 +245,15 @@ function installEditorLoader(options?: DevtoolsOptions): void {
           script.onerror = () => settle(blocked ? "csp-blocked" : "load-error");
           timer = setTimeout(settle, LOAD_TIMEOUT_MS, "timeout");
           script.crossOrigin = "anonymous";
+          refused = true;
           script.src = src;
+          refused = false;
           document.documentElement.appendChild(script);
         } catch {
-          // With the element in hand, what refused is the page's policy —
-          // Trusted Types rejects the `src` assignment by throwing. Without it
-          // there is no document to load into.
-          settle(script ? "csp-blocked" : "load-error");
+          // Only the `src` assignment throwing means policy: that is how Trusted
+          // Types rejects it. Anything else — no document, no root element to
+          // insert into — is a plain failure to load.
+          settle(refused ? "csp-blocked" : "load-error");
         }
         return promise;
       },
