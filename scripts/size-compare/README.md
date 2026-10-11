@@ -289,3 +289,15 @@ and uses `new Function` to check that a user-supplied `resolveAcceptLanguage` fu
 before writing it into the generated template; it never ships to the browser. So this is a fact
 about Comvi that the pages may state, not a difference from the compared libraries, whose current
 builds have none either.
+
+`scan-eval-wider/` applies the same scan to a wider set of i18n libraries that are not on the
+compare pages (`scan-eval-wider/package.json` pins what was installed; results in
+`scan-eval-wider/results-2026-10-11.txt`). Where the construct sits in a browser runtime path it
+means the app needs `'unsafe-eval'` in its CSP: `vue-i18n` 9 (`@intlify/core-base` 9.14.5
+compiles each message with `new Function` at runtime; vue-i18n 10 and 11 do not), `ttag`
+(plural rules compiled with `new Function`), `globalize` (message compiler) and
+`@messageformat/core` (its compiler). `i18n-js` only carries the usual `Function("return this")`
+globalThis shim inside a try/catch. `@nuxtjs/i18n` has one in its Node-side build module, like
+`@comvi/nuxt`; `typesafe-i18n` only in its Node importer, exporter and CLI; `@inlang/paraglide-js`
+and `jed` only in test files. Tolgee, Lingui, react-intl, intlayer, svelte-i18n and
+`@solid-primitives/i18n` have none.
