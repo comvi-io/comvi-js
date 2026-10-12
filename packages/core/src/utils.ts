@@ -28,8 +28,10 @@ function normalizeLeafValue(key: string, value: unknown): string | undefined {
 
 /**
  * Flatten a nested catalog to dot-notation keys. Iterative rather than
- * recursive, and the result has a NULL PROTOTYPE — which is what makes it safe
- * to store directly.
+ * recursive; the result is a fresh object with a NULL PROTOTYPE. It is a copy
+ * because a nested or non-string catalog cannot be stored as it is, not as a
+ * prototype-pollution guard: every lookup reads through a guard that answers
+ * only string templates (`I18n#_template`).
  */
 export function flattenNestedObject(
   obj: Record<string, any>,
@@ -80,17 +82,48 @@ function isFlatCatalog(obj: Record<string, any>): boolean {
 }
 
 /**
- * Normalize catalog input to the prototype-less flat shape the cache stores.
- * NEVER mutates the caller's object: a flat catalog is just the depth-1 case,
- * where the prefix stays empty and every key passes through unchanged.
+ * True for an ordinary object (`{}` literal, `JSON.parse` result) whose every
+ * own enumerable value is a string, in an environment where `Object.prototype`
+ * carries no enumerable key. Only then does `for...in` see exactly the own
+ * keys, which is why it is checked here, once per call. `for...in` rather than
+ * `Object.keys`: on a fast-mode source object it builds no key array (about
+ * 0.7 µs against 20 µs for 512 keys).
+ */
+function isPlainFlatCatalog(obj: Record<string, any>): boolean {
+  for (const _ in Object.prototype) return false;
+  for (const key in obj) {
+    if (typeof obj[key] !== "string") return false;
+  }
+  return true;
+}
+
+/**
+ * Normalize catalog input to a flat key → string catalog. NEVER mutates the
+ * caller's object.
  *
- * Prototype-less input whose leaves are all strings is adopted WITHOUT a copy —
- * the contract that keeps re-ingesting an already-normalized catalog (a loader
- * result, a previous flatten) off `Object.assign`'s ~130 ns per key. The leaf
- * scan is one `typeof` per key on the ingestion path only.
+ * A catalog that already has that shape is kept BY REFERENCE, without a copy:
+ * - a null-prototype object whose leaves are all strings (a loader result, a
+ *   previous flatten);
+ * - a plain `Object.prototype` object whose own leaves are all strings, while
+ *   `Object.prototype` itself has no enumerable key.
+ *
+ * Everything else (a nested value, a non-string leaf, a custom prototype, a
+ * polluted `Object.prototype`) is flattened into a fresh null-prototype copy.
+ * A kept object is read, never written: a merge copies into a new object, and
+ * later edits the caller makes to it are visible to lookups. The built-in
+ * members a plain object inherits never resolve, because the lookup guard
+ * answers only strings.
+ *
+ * Outside the supported catalog shape: non-enumerable own properties, accessor
+ * properties, Proxies and symbol keys (a lookup may see what SSR serialization
+ * omits). Enumerable keys added to `Object.prototype` after ingestion are not
+ * guarded against.
  */
 export function normalizeTranslationObject(obj: Record<string, any>): Record<string, string> {
-  return Object.getPrototypeOf(obj) === null && isFlatCatalog(obj)
+  const proto = Object.getPrototypeOf(obj);
+  return (
+    proto === null ? isFlatCatalog(obj) : proto === Object.prototype && isPlainFlatCatalog(obj)
+  )
     ? (obj as Record<string, string>)
     : flattenNestedObject(obj);
 }
