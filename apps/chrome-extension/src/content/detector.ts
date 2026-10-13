@@ -38,7 +38,13 @@ interface EditorLoaderSlot {
 
 /** Why the editor is not on the page; `code` is from the contract's list, or `no-loader`. */
 interface EditorLoadFailure {
-  code: "csp-blocked" | "load-error" | "timeout" | "no-global" | "no-loader";
+  code:
+    | "csp-blocked"
+    | "load-error"
+    | "timeout"
+    | "no-global"
+    | "invalid-editor-version"
+    | "no-loader";
 }
 
 interface TransportInit {
@@ -300,7 +306,13 @@ function adoptComviGlobal(): ComviHookLike | null {
 }
 
 const EDITOR_LOADER_KEY = Symbol.for("comvi.devtools.editorLoader");
-const LOAD_FAILURE_CODES = ["csp-blocked", "load-error", "timeout", "no-global"] as const;
+const LOAD_FAILURE_CODES = [
+  "csp-blocked",
+  "load-error",
+  "timeout",
+  "no-global",
+  "invalid-editor-version",
+] as const;
 // The hook gives up after 10 s on its own. This bounds a hook that never
 // answers, inside the popup's 15 s activation budget.
 const EDITOR_LOAD_BUDGET_MS = 12_000;

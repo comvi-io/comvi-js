@@ -70,6 +70,17 @@ export const results = {
     code: "no-global",
     host: "cdn.jsdelivr.net",
   },
+  // devtools({ editorVersion }) got something other than an exact version:
+  // nothing was requested, so there is no URL.
+  "invalid-editor-version": {
+    ok: false,
+    url: "",
+    sdkVersion: "0.6.0",
+    protocol: 1,
+    editorVersion: undefined,
+    code: "invalid-editor-version",
+    host: "cdn.jsdelivr.net",
+  },
 };
 
 export default {

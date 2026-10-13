@@ -56,6 +56,7 @@ the editor cannot start, the popup names one reason and one remedy:
 | The editor could not be downloaded from cdn.jsdelivr.net | Network, a filter, or a pinned version that does not exist               |
 | The editor did not finish loading … in time              | The CDN did not answer in time                                           |
 | cdn.jsdelivr.net answered, but …                         | The file served was not the editor                                       |
+| This site pins the editor with an invalid version        | `devtools({ editorVersion })` is not an exact version like `0.6.0`       |
 
 Every word of these messages is the extension's own, including the host. The
 popup never shows a sentence the page wrote: a failure travels from the page as

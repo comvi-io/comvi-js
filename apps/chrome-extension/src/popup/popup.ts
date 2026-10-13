@@ -40,6 +40,8 @@ const ACTIVATION_FAILURE_TEXT: Record<ActivationOutcomeCode, string> = {
   "load-error": `The editor could not be downloaded from ${EDITOR_CDN_HOST}. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.`,
   timeout: `The editor did not finish loading from ${EDITOR_CDN_HOST} in time. Check your connection and try again.`,
   "no-global": `${EDITOR_CDN_HOST} answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.`,
+  "invalid-editor-version":
+    "This site pins the editor with an invalid version, so nothing was loaded. devtools({ editorVersion }) must be an exact version like 1.2.3. Fix it in the site's code, then reload this page.",
   "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
   unconfirmed: "The editor activation could not be confirmed. Try again.",
   failed: ACTIVATION_FAILED,

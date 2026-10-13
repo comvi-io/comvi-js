@@ -25,6 +25,8 @@ const FAILURE_TEXT = {
     "The editor did not finish loading from cdn.jsdelivr.net in time. Check your connection and try again.",
   "no-global":
     "cdn.jsdelivr.net answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.",
+  "invalid-editor-version":
+    "This site pins the editor with an invalid version, so nothing was loaded. devtools({ editorVersion }) must be an exact version like 1.2.3. Fix it in the site's code, then reload this page.",
   "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
   unconfirmed: "The editor activation could not be confirmed. Try again.",
   failed: "The editor could not start on this page. Reload the page and try again.",

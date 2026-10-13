@@ -34,7 +34,10 @@ editorVersion, url, load() }` (`contracts/chrome-extension-proxy.json`, `editorL
   Nothing is requested before that click.
 - **`latest` by default, an exact version on request.** `devtools({ editorVersion: "0.6.0" })`
   pins; an exact `major.minor.patch`, optionally with a prerelease suffix such as `0.6.0-rc.1`, is
-  accepted, and any other value falls back to `latest` with a dev-only warning. A `latest` URL
+  accepted. Any other explicit value FAILS CLOSED: the slot is installed with the version
+  `"invalid"` and no URL, `load()` requests nothing and answers `invalid-editor-version`, which
+  the popup words as "must be an exact version like 1.2.3", and development builds also warn. It
+  never falls back to `latest`, so a typo cannot silently ship whatever is newest. A `latest` URL
   carries `?comvi=<hour bucket>` so the browser's 7-day cache for a version alias is bounded to an
   hour; an exact version is immutable and takes no query. The first instance on a page decides,
   and the UMD composite (`core/full.ts`) always loads `latest`.

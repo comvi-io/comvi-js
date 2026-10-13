@@ -250,7 +250,7 @@ describe("MAIN-world detector editor loading", () => {
 
   // --- a hook that fails, lies, throws or stays silent ---
 
-  it.each(["csp-blocked", "load-error", "timeout", "no-global"])(
+  it.each(["csp-blocked", "load-error", "timeout", "no-global", "invalid-editor-version"])(
     "forwards the hook's %s code and nothing else of its answer",
     async (code) => {
       slotWith(async () => ({

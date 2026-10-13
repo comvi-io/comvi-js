@@ -37,7 +37,12 @@ export interface Message {
  * Why the page's `devtools()` hook could not put the editor on the page
  * (contracts/chrome-extension-proxy.json, `editorLoader.failureCodes`).
  */
-export type EditorLoadFailureCode = "csp-blocked" | "load-error" | "timeout" | "no-global";
+export type EditorLoadFailureCode =
+  | "csp-blocked"
+  | "load-error"
+  | "timeout"
+  | "no-global"
+  | "invalid-editor-version";
 
 /**
  * A hook code, or the extension's own `no-loader`: the page has a Comvi i18n

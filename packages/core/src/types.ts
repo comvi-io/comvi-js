@@ -42,7 +42,12 @@ declare global {
  * Why an editor load failed (see `contracts/chrome-extension-proxy.json`,
  * `editorLoader.failureCodes`).
  */
-export type EditorLoadFailureCode = "csp-blocked" | "load-error" | "timeout" | "no-global";
+export type EditorLoadFailureCode =
+  | "csp-blocked"
+  | "load-error"
+  | "timeout"
+  | "no-global"
+  | "invalid-editor-version";
 
 /**
  * What `EditorLoaderSlot.load()` resolves with. It never rejects. Every key
@@ -90,7 +95,12 @@ export interface EditorLoaderSlot {
   protocol: number;
   /** The `@comvi/core` version that installed the slot. */
   sdkVersion: string;
-  /** The pin from `devtools({ editorVersion })` when valid, otherwise `"latest"`. */
+  /**
+   * The pin from `devtools({ editorVersion })` when it is an exact version;
+   * `"latest"` when the option is left out or is `"latest"`; `"invalid"` for any
+   * other value, in which case `url` is `""` and `load()` requests nothing and
+   * answers `invalid-editor-version`.
+   */
   editorVersion: string;
   /** The salt-free URL the hook loads the editor from. */
   url: string;

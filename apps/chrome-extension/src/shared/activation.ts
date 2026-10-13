@@ -14,6 +14,7 @@ const ACTIVATION_FAILURE_CODES: readonly ActivationFailureCode[] = [
   "load-error",
   "timeout",
   "no-global",
+  "invalid-editor-version",
   "no-loader",
 ];
 

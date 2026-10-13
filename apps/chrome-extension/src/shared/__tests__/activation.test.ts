@@ -21,12 +21,16 @@ describe("editorAvailability", () => {
 });
 
 describe("asActivationFailureCode", () => {
-  it.each(["csp-blocked", "load-error", "timeout", "no-global", "no-loader"])(
-    "keeps the known code %s",
-    (code) => {
-      expect(asActivationFailureCode(code)).toBe(code);
-    },
-  );
+  it.each([
+    "csp-blocked",
+    "load-error",
+    "timeout",
+    "no-global",
+    "invalid-editor-version",
+    "no-loader",
+  ])("keeps the known code %s", (code) => {
+    expect(asActivationFailureCode(code)).toBe(code);
+  });
 
   it.each([
     ["an unknown code", "run-this"],
