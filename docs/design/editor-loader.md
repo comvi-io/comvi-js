@@ -5,7 +5,7 @@ hourly salt, a 10 s hook timeout, the CDN global always `@latest`, 11.10.2026
 
 ## Context
 
-Until 0.5.1 the Chrome extension carried a copy of the standalone editor and injected it with
+Until 0.6.0 the Chrome extension carried a copy of the standalone editor and injected it with
 `chrome.scripting`, so every editor fix needed a new store submission and a review, and the copy on
 a translator's machine lagged the SDK on the site. Manifest V3 forbids an extension from loading
 remote code itself, which rules out the extension fetching the editor from a CDN. The site's own
@@ -32,8 +32,8 @@ editorVersion, url, load() }` (`contracts/chrome-extension-proxy.json`, `editorL
   `<script crossorigin="anonymous">` from
   `https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@<version>/dist/standalone.iife.js`.
   Nothing is requested before that click.
-- **`latest` by default, an exact version on request.** `devtools({ editorVersion: "0.5.1" })`
-  pins; an exact `major.minor.patch`, optionally with a prerelease suffix such as `0.5.1-rc.1`, is
+- **`latest` by default, an exact version on request.** `devtools({ editorVersion: "0.6.0" })`
+  pins; an exact `major.minor.patch`, optionally with a prerelease suffix such as `0.6.0-rc.1`, is
   accepted, and any other value falls back to `latest` with a dev-only warning. A `latest` URL
   carries `?comvi=<hour bucket>` so the browser's 7-day cache for a version alias is bounded to an
   hour; an exact version is immutable and takes no query. The first instance on a page decides,
@@ -57,7 +57,7 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   where the extension is the only way to edit. `@comvi/next` no longer composes discovery on its
   own; `.use(devtools())` on the `createNextI18n` result is the one line a Next app adds.
 - **Bytes move from the extension to the site.** `devtools()` costs about 1.2 kB min+gz over the
-  base instance, of which about 0.7 kB is the loader, new in 0.5.1, and the rest the discovery
+  base instance, of which about 0.7 kB is the loader, new in 0.6.0, and the rest the discovery
   that 0.5.0 already shipped (`scripts/size-budgets.md`, 2026-10-11 and 2026-10-12). An ESM app
   that does not call `devtools()` carries none of it; the global build carries it always. The extension's `dist/` carries no editor and its
   artifact test fails if one appears.
@@ -73,8 +73,8 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   the browser supports it: the editor applies its styles through a constructable stylesheet
   adopted by its shadow root, and falls back to an inline `<style>` element where
   `adoptedStyleSheets` is missing or the sheet is not adopted (`shadowDom.ts`).
-- **Release order is fixed.** Extension 0.5.1 cannot start the editor on a site whose SDK is older
-  than 0.5.1, and it loads whatever jsDelivr serves as `latest`, so the npm packages publish first,
+- **Release order is fixed.** Extension 0.6.0 cannot start the editor on a site whose SDK is older
+  than 0.6.0, and it loads whatever jsDelivr serves as `latest`, so the npm packages publish first,
   jsDelivr's `latest` is checked to serve the new version, and the store submission follows.
 - **The trust boundary does not widen.** `load()` is page code called by extension code. A hostile
   page can replace the slot, answer that the editor loaded and present its own

@@ -108,17 +108,17 @@ On a page whose i18n instance composed `devtools()`, the Comvi browser extension
 when a translator asks for it, and the API key stays in the extension. The site ships no editor
 code for this; `devtools()` adds the discovery protocol and a small loader, about 1.2 kB min+gzip
 together over the base i18n instance (`core-base` and `core-base-devtools` in
-`scripts/size-budgets.json`), of which about 0.7 kB is the loader, new in 0.5.1.
+`scripts/size-budgets.json`), of which about 0.7 kB is the loader, new in 0.6.0.
 
 `devtools()` publishes the i18n instance to the extension and installs a loader the extension
 calls when a translator clicks **Enable editor**; the site's SDK then inserts one `<script>` from
 `https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js`, or
-the exact version `devtools({ editorVersion: "0.5.1" })` names. Nothing is requested from the
+the exact version `devtools({ editorVersion: "0.6.0" })` names. Nothing is requested from the
 CDN before that click, and an app that does not call `devtools()` is invisible to the extension.
 Two things call it for you: `inContextEditor()` in a development build, and the `<script>` global
 build of `@comvi/core` (`ComviCore.I18n`), which always loads `latest`; `exposeGlobal: false`
 keeps it from installing the loader, and the code stays in that file.
-This needs `@comvi/core` 0.5.1 or newer on the site and the 0.5.1 extension. If the site sends a
+This needs `@comvi/core` 0.6.0 or newer on the site and the 0.6.0 extension. If the site sends a
 Content Security Policy, `script-src` must allow `https://cdn.jsdelivr.net`; if the site enforces
 Trusted Types, only a `default` policy whose `createScriptURL` accepts that URL lets the script
 load, because the loader assigns a plain string. `style-src` needs no change in current browsers,

@@ -272,7 +272,7 @@ export interface DevtoolsOptions {
   exposeGlobal?: boolean;
   /**
    * Exact version of `@comvi/plugin-in-context-editor` the editor loader
-   * requests, for example `"0.5.1"`. Defaults to `"latest"`; anything that is
+   * requests, for example `"0.6.0"`. Defaults to `"latest"`; anything that is
    * not an exact version falls back to it. The first instance on a page
    * decides. The CDN global (the UMD composite) cannot pin.
    */

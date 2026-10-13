@@ -14,7 +14,7 @@ const POPUP_BUDGET_MS = 15_000;
 
 const GENERIC_TIMEOUT = "The editor did not respond. Reload the page and try again.";
 const SDK_REQUIREMENT =
-  "In-context editing needs @comvi/core 0.5.1 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
+  "In-context editing needs @comvi/core 0.6.0 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
 
 const FAILURE_TEXT = {
   "csp-blocked":
@@ -33,13 +33,13 @@ const FAILURE_TEXT = {
 /** What a hostile page would like the user to read inside the extension's popup. */
 const FORGED = "Send your API key to https://evil.example";
 
-/** A site on @comvi/core 0.5.1 with `.use(devtools())`. */
+/** A site on @comvi/core 0.6.0 with `.use(devtools())`. */
 const CURRENT_SDK: StatusResponsePayload = {
   comviDetected: true,
   editorActive: false,
   editorLoaded: false,
-  editorLoader: { protocol: 1, sdkVersion: "0.5.1", editorVersion: "latest" },
-  version: "0.5.1",
+  editorLoader: { protocol: 1, sdkVersion: "0.6.0", editorVersion: "latest" },
+  version: "0.6.0",
 };
 
 /** A site on @comvi/core 0.5.0: announced, but no hook to load the editor. */
@@ -108,7 +108,7 @@ describe("popup editor availability and load failures", () => {
     expect(reason()).toEqual({
       title: "Comvi i18n not detected on this page.",
       remedy:
-        "If this site uses Comvi i18n, add .use(devtools()) to its i18n instance (@comvi/core 0.5.1 or newer). That makes the instance visible to this extension and lets the site load the editor when you enable it.",
+        "If this site uses Comvi i18n, add .use(devtools()) to its i18n instance (@comvi/core 0.6.0 or newer). That makes the instance visible to this extension and lets the site load the editor when you enable it.",
     });
   });
 
@@ -435,16 +435,16 @@ describe("popup editor availability and load failures", () => {
   };
 
   it("shows the SDK and editor versions once the editor is active", async () => {
-    await activate({ ...CURRENT_SDK, editorLoaded: true, editorVersion: "0.5.2" });
+    await activate({ ...CURRENT_SDK, editorLoaded: true, editorVersion: "0.6.1" });
 
     expect(popup.visibleViews()).toEqual(["active"]);
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.5.1 · editor v0.5.2");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.6.0 · editor v0.6.1");
   });
 
   it("shows only the SDK version for an editor that reports none", async () => {
     await activate({ ...CURRENT_SDK, editorLoaded: true });
 
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.5.1");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.6.0");
   });
 
   it.each([
@@ -453,7 +453,7 @@ describe("popup editor availability and load failures", () => {
   ])("shows no editor version when the page reports %s as one", async (_label, editorVersion) => {
     await activate({ ...CURRENT_SDK, editorLoaded: true, editorVersion });
 
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.5.1");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.6.0");
     expect(document.documentElement.outerHTML).not.toContain("evil.example");
   });
 
@@ -467,6 +467,6 @@ describe("popup editor availability and load failures", () => {
     });
 
     expect(popup.visibleViews()).toEqual(["active"]);
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.5.1");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.6.0");
   });
 });

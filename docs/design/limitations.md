@@ -53,9 +53,9 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
   installer, so a production build that composes it carries no editor bytes.
 - **The editor hydrates one host per page.** In the browser all editor hosts share one key-id map,
   and each hydrating host loads its server ids over it, so a second host erases the first one's ids.
-- **The browser extension must be 0.5.0 or newer for discovery, 0.5.1 or newer to load the
+- **The browser extension must be 0.5.0 or newer for discovery, 0.6.0 or newer to load the
   editor.** `window.__COMVI__` is protocol v2, and an older extension does not speak it; loading
-  the editor also needs `@comvi/core` 0.5.1 on the site. Discovery is opt-in either way:
+  the editor also needs `@comvi/core` 0.6.0 on the site. Discovery is opt-in either way:
   `.use(devtools())`. See
   [Devtools API](https://comvi.io/docs/i18n/api/core-devtools).
 - **`cdnLoader` reads a public distribution only.** Draft translations, private projects and

@@ -41,7 +41,7 @@ export type EditorLoadFailureCode = "csp-blocked" | "load-error" | "timeout" | "
 
 /**
  * A hook code, or the extension's own `no-loader`: the page has a Comvi i18n
- * instance but no editor and no hook to load one (@comvi/core before 0.5.1).
+ * instance but no editor and no hook to load one (@comvi/core before 0.6.0).
  */
 export type ActivationFailureCode = EditorLoadFailureCode | "no-loader";
 

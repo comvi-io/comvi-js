@@ -62,7 +62,7 @@ export interface EditorLoadResult {
   protocol: number;
   /**
    * The editor's own reported version when `ok`; `undefined` for an editor
-   * older than 0.5.1, and when `ok` is false.
+   * older than 0.6.0, and when `ok` is false.
    */
   editorVersion: string | undefined;
   /**

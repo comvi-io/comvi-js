@@ -23,7 +23,7 @@ export function asActivationFailureCode(value: unknown): ActivationFailureCode |
 }
 
 // Three numbers, then at most one lowercase pre-release word and one number:
-// `0.5.1`, `0.5.1-rc.1` (the only pre-release this repository publishes,
+// `0.6.0`, `0.6.0-rc.1` (the only pre-release this repository publishes,
 // scripts/rc-version.mjs), `0.6.0-next.20261011`. No build metadata and no
 // second dotted word, so nothing that reads as a host name or a message.
 const DISPLAY_VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[a-z]{1,8}(?:\.\d{1,10})?)?$/;
