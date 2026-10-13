@@ -45,5 +45,6 @@ NEXT_PUBLIC_COMVI_CDN_URL="<your project's CDN URL>" npm run build
 ## Where to look
 
 - `src/i18n/config.ts`: the instance and its loader.
-- `src/i18n/routing.ts` and `src/middleware.ts`: the locale in the URL.
+- `src/i18n/routing.ts` and `src/middleware.ts`: the locale in the URL. On Next.js 16 the file is
+  `src/proxy.ts` and imports from `@comvi/next/proxy`; this example is on Next.js 15.
 - `src/app/[locale]/cards/`: one client component per feature card.

@@ -91,7 +91,7 @@ object or a function config. The server helpers and `<ComviProvider>` read the i
 registration module and no `"use client"` wrapper. `<ComviProvider>` loads the locale's
 catalogs on the server and hands them to the client's i18n instance, so Client Components render the right
 language on the first paint. `@comvi/next/server` guards itself: a Client Component that imports
-it fails `next build`. Without a `middleware.ts` the only routes are `/en` and `/uk`; see
+it fails `next build`. Without a `proxy.ts` (Next.js 16) or `middleware.ts` (Next.js 15) the only routes are `/en` and `/uk`; see
 [Locale routing](https://comvi.io/docs/i18n/guides/next-routing).
 
 ## Use in components
@@ -145,8 +145,9 @@ independent, and either works without the other.
 
 ## Specific to Next.js
 
-Seven entries: `@comvi/next`, `/client`, `/server`, `/navigation`, `/routing`, `/middleware` and
-`/plugin`. `/routing` and `/middleware` carry no i18n instance, and `/plugin` runs only in next.config.
+Eight entries: `@comvi/next`, `/client`, `/server`, `/navigation`, `/routing`, `/proxy`,
+`/middleware` and `/plugin`. `/routing`, `/proxy` and `/middleware` carry no i18n instance, and
+`/plugin` runs only in next.config.
 `src/i18n/config.ts` is bundled into the server build and into the client build, and each build
 evaluates it once, so it must be client-safe. Never compose a locale detector on this i18n instance: the config module is
 process-wide on the server, so the first request's headers would pin the locale for everyone.
@@ -156,6 +157,24 @@ Scope it to the client with `nextPlugin(localeDetectorPlugin(…), { runtime: 'c
 `createNextI18n` does not publish the i18n instance to the Comvi browser extension. To make the app
 visible to it and let it load the in-context editor, add `.use(devtools())` to the result in
 `src/i18n/config.ts`, with `devtools` imported from `@comvi/next`. On the server it does nothing.
+
+Next.js 16 renamed the `middleware.ts` file convention to `proxy.ts`, with the same handler. Import
+`createMiddleware` from `@comvi/next/proxy` there and export it as the default (or as `proxy`):
+
+```ts title="src/proxy.ts"
+import { createMiddleware } from "@comvi/next/proxy";
+import { routing } from "./i18n/routing";
+
+export default createMiddleware(routing);
+
+export const config = {
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+};
+```
+
+On Next.js 15, name the file `middleware.ts` and import from `@comvi/next/middleware`; the two
+subpaths export the same function. Next 16 runs `proxy.ts` on the Node.js runtime and rejects a
+`runtime` option in it; `createMiddleware` works on both runtimes.
 
 `createMiddleware` takes the same two locale options as `@comvi/nuxt`, with the same defaults
 except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,

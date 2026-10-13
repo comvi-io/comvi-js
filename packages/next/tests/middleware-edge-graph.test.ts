@@ -132,6 +132,16 @@ describe("@comvi/next/middleware stays an Edge-safe entry", () => {
     expect(modules.filter((m) => m.includes("comvi-core")).length).toBeGreaterThan(0);
   });
 
+  // Next 16 names the file `proxy.ts` (Node runtime by default); `@comvi/next/proxy`
+  // is the same graph plus its one-line re-export, so it stays as portable.
+  it("@comvi/next/proxy → the middleware graph plus src/proxy.ts, and no Node builtin", async () => {
+    const proxy = await graphOf({ entryPoints: ["src/proxy.ts"] });
+    const middleware = await graphOf(MIDDLEWARE);
+
+    expect(proxy.modules).toEqual([...middleware.modules, "src/proxy.ts"].sort());
+    expect(proxy.externals.filter((specifier) => NODE_BUILTIN.test(specifier))).toEqual([]);
+  });
+
   it("control: the same probe reports src/server modules for the server entry", async () => {
     const { modules } = await graphOf({ entryPoints: ["src/server.ts"] });
 
