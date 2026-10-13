@@ -279,9 +279,11 @@ export function anyMessage(rng: Rng): string {
  * past the first `{` is treated as buried.
  *
  * The default compiler calls ANY comma between an argument's braces the ICU
- * type marker; `icuCompiler` only one at the argument's own depth and outside
- * a quote, and reads `{a {b,c}}` as a parameter named `a {b,c}`. See the
- * `it.fails` case in `tests/features/message-fuzz.test.ts`.
+ * type marker; `icuCompiler` looks for one at the argument's own depth and
+ * outside a quote. Since COM-148 an unquoted comma found only deeper fails the
+ * argument in both (`tests/features/icu-nested-comma.test.ts`); the two still
+ * differ on a comma a quote hides from one of them, which is why this stays an
+ * over-approximation.
  */
 export function hasBuriedComma(message: string): boolean {
   const quotes = message.includes("'");
