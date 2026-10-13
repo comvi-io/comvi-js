@@ -123,17 +123,12 @@ export function formatHashCount(locale: string, count: number): string {
     lastHashFormat = getHashFormat(locale);
     lastHashLocale = locale;
   }
-  // `String(-0)` is "0" where Intl keeps the sign, so negative zero takes the slow path.
-  if (
-    lastHashFormat.plainInts &&
-    count > -1000 &&
-    count < 1000 &&
-    count % 1 === 0 &&
-    (count !== 0 || 1 / count > 0)
-  ) {
+  // Negative zero renders `0`, as `String(-0)` already does: `+ 0` turns it
+  // into positive zero for Intl, which would otherwise print the sign.
+  if (lastHashFormat.plainInts && count > -1000 && count < 1000 && count % 1 === 0) {
     return String(count);
   }
-  return lastHashFormat.format.format(count);
+  return lastHashFormat.format.format(count + 0);
 }
 
 export function getPluralRules(locale: string, ordinal: boolean = false): Intl.PluralRules {
