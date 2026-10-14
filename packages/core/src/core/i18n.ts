@@ -894,15 +894,18 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * The chain reads the view's value first and the cached value only when the
    * view's is falsy, then checks the winner once. A `withMessages` catalog is
    * expected to hold strings: a truthy non-string value there reads as missing
-   * rather than falling through to the cache.
+   * rather than falling through to the cache. Only the view's own keys count:
+   * a plain catalog inherits `toString` and the like, and those must not hide a
+   * cached translation under the same key.
    */
   private _template(
     locale: string,
     namespace: string,
     key: string,
   ): FlattenedMessages[string] | undefined {
+    const overlay = this._overlay?.[locale + ":" + namespace];
     return asTemplate(
-      this._overlay?.[locale + ":" + namespace]?.[key] ||
+      (overlay && Object.prototype.hasOwnProperty.call(overlay, key) && overlay[key]) ||
         (locale === this._locale && namespace === this._cachedDefaultNs
           ? this._getPrimaryTranslations()
           : this.messagesCache.get(locale, namespace))?.[key],

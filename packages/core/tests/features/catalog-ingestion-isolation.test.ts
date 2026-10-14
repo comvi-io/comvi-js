@@ -329,4 +329,19 @@ describe("flat plain-object catalogs kept by reference", () => {
     expect(objectValued.hasTranslation("greeting")).toBe(false);
     expect(empty.t("greeting")).toBe("Hello");
   });
+
+  // A plain withMessages catalog inherits Object.prototype members; they are
+  // not the view's keys, so the cached translation under that name still wins.
+  it("lets a cached key named like an Object.prototype member through a withMessages view", () => {
+    const i18n = new I18n({
+      locale: "en",
+      messages: { en: { toString: "As text", constructor: "Builder" } },
+    });
+    const view = i18n.withMessages({ "en:default": { other: "Other" } });
+
+    expect(view.t("toString")).toBe("As text");
+    expect(view.t("constructor")).toBe("Builder");
+    expect(view.hasTranslation("toString")).toBe(true);
+    expect(view.t("other")).toBe("Other");
+  });
 });
