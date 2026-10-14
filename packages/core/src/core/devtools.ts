@@ -83,7 +83,11 @@ const EDITOR_CDN_HOST = "cdn.jsdelivr.net";
 const EDITOR_CDN_ORIGIN = "https://" + EDITOR_CDN_HOST;
 const EDITOR_LOADER_PROTOCOL = 1;
 const LOAD_TIMEOUT_MS = 10_000;
-const EDITOR_VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+// SemVer 2.0 without build metadata: no leading zeros in numbers, and a
+// prerelease made of non-empty dot-separated identifiers (`1.2.3-rc.1`), so a
+// pin npm could never have published fails closed instead of reaching the CDN.
+const EDITOR_VERSION =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?$/;
 // Page-wide, like `COUNTER_KEY`: every copy of core on the page meets the same
 // slot. The load promise has a key of its own so that a core replacing an
 // older slot inherits a pending or finished load instead of starting a second.
