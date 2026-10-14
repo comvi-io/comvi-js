@@ -1,2 +1,5 @@
 node_modules
 results.json
+
+# Source-mapped copies of the Nuxt apps, created on demand by the attribution step.
+nuxt/sm-*/

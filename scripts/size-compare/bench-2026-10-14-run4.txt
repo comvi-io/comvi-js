@@ -1,0 +1,46 @@
+
+## warm, equal work: same key 200000 times, count pre-formatted as {n}
+@comvi/core + icuCompiler                                  median     90.8 ms    2.20 M ops/s
+intl-messageformat (instance reused)                       median    216.6 ms    0.92 M ops/s
+i18next + i18next-icu                                      median    651.6 ms    0.31 M ops/s
+use-intl/core createTranslator                             median    815.3 ms    0.25 M ops/s
+vue-i18n (pipe plural, own syntax)                         median    904.5 ms    0.22 M ops/s
+
+## warm, static key: same key 200000 times, message "Saved" with no parameters
+@comvi/core, simple compiler                               median      3.4 ms   58.62 M ops/s
+@comvi/core + icuCompiler                                  median      4.6 ms   43.22 M ops/s
+intl-messageformat (instance reused)                       median      3.9 ms   51.62 M ops/s
+i18next (no plugins)                                       median    327.5 ms    0.61 M ops/s
+use-intl/core createTranslator                             median     26.9 ms    7.43 M ops/s
+vue-i18n                                                   median    712.2 ms    0.28 M ops/s
+
+## warm, one parameter: same key 200000 times, "Hello, {name}!" with a changing name
+@comvi/core, simple compiler                               median     12.4 ms   16.15 M ops/s
+@comvi/core + icuCompiler                                  median     13.5 ms   14.86 M ops/s
+intl-messageformat (instance reused)                       median     35.1 ms    5.70 M ops/s
+i18next (no plugins), {{name}}                             median    415.1 ms    0.48 M ops/s
+use-intl/core createTranslator                             median    604.3 ms    0.33 M ops/s
+vue-i18n, {name}                                           median    779.1 ms    0.26 M ops/s
+
+## warm, same output: same key 200000 times, count 1234..1237, localized digits on every side
+@comvi/core + icuCompiler, #                               median    142.8 ms    1.40 M ops/s
+@comvi/core + icuCompiler, formatNumber() into {n}         median    167.0 ms    1.20 M ops/s
+intl-messageformat (instance reused), #                    median    336.8 ms    0.59 M ops/s
+i18next + i18next-icu, #                                   median    808.7 ms    0.25 M ops/s
+use-intl/core createTranslator, #                          median    932.0 ms    0.21 M ops/s
+vue-i18n (pipe plural), n(x, 'decimal') into {n}           median   1226.0 ms    0.16 M ops/s
+
+## warm, small count: the same # message with counts 0..3; both sides localize #, equal work
+@comvi/core + icuCompiler, #                               median     90.9 ms    2.20 M ops/s
+intl-messageformat (instance reused), #                    median    322.4 ms    0.62 M ops/s
+
+## catalog: one instance, 5000 distinct messages formatted once each (parse + format), fresh ids every round
+@comvi/core + icuCompiler                                  median     16.3 ms   306.7 K msgs/s
+intl-messageformat, new instance per message, shared formatters median     52.1 ms    95.9 K msgs/s
+intl-messageformat, new instance per message, default formatters median    103.7 ms    48.2 K msgs/s
+i18next + i18next-icu, one instance                        median    134.8 ms    37.1 K msgs/s
+use-intl/core, one translator                              median     91.6 ms    54.6 K msgs/s
+vue-i18n, one instance (pipe plural)                       median    115.3 ms    43.4 K msgs/s
+
+node v24.19.0 | darwin arm64 | Apple M1 Max | NODE_ENV=production
+@comvi/core 0.6.0 | intl-messageformat 12.1.3 | i18next 26.4.4 + i18next-icu 2.5.0 | use-intl 4.14.9 | vue-i18n 11.4.14

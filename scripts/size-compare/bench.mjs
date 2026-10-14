@@ -5,13 +5,15 @@
 //   warm, static key    t("key") on a message with no parameters; the most common call in a UI.
 //   warm, one parameter t("key", { name }) on "Hello, {name}!" ("{{name}}" in i18next's own syntax).
 //   warm, equal work   the count is passed pre-formatted as {n}; both branches interpolate it, so every
-//                      library does the same job (plural selection + interpolation). Comvi's `#` is
-//                      inserted as plain digits while intl-messageformat localizes it, so a `#` message
-//                      would make the libraries do different work; the "default #" row shows that case.
-//   warm, same output  the `#` message on the libraries that localize `#`; Comvi formats the count with its own
-//                      formatNumber() (Intl.NumberFormat, cached) and passes it as {n}. Every library produces the
-//                      same localized string ("1,234 items in cart"), so the work and the output are equal.
-//   warm, default #    the same message written with `#`, as a user would write it; unequal work by design.
+//                      library does the same job (plural selection + interpolation) and none of them
+//                      formats a number.
+//   warm, same output  the `#` message, written the same way on every library. From @comvi/core 0.6.0
+//                      Comvi formats `#` for the locale as ICU MessageFormat defines it, so the plain
+//                      `#` message is the equal-work, equal-output row; a second Comvi row passes the
+//                      count through formatNumber() into {n}, the shape 0.5.0 needed, for comparison.
+//                      Every library produces the same localized string ("1,234 items in cart").
+//   warm, small count  the same `#` message with counts 0..3, the integers Comvi's `#` serves from its
+//                      fast path; both sides localize `#`, so this is equal work on a short number.
 //   catalog            one instance per library holding N distinct messages; every message is formatted
 //                      exactly once per round. Message ids are unique across warmup and rounds so no
 //                      module-level cache from an earlier round can serve a later one; they restart at the
@@ -227,6 +229,18 @@ console.log(
 );
 const BIG = (i) => 1234 + (i & 3);
 {
+  // From @comvi/core 0.6.0 `#` is formatted for the locale, so the plain `#` message is what a
+  // Comvi app writes and what the other libraries are measured on: same message, same output.
+  const i18n = createI18n({ locale: "en", messages: { en: { m: HASH } }, compiler: icuCompiler });
+  expect("comvi same output, #", i18n.t("m", { count: 1234, name: "cart" }), "1,234 items in cart");
+  bench(
+    "@comvi/core + icuCompiler, #",
+    (i) => i18n.t("m", { count: BIG(i), name: "cart" }),
+    N_WARM,
+  );
+}
+{
+  // The shape 0.5.0 needed for a localized count, kept for comparison with the row above.
   const i18n = createI18n({ locale: "en", messages: { en: { m: EQUAL } }, compiler: icuCompiler });
   expect(
     "comvi same output",
@@ -288,7 +302,7 @@ const BIG = (i) => 1234 + (i & 3);
 }
 
 console.log(
-  `\n## warm, default #: same key ${N_WARM} times, # inserted by the library (Comvi: plain digits; others: localized)`,
+  `\n## warm, small count: the same # message with counts 0..3; both sides localize #, equal work`,
 );
 {
   const i18n = createI18n({ locale: "en", messages: { en: { m: HASH } }, compiler: icuCompiler });
@@ -383,6 +397,17 @@ benchCatalog(
 console.log(
   `\nnode ${process.version} | ${os.platform()} ${os.arch()} | ${os.cpus()[0]?.model ?? "cpu ?"} | NODE_ENV=${process.env.NODE_ENV}`,
 );
+// The versions are read from the packages this run actually loaded, so the line can never
+// name a version other than the one measured.
+const { readFileSync } = await import("node:fs");
+const installed = (name) =>
+  `${name} ${JSON.parse(readFileSync(`node_modules/${name}/package.json`, "utf8")).version}`;
 console.log(
-  "comvi core 0.5.0 | intl-messageformat 12.1.3 | i18next 26.4.3 + i18next-icu 2.5.0 | use-intl 4.14.9 | vue-i18n 11.4.14",
+  [
+    installed("@comvi/core"),
+    installed("intl-messageformat"),
+    `${installed("i18next")} + ${installed("i18next-icu")}`,
+    installed("use-intl"),
+    installed("vue-i18n"),
+  ].join(" | "),
 );

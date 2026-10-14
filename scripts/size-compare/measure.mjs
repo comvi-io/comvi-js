@@ -152,6 +152,10 @@ for (const [group, name, fixture, external, define] of rows) {
 // Versions come from the pnpm store path of every file that landed in a bundle
 // (node_modules/.pnpm/<name>@<version>[_peers]/...), per row, so a transitive
 // package that resolves to a different major in two bundles is reported as such.
+// A package installed from a local tarball gets a store path of the form
+// `<name>@file+<path hash>` instead of a version, which is what a pre-publish run
+// of this harness produces for the `@comvi/*` packages; the version is then read
+// from the installed `package.json`, which is the manifest npm would publish.
 function versionsOf(inputFiles) {
   const versions = {};
   for (const f of inputFiles) {
@@ -159,9 +163,19 @@ function versionsOf(inputFiles) {
     if (!m) continue;
     const seg = m[1].split("_")[0];
     const at = seg.lastIndexOf("@");
-    versions[seg.slice(0, at).replace("+", "/")] = seg.slice(at + 1);
+    const name = seg.slice(0, at).replace("+", "/");
+    const version = seg.slice(at + 1);
+    versions[name] = /^\d/.test(version) ? version : readInstalledVersion(name, version);
   }
   return versions;
+}
+function readInstalledVersion(name, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join("node_modules", name, "package.json"), "utf8"))
+      .version;
+  } catch {
+    return fallback;
+  }
 }
 for (const o of out) {
   o.versions = versionsOf(o.inputFiles);

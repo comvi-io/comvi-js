@@ -1,0 +1,54 @@
+## All client JS under .output/public/_nuxt/
+
+| app | JS files | min bytes | gzip-9 bytes | brotli-11 bytes | Δ min vs base | Δ gzip vs base | Δ brotli vs base |
+|---|---|---|---|---|---|---|---|
+| bare | 4 | 144943 | 54453 | 48953 | +0 | +0 | +0 |
+| comvi-nuxt | 4 | 184727 | 66879 | 59708 | +39784 | +12426 | +10755 |
+| comvi-nuxt-icu | 4 | 187891 | 68064 | 60847 | +42948 | +13611 | +11894 |
+| nuxt-i18n | 5 | 229147 | 82572 | 73113 | +84204 | +28119 | +24160 |
+
+## Entry-file bytes only; excludes other chunks and prefetch
+
+| app | entry chunk | min | gzip-9 | brotli-11 | Δ min vs base | Δ gzip vs base | Δ brotli vs base |
+|---|---|---|---|---|---|---|---|
+| bare | C-8B2RTK.js | 132192 | 49167 | 44299 | +0 | +0 | +0 |
+| comvi-nuxt | C1isYjhQ.js | 177938 | 63888 | 57187 | +45746 | +14721 | +12888 |
+| comvi-nuxt-icu | C7QfuNT8.js | 181102 | 65073 | 58326 | +48910 | +15906 | +14027 |
+| nuxt-i18n | Dwd1TLcO.js | 222313 | 79516 | 70544 | +90121 | +30349 | +26245 |
+
+## bare — chunks (largest first)
+
+| file | min | gzip-9 | brotli-11 | markers |
+|---|---|---|---|---|
+| C-8B2RTK.js | 132192 | 49167 | 44299 | — |
+| CS05VzLg.js | 9981 | 4004 | 3563 | — |
+| cDayVJAM.js | 2686 | 1183 | 1003 | — |
+| BDNMzG2s.js | 84 | 99 | 88 | — |
+
+## comvi-nuxt — chunks (largest first)
+
+| file | min | gzip-9 | brotli-11 | markers |
+|---|---|---|---|---|
+| C1isYjhQ.js | 177938 | 63888 | 57187 | comvi |
+| Djq9hwur.js | 4029 | 1714 | 1434 | — |
+| 775LOUQa.js | 2676 | 1178 | 999 | — |
+| BDNMzG2s.js | 84 | 99 | 88 | — |
+
+## comvi-nuxt-icu — chunks (largest first)
+
+| file | min | gzip-9 | brotli-11 | markers |
+|---|---|---|---|---|
+| C7QfuNT8.js | 181102 | 65073 | 58326 | comvi |
+| Djq9hwur.js | 4029 | 1714 | 1434 | — |
+| 775LOUQa.js | 2676 | 1178 | 999 | — |
+| BDNMzG2s.js | 84 | 99 | 88 | — |
+
+## nuxt-i18n — chunks (largest first)
+
+| file | min | gzip-9 | brotli-11 | markers |
+|---|---|---|---|---|
+| Dwd1TLcO.js | 222313 | 79516 | 70544 | intlify, vue-i18n |
+| C9kFx0sp.js | 4029 | 1714 | 1434 | — |
+| C4dHYqXI.js | 2676 | 1178 | 998 | — |
+| BDNMzG2s.js | 84 | 99 | 88 | — |
+| CNnXW_bn.js | 45 | 65 | 49 | — |
