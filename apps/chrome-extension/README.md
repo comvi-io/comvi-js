@@ -185,8 +185,10 @@ The extension is versioned by hand in `manifest.json` and `package.json`
 
 ### Release order
 
-Extension 0.6.0 cannot start the editor on a site whose SDK is older than
-0.6.0, and it loads whatever jsDelivr serves as `@latest`. So:
+Extension 0.6.0 cannot load the editor onto a site whose SDK is older than
+0.6.0, though it activates an editor the site bundles itself at any version. By
+default it loads whatever jsDelivr serves as `@latest`, unless the site pins a
+version with `devtools({ editorVersion })`. So:
 
 1. Publish the npm packages first, and check that
    `https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js`
