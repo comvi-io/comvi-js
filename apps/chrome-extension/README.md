@@ -11,7 +11,7 @@ and activates it through an authenticated proxy (see below).
 
 ## What the site needs
 
-- `@comvi/core` 0.5.1 or newer, with `.use(devtools())` on the i18n instance.
+- `@comvi/core` 0.6.0 or newer, with `.use(devtools())` on the i18n instance.
   `devtools()` publishes the instance for the extension and installs the hook
   that loads the editor. Without it the popup says "Comvi i18n not detected";
   on an older SDK it says the site must upgrade. The `<script>` global build
@@ -51,18 +51,19 @@ the editor cannot start, the popup names one reason and one remedy:
 | Popup says                                               | Cause                                                                    |
 | -------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Comvi i18n not detected on this page                     | No instance composed `devtools()`                                        |
-| Comvi i18n vX found, but it cannot load the editor       | `@comvi/core` older than 0.5.1                                           |
+| Comvi i18n vX found, but it cannot load the editor       | `@comvi/core` older than 0.6.0                                           |
 | This site's Content Security Policy blocked the editor   | `script-src` does not allow `https://cdn.jsdelivr.net`, or Trusted Types |
 | The editor could not be downloaded from cdn.jsdelivr.net | Network, a filter, or a pinned version that does not exist               |
 | The editor did not finish loading … in time              | The CDN did not answer in time                                           |
 | cdn.jsdelivr.net answered, but …                         | The file served was not the editor                                       |
+| This site pins the editor with an invalid version        | `devtools({ editorVersion })` is not an exact version like `0.6.0`       |
 
 Every word of these messages is the extension's own, including the host. The
 popup never shows a sentence the page wrote: a failure travels from the page as
 a code from a fixed list, and anything else becomes "The editor could not start
 on this page." The only page-reported strings the popup shows are the SDK and
 editor versions, and only when they look like a version: three numbers and at
-most one lowercase pre-release word with one number (`0.5.1`, `0.5.1-rc.1`), 32
+most one lowercase pre-release word with one number (`0.6.0`, `0.6.0-rc.1`), 32
 characters at most. Any other value is not shown. An Enable that ends without
 an active session always says so, in the popup's own words.
 
@@ -183,8 +184,8 @@ The extension is versioned by hand in `manifest.json` and `package.json`
 
 ### Release order
 
-Extension 0.5.1 cannot start the editor on a site whose SDK is older than
-0.5.1, and it loads whatever jsDelivr serves as `@latest`. So:
+Extension 0.6.0 cannot start the editor on a site whose SDK is older than
+0.6.0, and it loads whatever jsDelivr serves as `@latest`. So:
 
 1. Publish the npm packages first, and check that
    `https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js`

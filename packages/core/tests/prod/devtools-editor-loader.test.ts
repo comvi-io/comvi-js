@@ -1,7 +1,8 @@
 /**
  * The editor loader's two development warnings are folded out of production:
- * an invalid `editorVersion` still falls back to `latest`, and a second
- * instance with a different pin still yields to the first — both silently.
+ * an invalid `editorVersion` still fails closed (no URL, `load()` requests
+ * nothing and answers `invalid-editor-version`), and a second instance with a
+ * different pin still yields to the first — both silently.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createI18n } from "../../src";
@@ -28,12 +29,25 @@ afterEach(() => {
 });
 
 describe("editor loader in a production build", () => {
-  it.each(["../evil", "0.5.3?x", ""])("invalid version %j → latest, silently", (version) => {
+  it.each(["../evil", "0.5.3?x", ""])(
+    "invalid version %j → fails closed, silently",
+    async (version) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const slot = install(version);
+      const result = await slot.load();
+
+      expect(slot).toMatchObject({ editorVersion: "invalid", url: "" });
+      expect(result).toMatchObject({ ok: false, code: "invalid-editor-version" });
+      expect(document.querySelectorAll("script")).toHaveLength(0);
+      expect(warn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("no editorVersion → latest, silently", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const slot = install(version);
-
-    expect(slot).toMatchObject({ editorVersion: "latest", url: LATEST_URL });
+    expect(install()).toMatchObject({ editorVersion: "latest", url: LATEST_URL });
     expect(warn).not.toHaveBeenCalled();
   });
 

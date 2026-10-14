@@ -22,8 +22,8 @@ describe("MAIN-world detector editor loading", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     page = createPageWindow();
-    // @comvi/core 0.5.1: one announced instance.
-    page.__COMVI__ = [{ v: "0.5.1", i: { instanceId: "i18n" } }];
+    // @comvi/core 0.6.0: one announced instance.
+    page.__COMVI__ = [{ v: "0.6.0", i: { instanceId: "i18n" } }];
     activations = [];
     createElement = vi.fn();
     vi.stubGlobal("document", { createElement });
@@ -44,11 +44,11 @@ describe("MAIN-world detector editor loading", () => {
     (globalThis as Slots)[LOADER_KEY] = slot;
   }
 
-  /** The hook as core 0.5.1 installs it, with `load()` under the test's control. */
+  /** The hook as core 0.6.0 installs it, with `load()` under the test's control. */
   function slotWith(load: () => unknown, extra: Record<string, unknown> = {}) {
     const slot = {
       protocol: 1,
-      sdkVersion: "0.5.1",
+      sdkVersion: "0.6.0",
       editorVersion: "latest",
       url: CDN_URL,
       load: vi.fn(load),
@@ -59,7 +59,7 @@ describe("MAIN-world detector editor loading", () => {
   }
 
   /** What the standalone editor puts on the page once its script ran. */
-  function plantEditor(version: unknown = "0.5.1"): void {
+  function plantEditor(version: unknown = "0.6.0"): void {
     page.ComviInContextEditor = {
       version,
       isActive: () => false,
@@ -70,7 +70,7 @@ describe("MAIN-world detector editor loading", () => {
     };
   }
 
-  const loaded = { ok: true, url: CDN_URL, sdkVersion: "0.5.1", protocol: 1 };
+  const loaded = { ok: true, url: CDN_URL, sdkVersion: "0.6.0", protocol: 1 };
 
   function activate(): void {
     page.dispatchEvent(
@@ -91,15 +91,15 @@ describe("MAIN-world detector editor loading", () => {
 
   // --- status: how the popup tells an old SDK from a current one ---
 
-  it("reports the loader hook a 0.5.1 site installed", async () => {
+  it("reports the loader hook a 0.6.0 site installed", async () => {
     slotWith(() => loaded);
     await injectDetector();
 
     expect(status()).toMatchObject({
       detected: true,
-      version: "0.5.1",
+      version: "0.6.0",
       editorLoaded: false,
-      editorLoader: { protocol: 1, sdkVersion: "0.5.1", editorVersion: "latest" },
+      editorLoader: { protocol: 1, sdkVersion: "0.6.0", editorVersion: "latest" },
     });
   });
 
@@ -118,7 +118,7 @@ describe("MAIN-world detector editor loading", () => {
   });
 
   it.each([
-    ["has no load function", { protocol: 1, sdkVersion: "0.5.1" }],
+    ["has no load function", { protocol: 1, sdkVersion: "0.6.0" }],
     ["announces protocol 0", { protocol: 0, load: () => loaded }],
     ["announces a fractional protocol", { protocol: 1.5, load: () => loaded }],
     ["is not an object", "loader"],
@@ -143,7 +143,7 @@ describe("MAIN-world detector editor loading", () => {
   });
 
   it("drops hook versions that are not strings", async () => {
-    slotWith(() => loaded, { sdkVersion: { toString: () => "0.5.1" }, editorVersion: 5 });
+    slotWith(() => loaded, { sdkVersion: { toString: () => "0.6.0" }, editorVersion: 5 });
     await injectDetector();
 
     expect(status().editorLoader).toEqual({
@@ -212,7 +212,7 @@ describe("MAIN-world detector editor loading", () => {
 
   it("asks the one page-wide hook once when two cores announced instances", async () => {
     page.__COMVI__ = [
-      { v: "0.5.1", i: { instanceId: "comvi-1" } },
+      { v: "0.6.0", i: { instanceId: "comvi-1" } },
       { v: "0.5.2", i: { instanceId: "comvi-1" } },
     ];
     vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -250,7 +250,7 @@ describe("MAIN-world detector editor loading", () => {
 
   // --- a hook that fails, lies, throws or stays silent ---
 
-  it.each(["csp-blocked", "load-error", "timeout", "no-global"])(
+  it.each(["csp-blocked", "load-error", "timeout", "no-global", "invalid-editor-version"])(
     "forwards the hook's %s code and nothing else of its answer",
     async (code) => {
       slotWith(async () => ({

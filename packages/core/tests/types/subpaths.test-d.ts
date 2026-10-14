@@ -288,8 +288,8 @@ attachDevtools(slim, { locale: "en" });
 
 // The editor pin is a devtools option, and the loader contract is reachable
 // from the subpath that installs it.
-attachDevtools(slim, { editorVersion: "0.5.1" });
-devtools({ editorVersion: "0.5.1" });
+attachDevtools(slim, { editorVersion: "0.6.0" });
+devtools({ editorVersion: "0.6.0" });
 declare const loaderSlot: EditorLoaderSlot;
 const loadResult: Promise<EditorLoadResult> = loaderSlot.load();
 void loadResult;

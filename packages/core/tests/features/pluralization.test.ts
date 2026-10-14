@@ -264,12 +264,16 @@ describe("`#` is formatted for the locale (ICU MessageFormat semantics)", () => 
     expect(en.t("literal", { count: 1234 })).toBe("# is 1,234 ");
   });
 
-  it("keeps the sign of negative zero, like Intl", () => {
+  it("renders negative zero as 0, without the sign Intl would print", () => {
     const en = new I18n({ locale: "en" });
     en.addMessages({ en: { items: "{count, plural, other {# items}}" } });
-    expect(en.t("items", { count: -0 })).toBe(`${nf("en", -0)} items`);
-    expect(en.t("items", { count: -0 })).toBe("-0 items");
+    expect(en.t("items", { count: -0 })).toBe("0 items");
     expect(en.t("items", { count: 0 })).toBe("0 items");
+
+    // A locale outside the plain-integer probe goes through Intl, and still no sign.
+    const eg = new I18n({ locale: "ar-EG" });
+    eg.addMessages({ "ar-EG": { items: "{count, plural, other {# items}}" } });
+    expect(eg.t("items", { count: -0 })).toBe(`${nf("ar-EG", 0)} items`);
   });
 
   it("uses the locale's digits and minus sign below the plain-integer range", () => {

@@ -90,6 +90,7 @@ export default defineConfig({
         "src/server.ts",
         "src/client.ts",
         "src/middleware.ts",
+        "src/proxy.ts",
         "src/routing.ts",
         "src/navigation.ts",
         "src/**/types.ts",

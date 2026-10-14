@@ -190,7 +190,7 @@ describe("slot installation", () => {
 });
 
 describe("editorVersion", () => {
-  it.each(["0.5.3", "1.20.300", "0.6.0-rc.1", "0.5.1-next.2-x"])(
+  it.each(["0.5.3", "1.20.300", "0.6.0-rc.1", "0.6.0-next.2-x"])(
     "exact version %s → pinned in the URL",
     (version) => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -241,14 +241,44 @@ describe("editorVersion", () => {
     "0.5.3-a\\b",
     "0.5.3-a:b",
     "0.5.3-",
-  ])("invalid version %j → latest and one development warning", (version) => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  ])(
+    "invalid version %j → fails closed: no URL, load() requests nothing, one development warning",
+    async (version) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const slot = install(version);
+      const slot = install(version);
+      const result = await slot.load();
 
-    expect(slot).toMatchObject({ editorVersion: "latest", url: LATEST_URL });
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toContain("falls back to latest");
+      expect(slot).toMatchObject({ protocol: 1, editorVersion: "invalid", url: "" });
+      expect(result).toMatchObject({ ok: false, code: "invalid-editor-version", url: "" });
+      expect(scripts()).toHaveLength(0);
+      expect(slots[LOAD_KEY]).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain("will not load the editor");
+      expect(warn.mock.calls[0][0]).not.toContain("latest");
+    },
+  );
+
+  it("invalid version with the editor already on the page → still requests nothing", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    win.ComviInContextEditor = { activate: () => {}, version: "0.6.0" };
+
+    const result = await install("next").load();
+
+    expect(result).toMatchObject({ ok: false, code: "invalid-editor-version" });
+    expect(scripts()).toHaveLength(0);
+  });
+
+  it("invalid version → every load() call answers the same failure, never cached", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const slot = install("0.5");
+
+    const [a, b] = await Promise.all([slot.load(), slot.load()]);
+
+    expect(a).toEqual(b);
+    expect(a.code).toBe("invalid-editor-version");
+    expect(slots[LOAD_KEY]).toBeUndefined();
+    expect(scripts()).toHaveLength(0);
   });
 
   it("dots in the prerelease part → accepted, and the URL stays inside the editor package", () => {
@@ -279,17 +309,21 @@ describe("editorVersion", () => {
     ["an array", ["0.5.3"]],
     ["null", null],
     ["a boolean", true],
-  ])("%s as editorVersion → latest, a string in the slot, the latest URL requested", (_l, pin) => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  ])(
+    "%s as editorVersion → fails closed, a string in the slot, nothing requested",
+    async (_l, pin) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const slot = install(pin as never);
-    void slot.load();
+      const slot = install(pin as never);
+      const result = await slot.load();
 
-    expect(slot.editorVersion).toBe("latest");
-    expect(slot.url).toBe(LATEST_URL);
-    expect(scripts()[0].src.startsWith(`${LATEST_URL}?comvi=`)).toBe(true);
-    expect(warn).toHaveBeenCalledTimes(1);
-  });
+      expect(slot.editorVersion).toBe("invalid");
+      expect(slot.url).toBe("");
+      expect(result.code).toBe("invalid-editor-version");
+      expect(scripts()).toHaveLength(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("an options object whose editorVersion getter throws → construction survives, no slot", () => {
     const options = Object.create({
@@ -410,7 +444,7 @@ describe("load()", () => {
     });
   });
 
-  it("an editor older than 0.5.1 (no version member) → ok with editorVersion undefined", async () => {
+  it("an editor older than 0.6.0 (no version member) → ok with editorVersion undefined", async () => {
     const slot = install();
     const promise = slot.load();
 
@@ -757,7 +791,7 @@ describe("load() failures", () => {
   });
 
   it.each([
-    ["an object without activate()", { version: "0.5.1" }],
+    ["an object without activate()", { version: "0.6.0" }],
     ["an object whose activate is not a function", { activate: true }],
     ["a string", "editor"],
   ])("load fires and the global is %s → no-global", async (_label, planted) => {
@@ -821,7 +855,7 @@ describe("what the hook reads off window.ComviInContextEditor", () => {
         throw new Error(`unexpected ${trap}`);
       };
     const editor = new Proxy(
-      { activate: () => {}, version: "0.5.1", deactivate: () => {}, getStatus: () => ({}) },
+      { activate: () => {}, version: "0.6.0", deactivate: () => {}, getStatus: () => ({}) },
       {
         get(target, key, receiver) {
           touched.push(String(key));
@@ -845,7 +879,7 @@ describe("what the hook reads off window.ComviInContextEditor", () => {
 
     const result = await install().load();
 
-    expect(result).toMatchObject({ ok: true, editorVersion: "0.5.1" });
+    expect(result).toMatchObject({ ok: true, editorVersion: "0.6.0" });
     expect(touched).toEqual(["activate", "version"]);
   });
 
@@ -856,7 +890,7 @@ describe("what the hook reads off window.ComviInContextEditor", () => {
     win.ComviInContextEditor = editor;
     scripts()[0].dispatchEvent(new Event("load"));
 
-    expect(await promise).toMatchObject({ ok: true, editorVersion: "0.5.1" });
+    expect(await promise).toMatchObject({ ok: true, editorVersion: "0.6.0" });
     expect(touched).toEqual(["activate", "version"]);
   });
 
@@ -915,7 +949,7 @@ describe("the protocol-1 contract", () => {
 
   it("live ok result → exactly the fixture's keys and value types", async () => {
     const expected = (await frozenResults()).ok;
-    win.ComviInContextEditor = { activate: () => {}, version: "0.5.1" };
+    win.ComviInContextEditor = { activate: () => {}, version: "0.6.0" };
 
     const result = await install().load();
 
@@ -923,8 +957,8 @@ describe("the protocol-1 contract", () => {
     expect(result).toEqual({ ...expected, sdkVersion: pkg.version });
   });
 
-  it("live ok result from an editor older than 0.5.1 → exactly the fixture's keys and value types", async () => {
-    const expected = (await frozenResults())["ok-editor-before-0.5.1"];
+  it("live ok result from an editor older than 0.6.0 → exactly the fixture's keys and value types", async () => {
+    const expected = (await frozenResults())["ok-editor-before-0.6.0"];
     win.ComviInContextEditor = { activate: () => {} };
 
     const result = await install().load();
@@ -972,6 +1006,16 @@ describe("the protocol-1 contract", () => {
     // Equal apart from what varies by build and by hour: the version and the salt.
     expect(result).toEqual({ ...expected, sdkVersion: pkg.version, url: script.src });
     expect(script.src.startsWith(`${expected.url}?comvi=`)).toBe(true);
+  });
+
+  it("live invalid-editor-version result → exactly the fixture's keys, value types and values", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const expected = (await frozenResults())["invalid-editor-version"];
+
+    const result = await install("next").load();
+
+    expect(shape(result)).toEqual(shape(expected));
+    expect(result).toEqual({ ...expected, sdkVersion: pkg.version });
   });
 });
 

@@ -101,6 +101,15 @@ const VUE_ROOT_MODULE = [`@comvi${path.sep}vue${path.sep}dist${path.sep}comvi-vu
  * diagnostic. `preserveModules` names it per module rather than per chunk, and
  * the fragment covers `createNextI18n.js` and `createNextI18n.dev.js` alike.
  */
+/** `@comvi/next`'s middleware module, per artifact (the `next-proxy` case). */
+const NEXT_CREATE_MIDDLEWARE = `@comvi${path.sep}next${path.sep}dist${path.sep}middleware${path.sep}createMiddleware`;
+const NEXT_CREATE_MIDDLEWARE_PROD = `${NEXT_CREATE_MIDDLEWARE}.js`;
+const NEXT_CREATE_MIDDLEWARE_DEV = `${NEXT_CREATE_MIDDLEWARE}.dev.js`;
+/** What a `proxy.ts` graph must never carry: core, or next's server half. */
+const NEXT_PROXY_FORBIDDEN = [
+  `@comvi${path.sep}core${path.sep}`,
+  `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
+];
 const NEXT_COMPOSED_ROOT_MODULE = [`@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n`];
 /**
  * `@comvi/vue`'s late-compose warning (`.use(installer)` after `app.use(i18n)`
@@ -291,6 +300,31 @@ const CASES = [
       ...LOADER_SUBPATH,
       `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
     ],
+    packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
+    deps: ["react", "next"],
+  },
+  {
+    // Next.js 16's `proxy.ts` entry (COM-96): `@comvi/next/proxy` and
+    // `@comvi/next/middleware` resolve out of the packed tarball to ONE shared
+    // `createMiddleware` (the fixture asserts identity at run time), and neither
+    // drags in core or next's server half. The graph holds no core, so the core
+    // dev marker cannot apply (`noCore`); the export condition is asserted on
+    // module IDs instead: the `.dev.js` artifact in development, the plain one
+    // in production. The one-line `proxy` re-export module itself is pruned by
+    // both bundlers (side-effect free), so it is not a presence sentinel.
+    name: "next-proxy",
+    noCore: true,
+    sentinels: "absent",
+    absentModules: {
+      default: [NEXT_CREATE_MIDDLEWARE_DEV, ...NEXT_PROXY_FORBIDDEN],
+      "webpack:development": NEXT_PROXY_FORBIDDEN,
+      "vite:development": NEXT_PROXY_FORBIDDEN,
+    },
+    presentModules: {
+      default: [NEXT_CREATE_MIDDLEWARE_PROD],
+      "webpack:development": [NEXT_CREATE_MIDDLEWARE_DEV],
+      "vite:development": [NEXT_CREATE_MIDDLEWARE_DEV],
+    },
     packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
@@ -631,8 +665,10 @@ for (const bundler of BUNDLERS) {
       // Export-condition check: dev builds must contain the dev-only core
       // chunk marker, prod builds must not.
       const content = fs.readFileSync(outFile, "utf8");
+      // A `noCore` case carries no core, so its condition is asserted on its
+      // own module IDs (`presentModules` / `absentModules`) instead.
       const hasDevMarker = content.includes(DEV_MARKER);
-      if (mode === "development" && !hasDevMarker) {
+      if (!testCase.noCore && mode === "development" && !hasDevMarker) {
         failures.push(`${label}: development condition not resolved (dev marker missing)`);
       }
       if (mode === "production" && hasDevMarker) {

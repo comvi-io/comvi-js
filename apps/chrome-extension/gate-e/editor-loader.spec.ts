@@ -278,7 +278,7 @@ test("a site on @comvi/core 0.5.0 is told to upgrade, and Enable is not offered"
       "Comvi i18n v0.5.0 found, but it cannot load the editor.",
     );
     await expect(popup.locator("#reason-remedy")).toHaveText(
-      "In-context editing needs @comvi/core 0.5.1 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.",
+      "In-context editing needs @comvi/core 0.6.0 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.",
     );
     await expect(popup.locator("#enable-btn")).toBeHidden();
     expect(launched.cdnRequests).toEqual([]);
@@ -296,7 +296,7 @@ test("a site without devtools() is told what to add", async () => {
       "Comvi i18n not detected on this page.",
     );
     await expect(popup.locator("#reason-remedy")).toContainText(
-      "add .use(devtools()) to its i18n instance (@comvi/core 0.5.1 or newer)",
+      "add .use(devtools()) to its i18n instance (@comvi/core 0.6.0 or newer)",
     );
     await expect(popup.locator("#enable-btn")).toBeHidden();
     await popup.close();

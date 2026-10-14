@@ -1,5 +1,5 @@
 ---
-"@comvi/next": patch
+"@comvi/next": minor
 ---
 
 **Behaviour change: `createNextI18n` no longer composes browser-extension discovery.** Until now it attached discovery to every Next app on its own, so the i18n instance was published on `window.__COMVI__` and got an auto-generated `instanceId`. Now a Next app is not visible to the Comvi browser extension, and `i18n.instanceId` is `undefined`, until the app composes discovery itself, as with every other binding.

@@ -164,20 +164,16 @@ describe("t() on generated messages (development build)", () => {
 describe("counterexamples the fuzzer found (development build)", () => {
   const WRAPPED_PLURAL = "{{count, plural, one {# item} other {# items}}}";
 
-  // BUG (low): `icuCompiler` looks for the type-marking comma only at the
-  // argument's own brace depth, so a plural wrapped in a second pair of braces
-  // is to it a PARAMETER whose name is the whole inner argument. It is accepted
-  // and rendered literally, with nothing but a missing-parameter warning; the
-  // default compiler refuses the same catalog.
-  // Observed: accepted. Expected: refused with E_ICU_SYNTAX.
-  it.fails(
-    "icuCompiler: a plural wrapped in a second pair of braces → refused at ingestion",
-    () => {
-      const outcome = ingestAndRender(WRAPPED_PLURAL, ICU);
+  // Fixed in COM-148: `icuCompiler` looks for the type-marking comma only at
+  // the argument's own brace depth, and a plural wrapped in a second pair of
+  // braces used to be a PARAMETER whose name was the whole inner argument. A
+  // comma found only in a nested group now fails the argument, as the default
+  // compiler refuses the same catalog.
+  it("icuCompiler: a plural wrapped in a second pair of braces → refused at ingestion", () => {
+    const outcome = ingestAndRender(WRAPPED_PLURAL, ICU);
 
-      expect(outcome.rejected).toBe(true);
-    },
-  );
+    expect(outcome.rejected).toBe(true);
+  });
 
   it("default compiler: a plural wrapped in a second pair of braces → refused at ingestion", () => {
     const outcome = ingestAndRender(WRAPPED_PLURAL, DEFAULT);

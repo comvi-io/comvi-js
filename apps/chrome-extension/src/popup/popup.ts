@@ -26,13 +26,13 @@ const THEME_STORAGE_KEY = "comvi_theme";
 const EDITOR_CDN_HOST = "cdn.jsdelivr.net";
 
 const SDK_REQUIREMENT =
-  "In-context editing needs @comvi/core 0.5.1 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
+  "In-context editing needs @comvi/core 0.6.0 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
 
 const ACTIVATION_FAILED = "The editor could not start on this page. Reload the page and try again.";
 
 const NOT_DETECTED_TITLE = "Comvi i18n not detected on this page.";
 const NOT_DETECTED_REMEDY =
-  "If this site uses Comvi i18n, add .use(devtools()) to its i18n instance (@comvi/core 0.5.1 or newer). That makes the instance visible to this extension and lets the site load the editor when you enable it.";
+  "If this site uses Comvi i18n, add .use(devtools()) to its i18n instance (@comvi/core 0.6.0 or newer). That makes the instance visible to this extension and lets the site load the editor when you enable it.";
 
 /** One reason and one remedy for each way the page can fail to supply the editor. */
 const ACTIVATION_FAILURE_TEXT: Record<ActivationOutcomeCode, string> = {
@@ -40,6 +40,8 @@ const ACTIVATION_FAILURE_TEXT: Record<ActivationOutcomeCode, string> = {
   "load-error": `The editor could not be downloaded from ${EDITOR_CDN_HOST}. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.`,
   timeout: `The editor did not finish loading from ${EDITOR_CDN_HOST} in time. Check your connection and try again.`,
   "no-global": `${EDITOR_CDN_HOST} answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.`,
+  "invalid-editor-version":
+    "This site pins the editor with an invalid version, so nothing was loaded. devtools({ editorVersion }) must be an exact version like 1.2.3. Fix it in the site's code, then reload this page.",
   "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
   unconfirmed: "The editor activation could not be confirmed. Try again.",
   failed: ACTIVATION_FAILED,
@@ -207,7 +209,7 @@ function render() {
   }
 
   // An instance is there, but neither an editor nor the hook that loads one:
-  // the site runs @comvi/core older than 0.5.1.
+  // the site runs @comvi/core older than 0.6.0.
   if (editorAvailable === false) {
     reasonTitle.textContent = `Comvi i18n${comviVersion ? ` v${comviVersion}` : ""} found, but it cannot load the editor.`;
     reasonRemedy.textContent = SDK_REQUIREMENT;

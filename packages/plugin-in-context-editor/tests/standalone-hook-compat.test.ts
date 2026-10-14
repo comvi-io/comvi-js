@@ -151,11 +151,11 @@ describe("standalone editor ↔ editor-loader slot", () => {
   });
 
   it("slot whose sdkVersion is longer than 64 characters → hook carries its first 64", async () => {
-    const editor = await bootEditorOnPage({ ...protocol1, sdkVersion: `0.5.1-${"x".repeat(500)}` });
+    const editor = await bootEditorOnPage({ ...protocol1, sdkVersion: `0.6.0-${"x".repeat(500)}` });
 
     expect(editor.getStatus().hook).toStrictEqual({
       protocol: 1,
-      sdkVersion: `0.5.1-${"x".repeat(58)}`,
+      sdkVersion: `0.6.0-${"x".repeat(58)}`,
     });
   });
 
@@ -167,14 +167,14 @@ describe("standalone editor ↔ editor-loader slot", () => {
     delete first!.sdkVersion;
 
     expect(editor.getStatus().hook).not.toBe(first);
-    expect(editor.getStatus().hook).toStrictEqual({ protocol: 1, sdkVersion: "0.5.1" });
+    expect(editor.getStatus().hook).toStrictEqual({ protocol: 1, sdkVersion: "0.6.0" });
   });
 
   it.each([
     ["protocol 0", { ...protocol1, protocol: 0 }],
     ["a fractional protocol", { ...protocol1, protocol: 1.5 }],
     ["a string protocol", { ...protocol1, protocol: "1" }],
-    ["no protocol", { sdkVersion: "0.5.1" }],
+    ["no protocol", { sdkVersion: "0.6.0" }],
     ["null in the slot", null],
     ["a string in the slot", "protocol-1"],
   ])("page with %s → hook: null, and the editor still activates", async (_label, slot) => {

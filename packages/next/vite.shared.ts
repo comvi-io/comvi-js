@@ -73,6 +73,7 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       server: resolve(dir, "src/server.ts"),
       client: resolve(dir, "src/client.ts"),
       middleware: resolve(dir, "src/middleware.ts"),
+      proxy: resolve(dir, "src/proxy.ts"),
       routing: resolve(dir, "src/routing.ts"),
       navigation: resolve(dir, "src/navigation.ts"),
       // Prod family only: neither has a "development" export condition, so a

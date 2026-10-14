@@ -144,12 +144,18 @@ function installEditorLoader(options?: DevtoolsOptions): void {
       // one that passes the pattern could still print something else into the URL.
       if (typeof pin === "string" && EDITOR_VERSION.test(pin)) {
         editorVersion = pin;
-      } else if (IS_DEV) {
-        console.warn(
-          `[@comvi/core] devtools({ editorVersion }) got ` +
-            `${typeof pin === "string" ? JSON.stringify(pin) : `a value of type ${typeof pin}`}, ` +
-            `which is not an exact version (major.minor.patch); the editor loader falls back to latest.`,
-        );
+      } else {
+        // FAILS CLOSED: an explicit pin that is not an exact version never
+        // becomes `latest`. The slot is still installed, so the extension can
+        // name the mistake, but its load() requests nothing.
+        editorVersion = "invalid";
+        if (IS_DEV) {
+          console.warn(
+            `[@comvi/core] devtools({ editorVersion }) got ` +
+              `${typeof pin === "string" ? JSON.stringify(pin) : `a value of type ${typeof pin}`}, ` +
+              `which is not an exact version (major.minor.patch, such as 1.2.3); the editor loader will not load the editor.`,
+          );
+        }
       }
     }
 
@@ -174,13 +180,18 @@ function installEditorLoader(options?: DevtoolsOptions): void {
       return;
     }
 
-    const url = `${EDITOR_CDN_ORIGIN}/npm/@comvi/plugin-in-context-editor@${editorVersion}/dist/standalone.iife.js`;
+    const url =
+      editorVersion === "invalid"
+        ? ""
+        : `${EDITOR_CDN_ORIGIN}/npm/@comvi/plugin-in-context-editor@${editorVersion}/dist/standalone.iife.js`;
     const slot: EditorLoaderSlot = {
       protocol: EDITOR_LOADER_PROTOCOL,
       sdkVersion: VERSION,
       editorVersion,
       url,
       load() {
+        // An invalid pin: no URL, nothing is ever requested.
+        if (!url) return Promise.resolve(loadResult(url, "invalid-editor-version"));
         // A pending load, or one that succeeded: the same promise every time.
         const pending = slots[LOAD_KEY] as Promise<EditorLoadResult> | undefined;
         if (pending) return pending;
@@ -272,9 +283,11 @@ export interface DevtoolsOptions {
   exposeGlobal?: boolean;
   /**
    * Exact version of `@comvi/plugin-in-context-editor` the editor loader
-   * requests, for example `"0.5.1"`. Defaults to `"latest"`; anything that is
-   * not an exact version falls back to it. The first instance on a page
-   * decides. The CDN global (the UMD composite) cannot pin.
+   * requests: major.minor.patch, such as 1.2.3, optionally with a prerelease
+   * suffix. Defaults to `"latest"`. Anything else that is not an exact version
+   * FAILS CLOSED: the loader requests nothing and reports
+   * `invalid-editor-version` to the extension; it never falls back to `latest`. The first instance on a page decides. The CDN global (the UMD
+   * composite) cannot pin.
    */
   editorVersion?: string;
 }

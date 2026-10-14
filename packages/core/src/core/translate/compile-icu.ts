@@ -231,6 +231,11 @@ function canonicalizeExactSelectors(
  * A comma at depth 0 makes the argument TYPED, and only the three types above
  * are implemented — `{price, number}` and friends fail through `failIcuArg`
  * rather than resolving to a parameter literally named `price, number`.
+ *
+ * A comma only in a NESTED brace group (`{{count, plural, …}}`, `{{,}\t}`) is
+ * not a parameter either: the argument fails through `failIcuArg`, with the
+ * type the default compiler would name for it, exactly as that compiler
+ * refuses the same text.
  */
 function makeIcuArgToken(
   content: string,
@@ -238,6 +243,7 @@ function makeIcuArgToken(
 ): ParamToken | PluralToken | SelectToken | undefined {
   let firstComma = -1;
   let secondComma = -1;
+  let nestedComma = -1;
   let depth = 0;
   const len = content.length;
 
@@ -251,16 +257,30 @@ function makeIcuArgToken(
 
     if (code === OPEN_BRACE) depth++;
     else if (code === CLOSE_BRACE) depth--;
-    else if (code === COMMA && depth === 0) {
-      if (firstComma === -1) firstComma = k;
-      else if (secondComma === -1) {
+    else if (code === COMMA) {
+      if (depth !== 0) {
+        if (nestedComma === -1) nestedComma = k;
+      } else if (firstComma === -1) firstComma = k;
+      else {
         secondComma = k;
         break;
       }
     }
   }
 
-  if (firstComma === -1) return [TK_PARAM, content.trim()];
+  if (firstComma === -1) {
+    if (nestedComma !== -1) {
+      return failIcuArg(
+        content
+          .slice(nestedComma + 1)
+          .split(",", 1)[0]
+          .trim(),
+        content,
+        undefined,
+      );
+    }
+    return [TK_PARAM, content.trim()];
+  }
 
   const paramName = content.slice(0, firstComma).trim();
   // A one-comma argument (`{n, plural}`) has a type but no choice list; the
