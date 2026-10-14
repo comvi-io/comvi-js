@@ -257,10 +257,18 @@ landed after the 2026-10-11 and 2026-10-12 sweeps, it does not rescue a failing 
 The movement is core, and the three rows that carry no core graph say so: `fw-next-server-provider`
 (2052 B), `fw-next-plugin-node` (939 B) and `fw-next-middleware-edge` (2045 B) measured their
 recorded baselines exactly, to the byte, min and gzip alike, so they keep their 2026-10-11
-baselines and dates. Every other row grew by one of three amounts minified — about +460 B on a base
-row, +520…+560 B on a row with the ICU compiler, the loader or the platform path, and +670 B on a
-full composite — for +145…+259 B min+gz, between +1.6 % and +3.0 % of its recorded baseline. That
-is the 0.6.0 core work: the numeric template-cache partition key, the flat catalog kept by
+baselines and dates. Every other row grew, and the minified growth spans +460…+671 B. It does not
+fall into neat bands, so here is every cluster: **+460…+467 B** on the eight floor rows
+(`core-base`, `fw-{react,solid,svelte,vue}-default`, `fw-next-client-default`,
+`fw-next-server-default-loader`, `fw-nuxt-client-default`); **+523 B** on
+`fw-next-root-composed`; **+561…+563 B** on `core-base-icu`, both fetch-loader rows and
+`platform-path-react`; **+619 B** on `core-base-devtools`; **+665 B** on `fw-nuxt-i18n`; and
+**+669…+671 B** on the six full composites and `fw-next-root-devtools`. `core-base-devtools` and
+`fw-nuxt-i18n` each sit alone between the middle and the top, and this sweep does not say why:
+composing `devtools()` does not predict one figure either, since the three devtools rows that are
+not full composites measured +619, +665 and +670 B. One sweep gives totals, not per-feature
+attribution. In gzip the whole span is +145…+259 B, between +1.6 % and +3.0 % of the row's own
+recorded baseline. That is the 0.6.0 core work: the numeric template-cache partition key, the flat catalog kept by
 reference, the function-parameter placeholder and its warning, the ICU nested-comma fix, plural
 `-0`, and the `editorVersion` SemVer check that fails closed.
 
