@@ -1,5 +1,5 @@
 ---
-"@comvi/core": patch
+"@comvi/core": minor
 ---
 
 Keep flat plain-object catalogs by reference instead of copying them. A catalog passed to `messages`, `addMessages()` or returned by a loader is eligible when its prototype is exactly `Object.prototype` and every own enumerable value is a string. It is validated with one pass over its enumerable keys and then stored as the object you passed. Other catalogs (nested, with non-string values, or with another prototype) are still flattened into a new object.
