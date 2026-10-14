@@ -4,8 +4,11 @@ Date: **2026-10-14, all four apps, on Comvi 0.6.0** (first run 2026-10-10 for th
 2026-10-11 for `comvi-nuxt-icu`, both on 0.5.0). Minimal Nuxt 4 apps, identical except for the i18n layer, built with
 `nuxi build` (production). Every `.js` under `.output/public/_nuxt/` was measured (recursively;
 `builds/meta/*.json` is not JS). gzip = node `zlib.gzipSync` level 9 per file, summed.
-brotli = `zlib.brotliCompressSync` quality 11 per file, summed. Node 24.19.0 for the builds and the
-measurement, the same version as the earlier runs, because Node's zlib changed in 26.
+brotli = `zlib.brotliCompressSync` quality 11 per file, summed. **Node 24.20.0** for the builds and
+the measurement, Node 24 being the major CI uses and the major of the earlier runs; Node 26 gzips
+the same bytes to a different size, so a figure taken there is not comparable with one taken here.
+24.19.0 and 24.20.0 produce byte-identical output, checked on 2026-10-14. `measure.mjs` prints the
+Node version and the load average in its first line.
 
 The 0.6.0 run measured the release tarballs built from `a74da136` before they were published, via
 pnpm `overrides` pointing at `file:` paths; the app manifests name `0.6.0`, the form to install from
@@ -178,8 +181,8 @@ leftover `.output/server/index.mjs` processes afterwards.
 
 ## 2. Versions (from installed package.json files)
 
-- Node 24.19.0, pnpm 12.4.2 (the 0.5.0 run used pnpm 10.33.2; the resolved tree is identical, the
-  lockfiles did not change)
+- Node 24.20.0, pnpm 12.4.2 (the 0.5.0 run used Node 24.19.0 and pnpm 10.33.2; the resolved tree is
+  identical, the lockfiles did not change, and the two Node minors produce identical bytes)
 - nuxt 4.6.1, vue 3.5.43, vue-router 5.4.0, vite 8.3.4, nitropack 2.13.4
 - @nuxtjs/i18n 10.6.0 → vue-i18n 11.4.14, @intlify/core-base 11.4.14,
   @intlify/message-compiler 11.4.14, @intlify/shared 11.4.14, @intlify/h3 0.7.4. Checked against

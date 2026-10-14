@@ -1,6 +1,11 @@
 {
   "measuredAt": "2026-10-14",
-  "node": "v24.19.0",
+  "node": "v24.20.0",
+  "loadAverage": [
+    6.77685546875,
+    5.994140625,
+    6.22802734375
+  ],
   "esbuild": "0.28.0",
   "conditions": [
     "production",

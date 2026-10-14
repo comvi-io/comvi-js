@@ -9,6 +9,7 @@ import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
 import { join, basename } from "node:path";
 import { pathToFileURL } from "node:url";
 import { gzipSync, brotliCompressSync, constants } from "node:zlib";
+import { arch, loadavg, platform } from "node:os";
 
 const apps = process.argv.slice(2);
 if (apps.length < 2) {
@@ -76,6 +77,11 @@ for (const app of apps) {
 }
 const base = results[apps[0]];
 const name = (a) => basename(a);
+console.log(
+  `node ${process.version} | ${platform()} ${arch()} | load ${loadavg()
+    .map((n) => n.toFixed(2))
+    .join(" ")}\n`,
+);
 console.log("## All client JS under .output/public/_nuxt/\n");
 console.log(
   "| app | JS files | min bytes | gzip-9 bytes | brotli-11 bytes | Δ min vs base | Δ gzip vs base | Δ brotli vs base |",

@@ -1,4 +1,5 @@
 import esbuild from "esbuild";
+import os from "node:os";
 import zlib from "node:zlib";
 import fs from "node:fs";
 import path from "node:path";
@@ -190,6 +191,7 @@ fs.writeFileSync(
     {
       measuredAt: date,
       node: process.version,
+      loadAverage: os.loadavg(),
       esbuild: esbuild.version,
       conditions: CONDITIONS,
       rows: out,
@@ -198,7 +200,15 @@ fs.writeFileSync(
     2,
   ) + "\n",
 );
+// The Node version is part of the measurement: esbuild emits the same minified bytes on
+// any Node, but zlib does not gzip them to the same size on every Node major, so a figure
+// is only comparable with another taken on the same Node. It heads both outputs.
 let md =
+  `<!-- node ${process.version} | esbuild ${esbuild.version} | ${os.platform()} ${os.arch()} | load ${os
+    .loadavg()
+    .map((n) => n.toFixed(2))
+    .join(" ")} | measured ${date} -->\n\n` +
+  `node ${process.version}, esbuild ${esbuild.version}, gzip level 9, measured ${date}.\n\n` +
   "| Group | Bundle | min B | min+gz B | Packages in the bundle |\n|---|---|---:|---:|---|\n";
 for (const o of out)
   md += `| ${o.group} | ${o.name} | ${o.minBytes.toLocaleString("en-US")} | ${o.gzipBytes.toLocaleString("en-US")} | ${Object.entries(
@@ -207,6 +217,12 @@ for (const o of out)
     .map(([k, v]) => `${k}@${v}`)
     .join(", ")} |\n`;
 fs.writeFileSync(`results-${date}.md`, md);
+console.log(
+  `node ${process.version} | esbuild ${esbuild.version} | ${os.platform()} ${os.arch()} | load ${os
+    .loadavg()
+    .map((n) => n.toFixed(2))
+    .join(" ")}`,
+);
 let g = "";
 for (const o of out) {
   if (o.group !== g) {

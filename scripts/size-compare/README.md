@@ -34,14 +34,41 @@ NODE_ENV=production node bench.mjs    # refuses to run without NODE_ENV=producti
 fails the install without them. The `overrides` key is where a pre-publish run points the
 `@comvi/*` packages at local tarballs; it is not committed.
 
-**The Node version is part of the measurement.** esbuild produces the same minified bytes on any
-Node, but gzip does not: Node 26.9.0 ships a zlib that compresses these bundles about 0.1 % smaller
-than Node 24.19.0 does. The 2026-10-14 run used **Node 24.19.0**, the version of the 2026-10-11
-run, so a row-to-row delta against the earlier artifacts is the library change and nothing else;
-every unchanged package reproduced its earlier byte count exactly. `results-2026-10-14-node26.json`
-and `-node26.md` are the same run on Node 26.9.0, kept only to show that difference. `pnpm size`,
-the size gate in the repository root, must be run on the same Node as this harness for the two to
-be compared.
+**The Node version is part of the measurement, and every result file names it.** esbuild emits the
+same minified bytes on any Node, but zlib does not gzip them to the same size on every Node major.
+Measured on these 27 rows on 2026-10-14, with the minified bytes identical on every one of them,
+Node 26.9.0 against Node 24.20.0 runs from **118 B smaller to 8 B larger**, 25 rows smaller and 2
+larger, at most 0.71 % of the row. The direction is not uniform and the size is not negligible, so
+a figure is comparable only with another taken on the same Node major, and **every run here is made
+on Node 24**, the major CI uses. Within that major the minor does not matter: 24.19.0 and 24.20.0
+produce byte-identical output on all 27 rows, also checked on 2026-10-14, so the 2026-10-11
+artifacts stay directly comparable with these. The artifacts of 2026-10-14 were taken on
+**24.20.0**; those of 2026-10-11 on 24.19.0.
+
+`results-2026-10-14-node26.json` and `-node26.md` are that same run on Node 26.9.0, kept as the
+evidence for the paragraph above and for nothing else. **No public page cites a figure from those
+two files.** Every number on the comparison pages comes from `results-2026-10-14.json`, the
+`bench-2026-10-14-run*.txt` files, `nuxt/measure-2026-10-14.txt` and
+`nuxt/attribute-2026-10-14.txt`, all taken on Node 24.20.0.
+
+`pnpm size`, the size gate in the repository root, has to be run on the same Node as this harness
+for the two to be compared. Measured on its own 25 rows on 2026-10-14, Node 26.9.0 against Node
+24.20.0 runs from 24 B smaller to 9 B larger, 21 rows smaller and 4 larger, so run them on
+different Nodes and the gate and the harness look as if they disagreed. The same goes for `pnpm test:commit`, which is
+red on Node 26.9.0 (the locale-detector suite's `localStorage` setup) and green on Node 24.
+
+### The competitor control
+
+Before trusting a 0.5.0-to-0.6.0 delta, the competitor rows have to be shown not to have moved for
+any other reason. On 2026-10-14, with `i18next` pinned back to the baseline 26.4.3 and everything
+else as installed for the 0.6.0 run, **all eleven rows that contain no `@comvi/*` package
+reproduced their 2026-10-11 minified and gzip bytes exactly** on Node 24.20.0: `i18next` 14,032,
+`i18next` + `i18next-icu` 25,707, the same plural text without the plugin 14,037,
+`intl-messageformat` 9,894, `use-intl/core` 11,277, `i18next` + `react-i18next` 19,615,
+`use-intl` (react) 11,567, the React ICU loader stack 33,826, `vue-i18n` 18,693 and 13,764, and
+`next-intl` (client) 12,512. That also proves the `react` 19.1.0 → 19.3.0 and `vue`
+3.5.43 → 3.5.44 bumps change nothing, as expected of a package marked external. The only competitor
+figure that moves between the two dates is `i18next`, from 26.4.3 to 26.4.4.
 
 ## Method: bundle size
 
@@ -108,10 +135,7 @@ retain exports rather than call `t()`); the ICU Nuxt app's message has two param
 
 `bench.mjs`, Node, `NODE_ENV=production` (the script refuses to run otherwise, so every library
 takes its production branch), the same message text for every library that speaks ICU, 7 rounds,
-median reported, run three times. The 2026-10-14 run was made five times instead, because the
-machine was shared with other builds: the five agree within a few per cent and the table reports
-the median of the five. A sixth run, taken while another process drove the load average to 71, was
-discarded before anything was read from it; it is not among the committed artifacts. Scenarios:
+median reported. The 2026-10-14 figures are the median of eight runs. Scenarios:
 
 - **warm, static key**: `t("key")` on a message with no parameters, the most common call in a UI;
   the `intl-messageformat` row is a reused formatter instance with no key lookup, so it is a floor
@@ -146,6 +170,105 @@ discarded before anything was read from it; it is not among the committed artifa
   (`{n} item in {name} | {n} items in {name}`), so its rows are "the same job in its own format",
   not an ICU implementation.
 
+### What these runtime numbers are, and when one may be cited
+
+**The machine is a desktop under normal use, not an idle benchmark host.** An Apple M1 Max running
+a browser, a container runtime and whatever else the day involves; its one-minute load average sits
+around 5 to 8 and waiting for it to go idle is not something that happens. Two consequences, and
+both belong on the label rather than in a footnote:
+
+- **The comparison is within-run; the absolute rates are specific to this machine.** Every library
+  in a cited comparison is measured inside the same invocation of `bench.mjs`, seconds apart, so a
+  load disturbance moves both sides of a comparison together and the ratio survives it. Read
+  "Comvi's compiler formats this plural N times faster than i18next-icu does"; do not read the
+  absolute million-calls-a-second figure as what your server will do.
+- **A run disturbed unevenly is thrown away, not published.** That is what the spread check below
+  is for, and it is the real guarantee here, stronger than a quiet-machine claim nobody else could
+  reproduce.
+
+`bench-table.mjs` enforces the following rather than leaving it to whoever runs the harness.
+
+- **A sane run, or no table.** Every run prints its one-, five- and fifteen-minute load average in
+  its first line and again at its last, together with its Node version and `NODE_ENV`. A run is
+  refused outright if its header is missing, if it did not finish, if it was not a production run,
+  or if its one-minute load average was 9 or more at the start. That threshold rejects a
+  pathological run, not a busy one, and busy is the normal state of this machine.
+- **A real window on every cited row, or no table.** No cited sample may be shorter than 450 ms.
+- **Precision matched to the measurement.** A cited figure is the median of every run passed, at
+  two significant figures. The run-to-run range of a cited row is 2.1 % to 9.9 %, so at two
+  significant figures the variation sits at or below the last printed digit; a third digit would
+  be claiming precision that is not there. The full range of each row is printed beside it.
+- **The spread is reported, not enforced.** An earlier version of this script refused to emit a
+  table unless three consecutive runs agreed within 3 % on all eighteen cited rows. That is a
+  conjunction over eighteen rows against a per-row floor of up to 10 %, so it failed almost surely
+  however good the measurement was: six triples failed in a row on rotating offenders, which is
+  the signature of a noise floor rather than of a broken row. Printing fewer digits is the correct
+  response to noise; refusing to print is not.
+
+**Why the window is 500 ms, and not whatever a round happens to take.** The first 0.6.0 attempt at
+this table used one fixed count of 200,000 calls for every library and one instance of 5,000
+messages for every catalog row. That made a sample last anywhere from 3 ms to 1,200 ms depending on
+the library, and the short samples would not hold still: run to run, the catalog row for
+`intl-messageformat` moved 25 % on a 52 ms sample and the one for `i18next` + `i18next-icu` moved
+24 % on a 136 ms sample, while every sample over 500 ms stayed inside 2 %. A sample of a few tens
+of milliseconds cannot average out one scheduler slice handed to something else on the machine, and
+taking more runs does not fix that, it only decides the question by luck. So the per-sample work
+was raised, per library, until no single scheduler slice could move a row.
+
+Which rows that made fragile is the opposite of what one might guess, and it is worth recording.
+Comvi's warm rows were the steadiest in the set all along, fast enough that seven rounds average
+cleanly. The **catalog** rows were the fragile ones on every side, Comvi's and the competitors'
+alike, purely because each sample was short.
+
+### Why the harness checks what it checks
+
+Each guard here exists because something passed without it. They are written down because the
+next person to touch this file will otherwise relax them, and all four share one shape: a
+measurement that looked fine because nothing failed.
+
+**The id width is derived, not chosen.** A catalog id is part of the message text, and the message
+text is what the compiler caches on, so every id has to be the same number of characters, or the
+later messages of a run parse longer text than the earlier ones and a library that needs more
+blocks parses longer text than one that needs fewer. The ids were padded to six digits, which was
+right while a sample was one block of 5,000 and silently stops padding at 1,000,000. Scaling to a
+500 ms sample costs millions of ids per library, so the first version of that change crossed the
+line and nothing failed; the numbers would simply have been quietly unfair, in Comvi's favour on
+the rows where Comvi needs the most blocks. The width now comes from the block ceiling and is
+checked there: 204,805,000 ids, first and last the same length.
+
+**Stability is measured on throughput, not on elapsed time.** While every library ran a fixed
+200,000 calls, elapsed time was the measurement and comparing it run to run was right. Once the
+sample size is calibrated per run, a run that chose a larger count simply takes longer, so two
+runs agreeing on throughput to 1 % can differ by 80 % in milliseconds. Scored that way the runs
+looked hopeless, worst spread 97 %; scored on `n / ms` the same runs came out at 8 %. The rate
+column cannot be used either, being rounded to two decimals, which is 6 % of a figure like
+0.17 M ops/s. Only full-precision throughput is invariant to both.
+
+**The window is checked against the timed median, not the calibration.** Calibration stops at the
+first pass that reaches the target, so a pass slowed by something else on the machine settles on a
+count that is too small, and the timed rounds then come in under the window on a quieter moment.
+That is what put the `i18next` static-key row at 352 ms against a 450 ms floor, and it is what
+both failures in the best triple traced back to. The count is now raised until the reported median
+really spans the window.
+
+**A guard is only as strict as the claim it protects.** The stability requirement first covered
+every row in the table, including every `intl-messageformat` row and the equal-work and
+small-count scenarios, none of which any page prints a figure for. That did not make the published
+numbers safer; it blocked work on rows nothing rested on. The requirement now covers the eighteen
+rows the pages actually cite, listed in `bench-table.mjs` as `CITED` and keyed by scenario as well
+as by library, because the same library is cited in one scenario and reference-only in another.
+
+### What one sample consists of
+
+Each line of a run file ends with the count that line measured, as `n=`, so the exact figure behind
+every number is in the artifact. The counts are chosen by the harness, not written down here: a
+library gets as many calls as it needs to fill the window, and the work per call is identical on
+every side of a comparison.
+
+`node bench-table.mjs bench-<date>-run1.txt bench-<date>-run2.txt bench-<date>-run3.txt` prints
+the table below on stdout and the per-row spread on stderr, and exits non-zero if any condition
+fails. No median in this file is typed by hand.
+
 Micro-benchmarks of a formatter that takes under a microsecond per call do not decide a UI; a
 page formats hundreds of strings, not millions, and on the client the difference is invisible. Where
 it shows is server-side rendering and edge functions, which pay the per-call cost on every request
@@ -156,7 +279,7 @@ request or per isolate, which is the catalog row.
 
 ### Size, min+gz bytes, measured 2026-10-14 on Comvi 0.6.0
 
-Node v24.19.0, esbuild 0.28.0. The full table with the packages inside each bundle is in
+Node v24.20.0, esbuild 0.28.0. The full table with the packages inside each bundle is in
 `results-2026-10-14.md`; the raw data in `results-2026-10-14.json`. The 0.5.0 run of 2026-10-11 is
 kept beside it under its own date.
 
@@ -197,7 +320,7 @@ configuration above:
 | `@comvi/nuxt/i18n` entry, nothing external (fw-nuxt-i18n)  |  9,647 |
 | `@comvi/nuxt` everything composed (fw-nuxt-full-composite) | 14,499 |
 
-Five of the six match `scripts/size-check.mjs` on the same code to the byte, Node 24.19.0 on both
+Five of the six match `scripts/size-check.mjs` on the same code to the byte, Node 24.20.0 on both
 sides. The server-provider row is 1,980 B here and 2,052 B in the gate: the gate resolves
 `@comvi/*` imports through its own exports-map plugin, this harness lets esbuild resolve the
 installed tarballs, and the two walk the `*/client/ComviClientProvider.js` external slightly
@@ -206,59 +329,91 @@ both numbers are recorded here. The two Nuxt entries that compose `devtools()` c
 loader, which is why `fw-nuxt-i18n` grew 1,122 bytes over 0.5.0 and `fw-nuxt-full-composite` 1,138,
 while `fw-nuxt-client-default`, which does not compose it, grew 165.
 
-### ICU runtime, 2026-10-14, five runs, each the median of 7 rounds
+### ICU runtime, 2026-10-14, the median of eight runs
 
-Apple M1 Max, darwin arm64, Node v24.19.0, `NODE_ENV=production`. Warm rows in million calls per
-second, catalog rows in thousand messages per second (5,000 distinct messages, parse plus format,
-one instance). Higher is better in every row. `intl-messageformat` is not an i18n library; it is
-the ICU engine inside `i18next-icu`, `use-intl` and `next-intl`, kept here as the reference for what the
-formatting step alone costs, and the pages do not cite it in the plain `t()` rows. The pages cite the median of the five runs for the static-key, one-parameter, same-output and
-catalog rows; every run in this table comes from the same five invocations of `bench.mjs`.
+Apple M1 Max, darwin arm64, Node v24.20.0, `NODE_ENV=production`, one-minute load average at the
+start of each run 3.09, 4.35, 4.42, 4.51, 5.09, 3.95, 3.86, 4.50. Warm rows in million calls per
+second, catalog rows in thousand messages per second. Higher is better in every row. Bold is a row
+a comparison page prints a figure for; the rest are reference. `intl-messageformat` is not an i18n
+library, it is the ICU engine inside `i18next-icu`, `use-intl` and `next-intl`, kept as the
+reference for what the formatting step alone costs, and no page cites it.
 
-| Scenario                         | Library                                                                       | run 1 | run 2 | run 3 | run 4 | run 5 |           median |
-| -------------------------------- | ----------------------------------------------------------------------------- | ----: | ----: | ----: | ----: | ----: | ---------------: |
-| warm, static key                 | `@comvi/core`, simple compiler                                                | 59.95 | 59.07 | 58.91 | 58.62 | 59.23 |     **59.1 M/s** |
-| warm, static key                 | `@comvi/core` + `icuCompiler`                                                 | 44.32 | 43.75 | 44.13 | 43.22 | 43.91 |     **43.9 M/s** |
-| warm, static key                 | reference, not a library: `intl-messageformat` instance reused, no key lookup | 50.12 | 50.51 | 52.93 | 51.62 | 50.97 |         51.0 M/s |
-| warm, static key                 | `i18next`, no plugins                                                         |  0.63 |  0.61 |  0.62 |  0.61 |  0.60 |     **0.61 M/s** |
-| warm, static key                 | `use-intl/core` translator                                                    |  7.54 |  7.46 |  7.55 |  7.43 |  7.47 |     **7.47 M/s** |
-| warm, static key                 | `vue-i18n`                                                                    |  0.29 |  0.28 |  0.28 |  0.28 |  0.28 |     **0.28 M/s** |
-| warm, one parameter              | `@comvi/core`, simple compiler                                                | 16.35 | 16.44 | 16.21 | 16.15 | 16.39 |     **16.4 M/s** |
-| warm, one parameter              | `@comvi/core` + `icuCompiler`                                                 | 15.26 | 14.98 | 14.79 | 14.86 | 14.86 |     **14.9 M/s** |
-| warm, one parameter              | reference, not a library: `intl-messageformat` instance reused                |  5.78 |  5.63 |  5.74 |  5.70 |  5.70 |         5.70 M/s |
-| warm, one parameter              | `i18next`, no plugins, `{{name}}`                                             |  0.50 |  0.49 |  0.48 |  0.48 |  0.48 |     **0.48 M/s** |
-| warm, one parameter              | `use-intl/core` translator                                                    |  0.34 |  0.34 |  0.33 |  0.33 |  0.33 |     **0.33 M/s** |
-| warm, one parameter              | `vue-i18n`, `{name}`                                                          |  0.26 |  0.26 |  0.26 |  0.26 |  0.25 |     **0.26 M/s** |
-| warm, same output                | `@comvi/core` + `icuCompiler`, `#`                                            |  1.39 |  1.38 |  1.36 |  1.40 |  1.38 |     **1.38 M/s** |
-| warm, same output                | `@comvi/core` + `icuCompiler`, `formatNumber()` into `{n}`                    |  1.18 |  1.20 |  1.15 |  1.20 |  1.17 |         1.18 M/s |
-| warm, same output                | `intl-messageformat`, instance reused, `#`                                    |  0.61 |  0.61 |  0.59 |  0.59 |  0.60 |     **0.60 M/s** |
-| warm, same output                | `i18next` + `i18next-icu`, `#`                                                |  0.25 |  0.24 |  0.24 |  0.25 |  0.24 |     **0.24 M/s** |
-| warm, same output                | `use-intl/core` translator, `#`                                               |  0.22 |  0.22 |  0.21 |  0.21 |  0.22 |     **0.22 M/s** |
-| warm, same output                | `vue-i18n`, pipe plural, `n(x, "decimal")` into `{n}`                         |  0.17 |  0.17 |  0.16 |  0.16 |  0.17 |     **0.17 M/s** |
-| warm, equal work (pre-formatted) | `@comvi/core` + `icuCompiler`                                                 |  2.12 |  2.21 |  2.18 |  2.20 |  2.17 |         2.18 M/s |
-| warm, equal work (pre-formatted) | `intl-messageformat`, instance reused                                         |  0.95 |  0.96 |  0.94 |  0.92 |  0.94 |         0.94 M/s |
-| warm, equal work (pre-formatted) | `i18next` + `i18next-icu`                                                     |  0.30 |  0.26 |  0.30 |  0.31 |  0.30 |         0.30 M/s |
-| warm, equal work (pre-formatted) | `use-intl/core` translator                                                    |  0.25 |  0.23 |  0.25 |  0.25 |  0.25 |         0.25 M/s |
-| warm, equal work (pre-formatted) | `vue-i18n`, pipe plural                                                       |  0.23 |  0.22 |  0.23 |  0.22 |  0.23 |         0.23 M/s |
-| warm, small count (`#`, 0..3)    | `@comvi/core` + `icuCompiler`                                                 |  2.22 |  2.22 |  2.16 |  2.20 |  2.21 |         2.21 M/s |
-| warm, small count (`#`, 0..3)    | `intl-messageformat`, instance reused                                         |  0.63 |  0.65 |  0.62 |  0.62 |  0.63 |         0.63 M/s |
-| catalog                          | `@comvi/core` + `icuCompiler`                                                 | 335.6 | 324.8 | 310.1 | 306.7 | 298.1 | **310 K msgs/s** |
-| catalog                          | `intl-messageformat`, new instance per message, shared formatters             |  92.7 |  97.9 |  96.4 |  95.9 |  95.0 |  **96 K msgs/s** |
-| catalog                          | `intl-messageformat`, new instance per message, default formatters            |  51.7 |  46.3 |  48.6 |  48.2 |  50.5 |      49 K msgs/s |
-| catalog                          | `i18next` + `i18next-icu`, one instance                                       |  39.2 |  36.2 |  35.5 |  37.1 |  36.2 |  **36 K msgs/s** |
-| catalog                          | `use-intl/core`, one translator                                               |  57.8 |  56.8 |  55.0 |  54.6 |  56.3 |  **56 K msgs/s** |
-| catalog                          | `vue-i18n`, one instance, pipe plural                                         |  44.8 |  44.0 |  45.1 |  43.4 |  44.8 |  **45 K msgs/s** |
+**Every cited figure is the median of the eight runs, rounded to two significant figures**, which
+is the precision this measurement supports: the run-to-run range of a cited row is 2.1 % to 9.9 %,
+and at two significant figures that variation sits at or below the last printed digit. The fourth
+column is the full range across the eight runs, so the rounding hides nothing. Both tables below
+come from `node bench-table.mjs bench-2026-10-14-run*.txt`; no figure in them is typed by hand.
 
-What moved between 0.5.0 and 0.6.0: the Comvi rows, by the template-cache partition and the
-catalog-by-reference change of 0.6.0. A warm static key went from 23.4 to 59.1 M/s, one parameter
-from 6.18 to 16.4, equal work from 1.46 to 2.18 and the catalog from 240 to 310 K msgs/s. The
-plural row the pages cite went from 0.90 to 1.38 M/s and no longer needs `formatNumber()` to get a
-localized count. Every competitor row moved by 2 to 8 %, in the same direction, on identical
-package versions except `i18next` 26.4.3 → 26.4.4; that is machine variance, so the cross-library
-ratios in one run are the figures to read, not a competitor's delta between the two dates.
+| Scenario                         | Library                                                            | Median of 8 runs | Range over the 8 |
+| -------------------------------- | ------------------------------------------------------------------ | ---------------: | ---------------: |
+| warm, static key                 | `@comvi/core`, simple compiler                                     |       **59 M/s** |      57.50-59.36 |
+| warm, static key                 | `@comvi/core` + `icuCompiler`                                      |       **44 M/s** |      42.43-46.49 |
+| warm, static key                 | reference, not a library: `intl-messageformat` instance reused     |           51 M/s |      48.86-51.19 |
+| warm, static key                 | `i18next`, no plugins                                              |     **0.60 M/s** |        0.59-0.62 |
+| warm, static key                 | `use-intl/core` translator                                         |      **7.3 M/s** |        7.28-7.44 |
+| warm, static key                 | `vue-i18n`                                                         |     **0.36 M/s** |        0.33-0.36 |
+| warm, one parameter              | `@comvi/core`, simple compiler                                     |       **16 M/s** |      14.86-16.48 |
+| warm, one parameter              | `@comvi/core` + `icuCompiler`                                      |       **15 M/s** |      13.80-14.97 |
+| warm, one parameter              | reference, not a library: `intl-messageformat` instance reused     |          5.8 M/s |        5.20-5.79 |
+| warm, one parameter              | `i18next`, no plugins, `{{name}}`                                  |     **0.49 M/s** |        0.47-0.50 |
+| warm, one parameter              | `use-intl/core` translator                                         |     **0.34 M/s** |        0.33-0.34 |
+| warm, one parameter              | `vue-i18n`, `{name}`                                               |     **0.32 M/s** |        0.30-0.33 |
+| warm, same output                | `@comvi/core` + `icuCompiler`, `#`                                 |      **1.4 M/s** |        1.33-1.39 |
+| warm, same output                | `@comvi/core` + `icuCompiler`, `formatNumber()` into `{n}`         |          1.2 M/s |        1.13-1.19 |
+| warm, same output                | `intl-messageformat`, instance reused, `#`                         |         0.61 M/s |        0.59-0.62 |
+| warm, same output                | `i18next` + `i18next-icu`, `#`                                     |     **0.25 M/s** |        0.24-0.25 |
+| warm, same output                | `use-intl/core` translator, `#`                                    |     **0.22 M/s** |        0.21-0.22 |
+| warm, same output                | `vue-i18n`, pipe plural, `n(x, "decimal")` into `{n}`              |     **0.20 M/s** |        0.19-0.20 |
+| warm, equal work (pre-formatted) | `@comvi/core` + `icuCompiler`                                      |          2.3 M/s |        2.24-2.34 |
+| warm, equal work (pre-formatted) | reference, not a library: `intl-messageformat` instance reused     |         0.95 M/s |        0.94-0.97 |
+| warm, equal work (pre-formatted) | `i18next` + `i18next-icu`                                          |         0.30 M/s |        0.29-0.31 |
+| warm, equal work (pre-formatted) | `use-intl/core` translator                                         |         0.25 M/s |        0.24-0.25 |
+| warm, equal work (pre-formatted) | `vue-i18n`, pipe plural                                            |         0.28 M/s |        0.26-0.28 |
+| warm, small count (`#`, 0..3)    | `@comvi/core` + `icuCompiler`, `#`                                 |          2.2 M/s |        2.19-2.25 |
+| warm, small count (`#`, 0..3)    | `intl-messageformat`, instance reused, `#`                         |         0.63 M/s |        0.62-0.64 |
+| catalog                          | `@comvi/core` + `icuCompiler`                                      | **350 K msgs/s** |      340.3-361.1 |
+| catalog                          | `intl-messageformat`, new instance per message, shared formatters  |      99 K msgs/s |       94.3-106.9 |
+| catalog                          | `intl-messageformat`, new instance per message, default formatters |      50 K msgs/s |        46.3-50.9 |
+| catalog                          | `i18next` + `i18next-icu`, one instance                            |  **38 K msgs/s** |        37.3-38.6 |
+| catalog                          | `use-intl/core`, one translator                                    |  **57 K msgs/s** |        55.8-58.5 |
+| catalog                          | `vue-i18n`, one instance, pipe plural                              |  **44 K msgs/s** |        43.0-44.9 |
 
-The exact console output of each run is in `bench-2026-10-14-run1.txt` through `-run5.txt`; the
-three 0.5.0 runs are in `bench-2026-10-11-run1.txt` through `-run3.txt`. An earlier version of this
+| Scenario                         | One sample, per library                                                                                |      Window |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------: |
+| warm, static key                 | 200 k calls (`vue-i18n`) to 44.3 M (`@comvi/core` + `icuCompiler`)                                     | 508-1028 ms |
+| warm, one parameter              | 200 k calls (`use-intl/core` translator) to 14.7 M (`@comvi/core`, simple compiler)                    |  519-941 ms |
+| warm, same output                | 200 k calls (`i18next` + `i18next-icu`, `#`) to 755 k (`@comvi/core` + `icuCompiler`, `#`)             | 538-1074 ms |
+| warm, equal work (pre-formatted) | 200 k calls (`i18next` + `i18next-icu`) to 1.2 M (`@comvi/core` + `icuCompiler`)                       |  510-848 ms |
+| warm, small count (`#`, 0..3)    | 400 k calls (`intl-messageformat`, instance reused, `#`) to 1.2 M (`@comvi/core` + `icuCompiler`, `#`) |  536-648 ms |
+| catalog                          | 20 k messages (`i18next` + `i18next-icu`, one instance) to 200 k (`@comvi/core` + `icuCompiler`)       |  505-930 ms |
+
+Run-to-run spread of each cited row, worst first, as a fraction of its median:
+
+```
+    9.9 %  warm, one parameter / `@comvi/core`, simple compiler   14.86-16.48
+    9.2 %  warm, static key / `@comvi/core` + `icuCompiler`   42.43-46.49
+    9.0 %  warm, same output / `vue-i18n`, pipe plural, `n(x, "decimal")` into `{n}`   0.19-0.20
+    8.3 %  warm, static key / `vue-i18n`   0.33-0.36
+    7.9 %  warm, one parameter / `vue-i18n`, `{name}`   0.30-0.33
+    7.9 %  warm, one parameter / `@comvi/core` + `icuCompiler`   13.80-14.97
+    6.0 %  catalog / `@comvi/core` + `icuCompiler`   340.3-361.1
+    5.7 %  warm, one parameter / `i18next`, no plugins, `{{name}}`   0.47-0.50
+    5.1 %  warm, one parameter / `use-intl/core` translator   0.33-0.34
+    4.9 %  catalog / `use-intl/core`, one translator   55.8-58.5
+    4.8 %  warm, static key / `i18next`, no plugins   0.59-0.62
+    4.7 %  warm, same output / `@comvi/core` + `icuCompiler`, `#`   1.33-1.39
+    4.3 %  catalog / `vue-i18n`, one instance, pipe plural   43.0-44.9
+    4.1 %  warm, same output / `i18next` + `i18next-icu`, `#`   0.24-0.25
+    3.4 %  catalog / `i18next` + `i18next-icu`, one instance   37.3-38.6
+    3.2 %  warm, static key / `@comvi/core`, simple compiler   57.50-59.36
+    2.9 %  warm, same output / `use-intl/core` translator, `#`   0.21-0.22
+    2.1 %  warm, static key / `use-intl/core` translator   7.28-7.44
+```
+
+The exact console output of each run is in `bench-2026-10-14-run1.txt` through `-run8.txt`, each
+with its Node version, its load average and its per-row sample size; the three 0.5.0 runs are in
+`bench-2026-10-11-run1.txt` through `-run3.txt`, taken with a fixed sample size and so not
+comparable row for row with these. An earlier version of this
 benchmark (2026-10-10) used a `#` message for every library and a "cold" row that created a new
 instance per call with ids repeated across rounds; a review found both unfair (unequal work; a
 module-level cache in vue-i18n served later rounds; the `intl-messageformat` row paid Intl
@@ -274,9 +429,9 @@ The Comvi rows reproduce `scripts/size-check.mjs` on the 0.6.0 release tarballs 
 (`core-base` 5,608, `core-base-icu` 6,842, `fw-react-default` 7,605, `platform-path-react` 12,157,
 `fw-vue-default` 7,712, `fw-next-client-default` 8,209, `fw-next-root-composed` 10,101,
 `fw-next-middleware-edge` 2,045, `fw-nuxt-client-default` 8,728, `fw-nuxt-i18n` 9,647,
-`fw-nuxt-full-composite` 14,499 on 2026-10-14, Node 24.19.0 on both sides). Run the gate on the
-same Node: on Node 26.9.0 it reports every row 7 to 8 bytes smaller, because gzip differs, and the
-two would look as if they disagreed. The `baseline` values in `scripts/size-budgets.json` are
+`fw-nuxt-full-composite` 14,499 on 2026-10-14, Node 24.20.0 on both sides). Run the gate on the
+same Node: on Node 26.9.0 its 25 rows run from 24 B smaller to 9 B larger, because gzip differs,
+and the two would look as if they disagreed. The `baseline` values in `scripts/size-budgets.json` are
 recorded per release and are lower than the released figure; public pages should cite the figure
 measured on the released version, not the baseline.
 
@@ -309,7 +464,7 @@ cd ../.. && node measure.mjs apps/bare apps/comvi-nuxt apps/comvi-nuxt-icu apps/
 cd .. && mv ../size-compare-node_modules-parked node_modules
 ```
 
-### Results (Nuxt 4.6.1, @nuxtjs/i18n 10.6.0, @comvi/nuxt 0.6.0, 2026-10-14, Node 24.19.0)
+### Results (Nuxt 4.6.1, @nuxtjs/i18n 10.6.0, @comvi/nuxt 0.6.0, 2026-10-14, Node 24.20.0)
 
 | App                                             | JS files |   min B | gzip B | Δ gzip vs bare | entry file gzip | Δ entry vs bare |
 | ----------------------------------------------- | -------: | ------: | -----: | -------------: | --------------: | --------------: |

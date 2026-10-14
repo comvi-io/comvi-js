@@ -1,3 +1,5 @@
+node v24.20.0 | darwin arm64 | load 6.78 5.99 6.23
+
 ## All client JS under .output/public/_nuxt/
 
 | app | JS files | min bytes | gzip-9 bytes | brotli-11 bytes | Δ min vs base | Δ gzip vs base | Δ brotli vs base |
