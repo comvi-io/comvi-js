@@ -176,8 +176,8 @@ kept beside it under its own date.
 | next-client, ICU on both sides                                                                                                  | `@comvi/next/client` + ICU 9,427 |                                                    `next-intl` client 12,512 |  1.3× |
 | next-client, Comvi without ICU, for reference                                                                                   |       `@comvi/next/client` 8,209 |                                                                            — |     — |
 
-What moved between 0.5.0 and 0.6.0: every Comvi row with the ICU compiler grew by about 330 bytes
-and every row without it by about 155, which is `#` being formatted for the locale plus the editor
+What moved between 0.5.0 and 0.6.0: every Comvi row with the ICU compiler grew by 320 to 336 bytes
+and every row without it by 154 to 180, which is `#` being formatted for the locale plus the editor
 loader `devtools()` installs. `@comvi/next` root composed went **down** 54 bytes, because
 `createNextI18n` no longer composes discovery. On the other side only `i18next` moved, from 26.4.3
 to 26.4.4; `intl-messageformat`, `use-intl`, `next-intl` and `vue-i18n` reproduced their 2026-10-11
@@ -203,8 +203,8 @@ sides. The server-provider row is 1,980 B here and 2,052 B in the gate: the gate
 installed tarballs, and the two walk the `*/client/ComviClientProvider.js` external slightly
 differently. The pages cite the harness figure, because the page states this harness as its method;
 both numbers are recorded here. The two Nuxt entries that compose `devtools()` carry the editor
-loader, which is why `fw-nuxt-i18n` and `fw-nuxt-full-composite` are about 1,120 bytes larger than
-on 0.5.0 while `fw-nuxt-client-default`, which does not compose it, grew by 165.
+loader, which is why `fw-nuxt-i18n` grew 1,122 bytes over 0.5.0 and `fw-nuxt-full-composite` 1,138,
+while `fw-nuxt-client-default`, which does not compose it, grew 165.
 
 ### ICU runtime, 2026-10-14, five runs, each the median of 7 rounds
 
