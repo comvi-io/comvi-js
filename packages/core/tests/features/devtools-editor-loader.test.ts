@@ -241,6 +241,17 @@ describe("editorVersion", () => {
     "0.5.3-a\\b",
     "0.5.3-a:b",
     "0.5.3-",
+    // Not SemVer: npm could never have published these, so they fail closed
+    // rather than turning into a CDN miss.
+    "0.5.3-..",
+    "0.5.3-a..b",
+    "0.5.3-.a",
+    "0.5.3-a.",
+    "01.2.3",
+    "1.02.3",
+    "1.2.03",
+    "1.2.3-01",
+    "1.2.3+build",
   ])(
     "invalid version %j → fails closed: no URL, load() requests nothing, one development warning",
     async (version) => {
@@ -281,16 +292,17 @@ describe("editorVersion", () => {
     expect(scripts()).toHaveLength(0);
   });
 
-  it("dots in the prerelease part → accepted, and the URL stays inside the editor package", () => {
-    // `..` is legal there under the contract's pattern. It is not a path
-    // segment of its own, so URL normalisation leaves the path alone.
-    const slot = install("0.5.3-..");
+  it.each(["0.6.0", "10.20.30", "1.2.3-rc.1", "1.2.3-0", "1.2.3-alpha-beta.10", "1.2.3-0a.1"])(
+    "SemVer version %j → accepted as the pin, URL inside the editor package",
+    (version) => {
+      const slot = install(version);
 
-    expect(slot.editorVersion).toBe("0.5.3-..");
-    expect(new URL(slot.url).href).toBe(
-      "https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@0.5.3-../dist/standalone.iife.js",
-    );
-  });
+      expect(slot.editorVersion).toBe(version);
+      expect(new URL(slot.url).href).toBe(
+        `https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@${version}/dist/standalone.iife.js`,
+      );
+    },
+  );
 
   /** Prints a valid version the first time it is coerced and a path escape after that. */
   const stateful = (method: "toString" | "valueOf"): object => {
