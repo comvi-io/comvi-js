@@ -237,3 +237,37 @@ full-composite rows: 11023 B min+gz (30390 B min), budget 11575 B. `fw-next-root
 Both budgets are baseline + 5 %, rounded up. No other row was re-baselined: the 23 existing rows
 measured 0 to 35 B above their recorded baselines (core changes merged after each row's last
 sweep), each at least 4.3 % under its budget.
+
+## 2026-10-14: 22 rows re-baselined on the 0.6.0 release build
+
+**Measure on the Node major CI runs.** The gzip figure comes from Node's bundled zlib, so it moves
+with the Node version while the minified payload does not. The first sweep of this re-baseline ran
+on Node 26.9.0 and read every row between 24 B lower and 9 B higher than Node 24.20.0 read it, with
+the minified bytes identical to the byte on all 25 rows. CI's `build` job runs Node 24
+(`.github/workflows/ci.yml`), so the figures below, and the three in
+`.github/release-notes/0.6.0.md`, are the **Node 24** sweep. A baseline recorded from another major
+is not wrong by much — the 5 % margin absorbs it — but it does not describe the gate that runs, and
+it silently contradicts the release notes. Say which Node a sweep used.
+
+22 of the 25 rows were re-baselined from **one** `node scripts/size-check.mjs` run on the 0.6.0
+release commit (`a74da136`) under Node 24.20.0, after `pnpm build`. Every row was green on its
+previous budget before the re-baseline and is green after it: this folds in the core work that
+landed after the 2026-10-11 and 2026-10-12 sweeps, it does not rescue a failing gate.
+
+The movement is core, and the three rows that carry no core graph say so: `fw-next-server-provider`
+(2052 B), `fw-next-plugin-node` (939 B) and `fw-next-middleware-edge` (2045 B) measured their
+recorded baselines exactly, to the byte, min and gzip alike, so they keep their 2026-10-11
+baselines and dates. Every other row grew by one of three amounts minified — about +460 B on a base
+row, +520…+560 B on a row with the ICU compiler, the loader or the platform path, and +670 B on a
+full composite — for +145…+259 B min+gz, between +1.6 % and +3.0 % of its recorded baseline. That
+is the 0.6.0 core work: the numeric template-cache partition key, the flat catalog kept by
+reference, the function-parameter placeholder and its warning, the ICU nested-comma fix, plural
+`-0`, and the `editorVersion` SemVer check that fails closed.
+
+Anchors from this sweep, in bytes min+gz: `core-base` 5451 → 5608, `core-base-devtools`
+6672 → 6872 (so `devtools()` costs 1264 B, still about 1.2 kB), `core-base-icu` 6645 → 6842,
+`core-full-composite` 10332 → 10575, `fw-react-default` 7424 → 7605, `fw-nuxt-i18n` 9421 → 9647,
+`platform-path-react` 11953 → 12157. Every budget is the row's new baseline + 5 %, rounded up. The
+`core-base` and `core-base-devtools` table in `docs/design/editor-loader.md` was updated to this
+sweep; the three figures in `.github/release-notes/0.6.0.md` already matched it and were not
+touched.
