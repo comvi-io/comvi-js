@@ -55,6 +55,18 @@ declare const __DEV__: boolean | undefined;
 declare const __VERSION__: string | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
+/**
+ * A stored catalog value as a template, or `undefined` for missing. Catalogs
+ * are kept by reference, so a value read here can be anything the caller's
+ * object holds: only a non-empty string is a template (see `_template` for the
+ * empty string). Everything else is missing, including the members a plain
+ * object inherits (`constructor`, `toString`, `__proto__`), which are functions
+ * or objects, and a number written into a kept catalog after ingestion.
+ */
+function asTemplate(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
 const ERR_LOCALE_NOT_SET = IS_DEV ? "[@comvi/core] Locale is not set" : "E_LOCALE_NOT_SET";
 const ERR_MESSAGES_NOT_OBJECT = IS_DEV
   ? "[@comvi/core] `messages` is not an object"
@@ -687,7 +699,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._nsAddMessages(messages);
   }
 
-  getMessages(locale: string = this._locale, namespace: string = this._cachedDefaultNs) {
+  /**
+   * The stored catalog. It may be the caller's own object: read it, never
+   * write it, and use `addMessages` to change translations.
+   */
+  getMessages(
+    locale: string = this._locale,
+    namespace: string = this._cachedDefaultNs,
+  ): FlattenedMessages {
     return this.messagesCache.get(locale, namespace) ?? {};
   }
 
@@ -797,7 +816,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     if (userParams == null && !this._postProcessor && !this._overlay) {
       const translations = this._getPrimaryTranslations();
       if (translations !== undefined) {
-        const template = translations[key];
+        const template = asTemplate(translations[key]);
         if (
           template !== undefined &&
           isStaticTemplate(
@@ -846,7 +865,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * post-processor reaches `onError`, as for any `t()` call. Later
    * `addMessages` reach it through the cache for every key `catalogs` does
    * not hold. `catalogs` is keyed `"locale:namespace"` and holds flat
-   * catalogs, as `flattenCatalog` returns them.
+   * catalogs, as `flattenCatalog` returns them: string values only, since any
+   * other non-empty value reads as missing instead of falling back to the cache.
    */
   withMessages(catalogs: Readonly<Record<string, FlattenedMessages>>): I18nMessagesView<D> {
     // The receiver inherits the instance and holds `catalogs` as its only own
@@ -870,18 +890,25 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * reads as absent here, the one place every lookup goes through: `t()` walks
    * the fallback chain past it, `hasTranslation()` says no, and a key that is
    * empty in every locale takes the missing-key path like any other.
+   *
+   * The chain reads the view's value first and the cached value only when the
+   * view's is falsy, then checks the winner once. A `withMessages` catalog is
+   * expected to hold strings: a truthy non-string value there reads as missing
+   * rather than falling through to the cache. Only the view's own keys count:
+   * a plain catalog inherits `toString` and the like, and those must not hide a
+   * cached translation under the same key.
    */
   private _template(
     locale: string,
     namespace: string,
     key: string,
   ): FlattenedMessages[string] | undefined {
-    return (
-      this._overlay?.[locale + ":" + namespace]?.[key] ||
-      (locale === this._locale && namespace === this._cachedDefaultNs
-        ? this._getPrimaryTranslations()
-        : this.messagesCache.get(locale, namespace))?.[key] ||
-      undefined
+    const overlay = this._overlay?.[locale + ":" + namespace];
+    return asTemplate(
+      (overlay && Object.prototype.hasOwnProperty.call(overlay, key) && overlay[key]) ||
+        (locale === this._locale && namespace === this._cachedDefaultNs
+          ? this._getPrimaryTranslations()
+          : this.messagesCache.get(locale, namespace))?.[key],
     );
   }
 
@@ -1110,10 +1137,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const localeKeys = Object.keys(translations);
     for (let k = 0; k < localeKeys.length; k++) {
       const localeOrKey = localeKeys[k];
-      // `normalizeTranslationObject` returns a FRESH null-prototype object, so
-      // this is also the prototype-pollution guard — one copy, here, where the
-      // raw object enters. Input that is already prototype-less is taken as
-      // normalized and passes through without a second copy.
+      // `normalizeTranslationObject` keeps an already-flat catalog (plain or
+      // null-prototype, all string leaves) BY REFERENCE and copies anything
+      // else into a fresh null-prototype object. It never writes the caller's
+      // object. Inherited members never resolve because the lookup
+      // (`asTemplate`) answers only strings, and a polluted `Object.prototype`
+      // sends the catalog down the copy path.
       // `?? {}` keeps the documented leniency of a `null`/`undefined` locale
       // value (an empty catalog plus the event), which the old shallow
       // `Object.assign` gave for free and `Object.getPrototypeOf` would throw on.
@@ -1127,10 +1156,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
       const loc = colonIdx === -1 ? localeOrKey : localeOrKey.slice(0, colonIdx);
       const ns = colonIdx === -1 ? this._cachedDefaultNs : localeOrKey.slice(colonIdx + 1);
 
-      // Only a genuine MERGE copies again: `Object.assign` out of a
-      // dictionary-mode (null-prototype) source has no V8 fast path and costs
-      // ~130 ns PER KEY, so storing `flat` directly on the first write is what
-      // keeps `new I18n({ messages })` from being 2.5x slower.
+      // Only a genuine MERGE copies, into a fresh null-prototype object, so a
+      // catalog kept by reference is never written. The first write stores
+      // `flat` itself: no copy at all is what keeps `new I18n({ messages })`
+      // cheap, and the caller's later edits to that object are what `t()` reads.
       // This write is newer than any load already in flight for the same
       // catalog: invalidate it, or its older response would replace the merge.
       (this as unknown as I18nInternal)._cancelNs?.(loc, ns);

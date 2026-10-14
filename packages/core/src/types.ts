@@ -1002,6 +1002,11 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 
   addMessages: (messages: MessagesMap) => void;
 
+  /**
+   * The stored catalog. It may be the caller's own object, because a flat
+   * catalog passed to `addMessages` or `messages` is kept by reference: read
+   * it, never write it, and use `addMessages` to change translations.
+   */
   getMessages: (locale?: string, namespace?: string) => FlattenedMessages;
 
   /**

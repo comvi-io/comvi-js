@@ -49,10 +49,15 @@ export { MessagesCache } from "./core/MessagesCache";
  *
  * Non-string leaves are coerced with `String()` and `null`/`undefined` leaves
  * are dropped (with a dev warning). Input that already has the stored shape —
- * a null prototype AND every own value a string — is returned BY REFERENCE,
- * without a copy. Any other input, including a null-prototype object with
- * nested values, is flattened into a new null-prototype object; the caller's
- * object is never mutated.
+ * every own value a string, on a null prototype or a plain `Object.prototype`
+ * object — is returned BY REFERENCE, without a copy. Any other input, including
+ * a null-prototype object with nested values, is flattened into a new
+ * null-prototype object; the caller's object is never mutated.
+ *
+ * Outside the supported catalog shape: non-enumerable own properties, accessor
+ * properties, Proxies and symbol keys (a lookup may see what SSR serialization
+ * omits). Enumerable keys added to `Object.prototype` after ingestion are not
+ * guarded against.
  */
 export { normalizeTranslationObject as flattenCatalog } from "./utils";
 
