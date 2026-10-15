@@ -28,6 +28,7 @@ function* files(dir) {
     else if (/\.(m?js|cjs)$/.test(entry)) yield p;
   }
 }
+console.log(`node ${process.version} | ${PACKAGES.length} packages scanned\n`);
 for (const name of PACKAGES) {
   const root = realpathSync(join("node_modules", name));
   const hits = [];

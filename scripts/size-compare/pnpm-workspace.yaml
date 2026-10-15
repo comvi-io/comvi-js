@@ -1,0 +1,12 @@
+# This directory is its own pnpm root, so the monorepo workspace above it never sees the
+# competitor packages. pnpm 12 refuses an install whose dependencies have unapproved build
+# scripts; esbuild needs its postinstall to place the platform binary.
+#
+# A PRE-PUBLISH run adds an `overrides:` block here pointing every @comvi/* package at a local
+# release tarball (`file:/abs/path/comvi-core-<version>.tgz`). That block is never committed:
+# the committed form resolves @comvi/* from the registry at the version in package.json.
+packages: []
+allowBuilds:
+  esbuild: true
+  "@swc/core": true
+  "@parcel/watcher": true
