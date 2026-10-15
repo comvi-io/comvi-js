@@ -36,6 +36,8 @@ the editor loader (`exposeGlobal: false` installs neither; the code stays in the
 
 ## Create the i18n instance
 
+In `src/i18n.ts`:
+
 ```ts title="src/i18n.ts" check=group=vanilla-2
 import { createI18n } from "@comvi/core";
 
@@ -58,6 +60,8 @@ returns a string; `tRaw()` returns the structured result when a translation carr
 
 ## Switch the locale
 
+In `src/switch.ts`:
+
 ```ts title="src/switch.ts" check=group=vanilla-2
 import { i18n } from "./i18n";
 
@@ -73,6 +77,8 @@ namespaces first. Assigning `i18n.locale` does the same without waiting.
 ```bash
 npm install @comvi/plugin-fetch-loader
 ```
+
+Compose the loader on the instance, in `src/i18n.ts`:
 
 ```ts title="src/i18n.ts" check=group=vanilla-cdn
 import { createI18n } from "@comvi/core";
@@ -91,7 +97,7 @@ there is no gate to write. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` from `@comvi/core/icu` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent, and either works without the other.
+independent.
 
 ## Specific to core
 
