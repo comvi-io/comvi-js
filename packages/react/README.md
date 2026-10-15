@@ -30,6 +30,8 @@ npm install @comvi/react
 
 ## Setup
 
+In `src/main.tsx`:
+
 ```tsx title="src/main.tsx" check=group=react-1
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
@@ -55,6 +57,8 @@ createRoot(document.getElementById("root")!).render(
 `<I18nProvider>` initializes it on mount, so there is no `init()` call to write.
 
 ## Use in components
+
+In a component, `src/App.tsx`:
 
 ```tsx title="src/App.tsx" check=group=react-1
 import { useI18n } from "@comvi/react";
@@ -84,6 +88,8 @@ translations are loaded and re-renders every component that called `useI18n()`.
 npm install @comvi/plugin-fetch-loader
 ```
 
+Compose the loader on the instance, in `src/main.tsx`:
+
 ```tsx title="src/main.tsx" check=group=react-3
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
@@ -108,7 +114,7 @@ i18n instance is initialized, so raw keys never paint. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent, and either works without the other.
+independent.
 
 ## Specific to React
 

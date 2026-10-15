@@ -31,6 +31,8 @@ npm install @comvi/solid
 
 ## Setup
 
+In `src/index.tsx`:
+
 ```tsx title="src/index.tsx" check=group=solid-2
 import { render } from "solid-js/web";
 import { createI18n, I18nProvider } from "@comvi/solid";
@@ -59,6 +61,8 @@ render(
 `init()` call to write. Its other props are `autoInit`, `onError`, `fallback` and `ssrLocale`.
 
 ## Use in components
+
+In a component, `src/App.tsx`:
 
 ```tsx title="src/App.tsx" check=group=solid-2
 import { useI18n } from "@comvi/solid";
@@ -89,6 +93,8 @@ component body is computed once and never updates.
 npm install @comvi/plugin-fetch-loader
 ```
 
+Compose the loader on the instance, in `src/index.tsx`:
+
 ```tsx title="src/index.tsx" check=group=solid-cdn
 import { render } from "solid-js/web";
 import { createI18n, I18nProvider } from "@comvi/solid";
@@ -115,7 +121,7 @@ for you. `fallback` renders in place of the children until the i18n instance is 
 on [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent, and either works without the other.
+independent.
 
 ## Specific to Solid
 

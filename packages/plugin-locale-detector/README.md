@@ -30,6 +30,8 @@ npm install @comvi/plugin-locale-detector
 
 ## Detect and persist
 
+In `src/i18n.ts`:
+
 ```ts title="src/i18n.ts" check=group=locale-detector-1
 import { createI18n } from "@comvi/core";
 import { localeDetector } from "@comvi/plugin-locale-detector";
