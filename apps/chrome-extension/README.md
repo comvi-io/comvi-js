@@ -169,12 +169,13 @@ Load `dist/` as an unpacked extension in `chrome://extensions` (Developer mode).
 ### Environment
 
 - `VITE_COMVI_API_BASE_URL` — origin for the Comvi platform API
-  (`https://api.comvi.io` for production).
+  (`https://api.comvi.io` for production). **Required**: every build throws without it,
+  `pnpm zip` included, because the manifest must grant exactly that origin.
 
 ## Packaging
 
 ```bash
-pnpm zip   # builds and produces comvi-extension.zip in repo root
+VITE_COMVI_API_BASE_URL=https://api.comvi.io pnpm zip   # produces comvi-extension.zip in apps/chrome-extension/
 ```
 
 Upload `comvi-extension.zip` to the Chrome Web Store dashboard.
@@ -184,8 +185,10 @@ The extension is versioned by hand in `manifest.json` and `package.json`
 
 ### Release order
 
-Extension 0.6.0 cannot start the editor on a site whose SDK is older than
-0.6.0, and it loads whatever jsDelivr serves as `@latest`. So:
+Extension 0.6.0 cannot load the editor onto a site whose SDK is older than
+0.6.0, though it activates an editor the site bundles itself at any version. By
+default it loads whatever jsDelivr serves as `@latest`, unless the site pins a
+version with `devtools({ editorVersion })`. So:
 
 1. Publish the npm packages first, and check that
    `https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js`
