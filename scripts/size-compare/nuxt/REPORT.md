@@ -433,6 +433,8 @@ Files in this directory: `measure.mjs` and its saved outputs `measure-2026-10-14
 `attribute-2026-10-10.txt`, `REPORT.md`, and `apps/<app>/`
 (sources only; `pnpm install && pnpm nuxi build` recreates the builds). The
 sourcemap builds (`sm-*`) are copies of the apps with `sourcemap: { client: true, server: false }`
-added to `nuxt.config.ts`; they are not committed. The four `apps/*/pnpm-lock.yaml` files still
-resolve `@comvi/*` from the registry at 0.5.0: the 0.6.0 run installed the tarballs through
-`pnpm-workspace.yaml` overrides instead, and the post-publish re-run regenerates them.
+added to `nuxt.config.ts`; they are not committed. The two Comvi apps have no committed
+`pnpm-lock.yaml`: their manifests name 0.6.0, which no lockfile can resolve until the release is on
+npm, and keeping the old 0.5.0 lockfiles made a clean clone fail with a message about `react` and
+`vue` instead of about the unpublished package. Run `pnpm install` in each after the release and
+commit what it writes. `bare` and `nuxt-i18n` depend on no `@comvi` package and keep theirs.

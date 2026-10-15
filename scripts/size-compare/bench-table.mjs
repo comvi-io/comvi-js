@@ -151,6 +151,24 @@ for (const file of files) {
 const nodes = [...new Set(runs.map((r) => r.node))];
 if (nodes.length > 1) throw new Error(`runs disagree about Node: ${nodes.join(", ")}`);
 
+// Every cited row has to be present in every run, checked here rather than during table
+// building. The row loop below takes its keys from the first run, so a cited row missing from
+// THAT run would never be iterated and the table would come out silently short of a figure a
+// page prints. A row missing from a later run is caught too, but that check only ever runs for
+// keys the first run happened to have.
+{
+  const absent = [];
+  for (const key of CITED) {
+    const missing = runs.filter((r) => !r.rows.has(key)).map((r) => r.file);
+    if (missing.length > 0) absent.push(`${key}\n      missing from: ${missing.join(", ")}`);
+  }
+  if (absent.length > 0) {
+    throw new Error(
+      `${absent.length} cited row(s) missing from at least one run:\n  - ${absent.join("\n  - ")}`,
+    );
+  }
+}
+
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 // Throughput at full precision: calls (or messages) per millisecond. Invariant to how large a
 // sample the run calibrated to, and free of the rate column's two-decimal rounding.
@@ -209,20 +227,29 @@ const human = (n) =>
 out.push("", "| Scenario | One sample, per library | Window |", "|---|---|---:|");
 for (const [sectionKey, sectionLabel] of SECTIONS) {
   const keys = [...runs[0].rows.keys()].filter((k) => k.startsWith(`${sectionKey}||`));
+  // Counts come from every run, not from the first: calibration chooses n per run, so the
+  // catalog row for @comvi/core ran 180,000 messages in one run and 320,000 in another, and
+  // reporting either alone would misdescribe the set.
   const cells = keys.map((k) => ({
     label: LIBRARIES[k.split("||")[1]],
-    n: runs[0].rows.get(k).n,
+    ns: runs.map((r) => r.rows.get(k).n),
     ms: runs.map((r) => r.rows.get(k).ms),
   }));
-  if (cells.some((c) => c.n === null)) continue;
-  const low = cells.reduce((a, b) => (a.n <= b.n ? a : b));
-  const high = cells.reduce((a, b) => (a.n >= b.n ? a : b));
+  if (cells.some((c) => c.ns.some((n) => n === null))) continue;
+  const low = cells.reduce((a, b) => (Math.min(...a.ns) <= Math.min(...b.ns) ? a : b));
+  const high = cells.reduce((a, b) => (Math.max(...a.ns) >= Math.max(...b.ns) ? a : b));
   const windows = cells.flatMap((c) => c.ms);
   const unit = runs[0].rows.get(keys[0]).unit === "M ops/s" ? "calls" : "messages";
+  const range = (c) => {
+    const lo = Math.min(...c.ns);
+    const hi = Math.max(...c.ns);
+    // Collapse when the two ends round to the same figure, so a row does not read "1.2 M-1.2 M".
+    return human(lo) === human(hi) ? human(lo) : `${human(lo)}-${human(hi)}`;
+  };
   const span =
     low === high
-      ? `${human(low.n)} ${unit}`
-      : `${human(low.n)} ${unit} (${low.label}) to ${human(high.n)} (${high.label})`;
+      ? `${range(low)} ${unit}`
+      : `${range(low)} ${unit} (${low.label}) to ${range(high)} (${high.label})`;
   out.push(
     `| ${sectionLabel} | ${span} | ${Math.round(Math.min(...windows))}-${Math.round(
       Math.max(...windows),

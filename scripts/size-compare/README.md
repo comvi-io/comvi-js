@@ -16,10 +16,23 @@ installed the twelve release tarballs built from `a74da136` with pnpm `overrides
 the registry after the release and the artifacts replaced if anything moves. Every other package
 is a registry install at the pinned version.
 
-The committed lockfiles, here and in the four Nuxt apps, still resolve `@comvi/*` at 0.5.0: no
-lockfile can name a version that is not published yet, and one carrying local `file:` paths would
-be worse than a stale one. The post-publish re-run regenerates all five. Until then `pnpm install`
-re-resolves the `@comvi/*` entries, because the manifests say 0.6.0 and the lockfiles say 0.5.0.
+**There is no lockfile for the three manifests that name 0.6.0**, and that is deliberate until the
+release is on npm. A lockfile cannot resolve a version that is not published, and one carrying the
+local `file:` paths of a pre-publish run would be worse than none. Leaving the old 0.5.0 lockfiles
+in place was worse still: with them, a clean clone fails with `ERR_PNPM_OUTDATED_LOCKFILE` listing
+`react` and `vue` mismatches, which points at the wrong problem. Without them it fails with
+`ERR_PNPM_NO_MATCHING_VERSION` and "the latest release of @comvi/nuxt is 0.5.0", which is the
+actual reason. Both were checked by copying the manifests into an empty directory and installing.
+
+So: **after the release is on npm, run `pnpm install` here and in `nuxt/apps/comvi-nuxt` and
+`nuxt/apps/comvi-nuxt-icu`, and commit the three lockfiles it writes.** The `bare` and `nuxt-i18n`
+apps depend on no `@comvi` package, so their lockfiles are unaffected and stay.
+
+Deleting a lockfile loses a pinned transitive resolution, which matters for reproducing a
+measurement, so note where that record actually lives: `package.json` pins every competitor to an
+exact version, and `results-2026-10-14.json` records the resolved version of every package that
+landed in every measured bundle. The figures can be traced without the lockfile; the lockfile only
+makes re-installing faster.
 
 ## Run
 
@@ -380,12 +393,12 @@ come from `node bench-table.mjs bench-2026-10-14-run*.txt`; no figure in them is
 
 | Scenario                         | One sample, per library                                                                                |      Window |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------: |
-| warm, static key                 | 200 k calls (`vue-i18n`) to 44.3 M (`@comvi/core` + `icuCompiler`)                                     | 508-1028 ms |
-| warm, one parameter              | 200 k calls (`use-intl/core` translator) to 14.7 M (`@comvi/core`, simple compiler)                    |  519-941 ms |
-| warm, same output                | 200 k calls (`i18next` + `i18next-icu`, `#`) to 755 k (`@comvi/core` + `icuCompiler`, `#`)             | 538-1074 ms |
+| warm, static key                 | 200 k calls (`vue-i18n`) to 22.8 M-44.9 M (`@comvi/core` + `icuCompiler`)                              | 508-1028 ms |
+| warm, one parameter              | 200 k calls (`use-intl/core` translator) to 13.9 M-15.1 M (`@comvi/core`, simple compiler)             |  519-941 ms |
+| warm, same output                | 200 k calls (`i18next` + `i18next-icu`, `#`) to 725 k-1.2 M (`@comvi/core` + `icuCompiler`, `#`)       | 538-1074 ms |
 | warm, equal work (pre-formatted) | 200 k calls (`i18next` + `i18next-icu`) to 1.2 M (`@comvi/core` + `icuCompiler`)                       |  510-848 ms |
 | warm, small count (`#`, 0..3)    | 400 k calls (`intl-messageformat`, instance reused, `#`) to 1.2 M (`@comvi/core` + `icuCompiler`, `#`) |  536-648 ms |
-| catalog                          | 20 k messages (`i18next` + `i18next-icu`, one instance) to 200 k (`@comvi/core` + `icuCompiler`)       |  505-930 ms |
+| catalog                          | 20 k messages (`i18next` + `i18next-icu`, one instance) to 180 k-320 k (`@comvi/core` + `icuCompiler`) |  505-930 ms |
 
 Run-to-run spread of each cited row, worst first, as a fraction of its median:
 
