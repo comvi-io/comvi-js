@@ -30,6 +30,8 @@ npm install @comvi/vue
 
 ## Setup
 
+In `src/main.ts`:
+
 ```ts title="src/main.ts" check=group=vue-1
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
@@ -51,6 +53,8 @@ createApp(App).use(i18n).mount("#app");
 `app.use(i18n)` is Vue's plugin verb; Comvi's `.use(installer)` composes a capability onto the instance.
 
 ## Use in components
+
+In a component, `src/App.vue`:
 
 ```vue title="src/App.vue" check=group=vue-1
 <script setup lang="ts">
@@ -76,6 +80,8 @@ const { t, locale, setLocale } = useI18n();
 npm install @comvi/plugin-fetch-loader
 ```
 
+Compose the loader on the instance, in `src/main.ts`:
+
 ```ts title="src/main.ts" check=group=vue-3
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
@@ -89,6 +95,8 @@ const i18n = createI18n({
 
 createApp(App).use(i18n).mount("#app");
 ```
+
+Read `isInitializing` in the component, in `src/App.vue`:
 
 ```vue title="src/App.vue" check=group=vue-3
 <script setup lang="ts">
@@ -109,7 +117,7 @@ prop, so `isInitializing` gates the first paint. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent, and either works without the other.
+independent.
 
 ## Specific to Vue
 

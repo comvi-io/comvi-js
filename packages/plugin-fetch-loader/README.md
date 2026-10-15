@@ -30,6 +30,8 @@ npm install @comvi/plugin-fetch-loader
 
 ## Load from the CDN
 
+In `src/main.tsx`:
+
 ```tsx title="src/main.tsx" check=group=fetch-loader-1
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
@@ -56,9 +58,11 @@ until the first catalog is in. Omitting `cdnUrl` throws at composition time with
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent, and either works without the other.
+independent.
 
 ## Bundled fallback
+
+In `src/i18n.ts`:
 
 ```ts title="src/i18n.ts" check=group=fetch-loader-2
 import { createI18n } from "@comvi/core";
@@ -82,6 +86,8 @@ When a network load fails, the loader serves the matching import: the exact `'lo
 key first, then the `'locale'` shorthand for the default namespace.
 
 ## CDN mode vs API mode
+
+In a server-only module, `src/i18n.server.ts`:
 
 ```ts title="src/i18n.server.ts" check=group=fetch-loader-3
 import { createI18n } from "@comvi/core";

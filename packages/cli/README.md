@@ -49,6 +49,8 @@ with no wrapper. Real environment variables always win over the file.
 npx comvi init
 ```
 
+A filled-in `.comvirc.json`:
+
 ```json title=".comvirc.json"
 {
   "apiBaseUrl": "https://api.comvi.io",
