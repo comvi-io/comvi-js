@@ -50,7 +50,9 @@ schema types are re-exported under the same names from both `@comvi/cli` and
 - **`emitDeclarations(schema, options?)`** — the whole declaration file as a
   string. Keys are emitted in code-unit order, and every key and param name goes
   through `JSON.stringify`, so an apostrophe or a hyphen in either is safe.
-  Options: `strictParams` (default `true`; `false` makes every param optional),
+  A `"string"` param is emitted as `string | number`, because the runtime renders
+  a number in a bare `{name}` and matches it in a `select`; a `"number"` param
+  stays `number`. Options: `strictParams` (default `true`; `false` makes every param optional),
   `defaultNs` (default `"default"`; keys in that namespace lose their prefix)
   and `augment` (default `"@comvi/core"`; the module the declarations augment,
   which must be a plain module specifier). The header is fixed and names no

@@ -80,8 +80,8 @@ describe("TypeGenerator", () => {
       await gen.generate();
 
       const written = mockFileSystem.getFile("types/i18n.d.ts");
-      expect(written).toContain('"name": string');
-      expect(written).not.toContain('"name"?: string');
+      expect(written).toContain('"name": string | number');
+      expect(written).not.toContain('"name"?: string | number');
     });
 
     it("should apply strictParams=false when explicitly provided", async () => {
@@ -101,7 +101,7 @@ describe("TypeGenerator", () => {
 
       await gen.generate();
 
-      expect(mockFileSystem.getFile("types/i18n.d.ts")).toContain('"name"?: string');
+      expect(mockFileSystem.getFile("types/i18n.d.ts")).toContain('"name"?: string | number');
     });
   });
 
@@ -166,7 +166,7 @@ describe("TypeGenerator", () => {
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("interface TranslationKeys");
       expect(written).toContain('"common:welcome": never;');
-      expect(written).toContain('"common:greeting": { "name": string };');
+      expect(written).toContain('"common:greeting": { "name": string | number };');
     });
 
     it("should report start, fetching, generating and success in order", async () => {
@@ -206,7 +206,7 @@ describe("TypeGenerator", () => {
       expect(result.success).toBe(true);
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain('"welcome": never;');
-      expect(written).toContain('"greeting": { "name": string };');
+      expect(written).toContain('"greeting": { "name": string | number };');
       expect(written).not.toContain('"common:welcome": never;');
     });
 
@@ -308,7 +308,7 @@ describe("TypeGenerator", () => {
       expect(result.keysGenerated).toBe(2);
 
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain('"name": string');
+      expect(written).toContain('"name": string | number');
       expect(written).toContain('"count": number');
     });
 

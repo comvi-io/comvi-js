@@ -46,7 +46,7 @@ describe("emitDeclarations", () => {
         "declare module '@comvi/core' {",
         "  interface TranslationKeys {",
         '    "admin:dashboard": never;',
-        '    "greeting": { "name": string };',
+        '    "greeting": { "name": string | number };',
         '    "logout": never;',
         "  }",
         "}",
@@ -103,7 +103,7 @@ describe("emitDeclarations", () => {
 
     const result = emitDeclarations(schema, { strictParams: false });
 
-    expect(keyLinesOf(result)).toEqual(['"greeting": { "name"?: string };']);
+    expect(keyLinesOf(result)).toEqual(['"greeting": { "name"?: string | number };']);
   });
 
   it("should sort keys alphabetically", () => {
@@ -153,7 +153,7 @@ describe("emitDeclarations", () => {
 
     const result = emitDeclarations(schema);
 
-    expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "user-name": string };']);
+    expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "user-name": string | number };']);
   });
 
   it("should emit a syntactically valid file for a param name that is not a bare identifier", () => {
@@ -192,7 +192,9 @@ describe("emitDeclarations", () => {
 
     const result = emitDeclarations(schema);
 
-    expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "name": string; "count": number };']);
+    expect(keyLinesOf(result)).toEqual([
+      '"admin:greeting": { "name": string | number; "count": number };',
+    ]);
   });
 
   it("writes the tool-neutral header, byte-identical to the shared emitter's output", () => {

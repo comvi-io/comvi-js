@@ -100,7 +100,7 @@ describe("comvi typegen", () => {
     const written = await nodeFs.readFile(outputPath, "utf-8");
     expect(written).toContain("declare module '@comvi/react'");
     expect(written).toContain('"common:welcome": never;');
-    expect(written).toContain('"common:greeting": { "name": string };');
+    expect(written).toContain('"common:greeting": { "name": string | number };');
   });
 
   it("augments the module named by `augment` in the config", async () => {

@@ -146,11 +146,30 @@ export function resolveAugmentationTarget(appRoot: string, override?: string): s
   );
 }
 
-/** `number` is the type carried by plural counts. */
+/**
+ * `number` is the type carried by plural counts. `string` is every other
+ * parameter, a bare `{name}` and a `select` variable alike; the emitted type
+ * for it is `TS_PARAM_TYPE.string`, not `string`.
+ */
 export interface SchemaParam {
   name: string;
   type: "string" | "number";
 }
+
+/**
+ * The TypeScript type emitted for each schema param type.
+ *
+ * A `string` param accepts numbers too. Core renders a bare `{count}` with
+ * `String(value)`, and a `select` looks the value up as an object key, which
+ * coerces `1` to `"1"`; refusing a number was a false error on the commonest
+ * call there is, `t("errors.count", { count: 3 })` (COM-168). The schema's own
+ * vocabulary stays `"string" | "number"`, so the platform's typegen endpoint
+ * is untouched.
+ */
+const TS_PARAM_TYPE: Record<SchemaParam["type"], string> = {
+  string: "string | number",
+  number: "number",
+};
 
 export interface KeySchema {
   params: SchemaParam[];
@@ -310,7 +329,7 @@ function formatKeyType(
   const paramTypes = params.map((p) => {
     assertSupportedParamType(key, p);
     const optional = strictParams ? "" : "?";
-    return `${JSON.stringify(p.name)}${optional}: ${p.type}`;
+    return `${JSON.stringify(p.name)}${optional}: ${TS_PARAM_TYPE[p.type]}`;
   });
 
   return `${indent}${JSON.stringify(key)}: { ${paramTypes.join("; ")} };`;

@@ -49,7 +49,7 @@ describe("emitDeclarations", () => {
       '"admin:ab": never;',
       '"admin:apple": never;',
       '"admin:errors.it\'s": never;',
-      '"admin:greeting": { "user-name": string };',
+      '"admin:greeting": { "user-name": string | number };',
       '"admin:ключ": never;',
     ]);
   });
@@ -81,7 +81,7 @@ describe("emitDeclarations", () => {
         "declare module '@comvi/core' {",
         "  interface TranslationKeys {",
         '    "admin:dashboard": never;',
-        '    "common:greeting": { "name": string };',
+        '    "common:greeting": { "name": string | number };',
         '    "common:items": { "count": number };',
         '    "common:welcome": never;',
         "  }",
@@ -204,10 +204,10 @@ describe("emitDeclarations", () => {
     };
 
     expect(keyLinesOf(emitDeclarations(schema))).toEqual([
-      '"greeting": { "name": string; "count": number };',
+      '"greeting": { "name": string | number; "count": number };',
     ]);
     expect(keyLinesOf(emitDeclarations(schema, { strictParams: false }))).toEqual([
-      '"greeting": { "name"?: string; "count"?: number };',
+      '"greeting": { "name"?: string | number; "count"?: number };',
     ]);
   });
 
@@ -232,7 +232,7 @@ describe("emitDeclarations", () => {
     };
 
     expect(keyLinesOf(emitDeclarations(schema))).toEqual([
-      '"admin:a": { "name": string };',
+      '"admin:a": { "name": string | number };',
       '"admin:b": { "count": number };',
     ]);
   });
