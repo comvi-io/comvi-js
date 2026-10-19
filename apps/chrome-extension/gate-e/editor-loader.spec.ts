@@ -159,7 +159,7 @@ test("a script-src that does not allow the CDN is named in the popup with its re
     const error = await enableExpectingFailure(popup, page, launched, tabId);
 
     expect(error).toBe(
-      "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must return that script URL from createScriptURL.",
+      "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. The editor does not run yet on a site that enforces Trusted Types.",
     );
     // The policy stopped the request before it left the page.
     expect(launched.cdnRequests).toEqual([]);

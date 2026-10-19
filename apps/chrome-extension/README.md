@@ -17,9 +17,10 @@ and activates it through an authenticated proxy (see below).
   on an older SDK it says the site must upgrade. The `<script>` global build
   of `@comvi/core` (`ComviCore.I18n`) composes `devtools()` on its own.
 - If the site sends a Content Security Policy: `https://cdn.jsdelivr.net` in
-  `script-src`. A site that enforces Trusted Types also needs a `default`
-  policy whose `createScriptURL` returns that script URL: the loader assigns
-  `script.src` as a plain string. `style-src` needs no change: the editor
+  `script-src`. The editor does not run yet on a site that enforces Trusted
+  Types: a `default` policy whose `createScriptURL` accepts that URL lets the
+  loader's `<script>` through, but the editor it brings in does not work there.
+  `style-src` needs no change: the editor
   adopts a constructable stylesheet, which every Chrome version this extension
   supports provides.
 

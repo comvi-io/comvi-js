@@ -71,8 +71,9 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   | `core-base-devtools` (`.use(devtools())`) | 6872 B |
 
 - **A site with a Content Security Policy must allow `https://cdn.jsdelivr.net` in `script-src`**,
-  and a site that enforces Trusted Types needs a `default` policy whose `createScriptURL` accepts
-  that URL, since the loader assigns `script.src` as a plain string. No `style-src` change where
+  and on a site that enforces Trusted Types a `default` policy whose `createScriptURL` accepts that
+  URL lets the loader through, since it assigns `script.src` as a plain string; the editor UI itself
+  does not run under Trusted Types yet (`plugin-in-context-editor` README). No `style-src` change where
   the browser supports it: the editor applies its styles through a constructable stylesheet
   adopted by its shadow root, and falls back to an inline `<style>` element where
   `adoptedStyleSheets` is missing or the sheet is not adopted (`shadowDom.ts`).
