@@ -18,7 +18,7 @@ const SDK_REQUIREMENT =
 
 const FAILURE_TEXT = {
   "csp-blocked":
-    "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. The editor does not run yet on a site that enforces Trusted Types.",
+    "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must also accept that URL in createScriptURL, and its trusted-types directive must allow vue.",
   "load-error":
     "The editor could not be downloaded from cdn.jsdelivr.net. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.",
   timeout:

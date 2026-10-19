@@ -159,7 +159,7 @@ test("a script-src that does not allow the CDN is named in the popup with its re
     const error = await enableExpectingFailure(popup, page, launched, tabId);
 
     expect(error).toBe(
-      "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. The editor does not run yet on a site that enforces Trusted Types.",
+      "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must also accept that URL in createScriptURL, and its trusted-types directive must allow vue.",
     );
     // The policy stopped the request before it left the page.
     expect(launched.cdnRequests).toEqual([]);
@@ -300,5 +300,66 @@ test("a site without devtools() is told what to add", async () => {
     );
     await expect(popup.locator("#enable-btn")).toBeHidden();
     await popup.close();
+  });
+});
+
+/** Alt-click the greeting until the editor's edit modal mounts, or give up. */
+async function openEditModal(page: Page): Promise<boolean> {
+  const mounted = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("*")].some((element) =>
+        [...(element.shadowRoot?.querySelectorAll("button") ?? [])].some((button) =>
+          /Gender|Formality/.test(button.textContent ?? ""),
+        ),
+      ),
+    );
+  for (let attempt = 0; attempt < 40; attempt++) {
+    await page.evaluate(() => (globalThis as any).renderGreeting());
+    await page.evaluate(() =>
+      document.getElementById("greeting")!.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          altKey: true,
+          composed: true,
+        }),
+      ),
+    );
+    if (await mounted()) return true;
+    await page.waitForTimeout(250);
+  }
+  return false;
+}
+
+test("under Trusted Types with `vue` allowed, the editor loads and opens its edit modal", async () => {
+  test.setTimeout(90_000);
+  await withGateE({}, async (launched, popups) => {
+    const { page, tabId } = await openSite(launched, "/tt-vue");
+    const popup = await popupFor(launched, popups);
+    await activateEditor(popup, page, launched.worker, tabId);
+    await popup.close();
+    await page.bringToFront();
+
+    expect(await openEditModal(page)).toBe(true);
+    expect(await page.evaluate(() => (globalThis as any).__CSP_VIOLATIONS__)).toEqual([]);
+  });
+});
+
+test("under Trusted Types without `vue`, the editor loads but its UI is blocked", async () => {
+  test.setTimeout(90_000);
+  await withGateE({}, async (launched, popups) => {
+    const { page, tabId } = await openSite(launched, "/tt-default");
+    const popup = await popupFor(launched, popups);
+    await activateEditor(popup, page, launched.worker, tabId);
+    await popup.close();
+    await page.bringToFront();
+
+    expect(await openEditModal(page)).toBe(false);
+    const violations: { directive: string }[] = await page.evaluate(
+      () => (globalThis as any).__CSP_VIOLATIONS__,
+    );
+    // The `vue` policy is refused, and the HTML the editor writes with it is blocked.
+    expect(violations.map((v) => v.directive)).toContain("trusted-types");
+    expect(violations.map((v) => v.directive)).toContain("require-trusted-types-for");
   });
 });

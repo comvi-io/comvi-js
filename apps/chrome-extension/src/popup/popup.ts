@@ -36,7 +36,7 @@ const NOT_DETECTED_REMEDY =
 
 /** One reason and one remedy for each way the page can fail to supply the editor. */
 const ACTIVATION_FAILURE_TEXT: Record<ActivationOutcomeCode, string> = {
-  "csp-blocked": `This site's Content Security Policy blocked the editor. Allow https://${EDITOR_CDN_HOST} in its script-src directive, then reload this page. The editor does not run yet on a site that enforces Trusted Types.`,
+  "csp-blocked": `This site's Content Security Policy blocked the editor. Allow https://${EDITOR_CDN_HOST} in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must also accept that URL in createScriptURL, and its trusted-types directive must allow vue.`,
   "load-error": `The editor could not be downloaded from ${EDITOR_CDN_HOST}. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.`,
   timeout: `The editor did not finish loading from ${EDITOR_CDN_HOST} in time. Check your connection and try again.`,
   "no-global": `${EDITOR_CDN_HOST} answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.`,

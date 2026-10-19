@@ -38,6 +38,17 @@ const SITE_PAGES = {
     scripts: ["/__core.js", "/site.js"],
     csp: "script-src 'self' https://cdn.jsdelivr.net; style-src 'self'",
   },
+  // Trusted Types: a default policy lets the loader's script URL through, and
+  // `vue` is the policy the editor's Vue runtime creates for its HTML.
+  "/tt-vue": {
+    scripts: ["/tt-policy.js", "/__core.js", "/site.js"],
+    csp: "script-src 'self' https://cdn.jsdelivr.net; require-trusted-types-for 'script'; trusted-types default vue",
+  },
+  // The same without `vue`: the editor loads but cannot render its UI.
+  "/tt-default": {
+    scripts: ["/tt-policy.js", "/__core.js", "/site.js"],
+    csp: "script-src 'self' https://cdn.jsdelivr.net; require-trusted-types-for 'script'; trusted-types default",
+  },
   // @comvi/core 0.5.0: announced on window.__COMVI__, no editor-loader hook.
   "/old-sdk": { scripts: ["/old-sdk-site.js"] },
   // A site that never composed devtools(): nothing to detect.
@@ -118,7 +129,12 @@ const server = createServer((req, res) => {
       ...(csp ? { "Content-Security-Policy": csp } : {}),
     });
   }
-  if (path === "/__core.js" || path === "/site.js" || path === "/old-sdk-site.js") {
+  if (
+    path === "/__core.js" ||
+    path === "/site.js" ||
+    path === "/old-sdk-site.js" ||
+    path === "/tt-policy.js"
+  ) {
     // Read per request: a missing build must fail the page load, loudly.
     const file = path === "/__core.js" ? CORE_GLOBAL : join(DIR, path.slice(1));
     return send(res, 200, readFileSync(file, "utf8"), {

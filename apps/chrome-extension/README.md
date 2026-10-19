@@ -17,11 +17,10 @@ and activates it through an authenticated proxy (see below).
   on an older SDK it says the site must upgrade. The `<script>` global build
   of `@comvi/core` (`ComviCore.I18n`) composes `devtools()` on its own.
 - If the site sends a Content Security Policy: `https://cdn.jsdelivr.net` in
-  `script-src`. The editor does not run yet on a site that enforces Trusted
-  Types: a `default` policy whose `createScriptURL` accepts that URL lets the
-  loader's `<script>` through, but the editor it brings in does not work there.
-  `style-src` needs no change: the editor
-  adopts a constructable stylesheet, which every Chrome version this extension
+  `script-src`. A site that enforces Trusted Types also needs a `default`
+  policy whose `createScriptURL` accepts that script URL, and `vue` in its
+  `trusted-types` directive, the policy the editor's Vue runtime creates.
+  `style-src` needs no change: the editor adopts a constructable stylesheet, which every Chrome version this extension
   supports provides.
 
 A site that already carries the editor (its app bundles the standalone build)
@@ -49,15 +48,15 @@ under `try`/`catch` with a 12-second limit, the answer is read field by field,
 and the detector never reads the hook's `url` or creates a script element. If
 the editor cannot start, the popup names one reason and one remedy:
 
-| Popup says                                               | Cause                                                                    |
-| -------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Comvi i18n not detected on this page                     | No instance composed `devtools()`                                        |
-| Comvi i18n vX found, but it cannot load the editor       | `@comvi/core` older than 0.6.0                                           |
-| This site's Content Security Policy blocked the editor   | `script-src` does not allow `https://cdn.jsdelivr.net`, or Trusted Types |
-| The editor could not be downloaded from cdn.jsdelivr.net | Network, a filter, or a pinned version that does not exist               |
-| The editor did not finish loading … in time              | The CDN did not answer in time                                           |
-| cdn.jsdelivr.net answered, but …                         | The file served was not the editor                                       |
-| This site pins the editor with an invalid version        | `devtools({ editorVersion })` is not an exact version like `0.6.0`       |
+| Popup says                                               | Cause                                                                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Comvi i18n not detected on this page                     | No instance composed `devtools()`                                                                            |
+| Comvi i18n vX found, but it cannot load the editor       | `@comvi/core` older than 0.6.0                                                                               |
+| This site's Content Security Policy blocked the editor   | `script-src` does not allow `https://cdn.jsdelivr.net`, or no Trusted Types `default` policy accepts the URL |
+| The editor could not be downloaded from cdn.jsdelivr.net | Network, a filter, or a pinned version that does not exist                                                   |
+| The editor did not finish loading … in time              | The CDN did not answer in time                                                                               |
+| cdn.jsdelivr.net answered, but …                         | The file served was not the editor                                                                           |
+| This site pins the editor with an invalid version        | `devtools({ editorVersion })` is not an exact version like `0.6.0`                                           |
 
 Every word of these messages is the extension's own, including the host. The
 popup never shows a sentence the page wrote: a failure travels from the page as
