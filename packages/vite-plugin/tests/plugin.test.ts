@@ -160,7 +160,7 @@ describe("comviTypes plugin", () => {
 
       const written = await fs.readFile(outputPath(root), "utf-8");
       expect(written).toContain("declare module '@comvi/react' {");
-      expect(written).toContain('"greeting": { "name": string };');
+      expect(written).toContain('"greeting": { "name": string | number };');
     });
 
     it("passes defaultNs and strictParams through to the emitted declarations", async () => {
@@ -183,7 +183,7 @@ describe("comviTypes plugin", () => {
 
       const written = await fs.readFile(outputPath(root), "utf-8");
       // root en.json lands in defaultNs "common" and loses the prefix; admin keeps it
-      expect(written).toContain('"greeting": { "name"?: string };');
+      expect(written).toContain('"greeting": { "name"?: string | number };');
       expect(written).toContain('"admin:dashboard": never;');
     });
 

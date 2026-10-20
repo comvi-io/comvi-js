@@ -71,7 +71,8 @@ The default namespace, in `src/locales/en.json`:
 {
   "welcome": "Hello, {name}!",
   "items": "{count, plural, one {# item} other {# items}}",
-  "greeting": "Hi"
+  "greeting": "Hi",
+  "unread": "{count} unread"
 }
 ```
 
@@ -99,7 +100,8 @@ declare module "@comvi/core" {
     "errors:NOT_FOUND": never;
     greeting: never;
     items: { count: number };
-    welcome: { name: string };
+    unread: { count: string | number };
+    welcome: { name: string | number };
   }
 }
 
@@ -112,14 +114,15 @@ And the calls it checks, in `src/usage.ts`:
 import { i18n } from "./i18n";
 
 i18n.t("welcome", { name: "Alice" });
+i18n.t("unread", { count: 3 });
 i18n.t("greeting");
 i18n.t("NOT_FOUND", { ns: "errors" });
 ```
 
 Keys come out in code-unit order, `never` means no parameters, and nested JSON flattens to dot
 keys; a namespace directory becomes the `errors:` prefix. Parameter types come from ICU syntax: a
-bare `{name}` is `string`, a `plural` or `selectordinal` count is `number`, a `select` variable is
-`string`. The declaration augments `@comvi/core` when `package.json` declares it, otherwise the
+bare `{name}` and a `select` variable take `string | number`, a `plural` or `selectordinal` count
+is `number`. The declaration augments `@comvi/core` when `package.json` declares it, otherwise the
 first framework binding it declares. Types and the compiler are two decisions: the `items` key
 above needs `compiler: icuCompiler` from `@comvi/core/icu` on the i18n instance, or it throws at
 ingestion in development and renders its braces in production; see
