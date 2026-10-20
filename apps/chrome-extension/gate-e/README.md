@@ -90,8 +90,8 @@ replayed activation after Disable opens nothing.
 | -------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `/site`        | `@comvi/core` with `devtools()`                                | No CDN request before Enable; one `@latest?comvi=<hour>` request after; SPA route and popup re-open load nothing again |
 | `/site`        | the page calls the hook's `load()` itself                      | The editor is on the page, with no session until the popup activates                                                   |
-| `/site`        | CDN unreachable                                                | Popup names the download failure and `cdn.jsdelivr.net`                                                                |
-| `/csp-script`  | `script-src 'self'`                                            | Popup names the CSP reason and `https://cdn.jsdelivr.net`; no request leaves the page                                  |
+| `/site`        | CDN unreachable                                                | Popup names the download failure, and no host                                                                          |
+| `/csp-script`  | `script-src 'self'`                                            | Popup names the CSP reason and points to the docs; no request leaves the page                                          |
 | `/csp-style`   | `script-src 'self' https://cdn.jsdelivr.net; style-src 'self'` | Editor loads, the modal and its Preset dropdown render styled, zero CSP violations                                     |
 | `/old-sdk`     | a `{v: "0.5.0"}` instance and no hook                          | Popup says the site must upgrade; Enable is not offered                                                                |
 | `/no-devtools` | no Comvi instance                                              | Popup says what to add; Enable is not offered                                                                          |

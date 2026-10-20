@@ -20,11 +20,10 @@ type Operation = "enabling" | "disabling" | "forgetting" | null;
 
 const THEME_STORAGE_KEY = "comvi_theme";
 
-// The one host the page's SDK loads the editor from. The remedies below name
-// THIS constant: a host reported by the page is never shown, because a forged
-// one would tell the user to allow an attacker's domain.
-const EDITOR_CDN_HOST = "cdn.jsdelivr.net";
-
+// The remedies name no host. One reported by the page is never shown, because
+// a forged one would tell the user to allow an attacker's domain, and the
+// package names no script host of its own (MV3 remote-code review): the docs
+// page the CSP remedy points to names it.
 const SDK_REQUIREMENT =
   "In-context editing needs @comvi/core 0.6.0 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
 
@@ -36,10 +35,14 @@ const NOT_DETECTED_REMEDY =
 
 /** One reason and one remedy for each way the page can fail to supply the editor. */
 const ACTIVATION_FAILURE_TEXT: Record<ActivationOutcomeCode, string> = {
-  "csp-blocked": `This site's Content Security Policy blocked the editor. Allow https://${EDITOR_CDN_HOST} in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must return that script URL from createScriptURL.`,
-  "load-error": `The editor could not be downloaded from ${EDITOR_CDN_HOST}. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.`,
-  timeout: `The editor did not finish loading from ${EDITOR_CDN_HOST} in time. Check your connection and try again.`,
-  "no-global": `${EDITOR_CDN_HOST} answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.`,
+  "csp-blocked":
+    "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host, and what a site that enforces Trusted Types also needs.",
+  "load-error":
+    "The editor could not be downloaded from its CDN. Check your connection and any filter that blocks it, then try again. If the site pins an editor version, check that the version exists.",
+  timeout:
+    "The editor did not finish loading from its CDN in time. Check your connection and try again.",
+  "no-global":
+    "The editor's CDN answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.",
   "invalid-editor-version":
     "This site pins the editor with an invalid version, so nothing was loaded. devtools({ editorVersion }) must be an exact version like 1.2.3. Fix it in the site's code, then reload this page.",
   "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,

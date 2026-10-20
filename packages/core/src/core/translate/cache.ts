@@ -64,11 +64,10 @@ export type HashToken = [typeof TK_HASH];
  * every non-static `t()`, and an eleventh property measured ~4 % on the
  * `t()`-with-a-param case of `pnpm perf` — the hottest call in the library —
  * while a `#` is only ever read inside a plural. `processPlural` saves the
- * previous value and restores it after the branch, so a nested plural cannot
- * clobber the count an outer `#` still needs; renders are synchronous, so
- * there is no second reader between the two. A value left behind by a handler
- * that threw mid-render is unreadable: `#` only becomes a token under
- * `hashIsSyntax`, which only `processPlural` turns on, after setting it.
+ * previous value and restores it in `finally` after the branch, so a nested
+ * plural cannot clobber the count an outer `#` still needs, even when a tag
+ * handler calls `t()` and catches what that render throws; renders are
+ * synchronous, so there is no second reader between the two.
  */
 export let hashValue: string | undefined;
 

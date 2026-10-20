@@ -129,10 +129,10 @@ This needs `@comvi/core` 0.6.0 or newer on the site and the 0.6.0 extension. If 
 Content Security Policy, `script-src` must allow `https://cdn.jsdelivr.net`. `style-src` needs no
 change in current browsers, because the editor adopts a constructable stylesheet.
 
-The editor's UI is not supported yet on a page that sets `require-trusted-types-for 'script'`. The
-loader's own `<script>` can be let through there, by a `default` policy whose `createScriptURL`
-accepts the jsDelivr URL, because the loader assigns a plain string; the editor that script brings
-in is what does not work.
+On a page that sets `require-trusted-types-for 'script'`, the editor needs two things from the
+site: a `default` policy whose `createScriptURL` accepts the jsDelivr URL, because the loader assigns
+a plain string, and `vue` in the `trusted-types` directive, the policy the editor's Vue runtime
+creates for the HTML it renders. Without `vue` the editor loads but its UI is blocked.
 
 ## Options
 

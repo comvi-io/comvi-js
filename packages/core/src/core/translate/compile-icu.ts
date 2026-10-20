@@ -375,11 +375,16 @@ function processPlural(
     // The count is formatted only when the branch holds a `#` somewhere. A
     // token for this plural's `#` can only come from the branch's own text, so
     // without one `hashValue` is never read before it is restored.
+    //
+    // `finally`, because a tag handler may call `t()` itself and catch what
+    // that render throws: the count this branch set must not outlive it.
     const prev = hashValue;
     if (selected.indexOf("#") !== -1) setHashValue(formatHashCount(ctx.locale, count));
-    const result = translateSegment(selected, ctx, true);
-    setHashValue(prev);
-    return result;
+    try {
+      return translateSegment(selected, ctx, true);
+    } finally {
+      setHashValue(prev);
+    }
   }
 
   // Text-only branch — the hottest plural shape ("# items"). No parse, no cache

@@ -159,7 +159,7 @@ test("a script-src that does not allow the CDN is named in the popup with its re
     const error = await enableExpectingFailure(popup, page, launched, tabId);
 
     expect(error).toBe(
-      "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must return that script URL from createScriptURL.",
+      "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host, and what a site that enforces Trusted Types also needs.",
     );
     // The policy stopped the request before it left the page.
     expect(launched.cdnRequests).toEqual([]);
@@ -176,7 +176,7 @@ test("an unreachable CDN is named in the popup as a download failure", async () 
     const error = await enableExpectingFailure(popup, page, launched, tabId);
 
     expect(error).toBe(
-      "The editor could not be downloaded from cdn.jsdelivr.net. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.",
+      "The editor could not be downloaded from its CDN. Check your connection and any filter that blocks it, then try again. If the site pins an editor version, check that the version exists.",
     );
     expect(launched.cdnRequests).toHaveLength(1);
     await popup.close();
@@ -300,5 +300,66 @@ test("a site without devtools() is told what to add", async () => {
     );
     await expect(popup.locator("#enable-btn")).toBeHidden();
     await popup.close();
+  });
+});
+
+/** Alt-click the greeting until the editor's edit modal mounts, or give up. */
+async function openEditModal(page: Page): Promise<boolean> {
+  const mounted = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("*")].some((element) =>
+        [...(element.shadowRoot?.querySelectorAll("button") ?? [])].some((button) =>
+          /Gender|Formality/.test(button.textContent ?? ""),
+        ),
+      ),
+    );
+  for (let attempt = 0; attempt < 40; attempt++) {
+    await page.evaluate(() => (globalThis as any).renderGreeting());
+    await page.evaluate(() =>
+      document.getElementById("greeting")!.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          altKey: true,
+          composed: true,
+        }),
+      ),
+    );
+    if (await mounted()) return true;
+    await page.waitForTimeout(250);
+  }
+  return false;
+}
+
+test("under Trusted Types with `vue` allowed, the editor loads and opens its edit modal", async () => {
+  test.setTimeout(90_000);
+  await withGateE({}, async (launched, popups) => {
+    const { page, tabId } = await openSite(launched, "/tt-vue");
+    const popup = await popupFor(launched, popups);
+    await activateEditor(popup, page, launched.worker, tabId);
+    await popup.close();
+    await page.bringToFront();
+
+    expect(await openEditModal(page)).toBe(true);
+    expect(await page.evaluate(() => (globalThis as any).__CSP_VIOLATIONS__)).toEqual([]);
+  });
+});
+
+test("under Trusted Types without `vue`, the editor loads but its UI is blocked", async () => {
+  test.setTimeout(90_000);
+  await withGateE({}, async (launched, popups) => {
+    const { page, tabId } = await openSite(launched, "/tt-default");
+    const popup = await popupFor(launched, popups);
+    await activateEditor(popup, page, launched.worker, tabId);
+    await popup.close();
+    await page.bringToFront();
+
+    expect(await openEditModal(page)).toBe(false);
+    const violations: { directive: string }[] = await page.evaluate(
+      () => (globalThis as any).__CSP_VIOLATIONS__,
+    );
+    // The `vue` policy is refused, and the HTML the editor writes with it is blocked.
+    expect(violations.map((v) => v.directive)).toContain("trusted-types");
+    expect(violations.map((v) => v.directive)).toContain("require-trusted-types-for");
   });
 });

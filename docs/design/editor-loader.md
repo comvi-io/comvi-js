@@ -71,8 +71,9 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
   | `core-base-devtools` (`.use(devtools())`) | 6872 B |
 
 - **A site with a Content Security Policy must allow `https://cdn.jsdelivr.net` in `script-src`**,
-  and a site that enforces Trusted Types needs a `default` policy whose `createScriptURL` accepts
-  that URL, since the loader assigns `script.src` as a plain string. No `style-src` change where
+  and a site that enforces Trusted Types needs a `default` policy whose `createScriptURL` accepts that
+  URL, since the loader assigns `script.src` as a plain string, plus `vue` in its `trusted-types`
+  directive for the editor's Vue runtime (gate-e `/tt-vue` and `/tt-default`). No `style-src` change where
   the browser supports it: the editor applies its styles through a constructable stylesheet
   adopted by its shadow root, and falls back to an inline `<style>` element where
   `adoptedStyleSheets` is missing or the sheet is not adopted (`shadowDom.ts`).

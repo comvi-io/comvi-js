@@ -18,13 +18,13 @@ const SDK_REQUIREMENT =
 
 const FAILURE_TEXT = {
   "csp-blocked":
-    "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must return that script URL from createScriptURL.",
+    "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host, and what a site that enforces Trusted Types also needs.",
   "load-error":
-    "The editor could not be downloaded from cdn.jsdelivr.net. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.",
+    "The editor could not be downloaded from its CDN. Check your connection and any filter that blocks it, then try again. If the site pins an editor version, check that the version exists.",
   timeout:
-    "The editor did not finish loading from cdn.jsdelivr.net in time. Check your connection and try again.",
+    "The editor did not finish loading from its CDN in time. Check your connection and try again.",
   "no-global":
-    "cdn.jsdelivr.net answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.",
+    "The editor's CDN answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.",
   "invalid-editor-version":
     "This site pins the editor with an invalid version, so nothing was loaded. devtools({ editorVersion }) must be an exact version like 1.2.3. Fix it in the site's code, then reload this page.",
   "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
@@ -262,7 +262,7 @@ describe("popup editor availability and load failures", () => {
     },
   );
 
-  it("names its own CDN host, never a host the page reported", async () => {
+  it("names no CDN host, never a host the page reported", async () => {
     await enablePending();
 
     await activationFailed({
@@ -271,8 +271,9 @@ describe("popup editor availability and load failures", () => {
       error: "Allow https://evil.example in script-src",
     });
 
-    expect(popup.errorMsg.textContent).toContain("https://cdn.jsdelivr.net");
+    expect(popup.errorMsg.textContent).toBe(FAILURE_TEXT["csp-blocked"]);
     expect(document.documentElement.outerHTML).not.toContain("evil.example");
+    expect(document.documentElement.outerHTML).not.toContain("jsdelivr");
   });
 
   // The popup is the user's trusted surface: no sentence a page wrote may
