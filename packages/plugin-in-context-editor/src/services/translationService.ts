@@ -264,8 +264,9 @@ export async function getTranslation(
 /**
  * @param pluralVariable - Variable name for the ICU plural format (e.g. "count")
  * @param scopeId - Optional runtime scope used to isolate editor instances
+ * @param translations - Only the languages to write; each one written is set to not reviewed.
  * @param verbatim - Languages sent exactly as given instead of being generated
- *   from their forms: ones the user did not edit, and plain-text ICU.
+ *   from their forms (ICU the fields cannot rebuild).
  */
 export async function saveTranslation(
   key: string,
