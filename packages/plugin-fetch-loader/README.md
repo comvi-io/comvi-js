@@ -141,6 +141,12 @@ convention, and only Next can inline it into a browser bundle. Anywhere else, pa
 - [Loading translations](https://comvi.io/docs/i18n/loading-translations): import maps, custom loaders and namespaces.
 - [Loader API](https://comvi.io/docs/i18n/api/core-loader): every member the loader capability adds.
 
+## Contributing
+
+Bug reports, docs fixes and pull requests are welcome.
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
+and what CI checks.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi

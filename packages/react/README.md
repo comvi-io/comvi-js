@@ -144,6 +144,12 @@ independent.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `t()` and `<T>` check keys and params.
 - [React API reference](https://comvi.io/docs/i18n/api/react): every export, hook and provider prop.
 
+## Contributing
+
+Bug reports, docs fixes and pull requests are welcome.
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
+and what CI checks.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi

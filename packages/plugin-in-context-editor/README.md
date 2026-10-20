@@ -166,6 +166,12 @@ hostile page can report it as on; the extension README describes this limit.
 - [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the loader the editor edits on top of.
 - [Devtools API](https://comvi.io/docs/i18n/api/core-devtools): `devtools()`, `instanceId`, `exposeGlobal` and `editorVersion`.
 
+## Contributing
+
+Bug reports, docs fixes and pull requests are welcome.
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
+and what CI checks.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi
