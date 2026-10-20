@@ -2,7 +2,7 @@
   "name": "@comvi/nuxt",
   "version": "0.6.0",
   "type": "module",
-  "description": "Nuxt 3 / 4 module for Comvi — auto-imports, SSR, and locale routing",
+  "description": "Nuxt module for Comvi i18n with type-checked keys, ICU plurals and a <T> component for markup inside translations",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
