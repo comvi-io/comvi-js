@@ -16,7 +16,7 @@
       "baseline": {
         "minBytes": 29140,
         "gzipBytes": 10575,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated core ceiling: all six core subpaths recomposed with `.use(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
     },
@@ -28,7 +28,7 @@
       "baseline": {
         "minBytes": 15069,
         "gzipBytes": 5607,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated base floor: `@comvi/core` alone, no capability composed \u2014 the anchor every other core row is read against."
     },
@@ -40,7 +40,7 @@
       "baseline": {
         "minBytes": 18262,
         "gzipBytes": 6843,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated: base host + the ICU compiler as a constructor option."
     },
@@ -52,7 +52,7 @@
       "baseline": {
         "minBytes": 18050,
         "gzipBytes": 6870,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated: base host + `.use(devtools())` only \u2014 read against `core-base`, the difference is what discovery and the editor loader cost together."
     },
@@ -65,7 +65,7 @@
       "baseline": {
         "minBytes": 20542,
         "gzipBytes": 7606,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings \u2014 the anchor the React ceiling row is read against."
     },
@@ -78,7 +78,7 @@
       "baseline": {
         "minBytes": 37300,
         "gzipBytes": 13526,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated React ceiling: every capability composed through the one `@comvi/react` specifier."
     },
@@ -104,7 +104,7 @@
       "baseline": {
         "minBytes": 36514,
         "gzipBytes": 12914,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier."
     },
@@ -117,7 +117,7 @@
       "baseline": {
         "minBytes": 20024,
         "gzipBytes": 7235,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings \u2014 the anchor the Svelte ceiling row is read against."
     },
@@ -130,7 +130,7 @@
       "baseline": {
         "minBytes": 37953,
         "gzipBytes": 13609,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
     },
@@ -143,7 +143,7 @@
       "baseline": {
         "minBytes": 23270,
         "gzipBytes": 7709,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings \u2014 the anchor the Vue ceiling row is read against."
     },
@@ -156,7 +156,7 @@
       "baseline": {
         "minBytes": 40022,
         "gzipBytes": 13567,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier."
     },
@@ -169,7 +169,7 @@
       "baseline": {
         "minBytes": 22367,
         "gzipBytes": 8329,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Next server floor: the `@comvi/next/server` entry with the loader composed."
     },
@@ -195,7 +195,7 @@
       "baseline": {
         "minBytes": 28097,
         "gzipBytes": 10105,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(\u2026)` composed through `.use`."
     },
@@ -208,7 +208,7 @@
       "baseline": {
         "minBytes": 31065,
         "gzipBytes": 11273,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Next recommended path with `.use(devtools())`: the `fw-next-root-composed` graph plus discovery and the editor loader, the only Next row that carries `@comvi/core/devtools`."
     },
@@ -282,7 +282,7 @@
       "baseline": {
         "minBytes": 42078,
         "gzipBytes": 14499,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."
     },
@@ -304,7 +304,7 @@
       "baseline": {
         "minBytes": 25875,
         "gzipBytes": 8729,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated Nuxt client floor: the runtime client entry only \u2014 the anchor the Nuxt ceiling row is read against."
     },
@@ -316,7 +316,7 @@
       "baseline": {
         "minBytes": 26415,
         "gzipBytes": 9646,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated `@comvi/nuxt/i18n` subpath: the one specifier a comvi.i18n.ts names, composing ICU + loader + plugin host + devtools through the module re-export instead of four app-declared @comvi/core subpaths."
     },
@@ -328,7 +328,7 @@
       "baseline": {
         "minBytes": 33409,
         "gzipBytes": 12161,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated API-aware path: base host + ICU + `fetchLoader` from `@comvi/plugin-fetch-loader/api`, composed as the fetch-loader README API recipe. Renamed from `plugin-fetch-loader-cdn` on 2026-10-04 (first-impression lot), same graph. +233 B over the measurement at `831e739` (10861 B) \u2014 199 B for making the CDN request path ONE shared implementation both entries run, 34 B for the package-name error prefix; the recorded 03.09 baseline (10640 B) was already 221 B stale before this lot."
     },
@@ -340,7 +340,7 @@
       "baseline": {
         "minBytes": 27764,
         "gzipBytes": 10228,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated CDN-ONLY path: base host + ICU + `cdnLoader` from the package root, composed as the fetch-loader README quickstart. Renamed from `plugin-fetch-loader-cdn-lite` on 2026-10-04 (first-impression lot), same graph. Paired with `plugin-fetch-loader-api`: the difference between the two rows IS the API request path a CDN-only app does not ship."
     },
@@ -353,7 +353,7 @@
       "baseline": {
         "minBytes": 33218,
         "gzipBytes": 12157,
-        "measuredAt": "2026-10-14"
+        "measuredAt": "2026-10-20"
       },
       "note": "Gated platform CDN path on React: `@comvi/react` base host + ICU + the CDN-only package root (`cdnLoader`), composed as the React README's CDN recipe; the number the README quotes for the React platform path."
     }
