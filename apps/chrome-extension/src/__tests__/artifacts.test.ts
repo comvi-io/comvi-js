@@ -131,8 +131,8 @@ describe.skipIf(!runSuite)(
     });
 
     // MV3 remote-code policy: the package neither names a script host nor has
-    // the means to load a script from one. The popup's remedy texts are the
-    // only place the CDN host appears, and they are prose, not a loader.
+    // the means to load a script from one. Not even the popup's remedy texts
+    // name the CDN host: they point to the docs, which do.
     it("dist carries no remote-code loader", () => {
       for (const file of scripts()) {
         const code = read(file);
@@ -140,7 +140,7 @@ describe.skipIf(!runSuite)(
         expect(code, file).not.toMatch(/createElement\(\s*["'`]script["'`]/);
         expect(code, file).not.toMatch(/\beval\s*\(|new Function\s*\(|\bimport\s*\(/);
         expect(code, file).not.toMatch(/https?:\/\/[^"'`\s]+\.js\b/);
-        if (file !== "popup.js") expect(code, file).not.toContain("jsdelivr");
+        expect(code, file).not.toContain("jsdelivr");
       }
       expect(read("popup.html")).not.toMatch(/<script[^>]+src=["'](?!popup\.js["'])/);
       expect(read("background.js")).not.toContain("executeScript");

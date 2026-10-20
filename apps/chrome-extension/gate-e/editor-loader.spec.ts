@@ -159,7 +159,7 @@ test("a script-src that does not allow the CDN is named in the popup with its re
     const error = await enableExpectingFailure(popup, page, launched, tabId);
 
     expect(error).toBe(
-      "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must also accept that URL in createScriptURL, and its trusted-types directive must allow vue.",
+      "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host, and what a site that enforces Trusted Types also needs.",
     );
     // The policy stopped the request before it left the page.
     expect(launched.cdnRequests).toEqual([]);
@@ -176,7 +176,7 @@ test("an unreachable CDN is named in the popup as a download failure", async () 
     const error = await enableExpectingFailure(popup, page, launched, tabId);
 
     expect(error).toBe(
-      "The editor could not be downloaded from cdn.jsdelivr.net. Check your connection and any filter that blocks that host, then try again. If the site pins an editor version, check that the version exists.",
+      "The editor could not be downloaded from its CDN. Check your connection and any filter that blocks it, then try again. If the site pins an editor version, check that the version exists.",
     );
     expect(launched.cdnRequests).toHaveLength(1);
     await popup.close();

@@ -202,7 +202,7 @@ test("a forged editor-loader hook gains nothing beyond the session the user open
 
     await test.step("a forged hook failure cannot make the popup recommend the page's host", async () => {
       await enableAndFail(
-        "This site's Content Security Policy blocked the editor. Allow https://cdn.jsdelivr.net in its script-src directive, then reload this page. If the site enforces Trusted Types, its default policy must also accept that URL in createScriptURL, and its trusted-types directive must allow vue.",
+        "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host, and what a site that enforces Trusted Types also needs.",
       );
     });
 

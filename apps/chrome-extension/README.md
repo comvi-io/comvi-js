@@ -48,15 +48,18 @@ under `try`/`catch` with a 12-second limit, the answer is read field by field,
 and the detector never reads the hook's `url` or creates a script element. If
 the editor cannot start, the popup names one reason and one remedy:
 
-| Popup says                                               | Cause                                                                                                        |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Comvi i18n not detected on this page                     | No instance composed `devtools()`                                                                            |
-| Comvi i18n vX found, but it cannot load the editor       | `@comvi/core` older than 0.6.0                                                                               |
-| This site's Content Security Policy blocked the editor   | `script-src` does not allow `https://cdn.jsdelivr.net`, or no Trusted Types `default` policy accepts the URL |
-| The editor could not be downloaded from cdn.jsdelivr.net | Network, a filter, or a pinned version that does not exist                                                   |
-| The editor did not finish loading … in time              | The CDN did not answer in time                                                                               |
-| cdn.jsdelivr.net answered, but …                         | The file served was not the editor                                                                           |
-| This site pins the editor with an invalid version        | `devtools({ editorVersion })` is not an exact version like `0.6.0`                                           |
+The popup names no CDN host: its CSP remedy points to comvi.io/docs/i18n/troubleshooting,
+which does, so the package carries no script host for the MV3 review to find.
+
+| Popup says                                             | Cause                                                                                                        |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Comvi i18n not detected on this page                   | No instance composed `devtools()`                                                                            |
+| Comvi i18n vX found, but it cannot load the editor     | `@comvi/core` older than 0.6.0                                                                               |
+| This site's Content Security Policy blocked the editor | `script-src` does not allow `https://cdn.jsdelivr.net`, or no Trusted Types `default` policy accepts the URL |
+| The editor could not be downloaded from its CDN        | Network, a filter, or a pinned version that does not exist                                                   |
+| The editor did not finish loading … in time            | The CDN did not answer in time                                                                               |
+| The editor's CDN answered, but …                       | The file served was not the editor                                                                           |
+| This site pins the editor with an invalid version      | `devtools({ editorVersion })` is not an exact version like `0.6.0`                                           |
 
 Every word of these messages is the extension's own, including the host. The
 popup never shows a sentence the page wrote: a failure travels from the page as
