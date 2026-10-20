@@ -893,7 +893,8 @@ test("read-after-write: a version npm accepted is waited for past the ~30 s of b
   assert.equal(result.outputs.publishedPackages, FULL_SET);
   assert.equal(ws.distTags("react").latest, "0.5.0");
   assert.doesNotMatch(result.log, /MISSING/);
-  assert.match(result.log, /waiting for npm to show @comvi\/react@0\.5\.0/);
+  // Every wait is logged, not only the first.
+  assert.ok(result.log.match(/waiting for npm to show @comvi\/react@0\.5\.0/g).length > 1);
   assert.ok(ws.npmCalls().match(/^view @comvi\/react@0\.5\.0 version/gm).length > 6);
 });
 

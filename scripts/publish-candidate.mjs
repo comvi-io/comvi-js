@@ -548,20 +548,19 @@ function lastLine(message) {
 function visibleAfterPublish(pkg, acceptedAt) {
   const poll = Number(process.env.COMVI_PUBLISH_VISIBLE_POLL_MS ?? 15_000);
   const deadline = acceptedAt + Number(process.env.COMVI_PUBLISH_VISIBLE_WAIT_MS ?? 600_000);
-  for (let attempt = 0; ; attempt++) {
+  for (;;) {
     try {
       if (!notOnNpm(pkg)) return true;
       if (Date.now() >= deadline) return false;
     } catch (error) {
       if (Date.now() >= deadline) throw error;
     }
-    if (attempt === 0) {
-      console.log(
-        `waiting for npm to show ${pkg.name}@${pkg.version} (accepted ` +
-          `${Math.round((Date.now() - acceptedAt) / 1000)} s ago; up to ` +
-          `${Math.round((deadline - Date.now()) / 1000)} s more)`,
-      );
-    }
+    // One line per wait, so a long wait shows in the log that it goes on.
+    console.log(
+      `waiting for npm to show ${pkg.name}@${pkg.version} (accepted ` +
+        `${Math.round((Date.now() - acceptedAt) / 1000)} s ago; up to ` +
+        `${Math.round((deadline - Date.now()) / 1000)} s more)`,
+    );
     sleep(Math.max(0, Math.min(poll, deadline - Date.now())));
   }
 }
