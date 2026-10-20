@@ -1,5 +1,14 @@
 # @comvi/plugin-in-context-editor
 
+## 0.6.0
+
+### Patch Changes
+
+- 1fb2046: The in-context editor counts its stylesheet as adopted wherever it sits among the shadow root's adopted sheets, and takes a half-finished adoption back before it falls back to a `<style>` element, so its styles are never applied twice.
+- 1fb2046: In the in-context editor, translation text no longer jumps to the right when you start editing a field, and the source language is now listed first with a neutral `Source` marker instead of an orange tint.
+- 1fb2046: The in-context editor now applies its styles through a constructable stylesheet instead of an inline `<style>` element, so it renders on sites whose Content Security Policy has a strict `style-src`; the standalone build also exposes its own `version` and reports the `devtools()` editor loader it found in `getStatus().hook`.
+- 1fb2046: The "Languages" picker in the in-context editor now shows all of its languages instead of letting the first translation field draw over them.
+
 ## 0.5.0
 
 ### Minor Changes
