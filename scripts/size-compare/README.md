@@ -13,16 +13,18 @@ packages never enter the monorepo lockfile.
 package from the registry at the version `package.json` pins, `@comvi/*` included, and the three
 lockfiles (here, `nuxt/apps/comvi-nuxt` and `nuxt/apps/comvi-nuxt-icu`) are committed. The
 2026-10-14 run had measured 0.6.0 before publication, from release tarballs built at `a74da136`;
-two changes landed after it (comvi-js #94 and #95), and on the published packages thirteen Comvi
-rows moved by −3 to +5 gzip bytes. No row of another library moved.
+two changes landed after it (comvi-js #94 and #95). On the published packages ten Comvi rows moved
+by −3 to +4 gzip bytes and three more changed only in minified bytes. No row of another library
+moved.
 
 **The runtime figures are still the 2026-10-14 run**, the median of eight, on that pre-publish
 build. Comvi's runtime code changed after it only by a `try`/`finally` around one plural branch
 (#95), which the core's A/B perf gate measured as no change. A 2026-10-20 re-run on the same
-machine and Node 24.20.0 is kept as `bench-2026-10-20-run*.txt` and **cited nowhere**: it read
-`vue-i18n` about 25 % slower than on 2026-10-14 with the same resolved `vue-i18n` and `@intlify/*`
-11.4.14, while every other library moved by 2 to 5 %. Until that is explained, the pages keep the
-run that matches the method below.
+machine and Node 24.20.0 is kept as `bench-2026-10-20-run*.txt` and **cited nowhere**. It
+recorded 18 to 24 % lower throughput for `vue-i18n` in its four warm scenarios and 5.5 % lower in
+the catalog one, with the same resolved `vue-i18n` and `@intlify/*` 11.4.14, while the other cited
+rows ranged from 0.5 % faster to 6.1 % slower. Both runs pass `bench-table.mjs`. Until that
+difference is explained, the pages keep the 2026-10-14 runtime figures.
 
 Deleting a lockfile loses a pinned transitive resolution, which matters for reproducing a
 measurement, so note where that record actually lives: `package.json` pins every competitor to an
@@ -119,7 +121,7 @@ retain exports rather than call `t()`); the ICU Nuxt app's message has two param
 - What ICU adds is measured on each side with the message text held constant: the plural message
   on Comvi's simple compiler against the same message on `icuCompiler`, and the same message on
   bare `i18next` against `i18next` + `i18next-icu`. Subtracting two fixtures with different texts
-  gives a slightly different number (1,234 B instead of 1,221 B for Comvi); the pages cite the
+  gives a slightly different number (1,236 B instead of 1,223 B for Comvi); the pages cite the
   constant-text figure. `intl-messageformat` alone is listed as a fact about that package and
   carries no ratio, because Comvi has no standalone equivalent to put next to it.
 - `vue-i18n` is measured twice, with the feature flags a production Vite build would set
@@ -338,7 +340,7 @@ both numbers are recorded here. The two Nuxt entries that compose `devtools()` c
 loader, which is why `fw-nuxt-i18n` grew 1,121 bytes over 0.5.0 and `fw-nuxt-full-composite` 1,138,
 while `fw-nuxt-client-default`, which does not compose it, grew 166.
 
-### ICU runtime, 2026-10-14, the median of eight runs
+### ICU runtime, 2026-10-14, the median of eight runs, on 0.6.0 before publication (`a74da136`)
 
 Apple M1 Max, darwin arm64, Node v24.20.0, `NODE_ENV=production`, one-minute load average at the
 start of each run 3.09, 4.35, 4.42, 4.51, 5.09, 3.95, 3.86, 4.50. Warm rows in million calls per
@@ -434,15 +436,16 @@ now one message text on every side and the former "default `#`" row became equal
 
 ## Where the Comvi figures come from
 
-The Comvi rows reproduce `scripts/size-check.mjs` on the 0.6.0 release tarballs to the byte
-(`core-base` 5,608, `core-base-icu` 6,842, `fw-react-default` 7,605, `platform-path-react` 12,157,
-`fw-vue-default` 7,712, `fw-next-client-default` 8,209, `fw-next-root-composed` 10,101,
-`fw-next-middleware-edge` 2,045, `fw-nuxt-client-default` 8,728, `fw-nuxt-i18n` 9,647,
-`fw-nuxt-full-composite` 14,499 on 2026-10-14, Node 24.20.0 on both sides). Run the gate on the
+The Comvi rows reproduce `scripts/size-check.mjs` on the published 0.6.0 packages to the byte
+(`core-base` 5,607, `core-base-icu` 6,843, `fw-react-default` 7,606, `platform-path-react` 12,157,
+`fw-vue-default` 7,709, `fw-next-client-default` 8,209, `fw-next-root-composed` 10,105,
+`fw-next-middleware-edge` 2,045, `fw-nuxt-client-default` 8,729, `fw-nuxt-i18n` 9,646,
+`fw-nuxt-full-composite` 14,499 on 2026-10-20, 0.6.0 from npm, Node 24.20.0 on both sides). Run the gate on the
 same Node: on Node 26.9.0 its 25 rows run from 24 B smaller to 9 B larger, because gzip differs,
-and the two would look as if they disagreed. The `baseline` values in `scripts/size-budgets.json` are
-recorded per release and are lower than the released figure; public pages should cite the figure
-measured on the released version, not the baseline.
+and the two would look as if they disagreed. The `baseline` values in `scripts/size-budgets.json` record
+the size gate's own measurement of the released bytes; the rows above match the harness except
+`fw-next-server-provider` (2,052 in the gate, 1,980 here), whose external imports the two resolvers
+walk differently. Public pages cite the harness figure, the method they state.
 
 ## Nuxt: measured with Nuxt's own build
 
