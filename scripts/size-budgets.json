@@ -12,10 +12,10 @@
         "@comvi/core/devtools"
       ],
       "fixture": "core-full-composite.ts",
-      "gzipBudgetBytes": 11105,
+      "gzipBudgetBytes": 11104,
       "baseline": {
         "minBytes": 29140,
-        "gzipBytes": 10576,
+        "gzipBytes": 10575,
         "measuredAt": "2026-10-14"
       },
       "note": "Gated core ceiling: all six core subpaths recomposed with `.use(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
@@ -204,10 +204,10 @@
       "entry": ["@comvi/next"],
       "fixture": "framework/next-root-devtools.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 11836,
+      "gzipBudgetBytes": 11837,
       "baseline": {
         "minBytes": 31065,
-        "gzipBytes": 11272,
+        "gzipBytes": 11273,
         "measuredAt": "2026-10-14"
       },
       "note": "Gated Next recommended path with `.use(devtools())`: the `fw-next-root-composed` graph plus discovery and the editor loader, the only Next row that carries `@comvi/core/devtools`."
