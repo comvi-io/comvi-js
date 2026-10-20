@@ -1,5 +1,20 @@
 # @comvi/solid
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+  - @comvi/core@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
