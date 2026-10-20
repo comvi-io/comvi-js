@@ -25,6 +25,8 @@
   &nbsp;·&nbsp;
   <b><a href="https://comvi.io/docs/i18n/quick-start">Quick start</a></b>
   &nbsp;·&nbsp;
+  <b><a href="examples/README.md">Live examples</a></b>
+  &nbsp;·&nbsp;
   <b><a href="https://comvi.io">Comvi Platform</a></b>
 </p>
 
@@ -50,15 +52,15 @@ npm install @comvi/solid
 npm install @comvi/core     # vanilla JavaScript
 ```
 
-| Framework          | Package         | Peer dependencies | Guide                                         |
-| ------------------ | --------------- | ----------------- | --------------------------------------------- |
-| Vanilla JavaScript | `@comvi/core`   | none              | [Vanilla](https://comvi.io/docs/i18n/vanilla) |
-| React              | `@comvi/react`  | `react`           | [React](https://comvi.io/docs/i18n/react)     |
-| Next.js            | `@comvi/next`   | `next`, `react`   | [Next.js](https://comvi.io/docs/i18n/next)    |
-| Vue                | `@comvi/vue`    | `vue`             | [Vue](https://comvi.io/docs/i18n/vue)         |
-| Nuxt               | `@comvi/nuxt`   | `nuxt`            | [Nuxt](https://comvi.io/docs/i18n/nuxt)       |
-| Svelte             | `@comvi/svelte` | `svelte`          | [Svelte](https://comvi.io/docs/i18n/svelte)   |
-| Solid              | `@comvi/solid`  | `solid-js`        | [Solid](https://comvi.io/docs/i18n/solid)     |
+| Framework          | Package         | Peer dependencies | Guide                                         | Try it                                                                                   |
+| ------------------ | --------------- | ----------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Vanilla JavaScript | `@comvi/core`   | none              | [Vanilla](https://comvi.io/docs/i18n/vanilla) | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla) |
+| React              | `@comvi/react`  | `react`           | [React](https://comvi.io/docs/i18n/react)     | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/react)   |
+| Next.js            | `@comvi/next`   | `next`, `react`   | [Next.js](https://comvi.io/docs/i18n/next)    | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/next)    |
+| Vue                | `@comvi/vue`    | `vue`             | [Vue](https://comvi.io/docs/i18n/vue)         | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vue)     |
+| Nuxt               | `@comvi/nuxt`   | `nuxt`            | [Nuxt](https://comvi.io/docs/i18n/nuxt)       | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/nuxt)    |
+| Svelte             | `@comvi/svelte` | `svelte`          | [Svelte](https://comvi.io/docs/i18n/svelte)   | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/svelte)  |
+| Solid              | `@comvi/solid`  | `solid-js`        | [Solid](https://comvi.io/docs/i18n/solid)     | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/solid)   |
 
 The packages are ESM-only and versioned in lockstep, so install matching versions of every
 `@comvi/*` package. The runtime packages need Node 20 or newer; `@comvi/cli` and

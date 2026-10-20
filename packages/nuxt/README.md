@@ -13,6 +13,7 @@
   <a href="https://www.npmjs.com/package/@comvi/nuxt"><img src="https://img.shields.io/npm/v/@comvi/nuxt?color=blue" alt="npm"></a>
   <a href="https://bundlephobia.com/package/@comvi/nuxt"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/nuxt?label=minzip" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/nuxt"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
 
 ---
