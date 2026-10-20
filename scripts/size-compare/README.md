@@ -9,28 +9,24 @@ or gzip level, and a ratio between two minimal fixtures describes those fixtures
 This directory is a standalone package, deliberately outside the pnpm workspace, so the competitor
 packages never enter the monorepo lockfile.
 
-**The 2026-10-14 run measured 0.6.0 before it was published.** The six `@comvi/*` entries in
-`package.json` name 0.6.0, which is the form to install once the release is on npm; the run itself
-installed the twelve release tarballs built from `a74da136` with pnpm `overrides` pointing at
-`file:` paths, so the bytes measured are the bytes npm receives. The run is to be repeated against
-the registry after the release and the artifacts replaced if anything moves. Every other package
-is a registry install at the pinned version.
+**The size figures are from 2026-10-20, on 0.6.0 as published.** This directory installs every
+package from the registry at the version `package.json` pins, `@comvi/*` included, and the three
+lockfiles (here, `nuxt/apps/comvi-nuxt` and `nuxt/apps/comvi-nuxt-icu`) are committed. The
+2026-10-14 run had measured 0.6.0 before publication, from release tarballs built at `a74da136`;
+two changes landed after it (comvi-js #94 and #95), and on the published packages thirteen Comvi
+rows moved by −3 to +5 gzip bytes. No row of another library moved.
 
-**There is no lockfile for the three manifests that name 0.6.0**, and that is deliberate until the
-release is on npm. A lockfile cannot resolve a version that is not published, and one carrying the
-local `file:` paths of a pre-publish run would be worse than none. Leaving the old 0.5.0 lockfiles
-in place was worse still: with them, a clean clone fails with `ERR_PNPM_OUTDATED_LOCKFILE` listing
-`react` and `vue` mismatches, which points at the wrong problem. Without them it fails with
-`ERR_PNPM_NO_MATCHING_VERSION` and "the latest release of @comvi/nuxt is 0.5.0", which is the
-actual reason. Both were checked by copying the manifests into an empty directory and installing.
-
-So: **after the release is on npm, run `pnpm install` here and in `nuxt/apps/comvi-nuxt` and
-`nuxt/apps/comvi-nuxt-icu`, and commit the three lockfiles it writes.** The `bare` and `nuxt-i18n`
-apps depend on no `@comvi` package, so their lockfiles are unaffected and stay.
+**The runtime figures are still the 2026-10-14 run**, the median of eight, on that pre-publish
+build. Comvi's runtime code changed after it only by a `try`/`finally` around one plural branch
+(#95), which the core's A/B perf gate measured as no change. A 2026-10-20 re-run on the same
+machine and Node 24.20.0 is kept as `bench-2026-10-20-run*.txt` and **cited nowhere**: it read
+`vue-i18n` about 25 % slower than on 2026-10-14 with the same resolved `vue-i18n` and `@intlify/*`
+11.4.14, while every other library moved by 2 to 5 %. Until that is explained, the pages keep the
+run that matches the method below.
 
 Deleting a lockfile loses a pinned transitive resolution, which matters for reproducing a
 measurement, so note where that record actually lives: `package.json` pins every competitor to an
-exact version, and `results-2026-10-14.json` records the resolved version of every package that
+exact version, and `results-<date>.json` records the resolved version of every package that
 landed in every measured bundle. The figures can be traced without the lockfile; the lockfile only
 makes re-installing faster.
 
@@ -60,9 +56,9 @@ artifacts stay directly comparable with these. The artifacts of 2026-10-14 were 
 
 `results-2026-10-14-node26.json` and `-node26.md` are that same run on Node 26.9.0, kept as the
 evidence for the paragraph above and for nothing else. **No public page cites a figure from those
-two files.** Every number on the comparison pages comes from `results-2026-10-14.json`, the
-`bench-2026-10-14-run*.txt` files, `nuxt/measure-2026-10-14.txt` and
-`nuxt/attribute-2026-10-14.txt`, all taken on Node 24.20.0.
+two files.** Every number on the comparison pages comes from `results-2026-10-20.json`,
+`nuxt/measure-2026-10-20.txt` and `nuxt/attribute-2026-10-20.txt` for sizes and from the
+`bench-2026-10-14-run*.txt` files for runtime, all taken on Node 24.20.0.
 
 `pnpm size`, the size gate in the repository root, has to be run on the same Node as this harness
 for the two to be compared. Measured on its own 25 rows on 2026-10-14, Node 26.9.0 against Node
@@ -290,47 +286,47 @@ request or per isolate, which is the catalog row.
 
 ## Results
 
-### Size, min+gz bytes, measured 2026-10-14 on Comvi 0.6.0
+### Size, min+gz bytes, measured 2026-10-20 on Comvi 0.6.0 from npm
 
 Node v24.20.0, esbuild 0.28.0. The full table with the packages inside each bundle is in
-`results-2026-10-14.md`; the raw data in `results-2026-10-14.json`. The 0.5.0 run of 2026-10-11 is
-kept beside it under its own date.
+`results-2026-10-20.md`; the raw data in `results-2026-10-20.json`. The pre-publish run of
+2026-10-14 and the 0.5.0 run of 2026-10-11 are kept beside it under their own dates.
 
 | Group                                                                                                                           |                            Comvi |                                                                        Other | Ratio |
 | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------: | ---------------------------------------------------------------------------: | ----: |
-| core, interpolation only on the Comvi side                                                                                      |              `@comvi/core` 5,608 |                                                             `i18next` 14,070 |  2.5× |
-| core+icu                                                                                                                        |        `@comvi/core` + ICU 6,842 |                                             `i18next` + `i18next-icu` 25,749 |  3.8× |
-| core+icu                                                                                                                        |                            6,842 |                                                       `use-intl/core` 11,277 |  1.6× |
-| what ICU adds, same message text on both sides                                                                                  |           +1,221 (6,842 − 5,621) | `i18next-icu` + `intl-messageformat` on `i18next`: +11,674 (25,749 − 14,075) |  9.6× |
+| core, interpolation only on the Comvi side                                                                                      |              `@comvi/core` 5,607 |                                                             `i18next` 14,070 |  2.5× |
+| core+icu                                                                                                                        |        `@comvi/core` + ICU 6,843 |                                             `i18next` + `i18next-icu` 25,749 |  3.8× |
+| core+icu                                                                                                                        |                            6,843 |                                                       `use-intl/core` 11,277 |  1.6× |
+| what ICU adds, same message text on both sides                                                                                  |           +1,223 (6,843 − 5,620) | `i18next-icu` + `intl-messageformat` on `i18next`: +11,674 (25,749 − 14,075) |  9.5× |
 | the ICU engine alone, no ratio                                                                                                  |                                — |                                   `intl-messageformat` with its parser 9,894 |     — |
-| react, without the ICU compiler on the Comvi side and without `i18next-icu` on the other (i18next keeps its suffix-key plurals) |             `@comvi/react` 7,605 |                                           `i18next` + `react-i18next` 19,660 |  2.6× |
-| react, ICU on both sides                                                                                                        |       `@comvi/react` + ICU 8,806 |                                                            `use-intl` 11,567 |  1.3× |
+| react, without the ICU compiler on the Comvi side and without `i18next-icu` on the other (i18next keeps its suffix-key plurals) |             `@comvi/react` 7,606 |                                           `i18next` + `react-i18next` 19,660 |  2.6× |
+| react, ICU on both sides                                                                                                        |       `@comvi/react` + ICU 8,808 |                                                            `use-intl` 11,567 |  1.3× |
 | react+icu+loader                                                                                                                |                           12,157 |                      `i18next` + `react-i18next` + ICU + http-backend 33,865 |  2.8× |
-| vue, plural engine on both sides                                                                                                |         `@comvi/vue` + ICU 8,932 |                                      `vue-i18n` runtime compiler kept 18,693 |  2.1× |
-| vue, plural engine on both sides                                                                                                |                            8,932 |             `vue-i18n` precompiled message function, compiler dropped 13,764 |  1.5× |
-| vue, Comvi without ICU, for reference                                                                                           |               `@comvi/vue` 7,712 |                                                                            — |     — |
+| vue, plural engine on both sides                                                                                                |         `@comvi/vue` + ICU 8,935 |                                      `vue-i18n` runtime compiler kept 18,693 |  2.1× |
+| vue, plural engine on both sides                                                                                                |                            8,935 |             `vue-i18n` precompiled message function, compiler dropped 13,764 |  1.5× |
+| vue, Comvi without ICU, for reference                                                                                           |               `@comvi/vue` 7,709 |                                                                            — |     — |
 | next-client, ICU on both sides                                                                                                  | `@comvi/next/client` + ICU 9,427 |                                                    `next-intl` client 12,512 |  1.3× |
 | next-client, Comvi without ICU, for reference                                                                                   |       `@comvi/next/client` 8,209 |                                                                            — |     — |
 
-What moved between 0.5.0 and 0.6.0: every Comvi row with the ICU compiler grew by 320 to 336 bytes
-and every row without it by 154 to 180, which is `#` being formatted for the locale plus the editor
-loader `devtools()` installs. `@comvi/next` root composed went **down** 54 bytes, because
+What moved between 0.5.0 and 0.6.0: every Comvi row with the ICU compiler grew by 320 to 338 bytes
+and every row without it by 153 to 181, which is `#` being formatted for the locale plus the editor
+loader `devtools()` installs. `@comvi/next` root composed went **down** 50 bytes, because
 `createNextI18n` no longer composes discovery. On the other side only `i18next` moved, from 26.4.3
 to 26.4.4; `intl-messageformat`, `use-intl`, `next-intl` and `vue-i18n` reproduced their 2026-10-11
 bytes exactly, which is the control that says the toolchain did not drift.
 
 ### Comvi-only rows that the pages cite, 0.6.0, min+gz bytes
 
-The same fixtures and externals as the size gate, bundled from the release tarballs with the
+The same fixtures and externals as the size gate, bundled from the published packages with the
 configuration above:
 
 | Row                                                        |  Bytes |
 | ---------------------------------------------------------- | -----: |
-| `@comvi/next` root composed (fw-next-root-composed)        | 10,101 |
+| `@comvi/next` root composed (fw-next-root-composed)        | 10,105 |
 | `@comvi/next/server` provider (fw-next-server-provider)    |  1,980 |
 | `@comvi/next/middleware` (fw-next-middleware-edge)         |  2,045 |
-| `@comvi/nuxt` client runtime (fw-nuxt-client-default)      |  8,728 |
-| `@comvi/nuxt/i18n` entry, nothing external (fw-nuxt-i18n)  |  9,647 |
+| `@comvi/nuxt` client runtime (fw-nuxt-client-default)      |  8,729 |
+| `@comvi/nuxt/i18n` entry, nothing external (fw-nuxt-i18n)  |  9,646 |
 | `@comvi/nuxt` everything composed (fw-nuxt-full-composite) | 14,499 |
 
 Five of the six match `scripts/size-check.mjs` on the same code to the byte, Node 24.20.0 on both
@@ -339,8 +335,8 @@ sides. The server-provider row is 1,980 B here and 2,052 B in the gate: the gate
 installed tarballs, and the two walk the `*/client/ComviClientProvider.js` external slightly
 differently. The pages cite the harness figure, because the page states this harness as its method;
 both numbers are recorded here. The two Nuxt entries that compose `devtools()` carry the editor
-loader, which is why `fw-nuxt-i18n` grew 1,122 bytes over 0.5.0 and `fw-nuxt-full-composite` 1,138,
-while `fw-nuxt-client-default`, which does not compose it, grew 165.
+loader, which is why `fw-nuxt-i18n` grew 1,121 bytes over 0.5.0 and `fw-nuxt-full-composite` 1,138,
+while `fw-nuxt-client-default`, which does not compose it, grew 166.
 
 ### ICU runtime, 2026-10-14, the median of eight runs
 
@@ -477,24 +473,25 @@ cd ../.. && node measure.mjs apps/bare apps/comvi-nuxt apps/comvi-nuxt-icu apps/
 cd .. && mv ../size-compare-node_modules-parked node_modules
 ```
 
-### Results (Nuxt 4.6.1, @nuxtjs/i18n 10.6.0, @comvi/nuxt 0.6.0, 2026-10-14, Node 24.20.0)
+### Results (Nuxt 4.6.1, @nuxtjs/i18n 10.6.0, @comvi/nuxt 0.6.0 from npm, 2026-10-20, Node 24.20.0)
 
 | App                                             | JS files |   min B | gzip B | Δ gzip vs bare | entry file gzip | Δ entry vs bare |
 | ----------------------------------------------- | -------: | ------: | -----: | -------------: | --------------: | --------------: |
-| bare                                            |        4 | 144,943 | 54,453 |              — |          49,167 |               — |
-| @nuxtjs/i18n                                    |        5 | 229,147 | 82,572 |        +28,119 |          79,516 |         +30,349 |
-| @comvi/nuxt, default compiler                   |        4 | 184,727 | 66,879 |        +12,426 |          63,888 |         +14,721 |
-| @comvi/nuxt, `icu: true` (ICU compiler enabled) |        4 | 187,891 | 68,064 |        +13,611 |          65,073 |         +15,906 |
+| bare                                            |        4 | 144,943 | 54,453 |              — |          49,165 |               — |
+| @nuxtjs/i18n                                    |        5 | 229,147 | 82,572 |        +28,119 |          79,516 |         +30,351 |
+| @comvi/nuxt, default compiler                   |        4 | 184,796 | 66,882 |        +12,429 |          63,890 |         +14,725 |
+| @comvi/nuxt, `icu: true` (ICU compiler enabled) |        4 | 187,965 | 68,071 |        +13,618 |          65,079 |         +15,914 |
 
 The bare and `@nuxtjs/i18n` apps reproduce their 2026-10-10 minified bytes exactly, 144,943 and
 229,147, which is the control that says this build is the same build; their gzip totals differ by
-one byte, from the chunk hashes in the manifest. On the Comvi side 0.6.0 adds 160 gzip bytes with
-the default compiler and 372 with `icu: true` over 0.5.0.
+a few bytes, from the chunk hashes in the manifest. On the Comvi side 0.6.0 adds 163 gzip bytes with
+the default compiler and 379 with `icu: true` over 0.5.0.
 
 Per package, minified bytes in the entry chunk (from the source-mapped build of the default-compiler
 app): `@nuxtjs/i18n` 21,479 + `@intlify/message-compiler` 16,905 + `@intlify/core-base` 14,966 +
-`vue-i18n` 14,589 + `@intlify/shared` 3,363 on one side; `@comvi/core` 16,734 + `@comvi/nuxt` 6,160 +
-`@comvi/vue` 5,706 on the other (19,873 for `@comvi/core` in the `icu: true` app). Every
+`vue-i18n` 14,589 + `@intlify/shared` 3,363 on one side; `@comvi/core` 16,734 + `@comvi/nuxt` 6,127 +
+`@comvi/vue` 5,706 on the other (19,878 for `@comvi/core` in the `icu: true` app); in the Comvi apps
+3,568 bytes no longer map to a source file, against none on 2026-10-14. Every
 `@nuxtjs/i18n`-side figure is unchanged from 2026-10-10. Both pull the same `cookie-es`, `ohash`
 and `klona` for the locale cookie.
 
