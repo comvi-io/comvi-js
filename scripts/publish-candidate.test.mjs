@@ -324,6 +324,8 @@ if (command === "view" && rest[1] === "dist.integrity") {
   if (sri) process.stdout.write(JSON.stringify(sri) + "\\n");
 } else if (command === "view" && rest[1] === "version") {
   const [name, version] = split(rest[0]);
+  // Accepted, but not shown before visibleAt (FAKE_NPM_LATE: minutes on npm).
+  if (state[name]?.visibleAt?.[version] > Date.now()) e404();
   if (state[name]?.lag) {
     state[name].lag -= 1;
     save();
@@ -349,6 +351,9 @@ if (command === "view" && rest[1] === "dist.integrity") {
   pkg.integrity = { ...pkg.integrity, [manifest.version]: "sha512-" + require("node:crypto").createHash("sha512").update(fs.readFileSync(rest[0])).digest("base64") };
   // Read-after-write lag: the next lookup of this version still 404s.
   if (listed("FAKE_NPM_LAG").includes(manifest.name)) pkg.lag = 1;
+  if (listed("FAKE_NPM_LATE").includes(manifest.name)) {
+    pkg.visibleAt = { ...pkg.visibleAt, [manifest.version]: Date.now() + Number(process.env.FAKE_NPM_LATE_MS) };
+  }
   pkg.tags[tag] = manifest.version;
   save();
 } else if (command === "dist-tag" && rest[0] === "add") {
@@ -434,6 +439,9 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     fail = [],
     failPromote = [],
     lag = [],
+    late = [],
+    lateMs = 0,
+    visibleWaitMs = 5000,
     failIntegrity = [],
     dryRun = false,
     attempt,
@@ -449,8 +457,12 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
       FAKE_NPM_FAIL: fail.join(","),
       FAKE_NPM_FAIL_PROMOTE: failPromote.join(","),
       FAKE_NPM_LAG: lag.join(","),
+      FAKE_NPM_LATE: late.join(","),
+      FAKE_NPM_LATE_MS: String(lateMs),
       FAKE_NPM_FAIL_INTEGRITY: failIntegrity.join(","),
       COMVI_PUBLISH_RECHECK_MS: "10",
+      COMVI_PUBLISH_VISIBLE_POLL_MS: "20",
+      COMVI_PUBLISH_VISIBLE_WAIT_MS: String(visibleWaitMs),
     };
     delete env.GITHUB_RUN_ATTEMPT;
     if (attempt !== undefined) env.GITHUB_RUN_ATTEMPT = String(attempt);
@@ -869,6 +881,33 @@ test("read-after-write: a version this run published that npm does not show yet 
   assert.equal(result.status, 0, result.log);
   assert.equal(result.outputs.published, "true");
   assert.equal(ws.npmCalls().match(/^view @comvi\/react@0\.5\.0 version/gm).length, 3);
+});
+
+test("read-after-write: a version npm accepted is waited for past the ~30 s of backoff (0.6.0: react showed after ~4 min)", (t) => {
+  const ws = releaseWorkspace(t);
+  // Backoff alone (COMVI_PUBLISH_RECHECK_MS 10 ms: 10 + 20 + 40 + 80 ms) gives
+  // up long before react shows; the visibility wait does not.
+  const result = ws.run({ late: ["@comvi/react"], lateMs: 1500, visibleWaitMs: 20_000 });
+  assert.equal(result.status, 0, result.log);
+  assert.equal(result.outputs.published, "true");
+  assert.equal(result.outputs.publishedPackages, FULL_SET);
+  assert.equal(ws.distTags("react").latest, "0.5.0");
+  assert.doesNotMatch(result.log, /MISSING/);
+  assert.match(result.log, /waiting for npm to show @comvi\/react@0\.5\.0/);
+  assert.ok(ws.npmCalls().match(/^view @comvi\/react@0\.5\.0 version/gm).length > 6);
+});
+
+test("read-after-write: a version npm accepted but never shows within the wait is MISSING, and nothing is promoted", (t) => {
+  const ws = releaseWorkspace(t);
+  const started = Date.now();
+  const result = ws.run({ late: ["@comvi/react"], lateMs: 600_000, visibleWaitMs: 400 });
+  assert.ok(Date.now() - started < 30_000, "the wait stops at COMVI_PUBLISH_VISIBLE_WAIT_MS");
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.match(result.log, /@comvi\/react@0\.5\.0\s+MISSING/);
+  assert.doesNotMatch(ws.npmCalls(), /^dist-tag add/m);
+  assert.equal(ws.distTags("core").latest, "0.4.1");
+  assert.equal(ws.remoteTags()["v0.5.0"], undefined);
 });
 
 test("first-ever version: a package with no dist-tags on npm gets a warning, and the run goes on", (t) => {

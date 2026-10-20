@@ -511,7 +511,9 @@ function distTagsOf(pkg) {
  * lag its writes, so an observation that is not settled yet is asked again a
  * few times, backing off from COMVI_PUBLISH_RECHECK_MS (2 s) and doubling:
  * about 30 s in all. A read that throws (a transient registry error) is asked
- * again the same way; the last attempt's error is rethrown.
+ * again the same way; the last attempt's error is rethrown. A version this
+ * run's `npm publish` was accepted for is not asked here: npm can take
+ * minutes to show one, so visibleAfterPublish waits for it much longer.
  */
 function askAgain(read, settled = () => true) {
   const base = Number(process.env.COMVI_PUBLISH_RECHECK_MS ?? 2000);
@@ -522,8 +524,12 @@ function askAgain(read, settled = () => true) {
     } catch (error) {
       if (attempt === 4) throw error;
     }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, base * 2 ** attempt);
+    sleep(base * 2 ** attempt);
   }
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 /** The last non-empty line of an error message: where npm puts the cause. */
@@ -531,9 +537,33 @@ function lastLine(message) {
   return message.trim().split("\n").at(-1).trim();
 }
 
-/** Whether a version this run just published is visible yet. */
-function visibleAfterPublish(pkg) {
-  return askAgain(() => !notOnNpm(pkg), Boolean);
+/**
+ * Whether a version this run's `npm publish` was accepted for is visible.
+ * npm can take minutes to show an accepted version (0.6.0's react: about
+ * 4 min after `+ @comvi/react@0.6.0`), so it is asked every
+ * COMVI_PUBLISH_VISIBLE_POLL_MS (15 s) until COMVI_PUBLISH_VISIBLE_WAIT_MS
+ * (10 min) after npm accepted it, then counts as missing. A read that throws
+ * is asked again the same way; past the deadline its error is rethrown.
+ */
+function visibleAfterPublish(pkg, acceptedAt) {
+  const poll = Number(process.env.COMVI_PUBLISH_VISIBLE_POLL_MS ?? 15_000);
+  const deadline = acceptedAt + Number(process.env.COMVI_PUBLISH_VISIBLE_WAIT_MS ?? 600_000);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      if (!notOnNpm(pkg)) return true;
+      if (Date.now() >= deadline) return false;
+    } catch (error) {
+      if (Date.now() >= deadline) throw error;
+    }
+    if (attempt === 0) {
+      console.log(
+        `waiting for npm to show ${pkg.name}@${pkg.version} (accepted ` +
+          `${Math.round((Date.now() - acceptedAt) / 1000)} s ago; up to ` +
+          `${Math.round((deadline - Date.now()) / 1000)} s more)`,
+      );
+    }
+    sleep(Math.max(0, Math.min(poll, deadline - Date.now())));
+  }
 }
 
 /**
@@ -762,6 +792,7 @@ function publish(options) {
     }
   }
 
+  const acceptedAt = new Map();
   const { published, failed } = publishAll(pending, (pkg) => {
     // The staging tag keeps `latest`/`next` still until the whole set is on
     // npm (except for a first-ever version: see the warning above).
@@ -769,6 +800,7 @@ function publish(options) {
     if (options.dryRun) args.push("--dry-run");
     console.log(`publishing ${pkg.file} (sha256 ${fileDigest(pkg.tarball)})`);
     sh("npm", args);
+    acceptedAt.set(pkg.name, Date.now());
   });
 
   // The transaction: what npm has NOW, for every candidate. A dry run
@@ -788,7 +820,7 @@ function publish(options) {
       onNpm = options.dryRun
         ? published.includes(pkg) || !notOnNpm(pkg)
         : published.includes(pkg)
-          ? visibleAfterPublish(pkg)
+          ? visibleAfterPublish(pkg, acceptedAt.get(pkg.name))
           : !notOnNpm(pkg);
       if (onNpm) distTags = distTagsOf(pkg);
     } catch (error) {
