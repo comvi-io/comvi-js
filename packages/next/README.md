@@ -210,6 +210,12 @@ i18n instance with `createNextI18nFromInstance` in a server-only module, or hand
 - [Locale routing](https://comvi.io/docs/i18n/guides/next-routing): `defineRouting`, the middleware and localized links.
 - [Next.js API reference](https://comvi.io/docs/i18n/api/next): every export of every entry.
 
+## Contributing
+
+Bug reports, docs fixes and pull requests are welcome.
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
+and what CI checks.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi

@@ -143,6 +143,12 @@ outside `string` and `number`.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): how the augmentation reaches `useI18n()`, and `InferKeys`.
 - [comvi typegen](https://comvi.io/docs/cli/typegen): the same declarations from the platform schema.
 
+## Contributing
+
+Bug reports, docs fixes and pull requests are welcome.
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
+and what CI checks.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi

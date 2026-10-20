@@ -157,6 +157,12 @@ independent.
 - [SvelteKit SSR](https://comvi.io/docs/i18n/ssr#sveltekit-and-solidstart): the server `load`, the layout and a page.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `$t` autocompletes.
 
+## Contributing
+
+Bug reports, docs fixes and pull requests are welcome.
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
+and what CI checks.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi
