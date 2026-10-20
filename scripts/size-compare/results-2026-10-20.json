@@ -1,0 +1,658 @@
+{
+  "measuredAt": "2026-10-20",
+  "node": "v24.20.0",
+  "loadAverage": [
+    4.279296875,
+    4.38134765625,
+    4.76611328125
+  ],
+  "esbuild": "0.28.0",
+  "conditions": [
+    "production",
+    "import",
+    "module",
+    "browser"
+  ],
+  "rows": [
+    {
+      "group": "core",
+      "name": "@comvi/core",
+      "fixture": "comvi-core.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 15069,
+      "gzipBytes": 5607,
+      "packages": [
+        "@comvi/core"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0"
+      }
+    },
+    {
+      "group": "core",
+      "name": "i18next",
+      "fixture": "i18next-core.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 43683,
+      "gzipBytes": 14070,
+      "packages": [
+        "i18next"
+      ],
+      "versions": {
+        "i18next": "26.4.4"
+      }
+    },
+    {
+      "group": "core+icu",
+      "name": "@comvi/core + /icu",
+      "fixture": "comvi-core-icu.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 18262,
+      "gzipBytes": 6843,
+      "packages": [
+        "@comvi/core"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0"
+      }
+    },
+    {
+      "group": "core+icu",
+      "name": "@comvi/core, same plural text, simple compiler (no ICU)",
+      "fixture": "comvi-core-plural-text-no-icu.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 15089,
+      "gzipBytes": 5620,
+      "packages": [
+        "@comvi/core"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0"
+      }
+    },
+    {
+      "group": "core+icu",
+      "name": "i18next + i18next-icu",
+      "fixture": "i18next-core-icu.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 82452,
+      "gzipBytes": 25749,
+      "packages": [
+        "@formatjs/fast-memoize",
+        "@formatjs/icu-messageformat-parser",
+        "@formatjs/icu-skeleton-parser",
+        "i18next",
+        "i18next-icu",
+        "intl-messageformat"
+      ],
+      "versions": {
+        "i18next": "26.4.4",
+        "i18next-icu": "2.5.0",
+        "@formatjs/fast-memoize": "3.1.7",
+        "@formatjs/icu-skeleton-parser": "2.1.12",
+        "@formatjs/icu-messageformat-parser": "3.5.21",
+        "intl-messageformat": "12.1.3"
+      }
+    },
+    {
+      "group": "core+icu",
+      "name": "i18next, same plural text, no i18next-icu",
+      "fixture": "i18next-core-plural-text.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 43701,
+      "gzipBytes": 14075,
+      "packages": [
+        "i18next"
+      ],
+      "versions": {
+        "i18next": "26.4.4"
+      }
+    },
+    {
+      "group": "core+icu",
+      "name": "intl-messageformat alone",
+      "fixture": "intl-messageformat.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 33522,
+      "gzipBytes": 9894,
+      "packages": [
+        "@formatjs/fast-memoize",
+        "@formatjs/icu-messageformat-parser",
+        "@formatjs/icu-skeleton-parser",
+        "intl-messageformat"
+      ],
+      "versions": {
+        "@formatjs/fast-memoize": "3.1.7",
+        "@formatjs/icu-skeleton-parser": "2.1.12",
+        "@formatjs/icu-messageformat-parser": "3.5.21",
+        "intl-messageformat": "12.1.3"
+      }
+    },
+    {
+      "group": "core+icu",
+      "name": "use-intl/core (react external: its shared chunk imports cloneElement and isValidElement from react)",
+      "fixture": "use-intl-core.ts",
+      "external": [
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 37471,
+      "gzipBytes": 11277,
+      "packages": [
+        "@formatjs/fast-memoize",
+        "@formatjs/icu-messageformat-parser",
+        "@formatjs/icu-skeleton-parser",
+        "intl-messageformat",
+        "use-intl"
+      ],
+      "versions": {
+        "@formatjs/fast-memoize": "3.1.7",
+        "use-intl": "4.14.9",
+        "@formatjs/icu-skeleton-parser": "2.1.11",
+        "@formatjs/icu-messageformat-parser": "3.5.18",
+        "intl-messageformat": "11.2.15"
+      }
+    },
+    {
+      "group": "react",
+      "name": "@comvi/react",
+      "fixture": "comvi-react.ts",
+      "external": [
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 20542,
+      "gzipBytes": 7606,
+      "packages": [
+        "@comvi/core",
+        "@comvi/react"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0",
+        "@comvi/react": "0.6.0"
+      }
+    },
+    {
+      "group": "react",
+      "name": "@comvi/react + /icu",
+      "fixture": "comvi-react-icu.ts",
+      "external": [
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 23731,
+      "gzipBytes": 8808,
+      "packages": [
+        "@comvi/core",
+        "@comvi/react"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0",
+        "@comvi/react": "0.6.0"
+      }
+    },
+    {
+      "group": "react",
+      "name": "i18next + react-i18next",
+      "fixture": "i18next-react.ts",
+      "external": [
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 58464,
+      "gzipBytes": 19660,
+      "packages": [
+        "html-parse-stringify",
+        "i18next",
+        "react-i18next",
+        "use-sync-external-store"
+      ],
+      "versions": {
+        "i18next": "26.4.4",
+        "html-parse-stringify": "4.0.1",
+        "react-i18next": "17.0.16",
+        "use-sync-external-store": "1.7.0"
+      }
+    },
+    {
+      "group": "react",
+      "name": "use-intl (react)",
+      "fixture": "use-intl-react.ts",
+      "external": [
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 38348,
+      "gzipBytes": 11567,
+      "packages": [
+        "@formatjs/fast-memoize",
+        "@formatjs/icu-messageformat-parser",
+        "@formatjs/icu-skeleton-parser",
+        "intl-messageformat",
+        "use-intl"
+      ],
+      "versions": {
+        "@formatjs/fast-memoize": "3.1.7",
+        "use-intl": "4.14.9",
+        "@formatjs/icu-skeleton-parser": "2.1.11",
+        "@formatjs/icu-messageformat-parser": "3.5.18",
+        "intl-messageformat": "11.2.15"
+      }
+    },
+    {
+      "group": "react+icu+loader",
+      "name": "@comvi/react + /icu + cdnLoader",
+      "fixture": "comvi-react-icu-cdn.ts",
+      "external": [
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 33218,
+      "gzipBytes": 12157,
+      "packages": [
+        "@comvi/core",
+        "@comvi/plugin-fetch-loader",
+        "@comvi/react"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0",
+        "@comvi/react": "0.6.0",
+        "@comvi/plugin-fetch-loader": "0.6.0"
+      }
+    },
+    {
+      "group": "react+icu+loader",
+      "name": "i18next + react-i18next + icu + http-backend",
+      "fixture": "i18next-react-icu-http.ts",
+      "external": [
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 104096,
+      "gzipBytes": 33865,
+      "packages": [
+        "@formatjs/fast-memoize",
+        "@formatjs/icu-messageformat-parser",
+        "@formatjs/icu-skeleton-parser",
+        "html-parse-stringify",
+        "i18next",
+        "i18next-http-backend",
+        "i18next-icu",
+        "intl-messageformat",
+        "react-i18next",
+        "use-sync-external-store"
+      ],
+      "versions": {
+        "i18next": "26.4.4",
+        "i18next-icu": "2.5.0",
+        "@formatjs/fast-memoize": "3.1.7",
+        "@formatjs/icu-skeleton-parser": "2.1.12",
+        "@formatjs/icu-messageformat-parser": "3.5.21",
+        "intl-messageformat": "12.1.3",
+        "i18next-http-backend": "4.0.2",
+        "html-parse-stringify": "4.0.1",
+        "react-i18next": "17.0.16",
+        "use-sync-external-store": "1.7.0"
+      }
+    },
+    {
+      "group": "vue",
+      "name": "@comvi/vue",
+      "fixture": "comvi-vue.ts",
+      "external": [
+        "vue"
+      ],
+      "define": {},
+      "minBytes": 23270,
+      "gzipBytes": 7709,
+      "packages": [
+        "@comvi/core",
+        "@comvi/vue"
+      ],
+      "versions": {
+        "@comvi/vue": "0.6.0",
+        "@comvi/core": "0.6.0"
+      }
+    },
+    {
+      "group": "vue",
+      "name": "@comvi/vue + /icu",
+      "fixture": "comvi-vue-icu.ts",
+      "external": [
+        "vue"
+      ],
+      "define": {},
+      "minBytes": 26466,
+      "gzipBytes": 8935,
+      "packages": [
+        "@comvi/core",
+        "@comvi/vue"
+      ],
+      "versions": {
+        "@comvi/vue": "0.6.0",
+        "@comvi/core": "0.6.0"
+      }
+    },
+    {
+      "group": "vue",
+      "name": "vue-i18n (lean flags, runtime compiler kept)",
+      "fixture": "vue-i18n.ts",
+      "external": [
+        "vue"
+      ],
+      "define": {
+        "__VUE_I18N_FULL_INSTALL__": "false",
+        "__VUE_I18N_LEGACY_API__": "false",
+        "__INTLIFY_PROD_DEVTOOLS__": "false",
+        "__VUE_PROD_DEVTOOLS__": "false"
+      },
+      "minBytes": 53234,
+      "gzipBytes": 18693,
+      "packages": [
+        "@intlify/core-base",
+        "@intlify/message-compiler",
+        "@intlify/shared",
+        "@vue/devtools-api",
+        "vue-i18n"
+      ],
+      "versions": {
+        "@intlify/shared": "11.4.14",
+        "@intlify/message-compiler": "11.4.14",
+        "@intlify/core-base": "11.4.14",
+        "@vue/devtools-api": "6.6.4",
+        "vue-i18n": "11.4.14"
+      }
+    },
+    {
+      "group": "vue",
+      "name": "vue-i18n (lean flags, precompiled message function, compiler dropped)",
+      "fixture": "vue-i18n-precompiled.ts",
+      "external": [
+        "vue"
+      ],
+      "define": {
+        "__VUE_I18N_FULL_INSTALL__": "false",
+        "__VUE_I18N_LEGACY_API__": "false",
+        "__INTLIFY_PROD_DEVTOOLS__": "false",
+        "__VUE_PROD_DEVTOOLS__": "false",
+        "__INTLIFY_DROP_MESSAGE_COMPILER__": "true"
+      },
+      "minBytes": 36684,
+      "gzipBytes": 13764,
+      "packages": [
+        "@intlify/core-base",
+        "@intlify/message-compiler",
+        "@intlify/shared",
+        "@vue/devtools-api",
+        "vue-i18n"
+      ],
+      "versions": {
+        "@intlify/shared": "11.4.14",
+        "@intlify/message-compiler": "11.4.14",
+        "@intlify/core-base": "11.4.14",
+        "@vue/devtools-api": "6.6.4",
+        "vue-i18n": "11.4.14"
+      }
+    },
+    {
+      "group": "next-client",
+      "name": "@comvi/next/client",
+      "fixture": "comvi-next-client.ts",
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 22307,
+      "gzipBytes": 8209,
+      "packages": [
+        "@comvi/core",
+        "@comvi/next",
+        "@comvi/react"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0",
+        "@comvi/next": "0.6.0",
+        "@comvi/react": "0.6.0"
+      }
+    },
+    {
+      "group": "next-client",
+      "name": "@comvi/next/client + /icu",
+      "fixture": "comvi-next-client-icu.ts",
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 25496,
+      "gzipBytes": 9427,
+      "packages": [
+        "@comvi/core",
+        "@comvi/next",
+        "@comvi/react"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0",
+        "@comvi/next": "0.6.0",
+        "@comvi/react": "0.6.0"
+      }
+    },
+    {
+      "group": "next-client",
+      "name": "next-intl (client)",
+      "fixture": "next-intl-client.ts",
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 40909,
+      "gzipBytes": 12512,
+      "packages": [
+        "@formatjs/fast-memoize",
+        "@formatjs/icu-messageformat-parser",
+        "@formatjs/icu-skeleton-parser",
+        "intl-messageformat",
+        "next-intl",
+        "use-intl"
+      ],
+      "versions": {
+        "@formatjs/fast-memoize": "3.1.7",
+        "use-intl": "4.14.9",
+        "@formatjs/icu-skeleton-parser": "2.1.11",
+        "@formatjs/icu-messageformat-parser": "3.5.18",
+        "intl-messageformat": "11.2.15",
+        "next-intl": "4.14.9"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/next root composed (fw-next-root-composed)",
+      "fixture": "comvi-next-root-composed.ts",
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*"
+      ],
+      "define": {},
+      "minBytes": 28097,
+      "gzipBytes": 10105,
+      "packages": [
+        "@comvi/core",
+        "@comvi/next"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0",
+        "@comvi/next": "0.6.0"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/next/server provider (fw-next-server-provider)",
+      "fixture": "comvi-next-server-provider.ts",
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*",
+        "react-dom",
+        "react-dom/*",
+        "@comvi/next/config",
+        "*/client/ComviClientProvider.js"
+      ],
+      "define": {},
+      "minBytes": 4267,
+      "gzipBytes": 1980,
+      "packages": [
+        "@comvi/core",
+        "@comvi/next",
+        "server-only"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0",
+        "@comvi/next": "0.6.0",
+        "server-only": "0.0.1"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/next/middleware (fw-next-middleware-edge)",
+      "fixture": "comvi-next-middleware-edge.ts",
+      "external": [
+        "next",
+        "next/*"
+      ],
+      "define": {},
+      "minBytes": 4829,
+      "gzipBytes": 2045,
+      "packages": [
+        "@comvi/next"
+      ],
+      "versions": {
+        "@comvi/next": "0.6.0"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/nuxt client runtime (fw-nuxt-client-default)",
+      "fixture": "comvi-nuxt-client-default.ts",
+      "external": [
+        "#app",
+        "#build/*",
+        "#imports",
+        "vue",
+        "vue-router",
+        "h3"
+      ],
+      "define": {
+        "import.meta.server": "false",
+        "import.meta.client": "true",
+        "import.meta.dev": "false"
+      },
+      "minBytes": 25875,
+      "gzipBytes": 8729,
+      "packages": [
+        "@comvi/core",
+        "@comvi/nuxt",
+        "@comvi/vue"
+      ],
+      "versions": {
+        "@comvi/nuxt": "0.6.0",
+        "@comvi/core": "0.6.0",
+        "@comvi/vue": "0.6.0"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/nuxt/i18n entry, nothing external (fw-nuxt-i18n)",
+      "fixture": "comvi-nuxt-i18n.ts",
+      "external": [],
+      "define": {},
+      "minBytes": 26415,
+      "gzipBytes": 9646,
+      "packages": [
+        "@comvi/core",
+        "@comvi/nuxt"
+      ],
+      "versions": {
+        "@comvi/core": "0.6.0",
+        "@comvi/nuxt": "0.6.0"
+      }
+    },
+    {
+      "group": "comvi-only",
+      "name": "@comvi/nuxt everything composed (fw-nuxt-full-composite)",
+      "fixture": "comvi-nuxt-full-composite.ts",
+      "external": [
+        "#app",
+        "#build/*",
+        "#imports",
+        "vue",
+        "vue-router",
+        "h3",
+        "#comvi/*"
+      ],
+      "define": {
+        "import.meta.server": "false",
+        "import.meta.client": "true",
+        "import.meta.dev": "false"
+      },
+      "minBytes": 42078,
+      "gzipBytes": 14499,
+      "packages": [
+        "@comvi/core",
+        "@comvi/nuxt",
+        "@comvi/vue"
+      ],
+      "versions": {
+        "@comvi/nuxt": "0.6.0",
+        "@comvi/core": "0.6.0",
+        "@comvi/vue": "0.6.0"
+      }
+    }
+  ]
+}
