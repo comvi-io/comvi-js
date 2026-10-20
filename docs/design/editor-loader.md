@@ -67,8 +67,8 @@ protocol }` plus `editorVersion` on success or a `code` from a fixed list on fai
 
   | Row (`scripts/size-budgets.json`)         | min+gz |
   | ----------------------------------------- | ------ |
-  | `core-base`                               | 5608 B |
-  | `core-base-devtools` (`.use(devtools())`) | 6872 B |
+  | `core-base`                               | 5607 B |
+  | `core-base-devtools` (`.use(devtools())`) | 6870 B |
 
 - **A site with a Content Security Policy must allow `https://cdn.jsdelivr.net` in `script-src`**,
   and a site that enforces Trusted Types needs a `default` policy whose `createScriptURL` accepts that
