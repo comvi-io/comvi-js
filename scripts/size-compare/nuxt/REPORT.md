@@ -1,5 +1,7 @@
 # Nuxt client-bundle cost: @nuxtjs/i18n vs @comvi/nuxt (real `nuxi build`)
 
+> **Sizes superseded on 2026-10-20.** This report is the 2026-10-14 run, on 0.6.0 release tarballs built before publication. The same four apps were rebuilt on 2026-10-20 against 0.6.0 from npm with the commands below; the cited figures are now `measure-2026-10-20.txt` and `attribute-2026-10-20.txt`, and the README's Nuxt section quotes them.
+
 Date: **2026-10-14, all four apps, on Comvi 0.6.0** (first run 2026-10-10 for three apps and
 2026-10-11 for `comvi-nuxt-icu`, both on 0.5.0). Minimal Nuxt 4 apps, identical except for the i18n layer, built with
 `nuxi build` (production). Every `.js` under `.output/public/_nuxt/` was measured (recursively;
