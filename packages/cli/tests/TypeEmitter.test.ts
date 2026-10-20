@@ -48,7 +48,7 @@ describe("TypeEmitter", () => {
 
       expect(result).toContain("declare module '@comvi/core'");
       expect(result).toContain("interface TranslationKeys");
-      expect(result).toContain('"common:greeting": { "name": string };');
+      expect(result).toContain('"common:greeting": { "name": string | number };');
       expect(result).toContain('"common:welcome": never;');
       expect(result).toContain("DO NOT EDIT");
     });
@@ -146,7 +146,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain('"common:greeting": { "name": string };');
+      expect(result).toContain('"common:greeting": { "name": string | number };');
     });
 
     it("should generate optional params when strictParams is false", () => {
@@ -163,7 +163,9 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { strictParams: false });
 
-      expect(result).toContain('"common:hello": { "name"?: string; "title"?: string };');
+      expect(result).toContain(
+        '"common:hello": { "name"?: string | number; "title"?: string | number };',
+      );
     });
 
     it("should generate required params when strictParams is true", () => {
@@ -177,7 +179,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { strictParams: true });
 
-      expect(result).toContain('"common:hello": { "name": string };');
+      expect(result).toContain('"common:hello": { "name": string | number };');
       expect(result).not.toContain("name?:");
     });
 
@@ -213,7 +215,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain('"common:nested.deep.key": { "value": string };');
+      expect(result).toContain('"common:nested.deep.key": { "value": string | number };');
     });
 
     it("should handle keys with special characters", () => {
@@ -297,7 +299,7 @@ describe("TypeEmitter", () => {
           { name: "firstName", type: "string" as const },
           { name: "lastName", type: "string" as const },
         ],
-        expected: '"test:key": { "firstName": string; "lastName": string };',
+        expected: '"test:key": { "firstName": string | number; "lastName": string | number };',
       },
       {
         name: "mixed string and number params",
@@ -306,7 +308,7 @@ describe("TypeEmitter", () => {
           { name: "count", type: "number" as const },
           { name: "price", type: "number" as const },
         ],
-        expected: '"test:key": { "name": string; "count": number; "price": number };',
+        expected: '"test:key": { "name": string | number; "count": number; "price": number };',
       },
       {
         name: "ten params",
@@ -314,7 +316,7 @@ describe("TypeEmitter", () => {
           name: `param${i}`,
           type: "string" as const,
         })),
-        expected: `"test:key": { ${Array.from({ length: 10 }, (_, i) => `"param${i}": string`).join("; ")} };`,
+        expected: `"test:key": { ${Array.from({ length: 10 }, (_, i) => `"param${i}": string | number`).join("; ")} };`,
       },
     ])("should render $name in declaration order", ({ params, expected }) => {
       const schema: ProjectSchema = { keys: { "test:key": { params } } };
@@ -338,7 +340,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { defaultNsName: "default" });
 
-      expect(result).toContain('"greeting": { "name": string };');
+      expect(result).toContain('"greeting": { "name": string | number };');
       expect(result).toContain('"welcome": never;');
 
       expect(result).toContain('"admin:dashboard": never;');
@@ -425,7 +427,7 @@ describe("TypeEmitter", () => {
           "declare module '@comvi/core' {",
           "  interface TranslationKeys {",
           '    "admin:dashboard": never;',
-          '    "common:greeting": { "name": string };',
+          '    "common:greeting": { "name": string | number };',
           '    "common:items": { "count": number };',
           '    "common:welcome": never;',
           "  }",
@@ -456,7 +458,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "user-name": string };']);
+      expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "user-name": string | number };']);
     });
 
     it("should emit a syntactically valid file for a param name that is not a bare identifier", () => {
@@ -499,7 +501,7 @@ describe("TypeEmitter", () => {
       const result = typeEmitter.generate(schema);
 
       expect(keyLinesOf(result)).toEqual([
-        '"admin:greeting": { "name": string; "count": number };',
+        '"admin:greeting": { "name": string | number; "count": number };',
       ]);
     });
   });
