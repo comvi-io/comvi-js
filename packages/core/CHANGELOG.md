@@ -1,5 +1,32 @@
 # @comvi/core
 
+## 0.6.0
+
+### Minor Changes
+
+- 1fb2046: Keep flat plain-object catalogs by reference instead of copying them. A catalog passed to `messages`, `addMessages()` or returned by a loader is eligible when every leaf is a string and its prototype is either null or exactly `Object.prototype` — the latter only while `Object.prototype` itself carries no enumerable key. It is validated with one pass over its enumerable keys and then stored as the object you passed. Everything else (a nested value, a non-string leaf, any other prototype, or a polluted `Object.prototype`) is still flattened into a fresh null-prototype copy.
+
+  Comvi never writes your catalog object, and `getMessages()` returns that same object until an `addMessages()` merges into that locale and namespace: a merge builds a fresh null-prototype object, so identity holds for the first adoption only. Your later edits to it are read by `t()` without a `namespaceLoaded` or `configChanged` event: use `addMessages()` when bindings must be notified, and pass a copy when you want the instance isolated from later edits.
+
+  A lookup value is a translation only if it is a non-empty string. Members inherited from `Object.prototype` (`constructor`, `toString`, `__proto__`) therefore never resolve, while an own string property under such a key does.
+
+  Outside the supported catalog shape: non-enumerable own properties, accessor properties, Proxies and symbol keys (a lookup may see what SSR serialization omits). Enumerable keys added to `Object.prototype` after a catalog was ingested are not guarded against.
+
+- 1fb2046: `#` inside `plural` and `selectordinal` is now formatted for the message's locale, as ICU MessageFormat defines it: `{count, plural, other {# items}}` renders `1,234 items` in `en` and `1.234 items` in `de`. Previously `#` inserted the raw digits. `#` follows the `Intl.NumberFormat` defaults, so a fractional count is rounded to three fraction digits (`1.23456` renders `1.235`). Exact-match selectors (`=0`, `=1`) still compare the number itself. A count of negative zero renders `0`, without a sign. Use `{count}` instead of `#` where the raw digits are wanted.
+
+### Patch Changes
+
+- 1fb2046: Reduce template-cache lookup overhead: compiled templates are now partitioned by a numeric key (message compiler, syntax extensions, plural `#` context) instead of a string built on every lookup, still bounded by one global 1000-entry FIFO.
+
+  Fix a template-cache collision between message compilers when more than 65535 exist in one process. The overflow warning is removed because compiler ids no longer wrap.
+
+- 1fb2046: `devtools()` installs a page-level editor loader the Comvi browser extension uses to load the in-context editor from jsDelivr; new `editorVersion` option pins the editor. The `EditorLoadResult` type declares `editorVersion`, `code` and `host` as always present, holding `undefined` where they do not apply.
+- 1fb2046: `devtools({ editorVersion })` fails closed. An explicit value that is not an exact version (SemVer `major.minor.patch` with no leading zeros, optionally with a prerelease such as `0.6.0-rc.1`; build metadata is not accepted) no longer falls back to `latest`: the editor loader is still installed so the Comvi browser extension can explain the problem, but it requests nothing, and its `load()` answers the new failure code `invalid-editor-version`. The extension's popup tells the translator that the pin must be an exact version like `1.2.3`, and development builds warn as before. Leaving `editorVersion` out, or passing `"latest"`, still loads `latest`.
+- 1fb2046: A `{name}` placeholder whose parameter is a function no longer prints the function's source code. It now renders as a missing parameter does: the literal `{name}` by default, with a development warning that says the parameter is a function, or an empty string under `missingParam: "drop"`. This is what a translator hits by typing `{link}` where the message needs `<link>…</link>`, both in `t()` with a tag handler and in `<T components={{ link }}>`. Tag handlers themselves, and every other parameter value, are unchanged.
+- 1fb2046: In development, the "parameter is a function" warning and the "missing parameter" warning no longer silence each other for the same message and placeholder, and the warning always describes the value that was rendered.
+- 1fb2046: `#` in a plural branch resolves to that plural's count even after a tag handler inside the branch calls `t()` and catches what that render throws. Until now the count the failed inner plural had set stayed behind, and the outer `#` printed it.
+- 1fb2046: `icuCompiler` no longer reads an argument whose only comma sits inside a nested pair of braces as a parameter. `{{,}\t}` used to become a parameter named `{,}`, and `{{count, plural, …}}` a parameter named after the whole inner plural. Such an argument now fails like any unsupported ICU syntax, as the default compiler already did: `E_ICU_SYNTAX` at ingestion in development, and in production the braced text renders literally and is reported once through `onError`.
+
 ## 0.5.0
 
 ### Minor Changes

@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0]
+
+Coordinated `0.6.0` release for the main `@comvi/*` package train. Independently versioned packages included below keep their own versions. Detailed package-level notes and migration guidance are available in the linked GitHub Release.
+
+### Minor Changes
+
+- **@comvi/core** — Keep flat plain-object catalogs by reference instead of copying them. A catalog passed to `messages`, `addMessages()` or returned by a loader is eligible when every leaf is a string and its prototype is either null or exactly `Object.prototype` — the latter only while `Object.prototype` itself carries no enumerable key. It is validated with one pass over its enumerable keys and then stored as the object you passed. Everything else (a nested value, a non-string leaf, any other prototype, or a polluted `Object.prototype`) is still flattened into a fresh null-prototype copy.
+- **@comvi/core** — `#` inside `plural` and `selectordinal` is now formatted for the message's locale, as ICU MessageFormat defines it: `{count, plural, other {# items}}` renders `1,234 items` in `en` and `1.234 items` in `de`. Previously `#` inserted the raw digits. `#` follows the `Intl.NumberFormat` defaults, so a fractional count is rounded to three fraction digits (`1.23456` renders `1.235`). Exact-match selectors (`=0`, `=1`) still compare the number itself. A count of negative zero renders `0`, without a sign. Use `{count}` instead of `#` where the raw digits are wanted.
+- **@comvi/next** — **Behaviour change: `createNextI18n` no longer composes browser-extension discovery.** Until now it attached discovery to every Next app on its own, so the i18n instance was published on `window.__COMVI__` and got an auto-generated `instanceId`. Now a Next app is not visible to the Comvi browser extension, and `i18n.instanceId` is `undefined`, until the app composes discovery itself, as with every other binding.
+
+### Patch Changes
+
+- **@comvi/core** — Reduce template-cache lookup overhead: compiled templates are now partitioned by a numeric key (message compiler, syntax extensions, plural `#` context) instead of a string built on every lookup, still bounded by one global 1000-entry FIFO.
+- **@comvi/core** — `devtools()` installs a page-level editor loader the Comvi browser extension uses to load the in-context editor from jsDelivr; new `editorVersion` option pins the editor. The `EditorLoadResult` type declares `editorVersion`, `code` and `host` as always present, holding `undefined` where they do not apply.
+- **@comvi/core** — `devtools({ editorVersion })` fails closed. An explicit value that is not an exact version (SemVer `major.minor.patch` with no leading zeros, optionally with a prerelease such as `0.6.0-rc.1`; build metadata is not accepted) no longer falls back to `latest`: the editor loader is still installed so the Comvi browser extension can explain the problem, but it requests nothing, and its `load()` answers the new failure code `invalid-editor-version`. The extension's popup tells the translator that the pin must be an exact version like `1.2.3`, and development builds warn as before. Leaving `editorVersion` out, or passing `"latest"`, still loads `latest`.
+- **@comvi/plugin-in-context-editor** — The in-context editor counts its stylesheet as adopted wherever it sits among the shadow root's adopted sheets, and takes a half-finished adoption back before it falls back to a `<style>` element, so its styles are never applied twice.
+- **@comvi/plugin-in-context-editor** — In the in-context editor, translation text no longer jumps to the right when you start editing a field, and the source language is now listed first with a neutral `Source` marker instead of an orange tint.
+- **@comvi/plugin-in-context-editor** — The in-context editor now applies its styles through a constructable stylesheet instead of an inline `<style>` element, so it renders on sites whose Content Security Policy has a strict `style-src`; the standalone build also exposes its own `version` and reports the `devtools()` editor loader it found in `getStatus().hook`.
+- **@comvi/plugin-in-context-editor** — The "Languages" picker in the in-context editor now shows all of its languages instead of letting the first translation field draw over them.
+- **@comvi/core** — A `{name}` placeholder whose parameter is a function no longer prints the function's source code. It now renders as a missing parameter does: the literal `{name}` by default, with a development warning that says the parameter is a function, or an empty string under `missingParam: "drop"`. This is what a translator hits by typing `{link}` where the message needs `<link>…</link>`, both in `t()` with a tag handler and in `<T components={{ link }}>`. Tag handlers themselves, and every other parameter value, are unchanged.
+- **@comvi/core** — In development, the "parameter is a function" warning and the "missing parameter" warning no longer silence each other for the same message and placeholder, and the warning always describes the value that was rendered.
+- **@comvi/core** — `#` in a plural branch resolves to that plural's count even after a tag handler inside the branch calls `t()` and catches what that render throws. Until now the count the failed inner plural had set stayed behind, and the outer `#` printed it.
+- **@comvi/core** — `icuCompiler` no longer reads an argument whose only comma sits inside a nested pair of braces as a parameter. `{{,}\t}` used to become a parameter named `{,}`, and `{{count, plural, …}}` a parameter named after the whole inner plural. Such an argument now fails like any unsupported ICU syntax, as the default compiler already did: `E_ICU_SYNTAX` at ingestion in development, and in production the braced text renders literally and is reported once through `onError`.
+- **@comvi/next** — The `<I18nProvider>` JSDoc example names the hand-written `"use client"` wrapper of the manual setup `ClientProvider`, and says that `<ComviProvider>` from `@comvi/next/server` makes it unnecessary under `withComvi`.
+- **@comvi/next** — Add `@comvi/next/proxy` for Next.js 16's `proxy.ts` file convention. Next 16 renamed `middleware.ts` to `proxy.ts` with the same request handler, so `@comvi/next/proxy` exports the same `createMiddleware` as `@comvi/next/middleware`: write `export default createMiddleware(routing)` in `src/proxy.ts` on Next 16. `@comvi/next/middleware` stays for Next 15's `middleware.ts`, and both subpaths hand out one function. Next 16 runs `proxy.ts` on the Node.js runtime and rejects a `runtime` option there; `createMiddleware` runs on either runtime.
+- **@comvi/nuxt** — Check `localeDetection.resolveAcceptLanguage` at build time with `vm.Script` instead of `new Function`, so the module no longer uses `new Function`. The source is compiled to check that it parses and is never executed.
+- **@comvi/cli, @comvi/vite-plugin** — Generated types accept a number for a bare `{name}` and for a `select` variable: such a parameter is now `string | number`, not `string`. `t("errors.count", { count: 3 })` against `"Reported misses: {count}"` no longer fails `tsc`; the runtime always rendered it. A `plural` or `selectordinal` count stays `number`. `comvi typegen` and `comviTypes()` still write byte-identical files, so a file with such a parameter has to be regenerated once after upgrading, or `comvi typegen --check` reports it as stale.
+
 ## [0.5.0]
 
 Coordinated `0.5.0` release for the main `@comvi/*` package train. Independently versioned packages included below keep their own versions. Detailed package-level notes and migration guidance are available in the linked GitHub Release.
@@ -437,6 +465,7 @@ A lightweight, type-safe internationalization library with framework-agnostic co
 - Progressive loading pattern (show UI immediately, load translations in background)
 - Guaranteed-ready pattern (await translations before app start)
 
+[0.6.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.6.0
 [0.5.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.5.0
 [0.4.1]: https://github.com/comvi-io/comvi-js/releases/tag/v0.4.1
 [0.4.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.4.0

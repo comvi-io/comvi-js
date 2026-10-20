@@ -1,5 +1,39 @@
 # @comvi/next
 
+## 0.6.0
+
+### Minor Changes
+
+- 1fb2046: **Behaviour change: `createNextI18n` no longer composes browser-extension discovery.** Until now it attached discovery to every Next app on its own, so the i18n instance was published on `window.__COMVI__` and got an auto-generated `instanceId`. Now a Next app is not visible to the Comvi browser extension, and `i18n.instanceId` is `undefined`, until the app composes discovery itself, as with every other binding.
+
+  To get the previous behaviour, add `.use(devtools())` to the result in the shared config module:
+
+  ```diff
+  -import { createNextI18n } from "@comvi/next";
+  +import { createNextI18n, devtools } from "@comvi/next";
+
+  -export const { i18n, routing } = createNextI18n({ ...routing });
+  +export const { i18n, routing } = createNextI18n({ ...routing }).use(devtools());
+  ```
+
+  `devtools` is also exported from `@comvi/next/client` and `@comvi/next/server`. On the server, where there is no `window`, it publishes nothing and assigns no id. `createNextI18n` never took `instanceId` or `exposeGlobal` (passing either is a type error, and the factory does not forward them); both go to the installer: `devtools({ instanceId: "app" })`.
+
+### Patch Changes
+
+- 1fb2046: The `<I18nProvider>` JSDoc example names the hand-written `"use client"` wrapper of the manual setup `ClientProvider`, and says that `<ComviProvider>` from `@comvi/next/server` makes it unnecessary under `withComvi`.
+- 1fb2046: Add `@comvi/next/proxy` for Next.js 16's `proxy.ts` file convention. Next 16 renamed `middleware.ts` to `proxy.ts` with the same request handler, so `@comvi/next/proxy` exports the same `createMiddleware` as `@comvi/next/middleware`: write `export default createMiddleware(routing)` in `src/proxy.ts` on Next 16. `@comvi/next/middleware` stays for Next 15's `middleware.ts`, and both subpaths hand out one function. Next 16 runs `proxy.ts` on the Node.js runtime and rejects a `runtime` option there; `createMiddleware` runs on either runtime.
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+  - @comvi/core@0.6.0
+  - @comvi/react@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

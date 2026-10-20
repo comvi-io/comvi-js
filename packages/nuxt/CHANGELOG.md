@@ -1,5 +1,22 @@
 # @comvi/nuxt
 
+## 0.6.0
+
+### Patch Changes
+
+- 1fb2046: Check `localeDetection.resolveAcceptLanguage` at build time with `vm.Script` instead of `new Function`, so the module no longer uses `new Function`. The source is compiled to check that it parses and is never executed.
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+- Updated dependencies [1fb2046]
+  - @comvi/core@0.6.0
+  - @comvi/vue@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
