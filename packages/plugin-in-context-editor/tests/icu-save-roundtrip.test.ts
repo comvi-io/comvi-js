@@ -185,6 +185,97 @@ describe("saving one language leaves ICU the editor cannot rebuild untouched", (
   });
 });
 
+describe("a save leaves the review status of unchanged values alone", () => {
+  beforeEach(() => {
+    initApiConfig("test-api-key");
+    vi.stubGlobal("fetch", vi.fn());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    addMessagesMock.mockReset();
+  });
+
+  afterEach(() => {
+    resetApiConfig();
+  });
+
+  it("plural mode switched off → a message the editor cannot rebuild is not sent", async () => {
+    const exact = "{count, plural, =0 {None} one {One} other {# items}}";
+    const fetchMock = serveKey({ en: EN_PLURAL, de: exact });
+    const manager = await loadKey();
+
+    manager.togglePluralMode(false);
+    await manager.saveTranslation();
+
+    expect(sentTranslations(fetchMock)).toEqual({
+      en: { value: "# files", status: "not_reviewed" },
+    });
+  });
+
+  it("variant settings touched without changing the value → the language is not sent", async () => {
+    const fetchMock = serveKey({ en: "Files", de: "Dateien" }, false);
+    const manager = await loadKey();
+
+    manager.updateSelectConfig("de", { variable: "gender" });
+    manager.updateTranslation("en", "other", "Documents");
+    await manager.saveTranslation();
+
+    expect(sentTranslations(fetchMock)).toEqual({
+      en: { value: "Documents", status: "not_reviewed" },
+    });
+  });
+  it("plural variable renamed → a message the editor cannot rebuild is not sent", async () => {
+    const exact = "{count, plural, =0 {Keine} one {Eine} other {# Dateien}}";
+    const fetchMock = serveKey({ en: EN_PLURAL, de: exact });
+    const manager = await loadKey();
+
+    manager.updatePluralVariable("n");
+    await manager.saveTranslation();
+
+    expect(Object.keys(sentTranslations(fetchMock))).toEqual(["en"]);
+  });
+
+  it("variants switched on and off again → the language is not sent", async () => {
+    const fetchMock = serveKey({ en: "Files", de: "Hallo" }, false);
+    const manager = await loadKey();
+
+    manager.toggleSelectMode("de", true, { variable: "gender", options: ["male", "other"] });
+    manager.toggleSelectMode("de", false);
+    manager.updateTranslation("en", "other", "Documents");
+    await manager.saveTranslation();
+
+    expect(Object.keys(sentTranslations(fetchMock))).toEqual(["en"]);
+  });
+
+  it("two saves in a row → each sends only the language edited since the last one", async () => {
+    let stored: Record<string, string> = { en: "Files", de: "Dateien", fr: "Fichiers" };
+    const bodies: Record<string, { value: string }>[] = [];
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      if (init?.method === "PUT") {
+        const body = JSON.parse(String(init.body)) as {
+          translations: Record<string, { value: string }>;
+        };
+        bodies.push(body.translations);
+        stored = {
+          ...stored,
+          ...Object.fromEntries(Object.entries(body.translations).map(([l, t]) => [l, t.value])),
+        };
+      }
+      return ok(keyResponse(stored, false));
+    });
+    const manager = await loadKey();
+
+    manager.updateTranslation("de", "other", "Dokumente");
+    await manager.saveTranslation();
+    manager.updateTranslation("fr", "other", "Documents");
+    await manager.saveTranslation();
+
+    expect(bodies).toEqual([
+      { de: { value: "Dokumente", status: "not_reviewed" } },
+      { fr: { value: "Documents", status: "not_reviewed" } },
+    ]);
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+  });
+});
+
 describe("saving a plural key where no language can be rebuilt", () => {
   beforeEach(() => {
     initApiConfig("test-api-key");

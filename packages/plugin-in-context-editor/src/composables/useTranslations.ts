@@ -48,8 +48,7 @@ export function useTranslations(
   const savingSession = ref<number | null>(null);
   const isSaving = computed(() => savingSession.value === session.value);
   // The plural shape and select configs at last load/save, serialized. A
-  // language whose forms and shape still match was not edited and is sent
-  // back exactly as stored.
+  // language whose forms and shape still match was not edited and is not sent.
   let baselineShape = "";
   let baselineSelectConfigs: Record<string, string> = {};
 
@@ -289,6 +288,7 @@ export function useTranslations(
         selectConfigs,
         scopeId,
         verbatim,
+        data.sourceValues,
       );
 
       // The server holds the new value either way, so the runtime the save
