@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import path, { resolve } from "node:path";
+import pkg from "./package.json";
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
@@ -38,5 +39,6 @@ export default defineConfig({
   },
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
+    __VERSION__: JSON.stringify(pkg.version),
   },
 });

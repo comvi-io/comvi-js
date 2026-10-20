@@ -57,6 +57,11 @@
       "development": "./dist/middleware.dev.js",
       "default": "./dist/middleware.js"
     },
+    "./proxy": {
+      "types": "./dist/proxy.d.ts",
+      "development": "./dist/proxy.dev.js",
+      "default": "./dist/proxy.js"
+    },
     "./routing": {
       "types": "./dist/routing.d.ts",
       "development": "./dist/routing.dev.js",

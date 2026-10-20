@@ -33,10 +33,47 @@ export interface Message {
   payload?: unknown;
 }
 
+/**
+ * Why the page's `devtools()` hook could not put the editor on the page
+ * (contracts/chrome-extension-proxy.json, `editorLoader.failureCodes`).
+ */
+export type EditorLoadFailureCode =
+  | "csp-blocked"
+  | "load-error"
+  | "timeout"
+  | "no-global"
+  | "invalid-editor-version";
+
+/**
+ * A hook code, or the extension's own `no-loader`: the page has a Comvi i18n
+ * instance but no editor and no hook to load one (@comvi/core before 0.6.0).
+ */
+export type ActivationFailureCode = EditorLoadFailureCode | "no-loader";
+
+/**
+ * What the service worker tells the popup about a failed activation: a code
+ * the page reported (checked against the list), or one of the worker's own —
+ * `unconfirmed` (the acknowledgement did not match the pending session) and
+ * `failed` (the page reported a failure without a known code). The popup words
+ * every one of them itself; no text from the page travels with it.
+ */
+export type ActivationOutcomeCode = ActivationFailureCode | "unconfirmed" | "failed";
+
+/** The page's editor-loader hook as the detector read it. Page-authored. */
+export interface EditorLoaderStatus {
+  protocol: number;
+  sdkVersion?: string;
+  editorVersion?: string;
+}
+
 export interface StatusResponsePayload {
   comviDetected: boolean;
   editorActive: boolean;
   editorLoaded?: boolean;
+  /** `null`: the detector looked and the page has no loader hook. */
+  editorLoader?: EditorLoaderStatus | null;
+  /** Version the loaded editor reports about itself. */
+  editorVersion?: string;
   version?: string;
   instanceCount?: number;
 }
@@ -75,6 +112,8 @@ export interface SessionStatusResponse {
   /** Cached detector state, used to render the popup without reinjection. */
   comviDetected?: boolean;
   version?: string;
+  /** Cached: whether the page can supply the editor (loaded, or a loader hook). */
+  editorAvailable?: boolean;
   /** Set when the worker could not determine the state (reported as inactive). */
   unavailable?: string;
 }
@@ -82,7 +121,8 @@ export interface SessionStatusResponse {
 /** service worker -> popup: authoritative lifecycle completion for one tab. */
 export interface SessionStateChangedPayload extends SessionStatusResponse {
   tabId: number;
-  error?: string;
+  /** Why the activation failed; the popup words the reason and the remedy. */
+  code?: ActivationOutcomeCode;
 }
 
 /** bridge -> service worker: proxied API request from the editor runtime. */
@@ -107,7 +147,12 @@ export interface ApiProxyResponsePayload {
 
 export interface EditorActivatedPayload {
   success: boolean;
-  error?: string;
+  /**
+   * Why the editor could not be put on the page. Page-authored: a known
+   * {@link ActivationFailureCode} only once the service worker checked it.
+   * No free text from the page is carried: the popup would have to show it.
+   */
+  code?: string;
   instanceId?: string;
   /** Untrusted effective value derived by the editor from the site's i18n config. */
   collectContext?: boolean;

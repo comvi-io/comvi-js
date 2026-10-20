@@ -394,6 +394,47 @@ test("a: the initial render shows real text, never a raw key", async ({ page }) 
   expect(rawKeysIn(text), "raw keys in the rendered page").toEqual([]);
 });
 
+test("a2: the instance is published on window.__COMVI__", async ({ page }) => {
+  await open(page);
+  await ready(page);
+  // The queue the browser extension reads: `devtools()` pushes `{ v, i }`, `i`
+  // being the live instance. An example that does not compose it leaves it empty.
+  const published = await page.evaluate(() => {
+    const queue = (window as unknown as { __COMVI__?: unknown }).__COMVI__;
+    const entries = Array.isArray(queue) ? (queue as Array<{ i?: { instanceId?: unknown } }>) : [];
+    return entries.map((entry) => ({
+      instanceId: typeof entry.i?.instanceId === "string" ? entry.i.instanceId : null,
+    }));
+  });
+  expect(published, "instances on window.__COMVI__").toHaveLength(1);
+  expect(published[0].instanceId, "the published instance's id").toMatch(/^comvi-\d+$/);
+
+  // The editor loader `devtools()` installs beside it (protocol 1 —
+  // `contracts/chrome-extension-proxy.json`, `editorLoader`): the browser
+  // extension calls its `load()`. The slot is only read here, `load()` is never
+  // called, so the scenario requests nothing from jsDelivr. The slot's `url`
+  // is the salt-free one; the hourly query is added inside `load()`.
+  const loader = await page.evaluate(() => {
+    const slot = (globalThis as unknown as Record<symbol, unknown>)[
+      Symbol.for("comvi.devtools.editorLoader")
+    ] as { protocol?: unknown; editorVersion?: unknown; url?: unknown; load?: unknown } | undefined;
+    return slot
+      ? {
+          protocol: slot.protocol,
+          editorVersion: slot.editorVersion,
+          url: slot.url,
+          load: typeof slot.load,
+        }
+      : null;
+  });
+  expect(loader, "the editor loader slot").toEqual({
+    protocol: 1,
+    editorVersion: "latest",
+    url: "https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js",
+    load: "function",
+  });
+});
+
 test("b: the switcher changes en → uk → de", async ({ page }) => {
   await open(page);
   await expect(page.getByTestId("locale-en")).toHaveAttribute("aria-pressed", "true");

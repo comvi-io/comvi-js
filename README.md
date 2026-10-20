@@ -60,11 +60,13 @@ npm install @comvi/core     # vanilla JavaScript
 | Svelte             | `@comvi/svelte` | `svelte`          | [Svelte](https://comvi.io/docs/i18n/svelte)   |
 | Solid              | `@comvi/solid`  | `solid-js`        | [Solid](https://comvi.io/docs/i18n/solid)     |
 
-Every binding depends on `@comvi/core`, so one install is enough. The packages are ESM-only and
-versioned in lockstep, so install matching versions of every `@comvi/*` package. The runtime
-packages need Node 20 or newer; `@comvi/cli` and `@comvi/vite-plugin` need Node 22.
+The packages are ESM-only and versioned in lockstep, so install matching versions of every
+`@comvi/*` package. The runtime packages need Node 20 or newer; `@comvi/cli` and
+`@comvi/vite-plugin` need Node 22.
 
 ## Quick start
+
+Create the i18n instance and hand it to React, in `src/main.tsx`:
 
 ```tsx title="src/main.tsx" check=group=index-1
 import { createRoot } from "react-dom/client";
@@ -92,7 +94,7 @@ createRoot(document.getElementById("root")!).render(
 ```
 
 `createI18n` builds the i18n instance, `<I18nProvider>` initializes it, and `useI18n()` gives your
-components `t()`, the current locale and `setLocale()`. The same five minutes in every framework:
+components `t()`, the current locale and `setLocale()`. The same three calls in every binding:
 [Quick start](https://comvi.io/docs/i18n/quick-start).
 
 ## Connect to Comvi
@@ -100,6 +102,8 @@ components `t()`, the current locale and `setLocale()`. The same five minutes in
 ```bash
 npm install @comvi/plugin-fetch-loader
 ```
+
+Compose the loader on the instance, in `src/main.tsx`:
 
 ```tsx title="src/main.tsx" check=group=connect-comvi-react-1
 import { createRoot } from "react-dom/client";

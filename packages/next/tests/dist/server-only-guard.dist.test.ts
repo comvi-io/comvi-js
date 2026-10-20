@@ -50,7 +50,7 @@ describe("package.json", () => {
 });
 
 describe("the other entries", () => {
-  it.each(["index.js", "client.js", "middleware.js", "routing.js", "navigation.js"])(
+  it.each(["index.js", "client.js", "middleware.js", "proxy.js", "routing.js", "navigation.js"])(
     "%s does not import the guard",
     (file) => {
       const code = fs.readFileSync(path.join(packageRoot, "dist", file), "utf8");

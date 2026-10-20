@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { clearTemplateCache } from "../../src/core/translate";
+import { clearTemplateCache, translateTemplate } from "../../src/core/translate";
 import { icuCompiler } from "../../src/core/translate/compile-icu";
 import {
   _resetCompilerIds,
@@ -8,7 +8,6 @@ import {
   effectiveExtensions,
   getAmbientExtensions,
   getCompilerId,
-  _warnOnCompilerIdOverflow,
   mergeTagInterpolation,
   registerSyntaxExtension,
   type MessageCompiler,
@@ -38,37 +37,7 @@ afterEach(() => {
   _resetSyntaxExtensions();
 });
 
-describe("_warnOnCompilerIdOverflow()", () => {
-  // The compiler id occupies one UTF-16 code unit of the template cache key, so
-  // 65535 is the last value that survives it. Unit-tested at the edge rather
-  // than by driving `getCompilerId` there: the counter is module-global, so a
-  // test that walks it to the edge would force every other test in this file
-  // into a fixed order — including under Stryker, which runs subsets of them.
-  it("stays silent for the last id the field still holds", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    _warnOnCompilerIdOverflow(65535);
-
-    expect(warnSpy).not.toHaveBeenCalled();
-  });
-
-  it("warns for the first id past the field", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    _warnOnCompilerIdOverflow(65536);
-
-    expect(warnSpy).toHaveBeenCalledWith(
-      "[@comvi/core] More than 65535 message compilers have been created in this process; the " +
-        "template cache key holds the compiler id in 16 bits, so ids now wrap and two " +
-        "compilers can be served each other's parsed tokens. Reuse one compiler instance " +
-        "instead of constructing one per request.",
-    );
-  });
-});
-
-describe("getCompilerId() past the cache key's 16-bit compiler field", () => {
-  // The walk leaves the module counter past the field; put it back so later
-  // tests in this file do not inherit a warning on every getCompilerId().
+describe("getCompilerId() counter reset", () => {
   afterEach(() => _resetCompilerIds());
 
   it("_resetCompilerIds() hands the next injected compiler the first free id again", () => {
@@ -78,15 +47,30 @@ describe("getCompilerId() past the cache key's 16-bit compiler field", () => {
 
     expect(getCompilerId(inertCompiler())).toBe(3);
   });
+});
 
-  it("warns once the ids it hands out run past the field", () => {
+describe("compiler ids past 16 bits", () => {
+  // The cache once held the id in one UTF-16 code unit, so ids 2^16 apart
+  // collided. The partition key now packs the full id; these pairs must each
+  // be served their own tokens, with no warning.
+  const tagged = (cid: number): MessageCompiler => ({
+    cid,
+    makeArgToken: (c) => [TK_TEXT, cid + ":" + c],
+  });
+  const render = (cid: number) => translateTemplate("{x}", {}, "en", undefined, tagged(cid));
+
+  it.each([
+    [65537, 1],
+    [131071, 65535],
+    [65536, 1],
+    [65536, 65537],
+  ])("cid %i and cid %i keep distinct cache entries", (a, b) => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    // From any starting point the field can still hold, 65536 more compilers
-    // must cross the edge, so this assumes nothing about the counter's value.
-    for (let i = 0; i < 65536; i++) getCompilerId(inertCompiler());
-
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("More than 65535"));
+    expect(render(a)).toBe(a + ":x");
+    expect(render(b)).toBe(b + ":x");
+    expect(render(a)).toBe(a + ":x");
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
 

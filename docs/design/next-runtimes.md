@@ -2,6 +2,9 @@
 
 Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 next single-entry convergence and
 the server request contract; `createNextI18n` stops defaulting the compiler, 14.09.2026
+Amended 2026-10-12: the Edge figures below were re-measured once on 0.6.0, after `createNextI18n`
+stopped composing discovery (COM-140); the earlier figure, 30.3 KB across 25 modules, was taken
+when the config module's graph still composed `@comvi/core/devtools`.
 
 ## Context
 
@@ -27,8 +30,9 @@ need three, which is the question a reader asks once and then never again.
 - **The shared instance contributes the catalog and the loader; the locale belongs to the request**
   and is passed explicitly to every `getI18n()` lookup.
 - **`createNextI18n` composes capabilities and does not pick a compiler.** It composes ambient tag
-  syntax, the loader with both `registerLoader` overloads, the plugin host, default params and
-  devtools discovery; the `icuCompiler` default is gone.
+  syntax, the loader with both `registerLoader` overloads, the plugin host and default params; the
+  `icuCompiler` default is gone. Discovery is opt-in as in every binding: the browser extension
+  sees a Next app only after `.use(devtools())` on the result.
 - **`<I18nProvider>` passes `ssrInitialIsInitializing={false}` on the app's behalf**, so a `fallback`
   in a Next app gates only what the CLIENT host still has to initialize after hydration.
 
@@ -51,10 +55,11 @@ request with no determinable locale throws before it triggers that one-time init
 ### Why the URL rules live in a third file
 
 A `middleware.ts` that does `import { routing } from "./i18n/config"` pulls core, the loader, the
-plugin host, devtools, the tag grammar and whatever compiler the config names into the Edge isolate
-— and runs `createNextI18n()` and `registerLoader()` there — for one plain object: 30.3 KB across 25
-modules, against 3.8 KB across 7 with a `defineRouting` file (esbuild, minified, Next's externals,
-measured on a config that names `compiler: icuCompiler`).
+plugin host, the tag grammar and whatever compiler the config names into the Edge isolate
+— and runs `createNextI18n()` and `registerLoader()` there — for one plain object: 31.8 KB across 27
+modules, against 4.9 KB across 8 with a `defineRouting` file (esbuild 0.28, minified, `next`,
+`react` and the catalog JSON files external, the published exports map with the `production`
+condition, measured on `test-apps/next/src/i18n/config.ts`, which names `compiler: icuCompiler`).
 
 ```ts title="src/i18n/routing.ts"
 // The URL rules, and nothing else. No host, no core, no capability.
@@ -114,10 +119,11 @@ meaning differs: Next takes a module that exports an instance.
 ## Alternatives rejected
 
 - **Handing the composed host from a Server Component to a Client Component** — Next cannot pass a
-  class instance across that boundary; `I18nClientProvider` is the workaround every quickstart uses.
+  class instance across that boundary; a `"use client"` wrapper that imports the instance itself
+  (`ClientProvider` in the manual setup) is the workaround.
 - **A separate client-only config module** — the two hosts then diverge on any option one side
   forgets, with nothing to catch it.
-- **Importing `routing` from the config module in `middleware.ts`** — 30.3 KB across 25 modules in
+- **Importing `routing` from the config module in `middleware.ts`** — 31.8 KB across 27 modules in
   the Edge isolate, running `createNextI18n()` and `registerLoader()` per cold start, for one object.
 - **Declaring `locales` in both the routing and the host file** — one source of truth or two routes
   that disagree about what exists.

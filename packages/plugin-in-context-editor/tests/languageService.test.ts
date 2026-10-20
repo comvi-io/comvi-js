@@ -101,6 +101,25 @@ describe("languageService", () => {
     ]);
   });
 
+  it("puts the source language first and keeps the others in the server's order", async () => {
+    initApiConfig("test-api-key");
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockOkResponse({
+        sourceLocale: "en",
+        locales: [
+          { id: 2, code: "de", name: "German", nativeName: "Deutsch" },
+          { id: 3, code: "uk", name: "Ukrainian", nativeName: "Українська" },
+          { id: 1, code: "en", name: "English", nativeName: "English" },
+          { id: 4, code: "fr", name: "French", nativeName: "Français" },
+        ],
+      }),
+    );
+
+    const result = await getLanguages();
+
+    expect(result.map((lang) => lang.code)).toEqual(["en", "de", "uk", "fr"]);
+  });
+
   it("returns an empty list when the project has no locales", async () => {
     initApiConfig("test-api-key");
     vi.mocked(fetch).mockResolvedValueOnce(mockOkResponse({ sourceLocale: "en", locales: [] }));

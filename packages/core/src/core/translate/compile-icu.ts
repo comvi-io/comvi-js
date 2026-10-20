@@ -10,6 +10,7 @@ import {
   type ParamToken,
   type PluralToken,
   type SelectToken,
+  formatHashCount,
 } from "./cache";
 import { advancePastApostrophe, findMatchingBraceEnd, hasSyntaxChars } from "./parser";
 import { setIcuHit, type IcuSyntaxError } from "./compile-simple";
@@ -53,7 +54,9 @@ export function isPluralArgStart(str: string, braceIndex: number, len: number): 
   return type === "plural" || type === "selectordinal";
 }
 /**
- * Replaces every `#` in a plural sub-message with the count.
+ * Replaces every `#` in a plural sub-message with the count, formatted for the
+ * locale — and formats it only once a `#` has been found, so a branch without
+ * one ("many items") never reaches `Intl.NumberFormat`.
  *
  * Reached only from the TEXT-ONLY fast path in `processPlural`: a branch that
  * gets here holds none of the parser's syntax characters (`hasSyntaxChars`),
@@ -61,9 +64,11 @@ export function isPluralArgStart(str: string, braceIndex: number, len: number): 
  * to protect. Any branch that holds one of them is re-parsed instead, and its
  * `#` becomes a `TK_HASH` token the renderer resolves against `hashValue`.
  */
-export function replaceTopLevelHash(str: string, replacement: string): string {
+export function replaceTopLevelHash(str: string, locale: string, count: number): string {
   let at = str.indexOf("#");
   if (at === -1) return str;
+  // ICU: `#` is the count formatted for the locale, not its raw digits.
+  const replacement = formatHashCount(locale, count);
   // Sliced rather than `split("#").join(replacement)`: splitting allocates an
   // array to rebuild the string, which measured ~25 ns/op more on the perf
   // gate's plural case — the hottest shape this file has.
@@ -226,6 +231,11 @@ function canonicalizeExactSelectors(
  * A comma at depth 0 makes the argument TYPED, and only the three types above
  * are implemented — `{price, number}` and friends fail through `failIcuArg`
  * rather than resolving to a parameter literally named `price, number`.
+ *
+ * A comma only in a NESTED brace group (`{{count, plural, …}}`, `{{,}\t}`) is
+ * not a parameter either: the argument fails through `failIcuArg`, with the
+ * type the default compiler would name for it, exactly as that compiler
+ * refuses the same text.
  */
 function makeIcuArgToken(
   content: string,
@@ -233,6 +243,7 @@ function makeIcuArgToken(
 ): ParamToken | PluralToken | SelectToken | undefined {
   let firstComma = -1;
   let secondComma = -1;
+  let nestedComma = -1;
   let depth = 0;
   const len = content.length;
 
@@ -246,16 +257,30 @@ function makeIcuArgToken(
 
     if (code === OPEN_BRACE) depth++;
     else if (code === CLOSE_BRACE) depth--;
-    else if (code === COMMA && depth === 0) {
-      if (firstComma === -1) firstComma = k;
-      else if (secondComma === -1) {
+    else if (code === COMMA) {
+      if (depth !== 0) {
+        if (nestedComma === -1) nestedComma = k;
+      } else if (firstComma === -1) firstComma = k;
+      else {
         secondComma = k;
         break;
       }
     }
   }
 
-  if (firstComma === -1) return [TK_PARAM, content.trim()];
+  if (firstComma === -1) {
+    if (nestedComma !== -1) {
+      return failIcuArg(
+        content
+          .slice(nestedComma + 1)
+          .split(",", 1)[0]
+          .trim(),
+        content,
+        undefined,
+      );
+    }
+    return [TK_PARAM, content.trim()];
+  }
 
   const paramName = content.slice(0, firstComma).trim();
   // A one-comma argument (`{n, plural}`) has a type but no choice list; the
@@ -341,23 +366,30 @@ function processPlural(
     selected = choices[category] ?? choices.other ?? "";
   }
 
-  const replacement = String(count);
-
   if (hasSyntaxChars(selected)) {
     // The branch goes to the parser UNCHANGED, so its cache entry is shared by
     // every count; `#` arrives as a token the renderer resolves against
     // `hashValue`. The previous count is restored afterwards — an inner plural
     // must not clobber the count an outer `#` after it still resolves against.
+    //
+    // The count is formatted only when the branch holds a `#` somewhere. A
+    // token for this plural's `#` can only come from the branch's own text, so
+    // without one `hashValue` is never read before it is restored.
+    //
+    // `finally`, because a tag handler may call `t()` itself and catch what
+    // that render throws: the count this branch set must not outlive it.
     const prev = hashValue;
-    setHashValue(replacement);
-    const result = translateSegment(selected, ctx, true);
-    setHashValue(prev);
-    return result;
+    if (selected.indexOf("#") !== -1) setHashValue(formatHashCount(ctx.locale, count));
+    try {
+      return translateSegment(selected, ctx, true);
+    } finally {
+      setHashValue(prev);
+    }
   }
 
   // Text-only branch — the hottest plural shape ("# items"). No parse, no cache
   // entry, so substituting into the text costs nothing and saves the token pass.
-  return replaceTopLevelHash(selected, replacement);
+  return replaceTopLevelHash(selected, ctx.locale, count);
 }
 
 /** Choices are `male {He} female {She} other {They}`; the param value matches a key directly. */

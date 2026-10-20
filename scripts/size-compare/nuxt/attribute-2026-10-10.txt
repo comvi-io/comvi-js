@@ -1,0 +1,72 @@
+
+### sm-bare: total client JS 145054 B (unmapped 2007 B)
+| package | min bytes |
+|---|---|
+| @vue/runtime-core | 47330 |
+| nuxt | 26774 |
+| unhead | 17364 |
+| @vue/reactivity | 16796 |
+| @vue/runtime-dom | 6242 |
+| ofetch | 5533 |
+| devalue | 4538 |
+| ufo | 4359 |
+| @vue/shared | 3854 |
+| hookable | 3375 |
+| (other) ../../virtual:nuxt:.nuxt%2Froute-rules.m | 1542 |
+| h3 | 1485 |
+| destr | 1173 |
+| @unhead/vue | 904 |
+| nostics | 750 |
+
+### sm-nuxt-i18n: total client JS 229295 B (unmapped 2504 B)
+| package | min bytes |
+|---|---|
+| @vue/runtime-core | 47467 |
+| nuxt | 30030 |
+| @nuxtjs/i18n | 21479 |
+| unhead | 17364 |
+| @vue/reactivity | 17149 |
+| @intlify/message-compiler | 16905 |
+| @intlify/core-base | 14966 |
+| vue-i18n | 14589 |
+| @vue/runtime-dom | 6242 |
+| ofetch | 5533 |
+| devalue | 4538 |
+| ufo | 4359 |
+| @vue/shared | 3852 |
+| cookie-es | 3482 |
+| hookable | 3375 |
+| @intlify/shared | 3363 |
+| ohash | 3158 |
+| (other) ../../virtual:nuxt:.nuxt%2Froute-rules.m | 1542 |
+| h3 | 1485 |
+| destr | 1173 |
+| @unhead/vue | 904 |
+| klona | 891 |
+| nostics | 750 |
+| defu | 629 |
+
+### sm-comvi-nuxt: total client JS 184366 B (unmapped 2464 B)
+| package | min bytes |
+|---|---|
+| @vue/runtime-core | 47327 |
+| nuxt | 29530 |
+| unhead | 17364 |
+| @vue/reactivity | 17114 |
+| @comvi/core | 16262 |
+| @vue/runtime-dom | 6242 |
+| @comvi/nuxt | 6160 |
+| @comvi/vue | 5706 |
+| ofetch | 5533 |
+| devalue | 4538 |
+| ufo | 4359 |
+| @vue/shared | 3851 |
+| cookie-es | 3478 |
+| hookable | 3375 |
+| ohash | 3158 |
+| (other) ../../virtual:nuxt:.nuxt%2Froute-rules.m | 1542 |
+| h3 | 1485 |
+| destr | 1173 |
+| @unhead/vue | 904 |
+| klona | 891 |
+| nostics | 750 |

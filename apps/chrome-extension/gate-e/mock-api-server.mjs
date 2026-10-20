@@ -1,7 +1,8 @@
 /**
  * Gate-E mock API + static server.
  *
- * Serves the hostile page at `/` and answers the editor's API routes so the
+ * Serves the hostile page at `/`, the honest site pages below, and answers the
+ * editor's API routes so the
  * extension can reach an *active* session without the real backend or a real
  * key. Crucially, it is the GROUND TRUTH for egress: every `/v1/*` request the
  * service worker makes is logged with its Authorization header. The hostile
@@ -18,6 +19,52 @@ import { dirname, join } from "node:path";
 const HOST = "127.0.0.1";
 const PORT = 8791;
 const DIR = dirname(fileURLToPath(import.meta.url));
+// The built UMD global of @comvi/core: the pages run the real SDK, whose
+// devtools capability installs the editor-loader hook the extension calls.
+const CORE_GLOBAL = join(DIR, "../../../packages/core/dist/comvi-core.global.prod.js");
+
+/**
+ * Site pages: a Comvi site with no inline script or style, so each can be
+ * served under a strict Content-Security-Policy.
+ * @type {Record<string, {scripts: string[], csp?: string}>}
+ */
+const SITE_PAGES = {
+  // @comvi/core with devtools(): the target pairing.
+  "/site": { scripts: ["/__core.js", "/site.js"] },
+  // jsDelivr is not allowed: the hook reports csp-blocked.
+  "/csp-script": { scripts: ["/__core.js", "/site.js"], csp: "script-src 'self'" },
+  // The editor may load, inline styles may not: it must still render styled.
+  "/csp-style": {
+    scripts: ["/__core.js", "/site.js"],
+    csp: "script-src 'self' https://cdn.jsdelivr.net; style-src 'self'",
+  },
+  // Trusted Types: a default policy lets the loader's script URL through, and
+  // `vue` is the policy the editor's Vue runtime creates for its HTML.
+  "/tt-vue": {
+    scripts: ["/tt-policy.js", "/__core.js", "/site.js"],
+    csp: "script-src 'self' https://cdn.jsdelivr.net; require-trusted-types-for 'script'; trusted-types default vue",
+  },
+  // The same without `vue`: the editor loads but cannot render its UI.
+  "/tt-default": {
+    scripts: ["/tt-policy.js", "/__core.js", "/site.js"],
+    csp: "script-src 'self' https://cdn.jsdelivr.net; require-trusted-types-for 'script'; trusted-types default",
+  },
+  // @comvi/core 0.5.0: announced on window.__COMVI__, no editor-loader hook.
+  "/old-sdk": { scripts: ["/old-sdk-site.js"] },
+  // A site that never composed devtools(): nothing to detect.
+  "/no-devtools": { scripts: [] },
+};
+
+function sitePage(scripts) {
+  return [
+    "<!doctype html>",
+    '<html lang="en">',
+    '<head><meta charset="utf-8" /><title>Comvi Gate-E — site</title></head>',
+    '<body><h1 id="greeting">Gate E site</h1>',
+    ...scripts.map((src) => `<script src="${src}"></script>`),
+    "</body></html>",
+  ].join("\n");
+}
 
 /** @type {{method:string,path:string,auth:string|null,at:number}[]} */
 const apiLog = [];
@@ -73,6 +120,25 @@ const server = createServer((req, res) => {
   if (path === "/" || path === "/index.html") {
     return send(res, 200, readFileSync(join(DIR, "hostile-page.html"), "utf8"), {
       "Content-Type": "text/html; charset=utf-8",
+    });
+  }
+  if (SITE_PAGES[path]) {
+    const { scripts, csp } = SITE_PAGES[path];
+    return send(res, 200, sitePage(scripts), {
+      "Content-Type": "text/html; charset=utf-8",
+      ...(csp ? { "Content-Security-Policy": csp } : {}),
+    });
+  }
+  if (
+    path === "/__core.js" ||
+    path === "/site.js" ||
+    path === "/old-sdk-site.js" ||
+    path === "/tt-policy.js"
+  ) {
+    // Read per request: a missing build must fail the page load, loudly.
+    const file = path === "/__core.js" ? CORE_GLOBAL : join(DIR, path.slice(1));
+    return send(res, 200, readFileSync(file, "utf8"), {
+      "Content-Type": "application/javascript; charset=utf-8",
     });
   }
   if (path === "/__log") {
@@ -140,10 +206,27 @@ const server = createServer((req, res) => {
       const responseBytes = nextLocalesResponseBytes;
       nextLocalesResponseBytes = 0;
       if (responseBytes > 0) return sendLargeJson(res, responseBytes);
-      return send(res, 200, { sourceLocale: "en", locales: [{ code: "en" }] });
+      return send(res, 200, { sourceLocale: "en", locales: [{ code: "en", name: "English" }] });
     }
     if (path === "/v1/translations") {
       return send(res, 200, { namespaces: {} });
+    }
+    // One existing key with select forms, so the edit modal shows its Preset
+    // dropdown (the site pages render it).
+    if (req.method === "GET" && /^\/v1\/keys\/[^/]+\/gate\.select$/.test(path)) {
+      const value =
+        "{gender, select, male {{count, plural, one {He has # item} other {He has # items}}} female {{count, plural, one {She has # item} other {She has # items}}}}";
+      const meta = { id: 1, status: "translated", createdAt: "", updatedAt: "" };
+      return send(res, 200, {
+        id: 1,
+        key: "gate.select",
+        namespaceId: 1,
+        namespace: "common",
+        isPlural: true,
+        createdAt: "",
+        updatedAt: "",
+        translations: { en: { ...meta, value } },
+      });
     }
     if (path.startsWith("/v1/keys/")) {
       return send(res, req.method === "DELETE" ? 200 : 404, {});

@@ -33,6 +33,33 @@ describe("# inside a plural branch that is re-parsed", () => {
     );
   });
 
+  it("restores the outer count when a nested render throws and a tag handler catches it", () => {
+    // The inner plural's branch is re-parsed with `#` bound to 99; its `<boom>`
+    // handler throws before the branch finishes rendering. The outer `<probe>`
+    // handler catches that, so the outer render goes on, and its `#` has to
+    // resolve against 2 again, not against the count the failed render left.
+    const i18n = new I18n({ locale: "en" });
+    i18n.addMessages({
+      en: {
+        outer: "{n, plural, other {<probe>x</probe> #}}",
+        inner: "{m, plural, other {<boom>#</boom>}}",
+      },
+    });
+    const boom = () => {
+      throw new Error("boom");
+    };
+    const probe = () => {
+      try {
+        i18n.t("inner", { m: 99, boom } as never);
+      } catch {
+        // Swallowed on purpose: the outer render continues past it.
+      }
+      return "caught";
+    };
+
+    expect(i18n.t("outer", { n: 2, probe } as never)).toBe("caught 2");
+  });
+
   it("leaves a # that arrives inside a parameter value alone", () => {
     expect(render("{n, plural, other {# by {author}}}", { n: 3, author: "#1 fan" })).toBe(
       "3 by #1 fan",

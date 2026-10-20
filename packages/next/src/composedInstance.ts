@@ -2,16 +2,17 @@
 // composed semantics on top of the converged single base entry. Not listed in
 // package.json#exports; `createNextI18n` is its only caller.
 //
-// Composition order mirrors the 0.4 root constructor exactly:
-//   loader capability → plugin capability → catalog ingestion → discovery,
+// Composition order mirrors the 0.4 root constructor:
+//   loader capability → plugin capability → catalog ingestion,
 // so the reflective own-property order is unchanged. (Nested constructor
 // catalogs no longer depend on this order: the base instance flattens them itself.)
+// Discovery is NOT composed here: like every other binding, an app that wants
+// the browser extension to see it adds `.use(devtools())` to the result.
 import "@comvi/core/tags"; // ambient tag syntax, as the 0.4 root registered it
 import { I18n, createI18n } from "@comvi/core";
 import { attachLoader, createImportMapLoader } from "@comvi/core/loader";
 import type { LoaderImportMap } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
-import { attachDevtools } from "@comvi/core/devtools";
 import type {
   DefaultTranslationParams,
   I18nLoaderApi,
@@ -31,15 +32,10 @@ export type NextComposedI18n<D extends DefaultTranslationParams = {}> = I18n<D> 
     registerLoader(importMap: LoaderImportMap): void;
   };
 
-type ComposedOptions<D extends DefaultTranslationParams> = I18nOptions<D> & {
-  instanceId?: string;
-  exposeGlobal?: boolean;
-};
-
 export function createComposedNextI18n<const D extends DefaultTranslationParams = {}>(
-  options: ComposedOptions<D>,
+  options: I18nOptions<D>,
 ): NextComposedI18n<D> {
-  const { messages, instanceId, exposeGlobal, ...rest } = options as ComposedOptions<D> & {
+  const { messages, ...rest } = options as I18nOptions<D> & {
     messages?: I18nOptions["messages"];
   };
 
@@ -77,10 +73,6 @@ export function createComposedNextI18n<const D extends DefaultTranslationParams 
   if (messages !== undefined) {
     instance.addMessages(messages as Record<string, Record<string, never>>);
   }
-
-  // LAST, as the 0.4 root constructor did: discovery is the only capability
-  // that assigns a PUBLIC field (`instanceId`).
-  attachDevtools(instance, { instanceId, exposeGlobal });
 
   return instance as unknown as NextComposedI18n<D>;
 }

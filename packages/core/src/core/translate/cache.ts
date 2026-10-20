@@ -64,16 +64,70 @@ export type HashToken = [typeof TK_HASH];
  * every non-static `t()`, and an eleventh property measured ~4 % on the
  * `t()`-with-a-param case of `pnpm perf` — the hottest call in the library —
  * while a `#` is only ever read inside a plural. `processPlural` saves the
- * previous value and restores it after the branch, so a nested plural cannot
- * clobber the count an outer `#` still needs; renders are synchronous, so
- * there is no second reader between the two. A value left behind by a handler
- * that threw mid-render is unreadable: `#` only becomes a token under
- * `hashIsSyntax`, which only `processPlural` turns on, after setting it.
+ * previous value and restores it in `finally` after the branch, so a nested
+ * plural cannot clobber the count an outer `#` still needs, even when a tag
+ * handler calls `t()` and catches what that render throws; renders are
+ * synchronous, so there is no second reader between the two.
  */
 export let hashValue: string | undefined;
 
 export function setHashValue(next: string | undefined): void {
   hashValue = next;
+}
+
+/**
+ * The number format a plural `#` is rendered with: ICU MessageFormat defines
+ * `#` as the count formatted for the message's locale, so `1234` is
+ * `1,234` in `en` and `1.234` in `de`. Plain-locale formatters only, keyed by
+ * the locale string; bounded like `pluralRulesCache` for the same reason.
+ *
+ * `plainInts` records, once per locale, whether the formatter writes the
+ * integers below 1000 exactly as `String()` does: same digits and the same
+ * minus sign (`-123`). Grouping starts at 1000 in every CLDR locale, so for
+ * those counts `String(count)` is the identical output at a fraction of the
+ * cost, and it is the common plural case. Locales with other numbering
+ * systems or minus signs fail the probe and always go through `Intl`.
+ */
+interface HashFormat {
+  format: Intl.NumberFormat;
+  plainInts: boolean;
+}
+const hashFormatCache = new Map<string, HashFormat>();
+let lastHashLocale = "";
+let lastHashFormat: HashFormat | undefined;
+
+function getHashFormat(locale: string): HashFormat {
+  let entry = hashFormatCache.get(locale);
+  if (!entry) {
+    let format: Intl.NumberFormat;
+    try {
+      format = new Intl.NumberFormat(locale);
+    } catch {
+      // An invalid locale falls back to the runtime default, like the plural rules.
+      format = new Intl.NumberFormat(undefined);
+    }
+    // One probe covers the digits, the grouping threshold and the minus sign.
+    entry = { format, plainInts: format.format(-123) === "-123" };
+    if (hashFormatCache.size >= PLURAL_RULES_CACHE_MAX) {
+      hashFormatCache.delete(hashFormatCache.keys().next().value!);
+    }
+    hashFormatCache.set(locale, entry);
+  }
+  return entry;
+}
+
+/** The text a `#` stands for: `count` formatted for `locale`. */
+export function formatHashCount(locale: string, count: number): string {
+  if (locale !== lastHashLocale || lastHashFormat === undefined) {
+    lastHashFormat = getHashFormat(locale);
+    lastHashLocale = locale;
+  }
+  // Negative zero renders `0`, as `String(-0)` already does: `+ 0` turns it
+  // into positive zero for Intl, which would otherwise print the sign.
+  if (lastHashFormat.plainInts && count > -1000 && count < 1000 && count % 1 === 0) {
+    return String(count);
+  }
+  return lastHashFormat.format.format(count + 0);
 }
 
 export function getPluralRules(locale: string, ordinal: boolean = false): Intl.PluralRules {

@@ -38,6 +38,76 @@ declare global {
   }
 }
 
+/**
+ * Why an editor load failed (see `contracts/chrome-extension-proxy.json`,
+ * `editorLoader.failureCodes`).
+ */
+export type EditorLoadFailureCode =
+  | "csp-blocked"
+  | "load-error"
+  | "timeout"
+  | "no-global"
+  | "invalid-editor-version";
+
+/**
+ * What `EditorLoaderSlot.load()` resolves with. It never rejects. Every key
+ * below except `message` is always present — one that does not apply holds
+ * `undefined`, it is not omitted.
+ */
+export interface EditorLoadResult {
+  ok: boolean;
+  /**
+   * The URL requested — on `latest` this carries the hourly cache salt. The
+   * salt-free slot URL when the editor was already on the page.
+   */
+  url: string;
+  /** The `@comvi/core` version that installed the slot. */
+  sdkVersion: string;
+  /** The hook↔editor protocol version of the slot that ran the load. */
+  protocol: number;
+  /**
+   * The editor's own reported version when `ok`; `undefined` for an editor
+   * older than 0.6.0, and when `ok` is false.
+   */
+  editorVersion: string | undefined;
+  /**
+   * The failure code when `ok` is false, otherwise `undefined`. `csp-blocked`
+   * covers both a `script-src` policy and Trusted Types refusing the script.
+   */
+  code: EditorLoadFailureCode | undefined;
+  /**
+   * When `ok` is false, the host a Content Security Policy has to allow;
+   * otherwise `undefined`.
+   */
+  host: string | undefined;
+  /** Optional, human-readable. Reserved: core never sets it today. */
+  message?: string;
+}
+
+/**
+ * The page-level editor loader the devtools capability installs on
+ * `globalThis[Symbol.for("comvi.devtools.editorLoader")]` (protocol 1 — see
+ * `contracts/chrome-extension-proxy.json`, `editorLoader`). Fields released
+ * under a protocol are never removed or retyped.
+ */
+export interface EditorLoaderSlot {
+  /** The hook↔editor protocol version. */
+  protocol: number;
+  /** The `@comvi/core` version that installed the slot. */
+  sdkVersion: string;
+  /**
+   * The pin from `devtools({ editorVersion })` when it is an exact version;
+   * `"latest"` when the option is left out or is `"latest"`; `"invalid"` for any
+   * other value, in which case `url` is `""` and `load()` requests nothing and
+   * answers `invalid-editor-version`.
+   */
+  editorVersion: string;
+  /** The salt-free URL the hook loads the editor from. */
+  url: string;
+  /** Load the editor once per page; later calls return the same promise unless the load failed. */
+  load(): Promise<EditorLoadResult>;
+}
+
 export type I18nEvent =
   | "initialized"
   | "destroyed"
@@ -638,7 +708,8 @@ export interface I18nBaseOptions {
    * - `"drop"`: the placeholder renders as an empty string
    *
    * A `null` param always renders as an empty string in both modes
-   * (explicit erasure).
+   * (explicit erasure). A function param is never rendered as text: it
+   * follows this option as if it were absent.
    * @default "literal"
    */
   missingParam?: MissingParamMode;
@@ -687,8 +758,8 @@ export interface I18nBaseOptions {
    */
   collectContext?: boolean;
   /**
-   * Discovery option for composed compatibility instances (the CDN/UMD instance and
-   * `@comvi/next`'s composed preset). The base `@comvi/core` instance accepts this
+   * Discovery option for the composed compatibility instance (the CDN/UMD
+   * instance). The base `@comvi/core` instance accepts this
    * shared option shape but does not install discovery; base-instance users compose
    * `devtools({ exposeGlobal })` or call `attachDevtools`. Passing it without
    * that capability does nothing, and `init()` says so in development.
@@ -696,7 +767,7 @@ export interface I18nBaseOptions {
    */
   exposeGlobal?: boolean;
   /**
-   * Discovery identifier for composed compatibility instances. Auto-generated
+   * Discovery identifier for the composed compatibility instance. Auto-generated
    * when the devtools capability is installed and no value is provided. On a
    * base instance, pass it to `devtools({ instanceId })` or `attachDevtools`.
    */
@@ -941,6 +1012,11 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 
   addMessages: (messages: MessagesMap) => void;
 
+  /**
+   * The stored catalog. It may be the caller's own object, because a flat
+   * catalog passed to `addMessages` or `messages` is kept by reference: read
+   * it, never write it, and use `addMessages` to change translations.
+   */
   getMessages: (locale?: string, namespace?: string) => FlattenedMessages;
 
   /**

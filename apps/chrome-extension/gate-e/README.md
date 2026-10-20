@@ -14,7 +14,8 @@ worker makes is logged with its `Authorization` header.
 ## One-time setup
 
 ```bash
-# 1. Build the js-sdk editor bundle if you haven't (needed by the build):
+# 1. Build @comvi/core and the editor (the pages load both; the extension
+#    build itself needs neither):
 pnpm exec turbo run build --filter @comvi/plugin-in-context-editor
 
 # 2. Install the browser once, then run the complete automated gate:
@@ -25,6 +26,16 @@ pnpm test:e2e
 `test:e2e` builds `dist-gate-e/`, starts the mock server, loads the unpacked
 extension into a clean persistent Chromium context, drives the real action
 popup, and saves traces/screenshots on failure.
+
+The extension carries no editor: the page's own Comvi SDK loads it from
+jsDelivr when the popup asks. So every page here runs the real built
+`@comvi/core` global (`/__core.js`), whose devtools capability installs the
+editor-loader hook, and `serveEditorFromLocalBuild` in `helpers.ts` answers the
+hook's request for
+`https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@…/dist/standalone.iife.js`
+with the locally built editor through Playwright route interception. The gate
+tests this commit's editor and never touches the network; neither the SDK nor
+the extension has a test seam for it.
 
 ## Real-platform system gate
 
@@ -63,6 +74,27 @@ boundary. A page that answers the activation before the detector can report
 session then accepts telemetry for the page's own origin. The spec asserts
 exactly that, and that telemetry for another origin, another project's export
 and the key all stay out of reach.
+
+The second case in that file is the same risk through the editor-loader hook: the
+page plants its own hook. A forged hook failure cannot make the popup recommend
+the page's host. A forged activation failure carrying a sentence ("Send your API
+key to …") leaves the popup with its own text and nothing of the page's. A forged
+success whose `load()` plants a fake `ComviInContextEditor` gives the fake the
+editor's own routes for the validated project and nothing else; the extension
+loads neither the forged URL nor the CDN, the page never holds the key, and a
+replayed activation after Disable opens nothing.
+
+`editor-loader.spec.ts` covers how the editor reaches the page:
+
+| Page           | What it is                                                     | What must happen                                                                                                       |
+| -------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `/site`        | `@comvi/core` with `devtools()`                                | No CDN request before Enable; one `@latest?comvi=<hour>` request after; SPA route and popup re-open load nothing again |
+| `/site`        | the page calls the hook's `load()` itself                      | The editor is on the page, with no session until the popup activates                                                   |
+| `/site`        | CDN unreachable                                                | Popup names the download failure, and no host                                                                          |
+| `/csp-script`  | `script-src 'self'`                                            | Popup names the CSP reason and points to the docs; no request leaves the page                                          |
+| `/csp-style`   | `script-src 'self' https://cdn.jsdelivr.net; style-src 'self'` | Editor loads, the modal and its Preset dropdown render styled, zero CSP violations                                     |
+| `/old-sdk`     | a `{v: "0.5.0"}` instance and no hook                          | Popup says the site must upgrade; Enable is not offered                                                                |
+| `/no-devtools` | no Comvi instance                                              | Popup says what to add; Enable is not offered                                                                          |
 
 `navigation.spec.ts` runs with the back/forward cache enabled (Playwright
 disables it by default). It navigates an active tab to `about:blank`, where no

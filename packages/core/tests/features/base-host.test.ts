@@ -141,11 +141,11 @@ describe("createI18n() — the base host", () => {
       const i18n = createI18n({ locale: "en" });
       i18n.addMessages({ en: { real: "Real" } });
 
-      // The catalog the caller passed has Object.prototype; the cache copy
-      // must not, or `toString` would resolve as a translation.
+      // The flat catalog is kept by reference with its Object.prototype; the
+      // lookup guard, not a copy, keeps `toString` from resolving.
       expect(i18n.hasTranslation("toString")).toBe(false);
       expect(i18n.t("toString" as never)).toBe("toString");
-      expect(Object.getPrototypeOf(i18n.getMessages())).toBeNull();
+      expect(Object.getPrototypeOf(i18n.getMessages())).toBe(Object.prototype);
     });
 
     it("flattens a nested catalog, with no warning about it", () => {

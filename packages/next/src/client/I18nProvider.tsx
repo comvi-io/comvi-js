@@ -86,20 +86,24 @@ function applyLocale(i18n: import("@comvi/core").WrapperI18nInstance, locale: st
  * mismatches. Translations should be pre-loaded in the instance via the
  * `messages` option in `createI18n()`.
  *
- * Render it from a `"use client"` wrapper that imports the instance itself:
- * Next.js cannot pass a class instance from a Server Component to a Client
- * Component, so a layout may not hand `i18n` across the RSC boundary.
+ * With `withComvi({ config })` in `next.config`, `<ComviProvider>` from
+ * `@comvi/next/server` renders this component for you, and you write no
+ * wrapper. The manual setup — an instance built in a server-only module with
+ * `createNextI18nFromInstance` or handed over with `setI18n()` — renders it
+ * from a `"use client"` wrapper that imports the instance itself: Next.js
+ * cannot pass a class instance from a Server Component to a Client Component,
+ * so a layout may not hand `i18n` across the RSC boundary.
  *
  * @example
  * ```tsx
- * // app/[locale]/I18nClientProvider.tsx
+ * // app/[locale]/ClientProvider.tsx
  * "use client";
  *
  * import { I18nProvider } from '@comvi/next/client';
  * import type { MessagesMap } from '@comvi/next/client';
  * import { i18n } from '@/i18n/config';
  *
- * export function I18nClientProvider({
+ * export function ClientProvider({
  *   children,
  *   locale,
  *   messages,
@@ -119,7 +123,7 @@ function applyLocale(i18n: import("@comvi/core").WrapperI18nInstance, locale: st
  * @example
  * ```tsx
  * // app/[locale]/layout.tsx — a Server Component; no i18n import here
- * import { I18nClientProvider } from './I18nClientProvider';
+ * import { ClientProvider } from './ClientProvider';
  *
  * export default async function LocaleLayout({
  *   children,
@@ -133,7 +137,7 @@ function applyLocale(i18n: import("@comvi/core").WrapperI18nInstance, locale: st
  *   return (
  *     <html lang={locale}>
  *       <body>
- *         <I18nClientProvider locale={locale}>{children}</I18nClientProvider>
+ *         <ClientProvider locale={locale}>{children}</ClientProvider>
  *       </body>
  *     </html>
  *   );

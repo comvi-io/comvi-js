@@ -57,7 +57,9 @@ two bundles and must import the ambient module in both.** ICU apostrophe quoting
 this: `'{literal}'` and `''` are core grammar and work on every graph.
 
 **Non-primitive parameter values are a separate axis** and behave identically on every graph: `t()`
-always returns a string, coercing the parts, and `tRaw()` preserves them as a parts array.
+always returns a string, coercing the parts, and `tRaw()` preserves them as a parts array. The one
+value that is never coerced is a function: under a `{name}` placeholder it renders as a missing
+parameter does, because a function is a tag handler and coercing it would print its source.
 
 **`<T markers={false}>` keeps the in-context editor's invisible markers out of one result**, the
 same as `t(key, { markers: false })`. Nothing else reads it.

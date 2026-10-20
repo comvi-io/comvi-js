@@ -1,0 +1,22 @@
+# eval( / new Function( in the published JavaScript of each package, 2026-10-11 (node_modules of scan-eval-wider/package.json)
+@tolgee/web@7.3.0                    none
+@tolgee/format-icu@7.3.0             none
+@lingui/core@6.9.1                   none
+typesafe-i18n@5.27.1                 importer/index.cjs:3294; importer/index.mjs:3298; cli/typesafe-i18n.mjs:6100; exporter/index.cjs:3294
+react-intl@12.1.4                    none
+@formatjs/intl@6.1.3                 none
+i18n-js@4.5.4                        dist/browser/index.js:1
+node-polyglot@2.6.0                  none
+intlayer@9.7.0                       none
+@inlang/paraglide-js@2.27.0          dist/compiler/compile-project.test.js:469
+svelte-i18n@4.0.1                    none
+@solid-primitives/i18n@2.2.1         none
+@nuxtjs/i18n@10.6.0                  dist/module.mjs:1377
+vue-i18n@9.14.5                      none
+@intlify/core-base@9.14.5            dist/core-base.cjs:1106; dist/core-base.mjs:1124; dist/core-base.global.js:2876; dist/core-base.esm-browser.js:2883
+messageformat@4.0.0                  none
+@messageformat/core@3.4.0            messageformat.js:626; lib/compiler.js:398; lib/messageformat.js:130
+i18next-icu@2.5.0                    none
+globalize@1.7.1                      dist/globalize/message.js:1820; dist/globalize/plural.js:227
+jed@1.1.1                            test/jquery.min.js:2; test/tests.js:588
+ttag@1.8.12                          dist/ttag.esm.mjs:157; dist/ttag.esm.min.mjs:1; dist/ttag.min.js:1; dist/ttag.js:222

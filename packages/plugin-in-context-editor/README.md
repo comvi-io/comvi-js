@@ -32,6 +32,8 @@ npm install @comvi/plugin-in-context-editor
 
 ## Set up
 
+In `src/i18n.ts`:
+
 ```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
@@ -70,8 +72,11 @@ and every click opens one panel naming the key, with no translation list.
 
 ## Gate it out of production
 
+The same `src/i18n.ts`, with the key and the installer behind one condition:
+
 ```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
+import { devtools } from "@comvi/core/devtools";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
@@ -83,22 +88,51 @@ const base = createI18n({
   apiKey: editorEnabled ? import.meta.env.VITE_COMVI_EDITOR_API_KEY : undefined,
 }).use(cdnLoader({ cdnUrl: import.meta.env.VITE_COMVI_CDN_URL }));
 
-export const i18n = editorEnabled ? base.use(inContextEditor()) : base;
+export const i18n = (editorEnabled ? base.use(inContextEditor()) : base).use(devtools());
 
 await i18n.init();
 ```
 
-Gating the key is required. Two things keep the editor code out of a production build: the
-package's `production` export condition resolves to an entry whose installer is `(i18n) => i18n`,
-with no editor bytes, and `inContextEditorPlugin()` returns a no-op when `process.env.NODE_ENV` is
-`"production"`. Neither touches your own `createI18n` call, so an ungated `apiKey` still ships in
-`dist/assets`, where anyone can read it and overwrite translations with it. Put the key and the
-installer behind the same condition, and never widen that condition with a flag a deployed build
-can set: a preview deployment is a production build, so the editor would not run there and the key
-would still ship. The installer returns the i18n instance type unchanged, so both branches of the
-ternary have the same type. On a live site or a preview deployment a translator uses the browser
-extension instead: it injects the standalone editor runtime into the page and keeps the key in the
-extension.
+Gating the key is required. An ungated `apiKey` ships in `dist/assets`, where any visitor can read
+it and overwrite your translations.
+
+The editor's own code is gated for you, twice: the package's `production` export condition resolves
+to an entry whose installer is `(i18n) => i18n`, with no editor bytes, and
+`inContextEditorPlugin()` returns a no-op when `process.env.NODE_ENV` is `"production"`. Neither
+touches your own `createI18n` call, which is why the key is yours to gate.
+
+Put the key and the installer behind the same condition, and never widen that condition with a
+flag a deployed build can set: a preview deployment is a production build, so the editor would not
+run there and the key would still ship. `devtools()` stays outside the condition: on a live site or
+a preview deployment a translator edits through the browser extension, and `devtools()` is what the
+extension needs. This snippet imports `devtools` from `@comvi/core/devtools`; every binding
+re-exports it from its root.
+
+## The browser extension
+
+On a page whose i18n instance composed `devtools()`, the Comvi browser extension loads the editor
+when a translator asks for it, and the API key stays in the extension. The site ships no editor
+code for this; `devtools()` adds the discovery protocol and a small loader, about 1.2 kB min+gzip
+together over the base i18n instance (`core-base` and `core-base-devtools` in
+`scripts/size-budgets.json`), of which about 0.7 kB is the loader, new in 0.6.0.
+
+`devtools()` publishes the i18n instance to the extension and installs a loader the extension
+calls when a translator clicks **Enable editor**; the site's SDK then inserts one `<script>` from
+`https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js`, or
+the exact version `devtools({ editorVersion: "0.6.0" })` names. An `editorVersion` that is not an
+exact version loads nothing at all; it does not fall back to `latest`. Nothing is requested from
+the CDN before that click, and an app that does not call `devtools()` is invisible to the extension.
+Two things call it for you: `inContextEditor()` in a development build, and the `<script>` global
+build of `@comvi/core` (`ComviCore.I18n`), which always loads `latest`; `exposeGlobal: false`
+keeps it from installing the loader, and the code stays in that file.
+This needs `@comvi/core` 0.6.0 or newer on the site and the 0.6.0 extension. If the site sends a
+Content Security Policy, `script-src` must allow `https://cdn.jsdelivr.net`. `style-src` needs no
+change in current browsers, because the editor adopts a constructable stylesheet.
+
+On a page that sets `require-trusted-types-for 'script'`, the editor needs two things from the
+site: a `default` policy whose `createScriptURL` accepts the jsDelivr URL, because the loader assigns
+a plain string, and `vue` in the `trusted-types` directive, the policy the editor's Vue runtime
+creates for the HTML it renders. Without `vue` the editor loads but its UI is blocked.
 
 ## Options
 
@@ -130,7 +164,7 @@ hostile page can report it as on; the extension README describes this limit.
 
 - [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor): the default `tagAttributes` map, extension discovery, the standalone runtime.
 - [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the loader the editor edits on top of.
-- [Devtools API](https://comvi.io/docs/i18n/api/core-devtools): `devtools()`, `instanceId` and `exposeGlobal`.
+- [Devtools API](https://comvi.io/docs/i18n/api/core-devtools): `devtools()`, `instanceId`, `exposeGlobal` and `editorVersion`.
 
 ## License
 

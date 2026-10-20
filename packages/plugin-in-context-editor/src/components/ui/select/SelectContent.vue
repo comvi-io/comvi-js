@@ -5,11 +5,11 @@ import {
   type SelectContentEmits,
   type SelectContentProps,
   SelectPortal,
-  SelectViewport,
   useForwardPropsEmits,
 } from "reka-ui";
 import { computed, type HTMLAttributes } from "vue";
 import { SelectScrollDownButton, SelectScrollUpButton } from ".";
+import SelectViewport from "./SelectViewport";
 
 defineOptions({
   inheritAttrs: false,

@@ -118,22 +118,34 @@ warning names the remedy in full.
 
 ## How to re-baseline
 
+A baseline belongs to its row, not to the file. `baseline.measuredAt` dates the sweep that row's
+figures came from, and rows in the file may carry different dates: a new row is baselined from the
+sweep that introduces it, a row whose graph changed is re-baselined from the sweep of that change,
+and every other row keeps its dated baseline until its own re-baseline. That is how the editor
+loader (only the rows that compose `devtools()`), the Next discovery change (one row) and the two
+`devtools()` rows of 2026-10-12 were recorded; the `#` change re-baselined every row because the
+earlier baselines had all drifted. What is never mixed is one row's own figures, or one stated
+difference: `minBytes` and `gzipBytes` of a row come from the same run, and a delta between two
+rows is quoted from one sweep (or says which recorded baselines it subtracts).
+
 1. Build the dists the gate reads: `pnpm build`.
-2. Run **one** `node scripts/size-check.mjs`. That single run is authoritative — never mix figures
-   from separate runs into one file.
-3. For each row, set `baseline.{minBytes,gzipBytes}` to that run's numbers, `baseline.measuredAt` to
-   the date, and `gzipBudgetBytes` to `ceil(gzipBytes * 1.05)`.
+2. Run **one** `node scripts/size-check.mjs`. Every figure this change writes comes from that
+   single run.
+3. For each row you re-baseline, set `baseline.{minBytes,gzipBytes}` to that run's numbers,
+   `baseline.measuredAt` to the date, and `gzipBudgetBytes` to `ceil(gzipBytes * 1.05)`. Leave the
+   rows this change does not move as they are.
 4. Re-run `node scripts/size-check.mjs` and confirm every row is green.
-5. Say in the commit/handoff **which** sweep the file now records.
+5. Say in the commit/handoff **which** rows were re-baselined, from which sweep, and add a dated
+   section below.
 
 Re-baselining is not a way to pass a failing gate. A row that grew past +5 % is a finding: explain
 the bytes first, then decide whether they ship.
 
 ## Row inventory
 
-`core-base`, `core-base-icu`, `core-full-composite`; per framework
+`core-base`, `core-base-icu`, `core-base-devtools`, `core-full-composite`; per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
+`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-i18n`; the platform
 path `plugin-fetch-loader`, `plugin-fetch-loader-api`, `platform-path-react`.
 
@@ -160,3 +172,110 @@ Renamed on 2026-10-04 (first-impression lot), when `cdnLoader` became the packag
 `fetchLoader` moved to `/api`: `plugin-fetch-loader-cdn-lite` is now `plugin-fetch-loader` and
 `plugin-fetch-loader-cdn` is now `plugin-fetch-loader-api`. Both measure the same module graph as
 before the rename, so their budgets carry over unchanged.
+
+## 2026-10-11: `#` formatted for the locale
+
+`icuCompiler` now renders a plural `#` through a cached `Intl.NumberFormat` for the message
+locale (ICU semantics: `1,234 items` in `en`), with a per-locale probe that keeps the integers
+below 1000 on the `String()` fast path. Against the 0.5.0 code on `main` the change adds about
+130 B min+gz to every row whose graph includes `@comvi/core/icu` and nothing to the others:
+`core-base-icu` 6510 → 6645 B, `fw-nuxt-i18n` 8525 → 8655 B, `fw-next-root-composed`
+10155 → 10286 B, `platform-path-react` 11837 → 11953 B; `core-base` 5452 → 5451 B,
+`fw-react-default` 7425 → 7424 B.
+
+All rows were re-baselined on this date. Most of the recorded movement is not this change: the
+previous baselines dated 2026-09-12 to 2026-10-05 sat 1–4 % below the code that shipped as 0.5.0
+(see `scripts/size-compare/README.md`, "Where the Comvi figures come from"), and this re-baseline
+folds that drift in. Only `platform-path-react` crossed its old budget (11921 B), by 32 B. Every
+budget is now the new baseline + 5 %, rounded up, the rule `scripts/docs-snippets/run.test.mjs`
+enforces for every row (`platform-path-react` 12551 B, `core-base-icu` 6978 B, `core-base` 5724 B).
+
+## 2026-10-11: `createNextI18n` composes no discovery
+
+`createNextI18n` no longer attaches devtools discovery (COM-140), so the `@comvi/core/devtools`
+graph left the `fw-next-root-composed` fixture, which composes the loader and a scoped plugin and
+no `devtools()`. Only that row was re-baselined: 10286 → 9909 B min+gz (28740 → 27569 B min),
+budget 10801 → 10405 B (baseline + 5 %, rounded up). The other five Next rows did not move. No row
+measures the Next root with `.use(devtools())`.
+
+## 2026-10-11: the editor loader in `devtools()`
+
+The devtools capability now installs the page-level editor loader the browser extension calls
+(`contracts/chrome-extension-proxy.json`, `editorLoader`): the slot, the version check, the hourly
+cache salt, one `<script>` with a 10 s timeout, and the four failure codes including the CSP
+listener. It costs about 720 B min+gz (1,600 B minified) on every row whose graph composes
+devtools, and no code on any other row. Measured on one machine against `develop` @ 05a55e35, per
+row: `core-full-composite` 9608 → 10332 B (+724), `fw-react-full-composite` 12554 → 13273 (+719),
+`fw-solid-full-composite` 11934 → 12652 (+718), `fw-svelte-full-composite` 12639 → 13354 (+715),
+`fw-vue-full-composite` 12590 → 13323 (+733), `fw-nuxt-full-composite` 13517 → 14240 (+723),
+`fw-nuxt-i18n` 8681 → 9421 (+740).
+
+On the previous budgets those seven rows are 80–333 B over, so they were re-baselined to the figures
+above; the rise is the loader (the previous baselines, recorded the same day, sit 23–32 B below the
+`develop` figures above). The other sixteen rows keep their baselines and budgets, among them
+`fw-next-root-composed`, which composes no devtools since the entry above. Their minified size is
+unchanged to the byte; their gzip figure moved by −5…+2 B (`fw-svelte-default` 7075 → 7070,
+`fw-next-root-composed` 9923 → 9925, `core-base` 5458 → 5458), because the core build shares one
+terser name cache across chunks and an edit to the devtools chunk reassigns the mangled letters in
+the others.
+
+## 2026-10-12: rows for `devtools()` alone and in Next
+
+Two rows were added so that what `.use(devtools())` costs is a gated figure, not a subtraction
+between full composites. One sweep on `develop` @ e198fc9d measured both.
+
+`core-base-devtools` is the `core-base` fixture plus `.use(devtools())`: 6672 B min+gz (17431 B
+min), budget 7006 B. `core-base` measured 5458 B in that sweep, so discovery and the editor loader
+together cost 1214 B (1221 B against `core-base`'s recorded 5451 B). About 720 B of it is the
+editor loader (the section above); the rest is the discovery that shipped in 0.5.0.
+
+`fw-next-root-devtools` is the `fw-next-root-composed` fixture plus `.use(devtools())`, so the
+editor loader's weight is gated in Next as it is in the other bindings through their
+full-composite rows: 11023 B min+gz (30390 B min), budget 11575 B. `fw-next-root-composed` measured
+9925 B in that sweep, a difference of 1098 B.
+
+Both budgets are baseline + 5 %, rounded up. No other row was re-baselined: the 23 existing rows
+measured 0 to 35 B above their recorded baselines (core changes merged after each row's last
+sweep), each at least 4.3 % under its budget.
+
+## 2026-10-14: 22 rows re-baselined on the 0.6.0 release build
+
+**Measure on the Node major CI runs.** The gzip figure comes from Node's bundled zlib, so it moves
+with the Node version while the minified payload does not. The first sweep of this re-baseline ran
+on Node 26.9.0 and read every row between 24 B lower and 9 B higher than Node 24.20.0 read it, with
+the minified bytes identical to the byte on all 25 rows. CI's `build` job runs Node 24
+(`.github/workflows/ci.yml`), so the figures below, and the three in
+`.github/release-notes/0.6.0.md`, are the **Node 24** sweep. A baseline recorded from another major
+is not wrong by much — the 5 % margin absorbs it — but it does not describe the gate that runs, and
+it silently contradicts the release notes. Say which Node a sweep used.
+
+22 of the 25 rows were re-baselined from **one** `node scripts/size-check.mjs` run on the 0.6.0
+release commit (`a74da136`) under Node 24.20.0, after `pnpm build`. Every row was green on its
+previous budget before the re-baseline and is green after it: this folds in the core work that
+landed after the 2026-10-11 and 2026-10-12 sweeps, it does not rescue a failing gate.
+
+The movement is core, and the three rows that carry no core graph say so: `fw-next-server-provider`
+(2052 B), `fw-next-plugin-node` (939 B) and `fw-next-middleware-edge` (2045 B) measured their
+recorded baselines exactly, to the byte, min and gzip alike, so they keep their 2026-10-11
+baselines and dates. Every other row grew, and the minified growth spans +460…+671 B. It does not
+fall into neat bands, so here is every cluster: **+460…+467 B** on the eight floor rows
+(`core-base`, `fw-{react,solid,svelte,vue}-default`, `fw-next-client-default`,
+`fw-next-server-default-loader`, `fw-nuxt-client-default`); **+523 B** on
+`fw-next-root-composed`; **+561…+563 B** on `core-base-icu`, both fetch-loader rows and
+`platform-path-react`; **+619 B** on `core-base-devtools`; **+665 B** on `fw-nuxt-i18n`; and
+**+669…+671 B** on the six full composites and `fw-next-root-devtools`. `core-base-devtools` and
+`fw-nuxt-i18n` each sit alone between the middle and the top, and this sweep does not say why:
+composing `devtools()` does not predict one figure either, since the three devtools rows that are
+not full composites measured +619, +665 and +670 B. One sweep gives totals, not per-feature
+attribution. In gzip the whole span is +145…+259 B, between +1.6 % and +3.0 % of the row's own
+recorded baseline. That is the 0.6.0 core work: the numeric template-cache partition key, the flat catalog kept by
+reference, the function-parameter placeholder and its warning, the ICU nested-comma fix, plural
+`-0`, and the `editorVersion` SemVer check that fails closed.
+
+Anchors from this sweep, in bytes min+gz: `core-base` 5451 → 5608, `core-base-devtools`
+6672 → 6872 (so `devtools()` costs 1264 B, still about 1.2 kB), `core-base-icu` 6645 → 6842,
+`core-full-composite` 10332 → 10575, `fw-react-default` 7424 → 7605, `fw-nuxt-i18n` 9421 → 9647,
+`platform-path-react` 11953 → 12157. Every budget is the row's new baseline + 5 %, rounded up. The
+`core-base` and `core-base-devtools` table in `docs/design/editor-loader.md` was updated to this
+sweep; the three figures in `.github/release-notes/0.6.0.md` already matched it and were not
+touched.

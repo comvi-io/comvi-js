@@ -332,6 +332,16 @@ jobs:
             echo "pending=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The hand-written notes of this version become the GitHub Release body
+      # as they are, and a re-run never rewrites a body. An HTML comment left
+      # in them (a draft marker, a slot for a bullet) fails the release here,
+      # before anything is built or published; the message names the file and
+      # the line. The release PR is opened with GITHUB_TOKEN and may get no CI
+      # run, so this is the check that always runs.
+      - name: Refuse release notes that still hold an HTML comment
+        if: steps.changesets.outputs.pending == 'false'
+        run: node .github/scripts/check-release-notes.mjs
+
       - name: Setup pnpm
         if: steps.changesets.outputs.pending == 'false'
         uses: pnpm/action-setup@v6
@@ -503,6 +513,95 @@ jobs:
         env:
           SUMS: ${{ needs.pack.outputs.sums }}
         run: node scripts/publish-candidate.mjs publish --dir release-candidate --expect-sums "$SUMS" --tag latest --git-tag --push-tags
+
+      # The devtools() editor loader requests this one file under `@latest`
+      # (packages/core/src/core/devtools.ts), and jsDelivr's edge keeps a version
+      # alias for 12 hours (`s-maxage=43200`), so without a purge a fixed
+      # editor reaches sites up to half a day after npm has it. The endpoint
+      # is public and takes no token. Never fatal: npm is already live when
+      # this runs, so a refused, throttled or unreachable purge is a warning
+      # and the edge expires on its own. Two attempts, 30 s each.
+      #
+      # The purge is asynchronous. jsDelivr's own purge page
+      # (jsdelivr/www.jsdelivr.com, src/views/pages/tools/purge.html) gets an
+      # `id` back and polls purge.jsdelivr.net/status/<id> until `status` is
+      # "finished", so a "pending" first answer is polled here too: five
+      # times, 5 s apart. The `id` goes into a URL only when it is 1 to 64
+      # letters, digits, `_` and `-`. The answer is parsed with jq (on the
+      # runner image), never matched as text. Only a finished answer counts as
+      # accepted: `status` is "finished", there is a path, and every path has
+      # `throttled` false and at least one provider, each `true`. A challenge
+      # page, an empty body, a value of another type, a failed status, or one
+      # still pending after the last poll is a warning, so the log never says
+      # "accepted" by default. Worst case 245 s: 30 + 10 + 30 for the two
+      # attempts, then 5 × (5 + 30) for the polls.
+      # scripts/release-workflow.test.mjs executes this step's shell.
+      - name: Purge jsDelivr's @latest editor file
+        if: steps.publish.outputs.published == 'true'
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          url="https://purge.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js"
+          stale="The release is published; jsDelivr's edge may serve the previous @latest editor for up to 12 hours. Purge by hand: https://www.jsdelivr.com/tools/purge"
+          # Prints the first 2000 characters behind a prefix: a line that
+          # begins with `::` is a workflow command.
+          show() { printf '%s\n' "${1:0:2000}" | sed 's/^/jsDelivr: /'; }
+          # The answer, read as JSON: accepted | throttled | pending |
+          # unconfirmed. Anything jq cannot parse, or more than one JSON
+          # value, falls through to the warning. Accepted limit: jq keeps the
+          # LAST of duplicate keys, so `"CF":false,"CF":true` reads as true;
+          # that is malformed JSON a server does not send, and it is not
+          # coded around.
+          verdict() {
+            printf '%s' "$1" | jq -r '
+              if type != "object" then "unconfirmed"
+              elif [.paths | objects | .[] | objects | .throttled == true] | any then "throttled"
+              elif .status == "pending" then "pending"
+              elif .status == "finished"
+                and (.paths | type) == "object" and (.paths | length) > 0
+                and ([.paths[]
+                  | type == "object" and .throttled == false
+                    and (.providers | type) == "object" and (.providers | length) > 0
+                    and ([.providers[] == true] | all)] | all)
+              then "accepted"
+              else "unconfirmed" end' 2>/dev/null || echo unconfirmed
+          }
+          for attempt in 1 2; do
+            if body="$(curl --fail --silent --show-error --max-time 30 "$url")"; then
+              show "$body"
+              answer="$(verdict "$body")"
+              polls=0
+              # Read once, from the answer to the purge request: a status
+              # answer need not repeat the id, and cannot redirect the poll.
+              # `$(…)` drops a trailing newline before the check, harmlessly.
+              id="$(printf '%s' "$body" | jq -r '.id | strings' 2>/dev/null || true)"
+              while [ "$polls" -lt 5 ] && [ "$answer" = pending ] &&
+                [[ "$id" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; do
+                polls=$((polls + 1))
+                sleep 5
+                if body="$(curl --fail --silent --show-error --max-time 30 "https://purge.jsdelivr.net/status/$id")"; then
+                  show "$body"
+                  answer="$(verdict "$body")"
+                else
+                  answer=unconfirmed
+                fi
+              done
+              case "$answer" in
+                accepted)
+                  echo "jsDelivr accepted the purge of $url (attempt $attempt, $polls status request(s))."
+                  ;;
+                throttled)
+                  echo "::warning title=jsDelivr purge throttled::jsDelivr rate-limited the purge of $url. $stale"
+                  ;;
+                *)
+                  echo "::warning title=jsDelivr purge not confirmed::The answer to $url is not a finished purge on every provider. $stale"
+                  ;;
+              esac
+              exit 0
+            fi
+            if [ "$attempt" = 1 ]; then sleep 10; fi
+          done
+          echo "::warning title=jsDelivr purge failed::Two requests to $url failed. $stale"
 
       # Runs only after a complete publish (no `always()`: a partial train must
       # not get an archive). It refuses unless `v<version>` exists at this

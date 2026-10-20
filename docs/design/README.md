@@ -25,5 +25,6 @@ is the one composition verb.
 | [next-runtimes.md](next-runtimes.md)       | one shared config module per runtime, nothing composed on the Edge                 |
 | [next-nuxt-parity.md](next-nuxt-parity.md) | one behaviour contract run against both adapters; what must match, what may differ |
 | [examples-e2e.md](examples-e2e.md)         | a locale switch shows only whole-language states, judged per delivered DOM batch   |
+| [editor-loader.md](editor-loader.md)       | the site's `devtools()` loads the in-context editor; the extension only asks       |
 | [ssr.md](ssr.md)                           | the four module-scope rules side by side (user-facing)                             |
 | [limitations.md](limitations.md)           | everything the library does not do (user-facing)                                   |

@@ -31,6 +31,8 @@ npm install @comvi/svelte
 
 ## Setup
 
+In the root layout, `src/routes/+layout.svelte`:
+
 ```svelte title="src/routes/+layout.svelte" check=group=svelte-2
 <script lang="ts">
   import { createI18n, setI18nContext } from '@comvi/svelte';
@@ -60,6 +62,8 @@ yourself, and `{ onError }` to see a failed auto-init. In a plain Vite app the s
 
 ## Use in components
 
+In a page, `src/routes/+page.svelte`:
+
 ```svelte title="src/routes/+page.svelte" check=group=svelte-2
 <script lang="ts">
   import { useI18n } from '@comvi/svelte';
@@ -83,6 +87,8 @@ array. `setLocale()` is a plain function that resolves once the new locale's cat
 npm install @comvi/plugin-fetch-loader
 ```
 
+Compose the loader on the instance, in `src/routes/+layout.svelte`:
+
 ```svelte title="src/routes/+layout.svelte" check=group=svelte-cdn
 <script lang="ts">
   import { createI18n, setI18nContext } from '@comvi/svelte';
@@ -101,6 +107,8 @@ npm install @comvi/plugin-fetch-loader
 
 {@render children()}
 ```
+
+Read `isInitializing` in the page, in `src/routes/+page.svelte`:
 
 ```svelte title="src/routes/+page.svelte" check=group=svelte-cdn
 <script lang="ts">
@@ -122,7 +130,7 @@ there is no provider component and no `fallback` prop. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent, and either works without the other.
+independent.
 
 ## Specific to Svelte
 

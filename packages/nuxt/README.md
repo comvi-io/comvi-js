@@ -30,6 +30,8 @@ npm install @comvi/nuxt
 
 ## Setup
 
+Add the module and declare the locales, in `nuxt.config.ts`:
+
 ```ts title="nuxt.config.ts" check=group=nuxt-app
 import { defineNuxtConfig } from "nuxt/config";
 
@@ -46,6 +48,8 @@ export default defineNuxtConfig({
 });
 ```
 
+Nuxt renders the pages through an outlet, in `app/app.vue`:
+
 ```vue title="app/app.vue" check=group=nuxt-app
 <template>
   <NuxtPage />
@@ -56,6 +60,8 @@ export default defineNuxtConfig({
 module writes `<html lang dir>` from the active locale on the server and on every switch.
 
 ## Use in components
+
+In a page, `app/pages/index.vue`:
 
 ```vue title="app/pages/index.vue" check=group=nuxt-app
 <script setup lang="ts">
@@ -77,6 +83,8 @@ state the route middleware watches. `$t()` works in any template without calling
 ```bash
 npm install @comvi/plugin-fetch-loader
 ```
+
+Compose the loader in `comvi.i18n.ts`:
 
 ```ts title="comvi.i18n.ts" check=group=nuxt-cdn
 import { createI18n, defineComviI18n } from "@comvi/nuxt/i18n";

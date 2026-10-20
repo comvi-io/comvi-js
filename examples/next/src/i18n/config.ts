@@ -1,4 +1,4 @@
-import { createNextI18n, icuCompiler, loader } from "@comvi/next";
+import { createNextI18n, devtools, icuCompiler, loader } from "@comvi/next";
 import { cdnLoader } from "@comvi/plugin-fetch-loader";
 import { routing } from "./routing";
 
@@ -39,4 +39,7 @@ export const { i18n } = createNextI18n({
   onMissingKey: ({ key, namespace }) => {
     missedKeys.add(`${namespace}:${key}`);
   },
-}).use(catalogs);
+})
+  .use(catalogs)
+  // Makes the instance visible to the Comvi browser extension.
+  .use(devtools());

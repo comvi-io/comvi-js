@@ -11,7 +11,12 @@
  */
 
 import type { Message, StatusResponsePayload, ActivatePayload } from "../shared/messages";
-import { sanitizeStatus, sanitizeActivationResult, parseEventDetail } from "../shared/validation";
+import {
+  sanitizeStatus,
+  sanitizeActivationResult,
+  parseEventDetail,
+  readField,
+} from "../shared/validation";
 
 declare global {
   interface Window {
@@ -137,12 +142,20 @@ function installBridge() {
   window.addEventListener("comvi-extension:status", ((event: CustomEvent) => {
     const status = sanitizeStatus(event.detail);
     const wasDetected = currentStatus.comviDetected;
+    const previous = currentStatus;
     currentStatus = status;
 
     // Bridge may have missed the initial 'comvi-extension:detected' event
     // because detector and bridge race to register listeners. Forward status
-    // updates to background so the toolbar icon reflects detection.
-    if (status.comviDetected && !wasDetected) {
+    // updates to background so the toolbar icon reflects detection, and so
+    // the cached answer to "can this page supply the editor" stays current
+    // (a second copy of core can install the loader hook later).
+    if (
+      status.comviDetected &&
+      (!wasDetected ||
+        status.editorLoaded !== previous.editorLoaded ||
+        (status.editorLoader === null) !== (previous.editorLoader === null))
+    ) {
       sendRuntimeMessage({ type: "COMVI_DETECTED", payload: currentStatus });
     }
   }) as EventListener);
@@ -184,7 +197,7 @@ function installBridge() {
   // revoke the current tab's authority and can never create or activate it.
   window.addEventListener("comvi-in-context-editor:lifecycle", ((event: CustomEvent) => {
     const detail = parseEventDetail(event.detail);
-    if (detail.state !== "deactivated") return;
+    if (readField(detail, "state") !== "deactivated") return;
     currentStatus.editorActive = false;
     sendRuntimeMessage({
       type: "EDITOR_DEACTIVATED",
@@ -223,13 +236,16 @@ function installBridge() {
   // and the service worker independently re-validates everything.
   window.addEventListener("comvi-extension:api-request", ((event: CustomEvent) => {
     const raw = parseEventDetail(event.detail);
-    const id = typeof raw.id === "string" ? raw.id : "";
+    // Each field is read once, then judged: see readField.
+    const [id, path, method, body, keepalive] = ["id", "path", "method", "body", "keepalive"].map(
+      (key) => readField(raw, key),
+    );
     const request = {
-      id,
-      path: typeof raw.path === "string" ? raw.path : "",
-      method: typeof raw.method === "string" ? raw.method : undefined,
-      body: typeof raw.body === "string" ? raw.body : undefined,
-      keepalive: raw.keepalive === true,
+      id: typeof id === "string" ? id : "",
+      path: typeof path === "string" ? path : "",
+      method: typeof method === "string" ? method : undefined,
+      body: typeof body === "string" ? body : undefined,
+      keepalive: keepalive === true,
     };
 
     relayProxyRequest(request);
@@ -238,8 +254,9 @@ function installBridge() {
   // Relay page-side cancellation of an in-flight proxied request.
   window.addEventListener("comvi-extension:api-abort", ((event: CustomEvent) => {
     const raw = parseEventDetail(event.detail);
-    if (typeof raw.id !== "string" || raw.id.length === 0 || raw.id.length > 128) return;
-    sendRuntimeMessage({ type: "API_PROXY_ABORT", payload: { id: raw.id } });
+    const id = readField(raw, "id");
+    if (typeof id !== "string" || id.length === 0 || id.length > 128) return;
+    sendRuntimeMessage({ type: "API_PROXY_ABORT", payload: { id } });
   }) as EventListener);
 
   chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {

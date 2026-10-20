@@ -21,8 +21,9 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 - **A missing interpolation parameter renders as its own placeholder.** `t("greet")` on
   `"Hello, {name}!"` gives `"Hello, {name}!"` in 0.5, where 0.4 gave `"Hello, !"`, plus one
   development warning per template and parameter. An explicit `null` still renders as an empty
-  string. Opt out with `missingParam: "drop"`. This is 0.5's most visible behaviour change; the
-  [root README](https://github.com/comvi-io/comvi-js#upgrading-from-04x) lists it among the four.
+  string, and a function value renders as a missing parameter does. Opt out with `missingParam: "drop"`. This is 0.5's most visible behaviour change; the
+  [0.5.0 release notes](https://github.com/comvi-io/comvi-js/blob/v0.5.0/.github/release-notes/0.5.0.md#breaking-changes-for-a-04-app)
+  list it among the breaking changes for a 0.4 app.
 - **ICU is off unless you name it.** Without `compiler: icuCompiler` a plural throws in development
   and renders literally in production. This is a choice, not an omission — the alternative is a
   plausible wrong answer — but it is the single most common first surprise.
@@ -52,8 +53,10 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
   installer, so a production build that composes it carries no editor bytes.
 - **The editor hydrates one host per page.** In the browser all editor hosts share one key-id map,
   and each hydrating host loads its server ids over it, so a second host erases the first one's ids.
-- **The browser extension must be 0.5.0 or newer.** `window.__COMVI__` is protocol v2, and an older
-  extension does not speak it. Discovery is opt-in either way: `.use(devtools())`. See
+- **The browser extension must be 0.5.0 or newer for discovery, 0.6.0 or newer to load the
+  editor.** `window.__COMVI__` is protocol v2, and an older extension does not speak it; loading
+  the editor also needs `@comvi/core` 0.6.0 on the site. Discovery is opt-in either way:
+  `.use(devtools())`. See
   [Devtools API](https://comvi.io/docs/i18n/api/core-devtools).
 - **`cdnLoader` reads a public distribution only.** Draft translations, private projects and
   auth-gated content need API mode: `fetchLoader` from the package root plus an `apiKey` on the
@@ -91,9 +94,8 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 ## Typed keys: three shapes `t()` does not check
 
 `t()` has one call signature, which is what makes a wrong call report the real problem on its first
-line (see the [root README](https://github.com/comvi-io/comvi-js#reading-the-type-errors)). Three
-shapes fall outside it. Each is a consequence of that one signature, not a bug to be fixed in
-isolation.
+line. Three shapes fall outside it. Each is a consequence of that one signature, not a bug to be
+fixed in isolation.
 
 - **A key the call site could not narrow to one literal gets loose params.**
   `t(cond ? "greeting" : "farewell")` compiles even when `greeting` declares required params, and

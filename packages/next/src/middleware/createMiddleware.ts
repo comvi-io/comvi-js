@@ -13,11 +13,22 @@ import { getCanonicalPathname, stripLocalePrefix } from "../routing/utils";
 const LOCALE_HEADER = "x-comvi-locale";
 
 /**
- * Creates i18n middleware for Next.js.
+ * Creates i18n middleware for Next.js: the handler of Next 16's `proxy.ts`
+ * (import it from `@comvi/next/proxy`) and of Next 15's `middleware.ts` (from
+ * `@comvi/next/middleware`). Both subpaths export this same function.
  *
  * @example
  * ```typescript
- * // middleware.ts - Basic usage
+ * // proxy.ts (Next.js 16)
+ * import { createMiddleware } from '@comvi/next/proxy';
+ * import { routing } from './i18n/routing';
+ *
+ * export default createMiddleware(routing);
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // middleware.ts (Next.js 15) - Basic usage
  * import { createMiddleware } from '@comvi/next/middleware';
  * import { routing } from './i18n/routing';
  *

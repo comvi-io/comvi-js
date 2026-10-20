@@ -1,9 +1,13 @@
 import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
+import pkg from "./package.json";
 
 export default defineConfig({
   plugins: [vue()],
+  define: {
+    __VERSION__: JSON.stringify(pkg.version),
+  },
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
@@ -17,7 +21,8 @@ export default defineConfig({
     environment: "happy-dom",
     setupFiles: ["./tests/setup.ts"],
     include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
-    exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
+    // `dist/**` is the build output; `tests/dist/**` are the suites that read it.
+    exclude: ["**/node_modules/**", "dist/**", "**/e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html", "lcov"],

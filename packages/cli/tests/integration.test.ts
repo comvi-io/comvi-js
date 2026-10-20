@@ -69,7 +69,7 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
     expect(content).toContain('"common:app.title": never;');
     expect(content).toContain('"common:cart.items": { "count": number };');
     expect(content).toContain(
-      '"common:user.greeting": { "firstName": string; "lastName": string };',
+      '"common:user.greeting": { "firstName": string | number; "lastName": string | number };',
     );
 
     expect(reporter.reports.map((r) => r.type)).toEqual([
@@ -113,7 +113,7 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
         },
       } satisfies ProjectSchema,
       expected: [
-        '"auth:login.error": { "email": string };',
+        '"auth:login.error": { "email": string | number };',
         '"shop:cart.total": { "total": number; "itemCount": number };',
         '"shop:product.price": { "price": number };',
       ],
@@ -160,7 +160,7 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
 
     const content = await fs.readFile("src/types/i18n.d.ts");
     expect(content.match(/^ {4}"large:key\d+":/gm)).toHaveLength(1000);
-    expect(content).toContain('"large:key0": { "param0": string };');
-    expect(content).toContain('"large:key999": { "param999": string };');
+    expect(content).toContain('"large:key0": { "param0": string | number };');
+    expect(content).toContain('"large:key999": { "param999": string | number };');
   });
 });

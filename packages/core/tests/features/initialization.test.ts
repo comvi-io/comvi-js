@@ -46,7 +46,7 @@ describe("new I18n(options) — initial translations", () => {
     expect(i18n.t("nested.deep")).toBe("Value");
   });
 
-  it("normalizes an already-flat catalog into a prototype-less one, leaving the input untouched", () => {
+  it("keeps an already-flat catalog by reference, leaving the input untouched", () => {
     const flatTranslations = {
       "nested.deep": "Original",
     };
@@ -59,12 +59,14 @@ describe("new I18n(options) — initial translations", () => {
     });
 
     expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
+    expect(i18n.getMessages()).toBe(flatTranslations);
+    expect(flatTranslations).toStrictEqual({ "nested.deep": "Original" });
     expect(i18n.t("nested.deep")).toBe("Original");
     expect(i18n.hasTranslation("toString")).toBe(false);
     expect(i18n.t("toString")).toBe("toString");
   });
 
-  it("falls back to copying frozen flat initial translations, so a later merge still works (sequence)", () => {
+  it("keeps frozen flat initial translations by reference, and a later merge still works (sequence)", () => {
     const flatTranslations = Object.freeze({
       "nested.deep": "Frozen",
     });
@@ -78,12 +80,15 @@ describe("new I18n(options) — initial translations", () => {
 
     expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
     expect(i18n.t("nested.deep")).toBe("Frozen");
-    // A COPY, not the frozen object itself — otherwise the merge below throws.
-    expect(i18n.getMessages()).not.toBe(flatTranslations);
+    // Kept by reference: the merge below copies into a new object instead of
+    // writing the frozen one.
+    expect(i18n.getMessages()).toBe(flatTranslations);
 
     i18n.addMessages({ en: { extra: "X" } });
 
     expect(i18n.t("extra")).toBe("X");
+    expect(i18n.t("nested.deep")).toBe("Frozen");
+    expect(Object.keys(flatTranslations)).toStrictEqual(["nested.deep"]);
   });
 });
 

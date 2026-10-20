@@ -8,21 +8,6 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
   const apiBaseUrl = env.VITE_COMVI_API_BASE_URL?.trim();
 
-  // The in-context editor runtime must ship inside the extension package —
-  // MV3 forbids loading remote code, so it is bundled and injected via
-  // chrome.scripting.executeScript({ files: ["editor.iife.js"], world: "MAIN" }).
-  const editorBundlePath =
-    env.COMVI_EDITOR_BUNDLE_PATH?.trim() ||
-    resolve(__dirname, "../../packages/plugin-in-context-editor/dist/standalone.iife.js");
-
-  if (!existsSync(editorBundlePath)) {
-    throw new Error(
-      `In-context editor bundle not found at ${editorBundlePath}. ` +
-        "Build @comvi/plugin-in-context-editor first or point COMVI_EDITOR_BUNDLE_PATH " +
-        "at a standalone.iife.js build of @comvi/plugin-in-context-editor.",
-    );
-  }
-
   if (!apiBaseUrl) {
     throw new Error(
       "VITE_COMVI_API_BASE_URL is required to build @comvi/chrome-extension. " +
@@ -77,7 +62,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     // The copy-static-files plugin below copies exactly what the package needs
-    // (manifest, popup.html, editor bundle, PNG icons). Disable Vite's default
+    // (manifest, popup.html, PNG icons). Disable Vite's default
     // public/ passthrough so the SVG icon sources don't leak into dist/ and the
     // CWS zip.
     publicDir: false,
@@ -116,8 +101,6 @@ export default defineConfig(({ mode }) => {
           writeFileSync(outPath("manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 
           copyFileSync(resolve(__dirname, "src/popup/popup.html"), outPath("popup.html"));
-
-          copyFileSync(editorBundlePath, outPath("editor.iife.js"));
 
           const iconsDir = outPath("icons");
           if (!existsSync(iconsDir)) {

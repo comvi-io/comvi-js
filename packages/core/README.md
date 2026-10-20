@@ -30,9 +30,13 @@ npm install @comvi/core
 # Node 20 or newer. No peer dependencies.
 ```
 
-The package is ESM. A `<script src>` global build exists too, as `ComviCore.I18n`, fully composed.
+The package is ESM. A `<script src>` global build exists too, as `ComviCore.I18n`, fully composed:
+it includes `devtools()`, so it publishes the instance to the Comvi browser extension and installs
+the editor loader (`exposeGlobal: false` installs neither; the code stays in the file).
 
 ## Create the i18n instance
+
+In `src/i18n.ts`:
 
 ```ts title="src/i18n.ts" check=group=vanilla-2
 import { createI18n } from "@comvi/core";
@@ -56,6 +60,8 @@ returns a string; `tRaw()` returns the structured result when a translation carr
 
 ## Switch the locale
 
+In `src/switch.ts`:
+
 ```ts title="src/switch.ts" check=group=vanilla-2
 import { i18n } from "./i18n";
 
@@ -71,6 +77,8 @@ namespaces first. Assigning `i18n.locale` does the same without waiting.
 ```bash
 npm install @comvi/plugin-fetch-loader
 ```
+
+Compose the loader on the instance, in `src/i18n.ts`:
 
 ```ts title="src/i18n.ts" check=group=vanilla-cdn
 import { createI18n } from "@comvi/core";
@@ -89,7 +97,7 @@ there is no gate to write. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` from `@comvi/core/icu` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent, and either works without the other.
+independent.
 
 ## Specific to core
 
@@ -97,14 +105,14 @@ The root entry is the base instance: text and `{param}` interpolation, the messa
 default params and the `.use(installer)` pipe. Everything else is a subpath you import, and a
 capability you never import never enters your bundle.
 
-| You want                              | You import                                             | You write                   |
-| ------------------------------------- | ------------------------------------------------------ | --------------------------- |
-| ICU `plural`/`select`/`selectordinal` | `icuCompiler` from `@comvi/core/icu`                   | `compiler: icuCompiler`     |
-| Async or remote loading               | `loader` or `attachLoader` from `@comvi/core/loader`   | `.use(loader(map))`         |
-| Plugins, post-processors              | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
-| Browser-extension discovery           | `devtools` from `@comvi/core/devtools`                 | `.use(devtools())`          |
-| `<tag>` markup inside plain `t()`     | `@comvi/core/tags`                                     | `import "@comvi/core/tags"` |
-| The rich-text toolbox                 | `prepareTranslation` from `@comvi/core/rich-text`      | `prepareTranslation(…)`     |
+| You want                                                  | You import                                             | You write                   |
+| --------------------------------------------------------- | ------------------------------------------------------ | --------------------------- |
+| ICU `plural`/`select`/`selectordinal`                     | `icuCompiler` from `@comvi/core/icu`                   | `compiler: icuCompiler`     |
+| Async or remote loading                                   | `loader` or `attachLoader` from `@comvi/core/loader`   | `.use(loader(map))`         |
+| Plugins, post-processors                                  | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
+| The browser extension to find the app and load the editor | `devtools` from `@comvi/core/devtools`                 | `.use(devtools())`          |
+| `<tag>` markup inside plain `t()`                         | `@comvi/core/tags`                                     | `import "@comvi/core/tags"` |
+| The rich-text toolbox                                     | `prepareTranslation` from `@comvi/core/rich-text`      | `prepareTranslation(…)`     |
 
 Without a framework's reactivity, events are how you learn that state changed: `i18n.on()` takes
 `initialized`, `destroyed`, `localeChanged`, `defaultNamespaceChanged`, `messagesCleared`,

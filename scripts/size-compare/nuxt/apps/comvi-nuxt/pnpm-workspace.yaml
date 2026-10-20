@@ -1,0 +1,13 @@
+# Own pnpm root so this app never joins the monorepo workspace. pnpm 12 refuses an install
+# whose dependencies have unapproved build scripts; Nuxt's toolchain needs these.
+#
+# A PRE-PUBLISH run adds an `overrides:` block here pointing every @comvi/* package at a local
+# release tarball; that block is never committed.
+packages: []
+allowBuilds:
+  esbuild: true
+  "@parcel/watcher": true
+  better-sqlite3: true
+  unrs-resolver: true
+  sharp: true
+  vue-demi: true
