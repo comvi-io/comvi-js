@@ -21,6 +21,9 @@ export class TypegenError extends Error {
  */
 export const EXIT_VALIDATION = 4;
 
+/** A check reached no verdict for a reason that is not the user's input. */
+export const EXIT_CHECK_FAILED = 2;
+
 export const ErrorCodes = {
   API_CONNECTION_FAILED: "API_CONNECTION_FAILED",
   API_AUTH_FAILED: "API_AUTH_FAILED",

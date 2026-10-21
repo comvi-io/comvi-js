@@ -155,9 +155,21 @@ export interface ComviConfig {
    */
   locales?: string[];
 
+  /**
+   * Locale the other catalogs are compared against by `comvi check`
+   * (a BCP 47 tag like "en")
+   */
+  sourceLocale?: string;
+
   push?: PushConfig;
 
   pull?: PullConfig;
+
+  /**
+   * `comvi check` switches: `identical` also reports target values equal to
+   * the source value; `strict` treats warnings as errors.
+   */
+  check?: { identical?: boolean; strict?: boolean };
 }
 
 export interface GeneratorOptions {
