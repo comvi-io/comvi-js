@@ -46,8 +46,8 @@ export function createPushCommand(): Command {
         });
 
         // Resolve filters: CLI flag > config > all (no merge).
-        const locs = resolveFilter(parseListFlag(options.locale), config.locales);
-        const nss = resolveFilter(parseListFlag(options.ns), config.namespaces);
+        const locs = resolveFilter(parseListFlag(options.locale, "--locale"), config.locales);
+        const nss = resolveFilter(parseListFlag(options.ns, "--ns"), config.namespaces);
         const locales = locs.value;
         const namespaces = nss.value;
 
