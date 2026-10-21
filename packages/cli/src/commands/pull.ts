@@ -4,7 +4,8 @@ import { timeoutsFromEnv } from "../core/timeouts";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync, type PullFileDiff } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
-import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
+import { exitCodeFor } from "../utils/errors";
+import { findLocale } from "../utils/locales";
 import {
   assertAllReturned,
   assertReadable,
@@ -91,7 +92,11 @@ export function createPullCommand(): Command {
         // locale this key cannot read must leave those files as they were.
         const emptyDir = Boolean(options.emptyDir || config.pull?.emptyDir);
         const scope = {
-          locales: (locs.value ?? returnedLocales).filter((l) => returnedLocales.includes(l)),
+          // Only locales that came back, in their returned spelling:
+          // `--locale pt_br` clears pt-BR files, never a locale it did not get.
+          locales: (locs.value ?? returnedLocales)
+            .map((locale) => findLocale(locale, returnedLocales))
+            .filter((locale): locale is string => locale !== undefined),
           namespaces: nss.value,
           defaultNamespace,
         };
@@ -147,13 +152,7 @@ export function createPullCommand(): Command {
         if (error instanceof Error) {
           console.error(`✗ Pull failed: ${error.message}`);
         }
-        if (
-          isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
-          isTypegenError(error, ErrorCodes.CONFIG_INVALID)
-        ) {
-          process.exit(EXIT_VALIDATION);
-        }
-        process.exit(1);
+        process.exit(exitCodeFor(error));
       }
     });
 }
