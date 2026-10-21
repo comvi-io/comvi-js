@@ -177,7 +177,7 @@ function transformApiResponse(
   for (const { langCode, value, parsed, lossless } of parsedByLanguage) {
     // A save rebuilds every structured language with the key's plural flag and
     // variable, so one that differs from them is not rebuilt exactly either.
-    // Plain text stays plain text; it is sent back as stored while unedited.
+    // Plain text stays plain text; it is not sent while unedited.
     const structured =
       !parsed.isPlural && !parsed.selectConfig
         ? true
@@ -264,8 +264,10 @@ export async function getTranslation(
 /**
  * @param pluralVariable - Variable name for the ICU plural format (e.g. "count")
  * @param scopeId - Optional runtime scope used to isolate editor instances
+ * @param translations - Only the languages to write; each one written is set to not reviewed.
  * @param verbatim - Languages sent exactly as given instead of being generated
- *   from their forms: ones the user did not edit, and plain-text ICU.
+ *   from their forms (ICU the fields cannot rebuild).
+ * @param stored - Values the server holds; a language that would be written unchanged is skipped.
  */
 export async function saveTranslation(
   key: string,
@@ -276,6 +278,7 @@ export async function saveTranslation(
   selectConfigs?: Record<string, LanguageSelectConfig>,
   scopeId?: string,
   verbatim?: Record<string, string>,
+  stored?: Record<string, string>,
 ): Promise<TranslationData> {
   if (isDemoMode(scopeId)) {
     throw new DemoModeError("Saving translations");
@@ -284,12 +287,12 @@ export async function saveTranslation(
   try {
     const apiTranslations: Record<string, { value: string; status: string }> = {};
     Object.entries(translations).forEach(([langCode, forms]) => {
-      apiTranslations[langCode] = {
-        value:
-          verbatim?.[langCode] ??
-          generateLanguageValue(forms, isPlural, pluralVariable, selectConfigs?.[langCode]),
-        status: "not_reviewed",
-      };
+      const value =
+        verbatim?.[langCode] ??
+        generateLanguageValue(forms, isPlural, pluralVariable, selectConfigs?.[langCode]);
+      if (value !== stored?.[langCode]) {
+        apiTranslations[langCode] = { value, status: "not_reviewed" };
+      }
     });
 
     const payload = {

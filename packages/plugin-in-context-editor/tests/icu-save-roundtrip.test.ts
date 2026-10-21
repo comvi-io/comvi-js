@@ -64,7 +64,7 @@ function ok(payload: unknown): Response {
   return { ok: true, status: 200, statusText: "OK", json: async () => payload } as Response;
 }
 
-/** GET answers `values`; PUT echoes whatever was sent, as the API does. */
+/** GET answers `values`; PUT merges what was sent and answers the whole key, as the API does. */
 function serveKey(values: Record<string, string>, isPlural = true) {
   const fetchMock = vi.mocked(fetch);
   fetchMock.mockImplementation(async (_url, init) => {
@@ -75,7 +75,10 @@ function serveKey(values: Record<string, string>, isPlural = true) {
       };
       return ok(
         keyResponse(
-          Object.fromEntries(Object.entries(body.translations).map(([l, t]) => [l, t.value])),
+          {
+            ...values,
+            ...Object.fromEntries(Object.entries(body.translations).map(([l, t]) => [l, t.value])),
+          },
           body.isPlural,
         ),
       );
@@ -127,7 +130,7 @@ describe("saving one language leaves ICU the editor cannot rebuild untouched", (
       "a select-only message under a plural key",
       "{formality, select, formal {Ihre Dateien} other {Deine Dateien}}",
     ],
-  ])("sends a German value with %s back byte for byte", async (_case, german) => {
+  ])("leaves a German value with %s unsent and unchanged", async (_case, german) => {
     const fetchMock = serveKey({ en: EN_PLURAL, de: german });
     const manager = await loadKey();
 
@@ -137,7 +140,6 @@ describe("saving one language leaves ICU the editor cannot rebuild untouched", (
     expect(saved).not.toBeNull();
     expect(sentTranslations(fetchMock)).toEqual({
       en: { value: EN_EDITED, status: "not_reviewed" },
-      de: { value: german, status: "not_reviewed" },
     });
     expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
       "en:default": { "files.count": EN_EDITED },
@@ -165,7 +167,7 @@ describe("saving one language leaves ICU the editor cannot rebuild untouched", (
     await manager.saveTranslation();
 
     expect(sentTranslations(fetchMock).de).toEqual({ value: edited, status: "not_reviewed" });
-    expect(sentTranslations(fetchMock).en).toEqual({ value: EN_PLURAL, status: "not_reviewed" });
+    expect(sentTranslations(fetchMock)).not.toHaveProperty("en");
   });
 
   it("keeps such a message as it is when plural mode is switched off and on", async () => {
@@ -178,7 +180,99 @@ describe("saving one language leaves ICU the editor cannot rebuild untouched", (
     manager.toggleSelectMode("de", true);
     await manager.saveTranslation();
 
-    expect(sentTranslations(fetchMock).de).toEqual({ value: exact, status: "not_reviewed" });
+    expect(sentTranslations(fetchMock)).not.toHaveProperty("de");
+    expect(manager.translations.value.de).toEqual({ other: exact });
+  });
+});
+
+describe("a save leaves the review status of unchanged values alone", () => {
+  beforeEach(() => {
+    initApiConfig("test-api-key");
+    vi.stubGlobal("fetch", vi.fn());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    addMessagesMock.mockReset();
+  });
+
+  afterEach(() => {
+    resetApiConfig();
+  });
+
+  it("plural mode switched off → a message the editor cannot rebuild is not sent", async () => {
+    const exact = "{count, plural, =0 {None} one {One} other {# items}}";
+    const fetchMock = serveKey({ en: EN_PLURAL, de: exact });
+    const manager = await loadKey();
+
+    manager.togglePluralMode(false);
+    await manager.saveTranslation();
+
+    expect(sentTranslations(fetchMock)).toEqual({
+      en: { value: "# files", status: "not_reviewed" },
+    });
+  });
+
+  it("variant settings touched without changing the value → the language is not sent", async () => {
+    const fetchMock = serveKey({ en: "Files", de: "Dateien" }, false);
+    const manager = await loadKey();
+
+    manager.updateSelectConfig("de", { variable: "gender" });
+    manager.updateTranslation("en", "other", "Documents");
+    await manager.saveTranslation();
+
+    expect(sentTranslations(fetchMock)).toEqual({
+      en: { value: "Documents", status: "not_reviewed" },
+    });
+  });
+  it("plural variable renamed → a message the editor cannot rebuild is not sent", async () => {
+    const exact = "{count, plural, =0 {Keine} one {Eine} other {# Dateien}}";
+    const fetchMock = serveKey({ en: EN_PLURAL, de: exact });
+    const manager = await loadKey();
+
+    manager.updatePluralVariable("n");
+    await manager.saveTranslation();
+
+    expect(Object.keys(sentTranslations(fetchMock))).toEqual(["en"]);
+  });
+
+  it("variants switched on and off again → the language is not sent", async () => {
+    const fetchMock = serveKey({ en: "Files", de: "Hallo" }, false);
+    const manager = await loadKey();
+
+    manager.toggleSelectMode("de", true, { variable: "gender", options: ["male", "other"] });
+    manager.toggleSelectMode("de", false);
+    manager.updateTranslation("en", "other", "Documents");
+    await manager.saveTranslation();
+
+    expect(Object.keys(sentTranslations(fetchMock))).toEqual(["en"]);
+  });
+
+  it("two saves in a row → each sends only the language edited since the last one", async () => {
+    let stored: Record<string, string> = { en: "Files", de: "Dateien", fr: "Fichiers" };
+    const bodies: Record<string, { value: string }>[] = [];
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      if (init?.method === "PUT") {
+        const body = JSON.parse(String(init.body)) as {
+          translations: Record<string, { value: string }>;
+        };
+        bodies.push(body.translations);
+        stored = {
+          ...stored,
+          ...Object.fromEntries(Object.entries(body.translations).map(([l, t]) => [l, t.value])),
+        };
+      }
+      return ok(keyResponse(stored, false));
+    });
+    const manager = await loadKey();
+
+    manager.updateTranslation("de", "other", "Dokumente");
+    await manager.saveTranslation();
+    manager.updateTranslation("fr", "other", "Documents");
+    await manager.saveTranslation();
+
+    expect(bodies).toEqual([
+      { de: { value: "Dokumente", status: "not_reviewed" } },
+      { fr: { value: "Documents", status: "not_reviewed" } },
+    ]);
+    expect(manager.hasUnsavedChanges.value).toBe(false);
   });
 });
 
@@ -211,14 +305,9 @@ describe("saving a plural key where no language can be rebuilt", () => {
 
     expect(manager.state.value.error).toBeNull();
     expect(saved).not.toBeNull();
-    expect(sentTranslations(fetchMock)).toEqual(
-      Object.fromEntries(
-        Object.entries({ ...values, [edited]: typed }).map(([lang, value]) => [
-          lang,
-          { value, status: "not_reviewed" },
-        ]),
-      ),
-    );
+    expect(sentTranslations(fetchMock)).toEqual({
+      [edited]: { value: typed, status: "not_reviewed" },
+    });
   });
 
   it("still requires a plural variable once a language is rebuilt from its fields", async () => {

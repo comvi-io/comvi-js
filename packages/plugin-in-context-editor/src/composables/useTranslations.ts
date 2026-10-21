@@ -48,8 +48,7 @@ export function useTranslations(
   const savingSession = ref<number | null>(null);
   const isSaving = computed(() => savingSession.value === session.value);
   // The plural shape and select configs at last load/save, serialized. A
-  // language whose forms and shape still match was not edited and is sent
-  // back exactly as stored.
+  // language whose forms and shape still match was not edited and is not sent.
   let baselineShape = "";
   let baselineSelectConfigs: Record<string, string> = {};
 
@@ -79,17 +78,30 @@ export function useTranslations(
   }
 
   /**
-   * Languages a save sends as written rather than rebuilding from their forms:
-   * ICU the fields cannot rebuild, and languages the user did not edit.
+   * Only edited languages are sent: a write sets the status, so sending an
+   * untouched language would reset its review status on the server.
    */
-  function verbatimValues(data: TranslationData): Record<string, string> {
-    const verbatim: Record<string, string> = {};
+  function editedTranslations(data: TranslationData): Record<string, Record<string, string>> {
+    const edited: Record<string, Record<string, string>> = {};
     for (const [langCode, forms] of Object.entries(data.translations)) {
-      const stored = data.sourceValues?.[langCode];
+      const unedited =
+        data.sourceValues?.[langCode] !== undefined && isLanguageUnedited(data, langCode);
+      if (!unedited) {
+        edited[langCode] = { ...forms };
+      }
+    }
+    return edited;
+  }
+
+  /** ICU the fields cannot rebuild is sent as written. */
+  function verbatimValues(
+    data: TranslationData,
+    translations: Record<string, Record<string, string>>,
+  ): Record<string, string> {
+    const verbatim: Record<string, string> = {};
+    for (const [langCode, forms] of Object.entries(translations)) {
       if (data.rawLanguages?.includes(langCode)) {
         verbatim[langCode] = forms.other ?? "";
-      } else if (stored !== undefined && isLanguageUnedited(data, langCode)) {
-        verbatim[langCode] = stored;
       }
     }
     return verbatim;
@@ -251,7 +263,8 @@ export function useTranslations(
     const namespace = currentNamespace.value;
     const scopeId = unref(instanceId);
     const scopeLanguages = languages.value;
-    const verbatim = verbatimValues(data);
+    const translationsToSave = editedTranslations(data);
+    const verbatim = verbatimValues(data, translationsToSave);
     const selectConfigs = data.selectConfigs
       ? Object.fromEntries(
           Object.entries(data.selectConfigs).map(([lang, config]) => [
@@ -269,12 +282,13 @@ export function useTranslations(
       const savedData = await saveTranslationService(
         String(data.key),
         namespace,
-        snapshotTranslations(data.translations),
+        translationsToSave,
         data.isPlural,
         data.pluralVariable,
         selectConfigs,
         scopeId,
         verbatim,
+        data.sourceValues,
       );
 
       // The server holds the new value either way, so the runtime the save
@@ -342,10 +356,9 @@ export function useTranslations(
 
     // The plural variable matters only if some language is rebuilt from its
     // forms; a key whose languages are all sent as written needs none.
-    const verbatim = verbatimValues(state.value.data);
-    const rebuildsAny = Object.keys(state.value.data.translations).some(
-      (langCode) => !(langCode in verbatim),
-    );
+    const toSave = editedTranslations(state.value.data);
+    const verbatim = verbatimValues(state.value.data, toSave);
+    const rebuildsAny = Object.keys(toSave).some((langCode) => !(langCode in verbatim));
     if (state.value.data.isPlural && rebuildsAny) {
       const variable = state.value.data.pluralVariable;
 
