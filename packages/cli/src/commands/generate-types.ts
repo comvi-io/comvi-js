@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { TypeGenerator } from "../core/TypeGenerator";
+import { SilentReporter } from "../core/GenerationReporter";
 import { ConfigLoader } from "../core/ConfigLoader";
 import {
   ErrorCodes,
@@ -17,6 +18,8 @@ const CHECK_BLOCKING_CODES: readonly string[] = [
   ErrorCodes.API_FETCH_FAILED,
   ErrorCodes.API_TIMEOUT,
   ErrorCodes.API_INVALID_RESPONSE,
+  // A declaration file that exists but cannot be read: no verdict either.
+  ErrorCodes.FS_READ_FAILED,
 ];
 
 const CHECK_DESCRIPTION =
@@ -37,7 +40,9 @@ export function createTypegenCommand(): Command {
         const config = await ConfigLoader.load(options.config);
         const generatorOptions = ConfigLoader.toGeneratorOptions(config);
 
-        const generator = new TypeGenerator(generatorOptions);
+        // The command narrates every step and failure itself; a reporter would
+        // print each of them a second time.
+        const generator = new TypeGenerator(generatorOptions, { reporter: new SilentReporter() });
 
         if (options.check) {
           await runCheckMode(generator);
@@ -87,26 +92,39 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
 
   const apiClient = generator.getApiClient();
 
-  const cleanup = await apiClient.subscribeToSchemaUpdates(async (schema) => {
-    console.log("\n🔄 Received schema update via SSE...");
-    const updateResult = await generator.generateFromSchema(schema);
+  const cleanup = await apiClient.subscribeToSchemaUpdates(
+    async (schema) => {
+      console.log("\n🔄 Received schema update via SSE...");
+      const updateResult = await generator.generateFromSchema(schema);
 
-    if (updateResult.success) {
-      console.log(`✓ Updated ${updateResult.keysGenerated} keys → ${updateResult.filePath}`);
-    } else {
-      console.error(`⚠  Update failed: ${updateResult.error}`);
-    }
-  });
+      if (updateResult.success) {
+        console.log(`✓ Updated ${updateResult.keysGenerated} keys → ${updateResult.filePath}`);
+      } else {
+        console.error(`⚠  Update failed: ${updateResult.error}`);
+      }
+    },
+    {
+      // A rejected key cannot recover: stop instead of watching nothing.
+      onFatal: (error) => {
+        console.error(`✗ Watch stopped: ${error.message}`);
+        process.exit(exitCodeFor(error));
+      },
+      onNotice: (message) => console.error(`⚠  ${message}`),
+    },
+  );
 
   console.log("✓ Watching for changes...");
   console.log("Press Ctrl+C to stop\n");
 
-  process.on("SIGINT", () => {
+  // SIGTERM too: Docker, systemd and CI runners stop processes with it.
+  const stop = () => {
     console.log("\n\n🛑 Closing SSE connection...");
     cleanup();
     console.log("✓ Stopped watching");
     process.exit(0);
-  });
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
 
   // Keep process alive
   process.stdin.resume();

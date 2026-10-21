@@ -43,6 +43,18 @@ interface PlannedWrite {
   catalog: Record<string, string>;
 }
 
+/** What a pull would do to one file, key by key. */
+export interface PullFileDiff {
+  filePath: string;
+  status: "new" | "changed" | "unchanged" | "unreadable";
+  added: string[];
+  changed: string[];
+  /** Keys in the local file the platform does not have: the pull drops them. */
+  removed: string[];
+  /** The local file nests keys that the pull writes flat. */
+  nested: boolean;
+}
+
 export interface LocalTranslations {
   translations: TranslationData;
   locales: string[];
@@ -184,6 +196,70 @@ export class TranslationSync {
     return { files: planned.map(({ filePath }) => filePath) };
   }
 
+  /** Compare each file the response would write with the file on disk now. */
+  async diffPull(
+    data: TranslationsResponse,
+    options: WriteTranslationsOptions = {},
+  ): Promise<PullFileDiff[]> {
+    const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
+    // Never read through a symlink that leaves the tree.
+    await this.assertPlanContained(planned);
+    const diffs: PullFileDiff[] = [];
+
+    for (const { filePath, catalog } of planned) {
+      const incoming = Object.keys(catalog);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await fs.readFile(filePath, "utf-8"));
+      } catch (error) {
+        const isNew = (error as NodeJS.ErrnoException).code === "ENOENT";
+        diffs.push({
+          filePath,
+          status: isNew ? "new" : "unreadable",
+          added: isNew ? incoming : [],
+          changed: [],
+          removed: [],
+          nested: false,
+        });
+        continue;
+      }
+
+      let local: Record<string, string>;
+      try {
+        if (!isPlainObject(parsed)) throw new Error("not an object");
+        local = flattenTranslationFile(parsed, filePath);
+      } catch {
+        diffs.push({
+          filePath,
+          status: "unreadable",
+          added: [],
+          changed: [],
+          removed: [],
+          nested: false,
+        });
+        continue;
+      }
+
+      const added = incoming.filter((key) => !hasOwnKey(local, key));
+      const changed = incoming.filter(
+        (key) => hasOwnKey(local, key) && local[key] !== catalog[key],
+      );
+      const removed = Object.keys(local).filter((key) => !hasOwnKey(catalog, key));
+      const nested = Object.values(parsed).some(isPlainObject);
+      const differs = added.length + changed.length + removed.length > 0 || nested;
+      diffs.push({
+        filePath,
+        status: differs ? "changed" : "unchanged",
+        added,
+        changed,
+        removed,
+        nested,
+      });
+    }
+
+    return diffs;
+  }
+
   /**
    * Resolve every file the response would produce, validating as it goes: each
    * locale and namespace the response declares, then each resolved path. The
@@ -198,6 +274,7 @@ export class TranslationSync {
     }
 
     const planned: PlannedWrite[] = [];
+    const owners = new Map<string, string>();
 
     for (const locale of data.locales) {
       const localeTranslations = data.translations[locale];
@@ -207,12 +284,43 @@ export class TranslationSync {
         const catalog = localeTranslations[namespace];
         if (!catalog) continue;
 
+        const filePath = this.resolveFilePath(locale, namespace, defaultNamespace);
+        // `{languageTag}-{namespace}.json` puts en + US-shop and en-US + shop
+        // in one file; the second write would silently replace the first.
+        const owner = `locale ${JSON.stringify(locale)}, namespace ${JSON.stringify(namespace)}`;
+        // Compared as a case-insensitive file system sees it (macOS, Windows).
+        const key = filePath.normalize("NFC").toLowerCase();
+        const previous = owners.get(key);
+        if (previous) {
+          throw new TypegenError(
+            `${previous} and ${owner} both resolve to ${filePath}. ` +
+              "Use a fileTemplate that puts {languageTag} and {namespace} in separate path segments.",
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
+        owners.set(key, owner);
         planned.push({
           locale,
           namespace,
-          filePath: this.resolveFilePath(locale, namespace, defaultNamespace),
+          filePath,
           catalog,
         });
+      }
+    }
+
+    // A file one catalog needs where another needs a directory: with the
+    // default layout, namespace "en.json" would live at en.json/en.json.
+    const root = this.translationsPath.normalize("NFC").toLowerCase();
+    for (const [key, owner] of owners) {
+      for (let dir = dirname(key); dir.length > root.length; dir = dirname(dir)) {
+        const fileOwner = owners.get(dir);
+        if (fileOwner) {
+          throw new TypegenError(
+            `${fileOwner} is written to a file that ${owner} needs as a directory. ` +
+              "Rename the namespace or use a different fileTemplate.",
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
       }
     }
 
