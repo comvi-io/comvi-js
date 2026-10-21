@@ -705,6 +705,19 @@ export class ApiClient {
         throw invalidResponse("import commit");
       }
       if (!body.success) {
+        // Conflicts the platform found under its lock: values changed since
+        // the CLI compared (the preview, or the keep/abort pre-check).
+        const conflicts = (body.errors ?? []).filter((e) => /^Conflict\b/i.test(e.message));
+        if (conflicts.length > 0 && conflicts.length === body.errors?.length) {
+          const names = conflicts.slice(0, 5).map((e) => `${e.namespace}:${e.key}`);
+          const more = conflicts.length > names.length ? ", …" : "";
+          const one = conflicts.length === 1;
+          throw new TypegenError(
+            `${conflicts.length} ${one ? "value" : "values"} changed on the platform since this push read them ` +
+              `(${names.join(", ")}${more}). Nothing was written; run the push again to resolve ${one ? "it" : "them"}.`,
+            ErrorCodes.CONFLICT,
+          );
+        }
         const firstError = body.errors?.[0];
         const conflict = body.errors?.some((e) => /^Conflict\b/i.test(e.message)) ?? false;
         throw new TypegenError(
