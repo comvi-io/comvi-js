@@ -369,7 +369,7 @@ describe("comvi pull", () => {
 
     const exitCode = await runPull(["-c", configPath, "--empty-dir"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(2);
     expect(await fs.readFile(join(localesDir, "fr.json"), "utf-8")).toBe("{}");
   });
 
@@ -571,7 +571,7 @@ describe("comvi pull", () => {
     expect(http.requests).toEqual([]);
   });
 
-  it("exits 1 when the translations request is rejected", async () => {
+  it("exits 3 when the translations request is forbidden", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     http = stubFetch({
       ...DEFAULT_NAMESPACE_ROUTES,
@@ -580,16 +580,19 @@ describe("comvi pull", () => {
 
     const exitCode = await runPull(["-c", configPath]);
 
-    expect(exitCode).toBe(1);
-    expect(output.error[0]).toBe("✗ Pull failed: Access denied to this project");
+    expect(exitCode).toBe(3);
+    expect(output.error[0]).toBe(
+      "✗ Pull failed: Access denied to this project. " +
+        "Reading translations needs an API key with the translations:read scope.",
+    );
   });
 
-  it("exits 1 when the config file does not exist", async () => {
+  it("exits 4 when the config file does not exist", async () => {
     http = stubFetch({});
 
     const exitCode = await runPull(["-c", join(root, "absent.json")]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(4);
     expect(output.error[0]).toBe(
       `✗ Pull failed: Config file not found: ${join(root, "absent.json")}`,
     );
@@ -788,7 +791,7 @@ describe("comvi pull", () => {
     });
   });
 
-  it("exits 4 when a requested locale came back with no data, as for a restricted key", async () => {
+  it("exits 3 when a requested locale came back with no data, as for a restricted key", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     http = stubFetch({
       ...DEFAULT_NAMESPACE_ROUTES,
@@ -799,7 +802,7 @@ describe("comvi pull", () => {
 
     const exitCode = await runPull(["-c", configPath, "-l", "en,de"]);
 
-    expect(exitCode).toBe(4);
+    expect(exitCode).toBe(3);
     expect(output.error[0]).toBe(
       "✗ Pull failed: Locales not readable with this API key: de. " +
         "The key's owner may be restricted to other languages.",
@@ -876,7 +879,7 @@ describe("comvi pull", () => {
     expect(await fs.readFile(join(localesDir, "en-US-shop.json"), "utf-8")).toBe('{"a":"b"}');
   });
 
-  it("--empty-dir --locale en keeps the en files when the response carries no data for en", async () => {
+  it("--empty-dir --locale en exits 3 and keeps the en files when the response carries no data for en", async () => {
     const configPath = await writeConfig({
       translationsPath: localesDir,
       fileTemplate: "{languageTag}/{namespace}.json",
@@ -887,7 +890,7 @@ describe("comvi pull", () => {
       [PATHS.translations]: { body: { locales: ["en"], namespaces: {} } },
     });
 
-    expect(await runPull(["-c", configPath, "--empty-dir", "-l", "en"])).toBe(4);
+    expect(await runPull(["-c", configPath, "--empty-dir", "-l", "en"])).toBe(3);
 
     expect(await fs.readFile(join(localesDir, "en", "common.json"), "utf-8")).toBe('{"keep":"me"}');
   });

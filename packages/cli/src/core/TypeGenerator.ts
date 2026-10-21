@@ -73,6 +73,7 @@ export class TypeGenerator {
         return {
           success: false,
           error: error.message,
+          cause: error,
           duration,
         };
       }
@@ -82,6 +83,7 @@ export class TypeGenerator {
         return {
           success: false,
           error: error.message,
+          cause: error,
           duration,
         };
       }
@@ -196,6 +198,7 @@ export class TypeGenerator {
         return {
           success: false,
           error: error.message,
+          cause: error,
           duration,
         };
       }

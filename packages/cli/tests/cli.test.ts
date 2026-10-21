@@ -94,6 +94,18 @@ describe("TypeGenerator.generate() over a mocked fetch", () => {
     return generator;
   }
 
+  /** The project lookup gets a project; every other request gets `schema`. */
+  function serveSchema(schema: unknown): void {
+    fetchMock.mockImplementation(
+      async (input) =>
+        ({
+          ok: true,
+          json: async () =>
+            new URL(String(input)).pathname === "/v1/project" ? { id: 1, name: "Acme" } : schema,
+        }) as Response,
+    );
+  }
+
   beforeEach(() => {
     vi.useFakeTimers();
     mockFileSystem = new InMemoryFileSystem();
@@ -107,7 +119,7 @@ describe("TypeGenerator.generate() over a mocked fetch", () => {
   });
 
   it("should generate types successfully and write to file", async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => mockSchema } as Response);
+    serveSchema(mockSchema);
 
     const result = await makeGenerator().generate();
 
@@ -121,7 +133,7 @@ describe("TypeGenerator.generate() over a mocked fetch", () => {
   });
 
   it("should generate an empty declaration file when no keys are found in schema", async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ keys: {} }) } as Response);
+    serveSchema({ keys: {} });
 
     const result = await makeGenerator().generate();
 
@@ -145,7 +157,7 @@ describe("TypeGenerator.generate() over a mocked fetch", () => {
   });
 
   it("should respect strictParams=false and produce optional params", async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => mockSchema } as Response);
+    serveSchema(mockSchema);
 
     const result = await makeGenerator({ strictParams: false }).generate();
 
@@ -166,7 +178,7 @@ describe("TypeGenerator.generate() over a mocked fetch", () => {
   });
 
   it("should report all progress events during successful generation", async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => mockSchema } as Response);
+    serveSchema(mockSchema);
 
     await makeGenerator().generate();
 

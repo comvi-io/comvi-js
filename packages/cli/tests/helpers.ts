@@ -105,10 +105,15 @@ export interface RouteResponse {
   status?: number;
   statusText?: string;
   body?: unknown;
+  /** Reject the request as `fetch` does when the connection fails. */
+  networkError?: string;
 }
 
-/** Routes keyed by exact URL pathname, so a query string never affects matching. */
-export type Routes = Record<string, RouteResponse>;
+/**
+ * Routes keyed by exact URL pathname, so a query string never affects matching.
+ * A list answers successive requests in order and repeats its last entry.
+ */
+export type Routes = Record<string, RouteResponse | RouteResponse[]>;
 
 export interface RecordedRequest {
   url: string;
@@ -135,6 +140,7 @@ const unexpectedRequests: string[] = [];
  */
 export function stubFetch(routes: Routes): FetchCapture {
   const requests: RecordedRequest[] = [];
+  const served = new Map<string, number>();
 
   vi.stubGlobal(
     "fetch",
@@ -142,10 +148,19 @@ export function stubFetch(routes: Routes): FetchCapture {
       const url = String(input);
       requests.push({ url, init });
 
-      const route = routes[new URL(url).pathname];
-      if (!route) {
+      const pathname = new URL(url).pathname;
+      const entry = routes[pathname];
+      if (!entry) {
         unexpectedRequests.push(url);
         throw new Error(`unexpected request: ${url}`);
+      }
+      const seen = (served.get(pathname) ?? 0) + 1;
+      served.set(pathname, seen);
+      const route = Array.isArray(entry) ? entry[Math.min(seen, entry.length) - 1] : entry;
+      if (route.networkError) {
+        throw Object.assign(new TypeError("fetch failed"), {
+          cause: new Error(route.networkError),
+        });
       }
 
       const status = route.status ?? 200;
@@ -154,6 +169,7 @@ export function stubFetch(routes: Routes): FetchCapture {
         status,
         statusText: route.statusText ?? "OK",
         json: async () => route.body,
+        text: async () => (route.body === undefined ? "" : JSON.stringify(route.body)),
       } as Response;
     }),
   );
