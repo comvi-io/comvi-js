@@ -37,10 +37,10 @@ export interface CatalogCheckPluralFinding {
   argument: string;
   /**
    * `missing-other` (error): no `other` branch. `invalid-selector` (error): a
-   * selector the locale does not have, or an `=` selector that is not `=`
-   * followed by a decimal number (`=1`, `=-1`, `=1.5`), the only exact
-   * selector core compiles. `missing-category` (warning): a category the
-   * locale has and the message does not write.
+   * selector the locale does not have. `missing-category` (warning): a
+   * category the locale has and the message does not write. Each plural of an
+   * argument written twice is judged on its own. An exact selector core does
+   * not compile (`=x`, `=1e3`) is an `unsupportedIcu` finding instead.
    */
   problem: "missing-other" | "invalid-selector" | "missing-category";
   categories: string[];
@@ -129,9 +129,6 @@ export interface CatalogCheckReport {
   warnings: number;
   ok: boolean;
 }
-
-/** The exact selector core compiles (`compile-icu.ts`): `=` and a decimal number. */
-const EXACT_SELECTOR = /^=-?\d+(\.\d+)?$/;
 
 function isBlank(value: string | undefined): boolean {
   return value === undefined || value.trim() === "";
@@ -353,20 +350,18 @@ function compareMessages(
     if (!selectors.includes("other")) {
       report.plural.push({ key, argument, problem: "missing-other", categories: ["other"] });
     }
-    // In a locale `Intl` does not know, only what holds in every locale is
-    // judged: `other`, and exact selectors in core's grammar.
+    // In a locale `Intl` does not know, only `other` is judged. An `=`
+    // selector here is always one core compiles: the scanner reports any other
+    // as an unsupported argument, which skipped this comparison above.
     const categories = report.localeUnknown ? undefined : context.pluralCategories(locale, type);
+    if (categories === undefined) continue;
+
     const invalid = sorted(
-      selectors.filter((selector) =>
-        selector.startsWith("=")
-          ? !EXACT_SELECTOR.test(selector)
-          : categories !== undefined && !categories.includes(selector),
-      ),
+      selectors.filter((selector) => !selector.startsWith("=") && !categories.includes(selector)),
     );
     if (invalid.length > 0) {
       report.plural.push({ key, argument, problem: "invalid-selector", categories: invalid });
     }
-    if (categories === undefined) continue;
 
     const absent = sorted(
       categories.filter((category) => category !== "other" && !selectors.includes(category)),
@@ -378,16 +373,18 @@ function compareMessages(
 }
 
 /**
- * Every `plural` and `selectordinal` argument of a message with the plural
- * rules its selectors are judged against. The one place that reads the
- * scanner's plural fields.
+ * Every `plural` and `selectordinal` group of a message, in argument order,
+ * with the plural rules its selectors are judged against. The one place that
+ * reads the scanner's plural fields.
  */
 function pluralArguments(
   shape: MessageShape,
 ): { argument: string; type: PluralRuleType; selectors: string[] }[] {
-  const of = (map: Record<string, string[]>, type: PluralRuleType) =>
-    Object.keys(map).map((argument) => ({ argument, type, selectors: map[argument] }));
-  return [...of(shape.plurals, "cardinal"), ...of(shape.ordinals, "ordinal")].sort((a, b) =>
-    a.argument.localeCompare(b.argument),
-  );
+  return shape.pluralGroups
+    .map(({ name, ordinal, selectors }) => ({
+      argument: name,
+      type: (ordinal ? "ordinal" : "cardinal") as PluralRuleType,
+      selectors,
+    }))
+    .sort((a, b) => a.argument.localeCompare(b.argument));
 }

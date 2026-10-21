@@ -15,6 +15,17 @@ describe("check rule: plural (injected categories)", () => {
     expect(report.ok).toBe(false);
   });
 
+  it("judges each plural of an argument written twice on its own", () => {
+    const report = check(
+      { a: "{n, plural, one {A} other {B}} / {n, plural, one {C} other {D}}" },
+      { a: "{n, plural, one {A} other {B}} / {n, plural, one {C}}" },
+    );
+
+    expect(report.locales.de.plural).toEqual([
+      { key: "a", argument: "n", problem: "missing-other", categories: ["other"] },
+    ]);
+  });
+
   it("reports a selector the locale does not have as an error", () => {
     const report = check(
       { a: "{n, plural, one {#} other {#}}" },
@@ -47,20 +58,28 @@ describe("check rule: plural (injected categories)", () => {
     expect(report.locales.de.plural).toEqual([]);
   });
 
-  it.each(["=", "=x", "x1", "=Infinity", "=0x10", "=1e3", "=.5", "=+1", "=1.", "==1"])(
-    "refuses %j as an exact selector",
+  it("refuses a selector that is neither a category nor `=` and a number", () => {
+    const report = check(
+      { a: "{n, plural, one {#} other {#}}" },
+      { a: "{n, plural, x1 {none} one {#} other {#}}" },
+    );
+
+    expect(report.locales.de.plural).toEqual([
+      { key: "a", argument: "n", problem: "invalid-selector", categories: ["x1"] },
+    ]);
+  });
+
+  it.each(["=", "=x", "=Infinity", "=0x10", "=1e3", "=.5", "=+1", "=1.", "==1"])(
+    "reports the exact selector %j, which core does not compile, once as unsupported ICU",
     (selector) => {
       const report = check(
         { a: "{n, plural, one {#} other {#}}" },
         { a: `{n, plural, ${selector} {none} one {#} other {#}}` },
       );
 
-      expect(report.locales.de.plural).toContainEqual({
-        key: "a",
-        argument: "n",
-        problem: "invalid-selector",
-        categories: [selector],
-      });
+      expect(report.locales.de.unsupportedIcu).toEqual([{ key: "a", argumentType: "plural" }]);
+      expect(report.locales.de.plural).toEqual([]);
+      expect(report.errors).toBe(1);
     },
   );
 
@@ -117,18 +136,17 @@ describe("check rule: plural (injected categories)", () => {
     expect(report.ok).toBe(true);
   });
 
-  it("still requires `other` and a valid exact selector in an unknown locale", () => {
+  it("still requires `other` in an unknown locale", () => {
     const report = check(
       { a: "{n, plural, one {#} other {#}}" },
-      { a: "{n, plural, zzz {#} =x {#}}" },
+      { a: "{n, plural, zzz {#} =1 {#}}" },
       { pluralCategories: () => undefined },
     );
 
     expect(report.locales.de.plural).toEqual([
       { key: "a", argument: "n", problem: "missing-other", categories: ["other"] },
-      { key: "a", argument: "n", problem: "invalid-selector", categories: ["=x"] },
     ]);
-    expect(report.errors).toBe(2);
+    expect(report.errors).toBe(1);
   });
 
   it("passes a target that writes every category", () => {
