@@ -598,10 +598,15 @@ function scanTags(value: string, hashIsSyntax: boolean, scan: TagScan): void {
         hashIsSyntax || opensHashScope(value, i),
       );
       if (argument.kind === "plural" || argument.kind === "select") {
-        // Core keeps the LAST branch of a selector written twice; the earlier
-        // one never renders, so its tags are not the message's.
+        // Only the bodies core can render. `parsePluralChoices` keeps the
+        // LAST body of a selector written twice, in the place of its first
+        // appearance; a plural then spells its explicit values as numbers in
+        // that order (`canonicalizeExactSelectors`), so of `=1`, `=01`, `=1`
+        // the body of `=01` wins. A shadowed body's tags are not the message's.
+        const written = new Map<string, string>();
+        for (const { selector, body } of argument.choices) written.set(selector, body);
         const bodies = new Map<string, string>();
-        for (const { selector, body } of argument.choices) {
+        for (const [selector, body] of written) {
           bodies.set(spellSelector(selector, argument.kind === "plural"), body);
         }
         for (const body of bodies.values()) {
