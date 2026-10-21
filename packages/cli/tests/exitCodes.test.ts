@@ -88,7 +88,7 @@ async function run(command: Command, args: string[]): Promise<number> {
 beforeEach(async () => {
   vi.stubEnv("COMVI_API_KEY", "test-key");
   vi.stubEnv("COMVI_API_BASE_URL", "");
-  vi.stubEnv("COMVI_TIMEOUT_MS", "");
+  vi.stubEnv("COMVI_TIMEOUT_MS", undefined);
   exits = stubProcessExit();
   output = captureConsole();
   root = await fs.realpath(await makeTempDir("comvi-exit-codes"));

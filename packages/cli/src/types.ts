@@ -187,6 +187,12 @@ export interface GeneratorOptions {
    * there, otherwise the framework binding.
    */
   augment?: string;
+
+  /** Milliseconds for each read request (COMVI_TIMEOUT_MS). */
+  timeout?: number;
+
+  /** Milliseconds for the push commit (COMVI_TIMEOUT_MS). */
+  commitTimeout?: number;
 }
 
 export interface TranslationSyncOptions {
