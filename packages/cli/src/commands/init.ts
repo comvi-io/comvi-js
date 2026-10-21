@@ -39,7 +39,10 @@ export function createInitCommand(): Command {
       const apiUrl: string =
         options.apiUrl || process.env.COMVI_API_BASE_URL || "https://api.comvi.io";
       if (!isHttpUrl(apiUrl)) {
-        console.error(`✗ Invalid API base URL: ${apiUrl}`);
+        const fromEnv = !options.apiUrl && process.env.COMVI_API_BASE_URL;
+        console.error(
+          `✗ Invalid API base URL${fromEnv ? " (from COMVI_API_BASE_URL)" : ""}: ${apiUrl}`,
+        );
         process.exit(EXIT_VALIDATION);
       }
 

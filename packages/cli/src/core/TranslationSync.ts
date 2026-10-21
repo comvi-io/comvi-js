@@ -211,7 +211,9 @@ export class TranslationSync {
         // `{languageTag}-{namespace}.json` puts en + US-shop and en-US + shop
         // in one file; the second write would silently replace the first.
         const owner = `locale ${JSON.stringify(locale)}, namespace ${JSON.stringify(namespace)}`;
-        const previous = owners.get(filePath);
+        // Compared as a case-insensitive file system sees it (macOS, Windows).
+        const key = filePath.normalize("NFC").toLowerCase();
+        const previous = owners.get(key);
         if (previous) {
           throw new TypegenError(
             `${previous} and ${owner} both resolve to ${filePath}. ` +
@@ -219,13 +221,29 @@ export class TranslationSync {
             ErrorCodes.VALIDATION_FAILED,
           );
         }
-        owners.set(filePath, owner);
+        owners.set(key, owner);
         planned.push({
           locale,
           namespace,
           filePath,
           catalog,
         });
+      }
+    }
+
+    // A file one catalog needs where another needs a directory: with the
+    // default layout, namespace "en.json" would live at en.json/en.json.
+    const root = this.translationsPath.normalize("NFC").toLowerCase();
+    for (const [key, owner] of owners) {
+      for (let dir = dirname(key); dir.length > root.length; dir = dirname(dir)) {
+        const fileOwner = owners.get(dir);
+        if (fileOwner) {
+          throw new TypegenError(
+            `${fileOwner} is written to a file that ${owner} needs as a directory. ` +
+              "Rename the namespace or use a different fileTemplate.",
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
       }
     }
 
