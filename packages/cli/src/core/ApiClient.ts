@@ -29,7 +29,10 @@ export interface ApiClientOptions {
   apiBaseUrl: string;
   /** Milliseconds for each read request. */
   timeout?: number;
-  /** Milliseconds for the push commit, which can take minutes on a large catalog. */
+  /**
+   * Milliseconds for the push commit, which can take minutes on a large
+   * catalog. Defaults to `timeout` when that is given, else five minutes.
+   */
   commitTimeout?: number;
 }
 
@@ -287,7 +290,7 @@ export class ApiClient {
     this.apiKey = options.apiKey.trim();
     this.apiBaseUrl = options.apiBaseUrl.replace(/\/$/, ""); // Remove trailing slash
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
-    this.commitTimeout = options.commitTimeout ?? DEFAULT_COMMIT_TIMEOUT_MS;
+    this.commitTimeout = options.commitTimeout ?? options.timeout ?? DEFAULT_COMMIT_TIMEOUT_MS;
   }
 
   /**

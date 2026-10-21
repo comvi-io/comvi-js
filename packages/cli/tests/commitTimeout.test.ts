@@ -83,6 +83,23 @@ describe("the commit has its own, longer timeout", () => {
     await settled;
   });
 
+  // `timeout` used to cover the commit too; a library caller that set only it
+  // keeps that budget.
+  it("uses an explicit `timeout` for the commit when no `commitTimeout` is given", async () => {
+    const client = new ApiClient({ apiKey: "k", apiBaseUrl: "https://api.test.com", timeout: 20 });
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => projectInfo } as Response)
+      .mockImplementationOnce(slowBody(commitBody, 200));
+
+    const assertion = expect(push(client)).rejects.toMatchObject({
+      code: ErrorCodes.API_TIMEOUT,
+      message: expect.stringContaining("Push timed out after 20ms"),
+    });
+    void assertion.catch(() => {});
+    await vi.advanceTimersByTimeAsync(250);
+    await assertion;
+  });
+
   it("says a timed-out commit may still have been applied and is safe to re-run", async () => {
     const client = new ApiClient({
       apiKey: "k",
@@ -111,19 +128,34 @@ describe("COMVI_TIMEOUT_MS", () => {
     expect(timeoutsFromEnv({})).toEqual({});
   });
 
-  it("sets both the request and the commit timeout", () => {
+  it("sets the read timeout and never shortens the commit below five minutes", () => {
     expect(timeoutsFromEnv({ COMVI_TIMEOUT_MS: "120000" })).toEqual({
       timeout: 120_000,
-      commitTimeout: 120_000,
+      commitTimeout: 300_000,
     });
   });
 
-  it.each(["0", "-5", "abc", "1.5", "10s", ""])("refuses %j as invalid configuration", (value) => {
-    expect(() => timeoutsFromEnv({ COMVI_TIMEOUT_MS: value })).toThrow(
-      expect.objectContaining({
-        code: ErrorCodes.CONFIG_INVALID,
-        message: expect.stringContaining("COMVI_TIMEOUT_MS"),
-      }),
-    );
+  it("lengthens the commit when it is above five minutes", () => {
+    expect(timeoutsFromEnv({ COMVI_TIMEOUT_MS: "600000" })).toEqual({
+      timeout: 600_000,
+      commitTimeout: 600_000,
+    });
   });
+
+  it("accepts the largest delay a timer honours", () => {
+    expect(timeoutsFromEnv({ COMVI_TIMEOUT_MS: "2147483647" }).timeout).toBe(2_147_483_647);
+  });
+
+  // Above 2^31-1 ms Node fires the timer after 1 ms: every request would abort at once.
+  it.each(["0", "-5", "abc", "1.5", "10s", "", "2147483648", "3000000000"])(
+    "refuses %j as invalid configuration",
+    (value) => {
+      expect(() => timeoutsFromEnv({ COMVI_TIMEOUT_MS: value })).toThrow(
+        expect.objectContaining({
+          code: ErrorCodes.CONFIG_INVALID,
+          message: expect.stringContaining("COMVI_TIMEOUT_MS"),
+        }),
+      );
+    },
+  );
 });

@@ -9,12 +9,18 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
  */
 export const DEFAULT_COMMIT_TIMEOUT_MS = 300_000;
 
+/** The largest delay `setTimeout` honours; a longer one fires after 1 ms. */
+const MAX_TIMER_MS = 2_147_483_647;
+
 export interface Timeouts {
   timeout?: number;
   commitTimeout?: number;
 }
 
-/** `COMVI_TIMEOUT_MS` replaces both budgets; unset leaves the defaults. */
+/**
+ * `COMVI_TIMEOUT_MS` sets the read timeout and can only lengthen the commit:
+ * raising it for a slow network must not cut a large push short.
+ */
 export function timeoutsFromEnv(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Timeouts {
@@ -24,11 +30,11 @@ export function timeoutsFromEnv(
   }
 
   const value = /^\d+$/.test(raw) ? Number(raw) : NaN;
-  if (!Number.isSafeInteger(value) || value <= 0) {
+  if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_TIMER_MS) {
     throw new TypegenError(
-      `Invalid COMVI_TIMEOUT_MS: ${JSON.stringify(raw)} — expected a positive whole number of milliseconds`,
+      `Invalid COMVI_TIMEOUT_MS: ${JSON.stringify(raw)} — expected a whole number of milliseconds from 1 to ${MAX_TIMER_MS}`,
       ErrorCodes.CONFIG_INVALID,
     );
   }
-  return { timeout: value, commitTimeout: value };
+  return { timeout: value, commitTimeout: Math.max(value, DEFAULT_COMMIT_TIMEOUT_MS) };
 }

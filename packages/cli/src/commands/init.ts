@@ -4,9 +4,8 @@ import { promises as fs } from "fs";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { timeoutsFromEnv, type Timeouts } from "../core/timeouts";
-import { isTypegenError } from "../utils/errors";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
-import { EXIT_VALIDATION } from "../utils/errors";
+import { EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import type { ComviConfig } from "../types";
 
 async function fileExists(filePath: string): Promise<boolean> {
