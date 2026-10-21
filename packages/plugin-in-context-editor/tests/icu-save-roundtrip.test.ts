@@ -276,6 +276,185 @@ describe("a save leaves the review status of unchanged values alone", () => {
   });
 });
 
+function putCount(fetchMock: ReturnType<typeof vi.mocked<typeof fetch>>) {
+  return fetchMock.mock.calls.filter(([, init]) => init?.method === "PUT").length;
+}
+
+describe("a save with nothing to write sends no request", () => {
+  beforeEach(() => {
+    initApiConfig("test-api-key");
+    vi.stubGlobal("fetch", vi.fn());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    addMessagesMock.mockReset();
+  });
+
+  afterEach(() => {
+    resetApiConfig();
+  });
+
+  it("an edit typed and reverted → no request, the plural flag on the server is left alone", async () => {
+    const fetchMock = serveKey({
+      en: EN_PLURAL,
+      de: "{count, plural, one {# Datei} other {# Dateien}}",
+    });
+    const manager = await loadKey();
+    const loaded = manager.state.value.data;
+
+    manager.updateTranslation("en", "one", "# document");
+    manager.updateTranslation("en", "one", "# file");
+    expect(manager.hasUnsavedChanges.value).toBe(true);
+    const saved = await manager.saveTranslation();
+
+    expect(putCount(fetchMock)).toBe(0);
+    expect(saved).toBe(loaded);
+    expect(manager.state.value.data).toBe(loaded);
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+    expect(manager.state.value.error).toBeNull();
+    expect(addMessagesMock).not.toHaveBeenCalled();
+  });
+
+  it("variants switched on and off on the only language → no request", async () => {
+    const fetchMock = serveKey({ en: "Files" }, false);
+    const manager = await loadKey();
+
+    manager.toggleSelectMode("en", true, { variable: "gender", options: ["male", "other"] });
+    manager.toggleSelectMode("en", false);
+    await manager.saveTranslation();
+
+    expect(putCount(fetchMock)).toBe(0);
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+  });
+
+  it("plural mode switched off with nothing rebuilt → the flag change is still sent", async () => {
+    const exact = "{count, plural, =0 {None} one {One} other {# items}}";
+    const fetchMock = serveKey({ de: exact });
+    const manager = await loadKey();
+
+    manager.togglePluralMode(false);
+    await manager.saveTranslation();
+
+    expect(putCount(fetchMock)).toBe(1);
+    expect(
+      JSON.parse(String(fetchMock.mock.calls.find(([, i]) => i?.method === "PUT")?.[1]?.body)),
+    ).toMatchObject({ isPlural: false, translations: {} });
+  });
+
+  it("plural switched on and off again → no request", async () => {
+    const fetchMock = serveKey({ en: "Files", de: "Dateien" }, false);
+    const manager = await loadKey();
+
+    manager.togglePluralMode(true);
+    manager.togglePluralMode(false);
+    await manager.saveTranslation();
+
+    expect(putCount(fetchMock)).toBe(0);
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+  });
+
+  it("a value typed into a language the key has none for and cleared again → no request", async () => {
+    const fetchMock = serveKey({ en: "Files" }, false);
+    const manager = await loadKey();
+
+    manager.updateTranslation("de", "other", "Dateien");
+    manager.updateTranslation("de", "other", "");
+    await manager.saveTranslation();
+
+    expect(putCount(fetchMock)).toBe(0);
+  });
+
+  it("on a plural key, a value typed into a new language and cleared again → no request", async () => {
+    const fetchMock = serveKey({ en: EN_PLURAL });
+    const manager = await loadKey();
+
+    manager.updateTranslation("de", "one", "# Datei");
+    manager.updateTranslation("de", "one", "");
+    await manager.saveTranslation();
+
+    expect(putCount(fetchMock)).toBe(0);
+  });
+
+  it("a key the server does not have yet → the save still creates it", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async (_url, init) =>
+      init?.method === "PUT"
+        ? ok(keyResponse({}, false))
+        : ({ ok: false, status: 404, statusText: "Not Found" } as Response),
+    );
+    const manager = await loadKey();
+
+    await manager.saveTranslation();
+
+    expect(putCount(fetchMock)).toBe(1);
+  });
+
+  it("an edit made while such a save settles → still unsaved, and the next save sends it", async () => {
+    const fetchMock = serveKey({ en: "Files" }, false);
+    const manager = await loadKey();
+
+    manager.updateTranslation("en", "other", "Documents");
+    manager.updateTranslation("en", "other", "Files");
+    const pending = manager.saveTranslation();
+    manager.updateTranslation("en", "other", "Documents");
+    await pending;
+
+    expect(manager.hasUnsavedChanges.value).toBe(true);
+    await manager.saveTranslation();
+    expect(sentTranslations(fetchMock)).toEqual({
+      en: { value: "Documents", status: "not_reviewed" },
+    });
+  });
+});
+
+describe("a save the server accepted stays saved when the page cannot show it", () => {
+  beforeEach(() => {
+    initApiConfig("test-api-key");
+    vi.stubGlobal("fetch", vi.fn());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    addMessagesMock.mockReset();
+  });
+
+  afterEach(() => {
+    resetApiConfig();
+  });
+
+  it("the runtime refusing the value → saved, not dirty, and a retry sends nothing", async () => {
+    const fetchMock = serveKey({ en: EN_PLURAL });
+    const manager = await loadKey();
+    addMessagesMock.mockImplementation(() => {
+      throw new Error("Invalid ICU message");
+    });
+
+    manager.updateTranslation("en", "one", "# document");
+    const saved = await manager.saveTranslation();
+
+    expect(saved).not.toBeNull();
+    expect(manager.state.value.data?.sourceValues?.en).toBe(EN_EDITED);
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+    expect(manager.state.value.error).toContain("Invalid ICU message");
+    expect(manager.state.value.error).toMatch(/^Saved/);
+
+    await manager.saveTranslation();
+    expect(putCount(fetchMock)).toBe(1);
+  });
+
+  it("another key opened while the save settles → its editor shows no error from that save", async () => {
+    serveKey({ en: EN_PLURAL });
+    const manager = await loadKey();
+    addMessagesMock.mockImplementation(() => {
+      throw new Error("Invalid ICU message");
+    });
+
+    manager.updateTranslation("en", "one", "# document");
+    const pending = manager.saveTranslation();
+    const reload = manager.loadTranslation("files.count", "default");
+    await Promise.all([pending, reload]);
+
+    expect(addMessagesMock).toHaveBeenCalled();
+    expect(manager.state.value.error).toBeNull();
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+  });
+});
+
 describe("saving a plural key where no language can be rebuilt", () => {
   beforeEach(() => {
     initApiConfig("test-api-key");
