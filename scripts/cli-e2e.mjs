@@ -117,6 +117,8 @@ const child = spawn(
     stdio: "inherit",
     env: {
       LOG_LEVEL: "warn",
+      // A revoked key's watch stream closes within a second, not a minute.
+      SSE_TYPEGEN_KEY_RECHECK_MS: "1000",
       ...process.env,
       CLI_E2E_FIXTURE_OUT: fixturePath,
       CLI_E2E_FIXTURE: fixturePath,

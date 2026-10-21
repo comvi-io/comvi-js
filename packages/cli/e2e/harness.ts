@@ -3,7 +3,9 @@
  * `scripts/cli-e2e.mjs` (platform `test-stack.mjs --serve` plus
  * `scripts/cli-e2e-fixture.ts`). Nothing here mocks the network.
  */
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
+import { createServer, request as httpRequest, type ClientRequest, type Server } from "node:http";
+import type { Socket } from "node:net";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -88,6 +90,7 @@ const KEY_PERMISSIONS: Record<Exclude<KeyName, "restricted">, string[]> = {
 export interface E2EProject {
   id: number;
   keys: Record<KeyName, string>;
+  keyIds: Record<KeyName, number>;
   /** Owner session, for arranging state the CLI does not create itself. */
   owner: Session;
 }
@@ -126,24 +129,27 @@ export async function createProject(
   }
 
   const createKey = (session: Session, name: string, permissions: string[]) =>
-    session
-      .request<{ token: string }>("POST", `/v1/projects/${project.id}/api-keys`, {
-        name,
-        permissions,
-      })
-      .then(({ token }) => token);
+    session.request<{ id: number; token: string }>("POST", `/v1/projects/${project.id}/api-keys`, {
+      name,
+      permissions,
+    });
 
   const keys = {} as Record<KeyName, string>;
+  const keyIds = {} as Record<KeyName, number>;
   for (const [name, permissions] of Object.entries(KEY_PERMISSIONS)) {
-    keys[name as KeyName] = await createKey(ownerSession, `e2e-${name}`, permissions);
+    ({ token: keys[name as KeyName], id: keyIds[name as KeyName] } = await createKey(
+      ownerSession,
+      `e2e-${name}`,
+      permissions,
+    ));
   }
-  keys.restricted = await createKey(
+  ({ token: keys.restricted, id: keyIds.restricted } = await createKey(
     await Session.login(restricted),
     "e2e-restricted",
     KEY_PERMISSIONS.full,
-  );
+  ));
 
-  return { id: project.id, keys, owner: ownerSession };
+  return { id: project.id, keys, keyIds, owner: ownerSession };
 }
 
 export interface Workspace {
@@ -184,25 +190,39 @@ export interface CliResult {
   stderr: string;
 }
 
-/** Runs the built CLI with a minimal env: the API URL, an optional key, `.env` loading off. */
-export function runCli(
+export interface CliOptions {
+  cwd: string;
+  apiKey?: string;
+  env?: Record<string, string>;
+  timeoutMs?: number;
+}
+
+function spawnCli(
   args: string[],
-  options: { cwd: string; apiKey?: string; env?: Record<string, string>; timeoutMs?: number },
-): Promise<CliResult> {
+  options: CliOptions,
+): ChildProcess & {
+  stdout: NonNullable<ChildProcess["stdout"]>;
+  stderr: NonNullable<ChildProcess["stderr"]>;
+} {
+  return spawn(process.execPath, [BIN, ...args], {
+    cwd: options.cwd,
+    env: {
+      PATH: process.env.PATH ?? "",
+      // Never the developer's home: nothing in it may reach the CLI under test.
+      HOME: options.cwd,
+      COMVI_NO_ENV: "1",
+      COMVI_API_BASE_URL: API_URL,
+      ...(options.apiKey ? { COMVI_API_KEY: options.apiKey } : {}),
+      ...options.env,
+    } as NodeJS.ProcessEnv,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+/** Runs the built CLI with a minimal env: the API URL, an optional key, `.env` loading off. */
+export function runCli(args: string[], options: CliOptions): Promise<CliResult> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(process.execPath, [BIN, ...args], {
-      cwd: options.cwd,
-      env: {
-        PATH: process.env.PATH ?? "",
-        // Never the developer's home: nothing in it may reach the CLI under test.
-        HOME: options.cwd,
-        COMVI_NO_ENV: "1",
-        COMVI_API_BASE_URL: API_URL,
-        ...(options.apiKey ? { COMVI_API_KEY: options.apiKey } : {}),
-        ...options.env,
-      } as NodeJS.ProcessEnv,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const child = spawnCli(args, options);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
@@ -233,4 +253,173 @@ export async function fetchRemote(
     namespaces: Record<string, Record<string, Record<string, string>>>;
   };
   return body.namespaces;
+}
+
+export interface RunningCli {
+  output(): string;
+  /** The current length of the output, to wait only for what comes after it. */
+  mark(): number;
+  /** Resolves once the output after `since` matches; rejects on exit or timeout. */
+  waitFor(pattern: RegExp, options?: { since?: number; timeoutMs?: number }): Promise<void>;
+  /** The exit code, or a rejection carrying the output if it has not exited in time. */
+  exitedWithin(timeoutMs: number): Promise<number | null>;
+  /** SIGTERM, then SIGKILL if the process is still running 5 s later. */
+  stop(): Promise<number | null>;
+}
+
+/** Starts a long-running CLI command such as `typegen --watch`. */
+export function startCli(args: string[], options: CliOptions): RunningCli {
+  const child = spawnCli(args, options);
+  let text = "";
+  let closed = false;
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+  const append = (chunk: Buffer) => {
+    text += chunk.toString();
+    notify();
+  };
+  child.stdout.on("data", append);
+  child.stderr.on("data", append);
+  const exited = new Promise<number | null>((resolveExit) => {
+    child.on("error", (error) => {
+      text += `\n[spawn error] ${error.message}`;
+      closed = true;
+      notify();
+      resolveExit(null);
+    });
+    // "close" comes after the last output; "exit" may come before it.
+    child.on("close", (code) => {
+      closed = true;
+      notify();
+      resolveExit(code);
+    });
+  });
+
+  const exitedWithin = (timeoutMs: number) =>
+    new Promise<number | null>((resolveExit, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`still running after ${timeoutMs} ms:\n${text}`)),
+        timeoutMs,
+      );
+      void exited.then((code) => {
+        clearTimeout(timer);
+        resolveExit(code);
+      });
+    });
+
+  return {
+    output: () => text,
+    mark: () => text.length,
+    exitedWithin,
+    waitFor(pattern, { since = 0, timeoutMs = 30_000 } = {}) {
+      return new Promise((resolveWait, reject) => {
+        const check = () => {
+          if (pattern.test(text.slice(since))) {
+            done();
+            resolveWait();
+          } else if (closed) {
+            done();
+            reject(new Error(`exited before ${pattern}:\n${text}`));
+          }
+        };
+        const timer = setTimeout(() => {
+          done();
+          reject(new Error(`timed out waiting for ${pattern}:\n${text}`));
+        }, timeoutMs);
+        const done = () => {
+          clearTimeout(timer);
+          listeners.delete(check);
+        };
+        listeners.add(check);
+        check();
+      });
+    },
+    async stop() {
+      if (closed) return exited;
+      child.kill("SIGTERM");
+      try {
+        return await exitedWithin(5_000);
+      } catch {
+        child.kill("SIGKILL");
+        return exited;
+      }
+    },
+  };
+}
+
+export interface Proxy {
+  url: string;
+  /** Answers 502 and drops every open connection, as a restarting gateway does. */
+  down(): void;
+  up(): void;
+  close(): Promise<void>;
+}
+
+/** An HTTP proxy in front of the API that a test can take down and bring back. */
+export async function startProxy(target = API_URL): Promise<Proxy> {
+  const upstream = new URL(target);
+  const sockets = new Set<Socket>();
+  const forwards = new Set<ClientRequest>();
+  let isDown = false;
+  const server: Server = createServer((req, res) => {
+    if (isDown) {
+      res.writeHead(502, { "content-type": "text/html" }).end("bad gateway");
+      return;
+    }
+    const forward = httpRequest(
+      {
+        host: upstream.hostname,
+        port: upstream.port,
+        path: req.url,
+        method: req.method,
+        headers: req.headers,
+      },
+      (response) => {
+        res.writeHead(response.statusCode ?? 502, response.headers);
+        // An SSE stream may send its headers long before its first event.
+        res.flushHeaders();
+        response.pipe(res);
+      },
+    );
+    forwards.add(forward);
+    forward.on("close", () => forwards.delete(forward));
+    forward.on("error", () => res.destroy());
+    // A client that goes away takes its upstream request with it, so the API
+    // does not keep streaming to nobody.
+    res.on("close", () => forward.destroy());
+    req.pipe(forward);
+  });
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+  await new Promise<void>((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
+  const { port } = server.address() as { port: number };
+
+  const dropAll = () => {
+    for (const forward of forwards) forward.destroy();
+    for (const socket of sockets) socket.destroy();
+  };
+
+  return {
+    url: `http://127.0.0.1:${port}`,
+    down() {
+      isDown = true;
+      dropAll();
+    },
+    up() {
+      isDown = false;
+    },
+    close() {
+      dropAll();
+      return new Promise((resolveClose) => server.close(() => resolveClose()));
+    },
+  };
+}
+
+/** Deletes one of the project's API keys, as its owner. */
+export async function revokeKey(project: E2EProject, name: KeyName): Promise<void> {
+  await project.owner.request("DELETE", `/v1/api-keys/${project.keyIds[name]}`);
 }
