@@ -23,9 +23,10 @@ export interface WriteTranslationsOptions {
 }
 
 /**
- * Which translations a clear is allowed to touch, in `rsync --delete` terms: the
- * clear covers exactly the locales and namespaces the pull is about to write.
- * An empty scope (no locale and no namespace filter) means the whole directory.
+ * Which translations a clear is allowed to touch, in `rsync --delete` terms.
+ * Only files the template parses as a translation file are ever candidates;
+ * `locales` and `namespaces` narrow that further, and an empty list selects
+ * nothing.
  */
 export interface ClearScope {
   locales?: string[];
@@ -35,6 +36,8 @@ export interface ClearScope {
 
 /** One file a response resolves to, in the order `writeTranslations` writes them. */
 interface PlannedWrite {
+  locale: string;
+  namespace: string;
   filePath: string;
   catalog: Record<string, string>;
 }
@@ -74,8 +77,8 @@ export class TranslationSync {
     }
 
     return {
-      locales: data.locales,
-      namespaces: data.namespaces,
+      locales: [...new Set(planned.map(({ locale }) => locale))],
+      namespaces: [...new Set(planned.map(({ namespace }) => namespace))],
       filesWritten: planned.length,
     };
   }
@@ -205,6 +208,8 @@ export class TranslationSync {
         if (!catalog) continue;
 
         planned.push({
+          locale,
+          namespace,
           filePath: this.resolveFilePath(locale, namespace, defaultNamespace),
           catalog,
         });
@@ -291,23 +296,15 @@ export class TranslationSync {
   }
 
   /**
-   * Remove the translation files a pull is about to replace.
-   *
-   * With no scope this is the whole directory. With a locale or namespace
-   * filter it is only the files that filter selects, so a filtered pull never
-   * deletes translations it was never going to fetch; directories the walk
-   * leaves empty are removed with them.
+   * Remove the translation files a pull is about to replace: the files the
+   * template parses as translations, within `scope`. Anything else under the
+   * directory — source code, a README, a JSON file that is not a catalog —
+   * is never touched. Directories the walk leaves empty are removed.
    */
-  async clearDirectory(scope?: ClearScope): Promise<void> {
+  async clearDirectory(scope: ClearScope = {}): Promise<void> {
     this.assertInsideProject();
 
     try {
-      if (!isScopedClear(scope)) {
-        await fs.rm(this.translationsPath, { recursive: true, force: true });
-        await this.ensureDirectory(this.translationsPath);
-        return;
-      }
-
       const files = await this.listFilesToClear(scope);
       for (const filePath of files) {
         await fs.unlink(filePath);
@@ -327,19 +324,11 @@ export class TranslationSync {
    * List the files `clearDirectory` would remove for the same scope, sorted, so
    * `--dry-run` can name every one of them.
    */
-  async previewClear(scope?: ClearScope): Promise<string[]> {
+  async previewClear(scope: ClearScope = {}): Promise<string[]> {
     this.assertInsideProject();
 
     try {
-      if (isScopedClear(scope)) {
-        return await this.listFilesToClear(scope);
-      }
-
-      const files: string[] = [];
-      await this.walkDirectory(this.translationsPath, (filePath) => {
-        files.push(filePath);
-      });
-      return files.sort();
+      return await this.listFilesToClear(scope);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return [];
@@ -364,8 +353,8 @@ export class TranslationSync {
     return files
       .filter(
         ({ locale, namespace }) =>
-          (!scope.locales?.length || scope.locales.includes(locale)) &&
-          (!scope.namespaces?.length || scope.namespaces.includes(namespace)),
+          (scope.locales === undefined || scope.locales.includes(locale)) &&
+          (scope.namespaces === undefined || scope.namespaces.includes(namespace)),
       )
       .map(({ filePath }) => filePath)
       .sort();
@@ -729,11 +718,6 @@ function parseDefaultNamespaceFile(relativePath: string, format: "json"): string
   const regex = new RegExp(`^([^/]+)\\.${escapeRegExp(format)}$`);
   const locale = relativePath.match(regex)?.[1];
   return locale !== undefined && unsafePathSegmentReason(locale) === undefined ? locale : null;
-}
-
-/** An empty scope clears everything; any filter narrows it. */
-function isScopedClear(scope?: ClearScope): scope is ClearScope {
-  return Boolean(scope?.locales?.length || scope?.namespaces?.length);
 }
 
 /**
