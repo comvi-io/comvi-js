@@ -6,6 +6,7 @@ import type { TranslationData } from "../src/types";
 
 const getTranslationMock = vi.fn();
 const saveTranslationMock = vi.fn();
+const addMessagesMock = vi.fn();
 
 vi.mock("../src/services/translationService", () => ({
   getTranslation: (...args: unknown[]) => getTranslationMock(...args),
@@ -34,7 +35,7 @@ vi.mock("../src/services/languageService", () => ({
 }));
 
 vi.mock("../src/Core", () => ({
-  getI18nInstance: () => ({ addMessages: vi.fn() }),
+  getI18nInstance: () => ({ addMessages: addMessagesMock }),
 }));
 
 vi.mock("../src/config/api", () => ({ isDemoMode: () => false }));
@@ -78,6 +79,7 @@ describe("EditModal save feedback", () => {
   beforeEach(async () => {
     getTranslationMock.mockReset();
     saveTranslationMock.mockReset();
+    addMessagesMock.mockReset();
     getTranslationMock.mockResolvedValue(stored("Fresh coffee"));
     wrapper = mount(App, {
       props: {
@@ -153,6 +155,21 @@ describe("EditModal save feedback", () => {
     await flushPromises();
 
     expect(toastTitles()).toEqual(["Saved"]);
+  });
+
+  it("saved but the page cannot show the value → one Saved toast that says a reload shows it", async () => {
+    saveTranslationMock.mockResolvedValueOnce(stored("First edit"));
+    addMessagesMock.mockImplementationOnce(() => {
+      throw new Error("Invalid ICU message");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await edit("First edit");
+
+    clickButton("Save");
+    await flushPromises();
+
+    expect(toastTitles()).toEqual(["Saved"]);
+    expect(document.body.textContent).toContain("only after a reload");
   });
 
   it("failed save after a successful one → the Saved toast is replaced by a dismissible error", async () => {
