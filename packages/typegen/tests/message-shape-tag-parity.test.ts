@@ -74,6 +74,11 @@ const NAMED = [
   "\\{ <b>x</b>",
   "<b>'{</b>'",
   "<b>'{'{</b>'",
+  "<b>'{it''s</b>'",
+  "{n, plural, =1 {<b/>} =01 {<i/>} =1 {<em/>} other {x}}",
+  "{n, selectordinal, =1 {<b/>} =1.0 {<i/>} =1 {<em/>} other {x}}",
+  "{n, plural, =1 {<b/>} =01 {<i>} =1 {<em/>} other {x}}",
+  "{n, plural, =01 {<b/>} =1 {<i/>} =01 {<em/>} other {x}}",
   "<b>1<>2</b>",
   "<b>a<x/</b>",
   "{g, select, =01 {<b/>} =1 {x} other {y}}",
@@ -155,12 +160,22 @@ function fuzzedMessages(count: number, noisy: boolean): string[] {
     if (argumentCount === 3) return tag(depth);
     argumentCount++;
     if (rnd(2) === 0) {
-      const selectors = ["one", "other", "=0", "few", "two"].filter(() => rnd(2) === 0);
+      // Half the time, explicit values written more than one way and more
+      // than once: which body core keeps depends on their order.
+      const selectors =
+        rnd(2) === 0
+          ? ["one", "other", "=0", "few", "two"].filter(() => rnd(2) === 0)
+          : Array.from({ length: 2 + rnd(4) }, () =>
+              pick(["=1", "=01", "=1.0", "=2", "=02", "one"]),
+            );
       if (!selectors.includes("other")) selectors.push("other");
       const type = rnd(3) === 0 ? "selectordinal" : "plural";
       return `{n${argumentCount}, ${type}, ${selectors.map((s) => `${s} {${body(depth + 1)}}`).join(" ")}}`;
     }
-    const selectors = ["a", "c", "other"].filter((s) => s === "other" || rnd(2) === 0);
+    const selectors =
+      rnd(2) === 0
+        ? ["a", "c", "other"].filter((s) => s === "other" || rnd(2) === 0)
+        : [...Array.from({ length: 2 + rnd(3) }, () => pick(["a", "=1", "=01"])), "other"];
     return `{g${argumentCount}, select, ${selectors.map((s) => `${s} {${body(depth + 1)}}`).join(" ")}}`;
   }
 
@@ -279,8 +294,16 @@ function allBranchesReached(message: string, shape: MessageShape, complete: bool
   const selectorsReachable = [
     ...Object.values(shape.plurals),
     ...Object.values(shape.ordinals),
-  ].every((selectors) =>
-    selectors.every((selector) => CATEGORIES.has(selector) || /^=-?\d/.test(selector)),
+  ].every(
+    (selectors) =>
+      selectors.every((selector) => CATEGORIES.has(selector) || /^=-?\d/.test(selector)) &&
+      // Core tries explicit values first, and in Welsh most categories hold
+      // only a count or two, so `=1` beside `one` can leave `one` unreachable:
+      // a plural mixing explicit values with categories besides `other` is out.
+      !(
+        selectors.some((selector) => selector.startsWith("=")) &&
+        selectors.some((selector) => CATEGORIES.has(selector) && selector !== "other")
+      ),
   );
   const namesUsedOnce = valueLists(message).every(
     ([name]) => message.split(new RegExp(`\\{\\s*${name}\\s*,`)).length <= 2,
@@ -345,7 +368,9 @@ function divergences(message: string, checkBranches = true): string[] {
   if (!/['\\&]/.test(message)) {
     for (const out of runtime.outputs.map(withoutPlaceholders)) {
       for (const match of out.matchAll(/<\/?([A-Za-z][A-Za-z0-9_-]*)[\0- ]*>/g)) {
-        if (!unbalanced.has(match[1])) {
+        // Markup written in the message, not two texts that meet in the
+        // rendering (`{n, plural, other {<a}}>` renders `<a>`).
+        if (!unbalanced.has(match[1]) && message.includes(match[0])) {
           problems.push(`core left <${match[1]}> as text, which unbalancedTags omits`);
         }
       }
@@ -375,6 +400,30 @@ describe("scanMessageShape's tags against @comvi/core with tag syntax", { timeou
     expect(NAMED.flatMap((message) => divergences(message)).join("\n  ")).toBe("");
   });
 
+  it("agrees on every order of up to three spellings of one explicit value", () => {
+    // Which body core keeps depends on the order: it deduplicates selectors as
+    // written first, then spells them as numbers.
+    const spellings = ["=1", "=01", "=1.0"];
+    const orders: string[][] = [[]];
+    for (let length = 0; length < 3; length++) {
+      for (const order of orders.filter((o) => o.length === length)) {
+        for (const spelling of spellings) orders.push([...order, spelling]);
+      }
+    }
+    const tags = ["b", "i", "em"];
+    const messages = orders
+      .slice(1)
+      .flatMap((order) =>
+        ["plural", "selectordinal"].map(
+          (type) =>
+            `{n, ${type}, ${order.map((s, k) => `${s} {<${tags[k]}/>}`).join(" ")} other {x}}`,
+        ),
+      );
+
+    expect(messages).toHaveLength(78);
+    expect(messages.flatMap((message) => divergences(message)).join("\n  ")).toBe("");
+  });
+
   it("agrees on 1000 generated messages", () => {
     const problems = fuzzedMessages(1000, false).flatMap((message) => divergences(message));
 
@@ -397,10 +446,10 @@ describe("scanMessageShape's tags against @comvi/core with tag syntax", { timeou
       return allBranchesReached(message, shape, combinations(valueLists(message)).complete);
     });
 
-    // 1000 messages: 544 with a working tag, 646 with an unbalanced one, 963
+    // 1000 messages: 495 with a working tag, 629 with an unbalanced one, 745
     // with every branch reached (measured on Node 24).
     expect(shapes.filter((shape) => shape.tags.length > 0).length).toBeGreaterThan(400);
     expect(shapes.filter((shape) => shape.unbalancedTags.length > 0).length).toBeGreaterThan(400);
-    expect(reached.length).toBeGreaterThan(800);
+    expect(reached.length).toBeGreaterThan(600);
   });
 });

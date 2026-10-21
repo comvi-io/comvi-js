@@ -617,6 +617,11 @@ describe("scanMessageShape", () => {
         expected: shape({ unbalancedTags: ["b"] }),
       },
       {
+        form: "a doubled apostrophe inside a balanced quote in a tag",
+        value: "<b>'{it''s</b>'",
+        expected: shape({ unbalancedTags: ["b"] }),
+      },
+      {
         form: "a quote that closes inside a tag, then a brace after it",
         value: "<b>'{'{</b>'",
         expected: shape({ tags: ["b"] }),
@@ -677,6 +682,33 @@ describe("scanMessageShape", () => {
         form: "no tag from a plural branch a later equal value overrides",
         value: "{n, plural, =1 {<b/>} =01 {x} other {y}}",
         expected: shape({ params: [num("n")], plurals: { n: ["=1", "other"] } }),
+      },
+      // Core keeps the last body of each selector AS WRITTEN, in the place
+      // of its first appearance, and only then spells explicit values as
+      // numbers — so of `=1`, `=01`, `=1` the body of `=01` wins.
+      {
+        form: "the body core picks among repeated numeric aliases",
+        value: "{n, plural, =1 {<b/>} =01 {<i/>} =1 {<em/>} other {x}}",
+        expected: shape({ params: [num("n")], plurals: { n: ["=1", "other"] }, tags: ["i"] }),
+      },
+      {
+        form: "the body core picks among an ordinal's numeric aliases",
+        value: "{n, selectordinal, =1 {<b/>} =1.0 {<i/>} =1 {<em/>} other {x}}",
+        expected: shape({ params: [num("n")], ordinals: { n: ["=1", "other"] }, tags: ["i"] }),
+      },
+      {
+        form: "an unclosed tag in the body core picks among numeric aliases",
+        value: "{n, plural, =1 {<b/>} =01 {<i>} =1 {<em/>} other {x}}",
+        expected: shape({
+          params: [num("n")],
+          plurals: { n: ["=1", "other"] },
+          unbalancedTags: ["i"],
+        }),
+      },
+      {
+        form: "an alias written after the repeated selector it shadows",
+        value: "{n, plural, =01 {<b/>} =1 {<i/>} =01 {<em/>} other {x}}",
+        expected: shape({ params: [num("n")], plurals: { n: ["=1", "other"] }, tags: ["i"] }),
       },
       // A tag is never a refusal, even beside one.
       {
