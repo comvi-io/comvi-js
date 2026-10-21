@@ -710,6 +710,9 @@ importers:
 
   packages/typegen:
     devDependencies:
+      '@comvi/core':
+        specifier: workspace:*
+        version: link:../core
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config

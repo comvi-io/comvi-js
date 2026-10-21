@@ -187,3 +187,32 @@ Round finds beyond mutants: tests/dist/cli-entry.dist.test.ts was untracked
 (root `dist` gitignore pattern; cli missing from the canary exception list —
 CI had never run it) and react's tests-typecheck raced @comvi/react#build in
 the Quality job (fixed by source-pinning @comvi/react like @comvi/core).
+
+## packages/typegen message-shape.ts (COM-179 A0, 2026-10-21)
+
+The ICU scanner moved here from `packages/vite-plugin/src/extract.ts` and was mutation-tested for
+the first time since its rewrite: 124 survivors on develop. `tests/message-shape.test.ts` kills
+every non-equivalent one; each row in its "group boundaries" block was checked against
+`@comvi/core` with `icuCompiler`. The 20 accepted entries were each hand-applied against the full
+typegen suite (green) and fuzzed (200 000 generated messages, original vs mutant, no difference).
+They fall into three families:
+
+- bounds checks one past the end (`i < len` -> `i <= len`, `-> true` on a whitespace skip): the
+  extra read is `undefined` / NaN, which matches no branch, and every caller treats an index at or
+  past the end as the end;
+- `opensHashScope`'s no-comma exit and the context stack's empty case, which cannot occur for a
+  group that can close at all;
+- choice-list redundancy pairs: `.trim()` before `parseChoices` and the `i >= len` break inside it
+  each cover the other, and a one-comma argument fails the choice-list parse as surely as the
+  early refusal.
+
+Two vite-plugin `src/extract.ts` entries left with the move: the message-scan loop entry now lives
+under typegen, and the `for (let i = open; …)` entry was already stale on develop (that loop no
+longer exists). The two `fs.readFile(…, "utf-8")` entries stay; `extractSchema` did not move.
+
+The same cold run of packages/vite-plugin added one entry (`writeAtomically`'s
+`fs.rm(…, { force: true }).catch(…)`, equivalent: the catch swallows what `force` would). Two real
+survivors predate the move and stay open, because A0 keeps `packages/vite-plugin/tests/**`
+byte-identical: `extract.ts` `if (unsupported !== undefined)` -> `true` (no test asserts that a
+supported key raises no issue) and `index.ts`'s warning tail `parameters were generated for it: …`
+(no test asserts the whole message). Both are killable by a test, so neither is accepted.
