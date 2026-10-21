@@ -50,6 +50,7 @@ describe("check caching", () => {
       namespaces: ["default"],
     });
 
-    expect(supported).toHaveBeenCalledTimes(1);
+    // Once for the source (en) and once for the target (de), however many keys.
+    expect(supported).toHaveBeenCalledTimes(2);
   });
 });

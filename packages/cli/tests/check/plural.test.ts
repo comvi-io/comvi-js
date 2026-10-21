@@ -239,3 +239,100 @@ describe("check rule: plural (Intl.PluralRules of this Node)", () => {
     ]);
   });
 });
+
+describe("check rule: plural in the source locale", () => {
+  it("reports a source plural without `other` once, as an error, with no target at all", () => {
+    const report = CatalogCheck.run({
+      translations: { en: { default: { a: "{n, plural, one {a}}" } } },
+      source: "en",
+      targets: [],
+      namespaces: ["default"],
+      pluralCategories: () => ["one", "other"],
+    });
+
+    expect(report.source.plural).toEqual([
+      { key: "a", argument: "n", problem: "missing-other", categories: ["other"] },
+    ]);
+    expect(report.summary.plural).toBe(1);
+    expect(report.errors).toBe(1);
+    expect(report.ok).toBe(false);
+  });
+
+  it("judges source selectors against the source locale, once across targets", () => {
+    const pluralCategories = vi.fn((locale: string, type: string) =>
+      locale === "en" && type === "ordinal" ? ["one", "two", "few", "other"] : ["one", "other"],
+    );
+    const report = CatalogCheck.run({
+      translations: {
+        en: { default: { a: "{n, plural, few {x} other {y}} {o, selectordinal, other {#}}" } },
+        de: {
+          default: { a: "{n, plural, one {x} other {y}} {o, selectordinal, one {#} other {#}}" },
+        },
+        fr: {
+          default: { a: "{n, plural, one {x} other {y}} {o, selectordinal, one {#} other {#}}" },
+        },
+      },
+      source: "en",
+      targets: ["de", "fr"],
+      namespaces: ["default"],
+      pluralCategories,
+    });
+
+    expect(report.source.plural).toEqual([
+      { key: "a", argument: "n", problem: "invalid-selector", categories: ["few"] },
+      { key: "a", argument: "n", problem: "missing-category", categories: ["one"] },
+      { key: "a", argument: "o", problem: "missing-category", categories: ["few", "one", "two"] },
+    ]);
+    expect(report.locales.de.plural).toEqual([]);
+    expect(report.summary.plural).toBe(3);
+    expect(report.errors).toBe(1);
+    expect(report.warnings).toBe(2);
+  });
+
+  it("marks an unknown source locale and judges only `other` there", () => {
+    const report = CatalogCheck.run({
+      translations: { en: { default: { a: "{n, plural, zzz {x}}" } } },
+      source: "en",
+      targets: [],
+      namespaces: ["default"],
+      pluralCategories: () => undefined,
+    });
+
+    expect(report.source.localeUnknown).toBe(true);
+    expect(report.source.plural).toEqual([
+      { key: "a", argument: "n", problem: "missing-other", categories: ["other"] },
+    ]);
+  });
+
+  it("does not judge the plurals of a source message with an unsupported argument", () => {
+    const report = CatalogCheck.run({
+      translations: { en: { default: { a: "{n, plural, one {a}} {p, number}" } } },
+      source: "en",
+      targets: [],
+      namespaces: ["default"],
+      pluralCategories: () => ["one", "other"],
+    });
+
+    expect(report.source.plural).toEqual([]);
+    expect(report.source.unsupportedIcu).toEqual([{ key: "a", argumentType: "number" }]);
+  });
+});
+
+describe("check rule: plural rules for a locale written with an underscore", () => {
+  it.each(["pt_BR", "pt-BR"])("reads %s with the rules of pt-BR", (locale) => {
+    const entry = CatalogCheck.run({
+      translations: {
+        en: { default: { a: "{n, plural, one {x} other {y}}" } },
+        [locale]: { default: { a: "{n, plural, invalid {x} one {x} many {x} other {y}}" } },
+      },
+      source: "en",
+      targets: [locale],
+      namespaces: ["default"],
+    }).locales[locale];
+
+    expect(entry.localeUnknown).toBe(false);
+    expect(entry.plural).toEqual([
+      { key: "a", argument: "n", problem: "invalid-selector", categories: ["invalid"] },
+    ]);
+  });
+});

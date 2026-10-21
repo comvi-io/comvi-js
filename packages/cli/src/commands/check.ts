@@ -234,17 +234,26 @@ function formatText(
   const targets = Object.keys(report.locales);
   const width = Math.max(source.locale.length, ...targets.map((locale) => locale.length)) + 2;
   const sourceCounts = counts((rule) =>
-    rule === "emptySource" || rule === "unbalancedTags" || rule === "unsupportedIcu"
+    rule === "emptySource" ||
+    rule === "plural" ||
+    rule === "unbalancedTags" ||
+    rule === "unsupportedIcu"
       ? source[rule].length
       : 0,
   );
+  const sourceUnknown = source.localeUnknown ? " (no Intl plural rules: only `other` checked)" : "";
   const lines = [
     `comvi check  ${translationsPath}  source=${source.locale}  ${targets.length + 1} locales  ${report.keys} keys`,
-    `${source.locale.padEnd(width)}source: ${sourceCounts || "ok"}`,
+    `${source.locale.padEnd(width)}source: ${sourceCounts || "ok"}${sourceUnknown}`,
   ];
   const details: string[] = [];
 
   for (const key of source.emptySource) details.push(`empty source  ${source.locale}:${key}`);
+  for (const f of source.plural) {
+    details.push(
+      `plural  ${source.locale}:${f.key}  {${f.argument}} ${f.problem} ${f.categories.join(", ")}`,
+    );
+  }
   for (const f of source.unbalancedTags) {
     details.push(`unbalanced tags  ${source.locale}:${f.key}  ${list(f.tags)}`);
   }

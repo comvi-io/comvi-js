@@ -74,10 +74,14 @@ export interface CatalogCheckSourceReport {
   locale: string;
   /** Error: the source message is empty or blank. */
   emptySource: string[];
+  /** The source's own plural groups, judged against the source locale's rules. */
+  plural: CatalogCheckPluralFinding[];
   /** Warning: tag markup core renders as literal text. */
   unbalancedTags: CatalogCheckUnbalancedTagsFinding[];
   /** Error: an argument type `@comvi/core` does not compile. */
   unsupportedIcu: CatalogCheckUnsupportedIcuFinding[];
+  /** `Intl` does not know the source locale: only `other` was checked. */
+  localeUnknown: boolean;
 }
 
 export interface CatalogCheckLocaleReport {
@@ -154,8 +158,10 @@ function intlPluralCategories(): (locale: string, type: PluralRuleType) => strin
     if (!cache.has(id)) {
       let categories: string[] | undefined;
       try {
-        if (Intl.PluralRules.supportedLocalesOf(locale).length > 0) {
-          categories = new Intl.PluralRules(locale, { type }).resolvedOptions().pluralCategories;
+        // `pt_BR.json` is pt-BR: BCP 47 separates subtags with `-` only.
+        const tag = locale.replace(/_/g, "-");
+        if (Intl.PluralRules.supportedLocalesOf(tag).length > 0) {
+          categories = new Intl.PluralRules(tag, { type }).resolvedOptions().pluralCategories;
         }
       } catch {
         // A tag `Intl` cannot parse is a locale it does not know.
@@ -189,8 +195,10 @@ export class CatalogCheck {
     const sourceReport: CatalogCheckSourceReport = {
       locale: source,
       emptySource: [],
+      plural: [],
       unbalancedTags: [],
       unsupportedIcu: [],
+      localeUnknown: pluralCategories(source, "cardinal") === undefined,
     };
     const sourceShapes = new Map<string, MessageShape>();
     let keys = 0;
@@ -207,6 +215,10 @@ export class CatalogCheck {
         sourceShapes.set(`${namespace}\u0000${key}`, shape);
         if (shape.unsupported !== undefined) {
           sourceReport.unsupportedIcu.push({ key: id, argumentType: shape.unsupported });
+        } else {
+          sourceReport.plural.push(
+            ...judgePlurals(id, shape, source, sourceReport.localeUnknown, pluralCategories),
+          );
         }
         if (shape.unbalancedTags.length > 0) {
           sourceReport.unbalancedTags.push({ key: id, tags: shape.unbalancedTags });
@@ -219,7 +231,7 @@ export class CatalogCheck {
       stale: 0,
       emptySource: sourceReport.emptySource.length,
       params: 0,
-      plural: 0,
+      plural: sourceReport.plural.length,
       select: 0,
       tags: 0,
       unbalancedTags: sourceReport.unbalancedTags.length,
@@ -228,6 +240,10 @@ export class CatalogCheck {
     };
     let errors = sourceReport.emptySource.length + sourceReport.unsupportedIcu.length;
     let warnings = sourceReport.unbalancedTags.length;
+    for (const plural of sourceReport.plural) {
+      if (plural.problem === "missing-category") warnings++;
+      else errors++;
+    }
 
     // Null prototype: a locale file named `__proto__.json` is an entry.
     const locales = emptyDictionary<CatalogCheckLocaleReport>();
@@ -346,30 +362,48 @@ function compareMessages(
     }
   }
 
-  for (const { argument, type, selectors } of pluralArguments(target)) {
+  report.plural.push(
+    ...judgePlurals(key, target, locale, report.localeUnknown, context.pluralCategories),
+  );
+}
+
+/**
+ * Each plural and selectordinal group of one message against `locale`'s
+ * rules: `other` everywhere, categories only where `Intl` knows the locale.
+ */
+function judgePlurals(
+  key: string,
+  shape: MessageShape,
+  locale: string,
+  localeUnknown: boolean,
+  pluralCategories: NonNullable<CatalogCheckOptions["pluralCategories"]>,
+): CatalogCheckPluralFinding[] {
+  const findings: CatalogCheckPluralFinding[] = [];
+  for (const { argument, type, selectors } of pluralArguments(shape)) {
     if (!selectors.includes("other")) {
-      report.plural.push({ key, argument, problem: "missing-other", categories: ["other"] });
+      findings.push({ key, argument, problem: "missing-other", categories: ["other"] });
     }
     // In a locale `Intl` does not know, only `other` is judged. An `=`
     // selector here is always one core compiles: the scanner reports any other
-    // as an unsupported argument, which skipped this comparison above.
-    const categories = report.localeUnknown ? undefined : context.pluralCategories(locale, type);
+    // as an unsupported argument, and callers skip such a message.
+    const categories = localeUnknown ? undefined : pluralCategories(locale, type);
     if (categories === undefined) continue;
 
     const invalid = sorted(
       selectors.filter((selector) => !selector.startsWith("=") && !categories.includes(selector)),
     );
     if (invalid.length > 0) {
-      report.plural.push({ key, argument, problem: "invalid-selector", categories: invalid });
+      findings.push({ key, argument, problem: "invalid-selector", categories: invalid });
     }
 
     const absent = sorted(
       categories.filter((category) => category !== "other" && !selectors.includes(category)),
     );
     if (absent.length > 0) {
-      report.plural.push({ key, argument, problem: "missing-category", categories: absent });
+      findings.push({ key, argument, problem: "missing-category", categories: absent });
     }
   }
+  return findings;
 }
 
 /**

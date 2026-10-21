@@ -206,6 +206,41 @@ describe("comvi check", () => {
       ]);
     });
 
+    it("exits 1 on a source plural without `other`, even with no target", async () => {
+      await fs.rm(join(dir, "src/locales/de.json"));
+      await write("src/locales/en.json", { n: "{n, plural, one {a}}" });
+
+      expect(await run()).toBe(1);
+      expect(output.stdout).toContain("\nen  source: 1 plural\n");
+      expect(output.stdout).toContain("\nplural  en:n  {n} missing-other other\n");
+    });
+
+    it("judges pt_BR.json and pt-BR.json by the same plural rules", async () => {
+      for (const file of ["pt_BR", "pt-BR"]) {
+        await fs.rm(join(dir, "src/locales/pt_BR.json"), { force: true });
+        await fs.rm(join(dir, "src/locales/pt-BR.json"), { force: true });
+        await write(`src/locales/${file}.json`, {
+          hello: "{name} {n, plural, invalid {x} other {y}}",
+          bye: "Tchau",
+        });
+        await write("src/locales/en.json", {
+          hello: "{name} {n, plural, one {x} other {y}}",
+          bye: "Bye",
+        });
+        output.log.length = 0;
+
+        expect(await run("-l", file, "--format", "json")).toBe(1);
+        const entry = JSON.parse(output.stdout).locales[file];
+        expect(entry.localeUnknown).toBe(false);
+        expect(entry.plural).toContainEqual({
+          key: "hello",
+          argument: "n",
+          problem: "invalid-selector",
+          categories: ["invalid"],
+        });
+      }
+    });
+
     it("reports a locale file named __proto__", async () => {
       await write("src/locales/__proto__.json", { hello: "x {name}", bye: "y" });
 
@@ -567,7 +602,14 @@ describe("comvi check", () => {
       };
       expect(report).toEqual({
         version: 1,
-        source: { locale: "en", emptySource: [], unbalancedTags: [], unsupportedIcu: [] },
+        source: {
+          locale: "en",
+          emptySource: [],
+          plural: [],
+          unbalancedTags: [],
+          unsupportedIcu: [],
+          localeUnknown: false,
+        },
         translationsPath: "./src/locales",
         fileTemplate: "{namespace}/{languageTag}.json",
         keys: 2,
@@ -611,8 +653,10 @@ describe("comvi check", () => {
       expect(Object.keys(report.source)).toEqual([
         "locale",
         "emptySource",
+        "plural",
         "unbalancedTags",
         "unsupportedIcu",
+        "localeUnknown",
       ]);
       expect(output.stdout).toBe(JSON.stringify(report, null, 2));
     });
