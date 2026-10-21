@@ -7157,6 +7157,15 @@
       "package": "packages/cli"
     },
     {
+      "snippet": "program.addCommand(createCheckCommand());",
+      "kind": "tooling:static-mutant",
+      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use. Registering `check` is covered by the dist cases \"registers every command, in order\" and \"lists every check flag\".",
+      "lineHint": 61,
+      "file": "src/cli/index.ts",
+      "mutators": ["all"],
+      "package": "packages/cli"
+    },
+    {
       "snippet": "program.parse();",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
