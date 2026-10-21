@@ -208,6 +208,13 @@ function oneLine(value: unknown): string | undefined {
 }
 
 const MAX_RETRIES = 2;
+
+/** First wait before reopening a lost schema stream; doubles up to the max. */
+const SSE_RECONNECT_BASE_MS = 1_000;
+const SSE_RECONNECT_MAX_MS = 30_000;
+/** The platform pings every 15 s; three missed pings means the stream is dead. */
+const SSE_IDLE_LIMIT_MS = 45_000;
+const SSE_WATCHDOG_INTERVAL_MS = 15_000;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_AFTER_CAP_MS = 30_000;
 
@@ -689,14 +696,28 @@ export class ApiClient {
    * Subscribe to real-time schema updates via Server-Sent Events
    * GET /v1/projects/:projectId/schema/stream
    *
-   * @param onSchema - Callback when schema update is received
-   * @returns Cleanup function to close SSE connection
+   * eventsource gives up for good on any non-200 (a 502 during a deploy
+   * included) and never notices a connection that has gone quiet, so the
+   * stream is supervised here: a lost stream is reopened with growing waits,
+   * one that sends nothing (not even the platform's 15 s ping) for 45 s is
+   * replaced, and a 401/403 is reported through `onFatal` instead of retried.
+   * Every reopened stream starts with the full current schema.
+   *
+   * @returns Cleanup function that closes the stream and stops reconnecting
    */
   async subscribeToSchemaUpdates(
     onSchema: (schema: ProjectSchema) => Promise<void>,
+    options: {
+      /** The stream cannot recover: the key was rejected or lost access. */
+      onFatal?: (error: TypegenError) => void;
+      /** A line for the user about the stream's state. */
+      onNotice?: (message: string) => void;
+    } = {},
   ): Promise<() => void> {
     const project = await this.getProjectInfo();
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectSchemaStream(project.id)}`;
+    const notice =
+      options.onNotice ?? ((message: string) => console.warn(`[@comvi/cli] ${message}`));
 
     const generation = ++this.subscriptionGeneration;
     this.eventSource?.close();
@@ -711,50 +732,129 @@ export class ApiClient {
     }
 
     const apiKey = this.apiKey;
-    const eventSource = new EventSource(url, {
-      fetch: (input, init) => {
-        const headers = new Headers(init?.headers);
-        headers.set("Authorization", `Bearer ${apiKey}`);
-
-        return fetch(input, {
-          ...init,
-          headers,
-        });
-      },
-    });
-    this.eventSource = eventSource;
+    let stopped = false;
+    let lastActivity = Date.now();
+    let attempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    const isCurrent = (source: EventSource) =>
+      !stopped && generation === this.subscriptionGeneration && this.eventSource === source;
 
     // Serialize updates: EventSource does not await handlers, so a burst of
     // events would otherwise run concurrent onSchema file writes
     let queue: Promise<void> = Promise.resolve();
-    eventSource.onmessage = (event: MessageEvent) => {
-      queue = queue
-        .then(async () => {
-          if (generation !== this.subscriptionGeneration || this.eventSource !== eventSource) {
-            return;
-          }
-          const schema = JSON.parse(event.data) as ProjectSchema;
-          await onSchema(schema);
-        })
-        .catch((error) => {
-          // Ignore malformed events (could be keep-alive comments)
-          console.error("[@comvi/cli] Failed to process SSE event:", error);
-        });
+
+    const scheduleReconnect = (reason: string) => {
+      if (stopped || reconnectTimer) return;
+      const waitMs = Math.min(SSE_RECONNECT_BASE_MS * 2 ** attempt, SSE_RECONNECT_MAX_MS);
+      attempt++;
+      notice(`Schema stream ${reason}; reconnecting in ${Math.round(waitMs / 1000)}s...`);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = undefined;
+        open();
+      }, waitMs);
     };
 
-    // Handle errors (auto-reconnects by default)
-    eventSource.onerror = () => {
-      // On reconnect, server sends current schema immediately
-      console.warn("[@comvi/cli] Schema update stream interrupted; reconnecting...");
+    const open = () => {
+      if (stopped || generation !== this.subscriptionGeneration) return;
+      this.eventSource?.close();
+      lastActivity = Date.now();
+
+      const eventSource: EventSource = new EventSource(url, {
+        fetch: async (input, init) => {
+          const headers = new Headers(init?.headers);
+          headers.set("Authorization", `Bearer ${apiKey}`);
+          const response = await fetch(input, { ...init, headers });
+          lastActivity = Date.now();
+          if (!response.body) return response;
+          // Every chunk counts as life, the platform's `: ping` comments
+          // included, which never reach onmessage.
+          const tapped = response.body.pipeThrough(
+            new TransformStream<Uint8Array, Uint8Array>({
+              transform(chunk, controller) {
+                lastActivity = Date.now();
+                controller.enqueue(chunk);
+              },
+            }),
+          );
+          return new Response(tapped, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          });
+        },
+      });
+      this.eventSource = eventSource;
+
+      eventSource.onopen = () => {
+        if (!isCurrent(eventSource)) return;
+        if (attempt > 0) notice("Schema stream reconnected.");
+        attempt = 0;
+      };
+
+      eventSource.onmessage = (event: MessageEvent) => {
+        lastActivity = Date.now();
+        queue = queue
+          .then(async () => {
+            if (!isCurrent(eventSource)) {
+              return;
+            }
+            const schema = JSON.parse(event.data) as ProjectSchema;
+            await onSchema(schema);
+          })
+          .catch((error) => {
+            console.error("[@comvi/cli] Failed to process SSE event:", error);
+          });
+      };
+
+      eventSource.onerror = (event?: { code?: number }) => {
+        if (!isCurrent(eventSource)) return;
+        const status = event?.code;
+        if (status === 401 || status === 403) {
+          stop();
+          options.onFatal?.(
+            new TypegenError(
+              status === 401
+                ? "Invalid API key: the schema stream was refused"
+                : "Access denied to the schema stream: the API key needs the schema:read scope",
+              ErrorCodes.API_AUTH_FAILED,
+              undefined,
+              { status },
+            ),
+          );
+          return;
+        }
+        if (eventSource.readyState === EventSource.CLOSED) {
+          // eventsource will not retry this one: a non-200 or a bad response.
+          scheduleReconnect(status ? `answered ${status}` : "was refused");
+        } else {
+          notice("Schema stream interrupted; reconnecting...");
+        }
+      };
     };
 
-    return () => {
-      eventSource.close();
-      if (this.eventSource === eventSource) {
+    const watchdog = setInterval(() => {
+      if (stopped || reconnectTimer) return;
+      if (Date.now() - lastActivity >= SSE_IDLE_LIMIT_MS) {
+        this.eventSource?.close();
+        scheduleReconnect(`sent no data for ${SSE_IDLE_LIMIT_MS / 1000}s`);
+      }
+    }, SSE_WATCHDOG_INTERVAL_MS);
+
+    const stop = () => {
+      stopped = true;
+      clearInterval(watchdog);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
+      const current = this.eventSource;
+      current?.close();
+      if (generation === this.subscriptionGeneration) {
         this.subscriptionGeneration++;
         this.eventSource = undefined;
       }
     };
+
+    open();
+    return stop;
   }
 
   /**

@@ -339,15 +339,21 @@ describe("comvi typegen", () => {
     async function startWatch(): Promise<{
       stream: FakeEventSource;
       interrupt: () => void;
+      terminate: () => void;
       resume: ReturnType<typeof vi.spyOn>;
     }> {
       const { instances } = mockEventSource();
       const listenersOn = process.on.bind(process);
       let interrupt: (() => void) | undefined;
+      let terminate: (() => void) | undefined;
 
       vi.spyOn(process, "on").mockImplementation(((event: string, listener: () => void) => {
         if (event === "SIGINT") {
           interrupt = listener;
+          return process;
+        }
+        if (event === "SIGTERM") {
+          terminate = listener;
           return process;
         }
         return listenersOn(event as "exit", listener);
@@ -365,7 +371,12 @@ describe("comvi typegen", () => {
         throw new Error("watch mode did not register a SIGINT handler");
       }
 
-      return { stream: instances[0], interrupt, resume };
+      return {
+        stream: instances[0],
+        interrupt,
+        terminate: terminate ?? (() => undefined),
+        resume,
+      };
     }
 
     it("rewrites the declaration file when the stream pushes a new schema", async () => {
@@ -390,6 +401,26 @@ describe("comvi typegen", () => {
       expect(close).toHaveBeenCalledOnce();
       expect(output.stdout).toContain("✓ Stopped watching");
       expect(output.stdout).toContain("Closing SSE connection");
+    });
+
+    // Docker, systemd and CI runners stop processes with SIGTERM.
+    it("closes the stream and exits 0 on SIGTERM", async () => {
+      const { stream, terminate } = await startWatch();
+      const close = vi.spyOn(stream, "close");
+
+      await expect(async () => terminate()).rejects.toMatchObject({ exitCode: 0 });
+
+      expect(close).toHaveBeenCalledOnce();
+    });
+
+    it("exits 3 when the platform refuses the stream's key after it started", async () => {
+      const { stream } = await startWatch();
+
+      stream.readyState = 2;
+      await expect(async () =>
+        stream.onerror?.({ code: 401, message: "Non-200 status code (401)" }),
+      ).rejects.toMatchObject({ exitCode: 3 });
+      expect(output.stderr).toContain("Invalid API key");
     });
 
     it("narrates the watch lifecycle and keeps stdin open for updates", async () => {
