@@ -193,18 +193,24 @@ the Quality job (fixed by source-pinning @comvi/react like @comvi/core).
 The ICU scanner moved here from `packages/vite-plugin/src/extract.ts` and was mutation-tested for
 the first time since its rewrite: 124 survivors on develop. `tests/message-shape.test.ts` kills
 every non-equivalent one; each row in its "group boundaries" block was checked against
-`@comvi/core` with `icuCompiler`. The 20 accepted entries were each hand-applied against the full
-typegen suite (green) and fuzzed (200 000 generated messages, original vs mutant, no difference).
-They fall into three families:
+`@comvi/core` with `icuCompiler`, and the tag rows are checked by
+`tests/message-shape-tag-parity.test.ts` against core with `@comvi/core/tags`. Every accepted
+entry was hand-applied against the full typegen suite (green) and fuzzed (300 000 generated
+messages, original vs mutant, no difference). Families:
 
 - bounds checks one past the end (`i < len` -> `i <= len`, `-> true` on a whitespace skip): the
   extra read is `undefined` / NaN, which matches no branch, and every caller treats an index at or
   past the end as the end;
 - `opensHashScope`'s no-comma exit and the context stack's empty case, which cannot occur for a
-  group that can close at all;
-- choice-list redundancy pairs: `.trim()` before `parseChoices` and the `i >= len` break inside it
-  each cover the other, and a one-comma argument fails the choice-list parse as surely as the
-  early refusal.
+  group that can close at all; a one-comma argument failing the choice-list parse as surely as
+  the early refusal;
+- the tag pass re-reading a tag's last name character and its `>` (`i++ -> i--`, `i + 1 -> i - 1`
+  around a tag's end): neither character starts anything, so only work is repeated.
+
+Review correction (PR #109): the `if (i >= len) break` and `.trim()` entries in `parseChoices` were
+first accepted as a redundancy pair. They are not one: `charCodeAt <= 32` skips a NUL that `trim`
+keeps, and `trim` removes a no-break space that `<= 32` does not. Both entries are gone; the NUL
+and no-break-space rows kill the three mutants (core agrees with the original on both inputs).
 
 Two vite-plugin `src/extract.ts` entries left with the move: the message-scan loop entry now lives
 under typegen, and the `for (let i = open; …)` entry was already stale on develop (that loop no

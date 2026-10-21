@@ -9,7 +9,7 @@ import path from "node:path";
  * type names stay where consumers import them from.
  */
 import {
-  scanMessageShape,
+  scanMessageArguments,
   type KeySchema,
   type ProjectSchema,
   type SchemaParam,
@@ -115,17 +115,17 @@ function flattenObject(obj: Record<string, unknown>, prefix = ""): Record<string
  * The parameters of a translation value, or the ICU argument type that makes
  * the whole key unusable.
  *
- * The message is read by typegen's `scanMessageShape`, which reads the grammar
+ * The message is read by typegen's `scanMessageArguments`, which reads the grammar
  * `@comvi/core` reads at runtime (`message-shape.ts` says how). An
  * argument core cannot compile makes the ingestion preflight refuse the whole
  * key, so no parameter of it is reachable — including the ones in the parts
  * that would have compiled.
  */
 function extractParams(value: string): { params: SchemaParam[]; unsupported?: string } {
-  const shape = scanMessageShape(value);
-  return shape.unsupported !== undefined
-    ? { params: [], unsupported: shape.unsupported }
-    : { params: shape.params };
+  const scan = scanMessageArguments(value);
+  return scan.unsupported !== undefined
+    ? { params: [], unsupported: scan.unsupported }
+    : { params: scan.params };
 }
 
 /**

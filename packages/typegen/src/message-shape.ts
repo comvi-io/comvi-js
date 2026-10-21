@@ -2,11 +2,12 @@
  * What one translation message asks of its caller, read with the grammar
  * `@comvi/core` reads at runtime.
  *
- * `@comvi/vite-plugin` projects this to the parameters it generates types for;
- * anything else that has to agree with those types about a message — which
- * plural selectors it writes, which tags it uses — reads the same scan instead
- * of a second ICU reader. `tests/message-shape-runtime-parity.test.ts` pins the
- * parameter set against core itself.
+ * `@comvi/vite-plugin` projects `scanMessageArguments` to the parameters it
+ * generates types for; anything else that has to agree with those types about
+ * a message — which plural selectors it writes, which tags it uses — reads the
+ * same scan instead of a second ICU reader. Two parity tests pin it against
+ * core itself: `tests/message-shape-runtime-parity.test.ts` the parameter set,
+ * `tests/message-shape-tag-parity.test.ts` the tags.
  *
  * - `{name}`, `{ name }`, `{name x}`, `{0}` → one `string` parameter whose name
  *   is the trimmed contents, because that is what core's compiler makes of a
@@ -25,21 +26,44 @@
 
 import type { SchemaParam } from "./index";
 
-export interface MessageShape {
+/**
+ * The ICU arguments of one message. The three records are null-prototype, so
+ * an argument named `__proto__` or `constructor` is an ordinary key; read them
+ * with `Object.keys`/`in`, never through inherited members.
+ *
+ * Selectors are listed once each, in the order first written. A plural's and
+ * an ordinal's explicit values are spelled as core matches them — `=01` and
+ * `=1.0` are `"=1"` — and a select's are kept as written.
+ */
+export interface MessageArguments {
   /** First-seen order; a name used twice keeps the type of its first use. */
   params: SchemaParam[];
-  /** Argument → selectors as written (`"one"`, `"other"`, `"=0"`), plural and selectordinal alike. */
+  /** `plural` argument → its selectors (`"one"`, `"other"`, `"=0"`): `Intl.PluralRules` type `"cardinal"`. */
   plurals: Record<string, string[]>;
-  /** The arguments that are `selectordinal` — plural rules of `Intl` type `"ordinal"`. */
-  ordinals: string[];
-  /** Argument → selectors as written. */
+  /** `selectordinal` argument → its selectors: `Intl.PluralRules` type `"ordinal"`. */
+  ordinals: Record<string, string[]>;
+  /** `select` argument → its selectors. */
   selects: Record<string, string[]>;
-  /** Names of opening and self-closing tags, sorted, each once. */
-  tags: string[];
-  /** Names of tags closed without an opening or opened without a close, sorted, each once. */
-  unbalancedTags: string[];
   /** The first argument type core does not implement, when there is one. */
   unsupported?: string;
+}
+
+/**
+ * A message's arguments and its tags, read as core reads them with
+ * `@comvi/core/tags` registered.
+ */
+export interface MessageShape extends MessageArguments {
+  /** Tags core renders as tags — it calls their handlers — in any branch; sorted, each once. */
+  tags: string[];
+  /**
+   * Names written as tag markup that core renders as literal text: an opening
+   * `<name>` whose close never comes (or comes after a close for another tag,
+   * since core requires strict nesting), a `</name>` that closes nothing, and
+   * any tag written after a `{` that nothing closes, which core renders as text
+   * with the rest of the message. Sorted, each once. A name can be in both lists when one use of it works
+   * and another does not.
+   */
+  unbalancedTags: string[];
 }
 
 /**
@@ -274,16 +298,34 @@ function readArgument(content: string, hashIsSyntax: boolean): Argument {
 interface MessageScan {
   params: Map<string, SchemaParam>;
   plurals: Record<string, string[]>;
-  ordinals: string[];
+  ordinals: Record<string, string[]>;
   selects: Record<string, string[]>;
   unsupported?: string;
 }
 
+/** The number grammar core's ICU compiler accepts after `=` (`EXACT_VALUE`). */
+const EXACT_VALUE = /^-?\d+(\.\d+)?$/;
+
+/**
+ * A selector as core matches it. With `exact` (a plural or ordinal), `=N` is
+ * spelled `"=" + Number(N)`; one that is no number stays as written.
+ */
+function spellSelector(selector: string, exact: boolean): string {
+  const value = selector.slice(1);
+  return exact && selector[0] === "=" && EXACT_VALUE.test(value) ? `=${Number(value)}` : selector;
+}
+
 /** Adds each choice's selector to `name`'s list in `record`, once, in the order first written. */
-function addSelectors(record: Record<string, string[]>, name: string, choices: Choice[]): void {
+function addSelectors(
+  record: Record<string, string[]>,
+  name: string,
+  choices: Choice[],
+  exact: boolean,
+): void {
   const list = (record[name] ??= []);
   for (const { selector } of choices) {
-    if (!list.includes(selector)) list.push(selector);
+    const spelled = spellSelector(selector, exact);
+    if (!list.includes(spelled)) list.push(spelled);
   }
 }
 
@@ -332,12 +374,14 @@ function scanMessage(value: string, scan: MessageScan, hashIsSyntax: boolean): v
     if (argument.kind === "param") continue;
 
     if (argument.kind === "plural") {
-      addSelectors(scan.plurals, argument.name, argument.choices);
-      if (argument.ordinal && !scan.ordinals.includes(argument.name)) {
-        scan.ordinals.push(argument.name);
-      }
+      addSelectors(
+        argument.ordinal ? scan.ordinals : scan.plurals,
+        argument.name,
+        argument.choices,
+        true,
+      );
     } else {
-      addSelectors(scan.selects, argument.name, argument.choices);
+      addSelectors(scan.selects, argument.name, argument.choices, false);
     }
 
     for (const { body } of argument.choices) {
@@ -363,32 +407,172 @@ function isTagNameChar(code: number): boolean {
   return isTagNameStartChar(code) || (code >= 48 && code <= 57) || code === 45 || code === 95;
 }
 
-/**
- * The tags of one message, in a pass of its own over the raw text. A tag is
- * never a refusal, so nothing here touches `unsupported`.
- *
- * `<name>` opens, `<name/>` stands alone, `</name>` closes the nearest open
- * tag of that name. A close with no open, and an open whose close never comes
- * (or comes after a different tag was closed over it), is unbalanced.
- *
- * What core's parser reads as text is skipped here too: ICU-quoted text, the
- * `\<` escape, and everything after a `{` that nothing closes. Tags inside a
- * plural or select branch count. One simplification: `'#'` is read as text
- * everywhere, although inside a plural branch it opens a quote, so a tag
- * quoted that way is still collected.
+/** `<name>`, `</name>` or `<name/>`, as the tag grammar would read it outside any quote. */
+const TAG_MARKUP = /<\/?([A-Za-z][\w-]*)[\0- ]*\/?>/g;
+
+/** What the tag pass has collected so far. */
+interface TagScan {
+  tags: Set<string>;
+  unbalanced: Set<string>;
+}
+
+/*
+ * The tag pass ports core's tag grammar rule for rule: `parseTemplate` in
+ * `translate/parser.ts` for the text between tags, `parseTag` and
+ * `findClosingTag` in `translate/tags.ts` for the tags. Past the end
+ * `charCodeAt` is NaN, which no comparison here accepts, so the name and
+ * whitespace scans need no bounds check.
  */
-function scanTags(value: string): { tags: string[]; unbalancedTags: string[] } {
+
+/**
+ * `advancePastBalancedApostrophe`: inside an open tag an apostrophe quotes only
+ * when its quote closes, so elision before a placeholder (`l'{name}`) does not
+ * hide the tag's close.
+ */
+function advancePastBalancedApostrophe(
+  value: string,
+  index: number,
+  hashIsSyntax: boolean,
+): number {
+  if (value[index + 1] === "'") return index + 2;
+  const next = value[index + 1];
+  if (next === "{" || next === "}" || (hashIsSyntax && next === "#")) {
+    for (let i = index + 1; i < value.length; i++) {
+      if (value[i] === "'") {
+        if (value[i + 1] !== "'") return i + 1;
+        i++;
+      }
+    }
+  }
+  return index + 1;
+}
+
+/**
+ * `findClosingTag`: the `[start, end]` of the `</name>` that closes the tag
+ * whose content starts at `start`, or `undefined`. Braces mean nothing here, a
+ * backslash skips the character after it, and a close for any tag but the
+ * innermost open one aborts the search — core requires strict nesting.
+ */
+function findClosingTag(
+  value: string,
+  start: number,
+  name: string,
+  hashIsSyntax: boolean,
+): [number, number] | undefined {
   const len = value.length;
-  const tags = new Set<string>();
-  const unbalanced = new Set<string>();
-  const open: string[] = [];
+  const open = [name];
+  let i = start;
+
+  while (i < len) {
+    const code = value.charCodeAt(i);
+
+    if (code === APOSTROPHE) {
+      i = advancePastBalancedApostrophe(value, i, hashIsSyntax);
+      continue;
+    }
+
+    if (code === BACKSLASH) {
+      i += 2;
+      continue;
+    }
+
+    if (code === LESS_THAN) {
+      const tagStart = i;
+      const closing = value.charCodeAt(i + 1) === SLASH;
+      if (closing || isTagNameStartChar(value.charCodeAt(i + 1))) {
+        i += closing ? 2 : 1;
+        const nameStart = i;
+        while (isTagNameChar(value.charCodeAt(i))) i++;
+        const tagName = value.slice(nameStart, i);
+        while (value.charCodeAt(i) <= SPACE) i++;
+
+        if (closing) {
+          if (value.charCodeAt(i) === GREATER_THAN) {
+            i++;
+            if (tagName !== open[open.length - 1]) return undefined;
+            open.pop();
+            if (open.length === 0) return [tagStart, i];
+          }
+          continue;
+        }
+
+        if (value.charCodeAt(i) === SLASH && value.charCodeAt(i + 1) === GREATER_THAN) {
+          i += 2;
+          continue;
+        }
+        if (value.charCodeAt(i) === GREATER_THAN) {
+          i++;
+          open.push(tagName);
+          continue;
+        }
+        i = tagStart + 1;
+        continue;
+      }
+    }
+
+    i++;
+  }
+
+  return undefined;
+}
+
+/**
+ * `parseTag` at the `<` at `start`: records what it finds and returns where the
+ * text scan resumes. A tag that does not parse is one literal `<`, so the scan
+ * resumes right after it and still finds the tags inside.
+ */
+function readTag(value: string, start: number, hashIsSyntax: boolean, scan: TagScan): number {
+  let i = start + 1;
+  const closing = value.charCodeAt(i) === SLASH;
+  if (closing) i++;
+  if (!isTagNameStartChar(value.charCodeAt(i))) return start + 1;
+
+  const nameStart = i;
+  while (isTagNameChar(value.charCodeAt(i))) i++;
+  const name = value.slice(nameStart, i);
+  while (value.charCodeAt(i) <= SPACE) i++;
+  const code = value.charCodeAt(i);
+
+  // A close the text scan meets closes nothing: a working tag's close is
+  // consumed with its tag. Core renders it as text.
+  if (closing) {
+    if (code === GREATER_THAN) scan.unbalanced.add(name);
+    return start + 1;
+  }
+
+  if (code === SLASH) {
+    if (value.charCodeAt(i + 1) !== GREATER_THAN) return start + 1;
+    scan.tags.add(name);
+    return i + 2;
+  }
+
+  if (code !== GREATER_THAN) return start + 1;
+
+  const close = findClosingTag(value, i + 1, name, hashIsSyntax);
+  if (close === undefined) {
+    scan.unbalanced.add(name);
+    return start + 1;
+  }
+  scan.tags.add(name);
+  scanTags(value.slice(i + 1, close[0]), hashIsSyntax, scan);
+  return close[1];
+}
+
+/**
+ * `parseTemplate` with the tag extension: quoted text, the `\<` escape and
+ * placeholder groups hold no tags; a plural or select branch is a message of
+ * its own; an unclosed `{` ends this level, as core's `extractToken` breaks
+ * out of it.
+ */
+function scanTags(value: string, hashIsSyntax: boolean, scan: TagScan): void {
+  const len = value.length;
   let i = 0;
 
   while (i < len) {
     const code = value.charCodeAt(i);
 
     if (code === APOSTROPHE) {
-      i = advancePastApostrophe(value, i, false);
+      i = advancePastApostrophe(value, i, hashIsSyntax);
       continue;
     }
 
@@ -397,69 +581,71 @@ function scanTags(value: string): { tags: string[]; unbalancedTags: string[] } {
       continue;
     }
 
-    if (code === OPEN_BRACE && closingBrace(value, i, false) === undefined) break;
-
-    if (code !== LESS_THAN) {
-      i++;
+    if (code === LESS_THAN) {
+      i = readTag(value, i, hashIsSyntax, scan);
       continue;
     }
 
-    const closing = value.charCodeAt(i + 1) === SLASH;
-    let j = closing ? i + 2 : i + 1;
-    if (!isTagNameStartChar(value.charCodeAt(j))) {
-      i++;
+    if (code === OPEN_BRACE) {
+      const close = closingBrace(value, i, hashIsSyntax);
+      if (close === undefined) {
+        // The rest of this level is literal text, tags and quotes alike.
+        for (const markup of value.slice(i).matchAll(TAG_MARKUP)) scan.unbalanced.add(markup[1]);
+        return;
+      }
+      const argument = readArgument(
+        value.slice(i + 1, close),
+        hashIsSyntax || opensHashScope(value, i),
+      );
+      if (argument.kind === "plural" || argument.kind === "select") {
+        // Core keeps the LAST branch of a selector written twice; the earlier
+        // one never renders, so its tags are not the message's.
+        const bodies = new Map<string, string>();
+        for (const { selector, body } of argument.choices) {
+          bodies.set(spellSelector(selector, argument.kind === "plural"), body);
+        }
+        for (const body of bodies.values()) {
+          scanTags(body, hashIsSyntax || argument.kind === "plural", scan);
+        }
+      }
+      i = close + 1;
       continue;
     }
 
-    // Past the end `charCodeAt` is NaN, which no comparison here accepts, so
-    // these scans need no bounds check.
-    const nameStart = j;
-    while (isTagNameChar(value.charCodeAt(j))) j++;
-    const name = value.slice(nameStart, j);
-    while (value.charCodeAt(j) <= SPACE) j++;
-
-    const selfClosing =
-      !closing && value.charCodeAt(j) === SLASH && value.charCodeAt(j + 1) === GREATER_THAN;
-    if (!selfClosing && value.charCodeAt(j) !== GREATER_THAN) {
-      i++;
-      continue;
-    }
-
-    if (closing) {
-      const at = open.lastIndexOf(name);
-      if (at === -1) unbalanced.add(name);
-      else for (const left of open.splice(at)) if (left !== name) unbalanced.add(left);
-    } else {
-      tags.add(name);
-      if (!selfClosing) open.push(name);
-    }
-    i = selfClosing ? j + 2 : j + 1;
+    i++;
   }
-
-  for (const name of open) unbalanced.add(name);
-  return { tags: [...tags].sort(), unbalancedTags: [...unbalanced].sort() };
 }
 
-/** The shape of one translation message. */
-export function scanMessageShape(value: string): MessageShape {
+/** The ICU arguments of one translation message, without its tags. */
+export function scanMessageArguments(value: string): MessageArguments {
   // Null prototype: an argument literally named `__proto__` is data, not
   // Object.prototype's setter.
   const scan: MessageScan = {
     params: new Map(),
     plurals: Object.create(null) as Record<string, string[]>,
-    ordinals: [],
+    ordinals: Object.create(null) as Record<string, string[]>,
     selects: Object.create(null) as Record<string, string[]>,
   };
   // A whole message starts outside any plural, so `#` is literal text here.
   scanMessage(value, scan, false);
 
-  const shape: MessageShape = {
+  const result: MessageArguments = {
     params: Array.from(scan.params.values()),
     plurals: scan.plurals,
     ordinals: scan.ordinals,
     selects: scan.selects,
-    ...scanTags(value),
   };
-  if (scan.unsupported !== undefined) shape.unsupported = scan.unsupported;
-  return shape;
+  if (scan.unsupported !== undefined) result.unsupported = scan.unsupported;
+  return result;
+}
+
+/** The shape of one translation message: its ICU arguments and its tags. */
+export function scanMessageShape(value: string): MessageShape {
+  const scan: TagScan = { tags: new Set(), unbalanced: new Set() };
+  scanTags(value, false, scan);
+  return {
+    ...scanMessageArguments(value),
+    tags: [...scan.tags].sort(),
+    unbalancedTags: [...scan.unbalanced].sort(),
+  };
 }
