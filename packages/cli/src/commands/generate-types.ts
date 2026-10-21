@@ -1,11 +1,15 @@
 import { Command } from "commander";
 import { TypeGenerator } from "../core/TypeGenerator";
 import { ConfigLoader } from "../core/ConfigLoader";
-import { ErrorCodes, EXIT_VALIDATION, isTypegenError, type TypegenError } from "../utils/errors";
+import {
+  ErrorCodes,
+  EXIT_FAILURE,
+  exitCodeFor,
+  isTypegenError,
+  type TypegenError,
+} from "../utils/errors";
 import type { CheckResult } from "../types";
 
-/** `--check` reached no verdict because the TMS request failed. */
-const EXIT_CHECK_FAILED = 2;
 /** Errors that mean the check never got to compare anything. */
 const CHECK_BLOCKING_CODES: readonly string[] = [
   ErrorCodes.API_CONNECTION_FAILED,
@@ -17,7 +21,8 @@ const CHECK_BLOCKING_CODES: readonly string[] = [
 
 const CHECK_DESCRIPTION =
   "CI mode: verify the generated types are up to date " +
-  "(exit 1 = outdated, 2 = check could not run, 4 = invalid config or a schema that cannot be emitted)";
+  "(exit 1 = outdated, 2 = platform unavailable, 3 = key rejected, " +
+  "4 = invalid config or a schema that cannot be emitted)";
 
 export function createTypegenCommand(): Command {
   return new Command("typegen")
@@ -50,16 +55,6 @@ export function createTypegenCommand(): Command {
     });
 }
 
-function exitCodeFor(error: unknown): number {
-  if (
-    isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
-    isTypegenError(error, ErrorCodes.CONFIG_INVALID)
-  ) {
-    return EXIT_VALIDATION;
-  }
-  return 1;
-}
-
 function isCheckBlocked(error: unknown): error is TypegenError {
   return CHECK_BLOCKING_CODES.some((code) => isTypegenError(error, code));
 }
@@ -73,7 +68,7 @@ async function runGenerateOnce(generator: TypeGenerator): Promise<void> {
     process.exit(0);
   } else {
     console.error(`✗ Generation failed: ${result.error}`);
-    process.exit(1);
+    process.exit(exitCodeFor(result.cause));
   }
 }
 
@@ -83,7 +78,7 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
 
   if (!result.success) {
     console.error(`✗ Initial generation failed: ${result.error}`);
-    process.exit(1);
+    process.exit(exitCodeFor(result.cause));
   }
 
   console.log(`✓ Generated ${result.keysGenerated} keys → ${result.filePath}`);
@@ -128,7 +123,7 @@ async function runCheckMode(generator: TypeGenerator): Promise<void> {
     // genuinely outdated types, so CI could not tell a blip from a real drift.
     if (isCheckBlocked(error)) {
       console.error(`✗ Check could not run: ${error.message}`);
-      process.exit(EXIT_CHECK_FAILED);
+      process.exit(exitCodeFor(error));
     }
     throw error;
   }
@@ -141,6 +136,6 @@ async function runCheckMode(generator: TypeGenerator): Promise<void> {
     console.error(`  Current: ${result.currentKeys ?? 0} keys`);
     console.error(`  Expected: ${result.keysGenerated} keys`);
     console.error("\n  Run 'comvi typegen' to update.");
-    process.exit(1);
+    process.exit(EXIT_FAILURE);
   }
 }

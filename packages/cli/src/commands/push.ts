@@ -7,7 +7,8 @@ import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
 import type { ForceMode } from "../types";
-import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
+import { ErrorCodes, EXIT_VALIDATION, exitCodeFor, TypegenError } from "../utils/errors";
+import { resolveLocales } from "../utils/locales";
 import { parseListFlag, resolveFilter } from "../utils/filterResolution";
 
 type ApiPushForceMode = Exclude<ForceMode, "ask">;
@@ -21,6 +22,11 @@ export function createPushCommand(): Command {
     .option("-p, --path <path>", "Override translations source path")
     .option("--dry-run", "Preview changes without applying")
     .option("--force-mode <mode>", "Conflict resolution: override, keep, ask, abort (default: ask)")
+    .option(
+      "--skip-unknown-locales",
+      "Push the other locales when local files hold locales the project does not have",
+    )
+    .option("--allow-empty", "Succeed when there are no translation files to push")
     .action(async (options) => {
       try {
         console.log("🔄 Loading configuration...");
@@ -78,8 +84,66 @@ export function createPushCommand(): Command {
           defaultNamespace,
         });
 
-        if (Object.keys(localTranslations.translations).length === 0) {
-          console.log("⚠  No translation files found");
+        // Judge the local locales before anything is written: a locale the
+        // project does not have would otherwise be dropped by the platform
+        // while the push reports success.
+        const translations = localTranslations.translations;
+        const projectLocales =
+          Object.keys(translations).length > 0 ? await apiClient.fetchProjectLocales() : [];
+        const resolution = resolveLocales(Object.keys(translations), projectLocales ?? []);
+        if (resolution.duplicates.length > 0) {
+          const clashes = resolution.duplicates
+            .map(({ locale, spellings }) => `${spellings.join(" and ")} (both ${locale})`)
+            .join("; ");
+          throw new TypegenError(
+            `Two local files hold the same locale: ${clashes}. Keep one spelling.`,
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
+        if (projectLocales === undefined) {
+          console.error(
+            "⚠  The platform did not list its locales; local locales were not checked before the push.",
+          );
+        } else {
+          if (resolution.unknown.length > 0) {
+            const list = resolution.unknown.join(", ");
+            if (!options.skipUnknownLocales) {
+              throw new TypegenError(
+                `Local locales the project does not have, or this API key may not write: ${list}. ` +
+                  "Add them to the project, or pass --skip-unknown-locales to push the rest.",
+                ErrorCodes.VALIDATION_FAILED,
+              );
+            }
+            console.error(`⚠  Skipping locales the project does not have: ${list}`);
+            for (const locale of resolution.unknown) {
+              delete translations[locale];
+            }
+          }
+          for (const [local, project] of resolution.spelling) {
+            if (local !== project) {
+              translations[project] = translations[local];
+              delete translations[local];
+            }
+          }
+        }
+
+        // Counted after the locale check: skipped locales and empty files do
+        // not make a push.
+        const values = Object.values(translations).reduce(
+          (sum, namespaces) =>
+            sum + Object.values(namespaces).reduce((n, keys) => n + Object.keys(keys).length, 0),
+          0,
+        );
+        if (values === 0) {
+          if (!options.allowEmpty) {
+            throw new TypegenError(
+              `No translation values to push under ${options.path || config.translationsPath || "./src/locales"} ` +
+                `matching "${fileTemplate}". Check translationsPath and the filters, ` +
+                "or pass --allow-empty when an empty push is expected.",
+              ErrorCodes.VALIDATION_FAILED,
+            );
+          }
+          console.log("⚠  No translation values to push (--allow-empty)");
           process.exit(0);
         }
 
@@ -153,13 +217,7 @@ export function createPushCommand(): Command {
         if (error instanceof Error) {
           console.error(`✗ Push failed: ${error.message}`);
         }
-        if (
-          isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
-          isTypegenError(error, ErrorCodes.CONFIG_INVALID)
-        ) {
-          process.exit(EXIT_VALIDATION);
-        }
-        process.exit(1);
+        process.exit(exitCodeFor(error));
       }
     });
 }
@@ -172,8 +230,9 @@ async function promptConflictResolution(conflictCount: number): Promise<ApiPushF
   }
 
   if (!process.stdin.isTTY) {
-    throw new Error(
+    throw new TypegenError(
       "--force-mode ask requires an interactive terminal. Use --force-mode override, keep, or abort.",
+      ErrorCodes.VALIDATION_FAILED,
     );
   }
 

@@ -40,6 +40,13 @@ const PATHS = {
 const DEFAULT_NAMESPACE_ROUTES: Routes = {
   [PATHS.project]: { body: { id: PROJECT_ID } },
   [PATHS.namespaces]: { body: [{ namespace: "common", isDefault: true }] },
+  // The locales push checks local files against before it writes.
+  "/v1/project/locales": {
+    body: {
+      sourceLocale: "en",
+      locales: ["en", "de", "uk", "es", "fr"].map((code) => ({ code })),
+    },
+  },
 };
 
 /** A commit that created one key and value and changed another value. */
@@ -282,7 +289,12 @@ describe("comvi push", () => {
     const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
 
     expect(exitCode).toBe(0);
-    expect(http.paths()).toEqual([PATHS.project, PATHS.namespaces, PATHS.importCommit]);
+    expect(http.paths()).toEqual([
+      PATHS.project,
+      PATHS.namespaces,
+      "/v1/project/locales",
+      PATHS.importCommit,
+    ]);
   });
 
   it("--dry-run reports the diff against remote and sends no import commit", async () => {
@@ -328,14 +340,15 @@ describe("comvi push", () => {
     );
   });
 
-  it("exits 0 with a warning when there are no local translation files", async () => {
+  it("exits 4 when there are no local translation files", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     http = stubFetch(DEFAULT_NAMESPACE_ROUTES);
 
     const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
 
-    expect(exitCode).toBe(0);
-    expect(output.log).toContain("⚠  No translation files found");
+    expect(exitCode).toBe(4);
+    expect(output.stderr).toContain("No translation values to push");
+    expect(output.stderr).toContain("--allow-empty");
     expect(http.paths()).not.toContain(PATHS.importCommit);
   });
 
@@ -425,7 +438,7 @@ describe("comvi push", () => {
     );
   });
 
-  it("ask mode exits 1 with an actionable hint when stdin is not a terminal", async () => {
+  it("ask mode exits 4 with an actionable hint when stdin is not a terminal", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", { greeting: "Hello" });
     http = stubFetch({
@@ -437,7 +450,7 @@ describe("comvi push", () => {
 
     const exitCode = await runPush(["-c", configPath, "--force-mode", "ask"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(4);
     expect(output.error[0]).toBe(
       "✗ Push failed: --force-mode ask requires an interactive terminal. " +
         "Use --force-mode override, keep, or abort.",
@@ -530,20 +543,15 @@ describe("comvi push", () => {
     expect(commitBody().options).toMatchObject({ conflictResolution: "keep_server" });
   });
 
-  it("commits a file that holds no translation values", async () => {
+  it("sends no commit for files that hold no translation values, with --allow-empty", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", {});
-    http = stubFetch({
-      ...DEFAULT_NAMESPACE_ROUTES,
-      [PATHS.importCommit]: {
-        body: { success: true, stats: { keysCreated: 0, translationsUpdated: 0 } },
-      },
-    });
+    http = stubFetch(DEFAULT_NAMESPACE_ROUTES);
 
-    const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "override", "--allow-empty"]);
 
     expect(exitCode).toBe(0);
-    expect(commitBody().namespaces).toEqual({ common: { en: {} } });
+    expect(http.paths()).not.toContain(PATHS.importCommit);
   });
 
   it("resolves conflicts with the force mode configured in .comvirc.json", async () => {
