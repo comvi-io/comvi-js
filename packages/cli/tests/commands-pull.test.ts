@@ -467,11 +467,16 @@ describe("comvi pull", () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await fs.mkdir(join(localesDir, "admin"), { recursive: true });
     await fs.writeFile(join(localesDir, "en.json"), '{"stale":"x"}', "utf-8");
+    // `common` in `de`: received with no rows this time, so its old file goes.
+    await fs.writeFile(join(localesDir, "de.json"), '{"stale":"x"}', "utf-8");
     await fs.writeFile(join(localesDir, "admin", "en.json"), "{}", "utf-8");
     http = stubFetch({
       ...DEFAULT_NAMESPACE_ROUTES,
       [PATHS.translations]: {
-        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+        body: {
+          locales: ["en", "de"],
+          namespaces: { common: { en: { greeting: "Hello" }, de: {} } },
+        },
       },
     });
 
@@ -479,6 +484,7 @@ describe("comvi pull", () => {
 
     expect(exitCode).toBe(0);
     expect(await fs.readFile(join(localesDir, "admin", "en.json"), "utf-8")).toBe("{}");
+    expect(JSON.parse(await fs.readFile(join(localesDir, "de.json"), "utf-8"))).toEqual({});
     expect(JSON.parse(await fs.readFile(join(localesDir, "en.json"), "utf-8"))).toEqual({
       greeting: "Hello",
     });
@@ -816,6 +822,7 @@ describe("comvi pull", () => {
     expect(await runPull(["-c", configPath, "-l", "en"])).toBe(0);
 
     expect(output.log).toContain("  Locales: en");
+    expect(output.log).not.toContain("  Locales: en, de, uk");
     expect(output.log).toContain("  Namespaces: common");
   });
 
@@ -831,4 +838,57 @@ describe("comvi pull", () => {
       expect(http.requests).toEqual([]);
     },
   );
+
+  it("--empty-dir keeps directories it did not empty itself", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await fs.mkdir(join(localesDir, "fonts"), { recursive: true });
+    await fs.mkdir(join(localesDir, "old"), { recursive: true });
+    await fs.writeFile(join(localesDir, "old", "en.json"), "{}", "utf-8");
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+    });
+
+    expect(await runPull(["-c", configPath, "--empty-dir"])).toBe(0);
+
+    await expect(fs.readdir(join(localesDir, "fonts"))).resolves.toEqual([]);
+    await expect(fs.access(join(localesDir, "old"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("--empty-dir refuses a fileTemplate that puts locale and namespace in one file name", async () => {
+    const configPath = await writeConfig({
+      translationsPath: localesDir,
+      fileTemplate: "{languageTag}-{namespace}.json",
+    });
+    await fs.mkdir(localesDir, { recursive: true });
+    await fs.writeFile(join(localesDir, "en-US-shop.json"), '{"a":"b"}', "utf-8");
+    http = stubFetch({
+      [PATHS.translations]: {
+        body: { locales: ["en-US"], namespaces: { shop: { "en-US": { a: "c" } } } },
+      },
+    });
+
+    expect(await runPull(["-c", configPath, "--empty-dir"])).toBe(4);
+
+    expect(output.stderr).toContain("share a path segment");
+    expect(await fs.readFile(join(localesDir, "en-US-shop.json"), "utf-8")).toBe('{"a":"b"}');
+  });
+
+  it("--empty-dir --locale en keeps the en files when the response carries no data for en", async () => {
+    const configPath = await writeConfig({
+      translationsPath: localesDir,
+      fileTemplate: "{languageTag}/{namespace}.json",
+    });
+    await fs.mkdir(join(localesDir, "en"), { recursive: true });
+    await fs.writeFile(join(localesDir, "en", "common.json"), '{"keep":"me"}', "utf-8");
+    http = stubFetch({
+      [PATHS.translations]: { body: { locales: ["en"], namespaces: {} } },
+    });
+
+    expect(await runPull(["-c", configPath, "--empty-dir", "-l", "en"])).toBe(4);
+
+    expect(await fs.readFile(join(localesDir, "en", "common.json"), "utf-8")).toBe('{"keep":"me"}');
+  });
 });

@@ -66,15 +66,13 @@ export function createPullCommand(): Command {
         // key restricted to some languages gets no rows for the others, and an
         // older platform still lists every project locale for it.
         const returnedLocales = Object.keys(translations.translations);
-        assertAllReturned("namespaces", nss.value, translations.namespaces);
-        if (translations.namespaces.length > 0) {
-          assertReadable(locs.value, translations.locales, returnedLocales);
-        }
+        assertReadable(locs.value, translations.locales, returnedLocales);
         assertAllReturned(
           "locales",
           locs.value,
           translations.namespaces.length > 0 ? returnedLocales : translations.locales,
         );
+        assertAllReturned("namespaces", nss.value, translations.namespaces);
 
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
           ? await apiClient.fetchDefaultNamespace()
@@ -91,7 +89,7 @@ export function createPullCommand(): Command {
         // locale this key cannot read must leave those files as they were.
         const emptyDir = Boolean(options.emptyDir || config.pull?.emptyDir);
         const scope = {
-          locales: locs.value ?? returnedLocales,
+          locales: (locs.value ?? returnedLocales).filter((l) => returnedLocales.includes(l)),
           namespaces: nss.value,
           defaultNamespace,
         };

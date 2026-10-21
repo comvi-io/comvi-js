@@ -130,10 +130,9 @@ export class TranslationSync {
   ): Promise<void> {
     const unrestored: string[] = [];
 
-    for (const { filePath } of planned) {
-      if (!snapshot.has(filePath)) {
-        await fs.rm(filePath, { force: true }).catch(() => unrestored.push(filePath));
-      }
+    const created = planned.map(({ filePath }) => filePath).filter((p) => !snapshot.has(p));
+    for (const filePath of created) {
+      await fs.rm(filePath, { force: true }).catch(() => unrestored.push(filePath));
     }
     for (const [filePath, content] of snapshot) {
       try {
@@ -143,7 +142,7 @@ export class TranslationSync {
         unrestored.push(filePath);
       }
     }
-    await this.removeEmptyDirectories(this.translationsPath, true).catch(() => undefined);
+    await this.pruneEmptyParents(created).catch(() => undefined);
 
     if (unrestored.length > 0) {
       const reason = cause instanceof Error ? cause.message : String(cause);
@@ -297,9 +296,9 @@ export class TranslationSync {
 
   /**
    * Remove the translation files a pull is about to replace: the files the
-   * template parses as translations, within `scope`. Anything else under the
-   * directory — source code, a README, a JSON file that is not a catalog —
-   * is never touched. Directories the walk leaves empty are removed.
+   * template parses as translations, within `scope`. Files the template does
+   * not match are never touched; directories only these removals emptied are
+   * removed with them.
    */
   async clearDirectory(scope: ClearScope = {}): Promise<void> {
     this.assertInsideProject();
@@ -310,11 +309,7 @@ export class TranslationSync {
         await fs.unlink(filePath);
       }
 
-      // Nothing was unlinked, so nothing was emptied — and the translations
-      // directory may not even exist yet.
-      if (files.length > 0) {
-        await this.removeEmptyDirectories(this.translationsPath, true);
-      }
+      await this.pruneEmptyParents(files);
     } catch (error) {
       throw wrapError(error, "Failed to clear directory", ErrorCodes.FS_WRITE_FAILED);
     }
@@ -348,6 +343,17 @@ export class TranslationSync {
   }
 
   private async listFilesToClear(scope: ClearScope): Promise<string[]> {
+    // `{languageTag}-{namespace}.json` cannot tell `en` + `US-shop` from
+    // `en-US` + `shop`, so a clear could delete a catalog it never received.
+    if (hasPlaceholdersInOneSegment(this.fileTemplate)) {
+      throw new TypegenError(
+        `Cannot clear with fileTemplate ${JSON.stringify(this.fileTemplate)}: ` +
+          "{languageTag} and {namespace} share a path segment, so a file name does not say " +
+          "which locale it belongs to. Put them in separate directories, or pull without --empty-dir.",
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
     const files = await this.findTranslationFiles(scope.defaultNamespace ?? DEFAULT_NAMESPACE);
 
     return files
@@ -361,27 +367,24 @@ export class TranslationSync {
   }
 
   /**
-   * Remove directories the clear emptied, deepest first. The translations
-   * directory itself is kept: the pull writes into it next.
+   * Remove the directories that removing `files` left empty, walking up to but
+   * never including the translations directory. A directory that was empty
+   * before, or still holds anything, stays.
    */
-  private async removeEmptyDirectories(dir: string, isRoot: boolean): Promise<boolean> {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-
-    let isEmpty = true;
-    for (const entry of entries) {
-      const removed =
-        entry.isDirectory() && (await this.removeEmptyDirectories(join(dir, entry.name), false));
-      if (!removed) {
-        isEmpty = false;
+  private async pruneEmptyParents(files: string[]): Promise<void> {
+    const directories = [...new Set(files.map((file) => dirname(file)))].sort(
+      (a, b) => b.length - a.length,
+    );
+    for (let dir of directories) {
+      while (isBeneathDirectory(this.translationsPath, dir)) {
+        try {
+          await fs.rmdir(dir);
+        } catch {
+          break;
+        }
+        dir = dirname(dir);
       }
     }
-
-    if (isEmpty && !isRoot) {
-      await fs.rmdir(dir);
-      return true;
-    }
-
-    return false;
   }
 
   compareTranslations(local: TranslationData, remote: TranslationData): TranslationDiff {
@@ -604,6 +607,13 @@ export class TranslationSync {
       throw wrapError(error, "Failed to create directory", ErrorCodes.FS_MKDIR_FAILED);
     }
   }
+}
+
+function hasPlaceholdersInOneSegment(template: string): boolean {
+  return template
+    .replace(/\\/g, "/")
+    .split("/")
+    .some((segment) => segment.includes("{languageTag}") && segment.includes("{namespace}"));
 }
 
 function escapeRegExp(value: string): string {
