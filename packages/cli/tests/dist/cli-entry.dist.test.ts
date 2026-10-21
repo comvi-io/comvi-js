@@ -64,7 +64,14 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
     const run = runCli(["--help"]);
 
     expect(run.status).toBe(0);
-    expect(listedCommands(run.stdout)).toEqual(["init", "typegen", "pull", "push", "check", "help"]);
+    expect(listedCommands(run.stdout)).toEqual([
+      "init",
+      "typegen",
+      "pull",
+      "push",
+      "check",
+      "help",
+    ]);
   });
 
   it("lists every check flag in `check --help`", () => {

@@ -47,7 +47,7 @@ describe("check rule: plural (injected categories)", () => {
     expect(report.locales.de.plural).toEqual([]);
   });
 
-  it.each(["=", "=x"])("refuses %j as an exact selector", (selector) => {
+  it.each(["=", "=x", "x1"])("refuses %j as an exact selector", (selector) => {
     const report = check(
       { a: "{n, plural, one {#} other {#}}" },
       { a: `{n, plural, ${selector} {none} one {#} other {#}}` },
@@ -123,6 +123,28 @@ describe("check rule: plural (injected categories)", () => {
     expect(report.locales.de.plural).toEqual([]);
     expect(report.locales.de.localeUnknown).toBe(false);
     expect(report.ok).toBe(true);
+  });
+});
+
+describe("check rule: plural (more cases)", () => {
+  it("skips selectordinal too in a locale with no cardinal rules", () => {
+    const report = check(
+      { a: "{n, selectordinal, one {#} other {#}}" },
+      { a: "{n, selectordinal, zzz {#}}" },
+      { pluralCategories: (_locale, type) => (type === "ordinal" ? ["one", "other"] : undefined) },
+    );
+
+    expect(report.locales.de.localeUnknown).toBe(true);
+    expect(report.locales.de.plural).toEqual([]);
+  });
+
+  it("orders findings by argument", () => {
+    const report = check(
+      { a: "{z, plural, one {#} other {#}} {b, plural, one {#} other {#}}" },
+      { a: "{z, plural, one {#}} {b, plural, one {#}}" },
+    );
+
+    expect(report.locales.de.plural.map((finding) => finding.argument)).toEqual(["b", "z"]);
   });
 });
 

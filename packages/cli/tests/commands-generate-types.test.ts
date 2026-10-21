@@ -53,7 +53,6 @@ describe("comvi typegen", () => {
   let configPath: string;
   let outputPath: string;
   let projectDir: string;
-  let originalCwd: string;
   let output: ConsoleCapture;
 
   beforeEach(async () => {
@@ -74,8 +73,7 @@ describe("comvi typegen", () => {
       join(dir, "package.json"),
       JSON.stringify({ name: "app", dependencies: { "@comvi/react": "^0.5.0" } }),
     );
-    originalCwd = process.cwd();
-    process.chdir(dir);
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
 
     vi.stubEnv("COMVI_API_KEY", undefined);
     vi.stubEnv("COMVI_API_BASE_URL", undefined);
@@ -87,7 +85,6 @@ describe("comvi typegen", () => {
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
     await removeTempDirs();
     assertNoUnexpectedRequests();
   });

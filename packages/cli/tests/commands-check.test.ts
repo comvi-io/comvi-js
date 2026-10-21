@@ -20,7 +20,6 @@ const HOLLAMA_SHAPE = resolve(__dirname, "fixtures/check/hollama-shape");
 
 describe("comvi check", () => {
   let dir: string;
-  let originalCwd: string;
   let output: ConsoleCapture;
   let progress: string[];
 
@@ -52,8 +51,8 @@ describe("comvi check", () => {
     await write("package.json", { name: "app" });
     await write("src/locales/en.json", { hello: "Hello {name}", bye: "Bye" });
     await write("src/locales/de.json", { hello: "Hallo {name}", bye: "Tschüss" });
-    originalCwd = process.cwd();
-    process.chdir(dir);
+    // Not `process.chdir`: Stryker runs tests in worker threads, which refuse it.
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
 
     vi.stubEnv("COMVI_API_KEY", undefined);
     vi.stubEnv("COMVI_API_BASE_URL", undefined);
@@ -69,7 +68,6 @@ describe("comvi check", () => {
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
     await removeTempDirs();
   });
 
@@ -147,6 +145,12 @@ describe("comvi check", () => {
       expect(report.locales.de.missing).toEqual(["bye"]);
     });
 
+    it("-l de does not read the catalogs of other locales", async () => {
+      await write("src/locales/fr.json", "{ broken");
+
+      expect(await run("-l", "de")).toBe(0);
+    });
+
     it("-l naming only the source reports no locale", async () => {
       await write("src/locales/fr.json", {});
 
@@ -183,6 +187,11 @@ describe("comvi check", () => {
       const report = JSON.parse(output.stdout);
       expect(report.source).toBe("de");
       expect(report.locales.en.missing).toEqual(["extra"]);
+    });
+
+    it("--source is trimmed", async () => {
+      expect(await run("-s", " de ", "--format", "json")).toBe(0);
+      expect(JSON.parse(output.stdout).source).toBe("de");
     });
 
     it("sourceLocale in .comvirc.json picks the source", async () => {
@@ -274,6 +283,16 @@ describe("comvi check", () => {
       expect(output.stderr).toContain("--file-template must contain one {languageTag}");
     });
 
+    it("on a translation file that vanished after the directory was listed", async () => {
+      const { TypegenError, ErrorCodes } = await import("../src/utils/errors");
+      const cause = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      vi.spyOn(TranslationSync.prototype, "readTranslations").mockRejectedValue(
+        new TypegenError("Failed to read de.json", ErrorCodes.FS_READ_FAILED, cause),
+      );
+
+      expect(await run()).toBe(4);
+    });
+
     it("on a translation file it may not read", async () => {
       if (process.platform === "win32" || process.getuid?.() === 0) return;
       await fs.chmod(join(dir, "src/locales/de.json"), 0o000);
@@ -308,6 +327,25 @@ describe("comvi check", () => {
       const cause = Object.assign(new Error("EIO"), { code: "EIO" });
       vi.spyOn(TranslationSync.prototype, "readTranslations").mockRejectedValue(
         new TypegenError("Failed to read x", ErrorCodes.FS_READ_FAILED, cause),
+      );
+
+      expect(await run()).toBe(2);
+    });
+
+    it("on FS_READ_FAILED with no cause", async () => {
+      const { TypegenError, ErrorCodes } = await import("../src/utils/errors");
+      vi.spyOn(TranslationSync.prototype, "readTranslations").mockRejectedValue(
+        new TypegenError("Failed to read x", ErrorCodes.FS_READ_FAILED),
+      );
+
+      expect(await run()).toBe(2);
+    });
+
+    it("on another error code even with a missing-file cause", async () => {
+      const { TypegenError, ErrorCodes } = await import("../src/utils/errors");
+      const cause = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      vi.spyOn(TranslationSync.prototype, "readTranslations").mockRejectedValue(
+        new TypegenError("x", ErrorCodes.FS_MKDIR_FAILED, cause),
       );
 
       expect(await run()).toBe(2);
@@ -371,6 +409,16 @@ describe("comvi check", () => {
       expect(report.locales.de.missing).toEqual(["nav.home"]);
       expect(report.locales.de.params).toEqual([{ key: "greeting", source: ["name"], target: [] }]);
       expect(output.stdout).not.toContain("undefined");
+    });
+
+    it("accepts a template ending in .{extension}", async () => {
+      await write("cat/en/app.json", { a: "A" });
+      await write("cat/de/app.json", { a: "B" });
+
+      expect(
+        await run("-p", "cat", "--file-template", "{languageTag}/{namespace}.{extension}"),
+      ).toBe(0);
+      expect(output.stdout).toContain("1 keys");
     });
 
     it("--file-template with a prefix and no {namespace}", async () => {
@@ -475,6 +523,57 @@ describe("comvi check", () => {
         "unsupported ICU  de:x  source number",
       ]) {
         expect(output.stdout).toContain(line);
+      }
+    });
+
+    it("prints exactly the summary, the details and the verdict", async () => {
+      await write("src/locales/de.json", {
+        hello: "Hallo",
+        bye: "{n, plural, one {#} few {#}}",
+        old: "Alt",
+      });
+      await write("src/locales/en.json", {
+        hello: "Hello {name}",
+        bye: "{n, plural, one {#} other {#}}",
+      });
+
+      expect(await run("--no-fail")).toBe(0);
+      expect(output.stdout).toBe(
+        [
+          "comvi check  ./src/locales  source=en  2 locales  2 keys",
+          "de  1 stale, 1 params, 2 plural",
+          "stale  de:old",
+          "params  de:hello  source {name}  target {}",
+          "plural  de:bye  {n} missing-other other",
+          "plural  de:bye  {n} unknown-category few",
+          "✗ 1 stale, 1 params, 2 plural — exit 0 (--no-fail)",
+        ].join("\n"),
+      );
+    });
+
+    it("prints a clean run without a --no-fail note", async () => {
+      expect(await run("--no-fail")).toBe(0);
+      expect(output.stdout.split("\n").at(-1)).toBe("✓ no findings — exit 0");
+    });
+
+    it("describes every option in --help", () => {
+      const help = createCheckCommand().helpInformation();
+
+      for (const line of [
+        "Validate local translation catalogs against the source locale (offline)",
+        "Path to .comvirc.json file (optional for check)",
+        "Translations directory",
+        "File template, e.g. {languageTag}.json",
+        "Source locale (default: sourceLocale, else en)",
+        "Check only these locales (comma-separated)",
+        "Check only these namespaces (comma-separated)",
+        "Output format: text or json",
+        'default: "text"',
+        "Warn when a translation equals its source",
+        "Exit 0 even when there are findings",
+        "Fail on warnings too",
+      ]) {
+        expect(help).toContain(line);
       }
     });
 

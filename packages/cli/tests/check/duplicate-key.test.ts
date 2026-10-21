@@ -12,22 +12,20 @@ import {
 
 describe("check: a key defined twice in one catalog", () => {
   let dir: string;
-  let originalCwd: string;
   let output: ConsoleCapture;
 
   beforeEach(async () => {
     dir = await makeTempDir("comvi-check-dup");
     await fs.writeFile(join(dir, "package.json"), "{}");
     await fs.mkdir(join(dir, "i18n"));
-    originalCwd = process.cwd();
-    process.chdir(dir);
+    // Not `process.chdir`: Stryker runs tests in worker threads, which refuse it.
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     output = captureConsole();
     stubProcessExit();
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
     await removeTempDirs();
   });
 

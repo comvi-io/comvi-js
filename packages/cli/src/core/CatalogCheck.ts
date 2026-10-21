@@ -152,7 +152,7 @@ function intlPluralCategories(): (locale: string, type: PluralRuleType) => strin
           categories = new Intl.PluralRules(locale, { type }).resolvedOptions().pluralCategories;
         }
       } catch {
-        categories = undefined;
+        // A tag `Intl` cannot parse is a locale it does not know.
       }
       cache.set(id, categories);
     }

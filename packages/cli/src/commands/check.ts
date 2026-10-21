@@ -151,9 +151,8 @@ function resolveSettings(options: CheckCommandOptions, config: ComviConfig) {
   }
 
   const source = options.source?.trim() ?? config.sourceLocale;
-  const targets = resolveFilter(parseListFlag(options.locale), config.locales).value?.filter(
-    (locale) => locale !== source,
-  );
+  // The source may be listed too; it is read, and never reported on.
+  const targets = resolveFilter(parseListFlag(options.locale), config.locales).value;
 
   return {
     translationsPath: options.path ?? config.translationsPath ?? "./src/locales",

@@ -64,4 +64,23 @@ describe("check rule: missing", () => {
     expect(report.summary.missing).toBe(3);
     expect(report.errors).toBe(3);
   });
+
+  it("orders findings by namespace, then key", () => {
+    const report = check(
+      {},
+      {},
+      {
+        translations: { en: { b: { x: "X" }, a: { z: "Z", y: "Y" } }, de: {} },
+        namespaces: ["b", "a"],
+      },
+    );
+
+    expect(report.locales.de.missing).toEqual(["a:y", "a:z", "b:x"]);
+  });
+
+  it("reports every key missing for a target with no catalog at all", () => {
+    const report = check({ a: "A" }, {}, { translations: { en: { default: { a: "A" } } } });
+
+    expect(report.locales.de.missing).toEqual(["a"]);
+  });
 });
