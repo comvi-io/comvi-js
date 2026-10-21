@@ -187,3 +187,38 @@ Round finds beyond mutants: tests/dist/cli-entry.dist.test.ts was untracked
 (root `dist` gitignore pattern; cli missing from the canary exception list —
 CI had never run it) and react's tests-typecheck raced @comvi/react#build in
 the Quality job (fixed by source-pinning @comvi/react like @comvi/core).
+
+## packages/typegen message-shape.ts (COM-179 A0, 2026-10-21)
+
+The ICU scanner moved here from `packages/vite-plugin/src/extract.ts` and was mutation-tested for
+the first time since its rewrite: 124 survivors on develop. `tests/message-shape.test.ts` kills
+every non-equivalent one; each row in its "group boundaries" block was checked against
+`@comvi/core` with `icuCompiler`, and the tag rows are checked by
+`tests/message-shape-tag-parity.test.ts` against core with `@comvi/core/tags`. Every accepted
+entry was hand-applied against the full typegen suite (green) and fuzzed (300 000 generated
+messages, original vs mutant, no difference). Families:
+
+- bounds checks one past the end (`i < len` -> `i <= len`, `-> true` on a whitespace skip): the
+  extra read is `undefined` / NaN, which matches no branch, and every caller treats an index at or
+  past the end as the end;
+- `opensHashScope`'s no-comma exit and the context stack's empty case, which cannot occur for a
+  group that can close at all; a one-comma argument failing the choice-list parse as surely as
+  the early refusal;
+- the tag pass re-reading a tag's last name character and its `>` (`i++ -> i--`, `i + 1 -> i - 1`
+  around a tag's end): neither character starts anything, so only work is repeated.
+
+Review correction (PR #109): the `if (i >= len) break` and `.trim()` entries in `parseChoices` were
+first accepted as a redundancy pair. They are not one: `charCodeAt <= 32` skips a NUL that `trim`
+keeps, and `trim` removes a no-break space that `<= 32` does not. Both entries are gone; the NUL
+and no-break-space rows kill the three mutants (core agrees with the original on both inputs).
+
+Two vite-plugin `src/extract.ts` entries left with the move: the message-scan loop entry now lives
+under typegen, and the `for (let i = open; …)` entry was already stale on develop (that loop no
+longer exists). The two `fs.readFile(…, "utf-8")` entries stay; `extractSchema` did not move.
+
+The same cold run of packages/vite-plugin added one entry (`writeAtomically`'s
+`fs.rm(…, { force: true }).catch(…)`, equivalent: the catch swallows what `force` would). Two real
+survivors predate the move and stay open, because A0 keeps `packages/vite-plugin/tests/**`
+byte-identical: `extract.ts` `if (unsupported !== undefined)` -> `true` (no test asserts that a
+supported key raises no issue) and `index.ts`'s warning tail `parameters were generated for it: …`
+(no test asserts the whole message). Both are killable by a test, so neither is accepted.
