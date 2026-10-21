@@ -21,7 +21,10 @@ export function createInitCommand(): Command {
   return new Command("init")
     .description("Initialize a new .comvirc.json configuration file")
     .option("-k, --api-key <key>", "API key for TMS (prefer COMVI_API_KEY env var)")
-    .option("-u, --api-url <url>", "API base URL", "https://api.comvi.io")
+    .option(
+      "-u, --api-url <url>",
+      "API base URL (default: $COMVI_API_BASE_URL, else https://api.comvi.io)",
+    )
     .option("-o, --output <path>", "Output path for generated types", "src/types/i18n.d.ts")
     .option("--no-strict-params", "Make all params optional")
     .option("--translations-path <path>", "Local translations folder", "./src/locales")
@@ -31,8 +34,15 @@ export function createInitCommand(): Command {
       // ApiClient rejects a malformed URL from inside the key-validation block,
       // where it read as "API key validation failed" — and the bad value was
       // written to the config anyway.
-      if (!isHttpUrl(options.apiUrl)) {
-        console.error(`✗ Invalid API base URL: ${options.apiUrl}`);
+      // The environment the other commands read: without this, a staging key
+      // was validated against production and the config pointed there.
+      const apiUrl: string =
+        options.apiUrl || process.env.COMVI_API_BASE_URL || "https://api.comvi.io";
+      if (!isHttpUrl(apiUrl)) {
+        const fromEnv = !options.apiUrl && process.env.COMVI_API_BASE_URL;
+        console.error(
+          `✗ Invalid API base URL${fromEnv ? " (from COMVI_API_BASE_URL)" : ""}: ${apiUrl}`,
+        );
         process.exit(EXIT_VALIDATION);
       }
 
@@ -71,7 +81,7 @@ export function createInitCommand(): Command {
           // Only include apiKey if explicitly provided via --api-key flag
           // Environment variable is preferred and will be read at runtime
           ...(options.apiKey ? { apiKey: options.apiKey } : {}),
-          apiBaseUrl: options.apiUrl,
+          apiBaseUrl: apiUrl,
           outputPath: options.output,
           strictParams: options.strictParams !== false,
           translationsPath: options.translationsPath,

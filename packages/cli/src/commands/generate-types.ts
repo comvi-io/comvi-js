@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { TypeGenerator } from "../core/TypeGenerator";
+import { SilentReporter } from "../core/GenerationReporter";
 import { ConfigLoader } from "../core/ConfigLoader";
 import {
   ErrorCodes,
@@ -17,6 +18,8 @@ const CHECK_BLOCKING_CODES: readonly string[] = [
   ErrorCodes.API_FETCH_FAILED,
   ErrorCodes.API_TIMEOUT,
   ErrorCodes.API_INVALID_RESPONSE,
+  // A declaration file that exists but cannot be read: no verdict either.
+  ErrorCodes.FS_READ_FAILED,
 ];
 
 const CHECK_DESCRIPTION =
@@ -37,7 +40,9 @@ export function createTypegenCommand(): Command {
         const config = await ConfigLoader.load(options.config);
         const generatorOptions = ConfigLoader.toGeneratorOptions(config);
 
-        const generator = new TypeGenerator(generatorOptions);
+        // The command narrates every step and failure itself; a reporter would
+        // print each of them a second time.
+        const generator = new TypeGenerator(generatorOptions, { reporter: new SilentReporter() });
 
         if (options.check) {
           await runCheckMode(generator);
