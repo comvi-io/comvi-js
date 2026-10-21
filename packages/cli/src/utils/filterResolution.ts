@@ -18,18 +18,23 @@ export interface FilterResolution {
 }
 
 /**
- * Parse a CLI list flag (`--ns a,b,c`).
- *
- * Returns `undefined` for `undefined`, non-string values, and lists that contain
- * only blank items — so the caller cannot accidentally send `[""]` to the API.
+ * Parse a CLI list flag (`--ns a,b,c`). A flag that is absent is `undefined`;
+ * a flag given with nothing in it (`--locale "$UNSET"`) is refused, because
+ * reading it as "all" would make `--empty-dir` clear the whole catalog.
  */
-export function parseListFlag(value: unknown): string[] | undefined {
+export function parseListFlag(value: unknown, flag = "filter"): string[] | undefined {
   if (typeof value !== "string") return undefined;
   const items = value
     .split(",")
     .map((v) => v.trim())
     .filter((v) => v !== "");
-  return items.length > 0 ? items : undefined;
+  if (items.length === 0) {
+    throw new TypegenError(
+      `${flag} was given an empty value; remove the flag to use every item`,
+      ErrorCodes.VALIDATION_FAILED,
+    );
+  }
+  return items;
 }
 
 /**
@@ -63,7 +68,30 @@ export function assertAllReturned(
 
   throw new TypegenError(
     `Unknown ${fieldName}: ${missing.join(", ")}. ` +
-      `Available in project: ${returned.join(", ") || "(none)"}.`,
+      // A restricted key sees fewer locales than the project has.
+      `Available ${fieldName === "locales" ? "with this API key" : "in project"}: ${returned.join(", ") || "(none)"}.`,
+    ErrorCodes.VALIDATION_FAILED,
+  );
+}
+
+/**
+ * A requested locale the project has but the response carries no data for:
+ * the key's owner is restricted away from it. Reported before the generic
+ * "unknown" check, which would call it a typo.
+ */
+export function assertReadable(
+  requested: string[] | undefined,
+  projectLocales: string[],
+  returnedLocales: string[],
+): void {
+  const unreadable = (requested ?? []).filter(
+    (locale) => projectLocales.includes(locale) && !returnedLocales.includes(locale),
+  );
+  if (unreadable.length === 0) return;
+
+  throw new TypegenError(
+    `Locales not readable with this API key: ${unreadable.join(", ")}. ` +
+      "The key's owner may be restricted to other languages.",
     ErrorCodes.VALIDATION_FAILED,
   );
 }

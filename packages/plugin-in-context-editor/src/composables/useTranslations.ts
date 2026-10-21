@@ -47,18 +47,18 @@ export function useTranslations(
   const session = ref(0);
   const savingSession = ref<number | null>(null);
   const isSaving = computed(() => savingSession.value === session.value);
-  // The plural shape and select configs at last load/save, serialized. A
-  // language whose forms and shape still match was not edited and is not sent.
-  let baselineShape = "";
+  // The plural shape and select configs at last load/save. A language whose
+  // forms and shape still match was not edited and is not sent.
+  let baselinePlural: { isPlural: boolean; pluralVariable?: string } = { isPlural: false };
   let baselineSelectConfigs: Record<string, string> = {};
 
-  function shapeOf(data: TranslationData): string {
+  function shapeOf(data: { isPlural: boolean; pluralVariable?: string }): string {
     return JSON.stringify([data.isPlural, data.pluralVariable ?? ""]);
   }
 
   function setBaseline(data: TranslationData): void {
     baselineTranslations.value = snapshotTranslations(data.translations);
-    baselineShape = shapeOf(data);
+    baselinePlural = { isPlural: data.isPlural, pluralVariable: data.pluralVariable };
     baselineSelectConfigs = Object.fromEntries(
       Object.entries(data.selectConfigs ?? {}).map(([lang, config]) => [
         lang,
@@ -71,7 +71,7 @@ export function useTranslations(
     const baselineForms = baselineTranslations.value?.[langCode];
     return (
       baselineForms !== undefined &&
-      shapeOf(data) === baselineShape &&
+      shapeOf(data) === shapeOf(baselinePlural) &&
       JSON.stringify(data.translations[langCode]) === JSON.stringify(baselineForms) &&
       JSON.stringify(data.selectConfigs?.[langCode]) === baselineSelectConfigs[langCode]
     );
@@ -265,6 +265,7 @@ export function useTranslations(
     const scopeLanguages = languages.value;
     const translationsToSave = editedTranslations(data);
     const verbatim = verbatimValues(data, translationsToSave);
+    const startState = JSON.stringify(data);
     const selectConfigs = data.selectConfigs
       ? Object.fromEntries(
           Object.entries(data.selectConfigs).map(([lang, config]) => [
@@ -289,11 +290,28 @@ export function useTranslations(
         scopeId,
         verbatim,
         data.sourceValues,
+        baselinePlural.isPlural,
       );
+
+      if (!savedData) {
+        // Nothing differs from what the server holds, so nothing was sent.
+        if (saveSession !== session.value) {
+          return null;
+        }
+        setBaseline(JSON.parse(startState) as TranslationData);
+        state.value.isDirty = JSON.stringify(data) !== startState;
+        return data;
+      }
 
       // The server holds the new value either way, so the runtime the save
       // was made for shows it too.
-      updateRuntimeCache(savedData, namespace, scopeId, scopeLanguages);
+      let cacheError: unknown = null;
+      try {
+        updateRuntimeCache(savedData, namespace, scopeId, scopeLanguages);
+      } catch (error) {
+        cacheError = error;
+        console.error("[@comvi/plugin-in-context-editor] Error updating runtime cache:", error);
+      }
 
       if (saveSession !== session.value) {
         return null;
@@ -301,6 +319,11 @@ export function useTranslations(
       state.value.data = savedData;
       state.value.isDirty = false;
       setBaseline(savedData);
+      if (cacheError) {
+        state.value.error = `Saved, but the page shows the new value only after a reload: ${
+          cacheError instanceof Error ? cacheError.message : String(cacheError)
+        }`;
+      }
 
       return savedData;
     } catch (error) {

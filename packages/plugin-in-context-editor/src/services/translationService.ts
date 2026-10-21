@@ -268,6 +268,8 @@ export async function getTranslation(
  * @param verbatim - Languages sent exactly as given instead of being generated
  *   from their forms (ICU the fields cannot rebuild).
  * @param stored - Values the server holds; a language that would be written unchanged is skipped.
+ * @param storedIsPlural - The key's plural flag as loaded. With no value to write and the flag
+ *   unchanged, nothing is sent and the result is null.
  */
 export async function saveTranslation(
   key: string,
@@ -279,7 +281,8 @@ export async function saveTranslation(
   scopeId?: string,
   verbatim?: Record<string, string>,
   stored?: Record<string, string>,
-): Promise<TranslationData> {
+  storedIsPlural?: boolean,
+): Promise<TranslationData | null> {
   if (isDemoMode(scopeId)) {
     throw new DemoModeError("Saving translations");
   }
@@ -290,10 +293,22 @@ export async function saveTranslation(
       const value =
         verbatim?.[langCode] ??
         generateLanguageValue(forms, isPlural, pluralVariable, selectConfigs?.[langCode]);
-      if (value !== stored?.[langCode]) {
+      const cleared =
+        stored !== undefined &&
+        stored[langCode] === undefined &&
+        Object.values(forms).every((form) => form === "");
+      if (value !== stored?.[langCode] && !cleared) {
         apiTranslations[langCode] = { value, status: "not_reviewed" };
       }
     });
+
+    if (
+      stored !== undefined &&
+      Object.keys(apiTranslations).length === 0 &&
+      storedIsPlural === isPlural
+    ) {
+      return null;
+    }
 
     const payload = {
       key: key,

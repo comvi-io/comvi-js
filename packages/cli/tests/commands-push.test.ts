@@ -151,6 +151,20 @@ describe("comvi push", () => {
     assertNoUnexpectedRequests();
   });
 
+  it.each([["--locale"], ["--ns"]])(
+    "exits 4 without a request when %s is given empty",
+    async (flag) => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      await writeTranslationFile("en.json", { greeting: "Hello" });
+      const http = stubFetch({});
+
+      expect(await runPush(["-c", configPath, "--force-mode", "override", flag, ""])).toBe(4);
+
+      expect(output.stderr).toContain(flag);
+      expect(http.requests).toEqual([]);
+    },
+  );
+
   it("uploads the local files as a namespace-keyed import commit", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", { greeting: "Hello" });

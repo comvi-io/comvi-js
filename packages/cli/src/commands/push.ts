@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { ConfigLoader } from "../core/ConfigLoader";
+import { timeoutsFromEnv } from "../core/timeouts";
 import { ApiClient, type PushProgress } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
@@ -34,6 +35,7 @@ export function createPushCommand(): Command {
         const apiClient = new ApiClient({
           apiKey: config.apiKey,
           apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
+          ...timeoutsFromEnv(),
         });
 
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
@@ -44,8 +46,8 @@ export function createPushCommand(): Command {
         });
 
         // Resolve filters: CLI flag > config > all (no merge).
-        const locs = resolveFilter(parseListFlag(options.locale), config.locales);
-        const nss = resolveFilter(parseListFlag(options.ns), config.namespaces);
+        const locs = resolveFilter(parseListFlag(options.locale, "--locale"), config.locales);
+        const nss = resolveFilter(parseListFlag(options.ns, "--ns"), config.namespaces);
         const locales = locs.value;
         const namespaces = nss.value;
 
