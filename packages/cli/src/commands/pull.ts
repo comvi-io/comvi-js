@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { timeoutsFromEnv } from "../core/timeouts";
 import { ApiClient } from "../core/ApiClient";
-import { TranslationSync } from "../core/TranslationSync";
+import { TranslationSync, type PullFileDiff } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
 import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import {
@@ -104,13 +104,21 @@ export function createPullCommand(): Command {
               console.log(`  ${file}`);
             }
           }
-          const preview = sync.previewTranslations(translations, { defaultNamespace });
-          console.log(`\n✓ [dry-run] Would write ${preview.files.length} files:`);
-          for (const file of preview.files) {
-            console.log(`  ${file}`);
+          const diffs = await sync.diffPull(translations, { defaultNamespace });
+          console.log(`\n✓ [dry-run] Would write ${diffs.length} files:`);
+          for (const diff of diffs) {
+            console.log(`  ${diff.filePath} (${describeFileDiff(diff)})`);
+            for (const key of diff.removed.slice(0, LISTED_KEYS)) {
+              console.log(`    − ${key}`);
+            }
+            if (diff.removed.length > LISTED_KEYS) {
+              console.log(`    … and ${diff.removed.length - LISTED_KEYS} more`);
+            }
           }
           process.exit(0);
         }
+
+        warnAboutDroppedKeys(await sync.diffPull(translations, { defaultNamespace }));
 
         let result;
         if (emptyDir) {
@@ -143,4 +151,48 @@ export function createPullCommand(): Command {
         process.exit(1);
       }
     });
+}
+
+const LISTED_KEYS = 10;
+
+function describeFileDiff(diff: PullFileDiff): string {
+  switch (diff.status) {
+    case "new":
+      return `new, ${diff.added.length} ${diff.added.length === 1 ? "key" : "keys"}`;
+    case "unreadable":
+      return "replaces an unreadable file";
+    case "unchanged":
+      return "unchanged";
+  }
+  const counts = [
+    diff.added.length > 0 ? `+${diff.added.length}` : "",
+    diff.changed.length > 0 ? `~${diff.changed.length}` : "",
+    diff.removed.length > 0 ? `−${diff.removed.length}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const nested = diff.nested ? "nested keys written flat" : "";
+  return [counts, nested].filter(Boolean).join(", ");
+}
+
+/** A pull replaces files wholesale: say which local-only keys it is about to drop. */
+function warnAboutDroppedKeys(diffs: PullFileDiff[]): void {
+  const dropping = diffs.filter((diff) => diff.removed.length > 0);
+  const total = dropping.reduce((sum, diff) => sum + diff.removed.length, 0);
+  if (total === 0) return;
+
+  let budget = LISTED_KEYS;
+  const listed = dropping
+    .filter(() => budget > 0)
+    .map((diff) => {
+      const keys = diff.removed.slice(0, budget);
+      budget -= keys.length;
+      return `${diff.filePath}: ${keys.join(", ")}`;
+    });
+  const more = total > LISTED_KEYS ? `; … and ${total - LISTED_KEYS} more` : "";
+  console.error(
+    `⚠  Pull removes ${total} local ${total === 1 ? "key" : "keys"} the platform does not have: ` +
+      `${listed.join("; ")}${more}. Run comvi push first to keep them; ` +
+      "pull --dry-run lists them all.",
+  );
 }

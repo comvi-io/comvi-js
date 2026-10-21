@@ -42,6 +42,18 @@ interface PlannedWrite {
   catalog: Record<string, string>;
 }
 
+/** What a pull would do to one file, key by key. */
+export interface PullFileDiff {
+  filePath: string;
+  status: "new" | "changed" | "unchanged" | "unreadable";
+  added: string[];
+  changed: string[];
+  /** Keys in the local file the platform does not have: the pull drops them. */
+  removed: string[];
+  /** The local file nests keys that the pull writes flat. */
+  nested: boolean;
+}
+
 export interface LocalTranslations {
   translations: TranslationData;
   locales: string[];
@@ -181,6 +193,68 @@ export class TranslationSync {
     const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
 
     return { files: planned.map(({ filePath }) => filePath) };
+  }
+
+  /** Compare each file the response would write with the file on disk now. */
+  async diffPull(
+    data: TranslationsResponse,
+    options: WriteTranslationsOptions = {},
+  ): Promise<PullFileDiff[]> {
+    const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
+    const diffs: PullFileDiff[] = [];
+
+    for (const { filePath, catalog } of planned) {
+      const incoming = Object.keys(catalog);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await fs.readFile(filePath, "utf-8"));
+      } catch (error) {
+        const isNew = (error as NodeJS.ErrnoException).code === "ENOENT";
+        diffs.push({
+          filePath,
+          status: isNew ? "new" : "unreadable",
+          added: isNew ? incoming : [],
+          changed: [],
+          removed: [],
+          nested: false,
+        });
+        continue;
+      }
+
+      let local: Record<string, string>;
+      try {
+        if (!isPlainObject(parsed)) throw new Error("not an object");
+        local = flattenTranslationFile(parsed, filePath);
+      } catch {
+        diffs.push({
+          filePath,
+          status: "unreadable",
+          added: [],
+          changed: [],
+          removed: [],
+          nested: false,
+        });
+        continue;
+      }
+
+      const added = incoming.filter((key) => !hasOwnKey(local, key));
+      const changed = incoming.filter(
+        (key) => hasOwnKey(local, key) && local[key] !== catalog[key],
+      );
+      const removed = Object.keys(local).filter((key) => !hasOwnKey(catalog, key));
+      const nested = Object.values(parsed).some(isPlainObject);
+      const differs = added.length + changed.length + removed.length > 0 || nested;
+      diffs.push({
+        filePath,
+        status: differs ? "changed" : "unchanged",
+        added,
+        changed,
+        removed,
+        nested,
+      });
+    }
+
+    return diffs;
   }
 
   /**
