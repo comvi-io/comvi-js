@@ -378,6 +378,8 @@ export async function startProxy(target = API_URL): Promise<Proxy> {
       },
       (response) => {
         res.writeHead(response.statusCode ?? 502, response.headers);
+        // An SSE stream may send its headers long before its first event.
+        res.flushHeaders();
         response.pipe(res);
       },
     );

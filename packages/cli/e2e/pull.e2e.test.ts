@@ -81,6 +81,7 @@ describe("comvi pull with a language-restricted key", () => {
     const result = await runCli(["pull"], { cwd: ws.dir, apiKey: project.keys.restricted });
 
     expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(await ws.readJson("src/locales/en.json")).toEqual({ greeting: "Hello" });
     expect(await ws.readJson("src/locales/es.json")).toEqual({ greeting: "Hola" });
     expect(await exists(join(ws.dir, "src/locales/de.json"))).toBe(false);
   });

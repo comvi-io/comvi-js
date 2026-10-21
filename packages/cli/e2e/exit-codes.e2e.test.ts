@@ -3,7 +3,6 @@ import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
-  API_URL,
   createProject,
   createWorkspace,
   runCli,
@@ -109,10 +108,25 @@ describe("comvi init", () => {
   it("checks the key against COMVI_API_BASE_URL and writes it to the config", async () => {
     const ws = await workspace();
     await rm(join(ws.dir, ".comvirc.json"));
+    const init = () =>
+      runCli(["init"], {
+        cwd: ws.dir,
+        apiKey: project.keys.full,
+        env: { COMVI_API_BASE_URL: proxy.url },
+      });
 
-    const result = await runCli(["init"], { cwd: ws.dir, apiKey: project.keys.full });
+    // The check goes to that URL: with it down, init warns (and still writes
+    // the config, by design).
+    proxy.down();
+    const offline = await init();
+    expect(offline.stderr).toContain("API key validation failed");
+    expect(offline.stderr).toContain("502");
+    await rm(join(ws.dir, ".comvirc.json"));
 
+    proxy.up();
+    const result = await init();
     expect(result.code, result.stdout + result.stderr).toBe(0);
-    expect((await ws.readJson<{ apiBaseUrl: string }>(".comvirc.json")).apiBaseUrl).toBe(API_URL);
+    expect(result.stderr).not.toContain("validation failed");
+    expect((await ws.readJson<{ apiBaseUrl: string }>(".comvirc.json")).apiBaseUrl).toBe(proxy.url);
   });
 });

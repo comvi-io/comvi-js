@@ -206,6 +206,7 @@ describe("comvi push", () => {
     expect(result.stdout).toContain("Keys created: 5000");
     const pushed = await remote(ns);
     expect(Object.keys(pushed.en ?? {})).toHaveLength(5000);
+    expect(Object.keys(pushed.de ?? {})).toHaveLength(5000);
     expect(pushed.de?.k4999).toBe("Value 4999 de");
   });
 });
