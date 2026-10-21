@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { performance } from "node:perf_hooks";
 import { CatalogCheck } from "../../src/core/CatalogCheck";
 
 /**
@@ -28,14 +27,21 @@ describe("check performance", () => {
       translations[locale] = { default: catalog };
     }
 
-    const start = performance.now();
-    const report = CatalogCheck.run({
-      translations,
-      source: "en",
-      targets: locales.slice(1),
-      namespaces: ["default"],
-    });
-    const elapsed = performance.now() - start;
+    const run = () =>
+      CatalogCheck.run({
+        translations,
+        source: "en",
+        targets: locales.slice(1),
+        namespaces: ["default"],
+      });
+    // CPU time, not wall time: under turbo's parallel test tasks the wall
+    // clock measures the other processes too (742 ms observed for a run that
+    // takes ~50 ms alone). The first run is the timed one — a cold JIT is what
+    // a CLI invocation gets.
+    const start = process.cpuUsage();
+    const report = run();
+    const used = process.cpuUsage(start);
+    const elapsed = (used.user + used.system) / 1000;
 
     expect(report.keys).toBe(2000);
     expect(report.summary.missing).toBe(1800);
