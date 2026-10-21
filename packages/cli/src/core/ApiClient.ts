@@ -84,7 +84,10 @@ interface BulkImportResponse {
     keysDeleted: number;
     translationsCreated: number;
     translationsUpdated: number;
+    /** Absent on platforms that predate per-value counts. */
+    translationsSkipped?: number;
     namespacesCreated: string[];
+    skippedLocales?: string[];
   };
   errors?: Array<{ key: string; namespace: string; message: string }>;
 }
@@ -96,6 +99,8 @@ interface RequestJsonOptions {
   failure: string;
   /** Message for a 403; without it a 403 reports like any other failure. */
   forbidden?: string;
+  /** Appended to a 403: which command needs which API key scope. */
+  scopeHint?: string;
   /** Overrides the client's read timeout for this request. */
   timeoutMs?: number;
 }
@@ -112,23 +117,52 @@ const ERROR_MESSAGE_LIMIT_CHARS = 500;
  * read — under the caller's request timer — and appended to the status line.
  * A body that is not that JSON shape falls back to the status line alone.
  */
-async function httpError(response: Response, opts: RequestJsonOptions): Promise<TypegenError> {
+async function httpError(
+  response: Response,
+  opts: RequestJsonOptions,
+  signal: AbortSignal,
+): Promise<TypegenError> {
   if (response.status === 401) {
     await discardBody(response);
     return new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
   }
+
+  const body = parseErrorBody(await readBoundedText(response, signal).catch(() => ""));
+  const details: Record<string, unknown> = { status: response.status, ...body };
+
+  // The platform says why: a missing scope, a plan limit, read-only billing.
   if (response.status === 403 && opts.forbidden) {
-    await discardBody(response);
-    return new TypegenError(opts.forbidden, ErrorCodes.API_AUTH_FAILED);
+    const reason = body.message
+      ? `: ${body.message}${body.code ? ` (${body.code})` : ""}`
+      : body.code
+        ? ` (${body.code})`
+        : "";
+    const sentence = `${opts.forbidden}${reason}`;
+    const stop = /[.!?…]$/u.test(sentence) ? "" : ".";
+    const hint = opts.scopeHint ? ` ${opts.scopeHint}` : "";
+    return new TypegenError(
+      `${sentence}${stop}${hint}`,
+      ErrorCodes.API_AUTH_FAILED,
+      undefined,
+      details,
+    );
   }
 
-  const body = parseErrorBody(await readBoundedText(response));
-  const details: Record<string, unknown> = { status: response.status, ...body };
-  const statusLine = `${opts.failure}: ${response.status} ${response.statusText}`;
+  const statusText = response.statusText ? ` ${response.statusText}` : "";
+  const statusLine = `${opts.failure}: ${response.status}${statusText}`;
+  const field = fieldOf(body.meta);
   const message = body.message
     ? `${statusLine}${body.code ? ` (${body.code})` : ""}: ${body.message}`
-    : statusLine;
+    : body.code
+      ? `${statusLine} (${body.code}${field ? `: ${field}` : ""})`
+      : statusLine;
   return new TypegenError(message, ErrorCodes.API_FETCH_FAILED, undefined, details);
+}
+
+/** The `field` a platform validation error names, when it names one. */
+function fieldOf(meta: unknown): string | undefined {
+  if (typeof meta !== "object" || meta === null) return undefined;
+  return oneLine((meta as Record<string, unknown>).field);
 }
 
 /**
@@ -144,26 +178,37 @@ async function discardBody(response: Response): Promise<void> {
   }
 }
 
-async function readBoundedText(response: Response): Promise<string> {
+async function readBoundedText(response: Response, signal?: AbortSignal): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) {
     return typeof response.text === "function"
       ? (await response.text()).slice(0, ERROR_BODY_LIMIT_BYTES)
       : "";
   }
+  // The request timer still runs: a body that stalls is cut when it fires.
+  // Cancelling resolves the pending read; the cancel itself is never awaited,
+  // so a transport that never confirms it cannot hold the command.
+  const cancel = () => void reader.cancel().catch(() => undefined);
+  if (signal?.aborted) cancel();
+  signal?.addEventListener("abort", cancel, { once: true });
 
   const chunks: Uint8Array[] = [];
   let size = 0;
-  while (size < ERROR_BODY_LIMIT_BYTES) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
+  try {
+    while (size < ERROR_BODY_LIMIT_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      const kept = value.subarray(0, ERROR_BODY_LIMIT_BYTES - size);
+      chunks.push(kept);
+      size += kept.byteLength;
     }
-    chunks.push(value);
-    size += value.byteLength;
-  }
-  if (size >= ERROR_BODY_LIMIT_BYTES) {
-    await reader.cancel().catch(() => undefined);
+    if (size >= ERROR_BODY_LIMIT_BYTES) {
+      cancel();
+    }
+  } finally {
+    signal?.removeEventListener("abort", cancel);
   }
 
   const bytes = new Uint8Array(size);
@@ -334,7 +379,7 @@ export class ApiClient {
 
           const retryable = retryTransient && (response.status === 429 || response.status >= 500);
           if (!(retryable && attempt < MAX_RETRIES)) {
-            throw await httpError(response, opts);
+            throw await httpError(response, opts, controller.signal);
           }
           retryAfterMs = retryDelayMs(response, attempt + 1);
           await discardBody(response);
@@ -397,7 +442,11 @@ export class ApiClient {
       return await this.requestJson<ProjectSchema>(
         url,
         { method: "GET", headers: this.authHeaders() },
-        { failure: "Failed to fetch schema", forbidden: "Access denied to this project" },
+        {
+          failure: "Failed to fetch schema",
+          forbidden: "Access denied to this project",
+          scopeHint: "comvi typegen needs an API key with the schema:read scope.",
+        },
       );
     } catch (error) {
       if (error instanceof TypegenError) {
@@ -435,7 +484,11 @@ export class ApiClient {
       const body = await this.requestJson<ApiTranslationsResponse>(
         url,
         { method: "GET", headers: this.authHeaders() },
-        { failure: "Failed to fetch translations", forbidden: "Access denied to this project" },
+        {
+          failure: "Failed to fetch translations",
+          forbidden: "Access denied to this project",
+          scopeHint: "Reading translations needs an API key with the translations:read scope.",
+        },
       );
       return normalizeTranslationsResponse(body);
     } catch (error) {
@@ -523,8 +576,11 @@ export class ApiClient {
 
     const result: PushResult = {
       created: 0,
+      valuesCreated: 0,
       updated: 0,
       skipped: 0,
+      skippedLocales: [],
+      detailed: false,
     };
     const conflictCount = remote ? countConflicts(options.translations, remote.translations) : 0;
 
@@ -557,6 +613,7 @@ export class ApiClient {
           retryTransient: false,
           failure: "Failed to push translations",
           forbidden: "Access denied to this project",
+          scopeHint: "comvi push needs an API key with the translations:write scope.",
           timeoutMs: this.commitTimeout,
         },
       );
@@ -570,9 +627,20 @@ export class ApiClient {
         );
       }
 
-      result.created = body.stats.keysCreated;
-      result.updated = body.stats.translationsUpdated;
-      result.skipped = options.forceMode === "keep" ? conflictCount : 0;
+      // A platform without translationsSkipped reported skipped conflicts as
+      // translationsUpdated and updates as created: only the key count holds.
+      const stats = body.stats;
+      const detailed = typeof stats.translationsSkipped === "number";
+      result.created = stats.keysCreated;
+      result.valuesCreated = detailed ? stats.translationsCreated : 0;
+      result.updated = detailed ? stats.translationsUpdated : 0;
+      result.skipped = detailed
+        ? (stats.translationsSkipped ?? 0)
+        : options.forceMode === "keep"
+          ? conflictCount
+          : 0;
+      result.skippedLocales = detailed ? (stats.skippedLocales ?? []) : [];
+      result.detailed = detailed;
 
       options.onProgress?.({
         total,
