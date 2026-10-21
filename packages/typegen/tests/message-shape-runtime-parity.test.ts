@@ -94,6 +94,18 @@ const MESSAGES = [
   // skips by `charCodeAt <= 32` (a NUL) and trims (a no-break space).
   "{n, plural, other {x}\u0000}",
   "{n, plural, other {x}\u00a0}",
+
+  // Explicit values: core accepts only `^-?\d+(\.\d+)?$` and refuses the
+  // whole key otherwise.
+  "{n, plural, =x {a} other {b}}",
+  "{n, plural, =Infinity {a} other {b}}",
+  "{n, plural, =0x10 {a} other {b}}",
+  "{n, plural, =1e3 {a} other {b}}",
+  "{n, plural, =.5 {a} other {b}}",
+  "{n, plural, =+1 {a} other {b}}",
+  "{n, selectordinal, =1e3 {a} other {b}}",
+  "Hi {name}, {n, plural, =x {a} other {b}}",
+  "{n, plural, =-1 {a} =1.5 {b} =01 {c} other {d}}",
 ] as const;
 
 /**

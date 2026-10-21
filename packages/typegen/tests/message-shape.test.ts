@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { scanMessageShape, type MessageShape } from "../src/index";
+import fs from "node:fs";
+import { scanMessageShape, type MessageShape, type PluralGroup } from "../src/index";
+
+/** A shape without its per-occurrence groups, which the "plural groups" block pins. */
+type Merged = Omit<MessageShape, "pluralGroups">;
 
 /**
  * The full shape a row expects: every field not named is empty, and
  * `unsupported` is absent unless named. Compared with `toStrictEqual` on a
  * plain copy, so a shape that carries `unsupported: undefined` fails too.
  */
-function shape(expected: Partial<MessageShape>): MessageShape {
+function shape(expected: Partial<Merged>): Merged {
   return {
     params: [],
     plurals: {},
@@ -18,8 +22,8 @@ function shape(expected: Partial<MessageShape>): MessageShape {
   };
 }
 
-function scan(value: string): MessageShape {
-  const result = scanMessageShape(value);
+function scan(value: string): Merged {
+  const { pluralGroups: _groups, ...result } = scanMessageShape(value);
   return {
     ...result,
     plurals: { ...result.plurals },
@@ -228,9 +232,9 @@ describe("scanMessageShape", () => {
         expected: shape({ params: [num("n")], plurals: { n: ["x5", "other"] } }),
       },
       {
-        form: "an explicit value that is no number as written",
-        value: "{n, plural, =x {a} other {b}}",
-        expected: shape({ params: [num("n")], plurals: { n: ["=x", "other"] } }),
+        form: "a select's = selector that is no number as written",
+        value: "{g, select, =x {a} other {b}}",
+        expected: shape({ params: [str("g")], selects: { g: ["=x", "other"] } }),
       },
       {
         form: "the union of every use of one argument, each selector once",
@@ -431,6 +435,97 @@ describe("scanMessageShape", () => {
       },
     ])("reads $form", ({ value, expected }) => {
       expect(scan(value)).toStrictEqual(expected);
+    });
+  });
+
+  /**
+   * Core's ICU compiler accepts an explicit value only in the grammar
+   * `^-?\d+(\.\d+)?$` (`EXACT_VALUE`) and refuses the whole argument
+   * otherwise, so the scan reports it as unsupported, under its type.
+   */
+  describe("explicit values core refuses", () => {
+    it.each([
+      { value: "{n, plural, =x {a} other {b}}", type: "plural" },
+      { value: "{n, plural, =Infinity {a} other {b}}", type: "plural" },
+      { value: "{n, plural, =0x10 {a} other {b}}", type: "plural" },
+      { value: "{n, plural, =1e3 {a} other {b}}", type: "plural" },
+      { value: "{n, plural, =.5 {a} other {b}}", type: "plural" },
+      { value: "{n, plural, =+1 {a} other {b}}", type: "plural" },
+      { value: "{n, plural, = {a} other {b}}", type: "plural" },
+      { value: "{n, plural, =1. {a} other {b}}", type: "plural" },
+      { value: "{n, selectordinal, =1e3 {a} other {b}}", type: "selectordinal" },
+      { value: "Hi {name}, {n, plural, one {a} =x {b} other {c}}", type: "plural" },
+    ])("refuses $value", ({ value, type }) => {
+      const params = value.startsWith("Hi") ? [str("name")] : [];
+      expect(scan(value)).toStrictEqual(shape({ params, unsupported: type }));
+    });
+
+    it.each(["=-1", "=1.5", "=01", "=-0.25"])("accepts %s", (selector) => {
+      const result = scanMessageShape(`{n, plural, ${selector} {a} other {b}}`);
+
+      expect(result.unsupported).toBeUndefined();
+      expect(result.params).toEqual([num("n")]);
+    });
+  });
+
+  /**
+   * One entry per plural or selectordinal argument as written, in the order
+   * the scan meets them — an argument before the ones in its branches — so a
+   * check can see a group that lacks `other` even when another group of the
+   * same name has it.
+   */
+  describe("plural groups", () => {
+    const group = (name: string, selectors: string[], ordinal = false): PluralGroup => ({
+      name,
+      ordinal,
+      selectors,
+    });
+
+    it.each([
+      { form: "no plural", value: "Hi {name} {g, select, a {x} other {y}}", groups: [] },
+      {
+        form: "one group",
+        value: "{n, plural, one {a} other {b}}",
+        groups: [group("n", ["one", "other"])],
+      },
+      {
+        form: "two groups of one name, the second without other",
+        value: "{n, plural, one {A} other {B}} / {n, plural, one {C}}",
+        groups: [group("n", ["one", "other"]), group("n", ["one"])],
+      },
+      {
+        form: "an ordinal group",
+        value: "{p, selectordinal, one {#st} two {#nd} other {#th}}",
+        groups: [group("p", ["one", "two", "other"], true)],
+      },
+      {
+        form: "a group before the groups in its branches",
+        value:
+          "{n, plural, one {{m, plural, other {x}}} other {{k, selectordinal, other {y}}}} {z, plural, other {w}}",
+        groups: [
+          group("n", ["one", "other"]),
+          group("m", ["other"]),
+          group("k", ["other"], true),
+          group("z", ["other"]),
+        ],
+      },
+      {
+        form: "a group inside a select branch",
+        value: "{g, select, a {{n, plural, few {x}}} other {y}}",
+        groups: [group("n", ["few"])],
+      },
+      {
+        form: "explicit values spelled as core matches them, each once",
+        value: "{n, plural, =01 {a} =1.0 {b} one {c} one {d} other {e}}",
+        groups: [group("n", ["=1", "one", "other"])],
+      },
+      {
+        form: "no group for a refused argument",
+        value: "{n, plural, =x {a} other {b}} {m, plural, other {c}}",
+        groups: [group("m", ["other"])],
+      },
+    ])("lists $form", ({ value, groups }) => {
+      expect(scanMessageShape(value).pluralGroups).toStrictEqual(groups);
     });
   });
 
@@ -718,6 +813,37 @@ describe("scanMessageShape", () => {
       },
     ])("reads $form", ({ value, expected }) => {
       expect(scan(value)).toStrictEqual(expected);
+    });
+  });
+
+  describe("plural groups against the merged records", () => {
+    it("merge into exactly plurals and ordinals for every row's message", () => {
+      // Every `value: "…"` row of this file, read from its source so the
+      // test stands alone when a runner picks it out by name.
+      const source = fs.readFileSync(new URL(import.meta.url), "utf8");
+      const values = [...source.matchAll(/value:\s*("(?:[^"\\]|\\.)*")/g)].map(
+        (m) => JSON.parse(m[1]) as string,
+      );
+      const mismatches: string[] = [];
+      for (const value of new Set(values)) {
+        const result = scanMessageShape(value);
+        for (const [ordinal, record] of [
+          [false, result.plurals],
+          [true, result.ordinals],
+        ] as const) {
+          const merged = Object.create(null) as Record<string, string[]>;
+          for (const g of result.pluralGroups.filter((g) => g.ordinal === ordinal)) {
+            const list = (merged[g.name] ??= []);
+            for (const selector of g.selectors) if (!list.includes(selector)) list.push(selector);
+          }
+          if (JSON.stringify(merged) !== JSON.stringify({ ...record })) {
+            mismatches.push(`${JSON.stringify(value)} ${ordinal ? "ordinals" : "plurals"}`);
+          }
+        }
+      }
+
+      expect(values.length).toBeGreaterThan(100);
+      expect(mismatches).toEqual([]);
     });
   });
 });

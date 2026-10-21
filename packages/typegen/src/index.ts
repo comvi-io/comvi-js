@@ -185,6 +185,7 @@ export {
   scanMessageShape,
   type MessageArguments,
   type MessageShape,
+  type PluralGroup,
 } from "./message-shape";
 
 export interface EmitOptions {

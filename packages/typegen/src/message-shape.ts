@@ -35,16 +35,36 @@ import type { SchemaParam } from "./index";
  * an ordinal's explicit values are spelled as core matches them — `=01` and
  * `=1.0` are `"=1"` — and a select's are kept as written.
  */
+/** One `plural` or `selectordinal` argument as written. */
+export interface PluralGroup {
+  name: string;
+  /** `selectordinal`: `Intl.PluralRules` type `"ordinal"`. */
+  ordinal: boolean;
+  /** Its selectors, each once, in the order first written, explicit values spelled as core matches them. */
+  selectors: string[];
+}
+
 export interface MessageArguments {
   /** First-seen order; a name used twice keeps the type of its first use. */
   params: SchemaParam[];
+  /**
+   * Every plural and selectordinal argument, one entry per occurrence, in the
+   * order the scan meets them (an argument before the ones in its branches).
+   * Unlike the merged `plurals`/`ordinals`, a second `{n, plural, …}` that
+   * lacks `other` shows up here although the first has it.
+   */
+  pluralGroups: PluralGroup[];
   /** `plural` argument → its selectors (`"one"`, `"other"`, `"=0"`): `Intl.PluralRules` type `"cardinal"`. */
   plurals: Record<string, string[]>;
   /** `selectordinal` argument → its selectors: `Intl.PluralRules` type `"ordinal"`. */
   ordinals: Record<string, string[]>;
   /** `select` argument → its selectors. */
   selects: Record<string, string[]>;
-  /** The first argument type core does not implement, when there is one. */
+  /**
+   * The first argument core refuses, by its type: a type core does not
+   * implement, a choice list that does not parse, or a plural explicit value
+   * outside core's grammar (`=x`, `=1e3`, `=.5`, `=+1`, `=Infinity`).
+   */
   unsupported?: string;
 }
 
@@ -286,6 +306,15 @@ function readArgument(content: string, hashIsSyntax: boolean): Argument {
       isPlural ? true : hashIsSyntax,
     );
     if (choices === undefined) return { kind: "unsupported", type };
+    // Core's ICU compiler refuses the whole argument for an explicit value
+    // outside `EXACT_VALUE` (`canonicalizeExactSelectors`); a select's
+    // selectors are plain keys and never checked.
+    if (
+      isPlural &&
+      choices.some(({ selector }) => selector[0] === "=" && !EXACT_VALUE.test(selector.slice(1)))
+    ) {
+      return { kind: "unsupported", type };
+    }
     return isPlural
       ? { kind: "plural", name, ordinal: type === "selectordinal", choices }
       : { kind: "select", name, choices };
@@ -300,6 +329,7 @@ interface MessageScan {
   plurals: Record<string, string[]>;
   ordinals: Record<string, string[]>;
   selects: Record<string, string[]>;
+  pluralGroups: PluralGroup[];
   unsupported?: string;
 }
 
@@ -307,26 +337,28 @@ interface MessageScan {
 const EXACT_VALUE = /^-?\d+(\.\d+)?$/;
 
 /**
- * A selector as core matches it. With `exact` (a plural or ordinal), `=N` is
- * spelled `"=" + Number(N)`; one that is no number stays as written.
+ * A selector as core matches it. With `exact` (a plural or ordinal, whose
+ * explicit values readArgument has already checked), `=N` is spelled
+ * `"=" + Number(N)`.
  */
 function spellSelector(selector: string, exact: boolean): string {
-  const value = selector.slice(1);
-  return exact && selector[0] === "=" && EXACT_VALUE.test(value) ? `=${Number(value)}` : selector;
+  return exact && selector[0] === "=" ? `=${Number(selector.slice(1))}` : selector;
 }
 
-/** Adds each choice's selector to `name`'s list in `record`, once, in the order first written. */
-function addSelectors(
-  record: Record<string, string[]>,
-  name: string,
-  choices: Choice[],
-  exact: boolean,
-): void {
-  const list = (record[name] ??= []);
+/** The choices' selectors as core matches them, each once, in the order first written. */
+function selectorsOf(choices: Choice[], exact: boolean): string[] {
+  const list: string[] = [];
   for (const { selector } of choices) {
     const spelled = spellSelector(selector, exact);
     if (!list.includes(spelled)) list.push(spelled);
   }
+  return list;
+}
+
+/** Merges `selectors` into `name`'s list in `record`, each once, in the order first written. */
+function addSelectors(record: Record<string, string[]>, name: string, selectors: string[]): void {
+  const list = (record[name] ??= []);
+  for (const selector of selectors) if (!list.includes(selector)) list.push(selector);
 }
 
 /**
@@ -374,14 +406,11 @@ function scanMessage(value: string, scan: MessageScan, hashIsSyntax: boolean): v
     if (argument.kind === "param") continue;
 
     if (argument.kind === "plural") {
-      addSelectors(
-        argument.ordinal ? scan.ordinals : scan.plurals,
-        argument.name,
-        argument.choices,
-        true,
-      );
+      const selectors = selectorsOf(argument.choices, true);
+      scan.pluralGroups.push({ name: argument.name, ordinal: argument.ordinal, selectors });
+      addSelectors(argument.ordinal ? scan.ordinals : scan.plurals, argument.name, selectors);
     } else {
-      addSelectors(scan.selects, argument.name, argument.choices, false);
+      addSelectors(scan.selects, argument.name, selectorsOf(argument.choices, false));
     }
 
     for (const { body } of argument.choices) {
@@ -630,6 +659,7 @@ export function scanMessageArguments(value: string): MessageArguments {
     plurals: Object.create(null) as Record<string, string[]>,
     ordinals: Object.create(null) as Record<string, string[]>,
     selects: Object.create(null) as Record<string, string[]>,
+    pluralGroups: [],
   };
   // A whole message starts outside any plural, so `#` is literal text here.
   scanMessage(value, scan, false);
@@ -639,6 +669,7 @@ export function scanMessageArguments(value: string): MessageArguments {
     plurals: scan.plurals,
     ordinals: scan.ordinals,
     selects: scan.selects,
+    pluralGroups: scan.pluralGroups,
   };
   if (scan.unsupported !== undefined) result.unsupported = scan.unsupported;
   return result;
