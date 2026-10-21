@@ -193,6 +193,7 @@ describe("translationService", () => {
       { en: { enabled: true, variable: "formality", options: ["formal", "informal"] } },
     );
 
+    if (!result) throw new Error("expected the save to send a request");
     expect(result.isPlural).toBe(true);
     expect(result.pluralVariable).toBe("count");
     expect(result.selectConfigs).toEqual({
