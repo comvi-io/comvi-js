@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { ConfigLoader } from "../core/ConfigLoader";
-import { ApiClient, type PushProgress } from "../core/ApiClient";
+import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
 import type { ForceMode } from "../types";
@@ -94,9 +94,8 @@ export function createPushCommand(): Command {
             remoteTranslations.translations,
           );
 
-          console.log(`  ✅ Created: ${diff.created} keys`);
-          console.log(`  📝 Updated: ${diff.updated} translations`);
-          console.log(`  ⚠️  Conflicts: ${diff.conflicts} keys`);
+          console.log(`  ✅ New values: ${diff.created}`);
+          console.log(`  ⚠️  Changed values: ${diff.conflicts} (they conflict with the platform)`);
 
           if (diff.conflicts > 0) {
             console.log(`\n  Run with --force-mode override to overwrite remote values.`);
@@ -129,14 +128,23 @@ export function createPushCommand(): Command {
           translations: localTranslations.translations,
           forceMode: apiForceMode,
           preloadedRemote,
-          onProgress: reportPushProgress,
         });
 
         console.log(`\n✓ Push complete!`);
-        console.log(`  Created: ${result.created} keys`);
-        console.log(`  Updated: ${result.updated} translations`);
-        if (result.skipped > 0) {
-          console.log(`  Skipped: ${result.skipped} (conflicts with keep mode)`);
+        console.log(`  Keys created: ${result.created}`);
+        if (result.detailed) {
+          console.log(
+            `  Values: ${result.valuesCreated} new, ${result.updated} changed, ` +
+              `${result.skipped} kept on the platform`,
+          );
+        } else if (result.skipped > 0) {
+          console.log(`  Kept on the platform: ${result.skipped} conflicting values`);
+        }
+        if (result.skippedLocales.length > 0) {
+          console.error(
+            `⚠  Not imported: ${result.skippedLocales.join(", ")} — ` +
+              "not a project locale, or this API key may not write it.",
+          );
         }
 
         process.exit(0);
@@ -153,22 +161,6 @@ export function createPushCommand(): Command {
         process.exit(1);
       }
     });
-}
-
-/**
- * `pushTranslations` reports once, after the single bulk commit, so this prints
- * one summary line per push — and stays silent for a push that carries no
- * translation values.
- */
-function reportPushProgress(progress: PushProgress): void {
-  if (progress.total === 0) {
-    return;
-  }
-
-  console.log(
-    `  Progress: ${progress.completed}/${progress.total} ` +
-      `(created: ${progress.created}, updated: ${progress.updated}, skipped: ${progress.skipped})`,
-  );
 }
 
 async function promptConflictResolution(conflictCount: number): Promise<ApiPushForceMode> {

@@ -511,7 +511,7 @@ describe("ApiClient hardening", () => {
           forceMode: "override",
         }),
       ).rejects.toMatchObject({
-        message: "Access denied to this project",
+        message: expect.stringContaining("Access denied to this project"),
         code: ErrorCodes.API_AUTH_FAILED,
       });
     });
@@ -584,7 +584,7 @@ describe("ApiClient hardening", () => {
         forceMode: "abort",
       });
 
-      expect(result).toEqual({ created: 0, updated: 0, skipped: 0 });
+      expect(result).toMatchObject({ created: 0, updated: 0, skipped: 0 });
       expect(jsonBodyOfCall(3).options.conflictResolution).toBe("fail");
     });
 
@@ -605,7 +605,7 @@ describe("ApiClient hardening", () => {
         },
       });
 
-      expect(result).toEqual({ created: 1, updated: 0, skipped: 0 });
+      expect(result).toMatchObject({ created: 1, updated: 0, skipped: 0 });
       expect(fetchMock).toHaveBeenCalledTimes(2); // the preloaded remote spares a second fetch
     });
 
@@ -622,7 +622,7 @@ describe("ApiClient hardening", () => {
           translations: { en: { common: { greeting: "Hello" } } },
           forceMode: "abort",
         }),
-      ).resolves.toEqual({ created: 0, updated: 0, skipped: 0 });
+      ).resolves.toMatchObject({ created: 0, updated: 0, skipped: 0 });
     });
 
     it("sees no conflict when the remote lacks the namespace", async () => {
@@ -638,7 +638,7 @@ describe("ApiClient hardening", () => {
           translations: { en: { common: { greeting: "Hello" } } },
           forceMode: "abort",
         }),
-      ).resolves.toEqual({ created: 0, updated: 0, skipped: 0 });
+      ).resolves.toMatchObject({ created: 0, updated: 0, skipped: 0 });
     });
 
     it("sees no conflict when the remote lacks the key", async () => {
@@ -654,7 +654,7 @@ describe("ApiClient hardening", () => {
           translations: { en: { common: { greeting: "Hello" } } },
           forceMode: "abort",
         }),
-      ).resolves.toEqual({ created: 0, updated: 0, skipped: 0 });
+      ).resolves.toMatchObject({ created: 0, updated: 0, skipped: 0 });
     });
   });
 

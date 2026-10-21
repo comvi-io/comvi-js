@@ -575,7 +575,10 @@ describe("comvi pull", () => {
     const exitCode = await runPull(["-c", configPath]);
 
     expect(exitCode).toBe(1);
-    expect(output.error[0]).toBe("✗ Pull failed: Access denied to this project");
+    expect(output.error[0]).toBe(
+      "✗ Pull failed: Access denied to this project. " +
+        "comvi pull needs an API key with the translations:read scope.",
+    );
   });
 
   it("exits 1 when the config file does not exist", async () => {
