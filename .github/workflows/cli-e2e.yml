@@ -1,0 +1,98 @@
+name: CLI e2e
+
+# The real `comvi` binary against a real platform API (platform develop),
+# booted by the platform's own test-stack. Runs when the CLI or the emitter it
+# bundles changes, and nightly so a platform change that breaks the CLI is
+# caught the next morning.
+on:
+  pull_request:
+    paths:
+      - "packages/cli/**"
+      - "packages/typegen/**"
+      - "scripts/cli-e2e.mjs"
+      - ".github/workflows/cli-e2e.yml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "packages/cli/**"
+      - "packages/typegen/**"
+      - "scripts/cli-e2e.mjs"
+      - ".github/workflows/cli-e2e.yml"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      platform_ref:
+        description: "platform branch, tag or SHA"
+        default: develop
+
+concurrency:
+  group: cli-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cli-e2e:
+    name: CLI against the platform API
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # The platform repository is private. Fork PRs never receive secrets, and
+      # a repository without the token skips rather than fails.
+      - name: Check platform access
+        id: access
+        env:
+          PLATFORM_READ_TOKEN: ${{ secrets.PLATFORM_READ_TOKEN }}
+        run: |
+          if [ -z "$PLATFORM_READ_TOKEN" ]; then
+            echo "::notice::PLATFORM_READ_TOKEN is not available; skipping the CLI e2e suite."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.access.outputs.enabled == 'true'
+        uses: actions/checkout@v6
+
+      - name: Checkout platform
+        if: steps.access.outputs.enabled == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: comvi-io/platform
+          ref: ${{ inputs.platform_ref || 'develop' }}
+          token: ${{ secrets.PLATFORM_READ_TOKEN }}
+          path: .platform
+
+      - name: Setup pnpm
+        if: steps.access.outputs.enabled == 'true'
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        if: steps.access.outputs.enabled == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.access.outputs.enabled == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # The platform pins its own pnpm major; install it with that one.
+      - name: Install platform dependencies
+        if: steps.access.outputs.enabled == 'true'
+        working-directory: .platform
+        run: npx --yes "$(node -p "require('./package.json').packageManager")" install --frozen-lockfile
+
+      - name: Build the CLI
+        if: steps.access.outputs.enabled == 'true'
+        run: pnpm --filter "@comvi/cli..." build
+
+      - name: CLI e2e
+        if: steps.access.outputs.enabled == 'true'
+        env:
+          PLATFORM_DIR: .platform
+        run: node scripts/cli-e2e.mjs
