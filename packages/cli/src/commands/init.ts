@@ -3,8 +3,9 @@ import { Command } from "commander";
 import { promises as fs } from "fs";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
+import { timeoutsFromEnv, type Timeouts } from "../core/timeouts";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
-import { EXIT_VALIDATION, exitCodeFor } from "../utils/errors";
+import { EXIT_VALIDATION, exitCodeFor, isTypegenError } from "../utils/errors";
 import type { ComviConfig } from "../types";
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -32,6 +33,15 @@ export function createInitCommand(): Command {
       // written to the config anyway.
       if (!isHttpUrl(options.apiUrl)) {
         console.error(`✗ Invalid API base URL: ${options.apiUrl}`);
+        process.exit(EXIT_VALIDATION);
+      }
+
+      let timeouts: Timeouts;
+      try {
+        timeouts = timeoutsFromEnv();
+      } catch (error) {
+        if (!isTypegenError(error)) throw error;
+        console.error(`✗ ${error.message}`);
         process.exit(EXIT_VALIDATION);
       }
 
@@ -74,6 +84,7 @@ export function createInitCommand(): Command {
             const apiClient = new ApiClient({
               apiKey: apiKey,
               apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
+              ...timeouts,
             });
             const projectInfo = await apiClient.validateApiKey();
             console.log(`✓ API key valid for project: ${projectInfo.name}`);

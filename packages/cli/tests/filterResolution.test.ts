@@ -16,8 +16,12 @@ describe("parseListFlag", () => {
     ]);
   });
 
-  it.each(["", "   ", ", ,, "])("treats blank-only input %o as undefined (not [''])", (input) => {
-    expect(parseListFlag(input)).toBeUndefined();
+  // `--locale "$LOCALES"` with an unset CI variable must not mean "every locale":
+  // with --empty-dir that clears and rewrites the whole catalog.
+  it.each(["", "   ", ", ,, "])("refuses a flag given with no value, %o", (input) => {
+    const error = thrownBy(() => parseListFlag(input, "--locale"));
+    expect(error.code).toBe(ErrorCodes.VALIDATION_FAILED);
+    expect(error.message).toContain("--locale");
   });
 
   it("filters out blank items between real ones", () => {
