@@ -1,5 +1,5 @@
 /**
- * THE PARITY GUARD for `scanMessageShape`'s ICU reading, next to the scanner.
+ * THE PARITY GUARD for `scanMessageArguments`' ICU reading, next to the scanner.
  *
  * A copy of `@comvi/vite-plugin`'s `tests/extract-runtime-parity.test.ts`,
  * which stays where it is: this one drives the scanner directly, so mutation
@@ -20,7 +20,7 @@
 import { describe, expect, it } from "vitest";
 import { createI18n, type TranslationParams } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
-import { scanMessageShape } from "../src/index";
+import { scanMessageArguments } from "../src/index";
 
 /**
  * Every message form the scanner has an opinion about: the plain parameter,
@@ -89,6 +89,11 @@ const MESSAGES = [
   "{gender, select, male {'{x}'} other {they}}",
   "'#' {n}",
   "'{name} and {other}",
+
+  // Not in the vite-plugin copy: the gap after the last branch, which core
+  // skips by `charCodeAt <= 32` (a NUL) and trims (a no-break space).
+  "{n, plural, other {x}\u0000}",
+  "{n, plural, other {x}\u00a0}",
 ] as const;
 
 /**
@@ -160,11 +165,11 @@ function runtimeReading(template: string): { rejected: boolean; params: string[]
  * applies, which drops every parameter of a message core refuses.
  */
 function scannedParams(message: string): string[] {
-  const shape = scanMessageShape(message);
-  return shape.unsupported !== undefined ? [] : shape.params.map((param) => param.name);
+  const scan = scanMessageArguments(message);
+  return scan.unsupported !== undefined ? [] : scan.params.map((param) => param.name);
 }
 
-describe("scanMessageShape against @comvi/core's own reading", () => {
+describe("scanMessageArguments against @comvi/core's own reading", () => {
   it("names exactly the parameters the runtime consumes, for every message form", () => {
     const divergences: string[] = [];
 

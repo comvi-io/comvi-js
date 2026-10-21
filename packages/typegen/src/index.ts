@@ -180,7 +180,12 @@ export interface ProjectSchema {
   keys: Record<string, KeySchema>;
 }
 
-export { scanMessageShape, type MessageShape } from "./message-shape";
+export {
+  scanMessageArguments,
+  scanMessageShape,
+  type MessageArguments,
+  type MessageShape,
+} from "./message-shape";
 
 export interface EmitOptions {
   /** Make params required (true) or optional (false). @default true */

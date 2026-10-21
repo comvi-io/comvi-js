@@ -10,7 +10,7 @@ function shape(expected: Partial<MessageShape>): MessageShape {
   return {
     params: [],
     plurals: {},
-    ordinals: [],
+    ordinals: {},
     selects: {},
     tags: [],
     unbalancedTags: [],
@@ -20,7 +20,12 @@ function shape(expected: Partial<MessageShape>): MessageShape {
 
 function scan(value: string): MessageShape {
   const result = scanMessageShape(value);
-  return { ...result, plurals: { ...result.plurals }, selects: { ...result.selects } };
+  return {
+    ...result,
+    plurals: { ...result.plurals },
+    ordinals: { ...result.ordinals },
+    selects: { ...result.selects },
+  };
 }
 
 const str = (name: string) => ({ name, type: "string" as const });
@@ -43,8 +48,7 @@ describe("scanMessageShape", () => {
         value: "{place, selectordinal, other {#th}}",
         expected: shape({
           params: [num("place")],
-          plurals: { place: ["other"] },
-          ordinals: ["place"],
+          ordinals: { place: ["other"] },
         }),
       },
       { value: "{total, number}", expected: shape({ unsupported: "number" }) },
@@ -202,6 +206,33 @@ describe("scanMessageShape", () => {
         expected: shape({ params: [num("n")], plurals: { n: ["=0", "one", "other"] } }),
       },
       {
+        // Core matches `"=" + count`, so it rewrites each explicit value to
+        // the spelling of its number and the last of two equal ones wins.
+        form: "explicit values in the spelling of their number, each once",
+        value: "{n, plural, =01 {a} =1.0 {b} =-0 {c} =2.50 {d} other {e}}",
+        expected: shape({ params: [num("n")], plurals: { n: ["=1", "=0", "=2.5", "other"] } }),
+      },
+      {
+        form: "an ordinal's explicit values the same way",
+        value: "{p, selectordinal, =03 {a} other {b}}",
+        expected: shape({ params: [num("p")], ordinals: { p: ["=3", "other"] } }),
+      },
+      {
+        form: "a select's selectors as written, = and all",
+        value: "{g, select, =01 {a} other {b}}",
+        expected: shape({ params: [str("g")], selects: { g: ["=01", "other"] } }),
+      },
+      {
+        form: "a selector that only ends in a number as written",
+        value: "{n, plural, x5 {a} other {b}}",
+        expected: shape({ params: [num("n")], plurals: { n: ["x5", "other"] } }),
+      },
+      {
+        form: "an explicit value that is no number as written",
+        value: "{n, plural, =x {a} other {b}}",
+        expected: shape({ params: [num("n")], plurals: { n: ["=x", "other"] } }),
+      },
+      {
         form: "the union of every use of one argument, each selector once",
         value: "{n, plural, one {a} other {b}} {n, plural, =0 {z} other {c}}",
         expected: shape({ params: [num("n")], plurals: { n: ["one", "other", "=0"] } }),
@@ -226,17 +257,16 @@ describe("scanMessageShape", () => {
         value: "{p, selectordinal, one {#st} other {#th}} {p, selectordinal, other {#}}",
         expected: shape({
           params: [num("p")],
-          plurals: { p: ["one", "other"] },
-          ordinals: ["p"],
+          ordinals: { p: ["one", "other"] },
         }),
       },
       {
-        form: "a cardinal plural as no ordinal",
+        form: "cardinal and ordinal selectors apart",
         value: "{a, selectordinal, other {#}} {b, plural, other {#}}",
         expected: shape({
           params: [num("a"), num("b")],
-          plurals: { a: ["other"], b: ["other"] },
-          ordinals: ["a"],
+          plurals: { b: ["other"] },
+          ordinals: { a: ["other"] },
         }),
       },
       {
@@ -272,9 +302,12 @@ describe("scanMessageShape", () => {
     });
 
     it("keeps argument names in null-prototype records", () => {
-      const result = scanMessageShape("{n, plural, other {#}} {g, select, a {x} other {y}}");
+      const result = scanMessageShape(
+        "{n, plural, other {#}} {p, selectordinal, other {#}} {g, select, a {x} other {y}}",
+      );
 
       expect(Object.getPrototypeOf(result.plurals)).toBeNull();
+      expect(Object.getPrototypeOf(result.ordinals)).toBeNull();
       expect(Object.getPrototypeOf(result.selects)).toBeNull();
     });
   });
@@ -374,6 +407,19 @@ describe("scanMessageShape", () => {
         expected: shape({ params: [str("a {b, c}")], selects: { "a {b, c}": ["x", "other"] } }),
       },
       {
+        // The choice list is trimmed with `String.prototype.trim`, and the
+        // gaps between branches are skipped by `charCodeAt <= 32`: a NUL is
+        // only the second, a no-break space only the first. Core does both.
+        form: "a NUL after the last branch as a gap",
+        value: "{n, plural, other {x}\u0000}",
+        expected: shape({ params: [num("n")], plurals: { n: ["other"] } }),
+      },
+      {
+        form: "a no-break space after the last branch as trimmed",
+        value: "{n, plural, other {x}\u00a0}",
+        expected: shape({ params: [num("n")], plurals: { n: ["other"] } }),
+      },
+      {
         form: "a choice list whose selector swallows a quoted brace",
         value: "{g, select, '{'}",
         expected: shape({ unsupported: "select" }),
@@ -434,7 +480,7 @@ describe("scanMessageShape", () => {
       {
         form: "an open with no close",
         value: "<b>open",
-        expected: shape({ tags: ["b"], unbalancedTags: ["b"] }),
+        expected: shape({ unbalancedTags: ["b"] }),
       },
       {
         form: "a close with no open",
@@ -442,14 +488,16 @@ describe("scanMessageShape", () => {
         expected: shape({ unbalancedTags: ["b"] }),
       },
       {
+        // Core requires strict nesting: a close for another tag aborts the
+        // open one, so every tag here renders as text.
         form: "crossed tags",
         value: "<a><b>x</a></b>",
-        expected: shape({ tags: ["a", "b"], unbalancedTags: ["b"] }),
+        expected: shape({ unbalancedTags: ["a", "b"] }),
       },
       {
         form: "an inner tag left open inside a closed one",
         value: "<a><i>x</a>",
-        expected: shape({ tags: ["a", "i"], unbalancedTags: ["i"] }),
+        expected: shape({ unbalancedTags: ["a", "i"] }),
       },
       {
         form: "unbalanced names sorted",
@@ -473,9 +521,10 @@ describe("scanMessageShape", () => {
         expected: shape({ tags: ["i"] }),
       },
       {
-        form: "nothing after an unclosed brace",
+        // Core renders everything after it as text, the markup included.
+        form: "a tag after an unclosed brace as text",
         value: "<i>x</i> { <b>y</b>",
-        expected: shape({ tags: ["i"] }),
+        expected: shape({ tags: ["i"], unbalancedTags: ["b"] }),
       },
       {
         form: "a closed brace as no barrier",
@@ -491,7 +540,7 @@ describe("scanMessageShape", () => {
       {
         form: "a self-closing close as text",
         value: "<b>x</b/>",
-        expected: shape({ tags: ["b"], unbalancedTags: ["b"] }),
+        expected: shape({ unbalancedTags: ["b"] }),
       },
       {
         form: "a tag right after a rejected one",
@@ -513,12 +562,121 @@ describe("scanMessageShape", () => {
       {
         form: "a backslash before a brace as no escape",
         value: "\\{ <b>x</b>",
-        expected: shape({}),
+        expected: shape({ unbalancedTags: ["b"] }),
       },
       {
-        form: "a tag inside a group closed under the top level's # rule",
+        form: "no tag inside a placeholder's name",
         value: "{a '#<b>}",
-        expected: shape({ params: [str("a '#<b>")], tags: ["b"], unbalancedTags: ["b"] }),
+        expected: shape({ params: [str("a '#<b>")] }),
+      },
+      {
+        form: "a self-closing tag as a placeholder's name",
+        value: "{<b/>}",
+        expected: shape({ params: [str("<b/>")] }),
+      },
+      {
+        form: "a quoted tag in a plural branch as text",
+        value: "{n, plural, other {'#<b>x</b>' <i>y</i>}}",
+        expected: shape({ params: [num("n")], plurals: { n: ["other"] }, tags: ["i"] }),
+      },
+      {
+        form: "a quote closed inside a plural branch as no quote after it",
+        value: "{n, plural, other {'#<b>x</b>'}} <i>y</i>",
+        expected: shape({ params: [num("n")], plurals: { n: ["other"] }, tags: ["i"] }),
+      },
+      {
+        form: "a brace a plural branch quotes as no unclosed brace",
+        value: "{n, plural, other {'#{'}} <b>x</b>",
+        expected: shape({ params: [num("n")], plurals: { n: ["other"] }, tags: ["b"] }),
+      },
+      {
+        form: "an open in one branch and its close in another as two strays",
+        value: "{g, select, a {<b>} other {</b>}}",
+        expected: shape({
+          params: [str("g")],
+          selects: { g: ["a", "other"] },
+          unbalancedTags: ["b"],
+        }),
+      },
+      // Inside a tag an apostrophe quotes only when its quote closes, so
+      // elision before a placeholder does not hide the close.
+      { form: "elision inside a tag", value: "<b>l'{name}</b>", expected: shape({ tags: ["b"] }) },
+      {
+        form: "elision inside one tag beside another",
+        value: "<i>dell'{name}</i> e <b>x</b>",
+        expected: shape({ tags: ["b", "i"] }),
+      },
+      {
+        form: "a balanced quote protecting a close inside a tag",
+        value: "<b>'{x </b> y}' l'{name}</b>",
+        expected: shape({ tags: ["b"] }),
+      },
+      {
+        form: "a balanced quote hiding the only close inside a tag",
+        value: "<b>'{</b>'",
+        expected: shape({ unbalancedTags: ["b"] }),
+      },
+      {
+        form: "a quote that closes inside a tag, then a brace after it",
+        value: "<b>'{'{</b>'",
+        expected: shape({ tags: ["b"] }),
+      },
+      {
+        form: "an unclosed brace inside a tag",
+        value: "<b>{</b>",
+        expected: shape({ tags: ["b"] }),
+      },
+      {
+        form: "a lone brace inside a tag",
+        value: "<b>x { y</b>",
+        expected: shape({ tags: ["b"] }),
+      },
+      // Inside a tag a backslash skips the character after it, whatever it is.
+      {
+        form: "a doubled backslash inside a tag",
+        value: "<b>C:\\\\</b>",
+        expected: shape({ tags: ["b"] }),
+      },
+      {
+        form: "a backslash that escapes the close inside a tag",
+        value: "<b>C:\\</b>",
+        expected: shape({ unbalancedTags: ["b"] }),
+      },
+      {
+        form: "a close with a digit name inside a tag as a mismatch",
+        value: "<b></1></b>",
+        expected: shape({ unbalancedTags: ["b"] }),
+      },
+      {
+        form: "a tag opened inside another and never closed",
+        value: "<b>'<i>'</b>",
+        expected: shape({ unbalancedTags: ["b", "i"] }),
+      },
+      {
+        form: "an empty tag name inside a tag as text",
+        value: "<b>1<>2</b>",
+        expected: shape({ tags: ["b"] }),
+      },
+      {
+        form: "a slash with no bracket inside a tag as text",
+        value: "<b>a<x/</b>",
+        expected: shape({ tags: ["b"] }),
+      },
+      {
+        // Core keeps the last branch of a selector written twice. A select's
+        // selectors are compared as written; a plural's as numbers.
+        form: "two select branches whose selectors only look equal",
+        value: "{g, select, =01 {<b/>} =1 {x} other {y}}",
+        expected: shape({
+          params: [str("g")],
+          selects: { g: ["=01", "=1", "other"] },
+          tags: ["b"],
+        }),
+      },
+      {
+        form: "no tag from a plural branch a later equal value overrides",
+        value: "{n, plural, =1 {<b/>} =01 {x} other {y}}",
+        expected: shape({ params: [num("n")], plurals: { n: ["=1", "other"] } }),
       },
       // A tag is never a refusal, even beside one.
       {
