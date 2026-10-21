@@ -45,9 +45,21 @@ export interface ProjectInfo {
 
 /** Result of the bulk import commit endpoint. */
 export interface PushResult {
+  /** Keys that did not exist. */
   created: number;
+  /** Values that did not exist. */
+  valuesCreated?: number;
+  /** Existing values whose text changed. */
   updated: number;
+  /** Conflicting values left as they are on the platform (`keep`). */
   skipped: number;
+  /** Local locales the platform did not import: not in the project, or not writable by the key. */
+  skippedLocales?: string[];
+  /**
+   * False when the platform predates per-value counts: only `created` is
+   * reliable then, and `skipped` is the CLI's own conflict count.
+   */
+  detailed?: boolean;
 }
 
 export type ForceMode = "override" | "keep" | "ask" | "abort";

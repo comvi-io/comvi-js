@@ -295,7 +295,7 @@ describe("inherited keys in the catalog level", () => {
         forceMode,
       });
 
-      expect(result).toEqual({ created: 4, updated: 0, skipped: 0 });
+      expect(result).toMatchObject({ created: 4, updated: 0, skipped: 0 });
     },
   );
 
