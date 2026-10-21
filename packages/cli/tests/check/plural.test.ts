@@ -146,6 +146,15 @@ describe("check rule: plural (more cases)", () => {
 
     expect(report.locales.de.plural.map((finding) => finding.argument)).toEqual(["b", "z"]);
   });
+
+  it("orders plural and selectordinal findings together by argument", () => {
+    const report = check(
+      { a: "{z, plural, one {#} other {#}} {b, selectordinal, one {#} other {#}}" },
+      { a: "{z, plural, one {#}} {b, selectordinal, one {#}}" },
+    );
+
+    expect(report.locales.de.plural.map((finding) => finding.argument)).toEqual(["b", "z"]);
+  });
 });
 
 describe("check rule: plural (Intl.PluralRules of this Node)", () => {

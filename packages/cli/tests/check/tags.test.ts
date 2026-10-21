@@ -35,7 +35,7 @@ describe("check rule: tags", () => {
   });
 
   it("reports an unbalanced tag in the target as a warning", () => {
-    const report = check({ a: "<b>x</b>" }, { a: "<b>x" });
+    const report = check({ a: "x" }, { a: "<b>x" });
 
     expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", side: "target", tags: ["b"] }]);
     expect(report.summary.unbalancedTags).toBe(1);
@@ -51,6 +51,15 @@ describe("check rule: tags", () => {
   });
 
   it("fails an unbalanced tag under strict", () => {
-    expect(check({ a: "<b>x</b>" }, { a: "<b>x" }, { strict: true }).ok).toBe(false);
+    expect(check({ a: "x" }, { a: "<b>x" }, { strict: true }).ok).toBe(false);
+  });
+
+  it("reports a source tag the target leaves unclosed as lost, since core renders it as text", () => {
+    const report = check({ a: "<b>x</b>" }, { a: "<b>x" });
+
+    expect(report.locales.de.tags).toEqual([{ key: "a", source: ["b"], target: [] }]);
+    expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", side: "target", tags: ["b"] }]);
+    expect(report.errors).toBe(1);
+    expect(report.warnings).toBe(1);
   });
 });

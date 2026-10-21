@@ -355,11 +355,9 @@ function compareMessages(
 function pluralArguments(
   shape: MessageShape,
 ): { argument: string; type: PluralRuleType; selectors: string[] }[] {
-  return Object.keys(shape.plurals)
-    .sort()
-    .map((argument) => ({
-      argument,
-      type: shape.ordinals.includes(argument) ? "ordinal" : "cardinal",
-      selectors: shape.plurals[argument],
-    }));
+  const of = (map: Record<string, string[]>, type: PluralRuleType) =>
+    Object.keys(map).map((argument) => ({ argument, type, selectors: map[argument] }));
+  return [...of(shape.plurals, "cardinal"), ...of(shape.ordinals, "ordinal")].sort((a, b) =>
+    a.argument.localeCompare(b.argument),
+  );
 }
