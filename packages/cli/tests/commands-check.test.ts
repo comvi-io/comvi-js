@@ -529,7 +529,7 @@ describe("comvi check", () => {
     it("prints exactly the summary, the details and the verdict", async () => {
       await write("src/locales/de.json", {
         hello: "Hallo",
-        bye: "{n, plural, one {#} few {#}}",
+        bye: "{n, plural, one {#} few {#} many {#}}",
         old: "Alt",
       });
       await write("src/locales/en.json", {
@@ -545,7 +545,7 @@ describe("comvi check", () => {
           "stale  de:old",
           "params  de:hello  source {name}  target {}",
           "plural  de:bye  {n} missing-other other",
-          "plural  de:bye  {n} unknown-category few",
+          "plural  de:bye  {n} unknown-category few, many",
           "✗ 1 stale, 1 params, 2 plural — exit 0 (--no-fail)",
         ].join("\n"),
       );
@@ -554,6 +554,40 @@ describe("comvi check", () => {
     it("prints a clean run without a --no-fail note", async () => {
       expect(await run("--no-fail")).toBe(0);
       expect(output.stdout.split("\n").at(-1)).toBe("✓ no findings — exit 0");
+    });
+
+    it("is named check", () => {
+      expect(createCheckCommand().name()).toBe("check");
+    });
+
+    it("names every rule in the per-locale and the final line", async () => {
+      await write("src/locales/en.json", {
+        e: "",
+        m: "M",
+        p: "{n, plural, one {#} other {#}}",
+        q: "{v, number}",
+        s: "{g, select, a {A} other {B}}",
+        t: "<b>x</b>",
+        u: "<i>x",
+        w: "{w}",
+        z: "Same",
+      });
+      await write("src/locales/de.json", {
+        old: "Alt",
+        p: "{n, plural, one {#}}",
+        q: "{v}",
+        s: "{g, select, other {B}}",
+        t: "x",
+        u: "<i>x</i>",
+        w: "{v}",
+        z: "Same",
+      });
+
+      expect(await run("--identical")).toBe(1);
+      const counts =
+        "1 missing, 1 stale, 1 empty source, 1 params, 1 plural, 1 select, 1 tags, 1 unbalanced tags, 1 unsupported ICU, 1 identical";
+      expect(output.stdout).toContain(`\nde  ${counts}\n`);
+      expect(output.stdout.split("\n").at(-1)).toBe(`✗ ${counts} — exit 1`);
     });
 
     it("describes every option in --help", () => {

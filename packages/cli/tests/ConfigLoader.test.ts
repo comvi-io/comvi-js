@@ -817,6 +817,15 @@ describe("ConfigLoader", () => {
         'Invalid configuration: "check" must be an object, received boolean',
       );
     });
+
+    it("refuses a null check section as CONFIG_INVALID, not a TypeError", async () => {
+      const error = await rejectionOf(loadWith({ check: null }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        'Invalid configuration: "check" must be an object, received null',
+      );
+    });
   });
 
   describe("offline mode", () => {
@@ -840,6 +849,15 @@ describe("ConfigLoader", () => {
 
       expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
       expect((error as TypegenError).message).toContain("apiKey is required");
+    });
+
+    it("takes the API key for the defaults from COMVI_API_KEY unless told otherwise", async () => {
+      mockAccess.mockRejectedValue(new Error("Not found"));
+      vi.stubEnv("COMVI_API_KEY", "env-key");
+
+      const result = await ConfigLoader.load(undefined, { optional: true });
+
+      expect(result.apiKey).toBe("env-key");
     });
 
     it("reads the discovered file when optional and one exists", async () => {
