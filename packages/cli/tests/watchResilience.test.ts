@@ -156,4 +156,70 @@ describe("typegen --watch stream", () => {
 
     expect(instances).toHaveLength(1);
   });
+
+  // ECONNREFUSED or DNS: eventsource keeps itself CONNECTING and retries every
+  // 3 s on its own, printing nothing useful. The supervisor takes over with
+  // its own growing waits.
+  it("backs off a connection that cannot be made instead of retrying every 3 s", async () => {
+    await subscribe();
+    instances[0].onerror?.({ message: "fetch failed" });
+
+    expect(instances[0].closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    await flush();
+    expect(instances).toHaveLength(2);
+
+    instances[1].onerror?.({ message: "fetch failed" });
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(instances).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    expect(instances).toHaveLength(3);
+  });
+
+  it("releases the body of a refused response", async () => {
+    await subscribe();
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ pull: () => new Promise(() => {}), cancel });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(body, { status: 502 })),
+    );
+
+    const response = await instances[0].fetch!("https://api.test.com/stream", {});
+
+    expect(response.status).toBe(502);
+    expect(response.body).toBeNull();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("a superseded subscription never touches the stream that replaced it", async () => {
+    await subscribe();
+    const firstCleanup = cleanup;
+    cleanup = await client.subscribeToSchemaUpdates(async () => {});
+    const second = instances[instances.length - 1];
+    second.readyState = 1;
+
+    firstCleanup();
+    expect(second.closed).toBe(false);
+
+    // The first subscription's watchdog is gone too: the second stream gets
+    // pinged by its own activity only, and only its own watchdog may act.
+    second.onmessage?.({ data: JSON.stringify({ keys: {} }) } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(30_000);
+    second.onmessage?.({ data: JSON.stringify({ keys: {} }) } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(second.closed).toBe(false);
+  });
+
+  it("close() stops a pending reconnect", async () => {
+    await subscribe();
+    failForGood(instances[0], 502);
+    client.close();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    await flush();
+
+    expect(instances).toHaveLength(1);
+  });
 });

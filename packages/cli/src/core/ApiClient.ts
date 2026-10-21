@@ -263,6 +263,8 @@ export class ApiClient {
   private timeout: number;
   private commitTimeout: number;
   private eventSource?: EventSource;
+  /** Stops the active schema subscription: its stream and its timers. */
+  private stopSubscription?: () => void;
   private subscriptionGeneration = 0;
   private projectInfo?: ProjectInfo;
   private projectInfoPromise?: Promise<ProjectInfo>;
@@ -733,6 +735,7 @@ export class ApiClient {
     const notice =
       options.onNotice ?? ((message: string) => console.warn(`[@comvi/cli] ${message}`));
 
+    this.stopSubscription?.();
     const generation = ++this.subscriptionGeneration;
     this.eventSource?.close();
     this.eventSource = undefined;
@@ -746,12 +749,14 @@ export class ApiClient {
     }
 
     const apiKey = this.apiKey;
+    // The stream this subscription opened: it closes only its own.
+    let current: EventSource | undefined;
     let stopped = false;
     let lastActivity = Date.now();
     let attempt = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     const isCurrent = (source: EventSource) =>
-      !stopped && generation === this.subscriptionGeneration && this.eventSource === source;
+      !stopped && generation === this.subscriptionGeneration && current === source;
 
     // Serialize updates: EventSource does not await handlers, so a burst of
     // events would otherwise run concurrent onSchema file writes
@@ -770,7 +775,7 @@ export class ApiClient {
 
     const open = () => {
       if (stopped || generation !== this.subscriptionGeneration) return;
-      this.eventSource?.close();
+      current?.close();
       lastActivity = Date.now();
 
       const eventSource: EventSource = new EventSource(url, {
@@ -779,6 +784,16 @@ export class ApiClient {
           headers.set("Authorization", `Bearer ${apiKey}`);
           const response = await fetch(input, { ...init, headers });
           lastActivity = Date.now();
+          // eventsource drops a refused response without reading or aborting
+          // it; release the socket here.
+          if (!response.ok) {
+            await response.body?.cancel().catch(() => undefined);
+            return new Response(null, {
+              status: response.status,
+              statusText: response.statusText,
+              headers: response.headers,
+            });
+          }
           if (!response.body) return response;
           // Every chunk counts as life, the platform's `: ping` comments
           // included, which never reach onmessage.
@@ -797,6 +812,7 @@ export class ApiClient {
           });
         },
       });
+      current = eventSource;
       this.eventSource = eventSource;
 
       eventSource.onopen = () => {
@@ -820,7 +836,7 @@ export class ApiClient {
           });
       };
 
-      eventSource.onerror = (event?: { code?: number }) => {
+      eventSource.onerror = (event?: { code?: number; message?: string }) => {
         if (!isCurrent(eventSource)) return;
         const status = event?.code;
         if (status === 401 || status === 403) {
@@ -837,35 +853,45 @@ export class ApiClient {
           );
           return;
         }
-        if (eventSource.readyState === EventSource.CLOSED) {
-          // eventsource will not retry this one: a non-200 or a bad response.
-          scheduleReconnect(status ? `answered ${status}` : "was refused");
-        } else {
-          notice("Schema stream interrupted; reconnecting...");
-        }
+        // eventsource retries a failed connection itself every few seconds,
+        // and gives up for good on a non-200; either way the waits are ours.
+        eventSource.close();
+        const reason =
+          status && status !== 200
+            ? `answered ${status}`
+            : event?.message
+              ? `failed (${event.message})`
+              : "was interrupted";
+        scheduleReconnect(reason);
       };
     };
 
     const watchdog = setInterval(() => {
-      if (stopped || reconnectTimer) return;
+      if (stopped || generation !== this.subscriptionGeneration) {
+        clearInterval(watchdog);
+        return;
+      }
+      if (reconnectTimer) return;
       if (Date.now() - lastActivity >= SSE_IDLE_LIMIT_MS) {
-        this.eventSource?.close();
+        current?.close();
         scheduleReconnect(`sent no data for ${SSE_IDLE_LIMIT_MS / 1000}s`);
       }
     }, SSE_WATCHDOG_INTERVAL_MS);
 
     const stop = () => {
+      if (stopped) return;
       stopped = true;
       clearInterval(watchdog);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       reconnectTimer = undefined;
-      const current = this.eventSource;
       current?.close();
+      if (this.stopSubscription === stop) this.stopSubscription = undefined;
       if (generation === this.subscriptionGeneration) {
         this.subscriptionGeneration++;
         this.eventSource = undefined;
       }
     };
+    this.stopSubscription = stop;
 
     open();
     return stop;
@@ -875,6 +901,7 @@ export class ApiClient {
    * Close any open SSE connection
    */
   close(): void {
+    this.stopSubscription?.();
     this.subscriptionGeneration++;
     if (this.eventSource) {
       this.eventSource.close();
