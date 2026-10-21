@@ -87,26 +87,39 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
 
   const apiClient = generator.getApiClient();
 
-  const cleanup = await apiClient.subscribeToSchemaUpdates(async (schema) => {
-    console.log("\n🔄 Received schema update via SSE...");
-    const updateResult = await generator.generateFromSchema(schema);
+  const cleanup = await apiClient.subscribeToSchemaUpdates(
+    async (schema) => {
+      console.log("\n🔄 Received schema update via SSE...");
+      const updateResult = await generator.generateFromSchema(schema);
 
-    if (updateResult.success) {
-      console.log(`✓ Updated ${updateResult.keysGenerated} keys → ${updateResult.filePath}`);
-    } else {
-      console.error(`⚠  Update failed: ${updateResult.error}`);
-    }
-  });
+      if (updateResult.success) {
+        console.log(`✓ Updated ${updateResult.keysGenerated} keys → ${updateResult.filePath}`);
+      } else {
+        console.error(`⚠  Update failed: ${updateResult.error}`);
+      }
+    },
+    {
+      // A rejected key cannot recover: stop instead of watching nothing.
+      onFatal: (error) => {
+        console.error(`✗ Watch stopped: ${error.message}`);
+        process.exit(exitCodeFor(error));
+      },
+      onNotice: (message) => console.error(`⚠  ${message}`),
+    },
+  );
 
   console.log("✓ Watching for changes...");
   console.log("Press Ctrl+C to stop\n");
 
-  process.on("SIGINT", () => {
+  // SIGTERM too: Docker, systemd and CI runners stop processes with it.
+  const stop = () => {
     console.log("\n\n🛑 Closing SSE connection...");
     cleanup();
     console.log("✓ Stopped watching");
     process.exit(0);
-  });
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
 
   // Keep process alive
   process.stdin.resume();
