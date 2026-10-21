@@ -10,6 +10,7 @@ on:
       - "packages/cli/**"
       - "packages/typegen/**"
       - "scripts/cli-e2e.mjs"
+      - "pnpm-lock.yaml"
       - ".github/workflows/cli-e2e.yml"
   push:
     branches: [develop, main]
@@ -17,6 +18,7 @@ on:
       - "packages/cli/**"
       - "packages/typegen/**"
       - "scripts/cli-e2e.mjs"
+      - "pnpm-lock.yaml"
       - ".github/workflows/cli-e2e.yml"
   schedule:
     - cron: "17 3 * * *"
@@ -25,6 +27,9 @@ on:
       platform_ref:
         description: "platform branch, tag or SHA"
         default: develop
+
+permissions:
+  contents: read
 
 concurrency:
   group: cli-e2e-${{ github.ref }}
@@ -37,23 +42,32 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # The platform repository is private. Fork PRs never receive secrets, and
-      # a repository without the token skips rather than fails.
+      # The platform repository is private and needs PLATFORM_READ_TOKEN (a
+      # fine-grained token, Contents: read on comvi-io/platform only). Fork PRs
+      # never receive secrets, so a pull request without it is skipped with a
+      # notice; on push, schedule and manual runs a missing token fails the job
+      # instead of passing with nothing tested.
       - name: Check platform access
         id: access
         env:
           PLATFORM_READ_TOKEN: ${{ secrets.PLATFORM_READ_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ -z "$PLATFORM_READ_TOKEN" ]; then
-            echo "::notice::PLATFORM_READ_TOKEN is not available; skipping the CLI e2e suite."
+          if [ -n "$PLATFORM_READ_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "::notice::PLATFORM_READ_TOKEN is not available to this pull request; the CLI e2e suite did not run."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "::error::PLATFORM_READ_TOKEN is not set; the CLI e2e suite cannot run."
+            exit 1
           fi
 
       - name: Checkout
         if: steps.access.outputs.enabled == 'true'
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Checkout platform
         if: steps.access.outputs.enabled == 'true'
@@ -63,36 +77,43 @@ jobs:
           ref: ${{ inputs.platform_ref || 'develop' }}
           token: ${{ secrets.PLATFORM_READ_TOKEN }}
           path: .platform
-
-      - name: Setup pnpm
-        if: steps.access.outputs.enabled == 'true'
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
+          persist-credentials: false
 
       - name: Setup Node.js
         if: steps.access.outputs.enabled == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
+
+      # The two repositories pin different pnpm majors (packageManager); corepack
+      # runs the pinned one in each directory, including the bare `pnpm` calls
+      # inside the platform's test-stack.
+      - name: Enable corepack
+        if: steps.access.outputs.enabled == 'true'
+        run: corepack enable
 
       - name: Install dependencies
         if: steps.access.outputs.enabled == 'true'
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: pnpm install --frozen-lockfile
 
-      # The platform pins its own pnpm major; install it with that one.
       - name: Install platform dependencies
         if: steps.access.outputs.enabled == 'true'
         working-directory: .platform
-        run: npx --yes "$(node -p "require('./package.json').packageManager")" install --frozen-lockfile
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: pnpm install --frozen-lockfile
 
       - name: Build the CLI
         if: steps.access.outputs.enabled == 'true'
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: pnpm --filter "@comvi/cli..." build
 
       - name: CLI e2e
         if: steps.access.outputs.enabled == 'true'
         env:
           PLATFORM_DIR: .platform
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: node scripts/cli-e2e.mjs

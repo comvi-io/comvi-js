@@ -181,7 +181,7 @@ export interface CliResult {
   stderr: string;
 }
 
-/** Runs the built CLI with `COMVI_API_KEY` set and `.env` loading off. */
+/** Runs the built CLI with a minimal env: the API URL, an optional key, `.env` loading off. */
 export function runCli(
   args: string[],
   options: { cwd: string; apiKey?: string; env?: Record<string, string>; timeoutMs?: number },
@@ -191,7 +191,8 @@ export function runCli(
       cwd: options.cwd,
       env: {
         PATH: process.env.PATH ?? "",
-        HOME: process.env.HOME ?? "",
+        // Never the developer's home: nothing in it may reach the CLI under test.
+        HOME: options.cwd,
         COMVI_NO_ENV: "1",
         COMVI_API_BASE_URL: API_URL,
         ...(options.apiKey ? { COMVI_API_KEY: options.apiKey } : {}),
