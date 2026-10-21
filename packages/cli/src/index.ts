@@ -3,6 +3,7 @@ export { ApiClient, API_ENDPOINTS } from "./core/ApiClient";
 export { TypeEmitter } from "./core/TypeEmitter";
 export { ConfigLoader } from "./core/ConfigLoader";
 export { TranslationSync } from "./core/TranslationSync";
+export { CatalogCheck } from "./core/CatalogCheck";
 
 export { FileSystemWriter, NodeFileSystem, InMemoryFileSystem } from "./core/FileSystemWriter";
 export { ConsoleReporter, SilentReporter, CollectingReporter } from "./core/GenerationReporter";
@@ -34,6 +35,20 @@ export type {
 } from "./types";
 
 export type { TypeEmitterOptions } from "./core/TypeEmitter";
+
+export type {
+  CheckOptions,
+  CheckReport,
+  CheckLocaleReport,
+  CheckSummary,
+  CheckParamsFinding,
+  CheckPluralFinding,
+  CheckSelectFinding,
+  CheckTagsFinding,
+  CheckUnbalancedTagsFinding,
+  CheckUnsupportedIcuFinding,
+  PluralRuleType,
+} from "./core/CatalogCheck";
 
 export type {
   ApiClientOptions,

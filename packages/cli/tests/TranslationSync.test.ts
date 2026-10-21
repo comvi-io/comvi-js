@@ -132,6 +132,29 @@ describe("TranslationSync", () => {
     });
   });
 
+  it("reads a template without {namespace} as one default-namespace catalog per locale", async () => {
+    const dir = await makeTempDir("comvi-cli-sync");
+
+    await fs.writeFile(join(dir, "app.en.json"), '{"hello":"Hello"}\n');
+    await fs.writeFile(join(dir, "app.de.json"), '{"hello":"Hallo"}\n');
+    await fs.writeFile(join(dir, "other.json"), '{"ignored":"x"}\n');
+
+    const sync = new TranslationSync({
+      translationsPath: dir,
+      fileTemplate: "app.{languageTag}.json",
+      format: "json",
+    });
+
+    const result = await sync.readTranslations({ defaultNamespace: "common" });
+
+    expect([...result.locales].sort()).toEqual(["de", "en"]);
+    expect(result.namespaces).toEqual(["common"]);
+    expect(result.translations).toEqual({
+      en: { common: { hello: "Hello" } },
+      de: { common: { hello: "Hallo" } },
+    });
+  });
+
   it("rejects duplicate files that map to the same locale and namespace", async () => {
     const dir = await makeTempDir("comvi-cli-sync");
 

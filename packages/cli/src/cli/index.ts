@@ -5,6 +5,7 @@ import { createInitCommand } from "../commands/init";
 import { createTypegenCommand } from "../commands/generate-types";
 import { createPullCommand } from "../commands/pull";
 import { createPushCommand } from "../commands/push";
+import { createCheckCommand } from "../commands/check";
 import { loadEnv, MissingEnvFileError } from "../core/EnvLoader";
 import { CLI_VERSION } from "../utils/version";
 import { EXIT_VALIDATION } from "../utils/errors";
@@ -53,5 +54,6 @@ program.addCommand(createInitCommand());
 program.addCommand(createTypegenCommand());
 program.addCommand(createPullCommand());
 program.addCommand(createPushCommand());
+program.addCommand(createCheckCommand());
 
 program.parse();
