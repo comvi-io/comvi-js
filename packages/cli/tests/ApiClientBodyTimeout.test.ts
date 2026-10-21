@@ -45,7 +45,12 @@ describe("ApiClient request timeout covers the response body", () => {
     vi.useFakeTimers();
     fetchMock = vi.fn() as MockedFunction<typeof fetch>;
     vi.stubGlobal("fetch", fetchMock);
-    client = new ApiClient({ apiKey: "k", apiBaseUrl: "https://api.test.com", timeout: 20 });
+    client = new ApiClient({
+      apiKey: "k",
+      apiBaseUrl: "https://api.test.com",
+      timeout: 20,
+      commitTimeout: 20,
+    });
   });
 
   afterEach(() => {
@@ -81,7 +86,7 @@ describe("ApiClient request timeout covers the response body", () => {
         forceMode: "override",
       }),
     ).rejects.toMatchObject({
-      message: "Request timeout after 20ms",
+      message: expect.stringContaining("Push timed out after 20ms"),
       code: ErrorCodes.API_TIMEOUT,
     });
     void assertion.catch(() => {});

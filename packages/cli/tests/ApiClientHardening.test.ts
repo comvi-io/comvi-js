@@ -526,7 +526,7 @@ describe("ApiClient hardening", () => {
         forceMode: "override",
       });
       const assertion = expect(promise).rejects.toMatchObject({
-        message: "Request timeout after 5000ms",
+        message: expect.stringContaining("Push timed out after 5000ms"),
         code: ErrorCodes.API_TIMEOUT,
       });
       // Keep a handler attached: an early mismatch still fails `await assertion` below.

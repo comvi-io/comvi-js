@@ -21,12 +21,19 @@ import type {
 } from "../types";
 import { wrapError, ErrorCodes, TypegenError } from "../utils/errors";
 import { isHttpUrl } from "./apiBaseUrl";
+import { DEFAULT_COMMIT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS } from "./timeouts";
 import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
 export interface ApiClientOptions {
   apiKey: string;
   apiBaseUrl: string;
+  /** Milliseconds for each read request. */
   timeout?: number;
+  /**
+   * Milliseconds for the push commit, which can take minutes on a large
+   * catalog. Defaults to `timeout` when that is given, else five minutes.
+   */
+  commitTimeout?: number;
 }
 
 export interface FetchTranslationsOptions {
@@ -94,6 +101,8 @@ interface RequestJsonOptions {
   forbidden?: string;
   /** Appended to a 403: which command needs which API key scope. */
   scopeHint?: string;
+  /** Overrides the client's read timeout for this request. */
+  timeoutMs?: number;
 }
 
 /** Error bodies are read up to this many bytes; the rest is discarded. */
@@ -289,6 +298,7 @@ export class ApiClient {
   private apiKey: string;
   private apiBaseUrl: string;
   private timeout: number;
+  private commitTimeout: number;
   private eventSource?: EventSource;
   private subscriptionGeneration = 0;
   private projectInfo?: ProjectInfo;
@@ -316,15 +326,16 @@ export class ApiClient {
       );
     }
 
-    if (options.timeout !== undefined) {
-      if (typeof options.timeout !== "number" || options.timeout <= 0) {
+    for (const timeout of [options.timeout, options.commitTimeout]) {
+      if (timeout !== undefined && (typeof timeout !== "number" || timeout <= 0)) {
         throw new TypegenError("Timeout must be a positive number", ErrorCodes.INVALID_INPUT);
       }
     }
 
     this.apiKey = options.apiKey.trim();
     this.apiBaseUrl = options.apiBaseUrl.replace(/\/$/, ""); // Remove trailing slash
-    this.timeout = options.timeout ?? 30000; // 30 second default
+    this.timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
+    this.commitTimeout = options.commitTimeout ?? options.timeout ?? DEFAULT_COMMIT_TIMEOUT_MS;
   }
 
   /**
@@ -341,11 +352,12 @@ export class ApiClient {
     opts: RequestJsonOptions,
   ): Promise<T> {
     const retryTransient = opts.retryTransient ?? true;
+    const timeoutMs = opts.timeoutMs ?? this.timeout;
     let attempt = 0;
 
     for (;;) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       let retryAfterMs: number | undefined;
 
       try {
@@ -602,6 +614,7 @@ export class ApiClient {
           failure: "Failed to push translations",
           forbidden: "Access denied to this project",
           scopeHint: "comvi push needs an API key with the translations:write scope.",
+          timeoutMs: this.commitTimeout,
         },
       );
       if (!body.success) {
@@ -644,7 +657,8 @@ export class ApiClient {
       }
       if (error instanceof Error && error.name === "AbortError") {
         throw new TypegenError(
-          `Request timeout after ${this.timeout}ms`,
+          `Push timed out after ${this.commitTimeout}ms: the platform may still have applied it. ` +
+            "It is safe to re-run the same push; raise COMVI_TIMEOUT_MS for a very large catalog.",
           ErrorCodes.API_TIMEOUT,
           error,
         );
