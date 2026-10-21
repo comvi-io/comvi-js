@@ -25,10 +25,10 @@ beforeAll(async () => {
   proxy = await startProxy();
 });
 
-afterAll(() => proxy.close());
+afterAll(() => proxy?.close());
 
 afterEach(async () => {
-  proxy.up();
+  proxy?.up();
   await Promise.all(workspaces.splice(0).map((workspace) => workspace.cleanup()));
 });
 

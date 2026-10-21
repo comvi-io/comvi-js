@@ -13,12 +13,15 @@ beforeAll(async () => {
   await seed.write("src/locales/en.json", { greeting: "Hello" });
   await seed.write("src/locales/de.json", { greeting: "Hallo" });
   await seed.write("src/locales/es.json", { greeting: "Hola" });
-  const push = await runCli(["push", "--force-mode", "override"], {
-    cwd: seed.dir,
-    apiKey: project.keys.full,
-  });
-  await seed.cleanup();
-  expect(push.code, push.stdout + push.stderr).toBe(0);
+  try {
+    const push = await runCli(["push", "--force-mode", "override"], {
+      cwd: seed.dir,
+      apiKey: project.keys.full,
+    });
+    expect(push.code, push.stdout + push.stderr).toBe(0);
+  } finally {
+    await seed.cleanup();
+  }
 });
 
 afterEach(async () => {

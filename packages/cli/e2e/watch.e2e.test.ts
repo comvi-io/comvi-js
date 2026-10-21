@@ -13,13 +13,29 @@ import {
 const cleanups: Array<() => Promise<unknown>> = [];
 
 afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  const errors: unknown[] = [];
+  for (const cleanup of cleanups.splice(0).reverse()) {
+    try {
+      await cleanup();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0) throw errors[0];
 });
 
 async function workspace(): Promise<Workspace> {
   const ws = await createWorkspace({ translationsPath: "./src/locales" });
   cleanups.push(() => ws.cleanup());
   return ws;
+}
+
+async function waitUntil(condition: () => Promise<boolean>, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await condition().catch(() => false))) {
+    if (Date.now() > deadline) throw new Error(`condition not met within ${timeoutMs} ms`);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
+  }
 }
 
 function watch(ws: Workspace, apiKey: string, env?: Record<string, string>): RunningCli {
@@ -38,10 +54,11 @@ describe("comvi typegen --watch", () => {
     const cli = watch(ws, project.keys.full, { COMVI_API_BASE_URL: proxy.url });
     await cli.waitFor(/Watching for changes/);
 
+    const beforeOutage = cli.mark();
     proxy.down();
-    await cli.waitFor(/reconnecting in/);
+    await cli.waitFor(/reconnecting in/, { since: beforeOutage });
     proxy.up();
-    await cli.waitFor(/Schema stream reconnected/, 60_000);
+    await cli.waitFor(/Schema stream reconnected/, { since: beforeOutage, timeoutMs: 60_000 });
 
     await ws.write("src/locales/en.json", { "after.outage": "Back" });
     const push = await runCli(["push", "--force-mode", "override"], {
@@ -50,8 +67,8 @@ describe("comvi typegen --watch", () => {
     });
     expect(push.code, push.stdout + push.stderr).toBe(0);
 
-    await cli.waitFor(/Updated \d+ keys/);
-    expect(await ws.read("src/types/i18n.d.ts")).toContain('"after.outage"');
+    // Every (re)connect regenerates the types too, so wait for the file itself.
+    await waitUntil(async () => (await ws.read("src/types/i18n.d.ts")).includes('"after.outage"'));
   });
 
   it("exits 3 once its key is revoked", async () => {
@@ -63,11 +80,7 @@ describe("comvi typegen --watch", () => {
     await revokeKey(project, "full");
 
     // The platform re-checks the key every SSE_TYPEGEN_KEY_RECHECK_MS (1 s here).
-    const code = await Promise.race([
-      cli.exited,
-      new Promise((resolveTimeout) => setTimeout(() => resolveTimeout("timeout"), 30_000)),
-    ]);
-    expect(code, cli.output()).toBe(3);
+    expect(await cli.exitedWithin(30_000), cli.output()).toBe(3);
     expect(cli.output()).toContain("Watch stopped");
   });
 });

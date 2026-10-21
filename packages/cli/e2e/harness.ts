@@ -4,7 +4,7 @@
  * `scripts/cli-e2e-fixture.ts`). Nothing here mocks the network.
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { createServer, request as httpRequest, type Server } from "node:http";
+import { createServer, request as httpRequest, type ClientRequest, type Server } from "node:http";
 import type { Socket } from "node:net";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -257,10 +257,13 @@ export async function fetchRemote(
 
 export interface RunningCli {
   output(): string;
-  /** Resolves once stdout or stderr matches; rejects on exit or timeout. */
-  waitFor(pattern: RegExp, timeoutMs?: number): Promise<void>;
-  /** Resolves with the exit code once the process exits. */
-  exited: Promise<number | null>;
+  /** The current length of the output, to wait only for what comes after it. */
+  mark(): number;
+  /** Resolves once the output after `since` matches; rejects on exit or timeout. */
+  waitFor(pattern: RegExp, options?: { since?: number; timeoutMs?: number }): Promise<void>;
+  /** The exit code, or a rejection carrying the output if it has not exited in time. */
+  exitedWithin(timeoutMs: number): Promise<number | null>;
+  /** SIGTERM, then SIGKILL if the process is still running 5 s later. */
   stop(): Promise<number | null>;
 }
 
@@ -268,30 +271,55 @@ export interface RunningCli {
 export function startCli(args: string[], options: CliOptions): RunningCli {
   const child = spawnCli(args, options);
   let text = "";
+  let closed = false;
   const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
   const append = (chunk: Buffer) => {
     text += chunk.toString();
-    for (const listener of listeners) listener();
+    notify();
   };
   child.stdout.on("data", append);
   child.stderr.on("data", append);
   const exited = new Promise<number | null>((resolveExit) => {
+    child.on("error", (error) => {
+      text += `\n[spawn error] ${error.message}`;
+      closed = true;
+      notify();
+      resolveExit(null);
+    });
+    // "close" comes after the last output; "exit" may come before it.
     child.on("close", (code) => {
-      for (const listener of listeners) listener();
+      closed = true;
+      notify();
       resolveExit(code);
     });
   });
 
+  const exitedWithin = (timeoutMs: number) =>
+    new Promise<number | null>((resolveExit, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`still running after ${timeoutMs} ms:\n${text}`)),
+        timeoutMs,
+      );
+      void exited.then((code) => {
+        clearTimeout(timer);
+        resolveExit(code);
+      });
+    });
+
   return {
     output: () => text,
-    exited,
-    waitFor(pattern, timeoutMs = 30_000) {
+    mark: () => text.length,
+    exitedWithin,
+    waitFor(pattern, { since = 0, timeoutMs = 30_000 } = {}) {
       return new Promise((resolveWait, reject) => {
         const check = () => {
-          if (pattern.test(text)) {
+          if (pattern.test(text.slice(since))) {
             done();
             resolveWait();
-          } else if (child.exitCode !== null || child.signalCode !== null) {
+          } else if (closed) {
             done();
             reject(new Error(`exited before ${pattern}:\n${text}`));
           }
@@ -308,9 +336,15 @@ export function startCli(args: string[], options: CliOptions): RunningCli {
         check();
       });
     },
-    stop() {
-      if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
-      return exited;
+    async stop() {
+      if (closed) return exited;
+      child.kill("SIGTERM");
+      try {
+        return await exitedWithin(5_000);
+      } catch {
+        child.kill("SIGKILL");
+        return exited;
+      }
     },
   };
 }
@@ -327,6 +361,7 @@ export interface Proxy {
 export async function startProxy(target = API_URL): Promise<Proxy> {
   const upstream = new URL(target);
   const sockets = new Set<Socket>();
+  const forwards = new Set<ClientRequest>();
   let isDown = false;
   const server: Server = createServer((req, res) => {
     if (isDown) {
@@ -346,7 +381,12 @@ export async function startProxy(target = API_URL): Promise<Proxy> {
         response.pipe(res);
       },
     );
+    forwards.add(forward);
+    forward.on("close", () => forwards.delete(forward));
     forward.on("error", () => res.destroy());
+    // A client that goes away takes its upstream request with it, so the API
+    // does not keep streaming to nobody.
+    res.on("close", () => forward.destroy());
     req.pipe(forward);
   });
   server.on("connection", (socket) => {
@@ -356,17 +396,22 @@ export async function startProxy(target = API_URL): Promise<Proxy> {
   await new Promise<void>((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
   const { port } = server.address() as { port: number };
 
+  const dropAll = () => {
+    for (const forward of forwards) forward.destroy();
+    for (const socket of sockets) socket.destroy();
+  };
+
   return {
     url: `http://127.0.0.1:${port}`,
     down() {
       isDown = true;
-      for (const socket of sockets) socket.destroy();
+      dropAll();
     },
     up() {
       isDown = false;
     },
     close() {
-      for (const socket of sockets) socket.destroy();
+      dropAll();
       return new Promise((resolveClose) => server.close(() => resolveClose()));
     },
   };
