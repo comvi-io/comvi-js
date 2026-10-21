@@ -36,7 +36,7 @@ describe("check caching", () => {
   });
 
   it.each([100, 200])(
-    "scans each of %i keys once per locale: the work grows linearly with the catalog",
+    "scans each of %i keys once per locale: scanner calls grow linearly with the catalog",
     (keys) => {
       const scan = vi.mocked(typegen.scanMessageShape);
       scan.mockClear();
@@ -48,19 +48,25 @@ describe("check caching", () => {
           ]),
         );
       const targets = ["de", "fr", "ja"];
+      const translations = Object.fromEntries(
+        ["en", ...targets].map((locale) => [locale, { default: catalog(locale) }]),
+      );
 
       CatalogCheck.run({
-        translations: Object.fromEntries(
-          ["en", ...targets].map((locale) => [locale, { default: catalog(locale) }]),
-        ),
+        translations,
         source: "en",
         targets,
         namespaces: ["default"],
         pluralCategories: () => ["one", "other"],
       });
 
-      // Exactly one scan per (locale, key) message: no re-parse per target,
-      // nothing quadratic. Doubling the keys doubles the scans.
+      // Every message is distinct, so the calls must be exactly the messages,
+      // each once: none skipped, none scanned per target. A count alone would
+      // let one skipped message hide behind one scanned twice.
+      const messages = Object.values(translations).flatMap(({ default: messages }) =>
+        Object.values(messages),
+      );
+      expect(scan.mock.calls.map(([message]) => message).sort()).toEqual(messages.sort());
       expect(scan).toHaveBeenCalledTimes(keys * (1 + targets.length));
     },
   );

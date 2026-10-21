@@ -36,7 +36,16 @@ const shapes = [
   (i) => `{gender, select, female {She} male {He} other {They}} ${i}`,
   (i) => `Read the <link>terms ${i}</link> and <b>agree</b>`,
 ];
-const locales = ["en", ...Array.from({ length: localeCount - 1 }, (_, i) => `l${i}`)];
+// Real locales, so every target takes the plural-category path; past these
+// the list repeats with a numbered private-use suffix (`de-x-1`), which Intl
+// resolves to the same rules.
+const KNOWN = ["de", "es", "fr", "it", "ja", "ka", "pt-BR", "tr", "vi", "zh-CN", "pl", "ru", "ar"];
+const locales = [
+  "en",
+  ...Array.from({ length: localeCount - 1 }, (_, i) =>
+    i < KNOWN.length ? KNOWN[i] : `${KNOWN[i % KNOWN.length]}-x-${Math.floor(i / KNOWN.length)}`,
+  ),
+];
 const translations = {};
 for (const [index, locale] of locales.entries()) {
   const catalog = {};
@@ -62,7 +71,8 @@ const time = () => {
 
 const cold = time();
 const timed = Array.from({ length: runs }, time).sort((a, b) => a - b);
-const median = timed[Math.floor(timed.length / 2)];
+const middle = Math.floor(timed.length / 2);
+const median = timed.length % 2 ? timed[middle] : (timed[middle - 1] + timed[middle]) / 2;
 const ms = (value) => `${value.toFixed(1)} ms`;
 
 console.log(`comvi check engine: ${keys} keys × ${localeCount} locales, ${runs} runs`);
