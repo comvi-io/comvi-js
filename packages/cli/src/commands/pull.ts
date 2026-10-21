@@ -197,7 +197,7 @@ function warnAboutLocalLosses(diffs: PullFileDiff[], deleted: string[]): void {
     console.error(
       `⚠  Pull removes ${total} local ${total === 1 ? "key" : "keys"} the platform does not have: ` +
         `${listed.join("; ")}${more}. Run comvi push first to keep them; ` +
-        "pull --dry-run lists them all.",
+        "pull --dry-run shows them per file.",
     );
   }
 
