@@ -1,4 +1,8 @@
-import { CatalogCheck, type CheckOptions, type CheckReport } from "../../src/core/CatalogCheck";
+import {
+  CatalogCheck,
+  type CatalogCheckOptions,
+  type CatalogCheckReport,
+} from "../../src/core/CatalogCheck";
 
 /** Plural categories of a fake two-category locale, so a rule never depends on the Node major. */
 export const ONE_OTHER = () => ["one", "other"];
@@ -10,8 +14,8 @@ export const ONE_OTHER = () => ["one", "other"];
 export function check(
   source: Record<string, string>,
   target: Record<string, string>,
-  options: Partial<CheckOptions> = {},
-): CheckReport {
+  options: Partial<CatalogCheckOptions> = {},
+): CatalogCheckReport {
   return CatalogCheck.run({
     translations: { en: { default: source }, de: { default: target } },
     source: "en",

@@ -12,7 +12,7 @@ describe("check rule: missing", () => {
     expect(report.ok).toBe(false);
   });
 
-  it("counts an empty or blank target value as missing, as core does at runtime", () => {
+  it("counts an empty target value as missing, and a whitespace-only one too: stricter than core, since a whitespace-only value renders blank", () => {
     const report = check({ a: "A", b: "B", c: "C" }, { a: "", b: "  \n", c: "C2" });
 
     expect(report.locales.de.missing).toEqual(["a", "b"]);

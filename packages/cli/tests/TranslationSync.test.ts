@@ -155,6 +155,23 @@ describe("TranslationSync", () => {
     });
   });
 
+  it("matches requested locales exactly unless told to match loosely", async () => {
+    const dir = await makeTempDir("comvi-cli-sync");
+
+    await fs.writeFile(join(dir, "pt-br.json"), '{"a":"A"}\n');
+    await fs.writeFile(join(dir, "en.json"), '{"a":"A"}\n');
+    const sync = new TranslationSync({
+      translationsPath: dir,
+      fileTemplate: DEFAULT_FILE_TEMPLATE,
+      format: "json",
+    });
+
+    expect((await sync.readTranslations({ locales: ["pt_BR"] })).locales).toEqual([]);
+    expect(
+      (await sync.readTranslations({ locales: ["pt_BR"], looseLocaleMatch: true })).locales,
+    ).toEqual(["pt-br"]);
+  });
+
   it("skips files whose locale or namespace segment starts with a dot", async () => {
     const dir = await makeTempDir("comvi-cli-sync");
 

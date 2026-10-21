@@ -37,16 +37,17 @@ export type {
 export type { TypeEmitterOptions } from "./core/TypeEmitter";
 
 export type {
-  CheckOptions,
-  CheckReport,
-  CheckLocaleReport,
-  CheckSummary,
-  CheckParamsFinding,
-  CheckPluralFinding,
-  CheckSelectFinding,
-  CheckTagsFinding,
-  CheckUnbalancedTagsFinding,
-  CheckUnsupportedIcuFinding,
+  CatalogCheckOptions,
+  CatalogCheckReport,
+  CatalogCheckSourceReport,
+  CatalogCheckLocaleReport,
+  CatalogCheckSummary,
+  CatalogCheckParamsFinding,
+  CatalogCheckPluralFinding,
+  CatalogCheckSelectFinding,
+  CatalogCheckTagsFinding,
+  CatalogCheckUnbalancedTagsFinding,
+  CatalogCheckUnsupportedIcuFinding,
   PluralRuleType,
 } from "./core/CatalogCheck";
 

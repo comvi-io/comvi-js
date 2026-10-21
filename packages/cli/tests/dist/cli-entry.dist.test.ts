@@ -108,6 +108,19 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
     expect(run.stderr).toContain("Reading");
   });
 
+  it("loads no .env for check: it never reads the API variables", async () => {
+    const dir = await makeTempDir("comvi-check-env");
+    await fs.writeFile(join(dir, "package.json"), "{}");
+    await fs.writeFile(join(dir, ".env"), "COMVI_API_KEY=from-dotenv\n");
+    await fs.mkdir(join(dir, "src/locales"), { recursive: true });
+    await fs.writeFile(join(dir, "src/locales/en.json"), '{"a":"A"}');
+
+    const run = runCli(["check"], { cwd: dir, env: { COMVI_DEBUG: "1" } });
+
+    expect(run.status).toBe(0);
+    expect(run.stderr).not.toContain("loaded env from");
+  });
+
   it("exits 1 on an unknown check option, as commander does for every command", () => {
     expect(runCli(["check", "--nope"]).status).toBe(1);
   });

@@ -2,7 +2,11 @@ import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
-import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
+import {
+  DEFAULT_FILE_TEMPLATE,
+  isDefaultFileTemplate,
+  DEFAULT_TRANSLATIONS_PATH,
+} from "../defaults";
 import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
 
@@ -33,7 +37,7 @@ export function createPullCommand(): Command {
 
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
-          translationsPath: options.path || config.translationsPath || "./src/locales",
+          translationsPath: options.path || config.translationsPath || DEFAULT_TRANSLATIONS_PATH,
           fileTemplate,
           format: config.format || "json",
         });

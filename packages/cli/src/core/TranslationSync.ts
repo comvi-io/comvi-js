@@ -11,9 +11,12 @@ import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
+import { localeMatchKey } from "../utils/filterResolution";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
+  /** Match `locales` ignoring case and `_` versus `-`: `pt-BR` reads `pt-br.json`. */
+  looseLocaleMatch?: boolean;
   namespaces?: string[];
   defaultNamespace?: string;
 }
@@ -236,8 +239,10 @@ export class TranslationSync {
 
     const files = await this.findTranslationFiles(defaultNamespace);
 
+    const spell = options.looseLocaleMatch ? localeMatchKey : (locale: string) => locale;
+    const wanted = options.locales?.map(spell);
     for (const { locale, namespace, filePath } of files) {
-      if (options.locales?.length && !options.locales.includes(locale)) {
+      if (wanted?.length && !wanted.includes(spell(locale))) {
         continue;
       }
       if (options.namespaces?.length && !options.namespaces.includes(namespace)) {

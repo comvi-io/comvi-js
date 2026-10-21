@@ -763,6 +763,33 @@ describe("ConfigLoader", () => {
       return ConfigLoader.load("/project/.comvirc.json");
     };
 
+    it("accepts a fileTemplate without {namespace} in offline mode", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ fileTemplate: "{languageTag}.json" }));
+
+      const cfg = await ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false });
+
+      expect(cfg.fileTemplate).toBe("{languageTag}.json");
+    });
+
+    it.each([
+      "{namespace}.json",
+      "{namespace}/{namespace}/{languageTag}.json",
+      "{languageTag}.yaml",
+    ])("still refuses fileTemplate %j in offline mode", async (template) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ fileTemplate: template }));
+
+      const error = await rejectionOf(
+        ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false }),
+      );
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        `Invalid configuration: "fileTemplate" must contain exactly one {languageTag}, at most one {namespace} and end in ".json" (or ".{extension}"), received string ${JSON.stringify(template)}`,
+      );
+    });
+
     it("accepts sourceLocale", async () => {
       const cfg = await loadWith({ sourceLocale: "en" });
       expect(cfg.sourceLocale).toBe("en");

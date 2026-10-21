@@ -1,19 +1,19 @@
 import { scanMessageShape, type MessageShape } from "@comvi/typegen";
 import { DEFAULT_NAMESPACE } from "../defaults";
-import { hasOwnKey } from "../utils/dictionary";
+import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
 import type { TranslationData } from "../types";
 
 /** Plural rules of `Intl` type `"cardinal"` (`plural`) or `"ordinal"` (`selectordinal`). */
 export type PluralRuleType = "cardinal" | "ordinal";
 
-export interface CheckOptions {
+export interface CatalogCheckOptions {
   /** Locale → namespace → key → message, as `TranslationSync.readTranslations` returns it. */
   translations: TranslationData;
   /** The locale every other catalog is compared against. */
   source: string;
-  /** The locales to report on; the source is never one of them. */
+  /** The locales to report on. Listed twice counts once; the source is never one of them. */
   targets: string[];
-  /** The namespaces to compare. */
+  /** The namespaces to compare. Listed twice counts once. */
   namespaces: string[];
   /** Report a target message equal to its source message (warning). */
   identical?: boolean;
@@ -26,74 +26,87 @@ export interface CheckOptions {
   pluralCategories?: (locale: string, type: PluralRuleType) => string[] | undefined;
 }
 
-export interface CheckParamsFinding {
+export interface CatalogCheckParamsFinding {
   key: string;
   source: string[];
   target: string[];
 }
 
-export interface CheckPluralFinding {
+export interface CatalogCheckPluralFinding {
   key: string;
   argument: string;
   /**
-   * `missing-other` (error): no `other` branch. `unknown-category` (error): a
-   * selector the locale does not have. `missing-category` (warning): a category
-   * the locale has and the message does not write.
+   * `missing-other` (error): no `other` branch. `invalid-selector` (error): a
+   * selector the locale does not have, or an `=` selector that is not `=`
+   * followed by a decimal number (`=1`, `=-1`, `=1.5`), the only exact
+   * selector core compiles. `missing-category` (warning): a category the
+   * locale has and the message does not write.
    */
-  problem: "missing-other" | "unknown-category" | "missing-category";
+  problem: "missing-other" | "invalid-selector" | "missing-category";
   categories: string[];
 }
 
-export interface CheckSelectFinding {
+export interface CatalogCheckSelectFinding {
   key: string;
   argument: string;
   source: string[];
   target: string[];
 }
 
-export interface CheckTagsFinding {
+export interface CatalogCheckTagsFinding {
   key: string;
   source: string[];
   target: string[];
 }
 
-export interface CheckUnbalancedTagsFinding {
+export interface CatalogCheckUnbalancedTagsFinding {
   key: string;
-  side: "source" | "target";
   tags: string[];
 }
 
-export interface CheckUnsupportedIcuFinding {
+export interface CatalogCheckUnsupportedIcuFinding {
   key: string;
-  side: "source" | "target";
   argumentType: string;
 }
 
-export interface CheckLocaleReport {
-  /** Error: a source key absent, empty or blank in the target. */
+/** What is wrong with the source catalog itself, reported once. */
+export interface CatalogCheckSourceReport {
+  locale: string;
+  /** Error: the source message is empty or blank. */
+  emptySource: string[];
+  /** Warning: tag markup core renders as literal text. */
+  unbalancedTags: CatalogCheckUnbalancedTagsFinding[];
+  /** Error: an argument type `@comvi/core` does not compile. */
+  unsupportedIcu: CatalogCheckUnsupportedIcuFinding[];
+}
+
+export interface CatalogCheckLocaleReport {
+  /**
+   * Error: a source key absent or empty in the target. A whitespace-only value
+   * counts too — stricter than core, which renders it, blank.
+   */
   missing: string[];
   /** Warning: a target key the source does not have. */
   stale: string[];
-  /** Error: the source message is empty or blank. */
-  emptySource: string[];
   /** Error: the parameter names differ. */
-  params: CheckParamsFinding[];
-  plural: CheckPluralFinding[];
+  params: CatalogCheckParamsFinding[];
+  plural: CatalogCheckPluralFinding[];
   /** Error: the select selectors differ. */
-  select: CheckSelectFinding[];
+  select: CatalogCheckSelectFinding[];
   /** Error: the source uses tags and the target's tag names differ. */
-  tags: CheckTagsFinding[];
-  /** Warning: a tag opened without a close or closed without an open. */
-  unbalancedTags: CheckUnbalancedTagsFinding[];
+  tags: CatalogCheckTagsFinding[];
+  /** Warning: tag markup core renders as literal text. */
+  unbalancedTags: CatalogCheckUnbalancedTagsFinding[];
   /** Error: an argument type `@comvi/core` does not compile. */
-  unsupportedIcu: CheckUnsupportedIcuFinding[];
+  unsupportedIcu: CatalogCheckUnsupportedIcuFinding[];
   /** Warning (opt-in): the target message equals the source message. */
   identical: string[];
-  /** `Intl` does not know the locale, so its plural rules were not checked. */
+  /** `Intl` does not know the locale: only `other` and exact selectors were checked. */
   localeUnknown: boolean;
 }
 
-export interface CheckSummary {
+/** Findings per rule across the source and every target. */
+export interface CatalogCheckSummary {
   missing: number;
   stale: number;
   emptySource: number;
@@ -106,23 +119,19 @@ export interface CheckSummary {
   identical: number;
 }
 
-export interface CheckReport {
-  source: string;
+export interface CatalogCheckReport {
+  source: CatalogCheckSourceReport;
   /** Source keys across the compared namespaces. */
   keys: number;
-  locales: Record<string, CheckLocaleReport>;
-  summary: CheckSummary;
+  locales: Record<string, CatalogCheckLocaleReport>;
+  summary: CatalogCheckSummary;
   errors: number;
   warnings: number;
   ok: boolean;
 }
 
-/** `=` followed by a number: an ICU exact selector, valid in every locale. */
-function isExactSelector(selector: string): boolean {
-  return (
-    selector.startsWith("=") && selector.length > 1 && !Number.isNaN(Number(selector.slice(1)))
-  );
-}
+/** The exact selector core compiles (`compile-icu.ts`): `=` and a decimal number. */
+const EXACT_SELECTOR = /^=-?\d+(\.\d+)?$/;
 
 function isBlank(value: string | undefined): boolean {
   return value === undefined || value.trim() === "";
@@ -168,41 +177,67 @@ function intlPluralCategories(): (locale: string, type: PluralRuleType) => strin
  * and the generated types agree about every message.
  */
 export class CatalogCheck {
-  static run(options: CheckOptions): CheckReport {
-    const { translations, source, namespaces, identical = false, strict = false } = options;
+  static run(options: CatalogCheckOptions): CatalogCheckReport {
+    const { translations, source, identical = false, strict = false } = options;
     const pluralCategories = options.pluralCategories ?? intlPluralCategories();
-    const sourceShapes = new Map<string, MessageShape>();
-    const targets = [...options.targets].sort();
+    const namespaces = sorted(options.namespaces);
+    const targets = sorted(options.targets).filter((target) => target !== source);
 
     const label = (namespace: string, key: string) =>
       namespace === DEFAULT_NAMESPACE ? key : `${namespace}:${key}`;
+    const sourceCatalog = (namespace: string) => translations[source]?.[namespace] ?? {};
 
+    // The source pass: each source message is scanned once, and what is wrong
+    // with the source itself is reported once, with or without targets.
+    const sourceReport: CatalogCheckSourceReport = {
+      locale: source,
+      emptySource: [],
+      unbalancedTags: [],
+      unsupportedIcu: [],
+    };
+    const sourceShapes = new Map<string, MessageShape>();
     let keys = 0;
     for (const namespace of namespaces) {
-      keys += Object.keys(translations[source]?.[namespace] ?? {}).length;
+      const catalog = sourceCatalog(namespace);
+      for (const key of Object.keys(catalog).sort()) {
+        keys++;
+        const id = label(namespace, key);
+        if (isBlank(catalog[key])) {
+          sourceReport.emptySource.push(id);
+          continue;
+        }
+        const shape = scanMessageShape(catalog[key]);
+        sourceShapes.set(`${namespace}\u0000${key}`, shape);
+        if (shape.unsupported !== undefined) {
+          sourceReport.unsupportedIcu.push({ key: id, argumentType: shape.unsupported });
+        }
+        if (shape.unbalancedTags.length > 0) {
+          sourceReport.unbalancedTags.push({ key: id, tags: shape.unbalancedTags });
+        }
+      }
     }
 
-    const locales: Record<string, CheckLocaleReport> = {};
-    const summary: CheckSummary = {
+    const summary: CatalogCheckSummary = {
       missing: 0,
       stale: 0,
-      emptySource: 0,
+      emptySource: sourceReport.emptySource.length,
       params: 0,
       plural: 0,
       select: 0,
       tags: 0,
-      unbalancedTags: 0,
-      unsupportedIcu: 0,
+      unbalancedTags: sourceReport.unbalancedTags.length,
+      unsupportedIcu: sourceReport.unsupportedIcu.length,
       identical: 0,
     };
-    let errors = 0;
-    let warnings = 0;
+    let errors = sourceReport.emptySource.length + sourceReport.unsupportedIcu.length;
+    let warnings = sourceReport.unbalancedTags.length;
 
+    // Null prototype: a locale file named `__proto__.json` is an entry.
+    const locales = emptyDictionary<CatalogCheckLocaleReport>();
     for (const target of targets) {
-      const report: CheckLocaleReport = {
+      const report: CatalogCheckLocaleReport = {
         missing: [],
         stale: [],
-        emptySource: [],
         params: [],
         plural: [],
         select: [],
@@ -213,39 +248,31 @@ export class CatalogCheck {
         localeUnknown: pluralCategories(target, "cardinal") === undefined,
       };
 
-      for (const namespace of [...namespaces].sort()) {
-        const sourceCatalog = translations[source]?.[namespace] ?? {};
-        const targetCatalog = translations[target]?.[namespace] ?? {};
+      for (const namespace of namespaces) {
+        const sourceMessages = sourceCatalog(namespace);
+        const targetMessages = translations[target]?.[namespace] ?? {};
 
-        for (const key of Object.keys(targetCatalog).sort()) {
-          if (!hasOwnKey(sourceCatalog, key)) report.stale.push(label(namespace, key));
+        for (const key of Object.keys(targetMessages).sort()) {
+          if (!hasOwnKey(sourceMessages, key)) report.stale.push(label(namespace, key));
         }
 
-        for (const key of Object.keys(sourceCatalog).sort()) {
-          const id = label(namespace, key);
-          const sourceValue = sourceCatalog[key];
-          const targetValue = hasOwnKey(targetCatalog, key) ? targetCatalog[key] : undefined;
+        for (const key of Object.keys(sourceMessages).sort()) {
+          const sourceShape = sourceShapes.get(`${namespace}\u0000${key}`);
+          // An empty source message is a source finding, not one per target.
+          if (!sourceShape) continue;
 
-          if (isBlank(sourceValue)) {
-            report.emptySource.push(id);
-            continue;
-          }
+          const id = label(namespace, key);
+          const targetValue = hasOwnKey(targetMessages, key) ? targetMessages[key] : undefined;
           if (isBlank(targetValue)) {
             report.missing.push(id);
             continue;
           }
 
-          const sourceId = `${namespace}\u0000${key}`;
-          let sourceShape = sourceShapes.get(sourceId);
-          if (!sourceShape) {
-            sourceShape = scanMessageShape(sourceValue);
-            sourceShapes.set(sourceId, sourceShape);
-          }
           compareMessages(id, sourceShape, scanMessageShape(targetValue!), target, report, {
             pluralCategories,
           });
 
-          if (identical && targetValue === sourceValue) report.identical.push(id);
+          if (identical && targetValue === sourceMessages[key]) report.identical.push(id);
         }
       }
 
@@ -255,21 +282,26 @@ export class CatalogCheck {
       }
       errors +=
         report.missing.length +
-        report.emptySource.length +
         report.params.length +
         report.select.length +
         report.tags.length +
         report.unsupportedIcu.length;
       warnings += report.stale.length + report.unbalancedTags.length + report.identical.length;
 
-      for (const rule of Object.keys(summary) as (keyof CheckSummary)[]) {
-        summary[rule] += report[rule].length;
-      }
+      summary.missing += report.missing.length;
+      summary.stale += report.stale.length;
+      summary.params += report.params.length;
+      summary.plural += report.plural.length;
+      summary.select += report.select.length;
+      summary.tags += report.tags.length;
+      summary.unbalancedTags += report.unbalancedTags.length;
+      summary.unsupportedIcu += report.unsupportedIcu.length;
+      summary.identical += report.identical.length;
       locales[target] = report;
     }
 
     return {
-      source,
+      source: sourceReport,
       keys,
       locales,
       summary,
@@ -285,24 +317,18 @@ function compareMessages(
   source: MessageShape,
   target: MessageShape,
   locale: string,
-  report: CheckLocaleReport,
-  context: { pluralCategories: NonNullable<CheckOptions["pluralCategories"]> },
+  report: CatalogCheckLocaleReport,
+  context: { pluralCategories: NonNullable<CatalogCheckOptions["pluralCategories"]> },
 ): void {
-  if (source.unsupported !== undefined) {
-    report.unsupportedIcu.push({ key, side: "source", argumentType: source.unsupported });
-  }
   if (target.unsupported !== undefined) {
-    report.unsupportedIcu.push({ key, side: "target", argumentType: target.unsupported });
+    report.unsupportedIcu.push({ key, argumentType: target.unsupported });
   }
 
   if (source.tags.length > 0 && !sameSet(source.tags, target.tags)) {
     report.tags.push({ key, source: source.tags, target: target.tags });
   }
-  if (source.unbalancedTags.length > 0) {
-    report.unbalancedTags.push({ key, side: "source", tags: source.unbalancedTags });
-  }
   if (target.unbalancedTags.length > 0) {
-    report.unbalancedTags.push({ key, side: "target", tags: target.unbalancedTags });
+    report.unbalancedTags.push({ key, tags: target.unbalancedTags });
   }
 
   // An unsupported argument leaves the scan without that group's parameters,
@@ -323,21 +349,25 @@ function compareMessages(
     }
   }
 
-  if (report.localeUnknown) return;
-
   for (const { argument, type, selectors } of pluralArguments(target)) {
-    const categories = context.pluralCategories(locale, type);
-    if (categories === undefined) continue;
-
     if (!selectors.includes("other")) {
       report.plural.push({ key, argument, problem: "missing-other", categories: ["other"] });
     }
-    const unknown = sorted(
-      selectors.filter((selector) => !categories.includes(selector) && !isExactSelector(selector)),
+    // In a locale `Intl` does not know, only what holds in every locale is
+    // judged: `other`, and exact selectors in core's grammar.
+    const categories = report.localeUnknown ? undefined : context.pluralCategories(locale, type);
+    const invalid = sorted(
+      selectors.filter((selector) =>
+        selector.startsWith("=")
+          ? !EXACT_SELECTOR.test(selector)
+          : categories !== undefined && !categories.includes(selector),
+      ),
     );
-    if (unknown.length > 0) {
-      report.plural.push({ key, argument, problem: "unknown-category", categories: unknown });
+    if (invalid.length > 0) {
+      report.plural.push({ key, argument, problem: "invalid-selector", categories: invalid });
     }
+    if (categories === undefined) continue;
+
     const absent = sorted(
       categories.filter((category) => category !== "other" && !selectors.includes(category)),
     );

@@ -1,11 +1,20 @@
 import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
-import { TranslationSync } from "../core/TranslationSync";
-import { CatalogCheck, type CheckReport } from "../core/CatalogCheck";
-import { DEFAULT_FILE_TEMPLATE } from "../defaults";
+import { TranslationSync, type LocalTranslations } from "../core/TranslationSync";
+import {
+  CatalogCheck,
+  type CatalogCheckReport,
+  type CatalogCheckSummary,
+} from "../core/CatalogCheck";
+import { DEFAULT_FILE_TEMPLATE, DEFAULT_TRANSLATIONS_PATH, isValidFileTemplate } from "../defaults";
 import type { ComviConfig } from "../types";
 import { ErrorCodes, EXIT_CHECK_FAILED, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
-import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
+import {
+  assertAllReturned,
+  localeMatchKey,
+  parseListFlag,
+  resolveFilter,
+} from "../utils/filterResolution";
 
 /** The locale `check` compares against when neither `--source` nor `sourceLocale` names one. */
 const FALLBACK_SOURCE = "en";
@@ -61,42 +70,59 @@ async function runCheck(options: CheckCommandOptions): Promise<number> {
 
   const { translationsPath, fileTemplate, format, targets, namespaces } = settings;
   const sync = new TranslationSync({ translationsPath, fileTemplate, format: "json" });
-  const source = settings.source ?? FALLBACK_SOURCE;
+  const sourceName = settings.source ?? FALLBACK_SOURCE;
 
   process.stderr.write(`Reading ${translationsPath}…\n`);
-  let local: Awaited<ReturnType<TranslationSync["readTranslations"]>>;
+  let local: LocalTranslations;
   try {
     local = await sync.readTranslations({
-      locales: targets ? [source, ...targets] : undefined,
+      locales: targets ? [sourceName, ...targets] : undefined,
+      looseLocaleMatch: true,
       namespaces,
     });
   } catch (error) {
     return fail(error, isInputError(error) ? EXIT_VALIDATION : EXIT_CHECK_FAILED);
   }
 
-  let report: CheckReport;
+  // Requested names are matched to the catalogs' own: `-l pt-BR` checks
+  // `pt-br.json` and reports it as `pt-br`.
+  const catalogsFor = (name: string) =>
+    local.locales.filter((locale) => localeMatchKey(locale) === localeMatchKey(name));
+  let source: string;
   try {
     // A filter typo first: it also hides the source catalog.
     assertAllReturned("namespaces", namespaces, local.namespaces);
-    assertAllReturned("locales", targets, local.locales);
-    if (!local.locales.includes(source)) {
+    assertAllReturned("locales", targets?.map(localeMatchKey), local.locales.map(localeMatchKey));
+    const sources = catalogsFor(sourceName);
+    if (sources.length === 0) {
       throw new InputError(
         settings.source === undefined
           ? `no catalog for "${FALLBACK_SOURCE}" in ${translationsPath}: name the source locale with --source or "sourceLocale" in .comvirc.json`
-          : `no catalog for the source locale "${source}" in ${translationsPath}`,
+          : `no catalog for the source locale "${sourceName}" in ${translationsPath}`,
       );
     }
+    if (sources.length > 1) {
+      throw new InputError(
+        `the source locale "${sourceName}" matches more than one catalog: ${sources.join(", ")}`,
+      );
+    }
+    source = sources[0];
+  } catch (error) {
+    return fail(error, EXIT_VALIDATION);
+  }
 
+  let report: CatalogCheckReport;
+  try {
     report = CatalogCheck.run({
       translations: local.translations,
       source,
-      targets: (targets ?? local.locales).filter((locale) => locale !== source),
+      targets: targets ? targets.flatMap(catalogsFor) : local.locales,
       namespaces: local.namespaces,
       identical: options.identical ?? config.check?.identical ?? false,
       strict: options.strict ?? config.check?.strict ?? false,
     });
   } catch (error) {
-    return fail(error, EXIT_VALIDATION);
+    return fail(error, EXIT_CHECK_FAILED);
   }
 
   const code = report.ok || !options.fail ? 0 : 1;
@@ -129,12 +155,7 @@ function resolveSettings(options: CheckCommandOptions, config: ComviConfig) {
   }
 
   const fileTemplate = options.fileTemplate ?? config.fileTemplate ?? DEFAULT_FILE_TEMPLATE;
-  const count = (placeholder: string) => fileTemplate.split(placeholder).length - 1;
-  if (
-    count("{languageTag}") !== 1 ||
-    count("{namespace}") > 1 ||
-    !(fileTemplate.endsWith(".json") || fileTemplate.endsWith(".{extension}"))
-  ) {
+  if (!isValidFileTemplate(fileTemplate, true)) {
     throw new InputError(
       `--file-template must contain one {languageTag}, at most one {namespace} and end in ".json", received "${fileTemplate}"`,
     );
@@ -150,22 +171,24 @@ function resolveSettings(options: CheckCommandOptions, config: ComviConfig) {
     }
   }
 
-  const source = options.source?.trim() ?? config.sourceLocale;
-  // The source may be listed too; it is read, and never reported on.
-  const targets = resolveFilter(parseListFlag(options.locale), config.locales).value;
-
   return {
-    translationsPath: options.path ?? config.translationsPath ?? "./src/locales",
+    translationsPath: options.path ?? config.translationsPath ?? DEFAULT_TRANSLATIONS_PATH,
     fileTemplate,
     format: options.format,
-    source,
-    targets,
+    source: (options.source ?? config.sourceLocale)?.trim(),
+    // The source may be listed too; it is read, and never reported on.
+    targets: resolveFilter(parseListFlag(options.locale), config.locales).value,
     namespaces: resolveFilter(parseListFlag(options.ns), config.namespaces).value,
   };
 }
 
-/** A catalog file the user wrote is their input, as for pull and push; anything else is I/O. */
+/**
+ * The user's input, as for pull and push: a catalog file they wrote, one that
+ * vanished or may not be read, or a `--path` that names a file. Anything else
+ * is I/O the check could not get past.
+ */
 function isInputError(error: unknown): boolean {
+  if ((error as NodeJS.ErrnoException).code === "ENOTDIR") return true;
   if (isTypegenError(error, ErrorCodes.CONFIG_INVALID)) return true;
   if (!isTypegenError(error, ErrorCodes.FS_READ_FAILED)) return false;
   const code = (error.cause as NodeJS.ErrnoException | undefined)?.code;
@@ -177,7 +200,9 @@ function fail(error: unknown, code: number): number {
   return code;
 }
 
-const RULE_LABELS: Record<keyof CheckReport["summary"], string> = {
+type Rule = keyof CatalogCheckSummary;
+
+const RULE_LABELS: Record<Rule, string> = {
   missing: "missing",
   stale: "stale",
   emptySource: "empty source",
@@ -190,8 +215,8 @@ const RULE_LABELS: Record<keyof CheckReport["summary"], string> = {
   identical: "identical",
 };
 
-function counts(countOf: (rule: keyof CheckReport["summary"]) => number): string {
-  return (Object.keys(RULE_LABELS) as (keyof CheckReport["summary"])[])
+function counts(countOf: (rule: Rule) => number): string {
+  return (Object.keys(RULE_LABELS) as Rule[])
     .filter((rule) => countOf(rule) > 0)
     .map((rule) => `${countOf(rule)} ${RULE_LABELS[rule]}`)
     .join(", ");
@@ -200,27 +225,41 @@ function counts(countOf: (rule: keyof CheckReport["summary"]) => number): string
 const list = (values: string[]) => `{${values.join(", ")}}`;
 
 function formatText(
-  report: CheckReport,
+  report: CatalogCheckReport,
   translationsPath: string,
   code: number,
   failOnFindings: boolean,
 ): string {
+  const { source } = report;
   const targets = Object.keys(report.locales);
-  const width = Math.max(0, ...targets.map((locale) => locale.length)) + 2;
+  const width = Math.max(source.locale.length, ...targets.map((locale) => locale.length)) + 2;
+  const sourceCounts = counts((rule) =>
+    rule === "emptySource" || rule === "unbalancedTags" || rule === "unsupportedIcu"
+      ? source[rule].length
+      : 0,
+  );
   const lines = [
-    `comvi check  ${translationsPath}  source=${report.source}  ${targets.length + 1} locales  ${report.keys} keys`,
+    `comvi check  ${translationsPath}  source=${source.locale}  ${targets.length + 1} locales  ${report.keys} keys`,
+    `${source.locale.padEnd(width)}source: ${sourceCounts || "ok"}`,
   ];
   const details: string[] = [];
 
+  for (const key of source.emptySource) details.push(`empty source  ${source.locale}:${key}`);
+  for (const f of source.unbalancedTags) {
+    details.push(`unbalanced tags  ${source.locale}:${f.key}  ${list(f.tags)}`);
+  }
+  for (const f of source.unsupportedIcu) {
+    details.push(`unsupported ICU  ${source.locale}:${f.key}  ${f.argumentType}`);
+  }
+
   for (const locale of targets) {
     const entry = report.locales[locale];
-    const line = counts((rule) => entry[rule].length);
-    const unknown = entry.localeUnknown ? " (plural rules unknown to Intl, not checked)" : "";
+    const line = counts((rule) => (rule === "emptySource" ? 0 : entry[rule].length));
+    const unknown = entry.localeUnknown ? " (no Intl plural rules: only `other` checked)" : "";
     lines.push(`${locale.padEnd(width)}${line || "ok"}${unknown}`);
 
     for (const key of entry.missing) details.push(`missing  ${locale}:${key}`);
     for (const key of entry.stale) details.push(`stale  ${locale}:${key}`);
-    for (const key of entry.emptySource) details.push(`empty source  ${locale}:${key}`);
     for (const f of entry.params) {
       details.push(
         `params  ${locale}:${f.key}  source ${list(f.source)}  target ${list(f.target)}`,
@@ -240,10 +279,10 @@ function formatText(
       details.push(`tags  ${locale}:${f.key}  source ${list(f.source)}  target ${list(f.target)}`);
     }
     for (const f of entry.unbalancedTags) {
-      details.push(`unbalanced tags  ${locale}:${f.key}  ${f.side} ${list(f.tags)}`);
+      details.push(`unbalanced tags  ${locale}:${f.key}  ${list(f.tags)}`);
     }
     for (const f of entry.unsupportedIcu) {
-      details.push(`unsupported ICU  ${locale}:${f.key}  ${f.side} ${f.argumentType}`);
+      details.push(`unsupported ICU  ${locale}:${f.key}  ${f.argumentType}`);
     }
     for (const key of entry.identical) details.push(`identical  ${locale}:${key}`);
   }

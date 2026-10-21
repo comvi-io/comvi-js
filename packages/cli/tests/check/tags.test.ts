@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CatalogCheck } from "../../src/core/CatalogCheck";
 import { check } from "./run";
 
 describe("check rule: tags", () => {
@@ -37,16 +38,27 @@ describe("check rule: tags", () => {
   it("reports an unbalanced tag in the target as a warning", () => {
     const report = check({ a: "x" }, { a: "<b>x" });
 
-    expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", side: "target", tags: ["b"] }]);
+    expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", tags: ["b"] }]);
     expect(report.summary.unbalancedTags).toBe(1);
     expect(report.warnings).toBe(1);
     expect(report.ok).toBe(true);
   });
 
-  it("reports an unbalanced tag in the source as a warning", () => {
-    const report = check({ a: "<b>x" }, { a: "<b>x</b>" });
+  it("reports an unbalanced tag in the source once, as a warning", () => {
+    const report = CatalogCheck.run({
+      translations: {
+        en: { default: { a: "<b>x" } },
+        de: { default: { a: "<b>x</b>" } },
+        fr: { default: { a: "<b>x</b>" } },
+      },
+      source: "en",
+      targets: ["de", "fr"],
+      namespaces: ["default"],
+    });
 
-    expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", side: "source", tags: ["b"] }]);
+    expect(report.source.unbalancedTags).toEqual([{ key: "a", tags: ["b"] }]);
+    expect(report.locales.de.unbalancedTags).toEqual([]);
+    expect(report.summary.unbalancedTags).toBe(1);
     expect(report.warnings).toBe(1);
   });
 
@@ -58,7 +70,7 @@ describe("check rule: tags", () => {
     const report = check({ a: "<b>x</b>" }, { a: "<b>x" });
 
     expect(report.locales.de.tags).toEqual([{ key: "a", source: ["b"], target: [] }]);
-    expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", side: "target", tags: ["b"] }]);
+    expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", tags: ["b"] }]);
     expect(report.errors).toBe(1);
     expect(report.warnings).toBe(1);
   });

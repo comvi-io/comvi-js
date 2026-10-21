@@ -4,7 +4,11 @@ import { stdin as input, stdout as output } from "node:process";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient, type PushProgress } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
-import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
+import {
+  DEFAULT_FILE_TEMPLATE,
+  isDefaultFileTemplate,
+  DEFAULT_TRANSLATIONS_PATH,
+} from "../defaults";
 import type { ForceMode } from "../types";
 import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import { parseListFlag, resolveFilter } from "../utils/filterResolution";
@@ -38,7 +42,7 @@ export function createPushCommand(): Command {
 
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
-          translationsPath: options.path || config.translationsPath || "./src/locales",
+          translationsPath: options.path || config.translationsPath || DEFAULT_TRANSLATIONS_PATH,
           fileTemplate,
           format: config.format || "json",
         });

@@ -22,7 +22,7 @@ describe("check rule: plural (injected categories)", () => {
     );
 
     expect(report.locales.de.plural).toEqual([
-      { key: "a", argument: "n", problem: "unknown-category", categories: ["few", "many"] },
+      { key: "a", argument: "n", problem: "invalid-selector", categories: ["few", "many"] },
     ]);
     expect(report.errors).toBe(1);
   });
@@ -41,25 +41,28 @@ describe("check rule: plural (injected categories)", () => {
   it("accepts exact selectors in every locale", () => {
     const report = check(
       { a: "{n, plural, one {#} other {#}}" },
-      { a: "{n, plural, =0 {none} =12.5 {x} one {#} other {#}}" },
+      { a: "{n, plural, =0 {none} =12.5 {x} =-1 {y} one {#} other {#}}" },
     );
 
     expect(report.locales.de.plural).toEqual([]);
   });
 
-  it.each(["=", "=x", "x1"])("refuses %j as an exact selector", (selector) => {
-    const report = check(
-      { a: "{n, plural, one {#} other {#}}" },
-      { a: `{n, plural, ${selector} {none} one {#} other {#}}` },
-    );
+  it.each(["=", "=x", "x1", "=Infinity", "=0x10", "=1e3", "=.5", "=+1", "=1."])(
+    "refuses %j as an exact selector",
+    (selector) => {
+      const report = check(
+        { a: "{n, plural, one {#} other {#}}" },
+        { a: `{n, plural, ${selector} {none} one {#} other {#}}` },
+      );
 
-    expect(report.locales.de.plural).toContainEqual({
-      key: "a",
-      argument: "n",
-      problem: "unknown-category",
-      categories: [selector],
-    });
-  });
+      expect(report.locales.de.plural).toContainEqual({
+        key: "a",
+        argument: "n",
+        problem: "invalid-selector",
+        categories: [selector],
+      });
+    },
+  );
 
   it("judges selectordinal against the ordinal rules", () => {
     const pluralCategories = vi.fn((_locale: string, type: string) =>
@@ -85,7 +88,7 @@ describe("check rule: plural (injected categories)", () => {
     );
 
     expect(report.locales.de.plural).toEqual([
-      { key: "a", argument: "n", problem: "unknown-category", categories: ["two"] },
+      { key: "a", argument: "n", problem: "invalid-selector", categories: ["two"] },
     ]);
   });
 
@@ -94,7 +97,7 @@ describe("check rule: plural (injected categories)", () => {
       type === "ordinal" ? undefined : ["one", "other"];
     const report = check(
       { a: "{n, selectordinal, one {#} other {#}}" },
-      { a: "{n, selectordinal, zzz {#}}" },
+      { a: "{n, selectordinal, zzz {#} other {#}}" },
       { pluralCategories },
     );
 
@@ -102,16 +105,30 @@ describe("check rule: plural (injected categories)", () => {
     expect(report.locales.de.localeUnknown).toBe(false);
   });
 
-  it("marks a locale with no plural rules unknown and skips the rule for it", () => {
+  it("marks a locale with no plural rules unknown and judges no category in it", () => {
     const report = check(
       { a: "{n, plural, one {#} other {#}}" },
-      { a: "{n, plural, zzz {#}}" },
+      { a: "{n, plural, zzz {#} other {#}}" },
       { pluralCategories: () => undefined },
     );
 
     expect(report.locales.de.localeUnknown).toBe(true);
     expect(report.locales.de.plural).toEqual([]);
     expect(report.ok).toBe(true);
+  });
+
+  it("still requires `other` and a valid exact selector in an unknown locale", () => {
+    const report = check(
+      { a: "{n, plural, one {#} other {#}}" },
+      { a: "{n, plural, zzz {#} =x {#}}" },
+      { pluralCategories: () => undefined },
+    );
+
+    expect(report.locales.de.plural).toEqual([
+      { key: "a", argument: "n", problem: "missing-other", categories: ["other"] },
+      { key: "a", argument: "n", problem: "invalid-selector", categories: ["=x"] },
+    ]);
+    expect(report.errors).toBe(2);
   });
 
   it("passes a target that writes every category", () => {
@@ -130,7 +147,7 @@ describe("check rule: plural (more cases)", () => {
   it("skips selectordinal too in a locale with no cardinal rules", () => {
     const report = check(
       { a: "{n, selectordinal, one {#} other {#}}" },
-      { a: "{n, selectordinal, zzz {#}}" },
+      { a: "{n, selectordinal, zzz {#} other {#}}" },
       { pluralCategories: (_locale, type) => (type === "ordinal" ? ["one", "other"] : undefined) },
     );
 
@@ -177,7 +194,7 @@ describe("check rule: plural (Intl.PluralRules of this Node)", () => {
 
   it("knows that ja has only `other`", () => {
     expect(run("ja", "{n, plural, one {#} other {#}}").plural).toEqual([
-      { key: "a", argument: "n", problem: "unknown-category", categories: ["one"] },
+      { key: "a", argument: "n", problem: "invalid-selector", categories: ["one"] },
     ]);
   });
 
@@ -199,6 +216,8 @@ describe("check rule: plural (Intl.PluralRules of this Node)", () => {
     const entry = run(locale, "{n, plural, zzz {#}}");
 
     expect(entry.localeUnknown).toBe(true);
-    expect(entry.plural).toEqual([]);
+    expect(entry.plural).toEqual([
+      { key: "a", argument: "n", problem: "missing-other", categories: ["other"] },
+    ]);
   });
 });

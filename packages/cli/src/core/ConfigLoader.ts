@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import { dirname, resolve } from "path";
-import { DEFAULT_FILE_TEMPLATE } from "../defaults";
+import { DEFAULT_FILE_TEMPLATE, DEFAULT_TRANSLATIONS_PATH, isValidFileTemplate } from "../defaults";
 import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
@@ -128,7 +128,7 @@ export class ConfigLoader {
       filePath = await this.findConfigFile();
       if (!filePath && optional) {
         const defaults: ComviConfig = {
-          translationsPath: "./src/locales",
+          translationsPath: DEFAULT_TRANSLATIONS_PATH,
           fileTemplate: DEFAULT_FILE_TEMPLATE,
           format: "json",
         };
@@ -272,7 +272,9 @@ export class ConfigLoader {
       );
     }
 
-    this.validateFileTemplate(config.fileTemplate);
+    // Offline (check) reads but never writes, so a template without
+    // `{namespace}` — one catalog per locale — is enough for it.
+    this.validateFileTemplate(config.fileTemplate, !envApplied);
   }
 
   /**
@@ -281,17 +283,20 @@ export class ConfigLoader {
    * catalogs onto one file; one that does not end in `.json` is written but
    * never read, so a later push sees an empty catalog.
    */
-  private static validateFileTemplate(template: string | undefined): void {
-    if (template === undefined) return;
+  private static validateFileTemplate(
+    template: string | undefined,
+    namespaceOptional: boolean,
+  ): void {
+    if (template === undefined || isValidFileTemplate(template, namespaceOptional)) return;
 
-    const count = (placeholder: string) => template.split(placeholder).length - 1;
-    const endsInJson = template.endsWith(".json") || template.endsWith(".{extension}");
-    if (count("{languageTag}") !== 1 || count("{namespace}") !== 1 || !endsInJson) {
-      throw new TypegenError(
-        `Invalid configuration: "fileTemplate" must contain exactly one {languageTag} and one {namespace} and end in ".json" (or ".{extension}"), received ${describe(template)}`,
-        ErrorCodes.CONFIG_INVALID,
-      );
-    }
+    const namespaceRule = namespaceOptional ? "at most one {namespace}" : "one {namespace}";
+    const languageRule = namespaceOptional
+      ? "exactly one {languageTag},"
+      : "exactly one {languageTag} and";
+    throw new TypegenError(
+      `Invalid configuration: "fileTemplate" must contain ${languageRule} ${namespaceRule} and end in ".json" (or ".{extension}"), received ${describe(template)}`,
+      ErrorCodes.CONFIG_INVALID,
+    );
   }
 
   private static assertOptionalNonEmptyString(value: unknown, key: string): void {
@@ -499,7 +504,7 @@ export class ConfigLoader {
       apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
       outputPath: config.outputPath || "src/types/i18n.d.ts",
       strictParams: config.strictParams ?? true,
-      translationsPath: config.translationsPath || "./src/locales",
+      translationsPath: config.translationsPath || DEFAULT_TRANSLATIONS_PATH,
       fileTemplate: config.fileTemplate || DEFAULT_FILE_TEMPLATE,
       format: config.format || "json",
       ...(config.namespaces !== undefined ? { namespaces: config.namespaces } : {}),

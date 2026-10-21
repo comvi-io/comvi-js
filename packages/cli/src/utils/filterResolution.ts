@@ -67,3 +67,11 @@ export function assertAllReturned(
     ErrorCodes.VALIDATION_FAILED,
   );
 }
+
+/**
+ * A locale name compared ignoring case and `_` versus `-`, so `pt-BR`, `pt_br`
+ * and a `pt-br.json` file name all mean the same locale.
+ */
+export function localeMatchKey(locale: string): string {
+  return locale.toLowerCase().replace(/_/g, "-");
+}

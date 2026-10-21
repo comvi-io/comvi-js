@@ -3,6 +3,7 @@ import { promises as fs } from "fs";
 import { dirname, join, resolve } from "path";
 import { createCheckCommand } from "../src/commands/check";
 import { TranslationSync } from "../src/core/TranslationSync";
+import { CatalogCheck } from "../src/core/CatalogCheck";
 import {
   captureConsole,
   makeTempDir,
@@ -151,6 +152,65 @@ describe("comvi check", () => {
       expect(await run("-l", "de")).toBe(0);
     });
 
+    it("-l de,de reports de once", async () => {
+      await write("src/locales/de.json", { hello: "Hallo {name}" });
+
+      expect(await run("-l", "de,de", "--format", "json")).toBe(1);
+      const report = JSON.parse(output.stdout);
+      expect(Object.keys(report.locales)).toEqual(["de"]);
+      expect(report.summary.missing).toBe(1);
+    });
+
+    it("-n default,default counts each key once", async () => {
+      expect(await run("-n", "default,default", "--format", "json")).toBe(0);
+      expect(JSON.parse(output.stdout).keys).toBe(2);
+    });
+
+    it("matches -l and --source ignoring case and _ versus -, reporting the file's name", async () => {
+      await write("src/locales/pt-br.json", { hello: "Olá {name}" });
+
+      expect(await run("-l", "PT_br", "-s", "EN", "--format", "json")).toBe(1);
+      const report = JSON.parse(output.stdout);
+      expect(report.source.locale).toBe("en");
+      expect(Object.keys(report.locales)).toEqual(["pt-br"]);
+      expect(report.locales["pt-br"].missing).toEqual(["bye"]);
+    });
+
+    it("exits 4 when the source name matches two catalogs", async () => {
+      // Hyphen versus underscore, not case: macOS file systems fold case.
+      await write("src/locales/en-US.json", { hello: "Hello {name}", bye: "Bye" });
+      await write("src/locales/en_us.json", { hello: "Hello {name}", bye: "Bye" });
+
+      expect(await run("-s", "en-us")).toBe(4);
+      expect(output.stderr).toContain('the source locale "en-us" matches more than one catalog: ');
+    });
+
+    it("checks the source alone with -l naming only the source", async () => {
+      await write("src/locales/en.json", { hello: "", bye: "Bye" });
+
+      expect(await run("-l", "en", "--format", "json")).toBe(1);
+      const report = JSON.parse(output.stdout);
+      expect(report.locales).toEqual({});
+      expect(report.source.emptySource).toEqual(["hello"]);
+    });
+
+    it("checks the source alone when it is the only catalog", async () => {
+      await fs.rm(join(dir, "src/locales/de.json"));
+      await write("src/locales/en.json", { hello: "{p, number}" });
+
+      expect(await run("--format", "json")).toBe(1);
+      expect(JSON.parse(output.stdout).source.unsupportedIcu).toEqual([
+        { key: "hello", argumentType: "number" },
+      ]);
+    });
+
+    it("reports a locale file named __proto__", async () => {
+      await write("src/locales/__proto__.json", { hello: "x {name}", bye: "y" });
+
+      expect(await run("--format", "json")).toBe(0);
+      expect(Object.keys(JSON.parse(output.stdout).locales)).toEqual(["__proto__", "de"]);
+    });
+
     it("-l naming only the source reports no locale", async () => {
       await write("src/locales/fr.json", {});
 
@@ -185,20 +245,27 @@ describe("comvi check", () => {
 
       expect(await run("-s", "de", "--format", "json")).toBe(1);
       const report = JSON.parse(output.stdout);
-      expect(report.source).toBe("de");
+      expect(report.source.locale).toBe("de");
       expect(report.locales.en.missing).toEqual(["extra"]);
     });
 
     it("--source is trimmed", async () => {
       expect(await run("-s", " de ", "--format", "json")).toBe(0);
-      expect(JSON.parse(output.stdout).source).toBe("de");
+      expect(JSON.parse(output.stdout).source.locale).toBe("de");
+    });
+
+    it("sourceLocale in .comvirc.json is trimmed", async () => {
+      await write(".comvirc.json", { sourceLocale: " de " });
+
+      expect(await run("--format", "json")).toBe(0);
+      expect(JSON.parse(output.stdout).source.locale).toBe("de");
     });
 
     it("sourceLocale in .comvirc.json picks the source", async () => {
       await write(".comvirc.json", { sourceLocale: "de" });
 
       expect(await run("--format", "json")).toBe(0);
-      expect(JSON.parse(output.stdout).source).toBe("de");
+      expect(JSON.parse(output.stdout).source.locale).toBe("de");
     });
 
     it("exits 4 when no source is named and there is no en catalog", async () => {
@@ -293,6 +360,11 @@ describe("comvi check", () => {
       expect(await run()).toBe(4);
     });
 
+    it("on --path naming a file instead of a directory", async () => {
+      expect(await run("-p", "src/locales/en.json")).toBe(4);
+      expect(output.stderr).toContain("✗ Check failed:");
+    });
+
     it("on a translation file it may not read", async () => {
       if (process.platform === "win32" || process.getuid?.() === 0) return;
       await fs.chmod(join(dir, "src/locales/de.json"), 0o000);
@@ -351,6 +423,15 @@ describe("comvi check", () => {
       expect(await run()).toBe(2);
     });
 
+    it("when the check itself throws", async () => {
+      vi.spyOn(CatalogCheck, "run").mockImplementation(() => {
+        throw new Error("engine bug");
+      });
+
+      expect(await run()).toBe(2);
+      expect(output.stderr).toContain("✗ Check failed: engine bug");
+    });
+
     it("on a non-Error rejection", async () => {
       vi.spyOn(TranslationSync.prototype, "readTranslations").mockRejectedValue("boom");
 
@@ -364,6 +445,28 @@ describe("comvi check", () => {
       await write(".comvirc.json", { translationsPath: "./src/locales" });
 
       expect(await run()).toBe(0);
+    });
+
+    it("never touches COMVI_API_KEY or COMVI_API_BASE_URL", async () => {
+      await write(".comvirc.json", {});
+      const touched: string[] = [];
+      const realEnv = process.env;
+      process.env = new Proxy(realEnv, {
+        get(target, name, receiver) {
+          if (name === "COMVI_API_KEY" || name === "COMVI_API_BASE_URL") touched.push(name);
+          return Reflect.get(target, name, receiver);
+        },
+        has(target, name) {
+          if (name === "COMVI_API_KEY" || name === "COMVI_API_BASE_URL") touched.push(name);
+          return Reflect.has(target, name);
+        },
+      });
+      try {
+        expect(await run()).toBe(0);
+      } finally {
+        process.env = realEnv;
+      }
+      expect(touched).toEqual([]);
     });
 
     it("never reads COMVI_API_KEY or COMVI_API_BASE_URL, even malformed", async () => {
@@ -411,6 +514,18 @@ describe("comvi check", () => {
       expect(output.stdout).not.toContain("undefined");
     });
 
+    it("reads a fileTemplate without {namespace} from .comvirc.json", async () => {
+      await write(".comvirc.json", {
+        translationsPath: "./i18n",
+        fileTemplate: "{languageTag}.json",
+      });
+      await write("i18n/en.json", { a: "A" });
+      await write("i18n/de.json", {});
+
+      expect(await run("--format", "json")).toBe(1);
+      expect(JSON.parse(output.stdout).locales.de.missing).toEqual(["a"]);
+    });
+
     it("accepts a template ending in .{extension}", async () => {
       await write("cat/en/app.json", { a: "A" });
       await write("cat/de/app.json", { a: "B" });
@@ -439,7 +554,6 @@ describe("comvi check", () => {
       const emptyLocale = {
         missing: [],
         stale: [],
-        emptySource: [],
         params: [],
         plural: [],
         select: [],
@@ -451,7 +565,7 @@ describe("comvi check", () => {
       };
       expect(report).toEqual({
         version: 1,
-        source: "en",
+        source: { locale: "en", emptySource: [], unbalancedTags: [], unsupportedIcu: [] },
         translationsPath: "./src/locales",
         fileTemplate: "{namespace}/{languageTag}.json",
         keys: 2,
@@ -492,6 +606,12 @@ describe("comvi check", () => {
         "ok",
       ]);
       expect(Object.keys(report.locales.de)).toEqual(Object.keys(emptyLocale));
+      expect(Object.keys(report.source)).toEqual([
+        "locale",
+        "emptySource",
+        "unbalancedTags",
+        "unsupportedIcu",
+      ]);
       expect(output.stdout).toBe(JSON.stringify(report, null, 2));
     });
 
@@ -514,13 +634,13 @@ describe("comvi check", () => {
 
       expect(await run()).toBe(1);
       for (const line of [
-        "empty source  de:e",
+        "empty source  en:e",
         "plural  de:p  {n} missing-other other",
-        "plural  de:p  {n} unknown-category few",
+        "plural  de:p  {n} invalid-selector few",
         "select  de:s  {g}  source {a, other}  target {other}",
         "tags  de:t  source {b}  target {}",
-        "unbalanced tags  de:u  source {i}",
-        "unsupported ICU  de:x  source number",
+        "unbalanced tags  en:u  {i}",
+        "unsupported ICU  en:x  number",
       ]) {
         expect(output.stdout).toContain(line);
       }
@@ -541,11 +661,12 @@ describe("comvi check", () => {
       expect(output.stdout).toBe(
         [
           "comvi check  ./src/locales  source=en  2 locales  2 keys",
+          "en  source: ok",
           "de  1 stale, 1 params, 2 plural",
           "stale  de:old",
           "params  de:hello  source {name}  target {}",
           "plural  de:bye  {n} missing-other other",
-          "plural  de:bye  {n} unknown-category few, many",
+          "plural  de:bye  {n} invalid-selector few, many",
           "✗ 1 stale, 1 params, 2 plural — exit 0 (--no-fail)",
         ].join("\n"),
       );
@@ -586,7 +707,12 @@ describe("comvi check", () => {
       expect(await run("--identical")).toBe(1);
       const counts =
         "1 missing, 1 stale, 1 empty source, 1 params, 1 plural, 1 select, 1 tags, 1 unbalanced tags, 1 unsupported ICU, 1 identical";
-      expect(output.stdout).toContain(`\nde  ${counts}\n`);
+      expect(output.stdout).toContain(
+        "\nen  source: 1 empty source, 1 unbalanced tags, 1 unsupported ICU\n",
+      );
+      expect(output.stdout).toContain(
+        "\nde  1 missing, 1 stale, 1 params, 1 plural, 1 select, 1 tags, 1 identical\n",
+      );
       expect(output.stdout.split("\n").at(-1)).toBe(`✗ ${counts} — exit 1`);
     });
 
@@ -615,7 +741,7 @@ describe("comvi check", () => {
       await write("src/locales/qq.json", { hello: "{name}", bye: "x" });
 
       expect(await run()).toBe(0);
-      expect(output.stdout).toContain("qq  ok (plural rules unknown to Intl, not checked)");
+      expect(output.stdout).toContain("qq  ok (no Intl plural rules: only `other` checked)");
     });
 
     it("pads the locale column to the longest locale", async () => {
