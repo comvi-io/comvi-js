@@ -208,8 +208,8 @@ describe("comvi pull", () => {
 
     expect(exitCode).toBe(0);
     expect(output.log).toContain("\n✓ [dry-run] Would write 2 files:");
-    expect(output.log).toContain(`  ${join(localesDir, "en.json")}`);
-    expect(output.log).toContain(`  ${join(localesDir, "admin", "en.json")}`);
+    expect(output.log).toContain(`  ${join(localesDir, "en.json")} (new, 1 key)`);
+    expect(output.log).toContain(`  ${join(localesDir, "admin", "en.json")} (new, 1 key)`);
     await expect(fs.access(localesDir)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
