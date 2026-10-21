@@ -172,8 +172,10 @@ function reportPushProgress(progress: PushProgress): void {
 }
 
 async function promptConflictResolution(conflictCount: number): Promise<ApiPushForceMode> {
+  // No conflict to resolve, so none may be overwritten: committed with `fail`,
+  // a value saved on the platform since the preview stops the push.
   if (conflictCount === 0) {
-    return "override";
+    return "abort";
   }
 
   if (!process.stdin.isTTY) {

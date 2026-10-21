@@ -290,8 +290,10 @@ describe("comvi push", () => {
 
     expect(exitCode).toBe(0);
     expect(createInterface).not.toHaveBeenCalled();
+    // Nothing conflicted in the preview, so nothing may be overwritten: a value
+    // a translator saves between the preview and the commit stops the push.
     expect(commitBody().options).toEqual({
-      conflictResolution: "keep_local",
+      conflictResolution: "fail",
       createNamespaces: true,
       deleteOrphans: false,
     });
