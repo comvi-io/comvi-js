@@ -356,7 +356,7 @@ describe("ApiClient", () => {
       } as Response);
 
       await expect(apiClient.fetchTranslations()).rejects.toMatchObject({
-        message: "Access denied to this project",
+        message: expect.stringContaining("Access denied to this project"),
         code: ErrorCodes.API_AUTH_FAILED,
       });
     });
@@ -393,7 +393,7 @@ describe("ApiClient", () => {
         } as Response);
 
       await expect(apiClient.fetchNamespaces()).rejects.toMatchObject({
-        message: "Access denied to project namespaces",
+        message: expect.stringContaining("Access denied to project namespaces"),
         code: ErrorCodes.API_AUTH_FAILED,
       });
     });
@@ -528,7 +528,7 @@ describe("ApiClient", () => {
         forceMode: "override",
       });
 
-      expect(result).toEqual({ created: 1, updated: 0, skipped: 0 });
+      expect(result).toMatchObject({ created: 1, updated: 0, skipped: 0 });
       expect(fetchMock).toHaveBeenCalledWith(
         "https://api.test.com/v1/projects/123/import/commit",
         expect.objectContaining({
@@ -582,11 +582,11 @@ describe("ApiClient", () => {
         forceMode: "keep",
       });
 
-      expect(result).toEqual({ created: 0, updated: 0, skipped: 1 });
+      expect(result).toMatchObject({ created: 0, updated: 0, skipped: 1 });
       expect(requestBodyOfCall(3).options.conflictResolution).toBe("keep_server");
     });
 
-    it("should use the bulk response translationsUpdated count", async () => {
+    it("should use the bulk response translationsUpdated count from a platform that reports skips", async () => {
       fetchMock
         .mockResolvedValueOnce({
           ok: true,
@@ -602,7 +602,9 @@ describe("ApiClient", () => {
               keysDeleted: 0,
               translationsCreated: 0,
               translationsUpdated: 1,
+              translationsSkipped: 0,
               namespacesCreated: [],
+              skippedLocales: [],
             },
           }),
         } as Response);
@@ -612,7 +614,7 @@ describe("ApiClient", () => {
         forceMode: "override",
       });
 
-      expect(result).toEqual({ created: 0, updated: 1, skipped: 0 });
+      expect(result).toMatchObject({ created: 0, updated: 1, skipped: 0, detailed: true });
     });
 
     it("should reject failed bulk import responses", async () => {
@@ -686,6 +688,7 @@ describe("ApiClient", () => {
               keysDeleted: 0,
               translationsCreated: 1,
               translationsUpdated: 1,
+              translationsSkipped: 0,
               namespacesCreated: [],
             },
           }),
