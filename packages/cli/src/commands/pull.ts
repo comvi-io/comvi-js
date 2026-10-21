@@ -118,7 +118,12 @@ export function createPullCommand(): Command {
           process.exit(0);
         }
 
-        warnAboutDroppedKeys(await sync.diffPull(translations, { defaultNamespace }));
+        const diffs = await sync.diffPull(translations, { defaultNamespace });
+        const written = new Set(diffs.map(({ filePath }) => filePath));
+        const deleted = emptyDir
+          ? (await sync.previewClear(scope)).filter((file) => !written.has(file))
+          : [];
+        warnAboutLocalLosses(diffs, deleted);
 
         let result;
         if (emptyDir) {
@@ -175,24 +180,39 @@ function describeFileDiff(diff: PullFileDiff): string {
   return [counts, nested].filter(Boolean).join(", ");
 }
 
-/** A pull replaces files wholesale: say which local-only keys it is about to drop. */
-function warnAboutDroppedKeys(diffs: PullFileDiff[]): void {
+/** A pull replaces files wholesale: say what local work it is about to lose. */
+function warnAboutLocalLosses(diffs: PullFileDiff[], deleted: string[]): void {
   const dropping = diffs.filter((diff) => diff.removed.length > 0);
   const total = dropping.reduce((sum, diff) => sum + diff.removed.length, 0);
-  if (total === 0) return;
-
-  let budget = LISTED_KEYS;
-  const listed = dropping
-    .filter(() => budget > 0)
-    .map((diff) => {
+  if (total > 0) {
+    const listed: string[] = [];
+    let budget = LISTED_KEYS;
+    for (const diff of dropping) {
+      if (budget === 0) break;
       const keys = diff.removed.slice(0, budget);
       budget -= keys.length;
-      return `${diff.filePath}: ${keys.join(", ")}`;
-    });
-  const more = total > LISTED_KEYS ? `; … and ${total - LISTED_KEYS} more` : "";
-  console.error(
-    `⚠  Pull removes ${total} local ${total === 1 ? "key" : "keys"} the platform does not have: ` +
-      `${listed.join("; ")}${more}. Run comvi push first to keep them; ` +
-      "pull --dry-run lists them all.",
-  );
+      listed.push(`${diff.filePath}: ${keys.join(", ")}`);
+    }
+    const more = total > LISTED_KEYS ? `; … and ${total - LISTED_KEYS} more` : "";
+    console.error(
+      `⚠  Pull removes ${total} local ${total === 1 ? "key" : "keys"} the platform does not have: ` +
+        `${listed.join("; ")}${more}. Run comvi push first to keep them; ` +
+        "pull --dry-run lists them all.",
+    );
+  }
+
+  const unreadable = diffs.filter((diff) => diff.status === "unreadable");
+  if (unreadable.length > 0) {
+    console.error(
+      `⚠  Pull replaces ${unreadable.length} local ${unreadable.length === 1 ? "file" : "files"} ` +
+        `it could not read: ${unreadable.map(({ filePath }) => filePath).join(", ")}`,
+    );
+  }
+
+  if (deleted.length > 0) {
+    console.error(
+      `⚠  Pull deletes ${deleted.length} local ${deleted.length === 1 ? "file" : "files"} ` +
+        `the platform has no catalog for: ${deleted.join(", ")}`,
+    );
+  }
 }

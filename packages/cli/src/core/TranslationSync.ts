@@ -201,6 +201,8 @@ export class TranslationSync {
     options: WriteTranslationsOptions = {},
   ): Promise<PullFileDiff[]> {
     const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
+    // Never read through a symlink that leaves the tree.
+    await this.assertPlanContained(planned);
     const diffs: PullFileDiff[] = [];
 
     for (const { filePath, catalog } of planned) {

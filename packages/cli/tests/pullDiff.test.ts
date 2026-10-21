@@ -144,4 +144,38 @@ describe("pull", () => {
 
     expect(output.stderr).not.toContain("Pull removes");
   });
+
+  it("names at most ten dropped keys in all, in the order it writes the files", async () => {
+    const twelve = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`en${i}`, "x"]));
+    await writeLocal("en.json", { greeting: "Hello", ...twelve });
+    await writeLocal("de.json", { greeting: "Hallo", de0: "x", de1: "x", de2: "x" });
+
+    expect(await pull([])).toBe(0);
+
+    expect(output.stderr).toContain("Pull removes 15 local keys");
+    expect(output.stderr).toContain("en9; … and 5 more");
+    expect(output.stderr).not.toContain("de.json:");
+  });
+
+  it("warns before replacing a local file it cannot read", async () => {
+    await writeLocal("en.json", { greeting: "Hello", count: 3 });
+
+    expect(await pull([])).toBe(0);
+
+    expect(output.stderr).toContain(
+      `Pull replaces 1 local file it could not read: ${join(localesDir, "en.json")}`,
+    );
+  });
+
+  it("with --empty-dir, names the local files it deletes", async () => {
+    await writeLocal("en.json", { greeting: "Hello" });
+    await fs.mkdir(join(localesDir, "old"), { recursive: true });
+    await fs.writeFile(join(localesDir, "old", "en.json"), JSON.stringify({ gone: "x" }));
+
+    expect(await pull(["--empty-dir"])).toBe(0);
+
+    expect(output.stderr).toContain(
+      `Pull deletes 1 local file the platform has no catalog for: ${join(localesDir, "old", "en.json")}`,
+    );
+  });
 });
