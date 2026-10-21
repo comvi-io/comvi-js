@@ -51,5 +51,7 @@ describe("check performance", () => {
     expect(report.keys).toBe(2000);
     expect(report.summary.missing).toBe(1800);
     expect(elapsed).toBeLessThan(500);
-  });
+    // Four runs of 22,000 messages: the CI runner, shared with turbo's other
+    // test tasks, took over 5 s of wall time for them.
+  }, 30_000);
 });
