@@ -34,6 +34,8 @@ export class TypeGenerator {
     this.apiClient = new ApiClient({
       apiKey: this.options.apiKey,
       apiBaseUrl: this.options.apiBaseUrl,
+      timeout: this.options.timeout,
+      commitTimeout: this.options.commitTimeout,
     });
 
     this.writer = dependencies?.writer ?? new FileSystemWriter();

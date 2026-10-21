@@ -5,6 +5,7 @@ import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { isHttpUrl } from "./apiBaseUrl";
+import { timeoutsFromEnv } from "./timeouts";
 import { isModuleSpecifier } from "@comvi/typegen";
 
 async function fileExists(path: string): Promise<boolean> {
@@ -412,6 +413,7 @@ export class ConfigLoader {
       outputPath: config.outputPath || "src/types/i18n.d.ts",
       strictParams: config.strictParams ?? true,
       augment: config.augment,
+      ...timeoutsFromEnv(),
     };
   }
 

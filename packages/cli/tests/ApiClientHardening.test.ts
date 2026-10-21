@@ -525,13 +525,15 @@ describe("ApiClient hardening", () => {
         translations: { en: { common: { greeting: "Hello" } } },
         forceMode: "override",
       });
+      // The commit has its own budget, five minutes by default: the client's
+      // 5 s read timeout does not apply to it.
       const assertion = expect(promise).rejects.toMatchObject({
-        message: "Request timeout after 5000ms",
+        message: expect.stringContaining("Push timed out after 300000ms"),
         code: ErrorCodes.API_TIMEOUT,
       });
       // Keep a handler attached: an early mismatch still fails `await assertion` below.
       void assertion.catch(() => {});
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(300_000);
 
       await assertion;
     });
