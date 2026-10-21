@@ -36,7 +36,7 @@ describe("ConsoleReporter", () => {
   it("announces the fetch at info level", () => {
     reporter.reportFetching();
 
-    expect(logger.info).toHaveBeenCalledWith("Fetching translations from TMS...");
+    expect(logger.info).toHaveBeenCalledWith("Fetching schema from TMS...");
   });
 
   it("announces the emit at info level", () => {
@@ -71,7 +71,7 @@ describe("ConsoleReporter", () => {
 
     new ConsoleReporter().reportFetching();
 
-    expect(logSpy).toHaveBeenCalledWith("[@comvi/cli] Fetching translations from TMS...");
+    expect(logSpy).toHaveBeenCalledWith("[@comvi/cli] Fetching schema from TMS...");
   });
 });
 

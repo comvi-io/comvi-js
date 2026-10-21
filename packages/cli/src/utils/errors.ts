@@ -52,7 +52,10 @@ export function wrapError(error: unknown, context: string, code: string): Typege
   }
 
   const cause = error instanceof Error ? error : undefined;
-  const message = cause ? cause.message : String(error);
+  // fetch reports every network failure as "fetch failed"; the reason it
+  // failed (ECONNREFUSED, a DNS miss, a TLS error) sits on its cause.
+  const reason = ((cause as { cause?: unknown } | undefined)?.cause as Error | undefined)?.message;
+  const message = cause ? (reason ? `${cause.message} (${reason})` : cause.message) : String(error);
 
   return new TypegenError(`${context}: ${message}`, code, cause);
 }

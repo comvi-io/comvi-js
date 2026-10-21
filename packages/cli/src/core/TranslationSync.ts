@@ -197,6 +197,7 @@ export class TranslationSync {
     }
 
     const planned: PlannedWrite[] = [];
+    const owners = new Map<string, string>();
 
     for (const locale of data.locales) {
       const localeTranslations = data.translations[locale];
@@ -206,10 +207,23 @@ export class TranslationSync {
         const catalog = localeTranslations[namespace];
         if (!catalog) continue;
 
+        const filePath = this.resolveFilePath(locale, namespace, defaultNamespace);
+        // `{languageTag}-{namespace}.json` puts en + US-shop and en-US + shop
+        // in one file; the second write would silently replace the first.
+        const owner = `locale ${JSON.stringify(locale)}, namespace ${JSON.stringify(namespace)}`;
+        const previous = owners.get(filePath);
+        if (previous) {
+          throw new TypegenError(
+            `${previous} and ${owner} both resolve to ${filePath}. ` +
+              "Use a fileTemplate that puts {languageTag} and {namespace} in separate path segments.",
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
+        owners.set(filePath, owner);
         planned.push({
           locale,
           namespace,
-          filePath: this.resolveFilePath(locale, namespace, defaultNamespace),
+          filePath,
           catalog,
         });
       }

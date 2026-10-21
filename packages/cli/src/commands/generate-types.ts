@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { TypeGenerator } from "../core/TypeGenerator";
+import { ConsoleReporter } from "../core/GenerationReporter";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ErrorCodes, EXIT_VALIDATION, isTypegenError, type TypegenError } from "../utils/errors";
 import type { CheckResult } from "../types";
@@ -32,7 +33,8 @@ export function createTypegenCommand(): Command {
         const config = await ConfigLoader.load(options.config);
         const generatorOptions = ConfigLoader.toGeneratorOptions(config);
 
-        const generator = new TypeGenerator(generatorOptions);
+        // The command prints a failure itself; the reporter would print it again.
+        const generator = new TypeGenerator(generatorOptions, { reporter: new CommandReporter() });
 
         if (options.check) {
           await runCheckMode(generator);
@@ -143,4 +145,8 @@ async function runCheckMode(generator: TypeGenerator): Promise<void> {
     console.error("\n  Run 'comvi typegen' to update.");
     process.exit(1);
   }
+}
+
+class CommandReporter extends ConsoleReporter {
+  reportError(): void {}
 }

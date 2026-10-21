@@ -24,7 +24,7 @@ export class ConsoleReporter implements GenerationReporter {
   }
 
   reportFetching(): void {
-    this.logger.info("Fetching translations from TMS...");
+    this.logger.info("Fetching schema from TMS...");
   }
 
   reportGenerating(): void {
