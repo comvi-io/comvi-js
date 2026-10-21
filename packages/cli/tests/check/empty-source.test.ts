@@ -4,7 +4,7 @@ import { check } from "./run";
 
 describe("check rule: empty-source", () => {
   it("reports an empty or blank source message once, as an error, and compares nothing else for it", () => {
-    const report = check({ a: "", b: " ", c: "C" }, { a: "A {x}", c: "C2" });
+    const report = check({ c: "C", b: " ", a: "" }, { a: "A {x}", c: "C2" });
 
     expect(report.source.emptySource).toEqual(["a", "b"]);
     expect(report.locales.de.missing).toEqual([]);

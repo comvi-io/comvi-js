@@ -41,13 +41,13 @@ describe("check rule: plural (injected categories)", () => {
   it("accepts exact selectors in every locale", () => {
     const report = check(
       { a: "{n, plural, one {#} other {#}}" },
-      { a: "{n, plural, =0 {none} =12.5 {x} =-1 {y} one {#} other {#}}" },
+      { a: "{n, plural, =0 {none} =12.5 {x} =-1 {y} =1.25 {z} one {#} other {#}}" },
     );
 
     expect(report.locales.de.plural).toEqual([]);
   });
 
-  it.each(["=", "=x", "x1", "=Infinity", "=0x10", "=1e3", "=.5", "=+1", "=1."])(
+  it.each(["=", "=x", "x1", "=Infinity", "=0x10", "=1e3", "=.5", "=+1", "=1.", "==1"])(
     "refuses %j as an exact selector",
     (selector) => {
       const report = check(

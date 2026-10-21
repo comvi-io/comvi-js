@@ -763,6 +763,19 @@ describe("ConfigLoader", () => {
       return ConfigLoader.load("/project/.comvirc.json");
     };
 
+    it("refuses a fileTemplate without {namespace} for the online commands", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(
+        JSON.stringify({ apiKey: "k", fileTemplate: "{languageTag}.json" }),
+      );
+
+      const error = await rejectionOf(ConfigLoader.load("/project/.comvirc.json"));
+
+      expect((error as TypegenError).message).toBe(
+        'Invalid configuration: "fileTemplate" must contain exactly one {languageTag} and one {namespace} and end in ".json" (or ".{extension}"), received string "{languageTag}.json"',
+      );
+    });
+
     it("accepts a fileTemplate without {namespace} in offline mode", async () => {
       mockAccess.mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce(JSON.stringify({ fileTemplate: "{languageTag}.json" }));

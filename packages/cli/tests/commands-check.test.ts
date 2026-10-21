@@ -182,7 +182,9 @@ describe("comvi check", () => {
       await write("src/locales/en_us.json", { hello: "Hello {name}", bye: "Bye" });
 
       expect(await run("-s", "en-us")).toBe(4);
-      expect(output.stderr).toContain('the source locale "en-us" matches more than one catalog: ');
+      expect(output.stderr).toMatch(
+        /the source locale "en-us" matches more than one catalog: (en-US, en_us|en_us, en-US)$/m,
+      );
     });
 
     it("checks the source alone with -l naming only the source", async () => {
@@ -622,9 +624,13 @@ describe("comvi check", () => {
         s: "{g, select, a {A} other {B}}",
         t: "<b>x</b>",
         u: "<i>x",
+        v: "x",
         x: "{p, number}",
+        y: "{p}",
       });
       await write("src/locales/de.json", {
+        v: "<b>x",
+        y: "{p, time}",
         p: "{n, plural, one {#} few {#}}",
         s: "{g, select, other {B}}",
         t: "x",
@@ -641,6 +647,8 @@ describe("comvi check", () => {
         "tags  de:t  source {b}  target {}",
         "unbalanced tags  en:u  {i}",
         "unsupported ICU  en:x  number",
+        "unbalanced tags  de:v  {b}",
+        "unsupported ICU  de:y  time",
       ]) {
         expect(output.stdout).toContain(line);
       }
