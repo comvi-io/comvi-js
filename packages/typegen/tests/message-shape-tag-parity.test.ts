@@ -349,6 +349,25 @@ function divergences(message: string, checkBranches = true): string[] {
 
   const problems: string[] = [];
   const tags = new Set(shape.tags);
+
+  // The per-occurrence plural groups merge into exactly the two records, and
+  // each names a parameter of type number.
+  for (const [ordinal, record] of [
+    [false, shape.plurals],
+    [true, shape.ordinals],
+  ] as const) {
+    const merged = Object.create(null) as Record<string, string[]>;
+    for (const group of shape.pluralGroups.filter((g) => g.ordinal === ordinal)) {
+      const list = (merged[group.name] ??= []);
+      for (const selector of group.selectors) if (!list.includes(selector)) list.push(selector);
+      if (!shape.params.some((p) => p.name === group.name && p.type === "number")) {
+        problems.push(`plural group ${group.name} names no number parameter`);
+      }
+    }
+    if (JSON.stringify({ ...merged }) !== JSON.stringify({ ...record })) {
+      problems.push(`pluralGroups do not merge into ${ordinal ? "ordinals" : "plurals"}`);
+    }
+  }
   const unbalanced = new Set(shape.unbalancedTags);
 
   for (const name of runtime.fired) {
