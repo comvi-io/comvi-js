@@ -20,7 +20,8 @@ export class TypegenError extends Error {
  *
  * - 0: done.
  * - 1: the command ran and found a problem: a conflict under `abort`, outdated
- *   types under `typegen --check`, or a failure that fits no other code.
+ *   types under `typegen --check`; also a local failure that fits no other
+ *   code, such as a file that cannot be written.
  * - 2: the platform was unreachable, timed out, answered 5xx or 429, or sent
  *   something that is not the expected response. Retrying may help.
  * - 3: the API key was rejected, or it may not do this.
@@ -103,13 +104,19 @@ export function exitCodeFor(error: unknown): number {
       if (typeof status !== "number" || status >= 500 || TRANSIENT_STATUSES.has(status)) {
         return EXIT_UNAVAILABLE;
       }
-      return status === 401 || status === 403 || status === 404 ? EXIT_ACCESS : EXIT_VALIDATION;
+      const code = error.details?.code;
+      if (code === "LIMIT_EXCEEDED") return EXIT_VALIDATION;
+      if (status === 401 || status === 403) return EXIT_ACCESS;
+      // A missing project is the key's; any other 404 is a wrong apiBaseUrl.
+      if (status === 404) return code === "PROJECT_NOT_FOUND" ? EXIT_ACCESS : EXIT_VALIDATION;
+      return EXIT_VALIDATION;
     }
     case ErrorCodes.CONFIG_NOT_FOUND:
     case ErrorCodes.CONFIG_INVALID:
     case ErrorCodes.CONFIG_MISSING_FIELD:
     case ErrorCodes.VALIDATION_FAILED:
     case ErrorCodes.INVALID_INPUT:
+    case ErrorCodes.FS_READ_FAILED:
       return EXIT_VALIDATION;
     default:
       return EXIT_FAILURE;

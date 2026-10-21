@@ -3,7 +3,10 @@
  * and `pt-BR` to one locale, so the CLI must too.
  */
 export function localeKey(code: string): string {
-  return code.trim().replace(/_/g, "-").toLowerCase();
+  // The platform's normalizeLocaleCode: subtags split on - or _, empty ones dropped.
+  const trimmed = code.trim();
+  const subtags = trimmed.split(/[-_]/).filter((subtag) => subtag.length > 0);
+  return (subtags.length > 0 ? subtags.join("-") : trimmed).toLowerCase();
 }
 
 /** The project's spelling of `code`, or undefined when the project lacks it. */
@@ -27,21 +30,26 @@ export function resolveLocales(
 ): LocaleResolution {
   const spelling = new Map<string, string>();
   const unknown: string[] = [];
-  const byProject = new Map<string, string[]>();
+  const byKey = new Map<string, string[]>();
 
   for (const code of local) {
+    byKey.set(localeKey(code), [...(byKey.get(localeKey(code)) ?? []), code]);
     const match = findLocale(code, project);
     if (match === undefined) {
       unknown.push(code);
       continue;
     }
     spelling.set(code, match);
-    byProject.set(match, [...(byProject.get(match) ?? []), code]);
   }
 
-  const duplicates = [...byProject]
-    .filter(([, spellings]) => spellings.length > 1)
-    .map(([locale, spellings]) => ({ locale, spellings }));
+  // Judged on the local files alone: fr_FR and fr-FR clash whether or not the
+  // project has the locale.
+  const duplicates = [...byKey.values()]
+    .filter((spellings) => spellings.length > 1)
+    .map((spellings) => ({
+      locale: findLocale(spellings[0], project) ?? spellings[spellings.length - 1],
+      spellings,
+    }));
 
   return { spelling, unknown, duplicates };
 }

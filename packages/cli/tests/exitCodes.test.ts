@@ -303,7 +303,11 @@ describe("push", () => {
   it("checks nothing when the platform has no locales endpoint, and still pushes", async () => {
     http = stubFetch({
       ...BASE,
-      [PATHS.projectLocales]: { status: 404, statusText: "Not Found" },
+      [PATHS.projectLocales]: {
+        status: 404,
+        statusText: "Not Found",
+        body: { code: "NOT_FOUND", message: "Route GET:/v1/project/locales not found" },
+      },
       [PATHS.commit]: COMMIT_OK,
     });
 
@@ -316,6 +320,68 @@ describe("push", () => {
 
     expect(await run(createPushCommand(), ["--force-mode", "override"])).toBe(4);
     expect(output.stderr).toContain("--allow-empty");
+  });
+
+  it("exits 4 when --skip-unknown-locales leaves nothing to push", async () => {
+    await fs.rm(join(root, "locales", "en.json"));
+    await write("locales/fr.json", { greeting: "Bonjour" });
+    http = stubFetch({ ...BASE });
+
+    expect(
+      await run(createPushCommand(), ["--force-mode", "override", "--skip-unknown-locales"]),
+    ).toBe(4);
+    expect(http.paths()).not.toContain(PATHS.commit);
+  });
+
+  it("exits 4 when the files hold no translation values", async () => {
+    await write("locales/en.json", {});
+    http = stubFetch({ ...BASE });
+
+    expect(await run(createPushCommand(), ["--force-mode", "override"])).toBe(4);
+    expect(http.paths()).not.toContain(PATHS.commit);
+  });
+
+  it("exits 2 when the commit's stats are not numbers", async () => {
+    http = stubFetch({ ...BASE, [PATHS.commit]: { body: { success: true, stats: {} } } });
+
+    expect(await run(createPushCommand(), ["--force-mode", "override"])).toBe(2);
+  });
+
+  it("exits 3 when the locales lookup says the project is gone", async () => {
+    http = stubFetch({
+      ...BASE,
+      [PATHS.projectLocales]: {
+        status: 404,
+        statusText: "Not Found",
+        body: { code: "PROJECT_NOT_FOUND", message: "Project not found" },
+      },
+    });
+
+    expect(await run(createPushCommand(), ["--force-mode", "override"])).toBe(3);
+  });
+
+  it("does not retry a 409 that is not a rolled-back transaction", async () => {
+    http = stubFetch({
+      ...BASE,
+      [PATHS.commit]: { status: 409, statusText: "Conflict", body: { code: "CONFLICT" } },
+    });
+
+    await run(createPushCommand(), ["--force-mode", "override"]);
+    expect(http.paths().filter((path) => path === PATHS.commit)).toHaveLength(1);
+  });
+
+  it("exits 2 after a second rolled-back 409, having sent the commit twice", async () => {
+    http = stubFetch({
+      ...BASE,
+      [PATHS.commit]: {
+        status: 409,
+        statusText: "Conflict",
+        body: { code: "TRANSACTION_CONFLICT" },
+      },
+    });
+
+    expect(await run(createPushCommand(), ["--force-mode", "override"])).toBe(2);
+    expect(http.paths().filter((path) => path === PATHS.commit)).toHaveLength(2);
   });
 
   it("exits 0 with --allow-empty when there is nothing to push", async () => {

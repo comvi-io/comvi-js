@@ -82,37 +82,27 @@ export function createPushCommand(): Command {
           defaultNamespace,
         });
 
-        if (Object.keys(localTranslations.translations).length === 0) {
-          if (!options.allowEmpty) {
-            throw new TypegenError(
-              `No translation files found under ${options.path || config.translationsPath || "./src/locales"} ` +
-                `matching "${fileTemplate}". Check translationsPath and the filters, ` +
-                "or pass --allow-empty when an empty push is expected.",
-              ErrorCodes.VALIDATION_FAILED,
-            );
-          }
-          console.log("⚠  No translation files found; nothing to push (--allow-empty)");
-          process.exit(0);
-        }
-
         // Judge the local locales before anything is written: a locale the
         // project does not have would otherwise be dropped by the platform
         // while the push reports success.
-        const projectLocales = await apiClient.fetchProjectLocales();
-        if (projectLocales) {
-          const resolution = resolveLocales(
-            Object.keys(localTranslations.translations),
-            projectLocales,
+        const translations = localTranslations.translations;
+        const projectLocales =
+          Object.keys(translations).length > 0 ? await apiClient.fetchProjectLocales() : [];
+        const resolution = resolveLocales(Object.keys(translations), projectLocales ?? []);
+        if (resolution.duplicates.length > 0) {
+          const clashes = resolution.duplicates
+            .map(({ locale, spellings }) => `${spellings.join(" and ")} (both ${locale})`)
+            .join("; ");
+          throw new TypegenError(
+            `Two local files hold the same locale: ${clashes}. Keep one spelling.`,
+            ErrorCodes.VALIDATION_FAILED,
           );
-          if (resolution.duplicates.length > 0) {
-            const clashes = resolution.duplicates
-              .map(({ locale, spellings }) => `${spellings.join(" and ")} (both ${locale})`)
-              .join("; ");
-            throw new TypegenError(
-              `Two local files hold the same locale: ${clashes}. Keep one spelling.`,
-              ErrorCodes.VALIDATION_FAILED,
-            );
-          }
+        }
+        if (projectLocales === undefined) {
+          console.error(
+            "⚠  The platform did not list its locales; local locales were not checked before the push.",
+          );
+        } else {
           if (resolution.unknown.length > 0) {
             const list = resolution.unknown.join(", ");
             if (!options.skipUnknownLocales) {
@@ -124,19 +114,35 @@ export function createPushCommand(): Command {
             }
             console.error(`⚠  Skipping locales the project does not have: ${list}`);
             for (const locale of resolution.unknown) {
-              delete localTranslations.translations[locale];
+              delete translations[locale];
             }
           }
           for (const [local, project] of resolution.spelling) {
             if (local !== project) {
-              localTranslations.translations[project] = localTranslations.translations[local];
-              delete localTranslations.translations[local];
+              translations[project] = translations[local];
+              delete translations[local];
             }
           }
-        } else {
-          console.error(
-            "⚠  The platform did not list its locales; local locales were not checked before the push.",
-          );
+        }
+
+        // Counted after the locale check: skipped locales and empty files do
+        // not make a push.
+        const values = Object.values(translations).reduce(
+          (sum, namespaces) =>
+            sum + Object.values(namespaces).reduce((n, keys) => n + Object.keys(keys).length, 0),
+          0,
+        );
+        if (values === 0) {
+          if (!options.allowEmpty) {
+            throw new TypegenError(
+              `No translation values to push under ${options.path || config.translationsPath || "./src/locales"} ` +
+                `matching "${fileTemplate}". Check translationsPath and the filters, ` +
+                "or pass --allow-empty when an empty push is expected.",
+              ErrorCodes.VALIDATION_FAILED,
+            );
+          }
+          console.log("⚠  No translation values to push (--allow-empty)");
+          process.exit(0);
         }
 
         if (options.dryRun) {

@@ -97,15 +97,15 @@ set `augment` in `.comvirc.json` to name a different module.
 
 ## Exit codes
 
-Every command uses the same codes, so CI can act on the code alone:
+Every command uses the same codes, so CI can act on the code alone. `comvi init` still writes the config and only warns when the key cannot be validated.
 
-| Code | Meaning                                                                                                                                      | What to do      |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `0`  | Done                                                                                                                                         | —               |
-| `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`                           | Fix the content |
-| `2`  | The platform was unreachable, timed out, answered 5xx or 429, or sent an unexpected response                                                 | Retry           |
-| `3`  | The API key was rejected, or it lacks the scope or language access the command needs                                                         | Fix the key     |
-| `4`  | Invalid input: configuration, flags, local files, a locale the project does not have, nothing to push, `--force-mode ask` without a terminal | Fix the input   |
+| Code | Meaning                                                                                                                                                                                                                  | What to do      |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| `0`  | Done                                                                                                                                                                                                                     | —               |
+| `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`; also a local failure such as a file that cannot be written                                           | Fix the content |
+| `2`  | The platform was unreachable, timed out, answered 5xx or 429, or sent an unexpected response                                                                                                                             | Retry           |
+| `3`  | The API key was rejected, lacks the scope the command needs, or its project no longer exists                                                                                                                             | Fix the key     |
+| `4`  | Invalid input: configuration, flags, an unreadable local file, a locale the project does not have (or the key may not write), nothing to push, a plan limit, `--force-mode ask` without a terminal, a wrong `apiBaseUrl` | Fix the input   |
 
 ## Next steps
 

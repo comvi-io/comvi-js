@@ -476,7 +476,13 @@ export class ApiClient {
         { failure: "Failed to fetch project locales", forbidden: "Access denied to this project" },
       );
     } catch (error) {
-      if (error instanceof TypegenError && error.details?.status === 404) {
+      // A platform without the route answers a plain 404; a project that is
+      // gone says PROJECT_NOT_FOUND, and that one is the key's problem.
+      if (
+        error instanceof TypegenError &&
+        error.details?.status === 404 &&
+        error.details?.code !== "PROJECT_NOT_FOUND"
+      ) {
         return undefined;
       }
       if (error instanceof TypegenError) {
@@ -619,7 +625,13 @@ export class ApiClient {
         await delay(RETRY_BASE_DELAY_MS);
         body = await commit();
       }
-      if (!isRecord(body) || typeof body.success !== "boolean" || !isRecord(body.stats)) {
+      if (
+        !isRecord(body) ||
+        typeof body.success !== "boolean" ||
+        !isRecord(body.stats) ||
+        typeof body.stats.keysCreated !== "number" ||
+        (body.errors !== undefined && !Array.isArray(body.errors))
+      ) {
         throw invalidResponse("import commit");
       }
       if (!body.success) {

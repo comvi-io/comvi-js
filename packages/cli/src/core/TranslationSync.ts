@@ -354,7 +354,7 @@ export class TranslationSync {
     if (!isBeneathDirectory(resolve(process.cwd()), this.translationsPath)) {
       throw new TypegenError(
         `Refusing to clear translations directory outside the current project: ${this.translationsPath}`,
-        ErrorCodes.FS_WRITE_FAILED,
+        ErrorCodes.VALIDATION_FAILED,
       );
     }
   }

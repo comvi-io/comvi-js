@@ -15,8 +15,10 @@
 Migration, for scripts that test exit codes:
 
 - **`1` is narrower.** It no longer covers outages (now `2`), a rejected key (now `3`), a missing `.comvirc.json`, an existing `.comvirc.json` under `init`, `--force-mode ask` without a terminal, an unknown command or option, or a schema the emitter refuses (all now `4`).
-- **`typegen --check` and a rejected key.** A rejected key now exits `3`, not `2`; `2` stays "the platform could not be reached".
+- **`typegen --check`.** A rejected key now exits `3`, not `2`, and so does a project that no longer exists. Other 4xx responses, such as a wrong `apiBaseUrl`, exit `4`. `2` stays "the platform could not be reached".
+- **Other mappings.** Running `comvi` with no command exits `4`. A plan limit on the commit exits `4`. An unreadable local translation file exits `4`.
 - **`comvi push` checks local locales first.** Before writing anything, it compares local locales with the locales the project has, as the key may write them. A locale the project lacks exits `4` and names it. Pass `--skip-unknown-locales` to push the rest. Locale spellings are matched as the platform matches them (`pt_br` is `pt-BR`), and two files for the same locale exit `4`. A platform that cannot list its locales skips the check with a warning.
-- **`comvi push` with no translation files** exits `4` instead of `0`. Pass `--allow-empty` when that is expected.
+- **`comvi push` with nothing to push** exits `4` instead of `0`. That covers no files, files without values, and every locale skipped. Pass `--allow-empty` when that is expected; then no commit is sent.
+- **Restricted locales.** A locale the key's owner is restricted from is reported with the locales the project lacks, and also exits `4`.
 - **Rolled-back commits are retried once.** A commit the platform rolled back on a database conflict (`409 TRANSACTION_CONFLICT`) is sent once more instead of failing.
 - **`--locale` spellings.** `--locale` in `pull` and `push` matches any spelling of a locale.
