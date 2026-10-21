@@ -63,7 +63,10 @@ class Session {
   async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const response = await fetch(`${API_URL}${path}`, {
       method,
-      headers: { "content-type": "application/json", cookie: this.cookie },
+      headers: {
+        cookie: this.cookie,
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
