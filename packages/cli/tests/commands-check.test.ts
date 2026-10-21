@@ -215,6 +215,21 @@ describe("comvi check", () => {
       expect(output.stdout).toContain("\nplural  en:n  {n} missing-other other\n");
     });
 
+    it("lists every invalid source selector, and notes a source locale Intl does not know", async () => {
+      await fs.rm(join(dir, "src/locales/de.json"));
+      await write("src/locales/en.json", { n: "{n, plural, few {x} many {y} other {z}}" });
+      await write("src/locales/qq.json", { n: "{n, plural, one {x}}" });
+
+      expect(await run("-l", "en")).toBe(1);
+      expect(output.stdout).toContain("\nplural  en:n  {n} invalid-selector few, many\n");
+
+      output.log.length = 0;
+      expect(await run("-s", "qq", "-l", "qq")).toBe(1);
+      expect(output.stdout).toContain(
+        "\nqq  source: 1 plural (no Intl plural rules: only `other` checked)\n",
+      );
+    });
+
     it("judges pt_BR.json and pt-BR.json by the same plural rules", async () => {
       for (const file of ["pt_BR", "pt-BR"]) {
         await fs.rm(join(dir, "src/locales/pt_BR.json"), { force: true });
