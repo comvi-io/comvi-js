@@ -299,6 +299,38 @@ describe("comvi push", () => {
     });
   });
 
+  it("ask mode stops when a value changed on the platform after its preview", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello", farewell: "Bye" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+      [PATHS.importCommit]: {
+        body: {
+          success: false,
+          stats: { keysCreated: 0, translationsUpdated: 0 },
+          errors: [
+            {
+              key: "greeting",
+              namespace: "common",
+              message: "Conflict: local value differs from server value",
+            },
+          ],
+        },
+      },
+    });
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "ask"]);
+
+    expect(exitCode).toBe(1);
+    expect(output.error[0]).toBe(
+      "✗ Push failed: 1 value changed on the platform since this push read them (common:greeting). " +
+        "Nothing was written; run the push again to resolve it.",
+    );
+  });
+
   it("ask mode exits 1 with an actionable hint when stdin is not a terminal", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", { greeting: "Hello" });
