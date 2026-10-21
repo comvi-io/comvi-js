@@ -274,6 +274,7 @@ export class TranslationSync {
     }
 
     const planned: PlannedWrite[] = [];
+    const owners = new Map<string, string>();
 
     for (const locale of data.locales) {
       const localeTranslations = data.translations[locale];
@@ -283,12 +284,43 @@ export class TranslationSync {
         const catalog = localeTranslations[namespace];
         if (!catalog) continue;
 
+        const filePath = this.resolveFilePath(locale, namespace, defaultNamespace);
+        // `{languageTag}-{namespace}.json` puts en + US-shop and en-US + shop
+        // in one file; the second write would silently replace the first.
+        const owner = `locale ${JSON.stringify(locale)}, namespace ${JSON.stringify(namespace)}`;
+        // Compared as a case-insensitive file system sees it (macOS, Windows).
+        const key = filePath.normalize("NFC").toLowerCase();
+        const previous = owners.get(key);
+        if (previous) {
+          throw new TypegenError(
+            `${previous} and ${owner} both resolve to ${filePath}. ` +
+              "Use a fileTemplate that puts {languageTag} and {namespace} in separate path segments.",
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
+        owners.set(key, owner);
         planned.push({
           locale,
           namespace,
-          filePath: this.resolveFilePath(locale, namespace, defaultNamespace),
+          filePath,
           catalog,
         });
+      }
+    }
+
+    // A file one catalog needs where another needs a directory: with the
+    // default layout, namespace "en.json" would live at en.json/en.json.
+    const root = this.translationsPath.normalize("NFC").toLowerCase();
+    for (const [key, owner] of owners) {
+      for (let dir = dirname(key); dir.length > root.length; dir = dirname(dir)) {
+        const fileOwner = owners.get(dir);
+        if (fileOwner) {
+          throw new TypegenError(
+            `${fileOwner} is written to a file that ${owner} needs as a directory. ` +
+              "Rename the namespace or use a different fileTemplate.",
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
       }
     }
 

@@ -201,7 +201,13 @@ export function assertNoUnexpectedRequests(): void {
 
 export interface FakeEventSource {
   onmessage: ((event: MessageEvent) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event?: { code?: number; message?: string }) => void) | null;
+  onopen: (() => void) | null;
+  /** 0 connecting, 1 open, 2 closed — as the real EventSource. */
+  readyState: number;
+  closed: boolean;
+  /** The `fetch` option the client passed, to drive its transport. */
+  fetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
   close(): void;
 }
 
@@ -214,12 +220,24 @@ export function mockEventSource(): { instances: FakeEventSource[] } {
 
   vi.doMock("eventsource", () => ({
     EventSource: class implements FakeEventSource {
+      static CLOSED = 2;
       onmessage: ((event: MessageEvent) => void) | null = null;
-      onerror: (() => void) | null = null;
-      constructor() {
+      onerror: ((event?: { code?: number; message?: string }) => void) | null = null;
+      onopen: (() => void) | null = null;
+      readyState = 0;
+      closed = false;
+      fetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
+      constructor(
+        _url: string,
+        init?: { fetch?: (input: string | URL, init?: RequestInit) => Promise<Response> },
+      ) {
+        this.fetch = init?.fetch;
         instances.push(this);
       }
-      close() {}
+      close() {
+        this.closed = true;
+        this.readyState = 2;
+      }
     },
   }));
 
