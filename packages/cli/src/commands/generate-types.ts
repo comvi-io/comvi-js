@@ -1,11 +1,15 @@
 import { Command } from "commander";
 import { TypeGenerator } from "../core/TypeGenerator";
 import { ConfigLoader } from "../core/ConfigLoader";
-import { ErrorCodes, EXIT_VALIDATION, isTypegenError, type TypegenError } from "../utils/errors";
+import {
+  ErrorCodes,
+  EXIT_CHECK_FAILED,
+  EXIT_VALIDATION,
+  isTypegenError,
+  type TypegenError,
+} from "../utils/errors";
 import type { CheckResult } from "../types";
 
-/** `--check` reached no verdict because the TMS request failed. */
-const EXIT_CHECK_FAILED = 2;
 /** Errors that mean the check never got to compare anything. */
 const CHECK_BLOCKING_CODES: readonly string[] = [
   ErrorCodes.API_CONNECTION_FAILED,

@@ -151,6 +151,18 @@ describe("comvi push", () => {
     assertNoUnexpectedRequests();
   });
 
+  it("exits 4 without an API key and sends no request", async () => {
+    const configPath = await writeConfig({ apiKey: undefined, translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({});
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
+
+    expect(exitCode).toBe(4);
+    expect(output.stderr).toContain("apiKey is required");
+    expect(http.requests).toEqual([]);
+  });
+
   it("uploads the local files as a namespace-keyed import commit", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", { greeting: "Hello" });

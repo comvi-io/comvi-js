@@ -93,6 +93,17 @@ describe("comvi pull", () => {
     assertNoUnexpectedRequests();
   });
 
+  it("exits 4 without an API key and sends no request", async () => {
+    const configPath = await writeConfig({ apiKey: undefined, translationsPath: localesDir });
+    http = stubFetch({});
+
+    const exitCode = await runPull(["-c", configPath]);
+
+    expect(exitCode).toBe(4);
+    expect(output.stderr).toContain("apiKey is required");
+    expect(http.requests).toEqual([]);
+  });
+
   it("writes one file per locale and namespace, flattening the project default namespace", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     http = stubFetch({

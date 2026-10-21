@@ -153,6 +153,20 @@ describe("comvi typegen", () => {
     expect(output.stderr).toContain("✗ Generation failed: Invalid API key");
   });
 
+  it.each([[[]], [["--check"]]])("exits 4 without an API key (extra flags %j)", async (extra) => {
+    const noKeyConfigPath = join(dirname(configPath), "nokey.comvirc.json");
+    await nodeFs.writeFile(
+      noKeyConfigPath,
+      JSON.stringify({ apiBaseUrl: "https://api.test.com", outputPath }),
+    );
+
+    await expect(
+      createTypegenCommand().parseAsync(["-c", noKeyConfigPath, ...extra], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 4 });
+
+    expect(output.stderr).toContain("apiKey is required");
+  });
+
   it("exits 1 when the config file named by -c does not exist", async () => {
     const missing = join(dirname(configPath), "absent.json");
 

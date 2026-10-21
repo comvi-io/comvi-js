@@ -48,14 +48,17 @@ const KNOWN_CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof ComviConfig>([
   "format",
   "namespaces",
   "locales",
+  "sourceLocale",
   "push",
   "pull",
+  "check",
 ]);
 
-/** Every field the `push` and `pull` sections declare. */
-const KNOWN_SECTION_FIELDS: Readonly<Record<"push" | "pull", ReadonlySet<string>>> = {
+/** Every field the `push`, `pull` and `check` sections declare. */
+const KNOWN_SECTION_FIELDS: Readonly<Record<"push" | "pull" | "check", ReadonlySet<string>>> = {
   push: new Set(["forceMode"]),
   pull: new Set(["emptyDir"]),
+  check: new Set(["identical", "strict"]),
 };
 
 const FORCE_MODES: readonly string[] = ["override", "keep", "ask", "abort"];
@@ -100,7 +103,18 @@ export class ConfigLoader {
     }
   }
 
-  static async load(configPath?: string): Promise<ComviConfig> {
+  /**
+   * `requireApiKey: false` is for a command that never talks to the TMS: the
+   * `apiKey` guard is skipped and `COMVI_API_KEY` / `COMVI_API_BASE_URL` are
+   * not read. `optional: true` lets it run with no discovered `.comvirc.json`,
+   * on the defaults `init` writes; an explicit `configPath` that does not
+   * exist is still `CONFIG_NOT_FOUND`.
+   */
+  static async load(
+    configPath?: string,
+    options: { requireApiKey?: boolean; optional?: boolean } = {},
+  ): Promise<ComviConfig> {
+    const { requireApiKey = true, optional = false } = options;
     let filePath: string | null;
 
     if (configPath) {
@@ -112,6 +126,18 @@ export class ConfigLoader {
       }
     } else {
       filePath = await this.findConfigFile();
+      if (!filePath && optional) {
+        const defaults: ComviConfig = {
+          translationsPath: "./src/locales",
+          fileTemplate: DEFAULT_FILE_TEMPLATE,
+          format: "json",
+        };
+        if (requireApiKey) {
+          this.applyEnvironmentOverrides(defaults);
+        }
+        this.validateConfig(defaults, requireApiKey);
+        return defaults;
+      }
       if (!filePath) {
         throw new TypegenError(
           `No ${this.CONFIG_FILENAME} found. Run 'comvi init' to create one.`,
@@ -142,9 +168,13 @@ export class ConfigLoader {
         delete config.apiBaseUrl;
       }
 
-      this.applyEnvironmentOverrides(config);
+      // A command that never talks to the TMS does not read the API
+      // variables, so a stale or malformed one cannot fail it.
+      if (requireApiKey) {
+        this.applyEnvironmentOverrides(config);
+      }
 
-      this.validateConfig(config);
+      this.validateConfig(config, requireApiKey);
 
       return config;
     } catch (error) {
@@ -172,11 +202,14 @@ export class ConfigLoader {
     }
   }
 
-  private static validateConfig(config: ComviConfig): void {
+  private static validateConfig(config: ComviConfig, requireApiKey: boolean): void {
     const errors: string[] = [];
 
     // apiKey is required, but can come from env var (already applied in applyEnvironmentOverrides)
-    if (!config.apiKey || typeof config.apiKey !== "string" || config.apiKey.trim() === "") {
+    if (
+      requireApiKey &&
+      (!config.apiKey || typeof config.apiKey !== "string" || config.apiKey.trim() === "")
+    ) {
       errors.push("apiKey is required");
       errors.push("  Set COMVI_API_KEY environment variable or add to .comvirc.json");
     }
@@ -188,7 +221,7 @@ export class ConfigLoader {
       );
     }
 
-    this.validateScalarFields(config);
+    this.validateScalarFields(config, requireApiKey);
 
     this.validateSwitches(config);
 
@@ -219,8 +252,8 @@ export class ConfigLoader {
    * `admin/en.json`, which the next read — filtering for `.yaml` — saw only
    * half of, and `translationsPath: 42` failed later as a raw `TypeError`.
    */
-  private static validateScalarFields(config: ComviConfig): void {
-    for (const key of ["outputPath", "translationsPath", "fileTemplate"] as const) {
+  private static validateScalarFields(config: ComviConfig, envApplied: boolean): void {
+    for (const key of ["outputPath", "translationsPath", "fileTemplate", "sourceLocale"] as const) {
       this.assertOptionalNonEmptyString(config[key], key);
     }
 
@@ -234,7 +267,7 @@ export class ConfigLoader {
     this.assertOptionalNonEmptyString(config.apiBaseUrl, "apiBaseUrl");
     if (config.apiBaseUrl !== undefined && !isHttpUrl(config.apiBaseUrl)) {
       throw new TypegenError(
-        `Invalid configuration: "apiBaseUrl"${process.env.COMVI_API_BASE_URL ? " (from COMVI_API_BASE_URL)" : ""} must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
+        `Invalid configuration: "apiBaseUrl"${envApplied && process.env.COMVI_API_BASE_URL ? " (from COMVI_API_BASE_URL)" : ""} must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
         ErrorCodes.CONFIG_INVALID,
       );
     }
@@ -299,6 +332,10 @@ export class ConfigLoader {
         ErrorCodes.CONFIG_INVALID,
       );
     }
+
+    const check = this.assertOptionalSection(config.check, "check");
+    this.assertOptionalBoolean(check?.identical, "check.identical");
+    this.assertOptionalBoolean(check?.strict, "check.strict");
   }
 
   private static assertOptionalBoolean(value: unknown, key: string): void {
@@ -431,7 +468,7 @@ export class ConfigLoader {
     }
 
     // A section that is not an object is reported by `validateSwitches`.
-    for (const section of ["push", "pull"] as const) {
+    for (const section of ["push", "pull", "check"] as const) {
       const value: unknown = config[section];
       if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
       for (const key of Object.keys(value)) {
