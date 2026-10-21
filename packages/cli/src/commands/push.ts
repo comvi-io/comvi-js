@@ -134,15 +134,14 @@ export function createPushCommand(): Command {
         console.log(`  Keys created: ${result.created}`);
         if (result.detailed) {
           console.log(
-            `  Values: ${result.valuesCreated} new, ${result.updated} changed, ` +
+            `  Values: ${result.valuesCreated ?? 0} new, ${result.updated} changed, ` +
               `${result.skipped} kept on the platform`,
           );
-        } else if (result.skipped > 0) {
-          console.log(`  Kept on the platform: ${result.skipped} conflicting values`);
         }
-        if (result.skippedLocales.length > 0) {
+        const skippedLocales = result.skippedLocales ?? [];
+        if (skippedLocales.length > 0) {
           console.error(
-            `⚠  Not imported: ${result.skippedLocales.join(", ")} — ` +
+            `⚠  Not imported: ${skippedLocales.join(", ")} — ` +
               "not a project locale, or this API key may not write it.",
           );
         }

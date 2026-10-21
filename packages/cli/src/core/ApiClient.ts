@@ -123,11 +123,16 @@ async function httpError(
 
   // The platform says why: a missing scope, a plan limit, read-only billing.
   if (response.status === 403 && opts.forbidden) {
-    const message = body.message?.replace(/[.\s]+$/, "");
-    const reason = message ? `: ${message}${body.code ? ` (${body.code})` : ""}` : "";
+    const reason = body.message
+      ? `: ${body.message}${body.code ? ` (${body.code})` : ""}`
+      : body.code
+        ? ` (${body.code})`
+        : "";
+    const sentence = `${opts.forbidden}${reason}`;
+    const stop = /[.!?…]$/u.test(sentence) ? "" : ".";
     const hint = opts.scopeHint ? ` ${opts.scopeHint}` : "";
     return new TypegenError(
-      `${opts.forbidden}${reason}.${hint}`,
+      `${sentence}${stop}${hint}`,
       ErrorCodes.API_AUTH_FAILED,
       undefined,
       details,
@@ -172,22 +177,29 @@ async function readBoundedText(response: Response, signal?: AbortSignal): Promis
       : "";
   }
   // The request timer still runs: a body that stalls is cut when it fires.
+  // Cancelling resolves the pending read; the cancel itself is never awaited,
+  // so a transport that never confirms it cannot hold the command.
   const cancel = () => void reader.cancel().catch(() => undefined);
   if (signal?.aborted) cancel();
   signal?.addEventListener("abort", cancel, { once: true });
 
   const chunks: Uint8Array[] = [];
   let size = 0;
-  while (size < ERROR_BODY_LIMIT_BYTES) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
+  try {
+    while (size < ERROR_BODY_LIMIT_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      const kept = value.subarray(0, ERROR_BODY_LIMIT_BYTES - size);
+      chunks.push(kept);
+      size += kept.byteLength;
     }
-    chunks.push(value);
-    size += value.byteLength;
-  }
-  if (size >= ERROR_BODY_LIMIT_BYTES) {
-    await reader.cancel().catch(() => undefined);
+    if (size >= ERROR_BODY_LIMIT_BYTES) {
+      cancel();
+    }
+  } finally {
+    signal?.removeEventListener("abort", cancel);
   }
 
   const bytes = new Uint8Array(size);
@@ -463,7 +475,7 @@ export class ApiClient {
         {
           failure: "Failed to fetch translations",
           forbidden: "Access denied to this project",
-          scopeHint: "comvi pull needs an API key with the translations:read scope.",
+          scopeHint: "Reading translations needs an API key with the translations:read scope.",
         },
       );
       return normalizeTranslationsResponse(body);

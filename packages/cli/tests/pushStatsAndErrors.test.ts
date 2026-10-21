@@ -128,7 +128,7 @@ describe("platform error messages survive", () => {
 
     expect((error as Error).message).toBe(
       "Access denied to this project: Insufficient permissions. " +
-        "comvi pull needs an API key with the translations:read scope.",
+        "Reading translations needs an API key with the translations:read scope.",
     );
   });
 
@@ -150,5 +150,41 @@ describe("platform error messages survive", () => {
     expect((error as Error).message).toBe(
       "Failed to push translations: 422 Unprocessable Entity (FIELD_REQUIRED: namespaces)",
     );
+  });
+
+  it("keeps a 403 code that comes without a message", async () => {
+    fetchMock.mockResolvedValueOnce(json(403, { code: "READ_ONLY_MODE" }));
+
+    const error = await client.fetchTranslations().catch((e: unknown) => e);
+
+    expect((error as Error).message).toBe(
+      "Access denied to this project (READ_ONLY_MODE). " +
+        "Reading translations needs an API key with the translations:read scope.",
+    );
+  });
+
+  it("does not double the stop after a message that ends in punctuation", async () => {
+    fetchMock.mockResolvedValueOnce(json(403, { message: "Upgrade your plan!" }));
+
+    const error = await client.fetchTranslations().catch((e: unknown) => e);
+
+    expect((error as Error).message).toMatch(
+      /^Access denied to this project: Upgrade your plan! Reading/,
+    );
+  });
+
+  it("gives up on a stalled 403 body when the request times out, even if cancel never settles", async () => {
+    const quick = new ApiClient({ apiKey: "k", apiBaseUrl: "https://api.test.com", timeout: 50 });
+    const body = new ReadableStream<Uint8Array>({
+      pull: () => new Promise(() => {}),
+      cancel: () => new Promise(() => {}),
+    });
+    fetchMock.mockResolvedValueOnce(new Response(body, { status: 403 }));
+
+    const started = Date.now();
+    const error = await quick.fetchTranslations().catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ code: ErrorCodes.API_AUTH_FAILED });
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 });

@@ -577,7 +577,7 @@ describe("comvi pull", () => {
     expect(exitCode).toBe(1);
     expect(output.error[0]).toBe(
       "✗ Pull failed: Access denied to this project. " +
-        "comvi pull needs an API key with the translations:read scope.",
+        "Reading translations needs an API key with the translations:read scope.",
     );
   });
 

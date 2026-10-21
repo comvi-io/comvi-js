@@ -216,6 +216,33 @@ describe("comvi push", () => {
     );
   });
 
+  it("reports the conflicts the platform kept", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hola" } } } },
+      },
+      [PATHS.importCommit]: {
+        body: {
+          success: true,
+          stats: {
+            ...(COMMIT_OK.body as { stats: object }).stats,
+            keysCreated: 0,
+            translationsCreated: 0,
+            translationsUpdated: 0,
+            translationsSkipped: 1,
+          },
+        },
+      },
+    });
+
+    expect(await runPush(["-c", configPath, "--force-mode", "keep"])).toBe(0);
+
+    expect(output.log).toContain("  Values: 0 new, 0 changed, 1 kept on the platform");
+  });
+
   it("reports only the key count an older platform can be trusted with", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", { greeting: "Hello" });
@@ -411,7 +438,6 @@ describe("comvi push", () => {
 
     expect(exitCode).toBe(0);
     expect(commitBody().options).toMatchObject({ conflictResolution: "keep_server" });
-    expect(output.log).toContain("  Values: 1 new, 1 changed, 0 kept on the platform");
   });
 
   it("ask mode answered with 'a' exits 1 without sending an import commit", async () => {
