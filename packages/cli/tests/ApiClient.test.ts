@@ -164,7 +164,7 @@ describe("ApiClient", () => {
       const promise = apiClient.fetchSchema();
       const assertion = expect(promise).rejects.toMatchObject({
         message: "Failed to validate API key: Network error",
-        code: ErrorCodes.API_FETCH_FAILED,
+        code: ErrorCodes.API_CONNECTION_FAILED,
       });
       await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
 
@@ -183,7 +183,7 @@ describe("ApiClient", () => {
       const promise = apiClient.fetchSchema();
       const assertion = expect(promise).rejects.toMatchObject({
         message: "Failed to fetch schema: Network error",
-        code: ErrorCodes.API_FETCH_FAILED,
+        code: ErrorCodes.API_CONNECTION_FAILED,
       });
       await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
 

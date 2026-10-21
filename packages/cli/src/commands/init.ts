@@ -4,7 +4,7 @@ import { promises as fs } from "fs";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
-import { EXIT_VALIDATION } from "../utils/errors";
+import { EXIT_VALIDATION, exitCodeFor } from "../utils/errors";
 import type { ComviConfig } from "../types";
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -44,7 +44,7 @@ export function createInitCommand(): Command {
         console.error(
           "   Re-run 'comvi init --force' to overwrite it. The existing file was left untouched.",
         );
-        process.exit(1);
+        process.exit(EXIT_VALIDATION);
       }
 
       try {
@@ -124,7 +124,7 @@ export function createInitCommand(): Command {
         if (error instanceof Error) {
           console.error(`✗ Failed to initialize: ${error.message}`);
         }
-        process.exit(1);
+        process.exit(exitCodeFor(error));
       }
     });
 }

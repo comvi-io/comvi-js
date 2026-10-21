@@ -368,7 +368,7 @@ describe("comvi pull", () => {
 
     const exitCode = await runPull(["-c", configPath, "--empty-dir"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(2);
     expect(await fs.readFile(join(localesDir, "fr.json"), "utf-8")).toBe("{}");
   });
 
@@ -565,7 +565,7 @@ describe("comvi pull", () => {
     expect(http.requests).toEqual([]);
   });
 
-  it("exits 1 when the translations request is rejected", async () => {
+  it("exits 3 when the translations request is forbidden", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     http = stubFetch({
       ...DEFAULT_NAMESPACE_ROUTES,
@@ -574,16 +574,16 @@ describe("comvi pull", () => {
 
     const exitCode = await runPull(["-c", configPath]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(3);
     expect(output.error[0]).toBe("✗ Pull failed: Access denied to this project");
   });
 
-  it("exits 1 when the config file does not exist", async () => {
+  it("exits 4 when the config file does not exist", async () => {
     http = stubFetch({});
 
     const exitCode = await runPull(["-c", join(root, "absent.json")]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(4);
     expect(output.error[0]).toBe(
       `✗ Pull failed: Config file not found: ${join(root, "absent.json")}`,
     );

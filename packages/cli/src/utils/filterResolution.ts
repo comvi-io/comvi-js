@@ -7,6 +7,7 @@
  */
 
 import { ErrorCodes, TypegenError } from "./errors";
+import { localeKey } from "./locales";
 
 export type FilterSource = "cli" | "config" | "all";
 
@@ -57,8 +58,10 @@ export function assertAllReturned(
 ): void {
   if (!requested?.length) return;
 
-  const returnedSet = new Set(returned);
-  const missing = requested.filter((item) => !returnedSet.has(item));
+  // Locale codes are matched as the platform matches them: `pt_br` is `pt-BR`.
+  const key = fieldName === "locales" ? localeKey : (item: string) => item;
+  const returnedSet = new Set(returned.map(key));
+  const missing = requested.filter((item) => !returnedSet.has(key(item)));
   if (missing.length === 0) return;
 
   throw new TypegenError(

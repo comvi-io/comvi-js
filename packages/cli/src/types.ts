@@ -200,6 +200,8 @@ export interface GenerationResult {
   filePath?: string;
   keysGenerated?: number;
   error?: string;
+  /** The error behind a failed generation, for the exit code. */
+  cause?: unknown;
   /** Time taken to generate, in milliseconds. */
   duration?: number;
 }

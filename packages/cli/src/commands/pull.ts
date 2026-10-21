@@ -3,7 +3,8 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
-import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
+import { exitCodeFor } from "../utils/errors";
+import { findLocale } from "../utils/locales";
 import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
 
 export function createPullCommand(): Command {
@@ -75,7 +76,8 @@ export function createPullCommand(): Command {
         // working copy exactly as it was.
         const emptyDir = Boolean(options.emptyDir || config.pull?.emptyDir);
         const scope = {
-          locales: locs.value,
+          // In the project's spelling: `--locale pt_br` clears pt-BR files.
+          locales: locs.value?.map((locale) => findLocale(locale, translations.locales) ?? locale),
           namespaces: nss.value,
           defaultNamespace,
         };
@@ -118,13 +120,7 @@ export function createPullCommand(): Command {
         if (error instanceof Error) {
           console.error(`✗ Pull failed: ${error.message}`);
         }
-        if (
-          isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
-          isTypegenError(error, ErrorCodes.CONFIG_INVALID)
-        ) {
-          process.exit(EXIT_VALIDATION);
-        }
-        process.exit(1);
+        process.exit(exitCodeFor(error));
       }
     });
 }

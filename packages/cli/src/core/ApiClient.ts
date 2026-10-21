@@ -233,6 +233,7 @@ function retryDelayMs(response: Response, attempt: number): number {
 
 export const API_ENDPOINTS = {
   project: "/v1/project",
+  projectLocales: "/v1/project/locales",
   translations: "/v1/translations",
   projectSchema: (projectId: number) => `/v1/projects/${projectId}/schema`,
   projectSchemaStream: (projectId: number) => `/v1/projects/${projectId}/schema/stream`,
@@ -317,7 +318,15 @@ export class ApiClient {
 
         if (response) {
           if (response.ok) {
-            return (await response.json()) as T;
+            try {
+              return (await response.json()) as T;
+            } catch (error) {
+              if (error instanceof Error && error.name === "AbortError") throw error;
+              throw new TypegenError(
+                `${opts.failure}: the response is not JSON`,
+                ErrorCodes.API_INVALID_RESPONSE,
+              );
+            }
           }
 
           const retryable = retryTransient && (response.status === 429 || response.status >= 500);
@@ -356,6 +365,9 @@ export class ApiClient {
         { method: "GET", headers: this.authHeaders() },
         { failure: "Failed to validate API key" },
       );
+      if (!isRecord(projectInfo) || typeof projectInfo.id !== "number") {
+        throw invalidResponse("project");
+      }
       this.projectInfo = projectInfo;
       return projectInfo;
     } catch (error) {
@@ -369,7 +381,7 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to validate API key", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to validate API key", ErrorCodes.API_CONNECTION_FAILED);
     }
   }
 
@@ -382,11 +394,15 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectSchema(project.id)}`;
 
     try {
-      return await this.requestJson<ProjectSchema>(
+      const schema = await this.requestJson<ProjectSchema>(
         url,
         { method: "GET", headers: this.authHeaders() },
         { failure: "Failed to fetch schema", forbidden: "Access denied to this project" },
       );
+      if (!isRecord(schema) || !isRecord(schema.keys)) {
+        throw invalidResponse("schema");
+      }
+      return schema;
     } catch (error) {
       if (error instanceof TypegenError) {
         throw error;
@@ -398,7 +414,7 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to fetch schema", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to fetch schema", ErrorCodes.API_CONNECTION_FAILED);
     }
   }
 
@@ -425,6 +441,9 @@ export class ApiClient {
         { method: "GET", headers: this.authHeaders() },
         { failure: "Failed to fetch translations", forbidden: "Access denied to this project" },
       );
+      if (!isRecord(body) || !Array.isArray(body.locales) || !isRecord(body.namespaces)) {
+        throw invalidResponse("translations");
+      }
       return normalizeTranslationsResponse(body);
     } catch (error) {
       if (error instanceof TypegenError) {
@@ -437,8 +456,50 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to fetch translations", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to fetch translations", ErrorCodes.API_CONNECTION_FAILED);
     }
+  }
+
+  /**
+   * The locale codes this key may read and write, in the project's spelling
+   * (the key owner's language restrictions applied).
+   * GET /v1/project/locales — `undefined` from a platform that lacks it.
+   */
+  async fetchProjectLocales(): Promise<string[] | undefined> {
+    const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectLocales}`;
+
+    let body: unknown;
+    try {
+      body = await this.requestJson<unknown>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to fetch project locales", forbidden: "Access denied to this project" },
+      );
+    } catch (error) {
+      if (error instanceof TypegenError && error.details?.status === 404) {
+        return undefined;
+      }
+      if (error instanceof TypegenError) {
+        throw error;
+      }
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new TypegenError(
+          `Request timeout after ${this.timeout}ms`,
+          ErrorCodes.API_TIMEOUT,
+          error,
+        );
+      }
+      throw wrapError(error, "Failed to fetch project locales", ErrorCodes.API_CONNECTION_FAILED);
+    }
+
+    const locales = isRecord(body) ? body.locales : undefined;
+    if (
+      !Array.isArray(locales) ||
+      !locales.every((l) => isRecord(l) && typeof l.code === "string")
+    ) {
+      throw invalidResponse("project locales");
+    }
+    return locales.map((l) => (l as { code: string }).code);
   }
 
   /**
@@ -474,7 +535,7 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to fetch namespaces", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to fetch namespaces", ErrorCodes.API_CONNECTION_FAILED);
     }
   }
 
@@ -519,41 +580,56 @@ export class ApiClient {
     if (options.forceMode === "abort" && conflictCount > 0) {
       throw new TypegenError(
         `Conflict detected for ${conflictCount} translations. Use --force-mode override or keep.`,
-        ErrorCodes.API_FETCH_FAILED,
+        ErrorCodes.CONFLICT,
       );
     }
 
     const total = countTranslationValues(options.translations);
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectImportCommit(project.id)}`;
     try {
-      // retryTransient: false — a commit that failed after send may already be applied
-      const body = await this.requestJson<BulkImportResponse>(
-        url,
-        {
-          method: "POST",
-          headers: this.authHeaders(),
-          body: JSON.stringify({
-            namespaces: toNamespaceImportData(options.translations),
-            options: {
-              conflictResolution: toImportConflictResolution(options.forceMode),
-              createNamespaces: true,
-              deleteOrphans: false,
-            },
-          }),
-        },
-        {
-          retryTransient: false,
-          failure: "Failed to push translations",
-          forbidden: "Access denied to this project",
-        },
-      );
+      // retryTransient: false — a commit that failed after send may already be
+      // applied. A 409 TRANSACTION_CONFLICT is the exception: the platform
+      // rolled it back and says so, so it is sent once more.
+      const commit = () =>
+        this.requestJson<BulkImportResponse>(
+          url,
+          {
+            method: "POST",
+            headers: this.authHeaders(),
+            body: JSON.stringify({
+              namespaces: toNamespaceImportData(options.translations),
+              options: {
+                conflictResolution: toImportConflictResolution(options.forceMode),
+                createNamespaces: true,
+                deleteOrphans: false,
+              },
+            }),
+          },
+          {
+            retryTransient: false,
+            failure: "Failed to push translations",
+            forbidden: "Access denied to this project",
+          },
+        );
+      let body: BulkImportResponse;
+      try {
+        body = await commit();
+      } catch (error) {
+        if (!isRolledBackConflict(error)) throw error;
+        await delay(RETRY_BASE_DELAY_MS);
+        body = await commit();
+      }
+      if (!isRecord(body) || typeof body.success !== "boolean" || !isRecord(body.stats)) {
+        throw invalidResponse("import commit");
+      }
       if (!body.success) {
         const firstError = body.errors?.[0];
+        const conflict = body.errors?.some((e) => /^Conflict\b/i.test(e.message)) ?? false;
         throw new TypegenError(
           firstError
             ? `Failed to push translations: ${firstError.namespace}:${firstError.key} ${firstError.message}`
             : "Failed to push translations",
-          ErrorCodes.API_FETCH_FAILED,
+          conflict ? ErrorCodes.CONFLICT : ErrorCodes.VALIDATION_FAILED,
         );
       }
 
@@ -581,7 +657,7 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to push translations", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to push translations", ErrorCodes.API_CONNECTION_FAILED);
     }
   }
 
@@ -783,4 +859,24 @@ function toImportConflictResolution(
     case "abort":
       return "fail";
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function invalidResponse(what: string): TypegenError {
+  return new TypegenError(
+    `The platform's ${what} response is not in the expected shape`,
+    ErrorCodes.API_INVALID_RESPONSE,
+  );
+}
+
+/** A commit the platform rolled back on a deadlock and marked safe to retry. */
+function isRolledBackConflict(error: unknown): boolean {
+  return (
+    error instanceof TypegenError &&
+    error.details?.status === 409 &&
+    error.details?.code === "TRANSACTION_CONFLICT"
+  );
 }

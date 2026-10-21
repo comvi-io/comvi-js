@@ -95,6 +95,18 @@ fails the push with exit code `4` and names the file and key. The generated decl
 `@comvi/core` when `package.json` declares it, otherwise the first framework binding it declares;
 set `augment` in `.comvirc.json` to name a different module.
 
+## Exit codes
+
+Every command uses the same codes, so CI can act on the code alone:
+
+| Code | Meaning                                                                                                                                      | What to do      |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `0`  | Done                                                                                                                                         | —               |
+| `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`                           | Fix the content |
+| `2`  | The platform was unreachable, timed out, answered 5xx or 429, or sent an unexpected response                                                 | Retry           |
+| `3`  | The API key was rejected, or it lacks the scope or language access the command needs                                                         | Fix the key     |
+| `4`  | Invalid input: configuration, flags, local files, a locale the project does not have, nothing to push, `--force-mode ask` without a terminal | Fix the input   |
+
 ## Next steps
 
 - [Comvi CLI](https://comvi.io/docs/cli): environment variables, every config key, exit codes.

@@ -22,7 +22,7 @@ import {
 
 const PROJECT_PATH = "/v1/project";
 
-const VALID_KEY_ROUTES: Routes = { [PROJECT_PATH]: { body: { name: "Acme Web" } } };
+const VALID_KEY_ROUTES: Routes = { [PROJECT_PATH]: { body: { id: 1, name: "Acme Web" } } };
 const REJECTED_KEY_ROUTES: Routes = {
   [PROJECT_PATH]: { status: 401, statusText: "Unauthorized" },
 };
@@ -228,9 +228,9 @@ describe("comvi init", () => {
       await nodeFs.writeFile(join(cwd, ".comvirc.json"), existing);
     });
 
-    it("exits 1 and leaves the existing file byte for byte intact", async () => {
+    it("exits 4 and leaves the existing file byte for byte intact", async () => {
       await expect(createInitCommand().parseAsync([], { from: "user" })).rejects.toMatchObject({
-        exitCode: 1,
+        exitCode: 4,
       });
 
       expect(await nodeFs.readFile(join(cwd, ".comvirc.json"), "utf-8")).toBe(existing);
@@ -245,7 +245,7 @@ describe("comvi init", () => {
       vi.stubEnv("COMVI_API_KEY", "env-key");
 
       await expect(createInitCommand().parseAsync([], { from: "user" })).rejects.toMatchObject({
-        exitCode: 1,
+        exitCode: 4,
       });
 
       expect(http.paths()).toEqual([]);
