@@ -11,6 +11,7 @@ import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
+import { findLocale } from "../utils/locales";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
@@ -241,7 +242,7 @@ export class TranslationSync {
     const files = await this.findTranslationFiles(defaultNamespace);
 
     for (const { locale, namespace, filePath } of files) {
-      if (options.locales?.length && !options.locales.includes(locale)) {
+      if (options.locales?.length && !findLocale(locale, options.locales)) {
         continue;
       }
       if (options.namespaces?.length && !options.namespaces.includes(namespace)) {
@@ -337,7 +338,7 @@ export class TranslationSync {
     if (!isBeneathDirectory(resolve(process.cwd()), this.translationsPath)) {
       throw new TypegenError(
         `Refusing to clear translations directory outside the current project: ${this.translationsPath}`,
-        ErrorCodes.FS_WRITE_FAILED,
+        ErrorCodes.VALIDATION_FAILED,
       );
     }
   }

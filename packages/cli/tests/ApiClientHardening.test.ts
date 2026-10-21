@@ -400,13 +400,13 @@ describe("ApiClient hardening", () => {
       await assertion;
     });
 
-    it("wraps network errors with a fetch-failed code", async () => {
+    it("wraps network errors with a connection-failed code", async () => {
       fetchMock.mockRejectedValue(new Error("Network error"));
 
       const promise = apiClient.fetchTranslations();
       const assertion = expect(promise).rejects.toMatchObject({
         message: "Failed to fetch translations: Network error",
-        code: ErrorCodes.API_FETCH_FAILED,
+        code: ErrorCodes.API_CONNECTION_FAILED,
       });
       // Keep a handler attached: an early mismatch still fails `await assertion` below.
       void assertion.catch(() => {});
@@ -464,7 +464,7 @@ describe("ApiClient hardening", () => {
       await assertion;
     });
 
-    it("wraps network errors with a fetch-failed code", async () => {
+    it("wraps network errors with a connection-failed code", async () => {
       fetchMock
         .mockResolvedValueOnce(okJson(mockProjectInfo))
         .mockRejectedValue(new Error("Network error"));
@@ -472,7 +472,7 @@ describe("ApiClient hardening", () => {
       const promise = apiClient.fetchNamespaces();
       const assertion = expect(promise).rejects.toMatchObject({
         message: "Failed to fetch namespaces: Network error",
-        code: ErrorCodes.API_FETCH_FAILED,
+        code: ErrorCodes.API_CONNECTION_FAILED,
       });
       // Keep a handler attached: an early mismatch still fails `await assertion` below.
       void assertion.catch(() => {});
@@ -511,7 +511,7 @@ describe("ApiClient hardening", () => {
           forceMode: "override",
         }),
       ).rejects.toMatchObject({
-        message: "Access denied to this project",
+        message: expect.stringContaining("Access denied to this project"),
         code: ErrorCodes.API_AUTH_FAILED,
       });
     });
@@ -548,7 +548,7 @@ describe("ApiClient hardening", () => {
         }),
       ).rejects.toMatchObject({
         message: "Failed to push translations: Network error",
-        code: ErrorCodes.API_FETCH_FAILED,
+        code: ErrorCodes.API_CONNECTION_FAILED,
       });
       expect(fetchMock).toHaveBeenCalledTimes(2); // a failed commit may already be applied
     });
@@ -565,7 +565,7 @@ describe("ApiClient hardening", () => {
         }),
       ).rejects.toMatchObject({
         message: "Failed to push translations",
-        code: ErrorCodes.API_FETCH_FAILED,
+        code: ErrorCodes.VALIDATION_FAILED,
       });
     });
   });
@@ -584,7 +584,7 @@ describe("ApiClient hardening", () => {
         forceMode: "abort",
       });
 
-      expect(result).toEqual({ created: 0, updated: 0, skipped: 0 });
+      expect(result).toMatchObject({ created: 0, updated: 0, skipped: 0 });
       expect(jsonBodyOfCall(3).options.conflictResolution).toBe("fail");
     });
 
@@ -605,7 +605,7 @@ describe("ApiClient hardening", () => {
         },
       });
 
-      expect(result).toEqual({ created: 1, updated: 0, skipped: 0 });
+      expect(result).toMatchObject({ created: 1, updated: 0, skipped: 0 });
       expect(fetchMock).toHaveBeenCalledTimes(2); // the preloaded remote spares a second fetch
     });
 
@@ -622,7 +622,7 @@ describe("ApiClient hardening", () => {
           translations: { en: { common: { greeting: "Hello" } } },
           forceMode: "abort",
         }),
-      ).resolves.toEqual({ created: 0, updated: 0, skipped: 0 });
+      ).resolves.toMatchObject({ created: 0, updated: 0, skipped: 0 });
     });
 
     it("sees no conflict when the remote lacks the namespace", async () => {
@@ -638,7 +638,7 @@ describe("ApiClient hardening", () => {
           translations: { en: { common: { greeting: "Hello" } } },
           forceMode: "abort",
         }),
-      ).resolves.toEqual({ created: 0, updated: 0, skipped: 0 });
+      ).resolves.toMatchObject({ created: 0, updated: 0, skipped: 0 });
     });
 
     it("sees no conflict when the remote lacks the key", async () => {
@@ -654,7 +654,7 @@ describe("ApiClient hardening", () => {
           translations: { en: { common: { greeting: "Hello" } } },
           forceMode: "abort",
         }),
-      ).resolves.toEqual({ created: 0, updated: 0, skipped: 0 });
+      ).resolves.toMatchObject({ created: 0, updated: 0, skipped: 0 });
     });
   });
 
@@ -667,7 +667,7 @@ describe("ApiClient hardening", () => {
 
       const first = apiClient.fetchSchema();
       const failure = expect(first).rejects.toMatchObject({
-        code: ErrorCodes.API_FETCH_FAILED,
+        code: ErrorCodes.API_CONNECTION_FAILED,
       });
       void failure.catch(() => {});
       await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);

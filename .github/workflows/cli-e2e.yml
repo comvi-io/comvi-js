@@ -84,6 +84,10 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          # setup-node caches by `packageManager` on its own and then needs a
+          # pnpm on PATH, which corepack only provides in the next step; the
+          # two repositories pin different pnpm majors anyway.
+          package-manager-cache: false
 
       # The two repositories pin different pnpm majors (packageManager); corepack
       # runs the pinned one in each directory, including the bare `pnpm` calls

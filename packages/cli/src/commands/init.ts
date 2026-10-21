@@ -5,7 +5,7 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { timeoutsFromEnv, type Timeouts } from "../core/timeouts";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
-import { EXIT_VALIDATION, isTypegenError } from "../utils/errors";
+import { EXIT_VALIDATION, exitCodeFor, isTypegenError } from "../utils/errors";
 import type { ComviConfig } from "../types";
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -54,7 +54,7 @@ export function createInitCommand(): Command {
         console.error(
           "   Re-run 'comvi init --force' to overwrite it. The existing file was left untouched.",
         );
-        process.exit(1);
+        process.exit(EXIT_VALIDATION);
       }
 
       try {
@@ -135,7 +135,7 @@ export function createInitCommand(): Command {
         if (error instanceof Error) {
           console.error(`✗ Failed to initialize: ${error.message}`);
         }
-        process.exit(1);
+        process.exit(exitCodeFor(error));
       }
     });
 }
