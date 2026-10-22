@@ -18,11 +18,10 @@
 
 ---
 
-`@comvi/core` is the i18n instance every binding builds on. Use it directly for Web Components, static
-sites, server-side scripts, or anywhere a framework would be more than you need. With
-`@comvi/react`, `@comvi/vue`, `@comvi/next`, `@comvi/nuxt`, `@comvi/svelte` or `@comvi/solid` you
-already have it. The full guide is [Vanilla JavaScript](https://comvi.io/docs/i18n/vanilla) on the
-docs site.
+`@comvi/core` is the i18n instance every Comvi binding builds on. Use it directly for Web
+Components, static sites, server scripts, or anywhere a framework would be more than you need;
+with `@comvi/react`, `@comvi/vue`, `@comvi/next`, `@comvi/nuxt`, `@comvi/svelte` or `@comvi/solid`
+you already have it.
 
 ## Install
 
@@ -30,10 +29,6 @@ docs site.
 npm install @comvi/core
 # Node 20 or newer. No peer dependencies.
 ```
-
-The package is ESM. A `<script src>` global build exists too, as `ComviCore.I18n`, fully composed:
-it includes `devtools()`, so it publishes the instance to the Comvi browser extension and installs
-the editor loader (`exposeGlobal: false` installs neither; the code stays in the file).
 
 ## Create the i18n instance
 
@@ -56,8 +51,8 @@ await i18n.init();
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 ```
 
-`init()` readies the i18n instance before the first `t()` and resolves to it. `t()` always
-returns a string; `tRaw()` returns the structured result when a translation carries tags.
+`init()` readies the i18n instance before the first `t()` and resolves to it. `t()` fills `{name}`
+from its second argument and always returns a string.
 
 ## Switch the locale
 
@@ -93,36 +88,40 @@ export const i18n = createI18n({
 await i18n.init();
 ```
 
-Compose `.use(cdnLoader({ cdnUrl }))` before `init()`: the first fetch happens inside `await init()`, so
-there is no gate to write. The CDN URL is on
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
+Compose `.use(cdnLoader({ cdnUrl }))` before `init()`: the first fetch happens inside
+`await init()`. The CDN URL comes from **Settings → Content Deploy** in the Comvi project; the
+walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` from `@comvi/core/icu` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
 independent.
 
-## Specific to core
+## How it works
 
 The root entry is the base instance: text and `{param}` interpolation, the messages cache, events,
 default params and the `.use(installer)` pipe. Everything else is a subpath you import, and a
 capability you never import never enters your bundle.
 
-| You want                                                  | You import                                             | You write                   |
-| --------------------------------------------------------- | ------------------------------------------------------ | --------------------------- |
-| ICU `plural`/`select`/`selectordinal`                     | `icuCompiler` from `@comvi/core/icu`                   | `compiler: icuCompiler`     |
-| Async or remote loading                                   | `loader` or `attachLoader` from `@comvi/core/loader`   | `.use(loader(map))`         |
-| Plugins, post-processors                                  | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
-| The browser extension to find the app and load the editor | `devtools` from `@comvi/core/devtools`                 | `.use(devtools())`          |
-| `<tag>` markup inside plain `t()`                         | `@comvi/core/tags`                                     | `import "@comvi/core/tags"` |
-| The rich-text toolbox                                     | `prepareTranslation` from `@comvi/core/rich-text`      | `prepareTranslation(…)`     |
+| You want                                      | You import                                             | You write                   |
+| --------------------------------------------- | ------------------------------------------------------ | --------------------------- |
+| ICU `plural`/`select`/`selectordinal`         | `icuCompiler` from `@comvi/core/icu`                   | `compiler: icuCompiler`     |
+| Async or remote loading                       | `loader` or `attachLoader` from `@comvi/core/loader`   | `.use(loader(map))`         |
+| Plugins, post-processors                      | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
+| The Comvi browser extension to find the app   | `devtools` from `@comvi/core/devtools`                 | `.use(devtools())`          |
+| `<tag>` markup parsed by plain `t()`/`tRaw()` | `@comvi/core/tags`                                     | `import "@comvi/core/tags"` |
+| Rich text without `innerHTML`                 | `prepareTranslation` from `@comvi/core/rich-text`      | `prepareTranslation(…)`     |
 
 Without a framework's reactivity, events are how you learn that state changed: `i18n.on()` takes
 `initialized`, `destroyed`, `localeChanged`, `defaultNamespaceChanged`, `messagesCleared`,
 `loadingStateChanged`, `namespaceLoaded`, `missingKey`, `loadError` and `configChanged`, and returns
 an unsubscribe function. `destroy()` tears the instance down; a destroyed instance cannot be
 re-initialized. On a server, build a fresh instance per request. Never assign a translation to
-`innerHTML`; use `textContent` or build real nodes with `prepareTranslation`.
+`innerHTML`; use `textContent`, or render the content tree `prepareTranslation` returns into nodes yourself.
 
-## Next steps
+A `<script src>` global build exists too, as `ComviCore.I18n`. It bundles the ICU compiler, the
+loader, plugins and tag parsing, and registers the instance for the Comvi browser extension on
+its own; `exposeGlobal: false` turns that registration off.
+
+## Read next
 
 - [Vanilla guide](https://comvi.io/docs/i18n/vanilla): update the DOM from events, instance lifetime.
 - [Core API reference](https://comvi.io/docs/i18n/api/core): every instance member, the events and the capability subpaths.
