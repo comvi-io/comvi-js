@@ -3,12 +3,7 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { timeoutsFromEnv } from "../core/timeouts";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
-import {
-  assertMergePaths,
-  mergeMissing,
-  type MergeFileReport,
-  type MergeReport,
-} from "../core/MissingMerge";
+import { assertMergePaths, mergeMissing, type MergeReport } from "../core/MissingMerge";
 import {
   jobsInLimitMeta,
   type MtFillJob,
@@ -317,21 +312,22 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
   }
 
   let merged: MergeReport | undefined;
-  // The files on disk already, should the write phase throw part way.
-  const writtenBeforeStop: MergeFileReport[] = [];
+  // Filled as the merge goes: what was judged and written survives a throw.
+  const judged: MergeReport = { files: [], errors: [] };
   if (remote) {
     say("📝 Writing missing values...");
     try {
-      merged = await writeMissing(setup, remote, (file) => writtenBeforeStop.push(file));
+      merged = await writeMissing(setup, remote, judged);
     } catch (error) {
       outcomes.push(EXIT_FAILURE);
       const reason = error instanceof Error ? error.message : String(error);
+      const count = judged.files.filter((file) => file.filled.length > 0).length;
       errors.push({
         type: "write_failed",
         message:
-          writtenBeforeStop.length === 0
+          count === 0
             ? `${reason}. Nothing was written.`
-            : `Writing stopped: ${reason}; some files may already be written`,
+            : `Writing stopped: ${reason}. ${count} ${count === 1 ? "file was" : "files were"} already written.`,
       });
     }
   }
@@ -424,20 +420,19 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
     pairs.notOnPlatform = notOnPlatform.length;
   }
 
-  const writtenFiles = merged
-    ? merged.errors.length === 0
-      ? merged.files
-      : undefined
-    : writtenBeforeStop.length > 0
-      ? writtenBeforeStop
-      : undefined;
-  const written = writtenFiles
-    ? {
-        files: writtenFiles.filter((file) => file.filled.length > 0).length,
-        values: writtenFiles.reduce((sum, file) => sum + file.filled.length, 0),
-        differ: writtenFiles.reduce((sum, file) => sum + file.differ.length, 0),
-      }
-    : false;
+  // `written` is the files actually on disk, whatever else failed: false only
+  // when none was written. `differ` counts the kept local values that differ
+  // from the platform over every file judged, written or not.
+  const writtenFiles = judged.files.filter((file) => file.filled.length > 0);
+  const differ = judged.files.reduce((sum, file) => sum + file.differ.length, 0);
+  const written =
+    writtenFiles.length > 0
+      ? {
+          files: writtenFiles.length,
+          values: writtenFiles.reduce((sum, file) => sum + file.filled.length, 0),
+          differ,
+        }
+      : false;
 
   const exitCode = reduceExitCode(outcomes);
 
@@ -487,12 +482,12 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
     say(
       `  Files changed: ${written.files} (${written.values} ${written.values === 1 ? "value" : "values"})`,
     );
-    if (written.differ > 0) {
-      say(
-        `  ${written.differ} ${written.differ === 1 ? "differs" : "differ"} from the platform; ` +
-          `\`comvi pull\` will update ${written.differ === 1 ? "it" : "them"}.`,
-      );
-    }
+  }
+  if (differ > 0) {
+    say(
+      `  ${differ} ${differ === 1 ? "differs" : "differ"} from the platform; ` +
+        `\`comvi pull\` will update ${differ === 1 ? "it" : "them"}.`,
+    );
   }
   if (notOnPlatform.length > 0) {
     const more =
@@ -776,7 +771,7 @@ async function pollJobs(api: ApiClient, tracks: JobTrack[], timeoutMs: number): 
 async function writeMissing(
   setup: Awaited<ReturnType<typeof prepare>>,
   remote: TranslationsResponse,
-  onFileWritten: (file: MergeFileReport) => void,
+  report: MergeReport,
 ): Promise<MergeReport> {
   const { sync, source, targets, localSource, defaultNamespace } = setup;
   if (!localSource) {
@@ -791,14 +786,16 @@ async function writeMissing(
     merged[spelled[i]] = catalogOf(remote.translations, locale) ?? {};
   });
 
-  return mergeMissing({
-    sync,
-    defaultNamespace,
-    sourceLocale: localSource.locale,
-    source: localSource.catalog,
-    targets: merged,
-    onFileWritten,
-  });
+  return mergeMissing(
+    {
+      sync,
+      defaultNamespace,
+      sourceLocale: localSource.locale,
+      source: localSource.catalog,
+      targets: merged,
+    },
+    report,
+  );
 }
 
 /** Each locale in the spelling of its local files, else as given. */

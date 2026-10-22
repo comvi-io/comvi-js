@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { promises as fs } from "node:fs";
+import { promises as fs, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { TranslationSync } from "../src/core/TranslationSync";
-import { mergeMissing, type MergeOptions } from "../src/core/MissingMerge";
+import { mergeMissing, type MergeOptions, type MergeReport } from "../src/core/MissingMerge";
 import { DEFAULT_FILE_TEMPLATE } from "../src/defaults";
 import { makeTempDir, removeTempDirs } from "./helpers";
 
@@ -407,6 +407,44 @@ describe("mergeMissing", () => {
       expect(await fs.readdir(outside)).toEqual([]);
       expect(await snapshot()).toEqual(before);
     });
+  });
+
+  it("calls onFileWritten once a file is on disk, and not for a file that only differs or failed", async () => {
+    await write("common/en.json", { a: "A" });
+    await write("common/fr.json", { a: "Lokal" });
+    await write("common/es.json", "{ broken");
+    const seen: Array<{ locale: string; onDisk: unknown }> = [];
+    const report: MergeReport = { files: [], errors: [] };
+
+    const returned = await mergeMissing(
+      {
+        sync,
+        defaultNamespace: "main",
+        sourceLocale: "en",
+        source: { common: { a: "A" } },
+        targets: {
+          de: { common: { a: "A-de" } },
+          fr: { common: { a: "A-fr" } },
+          es: { common: { a: "A-es" } },
+        },
+        onFileWritten(file) {
+          seen.push({
+            locale: file.locale,
+            onDisk: JSON.parse(readFileSync(file.filePath, "utf-8")),
+          });
+        },
+      },
+      report,
+    );
+
+    expect(seen).toEqual([{ locale: "de", onDisk: { a: "A-de" } }]);
+    // The caller's report is the one filled: fr judged (it differs), es failed.
+    expect(returned).toBe(report);
+    expect(report.files.map((file) => [file.locale, file.differ])).toEqual([
+      ["de", []],
+      ["fr", ["a"]],
+    ]);
+    expect(report.errors.map((error) => error.locale)).toEqual(["es"]);
   });
 
   it("gives an empty existing target file the shape of the source file", async () => {

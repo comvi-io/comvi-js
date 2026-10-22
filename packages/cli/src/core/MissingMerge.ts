@@ -92,8 +92,14 @@ export async function assertMergePaths(
   await sync.assertWritable({ locales, namespaces, translations }, { defaultNamespace });
 }
 
-export async function mergeMissing(options: MergeOptions): Promise<MergeReport> {
-  const report: MergeReport = { files: [], errors: [] };
+/**
+ * `report` is filled as the merge goes: a caller that passes its own still
+ * knows every file judged and written so far if the merge throws.
+ */
+export async function mergeMissing(
+  options: MergeOptions,
+  report: MergeReport = { files: [], errors: [] },
+): Promise<MergeReport> {
   await assertMergePaths(
     options.sync,
     options.defaultNamespace,

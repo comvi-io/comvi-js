@@ -379,17 +379,40 @@ export async function startProxy(target = API_URL, intercept?: ProxyIntercept): 
   const forwards = new Set<ClientRequest>();
   let isDown = false;
   const server: Server = createServer(async (req, res) => {
+    const badGateway = () => res.writeHead(502, { "content-type": "text/html" }).end("bad gateway");
     if (isDown) {
-      res.writeHead(502, { "content-type": "text/html" }).end("bad gateway");
+      badGateway();
       return;
     }
-    const answer = await intercept?.(req);
+    // Registered before the intercept may wait: a client that goes away
+    // meanwhile is not forwarded, and one that goes away later takes its
+    // upstream request with it, so the API does not keep streaming to nobody.
+    let clientGone = false;
+    let forward: ClientRequest | undefined = undefined;
+    res.on("close", () => {
+      clientGone = true;
+      forward?.destroy();
+    });
+    let answer: Awaited<ReturnType<ProxyIntercept>>;
+    try {
+      answer = await intercept?.(req);
+    } catch (error) {
+      res.writeHead(500, { "content-type": "application/json" });
+      res.end(JSON.stringify({ message: `proxy intercept failed: ${String(error)}` }));
+      return;
+    }
+    if (clientGone) return;
+    // The proxy may have gone down while the intercept waited.
+    if (isDown) {
+      badGateway();
+      return;
+    }
     if (answer) {
       res.writeHead(answer.status, { "content-type": "application/json" });
       res.end(JSON.stringify(answer.body));
       return;
     }
-    const forward = httpRequest(
+    forward = httpRequest(
       {
         host: upstream.hostname,
         port: upstream.port,
@@ -404,13 +427,11 @@ export async function startProxy(target = API_URL, intercept?: ProxyIntercept): 
         response.pipe(res);
       },
     );
-    forwards.add(forward);
-    forward.on("close", () => forwards.delete(forward));
-    forward.on("error", () => res.destroy());
-    // A client that goes away takes its upstream request with it, so the API
-    // does not keep streaming to nobody.
-    res.on("close", () => forward.destroy());
-    req.pipe(forward);
+    const upstreamRequest = forward;
+    forwards.add(upstreamRequest);
+    upstreamRequest.on("close", () => forwards.delete(upstreamRequest));
+    upstreamRequest.on("error", () => res.destroy());
+    req.pipe(upstreamRequest);
   });
   server.on("connection", (socket) => {
     sockets.add(socket);
@@ -440,25 +461,87 @@ export async function startProxy(target = API_URL, intercept?: ProxyIntercept): 
   };
 }
 
+export interface MachineTranslation {
+  /** The full permissions plus `mt:use`: the key the CLI runs with. */
+  apiKey: string;
+  /**
+   * Another key with `mt:use`, for the test's own dry-run fills: mt/fill is
+   * limited to 10 requests a minute per key, and the CLI's key needs them.
+   */
+  probeKey: string;
+}
+
 /**
  * Turns on machine translation for the project: Google (the platform's fake
  * under MT_FAKE_PROVIDER) as the only provider, and `autoApply` as asked.
- * Returns a new key with `mt:use` on top of the `full` permissions; the
- * `full` key itself stays without it.
+ * The `full` key stays without `mt:use`.
  */
 export async function enableMachineTranslation(
   project: E2EProject,
   { autoApply = false }: { autoApply?: boolean } = {},
-): Promise<string> {
+): Promise<MachineTranslation> {
   await project.owner.request("PATCH", `/v1/projects/${project.id}`, {
     mtSettings: { enabledProviders: ["google"], primaryProvider: "google", autoApply },
   });
-  const { token } = await project.owner.request<{ token: string }>(
-    "POST",
-    `/v1/projects/${project.id}/api-keys`,
-    { name: "e2e-mt", permissions: [...KEY_PERMISSIONS.full, "mt:use"] },
-  );
-  return token;
+  const createKey = async (name: string) =>
+    (
+      await project.owner.request<{ token: string }>(
+        "POST",
+        `/v1/projects/${project.id}/api-keys`,
+        { name, permissions: [...KEY_PERMISSIONS.full, "mt:use"] },
+      )
+    ).token;
+  return { apiKey: await createKey("e2e-mt"), probeKey: await createKey("e2e-mt-probe") };
+}
+
+export interface FillPairs {
+  toTranslate: number;
+  alreadyInFlight: number;
+  alreadyTranslated: number;
+  noSource: number;
+}
+
+const delay = (ms: number) => new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+
+/**
+ * The platform's own count of the project's pairs: a dry-run `mt/fill` with
+ * the probe key. A 429 waits for its Retry-After and asks again.
+ */
+export async function fillDryRun(
+  probeKey: string,
+  deadline = Date.now() + 90_000,
+): Promise<FillPairs> {
+  const project = await fetch(`${API_URL}/v1/project`, {
+    headers: { authorization: `Bearer ${probeKey}` },
+  });
+  if (!project.ok) throw new Error(`GET /v1/project → ${project.status}`);
+  const { id } = (await project.json()) as { id: number };
+  for (;;) {
+    const response = await fetch(`${API_URL}/v1/projects/${id}/mt/fill`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${probeKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ dryRun: true }),
+    });
+    if (response.ok) return ((await response.json()) as { pairs: FillPairs }).pairs;
+    if (response.status !== 429 || Date.now() > deadline) {
+      throw new Error(`dry-run mt/fill → ${response.status} ${await response.text()}`);
+    }
+    await delay(Number(response.headers.get("retry-after") ?? 6) * 1_000);
+  }
+}
+
+/**
+ * Resolves once no MT job of the project is waiting, delayed or active: the
+ * platform's dry-run fill counts every missing pair such a job holds as
+ * `alreadyInFlight`, auto-MT retries between attempts included (they back
+ * off 10 s), so 0 means nothing can still charge credits.
+ */
+export async function waitForMtIdle(probeKey: string, timeoutMs = 60_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while ((await fillDryRun(probeKey, deadline)).alreadyInFlight > 0) {
+    if (Date.now() > deadline) throw new Error(`MT jobs still in flight after ${timeoutMs} ms`);
+    await delay(2_000);
+  }
 }
 
 const execFileAsync = promisify(execFile);

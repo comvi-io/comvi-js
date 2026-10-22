@@ -4,12 +4,14 @@ import {
   createWorkspace,
   enableMachineTranslation,
   fetchRemote,
+  fillDryRun,
   listKeys,
   mtCreditsUsed,
   runCli,
   setMtCredits,
   startProxy,
   valueOrigin,
+  waitForMtIdle,
   type CliOptions,
   type E2EProject,
   type Workspace,
@@ -26,12 +28,21 @@ const file = (locale: string) => `src/locales/${NS}/${locale}.json`;
 const cleanups: Array<() => Promise<unknown>> = [];
 
 afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  const results = await Promise.allSettled(
+    cleanups
+      .splice(0)
+      .reverse()
+      .map((cleanup) => cleanup()),
+  );
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) throw failed.reason;
 });
 
 interface Setup {
   project: E2EProject;
   mtKey: string;
+  /** A second mt:use key for the test's own dry-run fills (see fillDryRun). */
+  probeKey: string;
   ws: Workspace;
 }
 
@@ -41,11 +52,19 @@ async function setup({
   balance = 10_000,
 }: { autoApply?: boolean; balance?: number } = {}): Promise<Setup> {
   const project = await createProject({ locales: ["de", "fr"] });
-  const mtKey = await enableMachineTranslation(project, { autoApply });
+  const { apiKey: mtKey, probeKey } = await enableMachineTranslation(project, { autoApply });
   await setMtCredits(balance);
+  // No job of this scenario may still run, and charge, into the next one.
+  cleanups.push(() => waitForMtIdle(probeKey));
   const ws = await createWorkspace({ translationsPath: "./src/locales" });
   cleanups.push(() => ws.cleanup());
-  return { project, mtKey, ws };
+  return { project, mtKey, probeKey, ws };
+}
+
+/** The credits the scenario used, once no MT job of the project can still charge. */
+async function creditsUsed({ project, probeKey }: Setup): Promise<number> {
+  await waitForMtIdle(probeKey);
+  return mtCreditsUsed(project);
 }
 
 function translate(
@@ -70,24 +89,20 @@ async function remote(project: E2EProject): Promise<Record<string, Record<string
   );
 }
 
+/** The file's catalog, or null when it does not exist. */
 async function readOrNull(ws: Workspace, path: string): Promise<Record<string, string> | null> {
   try {
     return await ws.readJson(path);
-  } catch {
-    return null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
-}
-
-/** What a dry run with the mt:use key counts on the platform now. */
-async function platformCount(ws: Workspace, mtKey: string) {
-  const result = await translate(ws, mtKey, ["--dry-run", "--no-push", "--format", "json"]);
-  expect(result.code, result.stdout + result.stderr).toBe(0);
-  return (JSON.parse(result.stdout) as { pairs: Record<string, number> }).pairs;
 }
 
 describe("comvi translate", () => {
   it("pushes new keys, translates them and writes only the missing values", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), { greeting: "Hello", bye: "Bye" });
     await ws.write(file("de"), { greeting: "Hallo" });
 
@@ -116,11 +131,12 @@ describe("comvi translate", () => {
     expect(greeting.translations.de.status).toBe("translated");
     expect(await valueOrigin(project, greeting.id, "de")).not.toBe("machine");
 
-    expect(await mtCreditsUsed(project)).toBe(credits("Bye", "Hello", "Bye"));
+    expect(await creditsUsed(env)).toBe(credits("Bye", "Hello", "Bye"));
   });
 
   it("charges each pair once with autoApply on, through translate and after a plain push", async () => {
-    const { project, mtKey, ws } = await setup({ autoApply: true });
+    const env = await setup({ autoApply: true });
+    const { mtKey, probeKey, ws } = env;
     await ws.write(file("en"), { one: "First" });
 
     const run = await translate(ws, mtKey, ["--force-mode", "override", "--format", "json"]);
@@ -143,7 +159,7 @@ describe("comvi translate", () => {
       ]),
     );
     expect(report.jobs).toHaveLength(2);
-    expect(await mtCreditsUsed(project)).toBe(credits("First", "First"));
+    expect(await creditsUsed(env)).toBe(credits("First", "First"));
 
     // A plain push starts auto-MT; translate then waits for those jobs and
     // starts none of its own for the same pairs.
@@ -156,9 +172,9 @@ describe("comvi translate", () => {
     // The push queues auto-MT after it answers: wait until the platform has
     // claimed both new pairs, in flight or done.
     const deadline = Date.now() + 30_000;
-    while ((await platformCount(ws, mtKey)).toTranslate > 0) {
+    while ((await fillDryRun(probeKey, deadline)).toTranslate > 0) {
       if (Date.now() > deadline) throw new Error("auto-MT did not claim the pushed pairs");
-      await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
     }
     const after = await translate(ws, mtKey, ["--no-push", "--format", "json"]);
 
@@ -171,15 +187,15 @@ describe("comvi translate", () => {
     expect(second.jobs.filter((job) => job.owned)).toEqual([]);
     expect(await ws.readJson(file("de"))).toEqual({ one: "[de] First", two: "[de] Second" });
     expect(await ws.readJson(file("fr"))).toEqual({ one: "[fr] First", two: "[fr] Second" });
-    // Settle: a duplicate job would charge after translate returned.
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 3_000));
-    expect(await mtCreditsUsed(project)).toBe(credits("First", "First", "Second", "Second"));
+    // creditsUsed waits until no job is in flight: a duplicate would charge too.
+    expect(await creditsUsed(env)).toBe(credits("First", "First", "Second", "Second"));
   });
 
   it("exits 3 when the credits run out, writes what was translated and says to top up", async () => {
     const sources = { k1: "Hello", k2: "Hello", k3: "Hello", k4: "Hello" };
     // Each pair costs 10 credits; 8 pairs need 80.
-    const { project, mtKey, ws } = await setup({ balance: 25 });
+    const env = await setup({ balance: 25 });
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), sources);
 
     const result = await translate(ws, mtKey, ["--force-mode", "override"]);
@@ -199,10 +215,17 @@ describe("comvi translate", () => {
     }
     expect(written).toBeGreaterThanOrEqual(1);
     expect(written).toBeLessThan(8);
+    // Every written value was billed, nothing else was. A reservation passes
+    // while the usage is still under the limit, so the platform overshoots by
+    // at most one call: 3 pairs (30 credits) of a 25-credit balance.
+    const used = await creditsUsed(env);
+    expect(used).toBe(written * credits("Hello"));
+    expect(used).toBeLessThanOrEqual(25 + credits("Hello"));
   });
 
   it("exits 1 when a value fails to translate and still writes the others", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), { ok: "Fine", bad: "Broken __fail__" });
 
     const result = await translate(ws, mtKey, ["--force-mode", "override", "-l", "de"]);
@@ -213,12 +236,13 @@ describe("comvi translate", () => {
     expect(await ws.readJson(file("de"))).toEqual({ ok: "[de] Fine" });
     expect((await remote(project)).de).toEqual({ ok: "[de] Fine" });
     expect(await readOrNull(ws, file("fr"))).toBeNull();
-    // The failed call is refunded.
-    expect(await mtCreditsUsed(project)).toBe(credits("Fine"));
+    // The failed value is not billed.
+    expect(await creditsUsed(env)).toBe(credits("Fine"));
   });
 
   it("exits 3 in the preflight for a key without mt:use, before any push", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, ws } = env;
     await ws.write(file("en"), { a: "Alpha" });
     await ws.write(file("de"), {});
 
@@ -230,13 +254,14 @@ describe("comvi translate", () => {
     expect(await remote(project)).toEqual({});
     expect(await ws.readJson(file("de"))).toEqual({});
     expect(await readOrNull(ws, file("fr"))).toBeNull();
-    expect(await mtCreditsUsed(project)).toBe(0);
+    expect(await creditsUsed(env)).toBe(0);
     // Nothing is queued: the platform has nothing in flight.
-    expect(await platformCount(ws, mtKey)).toMatchObject({ toTranslate: 0, alreadyInFlight: 0 });
+    expect(await fillDryRun(env.probeKey)).toMatchObject({ toTranslate: 0, alreadyInFlight: 0 });
   });
 
   it("exits 4 over --max-keys after the push, starting no machine translation", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), { a: "Alpha", b: "Beta" });
 
     const result = await translate(ws, mtKey, ["--force-mode", "override", "--max-keys", "3"]);
@@ -249,12 +274,13 @@ describe("comvi translate", () => {
     expect(await remote(project)).toEqual({ en: { a: "Alpha", b: "Beta" } });
     expect(await readOrNull(ws, file("de"))).toBeNull();
     expect(await readOrNull(ws, file("fr"))).toBeNull();
-    expect(await mtCreditsUsed(project)).toBe(0);
-    expect(await platformCount(ws, mtKey)).toMatchObject({ toTranslate: 4, alreadyInFlight: 0 });
+    expect(await creditsUsed(env)).toBe(0);
+    expect(await fillDryRun(env.probeKey)).toMatchObject({ toTranslate: 4, alreadyInFlight: 0 });
   });
 
   it("keeps a local edit made while the jobs run", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), { greeting: "Hello", bye: "Bye" });
 
     // The first status request is held until the file is edited: the edit
@@ -270,11 +296,21 @@ describe("comvi translate", () => {
       }
     });
     cleanups.push(() => proxy.close());
+    // A failing test must not leave held requests waiting.
+    cleanups.push(async () => editDone());
 
     const running = translate(ws, mtKey, ["--force-mode", "override"], {
       env: { COMVI_API_BASE_URL: proxy.url },
     });
-    await seen;
+    // A CLI that exits without ever polling fails here, with its output.
+    await Promise.race([
+      seen,
+      running.then((exited) => {
+        throw new Error(
+          `translate exited (${exited.code}) before polling:\n${exited.stdout}${exited.stderr}`,
+        );
+      }),
+    ]);
     await ws.write(file("de"), { bye: "Tschüss" });
     editDone();
     const result = await running;
@@ -287,7 +323,8 @@ describe("comvi translate", () => {
   });
 
   it("--dry-run counts both sides and pushes, translates and writes nothing", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), { a: "Alpha" });
     const push = await runCli(["push", "--force-mode", "override"], {
       cwd: ws.dir,
@@ -308,11 +345,12 @@ describe("comvi translate", () => {
     expect(await remote(project)).toEqual({ en: { a: "Alpha" } });
     expect(await ws.readJson(file("de"))).toEqual({ b: "Beta de" });
     expect(await readOrNull(ws, file("fr"))).toBeNull();
-    expect(await mtCreditsUsed(project)).toBe(0);
+    expect(await creditsUsed(env)).toBe(0);
   });
 
   it("repo first: --force-mode override sends a changed human value and leaves the file as it is", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), { a: "Hello" });
     await ws.write(file("de"), { a: "Hallo" });
     await ws.write(file("fr"), { a: "Bonjour" });
@@ -329,11 +367,12 @@ describe("comvi translate", () => {
     expect(result.code, result.stdout + result.stderr).toBe(0);
     expect((await remote(project)).de).toEqual({ a: "Servus" });
     expect(await ws.read(file("de"))).toBe(before);
-    expect(await mtCreditsUsed(project)).toBe(0);
+    expect(await creditsUsed(env)).toBe(0);
   });
 
   it("does not re-translate a value whose source changed", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), { a: "Hello" });
     await ws.write(file("de"), { a: "Hallo" });
     await ws.write(file("fr"), { a: "Bonjour" });
@@ -354,11 +393,12 @@ describe("comvi translate", () => {
       fr: { a: "Bonjour" },
     });
     expect(await ws.read(file("de"))).toBe(before);
-    expect(await mtCreditsUsed(project)).toBe(0);
+    expect(await creditsUsed(env)).toBe(0);
   });
 
   it("--format json prints one parseable report with the documented fields", async () => {
-    const { mtKey, ws } = await setup();
+    const env = await setup();
+    const { mtKey, ws } = env;
     await ws.write(file("en"), { a: "Alpha" });
     await ws.write(file("de"), { a: "Alpha de" });
 
@@ -400,7 +440,8 @@ describe("comvi translate", () => {
   });
 
   it("exits 4 before any push when the platform has no mt/fill route", async () => {
-    const { project, mtKey, ws } = await setup();
+    const env = await setup();
+    const { project, mtKey, ws } = env;
     await ws.write(file("en"), { a: "Alpha" });
     // An older platform: Fastify's own 404 for an unknown route.
     const proxy = await startProxy(undefined, (req) =>

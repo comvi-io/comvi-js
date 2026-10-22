@@ -17,21 +17,46 @@ import {
   type Routes,
 } from "./helpers";
 
-/** When set, the merge writer throws this right after it wrote its first file. */
-const mergeFault = vi.hoisted(() => ({ afterFirstFile: undefined as Error | undefined }));
+/**
+ * Faults in the write phase: `afterWrites` makes the merge writer throw
+ * `error` right after it wrote that many files; `failWrite` fails the atomic
+ * write of that file name.
+ */
+const mergeFault = vi.hoisted(() => ({
+  error: undefined as Error | undefined,
+  afterWrites: 1,
+  writes: 0,
+  failWrite: undefined as string | undefined,
+}));
+
+vi.mock("../src/utils/atomicWrite", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/utils/atomicWrite")>();
+  return {
+    ...actual,
+    atomicWriteFile: (...args: Parameters<typeof actual.atomicWriteFile>) =>
+      mergeFault.failWrite && args[0].endsWith(mergeFault.failWrite)
+        ? Promise.reject(new Error("EACCES: permission denied"))
+        : actual.atomicWriteFile(...args),
+  };
+});
 
 vi.mock("../src/core/MissingMerge", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/core/MissingMerge")>();
   return {
     ...actual,
-    mergeMissing: (options: Parameters<typeof actual.mergeMissing>[0]) =>
-      actual.mergeMissing({
-        ...options,
-        onFileWritten(file) {
-          options.onFileWritten?.(file);
-          if (mergeFault.afterFirstFile) throw mergeFault.afterFirstFile;
+    mergeMissing: (...[options, report]: Parameters<typeof actual.mergeMissing>) =>
+      actual.mergeMissing(
+        {
+          ...options,
+          onFileWritten(file) {
+            options.onFileWritten?.(file);
+            if (mergeFault.error && ++mergeFault.writes === mergeFault.afterWrites) {
+              throw mergeFault.error;
+            }
+          },
         },
-      }),
+        report,
+      ),
   };
 });
 
@@ -212,7 +237,10 @@ describe("comvi translate", () => {
   });
 
   afterEach(async () => {
-    mergeFault.afterFirstFile = undefined;
+    mergeFault.error = undefined;
+    mergeFault.afterWrites = 1;
+    mergeFault.writes = 0;
+    mergeFault.failWrite = undefined;
     vi.useRealTimers();
     await removeTempDirs();
     assertNoUnexpectedRequests();
@@ -1098,7 +1126,8 @@ describe("comvi translate", () => {
       });
 
       expect(await translate(["--no-push", "-l", "de"])).toBe(0);
-      expect(output.log).toContain("  Files changed: 0 (0 values)");
+      // Nothing was written, so there is no "Files changed" line.
+      expect(output.stdout).not.toContain("Files changed");
       expect(output.stdout).not.toContain("from the platform");
     });
 
@@ -1231,7 +1260,7 @@ describe("comvi translate", () => {
       expect(await translate(["--no-push"])).toBe(3);
     });
 
-    it("a target file it cannot parse: exit 1, the others are written, written: false", async () => {
+    it("a target file it cannot parse: exit 1, the others are written and reported", async () => {
       await writeLocale("uk", {});
       await fs.writeFile(join(localesDir, "uk.json"), "{ broken", "utf-8");
       serve({ [PATHS.fill]: NO_WORK });
@@ -1239,7 +1268,8 @@ describe("comvi translate", () => {
       expect(await translate(["--no-push", "--format", "json"])).toBe(1);
 
       const doc = JSON.parse(output.log[0]);
-      expect(doc.written).toBe(false);
+      // de's farewell was written; its local greeting differs from the platform's.
+      expect(doc.written).toEqual({ files: 1, values: 1, differ: 1 });
       expect(doc.errors).toEqual([
         {
           type: "write_failed",
@@ -1916,7 +1946,7 @@ describe("comvi translate", () => {
 
     it("a write phase that throws after the first file: exit 1, and the written file is reported", async () => {
       serve({ [PATHS.fill]: NO_WORK });
-      mergeFault.afterFirstFile = new Error("disk full");
+      mergeFault.error = new Error("disk full");
 
       expect(await translate(["--no-push", "--format", "json"])).toBe(1);
 
@@ -1924,7 +1954,7 @@ describe("comvi translate", () => {
       expect(doc.errors).toEqual([
         {
           type: "write_failed",
-          message: "Writing stopped: disk full; some files may already be written",
+          message: "Writing stopped: disk full. 1 file was already written.",
         },
       ]);
       // de is written first; uk was never reached.
@@ -1932,6 +1962,64 @@ describe("comvi translate", () => {
       expect(await readLocale("de")).toEqual({ greeting: "Hallo", farewell: "Tschüss" });
       expect(await exists("uk")).toBe(false);
       expect(output.stderr).not.toContain("Nothing was written");
+    });
+
+    it("a throw after two written files counts only the written ones, and every judged differ", async () => {
+      // fr only differs (nothing to fill), then de and uk are written.
+      await writeLocale("fr", { greeting: "Lokal", farewell: "Lokal" });
+      serve({
+        [PATHS.fill]: NO_WORK,
+        [PATHS.locales]: {
+          body: { locales: [{ code: "en" }, { code: "fr" }, { code: "de" }, { code: "uk" }] },
+        },
+        [PATHS.translations]: {
+          body: {
+            locales: ["en", "fr", "de", "uk"],
+            namespaces: {
+              common: {
+                en: { greeting: "Hello", farewell: "Bye" },
+                fr: { greeting: "Bonjour", farewell: "Salut" },
+                de: { greeting: "Hallo (platform)", farewell: "Tschüss" },
+                uk: { greeting: "Привіт", farewell: "Бувай" },
+              },
+            },
+          },
+        },
+      });
+      mergeFault.error = new Error("disk full");
+      mergeFault.afterWrites = 2;
+
+      expect(await translate(["--no-push", "--format", "json"])).toBe(1);
+
+      const doc = JSON.parse(output.log[0]);
+      expect(doc.errors).toEqual([
+        {
+          type: "write_failed",
+          message: "Writing stopped: disk full. 2 files were already written.",
+        },
+      ]);
+      // de 1 + uk 2 values; fr's two and de's greeting differ.
+      expect(doc.written).toEqual({ files: 2, values: 3, differ: 3 });
+      expect(await readLocale("uk")).toEqual({ greeting: "Привіт", farewell: "Бувай" });
+    });
+
+    it("the second file's write fails: exit 1, the first is written and reported", async () => {
+      serve({ [PATHS.fill]: NO_WORK });
+      mergeFault.failWrite = "uk.json";
+
+      expect(await translate(["--no-push", "--format", "json"])).toBe(1);
+
+      const doc = JSON.parse(output.log[0]);
+      expect(doc.written).toEqual({ files: 1, values: 1, differ: 1 });
+      expect(doc.errors).toEqual([
+        {
+          type: "write_failed",
+          message: expect.stringMatching(/uk\.json: EACCES: permission denied$/),
+          locale: "uk",
+        },
+      ]);
+      expect(await readLocale("de")).toEqual({ greeting: "Hallo", farewell: "Tschüss" });
+      expect(await exists("uk")).toBe(false);
     });
 
     it("refuses --force-mode ask with --format json, before any request", async () => {

@@ -72,6 +72,11 @@ const cliBuild = join(cliDir, "dist/cli.js");
 for (const [path, hint] of [
   [testStack, "set PLATFORM_DIR to a platform checkout"],
   [fixtureScript, "the platform checkout predates scripts/cli-e2e-fixture.ts"],
+  [
+    join(apiDir, "scripts/lib/test-stack-env.mjs"),
+    "the platform checkout predates MT_FAKE_PROVIDER, which the comvi translate scenarios " +
+      "need: use a platform with COM-197 (branch feat/com-197-mt-fill, or develop once it is merged)",
+  ],
   [cliBuild, 'build the CLI first: pnpm --filter "@comvi/cli..." build'],
 ]) {
   if (!existsSync(path)) {
