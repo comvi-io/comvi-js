@@ -16,13 +16,21 @@ import { performance } from "node:perf_hooks";
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 
-function flag(name, fallback) {
+function flag(name, fallback, minimum = 1) {
   const at = process.argv.indexOf(`--${name}`);
-  return at === -1 ? fallback : Number(process.argv[at + 1]);
+  if (at === -1) return fallback;
+  const raw = process.argv[at + 1];
+  const value = Number(raw);
+  if (raw === undefined || raw.startsWith("-") || !Number.isInteger(value) || value < minimum) {
+    console.error(`--${name} needs an integer >= ${minimum}`);
+    process.exit(1);
+  }
+  return value;
 }
 
 const keys = flag("keys", 2000);
-const localeCount = flag("locales", 11);
+// The source alone has nothing to compare against.
+const localeCount = flag("locales", 11, 2);
 const runs = flag("runs", 7);
 
 const { CatalogCheck } = await import(
