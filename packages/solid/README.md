@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/solid"><img src="https://img.shields.io/npm/v/@comvi/solid?color=blue" alt="npm"></a>
-  <a href="https://bundlephobia.com/package/@comvi/solid"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/solid?label=minzip" alt="Bundle size"></a>
+  <a href="https://bundlejs.com/?q=@comvi/solid&amp;treeshake=%5B%7BcreateI18n%2CI18nProvider%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22solid-js%22%2C%22solid-js/web%22%2C%22solid-js/store%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/solid&amp;treeshake=%5B%7BcreateI18n%2CI18nProvider%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22solid-js%22%2C%22solid-js/web%22%2C%22solid-js/store%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/solid"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
@@ -133,8 +133,10 @@ independent.
   plain function or an element name such as `{ policy: 'a' }`. Plain `t()` does not parse tags.
 - `<I18nProvider>` initializes from a `createEffect`, and effects do not run during Solid's server
   render, so a loader fetches nothing there. Load the messages in a server function with a fresh
-  instance per request, render through `<I18nProvider autoInit={false}>`, and pass `ssrLocale` on both
-  sides. Never share a module-level instance across SSR requests; one is fine for a client-only app. `ssrLocale` paints on the first render when that locale's catalogs are already available (inline `messages`, or loaded earlier); otherwise the first render is in the instance's current locale and the switch lands when the load completes.
+  instance per request, build the instance from the result inside the route, and pass `ssrLocale`.
+  In SolidStart, use the route's locale param as the resource's source, render through
+  `<Show keyed>` so a link to another locale builds a new instance, and pass `deferStream: true` so
+  the HTML carries the text instead of a streamed `<template>`. Never share a module-level instance across SSR requests; one is fine for a client-only app. `ssrLocale` paints on the first render when that locale's catalogs are already available (inline `messages`, or loaded earlier); otherwise the first render is in the instance's current locale and the switch lands when the load completes.
 
 ## Next steps
 

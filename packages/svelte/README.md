@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/svelte"><img src="https://img.shields.io/npm/v/@comvi/svelte?color=blue" alt="npm"></a>
-  <a href="https://bundlephobia.com/package/@comvi/svelte"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/svelte?label=minzip" alt="Bundle size"></a>
+  <a href="https://bundlejs.com/?q=@comvi/svelte&amp;treeshake=%5B%7BcreateI18n%2CsetI18nContext%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22svelte%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/svelte&amp;treeshake=%5B%7BcreateI18n%2CsetI18nContext%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22svelte%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/svelte"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
@@ -144,11 +144,14 @@ independent.
   maps to an element name, a `{ tag, props }` config, or a Svelte component that receives the tag's
   content as its `children` snippet. `<T>` builds real DOM nodes, never an HTML string.
 - `@comvi/svelte` ships no SvelteKit adapter and needs none. Build a fresh instance per request and
-  never mutate a module-level singleton on the server. A `load` function returns plain data,
-  `{ locale, messages }`, never the instance; construct the instance in `+layout.svelte` with
-  `setI18nContext(i18n, { autoInit: false })` seeded from that payload.
-- Set `lang` and `dir` on `<html>` from `$locale` and `$dir` in an `$effect`, or with
-  `<svelte:html lang={$locale} dir={$dir} />` on Svelte 5.16 or newer.
+  never mutate a module-level singleton on the server. The root layout's `load` returns plain
+  data, `{ locale, messages }`, never the instance. `+layout.svelte` builds the instance once from
+  that payload, inside `untrack()`, and passes every later `data` to it in an `$effect.pre`
+  (`addMessages()`, then `setLocale()`); without that, a link to another locale changes the URL and
+  keeps the old text.
+- `<svelte:head>` cannot set attributes on `<html>`. Replace `%lang%` in `src/app.html` from a
+  `handle` hook for the server render, with the locale checked against your list first, and set `lang` and `dir` from `$locale` and `$dir` in an
+  `$effect` for client navigation.
 
 ## Next steps
 
