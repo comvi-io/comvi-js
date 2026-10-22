@@ -30,6 +30,7 @@
             "reason": "forbidden"
           }
         ],
+        "failedLocales": [],
         "estimate": {
           "credits": 3,
           "approximate": false
@@ -50,6 +51,7 @@
           "noSource": 0
         },
         "skippedLocales": [],
+        "failedLocales": [],
         "estimate": {
           "credits": 3,
           "approximate": true
@@ -70,6 +72,7 @@
           "noSource": 0
         },
         "skippedLocales": [],
+        "failedLocales": [],
         "estimate": {
           "credits": 0,
           "approximate": false
@@ -185,6 +188,7 @@
           "noSource": 0
         },
         "skippedLocales": [],
+        "failedLocales": [],
         "estimate": {
           "credits": 0,
           "approximate": false
