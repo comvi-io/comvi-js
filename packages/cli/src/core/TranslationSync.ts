@@ -198,9 +198,9 @@ export class TranslationSync {
 
   /** The translation files on disk, as the template parses them. */
   async listCatalogFiles(
-    defaultNamespace?: string,
+    defaultNamespace = DEFAULT_NAMESPACE,
   ): Promise<Array<{ locale: string; namespace: string; filePath: string }>> {
-    return this.findTranslationFiles(defaultNamespace ?? DEFAULT_NAMESPACE);
+    return this.findTranslationFiles(defaultNamespace);
   }
 
   /**

@@ -70,14 +70,14 @@ export interface MtJobStatus {
   error?: string;
 }
 
-const JOB_STATES = new Set(["waiting", "active", "completed", "failed"]);
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const isCount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0;
+function isCount(value: unknown): value is number {
+  // Number.isFinite never coerces: a string is not finite.
+  return Number.isFinite(value) && (value as number) >= 0;
+}
 
 export function isMtFillJob(value: unknown): value is MtFillJob {
   return (
@@ -113,7 +113,8 @@ export function isMtFillResponse(value: unknown): value is MtFillResponse {
 }
 
 export function isMtJobStatus(value: unknown): value is MtJobStatus {
-  if (!isRecord(value) || typeof value.status !== "string" || !JOB_STATES.has(value.status)) {
+  const states: unknown[] = ["waiting", "active", "completed", "failed"];
+  if (!isRecord(value) || !states.includes(value.status)) {
     return false;
   }
   if (value.result === undefined) return true;

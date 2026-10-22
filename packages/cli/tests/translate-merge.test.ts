@@ -45,12 +45,14 @@ describe("mergeMissing", () => {
   }
 
   it("fills absent, null and empty targets and never overwrites a value, whitespace included", async () => {
-    await write("common/en.json", { a: "A", b: "B", c: "C", d: "D", e: "E" });
-    await write("common/de.json", { b: null, c: "", d: " ", e: "Lokal" });
+    await write("common/en.json", { a: "A", b: "B", c: "C", d: "D", e: "E", f: "F" });
+    await write("common/de.json", { b: null, c: "", d: " ", e: "Lokal", f: "F-de" });
 
     const report = await merge({
-      source: { common: { a: "A", b: "B", c: "C", d: "D", e: "E" } },
-      targets: { de: { common: { a: "A-de", b: "B-de", c: "C-de", d: "D-de", e: "E-de" } } },
+      source: { common: { a: "A", b: "B", c: "C", d: "D", e: "E", f: "F" } },
+      targets: {
+        de: { common: { a: "A-de", b: "B-de", c: "C-de", d: "D-de", e: "E-de", f: "F-de" } },
+      },
     });
 
     expect(await read("common/de.json")).toEqual({
@@ -58,14 +60,16 @@ describe("mergeMissing", () => {
       c: "C-de",
       d: " ",
       e: "Lokal",
+      f: "F-de",
       a: "A-de",
     });
     expect(report.errors).toEqual([]);
     expect(report.files).toHaveLength(1);
     expect(report.files[0].filled.sort()).toEqual(["a", "b", "c"]);
-    // " " and "Lokal" are values that differ from the platform's.
+    // " " and "Lokal" are values that differ from the platform's; "F-de" is the same.
     expect(report.files[0].differ.sort()).toEqual(["d", "e"]);
     expect(report.files[0].missing).toEqual([]);
+    expect(report.files[0].created).toBe(false);
   });
 
   it("keeps local-only keys and writes only keys of the local source catalog", async () => {
@@ -98,7 +102,7 @@ describe("mergeMissing", () => {
     await write("common/en.json", { nav: { home: "Home", about: "About" }, title: "T" });
     await write("common/de.json", { nav: { home: "Startseite" } });
 
-    await merge({
+    const report = await merge({
       source: { common: { "nav.home": "Home", "nav.about": "About", title: "T" } },
       targets: {
         de: { common: { "nav.home": "Start", "nav.about": "Über uns", title: "Titel" } },
@@ -109,6 +113,7 @@ describe("mergeMissing", () => {
       nav: { home: "Startseite", about: "Über uns" },
       title: "Titel",
     });
+    expect(report.files[0]).toMatchObject({ differ: ["nav.home"], collisions: [], missing: [] });
   });
 
   it("keeps a flat file flat", async () => {
@@ -183,20 +188,6 @@ describe("mergeMissing", () => {
     expect(await read("common/de.json")).toEqual({ a: "Von Hand", b: "B-de" });
   });
 
-  it("reports an unreadable target file and leaves it alone", async () => {
-    await write("common/en.json", { a: "A" });
-    await write("common/de.json", "{ not json");
-
-    const report = await merge({
-      source: { common: { a: "A" } },
-      targets: { de: { common: { a: "A-de" } } },
-    });
-
-    expect(await fs.readFile(join(dir, "common/de.json"), "utf-8")).toBe("{ not json");
-    expect(report.errors).toHaveLength(1);
-    expect(report.errors[0].filePath).toBe(join(dir, "common/de.json"));
-  });
-
   it("writes into the local spelling of a locale and keeps prototype-named keys as data", async () => {
     await write("common/en.json", '{"__proto__":"P","constructor":"C"}');
     await write("common/pt_br.json", '{"__proto__":""}');
@@ -210,4 +201,117 @@ describe("mergeMissing", () => {
     expect(text).toBe('{\n  "__proto__": "P-br",\n  "constructor": "C-br"\n}\n');
     expect(Object.prototype).not.toHaveProperty("constructor", "C-br");
   });
+  it("does not count an empty source value as missing, and skips a namespace the platform lacks", async () => {
+    await write("common/en.json", { a: "A", blank: "" });
+    await write("admin/en.json", { b: "B" });
+
+    const report = await merge({
+      source: { common: { a: "A", blank: "" }, admin: { b: "B" } },
+      // Nothing for `admin` came back at all.
+      targets: { de: { common: {} } },
+    });
+
+    expect(report.errors).toEqual([]);
+    expect(report.files.map(({ namespace, missing }) => [namespace, missing])).toEqual([
+      ["common", ["a"]],
+      ["admin", ["b"]],
+    ]);
+  });
+
+  it("lets an empty leaf give way to an object, and keeps that object from a later leaf", async () => {
+    await write("common/en.json", { a: "A" });
+    await write("common/de.json", { nav: { main: "" }, footer: { text: "Fuß" } });
+
+    const report = await merge({
+      source: { common: { "nav.main.home": "Home", "nav.main": "Main" } },
+      targets: { de: { common: { "nav.main.home": "Start", "nav.main": "Haupt" } } },
+    });
+
+    expect(await read("common/de.json")).toEqual({
+      nav: { main: { home: "Start" } },
+      footer: { text: "Fuß" },
+    });
+    expect(report.files[0]).toMatchObject({
+      filled: ["nav.main.home"],
+      collisions: ["nav.main"],
+    });
+  });
+
+  it("replaces an empty top-level leaf with the whole new branch", async () => {
+    await write("common/en.json", { a: "A" });
+    await write("common/de.json", { nav: "", footer: { text: "Fuß" } });
+
+    const report = await merge({
+      source: { common: { "nav.main.home": "Home", nav: "Nav" } },
+      targets: { de: { common: { "nav.main.home": "Start", nav: "Navigation" } } },
+    });
+
+    expect(await read("common/de.json")).toEqual({
+      nav: { main: { home: "Start" } },
+      footer: { text: "Fuß" },
+    });
+    expect(report.files[0]).toMatchObject({ filled: ["nav.main.home"], collisions: ["nav"] });
+  });
+
+  it("writes a new file flat when there is no source file to copy the shape from", async () => {
+    const report = await merge({
+      source: { common: { "nav.home": "Home" } },
+      targets: { de: { common: { "nav.home": "Start" } } },
+    });
+
+    expect(report.errors).toEqual([]);
+    expect(await read("common/de.json")).toEqual({ "nav.home": "Start" });
+  });
+
+  it("nests a new file when the source file nests anywhere", async () => {
+    await write("common/en.json", { title: "T", nav: { home: "Home" } });
+
+    await merge({
+      source: { common: { title: "T", "nav.home": "Home" } },
+      targets: { de: { common: { title: "Titel", "nav.home": "Start" } } },
+    });
+
+    expect(await read("common/de.json")).toEqual({ title: "Titel", nav: { home: "Start" } });
+  });
+
+  it.each([
+    ["not JSON", "{ nope", "Invalid JSON"],
+    ["not an object", "[1, 2]", "expected a JSON object"],
+    ["a number leaf", '{"a": 5}', 'key "a" is not a string'],
+    ["a key both flat and nested", '{"x.y": "1", "x": {"y": "2"}}', "Duplicate translation key"],
+  ])("reports a target file that is %s and leaves it alone", async (_what, content, message) => {
+    await write("common/en.json", { a: "A" });
+    await write("common/de.json", content);
+
+    const report = await merge({
+      source: { common: { a: "A" } },
+      targets: { de: { common: { a: "A-de" } } },
+    });
+
+    expect(await fs.readFile(join(dir, "common/de.json"), "utf-8")).toBe(content);
+    expect(report.files).toEqual([]);
+    expect(report.errors).toHaveLength(1);
+    expect(report.errors[0]).toMatchObject({ locale: "de", namespace: "common" });
+    expect(report.errors[0].message).toContain(message);
+  });
+
+  // Root reads any file, so the permission cannot make it unreadable there.
+  it.skipIf(process.getuid?.() === 0)(
+    "reports a target file it cannot read, and never replaces it as if it were new",
+    async () => {
+      await write("common/en.json", { a: "A" });
+      await write("common/de.json", { a: "Geheim" });
+      await fs.chmod(join(dir, "common/de.json"), 0o000);
+
+      const report = await merge({
+        source: { common: { a: "A" } },
+        targets: { de: { common: { a: "A-de" } } },
+      });
+
+      await fs.chmod(join(dir, "common/de.json"), 0o644);
+      expect(await read("common/de.json")).toEqual({ a: "Geheim" });
+      expect(report.files).toEqual([]);
+      expect(report.errors[0].message).toContain("EACCES");
+    },
+  );
 });

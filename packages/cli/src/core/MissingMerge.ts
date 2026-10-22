@@ -125,31 +125,29 @@ async function mergeFile(
 
   for (const key of Object.keys(sourceCatalog)) {
     const value = remote && hasOwnKey(remote, key) ? remote[key] : undefined;
-    if (typeof value !== "string" || value === "") continue;
+    if (!value) continue;
 
     const leaf = leaves.get(key);
     if (leaf) {
       if (isMissing(leaf.value)) {
         leaf.holder[leaf.prop] = value;
-        leaf.value = value;
         result.filled.push(key);
       } else if (leaf.value !== value) {
         result.differ.push(key);
       }
-      continue;
-    }
-
-    const placed = nested ? placeNested(root, key, value, leaves) : placeFlat(root, key, value);
-    if (!placed) {
+    } else if (!nested) {
+      root[key] = value;
+      result.filled.push(key);
+    } else if (placeNested(root, key, value, leaves)) {
+      result.filled.push(key);
+    } else {
       result.collisions.push(key);
-      continue;
     }
-    leaves.set(key, placed);
-    result.filled.push(key);
   }
 
+  const filled = new Set(result.filled);
   for (const [key, sourceValue] of Object.entries(sourceCatalog)) {
-    if (sourceValue === "") continue;
+    if (sourceValue === "" || filled.has(key)) continue;
     const leaf = leaves.get(key);
     if (!leaf || isMissing(leaf.value)) result.missing.push(key);
   }
@@ -223,11 +221,6 @@ function indexLeaves(root: Catalog, filePath: string): Map<string, Leaf> {
   return leaves;
 }
 
-function placeFlat(root: Catalog, key: string, value: string): Leaf {
-  root[key] = value;
-  return { holder: root, prop: key, value };
-}
-
 /**
  * Nest `key` along its dots. An empty leaf on the way gives way to an
  * object; a non-empty leaf on the way, or an object where the value goes, is
@@ -238,7 +231,7 @@ function placeNested(
   key: string,
   value: string,
   leaves: Map<string, Leaf>,
-): Leaf | undefined {
+): boolean {
   const segments = key.split(".");
   const last = segments.pop()!;
 
@@ -251,40 +244,34 @@ function placeNested(
   }
   if (depth < segments.length) {
     const blocker = hasOwnKey(node, segments[depth]) ? node[segments[depth]] : undefined;
-    if (typeof blocker === "string" && blocker !== "") return undefined;
+    if (typeof blocker === "string" && blocker !== "") return false;
   } else if (hasOwnKey(node, last)) {
     // Not a leaf (those are indexed), so an object holding other keys.
-    return undefined;
+    return false;
   }
 
   for (; depth < segments.length; depth++) {
-    if (hasOwnKey(node, segments[depth])) {
-      leaves.delete(segments.slice(0, depth + 1).join("."));
-    }
+    // An empty leaf gives way to the object: it is no longer a key of the file.
+    leaves.delete(segments.slice(0, depth + 1).join("."));
     const child = emptyDictionary<unknown>();
     node[segments[depth]] = child;
     node = child;
   }
   node[last] = value;
-  return { holder: node, prop: last, value };
+  return true;
 }
 
 async function sourceIsNested(options: MergeOptions, namespace: string): Promise<boolean> {
-  try {
-    const sourcePath = await options.sync.catalogPath(
-      options.sourceLocale,
-      namespace,
-      options.defaultNamespace,
-    );
-    const text = await readIfExists(sourcePath);
-    return text !== null && Object.values(parseCatalog(text, sourcePath)).some(isPlainObject);
-  } catch {
-    return false;
-  }
+  const sourcePath = await options.sync.catalogPath(
+    options.sourceLocale,
+    namespace,
+    options.defaultNamespace,
+  );
+  const text = await readIfExists(sourcePath);
+  return text !== null && Object.values(parseCatalog(text, sourcePath)).some(isPlainObject);
 }
 
+/** Every object here came out of `JSON.parse`, so an object that is not an array is a map. */
 function isPlainObject(value: unknown): value is Catalog {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const proto = Object.getPrototypeOf(value) as object | null;
-  return proto === Object.prototype || proto === null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -109,6 +109,7 @@ describe("runPush", () => {
     const outcome = await runPush({ config: configPath, forceMode: "override", allowEmpty: true });
 
     expect(outcome.status).toBe("empty");
+    expect(output.log).toContain("⚠  No translation values to push (--allow-empty)");
     expect(http.paths()).not.toContain(COMMIT);
     expect(exits.codes).toEqual([]);
   });
@@ -140,6 +141,25 @@ describe("runPush", () => {
     expect(outcome.remote.en.common).toEqual({ a: "A" });
     expect(outcome.projectLocales).toEqual(["en", "de"]);
     expect(http.paths()).not.toContain(COMMIT);
+  });
+
+  it("names every locale the platform did not import", async () => {
+    await writeFile("en.json", { a: "A" });
+    stubFetch({
+      ...ROUTES,
+      [COMMIT]: {
+        body: {
+          success: true,
+          stats: { ...COMMIT_OK.body.stats, skippedLocales: ["fr", "it"] },
+        },
+      },
+    });
+
+    await runPush({ config: configPath, forceMode: "override" });
+
+    expect(output.error).toContain(
+      "⚠  Not imported: fr, it — not a project locale, or this API key may not write it.",
+    );
   });
 
   it("sends its progress lines to the given log", async () => {

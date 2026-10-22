@@ -320,11 +320,6 @@ export const API_ENDPOINTS = {
     `/v1/projects/${projectId}/keys/batch/mt/${encodeURIComponent(jobId)}/status`,
 } as const;
 
-/** What a 403 from mt/fill for a key without the scope adds. */
-const MT_SCOPE_HINT =
-  'comvi translate needs an API key with the mt:use scope ("Machine translation (uses credits)"). ' +
-  "A key's scopes cannot be changed: create a new key with it.";
-
 export class ApiClient {
   private apiKey: string;
   private apiBaseUrl: string;
@@ -708,9 +703,8 @@ export class ApiClient {
                 conflictResolution: toImportConflictResolution(options.forceMode),
                 createNamespaces: true,
                 deleteOrphans: false,
-                ...(options.scheduleAutoMt === undefined
-                  ? {}
-                  : { scheduleAutoMt: options.scheduleAutoMt }),
+                // Left out when undefined: JSON drops the field.
+                scheduleAutoMt: options.scheduleAutoMt,
               },
             }),
           },
@@ -878,9 +872,6 @@ export class ApiClient {
         error.details?.code !== "PROJECT_NOT_FOUND"
       ) {
         return null;
-      }
-      if (error instanceof TypegenError) {
-        throw error;
       }
       if (error instanceof Error && error.name === "AbortError") {
         throw new TypegenError(
@@ -1249,9 +1240,11 @@ function fillError(error: TypegenError): TypegenError {
     );
   }
   const meta = error.details?.meta;
-  if (status === 403 && isRecord(meta) && meta.requiredScope === "mt:use") {
+  // Only a refused permission names a required scope.
+  if (isRecord(meta) && meta.requiredScope === "mt:use") {
     return new TypegenError(
-      `${error.message}. ${MT_SCOPE_HINT}`,
+      `${error.message}. comvi translate needs an API key with the mt:use scope ` +
+        '("Machine translation (uses credits)"). A key\'s scopes cannot be changed: create a new key with it.',
       error.code,
       error.cause,
       error.details,

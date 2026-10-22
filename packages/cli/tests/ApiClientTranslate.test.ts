@@ -236,3 +236,156 @@ describe("ApiClient.pushTranslations scheduleAutoMt", () => {
     });
   });
 });
+
+describe("ApiClient MT requests, failure by failure", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    assertNoUnexpectedRequests();
+  });
+
+  /** A platform that answers the project lookup and never answers anything else. */
+  function stallAfterProject(): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL, init: RequestInit = {}) => {
+        if (new URL(String(input)).pathname === PROJECT) {
+          return { ok: true, status: 200, json: async () => ({ id: 123 }) } as Response;
+        }
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+          );
+        });
+      }),
+    );
+  }
+
+  it.each([
+    ["fillMissing", (api: ApiClient) => api.fillMissing({})],
+    ["getMtJobStatus", (api: ApiClient) => api.getMtJobStatus("fill-123-de-3f1c")],
+  ])("%s reports a timeout as exit 2", async (_name, call) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    stallAfterProject();
+    const api = new ApiClient({ apiKey: "k", apiBaseUrl: API, timeout: 50 });
+
+    const pending = typegenRejection(call(api));
+    await vi.advanceTimersByTimeAsync(50);
+    const error = await pending;
+
+    expect(error.code).toBe(ErrorCodes.API_TIMEOUT);
+    expect(error.message).toBe("Request timeout after 50ms");
+  });
+
+  it("names the request in a network failure", async () => {
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [FILL]: { networkError: "ECONNRESET" } });
+    const fill = await typegenRejection(client().fillMissing({}));
+    expect(fill.message).toBe("Failed to request machine translation: fetch failed (ECONNRESET)");
+    expect(exitCodeFor(fill)).toBe(2);
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [STATUS]: { networkError: "ECONNRESET" } });
+    const status = await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+    expect(status.message).toBe(
+      "Failed to read machine translation job fill-123-de-3f1c: fetch failed (ECONNRESET)",
+    );
+  });
+
+  it("names the request in a 5xx", async () => {
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [FILL]: { status: 503, body: {} } });
+    const fill = await typegenRejection(client().fillMissing({}));
+    expect(fill.message).toBe("Failed to request machine translation: 503 OK");
+
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [STATUS]: { status: 500, body: {} } });
+    const status = await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+    expect(status.message).toBe("Failed to read machine translation job fill-123-de-3f1c: 500 OK");
+  });
+
+  it("does not retry a status request: the poller has its own budget", async () => {
+    const http = stubFetch({
+      [PROJECT]: { body: { id: 123 } },
+      [STATUS]: { status: 503, body: {} },
+    });
+
+    await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+
+    expect(http.paths().filter((path) => path === STATUS)).toHaveLength(1);
+  });
+
+  it("says which response is not in shape", async () => {
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [FILL]: { status: 202, body: {} } });
+    expect((await typegenRejection(client().fillMissing({}))).message).toBe(
+      "The platform's mt/fill response is not in the expected shape",
+    );
+
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [STATUS]: { body: { status: "paused" } } });
+    const status = await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+    expect(status.message).toBe(
+      "The platform's MT job status response is not in the expected shape",
+    );
+    expect(exitCodeFor(status)).toBe(2);
+  });
+
+  it("asks for a status with a GET and the key", async () => {
+    const http = stubFetch({ [PROJECT]: { body: { id: 123 } }, [STATUS]: contract.status.waiting });
+
+    await client().getMtJobStatus("fill-123-de-3f1c");
+
+    const init = http.requests.find((r) => new URL(r.url).pathname === STATUS)!.init;
+    expect(init.method).toBe("GET");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer k");
+  });
+
+  it("names the job in a 403 on its status", async () => {
+    stubFetch({
+      [PROJECT]: { body: { id: 123 } },
+      [STATUS]: { status: 403, body: { code: "FORBIDDEN", message: "No access to locale ja" } },
+    });
+
+    const error = await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+
+    expect(error.message).toBe(
+      "Access denied to machine translation job fill-123-de-3f1c: No access to locale ja (FORBIDDEN).",
+    );
+  });
+
+  it("a rejected key on a status: exit 3", async () => {
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [STATUS]: { status: 401, body: {} } });
+
+    const error = await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+
+    expect(error.message).toBe("Invalid API key");
+    expect(exitCodeFor(error)).toBe(3);
+  });
+
+  it("throws a status 404 that is about the project", async () => {
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [STATUS]: contract.fill.projectNotFound });
+
+    const error = await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+
+    expect(exitCodeFor(error)).toBe(3);
+  });
+
+  it("spells out the unsupported platform and the scope hint", async () => {
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [FILL]: contract.fill.routeNotFound });
+    expect((await typegenRejection(client().fillMissing({}))).message).toBe(
+      "The platform does not support comvi translate: POST mt/fill answered 404. " +
+        "Update the platform, or check apiBaseUrl.",
+    );
+
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [FILL]: contract.fill.missingScope });
+    expect((await typegenRejection(client().fillMissing({}))).message).toBe(
+      "Failed to request machine translation: 403 OK (FORBIDDEN): API key does not have required " +
+        "permission: machine_translation.use. comvi translate needs an API key with the mt:use scope " +
+        '("Machine translation (uses credits)"). A key\'s scopes cannot be changed: create a new key with it.',
+    );
+  });
+
+  it("a rejected key on the fill: exit 3", async () => {
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [FILL]: { status: 401, body: {} } });
+
+    const error = await typegenRejection(client().fillMissing({}));
+
+    expect(error.message).toBe("Invalid API key");
+    expect(exitCodeFor(error)).toBe(3);
+  });
+});

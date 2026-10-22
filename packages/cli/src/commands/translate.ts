@@ -172,30 +172,20 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
     }
     say("🔄 Requesting machine translation...");
     try {
-      fill = await api.fillMissing({
-        ...scope,
-        ...(maxPairs === undefined ? {} : { maxPairs }),
-      });
+      // No limit is no `maxPairs`: JSON leaves an undefined field out.
+      fill = await api.fillMissing({ ...scope, maxPairs });
       jobs = fill.jobs;
     } catch (error) {
-      if (!(error instanceof TypegenError)) throw error;
-      if (error.details?.code === "MT_FILL_LIMIT") throw overLimit(error, maxPairs);
-      if (error.details?.code !== "LIMIT_EXCEEDED") throw error;
+      const code = error instanceof TypegenError ? error.details?.code : undefined;
+      if (code === "MT_FILL_LIMIT") throw overLimit(error as TypegenError, maxPairs);
+      if (code !== "LIMIT_EXCEEDED") throw error;
       // Out of credits: nothing new starts, but the jobs in flight are collected.
-      jobs = jobsInLimitMeta(error.details.meta);
+      jobs = jobsInLimitMeta((error as TypegenError).details?.meta);
       outcomes.push(EXIT_ACCESS);
-      errors.push({ type: "limit_exceeded", message: error.message });
+      errors.push({ type: "limit_exceeded", message: (error as TypegenError).message });
     }
   } catch (error) {
     return fatal(error);
-  }
-
-  for (const skipped of fill?.skippedLocales ?? []) {
-    errors.push({
-      type: "skipped_locale",
-      message: `${skipped.code} (${skipped.reason})`,
-      locale: skipped.code,
-    });
   }
 
   const tracks: JobTrack[] = jobs.map((job) => ({ job, state: "pending" }));
@@ -258,8 +248,8 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
         });
         break;
       case "error": {
-        const code = exitCodeFor(track.error);
-        outcomes.push(code === EXIT_ACCESS || code === EXIT_UNAVAILABLE ? code : EXIT_FAILURE);
+        // Transient failures are retried while polling, so this one is final.
+        outcomes.push(exitCodeFor(track.error) === EXIT_ACCESS ? EXIT_ACCESS : EXIT_FAILURE);
         const reason = track.error instanceof Error ? track.error.message : String(track.error);
         errors.push({
           type: "status_failed",
@@ -278,9 +268,7 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
           ...where,
         });
         break;
-      default:
-        // "gone" is judged after the fetch, from what is still empty.
-        break;
+      // "gone" is judged after the fetch, from what is still empty.
     }
   }
 
@@ -369,7 +357,7 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
               : {}),
           })),
           written,
-          errors: errors.filter((error) => error.type !== "skipped_locale"),
+          errors,
           skippedLocales: fill?.skippedLocales ?? [],
           ok: exitCode === 0,
         },
@@ -379,17 +367,16 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
     );
   }
 
-  const problems = errors.filter((error) => error.type !== "skipped_locale");
   if (fill && fill.skippedLocales.length > 0) {
     console.error(
       `⚠  Skipped locales: ${fill.skippedLocales.map((s) => `${s.code} (${s.reason})`).join(", ")}`,
     );
   }
-  for (const error of problems.slice(0, LISTED_ERRORS)) {
+  for (const error of errors.slice(0, LISTED_ERRORS)) {
     console.error(`✗ ${error.message}`);
   }
-  if (problems.length > LISTED_ERRORS) {
-    console.error(`  … and ${problems.length - LISTED_ERRORS} more`);
+  if (errors.length > LISTED_ERRORS) {
+    console.error(`  … and ${errors.length - LISTED_ERRORS} more`);
   }
 
   say(exitCode === 0 ? "\n✓ Translate complete!" : "\n⚠  Translate finished with problems");
@@ -431,10 +418,8 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
   const timeoutMs = parseDuration(options.timeout);
 
   say("🔄 Loading configuration...");
+  // ConfigLoader.load() refuses a configuration without an API key.
   const config = await ConfigLoader.load(options.config);
-  if (!config.apiKey) {
-    throw new Error("API key is required. Set COMVI_API_KEY environment variable.");
-  }
 
   const forceMode = (options.forceMode || config.push?.forceMode || "ask") as ForceMode;
   if (!["override", "keep", "ask", "abort"].includes(forceMode)) {
@@ -451,7 +436,7 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
   }
 
   const api = new ApiClient({
-    apiKey: config.apiKey,
+    apiKey: config.apiKey ?? "",
     apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
     ...timeoutsFromEnv(),
   });
@@ -495,7 +480,8 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
     namespaces: nss.value,
     defaultNamespace,
   });
-  const localSource = local.locales.find((locale) => localeKey(locale) === localeKey(source));
+  // Only the source was read: any file found is its catalog.
+  const sourceLocale = local.locales[0];
 
   return {
     api,
@@ -508,14 +494,17 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
     namespaces: nss.value,
     source,
     defaultNamespace,
-    localSource,
-    sourceCatalog: localSource ? local.translations[localSource] : undefined,
+    localSource:
+      sourceLocale === undefined
+        ? undefined
+        : { locale: sourceLocale, catalog: local.translations[sourceLocale] },
   };
 }
 
 /** `--max-keys`: a whole number; 0 is no limit (`undefined`). */
 function parseMaxKeys(raw: string): number | undefined {
-  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
+  // At most 15 digits, so every value is a safe integer.
+  if (!/^\d{1,15}$/.test(raw)) {
     throw inputError(`Invalid --max-keys: ${raw}. Use a whole number; 0 for no limit`);
   }
   const value = Number(raw);
@@ -526,7 +515,7 @@ const DURATION_UNITS: Record<string, number> = { ms: 1, s: 1_000, m: 60_000, h: 
 
 /** `--timeout`: `90s`, `20m`, `1h`, `500ms`; a bare number is seconds. */
 function parseDuration(raw: string): number {
-  const match = /^(\d+)(ms|s|m|h)?$/.exec(raw.trim());
+  const match = /^(\d+)(ms|s|m|h)?$/.exec(raw);
   const value = match ? Number(match[1]) * DURATION_UNITS[match[2] ?? "s"] : NaN;
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw inputError(`Invalid --timeout: ${raw}. Use a duration such as 90s, 20m or 1h`);
@@ -545,8 +534,9 @@ function overLimit(error: TypegenError, maxPairs: number | undefined): TypegenEr
       ? `${count} key × locale pairs to translate` +
         (typeof credits === "number" ? ` (≈${credits} credits)` : "")
       : "More key × locale pairs to translate";
+  const limit = maxPairs === undefined ? "the platform's limit" : `--max-keys ${maxPairs}`;
   return new TypegenError(
-    `${counted}, over --max-keys ${maxPairs ?? "(the platform's limit)"}. No machine translation was started. ` +
+    `${counted}, over ${limit}. No machine translation was started. ` +
       "Raise --max-keys, narrow the run with --locale or --ns, or pass --max-keys 0 for no limit.",
     error.code,
     error,
@@ -627,8 +617,8 @@ async function writeMissing(
   setup: Awaited<ReturnType<typeof prepare>>,
   remote: TranslationsResponse,
 ): Promise<MergeReport> {
-  const { sync, source, targets, localSource, sourceCatalog, defaultNamespace } = setup;
-  if (!localSource || !sourceCatalog) {
+  const { sync, source, targets, localSource, defaultNamespace } = setup;
+  if (!localSource) {
     console.error(`⚠  No local catalog for the source locale ${source}: nothing to fill`);
     return { files: [], errors: [] };
   }
@@ -648,8 +638,8 @@ async function writeMissing(
   return mergeMissing({
     sync,
     defaultNamespace,
-    sourceLocale: localSource,
-    source: sourceCatalog,
+    sourceLocale: localSource.locale,
+    source: localSource.catalog,
     targets: merged,
   });
 }
@@ -665,7 +655,8 @@ function reportDryRun(
   const errors: RunError[] = [];
   let exitCode = 0;
   let warning: string | undefined;
-  if (maxPairs !== undefined && count > maxPairs) {
+  const limit = maxPairs ?? Infinity;
+  if (count > limit) {
     exitCode = 4;
     errors.push({
       type: "over_limit",
@@ -673,7 +664,7 @@ function reportDryRun(
         `${count} key × locale pairs to translate, over --max-keys ${maxPairs}. ` +
         "Raise --max-keys, narrow the run with --locale or --ns, or pass --max-keys 0 for no limit.",
     });
-  } else if (maxPairs !== undefined && pushed !== undefined && count + pushed > maxPairs) {
+  } else if (count + (pushed ?? 0) > limit) {
     warning =
       `With the values the push adds, the run may go over --max-keys ${maxPairs} ` +
       `(${count} + ~${pushed}). The real run checks after the push, before any MT.`;
@@ -744,19 +735,14 @@ function pairsPushWouldAdd(
   const known = [
     ...new Set([...(result.projectLocales ?? []), ...Object.keys(remote), ...Object.keys(local)]),
   ];
-  const targetLocales = (targets ?? known).filter((l) => localeKey(l) !== localeKey(source));
+  // The source itself never counts: its value after the push is filled.
+  const targetLocales = targets ?? known;
 
-  const namespaces = new Set([
-    ...Object.keys(catalogOf(local, source) ?? {}),
-    ...Object.keys(catalogOf(remote, source) ?? {}),
-  ]);
+  // Keys only on the platform are left out: the push leaves them as the
+  // platform counts them now, unless it empties a local target of one.
   let count = 0;
-  for (const namespace of namespaces) {
-    const keys = new Set([
-      ...Object.keys(catalogOf(local, source)?.[namespace] ?? {}),
-      ...Object.keys(catalogOf(remote, source)?.[namespace] ?? {}),
-    ]);
-    for (const key of keys) {
+  for (const [namespace, keys] of Object.entries(catalogOf(local, source) ?? {})) {
+    for (const key of Object.keys(keys)) {
       if (!filled(valueAfterPush(source, namespace, key))) continue;
       const sourceNow = filled(lookup(remote, source, namespace, key));
       for (const target of targetLocales) {
