@@ -24,7 +24,8 @@ export class TypegenError extends Error {
  *   code, such as a file that cannot be written.
  * - 2: the platform was unreachable, timed out, answered 5xx or 429, or sent
  *   something that is not the expected response. Retrying may help.
- * - 3: the API key was rejected, or it may not do this.
+ * - 3: the API key was rejected, or it may not do this, or the account has
+ *   reached a plan or credit limit.
  * - 4: invalid input: configuration, flags, local files, or a request the
  *   platform refused as invalid.
  */
@@ -108,11 +109,13 @@ export function exitCodeFor(error: unknown): number {
       return EXIT_UNAVAILABLE;
     case ErrorCodes.API_FETCH_FAILED: {
       const status = error.details?.status;
+      const code = error.details?.code;
+      // Every LIMIT_EXCEEDED is a plan or credit limit: the account's, whatever
+      // the status. Retrying won't lift it, and it isn't a bad request.
+      if (code === "LIMIT_EXCEEDED") return EXIT_ACCESS;
       if (typeof status !== "number" || status >= 500 || TRANSIENT_STATUSES.has(status)) {
         return EXIT_UNAVAILABLE;
       }
-      const code = error.details?.code;
-      if (code === "LIMIT_EXCEEDED") return EXIT_VALIDATION;
       if (status === 401 || status === 403) return EXIT_ACCESS;
       // A missing project is the key's; any other 404 is a wrong apiBaseUrl.
       if (status === 404) return code === "PROJECT_NOT_FOUND" ? EXIT_ACCESS : EXIT_VALIDATION;
