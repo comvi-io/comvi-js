@@ -134,7 +134,7 @@ jobs:
     needs: rc-pack
     if: needs.rc-pack.outputs.pending == 'true'
     runs-on: ubuntu-latest
-    # Two full examples:e2e runs (seven frameworks, both modes).
+    # Two full examples:e2e runs (seven gallery examples in both modes, the two SSR recipes in the default one).
     timeout-minutes: 90
     permissions:
       contents: read
@@ -391,7 +391,7 @@ jobs:
     needs: pack
     if: needs.pack.outputs.pending == 'true'
     runs-on: ubuntu-latest
-    # Two full examples:e2e runs (seven frameworks, both modes).
+    # Two full examples:e2e runs (seven gallery examples in both modes, the two SSR recipes in the default one).
     timeout-minutes: 90
     permissions:
       contents: read

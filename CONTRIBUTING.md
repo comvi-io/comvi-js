@@ -182,14 +182,15 @@ the branch point of the cycle that introduced the entries instead.
 
 ### 7. The StackBlitz examples build, against locally packed 0.5
 
-`examples/*` are seven small apps — five Vite, plus `next` and `nuxt` — that depend on the
+`examples/*` are nine small apps — five Vite, `next`, `nuxt`, and the `sveltekit` and
+`solidstart` SSR recipes — that depend on the
 **published** names at `^0.5.0` and are deliberately outside `pnpm-workspace.yaml`. A
 `workspace:*` example cannot be opened in a WebContainer, which is exactly why `test-apps/*`
 cannot double as demos. The cost of that is a hole: `pnpm install` at the root ignores them and
 turbo never sees them, so before 0.5.0 is on npm nothing would ever compile them.
 
 ```bash
-pnpm examples:verify                  # all seven: install, build, typecheck, size probe
+pnpm examples:verify                  # all nine: install, build, typecheck, size probe
 pnpm examples:verify --only next      # one
 ```
 
@@ -199,13 +200,14 @@ typecheck in a temp directory outside every workspace. The committed `^0.5.0` ra
 rewritten, and no lockfile in this repository is read or written.
 
 `pnpm examples:e2e [--cdn]` goes one step further on the same install: it serves each built app
-the way a reader would and runs one Playwright scenario (Chromium) against all seven, one column
-per step. `examples/README.md`, "Running the scenario in a browser", lists the steps. Run
+the way a reader would and runs one Playwright scenario (Chromium) against the seven gallery
+examples, one column per step, and `ssr-recipe.spec.ts` against `sveltekit` and `solidstart`. `examples/README.md`, "Running the scenario in a browser", lists the steps. Run
 `pnpm exec playwright install chromium` once per machine first.
 
-Each example is classified by the CLI its own `build` script runs — `vite`, `next` or `nuxt` —
-and that KIND picks the size probe, because the three build tools do not put the entry chunk in
-the same place and neither SSR framework's first load is one file at all. `vite`: the chunk
+Each example is classified by the CLI its own `build` script runs — `vite`, `next` or `nuxt`,
+with a `vite build` that depends on `@sveltejs/kit` or `@solidjs/start` read as `sveltekit` or
+`solidstart` — and that KIND picks the size probe, because no two kinds put the entry chunk in
+the same place and no SSR framework's first load is one file. `vite`: the chunk
 `dist/index.html` names. `next`: the route's list in `.next/app-build-manifest.json`, page plus
 enclosing layouts. `nuxt`: the `isEntry` chunk **and** the route chunk from the Vite client
 manifest, each closed over its static `imports` — those are `modulepreload` links the browser
@@ -213,7 +215,7 @@ cannot skip, and measuring the entry alone under-reported the Nuxt example by ha
 two counts differ on purpose: `first-load files` is what the route needs before it renders,
 `js chunks` is every client `.js` the build wrote, and the gap between them is the lazy split.
 A build output no probe can read is an error rather than a blank cell — a missing size must
-never read as a small one — so an eighth example on a fourth framework needs a kind and a probe
+never read as a small one — so an example on another framework needs a kind and a probe
 of its own.
 
 **Required before a release, and again after the version bump.** An override bypasses the range

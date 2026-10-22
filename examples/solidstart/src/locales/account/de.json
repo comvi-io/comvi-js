@@ -1,0 +1,6 @@
+{
+  "profile": {
+    "signed_in": "Angemeldet als {name}.",
+    "devices": "{count, plural, one {# Gerät ist verbunden} other {# Geräte sind verbunden}}"
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "app": {
+    "title": "Comvi Live-Beispiel",
+    "language": "Sprache",
+    "loading": "Wird geladen…"
+  },
+  "greeting": {
+    "hello": "Hallo, {name}! Schön, dich wiederzusehen."
+  },
+  "cart": {
+    "items": "{count, plural, =0 {Ihr Warenkorb ist leer} one {# Artikel im Warenkorb} other {# Artikel im Warenkorb}}"
+  },
+  "docs": {
+    "read_more": "Lies die <link>Comvi-Dokumentation</link>, um weiterzukommen."
+  },
+  "stats": {
+    "summary": "{views} Downloads, zuletzt aktualisiert am {date}."
+  },
+  "loader": {
+    "fetched": "Bisher geladene Kataloge: {locales}"
+  },
+  "nav": {
+    "home": "Startseite",
+    "about": "Über"
+  },
+  "about": {
+    "body": "Das ist eine zweite Seite, übersetzt wie die erste."
+  },
+  "fallback": {
+    "only_en": "Dieser Satz fehlt im ukrainischen Katalog."
+  },
+  "demo": {
+    "intro": "Jeder Text auf dieser Seite stammt aus einem Übersetzungskatalog. Wechseln Sie die Sprache und sehen Sie, wie jede Funktion reagiert.",
+    "switcher": {
+      "title": "Sprache wechseln",
+      "body": "Ein Aufruf rendert jedes übersetzte Element neu, und die Wahl bleibt bis zum nächsten Besuch gespeichert."
+    },
+    "interpolation": {
+      "title": "Parameter",
+      "body": "Ein Wert landet dort, wo die Übersetzerin den Platzhalter gesetzt hat; die Wortstellung bleibt ihre Entscheidung.",
+      "label": "Ihr Name"
+    },
+    "plural": {
+      "title": "Pluralformen, die die Sprache kennen",
+      "body": "ICU-Pluralregeln: Englisch hat one und other, Ukrainisch one, few und many. Ändern Sie die Anzahl und vergleichen Sie.",
+      "dec": "Einen Artikel entfernen",
+      "inc": "Einen Artikel hinzufügen"
+    },
+    "tags": {
+      "title": "Markup in einer Übersetzung",
+      "body": "Der Katalog umschließt die Wörter mit einem Link-Tag. Die Übersetzerin wählt, wo der Link im Satz steht; Ihre App entscheidet, wohin er führt und wie er gerendert wird."
+    },
+    "formatting": {
+      "title": "Datumsangaben und Zahlen",
+      "body": "Intl formatiert nach Locale: Tausendertrennzeichen, Monatsnamen und die Reihenfolge im Datum.",
+      "price": "Gesamt: {price}"
+    },
+    "lazy": {
+      "title": "Übersetzungen bei Bedarf laden",
+      "body": "Zuerst laden die gewählte Sprache und ihr englischer Fallback. Eine andere Sprache lädt, wenn Sie sie wählen, der Namespace account, wenn seine Seite geöffnet wird.",
+      "namespaces": "Namespaces, aktiv für jede geladene Locale: {namespaces}"
+    },
+    "fallback": {
+      "title": "Fallbacks und fehlende Schlüssel",
+      "body": "Ein Schlüssel, der auf Ukrainisch fehlt, fällt auf Englisch zurück. Ein Schlüssel, der überall fehlt, zeigt seinen Namen, damit er in der Entwicklung auffällt."
+    },
+    "missing": {
+      "title": "Ein fehlender Parameter bleibt sichtbar",
+      "body": "Der Platzhalter bleibt im Text, statt still zu verschwinden."
+    },
+    "navigation": {
+      "title": "Eine zweite Seite, dieselbe Sprache",
+      "body": "Die Locale überlebt die Navigation, und der Namespace account wird bei Bedarf geladen.",
+      "cta": "Seite Account öffnen"
+    },
+    "footer": {
+      "docs": "Dokumentation",
+      "source": "Quellcode auf GitHub",
+      "install": "Installieren"
+    },
+    "select": {
+      "title": "Auswahl nach Wert",
+      "body": "ICU select wählt einen ganzen Satz nach einem Wert, hier dem Geschlecht der Rezensentin. Auf Deutsch ändert sich das Hilfsverb, auf Englisch nur das Pronomen: Die App übergibt einen Wert, die Übersetzerin schreibt jede Variante.",
+      "message": "{gender, select, female {Sie hat auf Ihre Rezension geantwortet} male {Er hat auf Ihre Rezension geantwortet} other {Sie haben auf Ihre Rezension geantwortet}}",
+      "female": "sie",
+      "male": "er",
+      "other": "sie (Plural)"
+    },
+    "ordinal": {
+      "title": "Ordnungszahlen",
+      "body": "selectordinal weiß, dass Englisch 1st, 2nd, 3rd sagt und Deutsch nicht. Die Zahl ist der Zähler von oben, als Ordnungszahl gerendert.",
+      "message": "Sie sind heute der {n, selectordinal, other {#.}} Besucher."
+    },
+    "rtl": {
+      "body": "Arabisch dreht die ganze Seite auf rechts-nach-links: <html dir> folgt der Locale."
+    },
+    "options": {
+      "title": "Aufrufoptionen",
+      "body": "Ein Aufruf kann eine andere Locale oder einen anderen Namespace lesen. Die Namen unten zeigen jede Sprache in ihrer eigenen Sprache; wechseln Sie die Sprache, damit die Liste wächst.",
+      "inOwn": "{name} in eigener Sprache",
+      "name": "Deutsch"
+    },
+    "typed": {
+      "title": "Typisierte Schlüssel",
+      "body": "Die Schlüssel werden aus diesen JSON-Dateien generiert: ein Tippfehler im Schlüssel oder ein fehlender Parameter ist ein Compile-Fehler. Öffnen Sie src/i18n im Editor und probieren Sie es."
+    },
+    "errors": {
+      "title": "Jeder Fehler erreicht einen Hook",
+      "body": "t() wirft nie. Ein Schlüssel, den kein Katalog hat, wird an onMissingKey gemeldet, hier an einen Zähler gebunden, den Sie an Ihren Tracker senden könnten. Ein Katalog, der nicht lädt, wird an onError gemeldet; das zeigt diese Seite nicht.",
+      "count": "Gemeldete Fehlstellen: {count}"
+    },
+    "formality": {
+      "title": "Förmlich oder vertraut",
+      "body": "Englisch hat eine Anrede; Deutsch hat Sie und du, Ukrainisch Ви und ти. Ein select-Wert lässt jede Übersetzerin das Register wählen, und der englische Text bleibt ein einziger Satz.",
+      "message": "{formality, select, formal {Willkommen zurück! Ihr Platz ist reserviert.} other {Willkommen zurück! Dein Platz ist reserviert.}}",
+      "formal": "Sie",
+      "informal": "du"
+    },
+    "start": {
+      "intro": "Ein Paket, eine übersetzte Zeile, ein Umschalter. Das ist die ganze Integration.",
+      "cta": "Alle Funktionen ansehen",
+      "back": "Zurück zum Anfang"
+    }
+  }
+}
