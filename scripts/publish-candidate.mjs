@@ -57,8 +57,10 @@
  *        published, or all present), must be the sha512 of this candidate's
  *        own tarball, or nothing is promoted or tagged. A dry run also
  *        refuses on foreign bytes already on npm. A version this run
- *        published that npm does not show yet, and an integrity npm does not
- *        show yet, are asked again with backoff (npm's reads lag its writes).
+ *        published that npm does not show yet is asked again for up to
+ *        COMVI_PUBLISH_VISIBLE_WAIT_MS after npm accepted it, and an integrity
+ *        npm does not show yet is asked again with backoff (npm's reads lag
+ *        its writes).
  *        Only once npm has the whole set does `--tag` (latest, or next for an
  *        RC) move, and never backwards (a newer version already on the tag
  *        refuses the whole promotion): `npm dist-tag add <name>@<version> <tag>` per package
@@ -484,7 +486,13 @@ function sh(command, args, options = {}) {
     cwd: options.cwd ?? REPO_ROOT,
     encoding: "utf8",
     stdio: options.capture ? "pipe" : "inherit",
+    timeout: options.timeoutMs,
   });
+  // A read past its time budget is killed: a hung registry read must not use
+  // up the job's timeout before the status table is printed.
+  if (result.error) {
+    throw new Error(`${command} ${args.join(" ")} did not finish: ${result.error.message}`);
+  }
   if (!options.capture && !options.allowFailure && result.status !== 0) {
     throw new Error(`${command} ${args.join(" ")} exited ${result.status}`);
   }
@@ -511,10 +519,12 @@ function distTagsOf(pkg) {
  * lag its writes, so an observation that is not settled yet is asked again a
  * few times, backing off from COMVI_PUBLISH_RECHECK_MS (2 s) and doubling:
  * about 30 s in all. A read that throws (a transient registry error) is asked
- * again the same way; the last attempt's error is rethrown.
+ * again the same way; the last attempt's error is rethrown. A version this
+ * run's `npm publish` was accepted for is not asked here: npm can take
+ * minutes to show one, so visibleAfterPublish waits for it much longer.
  */
 function askAgain(read, settled = () => true) {
-  const base = Number(process.env.COMVI_PUBLISH_RECHECK_MS ?? 2000);
+  const base = msFromEnv("COMVI_PUBLISH_RECHECK_MS", 2000);
   for (let attempt = 0; ; attempt++) {
     try {
       const value = read();
@@ -522,8 +532,12 @@ function askAgain(read, settled = () => true) {
     } catch (error) {
       if (attempt === 4) throw error;
     }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, base * 2 ** attempt);
+    sleep(base * 2 ** attempt);
   }
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 /** The last non-empty line of an error message: where npm puts the cause. */
@@ -531,9 +545,61 @@ function lastLine(message) {
   return message.trim().split("\n").at(-1).trim();
 }
 
-/** Whether a version this run just published is visible yet. */
-function visibleAfterPublish(pkg) {
-  return askAgain(() => !notOnNpm(pkg), Boolean);
+/**
+ * A duration in ms from the environment. A value that is not a positive whole
+ * number is refused: `Atomics.wait` sleeps forever on NaN, so a typo would
+ * hang the job until its timeout, and spawnSync's `timeout` throws on a
+ * fraction, which would surface only after publishing.
+ */
+function msFromEnv(name, fallback) {
+  const raw = process.env[name];
+  const ms = raw === undefined ? fallback : Number(raw);
+  if (!Number.isSafeInteger(ms) || ms <= 0) {
+    throw new Error(
+      `${name} must be a positive whole number of milliseconds, got ${JSON.stringify(raw)}`,
+    );
+  }
+  return ms;
+}
+
+/** Every wait `publish` uses, read before anything is published. */
+function publishWaits() {
+  msFromEnv("COMVI_PUBLISH_RECHECK_MS", 2000);
+  return {
+    poll: msFromEnv("COMVI_PUBLISH_VISIBLE_POLL_MS", 15_000),
+    wait: msFromEnv("COMVI_PUBLISH_VISIBLE_WAIT_MS", 600_000),
+    read: msFromEnv("COMVI_PUBLISH_READ_TIMEOUT_MS", 30_000),
+  };
+}
+
+/**
+ * Whether a version this run's `npm publish` was accepted for is visible.
+ * npm can take minutes to show an accepted version (0.6.0's react: about
+ * 4 min after `+ @comvi/react@0.6.0`), so it is asked every
+ * COMVI_PUBLISH_VISIBLE_POLL_MS (15 s) until COMVI_PUBLISH_VISIBLE_WAIT_MS
+ * (10 min) after npm accepted it, then counts as missing. A read that throws
+ * is asked again the same way; past the deadline its error is rethrown. Each
+ * read is killed once it outlasts what is left of the wait, but never sooner
+ * than COMVI_PUBLISH_READ_TIMEOUT_MS (30 s: a healthy `npm view` can take a
+ * few seconds), so a hung `npm view` cannot run on until the job's timeout.
+ */
+function visibleAfterPublish(pkg, acceptedAt, { poll, wait, read }) {
+  const deadline = acceptedAt + wait;
+  for (;;) {
+    try {
+      if (!notOnNpm(pkg, Math.max(read, deadline - Date.now()))) return true;
+      if (Date.now() >= deadline) return false;
+    } catch (error) {
+      if (Date.now() >= deadline) throw error;
+    }
+    // One line per wait, so a long wait shows in the log that it goes on.
+    console.log(
+      `waiting for npm to show ${pkg.name}@${pkg.version} (accepted ` +
+        `${Math.round((Date.now() - acceptedAt) / 1000)} s ago; up to ` +
+        `${Math.round((deadline - Date.now()) / 1000)} s more)`,
+    );
+    sleep(Math.max(0, Math.min(poll, deadline - Date.now())));
+  }
 }
 
 /**
@@ -553,9 +619,10 @@ function registryIntegrity(pkg) {
   );
 }
 
-function notOnNpm(pkg) {
+function notOnNpm(pkg, timeoutMs) {
   const view = sh("npm", ["view", `${pkg.name}@${pkg.version}`, "version", "--json"], {
     capture: true,
+    timeoutMs,
   });
   return !isPublished(view, pkg.version);
 }
@@ -576,7 +643,7 @@ function pack(options) {
   const sums = fileDigest(path.join(dir, "SHA256SUMS"));
   console.log(`candidate tarballs (sha256), ${dir}:\n${recorded}\nSHA256SUMS sha256: ${sums}`);
 
-  const pending = packages.filter(notOnNpm);
+  const pending = packages.filter((pkg) => notOnNpm(pkg));
   // For humans reading the artifact; the publishing job never reads it.
   fs.writeFileSync(
     path.join(dir, "pending.json"),
@@ -637,6 +704,7 @@ function verify(options) {
 }
 
 function publish(options) {
+  const timing = publishWaits();
   const dir = path.resolve(REPO_ROOT, options.dir);
   const recorded = assertVerifiedCandidate(dir, options.expectSums);
   // The integrity of each tarball is taken from the bytes SHA256SUMS pins.
@@ -664,7 +732,7 @@ function publish(options) {
 
   // A re-run after a partial failure: what made it to npm is skipped here and
   // reconciled (tagged) below like everything else.
-  const pending = candidates.filter(notOnNpm);
+  const pending = candidates.filter((pkg) => notOnNpm(pkg));
   const skipped = candidates.filter((pkg) => !pending.includes(pkg));
   if (skipped.length > 0) {
     console.log(
@@ -762,6 +830,7 @@ function publish(options) {
     }
   }
 
+  const acceptedAt = new Map();
   const { published, failed } = publishAll(pending, (pkg) => {
     // The staging tag keeps `latest`/`next` still until the whole set is on
     // npm (except for a first-ever version: see the warning above).
@@ -769,6 +838,7 @@ function publish(options) {
     if (options.dryRun) args.push("--dry-run");
     console.log(`publishing ${pkg.file} (sha256 ${fileDigest(pkg.tarball)})`);
     sh("npm", args);
+    acceptedAt.set(pkg.name, Date.now());
   });
 
   // The transaction: what npm has NOW, for every candidate. A dry run
@@ -788,7 +858,7 @@ function publish(options) {
       onNpm = options.dryRun
         ? published.includes(pkg) || !notOnNpm(pkg)
         : published.includes(pkg)
-          ? visibleAfterPublish(pkg)
+          ? visibleAfterPublish(pkg, acceptedAt.get(pkg.name), timing)
           : !notOnNpm(pkg);
       if (onNpm) distTags = distTagsOf(pkg);
     } catch (error) {
