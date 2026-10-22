@@ -18,10 +18,9 @@
 
 ---
 
-`@comvi/svelte` puts the i18n instance on Svelte's context and hands your components `$t` and
-`$locale` as stores, and `<T>` for markup inside a translation. It targets Svelte 5 and works with SvelteKit for SSR. The package depends on
-`@comvi/core`, so one install is enough. The full guide is
-[Svelte](https://comvi.io/docs/i18n/svelte) on the docs site.
+`@comvi/svelte` puts the Comvi i18n instance on Svelte's context and hands your components `$t`
+and `$locale` as stores, plus `<T>` for translations that contain markup. It targets Svelte 5; the
+package depends on `@comvi/core`, so one install is enough.
 
 ## Install
 
@@ -79,8 +78,9 @@ In a page, `src/routes/+page.svelte`:
 </select>
 ```
 
-`useI18n()` returns stores, so `$`-prefix them in markup: `$t` renders a string, `$tRaw` the parts
-array. `setLocale()` is a plain function that resolves once the new locale's catalog has loaded.
+`useI18n()` returns stores, so `$`-prefix them in markup: `$t` renders a string, `$tRaw` a
+string or, when the translation carries tags, a parts array. `setLocale()` is a plain function
+that resolves once the new locale's catalog has loaded.
 
 ## Load from Comvi
 
@@ -153,7 +153,7 @@ independent.
   `handle` hook for the server render, with the locale checked against your list first, and set `lang` and `dir` from `$locale` and `$dir` in an
   `$effect` for client navigation.
 
-## Next steps
+## Read next
 
 - [Svelte guide](https://comvi.io/docs/i18n/svelte): rich text, gating the first paint, SSR.
 - [Svelte API reference](https://comvi.io/docs/i18n/api/svelte): every export, the standalone stores and `<T>` props.

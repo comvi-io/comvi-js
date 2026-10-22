@@ -18,10 +18,9 @@
 
 ---
 
-`@comvi/solid` binds the i18n instance to Solid's signals: `<I18nProvider>` holds it, and `useI18n()`
-gives your components `t()`, `locale()` and `setLocale()`. The package depends on `@comvi/core`, so
-one install is enough. The full guide is [Solid](https://comvi.io/docs/i18n/solid) on the docs
-site.
+`@comvi/solid` binds the Comvi i18n instance to Solid's signals: `<I18nProvider>` holds it, and
+`useI18n()` gives your components `t()`, `locale()` and `setLocale()`. The package depends on
+`@comvi/core`, so one install is enough.
 
 ## Install
 
@@ -138,7 +137,7 @@ independent.
   `<Show keyed>` so a link to another locale builds a new instance, and pass `deferStream: true` so
   the HTML carries the text instead of a streamed `<template>`. Never share a module-level instance across SSR requests; one is fine for a client-only app. `ssrLocale` paints on the first render when that locale's catalogs are already available (inline `messages`, or loaded earlier); otherwise the first render is in the instance's current locale and the switch lands when the load completes.
 
-## Next steps
+## Read next
 
 - [Solid guide](https://comvi.io/docs/i18n/solid): tracking scopes, rich text, SSR.
 - [Solid API reference](https://comvi.io/docs/i18n/api/solid): every export, the standalone primitives and `<T>` props.
