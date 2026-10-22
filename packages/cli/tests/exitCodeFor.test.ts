@@ -9,7 +9,8 @@ describe("exitCodeFor", () => {
   it.each([
     ["a 404 for a project that no longer exists", http(404, "PROJECT_NOT_FOUND"), 3],
     ["a 404 from a wrong base URL", http(404, "NOT_FOUND"), 4],
-    ["a plan limit on the commit", http(403, "LIMIT_EXCEEDED"), 4],
+    ["a plan or credit limit on the commit", http(403, "LIMIT_EXCEEDED"), 3],
+    ["a plan or credit limit answered 400", http(400, "LIMIT_EXCEEDED"), 3],
     ["any other 403", http(403, "FORBIDDEN"), 3],
     ["a 409 the platform rolled back twice", http(409, "TRANSACTION_CONFLICT"), 2],
     ["a 400", http(400), 4],
