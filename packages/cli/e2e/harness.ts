@@ -3,13 +3,20 @@
  * `scripts/cli-e2e.mjs` (platform `test-stack.mjs --serve` plus
  * `scripts/cli-e2e-fixture.ts`). Nothing here mocks the network.
  */
-import { spawn, type ChildProcess } from "node:child_process";
-import { createServer, request as httpRequest, type ClientRequest, type Server } from "node:http";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import {
+  createServer,
+  request as httpRequest,
+  type ClientRequest,
+  type IncomingMessage,
+  type Server,
+} from "node:http";
 import type { Socket } from "node:net";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 const BIN = resolve(dirname(fileURLToPath(import.meta.url)), "../bin/comvi.js");
 
@@ -357,15 +364,29 @@ export interface Proxy {
   close(): Promise<void>;
 }
 
+/**
+ * Sees each request before it is forwarded. It may wait (the request is held
+ * until it settles), or answer instead of the API with a status and JSON body.
+ */
+export type ProxyIntercept = (
+  request: IncomingMessage,
+) => Promise<{ status: number; body: unknown } | void> | { status: number; body: unknown } | void;
+
 /** An HTTP proxy in front of the API that a test can take down and bring back. */
-export async function startProxy(target = API_URL): Promise<Proxy> {
+export async function startProxy(target = API_URL, intercept?: ProxyIntercept): Promise<Proxy> {
   const upstream = new URL(target);
   const sockets = new Set<Socket>();
   const forwards = new Set<ClientRequest>();
   let isDown = false;
-  const server: Server = createServer((req, res) => {
+  const server: Server = createServer(async (req, res) => {
     if (isDown) {
       res.writeHead(502, { "content-type": "text/html" }).end("bad gateway");
+      return;
+    }
+    const answer = await intercept?.(req);
+    if (answer) {
+      res.writeHead(answer.status, { "content-type": "application/json" });
+      res.end(JSON.stringify(answer.body));
       return;
     }
     const forward = httpRequest(
@@ -417,6 +438,102 @@ export async function startProxy(target = API_URL): Promise<Proxy> {
       return new Promise((resolveClose) => server.close(() => resolveClose()));
     },
   };
+}
+
+/**
+ * Turns on machine translation for the project: Google (the platform's fake
+ * under MT_FAKE_PROVIDER) as the only provider, and `autoApply` as asked.
+ * Returns a new key with `mt:use` on top of the `full` permissions; the
+ * `full` key itself stays without it.
+ */
+export async function enableMachineTranslation(
+  project: E2EProject,
+  { autoApply = false }: { autoApply?: boolean } = {},
+): Promise<string> {
+  await project.owner.request("PATCH", `/v1/projects/${project.id}`, {
+    mtSettings: { enabledProviders: ["google"], primaryProvider: "google", autoApply },
+  });
+  const { token } = await project.owner.request<{ token: string }>(
+    "POST",
+    `/v1/projects/${project.id}/api-keys`,
+    { name: "e2e-mt", permissions: [...KEY_PERMISSIONS.full, "mt:use"] },
+  );
+  return token;
+}
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Gives the fixture organization exactly `credits` MT credits, with its usage
+ * back at 0, through the platform's `cli-e2e-fixture.ts set-mt-credits`.
+ */
+export async function setMtCredits(credits: number): Promise<void> {
+  const { organizationId } = await fixture();
+  await execFileAsync(
+    "pnpm",
+    [
+      "exec",
+      "tsx",
+      "scripts/cli-e2e-fixture.ts",
+      "set-mt-credits",
+      String(organizationId),
+      String(credits),
+    ],
+    { cwd: requiredEnv("CLI_E2E_API_DIR"), env: process.env },
+  );
+}
+
+/** The MT credits the fixture organization used in this period, from its billing usage. */
+export async function mtCreditsUsed(project: E2EProject): Promise<number> {
+  const { organizationId } = await fixture();
+  const usage = await project.owner.request<{ mtCredits: { current: number } }>(
+    "GET",
+    `/v1/organizations/${organizationId}/billing/usage`,
+  );
+  return usage.mtCredits.current;
+}
+
+export interface RemoteValue {
+  value: string;
+  status: string;
+}
+
+/** Every key of the project with its values and their review status, as its owner sees them. */
+export async function listKeys(
+  project: E2EProject,
+): Promise<
+  Array<{ id: number; key: string; namespace: string; translations: Record<string, RemoteValue> }>
+> {
+  const keys = [];
+  let cursor: string | undefined;
+  do {
+    const query = new URLSearchParams({ limit: "100", ...(cursor ? { cursor } : {}) });
+    const page = await project.owner.request<{
+      data: Array<{
+        id: number;
+        key: string;
+        namespace: string;
+        translations: Record<string, RemoteValue>;
+      }>;
+      pagination: { nextCursor: string | null; hasMore: boolean };
+    }>("GET", `/v1/projects/${project.id}/keys?${query}`);
+    keys.push(...page.data);
+    cursor = page.pagination.hasMore ? (page.pagination.nextCursor ?? undefined) : undefined;
+  } while (cursor);
+  return keys;
+}
+
+/** The origin (`machine`, `human` or null) of a value's latest change, from the key's history. */
+export async function valueOrigin(
+  project: E2EProject,
+  keyId: number,
+  locale: string,
+): Promise<string | null | undefined> {
+  const history = await project.owner.request<{
+    data: Array<{ localeCode: string | null; newState: { origin?: string | null } | null }>;
+  }>("GET", `/v1/projects/${project.id}/translations/${keyId}/history`);
+  // Newest first.
+  return history.data.find((entry) => entry.localeCode === locale)?.newState?.origin;
 }
 
 /** Deletes one of the project's API keys, as its owner. */

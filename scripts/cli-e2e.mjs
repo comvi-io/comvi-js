@@ -11,6 +11,10 @@
  *
  *   PLATFORM_DIR=../platform node scripts/cli-e2e.mjs [vitest args...]
  *
+ * The served API gets `MT_FAKE_PROVIDER=1` (test-stack passes it to that
+ * process alone): Google answers `[<locale>] <text>` without a network call,
+ * so `comvi translate` runs through the real jobs and credit billing.
+ *
  * Needs Docker, Node 24, `pnpm install` in both checkouts (each with its own
  * pinned pnpm; corepack picks it per directory) and a built CLI
  * (`pnpm --filter "@comvi/cli..." build`).
@@ -119,7 +123,10 @@ const child = spawn(
       LOG_LEVEL: "warn",
       // A revoked key's watch stream closes within a second, not a minute.
       SSE_TYPEGEN_KEY_RECHECK_MS: "1000",
+      MT_FAKE_PROVIDER: "1",
       ...process.env,
+      // The suite runs `scripts/cli-e2e-fixture.ts set-mt-credits` from here.
+      CLI_E2E_API_DIR: apiDir,
       CLI_E2E_FIXTURE_OUT: fixturePath,
       CLI_E2E_FIXTURE: fixturePath,
       COMVI_E2E_API_URL: `http://localhost:${port}`,

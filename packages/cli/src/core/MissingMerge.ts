@@ -38,6 +38,8 @@ export interface MergeOptions {
   source: Record<string, Record<string, string>>;
   /** The platform's values: target locale (local spelling) → namespace → key → value. */
   targets: Record<string, Record<string, Record<string, string>>>;
+  /** Called after each file is written, so a caller knows what is on disk if the merge throws. */
+  onFileWritten?: (file: MergeFileReport) => void;
 }
 
 export interface MergeFileReport {
@@ -103,17 +105,16 @@ export async function mergeMissing(options: MergeOptions): Promise<MergeReport> 
   for (const [locale, remoteNamespaces] of Object.entries(options.targets)) {
     for (const [namespace, sourceCatalog] of Object.entries(options.source)) {
       let filePath: string | undefined;
+      let file: MergeFileReport;
       try {
         filePath = await options.sync.catalogPath(locale, namespace, options.defaultNamespace);
-        report.files.push(
-          await mergeFile(
-            options,
-            locale,
-            namespace,
-            filePath,
-            sourceCatalog,
-            remoteNamespaces[namespace],
-          ),
+        file = await mergeFile(
+          options,
+          locale,
+          namespace,
+          filePath,
+          sourceCatalog,
+          remoteNamespaces[namespace],
         );
       } catch (error) {
         report.errors.push({
@@ -122,7 +123,10 @@ export async function mergeMissing(options: MergeOptions): Promise<MergeReport> 
           filePath,
           message: error instanceof Error ? error.message : String(error),
         });
+        continue;
       }
+      report.files.push(file);
+      if (file.filled.length > 0) options.onFileWritten?.(file);
     }
   }
 

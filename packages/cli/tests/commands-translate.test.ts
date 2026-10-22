@@ -17,6 +17,24 @@ import {
   type Routes,
 } from "./helpers";
 
+/** When set, the merge writer throws this right after it wrote its first file. */
+const mergeFault = vi.hoisted(() => ({ afterFirstFile: undefined as Error | undefined }));
+
+vi.mock("../src/core/MissingMerge", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/core/MissingMerge")>();
+  return {
+    ...actual,
+    mergeMissing: (options: Parameters<typeof actual.mergeMissing>[0]) =>
+      actual.mergeMissing({
+        ...options,
+        onFileWritten(file) {
+          options.onFileWritten?.(file);
+          if (mergeFault.afterFirstFile) throw mergeFault.afterFirstFile;
+        },
+      }),
+  };
+});
+
 /**
  * `comvi translate` runs for real against a temp directory: ConfigLoader,
  * ApiClient, push and the merge writer all execute; only `fetch` is stubbed,
@@ -194,6 +212,7 @@ describe("comvi translate", () => {
   });
 
   afterEach(async () => {
+    mergeFault.afterFirstFile = undefined;
     vi.useRealTimers();
     await removeTempDirs();
     assertNoUnexpectedRequests();
@@ -1893,6 +1912,26 @@ describe("comvi translate", () => {
       ]);
       expect(await readLocale("de")).toEqual({ greeting: "Hallo" });
       expect(output.stderr).toContain("Translate finished with problems");
+    });
+
+    it("a write phase that throws after the first file: exit 1, and the written file is reported", async () => {
+      serve({ [PATHS.fill]: NO_WORK });
+      mergeFault.afterFirstFile = new Error("disk full");
+
+      expect(await translate(["--no-push", "--format", "json"])).toBe(1);
+
+      const doc = JSON.parse(output.log[0]);
+      expect(doc.errors).toEqual([
+        {
+          type: "write_failed",
+          message: "Writing stopped: disk full; some files may already be written",
+        },
+      ]);
+      // de is written first; uk was never reached.
+      expect(doc.written).toEqual({ files: 1, values: 1, differ: 1 });
+      expect(await readLocale("de")).toEqual({ greeting: "Hallo", farewell: "Tschüss" });
+      expect(await exists("uk")).toBe(false);
+      expect(output.stderr).not.toContain("Nothing was written");
     });
 
     it("refuses --force-mode ask with --format json, before any request", async () => {
