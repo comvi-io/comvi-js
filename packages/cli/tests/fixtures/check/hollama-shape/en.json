@@ -1,0 +1,22 @@
+{
+  "addServer": "Add server",
+  "appearance": "Appearance",
+  "cancel": "Cancel",
+  "chooseModel": "Choose a model",
+  "copyMessage": "Copy message",
+  "deleteSession": "Delete session",
+  "downloadFinished": "Finished downloading {model}",
+  "editPrompt": "Edit prompt",
+  "emptyHistory": "No history yet",
+  "exportData": "Export data",
+  "importData": "Import data",
+  "language": "Language",
+  "newSession": "New session",
+  "noServers": "No servers configured",
+  "pullTitle": "Pull a model",
+  "reloadPage": "Reload page",
+  "retry": "Retry",
+  "serverOffline": "The server at {host} is offline",
+  "settings": "Settings",
+  "theme": "Theme"
+}

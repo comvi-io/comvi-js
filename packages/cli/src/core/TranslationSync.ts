@@ -647,16 +647,18 @@ export class TranslationSync {
 
     const regex = new RegExp(`^${regexPattern}$`);
     const match = relativePath.match(regex);
+    // A template without `{namespace}` (`{languageTag}.json`, which `check`
+    // accepts) holds one catalog per locale: the default namespace.
+    const namespace = match?.groups?.namespace ?? defaultNamespace;
 
     if (
       match?.groups?.locale &&
-      match.groups.namespace &&
       unsafePathSegmentReason(match.groups.locale) === undefined &&
-      unsafePathSegmentReason(match.groups.namespace) === undefined
+      unsafePathSegmentReason(namespace) === undefined
     ) {
       return {
         locale: match.groups.locale,
-        namespace: match.groups.namespace,
+        namespace,
       };
     }
 

@@ -53,7 +53,6 @@ describe("comvi typegen", () => {
   let configPath: string;
   let outputPath: string;
   let projectDir: string;
-  let originalCwd: string;
   let output: ConsoleCapture;
 
   beforeEach(async () => {
@@ -74,8 +73,7 @@ describe("comvi typegen", () => {
       join(dir, "package.json"),
       JSON.stringify({ name: "app", dependencies: { "@comvi/react": "^0.5.0" } }),
     );
-    originalCwd = process.cwd();
-    process.chdir(dir);
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
 
     vi.stubEnv("COMVI_API_KEY", undefined);
     vi.stubEnv("COMVI_API_BASE_URL", undefined);
@@ -87,7 +85,6 @@ describe("comvi typegen", () => {
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
     await removeTempDirs();
     assertNoUnexpectedRequests();
   });
@@ -151,6 +148,20 @@ describe("comvi typegen", () => {
     ).rejects.toMatchObject({ exitCode: 3 });
 
     expect(output.stderr).toContain("✗ Generation failed: Invalid API key");
+  });
+
+  it.each([[[]], [["--check"]]])("exits 4 without an API key (extra flags %j)", async (extra) => {
+    const noKeyConfigPath = join(dirname(configPath), "nokey.comvirc.json");
+    await nodeFs.writeFile(
+      noKeyConfigPath,
+      JSON.stringify({ apiBaseUrl: "https://api.test.com", outputPath }),
+    );
+
+    await expect(
+      createTypegenCommand().parseAsync(["-c", noKeyConfigPath, ...extra], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 4 });
+
+    expect(output.stderr).toContain("apiKey is required");
   });
 
   it("exits 4 when the config file named by -c does not exist", async () => {

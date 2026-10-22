@@ -5,7 +5,11 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { timeoutsFromEnv } from "../core/timeouts";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
-import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
+import {
+  DEFAULT_FILE_TEMPLATE,
+  isDefaultFileTemplate,
+  DEFAULT_TRANSLATIONS_PATH,
+} from "../defaults";
 import type { ForceMode } from "../types";
 import { ErrorCodes, EXIT_VALIDATION, exitCodeFor, TypegenError } from "../utils/errors";
 import { resolveLocales } from "../utils/locales";
@@ -46,7 +50,7 @@ export function createPushCommand(): Command {
 
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
-          translationsPath: options.path || config.translationsPath || "./src/locales",
+          translationsPath: options.path || config.translationsPath || DEFAULT_TRANSLATIONS_PATH,
           fileTemplate,
           format: config.format || "json",
         });
@@ -137,7 +141,7 @@ export function createPushCommand(): Command {
         if (values === 0) {
           if (!options.allowEmpty) {
             throw new TypegenError(
-              `No translation values to push under ${options.path || config.translationsPath || "./src/locales"} ` +
+              `No translation values to push under ${options.path || config.translationsPath || DEFAULT_TRANSLATIONS_PATH} ` +
                 `matching "${fileTemplate}". Check translationsPath and the filters, ` +
                 "or pass --allow-empty when an empty push is expected.",
               ErrorCodes.VALIDATION_FAILED,

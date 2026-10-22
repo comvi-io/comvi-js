@@ -132,6 +132,50 @@ describe("TranslationSync", () => {
     });
   });
 
+  it("reads a template without {namespace} as one default-namespace catalog per locale", async () => {
+    const dir = await makeTempDir("comvi-cli-sync");
+
+    await fs.writeFile(join(dir, "app.en.json"), '{"hello":"Hello"}\n');
+    await fs.writeFile(join(dir, "app.de.json"), '{"hello":"Hallo"}\n');
+    await fs.writeFile(join(dir, "other.json"), '{"ignored":"x"}\n');
+
+    const sync = new TranslationSync({
+      translationsPath: dir,
+      fileTemplate: "app.{languageTag}.json",
+      format: "json",
+    });
+
+    const result = await sync.readTranslations({ defaultNamespace: "common" });
+
+    expect([...result.locales].sort()).toEqual(["de", "en"]);
+    expect(result.namespaces).toEqual(["common"]);
+    expect(result.translations).toEqual({
+      en: { common: { hello: "Hello" } },
+      de: { common: { hello: "Hallo" } },
+    });
+  });
+
+  it("skips files whose locale or namespace segment starts with a dot", async () => {
+    const dir = await makeTempDir("comvi-cli-sync");
+
+    await fs.mkdir(join(dir, "en"), { recursive: true });
+    await fs.mkdir(join(dir, ".git"), { recursive: true });
+    await fs.writeFile(join(dir, "en", "app.json"), '{"a":"A"}\n');
+    await fs.writeFile(join(dir, "en", ".cache.json"), '{"b":"B"}\n');
+    await fs.writeFile(join(dir, ".git", "app.json"), '{"c":"C"}\n');
+
+    const sync = new TranslationSync({
+      translationsPath: dir,
+      fileTemplate: "{languageTag}/{namespace}.json",
+      format: "json",
+    });
+
+    const result = await sync.readTranslations();
+
+    expect(result.locales).toEqual(["en"]);
+    expect(result.namespaces).toEqual(["app"]);
+  });
+
   it("rejects duplicate files that map to the same locale and namespace", async () => {
     const dir = await makeTempDir("comvi-cli-sync");
 

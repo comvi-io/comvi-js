@@ -1,0 +1,23 @@
+{
+  "addServer": "Ajouter un serveur",
+  "appearance": "Appearance",
+  "cancel": "Cancel",
+  "chooseModel": "Choose a model",
+  "copyMessage": "Copy message",
+  "deleteSession": "Delete session",
+  "downloadFinished": "Téléchargement de {model} terminé",
+  "editPrompt": "Edit prompt",
+  "emptyHistory": "No history yet",
+  "exportData": "Export data",
+  "importData": "Import data",
+  "language": "Language",
+  "newSession": "New session",
+  "noServers": "No servers configured",
+  "oldKey": "Ancienne clé",
+  "olderKey": "Plus ancienne",
+  "pullTitle": "Pull a model",
+  "reloadPage": "Reload page",
+  "retry": "Retry",
+  "serverOffline": "Le serveur {host} est hors ligne",
+  "settings": "Paramètres"
+}

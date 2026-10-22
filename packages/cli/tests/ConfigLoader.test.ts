@@ -756,6 +756,264 @@ describe("ConfigLoader", () => {
     });
   });
 
+  describe("sourceLocale and the check section", () => {
+    const loadWith = async (extra: Record<string, unknown>) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    it("refuses a fileTemplate without {namespace} for the online commands", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(
+        JSON.stringify({ apiKey: "k", fileTemplate: "{languageTag}.json" }),
+      );
+
+      const error = await rejectionOf(ConfigLoader.load("/project/.comvirc.json"));
+
+      expect((error as TypegenError).message).toBe(
+        'Invalid configuration: "fileTemplate" must contain exactly one {languageTag} and one {namespace} and end in ".json" (or ".{extension}"), received string "{languageTag}.json"',
+      );
+    });
+
+    it("accepts a fileTemplate without {namespace} in offline mode", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ fileTemplate: "{languageTag}.json" }));
+
+      const cfg = await ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false });
+
+      expect(cfg.fileTemplate).toBe("{languageTag}.json");
+    });
+
+    it.each([
+      "{namespace}.json",
+      "{namespace}/{namespace}/{languageTag}.json",
+      "{languageTag}.yaml",
+    ])("still refuses fileTemplate %j in offline mode", async (template) => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ fileTemplate: template }));
+
+      const error = await rejectionOf(
+        ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false }),
+      );
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        `Invalid configuration: "fileTemplate" must contain exactly one {languageTag}, at most one {namespace} and end in ".json" (or ".{extension}"), received string ${JSON.stringify(template)}`,
+      );
+    });
+
+    it("accepts sourceLocale", async () => {
+      const cfg = await loadWith({ sourceLocale: "en" });
+      expect(cfg.sourceLocale).toBe("en");
+    });
+
+    it.each([
+      ["", 'string ""'],
+      ["  ", 'string "  "'],
+      [7, "number 7"],
+      [null, "null"],
+    ])("rejects sourceLocale = %j as CONFIG_INVALID naming the field", async (value, received) => {
+      const error = await rejectionOf(loadWith({ sourceLocale: value }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        `Invalid configuration: "sourceLocale" must be a non-empty string, received ${received}`,
+      );
+    });
+
+    it("accepts check.identical and check.strict", async () => {
+      const cfg = await loadWith({ check: { identical: true, strict: false } });
+      expect(cfg.check).toEqual({ identical: true, strict: false });
+    });
+
+    it("refuses the unknown field check.nope", async () => {
+      const error = await rejectionOf(loadWith({ check: { nope: true } }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        '".comvirc.json" field "check.nope" is not an option.',
+      );
+    });
+
+    it.each([["check.identical"], ["check.strict"]])(
+      'refuses the string "false" in %s',
+      async (key) => {
+        const field = key.split(".")[1];
+        const error = await rejectionOf(loadWith({ check: { [field]: "false" } }));
+
+        expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+        expect((error as TypegenError).message).toBe(
+          `Invalid configuration: "${key}" must be a boolean (true or false), received string "false"`,
+        );
+      },
+    );
+
+    it("refuses a check section that is not an object", async () => {
+      const error = await rejectionOf(loadWith({ check: true }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        'Invalid configuration: "check" must be an object, received boolean',
+      );
+    });
+
+    it("refuses a null check section as CONFIG_INVALID, not a TypeError", async () => {
+      const error = await rejectionOf(loadWith({ check: null }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        'Invalid configuration: "check" must be an object, received null',
+      );
+    });
+  });
+
+  describe("offline mode", () => {
+    it("returns the defaults when optional and no config file is discovered", async () => {
+      mockAccess.mockRejectedValue(new Error("Not found"));
+
+      const result = await ConfigLoader.load(undefined, { optional: true, requireApiKey: false });
+
+      expect(result).toEqual({
+        translationsPath: "./src/locales",
+        fileTemplate: "{namespace}/{languageTag}.json",
+        format: "json",
+      });
+      expect(mockReadFile).not.toHaveBeenCalled();
+    });
+
+    it("still requires the API key on the defaults unless told otherwise", async () => {
+      mockAccess.mockRejectedValue(new Error("Not found"));
+
+      const error = await rejectionOf(ConfigLoader.load(undefined, { optional: true }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain("apiKey is required");
+    });
+
+    it("takes the API key for the defaults from COMVI_API_KEY unless told otherwise", async () => {
+      mockAccess.mockRejectedValue(new Error("Not found"));
+      vi.stubEnv("COMVI_API_KEY", "env-key");
+
+      const result = await ConfigLoader.load(undefined, { optional: true });
+
+      expect(result.apiKey).toBe("env-key");
+    });
+
+    it("reads the discovered file when optional and one exists", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ translationsPath: "src/i18n" }));
+
+      const result = await ConfigLoader.load(undefined, { optional: true, requireApiKey: false });
+
+      expect(result).toEqual({ translationsPath: "src/i18n" });
+    });
+
+    it("keeps an explicit missing path CONFIG_NOT_FOUND when optional", async () => {
+      mockAccess.mockRejectedValue(new Error("Not found"));
+
+      const error = await rejectionOf(
+        ConfigLoader.load("/missing/.comvirc.json", { optional: true, requireApiKey: false }),
+      );
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_NOT_FOUND);
+      expect((error as TypegenError).message).toBe(
+        `Config file not found: ${resolve("/missing/.comvirc.json")}`,
+      );
+    });
+
+    it("resolves a config without apiKey when requireApiKey is false", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfigWithoutApiKey));
+
+      const result = await ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false });
+
+      expect(result).toEqual(mockConfigWithoutApiKey);
+    });
+
+    it("does not read COMVI_API_KEY or COMVI_API_BASE_URL when requireApiKey is false", async () => {
+      vi.stubEnv("COMVI_API_KEY", "garbage");
+      vi.stubEnv("COMVI_API_BASE_URL", "not a url");
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ translationsPath: "src/i18n" }));
+
+      const result = await ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false });
+
+      expect(result.apiKey).toBeUndefined();
+      expect(result.apiBaseUrl).toBeUndefined();
+    });
+
+    it("does not read the API variables on the defaults when requireApiKey is false", async () => {
+      vi.stubEnv("COMVI_API_KEY", "garbage");
+      vi.stubEnv("COMVI_API_BASE_URL", "not a url");
+      mockAccess.mockRejectedValue(new Error("Not found"));
+
+      const result = await ConfigLoader.load(undefined, { optional: true, requireApiKey: false });
+
+      expect(result.apiKey).toBeUndefined();
+      expect(result.apiBaseUrl).toBeUndefined();
+    });
+
+    it("blames the file, not COMVI_API_BASE_URL, when the variable is not read", async () => {
+      vi.stubEnv("COMVI_API_BASE_URL", "https://env.test.com");
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiBaseUrl: "ftp://api.comvi.io" }));
+
+      const error = await rejectionOf(
+        ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false }),
+      );
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        'Invalid configuration: "apiBaseUrl" must be an http(s) URL, received string "ftp://api.comvi.io"',
+      );
+    });
+
+    it("still rejects an unknown field when requireApiKey is false", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ languages: ["en"] }));
+
+      const error = await rejectionOf(
+        ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false, optional: true }),
+      );
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toBe(
+        '".comvirc.json" field "languages" is not an option: use "locales".',
+      );
+    });
+
+    it("still validates scalar fields when requireApiKey is false", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ format: "yaml" }));
+
+      const error = await rejectionOf(
+        ConfigLoader.load("/project/.comvirc.json", { requireApiKey: false }),
+      );
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain('"format" must be "json"');
+    });
+
+    it("still requires the API key by default", async () => {
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfigWithoutApiKey));
+
+      const error = await rejectionOf(ConfigLoader.load("/project/.comvirc.json"));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain("apiKey is required");
+    });
+
+    it("still reports a missing config by default", async () => {
+      mockAccess.mockRejectedValue(new Error("Not found"));
+
+      const error = await rejectionOf(ConfigLoader.load(undefined, { requireApiKey: false }));
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_NOT_FOUND);
+    });
+  });
+
   describe("defaultConfigPath", () => {
     it("derives the default config path from the .comvirc.json filename", async () => {
       vi.resetModules();

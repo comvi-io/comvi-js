@@ -3,7 +3,11 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { timeoutsFromEnv } from "../core/timeouts";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync, type PullFileDiff } from "../core/TranslationSync";
-import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
+import {
+  DEFAULT_FILE_TEMPLATE,
+  DEFAULT_TRANSLATIONS_PATH,
+  isDefaultFileTemplate,
+} from "../defaults";
 import { exitCodeFor } from "../utils/errors";
 import { findLocale } from "../utils/locales";
 import {
@@ -41,7 +45,7 @@ export function createPullCommand(): Command {
 
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
-          translationsPath: options.path || config.translationsPath || "./src/locales",
+          translationsPath: options.path || config.translationsPath || DEFAULT_TRANSLATIONS_PATH,
           fileTemplate,
           format: config.format || "json",
         });

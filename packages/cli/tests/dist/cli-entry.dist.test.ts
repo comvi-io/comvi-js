@@ -78,7 +78,65 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
     const run = runCli(["--help"]);
 
     expect(run.status).toBe(0);
-    expect(listedCommands(run.stdout)).toEqual(["init", "typegen", "pull", "push", "help"]);
+    expect(listedCommands(run.stdout)).toEqual([
+      "init",
+      "typegen",
+      "pull",
+      "push",
+      "check",
+      "help",
+    ]);
+  });
+
+  it("lists every check flag in `check --help`", () => {
+    const run = runCli(["check", "--help"]);
+
+    expect(run.status).toBe(0);
+    for (const flag of [
+      "-c, --config",
+      "-p, --path",
+      "--file-template",
+      "-s, --source",
+      "-l, --locale",
+      "-n, --ns",
+      "--format",
+      "--identical",
+      "--no-fail",
+      "--strict",
+    ]) {
+      expect(run.stdout).toContain(flag);
+    }
+  });
+
+  it("prints a parseable JSON report from the bin, progress on stderr only", () => {
+    const run = runCli([
+      "check",
+      "--path",
+      join(PKG_ROOT, "tests/fixtures/check/hollama-shape"),
+      "--format",
+      "json",
+    ]);
+
+    expect(run.status).toBe(1);
+    expect(JSON.parse(run.stdout)).toMatchObject({ version: 1, keys: 20, ok: false });
+    expect(run.stderr).toContain("Reading");
+  });
+
+  it("loads no .env for check: it never reads the API variables", async () => {
+    const dir = await makeTempDir("comvi-check-env");
+    await fs.writeFile(join(dir, "package.json"), "{}");
+    await fs.writeFile(join(dir, ".env"), "COMVI_API_KEY=from-dotenv\n");
+    await fs.mkdir(join(dir, "src/locales"), { recursive: true });
+    await fs.writeFile(join(dir, "src/locales/en.json"), '{"a":"A"}');
+
+    const run = runCli(["check"], { cwd: dir, env: { COMVI_DEBUG: "1" } });
+
+    expect(run.status).toBe(0);
+    expect(run.stderr).not.toContain("loaded env from");
+  });
+
+  it("exits 4 on an unknown check option, a usage error like every command's", () => {
+    expect(runCli(["check", "--nope"]).status).toBe(4);
   });
 
   it("refuses a missing dotenv file with our own exit 4, not node's exit 9", async () => {

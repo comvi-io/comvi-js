@@ -170,6 +170,18 @@ describe("comvi push", () => {
     assertNoUnexpectedRequests();
   });
 
+  it("exits 4 without an API key and sends no request", async () => {
+    const configPath = await writeConfig({ apiKey: undefined, translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    const http = stubFetch({});
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
+
+    expect(exitCode).toBe(4);
+    expect(output.stderr).toContain("apiKey is required");
+    expect(http.requests).toEqual([]);
+  });
+
   it.each([["--locale"], ["--ns"]])(
     "exits 4 without a request when %s is given empty",
     async (flag) => {
