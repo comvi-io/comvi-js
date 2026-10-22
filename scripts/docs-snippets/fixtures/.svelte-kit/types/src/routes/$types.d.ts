@@ -3,9 +3,9 @@
  *
  * Reached through `rootDirs: ["src/routes", ".svelte-kit/types/src/routes"]`,
  * which is how SvelteKit itself wires it: a route file writes `from './$types'`
- * and TypeScript looks the name up in the parallel generated tree. Three site
- * fences import it (`ssr.mdx:318`, `svelte.mdx:319`, `svelte.mdx:352`), and all
- * three are route files, so the parallel tree is enough — no per-route codegen.
+ * and TypeScript looks the name up in the parallel generated tree. The site
+ * fences that import it (ssr.mdx, svelte.mdx) are all route files, so the
+ * parallel tree is enough — no per-route codegen.
  */
 export type LayoutServerLoad<Output = Record<string, any>> = (event: {
   params: Record<string, string>;

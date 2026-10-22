@@ -144,11 +144,14 @@ independent.
   maps to an element name, a `{ tag, props }` config, or a Svelte component that receives the tag's
   content as its `children` snippet. `<T>` builds real DOM nodes, never an HTML string.
 - `@comvi/svelte` ships no SvelteKit adapter and needs none. Build a fresh instance per request and
-  never mutate a module-level singleton on the server. A `load` function returns plain data,
-  `{ locale, messages }`, never the instance; construct the instance in `+layout.svelte` with
-  `setI18nContext(i18n, { autoInit: false })` seeded from that payload.
-- Set `lang` and `dir` on `<html>` from `$locale` and `$dir` in an `$effect`, or with
-  `<svelte:html lang={$locale} dir={$dir} />` on Svelte 5.16 or newer.
+  never mutate a module-level singleton on the server. The root layout's `load` returns plain
+  data, `{ locale, messages }`, never the instance. `+layout.svelte` builds the instance once from
+  that payload, inside `untrack()`, and passes every later `data` to it in an `$effect.pre`
+  (`addMessages()`, then `setLocale()`); without that, a link to another locale changes the URL and
+  keeps the old text.
+- `<svelte:head>` cannot set attributes on `<html>`. Replace `%lang%` in `src/app.html` from a
+  `handle` hook for the server render, with the locale checked against your list first, and set `lang` and `dir` from `$locale` and `$dir` in an
+  `$effect` for client navigation.
 
 ## Next steps
 
