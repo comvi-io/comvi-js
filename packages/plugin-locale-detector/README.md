@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/plugin-locale-detector"><img src="https://img.shields.io/npm/v/@comvi/plugin-locale-detector?color=blue" alt="npm"></a>
-  <a href="https://bundlephobia.com/package/@comvi/plugin-locale-detector"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/plugin-locale-detector?label=minzip" alt="Bundle size"></a>
+  <a href="https://bundlejs.com/?q=@comvi/plugin-locale-detector&amp;treeshake=%5B%7BlocaleDetector%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22@comvi/core%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/plugin-locale-detector&amp;treeshake=%5B%7BlocaleDetector%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22@comvi/core%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
