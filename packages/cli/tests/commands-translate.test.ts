@@ -93,6 +93,14 @@ function translationsBody(byLocale: Record<string, Record<string, string>>): Rou
   return { body: { locales: ["en", "de", "uk"], namespaces: { common } } };
 }
 
+/** The platform with de's farewell still empty while its source is there. */
+const DE_FAREWELL_EMPTY = (): RouteResponse =>
+  translationsBody({
+    en: { greeting: "Hello", farewell: "Bye" },
+    de: { greeting: "Hallo (platform)" },
+    uk: { greeting: "Привіт", farewell: "Бувай" },
+  });
+
 /** The platform after the job ran: de and uk carry every key. */
 const TRANSLATED = translationsBody({
   en: { greeting: "Hello", farewell: "Bye" },
@@ -304,7 +312,9 @@ describe("comvi translate", () => {
     it("a failed job of this run: exit 1", async () => {
       serve({
         [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
-        [PATHS.status(DE_JOB)]: contract.status.failed,
+        [PATHS.status(DE_JOB)]: {
+          body: { jobId: DE_JOB, status: "failed", error: "Worker crashed" },
+        },
       });
 
       expect(await translate(["--no-push"])).toBe(1);
@@ -321,17 +331,38 @@ describe("comvi translate", () => {
       expect(output.stderr).toContain(`job ${UK_JOB}, not started by this run`);
     });
 
-    it("an evicted job whose target is still empty: exit 1, and the work is unfinished", async () => {
+    it("an evicted job whose target is still empty: exit 1, run again", async () => {
       serve({
         [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
         [PATHS.status(DE_JOB)]: contract.status.gone,
-        [PATHS.translations]: translationsBody({ de: { greeting: "Hallo" }, uk: {} }),
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
       });
 
       expect(await translate(["--no-push", "-l", "de"])).toBe(1);
 
       expect(statusRequests(DE_JOB)).toBe(1);
-      expect(output.stdout).toContain("Jobs keep running");
+      expect(output.error).toContain("✗ de: 1 value is still empty after its jobs ended");
+      expect(output.stdout).toContain("Some values are still empty; run `comvi translate` again.");
+      expect(output.stdout).not.toContain("Jobs keep running");
+    });
+
+    it("an evicted job whose target has no source on the platform: exit 0, push first", async () => {
+      serve({
+        [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
+        [PATHS.status(DE_JOB)]: contract.status.gone,
+        // farewell exists only locally: this run did not push it.
+        [PATHS.translations]: translationsBody({
+          en: { greeting: "Hello" },
+          de: { greeting: "Hallo" },
+        }),
+      });
+
+      expect(await translate(["--no-push", "-l", "de"])).toBe(0);
+
+      expect(output.error).toEqual([
+        "⚠  1 empty value has no source on the platform; push first: de: farewell",
+      ]);
+      expect(output.stdout).not.toContain("run `comvi translate` again");
     });
 
     it("an evicted job whose pairs were written: exit 0", async () => {
@@ -373,11 +404,13 @@ describe("comvi translate", () => {
       serve({
         [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
         [PATHS.status(DE_JOB)]: waiting(DE_JOB),
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
       });
 
       expect(await translate(["--no-push", "--timeout", "30s"])).toBe(2);
 
-      expect(await readLocale("de")).toEqual({ greeting: "Hallo", farewell: "Tschüss" });
+      expect(await readLocale("uk")).toEqual({ greeting: "Привіт", farewell: "Бувай" });
+      expect(output.error).toContain("✗ de: 1 value is still empty; its jobs are still running");
       expect(output.stdout).toContain(
         "Jobs keep running; run `comvi translate` again or `comvi pull`",
       );
@@ -514,6 +547,11 @@ describe("comvi translate", () => {
           errors: [{ keyId: 1, key: "farewell", message: "Out", type: "insufficient_credits" }],
         }),
         [PATHS.status(UK_JOB)]: waiting(UK_JOB),
+        [PATHS.translations]: translationsBody({
+          en: { greeting: "Hello", farewell: "Bye" },
+          de: { greeting: "Hallo" },
+          uk: { greeting: "Привіт" },
+        }),
       });
 
       expect(await translate(["--no-push", "--timeout", "1m"])).toBe(3);
@@ -575,6 +613,7 @@ describe("comvi translate", () => {
         ]),
         [PATHS.status(DE_JOB)]: stamp(DE_JOB),
         [PATHS.status(UK_JOB)]: stamp(UK_JOB),
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
       });
 
       expect(await translate(["--no-push", "--timeout", "2m"])).toBe(2);
@@ -758,6 +797,7 @@ describe("comvi translate", () => {
             locales: ["en", "de", "uk", "fr"],
             namespaces: {
               common: {
+                en: { greeting: "Hello", farewell: "Bye" },
                 de: { greeting: "Hallo (platform)", farewell: "Tschüss" },
                 uk: { greeting: "Привіт" },
                 fr: { greeting: "Bonjour", farewell: "Salut" },
@@ -784,11 +824,13 @@ describe("comvi translate", () => {
           "5 already translated, 1 failed",
         "  Files changed: 2 (2 values)",
         "  1 differs from the platform; `comvi pull` will update it.",
+        "Some values are still empty; run `comvi translate` again.",
       ]);
       expect(output.error).toEqual([
         "⚠  Skipped locales: ja (forbidden), ko (forbidden)",
         "✗ de: farewell — Down (provider_error)",
         `✗ uk: job ${UK_JOB}, not started by this run failed: Boom`,
+        "✗ uk: 1 value is still empty after its jobs ended",
       ]);
     });
 
@@ -808,7 +850,8 @@ describe("comvi translate", () => {
           translated: 1,
           filledMeanwhile: 1,
           failed: 1,
-          unfinished: 0,
+          unfinished: 1,
+          notOnPlatform: 0,
         },
         jobs: [
           {
@@ -837,6 +880,11 @@ describe("comvi translate", () => {
             jobId: UK_JOB,
             locale: "uk",
           },
+          {
+            type: "unfinished",
+            message: "uk: 1 value is still empty after its jobs ended",
+            locale: "uk",
+          },
         ],
         skippedLocales: [
           { code: "ja", reason: "forbidden" },
@@ -850,11 +898,13 @@ describe("comvi translate", () => {
 
     it("prints a clean run without problem lines, in plural", async () => {
       await writeLocale("de", { greeting: "Hallo", farewell: "Lokal" });
+      await writeLocale("uk", { farewell: "Бувай" });
       serve({
         [PATHS.fill]: NO_WORK,
         [PATHS.translations]: translationsBody({
+          en: { greeting: "Hello", farewell: "Bye" },
           de: { greeting: "Hallo (platform)", farewell: "Tschüss" },
-          uk: { greeting: "Привіт" },
+          uk: { greeting: "Привіт", farewell: "Бувай" },
         }),
       });
 
@@ -902,62 +952,111 @@ describe("comvi translate", () => {
       expect(output.error[output.error.length - 1]).toBe("  … and 2 more");
     });
 
-    it("reports a timeout per job and counts its pairs as unfinished", async () => {
+    it("counts a timeout per locale, from what is still empty, not per job", async () => {
+      await writeLocale("en", { greeting: "Hello", farewell: "Bye", more: "More" });
       serve({
         [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de", keyCount: 3 }]),
         [PATHS.status(DE_JOB)]: waiting(DE_JOB),
+        [PATHS.translations]: translationsBody({
+          en: { greeting: "Hello", farewell: "Bye", more: "More" },
+          de: { greeting: "Hallo" },
+        }),
       });
 
-      expect(await translate(["--no-push", "--timeout", "30", "--format", "json"])).toBe(2);
+      expect(
+        await translate(["--no-push", "-l", "de", "--timeout", "30", "--format", "json"]),
+      ).toBe(2);
 
       // A bare number is seconds: the job was asked about before the deadline.
       expect(statusRequests(DE_JOB)).toBeGreaterThan(1);
       const doc = JSON.parse(output.log[0]);
-      expect(doc.pairs.unfinished).toBe(3);
+      expect(doc.pairs.unfinished).toBe(2);
       expect(doc.jobs[0].status).toBe("running");
       expect(doc.errors).toEqual([
         {
-          type: "timeout",
-          message: `de: job ${DE_JOB} is still running`,
-          jobId: DE_JOB,
+          type: "unfinished_running",
+          message: "de: 2 values are still empty; its jobs are still running",
           locale: "de",
         },
       ]);
     });
 
-    it("reports an evicted job's empty values as unfinished", async () => {
-      await writeLocale("en", { greeting: "Hello", farewell: "Bye", more: "More" });
+    it("reports an evicted job's locale once in the JSON", async () => {
       serve({
         [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
         [PATHS.status(DE_JOB)]: contract.status.gone,
-        [PATHS.translations]: translationsBody({ de: { greeting: "Hallo", farewell: "Tschüss" } }),
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
       });
 
       expect(await translate(["--no-push", "-l", "de", "--format", "json"])).toBe(1);
 
       const doc = JSON.parse(output.log[0]);
-      expect(doc.pairs.unfinished).toBe(1);
+      expect(doc.pairs).toMatchObject({ unfinished: 1, notOnPlatform: 0 });
       expect(doc.jobs[0].status).toBe("gone");
       expect(doc.errors).toEqual([
         {
-          type: "job_gone",
-          message: `de: job ${DE_JOB} is gone from the platform and 1 value is still empty`,
-          jobId: DE_JOB,
+          type: "unfinished",
+          message: "de: 1 value is still empty after its jobs ended",
           locale: "de",
         },
       ]);
     });
 
-    it("counts the plural of an evicted job's empty values", async () => {
-      await writeLocale("en", { greeting: "Hello", farewell: "Bye", more: "More" });
+    it("counts a locale once when two of its jobs are gone", async () => {
+      const other = "auto-mt-123-de-2";
       serve({
-        [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
+        [PATHS.fill]: fillResponse([
+          { jobId: DE_JOB, targetLocaleCode: "de" },
+          { jobId: other, targetLocaleCode: "de", owned: false },
+        ]),
         [PATHS.status(DE_JOB)]: contract.status.gone,
-        [PATHS.translations]: translationsBody({ de: { greeting: "Hallo" } }),
+        [PATHS.status(other)]: contract.status.gone,
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
       });
 
-      expect(await translate(["--no-push", "-l", "de"])).toBe(1);
-      expect(output.stderr).toContain("and 2 values are still empty");
+      expect(await translate(["--no-push", "-l", "de", "--format", "json"])).toBe(1);
+      expect(JSON.parse(output.log[0]).pairs.unfinished).toBe(1);
+    });
+
+    it("one locale, one job gone and one still running: unfinished once, exit 2", async () => {
+      const other = "auto-mt-123-de-2";
+      serve({
+        [PATHS.fill]: fillResponse([
+          { jobId: DE_JOB, targetLocaleCode: "de" },
+          { jobId: other, targetLocaleCode: "de", owned: false },
+        ]),
+        [PATHS.status(DE_JOB)]: contract.status.gone,
+        [PATHS.status(other)]: waiting(other),
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
+      });
+
+      expect(
+        await translate(["--no-push", "-l", "de", "--timeout", "1m", "--format", "json"]),
+      ).toBe(2);
+
+      const doc = JSON.parse(output.log[0]);
+      expect(doc.pairs.unfinished).toBe(1);
+      expect(doc.errors).toEqual([
+        {
+          type: "unfinished_running",
+          message: "de: 1 value is still empty; its jobs are still running",
+          locale: "de",
+        },
+      ]);
+    });
+
+    it("does not count the empty values of a locale the platform skipped", async () => {
+      serve({
+        [PATHS.fill]: {
+          body: {
+            ...(NO_WORK.body as object),
+            skippedLocales: [{ code: "de", reason: "forbidden" }],
+          },
+        },
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
+      });
+
+      expect(await translate(["--no-push"])).toBe(0);
     });
 
     it("judges an evicted job by its own locale only", async () => {
@@ -983,7 +1082,7 @@ describe("comvi translate", () => {
       expect(output.stdout).not.toContain("from the platform");
     });
 
-    it("an evicted job and a failed fetch: exit 2, and the work is unfinished", async () => {
+    it("an evicted job and a failed fetch: exit 2, and nothing is claimed either way", async () => {
       serve({
         [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
         [PATHS.status(DE_JOB)]: contract.status.gone,
@@ -991,6 +1090,18 @@ describe("comvi translate", () => {
       });
 
       expect(await translate(["--no-push"])).toBe(2);
+      expect(output.stdout).not.toContain("Jobs keep running");
+      expect(output.stdout).not.toContain("run `comvi translate` again");
+    });
+
+    it("a running job and a failed fetch: exit 2, and the jobs keep running", async () => {
+      serve({
+        [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
+        [PATHS.status(DE_JOB)]: waiting(DE_JOB),
+        [PATHS.translations]: { status: 503, body: {} },
+      });
+
+      expect(await translate(["--no-push", "--timeout", "10s"])).toBe(2);
       expect(output.stdout).toContain("Jobs keep running");
     });
 
@@ -1159,7 +1270,8 @@ describe("comvi translate", () => {
       expect(await translate(["--no-push", "-l", "de", "--ns", "common"])).toBe(0);
 
       const query = new URL(http.urlFor(PATHS.translations)).searchParams;
-      expect(query.get("locales")).toBe("de");
+      // The source comes too: it tells a translatable gap from one push must fill.
+      expect(query.get("locales")).toBe("de,en");
       expect(query.get("namespaces")).toBe("common");
     });
 
@@ -1181,6 +1293,7 @@ describe("comvi translate", () => {
         [PATHS.translations]: translationsBody({
           en: { greeting: "Hello", farewell: "Bye (platform)" },
           de: { greeting: "Hallo", farewell: "Tschüss" },
+          uk: { greeting: "Привіт", farewell: "Бувай" },
         }),
       });
 
@@ -1239,13 +1352,20 @@ describe("comvi translate", () => {
       }));
     }
 
-    it("still asks once when the first turn falls exactly on the deadline", async () => {
+    it("starts no request at the deadline, and one just before it", async () => {
       serve({
         [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
         [PATHS.status(DE_JOB)]: completed(DE_JOB),
       });
-
       expect(await translate(["--no-push", "--timeout", "2s"])).toBe(0);
+      expect(statusRequests(DE_JOB)).toBe(0);
+
+      exits.codes.length = 0;
+      serve({
+        [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
+        [PATHS.status(DE_JOB)]: completed(DE_JOB),
+      });
+      expect(await translate(["--no-push", "--timeout", "2001ms"])).toBe(0);
       expect(statusRequests(DE_JOB)).toBe(1);
     });
 
@@ -1272,6 +1392,7 @@ describe("comvi translate", () => {
       serve({
         [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
         [PATHS.status(DE_JOB)]: stamped([{ status: 503, body: {} }], at),
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
       });
 
       expect(await translate(["--no-push", "--timeout", "1m"])).toBe(2);
@@ -1702,6 +1823,264 @@ describe("comvi translate", () => {
 
       expect(await translate(["--force-mode", "override", "-l", "xx"])).toBe(4);
       expect(http.paths()).not.toContain(PATHS.commit);
+    });
+  });
+
+  describe("review round", () => {
+    it("two catalogs in one file: exit 4 before any push or MT, and no file changes", async () => {
+      await fs.rm(localesDir, { recursive: true, force: true });
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          apiKey: "k",
+          apiBaseUrl: API_BASE_URL,
+          translationsPath: localesDir,
+          fileTemplate: "{namespace}-{languageTag}.json",
+        }),
+      );
+      await fs.mkdir(localesDir, { recursive: true });
+      await fs.writeFile(join(localesDir, "common-en.json"), JSON.stringify({ a: "A" }));
+      await fs.writeFile(join(localesDir, "common-en-en.json"), JSON.stringify({ b: "B" }));
+      await fs.writeFile(join(localesDir, "common-en-ca.json"), JSON.stringify({ a: "Kept" }));
+      const before = (await fs.readdir(localesDir)).sort();
+      serve({
+        [PATHS.locales]: {
+          body: { locales: ["en", "ca", "en-ca"].map((code) => ({ code })) },
+        },
+        [PATHS.fill]: NO_WORK,
+      });
+
+      expect(await translate(["--force-mode", "override"])).toBe(4);
+
+      expect(output.stderr).toContain("both resolve to");
+      expect(http.paths()).not.toContain(PATHS.fill);
+      expect(http.paths()).not.toContain(PATHS.commit);
+      expect((await fs.readdir(localesDir)).sort()).toEqual(before);
+      expect(JSON.parse(await fs.readFile(join(localesDir, "common-en-ca.json"), "utf-8"))).toEqual(
+        {
+          a: "Kept",
+        },
+      );
+    });
+
+    it("a write phase that throws: exit 1, written: false, and the summary still prints", async () => {
+      serve({
+        [PATHS.fill]: NO_WORK,
+        // A locale the response names that cannot be a file name.
+        [PATHS.translations]: {
+          body: {
+            locales: ["en", "de", ".."],
+            namespaces: { common: { de: { farewell: "Tschüss" } } },
+          },
+        },
+      });
+
+      expect(await translate(["--no-push", "--format", "json"])).toBe(1);
+
+      const doc = JSON.parse(output.log[0]);
+      expect(doc.written).toBe(false);
+      expect(doc.errors).toEqual([
+        { type: "write_failed", message: expect.stringContaining("Nothing was written.") },
+      ]);
+      expect(await readLocale("de")).toEqual({ greeting: "Hallo" });
+      expect(output.stderr).toContain("Translate finished with problems");
+    });
+
+    it("refuses --force-mode ask with --format json, before any request", async () => {
+      serve({});
+
+      expect(await translate(["--format", "json"])).toBe(4);
+
+      expect(JSON.parse(output.log[0]).errors[0].message).toBe(
+        "--format json cannot answer the conflict prompt of --force-mode ask, the default. " +
+          "Pass --force-mode override, keep or abort, or --no-push.",
+      );
+      expect(http.requests).toEqual([]);
+    });
+
+    it.each([[["--no-push"]], [["--dry-run"]], [["--force-mode", "keep"]]])(
+      "accepts --format json with %j",
+      async (flags) => {
+        serve({ [PATHS.fill]: [contract.fill.dryRun, NO_WORK] });
+
+        expect(await translate(["--format", "json", ...flags])).toBe(0);
+      },
+    );
+
+    it("--dry-run with the push counts over every namespace; without it, over --ns", async () => {
+      serve({ [PATHS.fill]: contract.fill.dryRun });
+      expect(await translate(["--dry-run", "--force-mode", "override", "--ns", "fresh"])).toBe(0);
+      expect(fillBodies()).toEqual([{ dryRun: true }]);
+
+      exits.codes.length = 0;
+      serve({ [PATHS.fill]: contract.fill.dryRun });
+      expect(await translate(["--dry-run", "--no-push", "--ns", "common"])).toBe(0);
+      expect(fillBodies()).toEqual([{ dryRun: true, namespaces: ["common"] }]);
+    });
+
+    it("a status request that stalls near the deadline is cut at the deadline", async () => {
+      serve({
+        [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
+        [PATHS.status(DE_JOB)]: completed(DE_JOB),
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
+      });
+      const routed = globalThis.fetch;
+      const asked: number[] = [];
+      const cut: number[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: string | URL, init: RequestInit = {}) => {
+          if (new URL(String(input)).pathname !== PATHS.status(DE_JOB)) return routed(input, init);
+          asked.push(Date.now());
+          return new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => {
+              cut.push(Date.now());
+              reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+            });
+          });
+        }),
+      );
+      // The client timeout is 30 s; the run has 3 s, and 1 s is left at the first poll.
+      expect(await translate(["--no-push", "--timeout", "3s"])).toBe(2);
+
+      expect(asked).toHaveLength(1);
+      expect(cut[0] - asked[0]).toBe(1_000);
+      expect(output.stdout).toContain("Jobs keep running");
+    });
+
+    it("a malformed status ends that job at once: exit 1, not retried", async () => {
+      serve({
+        [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
+        [PATHS.status(DE_JOB)]: completed("someone-else"),
+      });
+
+      expect(await translate(["--no-push", "--format", "json"])).toBe(1);
+
+      expect(statusRequests(DE_JOB)).toBe(1);
+      expect(JSON.parse(output.log[0]).errors[0]).toMatchObject({
+        type: "status_failed",
+        message: expect.stringContaining("not in the expected shape"),
+      });
+    });
+
+    it("waits out a 429's Retry-After within the budget", async () => {
+      const at: number[] = [];
+      serve({
+        [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
+        [PATHS.status(DE_JOB)]: [
+          {
+            status: 429,
+            body: {},
+            headers: { "retry-after": "7" },
+            onRequest: () => void at.push(Date.now()),
+          },
+          { ...completed(DE_JOB), onRequest: () => void at.push(Date.now()) },
+        ],
+      });
+
+      expect(await translate(["--no-push"])).toBe(0);
+      expect(at[1] - at[0]).toBe(7_000);
+    });
+
+    it("gives up when a Retry-After reaches past the deadline", async () => {
+      serve({
+        [PATHS.fill]: fillResponse([{ jobId: DE_JOB, targetLocaleCode: "de" }]),
+        [PATHS.status(DE_JOB)]: [
+          { status: 429, body: {}, headers: { "retry-after": "30" } },
+          completed(DE_JOB),
+        ],
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
+      });
+
+      expect(await translate(["--no-push", "--timeout", "20s"])).toBe(2);
+      expect(statusRequests(DE_JOB)).toBe(1);
+    });
+  });
+
+  describe("review round, attribution and listing", () => {
+    it("--dry-run sends the target locales", async () => {
+      serve({ [PATHS.fill]: contract.fill.dryRun });
+
+      expect(await translate(["--dry-run", "--no-push", "-l", "de"])).toBe(0);
+      expect(fillBodies()).toEqual([{ dryRun: true, targetLocaleCodes: ["de"] }]);
+    });
+
+    it("a job running for another locale does not keep this locale's gap running", async () => {
+      serve({
+        [PATHS.fill]: fillResponse([
+          { jobId: DE_JOB, targetLocaleCode: "de" },
+          { jobId: UK_JOB, targetLocaleCode: "uk" },
+        ]),
+        [PATHS.status(DE_JOB)]: contract.status.gone,
+        [PATHS.status(UK_JOB)]: waiting(UK_JOB),
+        [PATHS.translations]: DE_FAREWELL_EMPTY(),
+      });
+
+      expect(await translate(["--no-push", "--timeout", "30s"])).toBe(1);
+
+      expect(output.error).toContain("✗ de: 1 value is still empty after its jobs ended");
+      expect(output.stdout).not.toContain("Jobs keep running");
+    });
+
+    it("a failed fetch keeps the jobs running when any one of them still runs", async () => {
+      serve({
+        [PATHS.fill]: fillResponse([
+          { jobId: DE_JOB, targetLocaleCode: "de" },
+          { jobId: UK_JOB, targetLocaleCode: "uk" },
+        ]),
+        [PATHS.status(DE_JOB)]: completed(DE_JOB),
+        [PATHS.status(UK_JOB)]: waiting(UK_JOB),
+        [PATHS.translations]: { status: 503, body: {} },
+      });
+
+      expect(await translate(["--no-push", "--timeout", "30s"])).toBe(2);
+      expect(output.stdout).toContain("Jobs keep running");
+    });
+
+    it("an empty source on the platform is no source: push first, exit 0", async () => {
+      serve({
+        [PATHS.fill]: NO_WORK,
+        [PATHS.translations]: translationsBody({
+          en: { greeting: "Hello", farewell: "" },
+          de: { greeting: "Hallo" },
+          uk: { greeting: "Привіт" },
+        }),
+      });
+
+      expect(await translate(["--no-push"])).toBe(0);
+      expect(output.error).toEqual([
+        "⚠  2 empty values have no source on the platform; push first: de: farewell, uk: farewell",
+      ]);
+    });
+
+    it("lists ten values without a source, then how many more", async () => {
+      const keys = Array.from({ length: 11 }, (_, i) => `k${String(i).padStart(2, "0")}`);
+      await writeLocale("en", Object.fromEntries(keys.map((key) => [key, key])));
+      serve({
+        [PATHS.fill]: NO_WORK,
+        [PATHS.translations]: translationsBody({ en: {}, de: {} }),
+      });
+
+      expect(await translate(["--no-push", "-l", "de"])).toBe(0);
+
+      expect(output.error).toEqual([
+        `⚠  11 empty values have no source on the platform; push first: ${keys
+          .slice(0, 10)
+          .map((key) => `de: ${key}`)
+          .join(", ")}, … and 1 more`,
+      ]);
+    });
+
+    it("lists exactly ten values without a 'more'", async () => {
+      const keys = Array.from({ length: 10 }, (_, i) => `k${i}`);
+      await writeLocale("en", Object.fromEntries(keys.map((key) => [key, key])));
+      serve({
+        [PATHS.fill]: NO_WORK,
+        [PATHS.translations]: translationsBody({ en: {}, de: {} }),
+      });
+
+      expect(await translate(["--no-push", "-l", "de"])).toBe(0);
+      expect(output.error[0]).not.toContain("more");
     });
   });
 });

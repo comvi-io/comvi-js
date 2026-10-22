@@ -144,6 +144,11 @@ async function httpError(
 
   const body = parseErrorBody(await readBoundedText(response, signal).catch(() => ""));
   const details: Record<string, unknown> = { status: response.status, ...body };
+  // A caller that does not retry itself (the MT job poller) still honours it.
+  if (response.status === 429) {
+    const wait = retryAfterMs(response);
+    if (wait !== undefined) details.retryAfterMs = wait;
+  }
 
   // The platform says why: a missing scope, a plan limit, read-only billing.
   if (response.status === 403 && opts.forbidden) {
@@ -291,7 +296,8 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function retryDelayMs(response: Response, attempt: number): number {
+/** The wait a `Retry-After` header asks for, capped; undefined without a usable one. */
+function retryAfterMs(response: Response): number | undefined {
   const retryAfterValue = response.headers?.get?.("retry-after");
   if (retryAfterValue !== null && retryAfterValue !== undefined) {
     const retryAfterSeconds = Number(retryAfterValue);
@@ -304,7 +310,11 @@ function retryDelayMs(response: Response, attempt: number): number {
       return Math.min(Math.max(retryAt - Date.now(), 0), RETRY_AFTER_CAP_MS);
     }
   }
-  return RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+  return undefined;
+}
+
+function retryDelayMs(response: Response, attempt: number): number {
+  return retryAfterMs(response) ?? RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
 }
 
 export const API_ENDPOINTS = {
@@ -850,9 +860,14 @@ export class ApiClient {
    * Not retried here: the caller polls under its own request budget and asks
    * again on its next turn.
    */
-  async getMtJobStatus(jobId: string): Promise<MtJobStatus | null> {
+  async getMtJobStatus(
+    jobId: string,
+    options: { timeoutMs?: number } = {},
+  ): Promise<MtJobStatus | null> {
     const project = await this.getProjectInfo();
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectMtJobStatus(project.id, jobId)}`;
+    // Never longer than the client's own read timeout.
+    const timeoutMs = Math.min(options.timeoutMs ?? this.timeout, this.timeout);
 
     let response: unknown;
     try {
@@ -863,6 +878,7 @@ export class ApiClient {
           retryTransient: false,
           failure: `Failed to read machine translation job ${jobId}`,
           forbidden: `Access denied to machine translation job ${jobId}`,
+          timeoutMs,
         },
       );
     } catch (error) {
@@ -875,7 +891,7 @@ export class ApiClient {
       }
       if (error instanceof Error && error.name === "AbortError") {
         throw new TypegenError(
-          `Request timeout after ${this.timeout}ms`,
+          `Request timeout after ${timeoutMs}ms`,
           ErrorCodes.API_TIMEOUT,
           error,
         );
@@ -887,7 +903,7 @@ export class ApiClient {
       );
     }
 
-    if (!isMtJobStatus(response)) {
+    if (!isMtJobStatus(response, jobId)) {
       throw invalidResponse("MT job status");
     }
     return response;

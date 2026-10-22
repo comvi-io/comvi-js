@@ -3,7 +3,7 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { timeoutsFromEnv } from "../core/timeouts";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
-import { mergeMissing, type MergeReport } from "../core/MissingMerge";
+import { assertMergePaths, mergeMissing, type MergeReport } from "../core/MissingMerge";
 import {
   jobsInLimitMeta,
   type MtFillJob,
@@ -49,6 +49,9 @@ const POLL_MAX_MS = 10_000;
 const LISTED_ERRORS = 20;
 
 const UNFINISHED_MESSAGE = "Jobs keep running; run `comvi translate` again or `comvi pull`.";
+const RUN_AGAIN_MESSAGE = "Some values are still empty; run `comvi translate` again.";
+/** Keys named in the "not on the platform" warning before "… and N more". */
+const LISTED_KEYS = 10;
 const TOP_UP_MESSAGE =
   "Top up machine translation credits, then run `comvi translate` again to finish the rest.";
 
@@ -147,7 +150,13 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
 
   if (options.dryRun) {
     try {
-      const preview = await api.fillMissing({ dryRun: true, ...scope });
+      // With the push on, namespaces only the push would create are not on
+      // the platform yet: count over every namespace, as the preflight does.
+      const preview = await api.fillMissing({
+        dryRun: true,
+        ...(targets ? { targetLocaleCodes: targets } : {}),
+        ...(namespaces && !options.push ? { namespaces } : {}),
+      });
       let pushed: number | undefined;
       if (options.push) {
         const result = await runPush({ ...pushOptions, dryRun: true }, pushDeps);
@@ -203,8 +212,8 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
     filledMeanwhile: 0,
     failed: 0,
     unfinished: 0,
+    notOnPlatform: 0,
   };
-  let unfinished = false;
   let creditsOut = outcomes.includes(EXIT_ACCESS);
 
   for (const track of tracks) {
@@ -258,24 +267,20 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
         });
         break;
       }
-      case "running":
-        unfinished = true;
-        pairs.unfinished += job.keyCount;
-        outcomes.push(EXIT_UNAVAILABLE);
-        errors.push({
-          type: "timeout",
-          message: `${job.targetLocaleCode}: ${label} is still running`,
-          ...where,
-        });
-        break;
-      // "gone" is judged after the fetch, from what is still empty.
+      // "running" and "gone" are judged per locale after the fetch, from
+      // what is still empty.
     }
   }
 
   say("🔄 Fetching translations from TMS...");
   let remote: TranslationsResponse | undefined;
   try {
-    remote = await api.fetchTranslations({ locales: targets, namespaces });
+    // The source comes too: a still-empty target counts only where the
+    // platform has its source.
+    remote = await api.fetchTranslations({
+      locales: targets ? [...targets, source] : undefined,
+      namespaces,
+    });
   } catch (error) {
     outcomes.push(exitCodeFor(error) === EXIT_ACCESS ? EXIT_ACCESS : EXIT_UNAVAILABLE);
     const reason = error instanceof Error ? error.message : String(error);
@@ -285,51 +290,88 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
   let merged: MergeReport | undefined;
   if (remote) {
     say("📝 Writing missing values...");
-    merged = await writeMissing(setup, remote);
-    for (const file of merged.files) {
-      for (const key of file.collisions) {
-        outcomes.push(EXIT_FAILURE);
-        errors.push({
-          type: "collision",
-          message: `${file.filePath}: "${key}" does not fit the file's structure; not written`,
-          locale: file.locale,
-          key,
-        });
-      }
+    try {
+      merged = await writeMissing(setup, remote);
+    } catch (error) {
+      outcomes.push(EXIT_FAILURE);
+      const reason = error instanceof Error ? error.message : String(error);
+      errors.push({ type: "write_failed", message: `${reason}. Nothing was written.` });
     }
-    for (const failure of merged.errors) {
+  }
+  for (const file of merged?.files ?? []) {
+    for (const key of file.collisions) {
       outcomes.push(EXIT_FAILURE);
       errors.push({
-        type: "write_failed",
-        message: `${failure.filePath ?? `${failure.locale}/${failure.namespace}`}: ${failure.message}`,
-        locale: failure.locale,
+        type: "collision",
+        message: `${file.filePath}: "${key}" does not fit the file's structure; not written`,
+        locale: file.locale,
+        key,
       });
     }
   }
+  for (const failure of merged?.errors ?? []) {
+    outcomes.push(EXIT_FAILURE);
+    errors.push({
+      type: "write_failed",
+      message: `${failure.filePath ?? `${failure.locale}/${failure.namespace}`}: ${failure.message}`,
+      locale: failure.locale,
+    });
+  }
 
-  // An evicted job's pairs that are still empty did not get done.
-  for (const track of tracks.filter(({ state }) => state === "gone")) {
-    const { job } = track;
-    if (!merged) {
-      unfinished = true;
-      continue;
+  // What is still empty, per locale: unfinished while a job for the locale
+  // runs (exit 2), else unfinished for good (exit 1). Keys whose source is not
+  // on the platform were never translatable: push first.
+  const runningIn = (locale: string) =>
+    tracks.some(
+      (track) =>
+        track.state === "running" && localeKey(track.job.targetLocaleCode) === localeKey(locale),
+    );
+  let stillRunning = !merged && tracks.some((track) => track.state === "running");
+  let runAgain = false;
+  const notOnPlatform: string[] = [];
+  if (merged && remote) {
+    const remoteSource = catalogOf(remote.translations, source);
+    const skipped = new Set((fill?.skippedLocales ?? []).map((s) => localeKey(s.code)));
+    const leftover = new Map<string, { locale: string; keys: Set<string> }>();
+    for (const file of merged.files) {
+      if (skipped.has(localeKey(file.locale))) continue;
+      const entry = leftover.get(localeKey(file.locale)) ?? {
+        locale: file.locale,
+        keys: new Set(),
+      };
+      leftover.set(localeKey(file.locale), entry);
+      const sourceCatalog = remoteSource?.[file.namespace];
+      for (const key of file.missing) {
+        if (sourceCatalog && hasOwnKey(sourceCatalog, key) && sourceCatalog[key] !== "") {
+          entry.keys.add(`${file.namespace}\u0000${key}`);
+        } else {
+          notOnPlatform.push(`${file.locale}: ${key}`);
+        }
+      }
     }
-    const empty = merged.files
-      .filter((file) => localeKey(file.locale) === localeKey(job.targetLocaleCode))
-      .reduce((sum, file) => sum + file.missing.length, 0);
-    if (empty > 0) {
-      unfinished = true;
-      pairs.unfinished += empty;
-      outcomes.push(EXIT_FAILURE);
-      errors.push({
-        type: "job_gone",
-        message:
-          `${job.targetLocaleCode}: job ${job.jobId} is gone from the platform ` +
-          `and ${empty} ${empty === 1 ? "value is" : "values are"} still empty`,
-        jobId: job.jobId,
-        locale: job.targetLocaleCode,
-      });
+    for (const { locale, keys } of leftover.values()) {
+      if (keys.size === 0) continue;
+      pairs.unfinished += keys.size;
+      const values = `${keys.size} ${keys.size === 1 ? "value is" : "values are"} still empty`;
+      if (runningIn(locale)) {
+        stillRunning = true;
+        outcomes.push(EXIT_UNAVAILABLE);
+        errors.push({
+          type: "unfinished_running",
+          message: `${locale}: ${values}; its jobs are still running`,
+          locale,
+        });
+      } else {
+        runAgain = true;
+        outcomes.push(EXIT_FAILURE);
+        errors.push({
+          type: "unfinished",
+          message: `${locale}: ${values} after its jobs ended`,
+          locale,
+        });
+      }
     }
+    pairs.notOnPlatform = notOnPlatform.length;
   }
 
   const written =
@@ -396,14 +438,26 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
       );
     }
   }
+  if (notOnPlatform.length > 0) {
+    const more =
+      notOnPlatform.length > LISTED_KEYS
+        ? `, … and ${notOnPlatform.length - LISTED_KEYS} more`
+        : "";
+    console.error(
+      `⚠  ${notOnPlatform.length} empty ${notOnPlatform.length === 1 ? "value has" : "values have"} ` +
+        `no source on the platform; push first: ${notOnPlatform.slice(0, LISTED_KEYS).join(", ")}${more}`,
+    );
+  }
   if (creditsOut) {
     console.error(`⚠  ${TOP_UP_MESSAGE}`);
   }
   if (fill?.credits.exhausted && !creditsOut) {
     console.error("⚠  Machine translation credits are used up; jobs already in flight may stop.");
   }
-  if (unfinished) {
+  if (stillRunning) {
     say(UNFINISHED_MESSAGE);
+  } else if (runAgain) {
+    say(RUN_AGAIN_MESSAGE);
   }
 
   return exitCode;
@@ -424,6 +478,12 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
   const forceMode = (options.forceMode || config.push?.forceMode || "ask") as ForceMode;
   if (!["override", "keep", "ask", "abort"].includes(forceMode)) {
     throw inputError(`Invalid force-mode: ${forceMode}. Use: override, keep, ask, or abort`);
+  }
+  if (options.format === "json" && forceMode === "ask" && options.push && !options.dryRun) {
+    throw inputError(
+      "--format json cannot answer the conflict prompt of --force-mode ask, the default. " +
+        "Pass --force-mode override, keep or abort, or --no-push.",
+    );
   }
 
   const locs = resolveFilter(parseListFlag(options.locale, "--locale"), config.locales);
@@ -459,10 +519,10 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
   // Targets in the project's spelling (`-l pt_br` asks for pt-BR); the
   // source is never a target.
   let targets: string[] | undefined;
+  const projectLocales = await api.fetchProjectLocales();
   if (locs.value) {
-    const projectLocales = (await api.fetchProjectLocales()) ?? [];
     targets = locs.value
-      .map((locale) => findLocale(locale, projectLocales) ?? locale)
+      .map((locale) => findLocale(locale, projectLocales ?? []) ?? locale)
       .filter((locale) => localeKey(locale) !== localeKey(source));
     if (targets.length === 0) {
       throw inputError(`--locale names only the source locale ${source}: nothing to translate`);
@@ -482,6 +542,19 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
   });
   // Only the source was read: any file found is its catalog.
   const sourceLocale = local.locales[0];
+
+  // Every file the run may write is judged now, before any push or MT: two
+  // catalogs in one file, or a path out of the tree, exits 4 here.
+  const planned = targets ?? projectLocales?.filter((l) => localeKey(l) !== localeKey(source));
+  if (sourceLocale !== undefined && planned) {
+    await assertMergePaths(
+      sync,
+      defaultNamespace,
+      sourceLocale,
+      Object.keys(local.translations[sourceLocale]),
+      await localSpellings(sync, defaultNamespace, planned),
+    );
+  }
 
   return {
     api,
@@ -565,23 +638,29 @@ async function pollJobs(api: ApiClient, tracks: JobTrack[], timeoutMs: number): 
   let turn = 0;
 
   while (pending.length > 0) {
-    const at = last + interval;
-    if (at > deadline) break;
-    await sleep(at - Date.now());
+    // Never sleeps past the deadline, and a request needs budget left: none
+    // starts at or after it.
+    await sleep(Math.min(last + interval, deadline) - Date.now());
     last = Date.now();
+    if (last >= deadline) break;
 
     turn %= pending.length;
     const track = pending[turn];
     let ended = false;
     let progressed = false;
+    let retryAfter: number | undefined;
     try {
-      const status = await api.getMtJobStatus(track.job.jobId);
+      // The request may take no longer than what is left of the run's budget.
+      const status = await api.getMtJobStatus(track.job.jobId, { timeoutMs: deadline - last });
       if (status === null) {
         track.state = "gone";
         ended = true;
       } else {
+        const before = track.status;
         progressed =
-          status.status !== track.status?.status || status.progress !== track.status?.progress;
+          before === undefined ||
+          status.status !== before.status ||
+          status.progress !== before.progress;
         track.status = status;
         if (status.status === "completed" || status.status === "failed") {
           track.state = status.status;
@@ -589,10 +668,15 @@ async function pollJobs(api: ApiClient, tracks: JobTrack[], timeoutMs: number): 
         }
       }
     } catch (error) {
-      if (exitCodeFor(error) !== EXIT_UNAVAILABLE) {
+      // A malformed status will not mend itself: final for this job.
+      const malformed =
+        error instanceof TypegenError && error.code === ErrorCodes.API_INVALID_RESPONSE;
+      if (malformed || exitCodeFor(error) !== EXIT_UNAVAILABLE) {
         track.error = error;
         track.state = "error";
         ended = true;
+      } else if (error instanceof TypegenError && typeof error.details?.retryAfterMs === "number") {
+        retryAfter = error.details.retryAfterMs;
       }
     }
 
@@ -603,6 +687,8 @@ async function pollJobs(api: ApiClient, tracks: JobTrack[], timeoutMs: number): 
       turn++;
       if (!progressed) interval = Math.min(interval * 1.5, POLL_MAX_MS);
     }
+    // A 429's Retry-After holds back the next request; the deadline still rules.
+    if (retryAfter !== undefined) interval = Math.max(interval, retryAfter);
     progress();
   }
 
@@ -623,17 +709,12 @@ async function writeMissing(
     return { files: [], errors: [] };
   }
 
-  // Each target in the spelling of its local files, else the platform's.
-  const localFiles = await sync.listCatalogFiles(defaultNamespace);
-  const localSpelling = (locale: string) =>
-    localFiles.find((file) => localeKey(file.locale) === localeKey(locale))?.locale ?? locale;
-  const remoteLocales = Object.keys(remote.translations);
+  const locales = (targets ?? remote.locales).filter((l) => localeKey(l) !== localeKey(source));
+  const spelled = await localSpellings(sync, defaultNamespace, locales);
   const merged: Record<string, Record<string, Record<string, string>>> = {};
-  for (const locale of targets ?? remote.locales) {
-    if (localeKey(locale) === localeKey(source)) continue;
-    const remoteKey = findLocale(locale, remoteLocales);
-    merged[localSpelling(locale)] = remoteKey ? remote.translations[remoteKey] : {};
-  }
+  locales.forEach((locale, i) => {
+    merged[spelled[i]] = catalogOf(remote.translations, locale) ?? {};
+  });
 
   return mergeMissing({
     sync,
@@ -642,6 +723,19 @@ async function writeMissing(
     source: localSource.catalog,
     targets: merged,
   });
+}
+
+/** Each locale in the spelling of its local files, else as given. */
+async function localSpellings(
+  sync: TranslationSync,
+  defaultNamespace: string | undefined,
+  locales: string[],
+): Promise<string[]> {
+  const files = await sync.listCatalogFiles(defaultNamespace);
+  return locales.map(
+    (locale) =>
+      files.find((file) => localeKey(file.locale) === localeKey(locale))?.locale ?? locale,
+  );
 }
 
 function reportDryRun(

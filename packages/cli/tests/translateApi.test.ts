@@ -71,11 +71,13 @@ describe("isMtFillResponse", () => {
 describe("isMtJobStatus", () => {
   it("accepts the contract's statuses", () => {
     for (const name of ["waiting", "active", "completed", "completedWithErrors", "failed"]) {
-      expect(isMtJobStatus(contract.status[name].body)).toBe(true);
+      const body = contract.status[name].body;
+      expect(isMtJobStatus(body, body.jobId as string)).toBe(true);
     }
   });
 
   const completed = contract.status.completedWithErrors.body;
+  const JOB = completed.jobId as string;
 
   it.each<[string, (string | number)[], unknown]>([
     ["an unknown state", ["status"], "paused"],
@@ -87,20 +89,40 @@ describe("isMtJobStatus", () => {
     ["an error without a key", ["result", "errors", 0, "key"], undefined],
     ["an error without a message", ["result", "errors", 0, "message"], 3],
     ["an error that is a string", ["result", "errors", 0], "boom"],
+    ["another job's status", ["jobId"], "fill-123-de-other"],
+    ["no job id", ["jobId"], undefined],
+    ["a negative progress", ["progress"], -5],
+    ["a progress that is a string", ["progress"], "50"],
+    ["an error reason that is not a string", ["error"], 500],
+    ["alreadyTranslated that is not a count", ["result", "alreadyTranslated"], "0"],
+    ["skippedFilledMeanwhile negative", ["result", "skippedFilledMeanwhile"], -1],
+    ["an error type outside the union", ["result", "errors", 0, "type"], "quota"],
   ])("refuses %s", (_what, path, value) => {
-    expect(isMtJobStatus(withValue(completed, path, value))).toBe(false);
+    expect(isMtJobStatus(withValue(completed, path, value), JOB)).toBe(false);
   });
 
   it.each(["waiting", "active", "completed", "failed"])("accepts the state %s", (state) => {
-    expect(isMtJobStatus({ jobId: "j", status: state })).toBe(true);
+    expect(isMtJobStatus({ jobId: "j", status: state }, "j")).toBe(true);
   });
 
+  it.each(["insufficient_credits", "provider_error", "no_source", "no_translation", "unknown"])(
+    "accepts the error type %s, and an error without a type",
+    (type) => {
+      expect(isMtJobStatus(withValue(completed, ["result", "errors", 0, "type"], type), JOB)).toBe(
+        true,
+      );
+      expect(
+        isMtJobStatus(withValue(completed, ["result", "errors", 0, "type"], undefined), JOB),
+      ).toBe(true);
+    },
+  );
+
   it("accepts a result without errors", () => {
-    expect(isMtJobStatus(withValue(completed, ["result", "errors"], undefined))).toBe(true);
+    expect(isMtJobStatus(withValue(completed, ["result", "errors"], undefined), JOB)).toBe(true);
   });
 
   it.each([null, [], "completed"])("refuses %j", (body) => {
-    expect(isMtJobStatus(body)).toBe(false);
+    expect(isMtJobStatus(body, JOB)).toBe(false);
   });
 });
 
@@ -141,7 +163,7 @@ describe("the platform's contract fixture", () => {
     expect(isMtFillResponse(platform.fill.queued.body)).toBe(true);
     expect(isMtFillResponse(platform.fill.nothingNew.body)).toBe(true);
     for (const status of Object.values(platform.jobStatus)) {
-      expect(isMtJobStatus(status.body)).toBe(true);
+      expect(isMtJobStatus(status.body, status.body.jobId as string)).toBe(true);
     }
     expect(jobsInLimitMeta(platform.fill.creditsExhausted.body.meta)).toHaveLength(1);
   });

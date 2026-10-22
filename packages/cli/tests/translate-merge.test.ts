@@ -314,4 +314,122 @@ describe("mergeMissing", () => {
       expect(report.errors[0].message).toContain("EACCES");
     },
   );
+
+  describe("every destination is judged before anything is written", () => {
+    async function snapshot(): Promise<Record<string, string>> {
+      const files: Record<string, string> = {};
+      const walk = async (at: string) => {
+        for (const entry of await fs.readdir(at, { withFileTypes: true })) {
+          const full = join(at, entry.name);
+          if (entry.isSymbolicLink()) files[full] = `-> ${await fs.readlink(full)}`;
+          else if (entry.isDirectory()) await walk(full);
+          else files[full] = await fs.readFile(full, "utf-8");
+        }
+      };
+      await walk(dir);
+      return files;
+    }
+
+    it("refuses two catalogs that land in one file, and changes no file", async () => {
+      const flat = new TranslationSync({
+        translationsPath: dir,
+        fileTemplate: "{namespace}-{languageTag}.json",
+        format: "json",
+      });
+      await write("common-en.json", { a: "A" });
+      await write("common-en-en.json", { b: "B" });
+      // (common, en-ca) and (common-en, ca) both resolve to common-en-ca.json.
+      await write("common-en-ca.json", { a: "Kept" });
+      const before = await snapshot();
+
+      await expect(
+        mergeMissing({
+          sync: flat,
+          sourceLocale: "en",
+          source: { common: { a: "A" }, "common-en": { b: "B" } },
+          targets: {
+            ca: { common: { a: "A-ca" }, "common-en": { b: "B-ca" } },
+            "en-ca": { common: { a: "A-enca" }, "common-en": { b: "B-enca" } },
+          },
+        }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+
+      expect(await snapshot()).toEqual(before);
+    });
+
+    it("plans with the project's default namespace, as a pull would write", async () => {
+      // With "common" as the default, (common, de) is de.json, which the
+      // namespace "de.json" would need as a directory.
+      await write("en.json", { a: "A" });
+      const before = await snapshot();
+
+      await expect(
+        mergeMissing({
+          sync,
+          defaultNamespace: "common",
+          sourceLocale: "en",
+          source: { common: { a: "A" }, "de.json": { b: "B" } },
+          targets: { de: { common: { a: "A-de" }, "de.json": { b: "B-de" } } },
+        }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+
+      expect(await snapshot()).toEqual(before);
+    });
+
+    it("refuses a locale that would leave the directory, and writes nothing", async () => {
+      await write("common/en.json", { a: "A" });
+      const before = await snapshot();
+
+      await expect(
+        merge({
+          source: { common: { a: "A" } },
+          targets: { de: { common: { a: "A-de" } }, "..": { common: { a: "A-up" } } },
+        }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+
+      expect(await snapshot()).toEqual(before);
+    });
+
+    it("refuses a directory that is a symlink out of the tree, and writes nothing", async () => {
+      const outside = await makeTempDir("comvi-merge-outside");
+      await write("common/en.json", { a: "A" });
+      await fs.symlink(outside, join(dir, "admin"));
+      await write("main/en.json", { a: "A" });
+      const before = await snapshot();
+
+      await expect(
+        merge({
+          source: { common: { a: "A" }, admin: { a: "A" } },
+          targets: { de: { common: { a: "A-de" }, admin: { a: "A-de" } } },
+        }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+
+      expect(await fs.readdir(outside)).toEqual([]);
+      expect(await snapshot()).toEqual(before);
+    });
+  });
+
+  it("gives an empty existing target file the shape of the source file", async () => {
+    await write("common/en.json", { nav: { home: "Home" } });
+    await write("common/de.json", {});
+
+    await merge({
+      source: { common: { "nav.home": "Home" } },
+      targets: { de: { common: { "nav.home": "Start" } } },
+    });
+
+    expect(await read("common/de.json")).toEqual({ nav: { home: "Start" } });
+  });
+
+  it('does not walk into a nested key named "undefined"', async () => {
+    await write("common/en.json", { a: "A" });
+    await write("common/de.json", JSON.stringify({ a: { undefined: { x: "1" } } }));
+
+    await merge({
+      source: { common: { "a.b": "B" } },
+      targets: { de: { common: { "a.b": "B-de" } } },
+    });
+
+    expect(await read("common/de.json")).toEqual({ a: { undefined: { x: "1" }, b: "B-de" } });
+  });
 });

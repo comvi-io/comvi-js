@@ -75,4 +75,6 @@ for (const command of [
   }
 }
 
-program.parse();
+// Awaited, so a rejection from an async action surfaces here rather than as
+// an unhandled promise.
+await program.parseAsync();

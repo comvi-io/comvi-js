@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import { dirname } from "node:path";
 import type { TranslationSync } from "./TranslationSync";
+import type { TranslationData } from "../types";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
@@ -18,6 +19,11 @@ import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary"
  *   the source file.
  * - A key that cannot nest (`a.b` under a leaf `a`, or a leaf `a` over an
  *   object `a`) is reported and not written.
+ * - Every destination is planned and judged before the first write, with the
+ *   checks a pull applies: a name that is not a plain path segment, a path
+ *   that leaves the translations directory (symlinks included), two catalogs
+ *   in one file, or a file one catalog needs as a directory throws, and
+ *   nothing is written.
  * - Each file is read right before it is written, and written atomically.
  *   An edit made between that read and the rename is lost: nobody else is
  *   expected to write the same files during a run.
@@ -64,8 +70,35 @@ interface Leaf {
   value: string | null;
 }
 
+/**
+ * Judge every catalog path the merge may write, together with the source's,
+ * as a pull judges its plan. Throws a VALIDATION_FAILED TypegenError.
+ */
+export async function assertMergePaths(
+  sync: TranslationSync,
+  defaultNamespace: string | undefined,
+  sourceLocale: string,
+  namespaces: string[],
+  targets: string[],
+): Promise<void> {
+  const locales = [sourceLocale, ...targets];
+  const translations: TranslationData = emptyDictionary();
+  for (const locale of locales) {
+    translations[locale] = emptyDictionary();
+    for (const namespace of namespaces) translations[locale][namespace] = emptyDictionary();
+  }
+  await sync.assertWritable({ locales, namespaces, translations }, { defaultNamespace });
+}
+
 export async function mergeMissing(options: MergeOptions): Promise<MergeReport> {
   const report: MergeReport = { files: [], errors: [] };
+  await assertMergePaths(
+    options.sync,
+    options.defaultNamespace,
+    options.sourceLocale,
+    Object.keys(options.source),
+    Object.keys(options.targets),
+  );
 
   for (const [locale, remoteNamespaces] of Object.entries(options.targets)) {
     for (const [namespace, sourceCatalog] of Object.entries(options.source)) {
@@ -118,8 +151,9 @@ async function mergeFile(
   const text = await readIfExists(filePath);
   const root = text === null ? emptyDictionary<unknown>() : parseCatalog(text, filePath);
   const leaves = indexLeaves(root, filePath);
+  // A new or empty file takes the shape of the source file.
   const nested =
-    text === null
+    Object.keys(root).length === 0
       ? await sourceIsNested(options, namespace)
       : Object.values(root).some(isPlainObject);
 

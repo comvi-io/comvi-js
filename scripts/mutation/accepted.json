@@ -7157,15 +7157,6 @@
       "package": "packages/cli"
     },
     {
-      "snippet": "program.parse();",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 63,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
       "package": "packages/cli",
       "file": "src/commands/generate-types.ts",
       "mutators": ["ConditionalExpression"],
@@ -8287,19 +8278,10 @@
       "package": "packages/cli",
       "file": "src/commands/translate.ts",
       "mutators": ["ArrayDeclaration"],
-      "snippet": "const projectLocales = (await api.fetchProjectLocales()) ?? [];",
-      "lineHint": 463,
+      "snippet": ".map((locale) => findLocale(locale, projectLocales ?? []) ?? locale)",
+      "lineHint": 525,
       "kind": "equivalent",
       "reason": "a placeholder entry never matches a requested locale, and findLocale's miss keeps the locale as given, exactly as with the empty list (COM-197 J2; cold Stryker run, suite green under the mutant)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/commands/translate.ts",
-      "mutators": ["OptionalChaining"],
-      "snippet": "status.status !== track.status?.status || status.progress !== track.status?.progress;",
-      "lineHint": 584,
-      "kind": "equivalent",
-      "reason": "on the first poll track.status is undefined but the left operand is already true, so the right one is never read; afterwards status is set (COM-197 J2; cold Stryker run, suite green under the mutant)"
     },
     {
       "package": "packages/cli",
@@ -8308,7 +8290,7 @@
       "snippet": "return key === undefined ? undefined : data[key];",
       "lineHint": 759,
       "kind": "equivalent",
-      "reason": "both maps are null-prototype dictionaries keyed by locale, so data[undefined] reads the absent key \"undefined\" and is undefined too (COM-197 J2; cold Stryker run, suite green under the mutant)"
+      "reason": "only the `false` variant of this ternary survives (the `true` one returns undefined for every locale and is killed): both maps are null-prototype dictionaries keyed by locale, so data[undefined] reads the absent key \"undefined\" and is undefined too (COM-197 J2; cold Stryker run, suite green under the mutant)"
     },
     {
       "package": "packages/cli",
@@ -8327,15 +8309,6 @@
       "lineHint": 171,
       "kind": "equivalent",
       "reason": "without an encoding readFile returns a Buffer, and JSON.parse stringifies it as UTF-8, so the parsed catalog is the same (COM-197 J2; cold Stryker run, suite green under the mutant)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/core/MissingMerge.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "for (; depth < segments.length; depth++) {",
-      "lineHint": 240,
-      "kind": "equivalent",
-      "reason": "at depth === segments.length the lookup is segments[length] === undefined, which is never an own key, so the walk stops at the same node (COM-197 J2; cold Stryker run, suite green under the mutant)"
     }
   ]
 }

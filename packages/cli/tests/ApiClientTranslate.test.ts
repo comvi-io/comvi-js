@@ -176,7 +176,7 @@ describe("ApiClient.getMtJobStatus", () => {
   it("encodes the job id into the path", async () => {
     const http = stubFetch({
       [PROJECT]: { body: { id: 123 } },
-      "/v1/projects/123/keys/batch/mt/a%2Fb/status": contract.status.waiting,
+      "/v1/projects/123/keys/batch/mt/a%2Fb/status": { body: { jobId: "a/b", status: "waiting" } },
     });
 
     await client().getMtJobStatus("a/b");
@@ -387,5 +387,76 @@ describe("ApiClient MT requests, failure by failure", () => {
 
     expect(error.message).toBe("Invalid API key");
     expect(exitCodeFor(error)).toBe(3);
+  });
+});
+
+describe("ApiClient.getMtJobStatus, review round", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    assertNoUnexpectedRequests();
+  });
+
+  it("refuses the status of another job", async () => {
+    stubFetch({
+      [PROJECT]: { body: { id: 123 } },
+      [STATUS]: { body: { jobId: "fill-123-de-other", status: "waiting" } },
+    });
+
+    const error = await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+
+    expect(error.code).toBe(ErrorCodes.API_INVALID_RESPONSE);
+  });
+
+  it("keeps a 429's Retry-After for the poller", async () => {
+    stubFetch({
+      [PROJECT]: { body: { id: 123 } },
+      [STATUS]: { status: 429, body: {}, headers: { "retry-after": "4" } },
+    });
+
+    const error = await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"));
+
+    expect(error.details?.retryAfterMs).toBe(4_000);
+    expect(exitCodeFor(error)).toBe(2);
+  });
+
+  it("keeps no Retry-After on a 503 or a 429 without one", async () => {
+    stubFetch({
+      [PROJECT]: { body: { id: 123 } },
+      [STATUS]: { status: 503, body: {}, headers: { "retry-after": "4" } },
+    });
+    expect(
+      (await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"))).details,
+    ).not.toHaveProperty("retryAfterMs");
+
+    stubFetch({ [PROJECT]: { body: { id: 123 } }, [STATUS]: { status: 429, body: {} } });
+    expect(
+      (await typegenRejection(client().getMtJobStatus("fill-123-de-3f1c"))).details,
+    ).not.toHaveProperty("retryAfterMs");
+  });
+
+  it("cuts a request at the budget it is given, never past the client's timeout", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL, init: RequestInit = {}) => {
+        if (new URL(String(input)).pathname === PROJECT) {
+          return { ok: true, status: 200, json: async () => ({ id: 123 }) } as Response;
+        }
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+          );
+        });
+      }),
+    );
+    const api = new ApiClient({ apiKey: "k", apiBaseUrl: API, timeout: 500 });
+
+    const short = typegenRejection(api.getMtJobStatus("fill-123-de-3f1c", { timeoutMs: 120 }));
+    await vi.advanceTimersByTimeAsync(120);
+    expect((await short).message).toBe("Request timeout after 120ms");
+
+    const long = typegenRejection(api.getMtJobStatus("fill-123-de-3f1c", { timeoutMs: 9_000 }));
+    await vi.advanceTimersByTimeAsync(500);
+    expect((await long).message).toBe("Request timeout after 500ms");
   });
 });

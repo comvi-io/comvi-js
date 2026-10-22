@@ -112,9 +112,40 @@ export function isMtFillResponse(value: unknown): value is MtFillResponse {
   );
 }
 
-export function isMtJobStatus(value: unknown): value is MtJobStatus {
+/** An optional field is absent, or a count. */
+function isOptionalCount(value: unknown): boolean {
+  return value === undefined || isCount(value);
+}
+
+function isMtJobError(value: unknown): value is MtJobError {
+  const types: unknown[] = [
+    "insufficient_credits",
+    "provider_error",
+    "no_source",
+    "no_translation",
+    "unknown",
+  ];
+  return (
+    isRecord(value) &&
+    typeof value.key === "string" &&
+    typeof value.message === "string" &&
+    (value.type === undefined || types.includes(value.type))
+  );
+}
+
+/**
+ * The status of the job `jobId`: every field the CLI reads is checked when it
+ * is there, and the job is the one that was asked for.
+ */
+export function isMtJobStatus(value: unknown, jobId: string): value is MtJobStatus {
   const states: unknown[] = ["waiting", "active", "completed", "failed"];
-  if (!isRecord(value) || !states.includes(value.status)) {
+  if (
+    !isRecord(value) ||
+    value.jobId !== jobId ||
+    !states.includes(value.status) ||
+    !isOptionalCount(value.progress) ||
+    (value.error !== undefined && typeof value.error !== "string")
+  ) {
     return false;
   }
   if (value.result === undefined) return true;
@@ -123,12 +154,10 @@ export function isMtJobStatus(value: unknown): value is MtJobStatus {
     isRecord(result) &&
     isCount(result.processed) &&
     isCount(result.failed) &&
+    isOptionalCount(result.alreadyTranslated) &&
+    isOptionalCount(result.skippedFilledMeanwhile) &&
     (result.errors === undefined ||
-      (Array.isArray(result.errors) &&
-        result.errors.every(
-          (error) =>
-            isRecord(error) && typeof error.key === "string" && typeof error.message === "string",
-        )))
+      (Array.isArray(result.errors) && result.errors.every(isMtJobError)))
   );
 }
 

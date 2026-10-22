@@ -109,6 +109,8 @@ export interface RouteResponse {
   networkError?: string;
   /** Runs when the request arrives, before it is answered. */
   onRequest?: () => unknown;
+  /** Response headers, e.g. `retry-after`. */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -171,6 +173,7 @@ export function stubFetch(routes: Routes): FetchCapture {
         ok: status < 400,
         status,
         statusText: route.statusText ?? "OK",
+        headers: new Headers(route.headers),
         json: async () => route.body,
         text: async () => (route.body === undefined ? "" : JSON.stringify(route.body)),
       } as Response;
