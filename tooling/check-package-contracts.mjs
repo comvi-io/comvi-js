@@ -142,7 +142,7 @@ function npmPackDryRun(packageDir) {
  * noise.
  */
 const NEXT_PEER_SOURCE = "packages/next/package.json";
-const NEXT_PEER_README_MIRRORS = ["packages/next/README.md", "README.md"];
+const NEXT_PEER_README_MIRRORS = ["packages/next/README.md"];
 const NEXT_PEER_STUB_MIRROR = "scripts/bundler-matrix/app/stubs/next/package.json";
 
 /**
