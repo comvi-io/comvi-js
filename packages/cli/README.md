@@ -18,8 +18,8 @@
 
 `@comvi/cli` moves translations between your repository and your Comvi project and generates a
 TypeScript declaration from the project's keys. For catalogs that live as local JSON, use
-[`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) instead; both emit the same
-file. The full guide is [Comvi CLI](https://comvi.io/docs/cli) on the docs site.
+[`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) instead; given the same
+schema and options, both emit the same file. The full guide is [Comvi CLI](https://comvi.io/docs/cli) on the docs site.
 
 ## Install
 
@@ -38,7 +38,7 @@ export COMVI_API_KEY=comvi_xxxxxxxxxxxxxxxx
 npx comvi pull
 ```
 
-The commands that talk to the platform (`init`, `typegen`, `pull`, `push`) read `COMVI_API_KEY`.
+The commands that talk to the platform (`init`, `typegen`, `pull`, `push`, `translate`) read `COMVI_API_KEY`.
 The key selects the project, so there is no project id to configure. Before each of them the CLI
 loads the nearest `.env` file, walking up from the working directory and stopping at the first
 `package.json`, so `COMVI_API_KEY=...` in `.env` works with no wrapper. Real environment variables
@@ -80,6 +80,7 @@ inherit a config at the workspace root; point at it with `--config ../../.comvir
 | `comvi init`            | Writes `.comvirc.json`.                                                          |
 | `comvi pull`            | Downloads the project's translations into local JSON files.                      |
 | `comvi push`            | Uploads local JSON files to the project.                                         |
+| `comvi translate`       | Machine-translates the values the project is missing and writes them to disk.    |
 | `comvi typegen`         | Writes the `TranslationKeys` declaration from the project's keys.                |
 | `comvi typegen --watch` | Generates once, then regenerates on every schema change over Server-Sent Events. |
 | `comvi typegen --check` | Writes nothing; exits `1` when the file on disk is outdated. For CI.             |
@@ -98,6 +99,22 @@ fails the push with exit code `4` and names the file and key. The generated decl
 `@comvi/core` when `package.json` declares it, otherwise the first framework binding it declares;
 set `augment` in `.comvirc.json` to name a different module.
 
+## Machine translation
+
+```bash title="Terminal"
+npx comvi translate --dry-run
+npx comvi translate --force-mode keep
+```
+
+`translate` pushes the local files, has the platform machine-translate every key and locale
+whose value is empty, waits for the jobs and writes the values where the local files have none.
+It never overwrites a local value, keeps each file's shape, and saves the translations on the
+platform as not reviewed. `--max-keys` (default 1000) caps the key × locale pairs one run
+translates; `--dry-run` prints the count and the credit estimate. The API key needs the opt-in
+`mt:use` scope, "Machine translation (uses credits)". Flags, the JSON output and a GitHub
+Actions recipe that opens a pull request are on
+[comvi translate](https://comvi.io/docs/cli/translate).
+
 ## Exit codes
 
 Every command uses the same codes, so CI can act on the code alone. `comvi init` still writes the config and only warns when the key cannot be validated.
@@ -108,13 +125,14 @@ Every command uses the same codes, so CI can act on the code alone. `comvi init`
 | `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`, errors under `comvi check` (warnings too with `--strict`); also a local failure such as a file that cannot be written | Fix the content         |
 | `2`  | The platform was unreachable, timed out, answered 5xx or 429, or sent an unexpected response                                                                                                                                              | Retry                   |
 | `3`  | The API key was rejected, lacks the scope the command needs, its project no longer exists, or the account reached a plan or credit limit                                                                                                  | Fix the key or the plan |
-| `4`  | Invalid input: configuration, flags, an unreadable local file, a locale the project does not have (or the key may not write), nothing to push, `--force-mode ask` without a terminal, a wrong `apiBaseUrl`                                | Fix the input           |
+| `4`  | Invalid input: configuration, flags, an unreadable local file, a locale the project does not have (or the key may not write), nothing to push, `--force-mode ask` without a terminal when there are conflicts, a wrong `apiBaseUrl`       | Fix the input           |
 
 ## Next steps
 
 - [Comvi CLI](https://comvi.io/docs/cli): environment variables, every config key, exit codes.
 - [comvi typegen](https://comvi.io/docs/cli/typegen): flags, check and watch modes, the emitter.
 - [comvi pull](https://comvi.io/docs/cli/pull) and [comvi push](https://comvi.io/docs/cli/push): file layout, filters, force modes.
+- [comvi translate](https://comvi.io/docs/cli/translate): how a run works, credits, exit codes, the CI recipe.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): how the generated file reaches `t()`.
 
 ## Contributing
