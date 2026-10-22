@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/core"><img src="https://img.shields.io/npm/v/@comvi/core?color=blue&label=npm" alt="npm version"></a>
-  <a href="https://bundlephobia.com/package/@comvi/core"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/core?label=minzip" alt="Bundle size"></a>
+  <a href="https://bundlejs.com/?q=@comvi/core&amp;treeshake=%5B%7BcreateI18n%7D%5D"><img src="https://deno.bundlejs.com/badge?q=@comvi/core&amp;treeshake=%5B%7BcreateI18n%7D%5D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/actions/workflows/ci.yml"><img src="https://github.com/comvi-io/comvi-js/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://comvi.io"><img src="https://img.shields.io/badge/Platform-comvi.io-7c3aed" alt="Comvi Platform"></a>
