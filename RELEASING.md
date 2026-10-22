@@ -128,9 +128,9 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
       counts as `MISSING`: npm showed `@comvi/react@0.6.0` about 4 minutes after accepting it.
       `COMVI_PUBLISH_VISIBLE_POLL_MS` and `COMVI_PUBLISH_VISIBLE_WAIT_MS` set the two times. An
       `npm view` that hangs is killed when the wait runs out, but never sooner than
-      `COMVI_PUBLISH_READ_TIMEOUT_MS` (30 seconds). A wait setting that is not a positive number of
-      milliseconds stops the job before anything is published. An integrity npm does not show yet is
-      asked again with backoff, for about 30 seconds, before it counts as `none`.
+      `COMVI_PUBLISH_READ_TIMEOUT_MS` (30 seconds). A wait setting that is not a positive whole
+      number of milliseconds stops the job before anything is published. An integrity npm does not
+      show yet is asked again with backoff, for about 30 seconds, before it counts as `none`.
 - [ ] `.github/scripts/create-combined-release.mjs` then creates the combined GitHub Release from
       the candidate tarballs. It refuses unless `v<version>` exists at the checked-out commit and
       the published set is everything `SHA256SUMS` lists. It passes `--verify-tag` to

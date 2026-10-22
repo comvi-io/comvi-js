@@ -546,16 +546,17 @@ function lastLine(message) {
 }
 
 /**
- * A duration in ms from the environment. A value that is not a positive
+ * A duration in ms from the environment. A value that is not a positive whole
  * number is refused: `Atomics.wait` sleeps forever on NaN, so a typo would
- * hang the job until its timeout.
+ * hang the job until its timeout, and spawnSync's `timeout` throws on a
+ * fraction, which would surface only after publishing.
  */
 function msFromEnv(name, fallback) {
   const raw = process.env[name];
   const ms = raw === undefined ? fallback : Number(raw);
-  if (!Number.isFinite(ms) || ms <= 0) {
+  if (!Number.isSafeInteger(ms) || ms <= 0) {
     throw new Error(
-      `${name} must be a positive number of milliseconds, got ${JSON.stringify(raw)}`,
+      `${name} must be a positive whole number of milliseconds, got ${JSON.stringify(raw)}`,
     );
   }
   return ms;

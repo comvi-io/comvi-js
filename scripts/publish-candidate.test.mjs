@@ -939,6 +939,8 @@ for (const [name, value] of [
   ["COMVI_PUBLISH_VISIBLE_WAIT_MS", "0"],
   ["COMVI_PUBLISH_READ_TIMEOUT_MS", "-1"],
   ["COMVI_PUBLISH_RECHECK_MS", "abc"],
+  // spawnSync's timeout takes whole numbers only (ERR_OUT_OF_RANGE).
+  ["COMVI_PUBLISH_READ_TIMEOUT_MS", "30000.5"],
 ]) {
   test(`read-after-write: ${name}=${value} is refused before anything is published (a NaN wait never ends)`, (t) => {
     const ws = releaseWorkspace(t);
@@ -946,7 +948,7 @@ for (const [name, value] of [
     assert.notEqual(result.status, 0, result.log);
     assert.match(
       result.stderr,
-      new RegExp(`${name} must be a positive number of milliseconds, got "${value}"`),
+      new RegExp(`${name} must be a positive whole number of milliseconds, got "${value}"`),
     );
     assert.doesNotMatch(ws.npmCalls(), /^(publish|dist-tag) /m);
     assert.equal(ws.distTags("react").latest, "0.4.1");
