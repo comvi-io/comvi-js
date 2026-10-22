@@ -126,7 +126,8 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
       names both versions, moves nothing and exits 1. A version this run published that npm does
       not show yet is asked again every 15 seconds until 10 minutes after npm accepted it, before
       it counts as `MISSING`: npm showed `@comvi/react@0.6.0` about 4 minutes after accepting it.
-      `COMVI_PUBLISH_VISIBLE_POLL_MS` and `COMVI_PUBLISH_VISIBLE_WAIT_MS` set the two times. An
+      `COMVI_PUBLISH_VISIBLE_POLL_MS` and `COMVI_PUBLISH_VISIBLE_WAIT_MS` set the two times. A value
+      that is not a positive number of milliseconds stops the job before anything is published. An
       integrity npm does not show yet is asked again with backoff, for about 30 seconds, before it
       counts as `none`.
 - [ ] `.github/scripts/create-combined-release.mjs` then creates the combined GitHub Release from

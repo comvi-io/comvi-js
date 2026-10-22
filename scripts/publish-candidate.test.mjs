@@ -442,6 +442,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     late = [],
     lateMs = 0,
     visibleWaitMs = 5000,
+    env: extraEnv = {},
     failIntegrity = [],
     dryRun = false,
     attempt,
@@ -463,6 +464,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
       COMVI_PUBLISH_RECHECK_MS: "10",
       COMVI_PUBLISH_VISIBLE_POLL_MS: "20",
       COMVI_PUBLISH_VISIBLE_WAIT_MS: String(visibleWaitMs),
+      ...extraEnv,
     };
     delete env.GITHUB_RUN_ATTEMPT;
     if (attempt !== undefined) env.GITHUB_RUN_ATTEMPT = String(attempt);
@@ -910,6 +912,23 @@ test("read-after-write: a version npm accepted but never shows within the wait i
   assert.equal(ws.distTags("core").latest, "0.4.1");
   assert.equal(ws.remoteTags()["v0.5.0"], undefined);
 });
+
+for (const [name, value] of [
+  ["COMVI_PUBLISH_VISIBLE_POLL_MS", "15s"],
+  ["COMVI_PUBLISH_VISIBLE_WAIT_MS", "0"],
+]) {
+  test(`read-after-write: ${name}=${value} is refused before anything is published (a NaN wait never ends)`, (t) => {
+    const ws = releaseWorkspace(t);
+    const result = ws.run({ env: { [name]: value } });
+    assert.notEqual(result.status, 0, result.log);
+    assert.match(
+      result.stderr,
+      new RegExp(`${name} must be a positive number of milliseconds, got "${value}"`),
+    );
+    assert.doesNotMatch(ws.npmCalls(), /^(publish|dist-tag) /m);
+    assert.equal(ws.distTags("react").latest, "0.4.1");
+  });
+}
 
 test("first-ever version: a package with no dist-tags on npm gets a warning, and the run goes on", (t) => {
   const ws = releaseWorkspace(t);

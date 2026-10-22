@@ -538,6 +538,28 @@ function lastLine(message) {
 }
 
 /**
+ * The visibility wait's two durations, read before anything is published. A
+ * value that is not a positive number is refused: `Atomics.wait` sleeps
+ * forever on NaN, so a typo would hang the job until its timeout.
+ */
+function visibilityWait() {
+  const duration = (name, fallback) => {
+    const raw = process.env[name];
+    const ms = raw === undefined ? fallback : Number(raw);
+    if (!Number.isFinite(ms) || ms <= 0) {
+      throw new Error(
+        `${name} must be a positive number of milliseconds, got ${JSON.stringify(raw)}`,
+      );
+    }
+    return ms;
+  };
+  return {
+    poll: duration("COMVI_PUBLISH_VISIBLE_POLL_MS", 15_000),
+    wait: duration("COMVI_PUBLISH_VISIBLE_WAIT_MS", 600_000),
+  };
+}
+
+/**
  * Whether a version this run's `npm publish` was accepted for is visible.
  * npm can take minutes to show an accepted version (0.6.0's react: about
  * 4 min after `+ @comvi/react@0.6.0`), so it is asked every
@@ -545,9 +567,8 @@ function lastLine(message) {
  * (10 min) after npm accepted it, then counts as missing. A read that throws
  * is asked again the same way; past the deadline its error is rethrown.
  */
-function visibleAfterPublish(pkg, acceptedAt) {
-  const poll = Number(process.env.COMVI_PUBLISH_VISIBLE_POLL_MS ?? 15_000);
-  const deadline = acceptedAt + Number(process.env.COMVI_PUBLISH_VISIBLE_WAIT_MS ?? 600_000);
+function visibleAfterPublish(pkg, acceptedAt, { poll, wait }) {
+  const deadline = acceptedAt + wait;
   for (;;) {
     try {
       if (!notOnNpm(pkg)) return true;
@@ -666,6 +687,7 @@ function verify(options) {
 }
 
 function publish(options) {
+  const timing = visibilityWait();
   const dir = path.resolve(REPO_ROOT, options.dir);
   const recorded = assertVerifiedCandidate(dir, options.expectSums);
   // The integrity of each tarball is taken from the bytes SHA256SUMS pins.
@@ -819,7 +841,7 @@ function publish(options) {
       onNpm = options.dryRun
         ? published.includes(pkg) || !notOnNpm(pkg)
         : published.includes(pkg)
-          ? visibleAfterPublish(pkg, acceptedAt.get(pkg.name))
+          ? visibleAfterPublish(pkg, acceptedAt.get(pkg.name), timing)
           : !notOnNpm(pkg);
       if (onNpm) distTags = distTagsOf(pkg);
     } catch (error) {
