@@ -16,11 +16,10 @@
 
 ---
 
-`@comvi/plugin-in-context-editor` injects invisible key markers into `t()` output so a translator
-can click any rendered text and edit it in the browser. Saves go to the
-[Comvi platform](https://comvi.io) over its API, so it needs a project and an API key; it has no
-offline mode. The full guide is
-[In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor) on the docs site.
+`@comvi/plugin-in-context-editor` lets a translator click any text the app rendered through `t()`
+and edit it in place, in the browser. Saves go to the [Comvi platform](https://comvi.io) over its
+API, so it needs a Comvi project and an API key; use it in development builds, and the Comvi
+browser extension on deployed sites.
 
 ## Install
 
@@ -49,29 +48,28 @@ await i18n.init();
 ```
 
 Create an API key in the project's settings with project read plus translation read and write;
-read alone loads the editor but every save fails. The editor reads the key off `i18n.apiKey`, the
-same option the fetch loader reads for API mode. Compose a loader or an inline `messages`
-catalog next to it: the editor can only edit text the app rendered through `t()`.
+with read alone the editor loads but every save fails. The editor reads the key off
+`i18n.apiKey`, the same option the fetch loader reads for API mode. Compose a loader
+or an inline `messages` catalog next to it: the editor can only edit text the app rendered.
 
 **An API key in a browser bundle is readable by every visitor, and this one can overwrite
-translations, so the editor key must never be in a production build or a public preview build.**
-The `import.meta.env.DEV` test is what keeps it out: Vite replaces it with `false` in a build, and
-the bundler drops the key with the dead branch.
+translations.** The `import.meta.env.DEV` test keeps it out of a build: Vite replaces it with
+`false`, and the bundler drops the key with the dead branch. Never widen that condition with a
+flag a deployed build can set; a preview deployment is a production build.
 
-| Do this                                  | And                                                         |
-| ---------------------------------------- | ----------------------------------------------------------- |
-| Hold `Alt` (`Option` on macOS) and hover | translated elements light up with an overlay naming the key |
-| `Alt` + click a highlighted element      | the edit modal opens on that key                            |
-| `Cmd` or `Ctrl` + `S` in the modal       | saves without closing                                       |
-| `Escape`                                 | closes the modal, or asks about unsaved edits               |
+## Use it
 
-With no key configured the plugin starts in demo mode: the console says
-`[@comvi/plugin-in-context-editor] Running in demo mode - API key not configured. Changes cannot be saved.` once,
-and every click opens one panel naming the key, with no translation list.
+| Do this                                  | And                                                           |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| Hold `Alt` (`Option` on macOS) and hover | translated elements light up with an overlay naming their key |
+| `Alt` + click a highlighted element      | the edit modal opens on that key                              |
+| `Cmd` or `Ctrl` + `S` in the modal       | saves without closing                                         |
+| `Escape`                                 | closes the modal, or warns about unsaved edits                |
 
 ## Gate it out of production
 
-The same `src/i18n.ts`, with the key and the installer behind one condition:
+The same `src/i18n.ts`, with the key and the installer behind one condition and `devtools()` for
+the browser extension:
 
 ```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
@@ -92,46 +90,28 @@ export const i18n = (editorEnabled ? base.use(inContextEditor()) : base).use(dev
 await i18n.init();
 ```
 
-Gating the key is required. An ungated `apiKey` ships in `dist/assets`, where any visitor can read
-it and overwrite your translations.
+### How it works
 
-The editor's own code is gated for you, twice: the package's `production` export condition resolves
-to an entry whose installer is `(i18n) => i18n`, with no editor bytes, and
-`inContextEditorPlugin()` returns a no-op when `process.env.NODE_ENV` is `"production"`. Neither
-touches your own `createI18n` call, which is why the key is yours to gate.
+`inContextEditor()` adds a post-processor that wraps every `t()` result in invisible characters
+encoding the key, and a scanner that maps those characters back to keys on the rendered DOM. With
+no key configured the plugin starts in demo mode: the console says
+`[@comvi/plugin-in-context-editor] Running in demo mode - API key not configured. Changes cannot be saved.`
+and a click opens a panel naming the key. A bundler that resolves the `production` export condition
+gets an entry whose installer is `(i18n) => i18n`, so the editor's code stays out of that build. In
+the default entry, `inContextEditorPlugin()` returns a no-op when `NODE_ENV` is `"production"`: the
+editor does not start, but its code can still be bundled.
+Neither touches your `createI18n` call, which is why the key is yours to gate.
 
-Put the key and the installer behind the same condition, and never widen that condition with a
-flag a deployed build can set: a preview deployment is a production build, so the editor would not
-run there and the key would still ship. `devtools()` stays outside the condition: on a live site or
-a preview deployment a translator edits through the browser extension, and `devtools()` is what the
-extension needs. This snippet imports `devtools` from `@comvi/core/devtools`; every binding
-re-exports it from its root.
-
-## The browser extension
-
-On a page whose i18n instance composed `devtools()`, the Comvi browser extension loads the editor
-when a translator asks for it, and the API key stays in the extension. The site ships no editor
-code for this; `devtools()` adds the discovery protocol and a small loader, about 1.2 kB min+gzip
-together over the base i18n instance (`core-base` and `core-base-devtools` in
-`scripts/size-budgets.json`), of which about 0.7 kB is the loader, new in 0.6.0.
-
-`devtools()` publishes the i18n instance to the extension and installs a loader the extension
-calls when a translator clicks **Enable editor**; the site's SDK then inserts one `<script>` from
-`https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js`, or
-the exact version `devtools({ editorVersion: "0.6.0" })` names. An `editorVersion` that is not an
-exact version loads nothing at all; it does not fall back to `latest`. Nothing is requested from
-the CDN before that click, and an app that does not call `devtools()` is invisible to the extension.
-Two things call it for you: `inContextEditor()` in a development build, and the `<script>` global
-build of `@comvi/core` (`ComviCore.I18n`), which always loads `latest`; `exposeGlobal: false`
-keeps it from installing the loader, and the code stays in that file.
-This needs `@comvi/core` 0.6.0 or newer on the site and the 0.6.0 extension. If the site sends a
-Content Security Policy, `script-src` must allow `https://cdn.jsdelivr.net`. `style-src` needs no
-change in current browsers, because the editor adopts a constructable stylesheet.
-
-On a page that sets `require-trusted-types-for 'script'`, the editor needs two things from the
-site: a `default` policy whose `createScriptURL` accepts the jsDelivr URL, because the loader assigns
-a plain string, and `vue` in the `trusted-types` directive, the policy the editor's Vue runtime
-creates for the HTML it renders. Without `vue` the editor loads but its UI is blocked.
+`devtools()` stays outside the condition. It publishes the i18n instance to the Comvi browser
+extension, which loads the editor on a deployed site when a translator clicks **Enable editor**;
+the key stays in the extension and the site ships no editor code. The React, Vue, Svelte, Solid
+and Next.js packages re-export `devtools` from their root; on Nuxt it comes from
+`@comvi/nuxt/i18n`. On that click the loader `devtools()` installed inserts one `<script>` from
+`https://cdn.jsdelivr.net` into the page, so a Content Security Policy needs that host in
+`script-src`. On a page that sets `require-trusted-types-for 'script'`, the site's `default`
+policy must return that URL from `createScriptURL`, because the loader assigns `src` as a plain
+string, and `vue` must be in the `trusted-types` directive for the editor's Vue runtime; without
+it the editor loads but its UI is blocked.
 
 ## Options
 
@@ -140,26 +120,20 @@ creates for the HTML it renders. Without `vue` the editor loads but its UI is bl
 | `targetElement`       | `document.body`                                                                          | The DOM subtree to watch.                                                                |
 | `tagAttributes`       | built-in map                                                                             | HTML tag name to the attributes treated as translated values. Replaces the built-in map. |
 | `debug`               | `false`                                                                                  | Verbose console logging.                                                                 |
-| `highlightStyle`      | `{ borderColor: '#D97706', backgroundColor: 'rgba(217, 119, 6, 0.12)', borderWidth: 2 }` | The overlay. Its `z-index: 10000` is fixed.                                              |
-| `collectContext`      | `true`                                                                                   | Passive context collection while the editor runs. See below for what it sends.           |
-| `screenGroupResolver` | none                                                                                     | `() => '/users/:id'`, a PII-free route template shown instead of a URL digest.           |
+| `highlightStyle`      | `{ borderColor: '#D97706', backgroundColor: 'rgba(217, 119, 6, 0.12)', borderWidth: 2 }` | The overlay.                                                                             |
+| `collectContext`      | `true`                                                                                   | Sends the page origin and the keys on screen to Comvi while the editor runs.             |
+| `screenGroupResolver` | none                                                                                     | `() => '/users/:id'`, a route template shown instead of a URL digest.                    |
 | `apiKeyOverride`      | none                                                                                     | Overrides `i18n.apiKey` for this plugin only; used by the extension.                     |
 
-`tagAttributes` replaces the built-in map, so `{ img: ['alt'] }` stops the scan of `aria-label`,
-`placeholder` and the rest; copy the default and spread it to add to the map. Pass `markers: false`
-to `t()` to turn the invisible markers off for one call when they cause a problem: a comparison
-or sort that sees extra characters, a width-sensitive layout, a canvas or library that counts
-characters. That string is then not editable in context. On `<T>` the equivalent is
-`markers={false}`.
+Pass `markers: false` in the params of one `t()` call to leave its result unmarked, for a string
+that is compared, sorted, measured or drawn to a canvas; that string is then not editable in
+context. On `<T>` the prop is `markers={false}`. With an API key or the extension, context
+collection sends the page origin, the keys on screen with their screen group, and structural and
+layout signals to the Comvi API; it never sends rendered text. Grouping screens by a digest or a
+`screenGroupResolver` template does not hide the origin. `collectContext: false` on the plugin
+turns it off, and on `createI18n` it also asks the extension to stop.
 
-With an API key or the extension, context collection sends the page origin, the keys on screen with
-their screen group, and structural and layout signals to the Comvi API; it never sends rendered
-text. Grouping screens by a digest or a `screenGroupResolver` template does not hide the origin. Set
-`collectContext: false` on the plugin to turn it off. Set it on `createI18n` to also ask the
-extension to stop. The extension follows that setting on a page that reports it honestly, but a
-hostile page can report it as on; the extension README describes this limit.
-
-## Next steps
+## Read next
 
 - [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor): the default `tagAttributes` map, extension discovery, the standalone runtime.
 - [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the loader the editor edits on top of.

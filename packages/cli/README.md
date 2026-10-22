@@ -16,10 +16,11 @@
 
 ---
 
-`@comvi/cli` moves translations between your repository and your Comvi project and generates a
-TypeScript declaration from the project's keys. For catalogs that live as local JSON, use
-[`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) instead; both emit the same
-file. The full guide is [Comvi CLI](https://comvi.io/docs/cli) on the docs site.
+`comvi` moves translations between your repository and your Comvi project, validates local
+catalogs offline and generates the TypeScript declaration that types `t()`. Use it when the
+catalogs live on the [Comvi platform](https://comvi.io); for catalogs that only live as local
+JSON, [`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) emits the same
+declaration.
 
 ## Install
 
@@ -41,8 +42,8 @@ npx comvi pull
 The commands that talk to the platform (`init`, `typegen`, `pull`, `push`) read `COMVI_API_KEY`.
 The key selects the project, so there is no project id to configure. Before each of them the CLI
 loads the nearest `.env` file, walking up from the working directory and stopping at the first
-`package.json`, so `COMVI_API_KEY=...` in `.env` works with no wrapper. Real environment variables
-always win over the file. `comvi check` works offline: it loads no `.env` and reads no key.
+`package.json`, so `COMVI_API_KEY=...` in `.env` works with no wrapper; a variable already in the
+environment wins over the file. `comvi check` works offline: it loads no `.env` and reads no key.
 
 ## Config file
 
@@ -67,11 +68,11 @@ A filled-in `.comvirc.json`:
 }
 ```
 
-`comvi init` writes `.comvirc.json` in the current directory without `locales` or `namespaces`;
-add those by hand. It does write `push` and `pull` with their defaults, `"forceMode": "ask"` and
-`"emptyDir": false`. The file is looked up by walking up from the working directory
-and stopping at the first `package.json`, so in a monorepo a command run in `apps/web` does not
-inherit a config at the workspace root; point at it with `--config ../../.comvirc.json`.
+`comvi init` writes the file in the current directory with the defaults and without `locales` or
+`namespaces`, which means all of them; add a filter by hand. The file is looked up by walking up
+from the working directory and stopping at the first `package.json`, so in a monorepo a command
+run in `apps/web` does not inherit a config at the workspace root; point at it with
+`--config ../../.comvirc.json`.
 
 ## Commands
 
@@ -80,10 +81,10 @@ inherit a config at the workspace root; point at it with `--config ../../.comvir
 | `comvi init`            | Writes `.comvirc.json`.                                                          |
 | `comvi pull`            | Downloads the project's translations into local JSON files.                      |
 | `comvi push`            | Uploads local JSON files to the project.                                         |
+| `comvi check`           | Compares local catalogs with the source locale, offline.                         |
 | `comvi typegen`         | Writes the `TranslationKeys` declaration from the project's keys.                |
 | `comvi typegen --watch` | Generates once, then regenerates on every schema change over Server-Sent Events. |
 | `comvi typegen --check` | Writes nothing; exits `1` when the file on disk is outdated. For CI.             |
-| `comvi check`           | Compares local catalogs with the source locale, offline; exits `1` on errors.    |
 
 ```bash title="Terminal"
 npx comvi pull
@@ -94,23 +95,33 @@ npx tsc --noEmit
 
 `pull` writes flat files with dotted keys, and `push` accepts either shape: nested objects are
 flattened to dotted keys on push. Every leaf must be a string; a number, boolean, null or array
-fails the push with exit code `4` and names the file and key. The generated declaration augments
-`@comvi/core` when `package.json` declares it, otherwise the first framework binding it declares;
-set `augment` in `.comvirc.json` to name a different module.
+fails the push with exit code `4` and names the file and key. `push --force-mode` takes
+`override`, `keep`, `ask` (the default) or `abort` for keys whose local value differs from the
+project's. The generated declaration augments `@comvi/core` when `package.json` declares it,
+otherwise the first framework binding it declares; set `augment` in `.comvirc.json` to name a
+different module.
+
+`check` compares every other catalog with the source locale (`--source`, or `sourceLocale` in the
+config, else `en`). Errors: a key missing or empty in a target, parameters or select branches that differ from the source, a plural without `other` or with a selector the locale does not have, and tag names that differ where the source uses tags. Warnings: a key the source does not have, a plural
+category the locale has and the message omits, and a translation equal to its source with
+`--identical`. Errors exit `1`; warnings do too only with `--strict`; `--no-fail` exits `0`
+either way, and `--format json` prints the report as JSON.
 
 ## Exit codes
 
-Every command uses the same codes, so CI can act on the code alone. `comvi init` still writes the config and only warns when the key cannot be validated.
+Every command uses the same codes, so CI can act on the code alone.
 
-| Code | Meaning                                                                                                                                                                                                                                   | What to do              |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `0`  | Done                                                                                                                                                                                                                                      | —                       |
-| `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`, errors under `comvi check` (warnings too with `--strict`); also a local failure such as a file that cannot be written | Fix the content         |
-| `2`  | The platform was unreachable, timed out, answered 5xx or 429, or sent an unexpected response                                                                                                                                              | Retry                   |
-| `3`  | The API key was rejected, lacks the scope the command needs, its project no longer exists, or the account reached a plan or credit limit                                                                                                  | Fix the key or the plan |
-| `4`  | Invalid input: configuration, flags, an unreadable local file, a locale the project does not have (or the key may not write), nothing to push, `--force-mode ask` without a terminal, a wrong `apiBaseUrl`                                | Fix the input           |
+| Code | Meaning                                                                                                                                                                                                                                                      | What to do              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `0`  | Done                                                                                                                                                                                                                                                         | —                       |
+| `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`, errors under `comvi check` (warnings too with `--strict`); also a local failure such as an unwritable file                               | Fix the content         |
+| `2`  | The platform was unreachable, timed out, answered 5xx, 429 or another retryable status, or sent an unexpected response                                                                                                                                       | Retry                   |
+| `3`  | The API key was rejected, lacks access for the command, its project no longer exists, or the account reached a plan or credit limit                                                                                                                          | Fix the key or the plan |
+| `4`  | Invalid input: configuration, flags, an unreadable translation file, a locale the project does not have (or the key may not write), nothing to push, `--force-mode ask` with conflicts and no terminal, a request the platform refused, a wrong `apiBaseUrl` | Fix the input           |
 
-## Next steps
+`comvi init` still writes the config and only warns when the key cannot be validated.
+
+## Read next
 
 - [Comvi CLI](https://comvi.io/docs/cli): environment variables, every config key, exit codes.
 - [comvi typegen](https://comvi.io/docs/cli/typegen): flags, check and watch modes, the emitter.

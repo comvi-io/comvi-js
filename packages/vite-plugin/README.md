@@ -16,11 +16,9 @@
 
 ---
 
-`@comvi/vite-plugin` watches your local translation JSON and writes the declaration that types
-every `t()` call. It runs in-process with no API key and no network. For catalogs that live on the
-Comvi platform, use [comvi typegen](https://comvi.io/docs/cli/typegen) instead; both emit the same
-file. The full guide is [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin) on the docs
-site.
+`@comvi/vite-plugin` watches your translation JSON and writes the declaration that makes `t()`
+check keys and parameters. Use it when the catalogs live in your repository; for catalogs on the
+Comvi platform, [comvi typegen](https://comvi.io/docs/cli/typegen) emits the same file.
 
 ## Install
 
@@ -49,8 +47,8 @@ export default defineConfig({
 ```
 
 The plugin generates once on `buildStart` and again whenever a `.json` file under `translations`
-is added, changed or removed. Both paths resolve against the Vite root. Make sure `output` is
-inside your `tsconfig.json` `include`; most `src/**/*` setups already cover it.
+is added, changed or removed. Both paths resolve against the Vite root. Keep `output` inside your
+`tsconfig.json` `include`; most `src/**/*` setups already cover it.
 
 ## Options
 
@@ -84,15 +82,9 @@ An `errors` namespace beside it, in `src/locales/errors/en.json`:
 }
 ```
 
-The declaration the plugin writes, `src/types/i18n.d.ts`:
+The declaration, `src/types/i18n.d.ts`:
 
 ```ts title="src/types/i18n.d.ts" check=group=typed-calls
-/**
- * Auto-generated translation keys, augmenting '@comvi/core'
- * DO NOT EDIT — this file is generated from your translation schema
- */
-
-// Import to ensure module is resolved before augmentation
 import "@comvi/core";
 
 declare module "@comvi/core" {
@@ -119,29 +111,27 @@ i18n.t("greeting");
 i18n.t("NOT_FOUND", { ns: "errors" });
 ```
 
-Keys come out in code-unit order, `never` means no parameters, and nested JSON flattens to dot
-keys; a namespace directory becomes the `errors:` prefix. Parameter types come from ICU syntax: a
-bare `{name}` and a `select` variable take `string | number`, a `plural` or `selectordinal` count
-is `number`. The declaration augments `@comvi/core` when `package.json` declares it, otherwise the
-first framework binding it declares. Types and the compiler are two decisions: the `items` key
-above needs `compiler: icuCompiler` from `@comvi/core/icu` on the i18n instance, or it throws at
-ingestion in development and renders its braces in production; see
+### How it works
+
+Nested JSON flattens to dot keys and a namespace directory becomes the `errors:` prefix. `never`
+means the key takes no parameters. Parameter types come from ICU syntax: a bare `{name}` and a
+`select` variable take `string | number`, a `plural` or `selectordinal` count is `number`. The
+declaration augments `@comvi/core` when `package.json` declares it, otherwise the first framework
+binding it declares; `augment` names a different module. Types and the compiler are two
+decisions: the `items` key needs `compiler: icuCompiler` from `@comvi/core/icu` on the i18n
+instance, or it throws at ingestion in development and renders its braces in production; see
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization).
 
-## Dev and build
+In `vite build` a generation error fails the build; in `vite dev` it is logged as
+`[@comvi/vite-plugin] Failed to generate types: …` and the previous declaration stays. The causes:
+a missing `translations` directory, a malformed JSON file, a key collision after stripping the
+default namespace, a parameter type outside `string` and `number`, or a `package.json` that
+declares no Comvi package to augment.
 
-`vite dev` generates on startup, then on every JSON add, change or delete, with no restart.
-`vite build` generates once before bundling; a generation error fails the build, in dev it is only
-logged. Unchanged output is not written. Every failure logs
-`[@comvi/vite-plugin] Failed to generate types: …`: a missing `translations` directory, a
-malformed JSON file, a key collision after stripping the default namespace, or a parameter type
-outside `string` and `number`.
-
-## Next steps
+## Read next
 
 - [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin): what TypeScript catches, key collisions, the full table.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): how the augmentation reaches `useI18n()`, and `InferKeys`.
-- [comvi typegen](https://comvi.io/docs/cli/typegen): the same declarations from the platform schema.
 
 ## Contributing
 

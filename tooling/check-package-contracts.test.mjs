@@ -210,15 +210,6 @@ function makePeerRangeTree(t, overrides = {}) {
       overrides.packageReadme ?? `\`\`\`bash\nnpm install @comvi/next\n# Peers: ${prose}\n\`\`\`\n`,
     );
   }
-  if (overrides.rootReadme !== null) {
-    write(
-      "README.md",
-      overrides.rootReadme ??
-        `npm install @comvi/react     # Peer: react ^18 || ^19\n` +
-          `npm install @comvi/nuxt      # Peer: nuxt ^3 || ^4\n` +
-          `npm install @comvi/next      # Peers: ${prose}\n`,
-    );
-  }
   write(
     "scripts/bundler-matrix/app/stubs/next/package.json",
     `${JSON.stringify({ name: "next", version: overrides.stubVersion ?? "15.0.0", description: overrides.stubDescription ?? `INERT STAND-IN, versioned so @comvi/next's peer range (${stubProse}) is satisfiable.` }, null, 2)}\n`,
@@ -422,21 +413,13 @@ test("checkNextPeerRangeDeclarations passes when every site agrees", (t) => {
   assert.deepEqual(checkNextPeerRangeDeclarations(makePeerRangeTree(t)), []);
 });
 
-test("checkNextPeerRangeDeclarations catches a stale next range in either README", (t) => {
+test("checkNextPeerRangeDeclarations catches a stale next range in the README", (t) => {
   const stalePackage = checkNextPeerRangeDeclarations(
     makePeerRangeTree(t, { packageReadme: "# Peers: next ^14 || ^15, react ^18.2 || ^19\n" }),
   );
   assert.equal(stalePackage.length, 1);
   assert.match(stalePackage[0], /^packages\/next\/README\.md: declares next "\^14 \|\| \^15"/);
   assert.match(stalePackage[0], /expected the comment to read "\^15 \|\| \^16"/);
-
-  const staleRoot = checkNextPeerRangeDeclarations(
-    makePeerRangeTree(t, {
-      rootReadme: "npm install @comvi/next      # Peers: next ^14 || ^15, react ^18.2 || ^19\n",
-    }),
-  );
-  assert.equal(staleRoot.length, 1);
-  assert.match(staleRoot[0], /^README\.md: declares next "\^14 \|\| \^15"/);
 });
 
 test("checkNextPeerRangeDeclarations catches a stale REACT range, which is the drift that shipped", (t) => {
@@ -445,7 +428,7 @@ test("checkNextPeerRangeDeclarations catches a stale REACT range, which is the d
   const staleProse = checkNextPeerRangeDeclarations(
     makePeerRangeTree(t, { prose: "next ^15 || ^16, react ^18 || ^19" }),
   );
-  assert.equal(staleProse.length, 2, "both READMEs carry the react range");
+  assert.equal(staleProse.length, 1);
   for (const error of staleProse) {
     assert.match(error, /declares react "\^18 \|\| \^19"/);
     assert.match(error, /expected the comment to read "\^18\.2 \|\| \^19"/);
@@ -455,7 +438,7 @@ test("checkNextPeerRangeDeclarations catches a stale REACT range, which is the d
   const staleManifest = checkNextPeerRangeDeclarations(
     makePeerRangeTree(t, { reactRange: "^18.0.0 || ^19.0.0" }),
   );
-  assert.equal(staleManifest.length, 2);
+  assert.equal(staleManifest.length, 1);
   for (const error of staleManifest) {
     assert.match(error, /declares react "\^18\.2 \|\| \^19" but/);
     assert.match(error, /"\^18\.0\.0 \|\| \^19\.0\.0"/);
@@ -480,7 +463,7 @@ test("checkNextPeerRangeDeclarations leaves the sibling install lines alone", (t
   assert.deepEqual(
     checkNextPeerRangeDeclarations(
       makePeerRangeTree(t, {
-        rootReadme:
+        packageReadme:
           `npm install @comvi/react     # Peer: react ^18 || ^19\n` +
           `npm install @comvi/nuxt      # Peer: nuxt ^3 || ^4\n` +
           `npm install @comvi/vue       # Peer: vue ^3\n` +
@@ -526,7 +509,7 @@ test("checkNextPeerRangeDeclarations rejects a source range the mirrors cannot b
 });
 
 test("checkNextPeerRangeDeclarations reports a mirror that has gone missing", (t) => {
-  const errors = checkNextPeerRangeDeclarations(makePeerRangeTree(t, { rootReadme: null }));
+  const errors = checkNextPeerRangeDeclarations(makePeerRangeTree(t, { packageReadme: null }));
   assert.equal(errors.length, 1);
-  assert.match(errors[0], /^README\.md: missing/);
+  assert.match(errors[0], /^packages\/next\/README\.md: missing/);
 });
