@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["scenario.spec.ts", "playwright.config.ts"]
+  "include": ["scenario.spec.ts", "ssr-recipe.spec.ts", "playwright.config.ts"]
 }

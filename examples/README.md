@@ -2,9 +2,11 @@
 
 Seven small apps, one per framework, that show what the Comvi i18n library does: switch between
 English, Ukrainian, German and Arabic and watch plurals, dates, markup, lazy loading and
-right-to-left layout follow. Every example renders the same showcase page, one card per feature,
-from the same catalogs in [`locales`](./locales). The pages you run here are the pages our
-end-to-end suite runs, so what you see in the browser is what the release was tested on.
+right-to-left layout follow. Every one of the seven renders the same showcase page, one card per
+feature, from the same catalogs in [`locales`](./locales). Two more, [`sveltekit`](./sveltekit)
+and [`solidstart`](./solidstart), are the [server-rendering recipes](https://comvi.io/docs/i18n/ssr#sveltekit-and-solidstart)
+from the docs as apps. The pages you run here are the pages our end-to-end suite runs, so what you
+see in the browser is what the release was tested on.
 
 ## The seven
 
@@ -51,9 +53,23 @@ Each card on the page is one feature, in the same order in all seven:
 
 Each example has its own README with the file where the setup lives.
 
+## The SSR recipes
+
+| example                      | binding         | routing and rendering                                               |
+| ---------------------------- | --------------- | ------------------------------------------------------------------- |
+| [`sveltekit`](./sveltekit)   | `@comvi/svelte` | server-rendered, then hydrated; `/` is English, `/uk`, `/de`, `/ar` |
+| [`solidstart`](./solidstart) | `@comvi/solid`  | server-rendered, then hydrated; `/` is English, `/uk`, `/de`, `/ar` |
+
+Neither binding ships a server integration for its framework, so these two show the wiring the
+docs describe: an instance per request on the server, the catalogs handed to the browser as data,
+and a browser instance that follows the URL on client navigation. Two pages, with a greeting, a
+plural counter, `<T>` and an English fallback, and no feature gallery. They read
+their bundled catalogs only, so the "Connect your Comvi project" variables below do not apply;
+each README says where `cdnLoader` goes instead.
+
 ## How an example is wired
 
-Every example composes one instance the same way, in its `src/i18n.ts` (Next: `src/i18n/config.ts`, Nuxt: `src/comvi.i18n.ts`): the base instance from the binding, a loader with one import per catalog, the locale detector, and `devtools()`, which makes the instance visible to the Comvi browser extension and lets it load the in-context editor. React's, with the counter plumbing left out:
+Every gallery example composes one instance the same way, in its `src/i18n.ts` (Next: `src/i18n/config.ts`, Nuxt: `src/comvi.i18n.ts`): the base instance from the binding, a loader with one import per catalog, the locale detector, and `devtools()`, which makes the instance visible to the Comvi browser extension and lets it load the in-context editor. React's, with the counter plumbing left out:
 
 ```ts title="src/i18n.ts"
 import { createI18n, devtools, icuCompiler, loader } from "@comvi/react";
@@ -131,11 +147,11 @@ one directory out of the tree, so the catalogs are copied into `examples/<framew
 rather than symlinked. Edit the shared copy, then:
 
 ```sh
-pnpm examples:sync-locales                        # re-copy into all seven
+pnpm examples:sync-locales                        # re-copy into every example
 node scripts/examples-sync-locales.mjs --check    # fail if a copy drifted
 ```
 
 ## Maintainers
 
-The build-and-typecheck gate and the Playwright suite that run these seven are documented in
+The build-and-typecheck gate and the Playwright suites that run these nine are documented in
 [`scripts/examples-e2e/README.md`](../scripts/examples-e2e/README.md).

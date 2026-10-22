@@ -13,6 +13,10 @@ import {
   CORRUPT_BODY,
   EXPECTED_FAILURES,
   F15_VARIANT,
+  RECIPE_KINDS,
+  RECIPE_LEGEND,
+  RECIPE_STEPS,
+  RECIPE_VARIANTS,
   STEPS,
   STEP_LEGEND,
   allPassed,
@@ -391,6 +395,13 @@ test("serverCommand: a reader's command per kind, on the chosen port", () => {
   assert.deepEqual(nuxt.args, [path.join("/x", ".output", "server", "index.mjs")]);
   assert.equal(nuxt.env.PORT, "4002");
   assert.equal(nuxt.env.A, "1");
+  const kit = serverCommand("sveltekit", { dir: "/x", port: 4003 });
+  assert.equal(kit.command, process.execPath);
+  assert.deepEqual(kit.args, [path.join("/x", "build")]);
+  assert.equal(kit.env.PORT, "4003");
+  const start = serverCommand("solidstart", { dir: "/x", port: 4004 });
+  assert.deepEqual(start.args, [path.join("/x", ".output", "server", "index.mjs")]);
+  assert.equal(start.env.PORT, "4004");
   assert.throws(() => serverCommand("astro", { dir: "/x", port: 1 }), /no server command/);
 });
 
@@ -398,6 +409,8 @@ test("startPath: the feature gallery, behind a locale URL for SSR examples", () 
   assert.equal(startPath("vite"), "/features");
   assert.equal(startPath("next"), "/en/features");
   assert.equal(startPath("nuxt"), "/en/features");
+  assert.equal(startPath("sveltekit"), "/");
+  assert.equal(startPath("solidstart"), "/");
 });
 
 // ── report ─────────────────────────────────────────────────────────────────
@@ -577,6 +590,28 @@ test("renderTable: a green run has no failures section and explains every column
   for (const step of STEPS) assert.match(text, new RegExp(`^${step}\\s+\\S`, "m"));
 });
 
+test("renderTable: the SSR recipes get a table and a legend of their own", () => {
+  const recipeSteps = Object.fromEntries(RECIPE_STEPS.map((step) => [step, pass]));
+  const text = renderTable([
+    { name: "react", kind: "vite", build: pass, steps: allSteps(pass) },
+    { name: "sveltekit", kind: "sveltekit", build: pass, steps: recipeSteps },
+  ]);
+  const headers = text.split("\n").filter((line) => line.startsWith("framework"));
+  assert.equal(headers.length, 2);
+  assert.match(headers[1], new RegExp(`^framework\\s+build\\s+${RECIPE_STEPS.join("\\s+")}$`));
+  assert.match(text, new RegExp(`^sveltekit\\s+ok(\\s+ok){${RECIPE_STEPS.length}}$`, "m"));
+  for (const step of RECIPE_STEPS) assert.ok(RECIPE_LEGEND[step], `a legend line for ${step}`);
+});
+
+test("allPassed: an SSR recipe is judged on its own steps", () => {
+  const steps = Object.fromEntries(RECIPE_STEPS.map((step) => [step, pass]));
+  const recipe = { name: "solidstart", kind: "solidstart", build: pass, steps };
+  assert.equal(allPassed([recipe]), true);
+  assert.equal(allPassed([{ ...recipe, steps: { ...steps, e2: undefined } }]), false);
+  assert.equal(allPassed([{ ...recipe, steps: { ...steps, f: { status: "fail" } } }]), false);
+  assert.equal(allowedSkips({ kind: "sveltekit", cdn: false }).size, 0);
+});
+
 test("allPassed: skips are fine, failures and unreached steps are not", () => {
   const green = {
     name: "x",
@@ -594,7 +629,7 @@ test("allPassed: skips are fine, failures and unreached steps are not", () => {
 
 const REPO = path.resolve(import.meta.dirname, "../..");
 
-test("CI shards every example, in both modes", async () => {
+test("CI shards every gallery example in both modes, the SSR recipes in the default mode", async () => {
   const { exampleDirs } = await import("../examples-verify.mjs");
   const ci = fs.readFileSync(path.join(REPO, ".github/workflows/ci.yml"), "utf8");
   const list = (name) => {
@@ -602,12 +637,17 @@ test("CI shards every example, in both modes", async () => {
     assert.ok(match, `ci.yml has no one-line \`${name}: [...]\` matrix axis`);
     return match[1].split(",").map((entry) => entry.trim());
   };
+  const included = [...ci.matchAll(/^\s+- \{ framework: ([a-z]+), mode: default \}$/gm)].map(
+    (match) => match[1],
+  );
   // A new example with no shard would never run in CI, and nothing else says so.
   assert.deepEqual(
-    list("framework").sort(),
+    [...list("framework"), ...included].sort(),
     exampleDirs().map((entry) => entry.name),
   );
   assert.deepEqual(list("mode"), ["default", "cdn"]);
+  // The recipes run in the default mode only, and nothing else does.
+  assert.deepEqual(included.sort(), [...RECIPE_KINDS].sort());
 });
 
 test("examples:e2e:all runs both modes, and closes test:release", () => {
@@ -794,6 +834,42 @@ test("F15_VARIANT matches the committed next and nuxt examples", () => {
         filter: (source) => !source.includes("node_modules"),
       });
       applyVariant(dir, F15_VARIANT[kind]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("applyVariant: writes `files` whole before the edits", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-variant-"));
+  try {
+    fs.writeFileSync(path.join(dir, "a.ts"), "const x = 1;");
+    applyVariant(dir, {
+      files: { "b.ts": "export const y = 2;" },
+      edits: [{ file: "a.ts", from: "const x = 1;", to: 'import { y } from "./b";' }],
+    });
+    assert.equal(fs.readFileSync(path.join(dir, "b.ts"), "utf8"), "export const y = 2;");
+    assert.equal(fs.readFileSync(path.join(dir, "a.ts"), "utf8"), 'import { y } from "./b";');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("RECIPE_VARIANTS match the committed sveltekit and solidstart examples, in order", () => {
+  assert.deepEqual(Object.keys(RECIPE_VARIANTS).sort(), [...RECIPE_KINDS].sort());
+  for (const kind of RECIPE_KINDS) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `comvi-e2e-${kind}-`));
+    try {
+      fs.cpSync(path.join(REPO, "examples", kind), dir, {
+        recursive: true,
+        filter: (source) => !source.includes("node_modules"),
+      });
+      applyVariant(dir, RECIPE_VARIANTS[kind].pressure);
+      applyVariant(dir, RECIPE_VARIANTS[kind].shared);
+      assert.match(
+        fs.readFileSync(path.join(dir, "src", "lib", "shared.ts"), "utf8"),
+        /export const shared = createI18n/,
+      );
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
