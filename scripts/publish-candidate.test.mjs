@@ -324,6 +324,8 @@ if (command === "view" && rest[1] === "dist.integrity") {
   if (sri) process.stdout.write(JSON.stringify(sri) + "\\n");
 } else if (command === "view" && rest[1] === "version") {
   const [name, version] = split(rest[0]);
+  // A registry read that never returns (FAKE_NPM_HANG), once npm has accepted the version.
+  if (listed("FAKE_NPM_HANG").includes(name) && state[name]?.versions.includes(version)) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 600_000);
   // Accepted, but not shown before visibleAt (FAKE_NPM_LATE: minutes on npm).
   if (state[name]?.visibleAt?.[version] > Date.now()) e404();
   if (state[name]?.lag) {
@@ -441,6 +443,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
     lag = [],
     late = [],
     lateMs = 0,
+    hang = [],
     visibleWaitMs = 5000,
     env: extraEnv = {},
     failIntegrity = [],
@@ -460,6 +463,7 @@ function releaseWorkspace(t, packages = ["core", "react"]) {
       FAKE_NPM_LAG: lag.join(","),
       FAKE_NPM_LATE: late.join(","),
       FAKE_NPM_LATE_MS: String(lateMs),
+      FAKE_NPM_HANG: hang.join(","),
       FAKE_NPM_FAIL_INTEGRITY: failIntegrity.join(","),
       COMVI_PUBLISH_RECHECK_MS: "10",
       COMVI_PUBLISH_VISIBLE_POLL_MS: "20",
@@ -913,9 +917,28 @@ test("read-after-write: a version npm accepted but never shows within the wait i
   assert.equal(ws.remoteTags()["v0.5.0"], undefined);
 });
 
+test("read-after-write: a hung `npm view` is killed at the visibility deadline, and nothing is promoted", (t) => {
+  const ws = releaseWorkspace(t);
+  const started = Date.now();
+  const result = ws.run({
+    hang: ["@comvi/react"],
+    visibleWaitMs: 400,
+    env: { COMVI_PUBLISH_READ_TIMEOUT_MS: "2000" },
+  });
+  // One killed read (the 2 s floor), not the fake's 10 min hang.
+  assert.ok(Date.now() - started < 30_000, "a hung read stops at the deadline");
+  assert.equal(result.status, 1, result.log);
+  assert.equal(result.outputs.published, "false");
+  assert.match(result.log, /@comvi\/react@0\.5\.0\s+MISSING/);
+  assert.doesNotMatch(ws.npmCalls(), /^dist-tag add/m);
+  assert.equal(ws.distTags("core").latest, "0.4.1");
+});
+
 for (const [name, value] of [
   ["COMVI_PUBLISH_VISIBLE_POLL_MS", "15s"],
   ["COMVI_PUBLISH_VISIBLE_WAIT_MS", "0"],
+  ["COMVI_PUBLISH_READ_TIMEOUT_MS", "-1"],
+  ["COMVI_PUBLISH_RECHECK_MS", "abc"],
 ]) {
   test(`read-after-write: ${name}=${value} is refused before anything is published (a NaN wait never ends)`, (t) => {
     const ws = releaseWorkspace(t);
