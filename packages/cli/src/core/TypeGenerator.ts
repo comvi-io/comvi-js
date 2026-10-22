@@ -34,6 +34,8 @@ export class TypeGenerator {
     this.apiClient = new ApiClient({
       apiKey: this.options.apiKey,
       apiBaseUrl: this.options.apiBaseUrl,
+      timeout: this.options.timeout,
+      commitTimeout: this.options.commitTimeout,
     });
 
     this.writer = dependencies?.writer ?? new FileSystemWriter();
@@ -71,6 +73,7 @@ export class TypeGenerator {
         return {
           success: false,
           error: error.message,
+          cause: error,
           duration,
         };
       }
@@ -80,6 +83,7 @@ export class TypeGenerator {
         return {
           success: false,
           error: error.message,
+          cause: error,
           duration,
         };
       }
@@ -116,8 +120,9 @@ export class TypeGenerator {
       try {
         currentTypes = await this.writer.read(this.options.outputPath);
         currentKeyCount = countKeyLines(currentTypes);
-      } catch {
-        // File doesn't exist
+      } catch (error) {
+        // Only a missing file is "outdated"; one that cannot be read is an error.
+        if (!isMissingFile(error)) throw error;
         return {
           upToDate: false,
           keysGenerated: keyCount,
@@ -193,6 +198,7 @@ export class TypeGenerator {
         return {
           success: false,
           error: error.message,
+          cause: error,
           duration,
         };
       }
@@ -229,4 +235,12 @@ export class TypeGenerator {
 
     return this.defaultNsNamePromise;
   }
+}
+
+function isMissingFile(error: unknown): boolean {
+  const cause = error instanceof TypegenError ? error.cause : error;
+  return (
+    (cause as NodeJS.ErrnoException | undefined)?.code === "ENOENT" ||
+    (cause instanceof Error && cause.message.startsWith("ENOENT"))
+  );
 }

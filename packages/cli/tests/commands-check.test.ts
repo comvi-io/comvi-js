@@ -365,14 +365,20 @@ describe("comvi check", () => {
       expect(output.stderr).toContain('--format must be "text" or "json", received "yaml"');
     });
 
-    it.each(["-s", "-l", "-n"])("on an empty %s list", async (flag) => {
+    it.each([
+      ["-s", "--source"],
+      ["-l", "--locale"],
+      ["-n", "--ns"],
+    ])("on an empty %s list", async (flag, name) => {
       expect(await run(flag, " , ")).toBe(4);
-      expect(output.stderr).toContain("must not be empty");
+      expect(output.stderr).toContain(`${name} was given an empty value`);
     });
 
     it("on a locale the catalogs do not have", async () => {
-      expect(await run("-l", "dee")).toBe(4);
-      expect(output.stderr).toContain("Unknown locales: dee");
+      expect(await run("-l", "dee,xx,de")).toBe(4);
+      expect(output.stderr).toContain(
+        "✗ Check failed: Unknown locales: dee, xx: no catalog for them in ./src/locales.",
+      );
     });
 
     it("on a namespace the catalogs do not have", async () => {
@@ -426,23 +432,26 @@ describe("comvi check", () => {
     });
   });
 
-  describe("exit 2: the check could not run", () => {
+  // The CLI's one exit-code scheme (#115): an unreadable local file is invalid
+  // input (4); a local failure that fits no other code is 1. check never talks
+  // to the platform, so it never exits 2 (unavailable) or 3 (access).
+  describe("exit 4: a local file or directory it cannot read", () => {
     it("on a translations directory it may not list", async () => {
       if (process.platform === "win32" || process.getuid?.() === 0) return;
       await fs.chmod(join(dir, "src/locales"), 0o000);
       try {
-        expect(await run()).toBe(2);
+        expect(await run()).toBe(4);
         expect(output.stderr).toContain("✗ Check failed:");
       } finally {
         await fs.chmod(join(dir, "src/locales"), 0o755);
       }
     });
 
-    it("on a read failure that is not a missing or forbidden file", async () => {
+    it("on a raw I/O error from the file system", async () => {
       const failure = Object.assign(new Error("EIO: i/o error"), { code: "EIO" });
       vi.spyOn(TranslationSync.prototype, "readTranslations").mockRejectedValue(failure);
 
-      expect(await run()).toBe(2);
+      expect(await run()).toBe(4);
       expect(output.stderr).toContain("EIO: i/o error");
     });
 
@@ -453,7 +462,7 @@ describe("comvi check", () => {
         new TypegenError("Failed to read x", ErrorCodes.FS_READ_FAILED, cause),
       );
 
-      expect(await run()).toBe(2);
+      expect(await run()).toBe(4);
     });
 
     it("on FS_READ_FAILED with no cause", async () => {
@@ -462,9 +471,11 @@ describe("comvi check", () => {
         new TypegenError("Failed to read x", ErrorCodes.FS_READ_FAILED),
       );
 
-      expect(await run()).toBe(2);
+      expect(await run()).toBe(4);
     });
+  });
 
+  describe("exit 1: a local failure that fits no other code", () => {
     it("on another error code even with a missing-file cause", async () => {
       const { TypegenError, ErrorCodes } = await import("../src/utils/errors");
       const cause = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
@@ -472,7 +483,7 @@ describe("comvi check", () => {
         new TypegenError("x", ErrorCodes.FS_MKDIR_FAILED, cause),
       );
 
-      expect(await run()).toBe(2);
+      expect(await run()).toBe(1);
     });
 
     it("when the check itself throws", async () => {
@@ -480,14 +491,20 @@ describe("comvi check", () => {
         throw new Error("engine bug");
       });
 
-      expect(await run()).toBe(2);
+      expect(await run()).toBe(1);
       expect(output.stderr).toContain("✗ Check failed: engine bug");
+    });
+
+    it("on a rejection with no value at all", async () => {
+      vi.spyOn(TranslationSync.prototype, "readTranslations").mockRejectedValue(undefined);
+
+      expect(await run()).toBe(1);
     });
 
     it("on a non-Error rejection", async () => {
       vi.spyOn(TranslationSync.prototype, "readTranslations").mockRejectedValue("boom");
 
-      expect(await run()).toBe(2);
+      expect(await run()).toBe(1);
       expect(output.stderr).toContain("✗ Check failed: boom");
     });
   });

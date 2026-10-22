@@ -40,11 +40,30 @@ const PATHS = {
 const DEFAULT_NAMESPACE_ROUTES: Routes = {
   [PATHS.project]: { body: { id: PROJECT_ID } },
   [PATHS.namespaces]: { body: [{ namespace: "common", isDefault: true }] },
+  // The locales push checks local files against before it writes.
+  "/v1/project/locales": {
+    body: {
+      sourceLocale: "en",
+      locales: ["en", "de", "uk", "es", "fr"].map((code) => ({ code })),
+    },
+  },
 };
 
-/** A commit that created one key and updated one translation. */
+/** A commit that created one key and value and changed another value. */
 const COMMIT_OK: RouteResponse = {
-  body: { success: true, stats: { keysCreated: 1, translationsUpdated: 1 } },
+  body: {
+    success: true,
+    stats: {
+      keysCreated: 1,
+      keysUpdated: 1,
+      keysDeleted: 0,
+      translationsCreated: 1,
+      translationsUpdated: 1,
+      translationsSkipped: 0,
+      namespacesCreated: [],
+      skippedLocales: [],
+    },
+  },
 };
 
 const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
@@ -154,7 +173,7 @@ describe("comvi push", () => {
   it("exits 4 without an API key and sends no request", async () => {
     const configPath = await writeConfig({ apiKey: undefined, translationsPath: localesDir });
     await writeTranslationFile("en.json", { greeting: "Hello" });
-    http = stubFetch({});
+    const http = stubFetch({});
 
     const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
 
@@ -162,6 +181,20 @@ describe("comvi push", () => {
     expect(output.stderr).toContain("apiKey is required");
     expect(http.requests).toEqual([]);
   });
+
+  it.each([["--locale"], ["--ns"]])(
+    "exits 4 without a request when %s is given empty",
+    async (flag) => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      await writeTranslationFile("en.json", { greeting: "Hello" });
+      const http = stubFetch({});
+
+      expect(await runPush(["-c", configPath, "--force-mode", "override", flag, ""])).toBe(4);
+
+      expect(output.stderr).toContain(flag);
+      expect(http.requests).toEqual([]);
+    },
+  );
 
   it("uploads the local files as a namespace-keyed import commit", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
@@ -183,13 +216,81 @@ describe("comvi push", () => {
         deleteOrphans: false,
       },
     });
-    expect(output.log).toContain("  Created: 1 keys");
-    expect(output.log).toContain("  Updated: 1 translations");
+    expect(output.log).toContain("  Keys created: 1");
+    expect(output.log).toContain("  Values: 1 new, 1 changed, 0 kept on the platform");
     expect(output.stdout).toContain("Loading configuration");
     expect(output.stdout).toContain("Reading local translation files");
     expect(output.stdout).toContain("Pushing translations to TMS");
     expect(output.log).toContain("\n✓ Push complete!");
-    expect(output.log.filter((line) => line.startsWith("  Skipped:"))).toEqual([]);
+    expect(output.stderr).not.toContain("Not imported");
+  });
+
+  it("warns about the locales the platform did not import", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    await writeTranslationFile("fr.json", { greeting: "Bonjour" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.importCommit]: {
+        body: {
+          success: true,
+          stats: {
+            ...(COMMIT_OK.body as { stats: object }).stats,
+            skippedLocales: ["fr"],
+          },
+        },
+      },
+    });
+
+    expect(await runPush(["-c", configPath, "--force-mode", "override"])).toBe(0);
+
+    expect(output.stderr).toContain(
+      "⚠  Not imported: fr — not a project locale, or this API key may not write it.",
+    );
+  });
+
+  it("reports the conflicts the platform kept", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hola" } } } },
+      },
+      [PATHS.importCommit]: {
+        body: {
+          success: true,
+          stats: {
+            ...(COMMIT_OK.body as { stats: object }).stats,
+            keysCreated: 0,
+            translationsCreated: 0,
+            translationsUpdated: 0,
+            translationsSkipped: 1,
+          },
+        },
+      },
+    });
+
+    expect(await runPush(["-c", configPath, "--force-mode", "keep"])).toBe(0);
+
+    expect(output.log).toContain("  Values: 0 new, 0 changed, 1 kept on the platform");
+  });
+
+  it("reports only the key count an older platform can be trusted with", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.importCommit]: {
+        body: { success: true, stats: { keysCreated: 1, translationsUpdated: 1 } },
+      },
+    });
+
+    expect(await runPush(["-c", configPath, "--force-mode", "override"])).toBe(0);
+
+    expect(output.log).toContain("  Keys created: 1");
+    expect(output.stdout).not.toContain("Values:");
+    expect(output.stdout).not.toContain("Updated");
   });
 
   it("does not fetch remote translations in override mode", async () => {
@@ -200,7 +301,12 @@ describe("comvi push", () => {
     const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
 
     expect(exitCode).toBe(0);
-    expect(http.paths()).toEqual([PATHS.project, PATHS.namespaces, PATHS.importCommit]);
+    expect(http.paths()).toEqual([
+      PATHS.project,
+      PATHS.namespaces,
+      "/v1/project/locales",
+      PATHS.importCommit,
+    ]);
   });
 
   it("--dry-run reports the diff against remote and sends no import commit", async () => {
@@ -216,9 +322,9 @@ describe("comvi push", () => {
     const exitCode = await runPush(["-c", configPath, "--dry-run"]);
 
     expect(exitCode).toBe(0);
-    expect(output.log).toContain("  ✅ Created: 1 keys");
-    expect(output.log).toContain("  📝 Updated: 1 translations");
-    expect(output.log).toContain("  ⚠️  Conflicts: 1 keys");
+    expect(output.log).toContain("  ✅ New values: 1");
+    expect(output.log).toContain("  ⚠️  Changed values: 1 (they conflict with the platform)");
+    expect(output.stdout).not.toContain("keys");
     expect(output.log).toContain("\n  Run with --force-mode override to overwrite remote values.");
     expect(output.log).toContain(
       "  Run with --force-mode keep to upload only non-conflicting values.",
@@ -240,20 +346,21 @@ describe("comvi push", () => {
     const exitCode = await runPush(["-c", configPath, "--dry-run"]);
 
     expect(exitCode).toBe(0);
-    expect(output.log).toContain("  ⚠️  Conflicts: 0 keys");
+    expect(output.log).toContain("  ⚠️  Changed values: 0 (they conflict with the platform)");
     expect(output.log).not.toContain(
       "\n  Run with --force-mode override to overwrite remote values.",
     );
   });
 
-  it("exits 0 with a warning when there are no local translation files", async () => {
+  it("exits 4 when there are no local translation files", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     http = stubFetch(DEFAULT_NAMESPACE_ROUTES);
 
     const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
 
-    expect(exitCode).toBe(0);
-    expect(output.log).toContain("⚠  No translation files found");
+    expect(exitCode).toBe(4);
+    expect(output.stderr).toContain("No translation values to push");
+    expect(output.stderr).toContain("--allow-empty");
     expect(http.paths()).not.toContain(PATHS.importCommit);
   });
 
@@ -302,14 +409,48 @@ describe("comvi push", () => {
 
     expect(exitCode).toBe(0);
     expect(createInterface).not.toHaveBeenCalled();
+    // Nothing conflicted in the preview, so nothing may be overwritten: a value
+    // a translator saves between the preview and the commit stops the push.
     expect(commitBody().options).toEqual({
-      conflictResolution: "keep_local",
+      conflictResolution: "fail",
       createNamespaces: true,
       deleteOrphans: false,
     });
   });
 
-  it("ask mode exits 1 with an actionable hint when stdin is not a terminal", async () => {
+  it("ask mode stops when a value changed on the platform after its preview", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello", farewell: "Bye" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+      [PATHS.importCommit]: {
+        body: {
+          success: false,
+          stats: { keysCreated: 0, translationsUpdated: 0 },
+          errors: [
+            {
+              key: "greeting",
+              namespace: "common",
+              message: "Conflict: local value differs from server value",
+            },
+          ],
+        },
+      },
+    });
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "ask"]);
+
+    expect(exitCode).toBe(1);
+    expect(output.error[0]).toBe(
+      "✗ Push failed: 1 value changed on the platform since this push read them (common:greeting). " +
+        "Nothing was written; run the push again to resolve it.",
+    );
+  });
+
+  it("ask mode exits 4 with an actionable hint when stdin is not a terminal", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", { greeting: "Hello" });
     http = stubFetch({
@@ -321,7 +462,7 @@ describe("comvi push", () => {
 
     const exitCode = await runPush(["-c", configPath, "--force-mode", "ask"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(4);
     expect(output.error[0]).toBe(
       "✗ Push failed: --force-mode ask requires an interactive terminal. " +
         "Use --force-mode override, keep, or abort.",
@@ -370,7 +511,6 @@ describe("comvi push", () => {
 
     expect(exitCode).toBe(0);
     expect(commitBody().options).toMatchObject({ conflictResolution: "keep_server" });
-    expect(output.log).toContain("  Skipped: 1 (conflicts with keep mode)");
   });
 
   it("ask mode answered with 'a' exits 1 without sending an import commit", async () => {
@@ -415,32 +555,15 @@ describe("comvi push", () => {
     expect(commitBody().options).toMatchObject({ conflictResolution: "keep_server" });
   });
 
-  it("reports progress once the import commit covers every local value", async () => {
-    const configPath = await writeConfig({ translationsPath: localesDir });
-    await writeTranslationFile("en.json", { greeting: "Hello", farewell: "Bye" });
-    http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, [PATHS.importCommit]: COMMIT_OK });
-
-    const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
-
-    expect(exitCode).toBe(0);
-    expect(output.log).toContain("  Progress: 2/2 (created: 1, updated: 1, skipped: 0)");
-  });
-
-  it("reports no progress when the local files hold no translation values", async () => {
+  it("sends no commit for files that hold no translation values, with --allow-empty", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", {});
-    http = stubFetch({
-      ...DEFAULT_NAMESPACE_ROUTES,
-      [PATHS.importCommit]: {
-        body: { success: true, stats: { keysCreated: 0, translationsUpdated: 0 } },
-      },
-    });
+    http = stubFetch(DEFAULT_NAMESPACE_ROUTES);
 
-    const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "override", "--allow-empty"]);
 
     expect(exitCode).toBe(0);
-    expect(output.log.filter((line) => line.startsWith("  Progress:"))).toEqual([]);
-    expect(commitBody().namespaces).toEqual({ common: { en: {} } });
+    expect(http.paths()).not.toContain(PATHS.importCommit);
   });
 
   it("resolves conflicts with the force mode configured in .comvirc.json", async () => {

@@ -1,10 +1,11 @@
 import { Command } from "commander";
 import { TypeGenerator } from "../core/TypeGenerator";
+import { SilentReporter } from "../core/GenerationReporter";
 import { ConfigLoader } from "../core/ConfigLoader";
 import {
   ErrorCodes,
-  EXIT_CHECK_FAILED,
-  EXIT_VALIDATION,
+  EXIT_FAILURE,
+  exitCodeFor,
   isTypegenError,
   type TypegenError,
 } from "../utils/errors";
@@ -17,11 +18,14 @@ const CHECK_BLOCKING_CODES: readonly string[] = [
   ErrorCodes.API_FETCH_FAILED,
   ErrorCodes.API_TIMEOUT,
   ErrorCodes.API_INVALID_RESPONSE,
+  // A declaration file that exists but cannot be read: no verdict either.
+  ErrorCodes.FS_READ_FAILED,
 ];
 
 const CHECK_DESCRIPTION =
   "CI mode: verify the generated types are up to date " +
-  "(exit 1 = outdated, 2 = check could not run, 4 = invalid config or a schema that cannot be emitted)";
+  "(exit 1 = outdated, 2 = platform unavailable, 3 = key rejected, " +
+  "4 = invalid config or a schema that cannot be emitted)";
 
 export function createTypegenCommand(): Command {
   return new Command("typegen")
@@ -36,7 +40,9 @@ export function createTypegenCommand(): Command {
         const config = await ConfigLoader.load(options.config);
         const generatorOptions = ConfigLoader.toGeneratorOptions(config);
 
-        const generator = new TypeGenerator(generatorOptions);
+        // The command narrates every step and failure itself; a reporter would
+        // print each of them a second time.
+        const generator = new TypeGenerator(generatorOptions, { reporter: new SilentReporter() });
 
         if (options.check) {
           await runCheckMode(generator);
@@ -54,16 +60,6 @@ export function createTypegenCommand(): Command {
     });
 }
 
-function exitCodeFor(error: unknown): number {
-  if (
-    isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
-    isTypegenError(error, ErrorCodes.CONFIG_INVALID)
-  ) {
-    return EXIT_VALIDATION;
-  }
-  return 1;
-}
-
 function isCheckBlocked(error: unknown): error is TypegenError {
   return CHECK_BLOCKING_CODES.some((code) => isTypegenError(error, code));
 }
@@ -77,7 +73,7 @@ async function runGenerateOnce(generator: TypeGenerator): Promise<void> {
     process.exit(0);
   } else {
     console.error(`✗ Generation failed: ${result.error}`);
-    process.exit(1);
+    process.exit(exitCodeFor(result.cause));
   }
 }
 
@@ -87,7 +83,7 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
 
   if (!result.success) {
     console.error(`✗ Initial generation failed: ${result.error}`);
-    process.exit(1);
+    process.exit(exitCodeFor(result.cause));
   }
 
   console.log(`✓ Generated ${result.keysGenerated} keys → ${result.filePath}`);
@@ -96,26 +92,39 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
 
   const apiClient = generator.getApiClient();
 
-  const cleanup = await apiClient.subscribeToSchemaUpdates(async (schema) => {
-    console.log("\n🔄 Received schema update via SSE...");
-    const updateResult = await generator.generateFromSchema(schema);
+  const cleanup = await apiClient.subscribeToSchemaUpdates(
+    async (schema) => {
+      console.log("\n🔄 Received schema update via SSE...");
+      const updateResult = await generator.generateFromSchema(schema);
 
-    if (updateResult.success) {
-      console.log(`✓ Updated ${updateResult.keysGenerated} keys → ${updateResult.filePath}`);
-    } else {
-      console.error(`⚠  Update failed: ${updateResult.error}`);
-    }
-  });
+      if (updateResult.success) {
+        console.log(`✓ Updated ${updateResult.keysGenerated} keys → ${updateResult.filePath}`);
+      } else {
+        console.error(`⚠  Update failed: ${updateResult.error}`);
+      }
+    },
+    {
+      // A rejected key cannot recover: stop instead of watching nothing.
+      onFatal: (error) => {
+        console.error(`✗ Watch stopped: ${error.message}`);
+        process.exit(exitCodeFor(error));
+      },
+      onNotice: (message) => console.error(`⚠  ${message}`),
+    },
+  );
 
   console.log("✓ Watching for changes...");
   console.log("Press Ctrl+C to stop\n");
 
-  process.on("SIGINT", () => {
+  // SIGTERM too: Docker, systemd and CI runners stop processes with it.
+  const stop = () => {
     console.log("\n\n🛑 Closing SSE connection...");
     cleanup();
     console.log("✓ Stopped watching");
     process.exit(0);
-  });
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
 
   // Keep process alive
   process.stdin.resume();
@@ -132,7 +141,7 @@ async function runCheckMode(generator: TypeGenerator): Promise<void> {
     // genuinely outdated types, so CI could not tell a blip from a real drift.
     if (isCheckBlocked(error)) {
       console.error(`✗ Check could not run: ${error.message}`);
-      process.exit(EXIT_CHECK_FAILED);
+      process.exit(exitCodeFor(error));
     }
     throw error;
   }
@@ -145,6 +154,6 @@ async function runCheckMode(generator: TypeGenerator): Promise<void> {
     console.error(`  Current: ${result.currentKeys ?? 0} keys`);
     console.error(`  Expected: ${result.keysGenerated} keys`);
     console.error("\n  Run 'comvi typegen' to update.");
-    process.exit(1);
+    process.exit(EXIT_FAILURE);
   }
 }

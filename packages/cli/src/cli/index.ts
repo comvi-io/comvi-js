@@ -54,10 +54,23 @@ program
     }
   });
 
-program.addCommand(createInitCommand());
-program.addCommand(createTypegenCommand());
-program.addCommand(createPullCommand());
-program.addCommand(createPushCommand());
-program.addCommand(createCheckCommand());
+// An unknown command or option, or a missing option value, is a usage error:
+// exit 4 like every other invalid input, not commander's 1, which means
+// "conflict or mismatch" here. Help and --version still exit 0.
+for (const command of [
+  program,
+  createInitCommand(),
+  createTypegenCommand(),
+  createPullCommand(),
+  createPushCommand(),
+  createCheckCommand(),
+]) {
+  command.exitOverride((error) => {
+    process.exit(error.exitCode === 0 ? 0 : EXIT_VALIDATION);
+  });
+  if (command !== program) {
+    program.addCommand(command);
+  }
+}
 
 program.parse();

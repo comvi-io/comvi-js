@@ -7,6 +7,7 @@
  */
 
 import { ErrorCodes, TypegenError } from "./errors";
+import { findLocale, localeKey } from "./locales";
 
 export type FilterSource = "cli" | "config" | "all";
 
@@ -18,18 +19,23 @@ export interface FilterResolution {
 }
 
 /**
- * Parse a CLI list flag (`--ns a,b,c`).
- *
- * Returns `undefined` for `undefined`, non-string values, and lists that contain
- * only blank items — so the caller cannot accidentally send `[""]` to the API.
+ * Parse a CLI list flag (`--ns a,b,c`). A flag that is absent is `undefined`;
+ * a flag given with nothing in it (`--locale "$UNSET"`) is refused, because
+ * reading it as "all" would make `--empty-dir` clear the whole catalog.
  */
-export function parseListFlag(value: unknown): string[] | undefined {
+export function parseListFlag(value: unknown, flag = "filter"): string[] | undefined {
   if (typeof value !== "string") return undefined;
   const items = value
     .split(",")
     .map((v) => v.trim())
     .filter((v) => v !== "");
-  return items.length > 0 ? items : undefined;
+  if (items.length === 0) {
+    throw new TypegenError(
+      `${flag} was given an empty value; remove the flag to use every item`,
+      ErrorCodes.VALIDATION_FAILED,
+    );
+  }
+  return items;
 }
 
 /**
@@ -57,21 +63,40 @@ export function assertAllReturned(
 ): void {
   if (!requested?.length) return;
 
-  const returnedSet = new Set(returned);
-  const missing = requested.filter((item) => !returnedSet.has(item));
+  // Locale codes are matched as the platform matches them: `pt_br` is `pt-BR`.
+  const key = fieldName === "locales" ? localeKey : (item: string) => item;
+  const returnedSet = new Set(returned.map(key));
+  const missing = requested.filter((item) => !returnedSet.has(key(item)));
   if (missing.length === 0) return;
 
   throw new TypegenError(
     `Unknown ${fieldName}: ${missing.join(", ")}. ` +
-      `Available in project: ${returned.join(", ") || "(none)"}.`,
+      // A restricted key sees fewer locales than the project has.
+      `Available ${fieldName === "locales" ? "with this API key" : "in project"}: ${returned.join(", ") || "(none)"}.`,
     ErrorCodes.VALIDATION_FAILED,
   );
 }
 
 /**
- * A locale name compared ignoring case and `_` versus `-`, so `pt-BR`, `pt_br`
- * and a `pt-br.json` file name all mean the same locale.
+ * A requested locale the project has but the response carries no data for:
+ * the key's owner is restricted away from it. Reported before the generic
+ * "unknown" check, which would call it a typo.
  */
-export function localeMatchKey(locale: string): string {
-  return locale.toLowerCase().replace(/_/g, "-");
+export function assertReadable(
+  requested: string[] | undefined,
+  projectLocales: string[],
+  returnedLocales: string[],
+): void {
+  const unreadable = (requested ?? []).filter(
+    (locale) =>
+      findLocale(locale, projectLocales) !== undefined &&
+      findLocale(locale, returnedLocales) === undefined,
+  );
+  if (unreadable.length === 0) return;
+
+  throw new TypegenError(
+    `Locales not readable with this API key: ${unreadable.join(", ")}. ` +
+      "The key's owner may be restricted to other languages.",
+    ErrorCodes.API_AUTH_FAILED,
+  );
 }

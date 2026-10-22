@@ -11,12 +11,10 @@ import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
-import { localeMatchKey } from "../utils/filterResolution";
+import { findLocale } from "../utils/locales";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
-  /** Match `locales` ignoring case and `_` versus `-`: `pt-BR` reads `pt-br.json`. */
-  looseLocaleMatch?: boolean;
   namespaces?: string[];
   defaultNamespace?: string;
 }
@@ -26,9 +24,10 @@ export interface WriteTranslationsOptions {
 }
 
 /**
- * Which translations a clear is allowed to touch, in `rsync --delete` terms: the
- * clear covers exactly the locales and namespaces the pull is about to write.
- * An empty scope (no locale and no namespace filter) means the whole directory.
+ * Which translations a clear is allowed to touch, in `rsync --delete` terms.
+ * Only files the template parses as a translation file are ever candidates;
+ * `locales` and `namespaces` narrow that further, and an empty list selects
+ * nothing.
  */
 export interface ClearScope {
   locales?: string[];
@@ -38,8 +37,22 @@ export interface ClearScope {
 
 /** One file a response resolves to, in the order `writeTranslations` writes them. */
 interface PlannedWrite {
+  locale: string;
+  namespace: string;
   filePath: string;
   catalog: Record<string, string>;
+}
+
+/** What a pull would do to one file, key by key. */
+export interface PullFileDiff {
+  filePath: string;
+  status: "new" | "changed" | "unchanged" | "unreadable";
+  added: string[];
+  changed: string[];
+  /** Keys in the local file the platform does not have: the pull drops them. */
+  removed: string[];
+  /** The local file nests keys that the pull writes flat. */
+  nested: boolean;
 }
 
 export interface LocalTranslations {
@@ -77,8 +90,8 @@ export class TranslationSync {
     }
 
     return {
-      locales: data.locales,
-      namespaces: data.namespaces,
+      locales: [...new Set(planned.map(({ locale }) => locale))],
+      namespaces: [...new Set(planned.map(({ namespace }) => namespace))],
       filesWritten: planned.length,
     };
   }
@@ -130,10 +143,9 @@ export class TranslationSync {
   ): Promise<void> {
     const unrestored: string[] = [];
 
-    for (const { filePath } of planned) {
-      if (!snapshot.has(filePath)) {
-        await fs.rm(filePath, { force: true }).catch(() => unrestored.push(filePath));
-      }
+    const created = planned.map(({ filePath }) => filePath).filter((p) => !snapshot.has(p));
+    for (const filePath of created) {
+      await fs.rm(filePath, { force: true }).catch(() => unrestored.push(filePath));
     }
     for (const [filePath, content] of snapshot) {
       try {
@@ -143,7 +155,7 @@ export class TranslationSync {
         unrestored.push(filePath);
       }
     }
-    await this.removeEmptyDirectories(this.translationsPath, true).catch(() => undefined);
+    await this.pruneEmptyParents(created).catch(() => undefined);
 
     if (unrestored.length > 0) {
       const reason = cause instanceof Error ? cause.message : String(cause);
@@ -184,6 +196,70 @@ export class TranslationSync {
     return { files: planned.map(({ filePath }) => filePath) };
   }
 
+  /** Compare each file the response would write with the file on disk now. */
+  async diffPull(
+    data: TranslationsResponse,
+    options: WriteTranslationsOptions = {},
+  ): Promise<PullFileDiff[]> {
+    const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
+    // Never read through a symlink that leaves the tree.
+    await this.assertPlanContained(planned);
+    const diffs: PullFileDiff[] = [];
+
+    for (const { filePath, catalog } of planned) {
+      const incoming = Object.keys(catalog);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await fs.readFile(filePath, "utf-8"));
+      } catch (error) {
+        const isNew = (error as NodeJS.ErrnoException).code === "ENOENT";
+        diffs.push({
+          filePath,
+          status: isNew ? "new" : "unreadable",
+          added: isNew ? incoming : [],
+          changed: [],
+          removed: [],
+          nested: false,
+        });
+        continue;
+      }
+
+      let local: Record<string, string>;
+      try {
+        if (!isPlainObject(parsed)) throw new Error("not an object");
+        local = flattenTranslationFile(parsed, filePath);
+      } catch {
+        diffs.push({
+          filePath,
+          status: "unreadable",
+          added: [],
+          changed: [],
+          removed: [],
+          nested: false,
+        });
+        continue;
+      }
+
+      const added = incoming.filter((key) => !hasOwnKey(local, key));
+      const changed = incoming.filter(
+        (key) => hasOwnKey(local, key) && local[key] !== catalog[key],
+      );
+      const removed = Object.keys(local).filter((key) => !hasOwnKey(catalog, key));
+      const nested = Object.values(parsed).some(isPlainObject);
+      const differs = added.length + changed.length + removed.length > 0 || nested;
+      diffs.push({
+        filePath,
+        status: differs ? "changed" : "unchanged",
+        added,
+        changed,
+        removed,
+        nested,
+      });
+    }
+
+    return diffs;
+  }
+
   /**
    * Resolve every file the response would produce, validating as it goes: each
    * locale and namespace the response declares, then each resolved path. The
@@ -198,6 +274,7 @@ export class TranslationSync {
     }
 
     const planned: PlannedWrite[] = [];
+    const owners = new Map<string, string>();
 
     for (const locale of data.locales) {
       const localeTranslations = data.translations[locale];
@@ -207,10 +284,43 @@ export class TranslationSync {
         const catalog = localeTranslations[namespace];
         if (!catalog) continue;
 
+        const filePath = this.resolveFilePath(locale, namespace, defaultNamespace);
+        // `{languageTag}-{namespace}.json` puts en + US-shop and en-US + shop
+        // in one file; the second write would silently replace the first.
+        const owner = `locale ${JSON.stringify(locale)}, namespace ${JSON.stringify(namespace)}`;
+        // Compared as a case-insensitive file system sees it (macOS, Windows).
+        const key = filePath.normalize("NFC").toLowerCase();
+        const previous = owners.get(key);
+        if (previous) {
+          throw new TypegenError(
+            `${previous} and ${owner} both resolve to ${filePath}. ` +
+              "Use a fileTemplate that puts {languageTag} and {namespace} in separate path segments.",
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
+        owners.set(key, owner);
         planned.push({
-          filePath: this.resolveFilePath(locale, namespace, defaultNamespace),
+          locale,
+          namespace,
+          filePath,
           catalog,
         });
+      }
+    }
+
+    // A file one catalog needs where another needs a directory: with the
+    // default layout, namespace "en.json" would live at en.json/en.json.
+    const root = this.translationsPath.normalize("NFC").toLowerCase();
+    for (const [key, owner] of owners) {
+      for (let dir = dirname(key); dir.length > root.length; dir = dirname(dir)) {
+        const fileOwner = owners.get(dir);
+        if (fileOwner) {
+          throw new TypegenError(
+            `${fileOwner} is written to a file that ${owner} needs as a directory. ` +
+              "Rename the namespace or use a different fileTemplate.",
+            ErrorCodes.VALIDATION_FAILED,
+          );
+        }
       }
     }
 
@@ -239,10 +349,8 @@ export class TranslationSync {
 
     const files = await this.findTranslationFiles(defaultNamespace);
 
-    const spell = options.looseLocaleMatch ? localeMatchKey : (locale: string) => locale;
-    const wanted = options.locales?.map(spell);
     for (const { locale, namespace, filePath } of files) {
-      if (wanted?.length && !wanted.includes(spell(locale))) {
+      if (options.locales?.length && !findLocale(locale, options.locales)) {
         continue;
       }
       if (options.namespaces?.length && !options.namespaces.includes(namespace)) {
@@ -296,33 +404,21 @@ export class TranslationSync {
   }
 
   /**
-   * Remove the translation files a pull is about to replace.
-   *
-   * With no scope this is the whole directory. With a locale or namespace
-   * filter it is only the files that filter selects, so a filtered pull never
-   * deletes translations it was never going to fetch; directories the walk
-   * leaves empty are removed with them.
+   * Remove the translation files a pull is about to replace: the files the
+   * template parses as translations, within `scope`. Files the template does
+   * not match are never touched; directories only these removals emptied are
+   * removed with them.
    */
-  async clearDirectory(scope?: ClearScope): Promise<void> {
+  async clearDirectory(scope: ClearScope = {}): Promise<void> {
     this.assertInsideProject();
 
     try {
-      if (!isScopedClear(scope)) {
-        await fs.rm(this.translationsPath, { recursive: true, force: true });
-        await this.ensureDirectory(this.translationsPath);
-        return;
-      }
-
       const files = await this.listFilesToClear(scope);
       for (const filePath of files) {
         await fs.unlink(filePath);
       }
 
-      // Nothing was unlinked, so nothing was emptied — and the translations
-      // directory may not even exist yet.
-      if (files.length > 0) {
-        await this.removeEmptyDirectories(this.translationsPath, true);
-      }
+      await this.pruneEmptyParents(files);
     } catch (error) {
       throw wrapError(error, "Failed to clear directory", ErrorCodes.FS_WRITE_FAILED);
     }
@@ -332,19 +428,11 @@ export class TranslationSync {
    * List the files `clearDirectory` would remove for the same scope, sorted, so
    * `--dry-run` can name every one of them.
    */
-  async previewClear(scope?: ClearScope): Promise<string[]> {
+  async previewClear(scope: ClearScope = {}): Promise<string[]> {
     this.assertInsideProject();
 
     try {
-      if (isScopedClear(scope)) {
-        return await this.listFilesToClear(scope);
-      }
-
-      const files: string[] = [];
-      await this.walkDirectory(this.translationsPath, (filePath) => {
-        files.push(filePath);
-      });
-      return files.sort();
+      return await this.listFilesToClear(scope);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return [];
@@ -358,46 +446,54 @@ export class TranslationSync {
     if (!isBeneathDirectory(resolve(process.cwd()), this.translationsPath)) {
       throw new TypegenError(
         `Refusing to clear translations directory outside the current project: ${this.translationsPath}`,
-        ErrorCodes.FS_WRITE_FAILED,
+        ErrorCodes.VALIDATION_FAILED,
       );
     }
   }
 
   private async listFilesToClear(scope: ClearScope): Promise<string[]> {
+    // `{languageTag}-{namespace}.json` cannot tell `en` + `US-shop` from
+    // `en-US` + `shop`, so a clear could delete a catalog it never received.
+    if (hasPlaceholdersInOneSegment(this.fileTemplate)) {
+      throw new TypegenError(
+        `Cannot clear with fileTemplate ${JSON.stringify(this.fileTemplate)}: ` +
+          "{languageTag} and {namespace} share a path segment, so a file name does not say " +
+          "which locale it belongs to. Put them in separate directories, or pull without --empty-dir.",
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
     const files = await this.findTranslationFiles(scope.defaultNamespace ?? DEFAULT_NAMESPACE);
 
     return files
       .filter(
         ({ locale, namespace }) =>
-          (!scope.locales?.length || scope.locales.includes(locale)) &&
-          (!scope.namespaces?.length || scope.namespaces.includes(namespace)),
+          (scope.locales === undefined || scope.locales.includes(locale)) &&
+          (scope.namespaces === undefined || scope.namespaces.includes(namespace)),
       )
       .map(({ filePath }) => filePath)
       .sort();
   }
 
   /**
-   * Remove directories the clear emptied, deepest first. The translations
-   * directory itself is kept: the pull writes into it next.
+   * Remove the directories that removing `files` left empty, walking up to but
+   * never including the translations directory. A directory that was empty
+   * before, or still holds anything, stays.
    */
-  private async removeEmptyDirectories(dir: string, isRoot: boolean): Promise<boolean> {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-
-    let isEmpty = true;
-    for (const entry of entries) {
-      const removed =
-        entry.isDirectory() && (await this.removeEmptyDirectories(join(dir, entry.name), false));
-      if (!removed) {
-        isEmpty = false;
+  private async pruneEmptyParents(files: string[]): Promise<void> {
+    const directories = [...new Set(files.map((file) => dirname(file)))].sort(
+      (a, b) => b.length - a.length,
+    );
+    for (let dir of directories) {
+      while (isBeneathDirectory(this.translationsPath, dir)) {
+        try {
+          await fs.rmdir(dir);
+        } catch {
+          break;
+        }
+        dir = dirname(dir);
       }
     }
-
-    if (isEmpty && !isRoot) {
-      await fs.rmdir(dir);
-      return true;
-    }
-
-    return false;
   }
 
   compareTranslations(local: TranslationData, remote: TranslationData): TranslationDiff {
@@ -624,6 +720,13 @@ export class TranslationSync {
   }
 }
 
+function hasPlaceholdersInOneSegment(template: string): boolean {
+  return template
+    .replace(/\\/g, "/")
+    .split("/")
+    .some((segment) => segment.includes("{languageTag}") && segment.includes("{namespace}"));
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -736,11 +839,6 @@ function parseDefaultNamespaceFile(relativePath: string, format: "json"): string
   const regex = new RegExp(`^([^/]+)\\.${escapeRegExp(format)}$`);
   const locale = relativePath.match(regex)?.[1];
   return locale !== undefined && unsafePathSegmentReason(locale) === undefined ? locale : null;
-}
-
-/** An empty scope clears everything; any filter narrows it. */
-function isScopedClear(scope?: ClearScope): scope is ClearScope {
-  return Boolean(scope?.locales?.length || scope?.namespaces?.length);
 }
 
 /**

@@ -144,7 +144,7 @@ async function handleSaveOnly() {
   if (savedData) {
     toast?.addToast({
       title: "Saved",
-      description: "Translation saved successfully",
+      description: translationManager.state.value.error ?? "Translation saved successfully",
       variant: "success",
     });
   } else if (translationManager.state.value.error) {
@@ -159,7 +159,7 @@ async function handleSaveOnly() {
 
 async function handleSaveAndClose() {
   const savedData = await handleSaveOnly();
-  if (savedData) {
+  if (savedData && !translationManager.hasUnsavedChanges.value) {
     isOpenInternal.value = false;
   }
 }

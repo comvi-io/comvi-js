@@ -8,13 +8,15 @@ import {
 } from "../core/CatalogCheck";
 import { DEFAULT_FILE_TEMPLATE, DEFAULT_TRANSLATIONS_PATH, isValidFileTemplate } from "../defaults";
 import type { ComviConfig } from "../types";
-import { ErrorCodes, EXIT_CHECK_FAILED, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import {
-  assertAllReturned,
-  localeMatchKey,
-  parseListFlag,
-  resolveFilter,
-} from "../utils/filterResolution";
+  ErrorCodes,
+  EXIT_FAILURE,
+  EXIT_VALIDATION,
+  exitCodeFor,
+  TypegenError,
+} from "../utils/errors";
+import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
+import { localeKey } from "../utils/locales";
 
 /** The locale `check` compares against when neither `--source` nor `sourceLocale` names one. */
 const FALLBACK_SOURCE = "en";
@@ -32,8 +34,8 @@ interface CheckCommandOptions {
   strict?: boolean;
 }
 
-/** Input `check` refuses to act on: exit 4. */
-class InputError extends Error {}
+/** Input `check` refuses to act on: exit 4, like every command's invalid input. */
+const inputError = (message: string) => new TypegenError(message, ErrorCodes.VALIDATION_FAILED);
 
 export function createCheckCommand(): Command {
   return new Command("check")
@@ -58,14 +60,14 @@ async function runCheck(options: CheckCommandOptions): Promise<number> {
   try {
     config = await ConfigLoader.load(options.config, { requireApiKey: false, optional: true });
   } catch (error) {
-    return fail(error, EXIT_VALIDATION);
+    return fail(error, exitCodeFor(error));
   }
 
   let settings: ReturnType<typeof resolveSettings>;
   try {
     settings = resolveSettings(options, config);
   } catch (error) {
-    return fail(error, EXIT_VALIDATION);
+    return fail(error, exitCodeFor(error));
   }
 
   const { translationsPath, fileTemplate, format, targets, namespaces } = settings;
@@ -77,38 +79,43 @@ async function runCheck(options: CheckCommandOptions): Promise<number> {
   try {
     local = await sync.readTranslations({
       locales: targets ? [sourceName, ...targets] : undefined,
-      looseLocaleMatch: true,
       namespaces,
     });
   } catch (error) {
-    return fail(error, isInputError(error) ? EXIT_VALIDATION : EXIT_CHECK_FAILED);
+    return fail(error, readFailureCode(error));
   }
 
   // Requested names are matched to the catalogs' own: `-l pt-BR` checks
   // `pt-br.json` and reports it as `pt-br`.
   const catalogsFor = (name: string) =>
-    local.locales.filter((locale) => localeMatchKey(locale) === localeMatchKey(name));
+    local.locales.filter((locale) => localeKey(locale) === localeKey(name));
   let source: string;
   try {
     // A filter typo first: it also hides the source catalog.
     assertAllReturned("namespaces", namespaces, local.namespaces);
-    assertAllReturned("locales", targets?.map(localeMatchKey), local.locales.map(localeMatchKey));
+    const unknown = (targets ?? []).filter((name) => catalogsFor(name).length === 0);
+    if (unknown.length > 0) {
+      // Only the requested locales were read, so the others cannot be listed.
+      throw inputError(
+        `Unknown locales: ${unknown.join(", ")}: no catalog for them in ${translationsPath}.`,
+      );
+    }
     const sources = catalogsFor(sourceName);
     if (sources.length === 0) {
-      throw new InputError(
+      throw inputError(
         settings.source === undefined
           ? `no catalog for "${FALLBACK_SOURCE}" in ${translationsPath}: name the source locale with --source or "sourceLocale" in .comvirc.json`
           : `no catalog for the source locale "${sourceName}" in ${translationsPath}`,
       );
     }
     if (sources.length > 1) {
-      throw new InputError(
+      throw inputError(
         `the source locale "${sourceName}" matches more than one catalog: ${sources.join(", ")}`,
       );
     }
     source = sources[0];
   } catch (error) {
-    return fail(error, EXIT_VALIDATION);
+    return fail(error, exitCodeFor(error));
   }
 
   let report: CatalogCheckReport;
@@ -122,10 +129,13 @@ async function runCheck(options: CheckCommandOptions): Promise<number> {
       strict: options.strict ?? config.check?.strict ?? false,
     });
   } catch (error) {
-    return fail(error, EXIT_CHECK_FAILED);
+    // A bug, not the user's input: the scheme's local failure (1).
+    return fail(error, exitCodeFor(error));
   }
 
-  const code = report.ok || !options.fail ? 0 : 1;
+  // Findings are the scheme's "ran and found a problem" (1), as for
+  // `typegen --check`. check never talks to the platform: never 2 or 3.
+  const code = report.ok || !options.fail ? 0 : EXIT_FAILURE;
   console.log(
     format === "json"
       ? JSON.stringify(
@@ -151,48 +161,41 @@ async function runCheck(options: CheckCommandOptions): Promise<number> {
 
 function resolveSettings(options: CheckCommandOptions, config: ComviConfig) {
   if (options.format !== "text" && options.format !== "json") {
-    throw new InputError(`--format must be "text" or "json", received "${options.format}"`);
+    throw inputError(`--format must be "text" or "json", received "${options.format}"`);
   }
 
   const fileTemplate = options.fileTemplate ?? config.fileTemplate ?? DEFAULT_FILE_TEMPLATE;
   if (!isValidFileTemplate(fileTemplate, true)) {
-    throw new InputError(
+    throw inputError(
       `--file-template must contain one {languageTag}, at most one {namespace} and end in ".json", received "${fileTemplate}"`,
     );
   }
 
-  for (const [flag, value] of [
-    ["--source", options.source],
-    ["--locale", options.locale],
-    ["--ns", options.ns],
-  ] as const) {
-    if (value !== undefined && parseListFlag(value) === undefined) {
-      throw new InputError(`${flag} must not be empty`);
-    }
-  }
+  // The shared flag rule: an empty value is a usage error, not "everything".
+  parseListFlag(options.source, "--source");
 
   return {
     translationsPath: options.path ?? config.translationsPath ?? DEFAULT_TRANSLATIONS_PATH,
     fileTemplate,
     format: options.format,
-    source: (options.source ?? config.sourceLocale)?.trim(),
+    // Matched with the shared locale key, which also trims: `-s " de "` is de.
+    source: options.source ?? config.sourceLocale,
     // The source may be listed too; it is read, and never reported on.
-    targets: resolveFilter(parseListFlag(options.locale), config.locales).value,
-    namespaces: resolveFilter(parseListFlag(options.ns), config.namespaces).value,
+    targets: resolveFilter(parseListFlag(options.locale, "--locale"), config.locales).value,
+    namespaces: resolveFilter(parseListFlag(options.ns, "--ns"), config.namespaces).value,
   };
 }
 
 /**
- * The user's input, as for pull and push: a catalog file they wrote, one that
- * vanished or may not be read, or a `--path` that names a file. Anything else
- * is I/O the check could not get past.
+ * Reading the catalogs failed. A raw file-system error — a directory that may
+ * not be listed, a `--path` naming a file, EIO — is an unreadable local file:
+ * invalid input (4), like the reader's own FS_READ_FAILED. Anything else goes
+ * through the shared mapping.
  */
-function isInputError(error: unknown): boolean {
-  if ((error as NodeJS.ErrnoException).code === "ENOTDIR") return true;
-  if (isTypegenError(error, ErrorCodes.CONFIG_INVALID)) return true;
-  if (!isTypegenError(error, ErrorCodes.FS_READ_FAILED)) return false;
-  const code = (error.cause as NodeJS.ErrnoException | undefined)?.code;
-  return code === "ENOENT" || code === "EACCES";
+function readFailureCode(error: unknown): number {
+  const errno = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (!(error instanceof TypegenError) && typeof errno === "string") return EXIT_VALIDATION;
+  return exitCodeFor(error);
 }
 
 function fail(error: unknown, code: number): number {

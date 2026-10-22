@@ -3,8 +3,9 @@ import { Command } from "commander";
 import { promises as fs } from "fs";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
+import { timeoutsFromEnv, type Timeouts } from "../core/timeouts";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
-import { EXIT_VALIDATION } from "../utils/errors";
+import { EXIT_VALIDATION, exitCodeFor, isTypegenError } from "../utils/errors";
 import type { ComviConfig } from "../types";
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -20,7 +21,10 @@ export function createInitCommand(): Command {
   return new Command("init")
     .description("Initialize a new .comvirc.json configuration file")
     .option("-k, --api-key <key>", "API key for TMS (prefer COMVI_API_KEY env var)")
-    .option("-u, --api-url <url>", "API base URL", "https://api.comvi.io")
+    .option(
+      "-u, --api-url <url>",
+      "API base URL (default: $COMVI_API_BASE_URL, else https://api.comvi.io)",
+    )
     .option("-o, --output <path>", "Output path for generated types", "src/types/i18n.d.ts")
     .option("--no-strict-params", "Make all params optional")
     .option("--translations-path <path>", "Local translations folder", "./src/locales")
@@ -30,8 +34,24 @@ export function createInitCommand(): Command {
       // ApiClient rejects a malformed URL from inside the key-validation block,
       // where it read as "API key validation failed" — and the bad value was
       // written to the config anyway.
-      if (!isHttpUrl(options.apiUrl)) {
-        console.error(`✗ Invalid API base URL: ${options.apiUrl}`);
+      // The environment the other commands read: without this, a staging key
+      // was validated against production and the config pointed there.
+      const apiUrl: string =
+        options.apiUrl || process.env.COMVI_API_BASE_URL || "https://api.comvi.io";
+      if (!isHttpUrl(apiUrl)) {
+        const fromEnv = !options.apiUrl && process.env.COMVI_API_BASE_URL;
+        console.error(
+          `✗ Invalid API base URL${fromEnv ? " (from COMVI_API_BASE_URL)" : ""}: ${apiUrl}`,
+        );
+        process.exit(EXIT_VALIDATION);
+      }
+
+      let timeouts: Timeouts;
+      try {
+        timeouts = timeoutsFromEnv();
+      } catch (error) {
+        if (!isTypegenError(error)) throw error;
+        console.error(`✗ ${error.message}`);
         process.exit(EXIT_VALIDATION);
       }
 
@@ -44,7 +64,7 @@ export function createInitCommand(): Command {
         console.error(
           "   Re-run 'comvi init --force' to overwrite it. The existing file was left untouched.",
         );
-        process.exit(1);
+        process.exit(EXIT_VALIDATION);
       }
 
       try {
@@ -61,7 +81,7 @@ export function createInitCommand(): Command {
           // Only include apiKey if explicitly provided via --api-key flag
           // Environment variable is preferred and will be read at runtime
           ...(options.apiKey ? { apiKey: options.apiKey } : {}),
-          apiBaseUrl: options.apiUrl,
+          apiBaseUrl: apiUrl,
           outputPath: options.output,
           strictParams: options.strictParams !== false,
           translationsPath: options.translationsPath,
@@ -74,6 +94,7 @@ export function createInitCommand(): Command {
             const apiClient = new ApiClient({
               apiKey: apiKey,
               apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
+              ...timeouts,
             });
             const projectInfo = await apiClient.validateApiKey();
             console.log(`✓ API key valid for project: ${projectInfo.name}`);
@@ -124,7 +145,7 @@ export function createInitCommand(): Command {
         if (error instanceof Error) {
           console.error(`✗ Failed to initialize: ${error.message}`);
         }
-        process.exit(1);
+        process.exit(exitCodeFor(error));
       }
     });
 }
