@@ -60,7 +60,7 @@ async function runCheck(options: CheckCommandOptions): Promise<number> {
   try {
     config = await ConfigLoader.load(options.config, { requireApiKey: false, optional: true });
   } catch (error) {
-    return fail(error, exitCodeFor(error));
+    return fail(error, readFailureCode(error));
   }
 
   let settings: ReturnType<typeof resolveSettings>;
@@ -187,8 +187,9 @@ function resolveSettings(options: CheckCommandOptions, config: ComviConfig) {
 }
 
 /**
- * Reading the catalogs failed. A raw file-system error — a directory that may
- * not be listed, a `--path` naming a file, EIO — is an unreadable local file:
+ * Reading the config or the catalogs failed. A raw file-system error — a
+ * `--config` or `--path` naming the wrong kind of entry (EISDIR, ENOTDIR), one
+ * that may not be read (EACCES, EPERM), EIO — is an unreadable local file:
  * invalid input (4), like the reader's own FS_READ_FAILED. Anything else goes
  * through the shared mapping.
  */

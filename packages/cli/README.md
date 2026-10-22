@@ -38,10 +38,11 @@ export COMVI_API_KEY=comvi_xxxxxxxxxxxxxxxx
 npx comvi pull
 ```
 
-Every command reads `COMVI_API_KEY`. The key selects the project, so there is no project id to
-configure. The CLI also loads the nearest `.env` file before each command, walking up from the
-working directory and stopping at the first `package.json`, so `COMVI_API_KEY=...` in `.env` works
-with no wrapper. Real environment variables always win over the file.
+The commands that talk to the platform (`init`, `typegen`, `pull`, `push`) read `COMVI_API_KEY`.
+The key selects the project, so there is no project id to configure. Before each of them the CLI
+loads the nearest `.env` file, walking up from the working directory and stopping at the first
+`package.json`, so `COMVI_API_KEY=...` in `.env` works with no wrapper. Real environment variables
+always win over the file. `comvi check` works offline: it loads no `.env` and reads no key.
 
 ## Config file
 

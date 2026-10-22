@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "path";
 import { createCheckCommand } from "../src/commands/check";
 import { TranslationSync } from "../src/core/TranslationSync";
 import { CatalogCheck } from "../src/core/CatalogCheck";
+import { ConfigLoader } from "../src/core/ConfigLoader";
 import {
   captureConsole,
   makeTempDir,
@@ -389,6 +390,35 @@ describe("comvi check", () => {
     it("on --config naming a file that does not exist", async () => {
       expect(await run("--config", "missing.json")).toBe(4);
       expect(output.stderr).toContain("Config file not found");
+    });
+
+    it("on --config naming a directory", async () => {
+      expect(await run("--config", "src")).toBe(4);
+      expect(output.stderr).toContain("✗ Check failed:");
+      expect(output.stderr).toContain("EISDIR");
+    });
+
+    it("on a .comvirc.json it may not read", async () => {
+      if (process.platform === "win32" || process.getuid?.() === 0) return;
+      await write(".comvirc.json", {});
+      await fs.chmod(join(dir, ".comvirc.json"), 0o000);
+
+      expect(await run("--config", ".comvirc.json")).toBe(4);
+      expect(output.stderr).toContain("EACCES");
+    });
+
+    it("on an I/O error reading the config", async () => {
+      const failure = Object.assign(new Error("EIO: i/o error, read"), { code: "EIO" });
+      vi.spyOn(ConfigLoader, "load").mockRejectedValue(failure);
+
+      expect(await run()).toBe(4);
+      expect(output.stderr).toContain("EIO: i/o error, read");
+    });
+
+    it("on a config failure that is no file-system error, through the shared mapping", async () => {
+      vi.spyOn(ConfigLoader, "load").mockRejectedValue(new Error("unexpected"));
+
+      expect(await run()).toBe(1);
     });
 
     it("on a .comvirc.json with an unknown field", async () => {
