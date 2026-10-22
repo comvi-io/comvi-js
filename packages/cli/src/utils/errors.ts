@@ -40,6 +40,8 @@ export const ErrorCodes = {
   API_FETCH_FAILED: "API_FETCH_FAILED",
   API_TIMEOUT: "API_TIMEOUT",
   API_INVALID_RESPONSE: "API_INVALID_RESPONSE",
+  /** The platform lacks the route a command needs: an older platform. */
+  API_UNSUPPORTED: "API_UNSUPPORTED",
 
   FS_WRITE_FAILED: "FS_WRITE_FAILED",
   FS_READ_FAILED: "FS_READ_FAILED",
@@ -127,6 +129,7 @@ export function exitCodeFor(error: unknown): number {
     case ErrorCodes.VALIDATION_FAILED:
     case ErrorCodes.INVALID_INPUT:
     case ErrorCodes.FS_READ_FAILED:
+    case ErrorCodes.API_UNSUPPORTED:
       return EXIT_VALIDATION;
     default:
       return EXIT_FAILURE;

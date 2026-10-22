@@ -185,6 +185,25 @@ export class TranslationSync {
   }
 
   /**
+   * The file a catalog of `locale` and `namespace` lives in, after the same
+   * name and containment checks a pull applies (symlinks included). Nothing
+   * is read or written.
+   */
+  async catalogPath(locale: string, namespace: string, defaultNamespace?: string): Promise<string> {
+    const filePath = this.resolveFilePath(locale, namespace, defaultNamespace ?? DEFAULT_NAMESPACE);
+    await this.assertRealPathContained(dirname(filePath));
+    await this.assertRealPathContained(filePath);
+    return filePath;
+  }
+
+  /** The translation files on disk, as the template parses them. */
+  async listCatalogFiles(
+    defaultNamespace?: string,
+  ): Promise<Array<{ locale: string; namespace: string; filePath: string }>> {
+    return this.findTranslationFiles(defaultNamespace ?? DEFAULT_NAMESPACE);
+  }
+
+  /**
    * List the file paths writeTranslations would produce, without writing
    */
   previewTranslations(
