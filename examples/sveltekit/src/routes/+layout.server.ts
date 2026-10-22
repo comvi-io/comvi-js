@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { createI18n } from "@comvi/svelte";
+import { createI18n, icuCompiler } from "@comvi/svelte";
 import { catalogLoader, fallbackLocale, locales } from "../lib/i18n";
 import type { LayoutServerLoad } from "./$types";
 
@@ -8,8 +8,9 @@ export const load: LayoutServerLoad = async ({ params }) => {
   if (!locales.includes(locale)) error(404, "Not found");
 
   // One instance per request: it loads the catalogs and is dropped. Only
-  // plain data crosses to the page.
-  const i18n = createI18n({ locale, fallbackLocale }).use(catalogLoader());
+  // plain data crosses to the page. It takes the browser instance's compiler,
+  // because the development build checks every catalog against it on load.
+  const i18n = createI18n({ locale, fallbackLocale, compiler: icuCompiler }).use(catalogLoader());
   await i18n.init();
 
   const namespace = i18n.getDefaultNamespace();

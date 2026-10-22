@@ -1,4 +1,4 @@
-import { createI18n, loader } from "@comvi/solid";
+import { createI18n, icuCompiler, loader } from "@comvi/solid";
 
 export const locales = ["en", "uk", "de", "ar"];
 export const fallbackLocale = "en";
@@ -24,7 +24,9 @@ export async function loadI18n(requested: string) {
 
   // A server function is an endpoint any client can call, so the locale is checked here too.
   const locale = locales.includes(requested) ? requested : fallbackLocale;
-  const i18n = createI18n({ locale, fallbackLocale }).use(catalogLoader());
+  // The browser instance's compiler: the development build checks every
+  // catalog against it on load.
+  const i18n = createI18n({ locale, fallbackLocale, compiler: icuCompiler }).use(catalogLoader());
   await i18n.init();
 
   const namespace = i18n.getDefaultNamespace();

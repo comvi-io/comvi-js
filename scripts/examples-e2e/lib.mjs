@@ -957,7 +957,7 @@ export const RECIPE_VARIANTS = {
         },
         {
           file: "src/routes/+layout.server.ts",
-          from: "  const i18n = createI18n({ locale, fallbackLocale }).use(catalogLoader());\n  await i18n.init();\n",
+          from: "  const i18n = createI18n({ locale, fallbackLocale, compiler: icuCompiler }).use(catalogLoader());\n  await i18n.init();\n",
           to: "  const i18n = shared;\n  await i18n.setLocale(locale);\n",
         },
         {
