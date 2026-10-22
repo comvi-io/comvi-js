@@ -13,6 +13,7 @@
   <a href="https://www.npmjs.com/package/@comvi/plugin-locale-detector"><img src="https://img.shields.io/npm/v/@comvi/plugin-locale-detector?color=blue" alt="npm"></a>
   <a href="https://bundlephobia.com/package/@comvi/plugin-locale-detector"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/plugin-locale-detector?label=minzip" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
 
 ---
@@ -99,6 +100,12 @@ and need no detector on the i18n instance. See
 - [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector): common setups, the tag validation rule.
 - [Language switching](https://comvi.io/docs/i18n/language-switching): `setLocale`, persistence and direction.
 - [Plugins overview](https://comvi.io/docs/i18n/plugins): installers, plugin factories and registration options.
+
+## Contributing
+
+Bug reports, docs fixes and pull requests are welcome.
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
+and what CI checks.
 
 ## License
 

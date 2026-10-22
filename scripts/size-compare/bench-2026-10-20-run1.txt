@@ -1,0 +1,47 @@
+node v24.20.0 | darwin arm64 | Apple M1 Max | NODE_ENV=production | load 4.28 4.38 4.77 | 2026-10-20T04:56:29.515Z
+
+## warm, equal work: the same key, count pre-formatted as {n}; n per library below
+@comvi/core + icuCompiler                                  median    525.1 ms    2.25 M ops/s   n=1180058
+intl-messageformat (instance reused)                       median    544.5 ms    0.91 M ops/s   n=498012
+i18next + i18next-icu                                      median    684.3 ms    0.29 M ops/s   n=200000
+use-intl/core createTranslator                             median    822.0 ms    0.24 M ops/s   n=200000
+vue-i18n (pipe plural, own syntax)                         median    895.6 ms    0.22 M ops/s   n=200000
+
+## warm, static key: the same key, message "Saved" with no parameters; n per library below
+@comvi/core, simple compiler                               median    717.2 ms   58.75 M ops/s   n=42138192
+@comvi/core + icuCompiler                                  median    990.1 ms   43.93 M ops/s   n=43497242
+intl-messageformat (instance reused)                       median    725.1 ms   50.17 M ops/s   n=36382184
+i18next (no plugins)                                       median    668.2 ms    0.60 M ops/s   n=400000
+use-intl/core createTranslator                             median    935.2 ms    7.28 M ops/s   n=6803966
+vue-i18n                                                   median    738.3 ms    0.27 M ops/s   n=200000
+
+## warm, one parameter: the same key, "Hello, {name}!" with a changing name; n per library below
+@comvi/core, simple compiler                               median    908.9 ms   16.07 M ops/s   n=14605932
+@comvi/core + icuCompiler                                  median    536.8 ms   14.64 M ops/s   n=7856091
+intl-messageformat (instance reused)                       median    540.4 ms    5.64 M ops/s   n=3045717
+i18next (no plugins), {{name}}                             median    831.9 ms    0.48 M ops/s   n=400000
+use-intl/core createTranslator                             median    606.7 ms    0.33 M ops/s   n=200000
+vue-i18n, {name}                                           median    790.9 ms    0.25 M ops/s   n=200000
+
+## warm, same output: the same key, count 1234..1237, localized digits on every side; n per library below
+@comvi/core + icuCompiler, #                               median    542.3 ms    1.32 M ops/s   n=713795
+@comvi/core + icuCompiler, formatNumber() into {n}         median    550.2 ms    1.14 M ops/s   n=628281
+intl-messageformat (instance reused), #                    median    707.1 ms    0.57 M ops/s   n=400000
+i18next + i18next-icu, #                                   median    852.4 ms    0.23 M ops/s   n=200000
+use-intl/core createTranslator, #                          median    956.8 ms    0.21 M ops/s   n=200000
+vue-i18n (pipe plural), n(x, 'decimal') into {n}           median   1228.0 ms    0.16 M ops/s   n=200000
+
+## warm, small count: the same # message with counts 0..3; both sides localize #, equal work
+@comvi/core + icuCompiler, #                               median    547.2 ms    2.15 M ops/s   n=1176128
+intl-messageformat (instance reused), #                    median    681.4 ms    0.59 M ops/s   n=400000
+
+## catalog: 5000 distinct messages per instance, formatted once each (parse + format), every id compiled once in this process; instances per sample below
+@comvi/core + icuCompiler                                  median    551.1 ms   335.7 K msgs/s   n=185000
+intl-messageformat, new instance per message, shared formatters median    976.5 ms    92.2 K msgs/s   n=90000
+intl-messageformat, new instance per message, default formatters median    534.7 ms    46.8 K msgs/s   n=25000
+i18next + i18next-icu, one instance                        median    560.5 ms    35.7 K msgs/s   n=20000
+use-intl/core, one translator                              median    556.2 ms    53.9 K msgs/s   n=30000
+vue-i18n, one instance (pipe plural)                       median    976.9 ms    40.9 K msgs/s   n=40000
+
+node v24.20.0 | darwin arm64 | Apple M1 Max | NODE_ENV=production | load at end 4.19 4.28 4.64
+@comvi/core 0.6.0 | intl-messageformat 12.1.3 | i18next 26.4.4 + i18next-icu 2.5.0 | use-intl 4.14.9 | vue-i18n 11.4.14

@@ -53,6 +53,20 @@ function listedCommands(help: string): string[] {
 describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
   afterEach(removeTempDirs);
 
+  // Usage errors share exit 4 with every other invalid input; commander's own
+  // code, 1, means "conflict or mismatch" in this CLI.
+  it.each([
+    ["an unknown command", ["frobnicate"]],
+    ["an unknown option", ["pull", "--frobnicate"]],
+    ["an option missing its value", ["push", "--force-mode"]],
+  ])("exits 4 for %s", (_label, args) => {
+    expect(runCli(args).status).toBe(4);
+  });
+
+  it.each([["--help"], ["pull", "--help"]])("exits 0 for %s", (...args) => {
+    expect(runCli(args).status).toBe(0);
+  });
+
   it("prints the package version for --version", () => {
     const run = runCli(["--version"]);
 
@@ -65,13 +79,6 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
 
     expect(run.status).toBe(0);
     expect(listedCommands(run.stdout)).toEqual(["init", "typegen", "pull", "push", "help"]);
-  });
-
-  it("exits 1 on an unknown command", () => {
-    const run = runCli(["nope"]);
-
-    expect(run.status).toBe(1);
-    expect(run.stderr).toContain("unknown command 'nope'");
   });
 
   it("refuses a missing dotenv file with our own exit 4, not node's exit 9", async () => {

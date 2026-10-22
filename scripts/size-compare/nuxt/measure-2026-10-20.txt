@@ -1,0 +1,56 @@
+node v24.20.0 | darwin arm64 | load 4.28 4.38 4.77
+
+## All client JS under .output/public/_nuxt/
+
+| app | JS files | min bytes | gzip-9 bytes | brotli-11 bytes | Δ min vs base | Δ gzip vs base | Δ brotli vs base |
+|---|---|---|---|---|---|---|---|
+| bare | 4 | 144943 | 54453 | 48949 | +0 | +0 | +0 |
+| comvi-nuxt | 4 | 184796 | 66882 | 59760 | +39853 | +12429 | +10811 |
+| comvi-nuxt-icu | 4 | 187965 | 68071 | 60820 | +43022 | +13618 | +11871 |
+| nuxt-i18n | 5 | 229147 | 82572 | 73077 | +84204 | +28119 | +24128 |
+
+## Entry-file bytes only; excludes other chunks and prefetch
+
+| app | entry chunk | min | gzip-9 | brotli-11 | Δ min vs base | Δ gzip vs base | Δ brotli vs base |
+|---|---|---|---|---|---|---|---|
+| bare | _ejCKTkN.js | 132192 | 49165 | 44294 | +0 | +0 | +0 |
+| comvi-nuxt | B5rOY2FQ.js | 178007 | 63890 | 57239 | +45815 | +14725 | +12945 |
+| comvi-nuxt-icu | BLRHHJ55.js | 181176 | 65079 | 58299 | +48984 | +15914 | +14005 |
+| nuxt-i18n | D-bW0Une.js | 222313 | 79516 | 70506 | +90121 | +30351 | +26212 |
+
+## bare — chunks (largest first)
+
+| file | min | gzip-9 | brotli-11 | markers |
+|---|---|---|---|---|
+| _ejCKTkN.js | 132192 | 49165 | 44294 | — |
+| DhXLfgUu.js | 9981 | 4004 | 3564 | — |
+| CyNKORvI.js | 2686 | 1185 | 1003 | — |
+| BDNMzG2s.js | 84 | 99 | 88 | — |
+
+## comvi-nuxt — chunks (largest first)
+
+| file | min | gzip-9 | brotli-11 | markers |
+|---|---|---|---|---|
+| B5rOY2FQ.js | 178007 | 63890 | 57239 | comvi |
+| DtE1xRhL.js | 4029 | 1716 | 1434 | — |
+| D3WyVacv.js | 2676 | 1177 | 999 | — |
+| BDNMzG2s.js | 84 | 99 | 88 | — |
+
+## comvi-nuxt-icu — chunks (largest first)
+
+| file | min | gzip-9 | brotli-11 | markers |
+|---|---|---|---|---|
+| BLRHHJ55.js | 181176 | 65079 | 58299 | comvi |
+| DtE1xRhL.js | 4029 | 1716 | 1434 | — |
+| D3WyVacv.js | 2676 | 1177 | 999 | — |
+| BDNMzG2s.js | 84 | 99 | 88 | — |
+
+## nuxt-i18n — chunks (largest first)
+
+| file | min | gzip-9 | brotli-11 | markers |
+|---|---|---|---|---|
+| D-bW0Une.js | 222313 | 79516 | 70506 | intlify, vue-i18n |
+| o164wG1q.js | 4029 | 1714 | 1435 | — |
+| p1RSyzJ2.js | 2676 | 1178 | 999 | — |
+| BDNMzG2s.js | 84 | 99 | 88 | — |
+| CNnXW_bn.js | 45 | 65 | 49 | — |

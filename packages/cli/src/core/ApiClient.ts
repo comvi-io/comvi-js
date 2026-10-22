@@ -21,12 +21,19 @@ import type {
 } from "../types";
 import { wrapError, ErrorCodes, TypegenError } from "../utils/errors";
 import { isHttpUrl } from "./apiBaseUrl";
+import { DEFAULT_COMMIT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS } from "./timeouts";
 import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
 export interface ApiClientOptions {
   apiKey: string;
   apiBaseUrl: string;
+  /** Milliseconds for each read request. */
   timeout?: number;
+  /**
+   * Milliseconds for the push commit, which can take minutes on a large
+   * catalog. Defaults to `timeout` when that is given, else five minutes.
+   */
+  commitTimeout?: number;
 }
 
 export interface FetchTranslationsOptions {
@@ -77,7 +84,10 @@ interface BulkImportResponse {
     keysDeleted: number;
     translationsCreated: number;
     translationsUpdated: number;
+    /** Absent on platforms that predate per-value counts. */
+    translationsSkipped?: number;
     namespacesCreated: string[];
+    skippedLocales?: string[];
   };
   errors?: Array<{ key: string; namespace: string; message: string }>;
 }
@@ -89,6 +99,10 @@ interface RequestJsonOptions {
   failure: string;
   /** Message for a 403; without it a 403 reports like any other failure. */
   forbidden?: string;
+  /** Appended to a 403: which command needs which API key scope. */
+  scopeHint?: string;
+  /** Overrides the client's read timeout for this request. */
+  timeoutMs?: number;
 }
 
 /** Error bodies are read up to this many bytes; the rest is discarded. */
@@ -103,23 +117,52 @@ const ERROR_MESSAGE_LIMIT_CHARS = 500;
  * read — under the caller's request timer — and appended to the status line.
  * A body that is not that JSON shape falls back to the status line alone.
  */
-async function httpError(response: Response, opts: RequestJsonOptions): Promise<TypegenError> {
+async function httpError(
+  response: Response,
+  opts: RequestJsonOptions,
+  signal: AbortSignal,
+): Promise<TypegenError> {
   if (response.status === 401) {
     await discardBody(response);
     return new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
   }
+
+  const body = parseErrorBody(await readBoundedText(response, signal).catch(() => ""));
+  const details: Record<string, unknown> = { status: response.status, ...body };
+
+  // The platform says why: a missing scope, a plan limit, read-only billing.
   if (response.status === 403 && opts.forbidden) {
-    await discardBody(response);
-    return new TypegenError(opts.forbidden, ErrorCodes.API_AUTH_FAILED);
+    const reason = body.message
+      ? `: ${body.message}${body.code ? ` (${body.code})` : ""}`
+      : body.code
+        ? ` (${body.code})`
+        : "";
+    const sentence = `${opts.forbidden}${reason}`;
+    const stop = /[.!?…]$/u.test(sentence) ? "" : ".";
+    const hint = opts.scopeHint ? ` ${opts.scopeHint}` : "";
+    return new TypegenError(
+      `${sentence}${stop}${hint}`,
+      ErrorCodes.API_AUTH_FAILED,
+      undefined,
+      details,
+    );
   }
 
-  const body = parseErrorBody(await readBoundedText(response));
-  const details: Record<string, unknown> = { status: response.status, ...body };
-  const statusLine = `${opts.failure}: ${response.status} ${response.statusText}`;
+  const statusText = response.statusText ? ` ${response.statusText}` : "";
+  const statusLine = `${opts.failure}: ${response.status}${statusText}`;
+  const field = fieldOf(body.meta);
   const message = body.message
     ? `${statusLine}${body.code ? ` (${body.code})` : ""}: ${body.message}`
-    : statusLine;
+    : body.code
+      ? `${statusLine} (${body.code}${field ? `: ${field}` : ""})`
+      : statusLine;
   return new TypegenError(message, ErrorCodes.API_FETCH_FAILED, undefined, details);
+}
+
+/** The `field` a platform validation error names, when it names one. */
+function fieldOf(meta: unknown): string | undefined {
+  if (typeof meta !== "object" || meta === null) return undefined;
+  return oneLine((meta as Record<string, unknown>).field);
 }
 
 /**
@@ -135,26 +178,37 @@ async function discardBody(response: Response): Promise<void> {
   }
 }
 
-async function readBoundedText(response: Response): Promise<string> {
+async function readBoundedText(response: Response, signal?: AbortSignal): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) {
     return typeof response.text === "function"
       ? (await response.text()).slice(0, ERROR_BODY_LIMIT_BYTES)
       : "";
   }
+  // The request timer still runs: a body that stalls is cut when it fires.
+  // Cancelling resolves the pending read; the cancel itself is never awaited,
+  // so a transport that never confirms it cannot hold the command.
+  const cancel = () => void reader.cancel().catch(() => undefined);
+  if (signal?.aborted) cancel();
+  signal?.addEventListener("abort", cancel, { once: true });
 
   const chunks: Uint8Array[] = [];
   let size = 0;
-  while (size < ERROR_BODY_LIMIT_BYTES) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
+  try {
+    while (size < ERROR_BODY_LIMIT_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      const kept = value.subarray(0, ERROR_BODY_LIMIT_BYTES - size);
+      chunks.push(kept);
+      size += kept.byteLength;
     }
-    chunks.push(value);
-    size += value.byteLength;
-  }
-  if (size >= ERROR_BODY_LIMIT_BYTES) {
-    await reader.cancel().catch(() => undefined);
+    if (size >= ERROR_BODY_LIMIT_BYTES) {
+      cancel();
+    }
+  } finally {
+    signal?.removeEventListener("abort", cancel);
   }
 
   const bytes = new Uint8Array(size);
@@ -208,6 +262,13 @@ function oneLine(value: unknown): string | undefined {
 }
 
 const MAX_RETRIES = 2;
+
+/** First wait before reopening a lost schema stream; doubles up to the max. */
+const SSE_RECONNECT_BASE_MS = 1_000;
+const SSE_RECONNECT_MAX_MS = 30_000;
+/** The platform pings every 15 s; three missed pings means the stream is dead. */
+const SSE_IDLE_LIMIT_MS = 45_000;
+const SSE_WATCHDOG_INTERVAL_MS = 15_000;
 const RETRY_BASE_DELAY_MS = 500;
 const RETRY_AFTER_CAP_MS = 30_000;
 
@@ -233,6 +294,7 @@ function retryDelayMs(response: Response, attempt: number): number {
 
 export const API_ENDPOINTS = {
   project: "/v1/project",
+  projectLocales: "/v1/project/locales",
   translations: "/v1/translations",
   projectSchema: (projectId: number) => `/v1/projects/${projectId}/schema`,
   projectSchemaStream: (projectId: number) => `/v1/projects/${projectId}/schema/stream`,
@@ -244,7 +306,10 @@ export class ApiClient {
   private apiKey: string;
   private apiBaseUrl: string;
   private timeout: number;
+  private commitTimeout: number;
   private eventSource?: EventSource;
+  /** Stops the active schema subscription: its stream and its timers. */
+  private stopSubscription?: () => void;
   private subscriptionGeneration = 0;
   private projectInfo?: ProjectInfo;
   private projectInfoPromise?: Promise<ProjectInfo>;
@@ -271,15 +336,16 @@ export class ApiClient {
       );
     }
 
-    if (options.timeout !== undefined) {
-      if (typeof options.timeout !== "number" || options.timeout <= 0) {
+    for (const timeout of [options.timeout, options.commitTimeout]) {
+      if (timeout !== undefined && (typeof timeout !== "number" || timeout <= 0)) {
         throw new TypegenError("Timeout must be a positive number", ErrorCodes.INVALID_INPUT);
       }
     }
 
     this.apiKey = options.apiKey.trim();
     this.apiBaseUrl = options.apiBaseUrl.replace(/\/$/, ""); // Remove trailing slash
-    this.timeout = options.timeout ?? 30000; // 30 second default
+    this.timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
+    this.commitTimeout = options.commitTimeout ?? options.timeout ?? DEFAULT_COMMIT_TIMEOUT_MS;
   }
 
   /**
@@ -296,11 +362,12 @@ export class ApiClient {
     opts: RequestJsonOptions,
   ): Promise<T> {
     const retryTransient = opts.retryTransient ?? true;
+    const timeoutMs = opts.timeoutMs ?? this.timeout;
     let attempt = 0;
 
     for (;;) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       let retryAfterMs: number | undefined;
 
       try {
@@ -317,12 +384,20 @@ export class ApiClient {
 
         if (response) {
           if (response.ok) {
-            return (await response.json()) as T;
+            try {
+              return (await response.json()) as T;
+            } catch (error) {
+              if (error instanceof Error && error.name === "AbortError") throw error;
+              throw new TypegenError(
+                `${opts.failure}: the response is not JSON`,
+                ErrorCodes.API_INVALID_RESPONSE,
+              );
+            }
           }
 
           const retryable = retryTransient && (response.status === 429 || response.status >= 500);
           if (!(retryable && attempt < MAX_RETRIES)) {
-            throw await httpError(response, opts);
+            throw await httpError(response, opts, controller.signal);
           }
           retryAfterMs = retryDelayMs(response, attempt + 1);
           await discardBody(response);
@@ -356,6 +431,9 @@ export class ApiClient {
         { method: "GET", headers: this.authHeaders() },
         { failure: "Failed to validate API key" },
       );
+      if (!isRecord(projectInfo) || typeof projectInfo.id !== "number") {
+        throw invalidResponse("project");
+      }
       this.projectInfo = projectInfo;
       return projectInfo;
     } catch (error) {
@@ -369,7 +447,7 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to validate API key", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to validate API key", ErrorCodes.API_CONNECTION_FAILED);
     }
   }
 
@@ -382,11 +460,19 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectSchema(project.id)}`;
 
     try {
-      return await this.requestJson<ProjectSchema>(
+      const schema = await this.requestJson<ProjectSchema>(
         url,
         { method: "GET", headers: this.authHeaders() },
-        { failure: "Failed to fetch schema", forbidden: "Access denied to this project" },
+        {
+          failure: "Failed to fetch schema",
+          forbidden: "Access denied to this project",
+          scopeHint: "comvi typegen needs an API key with the schema:read scope.",
+        },
       );
+      if (!isRecord(schema) || !isRecord(schema.keys)) {
+        throw invalidResponse("schema");
+      }
+      return schema;
     } catch (error) {
       if (error instanceof TypegenError) {
         throw error;
@@ -398,7 +484,7 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to fetch schema", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to fetch schema", ErrorCodes.API_CONNECTION_FAILED);
     }
   }
 
@@ -423,8 +509,15 @@ export class ApiClient {
       const body = await this.requestJson<ApiTranslationsResponse>(
         url,
         { method: "GET", headers: this.authHeaders() },
-        { failure: "Failed to fetch translations", forbidden: "Access denied to this project" },
+        {
+          failure: "Failed to fetch translations",
+          forbidden: "Access denied to this project",
+          scopeHint: "Reading translations needs an API key with the translations:read scope.",
+        },
       );
+      if (!isRecord(body) || !Array.isArray(body.locales) || !isRecord(body.namespaces)) {
+        throw invalidResponse("translations");
+      }
       return normalizeTranslationsResponse(body);
     } catch (error) {
       if (error instanceof TypegenError) {
@@ -437,8 +530,56 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to fetch translations", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to fetch translations", ErrorCodes.API_CONNECTION_FAILED);
     }
+  }
+
+  /**
+   * The locale codes this key may read and write, in the project's spelling
+   * (the key owner's language restrictions applied).
+   * GET /v1/project/locales — `undefined` from a platform that lacks it.
+   */
+  async fetchProjectLocales(): Promise<string[] | undefined> {
+    const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectLocales}`;
+
+    let body: unknown;
+    try {
+      body = await this.requestJson<unknown>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        { failure: "Failed to fetch project locales", forbidden: "Access denied to this project" },
+      );
+    } catch (error) {
+      // A platform without the route answers a plain 404; a project that is
+      // gone says PROJECT_NOT_FOUND, and that one is the key's problem.
+      if (
+        error instanceof TypegenError &&
+        error.details?.status === 404 &&
+        error.details?.code !== "PROJECT_NOT_FOUND"
+      ) {
+        return undefined;
+      }
+      if (error instanceof TypegenError) {
+        throw error;
+      }
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new TypegenError(
+          `Request timeout after ${this.timeout}ms`,
+          ErrorCodes.API_TIMEOUT,
+          error,
+        );
+      }
+      throw wrapError(error, "Failed to fetch project locales", ErrorCodes.API_CONNECTION_FAILED);
+    }
+
+    const locales = isRecord(body) ? body.locales : undefined;
+    if (
+      !Array.isArray(locales) ||
+      !locales.every((l) => isRecord(l) && typeof l.code === "string")
+    ) {
+      throw invalidResponse("project locales");
+    }
+    return locales.map((l) => (l as { code: string }).code);
   }
 
   /**
@@ -474,7 +615,7 @@ export class ApiClient {
           error,
         );
       }
-      throw wrapError(error, "Failed to fetch namespaces", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to fetch namespaces", ErrorCodes.API_CONNECTION_FAILED);
     }
   }
 
@@ -511,55 +652,105 @@ export class ApiClient {
 
     const result: PushResult = {
       created: 0,
+      valuesCreated: 0,
       updated: 0,
       skipped: 0,
+      skippedLocales: [],
+      detailed: false,
     };
     const conflictCount = remote ? countConflicts(options.translations, remote.translations) : 0;
 
     if (options.forceMode === "abort" && conflictCount > 0) {
       throw new TypegenError(
         `Conflict detected for ${conflictCount} translations. Use --force-mode override or keep.`,
-        ErrorCodes.API_FETCH_FAILED,
+        ErrorCodes.CONFLICT,
       );
     }
 
     const total = countTranslationValues(options.translations);
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectImportCommit(project.id)}`;
     try {
-      // retryTransient: false — a commit that failed after send may already be applied
-      const body = await this.requestJson<BulkImportResponse>(
-        url,
-        {
-          method: "POST",
-          headers: this.authHeaders(),
-          body: JSON.stringify({
-            namespaces: toNamespaceImportData(options.translations),
-            options: {
-              conflictResolution: toImportConflictResolution(options.forceMode),
-              createNamespaces: true,
-              deleteOrphans: false,
-            },
-          }),
-        },
-        {
-          retryTransient: false,
-          failure: "Failed to push translations",
-          forbidden: "Access denied to this project",
-        },
-      );
+      // retryTransient: false — a commit that failed after send may already be
+      // applied. A 409 TRANSACTION_CONFLICT is the exception: the platform
+      // rolled it back and says so, so it is sent once more.
+      const commit = () =>
+        this.requestJson<BulkImportResponse>(
+          url,
+          {
+            method: "POST",
+            headers: this.authHeaders(),
+            body: JSON.stringify({
+              namespaces: toNamespaceImportData(options.translations),
+              options: {
+                conflictResolution: toImportConflictResolution(options.forceMode),
+                createNamespaces: true,
+                deleteOrphans: false,
+              },
+            }),
+          },
+          {
+            retryTransient: false,
+            failure: "Failed to push translations",
+            forbidden: "Access denied to this project",
+            scopeHint: "comvi push needs an API key with the translations:write scope.",
+            timeoutMs: this.commitTimeout,
+          },
+        );
+      let body: BulkImportResponse;
+      try {
+        body = await commit();
+      } catch (error) {
+        if (!isRolledBackConflict(error)) throw error;
+        await delay(RETRY_BASE_DELAY_MS);
+        body = await commit();
+      }
+      if (
+        !isRecord(body) ||
+        typeof body.success !== "boolean" ||
+        !isRecord(body.stats) ||
+        typeof body.stats.keysCreated !== "number" ||
+        (body.errors !== undefined && !Array.isArray(body.errors))
+      ) {
+        throw invalidResponse("import commit");
+      }
       if (!body.success) {
+        // Conflicts the platform found under its lock: values changed since
+        // the CLI compared (the preview, or the keep/abort pre-check).
+        const conflicts = (body.errors ?? []).filter((e) => /^Conflict\b/i.test(e.message));
+        if (conflicts.length > 0 && conflicts.length === body.errors?.length) {
+          const names = conflicts.slice(0, 5).map((e) => `${e.namespace}:${e.key}`);
+          const more = conflicts.length > names.length ? ", …" : "";
+          const one = conflicts.length === 1;
+          throw new TypegenError(
+            `${conflicts.length} ${one ? "value" : "values"} changed on the platform since this push read them ` +
+              `(${names.join(", ")}${more}). Nothing was written; run the push again to resolve ${one ? "it" : "them"}.`,
+            ErrorCodes.CONFLICT,
+          );
+        }
         const firstError = body.errors?.[0];
+        const conflict = body.errors?.some((e) => /^Conflict\b/i.test(e.message)) ?? false;
         throw new TypegenError(
           firstError
             ? `Failed to push translations: ${firstError.namespace}:${firstError.key} ${firstError.message}`
             : "Failed to push translations",
-          ErrorCodes.API_FETCH_FAILED,
+          conflict ? ErrorCodes.CONFLICT : ErrorCodes.VALIDATION_FAILED,
         );
       }
 
-      result.created = body.stats.keysCreated;
-      result.updated = body.stats.translationsUpdated;
-      result.skipped = options.forceMode === "keep" ? conflictCount : 0;
+      // A platform without translationsSkipped reported skipped conflicts as
+      // translationsUpdated and updates as created: only the key count holds.
+      const stats = body.stats;
+      const detailed = typeof stats.translationsSkipped === "number";
+      result.created = stats.keysCreated;
+      result.valuesCreated = detailed ? stats.translationsCreated : 0;
+      result.updated = detailed ? stats.translationsUpdated : 0;
+      result.skipped = detailed
+        ? (stats.translationsSkipped ?? 0)
+        : options.forceMode === "keep"
+          ? conflictCount
+          : 0;
+      result.skippedLocales = detailed ? (stats.skippedLocales ?? []) : [];
+      result.detailed = detailed;
 
       options.onProgress?.({
         total,
@@ -576,12 +767,13 @@ export class ApiClient {
       }
       if (error instanceof Error && error.name === "AbortError") {
         throw new TypegenError(
-          `Request timeout after ${this.timeout}ms`,
+          `Push timed out after ${this.commitTimeout}ms: the platform may still have applied it. ` +
+            "It is safe to re-run the same push; raise COMVI_TIMEOUT_MS for a very large catalog.",
           ErrorCodes.API_TIMEOUT,
           error,
         );
       }
-      throw wrapError(error, "Failed to push translations", ErrorCodes.API_FETCH_FAILED);
+      throw wrapError(error, "Failed to push translations", ErrorCodes.API_CONNECTION_FAILED);
     }
   }
 
@@ -601,15 +793,30 @@ export class ApiClient {
    * Subscribe to real-time schema updates via Server-Sent Events
    * GET /v1/projects/:projectId/schema/stream
    *
-   * @param onSchema - Callback when schema update is received
-   * @returns Cleanup function to close SSE connection
+   * eventsource gives up for good on any non-200 (a 502 during a deploy
+   * included) and never notices a connection that has gone quiet, so the
+   * stream is supervised here: a lost stream is reopened with growing waits,
+   * one that sends nothing (not even the platform's 15 s ping) for 45 s is
+   * replaced, and a 401/403 is reported through `onFatal` instead of retried.
+   * Every reopened stream starts with the full current schema.
+   *
+   * @returns Cleanup function that closes the stream and stops reconnecting
    */
   async subscribeToSchemaUpdates(
     onSchema: (schema: ProjectSchema) => Promise<void>,
+    options: {
+      /** The stream cannot recover: the key was rejected or lost access. */
+      onFatal?: (error: TypegenError) => void;
+      /** A line for the user about the stream's state. */
+      onNotice?: (message: string) => void;
+    } = {},
   ): Promise<() => void> {
     const project = await this.getProjectInfo();
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectSchemaStream(project.id)}`;
+    const notice =
+      options.onNotice ?? ((message: string) => console.warn(`[@comvi/cli] ${message}`));
 
+    this.stopSubscription?.();
     const generation = ++this.subscriptionGeneration;
     this.eventSource?.close();
     this.eventSource = undefined;
@@ -623,56 +830,159 @@ export class ApiClient {
     }
 
     const apiKey = this.apiKey;
-    const eventSource = new EventSource(url, {
-      fetch: (input, init) => {
-        const headers = new Headers(init?.headers);
-        headers.set("Authorization", `Bearer ${apiKey}`);
-
-        return fetch(input, {
-          ...init,
-          headers,
-        });
-      },
-    });
-    this.eventSource = eventSource;
+    // The stream this subscription opened: it closes only its own.
+    let current: EventSource | undefined;
+    let stopped = false;
+    let lastActivity = Date.now();
+    let attempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    const isCurrent = (source: EventSource) =>
+      !stopped && generation === this.subscriptionGeneration && current === source;
 
     // Serialize updates: EventSource does not await handlers, so a burst of
     // events would otherwise run concurrent onSchema file writes
     let queue: Promise<void> = Promise.resolve();
-    eventSource.onmessage = (event: MessageEvent) => {
-      queue = queue
-        .then(async () => {
-          if (generation !== this.subscriptionGeneration || this.eventSource !== eventSource) {
-            return;
+
+    const scheduleReconnect = (reason: string) => {
+      if (stopped || reconnectTimer) return;
+      const waitMs = Math.min(SSE_RECONNECT_BASE_MS * 2 ** attempt, SSE_RECONNECT_MAX_MS);
+      attempt++;
+      notice(`Schema stream ${reason}; reconnecting in ${Math.round(waitMs / 1000)}s...`);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = undefined;
+        open();
+      }, waitMs);
+    };
+
+    const open = () => {
+      if (stopped || generation !== this.subscriptionGeneration) return;
+      current?.close();
+      lastActivity = Date.now();
+
+      const eventSource: EventSource = new EventSource(url, {
+        fetch: async (input, init) => {
+          const headers = new Headers(init?.headers);
+          headers.set("Authorization", `Bearer ${apiKey}`);
+          const response = await fetch(input, { ...init, headers });
+          lastActivity = Date.now();
+          // eventsource drops a refused response without reading or aborting
+          // it; release the socket here.
+          if (!response.ok) {
+            await response.body?.cancel().catch(() => undefined);
+            return new Response(null, {
+              status: response.status,
+              statusText: response.statusText,
+              headers: response.headers,
+            });
           }
-          const schema = JSON.parse(event.data) as ProjectSchema;
-          await onSchema(schema);
-        })
-        .catch((error) => {
-          // Ignore malformed events (could be keep-alive comments)
-          console.error("[@comvi/cli] Failed to process SSE event:", error);
-        });
+          if (!response.body) return response;
+          // Every chunk counts as life, the platform's `: ping` comments
+          // included, which never reach onmessage.
+          const tapped = response.body.pipeThrough(
+            new TransformStream<Uint8Array, Uint8Array>({
+              transform(chunk, controller) {
+                lastActivity = Date.now();
+                controller.enqueue(chunk);
+              },
+            }),
+          );
+          return new Response(tapped, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          });
+        },
+      });
+      current = eventSource;
+      this.eventSource = eventSource;
+
+      eventSource.onopen = () => {
+        if (!isCurrent(eventSource)) return;
+        if (attempt > 0) notice("Schema stream reconnected.");
+        attempt = 0;
+      };
+
+      eventSource.onmessage = (event: MessageEvent) => {
+        lastActivity = Date.now();
+        queue = queue
+          .then(async () => {
+            if (!isCurrent(eventSource)) {
+              return;
+            }
+            const schema = JSON.parse(event.data) as ProjectSchema;
+            await onSchema(schema);
+          })
+          .catch((error) => {
+            console.error("[@comvi/cli] Failed to process SSE event:", error);
+          });
+      };
+
+      eventSource.onerror = (event?: { code?: number; message?: string }) => {
+        if (!isCurrent(eventSource)) return;
+        const status = event?.code;
+        if (status === 401 || status === 403) {
+          stop();
+          options.onFatal?.(
+            new TypegenError(
+              status === 401
+                ? "Invalid API key: the schema stream was refused"
+                : "Access denied to the schema stream: the API key needs the schema:read scope",
+              ErrorCodes.API_AUTH_FAILED,
+              undefined,
+              { status },
+            ),
+          );
+          return;
+        }
+        // eventsource retries a failed connection itself every few seconds,
+        // and gives up for good on a non-200; either way the waits are ours.
+        eventSource.close();
+        const reason =
+          status && status !== 200
+            ? `answered ${status}`
+            : event?.message
+              ? `failed (${event.message})`
+              : "was interrupted";
+        scheduleReconnect(reason);
+      };
     };
 
-    // Handle errors (auto-reconnects by default)
-    eventSource.onerror = () => {
-      // On reconnect, server sends current schema immediately
-      console.warn("[@comvi/cli] Schema update stream interrupted; reconnecting...");
-    };
+    const watchdog = setInterval(() => {
+      if (stopped || generation !== this.subscriptionGeneration) {
+        clearInterval(watchdog);
+        return;
+      }
+      if (reconnectTimer) return;
+      if (Date.now() - lastActivity >= SSE_IDLE_LIMIT_MS) {
+        current?.close();
+        scheduleReconnect(`sent no data for ${SSE_IDLE_LIMIT_MS / 1000}s`);
+      }
+    }, SSE_WATCHDOG_INTERVAL_MS);
 
-    return () => {
-      eventSource.close();
-      if (this.eventSource === eventSource) {
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      clearInterval(watchdog);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
+      current?.close();
+      if (this.stopSubscription === stop) this.stopSubscription = undefined;
+      if (generation === this.subscriptionGeneration) {
         this.subscriptionGeneration++;
         this.eventSource = undefined;
       }
     };
+    this.stopSubscription = stop;
+
+    open();
+    return stop;
   }
 
   /**
    * Close any open SSE connection
    */
   close(): void {
+    this.stopSubscription?.();
     this.subscriptionGeneration++;
     if (this.eventSource) {
       this.eventSource.close();
@@ -783,4 +1093,24 @@ function toImportConflictResolution(
     case "abort":
       return "fail";
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function invalidResponse(what: string): TypegenError {
+  return new TypegenError(
+    `The platform's ${what} response is not in the expected shape`,
+    ErrorCodes.API_INVALID_RESPONSE,
+  );
+}
+
+/** A commit the platform rolled back on a deadlock and marked safe to retry. */
+function isRolledBackConflict(error: unknown): boolean {
+  return (
+    error instanceof TypegenError &&
+    error.details?.status === 409 &&
+    error.details?.code === "TRANSACTION_CONFLICT"
+  );
 }

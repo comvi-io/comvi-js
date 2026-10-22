@@ -92,6 +92,12 @@ order is declaration order and is preserved in the emitted type.
 `tests/typegen-contract.test.ts` and the vite plugin's `tests/emit.test.ts` pin
 the two seams over it.
 
+## Contributing
+
+Bug reports, docs fixes and pull requests are welcome.
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
+and what CI checks.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi
