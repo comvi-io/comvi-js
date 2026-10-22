@@ -72,13 +72,13 @@ export const RECIPE_KINDS = ["sveltekit", "solidstart"];
 export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "f"];
 
 export const RECIPE_LEGEND = {
-  a: "SSR: plain-HTTP /, /uk, /de, /ar and /uk/about are translated, with <html lang dir>; with JavaScript off the text is on screen",
+  a: "SSR: plain-HTTP /, /uk, /de, /ar, /about and /uk/about are translated, with <html lang dir>; with JavaScript off the text is on screen",
   a2: "a again on the PRESSURE build, where loading the catalogs takes 10 ms: still text in the HTML, not a streamed placeholder (SolidStart streams; SvelteKit awaits load either way)",
   b: "hydration: /uk is only ever Ukrainian from first paint on, then the counter answers clicks",
-  c: "client navigation / → /uk → /uk/about → /ar/about → /ar → /de → / and Back twice, in one document: text, lang and dir follow",
-  d: "an unknown first or second segment (/xx, /xx/about, /en-US, /uk/xx) answers 404; /en is English",
+  c: "after hydration, client navigation / → /about → / → /uk → /uk/about → /ar/about → /ar → /de → / and Back twice, in one document: text, lang and dir follow",
+  d: "an unknown first or second segment (/xx, /xx/about, /en-US, /uk/xx) answers 404; /about, /en and /en/about are English",
   e: "on the PRESSURE build, 100 concurrent requests across en, uk, de and ar each render their own locale",
-  e2: "negative control: the same burst against the SHARED build (one instance for every request) renders some responses in another request's locale",
+  e2: "negative control: the SHARED build (one instance for every request) renders each locale right one at a time, then the burst renders some responses in another request's locale",
   f: "the example's own typecheck (svelte-check, tsc)",
 };
 
@@ -921,7 +921,8 @@ export const F15_VARIANT = {
  *   - `shared`: `pressure`, with one module-level instance rendering every
  *     request, the mistake the recipes are built to avoid. Step e2 runs here
  *     and must find responses in another request's locale; if it does not,
- *     step e proves nothing.
+ *     step e proves nothing. A green e is evidence only next to a green e2,
+ *     which shows that this burst overlaps enough to expose a leak.
  */
 export const RECIPE_VARIANTS = {
   sveltekit: {

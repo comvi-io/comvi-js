@@ -269,16 +269,16 @@ Each example is built three times from the same copy:
 | `pressure` | 10 ms where a deployed app waits on the network: catalog loading, and data between switch and render | a2, e |
 | `shared`   | `pressure` with one module-level instance rendering every request                                    | e2    |
 
-| step | asserts                                                                                                                                  |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| a    | plain-HTTP `/`, `/uk`, `/de`, `/ar`, `/uk/about`: translated text, `<html lang dir>`, the en fallback row; JavaScript off still shows it |
-| a2   | a, on `pressure`: with slow catalogs the text is in the HTML, not in a streamed `<template>`                                             |
-| b    | from first paint through hydration `/uk` is one state, then the plural counter answers a click                                           |
-| c    | `/` → `/uk` → `/uk/about` → `/ar/about` → `/ar` → `/de` → `/` and Back twice, all client navigation                                      |
-| d    | `/xx`, `/xx/about`, `/en-US` and `/uk/xx` answer 404                                                                                     |
-| e    | on `pressure`, 100 concurrent requests across four locales each render their own                                                         |
-| e2   | the same burst on `shared` mixes locales; without this, a green e could mean the burst never overlapped                                  |
-| f    | the example's own `typecheck`                                                                                                            |
+| step | asserts                                                                                                                                            |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a    | plain-HTTP `/`, `/uk`, `/de`, `/ar`, `/about`, `/uk/about`: translated text, `<html lang dir>`, the en fallback row; JavaScript off still shows it |
+| a2   | a, on `pressure`: with slow catalogs the text is in the HTML, not in a streamed `<template>`                                                       |
+| b    | from first paint through hydration `/uk` is one state, then the plural counter answers a click                                                     |
+| c    | after hydration, `/` → `/about` → `/` → `/uk` → `/uk/about` → `/ar/about` → `/ar` → `/de` → `/` and Back twice, none a page load                   |
+| d    | `/xx`, `/xx/about`, `/en-US` and `/uk/xx` answer 404; `/about`, `/en`, `/en/about` are English                                                     |
+| e    | on `pressure`, 100 concurrent requests across four locales each render their own                                                                   |
+| e2   | `shared` renders each locale right alone, then the burst mixes them; without this, a green e could mean the burst never overlapped                 |
+| f    | the example's own `typecheck`                                                                                                                      |
 
 The variants are text edits of the temp copy, listed in `RECIPE_VARIANTS` in `lib.mjs`; an edit
 that no longer matches exactly once fails the build instead of testing the wrong app. `pressure`

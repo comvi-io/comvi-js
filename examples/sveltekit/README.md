@@ -1,6 +1,10 @@
 # Comvi i18n with SvelteKit
 
-A SvelteKit app that renders translated HTML on the server with [`@comvi/svelte`](https://comvi.io/docs/i18n) and keeps following the locale as you navigate. It is the [SvelteKit recipe](https://comvi.io/docs/i18n/ssr#sveltekit) from the docs, run as an app.
+A SvelteKit app that renders translated HTML on the server with [`@comvi/svelte`](https://comvi.io/docs/i18n) and keeps following the locale as you navigate. It is built on the [SvelteKit recipe](https://comvi.io/docs/i18n/ssr#sveltekit) from the docs. Where it differs:
+
+- `loader()` with bundled catalogs instead of `cdnLoader`, and ICU messages through `icuCompiler`;
+- four locales, with the hook writing `dir` as well as `lang`;
+- the language switcher and a second page, `/about`, in the root layout's routes.
 
 ## What it shows
 

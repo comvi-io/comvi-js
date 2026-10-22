@@ -169,29 +169,46 @@ async function expectAbout(page: Page, locale: Locale): Promise<void> {
 }
 
 /**
+ * Record when the recipe's effect writes `<html lang>`. The server sends the
+ * attribute in the markup, which the parser sets without a mutation record;
+ * the layout's effect writes it again only once the app has hydrated, and a
+ * write records a mutation even when the value is the same. Call before
+ * `goto`.
+ */
+async function watchHydration(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    new MutationObserver((records) => {
+      if (records.some((record) => record.attributeName === "lang")) {
+        (window as { __hydrated?: boolean }).__hydrated = true;
+      }
+    }).observe(document, { subtree: true, attributes: true, attributeFilter: ["lang"] });
+  });
+}
+
+/**
  * Wait until the page has hydrated: server HTML shows the same text before
  * any script runs, and a click before hydration is lost (a link click turns
- * into a full page load). The plural counter starts at 1 and answers a click
- * only once hydrated.
+ * into a full page load).
  */
-async function hydrated(page: Page, locale: Locale): Promise<void> {
-  const cart = page.getByTestId("cart");
-  await expect(async () => {
-    if ((await cart.textContent()) !== CART[locale][1]) {
-      await page.getByTestId("cart-inc").click();
-    }
-    await expect(cart).toHaveText(CART[locale][1], { timeout: 500 });
-  }).toPass({ timeout: 15_000 });
+async function hydrated(page: Page): Promise<void> {
+  await page.waitForFunction(() => (window as { __hydrated?: boolean }).__hydrated === true);
 }
+
+const sameDocument = (page: Page) =>
+  page.evaluate(() => (window as { __sameDocument?: boolean }).__sameDocument);
 
 /** Click a link and check the page did not reload: client navigation only. */
 async function follow(page: Page, testId: string, to: string): Promise<void> {
   await page.getByTestId(testId).click();
   await expect(page).toHaveURL((url) => url.pathname === to);
-  expect(
-    await page.evaluate(() => (window as { __sameDocument?: boolean }).__sameDocument),
-    `following ${testId} to ${to} reloaded the page`,
-  ).toBe(true);
+  expect(await sameDocument(page), `following ${testId} to ${to} reloaded the page`).toBe(true);
+}
+
+/** Go Back and check the page did not reload. */
+async function back(page: Page, to: string): Promise<void> {
+  await page.goBack();
+  await expect(page).toHaveURL((url) => url.pathname === to);
+  expect(await sameDocument(page), `Back to ${to} reloaded the page`).toBe(true);
 }
 
 // ── the steps ─────────────────────────────────────────────────────────────
@@ -213,12 +230,19 @@ test("a: the server HTML is translated, with <html lang dir>, and readable witho
     expect(rawKeysIn(visibleText(html)), `${locale}: raw keys in the HTML`).toEqual([]);
   }
 
-  const about = await (await request.get("/uk/about")).text();
-  expect(htmlAttribute(about, "lang")).toBe("uk");
-  expect(testIdText(about, "about")).toBe(flat.uk["about.body"]);
+  for (const locale of ["en", "uk"] as const) {
+    const response = await request.get(pathFor(locale, "/about"));
+    expect(response.status(), `GET ${pathFor(locale, "/about")}`).toBe(200);
+    const about = await response.text();
+    expect(htmlAttribute(about, "lang"), `${locale}: about <html lang>`).toBe(locale);
+    expect(testIdText(about, "about"), `${locale}: about`).toBe(flat[locale]["about.body"]);
+  }
 
   // A link preview or a reader with scripts off gets the server HTML only.
-  const context = await browser.newContext({ javaScriptEnabled: false });
+  const context = await browser.newContext({
+    baseURL: test.info().project.use.baseURL,
+    javaScriptEnabled: false,
+  });
   try {
     const page = await context.newPage();
     await page.goto("/uk");
@@ -232,6 +256,7 @@ test("a: the server HTML is translated, with <html lang dir>, and readable witho
 test("b: hydration keeps the server's Ukrainian text, then the page answers clicks", async ({
   page,
 }) => {
+  await watchHydration(page);
   await page.addInitScript(() => {
     const states: string[] = [];
     (window as { __states?: string[] }).__states = states;
@@ -252,7 +277,9 @@ test("b: hydration keeps the server's Ukrainian text, then the page answers clic
   await page.goto("/uk");
   await expectPage(page, "uk");
 
-  await hydrated(page, "uk");
+  await hydrated(page);
+  await page.getByTestId("cart-inc").click();
+  await expect(page.getByTestId("cart")).toHaveText(CART.uk[1]);
 
   const states = (await page.evaluate(() => (window as { __states?: string[] }).__states ?? []))
     .map((state) => JSON.parse(state) as [string, string | null, string | null])
@@ -268,10 +295,17 @@ test("b: hydration keeps the server's Ukrainian text, then the page answers clic
 });
 
 test("c: client navigation switches the text, lang and dir in one document", async ({ page }) => {
+  await watchHydration(page);
   await page.goto("/");
   await expectPage(page, "en");
-  await hydrated(page, "en");
+  await hydrated(page);
   await page.evaluate(() => ((window as { __sameDocument?: boolean }).__sameDocument = true));
+
+  await follow(page, "nav-about", "/about");
+  await expectAbout(page, "en");
+
+  await follow(page, "nav-home", "/");
+  await expectPage(page, "en");
 
   await follow(page, "locale-uk", "/uk");
   await expectPage(page, "uk");
@@ -292,11 +326,9 @@ test("c: client navigation switches the text, lang and dir in one document", asy
   await follow(page, "locale-en", "/");
   await expectPage(page, "en");
 
-  await page.goBack();
-  await expect(page).toHaveURL((url) => url.pathname === "/de");
+  await back(page, "/de");
   await expectPage(page, "de");
-  await page.goBack();
-  await expect(page).toHaveURL((url) => url.pathname === "/ar");
+  await back(page, "/ar");
   await expectPage(page, "ar");
 });
 
@@ -305,58 +337,64 @@ test("d: a first segment outside the locales is a 404", async ({ request }) => {
     const response = await request.get(target);
     expect(response.status(), `GET ${target}`).toBe(404);
   }
-  // `/en` is a locale like the others; the switcher links English to `/`.
-  const english = await request.get("/en");
-  expect(english.status(), "GET /en").toBe(200);
-  expect(testIdText(await english.text(), "greeting")).toBe(GREETING.en);
+  // English is unprefixed, and `/en` is a locale like the others.
+  for (const target of ["/about", "/en", "/en/about"]) {
+    const response = await request.get(target);
+    expect(response.status(), `GET ${target}`).toBe(200);
+    expect(htmlAttribute(await response.text(), "lang"), `GET ${target}`).toBe("en");
+  }
 });
 
-/**
- * 25 rounds of en, uk, de and ar, all in flight at once. Returns the
- * responses whose `<html lang>`, greeting or fallback row is not their own
- * locale's.
- */
+async function render(request: APIRequestContext, locale: Locale) {
+  const response = await request.get(pathFor(locale));
+  const html = await response.text();
+  return {
+    locale,
+    status: response.status(),
+    lang: htmlAttribute(html, "lang"),
+    greeting: testIdText(html, "greeting"),
+    onlyEn: testIdText(html, "only-en"),
+  };
+}
+
+type Rendered = Awaited<ReturnType<typeof render>>;
+
+const isOwn = (entry: Rendered) =>
+  entry.lang === entry.locale &&
+  entry.greeting === GREETING[entry.locale] &&
+  entry.onlyEn === ONLY_EN[entry.locale];
+
+/** 25 rounds of en, uk, de and ar, all in flight at once. */
 async function burst(request: APIRequestContext) {
-  const requests = Array.from({ length: 25 }, () =>
-    LOCALES.map(async (locale) => {
-      const response = await request.get(pathFor(locale));
-      const html = await response.text();
-      return {
-        locale,
-        status: response.status(),
-        lang: htmlAttribute(html, "lang"),
-        greeting: testIdText(html, "greeting"),
-        onlyEn: testIdText(html, "only-en"),
-      };
-    }),
-  ).flat();
-  const responses = await Promise.all(requests);
-  const mixed = responses.filter(
-    (entry) =>
-      entry.lang !== entry.locale ||
-      entry.greeting !== GREETING[entry.locale] ||
-      entry.onlyEn !== ONLY_EN[entry.locale],
+  const responses = await Promise.all(
+    Array.from({ length: 25 }, () => LOCALES.map((locale) => render(request, locale))).flat(),
   );
-  return { total: responses.length, mixed };
+  expect(responses).toHaveLength(100);
+  expect(
+    responses.filter((entry) => entry.status !== 200),
+    "responses that are not a page",
+  ).toEqual([]);
+  return { responses, mixed: responses.filter((entry) => !isOwn(entry)) };
 }
 
 test("e: concurrent requests in four locales each render their own", async ({ request }) => {
-  const { total, mixed } = await burst(request);
-  expect(total).toBe(100);
+  const { mixed } = await burst(request);
   expect(mixed, "responses rendered in another request's locale").toEqual([]);
 });
 
 test("e2: with one instance for every request, the same burst mixes locales", async ({
   request,
 }) => {
-  const { total, mixed } = await burst(request);
-  expect(total).toBe(100);
-  // A leak, not a broken build: every response is a page, and each mixed one
-  // shows another locale's whole greeting rather than an error or a raw key.
-  expect(
-    mixed.filter((entry) => entry.status !== 200),
-    "responses that are not a page",
-  ).toEqual([]);
+  // One at a time, the shared build renders every locale right: what the
+  // burst finds is a leak between requests, not a build that is wrong anyway.
+  for (const locale of LOCALES) {
+    const alone = await render(request, locale);
+    expect(alone.status, `GET ${pathFor(locale)} alone`).toBe(200);
+    expect(isOwn(alone), `GET ${pathFor(locale)} alone: ${JSON.stringify(alone)}`).toBe(true);
+  }
+
+  const { mixed } = await burst(request);
+  // Each mixed response shows another locale's whole greeting, not an error or a raw key.
   expect(
     mixed.filter(
       (entry) =>
