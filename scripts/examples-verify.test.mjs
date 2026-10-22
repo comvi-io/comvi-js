@@ -284,6 +284,19 @@ test("exampleKind reads the build script, not the directory name", () => {
   assert.equal(exampleKind({ scripts: { build: "nuxt build" } }), "nuxt");
 });
 
+test("exampleKind tells SvelteKit and SolidStart from a plain Vite app by their dependency", () => {
+  const build = { build: "vite build" };
+  assert.equal(
+    exampleKind({ scripts: build, devDependencies: { "@sveltejs/kit": "^3.0.0" } }),
+    "sveltekit",
+  );
+  assert.equal(
+    exampleKind({ scripts: build, dependencies: { "@solidjs/start": "^2.0.0" } }),
+    "solidstart",
+  );
+  assert.equal(exampleKind({ scripts: build, dependencies: { "solid-js": "^1.9.0" } }), "vite");
+});
+
 test("exampleKind sees the CLI behind a flag or a chained command", () => {
   assert.equal(exampleKind({ scripts: { build: "vite build --mode production" } }), "vite");
   assert.equal(exampleKind({ scripts: { build: "nuxt generate" } }), "nuxt");
@@ -302,7 +315,7 @@ test("exampleKind refuses a build script it cannot measure", () => {
   // Silence here would mean a new example is verified with the WRONG size
   // probe, or with none — the report would still print a row.
   assert.throws(() => exampleKind({ scripts: { build: "astro build" } }, "examples/astro"), {
-    message: /examples\/astro.*astro build.*vite, next and nuxt/s,
+    message: /examples\/astro.*astro build.*vite, next, nuxt, sveltekit and solidstart/s,
   });
 });
 

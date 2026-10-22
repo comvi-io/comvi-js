@@ -1,6 +1,6 @@
 # Examples harness
 
-How the seven apps in [`examples/`](../../examples) are built, typechecked and driven in a browser
+How the nine apps in [`examples/`](../../examples) are built, typechecked and driven in a browser
 before a release. The reader-facing description of the examples is
 [`examples/README.md`](../../examples/README.md); this file is for maintainers of the gates.
 
@@ -13,7 +13,7 @@ temp directory, pins every `@comvi/*` to a local tarball through `pnpm.overrides
 are never rewritten.
 
 ```bash
-pnpm examples:verify                               # all seven
+pnpm examples:verify                               # all nine
 pnpm examples:verify --only next                   # one
 pnpm examples:verify --no-build --no-pack --keep   # re-run against the tarballs on disk
 ```
@@ -21,15 +21,17 @@ pnpm examples:verify --no-build --no-pack --keep   # re-run against the tarballs
 A green run says the source compiles under these manifests, not that `^0.5.0` is satisfiable;
 only publishing settles that. Re-run the gate after the version bump.
 
-| example   | typecheck        |
-| --------- | ---------------- |
-| `react`   | `tsc`            |
-| `vue`     | `vue-tsc`        |
-| `svelte`  | `svelte-check`   |
-| `solid`   | `tsc`            |
-| `vanilla` | `tsc`            |
-| `next`    | `tsc`            |
-| `nuxt`    | `nuxt typecheck` |
+| example      | typecheck        |
+| ------------ | ---------------- |
+| `react`      | `tsc`            |
+| `vue`        | `vue-tsc`        |
+| `svelte`     | `svelte-check`   |
+| `solid`      | `tsc`            |
+| `vanilla`    | `tsc`            |
+| `next`       | `tsc`            |
+| `nuxt`       | `nuxt typecheck` |
+| `sveltekit`  | `svelte-check`   |
+| `solidstart` | `tsc`            |
 
 ## How each example is composed
 
@@ -121,21 +123,21 @@ new locale together with the default namespace, and applies the locale only when
 
 A namespace is loaded for the active locale and for the fallback chain, in the browser as on the
 server. The en-only row therefore shows its English text whichever locale the page is first opened
-in, in all seven examples.
+in, in all seven gallery examples.
 
 ## Running the scenario in a browser
 
-`examples:verify` proves the seven compile. `examples:e2e` opens them: it
+`examples:verify` proves the nine compile. `examples:e2e` opens them: it
 installs and builds each example exactly as `examples:verify` does, starts the
 built app the way a reader would (`vite preview`, `next start`, or Nitro's
-`.output/server/index.mjs`), and runs one Playwright spec against all seven
-through the same `data-testid`s. Every step but the About ones drives the feature gallery at
+`.output/server/index.mjs`, `node build`), and runs one Playwright spec against the seven
+gallery examples through the same `data-testid`s (the two SSR recipes have their own, below). Every step but the About ones drives the feature gallery at
 `/features` (`/<locale>/features` in `next` and `nuxt`), not the start page at `/`:
 
 ```bash
 pnpm exec playwright install chromium   # once per machine
-pnpm examples:e2e                       # all seven, bundled catalogs
-pnpm examples:e2e --cdn                 # the same, catalogs from a mock CDN
+pnpm examples:e2e                       # all nine, bundled catalogs
+pnpm examples:e2e --cdn                 # the seven gallery examples, catalogs from a mock CDN
 pnpm examples:e2e --only react,next --no-build --no-pack --keep
 ```
 
@@ -252,3 +254,37 @@ example, therefore resolves to the same files and never to npm.
 
 The run exits non-zero on any failure, and the failing assertion is printed
 under the table.
+
+## The SSR recipes
+
+`sveltekit` and `solidstart` are the recipes on
+[comvi.io/docs/i18n/ssr](https://comvi.io/docs/i18n/ssr#sveltekit-and-solidstart), not the feature
+gallery, so they run [`ssr-recipe.spec.ts`](./ssr-recipe.spec.ts) and get a table of their own.
+They read bundled catalogs only: `--cdn` leaves them out, and CI runs them in the default mode.
+Each example is built three times from the same copy:
+
+| build      | what it is                                                                                           | steps |
+| ---------- | ---------------------------------------------------------------------------------------------------- | ----- |
+| `recipe`   | the example as committed, served by `node build` or `node .output/server/index.mjs`                  | a–d   |
+| `pressure` | 10 ms where a deployed app waits on the network: catalog loading, and data between switch and render | a2, e |
+| `shared`   | `pressure` with one module-level instance rendering every request                                    | e2    |
+
+| step | asserts                                                                                                                                            |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a    | plain-HTTP `/`, `/uk`, `/de`, `/ar`, `/about`, `/uk/about`: translated text, `<html lang dir>`, the en fallback row; JavaScript off still shows it |
+| a2   | a, on `pressure`: with slow catalogs the text is in the HTML, not in a streamed `<template>`                                                       |
+| b    | from first paint through hydration `/uk` is one state, then the plural counter answers a click                                                     |
+| c    | after hydration, `/` → `/about` → `/` → `/uk` → `/uk/about` → `/ar/about` → `/ar` → `/de` → `/` and Back twice, none a page load                   |
+| d    | `/xx`, `/xx/about`, `/en-US` and `/uk/xx` answer 404; `/about`, `/en`, `/en/about` are English                                                     |
+| e    | on `pressure`, 100 concurrent requests across four locales each render their own                                                                   |
+| e2   | `shared` renders each locale right alone, then the burst mixes them; without this, a green e could mean the burst never overlapped                 |
+| f    | the example's own `typecheck`                                                                                                                      |
+
+The variants are text edits of the temp copy, listed in `RECIPE_VARIANTS` in `lib.mjs`; an edit
+that no longer matches exactly once fails the build instead of testing the wrong app. `pressure`
+exists because, with bundled catalogs and nothing else to wait for, requests render one at a
+time: a shared instance then comes out right too, and SolidStart without `deferStream` still has
+the text in its first flush. Each step was seen red against a break of the recipe before it was
+trusted: `<html lang>` left unwritten (a), `deferStream` removed (a2), the browser instance built
+without the payload (b), the SvelteKit `$effect.pre` removed or the Solid `<Show>` not keyed (c),
+the locale check removed from `load` or `matchFilters` (d), and the `shared` build for e.

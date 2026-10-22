@@ -50,12 +50,12 @@ import { assertCandidateIntegrity } from "./examples-e2e/lib.mjs";
  *
  *   1. `pnpm install` with the overrides, then the provenance assertion.
  *   2. `pnpm build` — the real build a reader gets: `vite build`,
- *      `next build` or `nuxt build`, whichever the example's own script says.
+ *      `next build` or `nuxt build`, whichever the example's own script says
+ *      (SvelteKit and SolidStart build through `vite build`).
  *   3. the example's own `typecheck` script — `tsc`, `vue-tsc`,
  *      `svelte-check` or `nuxt typecheck`, whichever the framework needs.
- *   4. a size probe, chosen by KIND: the three build tools put "the entry
- *      chunk" in three different places, and Next's first load is not one
- *      file at all.
+ *   4. a size probe, chosen by KIND: each build puts "the entry chunk"
+ *      somewhere else, and Next's first load is not one file at all.
  *
  * The manifest's `^0.5.0` ranges are left EXACTLY as committed. An override
  * replaces the specifier without touching the declaration, so the file that
@@ -319,6 +319,15 @@ const BUILD_CLIS = [
   ["vite", /(^|[\s&|;])vite\s+build\b/],
 ];
 
+/**
+ * Meta-frameworks that build through `vite build`, told apart by the framework
+ * the example depends on: each writes its server and its client somewhere else.
+ */
+const VITE_FRAMEWORKS = [
+  ["sveltekit", "@sveltejs/kit"],
+  ["solidstart", "@solidjs/start"],
+];
+
 export function exampleKind(manifest, name = "an example") {
   const build = manifest?.scripts?.build;
   if (typeof build !== "string" || build.trim() === "") {
@@ -327,10 +336,14 @@ export function exampleKind(manifest, name = "an example") {
     );
   }
   for (const [kind, pattern] of BUILD_CLIS) {
-    if (pattern.test(build)) return kind;
+    if (!pattern.test(build)) continue;
+    if (kind !== "vite") return kind;
+    const deps = { ...manifest.dependencies, ...manifest.devDependencies };
+    return VITE_FRAMEWORKS.find(([, pkg]) => pkg in deps)?.[0] ?? kind;
   }
   throw new Error(
-    `${name}: cannot tell what \`${build}\` builds. examples-verify knows vite, next and nuxt; ` +
+    `${name}: cannot tell what \`${build}\` builds. examples-verify knows vite, next, nuxt, ` +
+      "sveltekit and solidstart; " +
       'a new framework needs a kind of its own here AND a size probe, because "the entry ' +
       'chunk" is in a different place — and a different SHAPE — for each of them.',
   );
@@ -562,6 +575,31 @@ async function nuxtProbe(dir) {
 }
 
 /**
+ * SvelteKit and SolidStart: every chunk the client manifest marks `isEntry`
+ * (SvelteKit has two, `start` and `app`), closed over its static imports.
+ * `manifest` is the Vite client manifest, `assets` the directory the server
+ * serves those files from.
+ */
+function viteEntriesProbe(manifestRel, assetsRel) {
+  return async (dir) => {
+    const manifestPath = path.join(dir, manifestRel);
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error(`no ${manifestRel}: the build wrote no client manifest.`);
+    }
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const roots = Object.keys(manifest).filter((key) => manifest[key]?.isEntry);
+    if (roots.length === 0) throw new Error(`${manifestRel} marks no chunk \`isEntry\`.`);
+    const assets = path.join(dir, assetsRel);
+    const files = staticImportClosure(manifest, roots).filter((file) => file.endsWith(".js"));
+    const missing = files.filter((file) => !fs.existsSync(path.join(assets, file)));
+    if (missing.length > 0) {
+      throw new Error(`${manifestRel} names ${missing.join(", ")}, which is not in ${assets}.`);
+    }
+    return { files: files.map((file) => path.join(assets, file)), chunks: countJs(assets) };
+  };
+}
+
+/**
  * Per kind: how it is built, and how it is measured.
  *
  * The build ARGV is `pnpm run build` for all three on purpose — the example's
@@ -575,6 +613,16 @@ export const KINDS = {
   vite: { build: ["run", "build"], env: {}, probe: viteProbe },
   next: { build: ["run", "build"], env: { NEXT_TELEMETRY_DISABLED: "1" }, probe: nextProbe },
   nuxt: { build: ["run", "build"], env: { NUXT_TELEMETRY_DISABLED: "1" }, probe: nuxtProbe },
+  sveltekit: {
+    build: ["run", "build"],
+    env: {},
+    probe: viteEntriesProbe(".svelte-kit/output/client/.vite/manifest.json", "build/client"),
+  },
+  solidstart: {
+    build: ["run", "build"],
+    env: {},
+    probe: viteEntriesProbe(".output/public/.vite/manifest.json", ".output/public"),
+  },
 };
 
 /** What the "first load" columns mean, which is not the same thing per kind. */
@@ -586,6 +634,8 @@ export const FIRST_LOAD_LEGEND = [
   "         figure is computed its way);",
   "  nuxt — the isEntry chunk and the route chunk, each closed over its static `imports`,",
   "         in .output/public/_nuxt.",
+  "  sveltekit, solidstart — every isEntry chunk of the Vite client manifest, closed over its",
+  "         static `imports`.",
   "js chunks = every .js the build wrote for the client; the gap between the two columns is",
   "  everything not needed to render the route, which includes the three lazy locale catalogs.",
 ].join("\n");

@@ -353,6 +353,10 @@ jobs:
       matrix:
         framework: [react, next, vue, nuxt, svelte, solid, vanilla]
         mode: [default, cdn]
+        # The SSR recipe examples read bundled catalogs only; --cdn leaves them out.
+        include:
+          - { framework: sveltekit, mode: default }
+          - { framework: solidstart, mode: default }
 
     steps:
       - name: Checkout
