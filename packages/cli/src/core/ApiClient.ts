@@ -7,6 +7,8 @@
  * - GET /v1/projects/:projectId/schema/stream - SSE for real-time schema updates
  * - GET /v1/translations - Fetch translations
  * - POST /v1/projects/:projectId/import/commit - Bulk push translations
+ * - POST /v1/projects/:projectId/mt/fill - Machine-translate missing values
+ * - GET /v1/projects/:projectId/keys/batch/mt/:jobId/status - One MT job
  */
 
 import type { EventSource } from "eventsource";
@@ -22,6 +24,13 @@ import type {
 import { wrapError, ErrorCodes, TypegenError } from "../utils/errors";
 import { isHttpUrl } from "./apiBaseUrl";
 import { DEFAULT_COMMIT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS } from "./timeouts";
+import {
+  isMtFillResponse,
+  isMtJobStatus,
+  type MtFillRequest,
+  type MtFillResponse,
+  type MtJobStatus,
+} from "./translateApi";
 import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
 
 export interface ApiClientOptions {
@@ -66,6 +75,12 @@ export interface PushTranslationsOptions {
    * translation values. A commit that fails reports nothing.
    */
   onProgress?: (progress: PushProgress) => void;
+  /**
+   * Sent as the commit's `scheduleAutoMt` option when given: `false` stops
+   * the platform's auto-translate after this import. Left out, the commit
+   * options are as they always were.
+   */
+  scheduleAutoMt?: boolean;
 }
 
 export interface PushProgress {
@@ -129,6 +144,11 @@ async function httpError(
 
   const body = parseErrorBody(await readBoundedText(response, signal).catch(() => ""));
   const details: Record<string, unknown> = { status: response.status, ...body };
+  // A caller that does not retry itself (the MT job poller) still honours it.
+  if (response.status === 429) {
+    const wait = retryAfterMs(response);
+    if (wait !== undefined) details.retryAfterMs = wait;
+  }
 
   // The platform says why: a missing scope, a plan limit, read-only billing.
   if (response.status === 403 && opts.forbidden) {
@@ -276,7 +296,8 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function retryDelayMs(response: Response, attempt: number): number {
+/** The wait a `Retry-After` header asks for, capped; undefined without a usable one. */
+function retryAfterMs(response: Response): number | undefined {
   const retryAfterValue = response.headers?.get?.("retry-after");
   if (retryAfterValue !== null && retryAfterValue !== undefined) {
     const retryAfterSeconds = Number(retryAfterValue);
@@ -289,7 +310,11 @@ function retryDelayMs(response: Response, attempt: number): number {
       return Math.min(Math.max(retryAt - Date.now(), 0), RETRY_AFTER_CAP_MS);
     }
   }
-  return RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+  return undefined;
+}
+
+function retryDelayMs(response: Response, attempt: number): number {
+  return retryAfterMs(response) ?? RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
 }
 
 export const API_ENDPOINTS = {
@@ -300,6 +325,9 @@ export const API_ENDPOINTS = {
   projectSchemaStream: (projectId: number) => `/v1/projects/${projectId}/schema/stream`,
   projectNamespaces: (projectId: number) => `/v1/projects/${projectId}/namespaces`,
   projectImportCommit: (projectId: number) => `/v1/projects/${projectId}/import/commit`,
+  projectMtFill: (projectId: number) => `/v1/projects/${projectId}/mt/fill`,
+  projectMtJobStatus: (projectId: number, jobId: string) =>
+    `/v1/projects/${projectId}/keys/batch/mt/${encodeURIComponent(jobId)}/status`,
 } as const;
 
 export class ApiClient {
@@ -685,6 +713,8 @@ export class ApiClient {
                 conflictResolution: toImportConflictResolution(options.forceMode),
                 createNamespaces: true,
                 deleteOrphans: false,
+                // Left out when undefined: JSON drops the field.
+                scheduleAutoMt: options.scheduleAutoMt,
               },
             }),
           },
@@ -775,6 +805,130 @@ export class ApiClient {
       }
       throw wrapError(error, "Failed to push translations", ErrorCodes.API_CONNECTION_FAILED);
     }
+  }
+
+  /**
+   * Machine-translate the values that are missing on the platform, or with
+   * `dryRun` only count them.
+   * POST /v1/projects/:projectId/mt/fill
+   *
+   * An enqueue is never retried: a request that failed after it was sent may
+   * have started jobs. A dry run changes nothing and is retried like a read.
+   * Errors keep the platform's `code` and `meta` (`MT_FILL_LIMIT` with the
+   * pairs and estimate, `LIMIT_EXCEEDED` with the jobs already in flight).
+   */
+  async fillMissing(body: MtFillRequest): Promise<MtFillResponse> {
+    const project = await this.getProjectInfo();
+    const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectMtFill(project.id)}`;
+
+    const request = () =>
+      this.requestJson<unknown>(
+        url,
+        { method: "POST", headers: this.authHeaders(), body: JSON.stringify(body) },
+        { retryTransient: body.dryRun === true, failure: "Failed to request machine translation" },
+      );
+
+    let response: unknown;
+    try {
+      // A 409 MT_FILL_BUSY enqueued nothing: another fill held the project's
+      // lock. That one, and only that one, is asked again, 1 s then 3 s later.
+      const waits = [1_000, 3_000];
+      for (let attempt = 0; ; attempt++) {
+        try {
+          response = await request();
+          break;
+        } catch (error) {
+          if (!isFillBusy(error) || attempt === waits.length) throw error;
+          await delay(waits[attempt]);
+        }
+      }
+    } catch (error) {
+      if (isFillBusy(error)) {
+        throw new TypegenError(
+          "The project is busy with another translation request; try again.",
+          error.code,
+          error,
+          error.details,
+        );
+      }
+      if (error instanceof TypegenError) {
+        throw fillError(error);
+      }
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new TypegenError(
+          `Request timeout after ${this.timeout}ms`,
+          ErrorCodes.API_TIMEOUT,
+          error,
+        );
+      }
+      throw wrapError(
+        error,
+        "Failed to request machine translation",
+        ErrorCodes.API_CONNECTION_FAILED,
+      );
+    }
+
+    if (!isMtFillResponse(response)) {
+      throw invalidResponse("mt/fill");
+    }
+    return response;
+  }
+
+  /**
+   * The status of one MT job, or `null` when the platform no longer has it
+   * (finished jobs are evicted) or never had it in this project.
+   * GET /v1/projects/:projectId/keys/batch/mt/:jobId/status
+   *
+   * Not retried here: the caller polls under its own request budget and asks
+   * again on its next turn.
+   */
+  async getMtJobStatus(
+    jobId: string,
+    options: { timeoutMs?: number } = {},
+  ): Promise<MtJobStatus | null> {
+    const project = await this.getProjectInfo();
+    const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectMtJobStatus(project.id, jobId)}`;
+    // Never longer than the client's own read timeout.
+    const timeoutMs = Math.min(options.timeoutMs ?? this.timeout, this.timeout);
+
+    let response: unknown;
+    try {
+      response = await this.requestJson<unknown>(
+        url,
+        { method: "GET", headers: this.authHeaders() },
+        {
+          retryTransient: false,
+          failure: `Failed to read machine translation job ${jobId}`,
+          forbidden: `Access denied to machine translation job ${jobId}`,
+          timeoutMs,
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof TypegenError &&
+        error.details?.status === 404 &&
+        error.details?.code !== "PROJECT_NOT_FOUND"
+      ) {
+        return null;
+      }
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new TypegenError(
+          `Request timeout after ${timeoutMs}ms`,
+          ErrorCodes.API_TIMEOUT,
+          error,
+        );
+      }
+      throw wrapError(
+        error,
+        `Failed to read machine translation job ${jobId}`,
+        ErrorCodes.API_CONNECTION_FAILED,
+      );
+    }
+
+    if (!isMtJobStatus(response, jobId)) {
+      throw invalidResponse("MT job status");
+    }
+    return response;
   }
 
   /**
@@ -1104,6 +1258,43 @@ function invalidResponse(what: string): TypegenError {
     `The platform's ${what} response is not in the expected shape`,
     ErrorCodes.API_INVALID_RESPONSE,
   );
+}
+
+/**
+ * A 404 that is not about the project means the route is missing: an older
+ * platform. A 403 other than a credit limit names the scope when the platform
+ * says the key lacks it.
+ */
+function fillError(error: TypegenError): TypegenError {
+  const status = error.details?.status;
+  const code = error.details?.code;
+  if (status === 404 && code !== "PROJECT_NOT_FOUND") {
+    return new TypegenError(
+      "The platform does not support comvi translate: POST mt/fill answered 404. " +
+        "Update the platform, or check apiBaseUrl.",
+      ErrorCodes.API_UNSUPPORTED,
+      error,
+      error.details,
+    );
+  }
+  const meta = error.details?.meta;
+  // Only a refused permission names a required scope.
+  if (isRecord(meta) && meta.requiredScope === "mt:use") {
+    return new TypegenError(
+      `${error.message}. comvi translate needs an API key with the mt:use scope ` +
+        '("Machine translation (uses credits)"). A key\'s scopes cannot be changed: create a new key with it.',
+      error.code,
+      error.cause,
+      error.details,
+    );
+  }
+  return error;
+}
+
+/** Only a TypegenError carries `details`; a network failure has none. */
+function isFillBusy(error: unknown): error is TypegenError {
+  const details = (error as { details?: Readonly<Record<string, unknown>> }).details;
+  return details?.status === 409 && details.code === "MT_FILL_BUSY";
 }
 
 /** A commit the platform rolled back on a deadlock and marked safe to retry. */

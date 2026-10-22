@@ -16,11 +16,11 @@
 
 ---
 
-`comvi` moves translations between your repository and your Comvi project, validates local
-catalogs offline and generates the TypeScript declaration that types `t()`. Use it when the
-catalogs live on the [Comvi platform](https://comvi.io); for catalogs that only live as local
-JSON, [`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) emits the same
-declaration.
+`comvi` moves translations between your repository and your Comvi project, fills missing values
+with machine translation, validates local catalogs offline and generates the TypeScript
+declaration that types `t()`. Use it when the catalogs live on the
+[Comvi platform](https://comvi.io); for catalogs that only live as local JSON,
+[`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) emits the same declaration.
 
 ## Install
 
@@ -39,11 +39,12 @@ export COMVI_API_KEY=comvi_xxxxxxxxxxxxxxxx
 npx comvi pull
 ```
 
-The commands that talk to the platform (`init`, `typegen`, `pull`, `push`) read `COMVI_API_KEY`.
-The key selects the project, so there is no project id to configure. Before each of them the CLI
-loads the nearest `.env` file, walking up from the working directory and stopping at the first
-`package.json`, so `COMVI_API_KEY=...` in `.env` works with no wrapper; a variable already in the
-environment wins over the file. `comvi check` works offline: it loads no `.env` and reads no key.
+The commands that talk to the platform (`init`, `typegen`, `pull`, `push`, `translate`) read
+`COMVI_API_KEY`. The key selects the project, so there is no project id to configure. Before each
+of them the CLI loads the nearest `.env` file, walking up from the working directory and stopping
+at the first `package.json`, so `COMVI_API_KEY=...` in `.env` works with no wrapper; a variable
+already in the environment wins over the file. `comvi check` works offline: it loads no `.env` and
+reads no key.
 
 ## Config file
 
@@ -82,6 +83,7 @@ run in `apps/web` does not inherit a config at the workspace root; point at it w
 | `comvi pull`            | Downloads the project's translations into local JSON files.                      |
 | `comvi push`            | Uploads local JSON files to the project.                                         |
 | `comvi check`           | Compares local catalogs with the source locale, offline.                         |
+| `comvi translate`       | Machine-translates the values the project is missing and writes them locally.    |
 | `comvi typegen`         | Writes the `TranslationKeys` declaration from the project's keys.                |
 | `comvi typegen --watch` | Generates once, then regenerates on every schema change over Server-Sent Events. |
 | `comvi typegen --check` | Writes nothing; exits `1` when the file on disk is outdated. For CI.             |
@@ -107,17 +109,30 @@ category the locale has and the message omits, and a translation equal to its so
 `--identical`. Errors exit `1`; warnings do too only with `--strict`; `--no-fail` exits `0`
 either way, and `--format json` prints the report as JSON.
 
+## Machine translation
+
+```bash title="Terminal"
+npx comvi translate --dry-run
+npx comvi translate --force-mode keep
+```
+
+`translate` pushes the local files, has the platform machine-translate every empty key × locale
+pair and writes the results where the local files have none; a local value is never overwritten.
+`--max-keys` (default 1000) caps a run and `--dry-run` estimates the credits. The API key needs
+the opt-in `mt:use` scope. Details and a CI recipe:
+[comvi translate](https://comvi.io/docs/cli/translate).
+
 ## Exit codes
 
 Every command uses the same codes, so CI can act on the code alone.
 
-| Code | Meaning                                                                                                                                                                                                                                                      | What to do              |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
-| `0`  | Done                                                                                                                                                                                                                                                         | —                       |
-| `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`, errors under `comvi check` (warnings too with `--strict`); also a local failure such as an unwritable file                               | Fix the content         |
-| `2`  | The platform was unreachable, timed out, answered 5xx, 429 or another retryable status, or sent an unexpected response                                                                                                                                       | Retry                   |
-| `3`  | The API key was rejected, lacks access for the command, its project no longer exists, or the account reached a plan or credit limit                                                                                                                          | Fix the key or the plan |
-| `4`  | Invalid input: configuration, flags, an unreadable translation file, a locale the project does not have (or the key may not write), nothing to push, `--force-mode ask` with conflicts and no terminal, a request the platform refused, a wrong `apiBaseUrl` | Fix the input           |
+| Code | Meaning                                                                                                                                                                                                                                                                       | What to do              |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `0`  | Done                                                                                                                                                                                                                                                                          | —                       |
+| `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`, errors under `comvi check` (warnings too with `--strict`), a value `comvi translate` could not translate; also a local failure such as an unwritable file | Fix the content         |
+| `2`  | The platform was unreachable, timed out, answered 5xx, 429 or another retryable status, or sent an unexpected response                                                                                                                                                        | Retry                   |
+| `3`  | The API key was rejected, lacks access for the command, its project no longer exists, or the account reached a plan or credit limit                                                                                                                                           | Fix the key or the plan |
+| `4`  | Invalid input: configuration, flags, an unreadable translation file, a locale the project does not have (or the key may not write), nothing to push, `--force-mode ask` with conflicts and no terminal, a request the platform refused, a wrong `apiBaseUrl`                  | Fix the input           |
 
 `comvi init` still writes the config and only warns when the key cannot be validated.
 
@@ -126,6 +141,7 @@ Every command uses the same codes, so CI can act on the code alone.
 - [Comvi CLI](https://comvi.io/docs/cli): environment variables, every config key, exit codes.
 - [comvi typegen](https://comvi.io/docs/cli/typegen): flags, check and watch modes, the emitter.
 - [comvi pull](https://comvi.io/docs/cli/pull) and [comvi push](https://comvi.io/docs/cli/push): file layout, filters, force modes.
+- [comvi translate](https://comvi.io/docs/cli/translate): how a run works, credits, exit codes, the CI recipe.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): how the generated file reaches `t()`.
 
 ## Contributing

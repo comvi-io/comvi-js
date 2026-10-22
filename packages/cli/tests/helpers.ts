@@ -107,6 +107,10 @@ export interface RouteResponse {
   body?: unknown;
   /** Reject the request as `fetch` does when the connection fails. */
   networkError?: string;
+  /** Runs when the request arrives, before it is answered. */
+  onRequest?: () => unknown;
+  /** Response headers, e.g. `retry-after`. */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -157,6 +161,7 @@ export function stubFetch(routes: Routes): FetchCapture {
       const seen = (served.get(pathname) ?? 0) + 1;
       served.set(pathname, seen);
       const route = Array.isArray(entry) ? entry[Math.min(seen, entry.length) - 1] : entry;
+      await route.onRequest?.();
       if (route.networkError) {
         throw Object.assign(new TypeError("fetch failed"), {
           cause: new Error(route.networkError),
@@ -168,6 +173,7 @@ export function stubFetch(routes: Routes): FetchCapture {
         ok: status < 400,
         status,
         statusText: route.statusText ?? "OK",
+        headers: new Headers(route.headers),
         json: async () => route.body,
         text: async () => (route.body === undefined ? "" : JSON.stringify(route.body)),
       } as Response;

@@ -58,3 +58,13 @@ export type {
   PushTranslationsOptions,
   PushProgress,
 } from "./core/ApiClient";
+
+export type {
+  MtFillRequest,
+  MtFillResponse,
+  MtFillJob,
+  MtFillPairs,
+  MtJobStatus,
+  MtJobError,
+  MtErrorType,
+} from "./core/translateApi";

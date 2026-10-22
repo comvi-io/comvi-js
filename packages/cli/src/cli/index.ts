@@ -6,6 +6,7 @@ import { createTypegenCommand } from "../commands/generate-types";
 import { createPullCommand } from "../commands/pull";
 import { createPushCommand } from "../commands/push";
 import { createCheckCommand } from "../commands/check";
+import { createTranslateCommand } from "../commands/translate";
 import { loadEnv, MissingEnvFileError } from "../core/EnvLoader";
 import { CLI_VERSION } from "../utils/version";
 import { EXIT_VALIDATION } from "../utils/errors";
@@ -63,6 +64,7 @@ for (const command of [
   createTypegenCommand(),
   createPullCommand(),
   createPushCommand(),
+  createTranslateCommand(),
   createCheckCommand(),
 ]) {
   command.exitOverride((error) => {
@@ -73,4 +75,6 @@ for (const command of [
   }
 }
 
-program.parse();
+// Awaited, so a rejection from an async action surfaces here rather than as
+// an unhandled promise.
+await program.parseAsync();

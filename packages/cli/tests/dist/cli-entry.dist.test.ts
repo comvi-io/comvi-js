@@ -59,6 +59,7 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
     ["an unknown command", ["frobnicate"]],
     ["an unknown option", ["pull", "--frobnicate"]],
     ["an option missing its value", ["push", "--force-mode"]],
+    ["an unknown translate option", ["translate", "--frobnicate"]],
   ])("exits 4 for %s", (_label, args) => {
     expect(runCli(args).status).toBe(4);
   });
@@ -83,6 +84,7 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
       "typegen",
       "pull",
       "push",
+      "translate",
       "check",
       "help",
     ]);

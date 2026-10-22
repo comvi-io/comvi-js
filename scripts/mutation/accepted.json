@@ -7157,15 +7157,6 @@
       "package": "packages/cli"
     },
     {
-      "snippet": "program.parse();",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 63,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
       "package": "packages/cli",
       "file": "src/commands/generate-types.ts",
       "mutators": ["ConditionalExpression"],
@@ -7197,7 +7188,7 @@
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!config.apiKey) {",
-      "lineHint": 30,
+      "lineHint": 114,
       "kind": "equivalent",
       "reason": "unreachable apiKey guard: ConfigLoader.load() throws CONFIG_INVALID before returning when apiKey is missing/blank (matches the src comment; hand-applied both: COMVI_MUTATION suite green)"
     },
@@ -7206,7 +7197,7 @@
       "file": "src/commands/push.ts",
       "mutators": ["StringLiteral"],
       "snippet": "throw new Error(\"API key is required. Set COMVI_API_KEY environment variable.\");",
-      "lineHint": 31,
+      "lineHint": 115,
       "kind": "equivalent",
       "reason": "message inside the unreachable apiKey guard (nocov; hand-applied: suite green)"
     },
@@ -7233,7 +7224,7 @@
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "forceMode === \"ask\" ? \"override\" : (forceMode as ApiPushForceMode);",
-      "lineHint": 110,
+      "lineHint": 264,
       "kind": "equivalent",
       "reason": "dead initializer for the ask case: the if (forceMode === \"ask\") block below always reassigns apiForceMode from the prompt before any use; identity for non-ask (hand-applied all three variants: suite green)"
     },
@@ -7241,8 +7232,8 @@
       "package": "packages/cli",
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (error instanceof Error) {",
-      "lineHint": 144,
+      "snippet": "} else if (error instanceof Error) {",
+      "lineHint": 47,
       "kind": "equivalent",
       "reason": "every reachable error is an Error: ApiClient wraps non-TypegenError failures via wrapError; ConfigLoader/TranslationSync throw Error subclasses (hand-applied: suite green)"
     },
@@ -7253,7 +7244,7 @@
       "snippet": "if (error instanceof Error) {",
       "lineHint": 95,
       "kind": "equivalent",
-      "reason": "same instanceof-Error guard as push.ts:144 — no non-Error can reach the command catch (hand-applied: suite green)"
+      "reason": "same instanceof-Error guard as push.ts:47 — no non-Error can reach the command catch (hand-applied: suite green)"
     },
     {
       "package": "packages/cli",
@@ -8228,6 +8219,96 @@
       "kind": "equivalent",
       "reason": "equivalent at the behaviour level. `cleanup()` sets the module ref false right after unmounting the app and removing its shadow host, so no mounted component reads it any more, and `mountApp()` sets it true before the next `createApp`. The only test that saw it was the old mocked-createApp suite reading the ref out of the props object, an implementation detail; that suite was replaced by the mounted one. Hand-applied (`= true`), full package suite green (1626/1626), src restored byte-identically.",
       "round": 6
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "const outcomes: number[] = [];",
+      "lineHint": 162,
+      "kind": "equivalent",
+      "reason": "a seed string in the outcomes list is never one of the exit codes reduceExitCode looks for, so the reduction is unchanged (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "jobs = jobsInLimitMeta((error as TypegenError).details?.meta);",
+      "lineHint": 183,
+      "kind": "equivalent",
+      "reason": "reached only after details.code === \"LIMIT_EXCEEDED\" matched, so details is always set here (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const tracks: JobTrack[] = jobs.map((job) => ({ job, state: \"pending\" }));",
+      "lineHint": 191,
+      "kind": "equivalent",
+      "reason": "the initial state is only ever overwritten, never compared: pollJobs keeps its own pending list and marks what is left \"running\" (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "const result = track.status?.result;",
+      "lineHint": 216,
+      "kind": "equivalent",
+      "reason": "the \"completed\" state is set only together with track.status, so status is always defined in this branch (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "message: `${job.targetLocaleCode}: ${label} failed: ${track.status?.error ?? \"no reason given\"}`,",
+      "lineHint": 246,
+      "kind": "equivalent",
+      "reason": "the \"failed\" state is set only together with track.status, so status is always defined in this branch (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "apiBaseUrl: config.apiBaseUrl || \"https://api.comvi.io\",",
+      "lineHint": 440,
+      "kind": "equivalent",
+      "reason": "ConfigLoader.load() always sets apiBaseUrl (its default is the same URL), as in push and pull (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": ".map((locale) => findLocale(locale, projectLocales ?? []) ?? locale)",
+      "lineHint": 525,
+      "kind": "equivalent",
+      "reason": "a placeholder entry never matches a requested locale, and findLocale's miss keeps the locale as given, exactly as with the empty list (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return key === undefined ? undefined : data[key];",
+      "lineHint": 759,
+      "kind": "equivalent",
+      "reason": "only the `false` variant of this ternary survives (the `true` one returns undefined for every locale and is killed): both maps are null-prototype dictionaries keyed by locale, so data[undefined] reads the absent key \"undefined\" and is undefined too (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "error.details?.code !== \"PROJECT_NOT_FOUND\"",
+      "lineHint": 872,
+      "kind": "equivalent",
+      "reason": "evaluated only after details?.status === 404 held, so details is set (getMtJobStatus) (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/MissingMerge.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "return await fs.readFile(filePath, \"utf-8\");",
+      "lineHint": 171,
+      "kind": "equivalent",
+      "reason": "without an encoding readFile returns a Buffer, and JSON.parse stringifies it as UTF-8, so the parsed catalog is the same (COM-197 J2; cold Stryker run, suite green under the mutant)"
     }
   ]
 }
