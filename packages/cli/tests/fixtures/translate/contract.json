@@ -193,6 +193,13 @@
           "exhausted": true
         }
       }
+    },
+    "busy": {
+      "status": 409,
+      "body": {
+        "code": "MT_FILL_BUSY",
+        "message": "Another fill request holds this project's lock"
+      }
     }
   },
   "status": {

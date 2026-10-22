@@ -63,6 +63,16 @@ describe("isMtFillResponse", () => {
     expect(isMtFillResponse(body)).toBe(false);
   });
 
+  it("accepts failedLocales when present, and refuses a malformed one", () => {
+    const failed = [{ targetLocaleCode: "uk", reason: "enqueue_failed" }];
+    expect(isMtFillResponse({ ...valid, failedLocales: failed })).toBe(true);
+    expect(isMtFillResponse({ ...valid, failedLocales: [] })).toBe(true);
+    expect(isMtFillResponse({ ...valid, failedLocales: "uk" })).toBe(false);
+    expect(isMtFillResponse({ ...valid, failedLocales: [{ reason: "x" }] })).toBe(false);
+    expect(isMtFillResponse({ ...valid, failedLocales: [{ targetLocaleCode: "uk" }] })).toBe(false);
+    expect(isMtFillResponse({ ...valid, failedLocales: ["uk"] })).toBe(false);
+  });
+
   it("counts Infinity as no count", () => {
     expect(isMtFillResponse(withValue(valid, ["pairs", "toTranslate"], Infinity))).toBe(false);
   });

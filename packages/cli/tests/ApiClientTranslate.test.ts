@@ -460,3 +460,73 @@ describe("ApiClient.getMtJobStatus, review round", () => {
     expect((await long).message).toBe("Request timeout after 500ms");
   });
 });
+
+describe("ApiClient.fillMissing and MT_FILL_BUSY", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    assertNoUnexpectedRequests();
+  });
+
+  it.each([[false], [true]])(
+    "retries a busy project once it frees up (dryRun: %s): one request gets through",
+    async (dryRun) => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const http = stubFetch({
+        [PROJECT]: { body: { id: 123 } },
+        [FILL]: [contract.fill.busy, contract.fill.enqueued],
+      });
+
+      const pending = client().fillMissing({ dryRun });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(http.paths().filter((p) => p === FILL)).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      const response = await pending;
+
+      expect(response.jobs).toHaveLength(2);
+      expect(http.paths().filter((p) => p === FILL)).toHaveLength(2);
+    },
+  );
+
+  it("gives up after two retries, 1 s then 3 s apart: exit 2, saying the project is busy", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    const at: number[] = [];
+    const http = stubFetch({
+      [PROJECT]: { body: { id: 123 } },
+      [FILL]: { ...contract.fill.busy, onRequest: () => void at.push(Date.now()) },
+    });
+    vi.setSystemTime(0);
+
+    const pending = typegenRejection(client().fillMissing({}));
+    await vi.advanceTimersByTimeAsync(4_000);
+    const error = await pending;
+
+    expect(http.paths().filter((p) => p === FILL)).toHaveLength(3);
+    expect(error.message).toBe("The project is busy with another translation request; try again.");
+    expect(error.details?.code).toBe("MT_FILL_BUSY");
+    expect(exitCodeFor(error)).toBe(2);
+    expect(at).toEqual([0, 1_000, 4_000]);
+  });
+
+  it("does not retry MT_FILL_BUSY on another status", async () => {
+    const http = stubFetch({
+      [PROJECT]: { body: { id: 123 } },
+      [FILL]: { status: 503, body: { code: "MT_FILL_BUSY", message: "Busy" } },
+    });
+
+    await typegenRejection(client().fillMissing({}));
+
+    expect(http.paths().filter((p) => p === FILL)).toHaveLength(1);
+  });
+
+  it("does not retry a 409 with another code", async () => {
+    const http = stubFetch({
+      [PROJECT]: { body: { id: 123 } },
+      [FILL]: { status: 409, body: { code: "TRANSACTION_CONFLICT", message: "Rolled back" } },
+    });
+
+    const error = await typegenRejection(client().fillMissing({}));
+
+    expect(http.paths().filter((p) => p === FILL)).toHaveLength(1);
+    expect(error.details?.code).toBe("TRANSACTION_CONFLICT");
+  });
+});

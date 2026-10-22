@@ -93,7 +93,7 @@ interface RunError {
 
 interface JobTrack {
   job: MtFillJob;
-  state: "pending" | "completed" | "failed" | "gone" | "error" | "running";
+  state: "pending" | "completed" | "failed" | "gone" | "error" | "unverifiable" | "running";
   status?: MtJobStatus;
   error?: unknown;
 }
@@ -197,6 +197,17 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
     return fatal(error);
   }
 
+  // Locales the platform could not queue: what was queued still runs.
+  const failedLocales = fill?.failedLocales ?? [];
+  for (const failed of failedLocales) {
+    outcomes.push(EXIT_FAILURE);
+    errors.push({
+      type: "enqueue_failed",
+      message: `${failed.targetLocaleCode}: could not be queued (${failed.reason})`,
+      locale: failed.targetLocaleCode,
+    });
+  }
+
   const tracks: JobTrack[] = jobs.map((job) => ({ job, state: "pending" }));
   if (tracks.length > 0) {
     say(`⏳ Waiting for ${tracks.length} ${tracks.length === 1 ? "job" : "jobs"}...`);
@@ -212,6 +223,7 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
     filledMeanwhile: 0,
     failed: 0,
     unfinished: 0,
+    unverifiable: 0,
     notOnPlatform: 0,
   };
   let creditsOut = outcomes.includes(EXIT_ACCESS);
@@ -256,6 +268,18 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
           ...where,
         });
         break;
+      case "unverifiable": {
+        // The platform answered something that is not a status: whether the
+        // job worked cannot be told, which is not a confirmed failure.
+        outcomes.push(EXIT_UNAVAILABLE);
+        const reason = track.error instanceof Error ? track.error.message : String(track.error);
+        errors.push({
+          type: "status_invalid",
+          message: `${job.targetLocaleCode}: ${label}: ${reason}`,
+          ...where,
+        });
+        break;
+      }
       case "error": {
         // Transient failures are retried while polling, so this one is final.
         outcomes.push(exitCodeFor(track.error) === EXIT_ACCESS ? EXIT_ACCESS : EXIT_FAILURE);
@@ -321,10 +345,10 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
   // What is still empty, per locale: unfinished while a job for the locale
   // runs (exit 2), else unfinished for good (exit 1). Keys whose source is not
   // on the platform were never translatable: push first.
-  const runningIn = (locale: string) =>
+  const anyIn = (state: JobTrack["state"], locale: string) =>
     tracks.some(
       (track) =>
-        track.state === "running" && localeKey(track.job.targetLocaleCode) === localeKey(locale),
+        track.state === state && localeKey(track.job.targetLocaleCode) === localeKey(locale),
     );
   let stillRunning = !merged && tracks.some((track) => track.state === "running");
   let runAgain = false;
@@ -332,6 +356,7 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
   if (merged && remote) {
     const remoteSource = catalogOf(remote.translations, source);
     const skipped = new Set((fill?.skippedLocales ?? []).map((s) => localeKey(s.code)));
+    const notQueued = new Set(failedLocales.map((f) => localeKey(f.targetLocaleCode)));
     const leftover = new Map<string, { locale: string; keys: Set<string> }>();
     for (const file of merged.files) {
       if (skipped.has(localeKey(file.locale))) continue;
@@ -351,9 +376,12 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
     }
     for (const { locale, keys } of leftover.values()) {
       if (keys.size === 0) continue;
-      pairs.unfinished += keys.size;
       const values = `${keys.size} ${keys.size === 1 ? "value is" : "values are"} still empty`;
-      if (runningIn(locale)) {
+      if (notQueued.has(localeKey(locale))) {
+        // Already an error of its own: the locale was never queued.
+        pairs.unfinished += keys.size;
+      } else if (anyIn("running", locale)) {
+        pairs.unfinished += keys.size;
         stillRunning = true;
         outcomes.push(EXIT_UNAVAILABLE);
         errors.push({
@@ -361,7 +389,16 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
           message: `${locale}: ${values}; its jobs are still running`,
           locale,
         });
+      } else if (anyIn("unverifiable", locale)) {
+        // Its job already counts exit 2: the status could not be read.
+        pairs.unverifiable += keys.size;
+        errors.push({
+          type: "unverifiable",
+          message: `${locale}: ${values}; its job's status could not be read`,
+          locale,
+        });
       } else {
+        pairs.unfinished += keys.size;
         runAgain = true;
         outcomes.push(EXIT_FAILURE);
         errors.push({
@@ -454,6 +491,12 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
   if (fill?.credits.exhausted && !creditsOut) {
     console.error("⚠  Machine translation credits are used up; jobs already in flight may stop.");
   }
+  if (failedLocales.length > 0) {
+    const count = failedLocales.length;
+    console.error(
+      `⚠  ${count} ${count === 1 ? "locale" : "locales"} could not be queued; run \`comvi translate\` again.`,
+    );
+  }
   if (stillRunning) {
     say(UNFINISHED_MESSAGE);
   } else if (runAgain) {
@@ -521,12 +564,23 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
   let targets: string[] | undefined;
   const projectLocales = await api.fetchProjectLocales();
   if (locs.value) {
-    targets = locs.value
+    // One entry per locale: `-l pt_br,pt-BR` is pt-BR once.
+    const resolved = locs.value
       .map((locale) => findLocale(locale, projectLocales ?? []) ?? locale)
       .filter((locale) => localeKey(locale) !== localeKey(source));
+    targets = [...new Map(resolved.map((locale) => [localeKey(locale), locale])).values()];
     if (targets.length === 0) {
       throw inputError(`--locale names only the source locale ${source}: nothing to translate`);
     }
+  }
+
+  // Without -l the targets are the project's locales. A platform that cannot
+  // list them predates mt/fill too, and the files to write cannot be judged.
+  if (!targets && projectLocales === undefined) {
+    throw new TypegenError(
+      "The platform does not support comvi translate: it cannot list the project's locales.",
+      ErrorCodes.API_UNSUPPORTED,
+    );
   }
 
   const defaultNamespace = isDefaultFileTemplate(fileTemplate)
@@ -545,8 +599,9 @@ async function prepare(options: TranslateOptions, say: (line: string) => void) {
 
   // Every file the run may write is judged now, before any push or MT: two
   // catalogs in one file, or a path out of the tree, exits 4 here.
-  const planned = targets ?? projectLocales?.filter((l) => localeKey(l) !== localeKey(source));
-  if (sourceLocale !== undefined && planned) {
+  // projectLocales is known whenever -l is not given (checked above).
+  const planned = targets ?? projectLocales!.filter((l) => localeKey(l) !== localeKey(source));
+  if (sourceLocale !== undefined) {
     await assertMergePaths(
       sync,
       defaultNamespace,
@@ -635,12 +690,14 @@ async function pollJobs(api: ApiClient, tracks: JobTrack[], timeoutMs: number): 
     : () => undefined;
   let interval = POLL_MIN_MS;
   let last = Date.now();
+  let notBefore = 0;
   let turn = 0;
 
   while (pending.length > 0) {
     // Never sleeps past the deadline, and a request needs budget left: none
     // starts at or after it.
-    await sleep(Math.min(last + interval, deadline) - Date.now());
+    // A 429's Retry-After holds back the next request; the deadline still rules.
+    await sleep(Math.min(Math.max(last + interval, notBefore), deadline) - Date.now());
     last = Date.now();
     if (last >= deadline) break;
 
@@ -648,7 +705,6 @@ async function pollJobs(api: ApiClient, tracks: JobTrack[], timeoutMs: number): 
     const track = pending[turn];
     let ended = false;
     let progressed = false;
-    let retryAfter: number | undefined;
     try {
       // The request may take no longer than what is left of the run's budget.
       const status = await api.getMtJobStatus(track.job.jobId, { timeoutMs: deadline - last });
@@ -673,10 +729,11 @@ async function pollJobs(api: ApiClient, tracks: JobTrack[], timeoutMs: number): 
         error instanceof TypegenError && error.code === ErrorCodes.API_INVALID_RESPONSE;
       if (malformed || exitCodeFor(error) !== EXIT_UNAVAILABLE) {
         track.error = error;
-        track.state = "error";
+        track.state = malformed ? "unverifiable" : "error";
         ended = true;
       } else if (error instanceof TypegenError && typeof error.details?.retryAfterMs === "number") {
-        retryAfter = error.details.retryAfterMs;
+        // Counted from when the answer arrived.
+        notBefore = Date.now() + error.details.retryAfterMs;
       }
     }
 
@@ -687,8 +744,6 @@ async function pollJobs(api: ApiClient, tracks: JobTrack[], timeoutMs: number): 
       turn++;
       if (!progressed) interval = Math.min(interval * 1.5, POLL_MAX_MS);
     }
-    // A 429's Retry-After holds back the next request; the deadline still rules.
-    if (retryAfter !== undefined) interval = Math.max(interval, retryAfter);
     progress();
   }
 

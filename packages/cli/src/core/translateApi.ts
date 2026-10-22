@@ -39,6 +39,8 @@ export interface MtFillResponse {
   skippedLocales: Array<{ code: string; reason: string }>;
   estimate: { credits: number; approximate: boolean };
   credits: { exhausted: boolean };
+  /** Locales whose job could not be queued; absent on older platforms. */
+  failedLocales?: Array<{ targetLocaleCode: string; reason: string }>;
 }
 
 export type MtErrorType =
@@ -108,7 +110,15 @@ export function isMtFillResponse(value: unknown): value is MtFillResponse {
     isCount(estimate.credits) &&
     typeof estimate.approximate === "boolean" &&
     isRecord(value.credits) &&
-    typeof value.credits.exhausted === "boolean"
+    typeof value.credits.exhausted === "boolean" &&
+    (value.failedLocales === undefined ||
+      (Array.isArray(value.failedLocales) &&
+        value.failedLocales.every(
+          (failed) =>
+            isRecord(failed) &&
+            typeof failed.targetLocaleCode === "string" &&
+            typeof failed.reason === "string",
+        )))
   );
 }
 

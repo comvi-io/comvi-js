@@ -821,14 +821,36 @@ export class ApiClient {
     const project = await this.getProjectInfo();
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectMtFill(project.id)}`;
 
-    let response: unknown;
-    try {
-      response = await this.requestJson<unknown>(
+    const request = () =>
+      this.requestJson<unknown>(
         url,
         { method: "POST", headers: this.authHeaders(), body: JSON.stringify(body) },
         { retryTransient: body.dryRun === true, failure: "Failed to request machine translation" },
       );
+
+    let response: unknown;
+    try {
+      // A 409 MT_FILL_BUSY enqueued nothing: another fill held the project's
+      // lock. That one, and only that one, is asked again, 1 s then 3 s later.
+      const waits = [1_000, 3_000];
+      for (let attempt = 0; ; attempt++) {
+        try {
+          response = await request();
+          break;
+        } catch (error) {
+          if (!isFillBusy(error) || attempt === waits.length) throw error;
+          await delay(waits[attempt]);
+        }
+      }
     } catch (error) {
+      if (isFillBusy(error)) {
+        throw new TypegenError(
+          "The project is busy with another translation request; try again.",
+          error.code,
+          error,
+          error.details,
+        );
+      }
       if (error instanceof TypegenError) {
         throw fillError(error);
       }
@@ -1267,6 +1289,12 @@ function fillError(error: TypegenError): TypegenError {
     );
   }
   return error;
+}
+
+/** Only a TypegenError carries `details`; a network failure has none. */
+function isFillBusy(error: unknown): error is TypegenError {
+  const details = (error as { details?: Readonly<Record<string, unknown>> }).details;
+  return details?.status === 409 && details.code === "MT_FILL_BUSY";
 }
 
 /** A commit the platform rolled back on a deadlock and marked safe to retry. */
