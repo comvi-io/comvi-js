@@ -150,13 +150,22 @@ async function runTranslate(options: TranslateOptions): Promise<number> {
 
   if (options.dryRun) {
     try {
-      // With the push on, namespaces only the push would create are not on
-      // the platform yet: count over every namespace, as the preflight does.
-      const preview = await api.fillMissing({
+      // With the push on, a --ns namespace may exist only locally: the push
+      // would create it, and the push preview counts its pairs. The platform
+      // counts the --ns namespaces it already has, or nothing when it has none.
+      let counted = namespaces;
+      if (namespaces && options.push) {
+        const onPlatform = new Set((await api.fetchNamespaces()).map((n) => n.namespace));
+        counted = namespaces.filter((ns) => onPlatform.has(ns));
+      }
+      const checked = await api.fillMissing({
         dryRun: true,
         ...(targets ? { targetLocaleCodes: targets } : {}),
-        ...(namespaces && !options.push ? { namespaces } : {}),
+        ...(counted && counted.length > 0 ? { namespaces: counted } : {}),
       });
+      // The call above still checks the key and the platform; with no --ns
+      // namespace on the platform yet, its count would cover the others.
+      const preview = counted && counted.length === 0 ? emptyCount(checked) : checked;
       let pushed: number | undefined;
       if (options.push) {
         const result = await runPush({ ...pushOptions, dryRun: true }, pushDeps);
@@ -809,6 +818,15 @@ async function localSpellings(
     (locale) =>
       files.find((file) => localeKey(file.locale) === localeKey(locale))?.locale ?? locale,
   );
+}
+
+/** A dry-run answer with nothing counted: no --ns namespace is on the platform yet. */
+function emptyCount(response: MtFillResponse): MtFillResponse {
+  return {
+    ...response,
+    pairs: { toTranslate: 0, alreadyInFlight: 0, alreadyTranslated: 0, noSource: 0 },
+    estimate: { ...response.estimate, credits: 0 },
+  };
 }
 
 function reportDryRun(
