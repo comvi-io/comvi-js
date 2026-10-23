@@ -13,7 +13,7 @@ A SvelteKit app that renders translated HTML on the server with [`@comvi/svelte`
 - **No flash on hydration**: the browser's instance starts from that data, so the first paint is already translated.
 - **Client navigation**: a link to `/uk` hands the new data to the same instance, and `<html lang dir>` follows. Arabic turns the page right-to-left.
 - **ICU plurals, `<T>` markup and fallback**: the counter, the documentation link, and an English sentence where Ukrainian has no translation.
-- **404** for a path whose first segment is not a locale.
+- **404** for an unknown first or second segment: `/xx`, `/xx/about`, `/en-US`, `/uk/xx`. `/about`, `/en` and `/en/about` are English.
 
 ## Run it
 

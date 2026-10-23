@@ -13,7 +13,7 @@ A SolidStart app that renders translated HTML on the server with [`@comvi/solid`
 - **Text in the HTML**: `deferStream` holds the response until the catalogs are in, so a reader without JavaScript and a link preview get the text, not a placeholder.
 - **Client navigation**: a link to `/uk` loads uk's data and swaps in a new instance, and `<html lang dir>` follows. Arabic turns the page right-to-left.
 - **ICU plurals, `<T>` markup and fallback**: the counter, the documentation link, and an English sentence where Ukrainian has no translation.
-- **404** for a path whose first segment is not a locale.
+- **404** for an unknown first or second segment: `/xx`, `/xx/about`, `/en-US`, `/uk/xx`. `/about`, `/en` and `/en/about` are English.
 
 ## Run it
 
@@ -27,7 +27,7 @@ npm run dev
 ## Where to look
 
 - `src/lib/i18n.ts`: the locales, the catalog imports and `loadI18n`, the server function.
-- `src/routes/[[locale]].tsx`: the layout every page renders in: the resource keyed on the URL's locale, the instance built from its data, and the switcher.
+- `src/routes/[[locale]].tsx`: the layout of the home and about pages: the resource keyed on the URL's locale, the instance built from its data, and the switcher.
 - `src/entry-server.tsx`: writes the request's locale into `<html lang dir>`.
 
 ## Connect your Comvi project
