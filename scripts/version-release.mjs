@@ -9,6 +9,7 @@ import {
   getPublishablePackages,
   updateRootChangelogFile,
 } from "./root-changelog.mjs";
+import { manifests as exampleManifests, retag } from "./examples-use-tag.mjs";
 
 /**
  * `error.code` on the one failure the CLI reports without a stack: the fixed
@@ -159,6 +160,48 @@ export function hoistBreakingEntriesInRepo({ root, changesets, log = console.log
   return hoisted;
 }
 
+// ---------------------------------------------------------------------------
+// Example ranges.
+//
+// The StackBlitz badges open `examples/*` on `main`, and StackBlitz installs
+// `@comvi/*` from npm. So the examples' ranges move to the new version in the
+// commit that sets it, the release PR, and reach `main` together with the
+// versions they ask for. A pre-release is skipped: `^0.7.0-rc.0` on `main`
+// would hand every visitor the RC. RC demos go through
+// `pnpm examples:use-tag next` on a demo branch.
+// ---------------------------------------------------------------------------
+
+/** `"@comvi/react": "^0.6.0"` and `examples:use-tag ^0.6.0` in prose and fences. */
+const README_RANGE_RE = /("@comvi\/[a-z0-9-]+": "|examples:use-tag )\^\d+\.\d+\.\d+/g;
+
+/** Points every example's `@comvi/*` range at `^<version>`. Returns the files it wrote. */
+export function bumpExampleRanges({ root, version, log = console.log }) {
+  if (version.includes("-")) {
+    log(`examples: ${version} is a pre-release, the examples keep their ranges`);
+    return [];
+  }
+  const range = `^${version}`;
+  const written = [];
+  if (!fs.existsSync(path.join(root, "examples"))) return written;
+  for (const file of exampleManifests(root)) {
+    const { manifest, changes } = retag(JSON.parse(fs.readFileSync(file, "utf8")), range);
+    if (changes.length === 0) continue;
+    fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+    written.push(file);
+  }
+  const readme = path.join(root, "examples/README.md");
+  if (fs.existsSync(readme)) {
+    const before = fs.readFileSync(readme, "utf8");
+    const after = before.replace(README_RANGE_RE, `$1${range}`);
+    if (after !== before) {
+      fs.writeFileSync(readme, after);
+      written.push(readme);
+    }
+  }
+  if (written.length > 0) log(`examples: ${written.length} file(s) now ask for ${range}`);
+  return written;
+}
+
 /**
  * The release cut, in the order it has to happen:
  *
@@ -166,16 +209,17 @@ export function hoistBreakingEntriesInRepo({ root, changesets, log = console.log
  *      sees an internal peer range that the new version falls outside of and
  *      escalates the whole fixed group to a major bump;
  *   2. `changeset version`;
- *   3. the breaking-entry hoist over the version blocks step 2 just generated;
- *   4. the root CHANGELOG entry, and only when this cut consumed changesets.
+ *   3. the examples' `@comvi/*` ranges, to `^<version>` (not for a pre-release);
+ *   4. the breaking-entry hoist over the version blocks step 2 just generated;
+ *   5. the root CHANGELOG entry, and only when this cut consumed changesets.
  *
  * The changesets are collected BEFORE step 2 because `changeset version`
  * deletes them. `run` is injectable so a test can assert the order without
  * spawning anything.
  *
- * `skipRootChangelog` (CLI: `--skip-root-changelog`) returns after step 2,
+ * `skipRootChangelog` (CLI: `--skip-root-changelog`) returns after step 3,
  * before the hoist and the root CHANGELOG entry. It is deliberately NOT called
- * a dry run: steps 1 and 2 have already run by then, so the working tree is
+ * a dry run: steps 1 to 3 have already run by then, so the working tree is
  * fully versioned and the changesets are consumed either way. A real dry run is
  * not possible here — the version is not known until `changeset version` has
  * decided it.
@@ -209,6 +253,7 @@ export function main({
   // the release date. Keep generated headings undated unless an exact date is
   // supplied.
   const date = process.env.CHANGELOG_DATE;
+  bumpExampleRanges({ root, version, log });
   if (skipRootChangelog) {
     log(`root-changelog: would add coordinated ${version} release`);
     return { versioned: true, version, changed: false, hoisted: [] };

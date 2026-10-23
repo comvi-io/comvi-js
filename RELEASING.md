@@ -77,8 +77,11 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
 
 - [ ] Merge the release branch to `main`.
 - [ ] The `main` push runs `release.yml`, which calls `pnpm release:version` through
-      `changesets/action` and opens the release PR. Re-run `pnpm examples:verify` after the version
-      bump: that is when the peer ranges and the examples' ranges meet.
+      `changesets/action` and opens the release PR. The same commit moves every `@comvi/*` range
+      in `examples/*/package.json` and `examples/README.md` to `^<version>`, so the StackBlitz
+      badges on `main` ask for the new version only once it is merged (a pre-release version
+      leaves them alone). Re-run `pnpm examples:verify` after the version bump: that is when the
+      peer ranges and the examples' ranges meet.
 - [ ] Read the generated CHANGELOGs before merging the release PR.
 - [ ] Merging the release PR publishes through the `pack`, `verify` and `publish` jobs: the same
       three-job chain as the RC, with `--tag latest` and git tags pushed for each published
