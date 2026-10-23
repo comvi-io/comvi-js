@@ -2043,9 +2043,57 @@ describe("comvi translate", () => {
       },
     );
 
-    it("--dry-run with the push counts over every namespace; without it, over --ns", async () => {
-      serve({ [PATHS.fill]: contract.fill.dryRun });
+    const NAMESPACES: RouteResponse = {
+      body: ["common", "admin"].map((namespace, i) => ({
+        id: i + 1,
+        projectId: 123,
+        namespace,
+        description: null,
+        isDefault: i === 0,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      })),
+    };
+
+    it("--dry-run with the push counts only the --ns namespaces the platform has", async () => {
+      // `fresh` exists only locally: the push would create it, and the push
+      // preview counts its pairs. The stub answers the same whatever the body,
+      // so the body is what proves the platform count covers `common` alone.
+      serve({ [PATHS.namespaces]: NAMESPACES, [PATHS.fill]: contract.fill.dryRun });
+      expect(
+        await translate(["--dry-run", "--force-mode", "override", "--ns", "common,fresh"]),
+      ).toBe(0);
+      expect(fillBodies()).toEqual([{ dryRun: true, namespaces: ["common"] }]);
+    });
+
+    it("--dry-run stops when the namespaces cannot be read, before any fill", async () => {
+      // The first read (the default namespace, in setup) succeeds; the dry
+      // run's own read is the one that fails.
+      serve({ [PATHS.namespaces]: [NAMESPACES, { status: 503, body: { error: "unavailable" } }] });
+      expect(await translate(["--dry-run", "--force-mode", "override", "--ns", "common"])).toBe(2);
+      expect(fillBodies()).toEqual([]);
+
+      exits.codes.length = 0;
+      serve({
+        [PATHS.namespaces]: [
+          NAMESPACES,
+          { status: 403, body: { code: "FORBIDDEN", message: "forbidden" } },
+        ],
+      });
+      expect(await translate(["--dry-run", "--force-mode", "override", "--ns", "common"])).toBe(3);
+      expect(fillBodies()).toEqual([]);
+    });
+
+    it("--dry-run with the push and only new --ns namespaces counts nothing on the platform", async () => {
+      serve({ [PATHS.namespaces]: NAMESPACES, [PATHS.fill]: contract.fill.dryRun });
       expect(await translate(["--dry-run", "--force-mode", "override", "--ns", "fresh"])).toBe(0);
+      // The fill still checks the key and the platform, but its count is not used.
+      expect(fillBodies()).toEqual([{ dryRun: true }]);
+      expect(output.stdout).toContain("On the platform: 0 pairs, ≈0 credits");
+    });
+
+    it("--dry-run without --ns counts every namespace; --no-push sends --ns as given", async () => {
+      serve({ [PATHS.fill]: contract.fill.dryRun });
+      expect(await translate(["--dry-run", "--force-mode", "override"])).toBe(0);
       expect(fillBodies()).toEqual([{ dryRun: true }]);
 
       exits.codes.length = 0;
