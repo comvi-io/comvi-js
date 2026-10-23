@@ -413,3 +413,95 @@ test("a package changelog already in order is not rewritten", (t) => {
   assert.deepEqual(result.hoisted, []);
   assert.equal(fs.readFileSync(path.join(root, "packages/core/CHANGELOG.md"), "utf8"), ordered);
 });
+
+/** Two examples and the README section that quotes their range, as `main` finds them before a cut. */
+function addExamples(root, range = "^0.4.0") {
+  writeJson(path.join(root, "examples/react/package.json"), {
+    name: "comvi-example-react",
+    dependencies: { "@comvi/core": range, "@comvi/react": range, react: "^19.0.0" },
+    devDependencies: { vite: "^7.0.0" },
+  });
+  writeJson(path.join(root, "examples/sveltekit/package.json"), {
+    name: "comvi-example-sveltekit",
+    devDependencies: { "@comvi/svelte": range, "@sveltejs/kit": "^2.0.0" },
+  });
+  fs.writeFileSync(
+    path.join(root, "examples/README.md"),
+    `The examples depend on the published names (\`"@comvi/react": "${range}"\`).\n\n` +
+      "```sh\npnpm examples:use-tag next\n" +
+      `pnpm examples:use-tag ${range}    # back to the release range\n\`\`\`\n\n` +
+      "Next.js ^15.4.0 is unrelated.\n",
+  );
+}
+
+const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+
+test("the cut moves every example's @comvi ranges, and only those, to the new version", (t) => {
+  const root = makeFixtureRepo(t);
+  addExamples(root);
+  const { run } = recordingRun();
+
+  main({ root, run, log: () => {} });
+
+  // StackBlitz installs the examples from npm off `main`, so their ranges have
+  // to change in the same commit as the versions they ask for.
+  assert.deepEqual(readJson(path.join(root, "examples/react/package.json")), {
+    name: "comvi-example-react",
+    dependencies: { "@comvi/core": "^0.5.0", "@comvi/react": "^0.5.0", react: "^19.0.0" },
+    devDependencies: { vite: "^7.0.0" },
+  });
+  assert.deepEqual(readJson(path.join(root, "examples/sveltekit/package.json")), {
+    name: "comvi-example-sveltekit",
+    devDependencies: { "@comvi/svelte": "^0.5.0", "@sveltejs/kit": "^2.0.0" },
+  });
+  assert.equal(
+    fs.readFileSync(path.join(root, "examples/README.md"), "utf8"),
+    'The examples depend on the published names (`"@comvi/react": "^0.5.0"`).\n\n' +
+      "```sh\npnpm examples:use-tag next\n" +
+      "pnpm examples:use-tag ^0.5.0    # back to the release range\n```\n\n" +
+      "Next.js ^15.4.0 is unrelated.\n",
+  );
+});
+
+test("skipRootChangelog still moves the examples: the tree is versioned either way", (t) => {
+  const root = makeFixtureRepo(t);
+  addExamples(root);
+  const { run } = recordingRun();
+
+  main({ root, run, skipRootChangelog: true, log: () => {} });
+
+  assert.equal(
+    readJson(path.join(root, "examples/react/package.json")).dependencies["@comvi/react"],
+    "^0.5.0",
+  );
+});
+
+test("a pre-release version leaves the examples on the last stable range", (t) => {
+  const root = makeFixtureRepo(t);
+  addExamples(root);
+  for (const pkg of ["core", "react"]) {
+    const file = path.join(root, "packages", pkg, "package.json");
+    writeJson(file, { ...readJson(file), version: "0.5.0-rc.0" });
+  }
+  const before = fs.readFileSync(path.join(root, "examples/react/package.json"), "utf8");
+  const readme = fs.readFileSync(path.join(root, "examples/README.md"), "utf8");
+  const logged = [];
+
+  main({ root, run: recordingRun().run, log: (line) => logged.push(line) });
+
+  // `^0.5.0-rc.0` would send StackBlitz to the RC off `main`; the RC route is
+  // `pnpm examples:use-tag next` on a demo branch.
+  assert.equal(fs.readFileSync(path.join(root, "examples/react/package.json"), "utf8"), before);
+  assert.equal(fs.readFileSync(path.join(root, "examples/README.md"), "utf8"), readme);
+  assert.ok(logged.some((line) => /examples: 0\.5\.0-rc\.0 is a pre-release/.test(line)));
+});
+
+test("with no changesets the examples are left alone", (t) => {
+  const root = makeFixtureRepo(t, { changesets: {} });
+  addExamples(root);
+  const before = fs.readFileSync(path.join(root, "examples/react/package.json"), "utf8");
+
+  main({ root, run: recordingRun().run, log: () => {} });
+
+  assert.equal(fs.readFileSync(path.join(root, "examples/react/package.json"), "utf8"), before);
+});
