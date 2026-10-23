@@ -2066,13 +2066,18 @@ describe("comvi translate", () => {
     });
 
     it("--dry-run stops when the namespaces cannot be read, before any fill", async () => {
-      serve({ [PATHS.namespaces]: { status: 503, body: { error: "unavailable" } } });
+      // The first read (the default namespace, in setup) succeeds; the dry
+      // run's own read is the one that fails.
+      serve({ [PATHS.namespaces]: [NAMESPACES, { status: 503, body: { error: "unavailable" } }] });
       expect(await translate(["--dry-run", "--force-mode", "override", "--ns", "common"])).toBe(2);
       expect(fillBodies()).toEqual([]);
 
       exits.codes.length = 0;
       serve({
-        [PATHS.namespaces]: { status: 403, body: { code: "FORBIDDEN", message: "forbidden" } },
+        [PATHS.namespaces]: [
+          NAMESPACES,
+          { status: 403, body: { code: "FORBIDDEN", message: "forbidden" } },
+        ],
       });
       expect(await translate(["--dry-run", "--force-mode", "override", "--ns", "common"])).toBe(3);
       expect(fillBodies()).toEqual([]);
