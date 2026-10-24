@@ -26,6 +26,8 @@ export {
 // bundle of an app that never calls `createI18n` kept the whole react entry
 // alive.
 export { createI18n } from "@comvi/core";
+export { formatNumber, formatDate, formatCurrency, formatRelativeTime } from "@comvi/core";
+export type { LocaleSource } from "@comvi/core";
 
 // Each is a named binding under `sideEffects: false`, so the ones an app does
 // not call cost it zero. `@comvi/core/tags` is deliberately absent: it is the one

@@ -12,6 +12,10 @@
  * nothing here relays a relayed export and `sideEffects: false` still holds.
  * The one local export, `defineComviI18n`, is an identity function for typing.
  *
+ * The standalone formatters are here for the same reason: a plain module that
+ * formats outside a component imports them from `@comvi/nuxt/i18n`, and the
+ * module also registers them as auto-imports.
+ *
  * `flattenCatalog` is deliberately NOT here: the base instance flattens a nested
  * catalog itself, so pre-flattening data by hand stays on the `@comvi/core`
  * root rather than becoming the answer to a rule.
@@ -24,6 +28,8 @@
  * the one way to compose the capability without also configuring a map.
  */
 export { createI18n } from "@comvi/core";
+export { formatNumber, formatDate, formatCurrency, formatRelativeTime } from "@comvi/core";
+export type { LocaleSource } from "@comvi/core";
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";
 export { definePlugin, plugins } from "@comvi/core/plugins";

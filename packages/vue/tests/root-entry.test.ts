@@ -21,6 +21,7 @@ import { devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
+import * as core from "@comvi/core";
 import * as root from "../src/index";
 import { VueI18n } from "../src/VueI18n";
 import { I18N_INJECTION_KEY as DeepInjectionKey } from "../src/keys";
@@ -239,6 +240,10 @@ describe("@comvi/vue — the export surface", () => {
     "createI18nFromCore",
     "definePlugin",
     "devtools",
+    "formatCurrency",
+    "formatDate",
+    "formatNumber",
+    "formatRelativeTime",
     "icuCompiler",
     "loader",
     "plugins",
@@ -297,5 +302,24 @@ describe("@comvi/vue — one entry, one injection key", () => {
     );
 
     expect(wrapper.text()).toBe("Hello");
+  });
+});
+
+describe("@comvi/vue — the standalone formatters", () => {
+  // Derived from core, so a formatter core adds cannot be left off this entry.
+  const CORE_FORMATTERS = Object.keys(core)
+    .filter((name) => /^format[A-Z]/.test(name))
+    .sort();
+
+  it("re-exports exactly core's formatter set, as core's own bindings", () => {
+    expect(CORE_FORMATTERS.length).toBeGreaterThan(0);
+    expect(
+      Object.keys(root)
+        .filter((name) => /^format[A-Z]/.test(name))
+        .sort(),
+    ).toEqual(CORE_FORMATTERS);
+    for (const name of CORE_FORMATTERS) {
+      expect((root as Record<string, unknown>)[name]).toBe((core as Record<string, unknown>)[name]);
+    }
   });
 });

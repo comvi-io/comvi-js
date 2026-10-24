@@ -1,4 +1,5 @@
 export { createI18n, I18n } from "@comvi/core";
+export { formatNumber, formatDate, formatCurrency, formatRelativeTime } from "@comvi/core";
 export type * from "@comvi/core";
 
 export { createNextI18n } from "./createNextI18n";

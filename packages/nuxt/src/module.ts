@@ -581,6 +581,14 @@ ${check}`;
       { name: "useRouteConfig", from: resolve("./runtime/composables/useRouteConfig") },
       { name: "useSwitchLocalePath", from: resolve("./runtime/composables/useSwitchLocalePath") },
     ]);
+    // Below every app and layer directory, so an app's own `formatDate` wins silently.
+    addImports(
+      ["formatNumber", "formatDate", "formatCurrency", "formatRelativeTime"].map((name) => ({
+        name,
+        from: resolve("./runtime/i18n"),
+        priority: -100,
+      })),
+    );
 
     // Register runtime components explicitly to avoid async/global component chunk warnings.
     addComponent({

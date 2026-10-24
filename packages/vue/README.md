@@ -73,7 +73,9 @@ const { t, locale, setLocale } = useI18n();
 
 `t()` inside a template or `computed` tracks the locale and the cache. `locale` is a
 `Ref<string>`: `setLocale()` resolves once the new locale's translations are loaded, and assigning
-`locale.value` triggers the same switch. `useI18n('admin')` binds a namespace.
+`locale.value` triggers the same switch. `useI18n('admin')` binds a namespace. Outside a
+component, `formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` come from
+`@comvi/vue` too and take the core instance first: `formatRelativeTime(i18n.core, -2, 'hour')`.
 
 ## Load from Comvi
 

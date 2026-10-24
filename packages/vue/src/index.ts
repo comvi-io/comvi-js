@@ -33,6 +33,9 @@ export { createI18n } from "./createI18n";
 export { createI18nFromCore } from "./createI18nFromCore";
 export type { I18n } from "@comvi/core";
 
+// Standalone formatters, for code outside a component.
+export { formatNumber, formatDate, formatCurrency, formatRelativeTime } from "@comvi/core";
+
 export { useI18n } from "./composables/useI18n";
 export type { UseI18nReturn } from "./composables/useI18n";
 export { useI18nLoader, useI18nPlugins } from "./composables/capabilities";

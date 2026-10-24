@@ -124,7 +124,8 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 In a Server Component `getI18n({ locale })` returns `t`, `hasTranslation` and `locale`, bound to
 the locale you pass. Pass it explicitly: Next can render the page before the layout. In a Client
 Component `useI18n()`, `<T>` and the other React hooks come from `@comvi/next/client`, under
-`<ComviProvider>`.
+`<ComviProvider>`. `formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` are on
+all three entries and take the instance first: `formatRelativeTime(i18n, -2, 'hour')`.
 
 ## Load from Comvi
 

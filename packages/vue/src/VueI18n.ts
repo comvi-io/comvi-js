@@ -18,6 +18,7 @@ import type {
   DefaultTranslationParams,
   DefaultParamsSnapshot,
   WrapperI18nInstance,
+  LocaleSource,
 } from "@comvi/core";
 import {
   shallowRef,
@@ -221,14 +222,24 @@ export class VueI18n<
     this.setDefaultParams = core.setDefaultParams.bind(core);
     this.reportError = core.reportError.bind(core);
     // Default to the reactive ref, so templates re-render on a locale change.
+    const localeRef = this._locale;
+    const configRevision = this._configRevision;
+    const localeSource: LocaleSource = {
+      get locale() {
+        return localeRef.value;
+      },
+      get fallbackLocales() {
+        void configRevision.value;
+        return core.fallbackLocales;
+      },
+    };
     this.formatNumber = (value, options, locale) =>
-      formatNumber(core, value, options, locale ?? this._locale.value);
-    this.formatDate = (value, options, locale) =>
-      formatDate(core, value, options, locale ?? this._locale.value);
+      formatNumber(localeSource, value, options, locale);
+    this.formatDate = (value, options, locale) => formatDate(localeSource, value, options, locale);
     this.formatCurrency = (value, currency, options, locale) =>
-      formatCurrency(core, value, currency, options, locale ?? this._locale.value);
+      formatCurrency(localeSource, value, currency, options, locale);
     this.formatRelativeTime = (value, unit, options, locale) =>
-      formatRelativeTime(core, value, unit, options, locale ?? this._locale.value);
+      formatRelativeTime(localeSource, value, unit, options, locale);
 
     // Bound so callers can destructure them.
     this.t = this.t.bind(this);

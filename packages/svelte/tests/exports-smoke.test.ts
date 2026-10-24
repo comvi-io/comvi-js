@@ -136,14 +136,22 @@ describe("exports map smoke (F0b)", () => {
     expect(keys.indexOf("types")).toBeLessThan(keys.indexOf("import"));
   });
 
-  it("publishes exactly ONE entry — the retired /slim subpath is gone", () => {
-    // A second entry would be a second name for the same modules — and, in a
-    // wrapper whose build does NOT preserve modules, a second context object.
+  it("publishes the root and `./format` only — the retired /slim subpath is gone", () => {
+    // A second name for the root's modules would be, in a wrapper whose build
+    // does NOT preserve modules, a second context object. `./format` is not
+    // one: it reaches nothing of this package, only `@comvi/core`.
     const pkgJson = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf-8"));
 
-    expect(Object.keys(pkgJson.exports)).toEqual(["."]);
+    expect(Object.keys(pkgJson.exports)).toEqual([".", "./format"]);
     expect(existsSync(resolve(distDir, "slim.js"))).toBe(false);
     expect(existsSync(resolve(distDir, "slim.d.ts"))).toBe(false);
+  });
+
+  it("dist/format.js imports nothing but @comvi/core, so plain Node can load it", () => {
+    const code = stripComments(readFileSync(resolve(distDir, "format.js"), "utf-8"));
+    const specifiers = [...code.matchAll(/from\s+"([^"]+)"/g)].map((match) => match[1]);
+
+    expect(specifiers).toEqual(["@comvi/core"]);
   });
 
   it("dist/index.js exports the capability toolkit; `I18n` is a type, so it is absent", () => {

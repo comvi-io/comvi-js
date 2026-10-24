@@ -1550,4 +1550,26 @@ describe("nuxt module setup", () => {
     // `capabilities` registers two names from one file, so `from` is the seam.
     expect([...new Set(registered.map((entry) => entry.from))].sort()).toEqual(composableModules);
   });
+
+  it("auto-imports exactly core's standalone formatters, through @comvi/nuxt/i18n", async () => {
+    const core = await import("@comvi/core");
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    const coreFormatters = Object.keys(core)
+      .filter((name) => /^format[A-Z]/.test(name))
+      .sort();
+    const registered = nuxtKitMocks.addImports.mock.calls.flatMap(
+      ([entries]) => entries as Array<{ name: string; from: string }>,
+    );
+    const formatters = registered.filter((entry) => /^format[A-Z]/.test(entry.name));
+
+    expect(coreFormatters.length).toBeGreaterThan(0);
+    expect(formatters.map((entry) => entry.name).sort()).toEqual(coreFormatters);
+    expect(new Set(formatters.map((entry) => entry.from))).toEqual(
+      new Set(["/resolved/./runtime/i18n"]),
+    );
+  });
 });
