@@ -95,8 +95,9 @@ npx comvi typegen --check
 npx tsc --noEmit
 ```
 
-`pull` writes flat files with dotted keys, in the existing file's indentation and line endings (a
-new file takes those of the `sourceLocale` file), and `push` accepts either shape: nested objects are
+`pull` writes flat files with dotted keys, in the existing file's indentation, line endings and
+final newline (a new file takes those of the `sourceLocale` file, else two spaces and LF), and
+`push` accepts either shape: nested objects are
 flattened to dotted keys on push. Every leaf must be a string; a number, boolean, null or array
 fails the push with exit code `4` and names the file and key. `push --force-mode` takes
 `override`, `keep`, `ask` (the default) or `abort` for keys whose local value differs from the

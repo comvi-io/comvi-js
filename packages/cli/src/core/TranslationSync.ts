@@ -381,13 +381,9 @@ export class TranslationSync {
       if (sourceLocale !== undefined && !sourceStyles.has(namespace)) {
         let sourcePath: string | undefined;
         try {
-          sourcePath = this.resolveFilePath(
-            sourceLocale,
-            namespace,
-            options.defaultNamespace ?? DEFAULT_NAMESPACE,
-          );
+          sourcePath = await this.catalogPath(sourceLocale, namespace, options.defaultNamespace);
         } catch {
-          // A sourceLocale that is not a file name has no file to read.
+          // Not a file name, or a path out of the directory: no layout to borrow.
         }
         sourceStyles.set(
           namespace,

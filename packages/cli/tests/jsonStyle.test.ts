@@ -29,6 +29,18 @@ describe("detectJsonStyle", () => {
     ["an empty file", "", {}],
     ["no file", null, {}],
     ["mixed tabs and spaces", '{\n\t  "a": "A"\n}\n', { eol: "\n", finalNewline: true }],
+    [
+      "twelve spaces",
+      '{\n            "a": "A"\n}\n',
+      { indent: " ".repeat(12), eol: "\n", finalNewline: true },
+    ],
+    ["U+2028 inside a one-line string", '{"a":"x\u2028    y"}', {}],
+    ["whitespace before a one-line file", '  {"a":"A"}', {}],
+    [
+      "mixed line endings: the first wins",
+      '{\r\n  "a": "A",\n  "b": "B"\n}\n',
+      { indent: "  ", eol: "\r\n", finalNewline: true },
+    ],
   ])("%s", (_name, text, style) => {
     expect(detectJsonStyle(text)).toEqual(style);
   });
@@ -134,6 +146,29 @@ describe("catalog writers keep the file's layout", () => {
       expect(await read("common/de.json")).toBe('{\n\t"a": "A-de"\n}\n');
     });
 
+    it("keeps an indent wider than the ten characters JSON.stringify allows", async () => {
+      const wide = " ".repeat(12);
+      await write("common/en.json", TABS);
+      await write("common/de.json", `{\n${wide}"nav": {\n${wide}${wide}"home": ""\n${wide}}\n}\n`);
+
+      await translate({ "nav.home": "Home" }, { "nav.home": "Start" });
+
+      expect(await read("common/de.json")).toBe(
+        `{\n${wide}"nav": {\n${wide}${wide}"home": "Start"\n${wide}}\n}\n`,
+      );
+    });
+
+    it("writes a target that shows its whole layout even when the source cannot be read", async () => {
+      // A directory where the source file should be: reading it fails with EISDIR.
+      await fs.mkdir(join(dir, "common/en.json"), { recursive: true });
+      await write("common/de.json", FOUR.replace('"A"', '""'));
+
+      const report = await translate({ a: "A" }, { a: "A-de" });
+
+      expect(report.errors).toEqual([]);
+      expect(await read("common/de.json")).toBe('{\n    "a": "A-de"\n}\n');
+    });
+
     it("falls back to two spaces and a final newline without a source file", async () => {
       await write("common/de.json", "{}\n");
 
@@ -185,6 +220,40 @@ describe("catalog writers keep the file's layout", () => {
 
       expect(await read("common/en.json")).toBe('{\n\t"a": "A"\n}\n');
       expect(await read("common/de.json")).toBe('{\n\t"a": "A-de"\n}\n');
+    });
+
+    it("finds the source file under the response's spelling of sourceLocale", async () => {
+      await write("common/en-US.json", TABS);
+
+      await pull({ "en-US": { a: "A" }, de: { a: "A-de" } }, "en_us");
+
+      expect(await read("common/de.json")).toBe('{\n\t"a": "A-de"\n}\n');
+    });
+
+    it("takes what a one-line file does not show from the source", async () => {
+      await write("common/en.json", TABS);
+      await write("common/de.json", '{"a":"old"}');
+
+      await pull({ de: { a: "A-de" } }, "en");
+
+      expect(await read("common/de.json")).toBe('{\n\t"a": "A-de"\n}\n');
+    });
+
+    it("ignores a sourceLocale that is not a file name", async () => {
+      await pull({ de: { a: "A-de" } }, "../en");
+
+      expect(await read("common/de.json")).toBe('{\n  "a": "A-de"\n}\n');
+    });
+
+    it("does not read a source file that links out of the translations directory", async () => {
+      const outside = await makeTempDir("comvi-json-style-outside");
+      await fs.writeFile(join(outside, "en.json"), TABS, "utf-8");
+      await fs.mkdir(join(dir, "common"), { recursive: true });
+      await fs.symlink(join(outside, "en.json"), join(dir, "common/en.json"));
+
+      await pull({ de: { a: "A-de" } }, "en");
+
+      expect(await read("common/de.json")).toBe('{\n  "a": "A-de"\n}\n');
     });
 
     it("falls back to two spaces and a final newline for a new file without a source", async () => {

@@ -15,9 +15,6 @@ export const DEFAULT_JSON_STYLE: Required<JsonStyle> = {
   finalNewline: true,
 };
 
-/** `JSON.stringify` takes at most ten characters of indentation. */
-const MAX_INDENT = 10;
-
 export function detectJsonStyle(text: string | null): JsonStyle {
   if (text === null || text.trim() === "") return {};
   const style: JsonStyle = {};
@@ -29,11 +26,16 @@ export function detectJsonStyle(text: string | null): JsonStyle {
     style.finalNewline = /\n$/.test(text);
   }
 
-  const indent = /^([ \t]+)\S/m.exec(text)?.[1];
-  if (indent && indent.length <= MAX_INDENT && /^(\t+| +)$/.test(indent)) {
+  // Only after "\n": `^` with the m flag also matches after U+2028, which a string may hold raw.
+  const indent = /\n([ \t]+)\S/.exec(text)?.[1];
+  if (indent && /^(\t+| +)$/.test(indent)) {
     style.indent = indent;
   }
   return style;
+}
+
+export function isCompleteJsonStyle(style: JsonStyle): boolean {
+  return style.indent !== undefined && style.eol !== undefined && style.finalNewline !== undefined;
 }
 
 /** The first style that shows each field wins, then the default. */
@@ -48,7 +50,11 @@ export function resolveJsonStyle(...styles: JsonStyle[]): Required<JsonStyle> {
 }
 
 export function stringifyJson(value: unknown, style: Required<JsonStyle>): string {
-  // Line breaks inside strings are escaped, so every "\n" here is a line end.
-  const body = JSON.stringify(value, null, style.indent).replace(/\n/g, style.eol);
+  // Strings hold "\n" and "\t" only escaped, so these are line ends and indentation;
+  // tabs first, because JSON.stringify cuts an indent to ten characters.
+  const body = JSON.stringify(value, null, "\t").replace(
+    /\n(\t*)/g,
+    (_, tabs: string) => style.eol + style.indent.repeat(tabs.length),
+  );
   return style.finalNewline ? body + style.eol : body;
 }

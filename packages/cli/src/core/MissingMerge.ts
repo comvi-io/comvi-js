@@ -4,7 +4,13 @@ import type { TranslationSync } from "./TranslationSync";
 import type { TranslationData } from "../types";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
-import { detectJsonStyle, resolveJsonStyle, stringifyJson } from "../utils/jsonStyle";
+import {
+  detectJsonStyle,
+  isCompleteJsonStyle,
+  resolveJsonStyle,
+  stringifyJson,
+  type JsonStyle,
+} from "../utils/jsonStyle";
 
 /**
  * The merge writer of `comvi translate`. Unlike a pull, which replaces each
@@ -201,9 +207,10 @@ async function mergeFile(
 
   if (result.filled.length > 0) {
     await fs.mkdir(dirname(filePath), { recursive: true });
+    const own = detectJsonStyle(text);
     const style = resolveJsonStyle(
-      detectJsonStyle(text),
-      detectJsonStyle(await readIfExists(await sourcePath(options, namespace))),
+      own,
+      isCompleteJsonStyle(own) ? {} : await sourceStyle(options, namespace),
     );
     await atomicWriteFile(filePath, stringifyJson(root, style));
     result.created = text === null;
@@ -314,6 +321,15 @@ function placeNested(
 
 async function sourcePath(options: MergeOptions, namespace: string): Promise<string> {
   return options.sync.catalogPath(options.sourceLocale, namespace, options.defaultNamespace);
+}
+
+/** Only a layout to borrow: a source that cannot be read does not stop the write. */
+async function sourceStyle(options: MergeOptions, namespace: string): Promise<JsonStyle> {
+  try {
+    return detectJsonStyle(await readIfExists(await sourcePath(options, namespace)));
+  } catch {
+    return {};
+  }
 }
 
 async function sourceIsNested(options: MergeOptions, namespace: string): Promise<boolean> {
