@@ -1,5 +1,12 @@
 # @comvi/plugin-in-context-editor
 
+## 0.7.0
+
+### Patch Changes
+
+- 50f8dae: Saving in the in-context editor now writes only the languages whose value changed. Before, every language of the key was sent back and marked "not reviewed" on the platform, so one German edit also reset the review status of the untouched English and French values. A value typed back to what was stored, or one a plural or variant switch leaves as it was, is not sent either.
+- 50f8dae: A save in the in-context editor with nothing to write no longer sends a request. Before, an edit typed and then reverted still sent the key's plural flag, which could undo a plural change a teammate had just made on the platform. A save the platform accepted now also stays saved when the page cannot show the new value at once (for example a message the runtime rejects in development): the editor reports that the value appears after a reload, and saving again sends nothing.
+
 ## 0.6.0
 
 ### Patch Changes

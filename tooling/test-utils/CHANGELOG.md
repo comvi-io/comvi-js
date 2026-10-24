@@ -1,5 +1,11 @@
 # @comvi/test-utils
 
+## 0.1.3
+
+### Patch Changes
+
+- @comvi/core@0.7.0
+
 ## 0.1.2
 
 ### Patch Changes
