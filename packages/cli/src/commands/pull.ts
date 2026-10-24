@@ -140,10 +140,16 @@ export function createPullCommand(): Command {
           // restores the catalog as it was before the pull.
           console.log("🗑️  Clearing translations directory...");
           console.log("📝 Writing translation files...");
-          result = await sync.replaceTranslations(translations, scope, { defaultNamespace });
+          result = await sync.replaceTranslations(translations, scope, {
+            defaultNamespace,
+            sourceLocale: config.sourceLocale,
+          });
         } else {
           console.log("📝 Writing translation files...");
-          result = await sync.writeTranslations(translations, { defaultNamespace });
+          result = await sync.writeTranslations(translations, {
+            defaultNamespace,
+            sourceLocale: config.sourceLocale,
+          });
         }
 
         console.log(`\n✓ Pull complete!`);
