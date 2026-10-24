@@ -28,7 +28,7 @@ export function useFormatters(): UseFormattersReturn {
   const { i18n } = useI18nInstanceContext();
   const locale = useLocale();
   const subscribeConfig = useSubscribe(i18n, "configChanged");
-  const getChain = () => i18n.getFallbackLocales().join(",");
+  const getChain = () => JSON.stringify(i18n.getFallbackLocales());
   const chain = useSyncExternalStore(subscribeConfig, getChain, getChain);
   return useMemo<UseFormattersReturn>(() => {
     const source: LocaleSource = {

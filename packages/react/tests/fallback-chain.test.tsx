@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { act, render, renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { I18nProvider, createI18n, useFormatters, useI18n } from "../src/index";
 
 // `zz` is a well-formed tag no runtime ships data for, so it formats in its fallback.
@@ -26,6 +26,13 @@ describe("@comvi/react — formatters follow the fallback-locale chain", () => {
 
   it.each([
     ["useI18n", () => useI18n().formatNumber(1234.5)],
+    [
+      "a useMemo keyed on useI18n().formatNumber",
+      () => {
+        const { formatNumber } = useI18n();
+        return useMemo(() => formatNumber(1234.5), [formatNumber]);
+      },
+    ],
     ["useFormatters", () => useFormatters().formatNumber(1234.5)],
   ])("%s() output re-renders on setFallbackLocale", async (_, read) => {
     const i18n = makeI18n();

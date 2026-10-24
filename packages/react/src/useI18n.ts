@@ -314,6 +314,8 @@ export function useI18n<
     [view, locale],
   );
 
+  // A render snapshot like the reads above: a chain change gives the formatters new identities.
+  const fallbackChain = JSON.stringify(i18n.getFallbackLocales());
   const formatters = useMemo(() => {
     const source: LocaleSource = {
       locale,
@@ -339,7 +341,7 @@ export function useI18n<
         loc?: string,
       ) => formatRelativeTime(source, value, unit, options, loc),
     };
-  }, [i18n, locale]);
+  }, [i18n, locale, fallbackChain]);
 
   return {
     t,
