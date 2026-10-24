@@ -102,6 +102,61 @@ describe("extractSchema", () => {
     });
   });
 
+  describe("template without {namespace}", () => {
+    const tempDirs: string[] = [];
+
+    afterEach(async () => {
+      await Promise.all(
+        tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })),
+      );
+    });
+
+    async function makeDir(files: Record<string, string>): Promise<string> {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "comvi-extract-"));
+      tempDirs.push(dir);
+      for (const [file, content] of Object.entries(files)) {
+        await fs.mkdir(path.dirname(path.join(dir, file)), { recursive: true });
+        await fs.writeFile(path.join(dir, file), content, "utf-8");
+      }
+      return dir;
+    }
+
+    it("{languageTag}.json → keys land in the default namespace", async () => {
+      const schema = await extractSchema({
+        translationsPath: path.join(FIXTURES, "single-file"),
+        fileTemplate: "{languageTag}.json",
+      });
+
+      expect(Object.keys(schema.keys).sort()).toEqual(["default:greeting", "default:nested.key"]);
+    });
+
+    it("{languageTag}.json with defaultNs → keys land in that namespace", async () => {
+      const schema = await extractSchema({
+        translationsPath: path.join(FIXTURES, "single-file"),
+        fileTemplate: "{languageTag}.json",
+        defaultNs: "common",
+      });
+
+      expect(Object.keys(schema.keys).sort()).toEqual(["common:greeting", "common:nested.key"]);
+    });
+
+    it("{languageTag}/messages.json → keys land in the default namespace", async () => {
+      const dir = await makeDir({
+        "en/messages.json": '{ "hello": "Hello {name}" }',
+        "de/messages.json": '{ "hello": "Hallo {name}" }',
+      });
+
+      const schema = await extractSchema({
+        translationsPath: dir,
+        fileTemplate: "{languageTag}/messages.json",
+      });
+
+      expect(schema.keys).toEqual({
+        "default:hello": { params: [{ name: "name", type: "string" }] },
+      });
+    });
+  });
+
   describe("error and empty inputs", () => {
     const tempDirs: string[] = [];
 
