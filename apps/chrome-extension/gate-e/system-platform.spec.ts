@@ -28,17 +28,40 @@ const fetchLoaderOrigin = "https://fetch-loader.system.test";
 const fetchLoaderModuleUrl = `${fetchLoaderOrigin}/${basename(fetchLoaderBundlePath)}`;
 const servedFetchLoaderPages = new WeakSet<Page>();
 
+// Its peer `@comvi/core` is a bare specifier, which only a bundler resolves. The
+// gate runs inside the SDK checkout, so the core build sits next to it; bare
+// `@comvi/core` imports are rewritten to that build through core's own exports map.
+const coreDir = resolve(import.meta.dirname, "../../../packages/core");
+const coreDistDir = resolve(coreDir, "dist");
+const coreExports = (
+  JSON.parse(readFileSync(resolve(coreDir, "package.json"), "utf8")) as {
+    exports: Record<string, { default: string }>;
+  }
+).exports;
+
+function rewriteCoreSpecifiers(source: string): string {
+  return source.replace(/(["'])@comvi\/core(\/[\w-]+)?\1/g, (match, quote, subpath = "") => {
+    const target = coreExports[`.${subpath}`]?.default;
+    if (!target) throw new Error(`@comvi/core has no export for ${match}`);
+    return `${quote}${fetchLoaderOrigin}/__core/${target.replace(/^\.\/dist\//, "")}${quote}`;
+  });
+}
+
 async function serveFetchLoader(page: Page): Promise<void> {
   if (servedFetchLoaderPages.has(page)) return;
   servedFetchLoaderPages.add(page);
   await page.route(`${fetchLoaderOrigin}/**`, (route) => {
-    const file = resolve(fetchLoaderDir, new URL(route.request().url()).pathname.slice(1));
-    if (!file.startsWith(fetchLoaderDir + sep)) return route.fulfill({ status: 404 });
+    const path = new URL(route.request().url()).pathname.slice(1);
+    const [baseDir, relative] = path.startsWith("__core/")
+      ? [coreDistDir, path.slice("__core/".length)]
+      : [fetchLoaderDir, path];
+    const file = resolve(baseDir, relative);
+    if (!file.startsWith(baseDir + sep)) return route.fulfill({ status: 404 });
     return route.fulfill({
       status: 200,
       contentType: "text/javascript",
       headers: { "access-control-allow-origin": "*" },
-      body: readFileSync(file, "utf8"),
+      body: rewriteCoreSpecifiers(readFileSync(file, "utf8")),
     });
   });
 }
