@@ -2,7 +2,7 @@ import { expect, test, chromium, type Browser, type Page, type Worker } from "@p
 import { readFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import {
   extensionWorker,
   openPopup,
@@ -20,7 +20,28 @@ const fetchLoaderBundlePath = requireEnv("COMVI_FETCH_LOADER_BUNDLE_PATH");
 const systemCdnUrl = requireEnv("COMVI_SYSTEM_CDN_URL");
 const systemCdnExpectedValue = requireEnv("COMVI_SYSTEM_CDN_EXPECTED_VALUE");
 const apiOrigin = new URL(apiBaseUrl).origin;
-const fetchLoaderSource = readFileSync(fetchLoaderBundlePath, "utf8");
+// The built fetch loader is an entry plus shared chunks (`./inflight-*.js`), so it
+// is imported from an http origin the page can resolve those relative imports
+// against. A blob: URL has no base for them.
+const fetchLoaderDir = dirname(resolve(fetchLoaderBundlePath));
+const fetchLoaderOrigin = "https://fetch-loader.system.test";
+const fetchLoaderModuleUrl = `${fetchLoaderOrigin}/${basename(fetchLoaderBundlePath)}`;
+const servedFetchLoaderPages = new WeakSet<Page>();
+
+async function serveFetchLoader(page: Page): Promise<void> {
+  if (servedFetchLoaderPages.has(page)) return;
+  servedFetchLoaderPages.add(page);
+  await page.route(`${fetchLoaderOrigin}/**`, (route) => {
+    const file = resolve(fetchLoaderDir, new URL(route.request().url()).pathname.slice(1));
+    if (!file.startsWith(fetchLoaderDir + sep)) return route.fulfill({ status: 404 });
+    return route.fulfill({
+      status: 200,
+      contentType: "text/javascript",
+      headers: { "access-control-allow-origin": "*" },
+      body: readFileSync(file, "utf8"),
+    });
+  });
+}
 const manifest = JSON.parse(
   readFileSync(resolve(extensionPath, "manifest.json"), "utf8"),
 ) as chrome.runtime.ManifestV3;
@@ -254,8 +275,8 @@ test("real platform persists editor writes and SDK-configured context through th
     await test.step("the 5s loader timeout is honoured through the MV3 boundary", async () => {
       const delayConfig = await fetch(`${apiBaseUrl}/__system/config?nextTranslationsDelayMs=8000`);
       expect(delayConfig.ok).toBe(true);
-      const loaderResult = await page.evaluate(async (source) => {
-        const moduleUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      await serveFetchLoader(page);
+      const loaderResult = await page.evaluate(async (moduleUrl) => {
         const loader = (await import(moduleUrl)) as {
           fetchApiTranslations: (
             apiKey: string,
@@ -267,7 +288,6 @@ test("real platform persists editor writes and SDK-configured context through th
             cacheScope: string,
           ) => Promise<unknown>;
         };
-        URL.revokeObjectURL(moduleUrl);
 
         const transportFetch: typeof fetch = (input, init) =>
           new Promise<Response>((resolveResponse, rejectResponse) => {
@@ -356,7 +376,7 @@ test("real platform persists editor writes and SDK-configured context through th
             translationEntries: Array.from(translations.entries()),
           };
         }
-      }, fetchLoaderSource);
+      }, fetchLoaderModuleUrl);
       expect(loaderResult.resolved).toBe(false);
       // Lower bound is the claim: the 5s timeout is honoured end to end through
       // the MV3 boundary. The upper bound only proves it did not wait out the
@@ -369,16 +389,15 @@ test("real platform persists editor writes and SDK-configured context through th
     });
 
     await test.step("the packed fetchLoaderPlugin reads published translations from the CDN", async () => {
+      await serveFetchLoader(page);
       const cdnLoaderResult = await page.evaluate(
-        async ({ source, cdnUrl }) => {
-          const moduleUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+        async ({ moduleUrl, cdnUrl }) => {
           const packed = (await import(moduleUrl)) as {
             fetchLoaderPlugin: (options: {
               cdnUrl: string;
               loadOnInit: boolean;
             }) => (i18n: Record<string, unknown>) => Promise<unknown>;
           };
-          URL.revokeObjectURL(moduleUrl);
 
           let registeredLoader:
             | ((locale: string, namespace: string) => Promise<Record<string, unknown>>)
@@ -402,7 +421,7 @@ test("real platform persists editor writes and SDK-configured context through th
             throw new Error("Packed fetchLoaderPlugin did not register a CDN loader");
           return registeredLoader("en", "common");
         },
-        { source: fetchLoaderSource, cdnUrl: systemCdnUrl },
+        { moduleUrl: fetchLoaderModuleUrl, cdnUrl: systemCdnUrl },
       );
       expect(cdnLoaderResult["system.published"]).toBe(systemCdnExpectedValue);
     });
