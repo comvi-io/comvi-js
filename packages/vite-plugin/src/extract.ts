@@ -65,6 +65,7 @@ async function findFiles(dir: string): Promise<string[]> {
 async function discoverFiles(
   translationsPath: string,
   fileTemplate: string,
+  defaultNs: string,
 ): Promise<TranslationFile[]> {
   const regex = buildTemplateRegex(fileTemplate);
   const allFiles = await findFiles(translationsPath);
@@ -77,7 +78,8 @@ async function discoverFiles(
     if (match?.groups) {
       results.push({
         language: match.groups.language,
-        namespace: match.groups.namespace,
+        // A template without `{namespace}` is one catalog per locale.
+        namespace: match.groups.namespace ?? defaultNs,
         filePath,
       });
     }
@@ -188,7 +190,7 @@ export async function extractSchema(options: {
   const allJsonFiles = await findFiles(translationsPath);
   const matchedPaths = new Set<string>();
 
-  const templateFiles = await discoverFiles(translationsPath, fileTemplate);
+  const templateFiles = await discoverFiles(translationsPath, fileTemplate, defaultNs);
   for (const file of templateFiles) {
     matchedPaths.add(file.filePath);
     const content = await fs.readFile(file.filePath, "utf-8");
