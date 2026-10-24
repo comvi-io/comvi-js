@@ -127,7 +127,8 @@ independent.
 
 - `useI18n('admin')` binds a namespace at the type level too. The `formatNumber`, `formatDate`,
   `formatCurrency` and `formatRelativeTime` members follow the locale like `t()`, and a trailing
-  `locale` argument overrides it.
+  `locale` argument overrides it. Outside a component, import the same four from `@comvi/solid`
+  and pass the instance first: `formatRelativeTime(i18n, -2, 'hour')`.
 - `<T components={{ link: (props) => <a href="/docs">{props.children}</a> }} />`: each tag maps to a
   plain function or an element name such as `{ policy: 'a' }`. Plain `t()` does not parse tags.
 - `<I18nProvider>` initializes from a `createEffect`, and effects do not run during Solid's server

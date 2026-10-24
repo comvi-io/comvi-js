@@ -191,6 +191,10 @@ export function useI18n<
     get locale() {
       return ctx.signals.locale();
     },
+    get fallbackLocales() {
+      ctx.signals.cacheRevision();
+      return ctx.i18n.fallbackLocales;
+    },
   };
 
   const t = ((key: string, params?: TranslationParams): string => {

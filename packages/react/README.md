@@ -82,6 +82,8 @@ export default function App() {
 `t()` fills `{name}` from its second argument. `setLocale()` resolves once the new locale's
 translations are loaded and re-renders every component that called `useI18n()`.
 `useI18n('admin')` binds a namespace, so `t('dashboard')` reads `admin:dashboard`.
+Outside a component, `formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` come
+from `@comvi/react` too and take the instance first: `formatRelativeTime(i18n, -2, 'hour')`.
 
 ## Load from Comvi
 

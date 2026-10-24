@@ -6,6 +6,8 @@
 /** Anything with a current locale — typically an I18n instance. */
 export interface LocaleSource {
   locale: string;
+  /** Tried in order after `locale` when the runtime has no data for it. */
+  readonly fallbackLocales?: readonly string[];
 }
 
 // Bounded FIFO caches, shared across instances (Intl formatters are instance-independent).
@@ -20,11 +22,38 @@ function cachePut<T>(cache: Map<string, T>, key: string, value: T): T {
   return value;
 }
 
+const validTags = new Map<string, boolean>();
+
+// A fallback that is only a catalog key (`en_US`) must not make `Intl` throw.
+function isValidTag(tag: string): boolean {
+  let valid = validTags.get(tag);
+  if (valid === undefined) {
+    try {
+      Intl.getCanonicalLocales(tag);
+      valid = true;
+    } catch {
+      valid = false;
+    }
+    cachePut(validTags, tag, valid);
+  }
+  return valid;
+}
+
+// An explicit `locale` argument is one locale; otherwise the source's chain.
+function resolveLocales(source: LocaleSource, locale: string | undefined): string | string[] {
+  if (locale !== undefined) return locale;
+  const fallbacks = source.fallbackLocales?.filter(isValidTag);
+  return fallbacks?.length ? [source.locale, ...fallbacks] : source.locale;
+}
+
 const numberFormatCache = new Map<string, Intl.NumberFormat>();
 const dateFormatCache = new Map<string, Intl.DateTimeFormat>();
 const relativeTimeFormatCache = new Map<string, Intl.RelativeTimeFormat>();
 
-function getNumberFormat(lc: string, options?: Intl.NumberFormatOptions): Intl.NumberFormat {
+function getNumberFormat(
+  lc: string | string[],
+  options?: Intl.NumberFormatOptions,
+): Intl.NumberFormat {
   const cacheKey = JSON.stringify([lc, options ?? null]);
   return (
     numberFormatCache.get(cacheKey) ??
@@ -32,7 +61,10 @@ function getNumberFormat(lc: string, options?: Intl.NumberFormatOptions): Intl.N
   );
 }
 
-function getDateFormat(lc: string, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+function getDateFormat(
+  lc: string | string[],
+  options?: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
   const cacheKey = JSON.stringify([lc, options ?? null]);
   return (
     dateFormatCache.get(cacheKey) ??
@@ -41,7 +73,7 @@ function getDateFormat(lc: string, options?: Intl.DateTimeFormatOptions): Intl.D
 }
 
 function getRelativeTimeFormat(
-  lc: string,
+  lc: string | string[],
   options?: Intl.RelativeTimeFormatOptions,
 ): Intl.RelativeTimeFormat {
   const cacheKey = JSON.stringify([lc, options ?? null]);
@@ -51,27 +83,27 @@ function getRelativeTimeFormat(
   );
 }
 
-/** Format a number. Uses the instance locale unless `locale` is passed. */
+/** Format a number. Uses the source locale, then its `fallbackLocales`, unless `locale` is passed. */
 export function formatNumber(
   i18n: LocaleSource,
   value: number,
   options?: Intl.NumberFormatOptions,
   locale?: string,
 ): string {
-  return getNumberFormat(locale ?? i18n.locale, options).format(value);
+  return getNumberFormat(resolveLocales(i18n, locale), options).format(value);
 }
 
-/** Format a date. Uses the instance locale unless `locale` is passed. */
+/** Format a date. Uses the source locale, then its `fallbackLocales`, unless `locale` is passed. */
 export function formatDate(
   i18n: LocaleSource,
   value: Date | number,
   options?: Intl.DateTimeFormatOptions,
   locale?: string,
 ): string {
-  return getDateFormat(locale ?? i18n.locale, options).format(value);
+  return getDateFormat(resolveLocales(i18n, locale), options).format(value);
 }
 
-/** Format a number as currency. Uses the instance locale unless `locale` is passed. */
+/** Format a number as currency. Uses the source locale, then its `fallbackLocales`, unless `locale` is passed. */
 export function formatCurrency(
   i18n: LocaleSource,
   value: number,
@@ -79,12 +111,14 @@ export function formatCurrency(
   options?: Intl.NumberFormatOptions,
   locale?: string,
 ): string {
-  return getNumberFormat(locale ?? i18n.locale, { ...options, style: "currency", currency }).format(
-    value,
-  );
+  return getNumberFormat(resolveLocales(i18n, locale), {
+    ...options,
+    style: "currency",
+    currency,
+  }).format(value);
 }
 
-/** Format a relative time. Uses the instance locale unless `locale` is passed. */
+/** Format a relative time. Uses the source locale, then its `fallbackLocales`, unless `locale` is passed. */
 export function formatRelativeTime(
   i18n: LocaleSource,
   value: number,
@@ -92,7 +126,7 @@ export function formatRelativeTime(
   options?: Intl.RelativeTimeFormatOptions,
   locale?: string,
 ): string {
-  return getRelativeTimeFormat(locale ?? i18n.locale, options).format(value, unit);
+  return getRelativeTimeFormat(resolveLocales(i18n, locale), options).format(value, unit);
 }
 
 const textDirectionCache = new Map<string, "ltr" | "rtl">();

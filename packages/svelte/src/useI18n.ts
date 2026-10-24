@@ -276,9 +276,14 @@ export function useI18n<
   // An explicit trailing `locale` argument short-circuits in core and never
   // reaches the getter.
   const currentLocale = fromStore(locale);
+  const currentRevision = fromStore(cacheRevision);
   const localeSource: LocaleSource = {
     get locale() {
       return currentLocale.current;
+    },
+    get fallbackLocales() {
+      void currentRevision.current;
+      return i18n.fallbackLocales;
     },
   };
 

@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { formatCurrency, formatDate, formatNumber, formatRelativeTime } from "@comvi/core";
-import { useLocale, useI18nInstanceContext } from "./I18nProvider";
+import type { LocaleSource } from "@comvi/core";
+import { useLocale, useI18nInstanceContext, useSubscribe } from "./I18nProvider";
 
 export interface UseFormattersReturn {
   formatNumber(value: number, options?: Intl.NumberFormatOptions): string;
@@ -15,7 +16,7 @@ export interface UseFormattersReturn {
 
 /**
  * Formatter helpers bound to the React-tracked locale. Output updates
- * automatically when locale changes; identity is stable per `(i18n, locale)`.
+ * automatically when locale changes; identity is stable per `(i18n, locale, fallback chain)`.
  *
  * @example
  * ```tsx
@@ -26,13 +27,21 @@ export interface UseFormattersReturn {
 export function useFormatters(): UseFormattersReturn {
   const { i18n } = useI18nInstanceContext();
   const locale = useLocale();
-  return useMemo<UseFormattersReturn>(
-    () => ({
-      formatNumber: (v, o) => formatNumber(i18n, v, o, locale),
-      formatDate: (v, o) => formatDate(i18n, v, o, locale),
-      formatCurrency: (v, c, o) => formatCurrency(i18n, v, c, o, locale),
-      formatRelativeTime: (v, u, o) => formatRelativeTime(i18n, v, u, o, locale),
-    }),
-    [i18n, locale],
-  );
+  const subscribeConfig = useSubscribe(i18n, "configChanged");
+  const getChain = () => i18n.getFallbackLocales().join(",");
+  const chain = useSyncExternalStore(subscribeConfig, getChain, getChain);
+  return useMemo<UseFormattersReturn>(() => {
+    const source: LocaleSource = {
+      locale,
+      get fallbackLocales() {
+        return i18n.fallbackLocales;
+      },
+    };
+    return {
+      formatNumber: (v, o) => formatNumber(source, v, o),
+      formatDate: (v, o) => formatDate(source, v, o),
+      formatCurrency: (v, c, o) => formatCurrency(source, v, c, o),
+      formatRelativeTime: (v, u, o) => formatRelativeTime(source, v, u, o),
+    };
+  }, [i18n, locale, chain]);
 }

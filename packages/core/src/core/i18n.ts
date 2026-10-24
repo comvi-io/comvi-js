@@ -609,6 +609,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
     });
   }
 
+  get fallbackLocales(): readonly string[] {
+    return [...this._fallbackLocales];
+  }
+
   /**
    * Set the locale and emit `localeChanged`.
    *

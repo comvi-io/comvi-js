@@ -25,6 +25,9 @@ Solid and Svelte read the reactive locale inside each formatter.
   binding they follow the locale being rendered: a call in markup or in that framework's derived
   value re-runs on a switch. A trailing `locale` argument overrides the active one. There is no
   per-binding exception to document.
+- **`Intl` gets the fallback-locale chain.** Without an explicit `locale` argument the formatters
+  pass `[locale, ...fallbackLocales]`, so a locale the runtime has no data for formats in the first
+  fallback it does have; an explicit `locale` argument is passed alone.
 - **Core behaves identically under all of them.** `setLocale` and the synchronous `locale`
   setter both move what the formatters read.
 
@@ -75,9 +78,10 @@ expression. Outside an effect, and on the server, it reads the store once.
 ## Where it lives
 
 - `formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`, `getTextDirection` —
-  `packages/core/src/index.ts`
+  `packages/core/src/index.ts`; the four formatters are re-exported by name from every binding
+  entry (and auto-imported by `@comvi/nuxt`), pinned by each binding's root-entry test
 - the `formatters` memo — `packages/react/src/useI18n.ts`; the `useFormatters` selector hook, whose
-  identity is stable per `(i18n, locale)` — `packages/react/src/useFormatters.ts`
+  identity is stable per `(i18n, locale, fallback chain)` — `packages/react/src/useFormatters.ts`
 - the four `this.format*` assignments in the `VueI18n` constructor — `packages/vue/src/VueI18n.ts`
 - the same four, each beside that binding's `dir` — `packages/svelte/src/useI18n.ts` and
   `packages/solid/src/useI18n.ts`

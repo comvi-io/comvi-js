@@ -78,6 +78,9 @@ const { t, locale } = useI18n();
 `useI18n()` is auto-imported. It returns the `@comvi/vue` composable plus `locales` and
 `defaultLocale` from runtime config. `setLocale()` loads the new catalog and advances the locale
 state the route middleware watches. `$t()` works in any template without calling `useI18n()`.
+`formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` are auto-imported too, and
+a plain module imports them from `@comvi/nuxt/i18n`. They take the core instance first:
+`formatRelativeTime(useNuxtApp().$i18n.core, -2, 'hour')`.
 
 ## Load from Comvi
 
