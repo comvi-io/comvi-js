@@ -1,5 +1,13 @@
 # @comvi/nuxt
 
+## 0.7.0
+
+### Patch Changes
+
+- 50f8dae: The package description on npm now says what the module does (type-checked keys, ICU plurals, a `<T>` component for markup inside translations) instead of naming Nuxt versions.
+  - @comvi/core@0.7.0
+  - @comvi/vue@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes

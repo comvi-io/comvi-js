@@ -1,5 +1,94 @@
 # @comvi/cli
 
+## 0.7.0
+
+### Minor Changes
+
+- 50f8dae: **Breaking: one exit-code scheme for every command.** CI can now tell a conflict, an outage and a bad key apart:
+
+  | Code | Meaning                                                                                                                                                                                                                                                                       |
+  | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `0`  | Done                                                                                                                                                                                                                                                                          |
+  | `1`  | The command ran and found a problem: a conflict under `--force-mode abort`, outdated types under `typegen --check`, errors under `comvi check` (warnings too with `--strict`), a value `comvi translate` could not translate; also a local failure such as an unwritable file |
+  | `2`  | The platform was unreachable, timed out, answered 408, 409, 425, 429 or 5xx, or sent an unexpected response: retry                                                                                                                                                            |
+  | `3`  | The API key was rejected or lacks access, or a plan or credit limit was reached                                                                                                                                                                                               |
+  | `4`  | Invalid input                                                                                                                                                                                                                                                                 |
+
+  Migration, for scripts that test exit codes:
+  - **`1` is narrower.** It no longer covers outages (now `2`), a rejected key (now `3`), a missing `.comvirc.json`, an existing `.comvirc.json` under `init`, `--force-mode ask` without a terminal when a conflict needs an answer, an unknown command or option, or a schema the emitter refuses (all now `4`).
+  - **`typegen --check`.** A rejected key now exits `3`, not `2`, and so does a project that no longer exists. Other 4xx responses, such as a wrong `apiBaseUrl`, exit `4`; 408, 409, 425 and 429 still exit `2`. `2` covers connection failures, timeouts, retryable HTTP responses and unexpected responses.
+  - **Other mappings.** Running `comvi` with no command exits `4`. A plan or credit limit (`LIMIT_EXCEEDED`) exits `3` whatever the HTTP status; in 0.6 it exited `1`, or `2` under `typegen --check`. An unreadable local translation file exits `4` in `push`, `check` and the read `translate` does before its push; a target file `translate` cannot read while writing is left untouched and the run exits `1`.
+  - **`comvi push` checks local locales first.** Before writing anything, it compares local locales with the locales the project has, as the key may write them. A locale the project lacks exits `4` and names it. Pass `--skip-unknown-locales` to push the rest. Locale spellings are matched as the platform matches them (`pt_br` is `pt-BR`), and two spellings of one locale, or two files for the same locale and namespace, exit `4`. A platform that cannot list its locales skips the check with a warning.
+  - **`comvi push` with nothing to push** exits `4` instead of `0`. That covers no files, files without values, and every locale skipped. Pass `--allow-empty` when that is expected; then no commit is sent.
+  - **`comvi pull` and locales the key may not read.** The platform lists only the locales a key may read, so a requested locale the key may not read exits `4` like one the project lacks, naming the locales the key may read. A locale the platform lists but sends no data for exits `3`.
+  - **Restricted locales.** In `push`, a locale the key's owner is restricted from is reported with the locales the project lacks, and also exits `4`.
+  - **Rolled-back commits are retried once.** A commit the platform rolled back on a database conflict (`409 TRANSACTION_CONFLICT`) is sent once more instead of failing.
+  - **`--locale` spellings.** `--locale` in `pull` and `push` matches a locale ignoring case and surrounding whitespace, with `_` and `-` alike.
+
+- 50f8dae: `comvi check`: offline validation of local catalogs against the source locale (missing, stale, empty source, parameters, plural, select, tags, unsupported ICU, and opt-in identical); text and JSON output. Exit codes follow the CLI's scheme: 0 clean, 1 findings (or a local failure that fits no other code), 4 invalid input (flags, config, a catalog or directory it cannot read, an unknown locale, a usage error); `check` never talks to the platform, so never 2 or 3. No API key, `.comvirc.json`, `.env` or network needed. A `.comvirc.json` read by `check` may use a `fileTemplate` without `{namespace}` (`{languageTag}.json`); `pull` and `push` still require it.
+
+  `TranslationSync` now reads a file template without `{namespace}` as one default-namespace catalog per locale, where it used to find no files: `readTranslations` returns those catalogs and `clearDirectory`/`previewClear` see them.
+
+- 50f8dae: New command `comvi translate`. It machine-translates the values your project is missing on the platform and writes them into your local files. The translations are saved on the platform as not reviewed.
+  - **What it does.** It pushes your local files first (`--no-push` skips this; `--force-mode` works as in `comvi push`), starts machine translation for every key and locale whose value is empty, waits for the jobs, and writes the platform's values where your files have none, human translations included.
+  - **Local files.** It writes only keys that are in your source catalog, and only where the local value is missing: absent or `""`, and `null` under `--no-push` (the push that runs by default rejects a `null` value). It never overwrites a local value. Each file keeps its keys and shape, nested or flat; a changed file is rewritten with two-space indentation.
+  - **Limits.** `--max-keys` (default 1000) caps how many key and locale pairs one run translates. A run over it starts no machine translation and exits `4`, though the push before it may already have updated the platform; `--max-keys 0` removes the cap. `--dry-run` prints the count and the credit estimate, over the `--ns` namespaces when given, and changes nothing.
+  - **Waiting.** `--timeout` (default `20m`) stops the wait. The jobs keep running on the platform, and what is ready is written.
+  - **Access.** The API key needs the new `mt:use` scope ("Machine translation (uses credits)"). Without it, the command exits `3` before it pushes anything.
+  - **Exit codes.** `0` done; `1` some values failed or could not be written; `2` the wait ended with values still missing, a project busy with another translation request, or the platform was unavailable; `3` credits ran out, or the key lacks access; `4` invalid input, over `--max-keys`, or a platform without this command. After failed jobs or exhausted credits the command still fetches and writes the values that completed; a failed fetch or local write can stop some or all of those writes. `--format json` prints a summary for scripts; when the push runs and it is not a dry run, it needs a `--force-mode` other than `ask`.
+
+  `ApiClient` gains `fillMissing()` and `getMtJobStatus()`, and `pushTranslations()` takes `scheduleAutoMt`; a platform without the route throws `ErrorCodes.API_UNSUPPORTED`.
+
+### Patch Changes
+
+- 50f8dae: `comvi push --force-mode ask` no longer overwrites a value saved on the platform after its preview. When the preview finds no conflict, the push now commits with conflict checking on (`fail`) instead of `override`. A value a translator saves between the preview and the commit then stops the push. The error says how many values changed, that nothing was written, and to run the push again. The platform side of this check, which compares under its lock, ships with the matching platform release.
+- 50f8dae: `comvi push` gives the commit request five minutes instead of 30 seconds, so the first push of a large catalog no longer reports a timeout for a push the platform then applies. A commit that does time out now says the push may already have been applied and that re-running it is safe.
+
+  `COMVI_TIMEOUT_MS` sets the read timeout in milliseconds and can only lengthen the commit, never shorten it below five minutes. A value that is not a whole number from 1 to 2147483647 exits `4` before any request.
+
+  `ApiClient` takes a `commitTimeout` option. A caller that passes only `timeout` keeps the old behaviour: that value covers the commit too.
+
+- 50f8dae: `comvi pull --empty-dir` no longer deletes everything under the translations directory.
+  - **What it removes.** Only files the `fileTemplate` parses as a catalog, and only for locales the pull actually received. A file the template does not match is never removed: source code, a README, `index.ts`. So `--empty-dir -p src` no longer wipes `src`. Only directories emptied by those removals are removed.
+  - **Translation-shaped files.** With the default template, any `<dir>/<locale>.json` reads as a namespace, `src/fixtures/en.json` included. Run `--dry-run` first when `translationsPath` holds other JSON.
+  - **What it leaves.** Files of locales your API key cannot read, or that the project no longer has, are left in place; delete those by hand. The directory is no longer created when there is nothing to clear.
+  - **Ambiguous templates.** A `fileTemplate` with `{languageTag}` and `{namespace}` in one file name, such as `{languageTag}-{namespace}.json`, cannot tell which locale a file belongs to. `--empty-dir` refuses it with exit `4`.
+
+  `comvi pull` now judges `--locale` against the locales that came back with data.
+  - A locale the project has but the key's owner is restricted from exits `3` with "Locales not readable with this API key". Before, the pull wrote nothing for it and succeeded.
+  - The summary lists the locales and namespaces it wrote, not every project locale.
+
+  `--locale` and `--ns` given an empty value, as in `--locale "$UNSET_VAR"`, now exit `4` in `pull` and `push`. Before, an empty value counted as not given.
+
+- 50f8dae: `comvi pull` shows what it changes in each file:
+  - **`--dry-run`.** Each file it would write is listed with its key changes: `(+2 ~1 −1)` for added, changed and removed keys, or `new`, `unchanged`, `nested keys written flat` or `replaces an unreadable file`. Under each file it names up to ten removed keys.
+  - **Local work it is about to lose.** A pull replaces each file with the platform's catalog. Before writing, it warns on stderr about keys that exist only locally, local files it cannot read (bad JSON, a non-string value) and, with `--empty-dir`, files it deletes because the platform has no catalog for them. It points to `comvi push`; the pull still runs and exits `0`.
+
+- 50f8dae: `comvi push` reports what the platform actually did. Before, "Updated" counted the conflicts kept on the platform in `keep` mode and was 0 after a real overwrite.
+  - **Summary.** It shows keys created and values new, changed and kept on the platform.
+  - **Locales not imported.** It warns about local locales the platform did not import, because the project lacks them or the API key may not write them. On a platform that predates these counts it prints only the number of keys created.
+  - **Dry run.** `--dry-run` counts values ("New values", "Changed values") instead of calling them keys. Its counts still include values of locales the platform will not import.
+  - **Progress line.** The `Progress:` line is gone; the push is a single request.
+
+  Access-denied errors keep the platform's reason (a missing scope, a plan limit, read-only billing) and name the scope the command needs: `schema:read` for `typegen`, `translations:read` for `pull`, `translations:write` for `push`. A validation error without a message shows its code and field.
+
+  `PushResult` gains optional `valuesCreated`, `skippedLocales` and `detailed`. Its `updated`, and `updated` in `PushProgress`, now count changed values; on a platform without per-value counts they are 0 rather than the platform's misnamed figure.
+
+- 50f8dae: Smaller CLI fixes:
+  - **`init` and `COMVI_API_BASE_URL`.** `comvi init` uses `COMVI_API_BASE_URL` when `--api-url` is not given, both to validate the key and in the written config. Before, a staging or self-hosted key was sent to production for validation.
+  - **Pulling into one file twice.** `comvi pull` refuses (exit `4`), before writing anything, a layout where two catalogs land in the same file. That covers `en` + `US-shop` and `en-US` + `shop` under `{languageTag}-{namespace}.json`, names that differ only in case (they share a file on macOS and Windows), and a namespace whose directory would be another catalog's file. Before, the second catalog silently replaced the first, or the pull failed halfway.
+  - **Network errors.** They name their cause: `fetch failed (connect ECONNREFUSED 127.0.0.1:9)` instead of only `fetch failed`.
+  - **`typegen` output.** It says it fetches the schema, and prints each step and failure once instead of twice.
+  - **`typegen --check` and an unreadable file.** The check reports a declaration file it cannot read (for example a directory at that path) as an error the check could not get past, not as outdated (exit `1`).
+
+- 50f8dae: `comvi typegen --watch` survives a platform deploy and stops loudly when it cannot recover.
+  - **A lost stream is reopened.** After a 502, a refused connection or a dropped socket, the watcher waits 1, 2, 4… up to 30 seconds between tries and says so. Before, any non-200 ended the stream for good while the watcher kept running, or exited 0 when stdin was closed.
+  - **A silent stream is replaced.** One that sends nothing for 45 seconds, not even the platform's 15-second ping, is closed and reopened.
+  - **A rejected key stops the watcher.** A 401 or 403 now exits `3` with the reason, instead of leaving a watcher that runs with no stream.
+  - **SIGTERM** stops the watcher like Ctrl-C (exit `0`), for Docker, systemd and CI runners.
+
+- 50f8dae: `ConfigLoader.load` accepts `{ requireApiKey, optional }`: with `requireApiKey: false` it neither requires an API key nor reads `COMVI_API_KEY` / `COMVI_API_BASE_URL`, and with `optional: true` a project without `.comvirc.json` loads the defaults. `.comvirc.json` accepts `sourceLocale` and a `check` section (`identical`, `strict`).
+
 ## 0.6.0
 
 ### Patch Changes
