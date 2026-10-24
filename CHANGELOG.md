@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0]
+
+Coordinated `0.7.0` release for the main `@comvi/*` package train. Independently versioned packages included below keep their own versions. Detailed package-level notes and migration guidance are available in the linked GitHub Release.
+
+### Minor Changes
+
+- **@comvi/cli** — **Breaking: one exit-code scheme for every command.** CI can now tell a conflict, an outage and a bad key apart
+- **@comvi/cli** — `comvi check`: offline validation of local catalogs against the source locale (missing, stale, empty source, parameters, plural, select, tags, unsupported ICU, and opt-in identical); text and JSON output. Exit codes follow the CLI's scheme: 0 clean, 1 findings (or a local failure that fits no other code), 4 invalid input (flags, config, a catalog or directory it cannot read, an unknown locale, a usage error); `check` never talks to the platform, so never 2 or 3. No API key, `.comvirc.json`, `.env` or network needed. A `.comvirc.json` read by `check` may use a `fileTemplate` without `{namespace}` (`{languageTag}.json`); `pull` and `push` still require it.
+- **@comvi/cli** — New command `comvi translate`. It machine-translates the values your project is missing on the platform and writes them into your local files. The translations are saved on the platform as not reviewed.
+
+### Patch Changes
+
+- **@comvi/cli** — `comvi push --force-mode ask` no longer overwrites a value saved on the platform after its preview. When the preview finds no conflict, the push now commits with conflict checking on (`fail`) instead of `override`. A value a translator saves between the preview and the commit then stops the push. The error says how many values changed, that nothing was written, and to run the push again. The platform side of this check, which compares under its lock, ships with the matching platform release.
+- **@comvi/cli** — `comvi push` gives the commit request five minutes instead of 30 seconds, so the first push of a large catalog no longer reports a timeout for a push the platform then applies. A commit that does time out now says the push may already have been applied and that re-running it is safe.
+- **@comvi/cli** — `comvi pull --empty-dir` no longer deletes everything under the translations directory.
+- **@comvi/cli** — `comvi pull` shows what it changes in each file
+- **@comvi/cli** — `comvi push` reports what the platform actually did. Before, "Updated" counted the conflicts kept on the platform in `keep` mode and was 0 after a real overwrite.
+- **@comvi/cli** — Smaller CLI fixes
+- **@comvi/cli** — `comvi typegen --watch` survives a platform deploy and stops loudly when it cannot recover.
+- **@comvi/cli** — `ConfigLoader.load` accepts `{ requireApiKey, optional }`: with `requireApiKey: false` it neither requires an API key nor reads `COMVI_API_KEY` / `COMVI_API_BASE_URL`, and with `optional: true` a project without `.comvirc.json` loads the defaults. `.comvirc.json` accepts `sourceLocale` and a `check` section (`identical`, `strict`).
+- **@comvi/vite-plugin** — Internal: the ICU scanner that reads parameters out of translation values moved to the workspace-private typegen module, so other tools can share it. Generated types are unchanged for every message `@comvi/core` accepts. One change for messages core refuses: a `plural` or `selectordinal` explicit value outside core's grammar (`=x`, `=1e3`, `=.5`, `=+1`, `=Infinity`) now makes the key report the ICU issue and get no parameters, as `{price, number}` already did, instead of generating parameters for a key core rejects with `E_ICU_SYNTAX`.
+- **@comvi/plugin-in-context-editor** — Saving in the in-context editor now writes only the languages whose value changed. Before, every language of the key was sent back and marked "not reviewed" on the platform, so one German edit also reset the review status of the untouched English and French values. A value typed back to what was stored, or one a plural or variant switch leaves as it was, is not sent either.
+- **@comvi/plugin-in-context-editor** — A save in the in-context editor with nothing to write no longer sends a request. Before, an edit typed and then reverted still sent the key's plural flag, which could undo a plural change a teammate had just made on the platform. A save the platform accepted now also stays saved when the page cannot show the new value at once (for example a message the runtime rejects in development): the editor reports that the value appears after a reload, and saving again sends nothing.
+- **@comvi/nuxt** — The package description on npm now says what the module does (type-checked keys, ICU plurals, a `<T>` component for markup inside translations) instead of naming Nuxt versions.
+
 ## [0.6.0]
 
 Coordinated `0.6.0` release for the main `@comvi/*` package train. Independently versioned packages included below keep their own versions. Detailed package-level notes and migration guidance are available in the linked GitHub Release.
@@ -465,6 +490,7 @@ A lightweight, type-safe internationalization library with framework-agnostic co
 - Progressive loading pattern (show UI immediately, load translations in background)
 - Guaranteed-ready pattern (await translations before app start)
 
+[0.7.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.7.0
 [0.6.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.6.0
 [0.5.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.5.0
 [0.4.1]: https://github.com/comvi-io/comvi-js/releases/tag/v0.4.1

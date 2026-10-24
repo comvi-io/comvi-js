@@ -10,9 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@comvi/plugin-fetch-loader": "^0.6.0",
-    "@comvi/plugin-locale-detector": "^0.6.0",
-    "@comvi/svelte": "^0.6.0"
+    "@comvi/plugin-fetch-loader": "^0.7.0",
+    "@comvi/plugin-locale-detector": "^0.7.0",
+    "@comvi/svelte": "^0.7.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
