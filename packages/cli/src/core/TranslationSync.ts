@@ -12,6 +12,12 @@ import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
 import { findLocale } from "../utils/locales";
+import {
+  detectJsonStyle,
+  resolveJsonStyle,
+  stringifyJson,
+  type JsonStyle,
+} from "../utils/jsonStyle";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
@@ -21,6 +27,8 @@ export interface ReadTranslationsOptions {
 
 export interface WriteTranslationsOptions {
   defaultNamespace?: string;
+  /** Its files give new files their indentation and line endings. */
+  sourceLocale?: string;
 }
 
 /**
@@ -81,12 +89,16 @@ export class TranslationSync {
     // Every target is resolved and checked before the first mkdir, so a name
     // the CLI refuses leaves nothing behind.
     await this.assertPlanContained(planned);
+    return this.writePlanned(planned, await this.planStyles(planned, data, options));
+  }
 
+  private async writePlanned(
+    planned: PlannedWrite[],
+    styles: Map<string, Required<JsonStyle>>,
+  ): Promise<PullResult> {
     for (const { filePath, catalog } of planned) {
       await this.ensureDirectory(dirname(filePath));
-
-      const content = JSON.stringify(catalog, null, 2) + "\n";
-      await atomicWriteFile(filePath, content);
+      await atomicWriteFile(filePath, stringifyJson(catalog, styles.get(filePath)!));
     }
 
     return {
@@ -127,9 +139,12 @@ export class TranslationSync {
       }
     }
 
+    // Read before the clear removes the files that show it.
+    const styles = await this.planStyles(planned, data, options);
+
     try {
       await this.clearDirectory(scope);
-      return await this.writeTranslations(data, options);
+      return await this.writePlanned(planned, styles);
     } catch (error) {
       await this.restoreSnapshot(snapshot, planned, error);
       throw error;
@@ -344,6 +359,50 @@ export class TranslationSync {
     }
 
     return planned;
+  }
+
+  /**
+   * Each file keeps its own layout; a new one takes that of the source
+   * locale's file for its namespace, then the default.
+   */
+  private async planStyles(
+    planned: PlannedWrite[],
+    data: TranslationsResponse,
+    options: WriteTranslationsOptions,
+  ): Promise<Map<string, Required<JsonStyle>>> {
+    const sourceLocale =
+      options.sourceLocale === undefined
+        ? undefined
+        : (findLocale(options.sourceLocale, data.locales) ?? options.sourceLocale);
+    const sourceStyles = new Map<string, JsonStyle>();
+    const styles = new Map<string, Required<JsonStyle>>();
+
+    for (const { namespace, filePath } of planned) {
+      if (sourceLocale !== undefined && !sourceStyles.has(namespace)) {
+        let sourcePath: string | undefined;
+        try {
+          sourcePath = this.resolveFilePath(
+            sourceLocale,
+            namespace,
+            options.defaultNamespace ?? DEFAULT_NAMESPACE,
+          );
+        } catch {
+          // A sourceLocale that is not a file name has no file to read.
+        }
+        sourceStyles.set(
+          namespace,
+          detectJsonStyle(sourcePath === undefined ? null : await readTextOrNull(sourcePath)),
+        );
+      }
+      styles.set(
+        filePath,
+        resolveJsonStyle(
+          detectJsonStyle(await readTextOrNull(filePath)),
+          sourceStyles.get(namespace) ?? {},
+        ),
+      );
+    }
+    return styles;
   }
 
   private async assertPlanContained(planned: PlannedWrite[]): Promise<void> {
@@ -795,6 +854,15 @@ function unsafePathSegmentReason(value: string): string | undefined {
   if (hasControlCharacter(value)) return "it contains a control character";
   if (value.startsWith(".")) return "it starts with a dot";
   return undefined;
+}
+
+/** A file that cannot be read shows no layout; writing it reports the real error. */
+async function readTextOrNull(filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(filePath, "utf-8");
+  } catch {
+    return null;
+  }
 }
 
 function assertPathSegment(value: string, source: string): void {
