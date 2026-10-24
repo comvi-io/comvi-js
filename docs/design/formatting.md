@@ -78,7 +78,8 @@ expression. Outside an effect, and on the server, it reads the store once.
 ## Where it lives
 
 - `formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`, `getTextDirection` —
-  `packages/core/src/index.ts`; the four formatters are re-exported by name from every binding
+  `packages/core/src/index.ts`; `@comvi/svelte/format` (`packages/svelte/src/format.ts`) carries
+  the four formatters, not `getTextDirection`, for plain Node; the four formatters are re-exported by name from every binding
   entry (and auto-imported by `@comvi/nuxt`), pinned by each binding's root-entry test
 - the `formatters` memo — `packages/react/src/useI18n.ts`; the `useFormatters` selector hook, whose
   identity is stable per `(i18n, locale, fallback chain)` — `packages/react/src/useFormatters.ts`

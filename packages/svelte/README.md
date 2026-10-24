@@ -140,7 +140,8 @@ independent.
 - `formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` are plain functions, not
   stores, and still follow the locale in markup and `$derived`. A trailing `locale` argument
   overrides it. Outside a component, import the same four from `@comvi/svelte` and pass the
-  instance first: `formatRelativeTime(i18n, -2, 'hour')`.
+  instance first: `formatRelativeTime(i18n, -2, 'hour')`. Code reached by plain Node (tests,
+  scripts) imports them from `@comvi/svelte/format`.
 - `<T components={{ link: 'a', policy: { tag: 'a', props: { href: '/privacy' } } }} />`: each tag
   maps to an element name, a `{ tag, props }` config, or a Svelte component that receives the tag's
   content as its `children` snippet. `<T>` builds real DOM nodes, never an HTML string.

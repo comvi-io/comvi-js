@@ -48,6 +48,10 @@
       "svelte": "./dist/index.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./format": {
+      "types": "./dist/format.d.ts",
+      "default": "./dist/format.js"
     }
   },
   "sideEffects": false,

@@ -144,7 +144,7 @@ the bytes first, then decide whether they ship.
 ## Row inventory
 
 `core-base`, `core-base-icu`, `core-base-devtools`, `core-full-composite`; per framework
-`fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
+`fw-{react,solid,svelte,vue}-{default,full-composite}`, `fw-svelte-format`; `fw-next-client-default`,
 `fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-i18n`; the platform
 path `plugin-fetch-loader`, `plugin-fetch-loader-api`, `platform-path-react`.

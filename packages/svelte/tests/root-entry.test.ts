@@ -31,6 +31,7 @@ import { useI18n as deepUseI18n } from "../src/useI18n.js";
 import DeepT from "../src/T.svelte";
 import * as core from "@comvi/core";
 import * as root from "../src/index";
+import * as formatEntry from "../src/format";
 import type { UseI18nLoaderReturn } from "../src/index";
 import RootEntryHarness from "./RootEntryHarness.test.svelte";
 import ContextHarness from "./ContextHarness.test.svelte";
@@ -323,6 +324,15 @@ describe("@comvi/svelte — the standalone formatters", () => {
     ).toEqual(CORE_FORMATTERS);
     for (const name of CORE_FORMATTERS) {
       expect((root as Record<string, unknown>)[name]).toBe((core as Record<string, unknown>)[name]);
+    }
+  });
+
+  it("`@comvi/svelte/format` publishes exactly the same set and nothing else", () => {
+    expect(Object.keys(formatEntry).sort()).toEqual(CORE_FORMATTERS);
+    for (const name of CORE_FORMATTERS) {
+      expect((formatEntry as Record<string, unknown>)[name]).toBe(
+        (core as Record<string, unknown>)[name],
+      );
     }
   });
 });
