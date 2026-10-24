@@ -19,6 +19,10 @@ describe("defaults", () => {
     expect(defaults.DEFAULT_FILE_TEMPLATE).toBe("{namespace}/{languageTag}.json");
   });
 
+  it("exposes the documented default translations path", () => {
+    expect(defaults.DEFAULT_TRANSLATIONS_PATH).toBe("./src/locales");
+  });
+
   it("exposes the documented default namespace", () => {
     expect(defaults.DEFAULT_NAMESPACE).toBe("default");
   });

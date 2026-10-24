@@ -53,7 +53,6 @@ describe("comvi typegen", () => {
   let configPath: string;
   let outputPath: string;
   let projectDir: string;
-  let originalCwd: string;
   let output: ConsoleCapture;
 
   beforeEach(async () => {
@@ -74,8 +73,7 @@ describe("comvi typegen", () => {
       join(dir, "package.json"),
       JSON.stringify({ name: "app", dependencies: { "@comvi/react": "^0.5.0" } }),
     );
-    originalCwd = process.cwd();
-    process.chdir(dir);
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
 
     vi.stubEnv("COMVI_API_KEY", undefined);
     vi.stubEnv("COMVI_API_BASE_URL", undefined);
@@ -87,7 +85,6 @@ describe("comvi typegen", () => {
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
     await removeTempDirs();
     assertNoUnexpectedRequests();
   });
@@ -129,7 +126,7 @@ describe("comvi typegen", () => {
 
     await expect(
       createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
-    ).rejects.toMatchObject({ exitCode: 1 });
+    ).rejects.toMatchObject({ exitCode: 4 });
 
     expect(output.stderr).toContain("@comvi/react");
     expect(await nodeFs.readFile(outputPath, "utf-8").catch(() => null)).toBeNull();
@@ -143,22 +140,36 @@ describe("comvi typegen", () => {
     expect(output.stdout).toContain(`✓ Generated 2 keys → ${outputPath}`);
   });
 
-  it("exits 1 when the schema request is rejected", async () => {
+  it("exits 3 when the schema request is rejected", async () => {
     stubFetch(REJECTED_SCHEMA_ROUTES);
 
     await expect(
       createTypegenCommand().parseAsync(["-c", configPath], { from: "user" }),
-    ).rejects.toMatchObject({ exitCode: 1 });
+    ).rejects.toMatchObject({ exitCode: 3 });
 
     expect(output.stderr).toContain("✗ Generation failed: Invalid API key");
   });
 
-  it("exits 1 when the config file named by -c does not exist", async () => {
+  it.each([[[]], [["--check"]]])("exits 4 without an API key (extra flags %j)", async (extra) => {
+    const noKeyConfigPath = join(dirname(configPath), "nokey.comvirc.json");
+    await nodeFs.writeFile(
+      noKeyConfigPath,
+      JSON.stringify({ apiBaseUrl: "https://api.test.com", outputPath }),
+    );
+
+    await expect(
+      createTypegenCommand().parseAsync(["-c", noKeyConfigPath, ...extra], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 4 });
+
+    expect(output.stderr).toContain("apiKey is required");
+  });
+
+  it("exits 4 when the config file named by -c does not exist", async () => {
     const missing = join(dirname(configPath), "absent.json");
 
     await expect(
       createTypegenCommand().parseAsync(["-c", missing], { from: "user" }),
-    ).rejects.toMatchObject({ exitCode: 1 });
+    ).rejects.toMatchObject({ exitCode: 4 });
 
     expect(output.stderr).toContain(`✗ Error: Config file not found: ${missing}`);
   });
@@ -222,12 +233,12 @@ describe("comvi typegen", () => {
       expect(output.stderr).toContain("Expected: 2 keys");
     });
 
-    it("exits 2 when the schema request fails, so CI can tell a blip from stale types", async () => {
+    it("exits 3 when the key is rejected, so CI can tell a bad key from stale types", async () => {
       stubFetch(REJECTED_SCHEMA_ROUTES);
 
       await expect(
         createTypegenCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
-      ).rejects.toMatchObject({ exitCode: 2 });
+      ).rejects.toMatchObject({ exitCode: 3 });
 
       expect(output.stderr).toContain("✗ Check could not run: Invalid API key");
       expect(output.stderr).not.toContain("Types are outdated");
@@ -313,18 +324,18 @@ describe("comvi typegen", () => {
 
       expect(checkOption?.description).toContain("CI mode");
       expect(checkOption?.description).toContain(
-        "exit 1 = outdated, 2 = check could not run, 4 = invalid config or a schema that cannot be emitted",
+        "exit 1 = outdated, 2 = platform unavailable, 3 = key rejected, 4 = invalid config or a schema that cannot be emitted",
       );
     });
 
-    it("exits 2 for a TMS auth failure even on a freshly loaded module", async () => {
+    it("exits 3 for a TMS auth failure even on a freshly loaded module", async () => {
       vi.resetModules();
       const { createTypegenCommand: freshCommand } = await import("../src/commands/generate-types");
       stubFetch(REJECTED_SCHEMA_ROUTES);
 
       await expect(
         freshCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
-      ).rejects.toMatchObject({ exitCode: 2 });
+      ).rejects.toMatchObject({ exitCode: 3 });
 
       expect(output.stderr).toContain("✗ Check could not run: Invalid API key");
     });
@@ -339,15 +350,21 @@ describe("comvi typegen", () => {
     async function startWatch(): Promise<{
       stream: FakeEventSource;
       interrupt: () => void;
+      terminate: () => void;
       resume: ReturnType<typeof vi.spyOn>;
     }> {
       const { instances } = mockEventSource();
       const listenersOn = process.on.bind(process);
       let interrupt: (() => void) | undefined;
+      let terminate: (() => void) | undefined;
 
       vi.spyOn(process, "on").mockImplementation(((event: string, listener: () => void) => {
         if (event === "SIGINT") {
           interrupt = listener;
+          return process;
+        }
+        if (event === "SIGTERM") {
+          terminate = listener;
           return process;
         }
         return listenersOn(event as "exit", listener);
@@ -365,7 +382,12 @@ describe("comvi typegen", () => {
         throw new Error("watch mode did not register a SIGINT handler");
       }
 
-      return { stream: instances[0], interrupt, resume };
+      return {
+        stream: instances[0],
+        interrupt,
+        terminate: terminate ?? (() => undefined),
+        resume,
+      };
     }
 
     it("rewrites the declaration file when the stream pushes a new schema", async () => {
@@ -390,6 +412,26 @@ describe("comvi typegen", () => {
       expect(close).toHaveBeenCalledOnce();
       expect(output.stdout).toContain("✓ Stopped watching");
       expect(output.stdout).toContain("Closing SSE connection");
+    });
+
+    // Docker, systemd and CI runners stop processes with SIGTERM.
+    it("closes the stream and exits 0 on SIGTERM", async () => {
+      const { stream, terminate } = await startWatch();
+      const close = vi.spyOn(stream, "close");
+
+      await expect(async () => terminate()).rejects.toMatchObject({ exitCode: 0 });
+
+      expect(close).toHaveBeenCalledOnce();
+    });
+
+    it("exits 3 when the platform refuses the stream's key after it started", async () => {
+      const { stream } = await startWatch();
+
+      stream.readyState = 2;
+      await expect(async () =>
+        stream.onerror?.({ code: 401, message: "Non-200 status code (401)" }),
+      ).rejects.toMatchObject({ exitCode: 3 });
+      expect(output.stderr).toContain("Invalid API key");
     });
 
     it("narrates the watch lifecycle and keeps stdin open for updates", async () => {
@@ -432,12 +474,12 @@ describe("comvi typegen", () => {
       expect(output.stdout).not.toContain("✓ Updated");
     });
 
-    it("exits 1 without subscribing when the initial generation fails", async () => {
+    it("exits 3 without subscribing when the initial generation is rejected", async () => {
       stubFetch(REJECTED_SCHEMA_ROUTES);
 
       await expect(
         createTypegenCommand().parseAsync(["-c", configPath, "--watch"], { from: "user" }),
-      ).rejects.toMatchObject({ exitCode: 1 });
+      ).rejects.toMatchObject({ exitCode: 3 });
 
       expect(output.stderr).toContain("✗ Initial generation failed: Invalid API key");
     });

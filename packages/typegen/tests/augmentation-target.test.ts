@@ -100,6 +100,49 @@ describe("resolveAugmentationTarget", () => {
     expect(() => resolveAugmentationTarget(appDir({}), "  ")).toThrow(/augment/);
   });
 
+  /** The message `resolveAugmentationTarget` throws, or `undefined` when it returns. */
+  function errorMessage(appRoot: string, override?: string): string | undefined {
+    try {
+      resolveAugmentationTarget(appRoot, override);
+    } catch (error) {
+      return (error as Error).message;
+    }
+    return undefined;
+  }
+
+  it("says an empty override is empty, blank or not", () => {
+    const empty =
+      "`augment` is empty. Name the module the generated types should augment, " +
+      "or remove the option to use the one this app declares.";
+
+    expect(errorMessage(appDir({}), "")).toBe(empty);
+    expect(errorMessage(appDir({}), "  ")).toBe(empty);
+  });
+
+  it("trims the override it returns", () => {
+    expect(resolveAugmentationTarget(appDir({}), "  @my/own-wrapper  ")).toBe("@my/own-wrapper");
+  });
+
+  it("quotes the override it refuses", () => {
+    expect(errorMessage(appDir({}), "my wrapper")).toBe(
+      "`augment` must be a module specifier (letters, digits and @ # . / : ~ + - _), " +
+        'received "my wrapper"',
+    );
+  });
+
+  it("explains in full what to declare when the app declares nothing", () => {
+    const app = appDir({ dependencies: { react: "^19.0.0" } });
+
+    expect(errorMessage(app)).toBe(
+      `Generated types have to augment a Comvi module, and ${path.join(app, "package.json")} declares none.\n` +
+        "Add the package this app imports `t()` from to its dependencies — one of " +
+        "@comvi/react, @comvi/next, @comvi/vue, @comvi/nuxt, @comvi/svelte, @comvi/solid — " +
+        "or `@comvi/core` itself. Declaring it in a workspace root or under peerDependencies " +
+        "is not enough: this app's own package.json must list it, or set `augment` — which " +
+        "is also how a private wrapper package that re-exports one of them is named.",
+    );
+  });
+
   it("names every module the app could declare when it declares none", () => {
     const app = appDir({ dependencies: { react: "^19.0.0" } });
 

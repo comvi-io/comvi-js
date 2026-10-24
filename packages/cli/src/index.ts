@@ -3,6 +3,7 @@ export { ApiClient, API_ENDPOINTS } from "./core/ApiClient";
 export { TypeEmitter } from "./core/TypeEmitter";
 export { ConfigLoader } from "./core/ConfigLoader";
 export { TranslationSync } from "./core/TranslationSync";
+export { CatalogCheck } from "./core/CatalogCheck";
 
 export { FileSystemWriter, NodeFileSystem, InMemoryFileSystem } from "./core/FileSystemWriter";
 export { ConsoleReporter, SilentReporter, CollectingReporter } from "./core/GenerationReporter";
@@ -36,9 +37,34 @@ export type {
 export type { TypeEmitterOptions } from "./core/TypeEmitter";
 
 export type {
+  CatalogCheckOptions,
+  CatalogCheckReport,
+  CatalogCheckSourceReport,
+  CatalogCheckLocaleReport,
+  CatalogCheckSummary,
+  CatalogCheckParamsFinding,
+  CatalogCheckPluralFinding,
+  CatalogCheckSelectFinding,
+  CatalogCheckTagsFinding,
+  CatalogCheckUnbalancedTagsFinding,
+  CatalogCheckUnsupportedIcuFinding,
+  PluralRuleType,
+} from "./core/CatalogCheck";
+
+export type {
   ApiClientOptions,
   FetchTranslationsOptions,
   NamespaceInfo,
   PushTranslationsOptions,
   PushProgress,
 } from "./core/ApiClient";
+
+export type {
+  MtFillRequest,
+  MtFillResponse,
+  MtFillJob,
+  MtFillPairs,
+  MtJobStatus,
+  MtJobError,
+  MtErrorType,
+} from "./core/translateApi";

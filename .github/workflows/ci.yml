@@ -11,7 +11,7 @@ concurrency:
 jobs:
   quality:
     name: Quality and security
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -118,7 +118,7 @@ jobs:
 
   tests:
     name: Package tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -147,7 +147,7 @@ jobs:
   # matrix run against a missing or stale dist.
   build:
     name: Build, package contracts, size and bundler matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -232,7 +232,7 @@ jobs:
 
   extension:
     name: Chrome extension
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -289,7 +289,7 @@ jobs:
   # `before` is unknown (a new branch, a force-push) runs the suite.
   examples-e2e-changes:
     name: Examples e2e (change detection)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       run: ${{ steps.diff.outputs.run }}
@@ -345,7 +345,7 @@ jobs:
     name: Examples e2e (${{ matrix.framework }}, ${{ matrix.mode }})
     needs: examples-e2e-changes
     if: needs.examples-e2e-changes.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     strategy:
@@ -353,6 +353,10 @@ jobs:
       matrix:
         framework: [react, next, vue, nuxt, svelte, solid, vanilla]
         mode: [default, cdn]
+        # The SSR recipe examples read bundled catalogs only; --cdn leaves them out.
+        include:
+          - { framework: sveltekit, mode: default }
+          - { framework: solidstart, mode: default }
 
     steps:
       - name: Checkout

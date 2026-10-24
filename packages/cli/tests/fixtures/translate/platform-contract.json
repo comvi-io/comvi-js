@@ -1,0 +1,129 @@
+{
+  "$comment": "Response shapes of POST /v1/projects/:projectId/mt/fill and GET /v1/projects/:projectId/keys/batch/mt/:jobId/status (COM-197). The CLI (comvi translate) builds its test mocks from this file. mt-fill.routes.test.ts checks that real responses have exactly these shapes: the same keys at every level and the same value types. Values are examples. `partial` is a 202 where some locale's enqueue failed: its jobs were queued, `failedLocales` names the rest, and running the fill again finishes them. Arrays are checked against their first element.",
+  "fill": {
+    "queued": {
+      "status": 202,
+      "body": {
+        "jobs": [
+          {
+            "jobId": "fill-1-de-5b0c3c1e-8d7a-4c9b-9f61-2f4b8a1d6e30",
+            "targetLocaleCode": "de",
+            "keyCount": 2,
+            "owned": true
+          }
+        ],
+        "pairs": { "toTranslate": 2, "alreadyInFlight": 0, "alreadyTranslated": 1, "noSource": 0 },
+        "skippedLocales": [{ "code": "fr", "reason": "forbidden" }],
+        "failedLocales": [],
+        "estimate": { "credits": 2, "approximate": false },
+        "credits": { "exhausted": false }
+      }
+    },
+    "nothingNew": {
+      "status": 200,
+      "body": {
+        "jobs": [
+          {
+            "jobId": "fill-1-de-5b0c3c1e-8d7a-4c9b-9f61-2f4b8a1d6e30",
+            "targetLocaleCode": "de",
+            "keyCount": 2,
+            "owned": false
+          }
+        ],
+        "pairs": { "toTranslate": 0, "alreadyInFlight": 2, "alreadyTranslated": 1, "noSource": 0 },
+        "skippedLocales": [],
+        "failedLocales": [],
+        "estimate": { "credits": 0, "approximate": false },
+        "credits": { "exhausted": true }
+      }
+    },
+    "partial": {
+      "status": 202,
+      "body": {
+        "jobs": [
+          {
+            "jobId": "fill-1-de-5b0c3c1e-8d7a-4c9b-9f61-2f4b8a1d6e30",
+            "targetLocaleCode": "de",
+            "keyCount": 2,
+            "owned": true
+          }
+        ],
+        "pairs": { "toTranslate": 4, "alreadyInFlight": 0, "alreadyTranslated": 0, "noSource": 0 },
+        "skippedLocales": [],
+        "failedLocales": [{ "targetLocaleCode": "fr", "reason": "enqueue_failed" }],
+        "estimate": { "credits": 4, "approximate": false },
+        "credits": { "exhausted": false }
+      }
+    },
+    "creditsExhausted": {
+      "status": 403,
+      "body": {
+        "code": "LIMIT_EXCEEDED",
+        "message": "MT credits exhausted",
+        "meta": {
+          "metric": "mt_credits",
+          "current": 0,
+          "limit": 0,
+          "jobs": [
+            {
+              "jobId": "fill-1-de-5b0c3c1e-8d7a-4c9b-9f61-2f4b8a1d6e30",
+              "targetLocaleCode": "de",
+              "keyCount": 1,
+              "owned": false
+            }
+          ]
+        }
+      }
+    },
+    "overLimit": {
+      "status": 422,
+      "body": {
+        "code": "MT_FILL_LIMIT",
+        "message": "3 key × locale pairs to translate, over the limit of 2",
+        "meta": {
+          "maxPairs": 2,
+          "pairs": {
+            "toTranslate": 3,
+            "alreadyInFlight": 0,
+            "alreadyTranslated": 0,
+            "noSource": 0
+          },
+          "estimate": { "credits": 3, "approximate": false }
+        }
+      }
+    }
+  },
+  "jobStatus": {
+    "waiting": {
+      "status": 200,
+      "body": {
+        "jobId": "fill-1-de-5b0c3c1e-8d7a-4c9b-9f61-2f4b8a1d6e30",
+        "status": "waiting",
+        "progress": 0
+      }
+    },
+    "completed": {
+      "status": 200,
+      "body": {
+        "jobId": "fill-1-de-5b0c3c1e-8d7a-4c9b-9f61-2f4b8a1d6e30",
+        "status": "completed",
+        "progress": 100,
+        "result": {
+          "processed": 1,
+          "failed": 1,
+          "duration": 120,
+          "alreadyTranslated": 0,
+          "skippedFilledMeanwhile": 0,
+          "errors": [
+            {
+              "keyId": 2,
+              "key": "broken",
+              "message": "MT service returned no translation",
+              "type": "no_translation"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

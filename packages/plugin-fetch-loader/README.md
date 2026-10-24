@@ -11,16 +11,16 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/plugin-fetch-loader"><img src="https://img.shields.io/npm/v/@comvi/plugin-fetch-loader?color=blue" alt="npm"></a>
-  <a href="https://bundlephobia.com/package/@comvi/plugin-fetch-loader"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/plugin-fetch-loader?label=minzip" alt="Bundle size"></a>
+  <a href="https://bundlejs.com/?q=@comvi/plugin-fetch-loader&amp;treeshake=%5B%7BcdnLoader%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22@comvi/core%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/plugin-fetch-loader&amp;treeshake=%5B%7BcdnLoader%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22@comvi/core%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
 
 ---
 
-`@comvi/plugin-fetch-loader` fetches each locale's JSON over HTTP. The package root reads the
-public CDN and is the smaller entry; `@comvi/plugin-fetch-loader/api` also talks to the platform API. The full guide is
-[Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader) on the docs site.
+`@comvi/plugin-fetch-loader` fetches each locale's catalog over HTTP from the
+[Comvi platform](https://comvi.io). Use it when the translations live in a Comvi project rather than
+in your repository: a wording change ships when a translator saves it, without a redeploy.
 
 ## Install
 
@@ -51,15 +51,22 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`.use(cdnLoader({ cdnUrl }))` adds HTTP loading to the instance; nothing else is needed. `fallback` paints
-until the first catalog is in. Omitting `cdnUrl` throws at composition time with
-`[@comvi/plugin-fetch-loader] cdnUrl is required`. On Vue the same `.use()` goes on the wrapper
-`createI18n` returns; on Nuxt it goes in the `comvi.i18n.ts` factory. The CDN URL comes from
-**Settings → Content Deploy** in the Comvi project; see
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
+`.use(cdnLoader({ cdnUrl }))` adds HTTP loading to the instance. `fallback` paints until the first
+catalog is in. The CDN URL comes from **Settings → Content Deploy** in the Comvi project; the
+walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
 independent.
+
+### How it works
+
+The loader fetches `{cdnUrl}/{locale}.json` for the default namespace and
+`{cdnUrl}/{namespace}/{locale}.json` for the others, inside `init()` and on every `setLocale()`
+whose `locale:namespace` pairs are not in the cache yet; switching back to a loaded locale fetches
+nothing. Concurrent requests for one `locale:namespace` are deduplicated, a request that exceeds `timeout`
+is aborted, and `destroy()` aborts everything in flight. Omitting `cdnUrl` throws when `.use()`
+runs the installer: `[@comvi/plugin-fetch-loader] cdnUrl is required`. On Vue the same `.use()`
+goes on the object `createI18n` returns; on Nuxt it goes in the `comvi.i18n.ts` factory.
 
 ## Bundled fallback
 
@@ -83,10 +90,11 @@ export const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(
 await i18n.init();
 ```
 
-When a network load fails, the loader serves the matching import: the exact `'locale:namespace'`
-key first, then the `'locale'` shorthand for the default namespace.
+When a fetch fails (network error, non-2xx status, invalid JSON or timeout), the loader serves the
+matching import: the exact `'locale:namespace'` key first, then the `'locale'` shorthand for the
+default namespace.
 
-## CDN mode vs API mode
+## API mode
 
 In a server-only module, `src/i18n.server.ts`:
 
@@ -108,36 +116,30 @@ await i18n.init();
 ```
 
 `fetchLoader()` from `/api` reads the CDN, and switches to the platform API when the i18n instance
-carries an `apiKey`: draft translations and private projects are reachable. The key needs project
-read and translation read access. `cdnLoader` never builds an API URL. API mode is server-side
-only: the `apiKey` is a credential, so compose `fetchLoader` with a key only in a server render, a
-prerender, a CLI or a script; in the browser use `cdnLoader`.
+carries an `apiKey`, which makes draft translations and private projects reachable. The key needs
+project read and translation read access. It is a credential, so compose `fetchLoader` with a key only in a server render, a prerender, a CLI or a
+script; in the browser use `cdnLoader`, which never builds an API URL and is the smaller entry.
 
 ## Options
 
-| Option          | Default                        | Entry | Behaviour                                                                              |
-| --------------- | ------------------------------ | ----- | -------------------------------------------------------------------------------------- |
-| `cdnUrl`        | required                       | both  | The CDN base URL from **Settings → Content Deploy**.                                   |
-| `baseUrl`       | `https://api.comvi.io`         | api   | The API host. `NEXT_PUBLIC_COMVI_API_URL` replaces the default; see below.             |
-| `fallback`      | none                           | both  | Import map served when a network load fails.                                           |
-| `onLoadError`   | none                           | both  | `(locale, namespace, error)` when a pair fails and no fallback produced data.          |
-| `onLoadSuccess` | none                           | both  | `(locale, namespace)` when a pair loads, including from `fallback`.                    |
-| `timeout`       | `10000`                        | both  | Per-request budget in milliseconds, covering the body.                                 |
-| `retry`         | `true`                         | api   | Retries the project-info request after a 429, 5xx or transport failure, twice at most. |
-| `loadOnInit`    | `true`                         | both  | Whether the plugin loads at install time.                                              |
-| `cdnLayout`     | `{ rootNamespace: defaultNs }` | both  | Which namespace lives at `{cdnUrl}/{locale}.json`.                                     |
-| `cache`         | none                           | both  | `{ revalidate, tags }` for the Next.js data cache; other runtimes ignore it.           |
+| Option          | Default                        | Entry | Behaviour                                                                                              |
+| --------------- | ------------------------------ | ----- | ------------------------------------------------------------------------------------------------------ |
+| `cdnUrl`        | required                       | both  | The CDN base URL from **Settings → Content Deploy**.                                                   |
+| `baseUrl`       | `https://api.comvi.io`         | api   | The API host. `NEXT_PUBLIC_COMVI_API_URL` in `process.env` replaces the default.                       |
+| `fallback`      | none                           | both  | Import map served when a fetch fails.                                                                  |
+| `onLoadError`   | none                           | both  | `(locale, namespace, error)` when a pair fails and no fallback produced data.                          |
+| `onLoadSuccess` | none                           | both  | `(locale, namespace)` when a pair loads, including from `fallback`.                                    |
+| `timeout`       | `10000`                        | both  | Per-request budget in milliseconds, covering the body.                                                 |
+| `retry`         | `true`                         | api   | Retries the project-info request after a 429, 5xx or transport failure, twice at most.                 |
+| `loadOnInit`    | `true`                         | both  | Only matters when `fetchLoaderPlugin()` is called by hand outside `init()`; `init()` loads regardless. |
+| `cdnLayout`     | `{ rootNamespace: defaultNs }` | both  | Which namespace lives at `{cdnUrl}/{locale}.json`.                                                     |
+| `cache`         | none                           | both  | `{ revalidate, tags }` for the Next.js data cache; other runtimes ignore it.                           |
 
-Naming an `/api`-only option on `cdnLoader` is a compile error. Concurrent requests for one
-`locale:namespace` are deduplicated, and `destroy()` aborts everything in flight.
+Naming an `/api`-only option on `cdnLoader` is a type error.
 
-`NEXT_PUBLIC_COMVI_API_URL` is read from `process.env` on the server; the name follows Next's
-convention, and only Next can inline it into a browser bundle. Anywhere else, pass `baseUrl`.
+## Read next
 
-## Next steps
-
-- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the CDN layout, every option in full, `baseUrl`.
-- [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi): the CDN URL, the status filter and the first plural.
+- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the CDN layout and every option in full.
 - [Loading translations](https://comvi.io/docs/i18n/loading-translations): import maps, custom loaders and namespaces.
 - [Loader API](https://comvi.io/docs/i18n/api/core-loader): every member the loader capability adds.
 

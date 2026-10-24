@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/core"><img src="https://img.shields.io/npm/v/@comvi/core?color=blue&label=npm" alt="npm version"></a>
-  <a href="https://bundlephobia.com/package/@comvi/core"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/core?label=minzip" alt="Bundle size"></a>
+  <a href="https://bundlejs.com/?q=@comvi/react&amp;treeshake=%5B%7BcreateI18n%2CI18nProvider%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22react%22%2C%22react-dom%22%2C%22react/jsx-runtime%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/react&amp;treeshake=%5B%7BcreateI18n%2CI18nProvider%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22react%22%2C%22react-dom%22%2C%22react/jsx-runtime%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/actions/workflows/ci.yml"><img src="https://github.com/comvi-io/comvi-js/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://comvi.io"><img src="https://img.shields.io/badge/Platform-comvi.io-7c3aed" alt="Comvi Platform"></a>
@@ -32,11 +32,9 @@
 
 ---
 
-Comvi i18n puts translated text on screen from a catalog in your source or from the Comvi platform
-over a CDN. `createI18n()` returns the i18n instance, which holds the catalog, the current
-locale and `t()`; a binding hands it to your framework. ICU plurals, async loading, locale
-detection and the in-context editor are opt-in: you compose them with `.use()`, and an app carries
-only what it names.
+Comvi i18n puts translated text on screen, from a catalog in your source or from the
+[Comvi platform](https://comvi.io) over a CDN. It is a framework-agnostic core with bindings for
+React, Next.js, Vue, Nuxt, Svelte and Solid, and plugins you add only when you need them.
 
 ## Install
 
@@ -44,25 +42,25 @@ One package per framework; each binding brings `@comvi/core` with it.
 
 ```bash
 npm install @comvi/react
-npm install @comvi/next     # Peers: next ^15 || ^16, react ^18.2 || ^19
+npm install @comvi/next
 npm install @comvi/vue
 npm install @comvi/nuxt
 npm install @comvi/svelte
 npm install @comvi/solid
-npm install @comvi/core     # vanilla JavaScript
+npm install @comvi/core
 ```
 
 | Framework          | Package         | Peer dependencies | Guide                                         | Try it                                                                                   |
 | ------------------ | --------------- | ----------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Vanilla JavaScript | `@comvi/core`   | none              | [Vanilla](https://comvi.io/docs/i18n/vanilla) | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla) |
 | React              | `@comvi/react`  | `react`           | [React](https://comvi.io/docs/i18n/react)     | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/react)   |
 | Next.js            | `@comvi/next`   | `next`, `react`   | [Next.js](https://comvi.io/docs/i18n/next)    | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/next)    |
 | Vue                | `@comvi/vue`    | `vue`             | [Vue](https://comvi.io/docs/i18n/vue)         | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vue)     |
 | Nuxt               | `@comvi/nuxt`   | `nuxt`            | [Nuxt](https://comvi.io/docs/i18n/nuxt)       | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/nuxt)    |
 | Svelte             | `@comvi/svelte` | `svelte`          | [Svelte](https://comvi.io/docs/i18n/svelte)   | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/svelte)  |
 | Solid              | `@comvi/solid`  | `solid-js`        | [Solid](https://comvi.io/docs/i18n/solid)     | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/solid)   |
+| Vanilla JavaScript | `@comvi/core`   | none              | [Vanilla](https://comvi.io/docs/i18n/vanilla) | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla) |
 
-The packages are ESM-only and versioned in lockstep, so install matching versions of every
+The packages are ESM-only and released together, so install the same version of every
 `@comvi/*` package. The runtime packages need Node 20 or newer; `@comvi/cli` and
 `@comvi/vite-plugin` need Node 22.
 
@@ -95,9 +93,19 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`createI18n` builds the i18n instance, `<I18nProvider>` initializes it, and `useI18n()` gives your
-components `t()`, the current locale and `setLocale()`. The same three calls in every binding:
+`<I18nProvider>` initializes the i18n instance, and `useI18n()` gives your components `t()`, the
+current locale and `setLocale()`. Every binding has the same shape: create the instance, hand it
+to the framework, call `useI18n()` in components. The other frameworks are on
 [Quick start](https://comvi.io/docs/i18n/quick-start).
+
+### How it works
+
+`createI18n()` returns the i18n instance: it holds the catalog, the current locale and `t()`. A
+binding hands the instance to your framework and re-renders what reads it when the locale or the
+catalog changes. The base instance does text and `{param}` interpolation. Async loading, locale
+detection and the in-context editor are capabilities you compose with `.use(installer)`, and ICU
+plurals are a constructor option, `compiler: icuCompiler`; what you never name never enters your
+bundle.
 
 ## Connect to Comvi
 
@@ -125,11 +133,12 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN, so a wording change ships when a translator
-saves it, without a redeploy. The CDN URL comes from **Settings → Content Deploy** in the Comvi
-project; the walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your
-keys use ICU (`{count, plural, …}`), add `compiler: icuCompiler` as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are independent.
+`.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN, so a wording change ships when a
+translator saves it, without a redeploy. The CDN URL comes from **Settings → Content Deploy** in
+the Comvi project; the walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
+If your keys use ICU (`{count, plural, …}`), add `compiler: icuCompiler` as on
+[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
+independent.
 
 ## Plugins and tooling
 
@@ -139,17 +148,12 @@ keys use ICU (`{count, plural, …}`), add `compiler: icuCompiler` as on
 | [`@comvi/plugin-locale-detector`](packages/plugin-locale-detector)     | Detect the locale from query, cookie, storage, browser  | [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector)     |
 | [`@comvi/plugin-in-context-editor`](packages/plugin-in-context-editor) | Edit translations inside the running app                | [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor) |
 | [`@comvi/vite-plugin`](packages/vite-plugin)                           | Generate `TranslationKeys` from local JSON at dev/build | [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin)             |
-| [`@comvi/cli`](packages/cli)                                           | Pull, push and generate types from the Comvi platform   | [Comvi CLI](https://comvi.io/docs/cli)                                    |
+| [`@comvi/cli`](packages/cli)                                           | Pull, push, check and generate types from the terminal  | [Comvi CLI](https://comvi.io/docs/cli)                                    |
 
-`locale-routing` and `typegen` are private workspace packages, inlined into the packages above at build time.
+## Contributing
 
-## Repository
-
-A [pnpm](https://pnpm.io/) + [Turborepo](https://turbo.build/) monorepo: `packages/` holds the
-workspace packages, `examples/` the runnable StackBlitz demos, `docs/design/` the design notes,
-`test-apps/` this workspace's own CI apps and `tooling/` the shared Vite/Vitest config.
-`pnpm install && pnpm build && pnpm -w run test` runs the whole thing; the gates a change has to
-pass are in [CONTRIBUTING.md](CONTRIBUTING.md).
+Bug reports, docs fixes and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains
+the repository layout, the setup and what CI checks.
 
 ## License
 

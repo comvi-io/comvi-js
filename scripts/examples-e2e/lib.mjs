@@ -62,6 +62,31 @@ export const STEPS = [
  */
 export const CDN_CONTROL_STEPS = ["t", "t2", "u", "v", "v2"];
 
+/**
+ * `sveltekit` and `solidstart` are the docs' SSR recipes as apps, not the
+ * feature gallery: they run `ssr-recipe.spec.ts` and get a table of their own.
+ * `f` is the runner's own `pnpm run typecheck`; every other step is a test.
+ */
+export const RECIPE_KINDS = ["sveltekit", "solidstart"];
+
+export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "f"];
+
+export const RECIPE_LEGEND = {
+  a: "SSR: plain-HTTP /, /uk, /de, /ar, /about and /uk/about are translated, with <html lang dir>; with JavaScript off the text is on screen",
+  a2: "a again on the PRESSURE build, where loading the catalogs takes 10 ms: still text in the HTML, not a streamed placeholder (SolidStart streams; SvelteKit awaits load either way)",
+  b: "hydration: /uk is only ever Ukrainian from first paint on, then the counter answers clicks",
+  c: "after hydration, client navigation / → /about → / → /uk → /uk/about → /ar/about → /ar → /de → / and Back twice, in one document: text, lang and dir follow",
+  d: "an unknown first or second segment (/xx, /xx/about, /en-US, /uk/xx) answers 404; /about, /en and /en/about are English",
+  e: "on the PRESSURE build, 100 concurrent requests across en, uk, de and ar each render their own locale",
+  e2: "negative control: the SHARED build (one instance for every request) renders each locale right one at a time, then the burst renders some responses in another request's locale",
+  f: "the example's own typecheck (svelte-check, tsc)",
+};
+
+export const isRecipe = (kind) => RECIPE_KINDS.includes(kind);
+
+/** The columns a result is judged on: the gallery's or the recipes'. */
+export const stepsFor = (kind) => (isRecipe(kind) ? RECIPE_STEPS : STEPS);
+
 /** What each step asserts, printed under the table so a column id is never a riddle. */
 export const STEP_LEGEND = {
   a: "initial render shows real text, no raw keys",
@@ -139,7 +164,7 @@ export function parseArgs(argv) {
 /**
  * A port nothing is listening on right now, chosen by the OS.
  *
- * Port 0 rather than a fixed range: seven servers plus the mock CDN, run while
+ * Port 0 rather than a fixed range: nine servers plus the mock CDN, run while
  * a reader may have their own dev server on 3000 or 5173, is exactly where a
  * hard-coded port collides. There is a window between closing this probe and
  * the real server binding, so every server is also started with its own
@@ -477,6 +502,20 @@ export function serverCommand(kind, { dir, port, host = "127.0.0.1", env = {} })
       env: { ...env, HOST: host, PORT: String(port), NITRO_HOST: host, NITRO_PORT: String(port) },
     };
   }
+  if (kind === "sveltekit") {
+    return {
+      command: process.execPath,
+      args: [path.join(dir, "build")],
+      env: { ...env, HOST: host, PORT: String(port) },
+    };
+  }
+  if (kind === "solidstart") {
+    return {
+      command: process.execPath,
+      args: [path.join(dir, ".output", "server", "index.mjs")],
+      env: { ...env, HOST: host, PORT: String(port), NITRO_HOST: host, NITRO_PORT: String(port) },
+    };
+  }
   throw new Error(`no server command for kind "${kind}"`);
 }
 
@@ -516,9 +555,11 @@ export function nuxtCatalogChunks(manifest) {
 /**
  * Where the scenario starts: the feature gallery (`/` is a start page without
  * the tested UI), behind the locale for SSR examples. `homePath` in
- * scenario.spec.ts builds the same path for any locale.
+ * scenario.spec.ts builds the same path for any locale. The SSR recipes have
+ * one page, at `/`.
  */
 export function startPath(kind) {
+  if (isRecipe(kind)) return "/";
   return kind === "vite" ? "/features" : "/en/features";
 }
 
@@ -663,7 +704,18 @@ const CELL = { pass: "ok", fail: "FAIL", skip: "skip", xfail: "xfail" };
  * and prints as `·`, which is not the same thing as a skip.
  */
 export function renderTable(results) {
-  const header = ["framework", "build", ...STEPS];
+  const gallery = results.filter((result) => !isRecipe(result.kind));
+  const recipes = results.filter((result) => isRecipe(result.kind));
+  return [
+    gallery.length || !recipes.length ? renderGroup(gallery, STEPS, STEP_LEGEND) : null,
+    recipes.length ? renderGroup(recipes, RECIPE_STEPS, RECIPE_LEGEND) : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function renderGroup(results, steps, legendFor) {
+  const header = ["framework", "build", ...steps];
   const failures = [];
   const skips = [];
   const xfails = [];
@@ -689,7 +741,7 @@ export function renderTable(results) {
     const row = [
       result.name,
       cell("build", result.build),
-      ...STEPS.map((step) => cell(step, result.steps?.[step])),
+      ...steps.map((step) => cell(step, result.steps?.[step])),
     ];
     for (const [message, columns] of failed) {
       failures.push(`${result.name}/${columns.join(",")}: ${message}`);
@@ -713,7 +765,7 @@ export function renderTable(results) {
   const table = [line(header), line(widths.map((width) => "-".repeat(width))), ...rows.map(line)];
   const legend = [
     "",
-    ...STEPS.map((step) => `${step.padEnd(3)} ${STEP_LEGEND[step]}`),
+    ...steps.map((step) => `${step.padEnd(3)} ${legendFor[step]}`),
     "ok = passed, FAIL = failed, skip = not applicable (reason below), " +
       "xfail = a listed expected failure that failed (reference below), · = not reached",
   ];
@@ -736,7 +788,9 @@ export function allPassed(results) {
   return results.every(
     (result) =>
       result.build?.status === "pass" &&
-      STEPS.every((step) => result.steps?.[step] && result.steps[step].status !== "fail"),
+      stepsFor(result.kind).every(
+        (step) => result.steps?.[step] && result.steps[step].status !== "fail",
+      ),
   );
 }
 
@@ -752,9 +806,12 @@ export function allPassed(results) {
  *   - without --cdn: k, k2, k3, g2, z and the CDN-steering steps (t, t2, u, v,
  *     v2) are about the mock CDN.
  *   - with --cdn: s is not run (the F-15 variant runs in the bundled mode).
+ *   - sveltekit, solidstart: nothing. They read bundled catalogs only, and a
+ *     `--cdn` run leaves them out instead of skipping them.
  */
 export function allowedSkips({ kind, cdn }) {
   const allowed = new Set();
+  if (isRecipe(kind)) return allowed;
   if (kind === "vite") for (const step of ["f", "i", "o", "s", "t", "t2", "y"]) allowed.add(step);
   if (cdn) allowed.add("s");
   else for (const step of ["k", "k2", "k3", "g2", "z", ...CDN_CONTROL_STEPS]) allowed.add(step);
@@ -850,11 +907,157 @@ export const F15_VARIANT = {
   },
 };
 
-/** Apply a run variant to a copied example, failing unless every edit matches once. */
+/**
+ * The SSR recipes' concurrency variants, applied to the copy in this order
+ * after the main phase.
+ *
+ *   - `pressure`: 10 ms where a deployed app waits on the network: after the
+ *     catalogs load (a CDN round trip), and between the moment the request's
+ *     locale is known and the moment its text renders (a database read in a
+ *     SvelteKit `load`, a page's own resource under its own `<Suspense>` in
+ *     SolidStart). With bundled catalogs and nothing else to wait for, a burst
+ *     renders one request at a time, even a shared instance comes out right,
+ *     and SolidStart has nothing to stream. Steps a (as a2) and e run here.
+ *   - `shared`: `pressure`, with one module-level instance rendering every
+ *     request, the mistake the recipes are built to avoid. Step e2 runs here
+ *     and must find responses in another request's locale; if it does not,
+ *     step e proves nothing. A green e is evidence only next to a green e2,
+ *     which shows that this burst overlaps enough to expose a leak.
+ */
+export const RECIPE_VARIANTS = {
+  sveltekit: {
+    pressure: {
+      edits: [
+        {
+          file: "src/routes/+layout.server.ts",
+          from: "  await i18n.init();\n",
+          to: "  await i18n.init();\n  await new Promise((resolve) => setTimeout(resolve, 10));\n",
+        },
+      ],
+    },
+    shared: {
+      files: {
+        "src/lib/shared.ts": [
+          'import { createI18n, icuCompiler } from "@comvi/svelte";',
+          'import { catalogLoader, fallbackLocale } from "./i18n";',
+          "",
+          "export const shared = createI18n({",
+          "  locale: fallbackLocale,",
+          "  fallbackLocale,",
+          "  compiler: icuCompiler,",
+          "}).use(catalogLoader());",
+          "",
+        ].join("\n"),
+      },
+      edits: [
+        {
+          file: "src/routes/+layout.server.ts",
+          from: 'import type { LayoutServerLoad } from "./$types";',
+          to: 'import type { LayoutServerLoad } from "./$types";\nimport { shared } from "../lib/shared";',
+        },
+        {
+          file: "src/routes/+layout.server.ts",
+          from: "  const i18n = createI18n({ locale, fallbackLocale, compiler: icuCompiler }).use(catalogLoader());\n  await i18n.init();\n",
+          to: "  const i18n = shared;\n  await i18n.setLocale(locale);\n",
+        },
+        {
+          file: "src/routes/+layout.svelte",
+          from: '  import type { LayoutData } from "./$types";',
+          to: '  import type { LayoutData } from "./$types";\n  import { shared } from "../lib/shared";',
+        },
+        {
+          file: "src/routes/+layout.svelte",
+          from: "  setI18nContext(i18n);",
+          to: "  setI18nContext(shared);",
+        },
+      ],
+    },
+  },
+  solidstart: {
+    pressure: {
+      edits: [
+        {
+          file: "src/lib/i18n.ts",
+          from: "  await i18n.init();\n",
+          to: "  await i18n.init();\n  await new Promise((resolve) => setTimeout(resolve, 10));\n",
+        },
+        {
+          file: "src/routes/[[locale]]/index.tsx",
+          from: 'import { createSignal } from "solid-js";',
+          to: 'import { createResource, createSignal, Show, Suspense } from "solid-js";',
+        },
+        {
+          file: "src/routes/[[locale]]/index.tsx",
+          from: "  const [count, setCount] = createSignal(1);",
+          to:
+            "  const [count, setCount] = createSignal(1);\n" +
+            "  const [later] = createResource(\n" +
+            "    () => new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 10)),\n" +
+            "    { deferStream: true },\n" +
+            "  );",
+        },
+        {
+          file: "src/routes/[[locale]]/index.tsx",
+          from: '      <p data-testid="greeting">{t("greeting.hello", { name: "Ada" })}</p>',
+          to:
+            "      <Suspense>\n" +
+            "        <Show when={later()}>\n" +
+            '          <p data-testid="greeting">{t("greeting.hello", { name: "Ada" })}</p>\n' +
+            "        </Show>\n" +
+            "      </Suspense>",
+        },
+      ],
+    },
+    shared: {
+      files: {
+        "src/lib/shared.ts": [
+          'import { createI18n, icuCompiler } from "@comvi/solid";',
+          'import { catalogLoader, fallbackLocale } from "./i18n";',
+          "",
+          "export const shared = createI18n({",
+          "  locale: fallbackLocale,",
+          "  fallbackLocale,",
+          "  compiler: icuCompiler,",
+          "}).use(catalogLoader());",
+          "",
+        ].join("\n"),
+      },
+      edits: [
+        {
+          file: "src/routes/[[locale]].tsx",
+          from: 'import { catalogLoader, fallbackLocale, loadI18n, localePath, locales } from "~/lib/i18n";',
+          to:
+            'import { catalogLoader, fallbackLocale, loadI18n, localePath, locales } from "~/lib/i18n";\n' +
+            'import { shared } from "~/lib/shared";',
+        },
+        {
+          file: "src/routes/[[locale]].tsx",
+          from: [
+            "        const i18n = createI18n({",
+            "          locale: ready.locale,",
+            "          fallbackLocale,",
+            "          compiler: icuCompiler,",
+            "          messages: ready.messages,",
+            "        }).use(catalogLoader());",
+          ].join("\n"),
+          to: "        const i18n = shared;\n        i18n.addMessages(ready.messages);",
+        },
+      ],
+    },
+  },
+};
+
+/**
+ * Apply a run variant to a copied example, failing unless every edit matches
+ * once. `files` are written whole, before the edits.
+ */
 export function applyVariant(dir, variant) {
   for (const { file, text } of variant.requires ?? []) {
     const source = fs.readFileSync(path.join(dir, file), "utf8");
     if (!source.includes(text)) throw new Error(`variant: ${file} no longer contains ${text}`);
+  }
+  for (const [file, content] of Object.entries(variant.files ?? {})) {
+    fs.writeFileSync(path.join(dir, file), content);
   }
   for (const { file, from, to } of variant.edits) {
     const target = path.join(dir, file);

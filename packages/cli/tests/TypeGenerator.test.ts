@@ -341,14 +341,8 @@ describe("TypeGenerator", () => {
 
   describe("the module the declarations augment", () => {
     const tempDirs: string[] = [];
-    let originalCwd: string;
-
-    beforeEach(() => {
-      originalCwd = process.cwd();
-    });
 
     afterEach(() => {
-      process.chdir(originalCwd);
       for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
     });
 
@@ -371,7 +365,7 @@ describe("TypeGenerator", () => {
     it("augments the binding the project declares, with no core dependency", async () => {
       // The documented install is one package, and core arrives through it.
       // Augmenting what the app declares is the only specifier it can resolve.
-      process.chdir(project({ "@comvi/react": "^0.5.0" }));
+      vi.spyOn(process, "cwd").mockReturnValue(project({ "@comvi/react": "^0.5.0" }));
 
       const result = await generatorForManifest().generate();
 
@@ -382,7 +376,9 @@ describe("TypeGenerator", () => {
     });
 
     it("prefers @comvi/core when the project declares it too", async () => {
-      process.chdir(project({ "@comvi/react": "^0.5.0", "@comvi/core": "^0.5.0" }));
+      vi.spyOn(process, "cwd").mockReturnValue(
+        project({ "@comvi/react": "^0.5.0", "@comvi/core": "^0.5.0" }),
+      );
 
       await generatorForManifest().generate();
 
@@ -392,7 +388,7 @@ describe("TypeGenerator", () => {
     });
 
     it("takes the configured augment module over the manifest", async () => {
-      process.chdir(project({ "@comvi/react": "^0.5.0" }));
+      vi.spyOn(process, "cwd").mockReturnValue(project({ "@comvi/react": "^0.5.0" }));
       await generatorForManifest("@acme/i18n").generate();
 
       expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain(
@@ -401,7 +397,7 @@ describe("TypeGenerator", () => {
     });
 
     it("writes nothing for a project that declares no Comvi module", async () => {
-      process.chdir(project({ react: "^19.0.0" }));
+      vi.spyOn(process, "cwd").mockReturnValue(project({ react: "^19.0.0" }));
 
       const result = await generatorForManifest().generate();
 
@@ -414,7 +410,7 @@ describe("TypeGenerator", () => {
       // The target comes from the manifest, so every machine picks the same
       // one. That is what lets the verify path regenerate the write path's
       // file instead of needing a carve-out.
-      process.chdir(project({ "@comvi/nuxt": "^0.5.0" }));
+      vi.spyOn(process, "cwd").mockReturnValue(project({ "@comvi/nuxt": "^0.5.0" }));
       const manifestGenerator = generatorForManifest();
       await manifestGenerator.generate();
 
@@ -425,10 +421,10 @@ describe("TypeGenerator", () => {
     });
 
     it("reports drift once the project switches to another Comvi package", async () => {
-      process.chdir(project({ "@comvi/vue": "^0.5.0" }));
+      vi.spyOn(process, "cwd").mockReturnValue(project({ "@comvi/vue": "^0.5.0" }));
       const manifestGenerator = generatorForManifest();
       await manifestGenerator.generate();
-      process.chdir(project({ "@comvi/svelte": "^0.5.0" }));
+      vi.spyOn(process, "cwd").mockReturnValue(project({ "@comvi/svelte": "^0.5.0" }));
 
       await expect(manifestGenerator.check()).resolves.toMatchObject({ upToDate: false });
     });
@@ -436,7 +432,7 @@ describe("TypeGenerator", () => {
     it("refuses to check a project that declares no Comvi module", async () => {
       // No carve-out: the write path and the verify path ask the manifest the
       // same question, so neither can pass where the other fails.
-      process.chdir(project({ react: "^19.0.0" }));
+      vi.spyOn(process, "cwd").mockReturnValue(project({ react: "^19.0.0" }));
 
       await expect(generatorForManifest().check()).rejects.toThrow("@comvi/react");
     });

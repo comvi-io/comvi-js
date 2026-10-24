@@ -77,8 +77,11 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
 
 - [ ] Merge the release branch to `main`.
 - [ ] The `main` push runs `release.yml`, which calls `pnpm release:version` through
-      `changesets/action` and opens the release PR. Re-run `pnpm examples:verify` after the version
-      bump: that is when the peer ranges and the examples' ranges meet.
+      `changesets/action` and opens the release PR. The same commit moves every `@comvi/*` range
+      in `examples/*/package.json` and `examples/README.md` to `^<version>`, so the StackBlitz
+      badges on `main` ask for the new version only once it is merged (a pre-release version
+      leaves them alone). Re-run `pnpm examples:verify` after the version bump: that is when the
+      peer ranges and the examples' ranges meet.
 - [ ] Read the generated CHANGELOGs before merging the release PR.
 - [ ] Merging the release PR publishes through the `pack`, `verify` and `publish` jobs: the same
       three-job chain as the RC, with `--tag latest` and git tags pushed for each published
@@ -123,9 +126,14 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
       stops the job with both SHAs: decide by hand, and never move a tag that names released bytes.
       Promotion never moves a dist-tag backwards. If `latest` (or `next`) already names a newer
       version of any package, for example on a stale re-run of 0.5.0 after 0.5.1 shipped, the job
-      names both versions, moves nothing and exits 1. A version this run published that npm does
-      not show yet, and an integrity npm does not show yet, are asked again with backoff, for about
-      30 seconds, before the version counts as `MISSING` or the integrity as `none`.
+      names both versions, moves nothing and exits 1. A version this run published that npm does not
+      show yet is asked again every 15 seconds until 10 minutes after npm accepted it, before it
+      counts as `MISSING`: npm showed `@comvi/react@0.6.0` about 4 minutes after accepting it.
+      `COMVI_PUBLISH_VISIBLE_POLL_MS` and `COMVI_PUBLISH_VISIBLE_WAIT_MS` set the two times. An
+      `npm view` that hangs is killed when the wait runs out, but never sooner than
+      `COMVI_PUBLISH_READ_TIMEOUT_MS` (30 seconds). A wait setting that is not a positive whole
+      number of milliseconds stops the job before anything is published. An integrity npm does not
+      show yet is asked again with backoff, for about 30 seconds, before it counts as `none`.
 - [ ] `.github/scripts/create-combined-release.mjs` then creates the combined GitHub Release from
       the candidate tarballs. It refuses unless `v<version>` exists at the checked-out commit and
       the published set is everything `SHA256SUMS` lists. It passes `--verify-tag` to

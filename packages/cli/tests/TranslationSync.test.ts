@@ -132,6 +132,50 @@ describe("TranslationSync", () => {
     });
   });
 
+  it("reads a template without {namespace} as one default-namespace catalog per locale", async () => {
+    const dir = await makeTempDir("comvi-cli-sync");
+
+    await fs.writeFile(join(dir, "app.en.json"), '{"hello":"Hello"}\n');
+    await fs.writeFile(join(dir, "app.de.json"), '{"hello":"Hallo"}\n');
+    await fs.writeFile(join(dir, "other.json"), '{"ignored":"x"}\n');
+
+    const sync = new TranslationSync({
+      translationsPath: dir,
+      fileTemplate: "app.{languageTag}.json",
+      format: "json",
+    });
+
+    const result = await sync.readTranslations({ defaultNamespace: "common" });
+
+    expect([...result.locales].sort()).toEqual(["de", "en"]);
+    expect(result.namespaces).toEqual(["common"]);
+    expect(result.translations).toEqual({
+      en: { common: { hello: "Hello" } },
+      de: { common: { hello: "Hallo" } },
+    });
+  });
+
+  it("skips files whose locale or namespace segment starts with a dot", async () => {
+    const dir = await makeTempDir("comvi-cli-sync");
+
+    await fs.mkdir(join(dir, "en"), { recursive: true });
+    await fs.mkdir(join(dir, ".git"), { recursive: true });
+    await fs.writeFile(join(dir, "en", "app.json"), '{"a":"A"}\n');
+    await fs.writeFile(join(dir, "en", ".cache.json"), '{"b":"B"}\n');
+    await fs.writeFile(join(dir, ".git", "app.json"), '{"c":"C"}\n');
+
+    const sync = new TranslationSync({
+      translationsPath: dir,
+      fileTemplate: "{languageTag}/{namespace}.json",
+      format: "json",
+    });
+
+    const result = await sync.readTranslations();
+
+    expect(result.locales).toEqual(["en"]);
+    expect(result.namespaces).toEqual(["app"]);
+  });
+
   it("rejects duplicate files that map to the same locale and namespace", async () => {
     const dir = await makeTempDir("comvi-cli-sync");
 
@@ -381,14 +425,42 @@ describe("TranslationSync", () => {
     await expect(fs.readFile(join(dir, "sentinel.txt"), "utf-8")).resolves.toBe("keep");
   });
 
-  it("clears a translations directory that does not exist yet", async () => {
+  it("clears a translations directory that does not exist yet without creating it", async () => {
     const dir = await makeTempDir("comvi-cli-clear");
     vi.spyOn(process, "cwd").mockReturnValue(dir);
     const sync = makeSync(join(dir, "locales"));
 
     await sync.clearDirectory();
 
-    await expect(fs.readdir(join(dir, "locales"))).resolves.toEqual([]);
+    await expect(fs.access(join(dir, "locales"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("never removes a file the template does not parse as a translation file", async () => {
+    const dir = await makeTempDir("comvi-cli-clear");
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
+    const locales = join(dir, "locales");
+    await fs.mkdir(join(locales, "en"), { recursive: true });
+    await fs.writeFile(join(locales, "en", "common.json"), "{}\n");
+    await fs.writeFile(join(locales, "README.md"), "notes\n");
+    await fs.writeFile(join(locales, "index.ts"), "export {}\n");
+    const sync = makeSync(locales);
+
+    await sync.clearDirectory();
+
+    await expect(fs.readdir(locales)).resolves.toEqual(["README.md", "index.ts"]);
+  });
+
+  it("an empty locale list clears nothing", async () => {
+    const dir = await makeTempDir("comvi-cli-clear");
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
+    const locales = join(dir, "locales");
+    await fs.mkdir(join(locales, "en"), { recursive: true });
+    await fs.writeFile(join(locales, "en", "common.json"), "{}\n");
+    const sync = makeSync(locales);
+
+    await sync.clearDirectory({ locales: [] });
+
+    await expect(fs.readdir(join(locales, "en"))).resolves.toEqual(["common.json"]);
   });
 
   it("clears only the listed namespaces and removes the directories they leave empty", async () => {
@@ -452,7 +524,7 @@ describe("TranslationSync", () => {
     await expect(fs.readFile(join(dir, "sentinel.txt"), "utf-8")).resolves.toBe("keep");
   });
 
-  it("previews every file an unscoped clear would remove", async () => {
+  it("previews only the translation files an unscoped clear would remove", async () => {
     const dir = await makeTempDir("comvi-cli-clear-preview");
     vi.spyOn(process, "cwd").mockReturnValue(dir);
     const locales = join(dir, "locales");
@@ -461,10 +533,7 @@ describe("TranslationSync", () => {
     await fs.writeFile(join(locales, "README.md"), "notes\n");
     const sync = makeSync(locales);
 
-    await expect(sync.previewClear()).resolves.toEqual([
-      join(locales, "README.md"),
-      join(locales, "en", "common.json"),
-    ]);
+    await expect(sync.previewClear()).resolves.toEqual([join(locales, "en", "common.json")]);
   });
 
   it("previews only the scoped files a filtered clear would remove", async () => {
@@ -551,15 +620,15 @@ describe("TranslationSync", () => {
     const dir = await makeTempDir("comvi-cli-clear-preview");
     vi.spyOn(process, "cwd").mockReturnValue(dir);
     const locales = join(dir, "locales");
-    await fs.mkdir(locales, { recursive: true });
-    await fs.writeFile(join(locales, "a.json"), "{}\n");
-    await fs.writeFile(join(locales, "b.json"), "{}\n");
+    await fs.mkdir(join(locales, "en"), { recursive: true });
+    await fs.writeFile(join(locales, "en", "a.json"), "{}\n");
+    await fs.writeFile(join(locales, "en", "b.json"), "{}\n");
     stubReversedDirectoryListing();
     const sync = makeSync(locales);
 
     await expect(sync.previewClear()).resolves.toEqual([
-      join(locales, "a.json"),
-      join(locales, "b.json"),
+      join(locales, "en", "a.json"),
+      join(locales, "en", "b.json"),
     ]);
   });
 
@@ -602,9 +671,10 @@ describe("TranslationSync", () => {
 
   it("wraps filesystem failures while clearing with FS_WRITE_FAILED", async () => {
     const dir = await makeTempDir("comvi-cli-clear");
-    const locked = join(dir, "locked");
-    const target = join(locked, "locales");
-    await fs.mkdir(target, { recursive: true });
+    const target = join(dir, "locales");
+    const locked = join(target, "en");
+    await fs.mkdir(locked, { recursive: true });
+    await fs.writeFile(join(locked, "common.json"), "{}\n");
     vi.spyOn(process, "cwd").mockReturnValue(dir);
     const sync = makeSync(target);
     await fs.chmod(locked, 0o555);

@@ -16,7 +16,8 @@ if (!baseURL) {
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "scenario.spec.ts",
+  // The feature gallery's scenario, or `ssr-recipe.spec.ts` for sveltekit and solidstart.
+  testMatch: process.env.E2E_SPEC ?? "scenario.spec.ts",
   fullyParallel: false,
   workers: 1,
   retries: 0,

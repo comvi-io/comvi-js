@@ -5,6 +5,8 @@ import { createInitCommand } from "../commands/init";
 import { createTypegenCommand } from "../commands/generate-types";
 import { createPullCommand } from "../commands/pull";
 import { createPushCommand } from "../commands/push";
+import { createCheckCommand } from "../commands/check";
+import { createTranslateCommand } from "../commands/translate";
 import { loadEnv, MissingEnvFileError } from "../core/EnvLoader";
 import { CLI_VERSION } from "../utils/version";
 import { EXIT_VALIDATION } from "../utils/errors";
@@ -21,7 +23,11 @@ program
   // never work reliably, so the flag is `--dotenv`.
   .option("--dotenv <path>", "load a specific .env file instead of auto-discovery")
   .option("--no-dotenv", "skip auto-loading .env (also: COMVI_NO_ENV=1)")
-  .hook("preAction", (thisCommand) => {
+  .hook("preAction", (thisCommand, actionCommand) => {
+    // `check` is offline: it reads no API variable, so it loads no .env and
+    // cannot pick up a secret or fail on a malformed one.
+    if (actionCommand.name() === "check") return;
+
     // Resolve once, before any subcommand handler runs. Real env vars take
     // precedence — `loadEnv` never overwrites an existing process.env entry.
     const opts = thisCommand.opts<{ dotenv?: string | false }>();
@@ -49,9 +55,26 @@ program
     }
   });
 
-program.addCommand(createInitCommand());
-program.addCommand(createTypegenCommand());
-program.addCommand(createPullCommand());
-program.addCommand(createPushCommand());
+// An unknown command or option, or a missing option value, is a usage error:
+// exit 4 like every other invalid input, not commander's 1, which means
+// "conflict or mismatch" here. Help and --version still exit 0.
+for (const command of [
+  program,
+  createInitCommand(),
+  createTypegenCommand(),
+  createPullCommand(),
+  createPushCommand(),
+  createTranslateCommand(),
+  createCheckCommand(),
+]) {
+  command.exitOverride((error) => {
+    process.exit(error.exitCode === 0 ? 0 : EXIT_VALIDATION);
+  });
+  if (command !== program) {
+    program.addCommand(command);
+  }
+}
 
-program.parse();
+// Awaited, so a rejection from an async action surfaces here rather than as
+// an unhandled promise.
+await program.parseAsync();

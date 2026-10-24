@@ -7004,9 +7004,18 @@
       "package": "packages/cli"
     },
     {
-      "snippet": ".hook(\"preAction\", (thisCommand) => {",
+      "snippet": ".hook(\"preAction\", (thisCommand, actionCommand) => {",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
+      "lineHint": 25,
+      "file": "src/cli/index.ts",
+      "mutators": ["all"],
+      "package": "packages/cli"
+    },
+    {
+      "snippet": "if (actionCommand.name() === \"check\") return;",
+      "kind": "tooling:static-mutant",
+      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use. The `check` early return (no .env for the offline command) is covered by the dist case \"loads no .env for check\".",
       "lineHint": 28,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
@@ -7148,15 +7157,6 @@
       "package": "packages/cli"
     },
     {
-      "snippet": "program.parse();",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 63,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
       "package": "packages/cli",
       "file": "src/commands/generate-types.ts",
       "mutators": ["ConditionalExpression"],
@@ -7188,7 +7188,7 @@
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!config.apiKey) {",
-      "lineHint": 30,
+      "lineHint": 114,
       "kind": "equivalent",
       "reason": "unreachable apiKey guard: ConfigLoader.load() throws CONFIG_INVALID before returning when apiKey is missing/blank (matches the src comment; hand-applied both: COMVI_MUTATION suite green)"
     },
@@ -7197,7 +7197,7 @@
       "file": "src/commands/push.ts",
       "mutators": ["StringLiteral"],
       "snippet": "throw new Error(\"API key is required. Set COMVI_API_KEY environment variable.\");",
-      "lineHint": 31,
+      "lineHint": 115,
       "kind": "equivalent",
       "reason": "message inside the unreachable apiKey guard (nocov; hand-applied: suite green)"
     },
@@ -7224,7 +7224,7 @@
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "forceMode === \"ask\" ? \"override\" : (forceMode as ApiPushForceMode);",
-      "lineHint": 110,
+      "lineHint": 264,
       "kind": "equivalent",
       "reason": "dead initializer for the ask case: the if (forceMode === \"ask\") block below always reassigns apiForceMode from the prompt before any use; identity for non-ask (hand-applied all three variants: suite green)"
     },
@@ -7232,8 +7232,8 @@
       "package": "packages/cli",
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (error instanceof Error) {",
-      "lineHint": 144,
+      "snippet": "} else if (error instanceof Error) {",
+      "lineHint": 47,
       "kind": "equivalent",
       "reason": "every reachable error is an Error: ApiClient wraps non-TypegenError failures via wrapError; ConfigLoader/TranslationSync throw Error subclasses (hand-applied: suite green)"
     },
@@ -7244,7 +7244,7 @@
       "snippet": "if (error instanceof Error) {",
       "lineHint": 95,
       "kind": "equivalent",
-      "reason": "same instanceof-Error guard as push.ts:144 — no non-Error can reach the command catch (hand-applied: suite green)"
+      "reason": "same instanceof-Error guard as push.ts:47 — no non-Error can reach the command catch (hand-applied: suite green)"
     },
     {
       "package": "packages/cli",
@@ -7739,24 +7739,6 @@
     {
       "package": "packages/vite-plugin",
       "file": "src/extract.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "for (let i = open; i < value.length; i++) {",
-      "lineHint": 114,
-      "kind": "equivalent",
-      "reason": "one extra iteration past the end. `value[value.length]` is `undefined`, which matches neither the `\"{\"` nor the `\"}\"` arm, so `depth` is untouched and the same result is returned."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/extract.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "for (let i = 0; i < value.length; i++) {",
-      "lineHint": 135,
-      "kind": "equivalent",
-      "reason": "same extra iteration in the message scan: `value[value.length]` is `undefined`, so the `!== \"{\"` guard skips it and no group is opened."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/extract.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const content = await fs.readFile(file.filePath, \"utf-8\");",
       "lineHint": 237,
@@ -7816,6 +7798,15 @@
       "lineHint": 14,
       "kind": "equivalent",
       "reason": "the run loop assigns `rerunRequested = false` before every `runGeneration`, and `while (rerunRequested)` is only reached afterwards, so the initializer can never be read. Hand-applied: the whole package stays green."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["ObjectLiteral", "BooleanLiteral"],
+      "snippet": "await fs.rm(tempPath, { force: true }).catch(() => undefined);",
+      "lineHint": 199,
+      "kind": "equivalent",
+      "reason": "`force` only turns a missing file into success, and the `.catch` beside it swallows that ENOENT anyway: when the temp file was never created both arms resolve to nothing, and when it exists both remove it. Hand-applied (both variants), full suite 105/105 green."
     },
     {
       "package": "packages/plugin-fetch-loader",
@@ -7899,6 +7890,222 @@
       "lineHint": 109,
       "kind": "equivalent",
       "reason": "dropping the trailing $ is a no-op: `.` never matches a newline, so `.*` already stops at end-of-line and the match span is identical. Moved verbatim from packages/cli (TypeGenerator.ts:119) with the code. The ^-drop and the [^']* quantifier siblings on this line ARE killed, by the column-zero test and the multi-character single-quoted key (hand-applied: suite green)."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 125,
+      "kind": "equivalent",
+      "reason": "one extra iteration of the quoted-section scan: `value[len]` is `undefined`, not an apostrophe, so it only steps to `len + 1` and returns that instead of `len`. Every caller (scanMessage, readArgument, closingBrace, scanTags) stops at any index at or past the end."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len && value[i] !== \",\") {",
+      "lineHint": 147,
+      "kind": "equivalent",
+      "reason": "one extra iteration: `value[len]` is neither `{` nor `}`, so `i` becomes `len + 1` and the `i >= len` check below returns false exactly as for `len`."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator", "BooleanLiteral"],
+      "snippet": "if (i >= len) return false;",
+      "lineHint": 151,
+      "kind": "equivalent",
+      "reason": "reached only when no `,`, `{` or `}` follows the opening brace, so nothing can close the group under either quoting context and closingBrace returns undefined whatever this answers (`return true` included); falling through instead reads the type as \"\" and returns false."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && value.charCodeAt(i) <= 32) i++;",
+      "lineHint": 154,
+      "kind": "equivalent",
+      "reason": "the bound is redundant: past the end `charCodeAt` is NaN and `NaN <= 32` is false, so the loop stops at `len` either way."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 156,
+      "kind": "equivalent",
+      "reason": "one extra iteration of the type scan: at `len` the char is `undefined` and its code NaN, which break on nothing, so `i` becomes `len + 1` and `slice(typeStart, len + 1)` is the same string."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "const contextStack: boolean[] = [];",
+      "lineHint": 180,
+      "kind": "equivalent",
+      "reason": "a seeded bottom element is never read: a pop happens only at a `}` that leaves depth above zero, which closes a level whose `{` pushed, and the `}` that reaches depth zero returns first."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 182,
+      "kind": "equivalent",
+      "reason": "one extra iteration: `value[len]` is `undefined`, which matches neither brace nor apostrophe, and the loop then ends with the same `undefined` result."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (contextStack.length > 0) context = contextStack.pop()!;",
+      "lineHint": 197,
+      "kind": "equivalent",
+      "reason": "the `-> true` and `>= 0` variants: the stack is never empty here, for the reason given on the `contextStack` declaration. The `-> false` and `<= 0` variants are killed by the '# after a nested plural row in tests/message-shape.test.ts."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 238,
+      "kind": "equivalent",
+      "reason": "one extra iteration of the choice-list loop at `i === len`: the whitespace skip does nothing and `if (i >= len) break` leaves the loop."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && choicesStr.charCodeAt(i) <= 32) i++;",
+      "lineHint": 239,
+      "kind": "equivalent",
+      "reason": "the bound is redundant: past the end `charCodeAt` is NaN and `NaN <= 32` is false."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 243,
+      "kind": "equivalent",
+      "reason": "one extra iteration of the selector scan: at `len` neither NaN nor `undefined` breaks, so `i` becomes `len + 1`; the selector slice is the same, and `choicesStr[len + 1]`, like `choicesStr[len]`, is not `{`, so the list fails the same way."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && choicesStr.charCodeAt(i) <= 32) i++;",
+      "lineHint": 250,
+      "kind": "equivalent",
+      "reason": "the second copy of the whitespace skip: past the end `charCodeAt` is NaN and `NaN <= 32` is false."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = 0; i < len; i++) {",
+      "lineHint": 270,
+      "kind": "equivalent",
+      "reason": "one extra iteration: `content[len]` is `undefined`, which is no apostrophe, brace or comma."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ConditionalExpression", "UnaryOperator"],
+      "snippet": "if (secondComma === -1) return { kind: \"unsupported\", type };",
+      "lineHint": 300,
+      "kind": "equivalent",
+      "reason": "without the early return a one-comma `plural`/`select` hands parseChoices the whole content (`slice(0)`), which still ends in `, <type>` — a selector with no braced sub-message — so the list fails and the same refusal comes back; every other type is refused below. `=== +1` holds only when the comma pair sits at 0 and 1, which leaves the type empty and refused anyway."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = 0; i < value.length; i++) {",
+      "lineHint": 376,
+      "kind": "equivalent",
+      "reason": "one extra iteration in the message scan: `value[value.length]` is `undefined`, so the `!== \"{\"` guard skips it and no group is opened. Moved with the scanner from packages/vite-plugin src/extract.ts, where the same entry stood."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 600,
+      "kind": "equivalent",
+      "reason": "one extra iteration of the tag pass's text scan: the code at `len` is NaN, which is no apostrophe, backslash, `<` or `{`, so it only steps past the end."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/index.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "lineHint": 132,
+      "kind": "equivalent",
+      "reason": "`manifest` is declared without an initializer, so it is already `undefined` when the read throws; the assignment in the catch only says so."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = index + 1; i < value.length; i++) {",
+      "lineHint": 469,
+      "kind": "equivalent",
+      "reason": "one extra iteration of the balanced-quote search: `value[value.length]` is `undefined`, not an apostrophe, so the loop ends and the apostrophe stays literal (`index + 1`) exactly as it does at the end."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 495,
+      "kind": "equivalent",
+      "reason": "one extra iteration of `findClosingTag`'s scan: the code at `len` is NaN, which is no apostrophe, backslash or `<`, so it only steps past the end and the search returns `undefined` as it does at the end."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["UpdateOperator"],
+      "snippet": "i++;",
+      "lineHint": 520,
+      "kind": "equivalent",
+      "reason": "the `i--` after a matched `>` of a close: the scan resumes one character before the `>` — the close's last name character or whitespace — then passes it and the `>` again. Neither starts anything, so the result is the same; when the close ends the search the returned end only makes the text scan re-read those two characters."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ConditionalExpression", "ArithmeticOperator", "BlockStatement"],
+      "snippet": "if (value.charCodeAt(i) === SLASH && value.charCodeAt(i + 1) === GREATER_THAN) {",
+      "lineHint": 528,
+      "kind": "equivalent",
+      "reason": "the variants that stop skipping a nested `<name/>` (`-> false`, `i + 1 -> i - 1`, an emptied block): the scan then takes the `i = tagStart + 1` path and walks over `name/>` character by character, which holds nothing that opens or closes a tag. The `-> true` and `!==` variants, which would skip an unterminated `<name/`, are killed by the slash-with-no-bracket row."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["UpdateOperator"],
+      "snippet": "i++;",
+      "lineHint": 533,
+      "kind": "equivalent",
+      "reason": "the `i--` after a nested opening tag's `>`: the scan re-reads the name's last character or whitespace and the `>`, neither of which starts anything, before the tag's content."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ArithmeticOperator"],
+      "snippet": "const close = findClosingTag(value, i + 1, name, hashIsSyntax);",
+      "lineHint": 580,
+      "kind": "equivalent",
+      "reason": "starting the close search at `i - 1` re-reads the opening tag's last name character or whitespace and its `>`, neither of which starts anything."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/message-shape.ts",
+      "mutators": ["ArithmeticOperator"],
+      "snippet": "scanTags(value.slice(i + 1, close[0]), hashIsSyntax, scan);",
+      "lineHint": 586,
+      "kind": "equivalent",
+      "reason": "`i - 1` prefixes the tag's content with its last name character or whitespace and the `>`, which the text scan reads as plain text."
     },
     {
       "package": "packages/plugin-in-context-editor",
@@ -8012,6 +8219,96 @@
       "kind": "equivalent",
       "reason": "equivalent at the behaviour level. `cleanup()` sets the module ref false right after unmounting the app and removing its shadow host, so no mounted component reads it any more, and `mountApp()` sets it true before the next `createApp`. The only test that saw it was the old mocked-createApp suite reading the ref out of the props object, an implementation detail; that suite was replaced by the mounted one. Hand-applied (`= true`), full package suite green (1626/1626), src restored byte-identically.",
       "round": 6
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "const outcomes: number[] = [];",
+      "lineHint": 162,
+      "kind": "equivalent",
+      "reason": "a seed string in the outcomes list is never one of the exit codes reduceExitCode looks for, so the reduction is unchanged (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "jobs = jobsInLimitMeta((error as TypegenError).details?.meta);",
+      "lineHint": 183,
+      "kind": "equivalent",
+      "reason": "reached only after details.code === \"LIMIT_EXCEEDED\" matched, so details is always set here (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const tracks: JobTrack[] = jobs.map((job) => ({ job, state: \"pending\" }));",
+      "lineHint": 191,
+      "kind": "equivalent",
+      "reason": "the initial state is only ever overwritten, never compared: pollJobs keeps its own pending list and marks what is left \"running\" (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "const result = track.status?.result;",
+      "lineHint": 216,
+      "kind": "equivalent",
+      "reason": "the \"completed\" state is set only together with track.status, so status is always defined in this branch (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "message: `${job.targetLocaleCode}: ${label} failed: ${track.status?.error ?? \"no reason given\"}`,",
+      "lineHint": 246,
+      "kind": "equivalent",
+      "reason": "the \"failed\" state is set only together with track.status, so status is always defined in this branch (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "apiBaseUrl: config.apiBaseUrl || \"https://api.comvi.io\",",
+      "lineHint": 440,
+      "kind": "equivalent",
+      "reason": "ConfigLoader.load() always sets apiBaseUrl (its default is the same URL), as in push and pull (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": ".map((locale) => findLocale(locale, projectLocales ?? []) ?? locale)",
+      "lineHint": 525,
+      "kind": "equivalent",
+      "reason": "a placeholder entry never matches a requested locale, and findLocale's miss keeps the locale as given, exactly as with the empty list (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return key === undefined ? undefined : data[key];",
+      "lineHint": 759,
+      "kind": "equivalent",
+      "reason": "only the `false` variant of this ternary survives (the `true` one returns undefined for every locale and is killed): both maps are null-prototype dictionaries keyed by locale, so data[undefined] reads the absent key \"undefined\" and is undefined too (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "error.details?.code !== \"PROJECT_NOT_FOUND\"",
+      "lineHint": 872,
+      "kind": "equivalent",
+      "reason": "evaluated only after details?.status === 404 held, so details is set (getMtJobStatus) (COM-197 J2; cold Stryker run, suite green under the mutant)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/MissingMerge.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "return await fs.readFile(filePath, \"utf-8\");",
+      "lineHint": 171,
+      "kind": "equivalent",
+      "reason": "without an encoding readFile returns a Buffer, and JSON.parse stringifies it as UTF-8, so the parsed catalog is the same (COM-197 J2; cold Stryker run, suite green under the mutant)"
     }
   ]
 }

@@ -11,16 +11,16 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/nuxt"><img src="https://img.shields.io/npm/v/@comvi/nuxt?color=blue" alt="npm"></a>
-  <a href="https://bundlephobia.com/package/@comvi/nuxt"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/nuxt?label=minzip" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/nuxt"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
 
 ---
 
-`@comvi/nuxt` is a Nuxt module: it auto-imports the composables and `<T>`, clones your pages into
-locale-prefixed routes, builds one i18n instance per request on the server and hydrates the client from what
-the server loaded. The full guide is [Nuxt](https://comvi.io/docs/i18n/nuxt) on the docs site.
+`@comvi/nuxt` is the Comvi i18n module for Nuxt 3 and 4: it auto-imports the composables and
+`<T>`, clones your pages into locale-prefixed routes, builds one i18n instance per request on the
+server and hydrates the client from what the server loaded. Use it instead of `@comvi/vue` on
+Nuxt; it brings `@comvi/core` and the Vue bindings with it.
 
 ## Install
 
@@ -105,44 +105,34 @@ development the module throws when it gets the same instance twice. The CDN URL 
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
 independent.
 
-## Specific to Nuxt
+### How it works
 
-- The module builds one i18n instance per request, detects the locale from the URL path, the query
-  parameter, the cookie or the `Accept-Language` header, runs `comvi.setup.ts` for that instance, and serializes the loaded catalog
-  into the payload, so the client hydrates with no second fetch and no flash.
-- Without a `comvi.i18n.ts` file the module builds the base instance, with no loader and no ICU compiler. Every
-  installer `comvi.i18n.ts` needs (`createI18n`, `loader`, `icuCompiler`, `plugins`, `devtools`)
-  comes from `@comvi/nuxt/i18n`, so the file resolves from `npm install @comvi/nuxt` alone.
-- In a Nitro route the server auto-imports are `useTranslation(event)`,
-  `loadMessages(event, locale)`, `getRequestI18n(event, locale)` and
-  `getServerRuntimeConfig(event)`; the app-side composables do not exist there.
-  `useTranslation(event)` resolves the locale in the route middleware's order: the path prefix,
-  then `localeDetection.order`.
-- `<T>` is auto-imported. Each tag a translator wrote becomes a named slot, or an entry in the
-  `components` prop. Never render a translation with `v-html`.
+On every request the module builds a fresh i18n instance in the default locale, runs `comvi.setup.ts` for it when the file exists, initializes it, and then the route middleware detects the locale from the URL path, the cookie and the `Accept-Language` header and switches to it before the page renders. The loaded catalog is serialized into the Nuxt payload, so the client hydrates
+with no second fetch and no flash. Without a `comvi.i18n.ts` file the module builds the base
+instance, with no loader, and with the ICU compiler only when `comvi.icu` is `true`; every
+installer that file needs (`createI18n`,
+`loader`, `icuCompiler`, `plugins`, `devtools`) comes from `@comvi/nuxt/i18n`. In a Nitro route
+the server auto-imports are `useTranslation(event)`, `loadMessages(event, locale)`,
+`getRequestI18n(event, locale)` and `getServerRuntimeConfig(event)`; the app-side composables do
+not exist there. `<T>` is auto-imported: each tag a translator wrote becomes a named slot, or an
+entry in the `components` prop. Never render a translation with `v-html`.
 
-| `localePrefix` | Default locale | Other locale                                  |
-| -------------- | -------------- | --------------------------------------------- |
-| `as-needed`    | `/about`       | `/de/about`                                   |
-| `always`       | `/en/about`    | `/de/about`                                   |
-| `never`        | `/about`       | `/about`, locale from query, cookie or header |
+## Routing
 
-The route middleware detects the locale, persists it in the `i18n_locale` cookie and pre-loads
-that locale's catalog before the page renders. Pair a switcher with `useSwitchLocalePath()` when
-the URL should change too.
+| `localePrefix` | Default locale | Other locale                                                  |
+| -------------- | -------------- | ------------------------------------------------------------- |
+| `as-needed`    | `/about`       | `/de/about`                                                   |
+| `always`       | `/en/about`    | `/de/about`                                                   |
+| `never`        | `/about`       | `/about`, locale from the cookie or `Accept-Language` instead |
 
-Two options control it, with the same names, values and defaults as `@comvi/next`'s middleware
-except the cookie name. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
-or `false` to persist nothing. `localeDetection` takes `{ order, queryParam, headerName,
-resolveAcceptLanguage }`, or `false` to leave the URL path alone in charge. `comvi.ns` lists the
-namespaces to load besides `defaultNs`, as core's `ns` does.
+The route middleware detects the locale, persists it in the `i18n_locale` cookie and loads that
+locale's catalog before the page renders. Pair a switcher with `useSwitchLocalePath()` when the
+URL should change too. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
+or `false` to persist nothing; `localeDetection` takes
+`{ order, queryParam, headerName, resolveAcceptLanguage }`, or `false` to leave the URL path alone
+in charge. `comvi.ns` lists the namespaces to load besides `defaultNs`. `useLocaleHead()` adds canonical, hreflang and `og:locale` tags, and writes `lang` and `dir` too unless `addLang` or `addDir` is `false`; set `comvi.head: false` when you write those attributes yourself.
 
-### Advanced
-
-Set `comvi.head: false` to write the `<html lang dir>` attributes yourself, and call
-`useLocaleHead()` for canonical, hreflang and `og:locale` tags.
-
-## Next steps
+## Read next
 
 - [Nuxt guide](https://comvi.io/docs/i18n/nuxt): rich text, SSR, locale routing.
 - [Nuxt API reference](https://comvi.io/docs/i18n/api/nuxt): every module option, the `i18nModule` factory and setup types, the composables.

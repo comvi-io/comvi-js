@@ -11,16 +11,16 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/react"><img src="https://img.shields.io/npm/v/@comvi/react?color=blue" alt="npm"></a>
-  <a href="https://bundlephobia.com/package/@comvi/react"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/react?label=minzip" alt="Bundle size"></a>
+  <a href="https://bundlejs.com/?q=@comvi/react&amp;treeshake=%5B%7BcreateI18n%2CI18nProvider%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22react%22%2C%22react-dom%22%2C%22react/jsx-runtime%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/react&amp;treeshake=%5B%7BcreateI18n%2CI18nProvider%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22react%22%2C%22react-dom%22%2C%22react/jsx-runtime%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/react"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
 
 ---
 
-Translate a React app with `@comvi/react`: one provider at the root, `useI18n()` in components,
-and `<T>` for translations that contain markup. The package depends on `@comvi/core`, so one
-install is enough. The full guide is [React](https://comvi.io/docs/i18n/react) on the docs site.
+`@comvi/react` binds the Comvi i18n instance to React: one provider at the root, `useI18n()` in
+components, and `<T>` for translations that contain markup. On Next.js, install
+[`@comvi/next`](https://comvi.io/docs/i18n/next) instead; it builds on this package.
 
 ## Install
 
@@ -54,8 +54,8 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`createI18n` builds the i18n instance, which holds the catalog, the current locale and `t()`.
-`<I18nProvider>` initializes it on mount, so there is no `init()` call to write.
+The i18n instance holds the catalog, the current locale and `t()`. `<I18nProvider>` initializes it
+on mount, so there is no `init()` call to write.
 
 ## Use in components
 
@@ -110,34 +110,32 @@ createRoot(document.getElementById("root")!).render(
 ```
 
 `.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN. Compose inside the `createI18n` expression,
-because the provider calls `init()` for you. `fallback` renders in place of the children until the
-i18n instance is initialized, so raw keys never paint. The CDN URL is on
+because the provider calls `init()` for you. `fallback` renders in place of the children until the i18n instance is initialized, so raw keys never paint; a server render counts as initialized unless `ssrInitialIsInitializing` is set. The CDN URL is on
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
 (`{count, plural, …}`), add `compiler: icuCompiler` as on
 [Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
 independent.
 
-## Specific to React
+### How it works
 
-- `<I18nProvider>` takes `i18n`, `fallback`, `autoInit`, `onError`, `ssrLocale`, `ssrInitialIsLoading`,
-  `ssrInitialIsInitializing`, `targetLocale` and `messages`. Leave `fallback` off when a server render already
-  produced real text. `targetLocale` renders the tree in the locale you are switching the i18n
-  instance to, until the i18n instance's locale moves, so text commits together with markup that comes with the switch.
-  `messages` are catalogs that arrive with the render: the children translate from them at once, and the provider
-  adds them to the i18n instance when the render commits, so a render React abandons, or a server render, never
-  writes the i18n instance. Keep the `messages` object stable across renders (module scope, `useMemo`,
-  or the server payload): an inline literal is a new object on every parent render, and each one is
-  added again and re-renders every `useI18n()` consumer.
-- `useLocale()` and `useIsLoading()` subscribe to one slice of the state, so namespace loads do not
-  re-render a component that only shows the locale.
-- `useSetLocaleTransition()` wraps the switch in `useTransition`, so the old UI stays interactive
-  while the new catalog loads. The provider subscribes through `useSyncExternalStore`.
-- `<T>` maps each tag a translator wrote to a React element, a function component or an HTML tag
-  name; children render when the key is missing. Plain `t()` does not parse tags. Define handler
-  components outside render, as with any component.
-- `@comvi/react` ships no SSR adapter. On Next.js use [`@comvi/next`](https://comvi.io/docs/i18n/next).
+`<I18nProvider>` subscribes to the i18n instance through `useSyncExternalStore` and re-renders every
+`useI18n()` consumer when the locale or the catalog changes. `useLocale()` and `useIsLoading()`
+subscribe to one slice of the state, so a namespace load does not re-render a component that only
+shows the locale. `useSetLocaleTransition()` wraps the switch in `useTransition`, so the old UI
+stays interactive while the new catalog loads. `<T i18nKey="…" components={{ link: "a" }}>` maps
+each tag a translator wrote to an HTML tag name, a React element or a function component, and
+renders its children when the key is missing; plain `t()` does not parse tags.
 
-## Next steps
+The provider also takes `autoInit`, `onError`, `ssrLocale`, `targetLocale` and `messages`. Leave
+`fallback` off when a server render already produced real text. `targetLocale` renders the tree
+in the locale you are switching to until the instance's locale moves, so text commits together
+with the markup that comes with the switch. `messages` are catalogs that arrive with the render
+(a server payload): the children translate from them at once, and the provider adds them to the
+i18n instance when the render commits. Keep that object stable across renders; an inline literal
+is a new object every time, and each one re-renders every consumer. `@comvi/react` ships no SSR
+adapter; on Next.js use `@comvi/next`.
+
+## Read next
 
 - [React guide](https://comvi.io/docs/i18n/react): markup inside a translation, first paint, SSR.
 - [Loading translations](https://comvi.io/docs/i18n/loading-translations): `loader(map)`, namespaces and `useI18nLoader()`.

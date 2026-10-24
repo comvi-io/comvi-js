@@ -11,17 +11,16 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/svelte"><img src="https://img.shields.io/npm/v/@comvi/svelte?color=blue" alt="npm"></a>
-  <a href="https://bundlephobia.com/package/@comvi/svelte"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/svelte?label=minzip" alt="Bundle size"></a>
+  <a href="https://bundlejs.com/?q=@comvi/svelte&amp;treeshake=%5B%7BcreateI18n%2CsetI18nContext%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22svelte%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/svelte&amp;treeshake=%5B%7BcreateI18n%2CsetI18nContext%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22svelte%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/svelte"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
 
 ---
 
-`@comvi/svelte` puts the i18n instance on Svelte's context and hands your components `$t` and
-`$locale` as stores, and `<T>` for markup inside a translation. It targets Svelte 5 and works with SvelteKit for SSR. The package depends on
-`@comvi/core`, so one install is enough. The full guide is
-[Svelte](https://comvi.io/docs/i18n/svelte) on the docs site.
+`@comvi/svelte` puts the Comvi i18n instance on Svelte's context and hands your components `$t`
+and `$locale` as stores, plus `<T>` for translations that contain markup. It targets Svelte 5; the
+package depends on `@comvi/core`, so one install is enough.
 
 ## Install
 
@@ -79,8 +78,9 @@ In a page, `src/routes/+page.svelte`:
 </select>
 ```
 
-`useI18n()` returns stores, so `$`-prefix them in markup: `$t` renders a string, `$tRaw` the parts
-array. `setLocale()` is a plain function that resolves once the new locale's catalog has loaded.
+`useI18n()` returns stores, so `$`-prefix them in markup: `$t` renders a string, `$tRaw` a
+string or, when the translation carries tags, a parts array. `setLocale()` is a plain function
+that resolves once the new locale's catalog has loaded.
 
 ## Load from Comvi
 
@@ -144,13 +144,16 @@ independent.
   maps to an element name, a `{ tag, props }` config, or a Svelte component that receives the tag's
   content as its `children` snippet. `<T>` builds real DOM nodes, never an HTML string.
 - `@comvi/svelte` ships no SvelteKit adapter and needs none. Build a fresh instance per request and
-  never mutate a module-level singleton on the server. A `load` function returns plain data,
-  `{ locale, messages }`, never the instance; construct the instance in `+layout.svelte` with
-  `setI18nContext(i18n, { autoInit: false })` seeded from that payload.
-- Set `lang` and `dir` on `<html>` from `$locale` and `$dir` in an `$effect`, or with
-  `<svelte:html lang={$locale} dir={$dir} />` on Svelte 5.16 or newer.
+  never mutate a module-level singleton on the server. The root layout's `load` returns plain
+  data, `{ locale, messages }`, never the instance. `+layout.svelte` builds the instance once from
+  that payload, inside `untrack()`, and passes every later `data` to it in an `$effect.pre`
+  (`addMessages()`, then `setLocale()`); without that, a link to another locale changes the URL and
+  keeps the old text.
+- `<svelte:head>` cannot set attributes on `<html>`. Replace `%lang%` in `src/app.html` from a
+  `handle` hook for the server render, with the locale checked against your list first, and set `lang` and `dir` from `$locale` and `$dir` in an
+  `$effect` for client navigation.
 
-## Next steps
+## Read next
 
 - [Svelte guide](https://comvi.io/docs/i18n/svelte): rich text, gating the first paint, SSR.
 - [Svelte API reference](https://comvi.io/docs/i18n/api/svelte): every export, the standalone stores and `<T>` props.

@@ -1,0 +1,19 @@
+{
+  "addServer": "Server hinzufügen",
+  "appearance": "Appearance",
+  "cancel": "Abbrechen",
+  "chooseModel": "Choose a model",
+  "copyMessage": "Copy message",
+  "deleteSession": "Delete session",
+  "downloadFinished": "Download abgeschlossen",
+  "editPrompt": "Edit prompt",
+  "language": "Language",
+  "newSession": "New session",
+  "noServers": "No servers configured",
+  "pullTitle": "Pull a model",
+  "removedOption": "Entfernte Option",
+  "retry": "Retry",
+  "serverOffline": "Der Server {host} ist offline",
+  "settings": "Einstellungen",
+  "theme": "Theme"
+}

@@ -1,10 +1,11 @@
 import { promises as fs } from "fs";
 import { dirname, resolve } from "path";
-import { DEFAULT_FILE_TEMPLATE } from "../defaults";
+import { DEFAULT_FILE_TEMPLATE, DEFAULT_TRANSLATIONS_PATH, isValidFileTemplate } from "../defaults";
 import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { isHttpUrl } from "./apiBaseUrl";
+import { timeoutsFromEnv } from "./timeouts";
 import { isModuleSpecifier } from "@comvi/typegen";
 
 async function fileExists(path: string): Promise<boolean> {
@@ -48,14 +49,17 @@ const KNOWN_CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof ComviConfig>([
   "format",
   "namespaces",
   "locales",
+  "sourceLocale",
   "push",
   "pull",
+  "check",
 ]);
 
-/** Every field the `push` and `pull` sections declare. */
-const KNOWN_SECTION_FIELDS: Readonly<Record<"push" | "pull", ReadonlySet<string>>> = {
+/** Every field the `push`, `pull` and `check` sections declare. */
+const KNOWN_SECTION_FIELDS: Readonly<Record<"push" | "pull" | "check", ReadonlySet<string>>> = {
   push: new Set(["forceMode"]),
   pull: new Set(["emptyDir"]),
+  check: new Set(["identical", "strict"]),
 };
 
 const FORCE_MODES: readonly string[] = ["override", "keep", "ask", "abort"];
@@ -100,7 +104,18 @@ export class ConfigLoader {
     }
   }
 
-  static async load(configPath?: string): Promise<ComviConfig> {
+  /**
+   * `requireApiKey: false` is for a command that never talks to the TMS: the
+   * `apiKey` guard is skipped and `COMVI_API_KEY` / `COMVI_API_BASE_URL` are
+   * not read. `optional: true` lets it run with no discovered `.comvirc.json`,
+   * on the defaults `init` writes; an explicit `configPath` that does not
+   * exist is still `CONFIG_NOT_FOUND`.
+   */
+  static async load(
+    configPath?: string,
+    options: { requireApiKey?: boolean; optional?: boolean } = {},
+  ): Promise<ComviConfig> {
+    const { requireApiKey = true, optional = false } = options;
     let filePath: string | null;
 
     if (configPath) {
@@ -112,6 +127,18 @@ export class ConfigLoader {
       }
     } else {
       filePath = await this.findConfigFile();
+      if (!filePath && optional) {
+        const defaults: ComviConfig = {
+          translationsPath: DEFAULT_TRANSLATIONS_PATH,
+          fileTemplate: DEFAULT_FILE_TEMPLATE,
+          format: "json",
+        };
+        if (requireApiKey) {
+          this.applyEnvironmentOverrides(defaults);
+        }
+        this.validateConfig(defaults, requireApiKey);
+        return defaults;
+      }
       if (!filePath) {
         throw new TypegenError(
           `No ${this.CONFIG_FILENAME} found. Run 'comvi init' to create one.`,
@@ -142,9 +169,13 @@ export class ConfigLoader {
         delete config.apiBaseUrl;
       }
 
-      this.applyEnvironmentOverrides(config);
+      // A command that never talks to the TMS does not read the API
+      // variables, so a stale or malformed one cannot fail it.
+      if (requireApiKey) {
+        this.applyEnvironmentOverrides(config);
+      }
 
-      this.validateConfig(config);
+      this.validateConfig(config, requireApiKey);
 
       return config;
     } catch (error) {
@@ -172,11 +203,14 @@ export class ConfigLoader {
     }
   }
 
-  private static validateConfig(config: ComviConfig): void {
+  private static validateConfig(config: ComviConfig, requireApiKey: boolean): void {
     const errors: string[] = [];
 
     // apiKey is required, but can come from env var (already applied in applyEnvironmentOverrides)
-    if (!config.apiKey || typeof config.apiKey !== "string" || config.apiKey.trim() === "") {
+    if (
+      requireApiKey &&
+      (!config.apiKey || typeof config.apiKey !== "string" || config.apiKey.trim() === "")
+    ) {
       errors.push("apiKey is required");
       errors.push("  Set COMVI_API_KEY environment variable or add to .comvirc.json");
     }
@@ -188,7 +222,7 @@ export class ConfigLoader {
       );
     }
 
-    this.validateScalarFields(config);
+    this.validateScalarFields(config, requireApiKey);
 
     this.validateSwitches(config);
 
@@ -219,8 +253,8 @@ export class ConfigLoader {
    * `admin/en.json`, which the next read — filtering for `.yaml` — saw only
    * half of, and `translationsPath: 42` failed later as a raw `TypeError`.
    */
-  private static validateScalarFields(config: ComviConfig): void {
-    for (const key of ["outputPath", "translationsPath", "fileTemplate"] as const) {
+  private static validateScalarFields(config: ComviConfig, envApplied: boolean): void {
+    for (const key of ["outputPath", "translationsPath", "fileTemplate", "sourceLocale"] as const) {
       this.assertOptionalNonEmptyString(config[key], key);
     }
 
@@ -234,12 +268,14 @@ export class ConfigLoader {
     this.assertOptionalNonEmptyString(config.apiBaseUrl, "apiBaseUrl");
     if (config.apiBaseUrl !== undefined && !isHttpUrl(config.apiBaseUrl)) {
       throw new TypegenError(
-        `Invalid configuration: "apiBaseUrl"${process.env.COMVI_API_BASE_URL ? " (from COMVI_API_BASE_URL)" : ""} must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
+        `Invalid configuration: "apiBaseUrl"${envApplied && process.env.COMVI_API_BASE_URL ? " (from COMVI_API_BASE_URL)" : ""} must be an http(s) URL, received ${describe(config.apiBaseUrl)}`,
         ErrorCodes.CONFIG_INVALID,
       );
     }
 
-    this.validateFileTemplate(config.fileTemplate);
+    // Offline (check) reads but never writes, so a template without
+    // `{namespace}` — one catalog per locale — is enough for it.
+    this.validateFileTemplate(config.fileTemplate, !envApplied);
   }
 
   /**
@@ -248,17 +284,20 @@ export class ConfigLoader {
    * catalogs onto one file; one that does not end in `.json` is written but
    * never read, so a later push sees an empty catalog.
    */
-  private static validateFileTemplate(template: string | undefined): void {
-    if (template === undefined) return;
+  private static validateFileTemplate(
+    template: string | undefined,
+    namespaceOptional: boolean,
+  ): void {
+    if (template === undefined || isValidFileTemplate(template, namespaceOptional)) return;
 
-    const count = (placeholder: string) => template.split(placeholder).length - 1;
-    const endsInJson = template.endsWith(".json") || template.endsWith(".{extension}");
-    if (count("{languageTag}") !== 1 || count("{namespace}") !== 1 || !endsInJson) {
-      throw new TypegenError(
-        `Invalid configuration: "fileTemplate" must contain exactly one {languageTag} and one {namespace} and end in ".json" (or ".{extension}"), received ${describe(template)}`,
-        ErrorCodes.CONFIG_INVALID,
-      );
-    }
+    const namespaceRule = namespaceOptional ? "at most one {namespace}" : "one {namespace}";
+    const languageRule = namespaceOptional
+      ? "exactly one {languageTag},"
+      : "exactly one {languageTag} and";
+    throw new TypegenError(
+      `Invalid configuration: "fileTemplate" must contain ${languageRule} ${namespaceRule} and end in ".json" (or ".{extension}"), received ${describe(template)}`,
+      ErrorCodes.CONFIG_INVALID,
+    );
   }
 
   private static assertOptionalNonEmptyString(value: unknown, key: string): void {
@@ -299,6 +338,10 @@ export class ConfigLoader {
         ErrorCodes.CONFIG_INVALID,
       );
     }
+
+    const check = this.assertOptionalSection(config.check, "check");
+    this.assertOptionalBoolean(check?.identical, "check.identical");
+    this.assertOptionalBoolean(check?.strict, "check.strict");
   }
 
   private static assertOptionalBoolean(value: unknown, key: string): void {
@@ -412,6 +455,7 @@ export class ConfigLoader {
       outputPath: config.outputPath || "src/types/i18n.d.ts",
       strictParams: config.strictParams ?? true,
       augment: config.augment,
+      ...timeoutsFromEnv(),
     };
   }
 
@@ -431,7 +475,7 @@ export class ConfigLoader {
     }
 
     // A section that is not an object is reported by `validateSwitches`.
-    for (const section of ["push", "pull"] as const) {
+    for (const section of ["push", "pull", "check"] as const) {
       const value: unknown = config[section];
       if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
       for (const key of Object.keys(value)) {
@@ -462,7 +506,7 @@ export class ConfigLoader {
       apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
       outputPath: config.outputPath || "src/types/i18n.d.ts",
       strictParams: config.strictParams ?? true,
-      translationsPath: config.translationsPath || "./src/locales",
+      translationsPath: config.translationsPath || DEFAULT_TRANSLATIONS_PATH,
       fileTemplate: config.fileTemplate || DEFAULT_FILE_TEMPLATE,
       format: config.format || "json",
       ...(config.namespaces !== undefined ? { namespaces: config.namespaces } : {}),

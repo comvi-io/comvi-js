@@ -2,11 +2,23 @@ import { Command } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { ConfigLoader } from "../core/ConfigLoader";
-import { ApiClient, type PushProgress } from "../core/ApiClient";
+import { timeoutsFromEnv } from "../core/timeouts";
+import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
-import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
-import type { ForceMode } from "../types";
-import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
+import {
+  DEFAULT_FILE_TEMPLATE,
+  isDefaultFileTemplate,
+  DEFAULT_TRANSLATIONS_PATH,
+} from "../defaults";
+import type {
+  ComviConfig,
+  ForceMode,
+  PushResult,
+  TranslationData,
+  TranslationDiff,
+} from "../types";
+import { ErrorCodes, exitCodeFor, TypegenError } from "../utils/errors";
+import { resolveLocales } from "../utils/locales";
 import { parseListFlag, resolveFilter } from "../utils/filterResolution";
 
 type ApiPushForceMode = Exclude<ForceMode, "ask">;
@@ -20,165 +32,290 @@ export function createPushCommand(): Command {
     .option("-p, --path <path>", "Override translations source path")
     .option("--dry-run", "Preview changes without applying")
     .option("--force-mode <mode>", "Conflict resolution: override, keep, ask, abort (default: ask)")
-    .action(async (options) => {
+    .option(
+      "--skip-unknown-locales",
+      "Push the other locales when local files hold locales the project does not have",
+    )
+    .option("--allow-empty", "Succeed when there are no translation files to push")
+    .action(async (options: PushOptions) => {
       try {
-        console.log("🔄 Loading configuration...");
-
-        const config = await ConfigLoader.load(options.config);
-
-        // apiKey is validated by ConfigLoader.load(), so it's guaranteed to be set
-        if (!config.apiKey) {
-          throw new Error("API key is required. Set COMVI_API_KEY environment variable.");
-        }
-
-        const apiClient = new ApiClient({
-          apiKey: config.apiKey,
-          apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
-        });
-
-        const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
-        const sync = new TranslationSync({
-          translationsPath: options.path || config.translationsPath || "./src/locales",
-          fileTemplate,
-          format: config.format || "json",
-        });
-
-        // Resolve filters: CLI flag > config > all (no merge).
-        const locs = resolveFilter(parseListFlag(options.locale), config.locales);
-        const nss = resolveFilter(parseListFlag(options.ns), config.namespaces);
-        const locales = locs.value;
-        const namespaces = nss.value;
-
-        if (locs.source === "config") {
-          console.log(`📄 Using locales from .comvirc.json: ${locs.value!.join(", ")}`);
-        }
-        if (nss.source === "config") {
-          console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
-        }
-
-        // Resolution: CLI flag > config > "ask". `--force-mode` deliberately declares no
-        // commander default; a default is always set, so it would shadow config.push.forceMode.
-        const forceMode: ForceMode = options.forceMode || config.push?.forceMode || "ask";
-
-        if (!["override", "keep", "ask", "abort"].includes(forceMode)) {
-          console.error(`✗ Invalid force-mode: ${forceMode}. Use: override, keep, ask, or abort`);
-          process.exit(EXIT_VALIDATION);
-        }
-
-        const defaultNamespace = isDefaultFileTemplate(fileTemplate)
-          ? await apiClient.fetchDefaultNamespace()
-          : undefined;
-
-        console.log("🔄 Reading local translation files...");
-        const localTranslations = await sync.readTranslations({
-          locales,
-          namespaces,
-          defaultNamespace,
-        });
-
-        if (Object.keys(localTranslations.translations).length === 0) {
-          console.log("⚠  No translation files found");
-          process.exit(0);
-        }
-
-        if (options.dryRun) {
-          console.log("\n📦 Push preview (dry run):");
-
-          const remoteTranslations = await apiClient.fetchTranslations({
-            locales,
-            namespaces,
-          });
-
-          const diff = sync.compareTranslations(
-            localTranslations.translations,
-            remoteTranslations.translations,
-          );
-
-          console.log(`  ✅ Created: ${diff.created} keys`);
-          console.log(`  📝 Updated: ${diff.updated} translations`);
-          console.log(`  ⚠️  Conflicts: ${diff.conflicts} keys`);
-
-          if (diff.conflicts > 0) {
-            console.log(`\n  Run with --force-mode override to overwrite remote values.`);
-            console.log(`  Run with --force-mode keep to upload only non-conflicting values.`);
-          }
-
-          process.exit(0);
-        }
-
-        let apiForceMode: ApiPushForceMode =
-          forceMode === "ask" ? "override" : (forceMode as ApiPushForceMode);
-        let preloadedRemote;
-        if (forceMode === "ask") {
-          const remoteTranslations = await apiClient.fetchTranslations({
-            locales,
-            namespaces,
-          });
-          preloadedRemote = remoteTranslations;
-          const diff = sync.compareTranslations(
-            localTranslations.translations,
-            remoteTranslations.translations,
-          );
-
-          apiForceMode = await promptConflictResolution(diff.conflicts);
-        }
-
-        console.log("🔄 Pushing translations to TMS...");
-
-        const result = await apiClient.pushTranslations({
-          translations: localTranslations.translations,
-          forceMode: apiForceMode,
-          preloadedRemote,
-          onProgress: reportPushProgress,
-        });
-
-        console.log(`\n✓ Push complete!`);
-        console.log(`  Created: ${result.created} keys`);
-        console.log(`  Updated: ${result.updated} translations`);
-        if (result.skipped > 0) {
-          console.log(`  Skipped: ${result.skipped} (conflicts with keep mode)`);
-        }
-
+        await runPush(options);
         process.exit(0);
       } catch (error) {
-        if (error instanceof Error) {
+        if (isInvalidForceMode(error)) {
+          console.error(`✗ ${error.message}`);
+        } else if (error instanceof Error) {
           console.error(`✗ Push failed: ${error.message}`);
         }
-        if (
-          isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
-          isTypegenError(error, ErrorCodes.CONFIG_INVALID)
-        ) {
-          process.exit(EXIT_VALIDATION);
-        }
-        process.exit(1);
+        process.exit(exitCodeFor(error));
       }
     });
 }
 
+export interface PushOptions {
+  config?: string;
+  locale?: string;
+  ns?: string;
+  path?: string;
+  dryRun?: boolean;
+  forceMode?: string;
+  skipUnknownLocales?: boolean;
+  allowEmpty?: boolean;
+  /** Passed to the commit's options; left out, the commit is as `comvi push` sends it. */
+  scheduleAutoMt?: boolean;
+}
+
+export interface PushDependencies {
+  /** Where progress lines go; `console.log` by default. Warnings stay on stderr. */
+  log?: (line: string) => void;
+  /** A configuration already loaded; skips loading it again. */
+  config?: ComviConfig;
+  /** A client already built from `config`. */
+  apiClient?: ApiClient;
+}
+
+export type PushRunResult =
+  /** Nothing to push under `allowEmpty`; no commit was sent. */
+  | { status: "empty" }
+  /** `dryRun`: what the push would send, against the platform's catalog now. */
+  | {
+      status: "preview";
+      diff: TranslationDiff;
+      /** The local catalog, locales in the project's spelling. */
+      local: TranslationData;
+      remote: TranslationData;
+      /** `undefined` when the platform did not list them. */
+      projectLocales: string[] | undefined;
+    }
+  | { status: "pushed"; result: PushResult };
+
+const INVALID_FORCE_MODE = "INVALID_FORCE_MODE";
+
+function isInvalidForceMode(error: unknown): error is TypegenError {
+  return error instanceof TypegenError && error.details?.reason === INVALID_FORCE_MODE;
+}
+
 /**
- * `pushTranslations` reports once, after the single bulk commit, so this prints
- * one summary line per push — and stays silent for a push that carries no
- * translation values.
+ * `comvi push` without the process: it returns what happened and throws what
+ * failed, and never exits.
  */
-function reportPushProgress(progress: PushProgress): void {
-  if (progress.total === 0) {
-    return;
+export async function runPush(
+  options: PushOptions,
+  deps: PushDependencies = {},
+): Promise<PushRunResult> {
+  const log = deps.log ?? ((line: string) => console.log(line));
+  let config = deps.config;
+  if (!config) {
+    log("🔄 Loading configuration...");
+    config = await ConfigLoader.load(options.config);
   }
 
-  console.log(
-    `  Progress: ${progress.completed}/${progress.total} ` +
-      `(created: ${progress.created}, updated: ${progress.updated}, skipped: ${progress.skipped})`,
+  // apiKey is validated by ConfigLoader.load(), so it's guaranteed to be set
+  if (!config.apiKey) {
+    throw new Error("API key is required. Set COMVI_API_KEY environment variable.");
+  }
+
+  const apiClient =
+    deps.apiClient ??
+    new ApiClient({
+      apiKey: config.apiKey,
+      apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
+      ...timeoutsFromEnv(),
+    });
+
+  const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
+  const sync = new TranslationSync({
+    translationsPath: options.path || config.translationsPath || DEFAULT_TRANSLATIONS_PATH,
+    fileTemplate,
+    format: config.format || "json",
+  });
+
+  // Resolve filters: CLI flag > config > all (no merge).
+  const locs = resolveFilter(parseListFlag(options.locale, "--locale"), config.locales);
+  const nss = resolveFilter(parseListFlag(options.ns, "--ns"), config.namespaces);
+  const locales = locs.value;
+  const namespaces = nss.value;
+
+  if (locs.source === "config") {
+    log(`📄 Using locales from .comvirc.json: ${locs.value!.join(", ")}`);
+  }
+  if (nss.source === "config") {
+    log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
+  }
+
+  // Resolution: CLI flag > config > "ask". `--force-mode` deliberately declares no
+  // commander default; a default is always set, so it would shadow config.push.forceMode.
+  const forceMode = (options.forceMode || config.push?.forceMode || "ask") as ForceMode;
+
+  if (!["override", "keep", "ask", "abort"].includes(forceMode)) {
+    throw new TypegenError(
+      `Invalid force-mode: ${forceMode}. Use: override, keep, ask, or abort`,
+      ErrorCodes.VALIDATION_FAILED,
+      undefined,
+      { reason: INVALID_FORCE_MODE },
+    );
+  }
+
+  const defaultNamespace = isDefaultFileTemplate(fileTemplate)
+    ? await apiClient.fetchDefaultNamespace()
+    : undefined;
+
+  log("🔄 Reading local translation files...");
+  const localTranslations = await sync.readTranslations({
+    locales,
+    namespaces,
+    defaultNamespace,
+  });
+
+  // Judge the local locales before anything is written: a locale the
+  // project does not have would otherwise be dropped by the platform
+  // while the push reports success.
+  const translations = localTranslations.translations;
+  const projectLocales =
+    Object.keys(translations).length > 0 ? await apiClient.fetchProjectLocales() : [];
+  const resolution = resolveLocales(Object.keys(translations), projectLocales ?? []);
+  if (resolution.duplicates.length > 0) {
+    const clashes = resolution.duplicates
+      .map(({ locale, spellings }) => `${spellings.join(" and ")} (both ${locale})`)
+      .join("; ");
+    throw new TypegenError(
+      `Two local files hold the same locale: ${clashes}. Keep one spelling.`,
+      ErrorCodes.VALIDATION_FAILED,
+    );
+  }
+  if (projectLocales === undefined) {
+    console.error(
+      "⚠  The platform did not list its locales; local locales were not checked before the push.",
+    );
+  } else {
+    if (resolution.unknown.length > 0) {
+      const list = resolution.unknown.join(", ");
+      if (!options.skipUnknownLocales) {
+        throw new TypegenError(
+          `Local locales the project does not have, or this API key may not write: ${list}. ` +
+            "Add them to the project, or pass --skip-unknown-locales to push the rest.",
+          ErrorCodes.VALIDATION_FAILED,
+        );
+      }
+      console.error(`⚠  Skipping locales the project does not have: ${list}`);
+      for (const locale of resolution.unknown) {
+        delete translations[locale];
+      }
+    }
+    for (const [local, project] of resolution.spelling) {
+      if (local !== project) {
+        translations[project] = translations[local];
+        delete translations[local];
+      }
+    }
+  }
+
+  // Counted after the locale check: skipped locales and empty files do
+  // not make a push.
+  const values = Object.values(translations).reduce(
+    (sum, namespaces) =>
+      sum + Object.values(namespaces).reduce((n, keys) => n + Object.keys(keys).length, 0),
+    0,
   );
+  if (values === 0) {
+    if (!options.allowEmpty) {
+      throw new TypegenError(
+        `No translation values to push under ${options.path || config.translationsPath || DEFAULT_TRANSLATIONS_PATH} ` +
+          `matching "${fileTemplate}". Check translationsPath and the filters, ` +
+          "or pass --allow-empty when an empty push is expected.",
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+    log("⚠  No translation values to push (--allow-empty)");
+    return { status: "empty" };
+  }
+
+  if (options.dryRun) {
+    log("\n📦 Push preview (dry run):");
+
+    const remoteTranslations = await apiClient.fetchTranslations({
+      locales,
+      namespaces,
+    });
+
+    const diff = sync.compareTranslations(
+      localTranslations.translations,
+      remoteTranslations.translations,
+    );
+
+    log(`  ✅ New values: ${diff.created}`);
+    log(`  ⚠️  Changed values: ${diff.conflicts} (they conflict with the platform)`);
+
+    if (diff.conflicts > 0) {
+      log(`\n  Run with --force-mode override to overwrite remote values.`);
+      log(`  Run with --force-mode keep to upload only non-conflicting values.`);
+    }
+
+    return {
+      status: "preview",
+      diff,
+      local: localTranslations.translations,
+      remote: remoteTranslations.translations,
+      projectLocales,
+    };
+  }
+
+  let apiForceMode: ApiPushForceMode =
+    forceMode === "ask" ? "override" : (forceMode as ApiPushForceMode);
+  let preloadedRemote;
+  if (forceMode === "ask") {
+    const remoteTranslations = await apiClient.fetchTranslations({
+      locales,
+      namespaces,
+    });
+    preloadedRemote = remoteTranslations;
+    const diff = sync.compareTranslations(
+      localTranslations.translations,
+      remoteTranslations.translations,
+    );
+
+    apiForceMode = await promptConflictResolution(diff.conflicts);
+  }
+
+  log("🔄 Pushing translations to TMS...");
+
+  const result = await apiClient.pushTranslations({
+    translations: localTranslations.translations,
+    forceMode: apiForceMode,
+    preloadedRemote,
+    scheduleAutoMt: options.scheduleAutoMt,
+  });
+
+  log(`\n✓ Push complete!`);
+  log(`  Keys created: ${result.created}`);
+  if (result.detailed) {
+    log(
+      `  Values: ${result.valuesCreated ?? 0} new, ${result.updated} changed, ` +
+        `${result.skipped} kept on the platform`,
+    );
+  }
+  const skippedLocales = result.skippedLocales ?? [];
+  if (skippedLocales.length > 0) {
+    console.error(
+      `⚠  Not imported: ${skippedLocales.join(", ")} — ` +
+        "not a project locale, or this API key may not write it.",
+    );
+  }
+
+  return { status: "pushed", result };
 }
 
 async function promptConflictResolution(conflictCount: number): Promise<ApiPushForceMode> {
+  // No conflict to resolve, so none may be overwritten: committed with `fail`,
+  // a value saved on the platform since the preview stops the push.
   if (conflictCount === 0) {
-    return "override";
+    return "abort";
   }
 
   if (!process.stdin.isTTY) {
-    throw new Error(
+    throw new TypegenError(
       "--force-mode ask requires an interactive terminal. Use --force-mode override, keep, or abort.",
+      ErrorCodes.VALIDATION_FAILED,
     );
   }
 

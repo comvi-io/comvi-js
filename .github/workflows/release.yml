@@ -66,7 +66,7 @@ jobs:
   # Changesets config.
   rc-pack:
     if: github.repository == 'comvi-io/comvi-js' && github.event_name == 'workflow_dispatch' && inputs.rc != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -133,8 +133,8 @@ jobs:
   rc-verify:
     needs: rc-pack
     if: needs.rc-pack.outputs.pending == 'true'
-    runs-on: ubuntu-latest
-    # Two full examples:e2e runs (seven frameworks, both modes).
+    runs-on: ubuntu-24.04
+    # Two full examples:e2e runs (seven gallery examples in both modes, the two SSR recipes in the default one).
     timeout-minutes: 90
     permissions:
       contents: read
@@ -202,8 +202,10 @@ jobs:
   rc-publish:
     needs: [rc-pack, rc-verify]
     if: needs.rc-pack.outputs.pending == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    # The publish step waits up to 10 min for npm to show each accepted
+    # version (see the GA publish job); setup and 12 publishes take ~5 min.
+    timeout-minutes: 25
     permissions:
       contents: read
       id-token: write
@@ -249,7 +251,7 @@ jobs:
   # scripts/release-workflow.test.mjs executes this step's shell.
   ga-guard:
     if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
     steps:
@@ -267,7 +269,7 @@ jobs:
   version:
     needs: ga-guard
     if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
@@ -307,7 +309,7 @@ jobs:
   pack:
     needs: ga-guard
     if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -388,8 +390,8 @@ jobs:
   verify:
     needs: pack
     if: needs.pack.outputs.pending == 'true'
-    runs-on: ubuntu-latest
-    # Two full examples:e2e runs (seven frameworks, both modes).
+    runs-on: ubuntu-24.04
+    # Two full examples:e2e runs (seven gallery examples in both modes, the two SSR recipes in the default one).
     timeout-minutes: 90
     permissions:
       contents: read
@@ -460,8 +462,11 @@ jobs:
   publish:
     needs: [pack, verify]
     if: needs.pack.outputs.pending == 'true' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    # Setup and 12 publishes take ~5 min, the wait for npm to show each
+    # accepted version up to 10 min after its publish, the jsDelivr purge up
+    # to 5 min: 30 leaves room for promotion and tags.
+    timeout-minutes: 30
     permissions:
       contents: write
       id-token: write
@@ -506,7 +511,9 @@ jobs:
       # already at another commit is refused, and for versions already on
       # npm that is checked BEFORE publishing, so a newer commit never
       # completes an older train. `published=true` with the whole set only
-      # when complete; otherwise `published=false` and exit 1.
+      # when complete; otherwise `published=false` and exit 1. A version npm
+      # accepted is waited for up to 10 min before it counts as MISSING: npm
+      # showed 0.6.0's react about 4 min after accepting it.
       # "Re-run failed jobs" skips what npm has and finishes the rest.
       - name: Publish the verified tarballs
         id: publish

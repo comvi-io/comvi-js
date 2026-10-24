@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * `pnpm examples:e2e` — one browser scenario, run against all seven examples.
+ * `pnpm examples:e2e` — one browser scenario, run against the seven gallery
+ * examples, and `ssr-recipe.spec.ts` against the two SSR recipes.
  *
  * `examples:verify` proves each example installs, builds and typechecks
  * against the LOCAL tarballs. This goes one step further and opens each built
  * app in Chromium, so "the switcher works in Svelte" stops being something the
- * owner checks by hand seven times. The install path is the same one, reused
+ * owner checks by hand nine times. The install path is the same one, reused
  * rather than re-implemented (`examples-verify.mjs`, `docs-snippets/link-sdk.mjs`):
  *
  *   1. build the workspace and pack every package (skip with --no-build/--no-pack);
@@ -48,7 +49,10 @@
  * default (10.x), which accepted overrides pnpm 9 rejects; `withOverrides` in
  * `examples-verify.mjs` says why the overrides are now keyed by declared spec.
  *
- * Each example runs up to three builds of the same copy: `main` (every step
+ * `sveltekit` and `solidstart` run `ssr-recipe.spec.ts` instead, on three
+ * builds of their own (`recipePhases`, README "The SSR recipes"), and `--cdn`
+ * leaves them out. Every other example runs up to three builds of the same
+ * copy: `main` (every step
  * but k2, s, z and the CDN-steering steps), `cdn-down` under `--cdn` (k2, z,
  * and g again as g2), and `f15` for next and nuxt without `--cdn` (step s,
  * against the `F15_VARIANT` edit of the copy). Under `--cdn` each CDN-steering
@@ -106,6 +110,7 @@ import {
   CDN_CONTROL_STEPS,
   CDN_MARK,
   F15_VARIANT,
+  RECIPE_VARIANTS,
   STEPS,
   allPassed,
   applyExpectedFailures,
@@ -117,6 +122,7 @@ import {
   enforceSkipMatrix,
   fileDigest,
   freePort,
+  isRecipe,
   nuxtCatalogChunks,
   parseArgs,
   renderFindings,
@@ -330,7 +336,13 @@ const PHASES = {
       { args: ["--grep", `\\b${step}: `], expect: [step], rename: {} },
     ]),
   ),
+  // sveltekit, solidstart: `ssr-recipe.spec.ts`, then each RECIPE_VARIANTS build.
+  recipe: { args: ["--grep-invert", "\\b(e|e2): "], expect: ["a", "b", "c", "d"], rename: {} },
+  pressure: { args: ["--grep", "\\b(a|e): "], expect: ["a", "e"], rename: { a: "a2" } },
+  shared: { args: ["--grep", "\\be2: "], expect: ["e2"], rename: {} },
 };
+
+const specFor = (kind) => (isRecipe(kind) ? "ssr-recipe.spec.ts" : "scenario.spec.ts");
 
 /** One Playwright run of the scenario against a served example. */
 async function runScenario(
@@ -366,6 +378,7 @@ async function runScenario(
       E2E_BASE_URL: baseUrl,
       E2E_FRAMEWORK: example.name,
       E2E_KIND: kind,
+      E2E_SPEC: specFor(kind),
       E2E_START_PATH: startPath(kind),
       E2E_LOCALES_DIR: LOCALES_DIR,
       E2E_CONSOLE_LOG: consoleLog,
@@ -464,13 +477,7 @@ async function e2eExample(example, packages, options, cdn) {
   const log = (message) => console.error(`examples-e2e: ${example.name}: ${message}`);
   cdn?.reset();
   const firstRequest = cdn ? cdn.requests.length : 0;
-  const failAll = (steps, error) => {
-    // The server never came up, or Playwright never reported: every step is a
-    // failure with the same cause, rather than a blank that reads as "ok".
-    for (const step of steps)
-      result.steps[step] = { status: "fail", message: firstLine(error.message) };
-    console.error(`\n${example.name}: ${tail(error.message, 60)}\n`);
-  };
+  const failAll = (steps, error) => failSteps(result, example, steps, error);
   try {
     copyTree(example.dir, target);
     const manifestPath = path.join(target, "package.json");
@@ -513,6 +520,11 @@ async function e2eExample(example, packages, options, cdn) {
     } catch (error) {
       result.build = { status: "fail", message: firstLine(error.message) };
       console.error(`\n${example.name}: ${tail(error.message, 60)}\n`);
+      return result;
+    }
+
+    if (isRecipe(kind)) {
+      await recipePhases(ctx, result);
       return result;
     }
 
@@ -598,8 +610,68 @@ async function e2eExample(example, packages, options, cdn) {
   }
 }
 
+/**
+ * The SSR recipes: their own typecheck (f), the scenario on the example as
+ * committed, then steps a (as a2) and e against the `pressure` variant and e2
+ * against `shared`, each rebuilt from the same copy.
+ */
+async function recipePhases(ctx, result) {
+  const { kind, target, log, example } = ctx;
+  log("typecheck…");
+  const typecheck = await run("pnpm", ["run", "typecheck"], { cwd: target, env: childEnv(kind) });
+  result.steps.f =
+    typecheck.status === 0
+      ? { status: "pass" }
+      : { status: "fail", message: firstLine(tail(typecheck.output, 20)) };
+  if (typecheck.status !== 0) console.error(`\n${example.name}: ${tail(typecheck.output, 40)}\n`);
+
+  try {
+    Object.assign(result.steps, await buildServeRun(ctx, "recipe", null));
+    result.build = { status: "pass" };
+  } catch (error) {
+    const built = !/^pnpm run build/.test(error.message);
+    result.build = built
+      ? { status: "pass" }
+      : { status: "fail", message: firstLine(error.message) };
+    if (!built) return;
+    failSteps(result, example, ["a", "b", "c", "d"], error);
+  }
+  for (const [phase, steps] of [
+    ["pressure", ["a2", "e"]],
+    ["shared", ["e2"]],
+  ]) {
+    try {
+      applyVariant(target, RECIPE_VARIANTS[kind][phase]);
+      Object.assign(result.steps, await buildServeRun(ctx, phase, null));
+    } catch (error) {
+      failSteps(result, example, steps, error);
+    }
+  }
+}
+
+/**
+ * The server never came up, or Playwright never reported: every step is a
+ * failure with the same cause, rather than a blank that reads as "ok".
+ */
+function failSteps(result, example, steps, error) {
+  for (const step of steps) {
+    result.steps[step] = { status: "fail", message: firstLine(error.message) };
+  }
+  console.error(`\n${example.name}: ${tail(error.message, 60)}\n`);
+}
+
 function firstLine(message) {
   return message.split("\n")[0].slice(0, 300);
+}
+
+/** The example's kind, or null when it has none: `e2eExample` reports that as its build failure. */
+function kindOf(example) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(example.dir, "package.json"), "utf8"));
+    return exampleKind(manifest, `examples/${example.name}`);
+  } catch {
+    return null;
+  }
 }
 
 /** Fail fast, with the fix, when Playwright's Chromium is not downloaded. */
@@ -625,6 +697,20 @@ async function main(argv) {
       return 2;
     }
     examples = examples.filter((entry) => wanted.has(entry.name));
+  }
+  if (options.cdn) {
+    // The SSR recipes read bundled catalogs only: there is no CDN to point them at.
+    const recipes = examples.filter((entry) => isRecipe(kindOf(entry)));
+    if (recipes.length > 0) {
+      console.error(
+        `examples-e2e: --cdn leaves out ${recipes.map((entry) => entry.name).join(", ")} (bundled catalogs only)`,
+      );
+    }
+    examples = examples.filter((entry) => !recipes.includes(entry));
+    if (examples.length === 0) {
+      console.error("examples-e2e: nothing left to run under --cdn");
+      return 2;
+    }
   }
   await assertChromium();
 

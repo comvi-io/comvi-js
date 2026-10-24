@@ -369,6 +369,67 @@ describe("useTranslations — saving", () => {
     });
   });
 
+  describe("which languages a save sends", () => {
+    const threeLanguages = (): TranslationData => ({
+      key: "cart.continue",
+      isPlural: false,
+      translations: {
+        en: { other: "Continue shopping" },
+        de: { other: "Mit dem Einkaufen fortfahren" },
+        fr: { other: "Continuer mes achats" },
+      },
+      sourceValues: {
+        en: "Continue shopping",
+        de: "Mit dem Einkaufen fortfahren",
+        fr: "Continuer mes achats",
+      },
+    });
+
+    it("one language edited → only that language is sent", async () => {
+      const manager = createManager();
+      getTranslationMock.mockResolvedValue(threeLanguages());
+      saveTranslationMock.mockResolvedValue(threeLanguages());
+      await manager.loadTranslation("cart.continue", "default");
+
+      manager.updateTranslation("de", "other", "Weiter einkaufen");
+      await manager.saveTranslation();
+
+      expect(saveTranslationMock.mock.calls[0]?.[2]).toEqual({
+        de: { other: "Weiter einkaufen" },
+      });
+    });
+
+    it("value typed back to what was stored → the language is not sent", async () => {
+      const manager = createManager();
+      getTranslationMock.mockResolvedValue(threeLanguages());
+      saveTranslationMock.mockResolvedValue(threeLanguages());
+      await manager.loadTranslation("cart.continue", "default");
+
+      manager.updateTranslation("de", "other", "Weiter einkaufen");
+      manager.updateTranslation("fr", "other", "x");
+      manager.updateTranslation("fr", "other", "Continuer mes achats");
+      await manager.saveTranslation();
+
+      expect(Object.keys(saveTranslationMock.mock.calls[0]?.[2] ?? {})).toEqual(["de"]);
+    });
+
+    it("plural mode switched on → every language is sent rebuilt", async () => {
+      const manager = createManager();
+      getTranslationMock.mockResolvedValue(threeLanguages());
+      saveTranslationMock.mockResolvedValue(threeLanguages());
+      await manager.loadTranslation("cart.continue", "default");
+
+      manager.togglePluralMode(true);
+      await manager.saveTranslation();
+
+      expect(Object.keys(saveTranslationMock.mock.calls[0]?.[2] ?? {}).sort()).toEqual([
+        "de",
+        "en",
+        "fr",
+      ]);
+    });
+  });
+
   describe("a save that settles after its editing session ended", () => {
     function deferredSave() {
       let resolve!: (value: TranslationData) => void;

@@ -1,0 +1,280 @@
+{
+  "$comment": "J2's mocks of POST /v1/projects/:projectId/mt/fill and GET /v1/projects/:projectId/keys/batch/mt/:jobId/status. Kept in the shapes of lot P3's fixture (platform-contract.json, copied from the platform's mt-fill.response.json); translateApi.test.ts checks both against each other.",
+  "fill": {
+    "enqueued": {
+      "status": 202,
+      "body": {
+        "jobs": [
+          {
+            "jobId": "fill-123-de-3f1c",
+            "targetLocaleCode": "de",
+            "keyCount": 2,
+            "owned": true
+          },
+          {
+            "jobId": "auto-mt-123-uk-77",
+            "targetLocaleCode": "uk",
+            "keyCount": 1,
+            "owned": false
+          }
+        ],
+        "pairs": {
+          "toTranslate": 2,
+          "alreadyInFlight": 1,
+          "alreadyTranslated": 4,
+          "noSource": 0
+        },
+        "skippedLocales": [
+          {
+            "code": "ja",
+            "reason": "forbidden"
+          }
+        ],
+        "failedLocales": [],
+        "estimate": {
+          "credits": 3,
+          "approximate": false
+        },
+        "credits": {
+          "exhausted": false
+        }
+      }
+    },
+    "dryRun": {
+      "status": 200,
+      "body": {
+        "jobs": [],
+        "pairs": {
+          "toTranslate": 2,
+          "alreadyInFlight": 0,
+          "alreadyTranslated": 4,
+          "noSource": 0
+        },
+        "skippedLocales": [],
+        "failedLocales": [],
+        "estimate": {
+          "credits": 3,
+          "approximate": true
+        },
+        "credits": {
+          "exhausted": false
+        }
+      }
+    },
+    "nothingToDo": {
+      "status": 200,
+      "body": {
+        "jobs": [],
+        "pairs": {
+          "toTranslate": 0,
+          "alreadyInFlight": 0,
+          "alreadyTranslated": 6,
+          "noSource": 0
+        },
+        "skippedLocales": [],
+        "failedLocales": [],
+        "estimate": {
+          "credits": 0,
+          "approximate": false
+        },
+        "credits": {
+          "exhausted": false
+        }
+      }
+    },
+    "overLimit": {
+      "status": 422,
+      "body": {
+        "code": "MT_FILL_LIMIT",
+        "message": "2400 key × locale pairs to translate, over the limit of 1000",
+        "meta": {
+          "maxPairs": 1000,
+          "pairs": {
+            "toTranslate": 2400,
+            "alreadyInFlight": 0,
+            "alreadyTranslated": 0,
+            "noSource": 0
+          },
+          "estimate": {
+            "credits": 3100,
+            "approximate": true
+          }
+        }
+      }
+    },
+    "creditsExhausted": {
+      "status": 403,
+      "body": {
+        "code": "LIMIT_EXCEEDED",
+        "message": "Machine translation credits are used up",
+        "meta": {
+          "metric": "mt_credits",
+          "current": 0,
+          "limit": 0,
+          "jobs": [
+            {
+              "jobId": "auto-mt-123-uk-77",
+              "targetLocaleCode": "uk",
+              "keyCount": 1,
+              "owned": false
+            }
+          ]
+        }
+      }
+    },
+    "missingScope": {
+      "status": 403,
+      "body": {
+        "code": "FORBIDDEN",
+        "message": "API key does not have required permission: machine_translation.use",
+        "meta": {
+          "requiredPermission": "machine_translation.use",
+          "requiredScope": "mt:use",
+          "hint": "Please create a new API key with the required permissions"
+        }
+      }
+    },
+    "forbiddenLocale": {
+      "status": 403,
+      "body": {
+        "code": "FORBIDDEN",
+        "message": "No permission to use machine translation for locale ja"
+      }
+    },
+    "unknownNamespace": {
+      "status": 422,
+      "body": {
+        "code": "NAMESPACE_NOT_FOUND",
+        "message": "Unknown namespace: nope"
+      }
+    },
+    "routeNotFound": {
+      "status": 404,
+      "body": {
+        "message": "Route POST:/v1/projects/123/mt/fill not found",
+        "error": "Not Found",
+        "statusCode": 404
+      }
+    },
+    "projectNotFound": {
+      "status": 404,
+      "body": {
+        "code": "PROJECT_NOT_FOUND",
+        "message": "Project not found"
+      }
+    },
+    "unknownLocale": {
+      "status": 422,
+      "body": {
+        "code": "LOCALE_NOT_FOUND",
+        "message": "Unknown locale: xx"
+      }
+    },
+    "nothingNewInFlight": {
+      "status": 200,
+      "body": {
+        "jobs": [
+          {
+            "jobId": "auto-mt-123-de-9",
+            "targetLocaleCode": "de",
+            "keyCount": 2,
+            "owned": false
+          }
+        ],
+        "pairs": {
+          "toTranslate": 0,
+          "alreadyInFlight": 2,
+          "alreadyTranslated": 4,
+          "noSource": 0
+        },
+        "skippedLocales": [],
+        "failedLocales": [],
+        "estimate": {
+          "credits": 0,
+          "approximate": false
+        },
+        "credits": {
+          "exhausted": true
+        }
+      }
+    },
+    "busy": {
+      "status": 409,
+      "body": {
+        "code": "MT_FILL_BUSY",
+        "message": "Another fill request holds this project's lock"
+      }
+    }
+  },
+  "status": {
+    "waiting": {
+      "status": 200,
+      "body": {
+        "jobId": "fill-123-de-3f1c",
+        "status": "waiting",
+        "progress": 0
+      }
+    },
+    "active": {
+      "status": 200,
+      "body": {
+        "jobId": "fill-123-de-3f1c",
+        "status": "active",
+        "progress": 50
+      }
+    },
+    "completed": {
+      "status": 200,
+      "body": {
+        "jobId": "fill-123-de-3f1c",
+        "status": "completed",
+        "progress": 100,
+        "result": {
+          "processed": 2,
+          "failed": 0,
+          "alreadyTranslated": 0,
+          "skippedFilledMeanwhile": 0,
+          "errors": [],
+          "duration": 120
+        }
+      }
+    },
+    "completedWithErrors": {
+      "status": 200,
+      "body": {
+        "jobId": "fill-123-de-3f1c",
+        "status": "completed",
+        "progress": 100,
+        "result": {
+          "processed": 1,
+          "failed": 1,
+          "duration": 120,
+          "alreadyTranslated": 0,
+          "skippedFilledMeanwhile": 0,
+          "errors": [
+            {
+              "keyId": 2,
+              "key": "farewell",
+              "message": "Insufficient MT credits",
+              "type": "insufficient_credits"
+            }
+          ]
+        }
+      }
+    },
+    "failed": {
+      "status": 200,
+      "body": {
+        "jobId": "fill-123-de-3f1c",
+        "status": "failed",
+        "error": "Worker crashed"
+      }
+    },
+    "gone": {
+      "status": 404,
+      "body": {
+        "error": "Job not found"
+      }
+    }
+  }
+}
