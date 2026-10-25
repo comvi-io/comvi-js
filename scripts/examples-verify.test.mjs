@@ -11,6 +11,7 @@ import {
   assertPinnedPnpm,
   declaredComviDeps,
   entryChunk,
+  exampleInstallEnv,
   exampleKind,
   measureFiles,
   nextFirstLoad,
@@ -20,8 +21,10 @@ import {
   parseArgs,
   provenanceLine,
   staticImportClosure,
+  tempInstallEnv,
   withOverrides,
 } from "./examples-verify.mjs";
+import { childEnv } from "./examples-e2e/run.mjs";
 
 /**
  * The pure helpers only. The install/build path is not tested here: it packs
@@ -124,6 +127,45 @@ test("withOverrides pins the temp install to the repo's packageManager", () => {
   assert.equal(PINNED_PNPM, root);
   assert.match(PINNED_PNPM, /^pnpm@\d+\.\d+\.\d+/);
   assert.equal(result.packageManager, PINNED_PNPM);
+});
+
+test("tempInstallEnv drops every spelling of the release age, keeps the rest, adds extra", () => {
+  const env = {
+    PATH: "/bin",
+    npm_config_minimum_release_age: "1440",
+    pnpm_config_minimum_release_age: "1440",
+    "npm_config_minimum-release-age": "1440",
+    NPM_CONFIG_MINIMUM_RELEASE_AGE: "1440",
+    npm_config_minimum_release_age_exclude: "@comvi/*",
+    npm_config_registry: "r",
+  };
+
+  const result = tempInstallEnv(env, { CI: "1" });
+
+  assert.deepEqual(result, { PATH: "/bin", npm_config_registry: "r", CI: "1" });
+});
+
+test("examples:verify installs without the release age the repo exported", () => {
+  const env = { PATH: "/bin", npm_config_minimum_release_age: "1440" };
+
+  const result = exampleInstallEnv("next", env);
+
+  assert.deepEqual(result, { PATH: "/bin", CI: "1", NEXT_TELEMETRY_DISABLED: "1" });
+});
+
+test("examples:e2e children run without the release age the repo exported", (t) => {
+  process.env.npm_config_minimum_release_age = "1440";
+  process.env.pnpm_config_minimum_release_age = "1440";
+  t.after(() => {
+    delete process.env.npm_config_minimum_release_age;
+    delete process.env.pnpm_config_minimum_release_age;
+  });
+
+  const result = childEnv("vite");
+
+  assert.equal(result.npm_config_minimum_release_age, undefined);
+  assert.equal(result.pnpm_config_minimum_release_age, undefined);
+  assert.equal(result.CI, "1");
 });
 
 /** A directory holding a `pnpm` that prints `version`, first on PATH. */

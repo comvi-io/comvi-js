@@ -21,9 +21,12 @@ jobs:
           fetch-depth: 0
 
       # A changeset is required only for changes that reach a published
-      # artifact: `packages/*/src/**` or a package's own `package.json`.
-      # Tests, docs and config under packages/ do not ship, so they do not
-      # need one.
+      # artifact: `packages/*/src/**` or a package's own `package.json`,
+      # unless that manifest changed in `devDependencies` alone (a
+      # Dependabot dev bump). Tests, docs and config under packages/ do not
+      # ship, so they do not need one. The filter is
+      # .github/scripts/published-changes.mjs; it runs on the runner's own
+      # Node, before setup-node, and uses no dependencies.
       - name: Verify changeset for published package changes
         if: github.event_name == 'pull_request'
         run: |
@@ -33,14 +36,10 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
-          PUBLISHED_CHANGES="$(
-            echo "$CHANGED_FILES" \
-              | grep -E '^packages/[^/]+/(src/|package\.json$)' \
-              || true
-          )"
+          PUBLISHED_CHANGES="$(node .github/scripts/published-changes.mjs "origin/${{ github.base_ref }}")"
 
           if [ -z "$PUBLISHED_CHANGES" ]; then
-            echo "No changes to packages/*/src/** or packages/*/package.json. Skipping changeset check."
+            echo "No changes to packages/*/src/** or packages/*/package.json beyond devDependencies. Skipping changeset check."
             exit 0
           fi
 
@@ -64,9 +63,8 @@ jobs:
           echo "$CHANGESET_FILES"
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       # setup-node stays on v5: v6 limits automatic caching to npm,
       # and this workflow relies on `cache: pnpm`
@@ -126,9 +124,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -155,9 +152,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -245,9 +241,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -368,9 +363,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5

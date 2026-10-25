@@ -1,0 +1,113 @@
+# Dependency update PRs for the pnpm workspace (apps/*, packages/*, test-apps/*,
+# tooling/*), which `/` covers through the root lockfile.
+#
+# examples/* are deliberately left out: they sit outside the workspace with no
+# lockfile, so StackBlitz and `npm install` already resolve the newest version
+# inside each caret range. Dependabot would only rewrite those ranges: churn
+# for a minor, and for a major a change that needs `pnpm examples:verify` /
+# `pnpm examples:e2e`, which CI does not run. The same holds for scripts/size-compare and
+# scripts/bundler-matrix/app, which are measurement fixtures.
+#
+# `cooldown` keeps Dependabot from proposing a version that pnpm's
+# `minimumReleaseAge` (one day, pnpm-workspace.yaml) would refuse to resolve.
+#
+# The changeset guard in ci.yml lets a PR through without a changeset when a
+# package.json changed only in devDependencies. A PR that bumps a RUNTIME
+# dependency of a published package (@comvi/cli: commander, eventsource;
+# @comvi/nuxt: @nuxt/kit, h3; @comvi/next: server-only) still fails it until a
+# human adds a changeset.
+#
+# Dependabot reads this file from the default branch (main), so it does
+# nothing until develop is merged into main.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+      time: "06:00"
+      timezone: Europe/Kyiv
+    open-pull-requests-limit: 5
+    rebase-strategy: disabled
+    cooldown:
+      default-days: 2
+    groups:
+      major-updates:
+        update-types: ["major"]
+      framework-peers:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+          - "react-router-dom"
+          - "vue"
+          - "vue-router"
+          - "@vue/*"
+          - "svelte"
+          - "@sveltejs/*"
+          - "solid-js"
+          - "@solidjs/*"
+          - "next"
+          - "@next/*"
+          - "nuxt"
+          - "@nuxt/*"
+        update-types: ["minor", "patch"]
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@testing-library/*"
+          - "playwright"
+          - "@playwright/*"
+          - "happy-dom"
+          - "msw"
+          - "@stryker-mutator/*"
+        update-types: ["minor", "patch"]
+      build-tools:
+        patterns:
+          - "vite"
+          - "vite-plugin-*"
+          - "@vitejs/*"
+          - "turbo"
+          - "esbuild"
+          - "terser"
+          - "typescript"
+          - "vue-tsc"
+          - "svelte-check"
+          - "@arethetypeswrong/cli"
+          - "publint"
+          - "@changesets/*"
+        update-types: ["minor", "patch"]
+      lint-format:
+        patterns:
+          - "eslint"
+          - "eslint-*"
+          - "@eslint/*"
+          - "@typescript-eslint/*"
+          - "*-eslint-parser"
+          - "prettier"
+          - "globals"
+          - "husky"
+          - "lint-staged"
+        update-types: ["minor", "patch"]
+      misc-minor-patch:
+        patterns:
+          - "*"
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+      time: "06:00"
+      timezone: Europe/Kyiv
+    open-pull-requests-limit: 5
+    rebase-strategy: disabled
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
+      actions-major:
+        update-types: ["major"]

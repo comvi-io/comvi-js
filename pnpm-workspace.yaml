@@ -3,3 +3,32 @@ packages:
   - "packages/*"
   - "test-apps/*"
   - "tooling/*"
+
+# pnpm 10 runs no dependency lifecycle script unless it is listed here.
+# esbuild's postinstall checks that the platform binary matches the JS API and
+# swaps the `esbuild` bin shim for that binary.
+onlyBuiltDependencies:
+  - esbuild
+
+# Build scripts reviewed and deliberately NOT run (listing them keeps
+# `pnpm install` from warning about them):
+# - @parcel/watcher: compiles from source only when
+#   npm_config_build_from_source=true; otherwise it uses the prebuilt binary
+#   that arrives as an optional dependency.
+# - msw: copies mockServiceWorker.js into `msw.workerDirectory`, which no
+#   package here sets; the tests use msw/node.
+# - svelte-preprocess: prints a notice, nothing else.
+# - vue-demi: re-points its entry at Vue 2 when it finds Vue 2; the published
+#   entry already targets Vue 3, the only Vue here.
+ignoredBuiltDependencies:
+  - "@parcel/watcher"
+  - msw
+  - svelte-preprocess
+  - vue-demi
+
+# Supply-chain delay: a version must be on the registry for a day before pnpm
+# resolves it (pnpm >= 10.16). Applies when resolving, not to versions the
+# lockfile already holds. `pnpm run` hands it to scripts as
+# npm_config_minimum_release_age; the examples' temp installs drop it
+# (`tempInstallEnv` in scripts/examples-verify.mjs).
+minimumReleaseAge: 1440
