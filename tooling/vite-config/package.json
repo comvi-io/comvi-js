@@ -23,7 +23,7 @@
   "devDependencies": {
     "@types/node": "^22.13.0",
     "typescript": "~6.0.2",
-    "vite": "^8.0.3"
+    "vite": "^8.3.5"
   },
   "homepage": "https://comvi.io",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",

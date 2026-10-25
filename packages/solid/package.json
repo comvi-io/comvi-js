@@ -68,18 +68,18 @@
     "@comvi/vite-config": "workspace:*",
     "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^22.13.0",
-    "@typescript-eslint/eslint-plugin": "^8.58.0",
-    "@typescript-eslint/parser": "^8.58.0",
-    "@vitest/coverage-v8": "^4.1.2",
-    "eslint": "^10.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.72.0",
+    "@typescript-eslint/parser": "^8.72.0",
+    "@vitest/coverage-v8": "^4.1.12",
+    "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
-    "happy-dom": "^20.8.9",
+    "happy-dom": "^20.14.6",
     "prettier": "^3.8.1",
-    "solid-js": "^1.9.12",
+    "solid-js": "^1.9.17",
     "typescript": "~6.0.2",
-    "vite": "^8.0.3",
+    "vite": "^8.3.5",
     "vite-plugin-dts": "^4.5.4",
-    "vite-plugin-solid": "^2.11.11",
-    "vitest": "^4.1.2"
+    "vite-plugin-solid": "^2.11.14",
+    "vitest": "^4.1.12"
   }
 }
