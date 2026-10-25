@@ -21,7 +21,9 @@ see in the browser is what the release was tested on.
 | [`nuxt`](./nuxt)       | `@comvi/nuxt`               | server-rendered, then hydrated; locale in the URL (`/uk`) | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/nuxt)    |
 
 In `next` and `nuxt`, `/en`, `/uk` and `/de` are three real addresses: the switcher navigates, and
-the HTML that comes back over the wire is already in that language.
+the HTML that comes back over the wire is already in that language. Next.js 15.5 may not start in
+StackBlitz WebContainers ([vercel/next.js#84026](https://github.com/vercel/next.js/issues/84026));
+if the `next` example does not open there, run it locally.
 
 ## What every example shows
 
