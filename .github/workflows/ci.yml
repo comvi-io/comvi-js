@@ -24,43 +24,13 @@ jobs:
       # artifact: `packages/*/src/**` or a package's own `package.json`,
       # unless that manifest changed in `devDependencies` alone (a
       # Dependabot dev bump). Tests, docs and config under packages/ do not
-      # ship, so they do not need one. The filter is
-      # .github/scripts/published-changes.mjs; it runs on the runner's own
-      # Node, before setup-node, and uses no dependencies.
+      # ship, so they do not need one. The check is
+      # .github/scripts/published-changes.mjs, which also requires the changeset
+      # to be added or edited (a deletion does not count); it runs on the
+      # runner's own Node, before setup-node, and uses no dependencies.
       - name: Verify changeset for published package changes
         if: github.event_name == 'pull_request'
-        run: |
-          set -euo pipefail
-
-          CHANGED_FILES="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-
-          PUBLISHED_CHANGES="$(node .github/scripts/published-changes.mjs "origin/${{ github.base_ref }}")"
-
-          if [ -z "$PUBLISHED_CHANGES" ]; then
-            echo "No changes to packages/*/src/** or packages/*/package.json beyond devDependencies. Skipping changeset check."
-            exit 0
-          fi
-
-          echo "Published-surface changes detected:"
-          echo "$PUBLISHED_CHANGES"
-
-          CHANGESET_FILES="$(
-            echo "$CHANGED_FILES" \
-              | grep -E '^\.changeset/.*\.md$' \
-              | grep -v '^\.changeset/README\.md$' \
-              || true
-          )"
-
-          if [ -z "$CHANGESET_FILES" ]; then
-            echo "Published package changes detected but no changeset file was added."
-            echo "Run 'pnpm changeset' and commit the generated .changeset/*.md file."
-            exit 1
-          fi
-
-          echo "Changeset files detected:"
-          echo "$CHANGESET_FILES"
+        run: node .github/scripts/published-changes.mjs "origin/${{ github.base_ref }}"
 
       - name: Setup pnpm
         # No `version:` input: the action reads `packageManager` from package.json.

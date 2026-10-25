@@ -85,8 +85,9 @@ build.
 Any change touching `packages/*/src/**` or a package's own `package.json` needs a
 `.changeset/*.md` entry in the same pull request. The one exemption is a `package.json` that
 changed in `devDependencies` alone, which reaches no consumer
-(`.github/scripts/published-changes.mjs`). A pull request without a needed changeset fails
-before anything else runs.
+(`.github/scripts/published-changes.mjs`). The changeset must be added or edited in the pull
+request; deleting one does not count. A pull request without a needed changeset fails before
+anything else runs.
 
 ```bash
 pnpm changeset        # pick packages, pick a bump, write the summary
