@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -16,6 +16,7 @@ import {
   onlyDevDependenciesChanged,
   parseNameStatus,
   publishedChanges,
+  publishedPath,
 } from "./published-changes.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./published-changes.mjs", import.meta.url));
@@ -118,6 +119,23 @@ test("onlyDevDependenciesChanged: whitespace-only reformat → true", () => {
   assert.equal(onlyDevDependenciesChanged(json(BASE), JSON.stringify(BASE)), true);
 });
 
+/** Fixture manifests: two published packages with `files`, one private package without. */
+const CORE = {
+  name: "@comvi/core",
+  version: "0.7.0",
+  files: ["dist", "LICENSE"],
+  scripts: { build: "vite build && node ../../tooling/qualify.mjs dist" },
+  devDependencies: { vitest: "^4.1.0" },
+};
+const CLI = {
+  name: "@comvi/cli",
+  version: "0.7.0",
+  files: ["dist", "bin", "LICENSE"],
+  bin: { comvi: "./bin/comvi.js" },
+  scripts: { build: "vite build" },
+};
+const TYPEGEN = { name: "@comvi/typegen", private: true, scripts: { build: "vite build" } };
+
 /**
  * The CLI against a real repository: a base commit, then `change(dir)` on a
  * branch. Returns the exit status and output of `node published-changes.mjs <baseRef>`.
@@ -142,8 +160,19 @@ function guardAfter(change, baseRef = "main") {
   };
   try {
     git("init", "-q", "-b", "main");
-    write("packages/core/package.json", json(BASE));
+    write("packages/core/package.json", json(CORE));
     write("packages/core/src/x.ts", "export const x = 1;\n");
+    write("packages/core/vite.config.ts", "export default {};\n");
+    write("packages/core/tests/x.test.ts", "// test\n");
+    write("packages/core/README.md", "# core\n");
+    write("packages/cli/package.json", json(CLI));
+    write("packages/cli/bin/comvi.js", "#!/usr/bin/env node\n");
+    write("packages/cli/src/index.ts", "export {};\n");
+    write("packages/typegen/package.json", json(TYPEGEN));
+    write("packages/typegen/lib/emit.ts", "export {};\n");
+    write("packages/typegen/tests/emit.test.ts", "// test\n");
+    write("tooling/qualify.mjs", "// qualify\n");
+    write("tooling/unrelated.mjs", "// unrelated\n");
     write(".changeset/README.md", "# Changesets\n");
     write(".changeset/old-entry.md", '---\n"@comvi/core": patch\n---\n\nOld.\n');
     git("add", "-A");
@@ -161,7 +190,7 @@ function guardAfter(change, baseRef = "main") {
 
 test("CLI: a source file moved out of src/ without a changeset → fails, naming the removed path", () => {
   const result = guardAfter(({ dir, git }) => {
-    mkdirSync(path.join(dir, "packages/core/tests"));
+    mkdirSync(path.join(dir, "packages/core/tests"), { recursive: true });
     git("mv", "packages/core/src/x.ts", "packages/core/tests/x.ts");
   });
 
@@ -214,7 +243,7 @@ test("CLI: a source change with an edited existing changeset → passes", () => 
 
 test("CLI: a devDependencies-only manifest change without a changeset → passes", () => {
   const result = guardAfter(({ write }) =>
-    write("packages/core/package.json", json({ ...BASE, devDependencies: { vitest: "^4.2.0" } })),
+    write("packages/core/package.json", json({ ...CORE, devDependencies: { vitest: "^4.2.0" } })),
   );
 
   assert.equal(result.status, 0);
@@ -253,4 +282,87 @@ test("changesetChanges: added and modified changesets count; deleted, README and
   ];
 
   assert.deepEqual(changesetChanges(entries), [".changeset/new.md", ".changeset/edited.md"]);
+});
+
+const VALID_CHANGESET = '---\n"@comvi/core": patch\n---\n\nNew.\n';
+
+for (const [name, file] of [
+  ["a `bin` file listed in `files`", "packages/cli/bin/comvi.js"],
+  ["a build config", "packages/core/vite.config.ts"],
+  ["a tooling script the build script runs", "tooling/qualify.mjs"],
+  [
+    "a private package's non-test file (no `files`: everything counts)",
+    "packages/typegen/lib/emit.ts",
+  ],
+]) {
+  test(`CLI: ${name} changed without a changeset → fails`, () => {
+    const result = guardAfter(({ write }) => write(file, "// changed\n"));
+
+    assert.equal(result.status, 1);
+    assert.match(result.output, new RegExp(file.replace(/[.]/g, "\\.")));
+  });
+}
+
+for (const [name, file] of [
+  ["a test file", "packages/core/tests/x.test.ts"],
+  ["a README", "packages/core/README.md"],
+  ["a private package's test", "packages/typegen/tests/emit.test.ts"],
+  ["a tooling script no build runs", "tooling/unrelated.mjs"],
+]) {
+  test(`CLI: ${name} changed without a changeset → passes`, () => {
+    const result = guardAfter(({ write }) => write(file, "// changed\n"));
+
+    assert.equal(result.status, 0);
+  });
+}
+
+test("CLI: a source change whose only changeset is empty → fails", () => {
+  const result = guardAfter(({ write }) => {
+    write("packages/core/src/x.ts", "export const x = 2;\n");
+    write(".changeset/new-entry.md", "");
+  });
+
+  assert.equal(result.status, 1);
+});
+
+test("CLI: a source change whose only changeset has frontmatter but no summary → fails", () => {
+  const result = guardAfter(({ write }) => {
+    write("packages/core/src/x.ts", "export const x = 2;\n");
+    write(".changeset/new-entry.md", '---\n"@comvi/core": patch\n---\n');
+  });
+
+  assert.equal(result.status, 1);
+});
+
+test("CLI: a source change with a valid changeset next to an invalid one → passes", () => {
+  const result = guardAfter(({ write }) => {
+    write("packages/core/src/x.ts", "export const x = 2;\n");
+    write(".changeset/broken.md", "");
+    write(".changeset/new-entry.md", VALID_CHANGESET);
+  });
+
+  assert.equal(result.status, 0);
+});
+
+test("publishedPath: a `files` glob it does not expand → everything but tests and docs counts", () => {
+  assert.equal(publishedPath("lib/x.js", { files: ["dist/*.js"] }), true);
+});
+
+test("publishedPath: a test tsconfig → not published", () => {
+  assert.equal(publishedPath("tsconfig.tests.json", { files: ["dist"] }), false);
+});
+
+test("publishedPath: the build tsconfig → published", () => {
+  assert.equal(publishedPath("tsconfig.json", { files: ["dist"] }), true);
+});
+
+test("ci.yml: the guard step passes the base ref through env, never interpolated into the shell", () => {
+  const workflow = readFileSync(new URL("../workflows/ci.yml", import.meta.url), "utf8");
+  const step = workflow
+    .split("- name: Verify changeset for published package changes")[1]
+    .split("- name:")[0];
+  const run = step.slice(step.indexOf("run:"));
+
+  assert.match(step, /env:\n\s+BASE_REF: \$\{\{ github\.base_ref \}\}/);
+  assert.doesNotMatch(run, /\$\{\{/);
 });

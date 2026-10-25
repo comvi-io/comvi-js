@@ -21,16 +21,19 @@ jobs:
           fetch-depth: 0
 
       # A changeset is required only for changes that reach a published
-      # artifact: `packages/*/src/**` or a package's own `package.json`,
-      # unless that manifest changed in `devDependencies` alone (a
-      # Dependabot dev bump). Tests, docs and config under packages/ do not
-      # ship, so they do not need one. The check is
-      # .github/scripts/published-changes.mjs, which also requires the changeset
-      # to be added or edited (a deletion does not count); it runs on the
-      # runner's own Node, before setup-node, and uses no dependencies.
+      # artifact: a package's `files`, `src/`, entry targets, build configs and
+      # the scripts its build runs, and its `package.json` unless only
+      # `devDependencies` changed (a Dependabot dev bump). Tests and docs do
+      # not ship. A package without `files` counts as wholly published. The
+      # check is .github/scripts/published-changes.mjs (its header has the
+      # exact rules); the changeset must be added or edited and parse as one.
+      # It runs on the runner's own Node, before setup-node, without
+      # dependencies. The base ref goes through `env`, not into the shell.
       - name: Verify changeset for published package changes
         if: github.event_name == 'pull_request'
-        run: node .github/scripts/published-changes.mjs "origin/${{ github.base_ref }}"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node .github/scripts/published-changes.mjs "origin/$BASE_REF"
 
       - name: Setup pnpm
         # No `version:` input: the action reads `packageManager` from package.json.

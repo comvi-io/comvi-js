@@ -82,12 +82,13 @@ build.
 
 ### 1. Changesets are required, and CI enforces it
 
-Any change touching `packages/*/src/**` or a package's own `package.json` needs a
-`.changeset/*.md` entry in the same pull request. The one exemption is a `package.json` that
-changed in `devDependencies` alone, which reaches no consumer
-(`.github/scripts/published-changes.mjs`). The changeset must be added or edited in the pull
-request; deleting one does not count. A pull request without a needed changeset fails before
-anything else runs.
+Any change to what a package ships needs a `.changeset/*.md` entry in the same pull request:
+its `src/`, anything under its `files`, its entry targets, its build configs and the scripts its
+`build` runs, and its `package.json` except a change to `devDependencies` alone. A package
+without `files` counts as wholly published, tests and docs aside. The changeset must be added
+or edited in the pull request and parse as one (a release entry and a summary); deleting one
+does not count. The rules live in `.github/scripts/published-changes.mjs`, and a pull request
+without a needed changeset fails before anything else runs.
 
 ```bash
 pnpm changeset        # pick packages, pick a bump, write the summary
@@ -361,7 +362,7 @@ the checks in `tooling/`. Cutting a release itself is [RELEASING.md](./RELEASING
 
 1. Fork, then branch from `main`.
 2. Make the change, with tests.
-3. Add a changeset if you touched `packages/*/src/**` or a package's `package.json` (a change to its `devDependencies` alone needs none).
+3. Add a changeset if you changed what a package ships (see “Changesets are required” above).
 4. Update the affected package README if public behaviour changed.
 5. Run `pnpm test:commit`, plus whatever the cheat-sheet above adds for your change.
 6. Open the pull request. CI runs the four jobs; a maintainer reviews.
