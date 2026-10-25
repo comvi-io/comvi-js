@@ -31,6 +31,7 @@
     "@comvi/typegen",
     "@comvi/vite-config",
     "@test-apps/next",
+    "@test-apps/next16",
     "@test-apps/nuxt",
     "@test-apps/nuxt4",
     "@test-apps/react",

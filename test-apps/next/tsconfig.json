@@ -20,6 +20,13 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
+      // The paths below compile @comvi/* from source, and that source would
+      // resolve `next` from packages/next/node_modules (Next 16, the package's
+      // devDependency). Pinning `next` to this app's own install makes the
+      // binding source type-check against Next 15 here, the lower end of its
+      // peer range; test-apps/next16 covers the upper end.
+      "next": ["./node_modules/next"],
+      "next/*": ["./node_modules/next/*"],
       "@comvi/core": ["../../packages/core/src/index.ts"],
       "@comvi/core/loader": ["../../packages/core/src/loader.ts"],
       "@comvi/core/plugins": ["../../packages/core/src/plugins.ts"],
