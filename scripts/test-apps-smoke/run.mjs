@@ -163,40 +163,112 @@ function startServer(app, dir, port) {
   });
   child.stdout.on("data", (chunk) => log.push(String(chunk)));
   child.stderr.on("data", (chunk) => log.push(String(chunk)));
-  const exited = new Promise((resolve) =>
-    child.once("exit", (code, signal) => resolve({ code, signal })),
-  );
-  return {
+  const server = {
     child,
     log,
-    exited,
-    stop() {
-      if (child.exitCode !== null || child.signalCode !== null) return exited;
-      try {
-        process.kill(-child.pid, "SIGTERM");
-      } catch {
-        // already gone
-      }
-      return exited;
-    },
+    port,
+    exitInfo: null,
+    stop: () => stopGroup(child.pid),
   };
+  child.once("exit", (code, signal) => (server.exitInfo = { code, signal }));
+  return server;
+}
+
+/**
+ * Whether the server WE spawned is the one answering on `port`.
+ *
+ * An HTTP answer alone proves nothing: the port is reserved by binding and
+ * releasing it, so another process can take it before our child binds, and
+ * would then answer for it. Ready therefore needs all three: our child is
+ * alive, it printed its listener on this exact port (`next start`:
+ * `http://localhost:<port>`, Nitro: `Listening on http://127.0.0.1:<port>`),
+ * and the port answers. EADDRINUSE in its output is a collision.
+ */
+export function readiness({ exited, answered, log, port }) {
+  const output = log.join("");
+  if (/EADDRINUSE/.test(output)) {
+    return { error: `port ${port} is already in use (EADDRINUSE)`, collision: true };
+  }
+  if (exited) {
+    return {
+      error: `server exited before it was ready (${JSON.stringify(exited)})`,
+      collision: false,
+    };
+  }
+  const announced = new RegExp(
+    `https?://(?:localhost|127\\.0\\.0\\.1|\\[::1?\\]|0\\.0\\.0\\.0):${port}(?!\\d)`,
+  ).test(output);
+  return { ready: announced && answered };
+}
+
+function groupAlive(pgid, kill) {
+  try {
+    kill(-pgid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === "ESRCH") return false;
+    throw error;
+  }
+}
+
+async function groupGoneWithin(pgid, ms, kill) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (!groupAlive(pgid, kill)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return !groupAlive(pgid, kill);
+}
+
+/**
+ * Stops the process group `pgid` (the server and anything it forked), whether
+ * or not its leader has already exited: SIGTERM, up to `graceMs` for the group
+ * to go, then SIGKILL and up to `killMs` more. Never waits longer than that.
+ * Only ESRCH (nothing left in the group) is swallowed; any other kill error
+ * rejects. Resolves "gone" (nothing was running), "terminated" or "killed".
+ */
+export async function stopGroup(
+  pgid,
+  { graceMs = 5_000, killMs = 2_000, kill = process.kill.bind(process) } = {},
+) {
+  try {
+    kill(-pgid, "SIGTERM");
+  } catch (error) {
+    if (error.code === "ESRCH") return "gone";
+    throw error;
+  }
+  if (await groupGoneWithin(pgid, graceMs, kill)) return "terminated";
+  try {
+    kill(-pgid, "SIGKILL");
+  } catch (error) {
+    if (error.code === "ESRCH") return "terminated";
+    throw error;
+  }
+  if (await groupGoneWithin(pgid, killMs, kill)) return "killed";
+  throw new Error(`process group ${pgid} survived SIGKILL for ${killMs} ms`);
 }
 
 async function waitUntilUp(server, base) {
   const deadline = Date.now() + 60_000;
-  let exitedEarly = null;
-  server.exited.then((info) => (exitedEarly = info));
   while (Date.now() < deadline) {
-    if (exitedEarly)
-      throw new Error(`server exited before answering (${JSON.stringify(exitedEarly)})`);
+    let answered = false;
     try {
       await fetch(`${base}/`, { redirect: "manual", signal: AbortSignal.timeout(2_000) });
-      return;
+      answered = true;
     } catch {
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      // not up yet
     }
+    const state = readiness({
+      exited: server.exitInfo,
+      answered,
+      log: server.log,
+      port: server.port,
+    });
+    if (state.error) throw Object.assign(new Error(state.error), { collision: state.collision });
+    if (state.ready) return;
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error("server did not answer within 60 s");
+  throw new Error(`server did not announce and answer on port ${server.port} within 60 s`);
 }
 
 function htmlAttr(body, attr) {
@@ -282,6 +354,22 @@ function preflight(name, app, dir) {
   return problems;
 }
 
+/** Starts the app's server on a free port; one retry if the port was taken in between. */
+async function startReady(app, dir) {
+  for (let attempt = 1; ; attempt += 1) {
+    const port = await freePort();
+    const server = startServer(app, dir, port);
+    try {
+      await waitUntilUp(server, `http://127.0.0.1:${port}`);
+      return server;
+    } catch (error) {
+      await server.stop();
+      if (error.collision && attempt === 1) continue;
+      throw Object.assign(error, { log: server.log });
+    }
+  }
+}
+
 async function smoke(name) {
   const app = APPS[name];
   const dir = path.join(ROOT, "test-apps", name);
@@ -289,33 +377,41 @@ async function smoke(name) {
   const pre = preflight(name, app, dir);
   if (pre.length > 0) return [{ name: "preflight", problems: pre }];
 
-  const port = await freePort();
-  const base = `http://127.0.0.1:${port}`;
-  const server = startServer(app, dir, port);
+  let server;
   try {
-    await waitUntilUp(server, base);
+    server = await startReady(app, dir);
+  } catch (error) {
+    return [{ name: "server start", problems: [error.message, ...(error.log ?? []).slice(-20)] }];
+  }
+  const base = `http://127.0.0.1:${server.port}`;
+  const gone = () =>
+    server.exitInfo
+      ? [`our server exited (${JSON.stringify(server.exitInfo)}); the answer is not from it`]
+      : [];
+  try {
     for (const check of app.checks) {
-      let problems;
-      try {
-        const res = await fetch(`${base}${check.path}`, {
-          redirect: "manual",
-          // An explicit default: undici otherwise sends `accept-language: *`,
-          // which the locale detection reads as a preference.
-          headers: { "accept-language": "en", ...check.headers },
-          signal: AbortSignal.timeout(15_000),
-        });
-        problems = evaluate(check, {
-          status: res.status,
-          location: res.headers.get("location"),
-          body: await res.text(),
-        });
-      } catch (error) {
-        problems = [`request failed: ${error.message}`];
+      let problems = gone();
+      if (problems.length === 0) {
+        try {
+          const res = await fetch(`${base}${check.path}`, {
+            redirect: "manual",
+            // An explicit default: undici otherwise sends `accept-language: *`,
+            // which the locale detection reads as a preference.
+            headers: { "accept-language": "en", ...check.headers },
+            signal: AbortSignal.timeout(15_000),
+          });
+          problems = evaluate(check, {
+            status: res.status,
+            location: res.headers.get("location"),
+            body: await res.text(),
+          });
+        } catch (error) {
+          problems = [`request failed: ${error.message}`];
+        }
+        problems.push(...gone());
       }
       results.push({ name: `${check.name} (${check.path})`, problems });
     }
-  } catch (error) {
-    results.push({ name: "server start", problems: [error.message, ...server.log.slice(-20)] });
   } finally {
     await server.stop();
   }

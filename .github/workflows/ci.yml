@@ -294,11 +294,23 @@ jobs:
             exit 0
           fi
 
-          RELEVANT="$(
-            git diff --name-only "$RANGE" \
-              | grep -E '^(packages/|examples/|scripts/examples-e2e/|scripts/docs-snippets/link-sdk|scripts/examples-verify\.mjs$|pnpm-lock\.yaml$|\.github/workflows/ci\.yml$)' \
-              || true
-          )"
+          # The diff on its own line: under `set -e` a failed diff fails the
+          # step. Piped into `grep … || true` it would read as "nothing changed"
+          # and skip the jobs.
+          CHANGED="$(git diff --name-only "$RANGE")"
+
+          # Lines of $CHANGED matching $1. Only grep's "no match" (exit 1) is
+          # an empty answer; any other failure fails the step.
+          pick() {
+            local rc=0
+            printf '%s\n' "$CHANGED" | grep -E "$1" || rc=$?
+            if [ "$rc" -gt 1 ]; then
+              echo "grep failed with exit ${rc}" >&2
+              return "$rc"
+            fi
+          }
+
+          RELEVANT="$(pick '^(packages/|examples/|scripts/examples-e2e/|scripts/docs-snippets/link-sdk|scripts/examples-verify\.mjs$|pnpm-lock\.yaml$|\.github/workflows/ci\.yml$)')"
 
           if [ -z "$RELEVANT" ]; then
             echo "Nothing the examples e2e suite exercises changed in ${RANGE}."
@@ -311,11 +323,7 @@ jobs:
 
           # The test-apps smoke job: the packages the apps build from, the
           # apps, the script, and what decides how they resolve and build.
-          TEST_APPS="$(
-            git diff --name-only "$RANGE" \
-              | grep -E '^(packages/|test-apps/|scripts/test-apps-smoke/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|package\.json$|turbo\.json$|\.npmrc$|\.github/workflows/ci\.yml$)' \
-              || true
-          )"
+          TEST_APPS="$(pick '^(packages/|test-apps/|scripts/test-apps-smoke/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|package\.json$|turbo\.json$|\.npmrc$|\.github/workflows/ci\.yml$)')"
           if [ -z "$TEST_APPS" ]; then
             echo "test_apps=false" >> "$GITHUB_OUTPUT"
           else
