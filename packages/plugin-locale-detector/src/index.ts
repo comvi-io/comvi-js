@@ -6,11 +6,7 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 export type DetectorType =
-  | "querystring"
-  | "localStorage"
-  | "sessionStorage"
-  | "cookie"
-  | "navigator";
+  "querystring" | "localStorage" | "sessionStorage" | "cookie" | "navigator";
 
 /** The detector types that can also be written to. */
 export type CacheType = "localStorage" | "sessionStorage" | "cookie";

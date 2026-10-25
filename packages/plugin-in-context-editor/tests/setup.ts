@@ -50,12 +50,13 @@ expect.extend({
   },
 });
 
-// Vitest 4 types custom matchers by augmenting its own `Matchers` interface;
+// Vitest types custom matchers by augmenting its own `Matchers` interface;
 // the `Vi` global namespace this used to declare is no longer consulted. The
-// parameter defaults must match the shipped declaration exactly.
+// type parameters must match the shipped declaration exactly: since Vitest 5
+// that is `Matchers<R, T>`, where `R` is what the assertion returns.
 declare module "vitest" {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface Matchers<T = any> {
-    toContainInvisibleChars(): void;
+  interface Matchers<R extends void | Promise<void> = void | Promise<void>, T = unknown> {
+    toContainInvisibleChars(): R;
   }
 }

@@ -19,8 +19,7 @@ export interface ProxyWorkReservation {
 }
 
 export type ReserveProxyWorkResult =
-  | { ok: true; reservation: ProxyWorkReservation }
-  | { ok: false; error: string };
+  { ok: true; reservation: ProxyWorkReservation } | { ok: false; error: string };
 
 const requestLog = new Map<number, number[]>();
 const controllers = new Map<string, AbortController>();
@@ -40,11 +39,7 @@ const workKey = (tabId: number, requestId: string) => `${tabId}:${requestId}`;
 const tabPrefix = (tabId: number) => `${tabId}:`;
 
 export type ProxySessionWaitOutcome =
-  | "transitioned"
-  | "aborted"
-  | "timeout"
-  | "duplicate"
-  | "limit";
+  "transitioned" | "aborted" | "timeout" | "duplicate" | "limit";
 
 function settlePendingWaiter(key: string, outcome: ProxySessionWaitOutcome): void {
   const waiter = pendingActivationWaiters.get(key);

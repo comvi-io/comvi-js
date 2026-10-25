@@ -151,9 +151,8 @@ type KeyRequiredParams<K extends TypedKey> = TranslationKeysMap[K] extends never
 type TypedTProps<K extends TypedKey> =
   KeyRequiredParams<K> extends never
     ? TBaseProps & { i18nKey: K } & Record<string, unknown>
-    :
-        | (TBaseProps & { i18nKey: K; params: KeyRequiredParams<K> } & Record<string, unknown>)
-        | (TBaseProps & { i18nKey: K } & KeyRequiredParams<K> & Record<string, unknown>);
+    : | (TBaseProps & { i18nKey: K; params: KeyRequiredParams<K> } & Record<string, unknown>)
+      | (TBaseProps & { i18nKey: K } & KeyRequiredParams<K> & Record<string, unknown>);
 
 type StrictTypedProps = [TypedKey] extends [never]
   ? never

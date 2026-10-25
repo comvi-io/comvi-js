@@ -194,11 +194,12 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const onLoadError = vi.fn();
 
-      mockCdnDeferredResponse("en", "default");
+      const response = mockCdnDeferredResponse("en", "default");
 
       const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
       const cleanup = await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
 
       (cleanup as () => void)();
 
@@ -211,7 +212,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       const onLoadSuccess = vi.fn();
       const onLoadError = vi.fn();
 
-      mockCdnDeferredResponse("en", "forest", "default");
+      const response = mockCdnDeferredResponse("en", "forest", "default");
 
       const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
@@ -222,6 +223,7 @@ describe("fetchLoaderPlugin plugin on a live host", () => {
       });
       const cleanup = await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "forest");
+      await response.requested;
 
       (cleanup as () => void)();
 

@@ -676,8 +676,7 @@ function parseDuration(raw: string): number {
 
 function overLimit(error: TypegenError, maxPairs: number | undefined): TypegenError {
   const meta = error.details?.meta as
-    | { pairs?: { toTranslate?: unknown }; estimate?: { credits?: unknown } }
-    | undefined;
+    { pairs?: { toTranslate?: unknown }; estimate?: { credits?: unknown } } | undefined;
   const count = meta?.pairs?.toTranslate;
   const credits = meta?.estimate?.credits;
   const counted =

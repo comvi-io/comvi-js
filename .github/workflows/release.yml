@@ -293,15 +293,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # v2 is the line for @changesets/cli 3 (v1 is for cli 2). It takes the
+      # token as an input, not from GITHUB_TOKEN in env, and pushes the release
+      # commit through the GitHub API. Tags and releases are not its job here:
+      # it gets no publish script.
       - name: Create or update the release PR
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          commit: "chore: release packages"
-          title: "chore: release packages"
-          version: pnpm release:version
-          createGithubReleases: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: release packages"
+          pr-title: "chore: release packages"
+          version-script: pnpm release:version
+          create-github-releases: false
+          push-git-tags: false
 
   # GA: a push with no pending changesets is the merged release PR (or a push
   # after a release, which finds nothing new on npm and stops here).

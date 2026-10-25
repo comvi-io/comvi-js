@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useLayoutEffect, useEffect } from "react";
+import { useLayoutEffect, useEffect } from "react";
 import { I18nProvider as ReactI18nProvider } from "@comvi/react";
 
 // useLayoutEffect warns when it runs during SSR.

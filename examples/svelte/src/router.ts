@@ -10,10 +10,8 @@ window.addEventListener("popstate", () => pathname.set(location.pathname));
 
 // The app's three pages. Any other path shows the start page.
 export type Route = "start" | "features" | "about";
-export const route = derived(
-  pathname,
-  ($pathname): Route =>
-    $pathname === "/features" ? "features" : $pathname === "/about" ? "about" : "start",
+export const route = derived(pathname, ($pathname): Route =>
+  $pathname === "/features" ? "features" : $pathname === "/about" ? "about" : "start",
 );
 
 export function navigate(to: string): void {

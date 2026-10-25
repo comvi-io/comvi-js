@@ -108,11 +108,6 @@ export default defineConfig({
           ],
         },
         define: { __DEV__: JSON.stringify(true) },
-        // The automatic JSX runtime, as `tsconfig.json` sets for src. That
-        // tsconfig excludes the test files; since Vite 8.3 they compile with
-        // the root tsconfig's classic `"jsx": "react"` instead, and every test
-        // file that does not import React throws "React is not defined".
-        oxc: { jsx: { runtime: "automatic" } },
         test: {
           name: "unit",
           environment: "happy-dom",

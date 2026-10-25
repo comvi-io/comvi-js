@@ -30,8 +30,7 @@ describe("FORGET_CREDENTIALS", () => {
 
     expect(result).toMatchObject({ ok: true });
     const credentials = harness.chrome.storage.local.snapshot()["comvi_credentials"] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     expect(credentials?.[ORIGIN]).toBeUndefined();
   });
 
@@ -110,8 +109,7 @@ describe("FORGET_CREDENTIALS", () => {
     );
     expect(secondStatus).toEqual({ active: false, pending: false });
     const credentials = harness.chrome.storage.local.snapshot()["comvi_credentials"] as
-      | Record<string, { apiKey?: string }>
-      | undefined;
+      Record<string, { apiKey?: string }> | undefined;
     expect(Object.values(credentials ?? {}).some((entry) => entry.apiKey === API_KEY)).toBe(false);
     expect(harness.chrome.tabs.sendMessage).toHaveBeenCalledWith(
       TAB,

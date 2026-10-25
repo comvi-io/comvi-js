@@ -6,7 +6,26 @@ import type { ProjectInfo } from "../src/api";
 import { clearProjectInfoCache } from "../src/api";
 import { deferred } from "./helpers/deferred";
 
-export const server = setupServer();
+/**
+ * The CORS preflight a browser sends before every cross-origin request here.
+ * happy-dom's `fetch` sends one (the test page is `http://localhost:3000`),
+ * and MSW 3 intercepts below `fetch`, at the socket, so the preflight reaches
+ * the handlers like any other request. A CDN and an API that a browser app
+ * can call both answer it this way. It is the initial handler, so
+ * `resetHandlers()` keeps it.
+ */
+const corsPreflight = http.options("*", () => {
+  return new HttpResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE",
+      "Access-Control-Allow-Headers": "*",
+    },
+  });
+});
+
+export const server = setupServer(corsPreflight);
 
 export const TEST_CDN_URL = "https://cdn.comvi.io/test-project-123";
 export const TEST_PROJECT_ID = 456;
@@ -21,7 +40,7 @@ export const TEST_PROJECT_INFO: ProjectInfo = {
 };
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
 });
 
 beforeEach(() => {

@@ -39,12 +39,7 @@ interface EditorLoaderSlot {
 /** Why the editor is not on the page; `code` is from the contract's list, or `no-loader`. */
 interface EditorLoadFailure {
   code:
-    | "csp-blocked"
-    | "load-error"
-    | "timeout"
-    | "no-global"
-    | "invalid-editor-version"
-    | "no-loader";
+    "csp-blocked" | "load-error" | "timeout" | "no-global" | "invalid-editor-version" | "no-loader";
 }
 
 interface TransportInit {

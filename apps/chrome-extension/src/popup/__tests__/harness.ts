@@ -51,11 +51,7 @@ type Reply = unknown | ((message: Message) => unknown);
  * - silent: no answer at all
  */
 export type LeaseBehaviour =
-  | "acknowledge"
-  | "wrong-lease"
-  | "other-message"
-  | "disconnect"
-  | "silent";
+  "acknowledge" | "wrong-lease" | "other-message" | "disconnect" | "silent";
 
 export interface SentTabMessage {
   tabId: number;
