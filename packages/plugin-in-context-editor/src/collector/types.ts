@@ -56,13 +56,7 @@ export type TranslationRole =
   | "unknown";
 
 export type ContainerType =
-  | "dialog"
-  | "form"
-  | "fieldset"
-  | "table"
-  | "titled-section"
-  | "nav"
-  | "generic";
+  "dialog" | "form" | "fieldset" | "table" | "titled-section" | "nav" | "generic";
 
 /**
  * No rendered text — a container's title is presence-only.

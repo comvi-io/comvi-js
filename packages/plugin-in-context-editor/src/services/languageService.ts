@@ -22,13 +22,11 @@ export async function getLanguages(scopeId?: string): Promise<Language[]> {
     const data = await response.json();
     const { sourceLocale, locales } = data;
 
-    const languages = locales.map(
-      (lang: LanguageResponse): Language => ({
-        ...lang,
-        pluralForms: detectPluralCategories(lang.code),
-        isSource: lang.code === sourceLocale,
-      }),
-    );
+    const languages = locales.map((lang: LanguageResponse): Language => ({
+      ...lang,
+      pluralForms: detectPluralCategories(lang.code),
+      isSource: lang.code === sourceLocale,
+    }));
     // Source first; the sort is stable, so the other languages keep the server's order.
     return languages.sort((a: Language, b: Language) => Number(b.isSource) - Number(a.isSource));
   } catch (error) {

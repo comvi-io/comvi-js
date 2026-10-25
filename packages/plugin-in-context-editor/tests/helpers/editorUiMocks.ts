@@ -88,8 +88,7 @@ export function openedSelectors(): OpenedSelector[] {
 /** What the translator does in the open selector: picks one of the offered keys. */
 export function chooseInSelector(index: number, key: string, ns: string): void {
   const onSelect = showKeySelectorMock.mock.calls[index]?.[2] as
-    | ((key: string, ns: string) => void)
-    | undefined;
+    ((key: string, ns: string) => void) | undefined;
   if (!onSelect) throw new Error(`no key selector was opened at index ${index}`);
   onSelect(key, ns);
 }

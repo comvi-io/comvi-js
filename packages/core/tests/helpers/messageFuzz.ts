@@ -362,7 +362,7 @@ function shrink(
   let chars = Array.from(message);
   const deadline = Date.now() + SHRINK_BUDGET_MS;
   for (let size = Math.ceil(chars.length / 2); size >= 1; size = Math.floor(size / 2)) {
-    for (let at = 0; at < chars.length; ) {
+    for (let at = 0; at < chars.length;) {
       if (Date.now() > deadline) return chars.join("");
       const candidate = [...chars.slice(0, at), ...chars.slice(at + size)];
       const text = candidate.join("");

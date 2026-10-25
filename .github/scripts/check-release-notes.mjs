@@ -35,7 +35,7 @@ export function htmlComments(text) {
   const comments = [];
   let line = 1;
   let counted = 0;
-  for (let start = text.indexOf("<!--"); start !== -1; ) {
+  for (let start = text.indexOf("<!--"); start !== -1;) {
     const close = text.indexOf("-->", start + 4);
     const end = close === -1 ? text.length : close + 3;
     for (; counted < start; counted += 1) if (text[counted] === "\n") line += 1;

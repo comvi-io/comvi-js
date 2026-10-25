@@ -369,15 +369,13 @@ describe("packing boundaries", () => {
     const allBits = Array.from({ length: 15 }, (_, i) => inertExtension(`bit${i}`, 1 << i));
     expect(effectiveExtBits(allBits)).toBe(0x7fff);
     let parses = 0;
-    const compilers = ids.map(
-      (cid): MessageCompiler => ({
-        cid,
-        makeArgToken: (content, hashIsSyntax) => {
-          parses++;
-          return [TK_TEXT, `${cid}:${hashIsSyntax ? 1 : 0}:${content}`];
-        },
-      }),
-    );
+    const compilers = ids.map((cid): MessageCompiler => ({
+      cid,
+      makeArgToken: (content, hashIsSyntax) => {
+        parses++;
+        return [TK_TEXT, `${cid}:${hashIsSyntax ? 1 : 0}:${content}`];
+      },
+    }));
     const contexts = compilers.flatMap((compiler, i) =>
       [undefined, { extensions: allBits }].flatMap((ti) =>
         [false, true].map((hash) => ({ compiler, ti, hash, out: `${ids[i]}:${hash ? 1 : 0}:x` })),

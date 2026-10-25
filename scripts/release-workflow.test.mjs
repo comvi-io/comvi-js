@@ -570,3 +570,47 @@ test("a status answer that names another id does not move the poll to it", (t) =
   assert.equal(result.curl[2].endsWith("https://purge.jsdelivr.net/status/abc"), true);
   assert.match(result.stdout, /accepted the purge/);
 });
+
+// The GA `version` job: changesets/action opens the release PR through
+// `pnpm release:version` and must do nothing else. v2 is the line for
+// @changesets/cli 3; it reads the token only from its `github-token` input, and
+// left alone it would push git tags (v1's `createGithubReleases: false` used to
+// stop that) and, given a publish script, publish.
+const RELEASE_PR_STEP = "Create or update the release PR";
+
+function releasePrStep() {
+  const step = readSteps(jobs.get("version")).find((s) => s.name === RELEASE_PR_STEP);
+  assert.ok(step, `the version job has no \`${RELEASE_PR_STEP}\` step`);
+  const inputs = Object.fromEntries(
+    [...step.text.matchAll(/^ {10}([\w-]+): (.+)$/gm)].map((m) => [m[1], m[2].trim()]),
+  );
+  return { step, inputs };
+}
+
+test("the release PR step runs changesets/action v2", () => {
+  const { step } = releasePrStep();
+
+  assert.match(step.text, /^ {8}uses: changesets\/action@v2$/m);
+});
+
+test("the release PR step versions through `pnpm release:version` and has no publish script", () => {
+  const { inputs } = releasePrStep();
+
+  assert.equal(inputs["version-script"], "pnpm release:version");
+  assert.equal(inputs["publish-script"], undefined);
+});
+
+test("the release PR step creates no GitHub release and pushes no git tag", () => {
+  const { inputs } = releasePrStep();
+
+  assert.equal(inputs["create-github-releases"], "false");
+  assert.equal(inputs["push-git-tags"], "false");
+});
+
+test("the release PR step passes its token as the github-token input, not as env GITHUB_TOKEN", () => {
+  const { step, inputs } = releasePrStep();
+
+  assert.equal(inputs["github-token"], "${{ secrets.GITHUB_TOKEN }}");
+  assert.doesNotMatch(step.text, /^ {8}env:/m);
+  assert.doesNotMatch(step.text, /^ {10}GITHUB_TOKEN:/m);
+});

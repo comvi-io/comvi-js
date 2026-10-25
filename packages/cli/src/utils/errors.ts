@@ -72,8 +72,7 @@ export function wrapError(error: unknown, context: string, code: string): Typege
   // fetch reports every network failure as "fetch failed"; the reason it
   // failed (ECONNREFUSED, a DNS miss, a TLS error) sits on its cause.
   const inner = (cause as { cause?: unknown } | undefined)?.cause as
-    | (Error & { code?: string })
-    | undefined;
+    (Error & { code?: string }) | undefined;
   // A dual-stack refusal is an AggregateError with an empty message and a code.
   const reason = inner?.message || inner?.code;
   const message = cause ? (reason ? `${cause.message} (${reason})` : cause.message) : String(error);

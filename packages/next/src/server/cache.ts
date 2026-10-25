@@ -24,11 +24,9 @@ const config: ConfigModule = configModule;
  * React's cache() creates a per-request memoized value in Server Components, so
  * the locale is shared across the component tree without prop drilling.
  */
-const getRequestStore = cache(
-  (): RequestStore => ({
-    locale: undefined,
-  }),
-);
+const getRequestStore = cache((): RequestStore => ({
+  locale: undefined,
+}));
 
 /**
  * The server i18n once-cell. Two configuration sources feed it —

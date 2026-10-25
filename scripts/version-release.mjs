@@ -207,11 +207,16 @@ export function bumpExampleRanges({ root, version, log = console.log }) {
  *
  *   1. `sync-peer-ranges`, BEFORE `changeset version` — otherwise changesets
  *      sees an internal peer range that the new version falls outside of and
- *      escalates the whole fixed group to a major bump;
+ *      bumps the peer dependents on its own account (by patch since
+ *      @changesets/cli 3; cli 2 escalated them, and the fixed group, to a
+ *      major). Syncing first keeps the ranges on the policy's minor line;
  *   2. `changeset version`;
  *   3. the examples' `@comvi/*` ranges, to `^<version>` (not for a pre-release);
  *   4. the breaking-entry hoist over the version blocks step 2 just generated;
- *   5. the root CHANGELOG entry, and only when this cut consumed changesets.
+ *   5. the root CHANGELOG entry.
+ *
+ * With no changesets pending, none of this runs: `main` returns
+ * `{ versioned: false }` before step 1.
  *
  * The changesets are collected BEFORE step 2 because `changeset version`
  * deletes them. `run` is injectable so a test can assert the order without
@@ -231,13 +236,15 @@ export function main({
   log = console.log,
 } = {}) {
   const changesets = collectChangesets(root);
-  run(process.execPath, [path.join(root, "scripts/sync-peer-ranges.mjs")]);
-  run(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["exec", "changeset", "version"]);
-
+  // Nothing pending: nothing to cut. `changeset version` (@changesets/cli 3)
+  // exits 1 in that case, so it is not spawned, and neither is the range sync
+  // that only prepares for it.
   if (changesets.length === 0) {
     log("root-changelog: no changesets, nothing to update");
     return { versioned: false };
   }
+  run(process.execPath, [path.join(root, "scripts/sync-peer-ranges.mjs")]);
+  run(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["exec", "changeset", "version"]);
 
   const packages = getPublishablePackages(root);
   let version;

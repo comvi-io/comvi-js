@@ -33,7 +33,7 @@ behaviour, update the relevant package README in the same pull request.
 
 ## Getting started
 
-Prerequisites: Node.js 22 or newer, pnpm 10.16 or newer (corepack runs the version pinned in `packageManager`), Git.
+Prerequisites: Node.js 22 (22.22.1 or newer), 24 or 26+ (lint-staged 17 needs 22.22.1, Vitest 5 skips the odd-numbered 25; CI runs Node 24), pnpm 10.16 or newer (corepack runs the version pinned in `packageManager`), Git.
 
 ```bash
 git clone https://github.com/comvi-io/comvi-js.git

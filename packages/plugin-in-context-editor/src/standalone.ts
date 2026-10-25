@@ -52,9 +52,7 @@ let editorLoaderHook: EditorLoaderHookStatus | null = null;
 function readEditorLoaderHook(): EditorLoaderHookStatus | null {
   try {
     const slot = (globalThis as unknown as Record<symbol, unknown>)[EDITOR_LOADER_KEY] as
-      | { protocol?: unknown; sdkVersion?: unknown }
-      | null
-      | undefined;
+      { protocol?: unknown; sdkVersion?: unknown } | null | undefined;
     const protocol = slot?.protocol;
     if (typeof protocol !== "number" || !Number.isInteger(protocol) || protocol < 1) {
       return null;

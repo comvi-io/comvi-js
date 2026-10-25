@@ -13,7 +13,8 @@
     "nuxt": "^3.21.11"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.2.2",
-    "tailwindcss": "^4.2.2"
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.20.5",
+    "tailwindcss": "^4.3.3"
   }
 }

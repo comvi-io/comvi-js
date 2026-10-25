@@ -3,12 +3,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   COORDINATED_VERSION_FAILED,
   changesetOrder,
   hoistBreakingEntries,
   main,
 } from "./version-release.mjs";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -115,7 +119,7 @@ test("a second cut for a version already in the CHANGELOG changes nothing", (t) 
   assert.equal(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), after);
 });
 
-test("with no changesets both commands still run and the CHANGELOG is left alone", (t) => {
+test("with no changesets neither command runs and the CHANGELOG is left alone", (t) => {
   const root = makeFixtureRepo(t, { changesets: {} });
   const before = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
   const { calls, run } = recordingRun();
@@ -123,15 +127,35 @@ test("with no changesets both commands still run and the CHANGELOG is left alone
 
   const result = main({ root, run, log: (line) => logged.push(line) });
 
-  // `changeset version` is a no-op with nothing pending, but it is still what
-  // decides that — this script does not second-guess it.
-  assert.deepEqual(describeCalls(calls), [
-    "node sync-peer-ranges.mjs",
-    "pnpm exec changeset version",
-  ]);
+  assert.deepEqual(describeCalls(calls), []);
   assert.deepEqual(result, { versioned: false });
   assert.deepEqual(logged, ["root-changelog: no changesets, nothing to update"]);
   assert.equal(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), before);
+});
+
+test("with no changesets the cut succeeds against the real changeset CLI", (t) => {
+  // `changeset version` (@changesets/cli 3) exits 1 when nothing is pending, so
+  // a cut that still spawned it would fail. The fixture gets the repo's own
+  // node_modules and sync script, and the runner spawns for real.
+  const root = makeFixtureRepo(t, { changesets: {} });
+  writeJson(path.join(root, "package.json"), { name: "fixture-root", private: true });
+  fs.writeFileSync(path.join(root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+  fs.symlinkSync(path.join(REPO_ROOT, "node_modules"), path.join(root, "node_modules"), "junction");
+  fs.mkdirSync(path.join(root, "scripts"));
+  fs.copyFileSync(
+    path.join(REPO_ROOT, "scripts/sync-peer-ranges.mjs"),
+    path.join(root, "scripts/sync-peer-ranges.mjs"),
+  );
+  const run = (command, args) => {
+    const result = spawnSync(command, args, { cwd: root, encoding: "utf8" });
+    if (result.status !== 0) {
+      throw new Error(`${command} ${args.join(" ")} exited ${result.status}: ${result.stdout}`);
+    }
+  };
+
+  const result = main({ root, run, log: () => {} });
+
+  assert.deepEqual(result, { versioned: false });
 });
 
 test("skipRootChangelog reports the version it would add and writes no CHANGELOG", (t) => {
