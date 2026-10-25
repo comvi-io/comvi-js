@@ -34,6 +34,7 @@
     "docs:quickstart": "node scripts/docs-quickstart/run.mjs",
     "examples:e2e": "node scripts/examples-e2e/run.mjs",
     "examples:e2e:all": "node scripts/examples-e2e/run.mjs && node scripts/examples-e2e/run.mjs --cdn --no-build --no-pack",
+    "test-apps:smoke": "node scripts/test-apps-smoke/run.mjs",
     "examples:sync-locales": "node scripts/examples-sync-locales.mjs",
     "examples:use-tag": "node scripts/examples-use-tag.mjs",
     "bundler-matrix": "node scripts/bundler-matrix/run.mjs",

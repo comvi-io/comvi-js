@@ -13,6 +13,7 @@
     "nuxt": "^3.21.11"
   },
   "devDependencies": {
+    "@nuxt/schema": "^3.21.11",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.20.5",
     "tailwindcss": "^4.3.3"

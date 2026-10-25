@@ -64,15 +64,17 @@ turbo run build --filter='./packages/*'
 
 ## The gates, in the order CI runs them
 
-`.github/workflows/ci.yml` is four jobs, and that is the entire automated gate set. Nothing
+`.github/workflows/ci.yml` is the jobs below, and that is the entire automated gate set. Nothing
 outside this list is checked automatically.
 
-| Job         | What it runs                                                                                                                                                                                                                     |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `quality`   | changeset guard (pull requests only), `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/audit-published.mjs`, `pnpm test:release-tools`, `pnpm check:snippets`, `node scripts/examples-sync-locales.mjs --check` |
-| `tests`     | `pnpm test:commit`                                                                                                                                                                                                               |
-| `build`     | `pnpm build`, then `pnpm check:inlined-version`, `pnpm check:snippets:types`, `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                               |
-| `extension` | `pnpm extension:build`, the built-artifact test, a chromium install, Gate E (`pnpm --filter @comvi/chrome-extension test:e2e`), diagnostics upload                                                                               |
+| Job               | What it runs                                                                                                                                                                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `quality`         | changeset guard (pull requests only), `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/audit-published.mjs`, `pnpm test:release-tools`, `pnpm check:snippets`, `node scripts/examples-sync-locales.mjs --check`                                                                                                            |
+| `tests`           | `pnpm test:commit`                                                                                                                                                                                                                                                                                                                          |
+| `build`           | `pnpm build`, then `pnpm check:inlined-version`, `pnpm check:snippets:types`, `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                                                                                                                                          |
+| `extension`       | `pnpm extension:build`, the built-artifact test, a chromium install, Gate E (`pnpm --filter @comvi/chrome-extension test:e2e`), diagnostics upload                                                                                                                                                                                          |
+| `examples-e2e`    | `pnpm examples:e2e`, one runner per framework and mode, when `packages/`, `examples/` or their scripts change                                                                                                                                                                                                                               |
+| `test-apps-smoke` | `pnpm test-apps:smoke`: builds `test-apps/next` (Next 15), `next16`, `nuxt` (Nuxt 3) and `nuxt4`, serves each production build and checks redirects, `<html lang>`, SSR text and the Nitro route, when `packages/` or `test-apps/` change. The package suites run against the upper major of each peer range; this job proves the lower one |
 
 Everything that reads `dist/` lives in the single `build` job, after the build. Splitting those
 steps across jobs is what previously let them run against a stale or missing `dist/`.
@@ -338,7 +340,7 @@ into `src/` proper, or into the test tree where it is exercised directly.
 | You changed                           | Run at least                                                                                                                                                     |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/core`                       | `pnpm --filter @comvi/core test`, the affected bindings' tests, `pnpm build && pnpm size`; add `node scripts/perf.mjs --compare-ref <ref>` for a hot-path change |
-| One binding                           | that package's tests, and its `test-apps/*` app builds                                                                                                           |
+| One binding                           | that package's tests, and its `test-apps/*` app builds; for `next` or `nuxt`, `pnpm test-apps:smoke`                                                             |
 | A plugin                              | that plugin's tests                                                                                                                                              |
 | A `package.json` `exports` map        | `pnpm build && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports`                                                                   |
 | Package entry points or `sideEffects` | `pnpm build && pnpm bundler-matrix`                                                                                                                              |
@@ -365,7 +367,7 @@ the checks in `tooling/`. Cutting a release itself is [RELEASING.md](./RELEASING
 3. Add a changeset if you changed what a package ships (see “Changesets are required” above).
 4. Update the affected package README if public behaviour changed.
 5. Run `pnpm test:commit`, plus whatever the cheat-sheet above adds for your change.
-6. Open the pull request. CI runs the four jobs; a maintainer reviews.
+6. Open the pull request. CI runs the jobs above; a maintainer reviews.
 
 Use TypeScript for new code. Formatting is Prettier's business, not yours.
 

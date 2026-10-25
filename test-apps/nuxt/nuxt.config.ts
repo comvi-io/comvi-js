@@ -35,5 +35,23 @@ export default defineNuxtConfig({
 
   devtools: { enabled: true },
 
+  // This app proves the Nuxt 3 end of @comvi/nuxt's peer range, so its types
+  // must come from Nuxt 3. @nuxt/devtools-kit (shared by both Nuxt test apps,
+  // no dependency on nuxt) imports `nuxt/app` and `nuxt/schema`, which resolve
+  // to whichever Nuxt the workspace root hoists: Nuxt 4, packages/nuxt's
+  // devDependency. Pin both to this app's own Nuxt. The `@nuxt/schema`
+  // devDependency does the same for Nuxt's generated `@nuxt/schema` path.
+  // Paths are relative to .nuxt/tsconfig.json.
+  typescript: {
+    tsConfig: {
+      compilerOptions: {
+        paths: {
+          "nuxt/app": ["../node_modules/nuxt/app"],
+          "nuxt/schema": ["../node_modules/nuxt/schema"],
+        },
+      },
+    },
+  },
+
   compatibilityDate: "2024-11-01",
 });

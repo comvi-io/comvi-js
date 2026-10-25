@@ -28,8 +28,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, createError, defineEventHandler, toNodeListener } from "h3";
 // The real Hookable, because WHEN our teardown starts relative to the other
 // handlers of the same `callHook` is the contract under test. It is nitro's own
-// dependency and this repo installs shamefully-hoisted, which is how
-// `locale-path-real-router.test.ts` reaches `vue-router`.
+// dependency and reaches this package only because the repo installs
+// shamefully-hoisted. (`vue-router`, which `locale-path-real-router.test.ts`
+// uses, is a declared devDependency instead.)
 import { createHooks } from "hookable";
 import type { App, H3Event } from "h3";
 import { createServer, request } from "node:http";

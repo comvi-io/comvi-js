@@ -186,7 +186,12 @@ export function installManifest(packages, frameworkVersions) {
   };
 }
 
-/** Framework versions as the workspace itself pins them. */
+/**
+ * Framework versions as the workspace itself pins them. Package manifests come
+ * first, so the docs fences compile against the UPPER major of each peer range
+ * (Next 16, Nuxt 4) on purpose; the lower majors are covered by test-apps/next
+ * and test-apps/nuxt (`pnpm test-apps:smoke`).
+ */
 export function frameworkVersions(root = REPO_ROOT) {
   const seen = {};
   const manifests = [

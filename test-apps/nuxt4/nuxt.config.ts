@@ -36,5 +36,20 @@ export default defineNuxtConfig({
 
   devtools: { enabled: true },
 
+  // Types from this app's own Nuxt 4: @nuxt/devtools-kit (shared with the
+  // Nuxt 3 test app, no dependency on nuxt) imports `nuxt/app` and
+  // `nuxt/schema`, which otherwise resolve to whichever Nuxt pnpm placed next
+  // to it. Paths are relative to .nuxt/tsconfig.json.
+  typescript: {
+    tsConfig: {
+      compilerOptions: {
+        paths: {
+          "nuxt/app": ["../node_modules/nuxt/app"],
+          "nuxt/schema": ["../node_modules/nuxt/schema"],
+        },
+      },
+    },
+  },
+
   compatibilityDate: "2024-11-01",
 });

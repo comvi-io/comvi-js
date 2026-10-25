@@ -46,6 +46,8 @@ next-env.d.ts
 
 # TypeScript output files in source directories (should only be in dist/)
 test-apps/**/*.d.ts
+# Hand-written: lets TypeScript 6 accept a plain CSS import on Next 15.
+!test-apps/next/src/css.d.ts
 test-apps/**/*.d.ts.map
 test-apps/**/*.js.map
 !test-apps/**/tailwind.config.js
