@@ -27,9 +27,10 @@ npm run dev
 ```
 
 <!--
-  `next` is pinned to `~15.4.11` on purpose. StackBlitz runs this example in WebContainers, and
-  Next 15.5 and later do not start there (vercel/next.js#84026). Move the pin forward once that
-  issue is fixed; the code needs no change for a newer 15.x or 16.x.
+  `next` is pinned to `~15.5.28`: the 15.4 line no longer gets security fixes, and a fresh install
+  of it carried three critical advisories. vercel/next.js#84026 reports that Next 15.5 and later do
+  not start in StackBlitz WebContainers; check the StackBlitz link after every change to this pin.
+  The code needs no change for a newer 15.x or 16.x.
 -->
 
 ## Connect your Comvi project
