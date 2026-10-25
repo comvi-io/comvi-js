@@ -32,14 +32,13 @@ that path today.
       they were read there on 2026-10-04 and nothing in CI exercises them. Then run the RC rehearsal
       (section 2) first. It uses the same staging-and-promotion code with `next`, so a green RC
       proves the OIDC dist-tag path before GA depends on it.
-- [ ] Read the pending changesets. Note that **`changeset status` reports a version the cut will not
-      produce**: on a branch whose plugin peer ranges still point at the previous major-minor,
-      `pnpm exec changeset status --verbose` escalates the whole fixed group to `1.0.0`, because
-      `onlyUpdatePeerDependentsWhenOutOfRange` sees the next version falling outside those ranges.
-      `pnpm release:version` runs `scripts/sync-peer-ranges.mjs` **before** `changeset version`
-      (`scripts/version-release.mjs`), which is what produces the real number. To preview it, run
-      `node scripts/sync-peer-ranges.mjs && pnpm exec changeset status --verbose` in a throwaway
-      tree, and never run bare `pnpm changeset version` in place of `pnpm release:version`.
+- [ ] Read the pending changesets. `pnpm exec changeset status --verbose` shows the version the cut
+      will produce. With `@changesets/cli` 3, a plugin peer range that the next version falls
+      outside of makes changesets bump the peer dependents by patch, no longer by major (cli 2
+      escalated the whole fixed group to `1.0.0`). The ranges themselves are still this repo's
+      policy: `pnpm release:version` runs `scripts/sync-peer-ranges.mjs` **before**
+      `changeset version` (`scripts/version-release.mjs`), which moves them to the new minor line.
+      Never run bare `pnpm changeset version` in place of `pnpm release:version`.
 
 ## 2. RC rehearsal (optional but recommended)
 

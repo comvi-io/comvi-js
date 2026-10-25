@@ -1,6 +1,7 @@
-import { beforeAll, afterEach, afterAll, beforeEach } from "vitest";
+import { beforeAll, afterEach, afterAll, beforeEach, expect } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
+import { HttpNetworkFrame } from "msw/experimental";
 import type { ExportApiResponse } from "../src/types";
 import type { ProjectInfo } from "../src/api";
 import { clearProjectInfoCache } from "../src/api";
@@ -39,8 +40,27 @@ export const TEST_PROJECT_INFO: ProjectInfo = {
   sourceLocale: "en",
 };
 
+/**
+ * Every request no handler answered, as `METHOD url`. msw's built-in "error"
+ * strategy lets "common assets" through to the real network, and `.json` is
+ * one of them: the CDN catalogs a test forgot to mock would reach
+ * cdn.comvi.io. A callback is applied to every frame instead. It records the
+ * request and rejects it, so nothing leaves the machine, and `afterEach` fails
+ * the test that made it.
+ */
+const unhandledRequests: string[] = [];
+
 beforeAll(() => {
-  server.listen({ onUnhandledFrame: "error" });
+  server.listen({
+    onUnhandledFrame: ({ frame }) => {
+      const label =
+        frame instanceof HttpNetworkFrame
+          ? `${frame.data.request.method} ${frame.data.request.url}`
+          : `${frame.protocol} frame`;
+      unhandledRequests.push(label);
+      throw new Error(`[MSW] no handler for ${label}`);
+    },
+  });
 });
 
 beforeEach(() => {
@@ -59,6 +79,8 @@ beforeEach(() => {
 
 afterEach(() => {
   server.resetHandlers();
+  const unhandled = unhandledRequests.splice(0);
+  expect(unhandled, "requests no msw handler answered").toEqual([]);
 });
 
 afterAll(() => {
