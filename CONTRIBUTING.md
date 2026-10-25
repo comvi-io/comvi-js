@@ -9,7 +9,7 @@ code. By contributing you agree that your work is licensed under the repository'
 
 ## What this repository is
 
-A pnpm 9 + Turborepo monorepo holding a framework-agnostic i18n runtime and its bindings.
+A pnpm 10 + Turborepo monorepo holding a framework-agnostic i18n runtime and its bindings.
 
 ```
 packages/core                      framework-agnostic runtime; everything else depends on it
@@ -33,7 +33,7 @@ behaviour, update the relevant package README in the same pull request.
 
 ## Getting started
 
-Prerequisites: Node.js 22 or newer, pnpm 9 or newer, Git.
+Prerequisites: Node.js 22 or newer, pnpm 10.16 or newer (corepack runs the version pinned in `packageManager`), Git.
 
 ```bash
 git clone https://github.com/comvi-io/comvi-js.git
@@ -82,9 +82,13 @@ build.
 
 ### 1. Changesets are required, and CI enforces it
 
-Any change touching `packages/*/src/**` or a package's own `package.json` needs a
-`.changeset/*.md` entry in the same pull request. The guard greps the diff, and a pull request
-without one fails before anything else runs.
+Any change to what a package ships needs a `.changeset/*.md` entry in the same pull request:
+its `src/`, anything under its `files`, its entry targets, its build configs and the scripts its
+`build` runs, and its `package.json` except a change to `devDependencies` alone. A package
+without `files` counts as wholly published, tests and docs aside. The changeset must be added
+or edited in the pull request and parse as one (a release entry and a summary); deleting one
+does not count. The rules live in `.github/scripts/published-changes.mjs`, and a pull request
+without a needed changeset fails before anything else runs.
 
 ```bash
 pnpm changeset        # pick packages, pick a bump, write the summary
@@ -358,7 +362,7 @@ the checks in `tooling/`. Cutting a release itself is [RELEASING.md](./RELEASING
 
 1. Fork, then branch from `main`.
 2. Make the change, with tests.
-3. Add a changeset if you touched `packages/*/src/**` or a package's `package.json`.
+3. Add a changeset if you changed what a package ships (see “Changesets are required” above).
 4. Update the affected package README if public behaviour changed.
 5. Run `pnpm test:commit`, plus whatever the cheat-sheet above adds for your change.
 6. Open the pull request. CI runs the four jobs; a maintainer reviews.

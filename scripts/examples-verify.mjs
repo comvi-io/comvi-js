@@ -41,9 +41,9 @@ import { assertCandidateIntegrity } from "./examples-e2e/lib.mjs";
  * whatever is on PATH: the temp manifest carries the same `packageManager`
  * field, which corepack and pnpm >= 9.7 (its `manage-package-manager-versions`)
  * honour, and `assertPinnedPnpm` refuses to install under any other version.
- * Outside this repo a corepack `pnpm` shim falls back to its own default (10.x
- * on a laptop) while CI runs 9.12.1, and the two disagree about peers that an
- * override touches; see `withOverrides`.
+ * Outside this repo a corepack `pnpm` shim falls back to its own default,
+ * which need not be the version CI runs, and pnpm majors disagree about peers
+ * that an override touches; see `withOverrides`.
  *
  * What is checked, per example, in a temp copy outside every workspace (no
  * lockfile in this repo is read or written):
@@ -141,7 +141,32 @@ export const EXAMPLE_NPMRC = [
   "",
 ].join("\n");
 
-/** `packageManager` from this repo's root manifest, e.g. `pnpm@9.12.1`. */
+/** Every spelling of the setting pnpm or npm might read from the environment. */
+const RELEASE_AGE_VAR = /^(npm|pnpm)_config_minimum[-_]release[-_]age/i;
+
+/**
+ * `env` for a temp install, without what `pnpm run` exported from THIS repo's
+ * config. pnpm passes its settings to scripts as `npm_config_*`, and a variable
+ * outranks the temp copy's own `.npmrc`. `minimumReleaseAge`
+ * (pnpm-workspace.yaml) is the one that breaks the install: the candidate
+ * registry's metadata has no `time` field, so `pnpm examples:verify` died with
+ * ERR_PNPM_MISSING_TIME where `node scripts/examples-verify.mjs` passed. A reader
+ * on StackBlitz has no release-age delay either.
+ */
+export function tempInstallEnv(env, extra = {}) {
+  const result = { ...env, ...extra };
+  for (const name of Object.keys(result)) {
+    if (RELEASE_AGE_VAR.test(name)) delete result[name];
+  }
+  return result;
+}
+
+/** The environment `verifyExample` installs, builds and typechecks with. */
+export function exampleInstallEnv(kind, env = process.env) {
+  return tempInstallEnv(env, { CI: "1", ...KINDS[kind].env });
+}
+
+/** `packageManager` from this repo's root manifest, e.g. `pnpm@10.34.8`. */
 export const PINNED_PNPM = JSON.parse(
   fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"),
 ).packageManager;
@@ -765,7 +790,8 @@ async function verifyExample(example, packages, options) {
       path.join(target, ".npmrc"),
       `${EXAMPLE_NPMRC}@comvi:registry=${options.registryUrl}\n`,
     );
-    assertPinnedPnpm(target, { env: { ...process.env, CI: "1", ...KINDS[kind].env } });
+    const env = exampleInstallEnv(kind);
+    assertPinnedPnpm(target, { env });
 
     for (const [step, argv] of [
       ["install", ["install", "--no-frozen-lockfile", "--ignore-workspace"]],
@@ -777,7 +803,7 @@ async function verifyExample(example, packages, options) {
         quiet: true,
         // `CI` is not set here on a laptop, and Next and Nuxt both take that as
         // permission to print an interactive telemetry notice on first run.
-        env: { ...process.env, CI: "1", ...KINDS[kind].env },
+        env,
       });
       result.steps.push({ step, status, output });
       if (status !== 0) {

@@ -86,10 +86,10 @@ jobs:
           node-version: 24
           # setup-node caches by `packageManager` on its own and then needs a
           # pnpm on PATH, which corepack only provides in the next step; the
-          # two repositories pin different pnpm majors anyway.
+          # two repositories pin different pnpm versions anyway.
           package-manager-cache: false
 
-      # The two repositories pin different pnpm majors (packageManager); corepack
+      # The two repositories pin different pnpm versions (packageManager); corepack
       # runs the pinned one in each directory, including the bare `pnpm` calls
       # inside the platform's test-stack.
       - name: Enable corepack
