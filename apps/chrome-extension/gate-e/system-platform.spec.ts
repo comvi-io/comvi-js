@@ -368,43 +368,37 @@ test("real platform persists editor writes and SDK-configured context through th
       expect(loaderResult.translationEntries.some(([key]) => key === "en:common")).toBe(true);
     });
 
-    await test.step("the packed fetchLoaderPlugin reads published translations from the CDN", async () => {
-      const cdnLoaderResult = await page.evaluate(
+    await test.step("the packed fetchLoader reads published translations from the CDN", async () => {
+      const cdnTranslation = await page.evaluate(
         async ({ source, cdnUrl }) => {
           const moduleUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+          // The bundle carries the packed `./api` entry and the `@comvi/core` it
+          // runs on, so the plugin meets a real instance, not a hand-written stub.
           const packed = (await import(moduleUrl)) as {
-            fetchLoaderPlugin: (options: {
+            createI18n: (options: Record<string, unknown>) => {
+              use: (installer: unknown) => {
+                init: () => Promise<unknown>;
+                t: (key: string) => string;
+              };
+            };
+            fetchLoader: (options: {
               cdnUrl: string;
-              loadOnInit: boolean;
-            }) => (i18n: Record<string, unknown>) => Promise<unknown>;
+              cdnLayout: { rootNamespace: string };
+            }) => unknown;
           };
           URL.revokeObjectURL(moduleUrl);
 
-          let registeredLoader:
-            | ((locale: string, namespace: string) => Promise<Record<string, unknown>>)
-            | undefined;
-          const i18n = {
-            apiKey: undefined,
-            isInitializing: false,
-            locale: "en",
-            setPluginData: () => undefined,
-            getDefaultNamespace: () => "default",
-            getActiveNamespaces: () => ["common"],
-            registerLoader: (
-              loader: (locale: string, namespace: string) => Promise<Record<string, unknown>>,
-            ) => {
-              registeredLoader = loader;
-            },
-            addMessages: () => undefined,
-          };
-          await packed.fetchLoaderPlugin({ cdnUrl, loadOnInit: false })(i18n);
-          if (!registeredLoader)
-            throw new Error("Packed fetchLoaderPlugin did not register a CDN loader");
-          return registeredLoader("en", "common");
+          // The platform publishes only its `default` namespace at the CDN root,
+          // so an app whose `defaultNs` is anything else names that root.
+          const i18n = packed
+            .createI18n({ locale: "en", defaultNs: "common", devMode: false })
+            .use(packed.fetchLoader({ cdnUrl, cdnLayout: { rootNamespace: "default" } }));
+          await i18n.init();
+          return i18n.t("system.published");
         },
         { source: fetchLoaderSource, cdnUrl: systemCdnUrl },
       );
-      expect(cdnLoaderResult["system.published"]).toBe(systemCdnExpectedValue);
+      expect(cdnTranslation).toBe(systemCdnExpectedValue);
     });
 
     await test.step("no destructive route ran and the key never reached the page", async () => {
