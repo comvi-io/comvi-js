@@ -78,6 +78,14 @@ function fakeNitroApp() {
 
 type NitroHooks = ReturnType<typeof createHooks>;
 
+/**
+ * An h3 event after Nitro's `onRequest` ran: nitropack declares `waitUntil` on
+ * h3's `H3Event` in `nitropack/types`. Spelled out here so the test does not
+ * depend on which Nuxt version's type graph happens to pull that augmentation
+ * in (`@nuxt/schema@3` did, through `nuxt/app`; `@nuxt/schema@4` does not).
+ */
+type NitroEvent = H3Event & { waitUntil: (promise: Promise<unknown>) => void };
+
 /** What Nitro does at `afterResponse`. */
 const callAfterResponse = (hooks: NitroHooks, event: H3Event) =>
   hooks.callHook("afterResponse", event, undefined);
@@ -119,12 +127,12 @@ function hostRecordingTeardown(options: Record<string, unknown>) {
  * render through this same array, under the PARENT event's context
  * (`cache.mjs:87` + `:255`), which is why one test on the array covers both.
  */
-function nitroise(event: H3Event): void {
+function nitroise(event: H3Event): asserts event is NitroEvent {
   const context = event.context as {
     nitro?: { errors: unknown[]; _waitUntilPromises?: unknown[] };
   };
   context.nitro = { errors: [] };
-  event.waitUntil = (promise: Promise<unknown>) => {
+  (event as NitroEvent).waitUntil = (promise: Promise<unknown>) => {
     (context.nitro!._waitUntilPromises ??= []).push(promise);
   };
 }
@@ -497,7 +505,7 @@ describe("Nitro server plugin", () => {
       startChain = resolve;
     });
 
-    const registerNext = (event: H3Event): void => {
+    const registerNext = (event: NitroEvent): void => {
       event.waitUntil(
         (async () => {
           await chainGate;
@@ -610,7 +618,7 @@ describe("Nitro server plugin", () => {
     let backgroundText = "";
     let host: { t: (key: string) => string } | undefined;
 
-    hooks.hook("afterResponse", (event: H3Event) => {
+    hooks.hook("afterResponse", (event: NitroEvent) => {
       event.waitUntil(
         (async () => {
           for (let hop = 0; hop < 10; hop += 1) await Promise.resolve();

@@ -85,9 +85,9 @@ export const WORKSPACE_DEPS = [
   "solid-js",
   "next",
   // `nuxt` arrives anyway as an auto-installed peer of `@comvi/nuxt`, but the
-  // peer range is `^3.0.0 || ^4.0.0` and pnpm resolved it to 4.5.2 while the
-  // package is developed and tested against the `^3.21.4` its devDependencies
-  // pin. Naming it here pins it to the workspace's version.
+  // peer range is `^3.0.0 || ^4.0.0`, so pnpm picks whatever is newest (it once
+  // resolved 4.5.2 while the package was tested against 3.x). Naming it here
+  // pins it to the version the package's devDependencies build and test against.
   "nuxt",
   "@types/node",
   "vitest",
