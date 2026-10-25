@@ -26,7 +26,7 @@ declaration that types `t()`. Use it when the catalogs live on the
 
 ```bash
 npm install -D @comvi/cli
-# Node 22 or newer.
+# Node 22.12 or newer.
 ```
 
 Run it as `npx comvi <command>` once it is a dev dependency, or as
