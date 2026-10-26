@@ -74,12 +74,64 @@ describe("Formatters — the fallback-locale chain", () => {
     expect(formatNumber({ locale: "de" }, 1234.5)).toBe("1.234,5");
   });
 
-  it("exposes the chain on the instance as a copy", () => {
-    const i18n = createI18n({ locale: "en", fallbackLocale: ["de", "fr"] });
+  it("exposes the chain on the instance read-only, detached from the option array", () => {
+    const option = ["de", "fr"];
+    const i18n = createI18n({ locale: "en", fallbackLocale: option });
     const chain = i18n.fallbackLocales;
 
     expect(chain).toEqual(["de", "fr"]);
-    (chain as string[]).push("uk");
+    expect(() => (chain as string[]).push("uk")).toThrow(TypeError);
+    option.push("uk");
     expect(i18n.fallbackLocales).toEqual(["de", "fr"]);
+  });
+
+  it("returns the same chain between calls and a new one after setFallbackLocale", () => {
+    const i18n = createI18n({ locale: "zz", fallbackLocale: "de" });
+    const before = i18n.fallbackLocales;
+
+    expect(i18n.fallbackLocales).toBe(before);
+    expect(formatNumber(i18n, 1234.5)).toBe("1.234,5");
+
+    i18n.setFallbackLocale("en");
+
+    expect(i18n.fallbackLocales).not.toBe(before);
+    expect(i18n.fallbackLocales).toEqual(["en"]);
+    expect(before).toEqual(["de"]);
+    expect(formatNumber(i18n, 1234.5)).toBe("1,234.5");
+  });
+
+  it("follows a mutable chain on a plain locale source", () => {
+    const fallbackLocales = ["de"];
+    const source = { locale: "zz", fallbackLocales };
+
+    expect(formatNumber(source, 1234.5)).toBe("1.234,5");
+    fallbackLocales[0] = "en";
+    expect(formatNumber(source, 1234.5)).toBe("1,234.5");
+  });
+  it("re-resolves the same chain after a locale switch", () => {
+    const i18n = createI18n({ locale: "en", fallbackLocale: "de" });
+
+    expect(formatNumber(i18n, 1234.5)).toBe("1,234.5");
+    i18n.locale = "zz";
+    expect(formatNumber(i18n, 1234.5)).toBe("1.234,5");
+  });
+
+  it("resolves a frozen chain once per locale, a mutable one on every call", () => {
+    const filterReads = (target: string[]) => {
+      let reads = 0;
+      const fallbackLocales = new Proxy(target, {
+        get(chain, property, receiver) {
+          if (property === "filter") reads++;
+          return Reflect.get(chain, property, receiver);
+        },
+      });
+      const source = { locale: "zz", fallbackLocales };
+      expect(formatNumber(source, 1234.5)).toBe("1.234,5");
+      expect(formatNumber(source, 1234.5)).toBe("1.234,5");
+      return reads;
+    };
+
+    expect(filterReads(Object.freeze(["de"]) as string[])).toBe(1);
+    expect(filterReads(["de"])).toBe(2);
   });
 });

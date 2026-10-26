@@ -279,3 +279,16 @@ Anchors from this sweep, in bytes min+gz: `core-base` 5451 → 5608, `core-base-
 `core-base` and `core-base-devtools` table in `docs/design/editor-loader.md` was updated to this
 sweep; the three figures in `.github/release-notes/0.6.0.md` already matched it and were not
 touched.
+
+## 2026-10-26: `fw-svelte-format` re-baselined for the formatters' locale-chain memo
+
+COM-207 memoizes the locale list the formatters hand `Intl`, per frozen fallback chain and locale,
+so a format call with a fallback chain allocates nothing. Measured with one
+`node scripts/size-check.mjs` run under Node 24.22.1 after `pnpm build`, against the same run on
+the base (`8d0db18d`): every row that imports a formatter grew by 88…106 B min+gz, the other core
+rows by 12…23 B (the frozen chain on the instance). All of them fit their budgets except
+`fw-svelte-format`, the one-formatter row, which went 558 → 761 B min and 362 → 462 B min+gz
+against a 381 B budget: the memo is ~100 B on a ~360 B row. Without the memo the row stays in
+budget, but the base measured the formatters 13–25 % slower than 0.7.0 with a fallback locale,
+so the bytes ship. Only that row was re-baselined, to 462 B with a budget of 486 B; the rest keep
+their baselines.

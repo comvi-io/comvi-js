@@ -39,11 +39,40 @@ function isValidTag(tag: string): boolean {
   return valid;
 }
 
+/** The locales handed to `Intl`, and their JSON as the formatter cache-key prefix. */
+type ResolvedLocales = [lc: string | string[], key: string];
+
+const NO_CHAIN: readonly string[] = Object.freeze([]);
+
+// Per chain array, per locale. Keyed by identity, so only a frozen chain is
+// memoized: a mutable one could change under the entry. An I18n instance's
+// chain is frozen and replaced whole by `setFallbackLocale`.
+let resolvedCache = new WeakMap<readonly string[], Map<string, ResolvedLocales>>();
+
 // An explicit `locale` argument is one locale; otherwise the source's chain.
-function resolveLocales(source: LocaleSource, locale: string | undefined): string | string[] {
-  if (locale !== undefined) return locale;
-  const fallbacks = source.fallbackLocales?.filter(isValidTag);
-  return fallbacks?.length ? [source.locale, ...fallbacks] : source.locale;
+function resolveLocales(source: LocaleSource, locale: string | undefined): ResolvedLocales {
+  let chain = NO_CHAIN;
+  if (locale === undefined) {
+    locale = source.locale;
+    chain = source.fallbackLocales ?? NO_CHAIN;
+  }
+  let byLocale = resolvedCache.get(chain);
+  let resolved = byLocale?.get(locale);
+  if (resolved === undefined) {
+    const fallbacks = chain.filter(isValidTag);
+    const lc = fallbacks.length ? [locale, ...fallbacks] : locale;
+    resolved = [lc, JSON.stringify(lc)];
+    if (Object.isFrozen(chain)) {
+      if (byLocale === undefined) resolvedCache.set(chain, (byLocale = new Map()));
+      cachePut(byLocale, locale, resolved);
+    }
+  }
+  return resolved;
+}
+
+// The prefix is one complete JSON value, so appending the options' JSON stays unambiguous.
+function cacheKey([, key]: ResolvedLocales, options: object | undefined): string {
+  return options ? key + JSON.stringify(options) : key;
 }
 
 const numberFormatCache = new Map<string, Intl.NumberFormat>();
@@ -51,35 +80,35 @@ const dateFormatCache = new Map<string, Intl.DateTimeFormat>();
 const relativeTimeFormatCache = new Map<string, Intl.RelativeTimeFormat>();
 
 function getNumberFormat(
-  lc: string | string[],
+  locales: ResolvedLocales,
   options?: Intl.NumberFormatOptions,
 ): Intl.NumberFormat {
-  const cacheKey = JSON.stringify([lc, options ?? null]);
+  const key = cacheKey(locales, options);
   return (
-    numberFormatCache.get(cacheKey) ??
-    cachePut(numberFormatCache, cacheKey, new Intl.NumberFormat(lc, options))
+    numberFormatCache.get(key) ??
+    cachePut(numberFormatCache, key, new Intl.NumberFormat(locales[0], options))
   );
 }
 
 function getDateFormat(
-  lc: string | string[],
+  locales: ResolvedLocales,
   options?: Intl.DateTimeFormatOptions,
 ): Intl.DateTimeFormat {
-  const cacheKey = JSON.stringify([lc, options ?? null]);
+  const key = cacheKey(locales, options);
   return (
-    dateFormatCache.get(cacheKey) ??
-    cachePut(dateFormatCache, cacheKey, new Intl.DateTimeFormat(lc, options))
+    dateFormatCache.get(key) ??
+    cachePut(dateFormatCache, key, new Intl.DateTimeFormat(locales[0], options))
   );
 }
 
 function getRelativeTimeFormat(
-  lc: string | string[],
+  locales: ResolvedLocales,
   options?: Intl.RelativeTimeFormatOptions,
 ): Intl.RelativeTimeFormat {
-  const cacheKey = JSON.stringify([lc, options ?? null]);
+  const key = cacheKey(locales, options);
   return (
-    relativeTimeFormatCache.get(cacheKey) ??
-    cachePut(relativeTimeFormatCache, cacheKey, new Intl.RelativeTimeFormat(lc, options))
+    relativeTimeFormatCache.get(key) ??
+    cachePut(relativeTimeFormatCache, key, new Intl.RelativeTimeFormat(locales[0], options))
   );
 }
 
@@ -143,6 +172,7 @@ export function _formatterCacheSize(): number {
 
 /** @internal Test teardown. */
 export function _resetFormatterCaches(): void {
+  resolvedCache = new WeakMap();
   numberFormatCache.clear();
   dateFormatCache.clear();
   relativeTimeFormatCache.clear();
