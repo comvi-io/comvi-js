@@ -10,9 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@comvi/core": "^0.7.0",
-    "@comvi/plugin-fetch-loader": "^0.7.0",
-    "@comvi/plugin-locale-detector": "^0.7.0"
+    "@comvi/core": "^0.7.1",
+    "@comvi/plugin-fetch-loader": "^0.7.1",
+    "@comvi/plugin-locale-detector": "^0.7.1"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

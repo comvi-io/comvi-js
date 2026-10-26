@@ -10,9 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@comvi/plugin-fetch-loader": "^0.7.0",
-    "@comvi/plugin-locale-detector": "^0.7.0",
-    "@comvi/vue": "^0.7.0",
+    "@comvi/plugin-fetch-loader": "^0.7.1",
+    "@comvi/plugin-locale-detector": "^0.7.1",
+    "@comvi/vue": "^0.7.1",
     "vue": "^3.5.32",
     "vue-router": "^4.6.4"
   },
