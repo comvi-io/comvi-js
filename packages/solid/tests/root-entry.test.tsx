@@ -24,6 +24,7 @@ import type { I18nLoaderApi } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPluginApi } from "@comvi/core/plugins";
 import { I18nProvider as DeepI18nProvider } from "../src/context";
+import * as core from "@comvi/core";
 import * as root from "../src/index";
 
 function underProvider<R>(i18n: WrapperI18nInstance, use: () => R) {
@@ -199,6 +200,10 @@ describe("@comvi/solid — the export surface", () => {
     "createLocaleSignal",
     "definePlugin",
     "devtools",
+    "formatCurrency",
+    "formatDate",
+    "formatNumber",
+    "formatRelativeTime",
     "icuCompiler",
     "loader",
     "plugins",
@@ -259,5 +264,24 @@ describe("@comvi/solid — one entry, one solid context", () => {
     dispose();
 
     expect(text).toBe("Hello");
+  });
+});
+
+describe("@comvi/solid — the standalone formatters", () => {
+  // Derived from core, so a formatter core adds cannot be left off this entry.
+  const CORE_FORMATTERS = Object.keys(core)
+    .filter((name) => /^format[A-Z]/.test(name))
+    .sort();
+
+  it("re-exports exactly core's formatter set, as core's own bindings", () => {
+    expect(CORE_FORMATTERS.length).toBeGreaterThan(0);
+    expect(
+      Object.keys(root)
+        .filter((name) => /^format[A-Z]/.test(name))
+        .sort(),
+    ).toEqual(CORE_FORMATTERS);
+    for (const name of CORE_FORMATTERS) {
+      expect((root as Record<string, unknown>)[name]).toBe((core as Record<string, unknown>)[name]);
+    }
   });
 });

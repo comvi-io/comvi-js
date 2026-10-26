@@ -3,6 +3,7 @@
 // THIS package, not of the app. That makes the export list a contract: a name
 // dropped here is a recipe a reader cannot follow.
 import { describe, expect, it } from "vitest";
+import * as core from "@comvi/core";
 import * as host from "../src/runtime/i18n";
 
 describe("@comvi/nuxt/i18n", () => {
@@ -13,6 +14,10 @@ describe("@comvi/nuxt/i18n", () => {
       "defineComviI18n",
       "definePlugin",
       "devtools",
+      "formatCurrency",
+      "formatDate",
+      "formatNumber",
+      "formatRelativeTime",
       "icuCompiler",
       "loader",
       "plugins",
@@ -64,5 +69,24 @@ describe("@comvi/nuxt/i18n", () => {
     await i18n.init();
 
     expect(ran).toEqual(["inline"]);
+  });
+});
+
+describe("@comvi/nuxt/i18n — the standalone formatters", () => {
+  // Derived from core, so a formatter core adds cannot be left off this entry.
+  const CORE_FORMATTERS = Object.keys(core)
+    .filter((name) => /^format[A-Z]/.test(name))
+    .sort();
+
+  it("re-exports exactly core's formatter set, as core's own bindings", () => {
+    expect(CORE_FORMATTERS.length).toBeGreaterThan(0);
+    expect(
+      Object.keys(host)
+        .filter((name) => /^format[A-Z]/.test(name))
+        .sort(),
+    ).toEqual(CORE_FORMATTERS);
+    for (const name of CORE_FORMATTERS) {
+      expect((host as Record<string, unknown>)[name]).toBe((core as Record<string, unknown>)[name]);
+    }
   });
 });

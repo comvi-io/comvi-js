@@ -51,8 +51,7 @@ export function getServerRuntimeConfig(event?: H3Event): ComviServerRuntimeConfi
 
   try {
     const globalNuxt = (globalThis as Record<string, unknown>).__NUXT_CONFIG__ as
-      | ComviServerRuntimeConfig
-      | undefined;
+      ComviServerRuntimeConfig | undefined;
     if (globalNuxt) return globalNuxt;
   } catch {
     // Ignore

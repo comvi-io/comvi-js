@@ -42,11 +42,11 @@
  * installed.
  *
  * Every temp install, build and server runs the pnpm this repo pins
- * (`packageManager`, 9.12.1 — what CI runs), not whatever `pnpm` is on PATH:
+ * (`packageManager` — what CI runs), not whatever `pnpm` is on PATH:
  * the temp manifest carries the same `packageManager` field, and
  * `assertPinnedPnpm` fails the example before its install under any other
  * version. A laptop's corepack shim outside the repo otherwise runs its own
- * default (10.x), which accepted overrides pnpm 9 rejects; `withOverrides` in
+ * default (pnpm 10 accepted overrides that pnpm 9 rejected); `withOverrides` in
  * `examples-verify.mjs` says why the overrides are now keyed by declared spec.
  *
  * `sveltekit` and `solidstart` run `ssr-recipe.spec.ts` instead, on three
@@ -104,6 +104,7 @@ import {
   declaredComviDeps,
   exampleDirs,
   exampleKind,
+  tempInstallEnv,
   withOverrides,
 } from "../examples-verify.mjs";
 import {
@@ -146,8 +147,8 @@ const RESULTS_DIR = path.join(REPO_ROOT, "test-results", "examples-e2e");
 const CDN_VARS = ["VITE_COMVI_CDN_URL", "NEXT_PUBLIC_COMVI_CDN_URL", "NUXT_PUBLIC_COMVI_CDN_URL"];
 
 /** The environment every child runs with: quiet, non-interactive, no telemetry. */
-function childEnv(kind, extra = {}) {
-  const env = { ...process.env };
+export function childEnv(kind, extra = {}) {
+  const env = tempInstallEnv(process.env);
   for (const name of CDN_VARS) delete env[name];
   return {
     ...env,

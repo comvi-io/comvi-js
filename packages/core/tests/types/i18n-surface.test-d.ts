@@ -31,6 +31,8 @@ type Expect<T extends true> = T;
  */
 type PreSplitKeySnapshot =
   | "locale"
+  // Added after the split, on purpose: the chain the formatters hand `Intl` (COM-204).
+  | "fallbackLocales"
   | "apiKey"
   | "collectContext"
   | "devMode"

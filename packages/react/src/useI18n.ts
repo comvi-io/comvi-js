@@ -21,6 +21,7 @@ import type {
   WrapperI18nInstance,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
+  LocaleSource,
 } from "@comvi/core";
 
 type ReactElementLike = {
@@ -313,27 +314,34 @@ export function useI18n<
     [view, locale],
   );
 
-  const formatters = useMemo(
-    () => ({
+  // A render snapshot like the reads above: a chain change gives the formatters new identities.
+  const fallbackChain = JSON.stringify(i18n.getFallbackLocales());
+  const formatters = useMemo(() => {
+    const source: LocaleSource = {
+      locale,
+      get fallbackLocales() {
+        return i18n.fallbackLocales;
+      },
+    };
+    return {
       formatNumber: (value: number, options?: Intl.NumberFormatOptions, loc?: string) =>
-        formatNumber(i18n, value, options, loc ?? locale),
+        formatNumber(source, value, options, loc),
       formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions, loc?: string) =>
-        formatDate(i18n, value, options, loc ?? locale),
+        formatDate(source, value, options, loc),
       formatCurrency: (
         value: number,
         currency: string,
         options?: Intl.NumberFormatOptions,
         loc?: string,
-      ) => formatCurrency(i18n, value, currency, options, loc ?? locale),
+      ) => formatCurrency(source, value, currency, options, loc),
       formatRelativeTime: (
         value: number,
         unit: Intl.RelativeTimeFormatUnit,
         options?: Intl.RelativeTimeFormatOptions,
         loc?: string,
-      ) => formatRelativeTime(i18n, value, unit, options, loc ?? locale),
-    }),
-    [i18n, locale],
-  );
+      ) => formatRelativeTime(source, value, unit, options, loc),
+    };
+  }, [i18n, locale, fallbackChain]);
 
   return {
     t,

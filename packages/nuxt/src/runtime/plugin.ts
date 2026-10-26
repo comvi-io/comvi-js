@@ -139,8 +139,7 @@ export default defineNuxtPlugin({
       }
 
       const ssrMessages = nuxtApp.payload?.[I18N_MESSAGES_PAYLOAD_KEY] as
-        | TranslationsPayload
-        | undefined;
+        TranslationsPayload | undefined;
       if (ssrMessages) {
         i18n.addMessages(ssrMessages);
       }

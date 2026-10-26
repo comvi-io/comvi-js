@@ -114,7 +114,7 @@ export type { LoaderFn, LoaderResult };
  */
 export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I18nCoreInstance<D> {
   _locale: string;
-  _fallbackLocales: string[];
+  _fallbackLocales: readonly string[];
   _cachedDefaultNs: string;
   _activeNamespaces: Set<string>;
   _emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void;
@@ -199,7 +199,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    */
   private _destroyAttempt?: Promise<void>;
   private _loadingCount: number = 0;
-  protected _fallbackLocales: string[];
+  protected _fallbackLocales: readonly string[];
   public readonly apiKey: string | undefined;
   public readonly collectContext: boolean | undefined;
   public readonly devMode: boolean;
@@ -309,8 +309,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._initialNamespaces = initialNamespaces ? [...new Set(initialNamespaces)] : undefined;
 
     // `concat` copies: the chain is instance-owned, so a caller mutating the array
-    // it passed cannot change output behind `configChanged`.
-    this._fallbackLocales = ([] as string[]).concat(options.fallbackLocale ?? []);
+    // it passed cannot change output behind `configChanged`. Frozen so the
+    // `fallbackLocales` getter can hand out this same array, and the formatters
+    // can memoize on its identity.
+    this._fallbackLocales = Object.freeze(([] as string[]).concat(options.fallbackLocale ?? []));
 
     this._fallbackOnMissingKey = options.onMissingKey;
     this._onError = options.onError;
@@ -609,6 +611,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
     });
   }
 
+  /** The fallback chain. The same frozen array until `setFallbackLocale` replaces it. */
+  get fallbackLocales(): readonly string[] {
+    return this._fallbackLocales;
+  }
+
   /**
    * Set the locale and emit `localeChanged`.
    *
@@ -628,8 +635,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   setFallbackLocale(fallback: string | readonly string[]) {
-    // Copied, as in the constructor.
-    this._fallbackLocales = ([] as string[]).concat(fallback);
+    // Copied and frozen, as in the constructor.
+    this._fallbackLocales = Object.freeze(([] as string[]).concat(fallback));
     this._emit("configChanged", { source: "fallbackLocale" });
   }
 
@@ -789,7 +796,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return [...this._activeNamespaces];
   }
 
-  /** The resolved fallback-locale chain (read-only snapshot). */
+  /** The resolved fallback-locale chain as a mutable copy; `fallbackLocales` is the shared frozen array. */
   getFallbackLocales(): string[] {
     return [...this._fallbackLocales];
   }
@@ -935,7 +942,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     translationKey: string,
     currentLocale: string,
     defaultNamespace: string,
-    fallbackLocales: string[],
+    fallbackLocales: readonly string[],
     params?: TranslationParams,
   ): TranslationResult {
     // Drop any ICU hit left behind by a compile this call did not make (a

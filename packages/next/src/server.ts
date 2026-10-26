@@ -43,6 +43,8 @@ export type { MessagesMap } from "@comvi/core";
 // star re-export, and it cannot reconnect a two-package chain either, so every
 // binding below comes straight from core.
 export { createI18n } from "@comvi/core";
+export { formatNumber, formatDate, formatCurrency, formatRelativeTime } from "@comvi/core";
+export type { LocaleSource } from "@comvi/core";
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";
 export { definePlugin, plugins } from "@comvi/core/plugins";

@@ -4,6 +4,13 @@ import type { TranslationSync } from "./TranslationSync";
 import type { TranslationData } from "../types";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary";
+import {
+  detectJsonStyle,
+  isCompleteJsonStyle,
+  resolveJsonStyle,
+  stringifyJson,
+  type JsonStyle,
+} from "../utils/jsonStyle";
 
 /**
  * The merge writer of `comvi translate`. Unlike a pull, which replaces each
@@ -17,6 +24,8 @@ import { dictionaryFrom, emptyDictionary, hasOwnKey } from "../utils/dictionary"
  * - Everything else in the file stays: local-only keys, and the shape. A
  *   nested file stays nested, a flat one flat; a new file takes the shape of
  *   the source file.
+ * - A file keeps its indentation, line endings and final newline; a new
+ *   file takes the source file's.
  * - A key that cannot nest (`a.b` under a leaf `a`, or a leaf `a` over an
  *   object `a`) is reported and not written.
  * - Every destination is planned and judged before the first write, with the
@@ -198,7 +207,12 @@ async function mergeFile(
 
   if (result.filled.length > 0) {
     await fs.mkdir(dirname(filePath), { recursive: true });
-    await atomicWriteFile(filePath, JSON.stringify(root, null, 2) + "\n");
+    const own = detectJsonStyle(text);
+    const style = resolveJsonStyle(
+      own,
+      isCompleteJsonStyle(own) ? {} : await sourceStyle(options, namespace),
+    );
+    await atomicWriteFile(filePath, stringifyJson(root, style));
     result.created = text === null;
   }
 
@@ -305,14 +319,23 @@ function placeNested(
   return true;
 }
 
+async function sourcePath(options: MergeOptions, namespace: string): Promise<string> {
+  return options.sync.catalogPath(options.sourceLocale, namespace, options.defaultNamespace);
+}
+
+/** Only a layout to borrow: a source that cannot be read does not stop the write. */
+async function sourceStyle(options: MergeOptions, namespace: string): Promise<JsonStyle> {
+  try {
+    return detectJsonStyle(await readIfExists(await sourcePath(options, namespace)));
+  } catch {
+    return {};
+  }
+}
+
 async function sourceIsNested(options: MergeOptions, namespace: string): Promise<boolean> {
-  const sourcePath = await options.sync.catalogPath(
-    options.sourceLocale,
-    namespace,
-    options.defaultNamespace,
-  );
-  const text = await readIfExists(sourcePath);
-  return text !== null && Object.values(parseCatalog(text, sourcePath)).some(isPlainObject);
+  const path = await sourcePath(options, namespace);
+  const text = await readIfExists(path);
+  return text !== null && Object.values(parseCatalog(text, path)).some(isPlainObject);
 }
 
 /** Every object here came out of `JSON.parse`, so an object that is not an array is a map. */

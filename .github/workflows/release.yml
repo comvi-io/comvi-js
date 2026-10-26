@@ -36,10 +36,12 @@ permissions: {}
 #   *verify   (contents: read, no id-token, credentials not persisted)
 #             downloads that artifact and runs examples:e2e in both modes
 #             against those files (`--tarballs`; no build, no pack). It
-#             installs every example with unpinned third-party packages and
-#             their lifecycle scripts, so it is treated as hostile: it writes
-#             no outputs, uploads only diagnostics, and its one effect on
-#             publishing is its exit status.
+#             installs every example with unpinned third-party packages. pnpm
+#             10 blocks their build scripts (the temp copies allow none), but
+#             that code still runs in each example's build, server and browser,
+#             so the job is treated as hostile: it writes no outputs, uploads
+#             only diagnostics, and its one effect on publishing is its exit
+#             status.
 #   *publish  (id-token: write; GA also contents: write for tags) installs
 #             and builds nothing. It downloads PACK's artifact, checks that
 #             SHA256SUMS hashes to pack's `sums`, that every listed tarball
@@ -80,9 +82,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -145,9 +146,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -279,9 +279,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       # setup-node stays on v5: v6 limits automatic caching to npm,
       # and this workflow relies on `cache: pnpm`
@@ -294,15 +293,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # v2 is the line for @changesets/cli 3 (v1 is for cli 2). It takes the
+      # token as an input, not from GITHUB_TOKEN in env, and pushes the release
+      # commit through the GitHub API. Tags and releases are not its job here:
+      # it gets no publish script.
       - name: Create or update the release PR
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          commit: "chore: release packages"
-          title: "chore: release packages"
-          version: pnpm release:version
-          createGithubReleases: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: release packages"
+          pr-title: "chore: release packages"
+          version-script: pnpm release:version
+          create-github-releases: false
+          push-git-tags: false
 
   # GA: a push with no pending changesets is the merged release PR (or a push
   # after a release, which finds nothing new on npm and stops here).
@@ -346,9 +349,8 @@ jobs:
 
       - name: Setup pnpm
         if: steps.changesets.outputs.pending == 'false'
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         if: steps.changesets.outputs.pending == 'false'
@@ -402,9 +404,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5

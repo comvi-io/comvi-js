@@ -187,6 +187,22 @@ describe("comviTypes plugin", () => {
       expect(written).toContain('"admin:dashboard": never;');
     });
 
+    it("fileTemplate without {namespace} → keys are emitted without a prefix", async () => {
+      const root = await makeProject('{ "hello": "Hello" }');
+      const plugin = comviTypes({
+        translations: "./locales",
+        output: OUTPUT,
+        fileTemplate: "{languageTag}.json",
+      });
+      resolvePlugin(plugin, root, "build");
+
+      await buildStart(plugin);
+
+      const written = await fs.readFile(outputPath(root), "utf-8");
+      expect(written).toContain('"hello": never;');
+      expect(written).not.toContain("undefined:");
+    });
+
     it("augments the Comvi package the project declares", async () => {
       // The documented install is one package, and core arrives through it as a
       // transitive dependency a strict layout will not let the app name. What

@@ -155,6 +155,40 @@ describe("TranslationSync", () => {
     });
   });
 
+  it("{languageTag}.json without defaultNamespace → catalogs land in the default namespace", async () => {
+    const dir = await makeTempDir("comvi-cli-sync");
+    await fs.writeFile(join(dir, "en.json"), '{"hello":"Hello"}\n');
+    await fs.writeFile(join(dir, "de.json"), '{"hello":"Hallo"}\n');
+    const sync = new TranslationSync({
+      translationsPath: dir,
+      fileTemplate: "{languageTag}.json",
+      format: "json",
+    });
+
+    const result = await sync.readTranslations();
+
+    expect(result.namespaces).toEqual(["default"]);
+    expect(result.translations).toEqual({
+      en: { default: { hello: "Hello" } },
+      de: { default: { hello: "Hallo" } },
+    });
+  });
+
+  it("{languageTag}/messages.json → catalogs land in the default namespace", async () => {
+    const dir = await makeTempDir("comvi-cli-sync");
+    await fs.mkdir(join(dir, "en"), { recursive: true });
+    await fs.writeFile(join(dir, "en", "messages.json"), '{"hello":"Hello"}\n');
+    const sync = new TranslationSync({
+      translationsPath: dir,
+      fileTemplate: "{languageTag}/messages.json",
+      format: "json",
+    });
+
+    const result = await sync.readTranslations();
+
+    expect(result.translations).toEqual({ en: { default: { hello: "Hello" } } });
+  });
+
   it("skips files whose locale or namespace segment starts with a dot", async () => {
     const dir = await makeTempDir("comvi-cli-sync");
 

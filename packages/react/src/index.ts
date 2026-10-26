@@ -16,6 +16,9 @@ export { createI18n } from "@comvi/core";
 // object, so the class VALUE is `@comvi/core`'s to export, not a binding's.
 export type { I18n } from "@comvi/core";
 
+// Standalone formatters, for code outside a component.
+export { formatNumber, formatDate, formatCurrency, formatRelativeTime } from "@comvi/core";
+
 export { I18nProvider, useI18nInstance, useLocale, useIsLoading } from "./I18nProvider";
 export type { I18nProviderProps } from "./I18nProvider";
 export type { MessagesMap } from "@comvi/core";

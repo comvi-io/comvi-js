@@ -9,12 +9,13 @@ export default defineConfig({
       insertTypesEntry: true,
       // Bundles the declarations into one `dist/index.d.ts`: `@comvi/typegen`
       // is workspace-private, so the published `.d.ts` may not name it.
-      rollupTypes: true,
-      // api-extractor treats every dependency as external unless it is listed
-      // here: without `bundledPackages` the rolled-up `.d.ts` still IMPORTS
-      // `SchemaParam`/`KeySchema`/`ProjectSchema`/`EmitOptions` from the
-      // private package. Listing it inlines those declarations instead.
-      bundledPackages: ["@comvi/typegen"],
+      bundleTypes: {
+        // api-extractor treats every dependency as external unless it is
+        // listed here: without `bundledPackages` the rolled-up `.d.ts` still
+        // IMPORTS `SchemaParam`/`KeySchema`/`ProjectSchema`/`EmitOptions`
+        // from the private package. Listing it inlines those declarations.
+        bundledPackages: ["@comvi/typegen"],
+      },
     }),
   ],
   build: createPluginBuildOptions({

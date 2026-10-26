@@ -43,11 +43,7 @@ declare global {
  * `editorLoader.failureCodes`).
  */
 export type EditorLoadFailureCode =
-  | "csp-blocked"
-  | "load-error"
-  | "timeout"
-  | "no-global"
-  | "invalid-editor-version";
+  "csp-blocked" | "load-error" | "timeout" | "no-global" | "invalid-editor-version";
 
 /**
  * What `EditorLoaderSlot.load()` resolves with. It never rejects. Every key
@@ -188,13 +184,7 @@ export type NamespacedKeyParams<
 > = `${NS}:${K}` extends keyof TranslationKeys ? TranslationKeys[`${NS}:${K}`] : never;
 
 export type TranslationParamValue =
-  | TranslationResult
-  | number
-  | boolean
-  | VirtualNode
-  | TagCallback
-  | null
-  | undefined;
+  TranslationResult | number | boolean | VirtualNode | TagCallback | null | undefined;
 
 /** Non-nullish interpolation values that can act as instance-level defaults. */
 export type DefaultTranslationParamValue = Exclude<TranslationParamValue, null | undefined>;
@@ -350,10 +340,7 @@ export type NamespacedParamsArg<
  * @typeParam N - The namespace the call's own `{ ns }` names, inferred.
  */
 export type AcceptedKey<NS extends string | undefined = undefined, N extends Namespaces = never> =
-  | PermissiveKey
-  | DefaultNsKeys
-  | NamespacedKeys<NS & string>
-  | NamespacedKeys<N>;
+  PermissiveKey | DefaultNsKeys | NamespacedKeys<NS & string> | NamespacedKeys<N>;
 
 /**
  * @internal The key union as a call signature must SPELL it, not name it.
@@ -986,6 +973,9 @@ export type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResu
 export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   get locale(): string;
   set locale(value: string);
+
+  /** The fallback-locale chain, in order: a frozen array that `setFallbackLocale` replaces. */
+  get fallbackLocales(): readonly string[];
 
   get apiKey(): string | undefined;
 

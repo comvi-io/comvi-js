@@ -137,6 +137,31 @@ describe("comvi pull", () => {
     expect(output.log).toContain("\n✓ Pull complete!");
   });
 
+  it("writes a new locale in the layout of the configured sourceLocale's file", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir, sourceLocale: "en" });
+    await fs.mkdir(localesDir, { recursive: true });
+    await fs.writeFile(join(localesDir, "en.json"), '{\r\n\t"greeting": "Hello"\r\n}', "utf-8");
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: {
+          locales: ["en", "de"],
+          namespaces: { common: { en: { greeting: "Hi" }, de: { greeting: "Hallo" } } },
+        },
+      },
+    });
+
+    const exitCode = await runPull(["-c", configPath]);
+
+    expect(exitCode).toBe(0);
+    expect(await fs.readFile(join(localesDir, "en.json"), "utf-8")).toBe(
+      '{\r\n\t"greeting": "Hi"\r\n}',
+    );
+    expect(await fs.readFile(join(localesDir, "de.json"), "utf-8")).toBe(
+      '{\r\n\t"greeting": "Hallo"\r\n}',
+    );
+  });
+
   it("sends --locale and --ns as query filters on the translations request", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     http = stubFetch({

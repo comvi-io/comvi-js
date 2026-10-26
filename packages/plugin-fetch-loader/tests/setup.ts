@@ -1,12 +1,32 @@
-import { beforeAll, afterEach, afterAll, beforeEach } from "vitest";
+import { beforeAll, afterEach, afterAll, beforeEach, expect } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
+import { HttpNetworkFrame } from "msw/experimental";
 import type { ExportApiResponse } from "../src/types";
 import type { ProjectInfo } from "../src/api";
 import { clearProjectInfoCache } from "../src/api";
 import { deferred } from "./helpers/deferred";
 
-export const server = setupServer();
+/**
+ * The CORS preflight a browser sends before every cross-origin request here.
+ * happy-dom's `fetch` sends one (the test page is `http://localhost:3000`),
+ * and MSW 3 intercepts below `fetch`, at the socket, so the preflight reaches
+ * the handlers like any other request. A CDN and an API that a browser app
+ * can call both answer it this way. It is the initial handler, so
+ * `resetHandlers()` keeps it.
+ */
+const corsPreflight = http.options("*", () => {
+  return new HttpResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE",
+      "Access-Control-Allow-Headers": "*",
+    },
+  });
+});
+
+export const server = setupServer(corsPreflight);
 
 export const TEST_CDN_URL = "https://cdn.comvi.io/test-project-123";
 export const TEST_PROJECT_ID = 456;
@@ -20,8 +40,27 @@ export const TEST_PROJECT_INFO: ProjectInfo = {
   sourceLocale: "en",
 };
 
+/**
+ * Every request no handler answered, as `METHOD url`. msw's built-in "error"
+ * strategy lets "common assets" through to the real network, and `.json` is
+ * one of them: the CDN catalogs a test forgot to mock would reach
+ * cdn.comvi.io. A callback is applied to every frame instead. It records the
+ * request and rejects it, so nothing leaves the machine, and `afterEach` fails
+ * the test that made it.
+ */
+const unhandledRequests: string[] = [];
+
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({
+    onUnhandledFrame: ({ frame }) => {
+      const label =
+        frame instanceof HttpNetworkFrame
+          ? `${frame.data.request.method} ${frame.data.request.url}`
+          : `${frame.protocol} frame`;
+      unhandledRequests.push(label);
+      throw new Error(`[MSW] no handler for ${label}`);
+    },
+  });
 });
 
 beforeEach(() => {
@@ -40,6 +79,8 @@ beforeEach(() => {
 
 afterEach(() => {
   server.resetHandlers();
+  const unhandled = unhandledRequests.splice(0);
+  expect(unhandled, "requests no msw handler answered").toEqual([]);
 });
 
 afterAll(() => {

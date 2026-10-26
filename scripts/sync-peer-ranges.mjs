@@ -3,8 +3,10 @@
  *
  * Policy: plugins peer-depend on the exact minor they ship with (^0.4.0 for
  * the 0.4.x release). Run before `changeset version` so the new version is
- * already in range — otherwise changesets escalates peer dependents (and the
- * whole fixed group) to a major bump.
+ * already in range — otherwise changesets bumps the peer dependents on its own
+ * account (by patch since @changesets/cli 3; cli 2 escalated them, and the
+ * whole fixed group, to a major bump). Syncing first keeps the ranges on this
+ * policy's minor line.
  */
 import fs from "node:fs";
 import path from "node:path";

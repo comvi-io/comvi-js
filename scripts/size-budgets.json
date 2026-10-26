@@ -135,6 +135,19 @@
       "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
     },
     {
+      "name": "fw-svelte-format",
+      "entry": ["@comvi/svelte/format"],
+      "fixture": "framework/svelte-format.ts",
+      "external": ["svelte", "svelte/*"],
+      "gzipBudgetBytes": 486,
+      "baseline": {
+        "minBytes": 761,
+        "gzipBytes": 462,
+        "measuredAt": "2026-10-26"
+      },
+      "note": "Gated plain-Node entry: one formatter through `@comvi/svelte/format`; growth past core's formatter cost means the subpath reached the binding graph."
+    },
+    {
       "name": "fw-vue-default",
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-default.ts",

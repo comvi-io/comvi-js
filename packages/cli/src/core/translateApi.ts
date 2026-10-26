@@ -44,11 +44,7 @@ export interface MtFillResponse {
 }
 
 export type MtErrorType =
-  | "insufficient_credits"
-  | "provider_error"
-  | "no_source"
-  | "no_translation"
-  | "unknown";
+  "insufficient_credits" | "provider_error" | "no_source" | "no_translation" | "unknown";
 
 export interface MtJobError {
   keyId: number;

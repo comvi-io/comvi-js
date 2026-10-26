@@ -21,52 +21,23 @@ jobs:
           fetch-depth: 0
 
       # A changeset is required only for changes that reach a published
-      # artifact: `packages/*/src/**` or a package's own `package.json`.
-      # Tests, docs and config under packages/ do not ship, so they do not
-      # need one.
+      # artifact: a package's `files`, `src/`, entry targets, build configs and
+      # the scripts its build runs, and its `package.json` unless only
+      # `devDependencies` changed (a Dependabot dev bump). Tests and docs do
+      # not ship. A package without `files` counts as wholly published. The
+      # check is .github/scripts/published-changes.mjs (its header has the
+      # exact rules); the changeset must be added or edited and parse as one.
+      # It runs on the runner's own Node, before setup-node, without
+      # dependencies. The base ref goes through `env`, not into the shell.
       - name: Verify changeset for published package changes
         if: github.event_name == 'pull_request'
-        run: |
-          set -euo pipefail
-
-          CHANGED_FILES="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-
-          PUBLISHED_CHANGES="$(
-            echo "$CHANGED_FILES" \
-              | grep -E '^packages/[^/]+/(src/|package\.json$)' \
-              || true
-          )"
-
-          if [ -z "$PUBLISHED_CHANGES" ]; then
-            echo "No changes to packages/*/src/** or packages/*/package.json. Skipping changeset check."
-            exit 0
-          fi
-
-          echo "Published-surface changes detected:"
-          echo "$PUBLISHED_CHANGES"
-
-          CHANGESET_FILES="$(
-            echo "$CHANGED_FILES" \
-              | grep -E '^\.changeset/.*\.md$' \
-              | grep -v '^\.changeset/README\.md$' \
-              || true
-          )"
-
-          if [ -z "$CHANGESET_FILES" ]; then
-            echo "Published package changes detected but no changeset file was added."
-            echo "Run 'pnpm changeset' and commit the generated .changeset/*.md file."
-            exit 1
-          fi
-
-          echo "Changeset files detected:"
-          echo "$CHANGESET_FILES"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node .github/scripts/published-changes.mjs "origin/$BASE_REF"
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       # setup-node stays on v5: v6 limits automatic caching to npm,
       # and this workflow relies on `cache: pnpm`
@@ -126,9 +97,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -155,9 +125,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -203,6 +172,11 @@ jobs:
       - name: Strict consumer gate (generated types)
         run: pnpm check:strict-consumer
 
+      # Imports the entries meant for plain Node (`@comvi/svelte/format`) from
+      # packed tarballs in a fresh `node` process: the svelte root cannot load there.
+      - name: Plain-Node entries gate
+        run: pnpm check:node-entries
+
       # Verifies every publishable package's exports/main/types/bin targets are
       # present in `npm pack` output.
       - name: Package contracts
@@ -240,9 +214,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -293,6 +266,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       run: ${{ steps.diff.outputs.run }}
+      test_apps: ${{ steps.diff.outputs.test_apps }}
 
     steps:
       - name: Checkout
@@ -316,14 +290,27 @@ jobs:
           else
             echo "No usable base for this ${EVENT}; running the suite."
             echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "test_apps=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          RELEVANT="$(
-            git diff --name-only "$RANGE" \
-              | grep -E '^(packages/|examples/|scripts/examples-e2e/|scripts/docs-snippets/link-sdk|scripts/examples-verify\.mjs$|pnpm-lock\.yaml$|\.github/workflows/ci\.yml$)' \
-              || true
-          )"
+          # The diff on its own line: under `set -e` a failed diff fails the
+          # step. Piped into `grep … || true` it would read as "nothing changed"
+          # and skip the jobs.
+          CHANGED="$(git diff --name-only "$RANGE")"
+
+          # Lines of $CHANGED matching $1. Only grep's "no match" (exit 1) is
+          # an empty answer; any other failure fails the step.
+          pick() {
+            local rc=0
+            printf '%s\n' "$CHANGED" | grep -E "$1" || rc=$?
+            if [ "$rc" -gt 1 ]; then
+              echo "grep failed with exit ${rc}" >&2
+              return "$rc"
+            fi
+          }
+
+          RELEVANT="$(pick '^(packages/|examples/|scripts/examples-e2e/|scripts/docs-snippets/link-sdk|scripts/examples-verify\.mjs$|pnpm-lock\.yaml$|\.github/workflows/ci\.yml$)')"
 
           if [ -z "$RELEVANT" ]; then
             echo "Nothing the examples e2e suite exercises changed in ${RANGE}."
@@ -332,6 +319,17 @@ jobs:
             echo "Changes the suite exercises:"
             echo "$RELEVANT"
             echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          # The test-apps smoke job: the packages the apps build from, the
+          # apps, the script, and what decides how they resolve and build.
+          TEST_APPS="$(pick '^(packages/|test-apps/|scripts/test-apps-smoke/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|package\.json$|turbo\.json$|\.npmrc$|\.github/workflows/ci\.yml$)')"
+          if [ -z "$TEST_APPS" ]; then
+            echo "test_apps=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changes the test-apps smoke exercises:"
+            echo "$TEST_APPS"
+            echo "test_apps=true" >> "$GITHUB_OUTPUT"
           fi
 
   # `pnpm examples:e2e`, sharded: one framework and one mode per runner, so the
@@ -363,9 +361,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
         uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -399,3 +396,35 @@ jobs:
           path: test-results/examples-e2e/
           if-no-files-found: ignore
           retention-days: 14
+
+  # `pnpm test-apps:smoke`: builds test-apps/next (Next 15), next16, nuxt
+  # (Nuxt 3) and nuxt4 against the workspace packages, serves each production
+  # build and checks redirects, `<html lang>`, SSR text and the Nitro route.
+  # packages/next and packages/nuxt are unit-tested against the upper major of
+  # their peer ranges; this job is what proves the lower one.
+  test-apps-smoke:
+    name: Test apps smoke (Next 15/16, Nuxt 3/4)
+    needs: examples-e2e-changes
+    if: needs.examples-e2e-changes.outputs.test_apps == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and smoke-test the apps
+        run: pnpm test-apps:smoke
