@@ -17,6 +17,14 @@
  *     everything under packages/<name>/ but tests, README, CHANGELOG and docs/.
  * Tests (tests/, __tests__/, *.test.*, *.spec.*) never count.
  *
+ * The release PR that `changeset version` opens consumes changesets instead of
+ * adding one: it deletes them and moves every manifest's `version` (and, on a
+ * minor, the `@comvi/*` ranges sync-peer-ranges.mjs moves). A diff whose every
+ * changeset entry is a deletion is read as that commit: there a manifest change
+ * that touches only `version`, `devDependencies` and plain `@comvi/*` version
+ * ranges does not count (`onlyReleaseVersionChanged`). Any other
+ * change in such a diff, such as `src/` or a third-party range, still does.
+ *
  * A changeset is a `.changeset/<name>.md` other than README.md that the pull
  * request ADDED or MODIFIED (so it exists at HEAD) and that parses as one,
  * with a release entry and a summary (`parseChangeset`, the parser the release
@@ -63,6 +71,60 @@ export function onlyDevDependenciesChanged(baseText, headText) {
   delete base.devDependencies;
   delete head.devDependencies;
   return JSON.stringify(base) === JSON.stringify(head);
+}
+
+const DEPENDENCY_FIELDS = ["dependencies", "peerDependencies", "optionalDependencies"];
+// A plain version range as sync-peer-ranges.mjs and `changeset version` write it.
+const RELEASE_RANGE = /^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+
+/**
+ * True when two package.json texts differ only in what `changeset version`
+ * writes: `version`, `devDependencies`, and a `@comvi/*` entry's plain version
+ * range replaced by another (`^0.7.0` → `^0.8.0`). Adding or removing a
+ * `@comvi/*` entry, an alias, URL, tag or non-string value, any other field or
+ * key order still counts. A missing or unparsable side → false.
+ */
+export function onlyReleaseVersionChanged(baseText, headText) {
+  if (baseText === null || headText === null) return false;
+  let base;
+  let head;
+  try {
+    base = JSON.parse(baseText);
+    head = JSON.parse(headText);
+  } catch {
+    return false;
+  }
+  if (!isObject(base) || !isObject(head)) return false;
+  for (const manifest of [base, head]) {
+    delete manifest.version;
+    delete manifest.devDependencies;
+  }
+  for (const field of DEPENDENCY_FIELDS) {
+    if (!isObject(base[field]) || !isObject(head[field])) continue;
+    for (const name of Object.keys(base[field])) {
+      const from = base[field][name];
+      const to = head[field][name];
+      if (
+        name.startsWith("@comvi/") &&
+        Object.hasOwn(head[field], name) &&
+        typeof from === "string" &&
+        typeof to === "string" &&
+        RELEASE_RANGE.test(from) &&
+        RELEASE_RANGE.test(to)
+      ) {
+        base[field][name] = to;
+      }
+    }
+  }
+  return JSON.stringify(base) === JSON.stringify(head);
+}
+
+/** A diff whose every changeset entry is a deletion, at least one: the release PR's version commit. */
+export function consumesChangesets(entries) {
+  const changesets = entries.filter(
+    ({ path: file }) => CHANGESET.test(file) && file !== ".changeset/README.md",
+  );
+  return changesets.length > 0 && changesets.every(({ status }) => status === "D");
 }
 
 function isObject(value) {
@@ -154,8 +216,9 @@ export function publishedPath(rel, manifest) {
  * `read(side, file)` returns the file's text at "base" or "head", or `null`
  * when it does not exist there. `packageDirs` lists every `packages/<name>`
  * on either side, whose build scripts may name files outside packages/.
+ * `releaseVersion`: the diff is a release version commit (`consumesChangesets`).
  */
-export function publishedChanges(files, read, packageDirs = []) {
+export function publishedChanges(files, read, packageDirs = [], { releaseVersion = false } = {}) {
   const manifestOf = (dir) =>
     parseManifest(read("head", `${dir}/package.json`) ?? read("base", `${dir}/package.json`));
   const buildInputs = new Set(packageDirs.flatMap((dir) => buildScriptPaths(dir, manifestOf(dir))));
@@ -166,7 +229,10 @@ export function publishedChanges(files, read, packageDirs = []) {
     if (!match) return false;
     const dir = `packages/${match[1]}`;
     if (match[2] === "package.json") {
-      return !onlyDevDependenciesChanged(read("base", file), read("head", file));
+      const base = read("base", file);
+      const head = read("head", file);
+      if (releaseVersion && onlyReleaseVersionChanged(base, head)) return false;
+      return !onlyDevDependenciesChanged(base, head);
     }
     if (buildScriptPaths(dir, manifestOf(dir)).includes(file)) return true;
     return publishedPath(match[2], manifestOf(dir));
@@ -231,10 +297,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       ),
     ),
   ];
+  const releaseVersion = consumesChangesets(entries);
+  if (releaseVersion) {
+    console.log("Changesets consumed and none added: reading this as a release version commit.");
+  }
   const published = publishedChanges(
     entries.map(({ path: file }) => file),
     read,
     packageDirs,
+    { releaseVersion },
   );
   if (published.length === 0) {
     console.log("No change to what a published package ships. Skipping changeset check.");
