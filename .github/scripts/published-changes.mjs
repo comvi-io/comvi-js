@@ -82,7 +82,8 @@ const RELEASE_RANGE = /^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
  * writes: `version`, `devDependencies`, and a `@comvi/*` entry's plain version
  * range replaced by another (`^0.7.0` → `^0.8.0`). Adding or removing a
  * `@comvi/*` entry, an alias, URL, tag or non-string value, any other field or
- * key order still counts. A missing or unparsable side → false.
+ * key order still counts. A missing or unparsable side, or one without
+ * `version`, → false.
  */
 export function onlyReleaseVersionChanged(baseText, headText) {
   if (baseText === null || headText === null) return false;
@@ -96,6 +97,7 @@ export function onlyReleaseVersionChanged(baseText, headText) {
   }
   if (!isObject(base) || !isObject(head)) return false;
   for (const manifest of [base, head]) {
+    if (!Object.hasOwn(manifest, "version")) return false;
     delete manifest.version;
     delete manifest.devDependencies;
   }
