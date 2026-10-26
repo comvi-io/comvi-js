@@ -974,7 +974,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   get locale(): string;
   set locale(value: string);
 
-  /** The fallback-locale chain, in order (read-only snapshot). */
+  /** The fallback-locale chain, in order: a frozen array that `setFallbackLocale` replaces. */
   get fallbackLocales(): readonly string[];
 
   get apiKey(): string | undefined;

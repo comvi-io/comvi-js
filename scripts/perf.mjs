@@ -7,9 +7,10 @@ import { spawnSync } from "node:child_process";
 /**
  * Runtime perf gate for `@comvi/core`.
  *
- * Five fixed cases over a fixed 200-key catalog: construction, `t()` on a static
+ * Fixed cases over a fixed 200-key catalog: construction, `t()` on a static
  * key, `t()` with a `{name}` param, `t()` on an ICU plural through `icuCompiler`,
- * and `prepareTranslation` over a `<b>` rich-text seam. Every case gets a 2000-call
+ * `prepareTranslation` over a `<b>` rich-text seam, and the three Intl
+ * formatters with and without a fallback chain. Every case gets a 2000-call
  * warm-up, then N timed runs; the reported figure is the MEDIAN µs/op.
  *
  *   node scripts/perf.mjs [distRoot]
@@ -62,6 +63,14 @@ export const CASES = [
   // byte-identical output. "Terms & Conditions" is the copy this happens to.
   { name: "t() ICU plural, branch with a bare &", iters: 500_000 },
   { name: "prepareTranslation(<b>)", iters: 800_000 },
+  // Formatters resolve the locale chain on every call, so each runs once on a
+  // bare instance and once with a `fallbackLocale` configured.
+  { name: "formatNumber", iters: 500_000 },
+  { name: "formatNumber, fallbackLocale", iters: 500_000 },
+  { name: "formatDate", iters: 300_000 },
+  { name: "formatDate, fallbackLocale", iters: 300_000 },
+  { name: "formatRelativeTime", iters: 500_000 },
+  { name: "formatRelativeTime, fallbackLocale", iters: 500_000 },
 ];
 
 /**
@@ -86,7 +95,9 @@ function distUrl(distRoot, file) {
  * whole protocol.
  */
 export async function buildCaseThunks(distRoot) {
-  const { createI18n } = await import(distUrl(distRoot, "comvi-core.js"));
+  const { createI18n, formatNumber, formatDate, formatRelativeTime } = await import(
+    distUrl(distRoot, "comvi-core.js")
+  );
   const { icuCompiler } = await import(distUrl(distRoot, "comvi-core-icu.js"));
   const { prepareTranslation } = await import(distUrl(distRoot, "comvi-core-rich-text.js"));
 
@@ -113,6 +124,10 @@ export async function buildCaseThunks(distRoot) {
     },
   });
 
+  const bareI18n = createI18n({ locale: "de" });
+  const fallbackI18n = createI18n({ locale: "de", fallbackLocale: "en" });
+  const date = 1_700_000_000_000;
+
   return [
     () => make(),
     () => staticI18n.t("key0"),
@@ -120,6 +135,12 @@ export async function buildCaseThunks(distRoot) {
     () => icuI18n.t("n", { count: 5 }),
     () => ampI18n.t("n", { count: 5 }),
     () => prepareTranslation(richI18n, { i18nKey: "rich", params: { what: "docs" } }),
+    () => formatNumber(bareI18n, 1234.5),
+    () => formatNumber(fallbackI18n, 1234.5),
+    () => formatDate(bareI18n, date),
+    () => formatDate(fallbackI18n, date),
+    () => formatRelativeTime(bareI18n, -3, "day"),
+    () => formatRelativeTime(fallbackI18n, -3, "day"),
   ];
 }
 
