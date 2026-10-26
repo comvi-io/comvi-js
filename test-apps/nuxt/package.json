@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@comvi/nuxt": "workspace:*",
-    "nuxt": "^3.21.11"
+    "nuxt": "^4.6.2"
   },
   "devDependencies": {
     "@nuxt/schema": "^3.21.11",
