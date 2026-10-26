@@ -1,6 +1,6 @@
 {
   "name": "@comvi/nuxt",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "type": "module",
   "description": "Nuxt module for Comvi i18n with type-checked keys, ICU plurals and a <T> component for markup inside translations",
   "license": "MIT",

@@ -11,8 +11,8 @@
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "@comvi/core": "^0.7.0",
-    "@comvi/svelte": "^0.7.0"
+    "@comvi/core": "^0.7.1",
+    "@comvi/svelte": "^0.7.1"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^6.0.0",
