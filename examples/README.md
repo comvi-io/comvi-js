@@ -110,13 +110,13 @@ npm install
 npm run dev
 ```
 
-The examples depend on the published names (`"@comvi/react": "^0.7.0"`), never on `workspace:*`,
+The examples depend on the published names (`"@comvi/react": "^0.7.1"`), never on `workspace:*`,
 so a StackBlitz link works once the version it asks for is published. During a release candidate,
 point the manifests at the `next` tag:
 
 ```sh
 pnpm examples:use-tag next      # "@comvi/react": "next"
-pnpm examples:use-tag ^0.7.0    # back to the release range
+pnpm examples:use-tag ^0.7.1    # back to the release range
 pnpm examples:use-tag --print   # what each example asks for right now
 ```
 
