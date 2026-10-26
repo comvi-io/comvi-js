@@ -19,10 +19,10 @@
  *
  * The release PR that `changeset version` opens consumes changesets instead of
  * adding one: it deletes them and moves every manifest's `version` (and, on a
- * minor, the `@comvi/*` ranges sync-peer-ranges.mjs moves). A diff that deletes
- * at least one changeset and adds or edits none is read as that commit: there a
- * manifest change that touches only `version`, `devDependencies` and `@comvi/*`
- * dependency ranges does not count (`onlyReleaseVersionChanged`). Any other
+ * minor, the `@comvi/*` ranges sync-peer-ranges.mjs moves). A diff whose every
+ * changeset entry is a deletion is read as that commit: there a manifest change
+ * that touches only `version`, `devDependencies` and plain `@comvi/*` version
+ * ranges does not count (`onlyReleaseVersionChanged`). Any other
  * change in such a diff, such as `src/` or a third-party range, still does.
  *
  * A changeset is a `.changeset/<name>.md` other than README.md that the pull
@@ -74,12 +74,15 @@ export function onlyDevDependenciesChanged(baseText, headText) {
 }
 
 const DEPENDENCY_FIELDS = ["dependencies", "peerDependencies", "optionalDependencies"];
+// A plain version range as sync-peer-ranges.mjs and `changeset version` write it.
+const RELEASE_RANGE = /^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
 /**
  * True when two package.json texts differ only in what `changeset version`
- * writes: `version`, `devDependencies`, and the ranges of `@comvi/*` entries in
- * the dependency fields. Adding or removing a `@comvi/*` entry, or any other
- * field or key order, still counts. A missing or unparsable side → false.
+ * writes: `version`, `devDependencies`, and a `@comvi/*` entry's plain version
+ * range replaced by another (`^0.7.0` → `^0.8.0`). Adding or removing a
+ * `@comvi/*` entry, an alias, URL, tag or non-string value, any other field or
+ * key order still counts. A missing or unparsable side → false.
  */
 export function onlyReleaseVersionChanged(baseText, headText) {
   if (baseText === null || headText === null) return false;
@@ -99,20 +102,29 @@ export function onlyReleaseVersionChanged(baseText, headText) {
   for (const field of DEPENDENCY_FIELDS) {
     if (!isObject(base[field]) || !isObject(head[field])) continue;
     for (const name of Object.keys(base[field])) {
-      if (name.startsWith("@comvi/") && Object.hasOwn(head[field], name)) {
-        base[field][name] = head[field][name];
+      const from = base[field][name];
+      const to = head[field][name];
+      if (
+        name.startsWith("@comvi/") &&
+        Object.hasOwn(head[field], name) &&
+        typeof from === "string" &&
+        typeof to === "string" &&
+        RELEASE_RANGE.test(from) &&
+        RELEASE_RANGE.test(to)
+      ) {
+        base[field][name] = to;
       }
     }
   }
   return JSON.stringify(base) === JSON.stringify(head);
 }
 
-/** A diff that deletes a changeset and adds or edits none: the release PR's version commit. */
+/** A diff whose every changeset entry is a deletion, at least one: the release PR's version commit. */
 export function consumesChangesets(entries) {
   const changesets = entries.filter(
     ({ path: file }) => CHANGESET.test(file) && file !== ".changeset/README.md",
   );
-  return changesets.some(({ status }) => status === "D") && changesetChanges(entries).length === 0;
+  return changesets.length > 0 && changesets.every(({ status }) => status === "D");
 }
 
 function isObject(value) {
