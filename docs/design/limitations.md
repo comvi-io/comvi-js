@@ -136,8 +136,8 @@ fixed in isolation.
 
 ## Environment
 
-- **Node 20 or newer** for the runtime packages; **Node 22.12 or newer** for `@comvi/cli` and
-  **Node 22 or newer** for `@comvi/vite-plugin`. Exact ranges are each package's `engines` field.
+- **Node 20 or newer** for the runtime packages; **Node 22 or newer** for `@comvi/cli` and
+  `@comvi/vite-plugin`. Exact ranges are each package's `engines` field.
 - **Peer ranges** are each package's `peerDependencies` field, and the install line in each README
   quotes it. Svelte is `^5.3.0` — Svelte 4 is not supported, because the bindings use runes.
 - **No `eval` and no `new Function`** in any runtime package, so every package runs under a strict
