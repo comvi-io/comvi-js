@@ -13,7 +13,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   changesetChanges,
+  consumesChangesets,
   onlyDevDependenciesChanged,
+  onlyReleaseVersionChanged,
   parseNameStatus,
   publishedChanges,
   publishedPath,
@@ -140,7 +142,7 @@ const TYPEGEN = { name: "@comvi/typegen", private: true, scripts: { build: "vite
  * The CLI against a real repository: a base commit, then `change(dir)` on a
  * branch. Returns the exit status and output of `node published-changes.mjs <baseRef>`.
  */
-function guardAfter(change, baseRef = "main") {
+function guardAfter(change, baseRef = "main", setupBase = () => {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "comvi-guard-"));
   const git = (...args) =>
     execFileSync("git", args, {
@@ -175,6 +177,7 @@ function guardAfter(change, baseRef = "main") {
     write("tooling/unrelated.mjs", "// unrelated\n");
     write(".changeset/README.md", "# Changesets\n");
     write(".changeset/old-entry.md", '---\n"@comvi/core": patch\n---\n\nOld.\n');
+    setupBase({ dir, git, write });
     git("add", "-A");
     git("commit", "-qm", "base");
     git("checkout", "-qb", "topic");
@@ -365,4 +368,133 @@ test("ci.yml: the guard step passes the base ref through env, never interpolated
 
   assert.match(step, /env:\n\s+BASE_REF: \$\{\{ github\.base_ref \}\}/);
   assert.doesNotMatch(run, /\$\{\{/);
+});
+
+test("onlyReleaseVersionChanged: version, devDependencies and @comvi/* ranges → true", () => {
+  const base = { ...BASE, peerDependencies: { "@comvi/core": "^0.7.0", vite: "^8.0.0" } };
+  const head = {
+    ...base,
+    version: "0.8.0",
+    peerDependencies: { "@comvi/core": "^0.8.0", vite: "^8.0.0" },
+    devDependencies: { vitest: "^5.0.0" },
+  };
+
+  assert.equal(onlyReleaseVersionChanged(json(base), json(head)), true);
+});
+
+test("onlyReleaseVersionChanged: the @comvi/* range in each dependency field → true", () => {
+  for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+    const base = { ...BASE, [field]: { "@comvi/core": "^0.7.0" } };
+    const head = { ...base, version: "0.8.0", [field]: { "@comvi/core": "^0.8.0" } };
+    assert.equal(onlyReleaseVersionChanged(json(base), json(head)), true, field);
+  }
+});
+
+test("onlyReleaseVersionChanged: anything but a plain @comvi/* range swap → false", () => {
+  const withCore = { ...BASE, dependencies: { ...BASE.dependencies, "@comvi/core": "^0.7.0" } };
+  const dep = (value) => ({
+    ...withCore,
+    version: "0.7.1",
+    dependencies: { ...BASE.dependencies, "@comvi/core": value },
+  });
+  const cases = [
+    [BASE, { ...BASE, version: "0.7.1", dependencies: { commander: "^15.0.0" } }],
+    [
+      BASE,
+      {
+        ...BASE,
+        version: "0.7.1",
+        dependencies: { ...BASE.dependencies, "@comvi/core": "^0.7.1" },
+      },
+    ],
+    [withCore, { ...withCore, version: "0.7.1", dependencies: { ...BASE.dependencies } }],
+    [BASE, { ...BASE, version: "0.7.1", exports: { ".": "./dist/other.js" } }],
+    [withCore, dep("npm:other@1.0.0")],
+    [withCore, dep("https://example.com/core.tgz")],
+    [withCore, dep("latest")],
+    [withCore, dep(null)],
+    [withCore, dep(["^0.7.1"])],
+    [withCore, dep({ version: "^0.7.1" })],
+    [
+      { ...withCore, dependencies: { ...BASE.dependencies, "@comvi/core": "workspace:*" } },
+      dep("^0.7.1"),
+    ],
+  ];
+  for (const [base, head] of cases) {
+    assert.equal(onlyReleaseVersionChanged(json(base), json(head)), false, JSON.stringify(head));
+  }
+  const { version, ...unversioned } = BASE;
+  assert.equal(
+    onlyReleaseVersionChanged(json(BASE), json(unversioned)),
+    false,
+    `removed ${version}`,
+  );
+  assert.equal(onlyReleaseVersionChanged(json(unversioned), json(BASE)), false);
+  assert.equal(onlyReleaseVersionChanged(null, json(BASE)), false);
+  assert.equal(onlyReleaseVersionChanged(json(BASE), "{ not json"), false);
+});
+
+test("consumesChangesets: deleted changesets and none added → true; any added or edited → false", () => {
+  const deleted = { status: "D", path: ".changeset/old-entry.md" };
+  assert.equal(consumesChangesets([deleted]), true);
+  for (const status of ["A", "M", "T"]) {
+    assert.equal(
+      consumesChangesets([deleted, { status, path: ".changeset/other.md" }]),
+      false,
+      status,
+    );
+  }
+  assert.equal(consumesChangesets([{ status: "D", path: ".changeset/README.md" }]), false);
+  assert.equal(consumesChangesets([{ status: "M", path: "packages/core/src/x.ts" }]), false);
+});
+
+test("CLI: a release version commit (changesets consumed, versions moved) → passes", () => {
+  const result = guardAfter(({ git, write }) => {
+    git("rm", "-q", ".changeset/old-entry.md");
+    write("packages/core/package.json", json({ ...CORE, version: "0.7.1" }));
+    write("packages/cli/package.json", json({ ...CLI, version: "0.7.1" }));
+    write("packages/core/CHANGELOG.md", "# @comvi/core\n\n## 0.7.1\n");
+  });
+
+  assert.equal(result.status, 0, result.output);
+});
+
+test("CLI: a minor release commit that also moves @comvi/* peer ranges → passes", () => {
+  const result = guardAfter(
+    ({ git, write }) => {
+      git("rm", "-q", ".changeset/old-entry.md");
+      write("packages/core/package.json", json({ ...CORE, version: "0.8.0" }));
+      write(
+        "packages/cli/package.json",
+        json({ ...CLI, version: "0.8.0", peerDependencies: { "@comvi/core": "^0.8.0" } }),
+      );
+    },
+    "main",
+    ({ write }) =>
+      write(
+        "packages/cli/package.json",
+        json({ ...CLI, peerDependencies: { "@comvi/core": "^0.7.0" } }),
+      ),
+  );
+
+  assert.equal(result.status, 0, result.output);
+});
+
+test("CLI: changesets consumed but a source file changed too → fails", () => {
+  const result = guardAfter(({ git, write }) => {
+    git("rm", "-q", ".changeset/old-entry.md");
+    write("packages/core/package.json", json({ ...CORE, version: "0.7.1" }));
+    write("packages/core/src/x.ts", "export const x = 2;\n");
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /packages\/core\/src\/x\.ts/);
+});
+
+test("CLI: a version bump without consuming a changeset → fails", () => {
+  const result = guardAfter(({ write }) =>
+    write("packages/core/package.json", json({ ...CORE, version: "0.7.1" })),
+  );
+
+  assert.equal(result.status, 1);
 });
