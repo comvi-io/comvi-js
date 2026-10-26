@@ -423,6 +423,13 @@ test("onlyReleaseVersionChanged: anything but a plain @comvi/* range swap → fa
   for (const [base, head] of cases) {
     assert.equal(onlyReleaseVersionChanged(json(base), json(head)), false, JSON.stringify(head));
   }
+  const { version, ...unversioned } = BASE;
+  assert.equal(
+    onlyReleaseVersionChanged(json(BASE), json(unversioned)),
+    false,
+    `removed ${version}`,
+  );
+  assert.equal(onlyReleaseVersionChanged(json(unversioned), json(BASE)), false);
   assert.equal(onlyReleaseVersionChanged(null, json(BASE)), false);
   assert.equal(onlyReleaseVersionChanged(json(BASE), "{ not json"), false);
 });
