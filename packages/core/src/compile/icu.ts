@@ -95,7 +95,8 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     }
     // `#` is the count in a plural's own sub-messages only; a select passes `false`.
     // A repeated selector keeps its FIRST sub-message, as ICU4C does.
-    const sub = message(P, !select, under || !select, true);
+    // `under` only feeds a development warning: production passes `false`.
+    const sub = message(P, !select, __DEV__ && (under || !select), true);
     branches[key] ??= sub;
     if (s[P.i++] !== "}") {
       if (__DEV__) fail(`a sub-message of \`{${name}, ${type}, …}\` is never closed`);
