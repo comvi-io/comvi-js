@@ -48,9 +48,16 @@ export function Component() {
   t("greting", { name: "x" });
   // @ts-expect-error a default-namespace key on the shop t
   shop.t("title");
+  // The bound <T> of useI18n("shop") is typed by the shop keys (R3-5(b)).
+  const ShopT = shop.T;
+  const bt: ReactNode = <ShopT i18nKey="cart.title" count={1} />;
+  // @ts-expect-error a default-namespace key on the bound shop <T>
+  const bt2: ReactNode = <ShopT i18nKey="greeting" name="x" />;
+  // @ts-expect-error missing param on the bound <T>
+  const bt3: ReactNode = <ShopT i18nKey="cart.title" />;
   const l: string = locale;
   const d: "ltr" | "rtl" = dir;
   const b: boolean = isLoading;
   const p: Promise<void> = setLocale("de");
-  return [s, r, n, c, e1, l, d, b, p];
+  return [s, r, n, c, e1, bt, bt2, bt3, l, d, b, p];
 }

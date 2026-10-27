@@ -5,13 +5,20 @@
  * / ssrInitial* props are gone with init() (the constructor is synchronous and starts the
  * loads; `loading` and `suspense` replace `fallback`).
  */
-import { Suspense, useState, type ReactNode } from "react";
+import { memo, Suspense, useState, type ReactNode } from "react";
 import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { createI18n, I18nProvider, useI18n, useLocale, type I18n } from "../src";
+import {
+  createI18n,
+  I18nProvider,
+  useI18n,
+  useLocale,
+  type I18n,
+  type UntypedParams,
+} from "../src";
 import { make, manualLoader, settle } from "./helpers";
 
-const Show = ({ k = "hi", p }: { k?: string; p?: Record<string, unknown> }) => {
+const Show = ({ k = "hi", p }: { k?: string; p?: UntypedParams }) => {
   const { t, locale } = useI18n();
   return <p>{`${locale}:${t(k, p) as string}`}</p>;
 };
@@ -64,18 +71,61 @@ describe("<I18nProvider>", () => {
     expect(container.textContent).toBe("en:B2");
   });
 
-  it("releases its subscription on unmount: a later publish renders nothing", () => {
+  it("releases its subscription on unmount and on an instance swap (counted on i18n.on)", () => {
+    // Count the LIVE subscriptions through the public on(): React keeping a listener after
+    // unmount would not re-render anything, so only the count can see a leak.
+    const live = (i: I18n) => {
+      const on = i.on;
+      const n = { now: 0 };
+      i.on = (f) => {
+        n.now++;
+        const off = on(f);
+        return () => {
+          n.now--;
+          off();
+        };
+      };
+      return n;
+    };
+    const a = createI18n({ locale: "en", messages: { en: { hi: "A" } } });
+    const b = createI18n({ locale: "en", messages: { en: { hi: "B" } } });
+    const na = live(a);
+    const nb = live(b);
+    const view = render(app(a));
+    expect(na.now).toBe(1);
+    view.rerender(app(b));
+    expect([na.now, nb.now]).toEqual([0, 1]);
+    view.unmount();
+    expect([na.now, nb.now]).toEqual([0, 0]);
+  });
+
+  it("a parent re-render with nothing published re-renders no memoized consumer", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hello" } } });
     let renders = 0;
-    const Count = () => {
+    const ts = new Set<unknown>();
+    const Leaf = memo(() => {
       renders++;
-      return <Show />;
+      const { t } = useI18n();
+      ts.add(t);
+      return <p>{t("hi") as string}</p>;
+    });
+    let bump!: () => void;
+    const Parent = () => {
+      const [n, set] = useState(0);
+      bump = () => set(n + 1);
+      return (
+        <I18nProvider i18n={i18n}>
+          <Leaf />
+          <i>{n}</i>
+        </I18nProvider>
+      );
     };
-    const view = render(app(i18n, <Count />));
-    view.unmount();
-    const before = renders;
-    act(() => i18n.add("en", { hi: "Later" }));
-    expect(renders).toBe(before);
+    render(<Parent />);
+    act(() => bump());
+    act(() => bump());
+    act(() => bump());
+    expect(renders).toBe(1);
+    expect(ts.size).toBe(1);
   });
 
   it("development: a hook outside a provider throws a [@comvi/react] error", () => {
@@ -121,6 +171,52 @@ describe("<I18nProvider loading>", () => {
     await l.answer("de:default");
     await act(() => switched);
     expect(container.textContent).toBe("de:Hallo");
+  });
+
+  it("gates the first paint on the whole chain: a parent still loading after the locale failed", async () => {
+    const l = manualLoader({ "pt:default": { hi: "Olá" } });
+    const { i18n } = make({ locale: "pt-BR", loader: l.load });
+    const { container } = render(app(i18n, <Show />, { loading: "wait" }));
+    expect(l.requested).toEqual(["pt-BR:default", "pt:default"]);
+    await l.fail("pt-BR:default");
+    expect(container.textContent).toBe("wait");
+    await l.answer("pt:default");
+    expect(container.textContent).toBe("pt-BR:Olá");
+  });
+
+  it("a namespace loaded after the first paint keeps the children mounted (their state survives)", async () => {
+    const l = manualLoader({ "en:default": { hi: "Hello" }, "en:account": { a: "Account" } });
+    const { i18n } = make({ locale: "en", loader: l.load });
+    let mounts = 0;
+    let bump!: () => void;
+    const Counter = () => {
+      const [n, set] = useState(() => (mounts++, 0));
+      bump = () => set(n + 1);
+      return <b>{n}</b>;
+    };
+    const { container } = render(app(i18n, <Counter />, { loading: "wait" }));
+    await l.answer("en:default");
+    act(() => bump());
+    expect(container.textContent).toBe("1");
+    act(() => void i18n.load("account"));
+    expect(container.textContent).toBe("1");
+    await l.answer("en:account");
+    expect(container.textContent).toBe("1");
+    expect(mounts).toBe(1);
+  });
+
+  it("a namespace that fails after the first paint is fetched once: no remount loop", async () => {
+    const l = manualLoader({ "en:default": { hi: "Hello" } });
+    const { i18n } = make({ locale: "en", loader: l.load });
+    const Shop = () => <p>{useI18n("shop").t("x") as string}</p>;
+    const { container } = render(app(i18n, <Shop />, { loading: "wait" }));
+    await l.answer("en:default");
+    expect(l.requested).toEqual(["en:default", "en:shop"]);
+    await l.fail("en:shop");
+    await settle();
+    expect(container.textContent).toBe("x");
+    expect(l.requested).toEqual(["en:default", "en:shop"]);
+    expect(l.pending.size).toBe(0);
   });
 
   it("renders the children while loading when no `loading` is given (missing keys are not reported)", async () => {
@@ -198,6 +294,26 @@ describe("<I18nProvider suspense>", () => {
     // A re-render after the loads settled does not suspend again.
     expect(calls).toBe(after);
     expect(container.textContent).toBe("en:Hello4");
+  });
+
+  it("does not suspend for a namespace loaded after the first paint (no fallback, state kept)", async () => {
+    const l = manualLoader({ "en:default": { hi: "Hello" }, "en:account": {} });
+    const { i18n } = make({ locale: "en", loader: l.load });
+    let mounts = 0;
+    const Once = () => {
+      useState(() => mounts++);
+      return <Show />;
+    };
+    const { container } = render(
+      <Suspense fallback="fallback">{app(i18n, <Once />, { suspense: true })}</Suspense>,
+    );
+    await l.answer("en:default");
+    expect(container.textContent).toBe("en:Hello");
+    act(() => void i18n.load("account"));
+    expect(container.textContent).toBe("en:Hello");
+    await l.answer("en:account");
+    expect(container.textContent).toBe("en:Hello");
+    expect(mounts).toBe(1);
   });
 
   it("does not suspend for a locale switch in flight (the old locale stays on screen)", async () => {

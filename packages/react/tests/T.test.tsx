@@ -184,6 +184,29 @@ describe("rich text", () => {
   });
 });
 
+describe("inherited params (core parity)", () => {
+  it("an inherited function is no tag handler, as in the core: only own params count", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { a: "<b>bold</b> {x}" } } });
+    const handler = vi.fn((c: unknown) => c);
+    const params = Object.assign(Object.create({ b: handler, x: "inherited" }), { y: 1 });
+    // The core ignores inherited properties…
+    expect(i18n.t("a", params)).toEqual("bold {x}");
+    // …and so does the binding, which wraps own handlers only.
+    let out: unknown;
+    const Probe = () => {
+      out = useI18n().t("a", params);
+      return null;
+    };
+    render(
+      <I18nProvider i18n={i18n}>
+        <Probe />
+      </I18nProvider>,
+    );
+    expect(handler).not.toHaveBeenCalled();
+    expect(out).toBe("bold {x}");
+  });
+});
+
 describe("params that only look like nodes (0.7 T-forged-node)", () => {
   it("a JSON-forged element shape never renders as an element: React refuses the object", () => {
     // JSON cannot carry React's $$typeof symbol, so data from a request or a catalog can

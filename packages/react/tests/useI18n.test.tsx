@@ -5,11 +5,11 @@
  * 0.7 surface: tRaw, hasTranslation, the formatters (→ @comvi/react/format), on/addMessages
  * /reportError proxies (the instance is `i18n`), cacheRevision/isInitialized.
  */
-import { StrictMode, useEffect, useState } from "react";
+import { Children, StrictMode, useEffect, useState, type ReactNode } from "react";
 import { act, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { createI18n, I18nProvider, useI18n, type I18n, type UseI18n } from "../src";
-import { make, manualLoader } from "./helpers";
+import { make, manualLoader, reactWarnings, settle } from "./helpers";
 
 const capture = (i18n: I18n, ns?: string) => {
   const seen: UseI18n<string>[] = [];
@@ -30,7 +30,7 @@ describe("useI18n()", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     const { last } = capture(i18n);
     expect(Object.keys(last()).sort()).toEqual(
-      ["dir", "i18n", "isLoading", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isLoading", "locale", "setLocale", "t"].sort(),
     );
     expect(last().t("hi", { name: "Ann" })).toBe("Hi Ann");
     expect(last().locale).toBe("en");
@@ -154,6 +154,86 @@ describe("useI18n(ns)", () => {
     await l.answer("de:shop");
     await act(() => p);
     expect(flags.at(-1)).toBe("false/false");
+  });
+
+  it("a remount after a failed load does not fetch it again; i18n.load(ns) retries", async () => {
+    const l = manualLoader({ "en:shop": { title: "Shop" } });
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const Shop = () => <p>{useI18n("shop").t("title") as string}</p>;
+    let flip!: () => void;
+    const List = () => {
+      const [k, set] = useState(0);
+      flip = () => set(k + 1);
+      return <Shop key={k} />;
+    };
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <List />
+      </I18nProvider>,
+    );
+    await l.fail("en:shop");
+    act(() => flip());
+    act(() => flip());
+    await settle();
+    expect(l.requested).toEqual(["en:shop"]);
+    act(() => void i18n.load("shop"));
+    await l.answer("en:shop");
+    expect(l.requested).toEqual(["en:shop", "en:shop"]);
+    expect(container.textContent).toBe("Shop");
+  });
+
+  it("default tag handlers get their children as ONE node too (constructor and setDefaultParams)", async () => {
+    // Children.only() throws on an array: the handler sees exactly one node.
+    const only = (c: ReactNode) => <b>{Children.only(c)}</b>;
+    const { i18n, errors } = make({
+      locale: "en",
+      messages: { en: { a: "<x>one <y>two</y></x>" } },
+      defaultParams: { x: only, y: only },
+    });
+    const Probe = () => <div>{useI18n().t("a") as ReactNode}</div>;
+    const warnings = await reactWarnings(() => {
+      const { container } = render(
+        <I18nProvider i18n={i18n}>
+          <Probe />
+        </I18nProvider>,
+      );
+      expect(container.innerHTML).toBe("<div><b>one <b>two</b></b></div>");
+      act(() => i18n.setDefaultParams({ x: (c: ReactNode) => <i>{Children.only(c)}</i>, y: only }));
+      expect(container.innerHTML).toBe("<div><i>one <b>two</b></i></div>");
+    });
+    expect(warnings).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  it("returns a bound <T> per namespace: same component every render, the namespace fixed", () => {
+    const i18n = createI18n({
+      locale: "en",
+      catalogs: { default: { en: { k: "D" } }, shop: { en: { k: "Shop {n}" } } },
+    });
+    const Ts = new Set<unknown>();
+    let bump!: () => void;
+    const Probe = () => {
+      const [n, set] = useState(0);
+      bump = () => set(n + 1);
+      const { T } = useI18n("shop");
+      Ts.add(T);
+      return <T i18nKey="k" n={n} />;
+    };
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <Probe />
+      </I18nProvider>,
+    );
+    expect(container.textContent).toBe("Shop 0");
+    const node = container.firstChild;
+    act(() => bump());
+    expect(container.textContent).toBe("Shop 1");
+    // A publish rebuilds what useI18n returns; the bound <T> stays the same component,
+    // so React keeps its subtree instead of remounting it.
+    act(() => i18n.add("en", { k: "Shop {n}!" }, "shop"));
+    expect(container.textContent).toBe("Shop 1!");
+    expect(container.firstChild).toBe(node);
+    expect(Ts.size).toBe(1);
   });
 
   it("keeps a fixed hook order: switching ns between renders is not a hook-order error", () => {

@@ -12,6 +12,7 @@
 import { StrictMode, Suspense, startTransition, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
 import { act, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { state } from "../../core/src/internal";
@@ -20,6 +21,7 @@ import {
   I18nHandover,
   I18nProvider,
   useI18n,
+  useLocale,
   type I18n,
   type I18nHandoverProps,
   type ProviderCatalogs,
@@ -411,6 +413,182 @@ describe("the target locale across renders and instances (0.7 target-locale)", (
     await settle();
     expect(i18n.locale).toBe("en");
     expect(errors).toContain("invalid_locale");
+  });
+});
+
+describe("a target the instance cannot switch to, a catalogs refresh", () => {
+  it("a target whose load fails is given up: the subtree renders the instance's locale", async () => {
+    const l = manualLoader();
+    const errors: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello" } },
+      loader: l.load,
+      onError: (e) => errors.push(e.code),
+    });
+    const locales: string[] = [];
+    const Loc = () => {
+      locales.push(useLocale());
+      return null;
+    };
+    const view = render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover locale="fr">
+          <Probe log={[]} />
+          <Loc />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    await settle();
+    await l.fail("fr:default");
+    await settle();
+    expect(i18n.locale).toBe("en");
+    expect(errors).toContain("load_failed");
+    expect(view.container.textContent).toBe("en:Hello");
+    expect(locales.at(-1)).toBe("en");
+  });
+
+  it("an invalid target renders the instance's locale too", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello" } },
+      onError: () => {},
+    });
+    const view = render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover locale="!!">
+          <Probe log={[]} />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    await settle();
+    expect(view.container.textContent).toBe("en:Hello");
+  });
+
+  it("a refreshed catalogs object with the same target does not undo the user's setLocale()", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello" }, uk: { greeting: "Привіт" } },
+    });
+    const ui = (c: ProviderCatalogs) => (
+      <I18nProvider i18n={i18n}>
+        <I18nHandover locale="de" catalogs={c}>
+          <Probe log={[]} />
+        </I18nHandover>
+      </I18nProvider>
+    );
+    const view = render(ui({ default: { de: { greeting: "Hallo" } } }));
+    await settle();
+    expect(i18n.locale).toBe("de");
+    await act(() => i18n.setLocale("uk"));
+    view.rerender(ui({ default: { de: { greeting: "Hallo!" } } }));
+    await settle();
+    expect(i18n.locale).toBe("uk");
+    expect(view.container.textContent).toBe("uk:Привіт");
+  });
+
+  it("a handover to a locale nobody handed catalogs for reports no missing key while it loads", async () => {
+    const l = manualLoader({ "de:default": { greeting: "Hallo" } });
+    const errors: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello" } },
+      loader: l.load,
+      onError: (e) => errors.push(e.code),
+    });
+    const flags: boolean[] = [];
+    const Flag = () => {
+      flags.push(useI18n().isLoading);
+      return null;
+    };
+    const view = render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover locale="de">
+          <Probe log={[]} />
+          <Flag />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    expect(flags[0]).toBe(true);
+    await l.answer("de:default");
+    await settle();
+    expect(view.container.textContent).toBe("de:Hallo");
+    expect(errors).toEqual([]);
+  });
+});
+
+describe("hydration (0.7 target-locale hydrateRoot)", () => {
+  /**
+   * The server renders from a request instance holding the catalog; the client creates a
+   * FRESH instance and passes the same <I18nHandover catalogs locale> props (the payload
+   * the server serialized). The first client render must equal the server HTML.
+   */
+  it.each([
+    ["a fresh client instance, no `loading`", false],
+    ["`loading` on a client instance created from the payload", true],
+  ])(
+    "hydrates a handed-over locale with 0 recoverable errors and no fetch of it: %s",
+    async (_, gated) => {
+      const catalogs: ProviderCatalogs = { default: { uk: { greeting: "Привіт" } } };
+      const ui = (i: I18n, log: { text: string }[]) => (
+        <I18nProvider i18n={i} loading={gated ? "wait" : undefined}>
+          <I18nHandover locale="uk" catalogs={catalogs}>
+            <Probe log={log} />
+          </I18nHandover>
+        </I18nProvider>
+      );
+      const server = createI18n({ locale: "uk", messages: { uk: { greeting: "Привіт" } } });
+      const container = document.createElement("div");
+      container.innerHTML = renderToString(ui(server, []));
+      expect(container.textContent).toBe("uk:Привіт");
+      // The client instance: knows nothing yet (its loader would fetch the default locale),
+      // or — with `loading` — is created from the serialized payload, so nothing is in flight.
+      const loader = vi.fn(
+        (_l: string, _n: string, _s: AbortSignal) => new Promise<never>(() => {}),
+      );
+      const client = gated
+        ? createI18n({ locale: "uk", catalogs, loader })
+        : createI18n({ locale: "en", loader });
+      const errors: unknown[] = [];
+      const log: { text: string }[] = [];
+      const err = quiet();
+      let root!: ReturnType<typeof hydrateRoot>;
+      await act(async () => {
+        root = hydrateRoot(container, ui(client, log), {
+          onRecoverableError: (e) => errors.push(e),
+        });
+      });
+      await settle();
+      expect(errors).toEqual([]);
+      expect(err).not.toHaveBeenCalled();
+      err.mockRestore();
+      expect(log[0].text).toBe("uk:Привіт");
+      expect(container.textContent).toBe("uk:Привіт");
+      expect(client.locale).toBe("uk");
+      expect(requested(loader).filter((r) => r.startsWith("uk"))).toEqual([]);
+      act(() => root.unmount());
+    },
+  );
+
+  it("documents the client setup: `loading` on a client instance still loading does NOT match the server", async () => {
+    const server = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
+    const ui = (i: I18n) => (
+      <I18nProvider i18n={i} loading="wait">
+        <Probe log={[]} />
+      </I18nProvider>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(ui(server));
+    const { i18n: client } = createHost(); // its catalog is still loading
+    const errors: unknown[] = [];
+    const err = quiet();
+    let root!: ReturnType<typeof hydrateRoot>;
+    await act(async () => {
+      root = hydrateRoot(container, ui(client), { onRecoverableError: (e) => errors.push(e) });
+    });
+    err.mockRestore();
+    expect(errors.length).toBeGreaterThan(0);
+    act(() => root.unmount());
   });
 });
 

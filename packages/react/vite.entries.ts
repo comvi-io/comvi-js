@@ -10,9 +10,19 @@ export const entries = (dir: string): Record<string, string> => ({
   format: resolve(dir, "src/format.ts"),
 });
 
-/** Deterministic entry names (`comvi-react.js`, `comvi-react-format.dev.js`), hashed chunks. */
+/**
+ * Deterministic entry names (`comvi-react.js`, `comvi-react-format.dev.js`), hashed chunks.
+ * `<I18nHandover>` gets a chunk of its own, so an app that does not import it does not
+ * import its React hooks either (a bundler keeps an external's unused named imports).
+ */
 export const output = (suffix: string) => ({
   format: "es" as const,
+  advancedChunks: {
+    groups: [
+      { name: "binding", test: /[\\/]src[\\/]binding\.ts$/, priority: 2 },
+      { name: "handover", test: /[\\/]src[\\/]handover\.ts$/, priority: 1 },
+    ],
+  },
   entryFileNames: (chunk: { name: string }) =>
     chunk.name === "index" ? `comvi-react${suffix}.js` : `comvi-react-${chunk.name}${suffix}.js`,
   chunkFileNames: `chunks/comvi-react-[name]-[hash]${suffix}.js`,

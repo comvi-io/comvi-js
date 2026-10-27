@@ -56,6 +56,15 @@ describe("useFormat()", () => {
     expect(f().number(1234.5)).toBe("1.234,5");
   });
 
+  it("a formatter kept from an earlier render keeps that render's locale, like its t", async () => {
+    const i18n = createI18n({ locale: "en", messages: { en: {}, de: {} } });
+    const f = capture(i18n);
+    const kept = f();
+    await act(() => i18n.setLocale("de"));
+    expect(kept.number(1234.5)).toBe("1,234.5");
+    expect(f().number(1234.5)).toBe("1.234,5");
+  });
+
   it("formats in the target locale of an <I18nHandover> before the instance switches", () => {
     const i18n = createI18n({ locale: "en", messages: { en: {} } });
     const f = capture(i18n, (x) => <I18nHandover locale="de">{x}</I18nHandover>);

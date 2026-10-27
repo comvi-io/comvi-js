@@ -13,7 +13,7 @@ import {
   formatRelativeTime,
 } from "@comvi/core/format";
 import { useMemo } from "react";
-import { useI18n, useLocale } from "./binding";
+import { useI18n } from "./binding";
 
 export interface Formatters {
   number(value: number, options?: Intl.NumberFormatOptions | string): string;
@@ -27,15 +27,14 @@ export interface Formatters {
 }
 
 /**
- * Formatters in the locale this render shows. During a locale handover that is the target
- * locale (passed to Intl alone); otherwise the instance's chain, as the core formatters use.
+ * Formatters in the locale this render shows — the target locale of an `<I18nHandover>`
+ * before the instance switches, too. Bound to that locale at render: a formatter kept
+ * from an earlier render keeps formatting in the locale that render showed, like its `t`.
  */
 export const useFormat = (): Formatters => {
-  const { i18n: i } = useI18n();
-  const shown = useLocale();
-  return useMemo((): Formatters => {
-    const l = shown != i.locale ? shown : undefined;
-    return {
+  const { i18n: i, locale: l } = useI18n();
+  return useMemo(
+    (): Formatters => ({
       number: (v, o) => formatNumber(i, v, o, l),
       currency: (v, c, o) => formatCurrency(i, v, c, o, l),
       date: (v, o) => formatDate(i, v, o, l),
@@ -43,6 +42,7 @@ export const useFormat = (): Formatters => {
       relative: (v, now, o) => formatRelativeTime(i, v, now, o, l),
       list: (v, o) => formatList(i, v, o, l),
       displayName: (c, t) => displayName(i, c, t, l),
-    };
-  }, [i, shown]);
+    }),
+    [i, l],
+  );
 };

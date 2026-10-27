@@ -14,10 +14,14 @@ export function Component() {
   const f: string = fmt.currency(1, "EUR");
   // @ts-expect-error params must be an object
   t("k", 1);
-  const node: ReactNode = (
-    <T i18nKey="whatever" ns="x" anything={1} link={(c: ReactNode) => <b>{c}</b>} />
-  );
-  return [s, f, node];
+  // Inline handlers need no annotation: `chunks` is a ReactNode (README snippet, TS7006 before).
+  const node: ReactNode = <T i18nKey="whatever" ns="x" anything={1} link={(c) => <b>{c}</b>} />;
+  const rich: string = t("terms", { link: (c) => <a href="/terms">{c}</a>, at: new Date() });
+  const { T: Bound } = useI18n("shop");
+  const bound: ReactNode = <Bound i18nKey="cart.title" count={2} b={(c) => <b>{c}</b>} />;
+  // @ts-expect-error the bound <T> takes no ns: it is fixed by useI18n(ns)
+  const wrongNs: ReactNode = <Bound i18nKey="x" ns="other" />;
+  return [s, f, node, rich, bound, wrongNs];
 }
 
 export const app = <I18nProvider i18n={createI18n({ locale: "en" })}>{null}</I18nProvider>;

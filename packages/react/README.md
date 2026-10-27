@@ -75,8 +75,9 @@ export default function App() {
 
 `t()` fills `{name}` from its second argument; `{ ns }` and `{ locale }` there switch the
 namespace and the locale for one call. `setLocale()` switches once the new locale's catalogs are
-in. `useI18n("admin")` binds `t` to a namespace and loads it after the component mounts;
-`isLoading` tells you when one of its catalogs is on the way.
+in. `useI18n("admin")` binds `t` and `T` to a namespace and loads it after the component
+mounts; `isLoading` tells you when one of its catalogs is on the way. A load that failed is not
+fetched again when a component mounts; `i18n.load("admin")` asks again.
 
 ## Load from Comvi
 
@@ -90,13 +91,15 @@ const i18n = createI18n({
   loader: cdn("https://cdn.comvi.io/<project-token>"),
 });
 
-// `loading` renders until the first catalog is in, so raw keys never paint.
+// `loading` renders until the first catalogs are in, so raw keys never paint.
 <I18nProvider i18n={i18n} loading={<div className="spinner" />}>
   <App />
 </I18nProvider>;
 ```
 
-With `suspense` instead of `loading`, the provider suspends to the nearest `<Suspense>`.
+With `suspense` instead of `loading`, the provider suspends to the nearest `<Suspense>`. Both
+cover the first paint only: a namespace loaded later keeps the app on screen (show
+`isLoading`), and a locale switch keeps the old locale until the new one is in.
 
 ## Markup in a translation
 
@@ -106,7 +109,8 @@ With `suspense` instead of `loading`, the provider suspends to the nearest `<Sus
 ```
 
 Each tag a translator wrote is a prop of the same name; the handler gets the tag's content as one
-React node. A tag without a handler renders its content as text.
+React node. A tag without a handler renders its content as text. Every prop but `i18nKey` and
+`ns` is a message param, `children` included.
 
 ### How it works
 
@@ -115,7 +119,9 @@ every `useI18n()` consumer when the locale or a catalog changes. `useLocale()` r
 alone, so a namespace load does not re-render a component that only shows the locale.
 `<I18nHandover catalogs locale>` renders its subtree with catalogs a server sent and in the route's
 locale at once, and gives both to the instance only when the render commits: a render React
-abandons, suspends or runs on the server changes nothing. `useFormat()` from
+abandons, suspends or runs on the server changes nothing. To hydrate, give the client the same
+props; a client provider with `loading` must start from the server's catalogs
+(`createI18n({ catalogs })`), or its spinner will not match the server HTML. `useFormat()` from
 `@comvi/react/format` formats numbers, dates and currency in the locale on screen.
 
 ## Read next
