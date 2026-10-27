@@ -41,4 +41,21 @@ describe("production instance", () => {
     expect(error).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it("without onError a missing key does no reporting work (counted, lot 1d)", () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { a: "A" } },
+      loader: () => new Promise(() => {}),
+      namespaces: ["default", "other"],
+    });
+    // A load in flight: the "still loading?" scan of the loads would run if anything listened.
+    expect(i18n.ns("other")("x")).toBe("x");
+    const some = vi.spyOn(Array.prototype, "some");
+    const ends = vi.spyOn(String.prototype, "endsWith");
+    for (let k = 0; k < 10; k++) i18n.t("nope");
+    expect([some.mock.calls.length, ends.mock.calls.length]).toEqual([0, 0]);
+    some.mockRestore();
+    ends.mockRestore();
+  });
 });
