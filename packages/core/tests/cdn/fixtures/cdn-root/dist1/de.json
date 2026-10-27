@@ -1,0 +1,1 @@
+{ "hello": "Hallo, {name}!", "items": "{count, plural, one {# Artikel} other {# Artikel}}" }

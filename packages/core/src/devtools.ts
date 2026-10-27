@@ -13,7 +13,8 @@
  *
  * `devtools()` is a plugin: `setup` exposes the instance (protocol v2 queue, mixed-version
  * safe) and installs the editor loader; `destroy()` removes the entry again. The entry is
- * `{ v, i, id }`: the core version, the instance, and its id (`comvi-<n>` unless given).
+ * `{ v, i, id }`: the core version, the instance, and its id (`comvi-<n>` unless given); the
+ * id is also the instance's non-enumerable `instanceId`, which protocol-v2 consumers read.
  */
 import type { I18n, Plugin } from "./instance";
 
@@ -340,6 +341,9 @@ export const devtools = (options: DevtoolsOptions = {}): Plugin => ({
       return;
     const id = options.instanceId || mintInstanceId();
     const entry: ComviQueueEntry = { v: VERSION, i: i18n, id };
+    // Extensions of protocol v2 key instances on `entry.i.instanceId`: kept, NON-enumerable,
+    // so the instance's own members stay the 13 of the core contract.
+    Object.defineProperty(i18n, "instanceId", { value: id, configurable: true });
     try {
       const g = window.__COMVI__ as unknown;
       if (Array.isArray(g)) g.push(entry);

@@ -1,0 +1,5 @@
+{
+  "hello": "Hello, {name}!",
+  "items": "{count, plural, one {# item} other {# items}}",
+  "only_en": "English only"
+}

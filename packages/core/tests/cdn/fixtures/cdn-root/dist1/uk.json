@@ -1,0 +1,4 @@
+{
+  "hello": "Привіт, {name}!",
+  "items": "{count, plural, one {# товар} few {# товари} many {# товарів} other {# товару}}"
+}

@@ -75,3 +75,11 @@ export const translate = (
 /** Whether a catalog load is in flight in `state` (for namespace `ns`, or any). */
 export const loading = (state: State, ns?: string): boolean =>
   state.ld.some((k) => ns === undefined || k.endsWith("\0" + ns));
+
+export {
+  EDITOR_MAPPINGS_GLOBAL,
+  EDITOR_INITIAL_MAPPINGS_GLOBAL,
+  readEditorMappings,
+  toRecordOfNumbers,
+} from "./editor";
+export type { InContextEditorMappings } from "./editor";
