@@ -93,13 +93,13 @@
       "name": "core-format",
       "entry": ["@comvi/core", "@comvi/core/format"],
       "fixture": "core-format.ts",
-      "gzipBudgetBytes": 5037,
+      "gzipBudgetBytes": 5077,
       "baseline": {
-        "minBytes": 10069,
-        "gzipBytes": 4797,
+        "minBytes": 10195,
+        "gzipBytes": 4835,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3)."
+      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3) and the per-chain formatter memo."
     },
     {
       "name": "core-plugins",

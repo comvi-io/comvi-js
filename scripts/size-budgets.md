@@ -411,8 +411,9 @@ annotated pure, so `core-compile` (the internal entry) does not carry it (1,931 
 
 Re-baselined in the same sweep: `core-compile` 1,931, `core-locale` 578 (607), `core-icu-devtools`
 5,389 (5,659; `devtools()` adds 1,095 B), `core-devtools` 1,296 (ceiling 1,300: the idempotence
-guard and the SSR id were paid for by folding `exposeGlobal` into one `??`), `core-format` 4,797
-(5,037: named formats and `formatRelativeTime(i18n, date, now?)` of design §3.3), `core-plugins`
+guard and the SSR id were paid for by folding `exposeGlobal` into one `??`), `core-format` 4,835
+(5,077: named formats and `formatRelativeTime(i18n, date, now?)` of design §3.3, and a per-chain
+formatter memo for default options that took `formatNumber` from +26 % to ≈ +10 % against 0.7), `core-plugins`
 4,867 (5,111: `detect()` is a plugin again).
 
 The verdict of the lot-1b section stands and is now 1,044 / 987 B wide: no cut that keeps the

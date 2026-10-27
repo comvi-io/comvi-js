@@ -21,24 +21,30 @@ import { canonicalize } from "./locale";
  * data for. A tag that does not canonicalize is left out. Memoized per chain array (the
  * instance memoizes chains per locale), so a call with no `locale` allocates nothing.
  */
-const chains = new WeakMap<object, [key: string, locales: readonly string[]]>();
-const tags = (i18n: I18n, locale?: string): [key: string, locales: readonly string[]] => {
+type Tags = [key: string, locales: readonly string[], fmts: Record<string, unknown>];
+const chains = new WeakMap<object, Tags>();
+const NONE: Tags = ["", [], Object.create(null)];
+const tags = (i18n: I18n, locale?: string): Tags => {
   if (locale) {
     const c = canonicalize(locale);
-    return c ? [c, [c]] : ["", []];
+    return c ? [c, [c], Object.create(null)] : NONE;
   }
   const core = CORE.get(i18n);
-  if (!core) return ["", []];
+  if (!core) return NONE;
   const ch = core.ch(i18n.locale);
   let t = chains.get(ch);
   if (!t) {
     const ls = ch.map((x) => x[1]);
-    chains.set(ch, (t = [ls.join(), ls]));
+    chains.set(ch, (t = [ls.join(), ls, Object.create(null)]));
   }
   return t;
 };
 
-/** The cached formatter of `kind` for `i18n` (or `locale`) and `options`. */
+/**
+ * The cached formatter of `kind` for `i18n` (or `locale`) and `options`. A call with the
+ * default options also keeps the formatter on the chain's memo, so the hot path skips the
+ * shared cache's key building (the memo lives as long as the chain does).
+ */
 const get = <T>(
   kind: Parameters<typeof intl>[0],
   i18n: I18n,
@@ -46,8 +52,10 @@ const get = <T>(
   locale?: string,
   v = variant(options),
 ): T => {
-  const [key, locales] = tags(i18n, locale);
-  return intl<T>(kind, key, v, options, locales);
+  const t = tags(i18n, locale);
+  if (options && options != AUTO) return intl<T>(kind, t[0], v, options, t[1]);
+  const m = t[2];
+  return (m[kind] ??= intl<T>(kind, t[0], v, options, t[1])) as T;
 };
 
 /** A cache variant for `options`: its own keys, sorted, with their values. */
