@@ -76,29 +76,32 @@ export const cdn = (
       () => c.abort(Error(`[@comvi/core/cdn] timeout ${timeout} ms: ${url}`)),
       timeout,
     );
-    // `signal` is required by the Loader contract; the instance always passes one.
-    if (signal.aborted) stop();
-    else signal.addEventListener("abort", stop);
+    // Tolerates a direct call without a signal (outside the Loader contract), as before.
+    if (signal && signal.aborted) stop();
+    else if (signal) signal.addEventListener("abort", stop);
     try {
       return await Promise.race([
-        fetch(url, {
-          headers: { Accept: "application/json" },
-          signal: c.signal,
-          next,
-        } as RequestInit).then(async (r) => {
+        // An async IIFE, not `fetch().then()`: one microtask fewer per step, so a body
+        // that has settled wins over an abort that lands right after (tests/cdn/loader).
+        (async () => {
+          const r = await fetch(url, {
+            headers: { Accept: "application/json" },
+            signal: c.signal,
+            next,
+          } as RequestInit);
           if (!r.ok) throw Error(`[@comvi/core/cdn] HTTP ${r.status}: ${url}`);
           const d = await r.json();
           if (!d || typeof d != "object" || Array.isArray(d))
             throw Error(`[@comvi/core/cdn] not a catalog: ${url}`);
           return d as Catalog;
-        }),
+        })(),
         // Settles the load on abort or timeout even when the body never does.
         new Promise<never>((_, no) =>
           c.signal.addEventListener("abort", () => no(c.signal.reason)),
         ),
       ]);
     } catch (e) {
-      if (signal.aborted) throw e;
+      if (signal && signal.aborted) throw e;
       const f = fb[l + ":" + n] || (n === root && fb[l]);
       if (f) {
         const m = await f();
@@ -108,7 +111,7 @@ export const cdn = (
       throw c.signal.aborted ? c.signal.reason : e;
     } finally {
       clearTimeout(tm);
-      signal.removeEventListener("abort", stop);
+      if (signal) signal.removeEventListener("abort", stop);
     }
   };
 };

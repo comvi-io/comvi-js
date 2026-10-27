@@ -37,14 +37,14 @@ const seen = new Set<string>();
 
 const once = (id: string): boolean => !seen.has(id) && !!seen.add(id);
 
+/** Does nothing; shared so production code carries one empty function. */
+export const noop = (): void => {};
+
 /**
  * The reporter used when none is configured: development `console.error` once per
  * (code, key, param) — and per (locale, ns) for the reports that name no key (a load
  * failure, an invalid locale); production silent.
  */
-/** Does nothing; shared so production code carries one empty function. */
-export const noop = (): void => {};
-
 export const defaultOnError: OnError = !__DEV__
   ? noop
   : (error) => {

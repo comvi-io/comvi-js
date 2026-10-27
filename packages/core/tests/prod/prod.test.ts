@@ -27,7 +27,8 @@ describe("production", () => {
     fmt("{n, plural, one {x}}", {}, "en", env, "a");
     fmt("{x}", {}, "en", env, "b");
     fmt("{n, plural, other {#}}", { n: "z" }, "en", env, "c");
-    expect(env.errors).toEqual([
+    // Strict: production reports keep an own `message: undefined` key, as before.
+    expect(env.errors).toStrictEqual([
       { code: "syntax", key: "a", locale: "en", message: undefined },
       { code: "missing_param", key: "b", locale: "en", param: "x", message: undefined },
       { code: "missing_param", key: "c", locale: "en", param: "n", message: undefined },
