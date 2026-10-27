@@ -13,7 +13,7 @@ import { CORE, type Core, type I18n } from "./instance";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
 
 export { compile, render, recordFor, lookup, inherit } from "./compile/cache";
-export type { Compiled, CompiledRecord, Render, Rendered, SyntaxId } from "./compile/cache";
+export type { Compiled, CompiledRecord, Render, Rendered } from "./compile/cache";
 export type { Env, Params } from "./compile/scanner";
 export { formatNumber, formatValue, pluralRules, intl } from "./compile/fmt";
 export { canonicalize, parents, dir, negotiate } from "./locale";

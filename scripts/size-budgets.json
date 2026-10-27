@@ -42,27 +42,27 @@
       "name": "core-icu",
       "entry": ["@comvi/core"],
       "fixture": "core-icu.ts",
-      "gzipBudgetBytes": 3250,
-      "ceilingBytes": 3250,
+      "gzipBudgetBytes": 4449,
+      "ceilingBytes": 4449,
       "baseline": {
-        "minBytes": 8712,
-        "gzipBytes": 4260,
+        "minBytes": 8663,
+        "gzipBytes": 4237,
         "measuredAt": "2026-10-27"
       },
-      "note": "RED BY DESIGN (blocked, owner decision): core + ICU, R3-10 ceiling 3,250 B kept as the budget; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,304 → 4,253, + its review fix pass: 4,260)."
+      "note": "core + ICU; ceiling R3-13 (owner 27.10) = ceil(4,237 × 1.05), replacing R3-10's 3,250 B; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,304 → 4,253, + its review fix pass: 4,260, + R3-13 SyntaxId cut: 4,237)."
     },
     {
       "name": "core-icu-cdn",
       "entry": ["@comvi/core", "@comvi/core/cdn"],
       "fixture": "core-icu-cdn.ts",
-      "gzipBudgetBytes": 3750,
-      "ceilingBytes": 3750,
+      "gzipBudgetBytes": 4895,
+      "ceilingBytes": 4895,
       "baseline": {
-        "minBytes": 9751,
-        "gzipBytes": 4682,
+        "minBytes": 9702,
+        "gzipBytes": 4661,
         "measuredAt": "2026-10-27"
       },
-      "note": "RED BY DESIGN (blocked, owner decision): core + ICU + cdn(), R3-10 ceiling 3,750 B kept as the budget; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,745 → 4,670, + its review fix pass: 4,682)."
+      "note": "core + ICU + cdn(); ceiling R3-13 (owner 27.10) = ceil(4,661 × 1.05), replacing R3-10's 3,750 B; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,745 → 4,670, + its review fix pass: 4,682, + R3-13 SyntaxId cut: 4,661)."
     },
     {
       "name": "core-icu-devtools",

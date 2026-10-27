@@ -527,3 +527,18 @@ budgets set in the size pass, so no row is re-baselined.
 
 `tests/cdn/loader.test.ts` pins the first two, and the production report test is now
 `toStrictEqual`. All three failed on 7b517b4a.
+
+### 2026-10-27: R3-13 — owner sets the core ceilings
+
+The size pass showed the R3-10 ceilings cannot be met with the features R3-8…R3-12 keep:
+every option on the owner list stacked (including the ones contradicting R3-8/11/12) gives
+3,637 / 3,953 B, still 387 / 203 B over. The owner kept every decision and took one cut,
+the unused SyntaxId layer in the compile cache (`recordFor(catalog)` keyed by catalog alone).
+
+| Row          | Before | After | New ceiling = ceil(after × 1.05) |
+| ------------ | ------ | ----- | -------------------------------- |
+| core-icu     | 4,260  | 4,237 | 4,449                            |
+| core-icu-cdn | 4,682  | 4,661 | 4,895                            |
+| core-compile | 1,920  | 1,904 | 2,000 (unchanged)                |
+
+Node v24.22.1, `TURBO_FORCE=true pnpm --filter @comvi/core build`, `node scripts/size-check.mjs`.

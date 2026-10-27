@@ -3,7 +3,7 @@
  * Ported by meaning from: hot-path-invariants, post-process-static-template,
  * catalog-ingestion-isolation, host-catalog-inherited-keys, catalog-null-prototype-nesting,
  * template-cache-*, translation-cache*, fallback-param-shared-cache.
- * New (lot-0 S1): cow-identity, SyntaxId independence from renderers.
+ * New (lot-0 S1): cow-identity, records independent of renderers.
  */
 import { describe, expect, it, vi } from "vitest";
 import { compile, inherit, lookup, recordFor, render, type Catalog } from "../../src/compile/cache";
@@ -41,9 +41,8 @@ describe("records", () => {
     expect(recordFor({ ...cat })).not.toBe(recordFor(cat));
   });
 
-  it("keys records by SyntaxId, never by per-instance data", () => {
+  it("never keys records by per-instance data", () => {
     const cat: Catalog = { a: "<b>x</b>" };
-    expect(recordFor(cat, 0)).not.toBe(recordFor(cat, 1));
     // renderers come from params at render time: one compiled entry serves both
     const c = lookup(recordFor(cat), cat, "a")!;
     expect(render(c, { b: () => "1" }, "en")).toBe("1");

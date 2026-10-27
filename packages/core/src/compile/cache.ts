@@ -6,13 +6,13 @@
  *   than the catalog's own string (R4-1c; `typeof === "string"` on the hot path), or
  * - a render function `(params, locale, env) => string | unknown[]`.
  *
- * The cache is `WeakMap<Catalog, Map<SyntaxId, Record<key, Compiled>>>`: keyed by
- * the IDENTITY of an immutable catalog object, so every instance (and every SSR
- * request) that holds a reference to the same catalog shares one compiled record,
- * and a catalog that is dropped takes its record with it. `SyntaxId` comes from
- * syntax flags only — never from per-instance data such as tag renderers, which are
- * read from the parameters at render time (R4-2). Today the grammar has one
- * configuration, so the id is always `0`.
+ * The cache is `WeakMap<Catalog, Record<key, Compiled>>`: keyed by the IDENTITY of
+ * an immutable catalog object, so every instance (and every SSR request) that holds
+ * a reference to the same catalog shares one compiled record, and a catalog that is
+ * dropped takes its record with it. The grammar has one configuration, so nothing
+ * else keys the record; per-instance data such as tag renderers is read from the
+ * parameters at render time (R4-2). A second syntax configuration would add a key
+ * here (R3-13).
  *
  * Callers resolve the record ONCE when they attach a catalog (`recordFor`) and then
  * read `lookup(record, catalog, key)`; the hot path never touches the WeakMap.
@@ -30,9 +30,6 @@ export type Rendered = string | unknown[];
 export type Render = (params: Params | undefined, locale: string, env?: Env) => Rendered;
 export type Compiled = string | Render;
 export type CompiledRecord = Record<string, Compiled>;
-
-/** Bit set of syntax extensions a record was compiled with. One configuration today. */
-export type SyntaxId = number;
 
 // A plain object is safe: parameters are read as own properties only (`arg`).
 const EMPTY: Params = Object.freeze({});
@@ -85,14 +82,12 @@ export const render = (
   env?: Env,
 ): Rendered => (typeof compiled === "string" ? compiled : compiled(params, locale, env));
 
-const records = new WeakMap<Catalog, Map<SyntaxId, CompiledRecord>>();
+const records = new WeakMap<Catalog, CompiledRecord>();
 
-/** The compiled record of `catalog` for `syntax`, created empty on first use. */
-export const recordFor = (catalog: Catalog, syntax: SyntaxId = 0): CompiledRecord => {
-  let bySyntax = records.get(catalog);
-  if (!bySyntax) records.set(catalog, (bySyntax = new Map()));
-  let record = bySyntax.get(syntax);
-  if (!record) bySyntax.set(syntax, (record = Object.create(null) as CompiledRecord));
+/** The compiled record of `catalog`, created empty on first use. */
+export const recordFor = (catalog: Catalog): CompiledRecord => {
+  let record = records.get(catalog);
+  if (!record) records.set(catalog, (record = Object.create(null) as CompiledRecord));
   return record;
 };
 
@@ -121,9 +116,8 @@ export const inherit = (
   prev: Catalog,
   prevRecord: CompiledRecord,
   next: Catalog,
-  syntax: SyntaxId = 0,
 ): CompiledRecord => {
-  const record = recordFor(next, syntax);
+  const record = recordFor(next);
   for (const key in prevRecord) {
     if (record[key] === undefined && arg(next, key) === prev[key] && prev[key] !== undefined) {
       record[key] = prevRecord[key];
