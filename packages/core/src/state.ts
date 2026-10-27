@@ -53,6 +53,8 @@ export interface State {
   readonly ld: readonly string[];
   /** Primary record: default namespace at `locale`, when that slot has no patch. */
   readonly pr: CompiledRecord | undefined;
+  /** The instance's `defaultParams` as of this state (an own copy, never the caller's object). */
+  readonly dp: Readonly<Record<string, unknown>> | null | undefined;
 }
 
 /** Patched keys kept as a layer before the patch is flattened into a new base. */
@@ -68,17 +70,21 @@ export const mk = (
   dir: "ltr" | "rtl",
   c: Store,
   ld: readonly string[],
+  dp: State["dp"],
   s = c.default && c.default[locale],
-): State => ({ rev, lrev, locale, dir, c, ld, pr: s && !s.p ? s.c : undefined });
+): State => ({ rev, lrev, locale, dir, c, ld, dp, pr: s && !s.p ? s.c : undefined });
 
 /**
  * The slot that results from adding `msgs` to `slot`. An empty pair keeps `msgs` BY
- * REFERENCE as the base (R4-12); otherwise `msgs` is merged into the patch layer, and a
- * patch past {@link FLAT} keys is flattened into a new base that inherits the compiled
- * messages of the old one.
+ * REFERENCE as the base (R4-12); the catalog the slot already holds as its unpatched base
+ * gives back the slot itself (a Provider re-adding a stable prop costs nothing and
+ * publishes nothing); otherwise `msgs` is merged into the patch layer, and a patch past
+ * {@link FLAT} keys is flattened into a new base that inherits the compiled messages of
+ * the old one.
  */
 export const layer = (slot: Slot | undefined, msgs: Catalog): Slot => {
   if (!slot) return { m: msgs, c: recordFor(msgs) };
+  if (slot.m == msgs && !slot.p) return slot;
   const p: Catalog = Object.assign(N(), slot.p, msgs);
   if (Object.keys(p).length > FLAT) {
     const m: Catalog = Object.freeze(Object.assign(N(), slot.m, p));
@@ -105,9 +111,15 @@ export const find = (slot: Slot, key: string): Compiled | undefined => {
   return f === "" ? undefined : f;
 };
 
-/** A new store with `msgs` layered at (ns, locale); every other pair is shared. */
+/**
+ * A new store with `msgs` layered at (ns, locale); every other pair is shared. `c` itself
+ * when the slot does not change.
+ */
 export const put = (c: Store, ns: string, locale: string, msgs: Catalog): Store => {
+  const o = c[ns] && c[ns][locale];
+  const n = layer(o, msgs);
+  if (n == o) return c;
   const s = Object.assign(N(), c);
-  (s[ns] = Object.assign(N(), c[ns]))[locale] = layer(c[ns] && c[ns][locale], msgs);
+  (s[ns] = Object.assign(N(), c[ns]))[locale] = n;
   return s;
 };

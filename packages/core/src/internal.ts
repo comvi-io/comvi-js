@@ -40,7 +40,8 @@ const NO_SLOT = {};
 /**
  * A render-local snapshot: `state` with `extra` (namespace → locale → flat catalog)
  * layered over its catalogs. Nothing is published and `rev` does not move; untouched
- * namespaces and locales keep their slots (and compiled messages).
+ * namespaces and locales keep their slots (and compiled messages), and a catalog a slot
+ * already holds as its base gives back `state` itself (no copy per render).
  */
 export const view = (
   i18n: I18n,
@@ -56,11 +57,15 @@ export const view = (
       if (!memo) layered.set(slot || NO_SLOT, (memo = new WeakMap()));
       let next = memo.get(m);
       if (!next) memo.set(m, (next = layer(slot, m)));
+      // The catalog the slot already holds: nothing to layer, no copy of the state.
+      if (next === slot) continue;
       if (c === state.c) c = Object.assign(N(), c);
       (c as Record<string, Store[string]>)[n] = Object.assign(N(), c[n], { [l]: next });
     }
   core(i18n);
-  return c === state.c ? state : mk(state.rev, state.lrev, state.locale, state.dir, c, state.ld);
+  return c === state.c
+    ? state
+    : mk(state.rev, state.lrev, state.locale, state.dir, c, state.ld, state.dp);
 };
 
 /** `t()` of `i18n` against `state` (a published state or a view). */

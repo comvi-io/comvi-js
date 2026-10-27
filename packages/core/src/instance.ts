@@ -15,11 +15,15 @@
  *
  * Loading: one flight per (locale, namespace), deduped; each pair settles on its own
  * (R4-11). `setLocale(l)` switches when the target needs nothing (synchronously, inside
- * the call) or when its loads settle with at least one catalog of `l` itself in place;
- * fallback-locale failures never block. A failed pair is remembered (no refetch on
- * every switch) until `setLocale()` targets its locale again or `load()` names its
- * namespace. A switch superseded by a later one, and every load of a locale that left
- * the chain, is aborted.
+ * the call) or when its loads settle with a catalog of `l`'s own chain (`l` or a parent:
+ * `pt-BR` → `pt`) in place for at least one active namespace; fallback-locale failures
+ * never block. A namespace activated while the switch is pending is loaded for the
+ * target before it switches. A failed pair is remembered (no refetch on every switch)
+ * until `setLocale()` targets its locale again or `load()` names its namespace. A switch
+ * superseded by a later one, and every load of a locale that left the chain, is aborted.
+ *
+ * The reporter is isolated: an `onError` that throws neither breaks the render nor the
+ * load bookkeeping (its error is rethrown from a `setTimeout`, like a subscriber's).
  */
 import { render, type Catalog, type Compiled, type Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
@@ -54,11 +58,22 @@ export interface I18nOptions {
   loader?: Loader;
   /** Namespaces loaded from the start. Default `["default"]`. */
   namespaces?: readonly string[];
-  /** Params every `t()` call gets unless the call passes its own value. */
+  /**
+   * Params every `t()` call gets unless the call passes its own value. Copied: a later
+   * mutation of the object changes nothing (`setDefaultParams` replaces them). `ns` and
+   * `locale` are reserved: they are per-call options, never message params.
+   */
   defaultParams?: Readonly<Record<string, unknown>>;
   plugins?: readonly Plugin[];
   /** IANA time zone for Date values (SSR bindings pass the server's). */
   timeZone?: string;
+  /** Epoch ms that `formatRelativeTime` (`@comvi/core/format`) counts from; SSR bindings serialise it. Default: the clock. */
+  now?: number;
+  /** Named Intl options for `@comvi/core/format`: `formatNumber(i18n, n, "price")`. */
+  formats?: {
+    number?: Readonly<Record<string, Intl.NumberFormatOptions>>;
+    date?: Readonly<Record<string, Intl.DateTimeFormatOptions>>;
+  };
   /** Every problem, as a coded {@link I18nError}. Default: development console, production silent. */
   onError?: OnError;
   /** What a missing key renders. Default: the key. */
@@ -69,9 +84,16 @@ export interface I18n {
   /** The current locale, as the app spells it. */
   readonly locale: string;
   readonly dir: "ltr" | "rtl";
-  /** Settles when the catalog loads in flight now have settled (never rejects). */
+  /**
+   * Settles when the catalog loads in flight now have settled (never rejects). The same
+   * promise object for as long as the set of loads in flight does not change (a binding
+   * may throw it for Suspense); one shared resolved promise when nothing loads.
+   */
   readonly ready: Promise<void>;
-  /** Translates in the `default` namespace; `{ ns, locale }` in the params switch them per call. */
+  /**
+   * Translates in the `default` namespace; `{ ns, locale }` in the params switch them per
+   * call. `ns` and `locale` are reserved names: a message cannot have params called so.
+   */
   t: TFor<"default", RichParts>;
   /** `t()` bound to namespace `name`. */
   ns<N extends string>(name: N): TFor<N, RichParts>;
@@ -102,8 +124,8 @@ export interface Core {
   tr(state: State, key: string, params?: Params, ns?: string): Rendered;
   /** The lookup chain of a locale. */
   ch(locale: string): Chain;
-  /** The instance time zone. */
-  z?: string;
+  /** The options the instance was made with (`timeZone`, `now`, `formats` for `/format`). */
+  o: I18nOptions;
 }
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
@@ -112,6 +134,8 @@ export const CORE = new WeakMap<object, Core>();
 const D = "default";
 const K = "\0";
 const noop = (): void => {};
+/** `ready` when nothing loads: one resolved promise, the same object every time. */
+const R = Promise.resolve();
 
 /** Runs `f`; what it throws is rethrown outside the caller's loop, so the loop goes on. */
 const safe = (f: void | (() => void)) => {
@@ -126,9 +150,15 @@ const safe = (f: void | (() => void)) => {
 
 type Flight = [Promise<unknown>, AbortController];
 
+/** A shallow own copy of a params object; `null` for none (so `pub()`'s default does not apply). */
+const own = (v?: Readonly<Record<string, unknown>>) => (v ? { ...v } : null);
+
 export const createI18n = (o: I18nOptions): I18n => {
-  const fb = o.fallbackLocale;
-  const report = o.onError || defaultOnError;
+  // An own copy: the caller mutating its list later changes nothing.
+  const fb = JSON.parse(JSON.stringify(o.fallbackLocale || 0)) as I18nOptions["fallbackLocale"];
+  const h = o.onError || defaultOnError;
+  /** Reports; what the reporter throws is rethrown outside the render or the load. */
+  const report: OnError = (e) => safe(() => h(e));
   const env: Env = { z: o.timeZone, r: report };
   const load = o.loader;
   const subs = new Set<() => void>();
@@ -140,7 +170,8 @@ export const createI18n = (o: I18nOptions): I18n => {
   const downs: (void | (() => void))[] = [];
   let chains: Record<string, Chain> = N();
   let nch = 0;
-  let dp = o.defaultParams;
+  /** `ready` for the current set of flights; cleared whenever that set changes. */
+  let rd: Promise<void> | 0 = 0;
   let seq = 0;
   let dead = 0;
   let S: State;
@@ -156,7 +187,10 @@ export const createI18n = (o: I18nOptions): I18n => {
   /** The canonical tag of `l`, or nothing after reporting `invalid_locale` (R3-1, R4-10). */
   const valid = (l: string): string | void => canonicalize(l) || void err("invalid_locale", l);
 
-  /** `l` and its parents (`o` of them), then each fallback locale and its parents. */
+  /**
+   * `l` and its parents (`o` of them), then each fallback locale and its parents. A tag
+   * that does not canonicalize is reported (`invalid_locale`) and left out.
+   */
   const chain = (l: string): Chain => {
     let ch = chains[l];
     if (!ch) {
@@ -166,7 +200,7 @@ export const createI18n = (o: I18nOptions): I18n => {
         nch = 1;
       }
       const out = (chains[l] = ch = [] as unknown as Chain) as unknown as [string, string][];
-      const walk = (k: string, c = canonicalize(k)) =>
+      const walk = (k: string, c = valid(k)) =>
         c &&
         // Parents are canonical already; only the entry itself keeps the app's spelling.
         [k, ...parents(c)].forEach((x, i) => ch.some((y) => y[0] == x) || out.push([x, i ? x : c]));
@@ -185,19 +219,19 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   /** A state for locale `l` (an invalid locale has no entry of its own in its chain). */
-  const st = (rev: number, lrev: number, l: string, c: Store, ld: readonly string[]) => {
+  const st = (rev: number, lrev: number, l: string, c: Store, dp: State["dp"]) => {
     const h = chain(l);
-    return mk(rev, lrev, l, h.o ? dirOf(h[0][1]) : "ltr", c, ld);
+    return mk(rev, lrev, l, h.o ? dirOf(h[0][1]) : "ltr", c, [...fl.keys()], dp);
   };
 
-  /** Replaces the state and tells the subscribers; a throwing subscriber does not stop the rest. */
-  const pub = (l = S.locale, c = S.c, ld = S.ld) => {
-    S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c, ld);
+  /**
+   * Replaces the state (its loads in flight are `fl`'s keys) and tells the subscribers; a
+   * throwing subscriber does not stop the rest.
+   */
+  const pub = (l = S.locale, c = S.c, dp = S.dp) => {
+    S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c, dp);
     subs.forEach(safe);
   };
-
-  /** The loads in flight without `k`. */
-  const off = (k: string) => S.ld.filter((x) => x != k);
 
   /** `c` with `m` layered at (l, n), after checking the locale (and, in development, the values). */
   const ing = (c: Store, l: string, m: Catalog, n: string): Store => {
@@ -219,11 +253,11 @@ export const createI18n = (o: I18nOptions): I18n => {
   if (o.messages) cats[D] = o.messages;
   for (const n of Object.keys(cats))
     for (const l of Object.keys(cats[n])) c0 = ing(c0, l, cats[n][l], n);
-  // An invalid start locale is reported; it renders through its fallback locales only.
-  valid(o.locale);
-  S = st(0, 0, o.locale, c0, []);
+  // An invalid start locale is reported (by its chain); it renders through its fallback
+  // locales only.
+  S = st(0, 0, o.locale, c0, own(o.defaultParams));
 
-  /** The message `look()` found last; read at once by the caller. */
+  /** The message `look()` found last; copied by the caller before anything can call back. */
   let hit: Compiled;
 
   /** The chain index where `key` is found in namespace `n` (its message in `hit`), or -1. */
@@ -241,25 +275,30 @@ export const createI18n = (o: I18nOptions): I18n => {
       n = (p.ns as string) || n;
       if (p.locale && valid(p.locale as string)) l = p.locale as string;
     }
-    if (dp) p = Object.assign(N(), dp, p);
+    // The state's own copy of defaultParams (R4-12: an older snapshot keeps its own).
+    if (s.dp) p = Object.assign(N(), s.dp, p);
     const ch = chain(l);
     const i = look(s, key, n, ch);
     if (i >= 0) {
+      // Kept before the report: an `onError` that calls has() or t() moves `hit`.
+      const m = hit;
       if (i >= ch.o) err("fallback_used", l, n, key);
-      return render(hit, p, ch[i][1], env);
+      return render(m, p, ch[i][1], env);
     }
-    // A key of a catalog still loading is not missing yet.
-    if (!s.ld.includes(l + K + n)) err("missing_key", l, n, key);
+    // A key of a namespace still loading (for any locale: a parent, a fallback, the
+    // target of a pending switch) is not missing yet.
+    if (!s.ld.some((x) => x.endsWith(K + n))) err("missing_key", l, n, key);
     return o.missing ? o.missing(key, l, n) : key;
   };
 
   /** Forgets flight `k` and publishes (with `c`, the catalogs it brought). */
   const drop = (k: string, c?: Store) => {
     fl.delete(k);
-    pub(S.locale, c, off(k));
+    rd = 0;
+    pub(S.locale, c);
   };
 
-  /** The flight of (l, n), started unless the pair is in place or failed before. */
+  /** The flight of (l, n), started unless the pair is in place or failed before (not published here). */
   const get = (l: string, n: string): Promise<unknown> | void => {
     const k = l + K + n;
     let f = fl.get(k);
@@ -269,23 +308,36 @@ export const createI18n = (o: I18nOptions): I18n => {
       fl.set(
         k,
         (f = [
-          new Promise<Catalog>((y) => y(load(l, n, a.signal)))
+          // Settles on abort even when the loader ignores its signal.
+          new Promise<Catalog>((y, x) => {
+            a.signal.onabort = x;
+            Promise.resolve(load(l, n, a.signal)).then(y, x);
+          })
             .then((m) => no() || drop(k, ing(S.c, l, m, n)))
             // Also takes what layering a value that is not a catalog throws.
             .catch((e) => no() || (bad.set(k, e), err("load_failed", l, n, undefined, e), drop(k))),
           a,
         ]),
       );
-      pub(S.locale, S.c, S.ld.concat(k));
     }
     return f && f[0];
   };
 
-  /** Starts what `l`'s chain needs for `nss`; the flights to wait for. */
-  const ensure = (l: string, nss: Iterable<string>) =>
-    chain(l)
-      .flatMap(([k]) => [...nss].map((n) => get(k, n)))
+  /**
+   * Starts what `l`'s chain needs for `nss`, publishing ONE "loading" state for all the
+   * flights it started; the flights to wait for.
+   */
+  const ensure = (l: string, nss: Iterable<string>) => {
+    const n = fl.size;
+    const ps = chain(l)
+      .flatMap(([k]) => [...nss].map((x) => get(k, x)))
       .filter(Boolean);
+    if (fl.size > n) {
+      rd = 0;
+      pub();
+    }
+    return ps;
+  };
 
   /** Clears the failures whose `i`-th key part (0 locale, 1 namespace) is `v`. */
   const retry = (i: number, v: string) =>
@@ -299,40 +351,51 @@ export const createI18n = (o: I18nOptions): I18n => {
       return S.dir;
     },
     get ready() {
-      return Promise.all([...fl.values()].map((f) => f[0])).then(noop);
+      return fl.size ? rd || (rd = Promise.all([...fl.values()].map((f) => f[0])).then(noop)) : R;
     },
     // Fast path (R4-1d): a message already compiled in the primary record (default
     // namespace at the locale), called without per-call options or defaultParams. An empty
     // string is untranslated and takes the full path (the fallback chain).
     t: ((key: string, p?: Params, f = S.pr && S.pr[key]) =>
-      f && !(p && (p.ns || p.locale)) && !dp
+      f && !(p && (p.ns || p.locale)) && !S.dp
         ? typeof f == "string"
           ? f
           : render(f, p, chain(S.locale)[0][1], env)
         : tr(S, key, p)) as I18n["t"],
     ns: ((n: string) => (key: string, p?: Params) => tr(S, key, p, n)) as I18n["ns"],
     setLocale(l) {
-      if (dead) return Promise.resolve();
+      if (dead) return R;
       if (!valid(l)) return Promise.reject(RangeError(`[@comvi/core] invalid locale "${l}"`));
       const my = ++seq;
-      const keep = chain(l).map((x) => x[0]);
-      fl.forEach((f, k) => keep.includes(k.split(K)[0]) || (f[1].abort(), drop(k)));
+      const ch = chain(l);
+      /** Aborts the loads of locales outside `l`'s chain. */
+      const prune = () =>
+        fl.forEach((f, k) => ch.some((x) => x[0] == k.split(K)[0]) || (f[1].abort(), drop(k)));
+      prune();
       // The target's own failures are asked for again.
       retry(0, l);
-      const go = () => {
+      const go = (): unknown => {
         if (my == seq && !dead) {
-          const miss = [...act].filter((n) => bad.has(l + K + n));
-          // Partial failure switches (R4-11); only a target with no catalog at all rejects.
+          // Also what a load(ns) started while this switch was pending needs (re-checked
+          // until nothing is left to load).
+          const ps = ensure(l, act);
+          if (ps.length) return Promise.all(ps).then(go);
+          // Partial failure switches (R4-11): a namespace is missing only when the target
+          // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place.
+          const miss = [...act].filter(
+            (n) => bad.has(l + K + n) && !ch.slice(0, ch.o).some((x) => S.c[n] && S.c[n][x[0]]),
+          );
           if (act.size && miss.length == act.size) throw bad.get(l + K + miss[0]);
+          // Loads of the old locale a load(ns) started meanwhile are obsolete now.
+          prune();
           if (l != S.locale) pub(l);
         }
       };
-      const ps = ensure(l, act);
       // Nothing to load: the switch happens inside this call.
-      return ps.length ? Promise.all(ps).then(go) : new Promise((y) => y(go()));
+      return new Promise((y) => y(go() as void));
     },
     load(n) {
-      if (dead) return Promise.resolve();
+      if (dead) return R;
       retry(1, n);
       act.add(n);
       return Promise.all(ensure(S.locale, [n])).then(noop);
@@ -342,11 +405,10 @@ export const createI18n = (o: I18nOptions): I18n => {
         // A newer manual catalog wins over a load of the same pair still in flight.
         const k = l + K + n;
         const f = fl.get(k);
-        if (f) {
-          f[1].abort();
-          fl.delete(k);
-        }
-        pub(S.locale, ing(S.c, l, m, n), off(k));
+        const c = ing(S.c, l, m, n);
+        if (f) f[1].abort();
+        // Nothing changed (the slot already holds `m`, or an invalid locale): no publish.
+        if (f || c != S.c) drop(k, c);
       }
     },
     has: (key, q = {}) => {
@@ -370,18 +432,19 @@ export const createI18n = (o: I18nOptions): I18n => {
         dead = ++seq;
         fl.forEach((f) => f[1].abort());
         fl.clear();
+        rd = 0;
         subs.clear();
         // Every teardown runs, last plugin first, even when one throws.
         downs.reverse().forEach(safe);
       }
     },
     setDefaultParams(v) {
-      dp = v;
-      if (!dead) pub();
+      // A copy, published as part of the next state; after destroy() nothing changes.
+      if (!dead) pub(S.locale, S.c, own(v));
     },
   };
 
-  CORE.set(i18n, { s: () => S, tr, ch: chain, z: o.timeZone });
+  CORE.set(i18n, { s: () => S, tr, ch: chain, o });
 
   for (const p of o.plugins || [])
     try {

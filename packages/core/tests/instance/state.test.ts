@@ -66,19 +66,37 @@ describe("read paths never publish (R4-17)", () => {
     () => view(i18n, state(i18n), { notloaded: { en: { a: "A" } } }),
   ];
 
-  it.each(reads(createI18n({ locale: "en" })).map((_, i) => [i]))("read #%i", async (i) => {
+  /** Publishes counted DURING read `i` of `wrap(i18n)`. */
+  const during = async (i: number, wrap: (i18n: I18n) => I18n = (x) => x) => {
     const { load } = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: { p: "{x}" } }, loader: load });
     let inRead = false;
-    let during = 0;
+    let n = 0;
     i18n.on(() => {
-      if (inRead) during++;
+      if (inRead) n++;
     });
+    const read = reads(wrap(i18n))[i];
     inRead = true;
-    await reads(i18n)[i]();
+    await read();
     inRead = false;
     await flush();
-    expect(during).toBe(0);
+    return n;
+  };
+
+  it.each(reads(createI18n({ locale: "en" })).map((_, i) => [i]))("read #%i", async (i) => {
+    expect(await during(i)).toBe(0);
+  });
+
+  it("the harness sees a t() that publishes (the gate is not blind)", async () => {
+    let k = 0;
+    // A t() that writes a catalog before reading — what R4-17 forbids.
+    const publishing = (i18n: I18n) =>
+      ({
+        ...i18n,
+        t: (key: string) => (i18n.add("en", { ["w" + k++]: "W" }), i18n.t(key)),
+      }) as I18n;
+    expect(await during(0, publishing)).toBe(1);
+    expect(await during(4, publishing)).toBe(1);
   });
 });
 
