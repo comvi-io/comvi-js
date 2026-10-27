@@ -208,10 +208,11 @@ export const createI18n = (o: I18nOptions): I18n => {
       ch.o = ch.length;
       ([] as string[])
         .concat(
-          (fb && typeof fb == "object" && !Array.isArray(fb)
-            ? (fb as Record<string, readonly string[]>)[l] ||
-              (fb as Record<string, readonly string[]>)[D]
-            : fb) || [],
+          // `fb` is never null: a JSON copy of the option, `0` for none.
+          (typeof fb != "object" || Array.isArray(fb)
+            ? fb
+            : (fb as Record<string, readonly string[]>)[l] ||
+              (fb as Record<string, readonly string[]>)[D]) || [],
         )
         .forEach((k) => walk(k));
     }
