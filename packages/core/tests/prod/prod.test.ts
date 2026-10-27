@@ -44,7 +44,7 @@ describe("production", () => {
           code: "syntax",
           key: "due",
           locale: "en",
-          message: `{x, ${type}} is not supported: format it in code with useFormat() and pass a plain {x}`,
+          message: "format it in code with useFormat()",
         },
       ]);
     },

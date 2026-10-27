@@ -631,23 +631,25 @@ const REPO = path.resolve(import.meta.dirname, "../..");
 
 test("CI shards every gallery example in both modes, the SSR recipes in the default mode", async () => {
   const { exampleDirs } = await import("../examples-verify.mjs");
+  // The matrix lives in tooling/migration-pending.mjs (EXAMPLES_E2E_MATRIX): CI runs its
+  // ACTIVE shards, read through `migration-pending.mjs --github-output`.
+  const { EXAMPLES_E2E_MATRIX } = await import("../../tooling/migration-pending.mjs");
   const ci = fs.readFileSync(path.join(REPO, ".github/workflows/ci.yml"), "utf8");
-  const list = (name) => {
-    const match = new RegExp(`^\\s+${name}: \\[([^\\]]*)\\]$`, "m").exec(ci);
-    assert.ok(match, `ci.yml has no one-line \`${name}: [...]\` matrix axis`);
-    return match[1].split(",").map((entry) => entry.trim());
-  };
-  const included = [...ci.matchAll(/^\s+- \{ framework: ([a-z]+), mode: default \}$/gm)].map(
-    (match) => match[1],
+  assert.match(
+    ci,
+    /include: \$\{\{ fromJSON\(needs\.migration-pending\.outputs\.examples_e2e_matrix\) \}\}/,
   );
+  const frameworks = (mode) =>
+    EXAMPLES_E2E_MATRIX.filter((e) => e.mode === mode).map((e) => e.framework);
   // A new example with no shard would never run in CI, and nothing else says so.
   assert.deepEqual(
-    [...list("framework"), ...included].sort(),
+    [...new Set(EXAMPLES_E2E_MATRIX.map((e) => e.framework))].sort(),
     exampleDirs().map((entry) => entry.name),
   );
-  assert.deepEqual(list("mode"), ["default", "cdn"]);
+  assert.deepEqual([...new Set(EXAMPLES_E2E_MATRIX.map((e) => e.mode))], ["default", "cdn"]);
   // The recipes run in the default mode only, and nothing else does.
-  assert.deepEqual(included.sort(), [...RECIPE_KINDS].sort());
+  const defaultOnly = frameworks("default").filter((f) => !frameworks("cdn").includes(f));
+  assert.deepEqual(defaultOnly.sort(), [...RECIPE_KINDS].sort());
 });
 
 test("examples:e2e:all runs both modes, and closes test:release", () => {
