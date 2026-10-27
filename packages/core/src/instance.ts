@@ -358,9 +358,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     // string is untranslated and takes the full path (the fallback chain).
     t: ((key: string, p?: Params, f = S.pr?.[key]) =>
       f && !(p && (p.ns || p.locale)) && !S.dp
-        ? typeof f == "string"
-          ? f
-          : render(f, p, S.tg, env)
+        ? render(f, p, S.tg, env)
         : tr(S, key, p)) as I18n["t"],
     ns: ((n: string) => (key: string, p?: Params) => tr(S, key, p, n)) as I18n["ns"],
     setLocale(l) {
