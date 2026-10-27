@@ -1,35 +1,44 @@
 /**
- * Plain `{x}` arguments: every value a message prints is localized (ICU `{0}`);
- * values are never re-parsed as message syntax.
+ * Plain `{x}` arguments: `String(value)` for every type, never Intl (R3-17); values are
+ * never re-parsed as message syntax.
  * Ported by meaning from: params-primitives, missing-param, audit-missing-param-warning-dedup,
  * forged-node-params, security (smuggled placeholders), formatting, formatting-locale-override.
  */
 import { describe, expect, it, vi } from "vitest";
 import { fmt, sink } from "../helpers";
 
-describe("value formatting", () => {
-  it("formats numbers for the locale", () => {
-    expect(fmt("{n}", { n: 1234567 }, "de")).toBe("1.234.567");
-    expect(fmt("{n}", { n: 1234567 }, "uk")).toBe(new Intl.NumberFormat("uk").format(1234567));
-    expect(fmt("{n}", { n: 0.12345 })).toBe("0.123");
+describe("a plain {x} prints String(value), never through Intl (R3-17)", () => {
+  it("an id and a year print as written: 1004 and 2026, not 1,004 and 2,026", () => {
+    expect(fmt("Order #{orderId}", { orderId: 1004 })).toBe("Order #1004");
+    expect(fmt("Since {year}", { year: 2026 })).toBe("Since 2026");
+    expect(fmt("{n}", { n: 1234567 }, "de")).toBe("1234567");
+    expect(fmt("{n}", { n: 1234.5678 }, "de")).toBe("1234.5678");
+    expect(fmt("{n}", { n: -0 })).toBe("0");
   });
 
-  it("formats a Date as short date + short time in the env's time zone", () => {
-    const d = new Date(Date.UTC(2026, 0, 1, 23, 30));
-    const want = (z: string) =>
-      new Intl.DateTimeFormat("en", { dateStyle: "short", timeStyle: "short", timeZone: z }).format(
-        d,
-      );
-    expect(fmt("{d}", { d }, "en", sink("UTC"))).toBe(want("UTC"));
-    expect(fmt("{d}", { d }, "en", sink("Asia/Tokyo"))).toBe(want("Asia/Tokyo"));
-    expect(fmt("{d}", { d }, "en", sink("UTC"))).not.toBe(
-      fmt("{d}", { d }, "en", sink("Asia/Tokyo")),
+  it("prints the ASCII digits of String() under a non-Latin numbering system", () => {
+    for (const l of ["ar-EG", "fa", "th-u-nu-thai"]) expect(fmt("{n}", { n: 109 }, l)).toBe("109");
+  });
+
+  it("does not reach Intl for a number, a Date or a string list", () => {
+    const spies = (["NumberFormat", "DateTimeFormat", "ListFormat"] as const).map((k) =>
+      vi.spyOn(Intl, k),
     );
+    fmt("{n} {d} {l}", { n: 1234567, d: new Date(0), l: ["a", "b"] }, "de");
+    for (const s of spies) expect(s).not.toHaveBeenCalled();
   });
 
-  it("formats a string[] with ListFormat", () => {
-    expect(fmt("{l}", { l: ["a", "b", "c"] })).toBe("a, b, and c");
-    expect(fmt("{l}", { l: ["a", "b"] }, "de")).toBe("a und b");
+  it("prints a Date as String(date) and an invalid Date as String() does", () => {
+    const d = new Date(Date.UTC(2026, 0, 1, 23, 30));
+    expect(fmt("on {d}", { d }, "en", sink())).toBe("on " + String(d));
+    const env = sink();
+    expect(fmt("on {d}", { d: new Date(NaN) }, "en", env)).toBe("on Invalid Date");
+    expect(env.errors).toEqual([]);
+  });
+
+  it("prints a string list as String(list)", () => {
+    expect(fmt("{l}", { l: ["a", "b", "c"] })).toBe("a,b,c");
+    expect(fmt("{l}", { l: [] }, "de")).toBe("");
   });
 
   it.each([
@@ -121,12 +130,6 @@ describe("a missing parameter", () => {
     expect(fmt("{toString} <valueOf>x</valueOf>", { toString: "T", valueOf: () => "V" })).toBe(
       "T V",
     );
-  });
-
-  it("an invalid Date is missing (it has nothing to print), not a throw", () => {
-    const env = sink("UTC");
-    expect(fmt("on {d}", { d: new Date(NaN) }, "en", env)).toBe("on {d}");
-    expect(env.errors).toEqual([expect.objectContaining({ code: "missing_param" })]);
   });
 
   it("inside tag children renders {x} inside the children", () => {

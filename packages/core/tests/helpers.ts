@@ -3,9 +3,9 @@ import type { Env, Params } from "../src/compile/scanner";
 import type { I18nError } from "../src/errors";
 
 /** An env that records every report instead of printing it. */
-export const sink = (z?: string): Env & { errors: I18nError[] } => {
+export const sink = (): Env & { errors: I18nError[] } => {
   const errors: I18nError[] = [];
-  return { z, r: (e) => errors.push(e), errors };
+  return { r: (e) => errors.push(e), errors };
 };
 
 /** Compiles `template` under `key` and renders it once. */

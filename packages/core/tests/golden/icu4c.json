@@ -744,7 +744,8 @@
       "args": {
         "n": 5
       },
-      "expected": "٥ / ٥"
+      "expected": "٥ / 5",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -752,7 +753,8 @@
       "args": {
         "n": 109
       },
-      "expected": "١٠٩ / ١٠٩"
+      "expected": "١٠٩ / 109",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -760,7 +762,8 @@
       "args": {
         "n": 1234
       },
-      "expected": "١٬٢٣٤ / ١٬٢٣٤"
+      "expected": "١٬٢٣٤ / 1234",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -768,7 +771,8 @@
       "args": {
         "n": 0.25
       },
-      "expected": "٠٫٢٥ / ٠٫٢٥"
+      "expected": "٠٫٢٥ / 0.25",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -776,7 +780,8 @@
       "args": {
         "n": 5
       },
-      "expected": "۵ / ۵"
+      "expected": "۵ / 5",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -784,7 +789,8 @@
       "args": {
         "n": 109
       },
-      "expected": "۱۰۹ / ۱۰۹"
+      "expected": "۱۰۹ / 109",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -792,7 +798,8 @@
       "args": {
         "n": 1234
       },
-      "expected": "۱٬۲۳۴ / ۱٬۲۳۴"
+      "expected": "۱٬۲۳۴ / 1234",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -800,7 +807,8 @@
       "args": {
         "n": 0.25
       },
-      "expected": "۰٫۲۵ / ۰٫۲۵"
+      "expected": "۰٫۲۵ / 0.25",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -808,7 +816,8 @@
       "args": {
         "n": 5
       },
-      "expected": "৫ / ৫"
+      "expected": "৫ / 5",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -816,7 +825,8 @@
       "args": {
         "n": 109
       },
-      "expected": "১০৯ / ১০৯"
+      "expected": "১০৯ / 109",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -824,7 +834,8 @@
       "args": {
         "n": 1234
       },
-      "expected": "১,২৩৪ / ১,২৩৪"
+      "expected": "১,২৩৪ / 1234",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -832,7 +843,8 @@
       "args": {
         "n": 0.25
       },
-      "expected": "০.২৫ / ০.২৫"
+      "expected": "০.২৫ / 0.25",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -840,7 +852,8 @@
       "args": {
         "n": 5
       },
-      "expected": "๕ / ๕"
+      "expected": "๕ / 5",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -848,7 +861,8 @@
       "args": {
         "n": 109
       },
-      "expected": "๑๐๙ / ๑๐๙"
+      "expected": "๑๐๙ / 109",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -856,7 +870,8 @@
       "args": {
         "n": 1234
       },
-      "expected": "๑,๒๓๔ / ๑,๒๓๔"
+      "expected": "๑,๒๓๔ / 1234",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -864,7 +879,8 @@
       "args": {
         "n": 0.25
       },
-      "expected": "๐.๒๕ / ๐.๒๕"
+      "expected": "๐.๒๕ / 0.25",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -872,7 +888,8 @@
       "args": {
         "n": 5
       },
-      "expected": "५ / ५"
+      "expected": "५ / 5",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -880,7 +897,8 @@
       "args": {
         "n": 109
       },
-      "expected": "१०९ / १०९"
+      "expected": "१०९ / 109",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -888,7 +906,8 @@
       "args": {
         "n": 1234
       },
-      "expected": "१,२३४ / १,२३४"
+      "expected": "१,२३४ / 1234",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -896,7 +915,8 @@
       "args": {
         "n": 0.25
       },
-      "expected": "०.२५ / ०.२५"
+      "expected": "०.२५ / 0.25",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -904,7 +924,8 @@
       "args": {
         "n": 5
       },
-      "expected": "5 / 5"
+      "expected": "5 / 5",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -912,7 +933,8 @@
       "args": {
         "n": 109
       },
-      "expected": "109 / 109"
+      "expected": "109 / 109",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -920,7 +942,8 @@
       "args": {
         "n": 1234
       },
-      "expected": "1,234 / 1,234"
+      "expected": "1,234 / 1234",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -928,7 +951,8 @@
       "args": {
         "n": 0.25
       },
-      "expected": "0.25 / 0.25"
+      "expected": "0.25 / 0.25",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -936,7 +960,8 @@
       "args": {
         "n": 5
       },
-      "expected": "5 / 5"
+      "expected": "5 / 5",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -944,7 +969,8 @@
       "args": {
         "n": 109
       },
-      "expected": "109 / 109"
+      "expected": "109 / 109",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -952,7 +978,8 @@
       "args": {
         "n": 1234
       },
-      "expected": "1.234 / 1.234"
+      "expected": "1.234 / 1234",
+      "plain": true
     },
     {
       "pattern": "{n, plural, other {# / {n}}}",
@@ -960,7 +987,8 @@
       "args": {
         "n": 0.25
       },
-      "expected": "0,25 / 0,25"
+      "expected": "0,25 / 0.25",
+      "plain": true
     },
     {
       "pattern": "{n, plural, =0 {none} =1 {exactly one} one {# one} other {# other}}",
@@ -1663,7 +1691,8 @@
       "args": {
         "x": 1234567
       },
-      "expected": "1,234,567"
+      "expected": "1234567",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1671,7 +1700,8 @@
       "args": {
         "x": 1234.5678
       },
-      "expected": "1,234.568"
+      "expected": "1234.5678",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1679,7 +1709,8 @@
       "args": {
         "x": -5
       },
-      "expected": "-5"
+      "expected": "-5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1687,7 +1718,8 @@
       "args": {
         "x": 0.5
       },
-      "expected": "0.5"
+      "expected": "0.5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1695,7 +1727,8 @@
       "args": {
         "x": 42
       },
-      "expected": "42"
+      "expected": "42",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1711,7 +1744,8 @@
       "args": {
         "x": 1234567
       },
-      "expected": "1.234.567"
+      "expected": "1234567",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1719,7 +1753,8 @@
       "args": {
         "x": 1234.5678
       },
-      "expected": "1.234,568"
+      "expected": "1234.5678",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1727,7 +1762,8 @@
       "args": {
         "x": -5
       },
-      "expected": "-5"
+      "expected": "-5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1735,7 +1771,8 @@
       "args": {
         "x": 0.5
       },
-      "expected": "0,5"
+      "expected": "0.5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1743,7 +1780,8 @@
       "args": {
         "x": 42
       },
-      "expected": "42"
+      "expected": "42",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1759,7 +1797,8 @@
       "args": {
         "x": 1234567
       },
-      "expected": "1 234 567"
+      "expected": "1234567",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1767,7 +1806,8 @@
       "args": {
         "x": 1234.5678
       },
-      "expected": "1 234,568"
+      "expected": "1234.5678",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1775,7 +1815,8 @@
       "args": {
         "x": -5
       },
-      "expected": "-5"
+      "expected": "-5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1783,7 +1824,8 @@
       "args": {
         "x": 0.5
       },
-      "expected": "0,5"
+      "expected": "0.5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1791,7 +1833,8 @@
       "args": {
         "x": 42
       },
-      "expected": "42"
+      "expected": "42",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1807,7 +1850,8 @@
       "args": {
         "x": 1234567
       },
-      "expected": "١٬٢٣٤٬٥٦٧"
+      "expected": "1234567",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1815,7 +1859,8 @@
       "args": {
         "x": 1234.5678
       },
-      "expected": "١٬٢٣٤٫٥٦٨"
+      "expected": "1234.5678",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1823,7 +1868,8 @@
       "args": {
         "x": -5
       },
-      "expected": "؜-٥"
+      "expected": "-5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1831,7 +1877,8 @@
       "args": {
         "x": 0.5
       },
-      "expected": "٠٫٥"
+      "expected": "0.5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1839,7 +1886,8 @@
       "args": {
         "x": 42
       },
-      "expected": "٤٢"
+      "expected": "42",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1855,7 +1903,8 @@
       "args": {
         "x": 1234567
       },
-      "expected": "1,234,567"
+      "expected": "1234567",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1863,7 +1912,8 @@
       "args": {
         "x": 1234.5678
       },
-      "expected": "1,234.568"
+      "expected": "1234.5678",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1871,7 +1921,8 @@
       "args": {
         "x": -5
       },
-      "expected": "-5"
+      "expected": "-5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1879,7 +1930,8 @@
       "args": {
         "x": 0.5
       },
-      "expected": "0.5"
+      "expected": "0.5",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1887,7 +1939,8 @@
       "args": {
         "x": 42
       },
-      "expected": "42"
+      "expected": "42",
+      "plain": true
     },
     {
       "pattern": "{x}",
@@ -1896,46 +1949,6 @@
         "x": "text"
       },
       "expected": "text"
-    },
-    {
-      "pattern": "{d}",
-      "locale": "en",
-      "args": {
-        "d": {
-          "$date": 1767622029000
-        }
-      },
-      "expected": "1/5/26, 2:07 PM"
-    },
-    {
-      "pattern": "{d}",
-      "locale": "de",
-      "args": {
-        "d": {
-          "$date": 1767622029000
-        }
-      },
-      "expected": "05.01.26, 14:07"
-    },
-    {
-      "pattern": "{d}",
-      "locale": "uk",
-      "args": {
-        "d": {
-          "$date": 1767622029000
-        }
-      },
-      "expected": "05.01.26, 14:07"
-    },
-    {
-      "pattern": "{d}",
-      "locale": "ja",
-      "args": {
-        "d": {
-          "$date": 1767622029000
-        }
-      },
-      "expected": "2026/01/05 14:07"
     },
     {
       "pattern": "Hello, {name}! You have {count} messages.",
@@ -1944,7 +1957,8 @@
         "name": "Ann",
         "count": 1200
       },
-      "expected": "Hello, Ann! You have 1,200 messages."
+      "expected": "Hello, Ann! You have 1200 messages.",
+      "plain": true
     },
     {
       "pattern": "Hello, {name}! You have {count} messages.",
@@ -1953,7 +1967,8 @@
         "name": "Ann",
         "count": 1200
       },
-      "expected": "Hello, Ann! You have 1.200 messages."
+      "expected": "Hello, Ann! You have 1200 messages.",
+      "plain": true
     },
     {
       "pattern": "{0} and {1}",
@@ -1971,7 +1986,8 @@
         "name": "x",
         "n": 3
       },
-      "expected": "x and 3"
+      "expected": "x and 3",
+      "plain": true
     },
     {
       "pattern": "It''s fine",
@@ -1991,7 +2007,8 @@
       "args": {
         "x": 1
       },
-      "expected": "{literal} 1"
+      "expected": "{literal} 1",
+      "plain": true
     },
     {
       "pattern": "'{'",
@@ -2069,7 +2086,8 @@
         "k": "any",
         "x": 7
       },
-      "expected": "'#7' tail"
+      "expected": "'#7' tail",
+      "plain": true
     },
     {
       "pattern": "{k, select, sharp {'#'1} other {plain}}",

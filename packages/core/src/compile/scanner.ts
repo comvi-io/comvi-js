@@ -10,7 +10,7 @@
  *   IMMEDIATE sub-message of a plural/selectordinal — `#`. The literal runs to the
  *   next lone `'` (or the end of the text; an unterminated quote is not an error).
  *   Any other `'` is literal.
- * - `{name}` prints a parameter (formatted for the locale, see fmt.ts);
+ * - `{name}` prints a parameter as `String(value)`, never through Intl (R3-17, fmt.ts);
  *   `{name, plural|selectordinal|select, …}` is handled by icu.ts. Every other
  *   argument type (`number`, `date`, `time`, …) is a `syntax` error.
  * - `#` is the plural count only in the immediate sub-message of a plural or
@@ -38,8 +38,6 @@ export type Params = Readonly<Record<string, unknown>>;
  * time, so one compiled message is shared by every instance (R4-2).
  */
 export interface Env {
-  /** IANA time zone for Date values; the runtime default when absent. */
-  z?: string;
   /** Error sink; `defaultOnError` when absent. */
   r?: OnError;
   /**
@@ -235,11 +233,11 @@ export const message = (
         P.i++;
         parts.push((p, l, x) => {
           const v = arg(p, name);
-          // `formatValue` yields `undefined` for a value that cannot print (an invalid Date).
-          const f = v == null ? v : formatValue(v, l, x?.z);
-          return f === undefined || f === null
+          return v == null
             ? missing(P, x, l, name, __DEV__ && `no value for {${name}}`)
-            : frame(f);
+            : typeof v === "string"
+              ? v
+              : frame(formatValue(v));
         });
       } else {
         P.i++;

@@ -31,12 +31,25 @@ describe("t()", () => {
     expect(i18n.t("a:b")).toBe("colon key");
   });
 
-  it("interpolates params of every primitive shape, localized", () => {
+  it("interpolates params of every primitive shape as String(value) (R3-17)", () => {
     expect(i18n.t("hi", { name: "Ann" })).toBe("Hi Ann!");
-    expect(i18n.t("hi", { name: 1234.5 })).toBe("Hi 1,234.5!");
+    expect(i18n.t("hi", { name: 1234.5 })).toBe("Hi 1234.5!");
     expect(i18n.t("hi", { name: true })).toBe("Hi true!");
     expect(i18n.t("two", { a: 1, b: 2 })).toBe("1 to 2!");
-    expect(i18n.t("hi", { name: ["a", "b", "c"] })).toBe("Hi a, b, and c!");
+    expect(i18n.t("hi", { name: ["a", "b", "c"] })).toBe("Hi a,b,c!");
+  });
+
+  it("prints an id and a year as written, on the fast path and the full path (R3-17)", () => {
+    const de = createI18n({
+      locale: "de",
+      messages: { de: { order: "Bestellung #{orderId}", since: "Seit {year}" } },
+    });
+    expect(de.t("order", { orderId: 1004 })).toBe("Bestellung #1004");
+    expect(de.t("since", { year: 2026 })).toBe("Seit 2026");
+    // `locale` per call takes the full path (no primary-record fast path)
+    expect(de.t("since", { year: 2026, locale: "de" })).toBe("Seit 2026");
+    de.setDefaultParams({ x: 1 });
+    expect(de.t("order", { orderId: 1004 })).toBe("Bestellung #1004");
   });
 
   it("renders ICU plural and select", () => {

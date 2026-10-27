@@ -103,7 +103,7 @@ describe("fuzz", () => {
         d: pick(VALUES),
         v: pick(VALUES),
       };
-      const env = sink("UTC");
+      const env = sink();
       const c = compile(t, "fz");
       const locale = pick(["en", "de", "ar-EG"]);
       const a = render(c, params, locale, env);

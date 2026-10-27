@@ -58,10 +58,9 @@ describe("production", () => {
       args: Record<string, unknown>;
       expected?: string;
     }[]) {
-      const out = fmt(row.pattern, revive(row.args), row.locale, sink("UTC"), "the.key");
+      const out = fmt(row.pattern, revive(row.args), row.locale, sink(), "the.key");
       if (row.expected === undefined) expect(out).toBe("the.key");
-      else
-        expect((out as string).replace(/\u202f/g, " ")).toBe(row.expected.replace(/\u202f/g, " "));
+      else expect(out).toBe(row.expected);
     }
   });
 });

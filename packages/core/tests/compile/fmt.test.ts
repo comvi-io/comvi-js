@@ -52,14 +52,29 @@ describe("the Intl cache", () => {
     expect(pluralRules("en", false)).toBe(pluralRules("en", false));
   });
 
-  it("keys Date formatting by time zone", () => {
-    const d = new Date(Date.UTC(2026, 0, 1, 23));
-    expect(formatValue(d, "en", "UTC")).not.toBe(formatValue(d, "en", "Asia/Tokyo"));
-  });
-
   it(`is bounded: never more than ${INTL_CACHE_LIMIT} formatters`, () => {
     for (let i = 0; i < INTL_CACHE_LIMIT * 2 + 3; i++) intl("PluralRules", "en", "v" + i);
     expect(_intlCacheSize()).toBeLessThanOrEqual(INTL_CACHE_LIMIT);
     expect(formatNumber(1234, "de")).toBe("1.234");
+  });
+});
+
+describe("formatValue (a plain {x}, R3-17)", () => {
+  it("is String(value) for numbers, Dates and string lists, and never builds a formatter", () => {
+    const d = new Date(Date.UTC(2026, 0, 1, 23));
+    expect(formatValue(1004)).toBe("1004");
+    expect(formatValue(2026)).toBe("2026");
+    expect(formatValue(d)).toBe(String(d));
+    expect(formatValue(["a", "b"])).toBe("a,b");
+    expect(_intlCacheSize()).toBe(0);
+  });
+
+  it("passes objects, functions and lists holding one through untouched", () => {
+    const node = {};
+    const fn = () => 1;
+    const list = ["a", node];
+    expect(formatValue(node)).toBe(node);
+    expect(formatValue(fn)).toBe(fn);
+    expect(formatValue(list)).toBe(list);
   });
 });

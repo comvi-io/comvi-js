@@ -22,5 +22,9 @@ npm install --prefix /tmp/imf intl-messageformat@10.7.16
 node scripts/icu-golden/gen-formatjs.mjs /tmp/imf/node_modules/intl-messageformat
 ```
 
-Known engine difference: V8 prints U+0020 before AM/PM in `en` dates where ICU4C 78
-prints U+202F; the golden test normalizes that one character in Date rows.
+Where core differs from ICU4C on purpose, the generator still lets ICU4C render the row and
+marks it: `coerced` rows pass a numeric string as a plural count (ICU4C renders
+`Number(string)`, owner decision 27.10.2026); `plain` rows have a plain `{x}` holding a number,
+which core prints as `String(value)` with no Intl (owner decision R3-17, 28.10.2026), so ICU4C
+gets that argument as the string `String(value)` and formats only the rest (`#`). There are
+no Date rows: a plain `{d}` prints `String(date)`, which depends on the process time zone.

@@ -1,20 +1,20 @@
 /**
- * Value formatting for the message compiler and the one shared Intl cache.
+ * The one shared Intl cache, the plural count `#`, and what a plain `{x}` prints.
  *
- * Every value a message prints is localized, exactly as ICU MessageFormat prints a
- * plain `{0}` argument: a number goes through the locale's default NumberFormat
- * (grouping, up to three fraction digits, the locale's digits), a Date through a
- * short date + short time DateTimeFormat in the instance time zone, a string[]
- * through ListFormat. `#` in a plural sub-message uses the same number formatter.
+ * A plain `{x}` prints `String(value)` for every type — a number, a Date, a string list
+ * — with no Intl (owner decision R3-17, 28.10.2026), as 0.7, FormatJS, i18next and
+ * vue-i18n do: `{orderId}` with 1004 prints `1004` and `{year}` with 2026 prints `2026`,
+ * never `1,004` / `2,026`. A localized number or date is formatted in code with
+ * `@comvi/core/format` and passed as a string. `#` in a plural sub-message is the one
+ * value the compiler localizes (owner decision 11.10): {@link formatNumber}.
  *
- * There are no `{x, number|date|time}` arguments (design rev 3, R3-8): format such
- * values in code and pass the string as a plain `{x}`.
+ * There are no `{x, number|date|time}` arguments (design rev 3, R3-8).
  *
  * The cache is process-level and keyed by plain strings — never JSON.stringify on
  * the hot path (R4-7). Its content is a pure function of the key, so sharing it
  * across instances and requests leaks nothing; a size cap keeps an unbounded
  * stream of locales (a per-call `{ locale }` from user input) from growing it
- * without limit.
+ * without limit. `@comvi/core/format` and `#` share it.
  */
 
 type IntlKind =
@@ -84,31 +84,18 @@ export const pluralRules = (locale: string, ordinal: boolean): Intl.PluralRules 
   intl("PluralRules", locale, ordinal ? "o" : "", ordinal ? { type: "ordinal" } : undefined);
 
 /**
- * The text a plain `{x}` prints for a value: number, Date and string[] are localized;
- * objects and functions (framework nodes) pass through untouched so the binding can
- * render them; every other primitive becomes its string; an invalid Date is `undefined`
- * (nothing to print). Never re-parsed as message syntax.
+ * The text a plain `{x}` prints for a value (R3-17): `String(value)` for a number, a Date,
+ * a string list and every other primitive, with no Intl; objects and functions
+ * (framework nodes, a list holding one) pass through untouched so the binding can render
+ * them. Never re-parsed as message syntax.
  */
-export const formatValue = (value: unknown, locale: string, timeZone?: string): unknown =>
-  typeof value === "string"
+export const formatValue = (value: unknown): unknown =>
+  typeof value === "function" ||
+  (typeof value === "object" &&
+    !(value instanceof Date) &&
+    !(Array.isArray(value) && value.every((v) => typeof v === "string")))
     ? value
-    : typeof value === "number"
-      ? formatNumber(value, locale)
-      : value instanceof Date
-        ? // An invalid Date has nothing to print (Intl would throw): the caller reports it
-          // as a missing parameter.
-          +value === +value
-          ? intl<Intl.DateTimeFormat>("DateTimeFormat", locale, "" + timeZone, {
-              dateStyle: "short",
-              timeStyle: "short",
-              timeZone,
-            }).format(value)
-          : undefined
-        : Array.isArray(value) && value.every((v) => typeof v === "string")
-          ? intl<Intl.ListFormat>("ListFormat", locale, "").format(value)
-          : typeof value === "object" || typeof value === "function"
-            ? value
-            : String(value);
+    : String(value);
 
 /** Test seam: drop every cached formatter and probe verdict. */
 export const _resetIntlCache = (): void => {

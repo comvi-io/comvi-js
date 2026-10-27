@@ -5,7 +5,10 @@
  *   scripts/icu-golden/gen-icu4c.mjs from scripts/icu-golden/cases.mjs. Rows marked
  *   `error` are templates ICU4C rejects: core renders the key and reports `syntax`.
  *   Rows marked `coerced` pass a numeric STRING count; ICU4C rendered them from
- *   Number(string), which is what core does (owner decision 27.10.2026).
+ *   Number(string), which is what core does (owner decision 27.10.2026). Rows marked
+ *   `plain` have a plain `{x}` holding a number: core prints String(value) there, never
+ *   Intl (owner decision R3-17, 28.10.2026), so ICU4C rendered them with String(value)
+ *   as that argument and formatted everything else (`#`) itself.
  * - tests/golden/formatjs.json — intl-messageformat 10.7.16 over the lot-0 S3
  *   differential subset that lies inside the 0.8 grammar
  *   (scripts/icu-golden/gen-formatjs.mjs).
@@ -25,14 +28,9 @@ interface Row {
   error?: string;
   /** A numeric-string count, rendered by ICU4C from Number(string) (owner, 27.10.2026). */
   coerced?: boolean;
+  /** A plain `{x}` holds a number, rendered by ICU4C from String(value) (R3-17). */
+  plain?: boolean;
 }
-
-/**
- * V8 prints the en time separator before AM/PM as U+0020 where ICU4C 78 prints
- * U+202F (Chromium keeps the old space for web compatibility). That is the engine's
- * Intl, not the compiler; normalized for Date rows only.
- */
-const engineSpace = (s: string) => s.replace(/\u202f/g, " ");
 
 describe("ICU4C golden table", () => {
   const rows = icu4c.rows as Row[];
@@ -51,17 +49,21 @@ describe("ICU4C golden table", () => {
     for (const r of coerced) expect(typeof r.args.n).toBe("string");
   });
 
+  it("has plain-number rows, and each prints the number as String(value) (R3-17)", () => {
+    const plain = rows.filter((r) => r.plain);
+    expect(plain.length).toBeGreaterThanOrEqual(40);
+    const x = plain.filter((r) => r.pattern === "{x}");
+    expect(x.length).toBeGreaterThanOrEqual(20);
+    for (const r of x) expect(r.expected).toBe(String(r.args.x));
+  });
+
   it.each(
     rows
       .filter((r) => !r.error)
       .map((r) => [r.locale, r.pattern, JSON.stringify(r.args), r] as const),
   )("[%s] %s %s", (_l, _p, _a, row) => {
-    const env = sink("UTC");
-    const out = fmt(row.pattern, revive(row.args), row.locale, env);
-    const isDate = Object.values(row.args).some((v) => v && typeof v === "object");
-    expect(isDate ? engineSpace(out as string) : out).toBe(
-      isDate ? engineSpace(row.expected!) : row.expected,
-    );
+    const env = sink();
+    expect(fmt(row.pattern, revive(row.args), row.locale, env)).toBe(row.expected);
     expect(env.errors).toEqual([]);
   });
 

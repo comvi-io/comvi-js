@@ -21,10 +21,32 @@ const ICU = icuFlag > 0 ? process.argv[icuFlag + 1] : "/opt/homebrew/opt/icu4c@7
 const rows = expand();
 const cpp = (s) => JSON.stringify(s); // a JSON string literal is a valid C++ string literal for our ASCII+UTF-8 input
 
+/**
+ * A plain `{x}` prints `String(value)` in core, never through Intl (owner decision R3-17,
+ * 28.10.2026), where ICU4C formats a number for the locale. So that ICU4C still renders
+ * the rest of the row (`#`, selectors, quoting), each plain `{x}` holding a number is sent
+ * to it as `{x__plain}` with the argument String(value); the fixture keeps the row's own
+ * pattern and args and marks it `plain`.
+ */
+const PLAIN = /\{\s*([^\s,{}]+)\s*\}/g;
+const plainOf = (row) => {
+  const names = new Set();
+  const pattern = row.pattern.replace(PLAIN, (all, name) => {
+    if (typeof row.args[name] !== "number") return all;
+    names.add(name);
+    return `{${name}__plain}`;
+  });
+  return { pattern, names };
+};
+
 const calls = rows.map((row, i) => {
-  const names = Object.keys(row.args);
+  const plain = plainOf(row);
+  const args = { ...row.args };
+  for (const k of plain.names) args[`${k}__plain`] = String(row.args[k]);
+  const names = Object.keys(args);
   const vals = names.map((k) => {
-    const v = row.args[k];
+    const v = args[k];
+    if (k.endsWith("__plain")) return `Formattable(UnicodeString::fromUTF8(${cpp(v)}))`;
     if (typeof v === "number") return `Formattable((double)${v})`;
     // A `coerce` row passes a numeric string the way core reads it: Number(string).
     if (typeof v === "string" && row.coerce) return `Formattable((double)${Number(v)})`;
@@ -33,7 +55,7 @@ const calls = rows.map((row, i) => {
   });
   return `  { UnicodeString n[] = {${names.map((k) => `UnicodeString::fromUTF8(${cpp(k)})`).join(", ") || "UnicodeString()"}};
     Formattable a[] = {${vals.join(", ") || "Formattable()"}};
-    run(${i}, ${cpp(row.locale)}, ${cpp(row.pattern)}, n, a, ${names.length}); }`;
+    run(${i}, ${cpp(row.locale)}, ${cpp(plain.pattern)}, n, a, ${names.length}); }`;
 });
 
 const source = `#include <unicode/msgfmt.h>
@@ -105,6 +127,7 @@ const fixture = {
     if (failed)
       return { pattern: row.pattern, locale: row.locale, args: row.args, error: out.slice(4) };
     const ok = { pattern: row.pattern, locale: row.locale, args: row.args, expected: out };
+    if (plainOf(row).names.size) ok.plain = true;
     return row.coerce ? { ...ok, coerced: true } : ok;
   }),
 };

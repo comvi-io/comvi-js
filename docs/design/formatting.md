@@ -21,6 +21,12 @@ Solid and Svelte read the reactive locale inside each formatter.
 - **`Intl` does the formatting; the catalog never does.** The ICU `number`, `date` and `time`
   argument types are not implemented. The catalog chooses grammar — plural category, select branch;
   the code chooses presentation — digits, currency, date style.
+- **A plain `{x}` prints `String(value)`** for every type: `{orderId}` with `1004` is `1004`,
+  `{year}` with `2026` is `2026`, a Date and a string list print as `String()` prints them
+  (owner decision 28.10.2026, R3-17, as 0.7, FormatJS, i18next and vue-i18n do). The 0.8 draft
+  localized them as ICU4J does (`1,004`, `2,026`): a trap for ids, years and indexes, and about
+  350 ns per number. The one value the compiler localizes is `#` in a plural, through the same
+  shared `Intl` cache as these formatters.
 - **Every binding hands the same four back off `useI18n()`, together with `dir`**, and in every
   binding they follow the locale being rendered: a call in markup or in that framework's derived
   value re-runs on a switch. A trailing `locale` argument overrides the active one. There is no

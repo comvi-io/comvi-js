@@ -65,7 +65,10 @@ export interface I18nOptions {
    */
   defaultParams?: Readonly<Record<string, unknown>>;
   plugins?: readonly Plugin[];
-  /** IANA time zone for Date values (SSR bindings pass the server's). */
+  /**
+   * IANA time zone of the Date formatters of `@comvi/core/format` (SSR bindings pass the
+   * server's). A plain `{x}` prints a Date as `String(date)`, without it (R3-17).
+   */
   timeZone?: string;
   /** Epoch ms that `formatRelativeTime` (`@comvi/core/format`) counts from; SSR bindings serialise it. Default: the clock. */
   now?: number;
@@ -175,7 +178,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   const h = o.onError || defaultOnError;
   /** Reports; what the reporter throws is rethrown outside the render or the load. */
   const report: OnError = (e) => safe(() => h(e));
-  const env: Env = { z: o.timeZone, r: report };
+  const env: Env = { r: report };
   const load = o.loader;
   const subs = new Set<() => void>();
   /** Loads in flight, by `locale + "\0" + ns`. */

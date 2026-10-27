@@ -12,12 +12,10 @@
 // literal text with ICU apostrophe quoting, `{x}`, `plural`, `selectordinal`,
 // `select`, `=N`, `offset:`, `#`. No `{x, number|date|time}` arguments.
 //
-// An argument value is a number, a string, or `{ $date: epochMs }` for a Date.
+// An argument value is a number or a string.
 // A case with `error: true` must FAIL in the reference too (ICU4C reports a
 // U_* parse error); core renders such a message as its key and reports
 // `syntax`.
-
-const D = { $date: Date.UTC(2026, 0, 5, 14, 7, 9) };
 
 /** [pattern, locales, argument sets] */
 export const CASES = [
@@ -37,8 +35,8 @@ export const CASES = [
     ["ar-EG", "ar"],
     [0, 1, 2, 3, 11, 100, 102, 1234].map((n) => ({ n })),
   ],
-  // `#` and plain `{x}` under non-Latin numbering systems (the integer fast path
-  // must not print ASCII digits there)
+  // `#` under non-Latin numbering systems (the integer fast path must not print ASCII
+  // digits there); the plain `{n}` beside it prints String(n) (R3-17)
   [
     "{n, plural, other {# / {n}}}",
     ["ar-EG", "fa", "bn", "th-u-nu-thai", "hi-u-nu-deva", "en", "de"],
@@ -119,13 +117,15 @@ export const CASES = [
       { a: 3, b: 1 },
     ],
   ],
-  // --- plain `{x}`: numbers and Dates are formatted for the locale (ICU `{0}`)
+  // --- plain `{x}`: String(value), never Intl (owner decision R3-17, 28.10.2026). ICU4C
+  // formats a number here; gen-icu4c.mjs sends it String(value) instead and marks the row
+  // `plain`. A Date prints String(date), which depends on the process time zone, so no
+  // Date row: packages/core/tests/compile/params.test.ts covers it.
   [
     "{x}",
     ["en", "de", "uk", "ar-EG", "ja"],
     [1234567, 1234.5678, -5, 0.5, 42, "text"].map((x) => ({ x })),
   ],
-  ["{d}", ["en", "de", "uk", "ja"], [{ d: D }]],
   ["Hello, {name}! You have {count} messages.", ["en", "de"], [{ name: "Ann", count: 1200 }]],
   ["{0} and {1}", ["en"], [{ 0: "a", 1: "b" }]],
   ["{ name } and { n }", ["en"], [{ name: "x", n: 3 }]],
