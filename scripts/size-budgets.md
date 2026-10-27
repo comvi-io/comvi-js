@@ -390,19 +390,19 @@ asked for cost bytes on the owner rows, which stay red against the unchanged R3-
 **4,737 B** (+245; ceiling 3,750, −987 short). Measured on the sources by reverting one fix at a
 time (min+gz, `core-icu`; small fixes interact through gzip, so the parts do not sum exactly):
 
-| Fix (review item)                                                         | Bytes |
-| ------------------------------------------------------------------------- | ----: |
-| partial failure counts the target's own chain (`de-AT` → `de`)            |   +21 |
-| `fallbackLocale` copied at construction                                   |   +21 |
-| `ready` memoized per set of flights, shared resolved promise              |   +11 |
-| `add()` publishes only when the store changed                             |   +10 |
-| reporter isolation (a throwing `onError`)                                 |   +10 |
-| `add()` of the slot's own catalog is a no-op (`layer`)                    |    +7 |
-| obsolete loads pruned when a switch completes                             |    +5 |
-| `defaultParams` per snapshot (copy, view, destroy guard)                  |    +4 |
-| missing-key wait on every load of the namespace; deaf-loader abort        |    +4 |
-| re-ensure loop for namespaces activated mid-switch, one publish per start | ≈ −16 |
-| `Core.o`, `now`/`formats` reach `/format` through it, the rest            |   ≈ 0 |
+| Fix (review item)                                                                     | Bytes |
+| ------------------------------------------------------------------------------------- | ----: |
+| partial failure counts the target's own chain (`de-AT` → `de`)                        |   +21 |
+| `fallbackLocale` copied at construction                                               |   +21 |
+| `ready` memoized per set of flights, shared resolved promise                          |   +11 |
+| `add()` publishes only when the store changed                                         |   +10 |
+| reporter isolation (a throwing `onError`)                                             |   +10 |
+| `add()` of the slot's own catalog is a no-op (`layer`)                                |    +7 |
+| obsolete loads pruned when a switch completes                                         |    +5 |
+| `defaultParams` per snapshot (copy, view, destroy guard)                              |    +4 |
+| missing-key wait on every load of the namespace; deaf-loader abort                    |    +4 |
+| re-ensure loop mid-switch, one publish per start (not separable: reverting adds code) |   n/a |
+| `Core.o`, `now`/`formats` reach `/format` through it, the rest                        |   ≈ 0 |
 
 `cdn()` itself grows by 93 B (350 → 443 over `core-icu`): the R3-12 `fallback` option, the race
 of the whole request (body included) against the timeout and the caller's abort, and the
