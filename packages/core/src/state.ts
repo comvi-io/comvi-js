@@ -74,7 +74,7 @@ export const mk = (
   ld: readonly string[],
   dp: State["dp"],
   tg: string,
-  s = c.default && c.default[locale],
+  s = c.default?.[locale],
 ): State => ({ rev, lrev, locale, dir, c, ld, dp, tg, pr: s && !s.p ? s.c : undefined });
 
 /**
@@ -119,7 +119,7 @@ export const find = (slot: Slot, key: string): Compiled | undefined => {
  * when the slot does not change.
  */
 export const put = (c: Store, ns: string, locale: string, msgs: Catalog): Store => {
-  const o = c[ns] && c[ns][locale];
+  const o = c[ns]?.[locale];
   const n = layer(o, msgs);
   if (n == o) return c;
   const s = Object.assign(N(), c);

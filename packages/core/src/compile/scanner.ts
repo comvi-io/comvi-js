@@ -76,7 +76,7 @@ export const fail = (message?: string | false): never => {
 };
 
 export const report = (x: Env | undefined, error: I18nError): void =>
-  ((x && x.r) || defaultOnError)(error);
+  (x?.r || defaultOnError)(error);
 
 /** Reports `missing_param` for `name` and returns what renders in its place: `{name}`. */
 export const missing = (
@@ -226,7 +226,7 @@ export const message = (
         parts.push((p, l, x) => {
           const v = arg(p, name);
           // `formatValue` yields `undefined` for a value that cannot print (an invalid Date).
-          const f = v == null ? v : formatValue(v, l, x && x.z);
+          const f = v == null ? v : formatValue(v, l, x?.z);
           return f === undefined || f === null
             ? missing(P, x, l, name, __DEV__ && `no value for {${name}}`)
             : frame(f);

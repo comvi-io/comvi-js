@@ -302,7 +302,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   const get = (l: string, n: string): Promise<unknown> | void => {
     const k = l + K + n;
     let f = fl.get(k);
-    if (!f && load && !(S.c[n] && S.c[n][l]) && !bad.has(k)) {
+    if (!f && load && !S.c[n]?.[l] && !bad.has(k)) {
       const a = new AbortController();
       const no = () => a.signal.aborted;
       fl.set(
@@ -356,7 +356,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     // Fast path (R4-1d): a message already compiled in the primary record (default
     // namespace at the locale), called without per-call options or defaultParams. An empty
     // string is untranslated and takes the full path (the fallback chain).
-    t: ((key: string, p?: Params, f = S.pr && S.pr[key]) =>
+    t: ((key: string, p?: Params, f = S.pr?.[key]) =>
       f && !(p && (p.ns || p.locale)) && !S.dp
         ? typeof f == "string"
           ? f
@@ -383,7 +383,7 @@ export const createI18n = (o: I18nOptions): I18n => {
           // Partial failure switches (R4-11): a namespace is missing only when the target
           // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place.
           const miss = [...act].filter(
-            (n) => bad.has(l + K + n) && !ch.slice(0, ch.o).some((x) => S.c[n] && S.c[n][x[0]]),
+            (n) => bad.has(l + K + n) && !ch.slice(0, ch.o).some((x) => S.c[n]?.[x[0]]),
           );
           if (act.size && miss.length == act.size) throw bad.get(l + K + miss[0]);
           // Loads of the old locale a load(ns) started meanwhile are obsolete now.
