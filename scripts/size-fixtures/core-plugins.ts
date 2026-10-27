@@ -3,6 +3,6 @@ import { createI18n } from "@comvi/core";
 import { detect, persist } from "@comvi/core/plugins";
 
 export const out = createI18n({
-  locale: detect({ supported: ["en", "de"] }),
-  plugins: [persist()],
+  locale: "en",
+  plugins: [detect({ supported: ["en", "de"] }), persist()],
 });

@@ -6,19 +6,20 @@
  * import { createI18n } from "@comvi/core";
  * import { detect, persist } from "@comvi/core/plugins";
  *
- * const supported = ["en", "de", "pt-BR"];
  * const i18n = createI18n({
- *   locale: detect({ supported, fallback: "en" }),
- *   plugins: [persist()],
+ *   locale: "en",
+ *   plugins: [detect({ supported: ["en", "de", "pt-BR"] }), persist()],
  * });
  * ```
  *
- * `detect()` returns the start locale (so nothing is loaded for a locale that is about to
- * change): the first source in `order` that names a supported locale wins — `query`
- * (`?lang=`), `cookie` (`comvi_locale`), `storage` (localStorage `comvi_locale`),
- * `navigator` (`navigator.languages`). The answer is the supported entry AS SPELLED.
+ * `detect()` is a plugin (design §3.3): in `setup` — before the instance starts its first
+ * loads — it switches to the first source in `order` that names a supported locale:
+ * `query` (`?lang=`), `cookie` (`comvi_locale`), `storage` (localStorage `comvi_locale`),
+ * `navigator` (`navigator.languages`). The answer is the supported entry AS SPELLED. So
+ * nothing is loaded for the `locale` option when a source names another locale; `locale`
+ * is the answer when none does (or the detected locale fails to load at all).
  * `persist()` writes every locale switch back (cookie by default, or localStorage).
- * Outside a browser both read and write nothing; `detect()` answers `fallback`.
+ * Outside a browser both read and write nothing.
  */
 import type { Plugin } from "./instance";
 import { negotiate } from "./locale";
@@ -31,8 +32,6 @@ export type DetectSource = "query" | "cookie" | "storage" | "navigator";
 export interface DetectOptions {
   /** The locales the app has, as it spells them. */
   supported: readonly string[];
-  /** The answer when no source matches. Default: `supported[0]`. */
-  fallback?: string;
   /** Sources, most trusted first. Default `["query", "cookie", "storage", "navigator"]`. */
   order?: readonly DetectSource[];
   /** The query parameter. Default `"lang"`. */
@@ -67,21 +66,30 @@ const read = (source: DetectSource, query: string, key: string): readonly string
   }
 };
 
-/** The start locale: the first source in `order` that names a supported locale. */
+/**
+ * The plugin that starts the instance in the first supported locale a source names. A
+ * detected locale that fails to load entirely leaves the instance on its `locale` option,
+ * which is then loaded.
+ */
 export const detect = ({
   supported,
-  fallback = supported[0],
   order = ["query", "cookie", "storage", "navigator"],
   query = "lang",
   key = LOCALE_KEY,
-}: DetectOptions): string => {
-  if (typeof document != "undefined")
-    for (const s of order) {
-      const hit = negotiate(read(s, query, key), supported);
-      if (hit) return hit;
-    }
-  return fallback;
-};
+}: DetectOptions): Plugin => ({
+  name: "detect",
+  setup(i18n) {
+    if (typeof document != "undefined")
+      for (const s of order) {
+        const hit = negotiate(read(s, query, key), supported);
+        if (hit) {
+          if (hit != i18n.locale)
+            i18n.setLocale(hit).catch(() => i18n.setLocale(i18n.locale).catch(() => {}));
+          return;
+        }
+      }
+  },
+});
 
 export interface PersistOptions {
   /** Where the locale goes. Default `"cookie"`. */

@@ -8,7 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src/instance";
-import { detect, LOCALE_KEY, persist } from "../../src/plugins";
+import { detect, LOCALE_KEY, persist, type DetectOptions } from "../../src/plugins";
 
 const clearCookies = () => {
   for (const c of document.cookie.split(";")) {
@@ -31,7 +31,11 @@ afterEach(() => {
 const navigatorLanguages = (langs: string[]) =>
   vi.spyOn(navigator, "languages", "get").mockReturnValue(langs);
 
-describe("detect()", () => {
+/** The locale an instance starts in with `detect(o)` as its plugin (and `locale: start`). */
+const detected = (o: DetectOptions, start = "en") =>
+  createI18n({ locale: start, plugins: [detect(o)] }).locale;
+
+describe("detect() — a plugin (design §3.3)", () => {
   const supported = ["en", "de", "pt-BR", "uk"];
 
   it("reads ?lang= first, then the cookie, then localStorage, then navigator.languages", () => {
@@ -39,36 +43,36 @@ describe("detect()", () => {
     localStorage.setItem(LOCALE_KEY, "de");
     document.cookie = `${LOCALE_KEY}=pt-BR; path=/`;
     history.replaceState(null, "", "/?lang=en");
-    expect(detect({ supported })).toBe("en");
+    expect(detected({ supported }, "uk")).toBe("en");
     history.replaceState(null, "", "/");
-    expect(detect({ supported })).toBe("pt-BR");
+    expect(detected({ supported })).toBe("pt-BR");
     clearCookies();
-    expect(detect({ supported })).toBe("de");
+    expect(detected({ supported })).toBe("de");
     localStorage.clear();
-    expect(detect({ supported })).toBe("uk");
+    expect(detected({ supported })).toBe("uk");
   });
 
   it("negotiates: a regional or differently spelled request maps to the supported entry as spelled", () => {
     navigatorLanguages(["pt_br", "en-GB"]);
-    expect(detect({ supported })).toBe("pt-BR");
+    expect(detected({ supported })).toBe("pt-BR");
     navigatorLanguages(["de-CH"]);
-    expect(detect({ supported })).toBe("de");
+    expect(detected({ supported })).toBe("de");
   });
 
-  it("skips a source that names nothing supported and answers the fallback when none match", () => {
+  it("skips a source that names nothing supported; none match → the `locale` option stays", () => {
     navigatorLanguages(["ja"]);
     document.cookie = `${LOCALE_KEY}=fr; path=/`;
-    expect(detect({ supported, fallback: "uk" })).toBe("uk");
-    expect(detect({ supported })).toBe("en");
+    expect(detected({ supported }, "uk")).toBe("uk");
+    expect(detected({ supported })).toBe("en");
   });
 
   it("honours `order`, `query` and `key`", () => {
     navigatorLanguages(["de"]);
     history.replaceState(null, "", "/?hl=uk");
     document.cookie = "my_locale=pt-BR; path=/";
-    expect(detect({ supported, order: ["navigator", "query"] })).toBe("de");
-    expect(detect({ supported, order: ["query"], query: "hl" })).toBe("uk");
-    expect(detect({ supported, order: ["cookie"], key: "my_locale" })).toBe("pt-BR");
+    expect(detected({ supported, order: ["navigator", "query"] })).toBe("de");
+    expect(detected({ supported, order: ["query"], query: "hl" })).toBe("uk");
+    expect(detected({ supported, order: ["cookie"], key: "my_locale" })).toBe("pt-BR");
   });
 
   it("survives a source that throws (blocked storage)", () => {
@@ -76,13 +80,49 @@ describe("detect()", () => {
       throw new Error("SecurityError");
     });
     navigatorLanguages(["de"]);
-    expect(detect({ supported })).toBe("de");
+    expect(detected({ supported })).toBe("de");
   });
 
-  it("outside a browser answers the fallback", () => {
+  it("outside a browser does nothing", () => {
+    navigatorLanguages(["de"]);
     vi.stubGlobal("document", undefined);
-    expect(detect({ supported, fallback: "uk" })).toBe("uk");
-    vi.unstubAllGlobals();
+    try {
+      expect(detected({ supported }, "uk")).toBe("uk");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("runs before the first loads: only the detected locale is requested", async () => {
+    navigatorLanguages(["de"]);
+    const loaded: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      plugins: [detect({ supported })],
+      loader: async (l, n) => (loaded.push(`${l}:${n}`), { a: l }),
+    });
+    await i18n.ready;
+    expect(i18n.locale).toBe("de");
+    expect(i18n.t("a")).toBe("de");
+    expect(loaded).toEqual(["de:default"]);
+  });
+
+  it("a detected locale that fails to load entirely leaves the `locale` option, loaded", async () => {
+    navigatorLanguages(["de"]);
+    const loaded: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      plugins: [detect({ supported })],
+      onError: () => {},
+      loader: async (l, n) => {
+        loaded.push(`${l}:${n}`);
+        if (l == "de") throw new Error("404");
+        return { a: l };
+      },
+    });
+    await vi.waitFor(() => expect(i18n.t("a")).toBe("en"));
+    expect(i18n.locale).toBe("en");
+    expect(loaded).toEqual(["de:default", "en:default"]);
   });
 });
 
@@ -105,9 +145,9 @@ describe("persist()", () => {
 
   it("stops on destroy() and round-trips with detect()", async () => {
     const supported = ["en", "de"];
-    const i18n = createI18n({ locale: detect({ supported }), plugins: [persist()] });
+    const i18n = createI18n({ locale: "en", plugins: [detect({ supported }), persist()] });
     await i18n.setLocale("de");
     i18n.destroy();
-    expect(detect({ supported })).toBe("de");
+    expect(detected({ supported })).toBe("de");
   });
 });

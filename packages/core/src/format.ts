@@ -7,10 +7,12 @@
  *
  * Each takes the instance and formats in its locale chain (canonical; the app may spell
  * the locale `pt_BR`), or in `locale` alone when passed. Dates use the instance `timeZone` unless
- * the options name one.
+ * the options name one. `formatNumber` and `formatDate` also take the NAME of an entry of the
+ * instance's `formats` option; `formatRelativeTime` counts from the instance's `now` option
+ * (serialised by SSR bindings, so server and client agree) unless a `now` is passed.
  */
 import { intl } from "./compile/fmt";
-import { CORE, type I18n } from "./instance";
+import { CORE, type I18n, type I18nOptions } from "./instance";
 import { canonicalize } from "./locale";
 
 /**
@@ -56,18 +58,34 @@ const variant = (options?: object): string =>
         .join(",")
     : "";
 
+/** The instance options (`timeZone`, `now`, `formats`). */
+const opts = (i18n: I18n): Partial<I18nOptions> => CORE.get(i18n)?.o || {};
+
+/** `options`, or the named entry of the instance's `formats[kind]` (unknown name: none). */
+const named = <T>(i18n: I18n, kind: "number" | "date", options?: T | string): T | undefined =>
+  typeof options == "string"
+    ? ((opts(i18n).formats?.[kind] as Record<string, T> | undefined)?.[options] ?? undefined)
+    : options;
+
 /** Date options with the instance time zone filled in. */
 const zoned = <T extends { timeZone?: string }>(i18n: I18n, options?: T): T | undefined => {
-  const z = CORE.get(i18n)?.z;
+  const z = opts(i18n).timeZone;
   return z && !(options && options.timeZone) ? ({ ...options, timeZone: z } as T) : options;
 };
 
+/** A number; `options` may name an entry of the instance's `formats.number`. */
 export const formatNumber = (
   i18n: I18n,
   value: number,
-  options?: Intl.NumberFormatOptions,
+  options?: Intl.NumberFormatOptions | string,
   locale?: string,
-): string => get<Intl.NumberFormat>("NumberFormat", i18n, options, locale).format(value);
+): string =>
+  get<Intl.NumberFormat>(
+    "NumberFormat",
+    i18n,
+    named<Intl.NumberFormatOptions>(i18n, "number", options),
+    locale,
+  ).format(value);
 
 export const formatCurrency = (
   i18n: I18n,
@@ -77,13 +95,14 @@ export const formatCurrency = (
   locale?: string,
 ): string => formatNumber(i18n, value, { ...options, style: "currency", currency }, locale);
 
+/** A date; `options` may name an entry of the instance's `formats.date`. */
 export const formatDate = (
   i18n: I18n,
   value: Date | number,
-  options?: Intl.DateTimeFormatOptions,
+  options?: Intl.DateTimeFormatOptions | string,
   locale?: string,
 ): string => {
-  const o = zoned(i18n, options);
+  const o = zoned(i18n, named<Intl.DateTimeFormatOptions>(i18n, "date", options));
   return get<Intl.DateTimeFormat>("DateTimeFormat", i18n, o, locale).format(value);
 };
 
@@ -98,14 +117,38 @@ export const formatDateRange = (
   return get<Intl.DateTimeFormat>("DateTimeFormat", i18n, o, locale).formatRange(start, end);
 };
 
+/** Units from the largest down, with their length in ms (a month is 30.44 days, a year 365.25). */
+const UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 31557600000],
+  ["month", 2629800000],
+  ["week", 604800000],
+  ["day", 86400000],
+  ["hour", 3600000],
+  ["minute", 60000],
+  ["second", 1000],
+];
+
+/**
+ * `date` relative to `now` ("in 3 days", "yesterday"), in the largest unit that fits at
+ * least once; `now` defaults to the instance's `now` option, then the clock. `numeric`
+ * defaults to `"auto"`.
+ */
 export const formatRelativeTime = (
   i18n: I18n,
-  value: number,
-  unit: Intl.RelativeTimeFormatUnit,
+  date: Date | number,
+  now?: number,
   options?: Intl.RelativeTimeFormatOptions,
   locale?: string,
-): string =>
-  get<Intl.RelativeTimeFormat>("RelativeTimeFormat", i18n, options, locale).format(value, unit);
+): string => {
+  const ms = +date - (now ?? opts(i18n).now ?? Date.now());
+  const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
+  return get<Intl.RelativeTimeFormat>(
+    "RelativeTimeFormat",
+    i18n,
+    { numeric: "auto", ...options },
+    locale,
+  ).format(Math.round(ms / size), unit);
+};
 
 export const formatList = (
   i18n: I18n,
