@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, type Plugin } from "../../src/instance";
 import { state } from "../../src/internal";
-import { flush, make, manualLoader, tableLoader } from "./helpers";
+import { flush, make, manualLoader, tableLoader, trace } from "./helpers";
 
 describe("createI18n()", () => {
   it("is synchronous: inline messages translate at once, with no init()", () => {
@@ -141,14 +141,39 @@ describe("loading", () => {
     expect(i18n.t("a")).toBe("A");
   });
 
-  it("add() during a pending load keeps the newer manual catalog and aborts the load", async () => {
+  it("add() during a pending load does not cancel it; the added messages stay on top when it lands (R3-14 H8)", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", loader: l.load });
+    const seen = trace(i18n);
+    i18n.add("en", { a: "manual" });
+    // Shown at once, the load still in flight.
+    expect(seen).toHaveLength(1);
+    expect(i18n.t("a")).toBe("manual");
+    expect(l.signals.get("en:default")!.aborted).toBe(false);
+    expect(state(i18n).ld).toEqual(["en\0default"]);
+    await l.answer("en:default", { a: "loaded", b: "B" });
+    // The load's other keys arrive; the saved edit is not lost under the delivery.
+    expect(i18n.t("a")).toBe("manual");
+    expect(i18n.t("b")).toBe("B");
+    expect(state(i18n).ld).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  it("add() twice during a pending load: both batches survive the delivery, the later wins", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", loader: l.load });
-    i18n.add("en", { a: "manual" });
-    expect(l.signals.get("en:default")!.aborted).toBe(true);
-    await l.answer("en:default", { a: "loaded" });
-    expect(i18n.t("a")).toBe("manual");
-    expect(state(i18n).ld).toEqual([]);
+    i18n.add("en", { a: "one", b: "one" });
+    i18n.add("en", { b: "two" });
+    await l.answer("en:default", { a: "loaded", b: "loaded", c: "C" });
+    expect([i18n.t("a"), i18n.t("b"), i18n.t("c")]).toEqual(["one", "two", "C"]);
+  });
+
+  it("a load landing into an empty pair keeps its catalog by reference (R4-12), not a copy", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", loader: l.load });
+    const cat = { a: "A" };
+    await l.answer("en:default", cat);
+    expect(state(i18n).c.default.en.m).toBe(cat);
   });
 
   it("add() for another namespace leaves a pending load alone", async () => {

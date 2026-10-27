@@ -6,7 +6,8 @@
  * `state(i18n)` (the published snapshot), `view(i18n, state, extra)` (a render-local
  * snapshot with extra catalogs layered in, never published, `rev` unchanged) and
  * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)` and
- * `activate(i18n, ns)`.
+ * `activate(i18n, ns)`. A state carries the marking hook of an editor session (`mk`,
+ * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it.
  */
 import type { Catalog, Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
@@ -21,7 +22,7 @@ export { formatNumber, formatValue, pluralRules, intl } from "./compile/fmt";
 export { canonicalize, parents, dir, negotiate } from "./locale";
 export { defaultOnError } from "./errors";
 export type { Chain, Core } from "./instance";
-export type { Slot, State, Store } from "./state";
+export type { Mark, Slot, State, Store } from "./state";
 
 declare const __DEV__: boolean;
 
@@ -99,6 +100,8 @@ export const view = (
     ld,
     state.dp,
     h.o ? h[0][1] : locale,
+    // An editor session's marking hook carries over: render-local output is marked too (H4).
+    state.mk,
   );
 };
 
@@ -118,11 +121,3 @@ export const translate = (
 /** Whether a catalog load is in flight in `state` (for namespace `ns`, or any). */
 export const loading = (state: State, ns?: string): boolean =>
   state.ld.some((k) => ns === undefined || k.endsWith("\0" + ns));
-
-export {
-  EDITOR_MAPPINGS_GLOBAL,
-  EDITOR_INITIAL_MAPPINGS_GLOBAL,
-  readEditorMappings,
-  toRecordOfNumbers,
-} from "./editor";
-export type { InContextEditorMappings } from "./editor";

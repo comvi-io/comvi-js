@@ -24,6 +24,15 @@ import {
   type CompiledRecord,
 } from "./compile/cache";
 import { arg } from "./compile/scanner";
+import type { Rendered } from "./compile/cache";
+
+/**
+ * The marking hook (design R3-14 H4): what an in-context editor wraps a rendered message
+ * with — `out` is what `t()` would return (the `missing` output for a key no catalog
+ * has), `ns` the namespace it was looked up in. Set and cleared only through the
+ * `/devtools` handle (`x.mark`); a call with `{ markers: false }` never reaches it.
+ */
+export type Mark = (out: Rendered, key: string, ns: string) => Rendered;
 
 export interface Slot {
   /** Base catalog, kept by reference (R4-12). */
@@ -57,6 +66,11 @@ export interface State {
   readonly tg: string;
   /** The instance's `defaultParams` as of this state (an own copy, never the caller's object). */
   readonly dp: Readonly<Record<string, unknown>> | null | undefined;
+  /**
+   * The marking hook of an in-context editor session (R3-14 H4), set only by the
+   * `/devtools` handle; a state that has one has no `pr`, so the fast path is skipped.
+   */
+  readonly mk?: Mark | null;
 }
 
 /** Patched keys kept as a layer before the patch is flattened into a new base. */
@@ -66,7 +80,10 @@ export const FLAT = 256;
 export const N = <T = unknown>(...from: (object | null | undefined)[]): Record<string, T> =>
   Object.assign(Object.create(null), ...from);
 
-/** A state. The only constructor of one: `pr` is always derived here (R4-1d). */
+/**
+ * A state. The only constructor of one: `pr` is always derived here (R4-1d), and a state
+ * with a marking hook has none (every `t()` then takes the path that marks).
+ */
 export const mk = (
   rev: number,
   lrev: number,
@@ -76,8 +93,20 @@ export const mk = (
   ld: readonly string[],
   dp: State["dp"],
   tg: string,
+  m?: Mark | null,
   s = c.default?.[locale],
-): State => ({ rev, lrev, locale, dir, c, ld, dp, tg, pr: s && !s.p ? s.c : undefined });
+): State => ({
+  rev,
+  lrev,
+  locale,
+  dir,
+  c,
+  ld,
+  dp,
+  tg,
+  mk: m,
+  pr: s && !s.p && !m ? s.c : undefined,
+});
 
 /**
  * The slot that results from adding `msgs` to `slot`. An empty pair keeps `msgs` BY
@@ -118,11 +147,12 @@ export const find = (slot: Slot, key: string): Compiled | undefined => {
 
 /**
  * A new store with `msgs` layered at (ns, locale); every other pair is shared. `c` itself
- * when the slot does not change.
+ * when the slot does not change. With `u` (a load landing, R3-14 H8) `msgs` goes UNDER
+ * what the slot holds: messages `add()`ed while the load was in flight stay on top.
  */
-export const put = (c: Store, ns: string, locale: string, msgs: Catalog): Store => {
+export const put = (c: Store, ns: string, locale: string, msgs: Catalog, u?: unknown): Store => {
   const o = c[ns]?.[locale];
-  const n = layer(o, msgs);
+  const n = layer(o, u && o ? N(msgs, o.m, o.p) : msgs);
   if (n == o) return c;
   const s = N<Record<string, Slot>>(c);
   (s[ns] = N(c[ns]))[locale] = n;

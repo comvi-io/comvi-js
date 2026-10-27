@@ -29,7 +29,7 @@ import { render, type Catalog, type Compiled, type Rendered } from "./compile/ca
 import type { Env, Params } from "./compile/scanner";
 import { defaultOnError, noop, type I18nError, type OnError } from "./errors";
 import { canonicalize, dir as dirOf, parents } from "./locale";
-import { find, mk, N, put, type State, type Store } from "./state";
+import { find, mk, N, put, type Mark, type State, type Store } from "./state";
 import type { RichParts, TFor } from "./types";
 
 declare const __DEV__: boolean;
@@ -60,8 +60,8 @@ export interface I18nOptions {
   namespaces?: readonly string[];
   /**
    * Params every `t()` call gets unless the call passes its own value. Copied: a later
-   * mutation of the object changes nothing (`setDefaultParams` replaces them). `ns` and
-   * `locale` are reserved: they are per-call options, never message params.
+   * mutation of the object changes nothing (`setDefaultParams` replaces them). `ns`,
+   * `locale` and `markers` are reserved: they are per-call options, never message params.
    */
   defaultParams?: Readonly<Record<string, unknown>>;
   plugins?: readonly Plugin[];
@@ -92,7 +92,8 @@ export interface I18n {
   readonly ready: Promise<void>;
   /**
    * Translates in the `default` namespace; `{ ns, locale }` in the params switch them per
-   * call. `ns` and `locale` are reserved names: a message cannot have params called so.
+   * call and `{ markers: false }` keeps an editor session from marking the output. `ns`,
+   * `locale` and `markers` are reserved names: a message cannot have params called so.
    */
   t: TFor<"default", RichParts>;
   /** `t()` bound to namespace `name`. */
@@ -137,6 +138,11 @@ export interface Core {
    * must not turn one failure into a refetch per mount (`load()` is the explicit retry).
    */
   a(ns: string): Promise<void>;
+  /**
+   * Sets (or, with `null`, clears) the marking hook and publishes a new state carrying it
+   * (R3-14 H4). Reached only by the `/devtools` handle `x.mark`; nothing else marks.
+   */
+  m(fn: Mark | null): void;
 }
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
@@ -184,6 +190,8 @@ export const createI18n = (o: I18nOptions): I18n => {
   let rd: Promise<void> | 0 = 0;
   let seq = 0;
   let dead = 0;
+  /** The marking hook (R3-14 H4); every state built from now on carries it. */
+  let mf: Mark | null | undefined;
   let S: State;
 
   const err = (
@@ -232,7 +240,17 @@ export const createI18n = (o: I18nOptions): I18n => {
   /** A state for locale `l` (an invalid locale has no entry of its own in its chain). */
   const st = (rev: number, lrev: number, l: string, c: Store, dp: State["dp"]) => {
     const h = chain(l);
-    return mk(rev, lrev, l, h.o ? dirOf(h[0][1]) : "ltr", c, [...fl.keys()], dp, h.o ? h[0][1] : l);
+    return mk(
+      rev,
+      lrev,
+      l,
+      h.o ? dirOf(h[0][1]) : "ltr",
+      c,
+      [...fl.keys()],
+      dp,
+      h.o ? h[0][1] : l,
+      mf,
+    );
   };
 
   /**
@@ -244,8 +262,11 @@ export const createI18n = (o: I18nOptions): I18n => {
     subs.forEach(safe);
   };
 
-  /** `c` with `m` layered at (l, n), after checking the locale (and, in development, the values). */
-  const ing = (c: Store, l: string, m: Catalog, n: string): Store => {
+  /**
+   * `c` with `m` layered at (l, n), after checking the locale (and, in development, the
+   * values); with `u` (a load landing) under what the pair holds (R3-14 H8).
+   */
+  const ing = (c: Store, l: string, m: Catalog, n: string, u?: unknown): Store => {
     if (__DEV__)
       for (const k in m)
         if (typeof m[k] != "string")
@@ -256,7 +277,7 @@ export const createI18n = (o: I18nOptions): I18n => {
             ns: n,
             message: `the value of "${k}" is not a string; catalogs are flat (flatten nested objects, or use the \`catalogs\` option for namespaces)`,
           });
-    return valid(l) ? put(c, n, l, m) : c;
+    return valid(l) ? put(c, n, l, m, u) : c;
   };
 
   let c0: Store = N();
@@ -283,6 +304,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   let ej: Env = env;
   const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"]): Rendered => {
     let l = s.locale;
+    let r: Rendered;
     // Per-call options are read from the params object itself (R4-17).
     if (p) {
       n = (p.ns as string) || n;
@@ -296,12 +318,17 @@ export const createI18n = (o: I18nOptions): I18n => {
       // Kept before the report: an `onError` that calls has() or t() moves `hit`.
       const m = hit;
       if (i >= ch.o) err("fallback_used", l, n, key);
-      return render(m, p, ch[i][1], j ? (ej.j == j ? ej : (ej = { ...env, j })) : env);
+      r = render(m, p, ch[i][1], j ? (ej.j == j ? ej : (ej = { ...env, j })) : env);
+    } else {
+      // A key of a namespace still loading (for any locale: a parent, a fallback, the
+      // target of a pending switch) is not missing yet.
+      if (!s.ld.some((x) => x.endsWith(K + n))) err("missing_key", l, n, key);
+      // A missing key is marked too: the translator clicks keys no catalog has (H4).
+      r = o.missing ? o.missing(key, l, n) : key;
     }
-    // A key of a namespace still loading (for any locale: a parent, a fallback, the
-    // target of a pending switch) is not missing yet.
-    if (!s.ld.some((x) => x.endsWith(K + n))) err("missing_key", l, n, key);
-    return o.missing ? o.missing(key, l, n) : key;
+    // The marking hook of an editor session (R3-14 H4); `{ markers: false }` is checked
+    // BEFORE it, so the hook never sees the call's options.
+    return s.mk && p?.markers !== false ? s.mk(r, key, n) : r;
   };
 
   /** Forgets flight `k` and publishes (with `c`, the catalogs it brought). */
@@ -326,7 +353,8 @@ export const createI18n = (o: I18nOptions): I18n => {
             a.signal.onabort = x;
             Promise.resolve(load(l, n, a.signal)).then(y, x);
           })
-            .then((m) => no() || drop(k, ing(S.c, l, m, n)))
+            // Under what `add()` put in the pair meanwhile: a saved edit survives (H8).
+            .then((m) => no() || drop(k, ing(S.c, l, m, n, 1)))
             // Also takes what layering a value that is not a catalog throws.
             .catch((e) => no() || (bad.set(k, e), err("load_failed", l, n, undefined, e), drop(k))),
           a,
@@ -417,14 +445,12 @@ export const createI18n = (o: I18nOptions): I18n => {
       return use(n);
     },
     add(l, m, n = D) {
+      // A load of the same pair in flight goes on (R3-14 H8): when it lands its catalog
+      // goes UNDER these messages, so they win and nothing the editor saved is lost.
       if (!dead) {
-        // A newer manual catalog wins over a load of the same pair still in flight.
-        const k = l + K + n;
-        const f = fl.get(k);
         const c = ing(S.c, l, m, n);
-        if (f) f[1].abort();
         // Nothing changed (the slot already holds `m`, or an invalid locale): no publish.
-        if (f || c != S.c) drop(k, c);
+        if (c != S.c) pub(S.locale, c);
       }
     },
     has: (key, q = {}) => {
@@ -460,7 +486,18 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
   };
 
-  CORE.set(i18n, { s: () => S, tr, ch: chain, o, n: act, a: use });
+  CORE.set(i18n, {
+    s: () => S,
+    tr,
+    ch: chain,
+    o,
+    n: act,
+    a: use,
+    m(f) {
+      mf = f;
+      pub();
+    },
+  });
 
   for (const p of o.plugins || [])
     try {

@@ -71,22 +71,25 @@ export type ParamsFor<N extends NsOf, K extends KeysOf[N] | NotAKey> = [NotAKey]
 
 /**
  * The params argument. Per-call options are written INLINE (no alias), so diagnostics show
- * `{ ns?: "shop" | undefined; locale?: string | undefined }` and never an internal name.
+ * `{ ns?: "shop" | undefined; locale?: string | undefined; markers?: boolean | undefined }`
+ * and never an internal name. `markers: false` keeps an in-context editor session from
+ * marking the call's output (R3-14 H9); `ns`, `locale` and `markers` are reserved names.
  */
 export type Args<N, P> = [P] extends [NotAKey]
-  ? [params?: { ns?: NsOf; locale?: string } & Record<string, unknown>]
+  ? [params?: { ns?: NsOf; locale?: string; markers?: boolean } & Record<string, unknown>]
   : [P] extends [never]
-    ? [params?: { ns?: N; locale?: string }]
+    ? [params?: { ns?: N; locale?: string; markers?: boolean }]
     : {} extends P // every param has a default (defaultParams)
-      ? [params?: P & { ns?: N; locale?: string }]
-      : [params: P & { ns?: N; locale?: string }];
+      ? [params?: P & { ns?: N; locale?: string; markers?: boolean }]
+      : [params: P & { ns?: N; locale?: string; markers?: boolean }];
 
 /** A key with a Tag-typed param renders rich parts; every other key renders a string. */
 export type OutOf<P, Rich> = [P] extends [never] ? string : Tag extends P[keyof P] ? Rich : string;
 
 /**
- * `t()` for namespace NS. Per call, `{ ns }` switches the namespace (and the key set) and
- * `{ locale }` the locale; both are optional members of the params object.
+ * `t()` for namespace NS. Per call, `{ ns }` switches the namespace (and the key set),
+ * `{ locale }` the locale and `{ markers: false }` opts out of editor marking; all are
+ * optional members of the params object.
  */
 export type TranslateFn<NS extends NsOf, Rich = string> = <
   K extends KeysOf[N] | NotAKey,
