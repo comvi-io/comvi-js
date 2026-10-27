@@ -34,6 +34,7 @@
  */
 
 import type { Catalog } from "./compile/cache";
+import { N } from "./state";
 import type { Loader } from "./instance";
 
 /** What a `fallback` entry returns: a catalog, or a JSON module (`{ default: catalog }`). */
@@ -64,7 +65,7 @@ export const cdn = (
 ): Loader => {
   base = base.replace(/\/$/, "");
   // An own, prototype-free copy: a locale never reaches `Object.prototype` members.
-  const fb: Record<string, CdnFallback> = Object.assign(Object.create(null), fallback);
+  const fb: Record<string, CdnFallback> = N<CdnFallback>(fallback);
   return async (l, n, signal) => {
     if (!ok(l) || !ok(n)) throw Error(`[@comvi/core/cdn] invalid locale or namespace: ${l}/${n}`);
     const url = base + (n === root ? "" : "/" + n) + "/" + l + ".json";

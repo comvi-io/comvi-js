@@ -59,8 +59,8 @@ export const view = (
       if (!next) memo.set(m, (next = layer(slot, m)));
       // The catalog the slot already holds: nothing to layer, no copy of the state.
       if (next === slot) continue;
-      if (c === state.c) c = Object.assign(N(), c);
-      (c as Record<string, Store[string]>)[n] = Object.assign(N(), c[n], { [l]: next });
+      if (c === state.c) c = N(c);
+      (c as Record<string, Store[string]>)[n] = N(c[n], { [l]: next });
     }
   core(i18n);
   return c === state.c

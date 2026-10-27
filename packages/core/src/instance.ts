@@ -249,7 +249,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   let c0: Store = N();
-  const cats: Record<string, Readonly<Record<string, Catalog>>> = Object.assign(N(), o.catalogs);
+  const cats: Record<string, Readonly<Record<string, Catalog>>> = N(o.catalogs);
   if (o.messages) cats[D] = o.messages;
   for (const n of Object.keys(cats))
     for (const l of Object.keys(cats[n])) c0 = ing(c0, l, cats[n][l], n);
@@ -276,7 +276,7 @@ export const createI18n = (o: I18nOptions): I18n => {
       if (p.locale && valid(p.locale as string)) l = p.locale as string;
     }
     // The state's own copy of defaultParams (R4-12: an older snapshot keeps its own).
-    if (s.dp) p = Object.assign(N(), s.dp, p);
+    if (s.dp) p = N(s.dp, p);
     const ch = chain(l);
     const i = look(s, key, n, ch);
     if (i >= 0) {

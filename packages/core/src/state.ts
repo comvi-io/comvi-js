@@ -62,7 +62,9 @@ export interface State {
 /** Patched keys kept as a layer before the patch is flattened into a new base. */
 export const FLAT = 256;
 
-export const N = <T = unknown>(): Record<string, T> => Object.create(null);
+/** A prototype-free object, with the own properties of `from` copied in (later wins). */
+export const N = <T = unknown>(...from: (object | null | undefined)[]): Record<string, T> =>
+  Object.assign(Object.create(null), ...from);
 
 /** A state. The only constructor of one: `pr` is always derived here (R4-1d). */
 export const mk = (
@@ -88,9 +90,9 @@ export const mk = (
 export const layer = (slot: Slot | undefined, msgs: Catalog): Slot => {
   if (!slot) return { m: msgs, c: recordFor(msgs) };
   if (slot.m == msgs && !slot.p) return slot;
-  const p: Catalog = Object.assign(N(), slot.p, msgs);
+  const p = N<string>(slot.p, msgs);
   if (Object.keys(p).length > FLAT) {
-    const m: Catalog = Object.freeze(Object.assign(N(), slot.m, p));
+    const m: Catalog = Object.freeze(N<string>(slot.m, p));
     return { m, c: inherit(slot.m, slot.c, m) };
   }
   return {
@@ -122,7 +124,7 @@ export const put = (c: Store, ns: string, locale: string, msgs: Catalog): Store 
   const o = c[ns]?.[locale];
   const n = layer(o, msgs);
   if (n == o) return c;
-  const s = Object.assign(N(), c);
-  (s[ns] = Object.assign(N(), c[ns]))[locale] = n;
+  const s = N<Record<string, Slot>>(c);
+  (s[ns] = N(c[ns]))[locale] = n;
   return s;
 };
