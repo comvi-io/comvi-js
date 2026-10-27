@@ -1,20 +1,11 @@
-// THE DEFAULT react recipe. Every import comes from `@comvi/react`;
-// `@comvi/core` is never named by the app, which uses NO capability — the runner
-// asserts from the bundlers' module graphs that ICU, loader, plugins, devtools
-// and core's tag-registration pair all stay out, in development as well as
-// production. Core's BASE entry is present — its `createI18n` is what this app
-// constructs with — so it is never an absence sentinel.
-//
-// <T> rendering needs a DOM and is NOT exercised here. No top-level await: the
-// webpack leg emits commonjs2.
-import { createI18n, I18nProvider, useI18n } from "@comvi/react";
-
-function assert(condition, label) {
-  if (!condition) {
-    console.error(`FAIL ${label}`);
-    process.exit(1);
-  }
-}
+// THE DEFAULT React app on the 0.8 binding: every import from `@comvi/react`, rendered
+// to a string. The runner asserts that no core subpath (`/cdn`, `/plugins`, `/devtools`,
+// `/format`) and not `@comvi/react/format` enter the module graph, in development as in
+// production. `@comvi/core/internal` IS in it: it is the binding's seam. No top-level
+// await: the webpack leg emits commonjs2.
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createI18n, I18nProvider, T, useI18n } from "@comvi/react";
 
 function assertEqual(actual, expected, label) {
   if (actual !== expected) {
@@ -25,31 +16,38 @@ function assertEqual(actual, expected, label) {
   }
 }
 
-const isComponent = (component) =>
-  typeof component === "function" || (typeof component === "object" && component !== null);
-assert(typeof createI18n === "function", "@comvi/react exports createI18n");
-assert(typeof useI18n === "function", "@comvi/react exports useI18n");
-assert(isComponent(I18nProvider), "@comvi/react exports I18nProvider");
-
 const i18n = createI18n({
   locale: "en",
-  exposeGlobal: false,
-  messages: { en: { msg: "a <b>c</b> d" } },
+  messages: {
+    en: {
+      hi: "Hello, {name}!",
+      items: "{count, plural, one {# item} other {# items}}",
+      terms: "Read the <link>terms</link>.",
+    },
+  },
 });
 
-// `I18n` is a TYPE from a binding root (P5), so the pin is structural: a base
-// core host, with the composition verb and no capability attached.
-assert(
-  typeof i18n.t === "function" && typeof i18n.use === "function",
-  "createI18n builds a core host",
-);
-assert(typeof i18n.reloadMessages === "undefined", "default host has no loader capability");
-assert(typeof i18n.onMissingKey === "undefined", "default host has no plugin capability");
-assert(typeof i18n.instanceId === "undefined", "default host has no devtools discovery");
+const App = () =>
+  createElement(
+    "p",
+    null,
+    useI18n().t("hi", { name: "Ann" }),
+    " ",
+    useI18n().t("items", { count: 2 }),
+    " ",
+    createElement(T, {
+      i18nKey: "terms",
+      link: (chunks) => createElement("a", { href: "/terms" }, chunks),
+    }),
+  );
+
 assertEqual(
-  i18n.t("msg", { b: ({ children }) => `*${children}*` }),
-  "a <b>c</b> d",
-  "tag markup stays literal without <T>",
+  renderToStaticMarkup(createElement(I18nProvider, { i18n }, createElement(App))),
+  '<p>Hello, Ann! 2 items Read the <a href="/terms">terms</a>.</p>',
+  "the provider, useI18n() and <T> render",
 );
 
 console.log("BUNDLER_MATRIX_OK react-default");
+// The browser build of react-dom/server (Vite resolves the browser condition) keeps a
+// MessageChannel open: end the process once the assertions passed.
+process.exit(0);
