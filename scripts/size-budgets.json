@@ -8,35 +8,35 @@
       "gzipBudgetBytes": 2000,
       "ceilingBytes": 2000,
       "baseline": {
-        "minBytes": 3983,
-        "gzipBytes": 1931,
+        "minBytes": 3988,
+        "gzipBytes": 1930,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated 0.8 compile graph: scanner, ICU plural/select/selectordinal/offset, tags, value formatting, compile cache. Ceiling (S7 compile slice 1,372 + S1 cache 200 + 1a review fixes 117) x 1.15, rounded to 50 (R3-10 method); re-baselined in lot 1b (+58 B: numeric-string counts, missing_param `param`, plural rules memo, string fast path); size-budgets.md 2026-10-27."
+      "note": "Gated 0.8 compile graph: scanner, ICU plural/select/selectordinal/offset, tags, value formatting, compile cache. Ceiling (S7 compile slice 1,372 + S1 cache 200 + 1a review fixes 117) x 1.15, rounded to 50 (R3-10 method); re-baselined in lot 1b (+57 B: numeric-string counts, missing_param `param`, plural rules memo, string fast path, the Intl locales list); size-budgets.md 2026-10-27."
     },
     {
       "name": "core-locale",
       "entry": ["@comvi/core/internal"],
       "fixture": "core-locale.ts",
-      "gzipBudgetBytes": 606,
+      "gzipBudgetBytes": 605,
       "baseline": {
-        "minBytes": 880,
-        "gzipBytes": 577,
+        "minBytes": 881,
+        "gzipBytes": 576,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated 0.8 locale module alone (lot 1a): canonicalize, parent chain, dir, negotiate. No design ceiling of its own: R3-10 prices these as marginal bytes inside core, gated by core-1a-surface."
+      "note": "Gated 0.8 locale module alone (lot 1a): canonicalize, parent chain, dir, negotiate. No design ceiling of its own: R3-10 prices these as marginal bytes inside core, gated by core-1a-surface; re-baselined in lot 1b for the shared canonicalize/parents/maximize memo."
     },
     {
       "name": "core-negotiate",
       "entry": ["@comvi/core"],
       "fixture": "core-negotiate.ts",
-      "gzipBudgetBytes": 492,
+      "gzipBudgetBytes": 515,
       "baseline": {
-        "minBytes": 729,
-        "gzipBytes": 468,
+        "minBytes": 771,
+        "gzipBytes": 490,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated public root after lot 1a: `negotiate` alone, what a detector imports. No design ceiling of its own (see core-locale)."
+      "note": "Gated public root after lot 1a: `negotiate` alone, what a detector imports. No design ceiling of its own (see core-locale); re-baselined in lot 1b for the shared canonicalize/parents/maximize memo."
     },
     {
       "name": "core-icu",
@@ -45,8 +45,8 @@
       "gzipBudgetBytes": 3250,
       "ceilingBytes": 3250,
       "baseline": {
-        "minBytes": 8576,
-        "gzipBytes": 4111,
+        "minBytes": 8627,
+        "gzipBytes": 4142,
         "measuredAt": "2026-10-27"
       },
       "note": "RED BY DESIGN (blocked, owner decision): core + ICU, R3-10 ceiling 3,250 B kept as the budget; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b."
@@ -58,8 +58,8 @@
       "gzipBudgetBytes": 3750,
       "ceilingBytes": 3750,
       "baseline": {
-        "minBytes": 9401,
-        "gzipBytes": 4466,
+        "minBytes": 9452,
+        "gzipBytes": 4492,
         "measuredAt": "2026-10-27"
       },
       "note": "RED BY DESIGN (blocked, owner decision): core + ICU + cdn(), R3-10 ceiling 3,750 B kept as the budget; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b."
@@ -68,13 +68,13 @@
       "name": "core-icu-devtools",
       "entry": ["@comvi/core", "@comvi/core/devtools"],
       "fixture": "core-icu-devtools.ts",
-      "gzipBudgetBytes": 5477,
+      "gzipBudgetBytes": 5504,
       "baseline": {
-        "minBytes": 11092,
-        "gzipBytes": 5216,
+        "minBytes": 11143,
+        "gzipBytes": 5241,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships (devtools adds 1,105 B to core-icu in this sweep)."
+      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships (devtools adds 1,099 B to core-icu in this sweep)."
     },
     {
       "name": "core-devtools",
@@ -93,25 +93,25 @@
       "name": "core-format",
       "entry": ["@comvi/core", "@comvi/core/format"],
       "fixture": "core-format.ts",
-      "gzipBudgetBytes": 4597,
+      "gzipBudgetBytes": 4632,
       "baseline": {
-        "minBytes": 9325,
-        "gzipBytes": 4378,
+        "minBytes": 9368,
+        "gzipBytes": 4411,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph (the formatters add 267 B to core-icu in this sweep)."
+      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph (the formatters add 269 B to core-icu in this sweep)."
     },
     {
       "name": "core-plugins",
       "entry": ["@comvi/core", "@comvi/core/plugins"],
       "fixture": "core-plugins.ts",
-      "gzipBudgetBytes": 4896,
+      "gzipBudgetBytes": 4923,
       "baseline": {
-        "minBytes": 9791,
-        "gzipBytes": 4662,
+        "minBytes": 9842,
+        "gzipBytes": 4688,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: @comvi/core/plugins detect() + persist() with the instance (they add 551 B to core-icu in this sweep)."
+      "note": "Gated: @comvi/core/plugins detect() + persist() with the instance (they add 546 B to core-icu in this sweep)."
     },
     {
       "name": "fw-react-default",

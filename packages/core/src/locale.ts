@@ -12,46 +12,54 @@
  * `zh-HK` (Hant) never reaches it; `sr` maximizes to Cyrl, so `sr-Latn` never does.
  */
 
-/** Likely subtags per canonical tag: a pure function of the tag, capped like the Intl cache. */
-let maxCache = new Map<string, Intl.Locale>();
+/**
+ * Canonical forms, likely subtags and parent chains: pure functions of the tag, so one
+ * process-level memo serves every instance and request (an instance is built per SSR
+ * request); capped like the Intl cache, since tags can come from user input.
+ */
+let memo = new Map<string, unknown>();
 
-const maximize = (tag: string): Intl.Locale => {
-  let m = maxCache.get(tag);
-  if (!m) {
-    if (maxCache.size >= 500) maxCache = new Map();
-    maxCache.set(tag, (m = new Intl.Locale(tag).maximize()));
+const once = <T>(key: string, make: () => T): T => {
+  if (!memo.has(key)) {
+    if (memo.size >= 1000) memo = new Map();
+    memo.set(key, make());
   }
-  return m;
+  return memo.get(key) as T;
 };
+
+const maximize = (tag: string): Intl.Locale =>
+  once("m" + tag, () => new Intl.Locale(tag).maximize());
 
 /**
  * The canonical BCP 47 spelling of a tag (`en_US` → `en-US`, `EN-us` → `en-US`,
  * `iw` → `he`), or `undefined` when it is not a well-formed tag.
  */
-export const canonicalize = (tag: string): string | undefined => {
-  try {
-    return Intl.getCanonicalLocales(tag.replace(/_/g, "-"))[0];
-  } catch {
-    return undefined;
-  }
-};
+export const canonicalize = (tag: string): string | undefined =>
+  once("c" + tag, () => {
+    try {
+      return Intl.getCanonicalLocales(tag.replace(/_/g, "-"))[0];
+    } catch {
+      return undefined;
+    }
+  });
 
 /**
  * The fallback parents of a canonical tag, nearest first, excluding the tag itself:
  * subtags are dropped from the right, extensions first, and a parent is kept only when
  * it maximizes to the same script (`pt-BR` → [`pt`]; `zh-HK` → []; `sr-Latn-RS` →
- * [`sr-Latn`]).
+ * [`sr-Latn`]). The array is shared (memoized): read it, never change it.
  */
-export const parents = (tag: string): string[] => {
-  const script = maximize(tag).script;
-  const base = new Intl.Locale(tag).baseName;
-  const out: string[] = base !== tag ? [base] : [];
-  for (let t = base, i: number; (i = t.lastIndexOf("-")) > 0;) {
-    t = t.slice(0, i);
-    if (maximize(t).script === script) out.push(t);
-  }
-  return out;
-};
+export const parents = (tag: string): readonly string[] =>
+  once("p" + tag, () => {
+    const script = maximize(tag).script;
+    const base = new Intl.Locale(tag).baseName;
+    const out: string[] = base !== tag ? [base] : [];
+    for (let t = base, i: number; (i = t.lastIndexOf("-")) > 0;) {
+      t = t.slice(0, i);
+      if (maximize(t).script === script) out.push(t);
+    }
+    return out;
+  });
 
 const RTL = /^(Arab|Hebr|Thaa|Syrc|Nkoo|Adlm|Rohg|Mand|Samr|Mend|Yezi)$/;
 
@@ -105,5 +113,5 @@ export const negotiate = (
 
 /** Test seam. */
 export const _resetLocaleCache = (): void => {
-  maxCache = new Map();
+  memo = new Map();
 };

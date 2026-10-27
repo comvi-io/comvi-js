@@ -19,16 +19,32 @@ import { canonicalize } from "./locale";
  * data for. A tag that does not canonicalize is left out. Memoized per chain array (the
  * instance memoizes chains per locale), so a call with no `locale` allocates nothing.
  */
-const chains = new WeakMap<object, string | readonly string[]>();
-const tags = (i18n: I18n, locale?: string): string | readonly string[] => {
-  if (locale) return [canonicalize(locale)].filter((x): x is string => !!x);
-  const c = CORE.get(i18n);
-  if (!c) return [];
-  const ch = c.ch(i18n.locale);
-  let ls = chains.get(ch);
-  // One locale goes as a string: the Intl cache key then needs no join.
-  if (!ls) chains.set(ch, (ls = ch.length == 1 ? ch[0][1] : ch.map((x) => x[1])));
-  return ls;
+const chains = new WeakMap<object, [key: string, locales: readonly string[]]>();
+const tags = (i18n: I18n, locale?: string): [key: string, locales: readonly string[]] => {
+  if (locale) {
+    const c = canonicalize(locale);
+    return c ? [c, [c]] : ["", []];
+  }
+  const core = CORE.get(i18n);
+  if (!core) return ["", []];
+  const ch = core.ch(i18n.locale);
+  let t = chains.get(ch);
+  if (!t) {
+    const ls = ch.map((x) => x[1]);
+    chains.set(ch, (t = [ls.join(), ls]));
+  }
+  return t;
+};
+
+/** The cached formatter of `kind` for `i18n` (or `locale`) and `options`. */
+const get = <T>(
+  kind: Parameters<typeof intl>[0],
+  i18n: I18n,
+  options: object | undefined,
+  locale?: string,
+): T => {
+  const [key, locales] = tags(i18n, locale);
+  return intl<T>(kind, key, variant(options), options, locales);
 };
 
 /** A cache variant for `options`: its own keys, sorted, with their values. */
@@ -51,10 +67,7 @@ export const formatNumber = (
   value: number,
   options?: Intl.NumberFormatOptions,
   locale?: string,
-): string =>
-  intl<Intl.NumberFormat>("NumberFormat", tags(i18n, locale), variant(options), options).format(
-    value,
-  );
+): string => get<Intl.NumberFormat>("NumberFormat", i18n, options, locale).format(value);
 
 export const formatCurrency = (
   i18n: I18n,
@@ -71,9 +84,7 @@ export const formatDate = (
   locale?: string,
 ): string => {
   const o = zoned(i18n, options);
-  return intl<Intl.DateTimeFormat>("DateTimeFormat", tags(i18n, locale), variant(o), o).format(
-    value,
-  );
+  return get<Intl.DateTimeFormat>("DateTimeFormat", i18n, o, locale).format(value);
 };
 
 export const formatDateRange = (
@@ -84,10 +95,7 @@ export const formatDateRange = (
   locale?: string,
 ): string => {
   const o = zoned(i18n, options);
-  return intl<Intl.DateTimeFormat>("DateTimeFormat", tags(i18n, locale), variant(o), o).formatRange(
-    start,
-    end,
-  );
+  return get<Intl.DateTimeFormat>("DateTimeFormat", i18n, o, locale).formatRange(start, end);
 };
 
 export const formatRelativeTime = (
@@ -97,20 +105,14 @@ export const formatRelativeTime = (
   options?: Intl.RelativeTimeFormatOptions,
   locale?: string,
 ): string =>
-  intl<Intl.RelativeTimeFormat>(
-    "RelativeTimeFormat",
-    tags(i18n, locale),
-    variant(options),
-    options,
-  ).format(value, unit);
+  get<Intl.RelativeTimeFormat>("RelativeTimeFormat", i18n, options, locale).format(value, unit);
 
 export const formatList = (
   i18n: I18n,
   items: readonly string[],
   options?: Intl.ListFormatOptions,
   locale?: string,
-): string =>
-  intl<Intl.ListFormat>("ListFormat", tags(i18n, locale), variant(options), options).format(items);
+): string => get<Intl.ListFormat>("ListFormat", i18n, options, locale).format(items);
 
 /** The display name of a language, region, script or currency code, in the instance locale. */
 export const displayName = (
@@ -118,5 +120,4 @@ export const displayName = (
   code: string,
   type: Intl.DisplayNamesOptions["type"] = "language",
   locale?: string,
-): string | undefined =>
-  intl<Intl.DisplayNames>("DisplayNames", tags(i18n, locale), type, { type }).of(code);
+): string | undefined => get<Intl.DisplayNames>("DisplayNames", i18n, { type }, locale).of(code);

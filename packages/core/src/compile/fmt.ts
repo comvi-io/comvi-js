@@ -34,12 +34,17 @@ export const INTL_CACHE_LIMIT = 500;
 /** Per-locale verdict of the output probe: does the locale print ASCII digits? */
 let ascii: Record<string, boolean> = Object.create(null);
 
-/** The cached Intl formatter of `kind` for `locale`, built with `options` on first use. */
+/**
+ * The cached Intl formatter of `kind` for `locale`, built with `options` on first use.
+ * `locales`, when given, is what the formatter is built for (a fallback list); `locale`
+ * is then the list's cache key, joined once by the caller rather than on every call.
+ */
 export const intl = <T>(
   kind: IntlKind,
-  locale: string | readonly string[],
+  locale: string,
   variant: string,
   options?: object,
+  locales?: readonly string[],
 ): T => {
   const key = kind + " " + locale + " " + variant;
   let f = cache[key];
@@ -52,7 +57,7 @@ export const intl = <T>(
     // The constructor is looked up by name on purpose: one call site for every kind.
     f = cache[key] = new (
       Intl[kind] as unknown as new (l: string | readonly string[], o?: object) => object
-    )(locale, options);
+    )(locales || locale, options);
   }
   return f as T;
 };

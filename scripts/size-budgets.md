@@ -345,37 +345,39 @@ One `node scripts/size-check.mjs` sweep under Node v24.22.1 after `TURBO_FORCE=t
 New rows: `core-icu` (createI18n + `t()` with `{name}` + a plural), `core-icu-cdn` (+ `cdn()`),
 `core-icu-devtools`, `core-devtools` (the subpath alone, ceiling 1,300), `core-format`,
 `core-plugins`. `core-1a-surface` and the `designCeilings` list are gone (the graph they
-stood in for is now gated). `core-compile` was re-baselined: 1,873 → 1,931 B (+58: numeric-string
+stood in for is now gated). Re-baselined: `core-compile` 1,873 → 1,930 B (numeric-string
 plural counts, `param` on `missing_param`, the per-message plural rules memo, the string fast
-path in value formatting); its budget is the 2,000 ceiling.
+path in value formatting, the Intl locales list; its budget is the 2,000 ceiling),
+`core-locale` 577 → 576 and `core-negotiate` 468 → 490 B (one process-level memo for
+`canonicalize`, `parents` and likely subtags: the constructor went from 8.4 to 3.1 µs).
 
 **`core-icu` and `core-icu-cdn` are red, by the rule.** Their budgets are the owner's R3-10
-ceilings (3,250 and 3,750), which may not be raised; they measure 4,111 and 4,466 B. Lot 1b
-stops here and reports blocked. The accounting, measured on the lot-1b sources with the
-same esbuild settings (cumulative, min+gz; the sources read ~20 B above the dist rows):
+ceilings (3,250 and 3,750), which may not be raised; they measure 4,142 and 4,492 B. Lot 1b
+reports blocked here. The accounting, measured on the lot-1b sources with the same esbuild
+settings (cumulative, min+gz; the sources read ~15 B above the dist rows):
 
-| Graph                                                                            | Bytes |      Δ | R3-10 price (S7 / S1 / S9)                                                                                                      |
-| -------------------------------------------------------------------------------- | ----: | -----: | ------------------------------------------------------------------------------------------------------------------------------- |
-| compile: scanner, ICU, value formatting, `compile`/`render`/`lookup`/`recordFor` | 1,945 |  1,945 | compile slice 1,372 + cache ~200 = 1,572 → **+373** (1a review fixes +117, unattributed 1a +184, 1b +58, the rest gzip context) |
-| + `inherit` (patch flattening)                                                   | 2,000 |    +55 | in the cache price above                                                                                                        |
-| + `canonicalize`, `parents`, `dir`                                               | 2,261 |   +261 | canon + parent 153, dir 127 = 280                                                                                               |
-| + state and slots (`mk`, `layer`, `find`, `put`), default reporter               | 2,532 |   +271 | snapshot +140                                                                                                                   |
-| + the instance (core-icu row)                                                    | 4,111 | +1,579 | S7 features ≈ 364 + loading ≈ 240 (design estimate)                                                                             |
-| + `cdn()` (core-icu-cdn row)                                                     | 4,466 |   +355 | cdn-v1 +333 (S5)                                                                                                                |
+| Graph                                                                            | Bytes |      Δ | R3-10 price (S7 / S1 / S9)                                                                                             |
+| -------------------------------------------------------------------------------- | ----: | -----: | ---------------------------------------------------------------------------------------------------------------------- |
+| compile: scanner, ICU, value formatting, `compile`/`render`/`lookup`/`recordFor` | 1,944 |  1,944 | compile slice 1,372 + cache ~200 = 1,572 → **+372** (1a review fixes +117, unattributed 1a +184, 1b +57, gzip context) |
+| + `inherit` (patch flattening)                                                   | 1,998 |    +54 | in the cache price above                                                                                               |
+| + `canonicalize`, `parents`, `dir` (memoized)                                    | 2,278 |   +280 | canon + parent 153, dir 127 = 280                                                                                      |
+| + state and slots (`mk`, `layer`, `find`, `put`), default reporter               | 2,551 |   +273 | snapshot +140                                                                                                          |
+| + the instance (core-icu row)                                                    | 4,142 | +1,591 | S7 features ≈ 364 + loading ≈ 240 (design estimate)                                                                    |
+| + `cdn()` (core-icu-cdn row)                                                     | 4,492 |   +350 | cdn-v1 +333 (S5)                                                                                                       |
 
 Inside the instance, the cost of each feature, measured by removing it alone from the final
-source (bytes saved): per-call ns/locale and defaultParams on the fast path 48, `has()` 48,
-plugins (setup, transactional rollback, teardowns) 50, `invalid_locale` checks 51, partial
-failure 41, aborting loads outside the new chain 38, the internal seam 28, `ready` 26,
-per-locale fallback lists 26, `defaultParams`/`setDefaultParams` 25, per-call `{ ns, locale }`
-24, `fallback_used` 18, `add()` aborting a pending load 12, missing-key suppression while
-loading 12, `missing` 12, negative-cache retry 10, bounded chain memo 10 — ≈ 480 B together.
-A floor instance with only `t()`, the parent chain, layered `add()` and publish already
-measures **2,578 B**, leaving 672 B under 3,250 for everything above plus loading,
-`setLocale`, `destroy` and the state machine: no set of cuts that keeps the mandated features
-reaches the ceiling. The rev-4 synthesis ceilings (3,600 / 4,050) would be missed by ~510 and
-~420 B as well. The owner decides: raise the R3-10 rows, drop features, or a new ceiling.
+source (bytes saved): `has()` 50, the compiled-message fast path with params 50,
+`invalid_locale` checks 49, plugins (setup, transactional rollback, teardowns) 46, partial
+failure 39, aborting loads outside the new chain 37, the internal seam 26, `ready` 26,
+`defaultParams`/`setDefaultParams` 25, per-call `{ ns, locale }` 25, per-locale fallback lists
+22, `fallback_used` 17, `add()` aborting a pending load 13, negative-cache retry 13, missing-key
+suppression while loading 11, `missing` 11, bounded chain memo 11 — ≈ 470 B together. A floor
+instance with only `t()`, the parent chain, layered `add()` and publish measures **2,658 B**,
+leaving 592 B under 3,250 for everything above plus loading, `setLocale`, `destroy` and the
+state machine: no set of cuts that keeps the mandated features reaches the ceiling. The
+rev-4 synthesis ceilings (3,600 / 4,050) would be missed by ~540 and ~440 B as well. The
+owner decides: raise the R3-10 rows, drop features, or a new ceiling.
 
 `core-devtools` measures 1,298 B (2 under its ceiling): the subpath alone, discovery plus the
-editor loader. Added to `core-icu` it costs 1,105 B (`core-icu-devtools`), against the 1,264 B
+editor loader. Added to `core-icu` it costs 1,099 B (`core-icu-devtools`), against the 1,264 B
 `devtools()` cost of 0.6.0 (`core-base-devtools` − `core-base`).
