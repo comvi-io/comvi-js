@@ -56,7 +56,7 @@
   "demo.typed.title": "Typed keys",
   "demo.typed.body": "The keys are generated from these JSON files: a misspelled key or a missing parameter is a compile error. Open src/i18n in the editor and try it.",
   "demo.errors.title": "Every failure reaches a hook",
-  "demo.errors.body": "t() never throws. A key that no catalog has is reported to onMissingKey, wired here to a counter you could send to your tracker. A catalog that fails to load is reported to onError, which this page does not show.",
+  "demo.errors.body": "t() never throws. A key that no catalog has is reported to onError as missing_key, wired here to a counter you could send to your tracker. A catalog that fails to load is reported there as load_failed, which this page does not show.",
   "demo.errors.count": "Reported misses: {count}",
   "demo.formality.title": "Formal or informal",
   "demo.formality.body": "English has one way to address someone; German has Sie and du, Ukrainian Ви and ти. One select value lets each translator pick the register, and the English stays a single sentence.",

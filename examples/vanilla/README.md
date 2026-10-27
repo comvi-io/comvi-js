@@ -8,13 +8,13 @@
 - **Parameters:** `{name}` filled in from the call, and HTML in a parameter stays text.
 - **Plurals and ordinals:** ICU `plural` and `selectordinal` on one counter, with the rules of each language.
 - **Select:** ICU `select` picks a whole sentence by a value.
-- **Markup in a translation:** `<link>…</link>` in the catalog, turned into an `<a>` by a handler in `tRaw()`.
+- **Markup in a translation:** `<link>…</link>` in the catalog, turned into an `<a>` by a handler passed to `t()`.
 - **Dates, numbers and currency:** formatted for the current locale.
 - **Lazy loading:** a language is downloaded the first time it is picked, and the `account` namespace the first time the Account page opens.
 - **Fallback:** a key missing in Ukrainian shows the English text; a key missing everywhere shows its name.
-- **Missing-key hook:** every miss reaches `i18n.on("missingKey")`.
+- **Error reports:** every miss reaches the `onError` option as `missing_key`.
 - **Right-to-left:** Arabic sets `<html dir="rtl">`.
-- **Locale detection:** `?lng=`, then the last choice, then the browser language.
+- **Locale detection:** `?lang=`, then the last choice, then the browser language.
 
 ## Run it
 

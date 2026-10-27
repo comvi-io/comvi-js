@@ -56,7 +56,7 @@
   "demo.typed.title": "Typisierte Schlüssel",
   "demo.typed.body": "Die Schlüssel werden aus diesen JSON-Dateien generiert: ein Tippfehler im Schlüssel oder ein fehlender Parameter ist ein Compile-Fehler. Öffnen Sie src/i18n im Editor und probieren Sie es.",
   "demo.errors.title": "Jeder Fehler erreicht einen Hook",
-  "demo.errors.body": "t() wirft nie. Ein Schlüssel, den kein Katalog hat, wird an onMissingKey gemeldet, hier an einen Zähler gebunden, den Sie an Ihren Tracker senden könnten. Ein Katalog, der nicht lädt, wird an onError gemeldet; das zeigt diese Seite nicht.",
+  "demo.errors.body": "t() wirft nie. Ein Schlüssel, den kein Katalog hat, wird an onError als missing_key gemeldet, hier an einen Zähler gebunden, den Sie an Ihren Tracker senden könnten. Ein Katalog, der nicht lädt, wird dort als load_failed gemeldet; das zeigt diese Seite nicht.",
   "demo.errors.count": "Gemeldete Fehlstellen: {count}",
   "demo.formality.title": "Förmlich oder vertraut",
   "demo.formality.body": "Englisch hat eine Anrede; Deutsch hat Sie und du, Ukrainisch Ви und ти. Ein select-Wert lässt jede Übersetzerin das Register wählen, und der englische Text bleibt ein einziger Satz.",
