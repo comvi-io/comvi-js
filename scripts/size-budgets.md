@@ -145,11 +145,13 @@ the bytes first, then decide whether they ship.
 
 `core-compile`, `core-locale`, `core-negotiate`, `core-icu`, `core-icu-cdn`, `core-icu-devtools`,
 `core-devtools`, `core-format`, `core-plugins` (the 0.8 core; the 0.7 `core-base*` rows are gone);
+`react-icu-cdn` (the main path on React, with the binding increment cap over `core-icu-cdn`);
 per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`, `fw-svelte-format`; `fw-next-client-default`,
 `fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-i18n`; the platform
-path `plugin-fetch-loader`, `plugin-fetch-loader-api`, `platform-path-react`.
+path `plugin-fetch-loader`, `plugin-fetch-loader-api` (`platform-path-react` is replaced by
+`react-icu-cdn` in lot 1c).
 
 `fw-next-server-provider` is the server graph of the `withComvi` setup: `<ComviProvider>` and
 `getI18n` with the provider's `"use client"` half and `@comvi/next/config` external, which is what
@@ -542,3 +544,44 @@ the unused SyntaxId layer in the compile cache (`recordFor(catalog)` keyed by ca
 | core-compile | 1,920  | 1,904 | 2,000 (unchanged)                |
 
 Node v24.22.1, `TURBO_FORCE=true pnpm --filter @comvi/core build`, `node scripts/size-check.mjs`.
+
+## 2026-10-27: lot 1c — the React binding and its +500 B increment cap
+
+`react-icu-cdn` is `core-icu-cdn`'s graph on React: `createI18n` + `cdn()` + `<I18nProvider>` +
+`useI18n()` + `t()` with `{name}` and a plural. Its ceiling is `core-icu-cdn`'s 4,895 + 500 =
+**5,395 B**, and the row declares `increment: { over: "core-icu-cdn", maxBytes: 500 }`: the
+size gate fails the row when it adds more than 500 B over `core-icu-cdn` measured in the same
+run (R3-10's provisional binding cap, kept HARD by the owner). Seen red with `maxBytes: 400`
+(`+468 B over core-icu-cdn vs cap +400 B`, exit 1).
+
+The first full binding measured **+964 B**. Itemized marginal costs (gz, removed one at a time
+from the full binding, Node v24.22.1, esbuild 0.28.0):
+
+| piece                                                                                       | B    |
+| ------------------------------------------------------------------------------------------- | ---- |
+| floor: provider + `useSyncExternalStore` + context + `translate` + Fragment + react imports | ~240 |
+| locale handover (`useState`/`useRef`/layout effect/`view()`/`add`/`setLocale`)              | ~350 |
+| bound `<T>` from `useI18n(ns)` (keeps `<T>` in every app)                                   | 52   |
+| tag-handler wrap (one node for the children: no key warnings)                               | 41   |
+| `loading` / `suspense` gate                                                                 | 41   |
+| `/internal` instance check (production)                                                     | 27   |
+| out-of-provider error text (production)                                                     | 26   |
+| `isLoading`                                                                                 | 21   |
+| `dir` + `setLocale` + `i18n` fields                                                         | 15   |
+| `ns` activation effect                                                                      | 13   |
+| `useMemo` of the hook's result                                                              | 7    |
+
+Taken: the handover moved into its own component, `<I18nHandover catalogs locale>` (design §3.4's
+provider has no handover props; an app without a server payload carries none of it); both
+diagnostics are development-only (the `development` export condition, as core); bound `<T>` is
+not shipped (`<T ns>` stays). Kept: everything else above. Result, one sweep after
+`TURBO_FORCE=true pnpm build`:
+
+| row                     | gzip B | budget | ceiling | note                                               |
+| ----------------------- | ------ | ------ | ------- | -------------------------------------------------- |
+| react-icu-cdn           | 5,129  | 5,386  | 5,395   | **+468 B** over core-icu-cdn (cap 500)             |
+| fw-react-default        | 4,668  | 4,902  | —       | 0.7: 7,606                                         |
+| fw-react-full-composite | 8,047  | 8,450  | —       | 0.7: 13,526; every export + cdn, plugins, devtools |
+
+`platform-path-react` (0.7 API: `cdnLoader` from `@comvi/plugin-fetch-loader`) is removed;
+`react-icu-cdn` is the React platform path now.

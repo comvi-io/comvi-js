@@ -1,10 +1,10 @@
-// Framework size fixture: THE DEFAULT react app.
+// Framework size fixture: THE DEFAULT React app — one `@comvi/react` specifier, bundled
+// catalogs, the provider and useI18n() with t({name}).
+import { createElement } from "react";
 import { createI18n, I18nProvider, useI18n } from "@comvi/react";
 
-const i18n = createI18n({
-  locale: "en",
-  messages: { en: { greeting: "Hello, {name}!" } },
-});
+const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello, {name}!" } } });
 
-// Observable use keeps the wrapper + core graphs live for the bundler.
-console.log(i18n.t("greeting" as never, { name: "world" } as never), I18nProvider, useI18n);
+const Hello = () => createElement("h1", null, useI18n().t("greeting", { name: "Ann" }));
+
+export const app = createElement(I18nProvider, { i18n }, createElement(Hello));

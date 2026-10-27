@@ -114,30 +114,54 @@
       "note": "Gated: @comvi/core/plugins detect() (a plugin, design §3.3) + persist() with the instance. Re-baselined in the size pass 2026-10-27."
     },
     {
+      "name": "react-icu-cdn",
+      "entry": ["@comvi/react", "@comvi/core/cdn"],
+      "fixture": "framework/react-icu-cdn.ts",
+      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 5386,
+      "ceilingBytes": 5395,
+      "increment": {
+        "over": "core-icu-cdn",
+        "maxBytes": 500
+      },
+      "baseline": {
+        "minBytes": 10731,
+        "gzipBytes": 5129,
+        "measuredAt": "2026-10-27"
+      },
+      "note": "core-icu-cdn's graph on React: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,895 + the R3-10 binding cap 500; the increment over core-icu-cdn is HARD-capped at +500 B (lot 1c: +468). Accounting in size-budgets.md 2026-10-27 lot 1c."
+    },
+    {
       "name": "fw-react-default",
       "entry": ["@comvi/react"],
       "fixture": "framework/react-default.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 7987,
+      "gzipBudgetBytes": 4902,
       "baseline": {
-        "minBytes": 20542,
-        "gzipBytes": 7606,
-        "measuredAt": "2026-10-20"
+        "minBytes": 9631,
+        "gzipBytes": 4668,
+        "measuredAt": "2026-10-27"
       },
-      "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings — the anchor the React ceiling row is read against."
+      "note": "Gated React floor: one `@comvi/react` specifier, bundled catalogs, <I18nProvider> + useI18n() + t({name}). Re-baselined in lot 1c on the 0.8 binding (0.7: 7,606 B)."
     },
     {
       "name": "fw-react-full-composite",
-      "entry": ["@comvi/react"],
+      "entry": [
+        "@comvi/react",
+        "@comvi/react/format",
+        "@comvi/core/cdn",
+        "@comvi/core/plugins",
+        "@comvi/core/devtools"
+      ],
       "fixture": "framework/react-full-composite.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 14203,
+      "gzipBudgetBytes": 8450,
       "baseline": {
-        "minBytes": 37300,
-        "gzipBytes": 13526,
-        "measuredAt": "2026-10-20"
+        "minBytes": 17522,
+        "gzipBytes": 8047,
+        "measuredAt": "2026-10-27"
       },
-      "note": "Gated React ceiling: every capability composed through the one `@comvi/react` specifier."
+      "note": "Gated React ceiling: every export of @comvi/react and /format (<I18nHandover>, <T>, useLocale, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 1c on the 0.8 binding (0.7: 13,526 B)."
     },
     {
       "name": "fw-solid-default",
@@ -413,19 +437,6 @@
         "measuredAt": "2026-10-20"
       },
       "note": "Gated CDN-ONLY path: base host + ICU + `cdnLoader` from the package root, composed as the fetch-loader README quickstart. Renamed from `plugin-fetch-loader-cdn-lite` on 2026-10-04 (first-impression lot), same graph. Paired with `plugin-fetch-loader-api`: the difference between the two rows IS the API request path a CDN-only app does not ship."
-    },
-    {
-      "name": "platform-path-react",
-      "entry": ["@comvi/react", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
-      "fixture": "framework/react-platform.ts",
-      "external": ["react", "react/*"],
-      "gzipBudgetBytes": 12765,
-      "baseline": {
-        "minBytes": 33218,
-        "gzipBytes": 12157,
-        "measuredAt": "2026-10-20"
-      },
-      "note": "Gated platform CDN path on React: `@comvi/react` base host + ICU + the CDN-only package root (`cdnLoader`), composed as the React README's CDN recipe; the number the README quotes for the React platform path."
     }
   ]
 }

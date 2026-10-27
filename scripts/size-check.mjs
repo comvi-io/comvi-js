@@ -398,6 +398,31 @@ export async function runSizeCheck({
   return results;
 }
 
+/**
+ * Increment caps (reference-i18n R3-10, the provisional binding cap): a row may declare
+ * `increment: { over, maxBytes }` — its min+gz may exceed row `over` (the same graph
+ * without what the row adds, e.g. the framework binding) by at most `maxBytes`. Run after
+ * every row is measured; a row over its cap fails with the increment in the reason, and a
+ * cap whose base row was not measured fails too (an ungated cap is not kept).
+ */
+export function applyIncrementCaps(fixtures, results) {
+  for (const fixture of fixtures) {
+    if (!fixture.increment) continue;
+    const result = results.find((r) => r.name === fixture.name);
+    if (!result || result.status === "skipped" || !Number.isFinite(result.gzipBytes)) continue;
+    const { over, maxBytes } = fixture.increment;
+    const base = results.find((r) => r.name === over);
+    if (!base || !Number.isFinite(base.gzipBytes)) {
+      result.status = "fail";
+      result.reason = `increment cap over "${over}", which was not measured`;
+      continue;
+    }
+    result.increment = { over, bytes: result.gzipBytes - base.gzipBytes, maxBytes };
+    if (result.increment.bytes > maxBytes) result.status = "fail";
+  }
+  return results;
+}
+
 export function renderResults(results) {
   return results
     .map((result) =>
@@ -408,7 +433,11 @@ export function renderResults(results) {
           : `${result.status === "pass" ? "+" : "x"} ${result.name}: ${formatBytes(result.gzipBytes)} min+gz ` +
             `${result.status === "pass" ? "<=" : "vs"} budget ${formatBytes(result.budget)} ` +
             `(${formatBytes(result.minBytes)} min)` +
-            (result.ceiling === undefined ? "" : `, ceiling ${result.ceiling} B`),
+            (result.ceiling === undefined ? "" : `, ceiling ${result.ceiling} B`) +
+            (result.increment === undefined
+              ? ""
+              : `; +${result.increment.bytes} B over ${result.increment.over} ` +
+                `${result.increment.bytes <= result.increment.maxBytes ? "<=" : "vs"} cap +${result.increment.maxBytes} B`),
     )
     .join("\n");
 }
@@ -441,6 +470,7 @@ async function main() {
     define: { __VERSION__: JSON.stringify(corePkg.version) },
     pending: pendingReason,
   });
+  applyIncrementCaps(budgets.fixtures, results);
   console.log(renderResults(results));
   const info = renderDesignCeilings(budgets.designCeilings, results);
   if (info) console.log(info);
