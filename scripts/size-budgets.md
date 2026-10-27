@@ -143,7 +143,9 @@ the bytes first, then decide whether they ship.
 
 ## Row inventory
 
-`core-base`, `core-base-icu`, `core-base-devtools`, `core-full-composite`; per framework
+`core-compile`, `core-locale`, `core-negotiate`, `core-icu`, `core-icu-cdn`, `core-icu-devtools`,
+`core-devtools`, `core-format`, `core-plugins` (the 0.8 core; the 0.7 `core-base*` rows are gone);
+per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`, `fw-svelte-format`; `fw-next-client-default`,
 `fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-i18n`; the platform
@@ -321,10 +323,9 @@ hint on `{x, number|date|time}` (the one message production ships, R3-8) and 80 
 parameter reads, ICU `Pattern_White_Space`, ICU's number syntax for `=N` and `offset:`, and the
 invalid-Date guard. The ceilings above take those 117 B through the same × 1.15.
 
-**What is left under R3-10.** `pnpm size` prints an informational line for each entry of
-`designCeilings` in `size-budgets.json`: today `core + ICU ≤ 3,250` against `core-1a-surface`, i.e.
-867 B for the instance, state, flights, `defaultParams`, `view()` and loading of lot 1b (S7 priced the
-features alone at ≈ 364 B before the instance core). It does not gate; lot 1b adds the gated row.
+**What was left under R3-10.** `pnpm size` printed an informational line for each entry of
+`designCeilings`: `core + ICU ≤ 3,250` against `core-1a-surface`, i.e. 867 B for the instance of
+lot 1b. Lot 1b replaced both with the gated `core-icu` and `core-icu-cdn` rows (below).
 
 The S7 compile slice was re-measured from the prototype sources
 (`lot0/s7/src/{parse,icu,fmt,tags}.js`, every flag on except `F_ICUFMT`/`F_SKEL`): 1,372 B, against
@@ -337,3 +338,44 @@ the core + ICU (≤ 3,250) and core + ICU + `cdn()` (≤ 3,750) rows.
 package does not build against the new core yet. The row and its baseline stay, so the lot that
 rebuilds the package removes its entry from the list and the row is gated again, against the
 recorded 0.7 baseline until it is re-baselined.
+
+## 2026-10-27: lot 1b — the instance rows, and the R3-10 ceilings it cannot meet
+
+One `node scripts/size-check.mjs` sweep under Node v24.22.1 after `TURBO_FORCE=true pnpm build`.
+New rows: `core-icu` (createI18n + `t()` with `{name}` + a plural), `core-icu-cdn` (+ `cdn()`),
+`core-icu-devtools`, `core-devtools` (the subpath alone, ceiling 1,300), `core-format`,
+`core-plugins`. `core-1a-surface` and the `designCeilings` list are gone (the graph they
+stood in for is now gated). `core-compile` was re-baselined: 1,873 → 1,931 B (+58: numeric-string
+plural counts, `param` on `missing_param`, the per-message plural rules memo, the string fast
+path in value formatting); its budget is the 2,000 ceiling.
+
+**`core-icu` and `core-icu-cdn` are red, by the rule.** Their budgets are the owner's R3-10
+ceilings (3,250 and 3,750), which may not be raised; they measure 4,111 and 4,466 B. Lot 1b
+stops here and reports blocked. The accounting, measured on the lot-1b sources with the
+same esbuild settings (cumulative, min+gz; the sources read ~20 B above the dist rows):
+
+| Graph                                                                            | Bytes |      Δ | R3-10 price (S7 / S1 / S9)                                                                                                      |
+| -------------------------------------------------------------------------------- | ----: | -----: | ------------------------------------------------------------------------------------------------------------------------------- |
+| compile: scanner, ICU, value formatting, `compile`/`render`/`lookup`/`recordFor` | 1,945 |  1,945 | compile slice 1,372 + cache ~200 = 1,572 → **+373** (1a review fixes +117, unattributed 1a +184, 1b +58, the rest gzip context) |
+| + `inherit` (patch flattening)                                                   | 2,000 |    +55 | in the cache price above                                                                                                        |
+| + `canonicalize`, `parents`, `dir`                                               | 2,261 |   +261 | canon + parent 153, dir 127 = 280                                                                                               |
+| + state and slots (`mk`, `layer`, `find`, `put`), default reporter               | 2,532 |   +271 | snapshot +140                                                                                                                   |
+| + the instance (core-icu row)                                                    | 4,111 | +1,579 | S7 features ≈ 364 + loading ≈ 240 (design estimate)                                                                             |
+| + `cdn()` (core-icu-cdn row)                                                     | 4,466 |   +355 | cdn-v1 +333 (S5)                                                                                                                |
+
+Inside the instance, the cost of each feature, measured by removing it alone from the final
+source (bytes saved): per-call ns/locale and defaultParams on the fast path 48, `has()` 48,
+plugins (setup, transactional rollback, teardowns) 50, `invalid_locale` checks 51, partial
+failure 41, aborting loads outside the new chain 38, the internal seam 28, `ready` 26,
+per-locale fallback lists 26, `defaultParams`/`setDefaultParams` 25, per-call `{ ns, locale }`
+24, `fallback_used` 18, `add()` aborting a pending load 12, missing-key suppression while
+loading 12, `missing` 12, negative-cache retry 10, bounded chain memo 10 — ≈ 480 B together.
+A floor instance with only `t()`, the parent chain, layered `add()` and publish already
+measures **2,578 B**, leaving 672 B under 3,250 for everything above plus loading,
+`setLocale`, `destroy` and the state machine: no set of cuts that keeps the mandated features
+reaches the ceiling. The rev-4 synthesis ceilings (3,600 / 4,050) would be missed by ~510 and
+~420 B as well. The owner decides: raise the R3-10 rows, drop features, or a new ceiling.
+
+`core-devtools` measures 1,298 B (2 under its ceiling): the subpath alone, discovery plus the
+editor loader. Added to `core-icu` it costs 1,105 B (`core-icu-devtools`), against the 1,264 B
+`devtools()` cost of 0.6.0 (`core-base-devtools` − `core-base`).

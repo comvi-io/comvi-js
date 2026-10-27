@@ -1,26 +1,18 @@
 {
   "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle through the published exports map, minify, gzip -9). Every row is gated: gzipBudgetBytes is ceil(baseline.gzipBytes * 1.05) from the one sweep baseline records. Rules and how to re-baseline live in scripts/size-budgets.md — read that before editing this file. Every note here is one line.",
-  "designCeilings": [
-    {
-      "name": "core + ICU (R3-10)",
-      "bytes": 3250,
-      "measuredBy": "core-1a-surface",
-      "missing": "instance, state, flights, defaultParams, view(), loading (lot 1b)"
-    }
-  ],
   "fixtures": [
     {
       "name": "core-compile",
       "entry": ["@comvi/core/internal"],
       "fixture": "core-compile.ts",
-      "gzipBudgetBytes": 1967,
+      "gzipBudgetBytes": 2000,
       "ceilingBytes": 2000,
       "baseline": {
-        "minBytes": 3882,
-        "gzipBytes": 1873,
+        "minBytes": 3983,
+        "gzipBytes": 1931,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated 0.8 compile graph (lot 1a): scanner, ICU plural/select/selectordinal/offset, tags, value formatting, compile cache. Ceiling (S7 compile slice 1,372 + S1 cache 200 + 1a review fixes 117) x 1.15, rounded to 50 (R3-10 method); size-budgets.md 2026-10-27."
+      "note": "Gated 0.8 compile graph: scanner, ICU plural/select/selectordinal/offset, tags, value formatting, compile cache. Ceiling (S7 compile slice 1,372 + S1 cache 200 + 1a review fixes 117) x 1.15, rounded to 50 (R3-10 method); re-baselined in lot 1b (+58 B: numeric-string counts, missing_param `param`, plural rules memo, string fast path); size-budgets.md 2026-10-27."
     },
     {
       "name": "core-locale",
@@ -47,17 +39,79 @@
       "note": "Gated public root after lot 1a: `negotiate` alone, what a detector imports. No design ceiling of its own (see core-locale)."
     },
     {
-      "name": "core-1a-surface",
-      "entry": ["@comvi/core", "@comvi/core/internal"],
-      "fixture": "core-1a-surface.ts",
-      "gzipBudgetBytes": 2450,
-      "ceilingBytes": 2450,
+      "name": "core-icu",
+      "entry": ["@comvi/core"],
+      "fixture": "core-icu.ts",
+      "gzipBudgetBytes": 3250,
+      "ceilingBytes": 3250,
       "baseline": {
-        "minBytes": 4910,
-        "gzipBytes": 2383,
+        "minBytes": 8576,
+        "gzipBytes": 4111,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: every runtime export of @comvi/core and /internal after lot 1a. Ceiling (S7 compile slice 1,372 + S1 cache 200 + S7 canon/parent/negotiate/dir 395 + 1a review fixes 117) x 1.15, rounded to 50 (R3-10 method)."
+      "note": "RED BY DESIGN (blocked, owner decision): core + ICU, R3-10 ceiling 3,250 B kept as the budget; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b."
+    },
+    {
+      "name": "core-icu-cdn",
+      "entry": ["@comvi/core", "@comvi/core/cdn"],
+      "fixture": "core-icu-cdn.ts",
+      "gzipBudgetBytes": 3750,
+      "ceilingBytes": 3750,
+      "baseline": {
+        "minBytes": 9401,
+        "gzipBytes": 4466,
+        "measuredAt": "2026-10-27"
+      },
+      "note": "RED BY DESIGN (blocked, owner decision): core + ICU + cdn(), R3-10 ceiling 3,750 B kept as the budget; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b."
+    },
+    {
+      "name": "core-icu-devtools",
+      "entry": ["@comvi/core", "@comvi/core/devtools"],
+      "fixture": "core-icu-devtools.ts",
+      "gzipBudgetBytes": 5477,
+      "baseline": {
+        "minBytes": 11092,
+        "gzipBytes": 5216,
+        "measuredAt": "2026-10-27"
+      },
+      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships (devtools adds 1,105 B to core-icu in this sweep)."
+    },
+    {
+      "name": "core-devtools",
+      "entry": ["@comvi/core/devtools"],
+      "fixture": "core-devtools.ts",
+      "gzipBudgetBytes": 1300,
+      "ceilingBytes": 1300,
+      "baseline": {
+        "minBytes": 2572,
+        "gzipBytes": 1298,
+        "measuredAt": "2026-10-27"
+      },
+      "note": "Gated: @comvi/core/devtools alone (discovery + the COM-140 editor loader as a plugin). Ceiling 1,300 B (design §2.1, devtools ≤ 1,300)."
+    },
+    {
+      "name": "core-format",
+      "entry": ["@comvi/core", "@comvi/core/format"],
+      "fixture": "core-format.ts",
+      "gzipBudgetBytes": 4597,
+      "baseline": {
+        "minBytes": 9325,
+        "gzipBytes": 4378,
+        "measuredAt": "2026-10-27"
+      },
+      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph (the formatters add 267 B to core-icu in this sweep)."
+    },
+    {
+      "name": "core-plugins",
+      "entry": ["@comvi/core", "@comvi/core/plugins"],
+      "fixture": "core-plugins.ts",
+      "gzipBudgetBytes": 4896,
+      "baseline": {
+        "minBytes": 9791,
+        "gzipBytes": 4662,
+        "measuredAt": "2026-10-27"
+      },
+      "note": "Gated: @comvi/core/plugins detect() + persist() with the instance (they add 551 B to core-icu in this sweep)."
     },
     {
       "name": "fw-react-default",
