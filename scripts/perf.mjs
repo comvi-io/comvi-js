@@ -392,6 +392,19 @@ async function main(argv) {
     return 0;
   }
 
+  // MIGRATION_PENDING (tooling/migration-pending.mjs): the 0.8 rebuild removed the
+  // 0.7 entries this protocol loads (createI18n, icuCompiler, prepareTranslation) from
+  // this checkout's core in lot 1a. The instance protocol is rebuilt in lot 1b; until
+  // then the compile path is benched by scripts/perf-compile.mjs (not gating).
+  const candidateMissing = missingEntries(DEFAULT_DIST);
+  if (candidateMissing.length > 0 && !argv.includes("--compare")) {
+    console.log(
+      `perf: skipped — MIGRATION_PENDING (this core has no ${candidateMissing.join(", ")}; ` +
+        "the createI18n/t() protocol returns in lot 1b — see scripts/perf-compile.mjs)",
+    );
+    return 0;
+  }
+
   // `--compare-ref <gitRef>`: the release form. It prepares the reference build
   // itself, so the gate is one command rather than a worktree recipe nobody runs.
   const compareRef = argv.indexOf("--compare-ref");
