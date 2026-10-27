@@ -35,20 +35,22 @@ only publishing settles that. Re-run the gate after the version bump.
 
 ## How each example is composed
 
-The setup is one file per example. In `react`, `vue`, `svelte` and `solid` that file is the same
-composition apart from the import specifier: ICU through the constructor's `compiler`, then
-`.use(loader({…}))` (or `cdnLoader` when the "Connect your Comvi project" variable is set), then
-`.use(localeDetector({…}))`. Here is `examples/react/src/i18n.ts` with its comments and the missing-key counter's plumbing
-elided:
+The setup is one file per example. `react` and `vanilla` are on the 0.8 API: `createI18n()` takes
+the loader (`cdn()` from `@comvi/core/cdn` when the "Connect your Comvi project" variable is set,
+the bundled catalogs otherwise) and the plugins (`detect()` and `persist()` from
+`@comvi/core/plugins`, `devtools()` from `@comvi/core/devtools`) as options. Here is
+`examples/react/src/i18n.ts` with its comments, the fetched-catalogs store and the missing-key
+counter's plumbing elided:
 
 ```ts title="src/i18n.ts"
-import { createI18n, icuCompiler, loader } from "@comvi/react";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
-import { localeDetector } from "@comvi/plugin-locale-detector";
+import { createI18n, type Loader } from "@comvi/react";
+import { cdn } from "@comvi/core/cdn";
+import { devtools } from "@comvi/core/devtools";
+import { detect, persist } from "@comvi/core/plugins";
 
 export const locales = ["en", "uk", "de", "ar"] as const;
 
-const localCatalogs = {
+const bundled = {
   en: () => import("./locales/en.json"),
   uk: () => import("./locales/uk.json"),
   de: () => import("./locales/de.json"),
@@ -59,36 +61,34 @@ const localCatalogs = {
   "ar:account": () => import("./locales/account/ar.json"),
 };
 
-const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
+const fromBundle: Loader = async (locale, ns) => {
+  const load = bundled[(ns === "default" ? locale : `${locale}:${ns}`) as keyof typeof bundled];
+  if (!load) throw new Error(`No bundled catalog for ${locale}/${ns}`);
+  return (await load()).default;
+};
 
-const catalogs: ReturnType<typeof loader> = cdnUrl
-  ? cdnLoader({ cdnUrl, fallback: localCatalogs })
-  : loader(localCatalogs);
+const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
+const loader = cdnUrl ? cdn(cdnUrl, { fallback: bundled }) : fromBundle;
 
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  compiler: icuCompiler,
-  onMissingKey: ({ namespace, key }) => {
-    /* count distinct `${namespace}:${key}` for the Errors card */
+  loader,
+  plugins: [detect({ supported: [...locales] }), persist(), devtools()],
+  onError(error) {
+    /* count distinct `${error.ns}:${error.key}` of `missing_key` for the Errors card */
   },
-})
-  .use(catalogs)
-  .use(
-    localeDetector({
-      supportedLocales: [...locales],
-      order: ["querystring", "localStorage", "navigator"],
-      caches: ["localStorage"],
-      fallbackLocale: "en",
-    }),
-  );
+});
 ```
 
-The three that depart from it:
+**Vanilla** composes the same instance from `@comvi/core` and its subpaths; plain `t()` parses
+`<tag>…</tag>` itself (rich text is always on in 0.8).
 
-- **Vanilla** composes the same chain from the core subpaths (`@comvi/core`, `@comvi/core/icu`,
-  `@comvi/core/loader`) and side-effect-imports `@comvi/core/tags`, so plain `t()` parses
-  `<tag>…</tag>`; the framework examples get tags through `<T>` instead.
+The other examples are still on the 0.7 API until their binding moves to the 0.8 core (Vue lot 4,
+Svelte and Solid lot 5, Next lot 6, Nuxt lot 7; `tooling/migration-pending.mjs` lists them): ICU
+through the constructor's `compiler`, then `.use(loader({…}))` (or `cdnLoader`), then
+`.use(localeDetector({…}))`. Of those:
+
 - **Next** keeps the instance in `examples/next/src/i18n/config.ts` and the routing in a separate
   `routing.ts`, because `middleware.ts` runs in the Edge runtime and must not import the composed
   instance. `next.config.ts` points `withComvi({ config })` at the config module, the layout renders
