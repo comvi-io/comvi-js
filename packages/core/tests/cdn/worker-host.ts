@@ -2,8 +2,10 @@
  * Runs the platform's CDN worker (fixtures/worker.mjs, a frozen bundle of
  * platform/apps/cdn-worker/src/index.ts) in-process under Node: an fs-backed R2 shim over
  * fixtures/cdn-root, an in-memory `caches.default`, and test controls that are not part
- * of the worker — `delay(path, ms)`, `log()`, `reset()`. Ported from lot-0 S5
- * `worker-host.mjs`.
+ * of the worker — `hold(path)` (the response waits until `release(path)`), the barriers
+ * `arrived(path)` (the request reached the host) and `closed(path)` (its connection ended,
+ * answered or aborted), `log()`, `reset()`. No test waits on a clock: every ordering is a
+ * barrier. Ported from lot-0 S5 `worker-host.mjs`.
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -49,7 +51,24 @@ export const startWorkerHost = async () => {
       put: async (req: Request, res: Response) => void store.set(req.url, res),
     },
   };
-  const delays = new Map<string, number>();
+  /** A promise per key, made on first ask, resolved by `fire`. */
+  const barrier = () => {
+    const m = new Map<string, { p: Promise<void>; y: () => void }>();
+    const at = (k: string) => {
+      let b = m.get(k);
+      if (!b) {
+        let y!: () => void;
+        const p = new Promise<void>((r) => (y = r));
+        m.set(k, (b = { p, y }));
+      }
+      return b;
+    };
+    return { wait: (k: string) => at(k).p, fire: (k: string) => at(k).y(), clear: () => m.clear() };
+  };
+  const holds = barrier();
+  const held = new Set<string>();
+  const arrivals = barrier();
+  const closes = barrier();
   let log: Entry[] = [];
   const server = http.createServer(async (req, res) => {
     const u = new URL(req.url!, "http://x");
@@ -62,11 +81,13 @@ export const startWorkerHost = async () => {
       status: 0,
     };
     log.push(entry);
-    req.on("close", () => {
+    const key = u.pathname.slice(1);
+    res.on("close", () => {
       if (!res.writableFinished) entry.aborted = true;
+      closes.fire(key);
     });
-    const d = delays.get(u.pathname.slice(1));
-    if (d) await new Promise((r) => setTimeout(r, d));
+    arrivals.fire(key);
+    if (held.has(key)) await holds.wait(key);
     if (entry.aborted) return;
     const headers = new Headers();
     for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string") headers.set(k, v);
@@ -86,11 +107,21 @@ export const startWorkerHost = async () => {
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
     origin,
-    delay: (p: string, ms: number) => void delays.set(p, ms),
+    /** Holds the response for `p` until `release(p)` (or `reset()`). */
+    hold: (p: string) => void held.add(p),
+    release: (p: string) => holds.fire(p),
+    /** Resolves when a request for `p` has reached the host. */
+    arrived: (p: string) => arrivals.wait(p),
+    /** Resolves when the connection of a request for `p` has ended (answered or aborted). */
+    closed: (p: string) => closes.wait(p),
     log: () => log.map((e) => `${e.status} ${e.path}${e.aborted ? " ABORTED" : ""}`),
     entries: () => log,
     reset: () => {
-      delays.clear();
+      for (const p of held) holds.fire(p);
+      held.clear();
+      holds.clear();
+      arrivals.clear();
+      closes.clear();
       log = [];
       store.clear();
     },

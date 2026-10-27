@@ -14,7 +14,7 @@ import type * as Cdn from "../../src/cdn";
 import type * as Devtools from "../../src/devtools";
 
 const DIST = path.resolve(__dirname, "../../dist");
-const load = async <T,>(file: string): Promise<T> =>
+const load = async <T>(file: string): Promise<T> =>
   import(pathToFileURL(path.join(DIST, file)).href);
 const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../package.json"), "utf8"));
 
@@ -62,13 +62,18 @@ describe.each([
 
   it("the CDN subpath and the instance work across chunks", async () => {
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
-    const { withFallback } = await load<typeof Cdn>(`comvi-core-cdn${suffix}.js`);
-    const i18n = createI18n({
-      locale: "en",
-      loader: withFallback(() => Promise.reject(new Error("down")), { en: () => ({ a: "A" }) }),
-    });
-    await i18n.ready;
-    expect(i18n.t("a")).toBe("A");
+    const { cdn } = await load<typeof Cdn>(`comvi-core-cdn${suffix}.js`);
+    vi.stubGlobal("fetch", () => Promise.reject(new Error("down")));
+    try {
+      const i18n = createI18n({
+        locale: "en",
+        loader: cdn("https://cdn.example", { fallback: { en: () => ({ a: "A" }) } }),
+      });
+      await i18n.ready;
+      expect(i18n.t("a")).toBe("A");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("inlines the package version into devtools", async () => {

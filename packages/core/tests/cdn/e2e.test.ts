@@ -2,10 +2,11 @@
  * `createI18n` + `cdn()` end to end against the platform's CDN worker (frozen bundle, run
  * in-process by worker-host.ts) over real HTTP — the S5 suite (12 scenarios) on the
  * shipped code, plus the R4-11 partial failure and the app-spelling rule (R4-10).
- * Timing is never asserted; delays only order events.
+ * Timing is never asserted and no test sleeps: the host's barriers (`arrived`, `closed`)
+ * order events, and a held response waits until released.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { cdn, withFallback } from "../../src/cdn";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { cdn } from "../../src/cdn";
 import type { I18nError } from "../../src/errors";
 import { createI18n, type I18nOptions } from "../../src/instance";
 import { startWorkerHost } from "./worker-host";
@@ -17,7 +18,6 @@ beforeAll(async () => {
 afterAll(() => host.close());
 beforeEach(() => host.reset());
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // A trailing slash on purpose: today's examples carry one.
 const base = () => `${host.origin}/dist1/`;
 const mk = (o: Partial<I18nOptions> = {}) => {
@@ -99,17 +99,69 @@ describe("cdn() against the CDN v1 worker", () => {
     expect(i18n.locale).toBe("en");
   });
 
-  it("7 · withFallback serves a bundled catalog when the CDN has none", async () => {
+  it("7 · cdn({ fallback }) serves a bundled catalog when the CDN has none (R3-12)", async () => {
     const { i18n } = mk({
-      loader: withFallback(cdn(base()), {
-        fr: () => Promise.resolve({ default: { hello: "Bonjour, {name}!" } }),
+      loader: cdn(base(), {
+        fallback: {
+          fr: () => Promise.resolve({ default: { hello: "Bonjour, {name}!" } }),
+          "fr:shop": () => ({ "cart.title": "Panier" }),
+        },
       }),
     });
     await i18n.ready;
     await i18n.setLocale("fr");
+    await i18n.load("shop");
     expect(i18n.locale).toBe("fr");
     expect(i18n.t("hello", { name: "A" })).toBe("Bonjour, A!");
-    expect(host.log()).toEqual(["200 /dist1/en.json", "404 /dist1/fr.json"]);
+    expect(i18n.t("cart.title", { ns: "shop" })).toBe("Panier");
+    expect(host.log().sort()).toEqual([
+      "200 /dist1/en.json",
+      "200 /dist1/shop/en.json",
+      "404 /dist1/fr.json",
+      "404 /dist1/shop/fr.json",
+    ]);
+  });
+
+  it("7b · the fallback also answers a timeout, a network error and a body that is not a catalog", async () => {
+    const fallback = { de: () => ({ hello: "Hallo (bundled)" }), "en:bad": () => ({ ok: "OK" }) };
+    host.hold("dist1/de.json");
+    const timedOut = await cdn(base(), { timeout: 50, fallback })(
+      "de",
+      "default",
+      new AbortController().signal,
+    );
+    expect(timedOut).toEqual({ hello: "Hallo (bundled)" });
+    const down = await cdn("http://127.0.0.1:1/x", { fallback })(
+      "de",
+      "default",
+      new AbortController().signal,
+    );
+    expect(down).toEqual({ hello: "Hallo (bundled)" });
+    expect(await cdn(base(), { fallback })("en", "bad", new AbortController().signal)).toEqual({
+      ok: "OK",
+    });
+  });
+
+  it("7c · never on abort: an aborted load rejects with the abort, the fallback is not read", async () => {
+    const used: string[] = [];
+    host.hold("dist1/de.json");
+    const a = new AbortController();
+    const p = cdn(base(), { fallback: { de: () => (used.push("de"), {}) } })(
+      "de",
+      "default",
+      a.signal,
+    );
+    await host.arrived("dist1/de.json");
+    a.abort();
+    await expect(p).rejects.toThrow(/abort/i);
+    expect(used).toEqual([]);
+  });
+
+  it("7d · `root: false` puts every namespace in its own folder", async () => {
+    await cdn(base(), { root: false })("en", "default", new AbortController().signal).catch(
+      () => {},
+    );
+    expect(host.log()).toEqual(["404 /dist1/default/en.json"]);
   });
 
   it("8 · a body that is not a catalog (an array) is a load failure", async () => {
@@ -137,18 +189,18 @@ describe("cdn() against the CDN v1 worker", () => {
     expect(errors.filter((e) => e.code === "load_failed").map((e) => e.ns)).toEqual(["a/b", ".."]);
   });
 
-  it("10 · abort mid-flight: en → de (slow) → back to en aborts the de request, nothing lands", async () => {
+  it("10 · abort mid-flight: en → de (held) → back to en aborts the de request, nothing lands", async () => {
     const { i18n } = mk();
     await i18n.ready;
-    host.delay("dist1/de.json", 400);
+    host.hold("dist1/de.json");
     let published = 0;
     const toDe = i18n.setLocale("de");
-    await sleep(50);
+    await host.arrived("dist1/de.json");
     i18n.on(() => published++);
     await i18n.setLocale("en");
     await expect(toDe).resolves.toBeUndefined();
     expect(i18n.locale).toBe("en");
-    await sleep(450);
+    await host.closed("dist1/de.json");
     expect(host.log()).toEqual(["200 /dist1/en.json", "0 /dist1/de.json ABORTED"]);
     expect(i18n.locale).toBe("en");
     expect(published).toBe(1); // the abort's own state (load end); no catalog, no switch
@@ -157,24 +209,64 @@ describe("cdn() against the CDN v1 worker", () => {
   it("11 · destroy() while a load is in flight aborts it; the switch never lands", async () => {
     const { i18n } = mk();
     await i18n.ready;
-    host.delay("dist1/de.json", 400);
+    host.hold("dist1/de.json");
     const p = i18n.setLocale("de");
-    await sleep(50);
+    await host.arrived("dist1/de.json");
     i18n.destroy();
     await expect(p).resolves.toBeUndefined();
-    await sleep(450);
+    await host.closed("dist1/de.json");
     expect(i18n.locale).toBe("en");
     expect(host.log()).toEqual(["200 /dist1/en.json", "0 /dist1/de.json ABORTED"]);
   });
 
-  it("12 · the timeout covers a slow response; the switch rejects with the timeout error", async () => {
+  it("12 · the timeout covers a response that never comes; the switch rejects with the timeout error", async () => {
     const { i18n } = mk({ loader: cdn(base(), { timeout: 100 }) });
     await i18n.ready;
-    host.delay("dist1/de.json", 400);
+    host.hold("dist1/de.json");
     await expect(i18n.setLocale("de")).rejects.toThrow(/timeout 100 ms: .*\/dist1\/de\.json/);
     expect(i18n.locale).toBe("en");
-    await sleep(350);
+    await host.closed("dist1/de.json");
     expect(host.log()).toEqual(["200 /dist1/en.json", "0 /dist1/de.json ABORTED"]);
+  });
+
+  it("12b · the timeout also covers a body that never settles (a wrapped transport)", async () => {
+    vi.useFakeTimers();
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: () => new Promise(() => {}),
+    }));
+    try {
+      const p = cdn("https://cdn.example", { timeout: 1000 })(
+        "en",
+        "default",
+        new AbortController().signal,
+      );
+      const check = expect(p).rejects.toThrow(/timeout 1000 ms/);
+      await vi.advanceTimersByTimeAsync(1000);
+      await check;
+    } finally {
+      vi.unstubAllGlobals();
+      globalThis.fetch = real;
+      vi.useRealTimers();
+    }
+  });
+
+  it("partial failure through a parent: uk-UA (404) switches on uk.json", async () => {
+    const { i18n, errors } = mk();
+    await i18n.ready;
+    await i18n.setLocale("uk-UA");
+    expect(i18n.locale).toBe("uk-UA");
+    expect(i18n.t("items", { count: 3 })).toBe("3 товари");
+    expect(host.log()).toEqual([
+      "200 /dist1/en.json",
+      "404 /dist1/uk-UA.json",
+      "200 /dist1/uk.json",
+    ]);
+    expect(errors).toContainEqual(
+      expect.objectContaining({ code: "load_failed", locale: "uk-UA" }),
+    );
   });
 
   it("requests the locale as the app spells it, never the canonical form (iw stays iw)", async () => {
