@@ -35,12 +35,17 @@ export interface ComviHandle {
   readonly kind: "comvi";
   /** The messages of (ns, locale) as the catalogs hold them: keys to ICU source, no markers. */
   read(ns: string, locale: string): Record<string, string>;
-  /** The instance's published state. */
-  state(): State;
   /**
-   * Sets the marking hook (`null` clears it) and publishes a new state, so every binding
-   * re-renders: output rendered from then on is marked, or no longer marked. Messages
-   * already compiled stay compiled.
+   * The instance's published state as of the call, with its active namespaces (`ns`) —
+   * a fresh object on every call (compare `rev`, not identity). Protocol 2 guarantees
+   * only the fields of {@link HandleState}; the rest of `State` is internal.
+   */
+  state(): HandleState;
+  /**
+   * Sets the marking hook and publishes a new state, so every binding re-renders: output
+   * rendered from then on is marked, or no longer marked. `null` — or anything that is
+   * not a function — clears it. Messages already compiled stay compiled. After the
+   * instance's `destroy()` it does nothing.
    */
   mark(fn: Mark | null): void;
   /**
@@ -51,6 +56,26 @@ export interface ComviHandle {
    * and left no editor. Nothing is cached or retried here; a second call loads again.
    */
   load(version?: string): Promise<unknown>;
+}
+
+/**
+ * What `x.state()` guarantees for the lifetime of protocol 2 (the editor may read these
+ * by name; every other field of `State` may change in any release).
+ */
+export interface HandleState extends State {
+  /** Moves on every published change. */
+  readonly rev: number;
+  /** The current locale, as the app spells it. */
+  readonly locale: string;
+  /**
+   * The catalogs: namespace → locale → slot; a slot's `m` (base) and optional `p` (patch
+   * on top) are flat key → ICU source maps. `x.read()` is the merged view of one pair.
+   */
+  readonly c: State["c"];
+  /** Loads in flight, as `locale + "\0" + ns`. */
+  readonly ld: readonly string[];
+  /** The active namespaces — loaded, still loading, failed or empty alike. */
+  readonly ns: readonly string[];
 }
 
 /** The entry pushed onto the `window.__COMVI__` queue (protocol 2). */
@@ -71,9 +96,11 @@ declare global {
 }
 
 // Host and path are constants: the only variable part of the editor URL is a version
-// that matched this pattern (no `/`, `?`, `#`, `:` or `%` can pass it).
+// that matched this pattern: `latest` or an exact SemVer 2.0 version without build
+// metadata (no leading zeros, no empty or `_` identifiers; no `/`, `?`, `#`, `:`, `%`).
 const SRC = "https://cdn.jsdelivr.net/npm/@comvi/editor@";
-const VER = /^(latest|\d+\.\d+\.\d+(-[\w.-]+)?)$/;
+const VER =
+  /^(latest|(0|[1-9]\d*)(\.(0|[1-9]\d*)){2}(-(0|[1-9]\d*|\d*[a-zA-Z-][\da-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][\da-zA-Z-]*))*)?)$/;
 
 /** The devtools plugin: makes the instance discoverable by the Comvi browser extension. */
 export const devtools = (): Plugin => ({
@@ -81,15 +108,20 @@ export const devtools = (): Plugin => ({
   setup(i18n) {
     if (typeof window == "undefined") return;
     const c = CORE.get(i18n)!;
+    /** Set by destroy(): the handle an editor may still hold marks nothing. */
+    let d: unknown;
     const e: ComviQueueEntry = {
       v: VERSION,
       i: i18n,
       x: {
         p: 2,
         kind: "comvi",
-        read: (ns, l, s = c.s().c[ns]?.[l]) => ({ ...s?.m, ...s?.p }),
-        state: c.s,
-        mark: c.m,
+        read: (ns, l) => {
+          const s = c.s().c[ns]?.[l];
+          return { ...s?.m, ...s?.p };
+        },
+        state: () => ({ ...c.s(), ns: [...c.n] }),
+        mark: (f) => d || c.m(typeof f == "function" ? f : null),
         load: (v = "latest") =>
           // Everything runs inside the executor: what throws here — a version that is not
           // one, no document, a Trusted Types policy refusing the `src` — rejects.
@@ -100,7 +132,7 @@ export const devtools = (): Plugin => ({
               window.ComviInContextEditor
                 ? y(window.ComviInContextEditor)
                 : n(Error("[@comvi/core/devtools] no editor"));
-            s.onerror = n;
+            s.onerror = () => n(Error("[@comvi/core/devtools] load failed"));
             s.src = SRC + v + "/dist/standalone.iife.js";
             document.documentElement.append(s);
           }),
@@ -112,6 +144,7 @@ export const devtools = (): Plugin => ({
       /* discovery must never break setup */
     }
     return () => {
+      d = 1;
       try {
         const q = window.__COMVI__!;
         // -1 >>> 0 is 2^32 - 1: a splice past the end removes nothing.

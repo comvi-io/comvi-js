@@ -118,6 +118,8 @@ describe("x.mark (H4)", () => {
     i18n.destroy();
     expect(() => x.mark(bracket())).not.toThrow();
     expect(sub).not.toHaveBeenCalled();
+    expect(state(i18n).mk).toBeUndefined();
+    expect(i18n.t("hi")).toBe("Hi");
   });
 });
 
@@ -157,8 +159,32 @@ describe("no session, no devtools", () => {
     expect(state(i18n).mk).toBeUndefined();
     expect(i18n.t("hi")).toBe("Hi");
     expect(i18n.t("nope")).toBe("nope");
-    // No exported function of /internal is a marker setter.
-    expect(Object.keys(internal).filter((k) => /mark/i.test(k))).toEqual([]);
+    // /internal exports exactly these: none of them sets a hook, and the instance seam
+    // (`CORE`, whose `m` is the setter) is not among them. A new export must be added
+    // here on purpose.
+    expect(Object.keys(internal).sort()).toEqual(
+      [
+        "activate",
+        "canonicalize",
+        "compile",
+        "defaultOnError",
+        "dir",
+        "formatNumber",
+        "formatValue",
+        "inherit",
+        "intl",
+        "loading",
+        "lookup",
+        "negotiate",
+        "parents",
+        "pluralRules",
+        "recordFor",
+        "render",
+        "state",
+        "translate",
+        "view",
+      ].sort(),
+    );
     expect(win.__COMVI__).toBeUndefined();
   });
 
@@ -201,5 +227,38 @@ describe("compiled messages survive (H3)", () => {
     x.mark(null);
     expect(compiled(i18n, "name")).toBe(fn);
     expect(state(i18n).c.default.en.m).toBe(MSGS);
+  });
+
+  it("a save of a key with its unchanged template keeps its compiled message", () => {
+    const { i18n } = make();
+    i18n.t("name", { n: "A" });
+    const fn = compiled(i18n, "name");
+    // What t() renders from now on: the patch's entry (compiled on lookup if it had none).
+    const used = () => {
+      i18n.t("name", { n: "B" });
+      const slot = state(i18n).c.default.en;
+      expect(slot.p && "name" in slot.p).toBe(true);
+      return slot.pc!.name;
+    };
+    i18n.add("en", { name: "Hi {n}" });
+    expect(used()).toBe(fn);
+    // Saved again into an existing patch, still unchanged.
+    i18n.add("en", { hi: "Hello" });
+    i18n.add("en", { name: "Hi {n}" });
+    expect(used()).toBe(fn);
+  });
+
+  it("flattening a patch past FLAT keys keeps the patch's compiled messages", () => {
+    const { i18n } = make();
+    i18n.add("en", { saved: "Saved {n}" });
+    i18n.t("saved", { n: 1 });
+    const fn = compiled(i18n, "saved");
+    expect(typeof fn).toBe("function");
+    const many: Record<string, string> = {};
+    for (let i = 0; i < 300; i++) many["k" + i] = "v" + i;
+    i18n.add("en", many);
+    const slot = state(i18n).c.default.en;
+    expect(slot.p).toBeUndefined();
+    expect(slot.c.saved).toBe(fn);
   });
 });

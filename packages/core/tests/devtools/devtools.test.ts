@@ -163,12 +163,76 @@ describe("x.read and x.state", () => {
     expect(x.read("shop", "en")).toEqual({});
   });
 
-  it("state() is the published state", () => {
+  it("read() takes two parameters: a third one cannot stand in for the pair", () => {
+    const x = handle(make());
+    expect(x.read.length).toBe(2);
+    const fake = { m: { evil: "E" } };
+    expect((x.read as (...a: unknown[]) => unknown)("default", "en", fake)).toEqual({
+      hi: "Hi",
+      name: "Hi {n}",
+    });
+  });
+
+  it("state() is the published state as of the call, with the active namespaces", () => {
     const i18n = make();
     const x = handle(i18n);
-    expect(x.state()).toBe(state(i18n));
+    const s = x.state();
+    expect(s).toMatchObject({ ...state(i18n) });
+    expect(s.ns).toEqual(["default"]);
     i18n.add("en", { x: "X" });
-    expect(x.state()).toBe(state(i18n));
+    expect(x.state().rev).toBe(state(i18n).rev);
+    expect(x.state().c).toBe(state(i18n).c);
+  });
+
+  it("state().ns lists every active namespace: empty, failed and loading ones too", async () => {
+    let fail = true;
+    const i18n = createI18n({
+      locale: "en",
+      namespaces: ["default", "shop"],
+      onError: () => {},
+      loader: (_l, ns) =>
+        ns == "shop" && fail ? Promise.reject(new Error("down")) : Promise.resolve({}),
+      plugins: [devtools()],
+    });
+    const x = handle(i18n);
+    // Two namespaces, neither with a catalog yet (both loading).
+    expect(x.state().ns).toEqual(["default", "shop"]);
+    await i18n.ready;
+    // `shop` failed; it is still active.
+    expect(x.state().c.shop).toBeUndefined();
+    expect(x.state().ns).toEqual(["default", "shop"]);
+    fail = false;
+    // Activated with nothing to load and nothing published: still listed.
+    const bare = createI18n({ locale: "en", plugins: [devtools()] });
+    void bare.load("help");
+    expect(handle(bare).state().ns).toEqual(["default", "help"]);
+    // The handle of an instance whose namespaces differ only by an empty one differs.
+    const one = createI18n({ locale: "en", plugins: [devtools()] });
+    expect(handle(one).state().ns).toEqual(["default"]);
+  });
+});
+
+describe("x.mark guards", () => {
+  it("a value that is not a function clears the hook instead of breaking t()", () => {
+    const i18n = make();
+    const x = handle(i18n);
+    x.mark((out) => `[${out}]`);
+    expect(i18n.t("hi")).toBe("[Hi]");
+    for (const v of ["x", 42, {}, undefined] as unknown[]) {
+      x.mark(v as never);
+      expect(state(i18n).mk).toBeNull();
+      expect(i18n.t("hi")).toBe("Hi");
+    }
+  });
+
+  it("after destroy() mark() changes nothing: no new state, t() unmarked", () => {
+    const i18n = make();
+    const x = handle(i18n);
+    const s = state(i18n);
+    i18n.destroy();
+    x.mark((out) => `[${out}]`);
+    expect(state(i18n)).toBe(s);
+    expect(i18n.t("hi")).toBe("Hi");
   });
 });
 
@@ -180,6 +244,10 @@ describe("x.load(version?) — the editor on the page (R3-15)", () => {
     ["latest", "latest"],
     ["1.2.3", "1.2.3"],
     ["0.8.0-rc.1", "0.8.0-rc.1"],
+    ["0.0.0", "0.0.0"],
+    ["10.20.30", "10.20.30"],
+    ["1.0.0-alpha.0.x-y", "1.0.0-alpha.0.x-y"],
+    ["1.0.0-0a.1", "1.0.0-0a.1"],
   ])("version %j → one script for the fixed host and path", (v, as) => {
     void handle(make())
       .load(v)
@@ -201,11 +269,11 @@ describe("x.load(version?) — the editor on the page (R3-15)", () => {
     await expect(p).rejects.toThrow(/\[@comvi\/core\/devtools\] no editor/);
   });
 
-  it("rejects when the script fails", async () => {
+  it("rejects with an Error when the script fails", async () => {
     const p = handle(make()).load();
-    const e = new Event("error");
-    scripts()[0].onerror!(e);
-    await expect(p).rejects.toBe(e);
+    scripts()[0].onerror!(new Event("error"));
+    await expect(p).rejects.toThrow(/\[@comvi\/core\/devtools\] load failed/);
+    await expect(p).rejects.toBeInstanceOf(Error);
   });
 
   it.each([
@@ -220,6 +288,18 @@ describe("x.load(version?) — the editor on the page (R3-15)", () => {
     "",
     "latest/x",
     " 1.2.3",
+    "LATEST",
+    "01.2.3",
+    "1.02.3",
+    "1.2.03",
+    "1.2.3-",
+    "1.2.3-..",
+    "1.2.3-a..b",
+    "1.2.3-a_b",
+    "1.2.3-01",
+    "1.2.3-rc.01",
+    "1.2.3+build",
+    "1.2.3.4",
   ])("never a URL: %j rejects and creates no script", async (v) => {
     const x = handle(make());
     let threw = false;
