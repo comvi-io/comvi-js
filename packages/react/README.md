@@ -113,7 +113,9 @@ import { T } from "@comvi/react";
 
 Each tag a translator wrote is a prop of the same name; the handler gets the tag's content as one
 React node. A tag without a handler renders its content as text. Every prop but `i18nKey` and
-`ns` is a message param, `children` included.
+the per-call options `ns`, `locale` and `markers` is a message param, `children` included.
+`markers={false}` keeps the in-context editor from marking that message (`t()` takes
+`{ markers: false }`).
 
 ### How it works
 
