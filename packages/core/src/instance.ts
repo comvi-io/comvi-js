@@ -337,6 +337,8 @@ export const createI18n = (o: I18nOptions): I18n => {
       if ((x = arg(p, "locale")) && chain(x as string).o) l = x as string;
       x = arg(p, "markers");
     }
+    // An empty namespace is the default one (`i18n.ns("")`, `useI18n("")` and its `<T>`).
+    n ||= D;
     // The state's own copy of defaultParams (R4-12: an older snapshot keeps its own).
     if (s.dp) p = N(s.dp, p);
     const ch = chain(l);

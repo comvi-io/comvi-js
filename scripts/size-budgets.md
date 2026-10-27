@@ -689,24 +689,24 @@ the lot 1d part 1 baseline (ecba8a3a).
 | core-compile            | 1,853  | 1,857 | +4  | 1,950  | 2,000   | `{x}` list of numbers/Dates → String    |
 | core-locale             | 578    | 588   | +10 | 618    | —       | memo stores after computing (rollover)  |
 | core-negotiate          | 490    | 498   | +8  | 523    | —       | same                                    |
-| core-icu                | 4,298  | 4,370 | +72 | 4,449  | 4,449   | R3-13 ceiling unchanged; 79 B headroom  |
-| core-icu-cdn            | 4,730  | 4,808 | +78 | 4,895  | 4,895   | R3-13 ceiling unchanged; 87 B headroom  |
-| core-icu-devtools       | 4,730  | 4,809 | +79 | 5,017  | 5,017   | devtools **+439 B** over core-icu (500) |
+| core-icu                | 4,298  | 4,376 | +78 | 4,449  | 4,449   | R3-13 ceiling unchanged; 73 B headroom  |
+| core-icu-cdn            | 4,730  | 4,815 | +85 | 4,895  | 4,895   | R3-13 ceiling unchanged; 80 B headroom  |
+| core-icu-devtools       | 4,730  | 4,815 | +85 | 5,017  | 5,017   | devtools **+439 B** over core-icu (500) |
 | core-devtools           | 613    | 625   | +12 | 644    | 644     | 64-character version guard              |
-| core-format             | 4,853  | 4,915 | +62 | 5,161  | —       |                                         |
-| core-plugins            | 4,876  | 4,944 | +68 | 5,192  | —       |                                         |
-| react-icu-cdn           | 5,204  | 5,276 | +72 | 5,395  | 5,395   | **+468 B** over core-icu-cdn (cap 500)  |
-| fw-react-default        | 4,737  | 4,803 | +66 | 5,044  | —       |                                         |
-| fw-react-full-composite | 7,578  | 7,664 | +86 | 8,048  | —       |                                         |
+| core-format             | 4,853  | 4,924 | +71 | 5,171  | —       |                                         |
+| core-plugins            | 4,876  | 4,951 | +75 | 5,199  | —       |                                         |
+| react-icu-cdn           | 5,204  | 5,284 | +80 | 5,395  | 5,395   | **+469 B** over core-icu-cdn (cap 500)  |
+| fw-react-default        | 4,737  | 4,807 | +70 | 5,048  | —       |                                         |
+| fw-react-full-composite | 7,578  | 7,672 | +94 | 8,056  | —       |                                         |
 
 Re-baselined: every row in the table, budget = ceil(measured × 1.05), never above the row's
 ceiling. No ceiling and no cap moved. The bytes are review fixes (correctness, not features),
-by file on `core-icu`: `instance.ts` +43 (own-property per-call options, an invalid per-call
+by file on `core-icu`: `instance.ts` +49 (own-property per-call options, an invalid per-call
 locale reported once through the chain memo, `load()` publishing a namespace joining the active
-set, no marking after `destroy()`, `defaultParams: {}` as none), `state.ts` +29 (an `add()` of
+set, no marking after `destroy()`, `defaultParams: {}` as none, an empty namespace as `default`), `state.ts` +29 (an `add()` of
 messages the pair already renders keeps the slot — the handover render loop), `fmt.ts` +7,
-`locale.ts` +6. The React increment over `core-icu-cdn` went DOWN (+474 → +468): the binding
+`locale.ts` +6. The React increment over `core-icu-cdn` went DOWN (+474 → +469): the binding
 gained the prototype-free `Ts` cache, the handover chunk (not in the row) its own-key loop.
 
-Headroom for later lots: `core-icu` 79 B and `core-icu-cdn` 87 B under their R3-13 ceilings;
-the React increment 32 B under its +500 B cap; devtools 61 B under its +500 B target.
+Headroom for later lots: `core-icu` 73 B and `core-icu-cdn` 80 B under their R3-13 ceilings;
+the React increment 31 B under its +500 B cap; devtools 61 B under its +500 B target.

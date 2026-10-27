@@ -202,6 +202,15 @@ describe("per-call locale", () => {
     expect(i18n.t("a", { ns: "shop", locale: "de" })).toBe("Laden");
   });
 
+  it("an empty namespace is the default one", () => {
+    const { i18n } = make({
+      locale: "en",
+      catalogs: { default: { en: { a: "A" } }, "": { en: { a: "EMPTY" } } },
+    });
+    expect(i18n.ns("")("a")).toBe("A");
+    expect(i18n.t("a", { ns: "" })).toBe("A");
+  });
+
   it("an empty per-call locale is no per-call locale", () => {
     const { i18n, errors } = make({
       locale: "de",
