@@ -471,7 +471,9 @@ that the accidental share is small (the cuts above) but did not establish an irr
 for the rest; the owner options below are what removing behaviour buys.
 
 **Owner options**, each measured alone on a throwaway commit over the pass's tip (dist, bytes
-saved `core-icu` / `core-icu-cdn`; tests failing out of 1,275):
+saved `core-icu` / `core-icu-cdn`; tests failing out of 1,275). The `cdn()` rows and the three
+stacks were re-measured over the fix-pass tip (36a1de93, base 4,260 / 4,682, 1,277 tests); the
+other rows touch neither `cdn.ts` nor `missing_param` and carry over:
 
 | Option                                                                        |   Saves | Tests | Trade-off                                          |
 | ----------------------------------------------------------------------------- | ------: | ----: | -------------------------------------------------- |
@@ -492,14 +494,36 @@ saved `core-icu` / `core-icu-cdn`; tests failing out of 1,275):
 | unbounded per-instance chain memo                                             |   18/21 |     0 | per-call `{ locale }` from user input grows memory |
 | no `Object.freeze` on patch/flattened catalogs                                |     8/7 |     0 | a mutated view catalog could desync its record     |
 | `structuredClone` for the `fallbackLocale` copy                               |     5/5 |     0 | 2022 browser floor for core                        |
-| `cdn()`: no `fallback` (contradicts R3-12)                                    |    5/58 |     4 |                                                    |
-| `cdn()`: timeout covers the response only, not the body                       |    0/30 |     1 | a body that never settles hangs the load           |
-| `cdn()`: errors without URL / timeout text                                    |    0/23 |     7 | "HTTP 404" without the URL                         |
-| `cdn()`: no `next` passthrough                                                |     0/7 |     1 | Next.js fetch cache options gone                   |
-| the perf/robustness six together (fast path, two memos, bound, freeze, clone) | 155/153 |     0 |                                                    |
-| all feature/DX options except the three that contradict R3                    | 434/484 |    61 | 3,819 / 4,186: still 569 / 436 over                |
-| everything above, R3-8/11/12 included                                         | 623/727 |   100 | 3,630 / 3,943: still 380 / 193 over                |
+| `cdn()`: no `fallback` (contradicts R3-12)                                    |    5/55 |     4 |                                                    |
+| `cdn()`: timeout covers the response only, not the body                       |    0/35 |     1 | a body that never settles hangs the load           |
+| `cdn()`: errors without URL / timeout text                                    |    0/22 |     7 | "HTTP 404" without the URL                         |
+| `cdn()`: no `next` passthrough                                                |     0/8 |     1 | Next.js fetch cache options gone                   |
+| `cdn()`: the three above together                                             |    0/66 |     8 |                                                    |
+| `cdn()`: the three above plus no `fallback`                                   |   5/121 |    12 |                                                    |
+| the perf/robustness six together (fast path, two memos, bound, freeze, clone) | 155/150 |     0 |                                                    |
+| all feature/DX options except the three that contradict R3                    | 434/484 |    61 | 3,826 / 4,198: still 576 / 448 over                |
+| everything above, R3-8/11/12 included                                         | 623/729 |   100 | 3,637 / 3,953: still 387 / 203 over                |
 
-No combination reaches 3,250 / 3,750. The verdict of the lot-1b section stands at 1,003 / 920 B:
+No combination reaches 3,250 / 3,750. The verdict of the lot-1b section stands at 1,010 / 932 B
+after the fix pass below:
 the owner decides between raising the R3-10 rows, dropping features from the list above, or a
 new measured ceiling.
+
+#### 2026-10-27: size-pass review fix pass
+
+The review of the size pass found three cuts that changed behaviour, so they are undone. One
+sweep under Node v24.22.1 after `TURBO_FORCE=true pnpm build`: `core-icu` 4,253 → **4,260 B**
+(+7), `core-icu-cdn` 4,670 → **4,682 B** (+12), `core-compile` 1,913 → 1,920 B, and
+`core-icu-devtools` 5,350, `core-format` 4,794, `core-plugins` 4,830. These are all inside the
+budgets set in the size pass, so no row is re-baselined.
+
+- `cdn()` reads the body in an async IIFE again. `fetch().then(async …)` takes more microtasks,
+  so an abort two microtasks after a settled body rejected the load instead of returning the
+  catalog.
+- `cdn()` guards `signal` again. A direct call without one rejected with a `TypeError` and left
+  the timeout armed.
+- Production `missing_param` reports carry an own `message: undefined` key again, as at
+  0ecc74ec, so a reporter that spreads the error over defaults sees the same object.
+
+`tests/cdn/loader.test.ts` pins the first two, and the production report test is now
+`toStrictEqual`. All three failed on 7b517b4a.

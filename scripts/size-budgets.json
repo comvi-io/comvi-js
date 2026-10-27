@@ -45,11 +45,11 @@
       "gzipBudgetBytes": 3250,
       "ceilingBytes": 3250,
       "baseline": {
-        "minBytes": 8694,
-        "gzipBytes": 4253,
+        "minBytes": 8712,
+        "gzipBytes": 4260,
         "measuredAt": "2026-10-27"
       },
-      "note": "RED BY DESIGN (blocked, owner decision): core + ICU, R3-10 ceiling 3,250 B kept as the budget; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,304 → 4,253)."
+      "note": "RED BY DESIGN (blocked, owner decision): core + ICU, R3-10 ceiling 3,250 B kept as the budget; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,304 → 4,253, + its review fix pass: 4,260)."
     },
     {
       "name": "core-icu-cdn",
@@ -58,11 +58,11 @@
       "gzipBudgetBytes": 3750,
       "ceilingBytes": 3750,
       "baseline": {
-        "minBytes": 9711,
-        "gzipBytes": 4670,
+        "minBytes": 9751,
+        "gzipBytes": 4682,
         "measuredAt": "2026-10-27"
       },
-      "note": "RED BY DESIGN (blocked, owner decision): core + ICU + cdn(), R3-10 ceiling 3,750 B kept as the budget; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,745 → 4,670)."
+      "note": "RED BY DESIGN (blocked, owner decision): core + ICU + cdn(), R3-10 ceiling 3,750 B kept as the budget; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,745 → 4,670, + its review fix pass: 4,682)."
     },
     {
       "name": "core-icu-devtools",
