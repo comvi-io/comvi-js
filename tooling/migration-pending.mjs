@@ -29,7 +29,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const MIGRATION_PENDING = {
-  "@comvi/react": "lot 1c: React binding rebuilt on the new core (S9 commit model)",
   "@comvi/vue": "lot 4: Vue binding on the new core",
   "@comvi/solid": "lot 5: Solid binding on the new core",
   "@comvi/svelte": "lot 5: Svelte 5 runes binding on the new core",

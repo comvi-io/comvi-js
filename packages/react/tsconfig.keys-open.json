@@ -1,9 +1,0 @@
-{
-  // A SECOND, isolated program that type-checks `src` with `TranslationKeys`
-  // OPEN — the untyped-project path, where `PermissiveKey` is `string` and
-  // `t()` takes any key with loose params. The main test-types project closes
-  // the registry (`declare module "@comvi/core"` is global to its program), so
-  // the permissive assertions cannot live there.
-  "extends": "./tsconfig.test-types.json",
-  "include": ["src/**/*", "tests/types-keys-open/**/*.test-d.ts"]
-}

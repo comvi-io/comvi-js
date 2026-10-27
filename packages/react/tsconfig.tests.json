@@ -1,10 +1,6 @@
 {
-  // Type-checks the runtime test files (tests/**) that the build tsconfig
-  // deliberately excludes. Kept as a SEPARATE project so the `tsc` in `build`
-  // still emits from src only. `tests/types/**` stays with
-  // tsconfig.test-types.json; `tests/js-contract/**` is .jsx by design (the
-  // untyped JS-consumer contract) and `tests/dist/**` drives build artifacts
-  // that carry no declarations, so neither is type-checkable here.
+  // Type-checks the runtime tests (tests/**) that the build tsconfig leaves out. The type
+  // tests (tests/types*) are their own programs (tsconfig.test-types*.json).
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "composite": false,
@@ -12,42 +8,11 @@
     "declarationMap": false,
     "sourceMap": false,
     "noEmit": true,
-    // Tests run on Node 22 / happy-dom, not the ES2020 floor the shipped
-    // build targets, so they may use String.replaceAll and friends.
     "lib": ["ES2023", "DOM"],
     "rootDir": "../..",
     "types": ["vitest/globals", "node"],
-    "paths": {
-      "@/*": ["./src/*"],
-      // `@comvi/test-utils` reaches into core's SOURCE (fakeI18n.ts imports
-      // ../../packages/core/src/utils/defaultParams), so core's src is in this
-      // program either way. Pinning the package specifier to the same source
-      // keeps ONE copy of the `__COMVI__` global augmentation — two copies
-      // (src + dist .d.ts) collide with TS2717.
-      "@comvi/core": ["../core/src/index.ts"],
-      "@comvi/core/loader": ["../core/src/loader.ts"],
-      "@comvi/core/plugins": ["../core/src/plugins.ts"],
-      "@comvi/core/devtools": ["../core/src/devtools.ts"],
-      "@comvi/core/icu": ["../core/src/icu.ts"],
-      "@comvi/core/rich-text": ["../core/src/rich-text.ts"],
-      "@comvi/core/tags": ["../core/src/tags.ts"],
-      "@comvi/core/editor-bridge": ["../core/src/editor-bridge.ts"],
-      // vitest maps this to next's SOURCE provider (see vitest.config.ts).
-      "~next-src/*": ["../next/src/*"],
-      // next's src (pulled in via ~next-src) imports @comvi/react; resolve it
-      // to THIS package's source so the program never needs react's own dist.
-      // Without this, CI's Quality job races: @comvi/react#build runs there
-      // only as a test-apps dependency, with no ordering vs this typecheck.
-      "@comvi/react": ["./src/index.ts"]
-    }
+    "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*", "tests/**/*.ts", "tests/**/*.tsx"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tests/types/**",
-    "tests/types-keys-open/**",
-    "tests/types-keys-via-binding/**",
-    "tests/dist/**"
-  ]
+  "include": ["src/**/*", "tests/**/*.ts", "tests/**/*.tsx", "vite.entries.ts"],
+  "exclude": ["node_modules", "dist", "tests/types/**", "tests/types-untyped/**"]
 }
