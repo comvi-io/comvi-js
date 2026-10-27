@@ -86,7 +86,13 @@ export const missing = (
   name: string,
   message: string | false,
 ): string => {
-  report(x, { code: "missing_param", key: P.k, locale, message: message || undefined });
+  report(x, {
+    code: "missing_param",
+    key: P.k,
+    locale,
+    param: name,
+    message: message || undefined,
+  });
   return "{" + name + "}";
 };
 

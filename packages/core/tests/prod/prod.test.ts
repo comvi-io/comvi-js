@@ -29,8 +29,8 @@ describe("production", () => {
     fmt("{n, plural, other {#}}", { n: "z" }, "en", env, "c");
     expect(env.errors).toEqual([
       { code: "syntax", key: "a", locale: "en", message: undefined },
-      { code: "missing_param", key: "b", locale: "en", message: undefined },
-      { code: "missing_param", key: "c", locale: "en", message: undefined },
+      { code: "missing_param", key: "b", locale: "en", param: "x", message: undefined },
+      { code: "missing_param", key: "c", locale: "en", param: "n", message: undefined },
     ]);
   });
 

@@ -6,6 +6,26 @@ import { describe, expect, it, vi } from "vitest";
 import { _resetDiagnostics, defaultOnError, devWarn } from "../src/errors";
 
 describe("defaultOnError in development", () => {
+  it("prints each (code, key, param) once — a second parameter of the same key prints too", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    defaultOnError({ code: "missing_param", key: "k", param: "a", message: "no value for {a}" });
+    defaultOnError({ code: "missing_param", key: "k", param: "a", message: "other text" });
+    defaultOnError({ code: "missing_param", key: "k", param: "b", message: "no value for {b}" });
+    expect(error.mock.calls.map((c) => c[0])).toEqual([
+      '[@comvi/core] missing_param "k": no value for {a}',
+      '[@comvi/core] missing_param "k": no value for {b}',
+    ]);
+  });
+
+  it("prints a keyless report once per (locale, ns)", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    defaultOnError({ code: "load_failed", locale: "de", ns: "shop" });
+    defaultOnError({ code: "load_failed", locale: "de", ns: "shop" });
+    defaultOnError({ code: "load_failed", locale: "fr", ns: "shop" });
+    defaultOnError({ code: "load_failed", locale: "de", ns: "default" });
+    expect(error).toHaveBeenCalledTimes(3);
+  });
+
   it("prints each (code, key) once", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     defaultOnError({ code: "missing_key", key: "a", locale: "en" });
