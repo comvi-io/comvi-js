@@ -18,11 +18,11 @@
 import { pluralRules } from "./fmt";
 import {
   fail,
-  isSpace,
   message,
   missing,
   run,
   skipSpace,
+  token,
   type Part,
   type PartFn,
   type Scan,
@@ -33,17 +33,10 @@ declare const __DEV__: boolean;
 const EXACT = /^=-?\d+(\.\d+)?$/;
 const OFFSET = /offset:\s*(\d+(?:\.\d+)?)/y;
 
-/** A number a plural can select on: a finite number, or a numeric string. */
-const toCount = (v: unknown): number =>
-  typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? +v : NaN;
-
 export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   const s = P.s;
-  skipSpace(P);
-  const start = P.i;
   let c: string | undefined;
-  while ((c = s[P.i]) !== undefined && c !== "," && c !== "}" && c !== "{" && !isSpace(c)) P.i++;
-  const type = s.slice(start, P.i);
+  const type = token(P);
   const select = type === "select";
   const ordinal = type === "selectordinal";
   if (!select && !ordinal && type !== "plural") {
@@ -54,7 +47,6 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
           : `unknown argument type \`${type}\` in \`{${name}, …}\`; supported: plural, selectordinal, select`),
     );
   }
-  skipSpace(P);
   if (s[P.i++] !== ",") fail(__DEV__ && `\`{${name}, ${type}}\` has no choice list`);
   skipSpace(P);
 
@@ -70,14 +62,11 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     skipSpace(P);
     c = s[P.i];
     if (c === "}") break;
-    if (c === undefined) fail(__DEV__ && `\`{${name}, ${type}, …}\` is never closed`);
-    const keyStart = P.i;
-    while ((c = s[P.i]) !== undefined && c !== "{" && c !== "}" && !isSpace(c)) P.i++;
-    let key = s.slice(keyStart, P.i);
+    if (!c) fail(__DEV__ && `\`{${name}, ${type}, …}\` is never closed`);
+    let key = token(P);
     if (key[0] === "=" && !select && EXACT.test(key)) key = "=" + Number(key.slice(1));
-    else if (!key || /[=:'#{}<,]/.test(key))
+    else if (!key || /[=:'#<]/.test(key))
       fail(__DEV__ && `invalid selector \`${key}\` in \`{${name}, ${type}, …}\``);
-    skipSpace(P);
     if (s[P.i++] !== "{")
       fail(__DEV__ && `selector \`${key}\` in \`{${name}, ${type}, …}\` has no {sub-message}`);
     // `#` is the count in a plural's own sub-messages only; a select passes `false`.
@@ -107,8 +96,9 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   }
 
   return (p, l, x) => {
-    const n = toCount(p[name]);
-    if (n !== n)
+    // A plural selects on a number only (ICU4C rejects any other argument).
+    const n = p[name];
+    if (typeof n !== "number" || n !== n)
       return missing(
         P,
         x,

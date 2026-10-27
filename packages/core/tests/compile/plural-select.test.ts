@@ -41,14 +41,12 @@ describe("plural", () => {
     expect(fmt(t, { n: 1002 }, "de")).toBe("us and 1.000 more");
   });
 
-  it("accepts a numeric string as the count", () => {
-    expect(fmt("{n, plural, one {# item} other {# items}}", { n: "1" })).toBe("1 item");
-  });
-
   it.each([
     ["missing", {}],
     ["null", { n: null }],
     ["a word", { n: "many" }],
+    ["a numeric string", { n: "1" }],
+    ["NaN", { n: NaN }],
     ["an empty string", { n: "" }],
     ["a boolean", { n: true }],
     ["an object", { n: {} }],

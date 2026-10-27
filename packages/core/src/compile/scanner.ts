@@ -26,7 +26,7 @@
  * development and production.
  */
 import { devWarn, defaultOnError, type I18nError, type OnError } from "../errors";
-import { formatValue } from "./fmt";
+import { formatNumber, formatValue } from "./fmt";
 import { argument } from "./icu";
 
 declare const __DEV__: boolean;
@@ -44,9 +44,12 @@ export interface Env {
   r?: OnError;
 }
 
-/** A compiled part: literal text, or a function that yields one value. */
+/**
+ * A compiled part: literal text, or a function that yields text or a FRAME — an array of
+ * rendered values that the parent spreads (a non-string value travels as `[value]`).
+ */
 export type Part = string | PartFn;
-export type PartFn = (p: Params, l: string, x: Env | undefined, h: number) => unknown;
+export type PartFn = (p: Params, l: string, x: Env | undefined, h: number) => string | unknown[];
 
 /** Scanner state over one template. */
 export interface Scan {
@@ -61,12 +64,14 @@ export interface Scan {
 }
 
 /** Thrown inside the scanner, caught by `compile()`; never escapes to callers. */
-export interface SyntaxFailure {
-  syntax: string | undefined;
-}
+export const SYNTAX = {
+  /** Development: the message of the last failure. */
+  m: undefined as string | undefined,
+};
 
 export const fail = (message?: string | false): never => {
-  throw { syntax: (__DEV__ && message) || undefined } satisfies SyntaxFailure;
+  if (__DEV__) SYNTAX.m = message || undefined;
+  throw SYNTAX;
 };
 
 export const report = (x: Env | undefined, error: I18nError): void =>
@@ -85,16 +90,27 @@ export const missing = (
 };
 
 /** Pattern_White_Space as ICU uses it between argument tokens. */
-export const isSpace = (c: string | undefined): boolean => c !== undefined && /\s/.test(c);
+export const isSpace = (c: string | undefined): boolean => /\s/.test(c as string); // `undefined` tests as "undefined"
+
+/** Skips spaces, reads one token (up to `,`, `{`, `}` or a space), skips spaces after it. */
+export const token = (P: Scan): string => {
+  skipSpace(P);
+  const start = P.i;
+  let c: string | undefined;
+  while ((c = P.s[P.i]) && c !== "," && c !== "}" && c !== "{" && !isSpace(c)) P.i++;
+  const t = P.s.slice(start, P.i);
+  skipSpace(P);
+  return t;
+};
 
 export const skipSpace = (P: Scan): void => {
   while (isSpace(P.s[P.i])) P.i++;
 };
 
-const TAG = /<(\/?)([A-Za-z][\w-]*)\s*(\/?)>/y;
+/** A rendered value as a part result: text as is, anything else as a one-value frame. */
+const frame = (v: unknown): string | unknown[] => (typeof v === "string" ? v : [v]);
 
-/** Internal multi-part results, spread into their parent instead of nested. */
-const frames = new WeakSet<object>();
+const TAG = /<(\/?)([A-Za-z][\w-]*)\s*(\/?)>/y;
 
 /**
  * Renders parts. Returns a string when every value is a string; otherwise an array of
@@ -116,7 +132,7 @@ export const run = (
     if (typeof v === "string") s += v;
     else {
       out ??= [];
-      for (const e of frames.has(v as object) ? (v as unknown[]) : [v]) {
+      for (const e of v) {
         if (typeof e === "string") s += e;
         else {
           if (s) out.push(s);
@@ -128,7 +144,6 @@ export const run = (
   }
   if (!out) return s;
   if (s) out.push(s);
-  frames.add(out);
   return out;
 };
 
@@ -156,7 +171,7 @@ export const message = (
     if (buf) parts.push(buf);
     buf = "";
   };
-  while ((c = s[P.i]) !== undefined) {
+  while ((c = s[P.i])) {
     if (c === "'") {
       c = s[++P.i];
       if (c === "'") {
@@ -164,7 +179,7 @@ export const message = (
         P.i++;
       } else if (c === "{" || c === "}" || c === "<" || (hash && c === "#")) {
         // Quoted literal: up to the next lone apostrophe; `''` inside is one apostrophe.
-        for (; (c = s[P.i]) !== undefined; P.i++) {
+        for (; (c = s[P.i]); P.i++) {
           if (c === "'") {
             if (s[P.i + 1] !== "'") {
               P.i++;
@@ -177,25 +192,17 @@ export const message = (
       } else buf += "'";
     } else if (c === "{") {
       P.i++;
-      skipSpace(P);
-      const start = P.i;
-      while ((c = s[P.i]) !== undefined && c !== "," && c !== "}" && c !== "{" && !isSpace(c))
-        P.i++;
-      const name = s.slice(start, P.i);
-      skipSpace(P);
+      const name = token(P);
       c = s[P.i];
       if (!name || (c !== "}" && c !== ",")) {
-        fail(
-          __DEV__ &&
-            (c === undefined ? "unclosed `{`" : `invalid argument \`{${s.slice(start, P.i + 1)}\``),
-        );
+        fail(__DEV__ && (!c ? "unclosed `{`" : `invalid argument \`{${name} ${c}\``));
       }
       flush();
       if (c === "}") {
         P.i++;
         parts.push((p, l, x) => {
           const v = p[name];
-          if (v != null) return formatValue(v, l, x && x.z);
+          if (v != null) return frame(formatValue(v, l, x && x.z));
           return missing(P, x, l, name, __DEV__ && `no value for {${name}}`);
         });
       } else {
@@ -236,7 +243,7 @@ export const message = (
 };
 
 /** `#`: the count of the nearest plural, minus its offset, formatted for the locale. */
-const hashPart: PartFn = (_p, l, _x, h) => formatValue(h, l);
+const hashPart: PartFn = (_p, l, _x, h) => formatNumber(h, l);
 
 /** A rich-text tag: the parameter of the same name renders the children. */
 const tagPart =
@@ -245,7 +252,7 @@ const tagPart =
     const children = run(kids, p, l, x, h);
     const handler = p[name];
     if (typeof handler === "function") {
-      return handler(typeof children === "string" ? (children ? [children] : []) : children);
+      return frame(handler(typeof children === "string" ? (children ? [children] : []) : children));
     }
     if (__DEV__) {
       devWarn(

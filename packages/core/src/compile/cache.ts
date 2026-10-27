@@ -18,15 +18,7 @@
  * read `lookup(record, catalog, key)`; the hot path never touches the WeakMap.
  */
 import { devWarn } from "../errors";
-import {
-  message,
-  report,
-  run,
-  type Env,
-  type Params,
-  type Scan,
-  type SyntaxFailure,
-} from "./scanner";
+import { message, report, run, SYNTAX, type Env, type Params, type Scan } from "./scanner";
 
 declare const __DEV__: boolean;
 
@@ -44,7 +36,7 @@ export type SyntaxId = number;
 
 const EMPTY: Params = Object.freeze(Object.create(null));
 /** Characters that can start syntax at the top level; a template without them is static. */
-const SYNTAX = /[{'<]/;
+const SYNTAX_START = /[{'<]/;
 
 /**
  * Compiles one template. `key` names the message in reports; a template that fails
@@ -52,24 +44,22 @@ const SYNTAX = /[{'<]/;
  * on every render, through whichever instance renders it.
  */
 export const compile = (template: string, key?: string): Compiled => {
-  if (!SYNTAX.test(template)) return template;
+  if (!SYNTAX_START.test(template)) return template;
   const P: Scan = { s: template, i: 0, k: key };
   let parts;
   try {
     parts = message(P, false, false, false);
   } catch (e) {
-    if (!(e && typeof e === "object" && "syntax" in e)) throw e;
-    const text = (e as SyntaxFailure).syntax;
+    if (e !== SYNTAX) throw e;
+    const text = __DEV__ ? SYNTAX.m : undefined;
     const fallback = key === undefined ? template : key;
     return (_p, l, x) => {
       report(x, { code: "syntax", key, locale: l, message: text });
       return fallback;
     };
   }
-  if (parts.length === 0) return "";
-  if (parts.length === 1 && typeof parts[0] === "string") {
-    return parts[0] === template ? template : parts[0];
-  }
+  // Quoting was the only syntax: the unquoted text is static.
+  if (parts.length < 2 && typeof parts[0] !== "function") return parts[0] || "";
   const render: Render = (p, l, x) => run(parts, p || EMPTY, l, x, NaN);
   if (__DEV__ && P.w) {
     return (p, l, x) => {
