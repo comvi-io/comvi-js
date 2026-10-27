@@ -44,9 +44,10 @@ const get = <T>(
   i18n: I18n,
   options: object | undefined,
   locale?: string,
+  v = variant(options),
 ): T => {
   const [key, locales] = tags(i18n, locale);
-  return intl<T>(kind, key, variant(options), options, locales);
+  return intl<T>(kind, key, v, options, locales);
 };
 
 /** A cache variant for `options`: its own keys, sorted, with their values. */
@@ -117,6 +118,8 @@ export const formatDateRange = (
   return get<Intl.DateTimeFormat>("DateTimeFormat", i18n, o, locale).formatRange(start, end);
 };
 
+const AUTO: Intl.RelativeTimeFormatOptions = { numeric: "auto" };
+
 /** Units from the largest down, with their length in ms (a month is 30.44 days, a year 365.25). */
 const UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
   ["year", 31557600000],
@@ -142,11 +145,14 @@ export const formatRelativeTime = (
 ): string => {
   const ms = +date - (now ?? opts(i18n).now ?? Date.now());
   const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
+  const o = options ? { numeric: AUTO.numeric, ...options } : AUTO;
   return get<Intl.RelativeTimeFormat>(
     "RelativeTimeFormat",
     i18n,
-    { numeric: "auto", ...options },
+    o,
     locale,
+    // The default options' cache variant is a constant: no key sorting per call.
+    o == AUTO ? "numeric=auto" : undefined,
   ).format(Math.round(ms / size), unit);
 };
 
