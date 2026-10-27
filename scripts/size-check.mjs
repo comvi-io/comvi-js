@@ -413,6 +413,24 @@ export function renderResults(results) {
     .join("\n");
 }
 
+/**
+ * Informational lines for design ceilings no row gates yet (R3-10 rows whose graph is
+ * still incomplete): how many bytes are left under the ceiling for what is missing.
+ */
+export function renderDesignCeilings(ceilings = [], results) {
+  return ceilings
+    .map((c) => {
+      const row = results.find((r) => r.name === c.measuredBy);
+      if (!row || !Number.isFinite(row.gzipBytes))
+        return `i ${c.name} <= ${c.bytes} B: ${c.measuredBy} not measured`;
+      return (
+        `i ${c.name} <= ${c.bytes} B: ${c.measuredBy} measures ${row.gzipBytes} B, ` +
+        `${c.bytes - row.gzipBytes} B left for ${c.missing}`
+      );
+    })
+    .join("\n");
+}
+
 async function main() {
   const budgetsPath = path.join(SCRIPT_DIR, "size-budgets.json");
   const budgets = JSON.parse(fs.readFileSync(budgetsPath, "utf8"));
@@ -424,6 +442,8 @@ async function main() {
     pending: pendingReason,
   });
   console.log(renderResults(results));
+  const info = renderDesignCeilings(budgets.designCeilings, results);
+  if (info) console.log(info);
   const failures = results.filter((result) => result.status === "fail");
   if (failures.length > 0) {
     console.error(`\nSize gate failed for: ${failures.map((result) => result.name).join(", ")}`);

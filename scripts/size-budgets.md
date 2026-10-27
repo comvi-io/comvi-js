@@ -304,12 +304,27 @@ row whose budget exceeds its ceiling, so re-baselining cannot walk past the desi
 derive their ceilings with the R3-10 method — measured prototype bytes plus the estimated deltas,
 × 1.15, rounded up to 50 — applied to the part of the core that exists:
 
-| Row               | Ceiling derivation                                                                                 | Measured (Node 24) |
-| ----------------- | -------------------------------------------------------------------------------------------------- | ------------------ |
-| `core-compile`    | S7 compile slice 1,372 (scanner, ICU, offset, plain-`{x}` formatting, tags) + S1 cache 200 → 1,850 | 1,756              |
-| `core-1a-surface` | the above + S7 canonicalize/parent/negotiate/dir 395 → 2,300                                       | 2,259              |
-| `core-locale`     | none of its own: R3-10 prices the locale code as marginal bytes inside core                        | 577                |
-| `core-negotiate`  | none of its own (as `core-locale`)                                                                 | 468                |
+| Row               | Ceiling derivation                                                                                                    | Measured (Node 24) |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `core-compile`    | S7 compile slice 1,372 (scanner, ICU, offset, plain-`{x}` formatting, tags) + S1 cache 200 + review fixes 117 → 2,000 | 1,873              |
+| `core-1a-surface` | the above + S7 canonicalize/parent/negotiate/dir 395 → 2,450                                                          | 2,383              |
+| `core-locale`     | none of its own: R3-10 prices the locale code as marginal bytes inside core                                           | 577                |
+| `core-negotiate`  | none of its own (as `core-locale`)                                                                                    | 468                |
+
+**Where `core-compile` stands against the prototype.** S7 priced the compile slice at 1,372 B and
+S1 the cache at ~200 B: 1,572 B. The first 1a build measured 1,756 B, 184 B over that price, which
+was not attributed line by line. Candidates, not checked against the S7 sources: the ListFormat
+branch for `string[]`, the DateTimeFormat branch keyed by time zone, the R4-7 output probe in front
+of the integer fast path, the fail-soft syntax renderer and the first-wins rule for repeated
+selectors. The 1a review fix pass then added 117 B, measured: 37 B for the production `useFormat()`
+hint on `{x, number|date|time}` (the one message production ships, R3-8) and 80 B for own-property
+parameter reads, ICU `Pattern_White_Space`, ICU's number syntax for `=N` and `offset:`, and the
+invalid-Date guard. The ceilings above take those 117 B through the same × 1.15.
+
+**What is left under R3-10.** `pnpm size` prints an informational line for each entry of
+`designCeilings` in `size-budgets.json`: today `core + ICU ≤ 3,250` against `core-1a-surface`, i.e.
+867 B for the instance, state, flights, `defaultParams`, `view()` and loading of lot 1b (S7 priced the
+features alone at ≈ 364 B before the instance core). It does not gate; lot 1b adds the gated row.
 
 The S7 compile slice was re-measured from the prototype sources
 (`lot0/s7/src/{parse,icu,fmt,tags}.js`, every flag on except `F_ICUFMT`/`F_SKEL`): 1,372 B, against
