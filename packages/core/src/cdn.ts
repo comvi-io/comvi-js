@@ -80,18 +80,17 @@ export const cdn = (
     else if (signal) signal.addEventListener("abort", stop);
     try {
       return await Promise.race([
-        (async () => {
-          const r = await fetch(url, {
-            headers: { Accept: "application/json" },
-            signal: c.signal,
-            next,
-          } as RequestInit);
+        fetch(url, {
+          headers: { Accept: "application/json" },
+          signal: c.signal,
+          next,
+        } as RequestInit).then(async (r) => {
           if (!r.ok) throw Error(`[@comvi/core/cdn] HTTP ${r.status}: ${url}`);
           const d = await r.json();
           if (!d || typeof d != "object" || Array.isArray(d))
             throw Error(`[@comvi/core/cdn] not a catalog: ${url}`);
           return d as Catalog;
-        })(),
+        }),
         // Settles the load on abort or timeout even when the body never does.
         new Promise<never>((_, no) =>
           c.signal.addEventListener("abort", () => no(c.signal.reason)),
