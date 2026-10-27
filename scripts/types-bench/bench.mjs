@@ -115,7 +115,9 @@ try {
       loads.push(os.loadavg()[0]);
       const o = spawnSync(
         process.execPath,
-        ["-r", COUNT, TSC, "-p", dir, "--extendedDiagnostics", "--pretty", "false"],
+        // --expose-gc: tsc's sys.getMemoryUsage() collects before it reads the heap, so
+        // "Memory used" is the live heap, not whatever garbage the run left behind.
+        ["--expose-gc", "-r", COUNT, TSC, "-p", dir, "--extendedDiagnostics", "--pretty", "false"],
         {
           encoding: "utf8",
           maxBuffer: 1 << 28,
