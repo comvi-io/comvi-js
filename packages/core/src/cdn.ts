@@ -76,8 +76,9 @@ export const cdn = (
       () => c.abort(Error(`[@comvi/core/cdn] timeout ${timeout} ms: ${url}`)),
       timeout,
     );
-    if (signal && signal.aborted) stop();
-    else if (signal) signal.addEventListener("abort", stop);
+    // `signal` is required by the Loader contract; the instance always passes one.
+    if (signal.aborted) stop();
+    else signal.addEventListener("abort", stop);
     try {
       return await Promise.race([
         fetch(url, {
@@ -97,7 +98,7 @@ export const cdn = (
         ),
       ]);
     } catch (e) {
-      if (signal && signal.aborted) throw e;
+      if (signal.aborted) throw e;
       const f = fb[l + ":" + n] || (n === root && fb[l]);
       if (f) {
         const m = await f();
@@ -107,7 +108,7 @@ export const cdn = (
       throw c.signal.aborted ? c.signal.reason : e;
     } finally {
       clearTimeout(tm);
-      if (signal) signal.removeEventListener("abort", stop);
+      signal.removeEventListener("abort", stop);
     }
   };
 };
