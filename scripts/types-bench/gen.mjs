@@ -3,8 +3,9 @@
 // is packages/core/src/types.ts VERBATIM plus two declared factories, so every gate
 // measures the signature that ships.
 //
-//   generateProbe(dir, { keys, kind, body })   kind: app300 | app30 | typo | untyped | body
-//   (`body`: lines appended after the probe header — the negative suite passes its cases)
+//   generateProbe(dir, { keys, kind, body })   kind: app300 | app30 | app2 | typo | untyped | body
+//   (`body`: lines appended after the probe header — the negative suite passes its cases;
+//   a body probe also declares the small namespaces `one`, `r1` and `pair`)
 //
 // Catalog: 2 namespaces (default, shop) × `keys` keys in 50 sections; key kinds rotate
 // through plural / rich (Tag param) / defaultParams-optional / name / select / no params.
@@ -91,6 +92,22 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
       fs.writeFileSync(path.join(dir, `keys-${ns}.ts`), L.join("\n"));
     }
   }
+  if (kind === "body") {
+    // Small namespaces for the typo guard's edge: one key (`one`, rich `r1`) and two keys
+    // whose union key spans the whole namespace (`pair`) must keep their exact params.
+    fs.writeFileSync(
+      path.join(dir, "keys-small.ts"),
+      [
+        "import type { Tag } from './lib';",
+        "declare module './lib' { interface Catalogs {",
+        "  one: { only: { name: string } };",
+        "  r1: { terms: { link: Tag } };",
+        "  pair: { a: { count: number }; b: { name: string } };",
+        "} }",
+        "export {};",
+      ].join("\n"),
+    );
+  }
   const A = [
     "import { createI18n, type RichParts, type Tag } from './lib';",
     "const i18n = createI18n({ locale: 'en' });",
@@ -98,8 +115,8 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
     "declare const tag: Tag; declare const cond: boolean;",
     "export const out: string[] = []; export const rich: RichParts[] = [];",
   ];
-  if (kind === "app300" || kind === "app30") {
-    const calls = kind === "app300" ? 300 : 30;
+  if (kind === "app300" || kind === "app30" || kind === "app2") {
+    const calls = kind === "app300" ? 300 : kind === "app30" ? 30 : 2;
     const step = Math.floor(all.length / 300);
     all
       .filter((_, i) => i % step === 0)
@@ -113,16 +130,20 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
         const call = `t('s${s}.k${j}'${opts.length ? `, { ${opts.join(", ")} }` : ""})`;
         A.push(k === "rich" ? `rich.push(${call});` : `out.push(${call});`);
       });
-    const unions = kind === "app300" ? 10 : 1;
-    for (let i = 0; i < unions; i++)
+    // app2 is the baseline of the per-call instantiation gate: the same program with two
+    // calls, so (app300 − app2) counts what 298 more calls cost.
+    if (kind !== "app2") {
+      const unions = kind === "app300" ? 10 : 1;
+      for (let i = 0; i < unions; i++)
+        A.push(
+          `out.push(t(cond ? 's${i}.k0' : 's${i}.k1', { count: 1, name: 'x'${i % 2 ? ", ns: 'shop'" : ""} }));`,
+        );
       A.push(
-        `out.push(t(cond ? 's${i}.k0' : 's${i}.k1', { count: 1, name: 'x'${i % 2 ? ", ns: 'shop'" : ""} }));`,
+        "rich.push(t('s1.k7', { link: tag }));",
+        "out.push(t('s1.k17'));",
+        "out.push(t('s1.k17', { brand: 'B', ns: 'shop' }));",
       );
-    A.push(
-      "rich.push(t('s1.k7', { link: tag }));",
-      "out.push(t('s1.k17'));",
-      "out.push(t('s1.k17', { brand: 'B', ns: 'shop' }));",
-    );
+    }
   } else if (kind === "body") {
     A.push(...body);
   } else if (kind === "typo") {

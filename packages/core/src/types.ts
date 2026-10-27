@@ -29,9 +29,13 @@ export type RichParts = readonly unknown[];
 /** The declared namespaces. */
 export type NsOf = keyof Catalogs;
 
-declare const loose: unique symbol;
-/** Marker for "the key could not be inferred" (a typo): params stay loose, only the key errs. */
-type Loose = { [loose]: true };
+declare const notAKey: unique symbol;
+/**
+ * Marker for "the key could not be inferred" (a typo): params stay loose, only the key errs.
+ * Its name shows in the key diagnostic (`… not assignable to parameter of type 'NotAKey |
+ * "a" | "b"'`), so it is named for the reader of that line.
+ */
+type NotAKey = { [notAKey]: true };
 
 type U2I<U> = (U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
 
@@ -46,20 +50,25 @@ export type KeysOf = { [N in NsOf]: keyof Catalogs[N] };
 
 /**
  * Params of key K in namespace N. A union key gets the INTERSECTION of its members' params.
- * Typo guard: when K is not inferred it widens to every key → `Loose`, instead of
- * intersecting 5,000 param objects (≈190 s of tsc at 5k keys — R3-2).
+ *
+ * Typo guard (R3-2): the key's constraint is `KeysOf[N] | NotAKey`. When the key argument
+ * is not a key, tsc infers K as the whole constraint, which then CONTAINS `NotAKey`: the
+ * params go loose (only the key errs) instead of intersecting 5,000 param objects
+ * (≈190 s of tsc at 5k keys). A real key never infers `NotAKey`, so a namespace with ONE
+ * key, or a union key that spans every key of a small namespace, keeps its exact params —
+ * the earlier guard, `[KeysOf[N]] extends [K]`, could not tell those from a typo.
  */
-export type ParamsFor<N extends NsOf, K extends KeysOf[N]> = [KeysOf[N]] extends [K]
-  ? Loose
-  : [Catalogs[N][K]] extends [never]
+export type ParamsFor<N extends NsOf, K extends KeysOf[N] | NotAKey> = [NotAKey] extends [K]
+  ? NotAKey
+  : [Catalogs[N][Exclude<K, NotAKey>]] extends [never]
     ? never
-    : U2I<Catalogs[N][K]>;
+    : U2I<Catalogs[N][Exclude<K, NotAKey>]>;
 
 /**
  * The params argument. Per-call options are written INLINE (no alias), so diagnostics show
  * `{ ns?: "shop" | undefined; locale?: string | undefined }` and never an internal name.
  */
-export type Args<N, P> = [P] extends [Loose]
+export type Args<N, P> = [P] extends [NotAKey]
   ? [params?: { ns?: NsOf; locale?: string } & Record<string, unknown>]
   : [P] extends [never]
     ? [params?: { ns?: N; locale?: string }]
@@ -75,7 +84,7 @@ export type OutOf<P, Rich> = [P] extends [never] ? string : Tag extends P[keyof 
  * `{ locale }` the locale; both are optional members of the params object.
  */
 export type TranslateFn<NS extends NsOf, Rich = string> = <
-  K extends KeysOf[N],
+  K extends KeysOf[N] | NotAKey,
   N extends NsOf = NS,
 >(
   key: K,

@@ -42,9 +42,27 @@ const CASES = [
   ["s(cond ? 's0.k0' : 's0.k1', { count: 1 }); // E9 union key, incomplete params", "TS2345"],
   ["s('s0.k12', { brand: 'B' }); // E10 defaulted param given, required one missing", "TS2345"],
   ["t('s0.k3', { g: 1 }); // E11 select param of the wrong type", "TS2322"],
+  // One-key and two-key namespaces: a real key that is the WHOLE key set is not a typo.
+  ["const one = useI18n('one').t, r1 = useI18n('r1').t, pair = useI18n('pair').t;", ""],
+  ["out.push(one('only', { name: 'x' }));", ""],
+  ["rich.push(r1('terms', { link: tag }));", ""],
+  ["out.push(pair(cond ? 'a' : 'b', { count: 1, name: 'x' }));", ""],
+  ["one('only'); // E12 one-key namespace, missing param", "TS2554"],
+  ["one('only', { nme: 'x' }); // E13 one-key namespace, wrong param name", "TS2353|TS2561"],
+  ["const e14: string = r1('terms', { link: tag }); // E14 one-key rich into string", "TS2322"],
+  ["r1('terms'); // E15 one-key rich without its handler", "TS2554"],
+  [
+    "pair(cond ? 'a' : 'b', { count: 1 }); // E16 union spanning the namespace, incomplete",
+    "TS2345",
+  ],
+  ["one('zzz', { name: 'x' }); // E17 typo in a one-key namespace", "TS2345"],
 ];
-/** Helper types that must never surface in a diagnostic. */
+/**
+ * Helper types that must never surface in a diagnostic. `NotAKey` (the typo marker) may,
+ * but only in the key's own TS2345 line, where it reads as the verdict.
+ */
 const INTERNAL = /\b(Loose|ParamsFor|Args|KeysOf|U2I|OutOf|NsOf|TFor|TranslateFn)\b/;
+const MARKER = /\bNotAKey\b/;
 
 const tsc = (dir) => {
   const r = spawnSync(process.execPath, [TSC, "-p", dir, "--pretty", "false"], {
@@ -87,7 +105,11 @@ const check = (typesSource, keys = 1000) => {
           `line ${i} expected ${want}: ${code}\n    got ${got.map((g) => g.code).join(", ") || "nothing"}`,
         );
       for (const g of got)
-        if (INTERNAL.test(g.text)) failures.push(`line ${i} names an internal type: ${g.text}`);
+        if (
+          INTERNAL.test(g.text) ||
+          (MARKER.test(g.text) && !/^Argument of type '"[^']*"' is not assignable/.test(g.text))
+        )
+          failures.push(`line ${i} names an internal type: ${g.text}`);
     });
     for (const n of byLine.keys())
       if (n < 0 || n >= CASES.length) failures.push(`diagnostic on probe line ${n}`);
@@ -102,19 +124,37 @@ const check = (typesSource, keys = 1000) => {
   return failures;
 };
 
-// Red run first: the suite must notice a signature without the typo guard (R3-2) — a
-// typo then intersects every key's params and E5b reports a different diagnostic.
-const unguarded = fs
-  .readFileSync(TYPES_SOURCE, "utf8")
-  .replace("[KeysOf[N]] extends [K]\n  ? Loose\n  : ", "");
-if (unguarded === fs.readFileSync(TYPES_SOURCE, "utf8")) {
-  console.error("negative.mjs: could not plant the red variant (typo guard not found in types.ts)");
-  process.exit(1);
-}
-const red = check(unguarded, 1000);
-if (red.length === 0) {
-  console.error("negative.mjs: the suite did NOT fail on a signature without the typo guard");
-  process.exit(1);
+// Red runs first: the suite must notice (1) a signature without the typo guard (R3-2) — a
+// typo then intersects every key's params and E5b reports a different diagnostic — and
+// (2) the 1a guard `[KeysOf[N]] extends [K]`, which took a one-key namespace for a typo
+// and let E12–E16 compile.
+const source = fs.readFileSync(TYPES_SOURCE, "utf8");
+const plant = (label, edits) => {
+  let out = source;
+  for (const [from, to] of edits) {
+    if (!out.includes(from)) {
+      console.error(`negative.mjs: could not plant the red variant "${label}" (${from})`);
+      process.exit(1);
+    }
+    out = out.replace(from, to);
+  }
+  return out;
+};
+const GUARD = "[NotAKey] extends [K]\n  ? NotAKey\n  : ";
+const REDS = {
+  "no typo guard": plant("no typo guard", [[GUARD, ""]]),
+  "1a guard [KeysOf[N]] extends [K]": plant("1a guard", [
+    [GUARD, "[KeysOf[N]] extends [Exclude<K, NotAKey>]\n  ? NotAKey\n  : "],
+  ]),
+};
+const reds = [];
+for (const [label, variant] of Object.entries(REDS)) {
+  const red = check(variant, 1000);
+  if (red.length === 0) {
+    console.error(`negative.mjs: the suite did NOT fail on the red variant "${label}"`);
+    process.exit(1);
+  }
+  reds.push(`${label}: ${red.length}`);
 }
 
 const failures = check();
@@ -124,5 +164,5 @@ if (failures.length) {
 }
 console.log(
   `types: ${CASES.filter((c) => c[1]).length} negative + ${CASES.filter((c) => !c[1]).length} positive cases OK, ` +
-    `ungenerated project compiles; red variant (no typo guard) caught with ${red.length} failure(s)`,
+    `ungenerated project compiles; red variants caught (${reds.join("; ")} failure(s))`,
 );
