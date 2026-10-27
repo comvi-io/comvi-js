@@ -637,3 +637,44 @@ lot 1e hand-over and the orchestrator report.
 diagnostics, the timeout, cross-copy dedupe, the hourly salt, the v1 registry, hook probes
 and minted ids moved to the extension and the editor (lot 8). `core-compile`, `core-locale`
 and `core-negotiate` did not move (±1 B) and keep their baselines.
+
+**Owner decision 28.10.2026: accepted.** The +57 B (`core-icu`) and +63 B (`core-icu-cdn`) of
+lot 1e over the 1c fix pass stand: the bytes above the E0 H4 envelope of +40 B are the H8
+under-layering and the H3 compiled reuse, correctness fixes. Not a finding to re-open.
+
+## 2026-10-28: lot 1d part 1 — R3-17, the missing-key path, namespaces still coming
+
+One sweep, `node scripts/size-check.mjs` after `TURBO_FORCE=true pnpm build`, Node v24.22.1;
+"before" is the lot 1e baseline (322a14b4, re-measured: identical).
+
+| row                     | before | after | Δ   | budget | ceiling | note                                    |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | --------------------------------------- |
+| core-compile            | 1,913  | 1,853 | −60 | 1,946  | 2,000   | no Intl path for a plain `{x}`          |
+| core-icu                | 4,342  | 4,298 | −44 | 4,449  | 4,449   | R3-13 ceiling unchanged                 |
+| core-icu-cdn            | 4,774  | 4,730 | −44 | 4,895  | 4,895   | R3-13 ceiling unchanged                 |
+| core-icu-devtools       | 4,778  | 4,730 | −48 | 4,967  | 5,017   | devtools **+432 B** over core-icu (500) |
+| core-format             | 4,882  | 4,853 | −29 | 5,096  | —       |                                         |
+| core-plugins            | 4,920  | 4,876 | −44 | 5,120  | —       |                                         |
+| react-icu-cdn           | 5,241  | 5,204 | −37 | 5,395  | 5,395   | **+474 B** over core-icu-cdn (cap 500)  |
+| fw-react-default        | 4,778  | 4,737 | −41 | 4,974  | —       |                                         |
+| fw-react-full-composite | 7,603  | 7,578 | −25 | 7,957  | —       |                                         |
+
+Re-baselined from this sweep: every row in the table, budget = ceil(measured × 1.05), never
+above the row's ceiling (`core-icu`, `core-icu-cdn` and `react-icu-cdn` keep their ceiling as
+budget). No ceiling and no cap moved. `core-locale`, `core-negotiate` and `core-devtools` did
+not move (±2 B) and keep their baselines.
+
+By piece, measured at each commit of the lot (`core-icu` / `core-icu-cdn` / React increment
+over `core-icu-cdn`):
+
+| piece                                                                                  | core-icu | core-icu-cdn | React incr. |
+| -------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| R3-17: a plain `{x}` prints `String(value)`; no NumberFormat/DateTimeFormat/ListFormat | −76      | −80          | +473        |
+| missing key: production without `onError` skips the report (`h != noop`)               | +5       | —            | —           |
+| a namespace still coming (`coming`: not active, a loader, no catalog of the locale)    | +25      | +26          | +474        |
+
+The first missing-key change (d494f9a9) also kept a memo of the last chain and a `quiet`
+reporter: +41 B on `core-icu` for ~12 ns per missing key; the memo (+23 B) and the reporter
+swap went in 45589f67, the `h != noop` guard stayed. The binding-local alternative for
+the coming namespace (a state copy with the namespace added to `ld`, built in the hook) cost
+the React row +52 B, +520 over `core-icu-cdn` against the cap of +500, and was not taken.
