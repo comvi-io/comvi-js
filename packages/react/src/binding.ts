@@ -107,10 +107,12 @@ export type UntypedParams = Record<string, object | ReactNode | ((chunks: ReactN
 
 /** `<T>` bound to namespace NS (from `useI18n(ns)`): typed by that namespace's keys. */
 export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
-  ? (props: { i18nKey: string; locale?: string; ns?: never } & UntypedParams) => ReactNode
+  ? (
+      props: { i18nKey: string; locale?: string; markers?: boolean; ns?: never } & UntypedParams,
+    ) => ReactNode
   : NS extends NsOf
     ? <K extends KeysOf[NS]>(
-        props: { i18nKey: K; locale?: string; ns?: never } & ParamProps<NS, K>,
+        props: { i18nKey: K; locale?: string; markers?: boolean; ns?: never } & ParamProps<NS, K>,
       ) => ReactNode
     : never;
 
@@ -172,21 +174,29 @@ type ParamProps<N extends NsOf, K extends KeysOf[N]> = [ParamsFor<N, K>] extends
   ? {}
   : ParamsFor<N, K>;
 
-/** `<T i18nKey ns? locale? {...params}>`: typed by the generated catalogs when declared. */
+/**
+ * `<T i18nKey ns? locale? markers? {...params}>`: typed by the generated catalogs when
+ * declared. `markers={false}` keeps an in-context editor session from marking this
+ * message (R3-14 H9).
+ */
 export type TComponent = [NsOf] extends [never]
-  ? (props: { i18nKey: string; ns?: string; locale?: string } & UntypedParams) => ReactNode
+  ? (
+      props: { i18nKey: string; ns?: string; locale?: string; markers?: boolean } & UntypedParams,
+    ) => ReactNode
   : <K extends KeysOf[N], N extends NsOf = "default" & NsOf>(
-      props: { i18nKey: K; ns?: N; locale?: string } & ParamProps<N, K>,
+      props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & ParamProps<N, K>,
     ) => ReactNode;
 
 /**
  * Renders one message; params are props, a tag handler is a prop of the tag's name
  * (`<T i18nKey="terms" link={(c) => <a href="/terms">{c}</a>} />`). Every prop but
- * `i18nKey` and `ns` is a message param — `children` and `className` too, so a tag named
- * like a DOM prop is still a handler. `ns` is explicit: `<T>` never takes the namespace of
- * a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one.
+ * `i18nKey` and the per-call options `ns`, `locale` and `markers` is a message param —
+ * `children` and `className` too, so a tag named like a DOM prop is still a handler. `ns`
+ * is explicit: `<T>` never takes the namespace of a `useI18n(ns)` above it (R3-5);
+ * `useI18n(ns).T` is the bound one. `markers={false}` opts the message out of an
+ * in-context editor session (R3-14 H9).
  */
 export const T = ((p: { i18nKey: string; ns?: string }) =>
-  // The props are the params: `ns` is the per-call namespace option the core reads, and
-  // `i18nKey` is a param no message uses.
+  // The props are the params: `ns`, `locale` and `markers` are per-call options the core
+  // reads off them, and `i18nKey` is a param no message uses.
   (useI18n(p.ns).t as (k: string, p: object) => ReactNode)(p.i18nKey, p)) as TComponent;

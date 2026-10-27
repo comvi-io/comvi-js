@@ -15,7 +15,9 @@ export function Component() {
   // @ts-expect-error params must be an object
   t("k", 1);
   // Inline handlers need no annotation: `chunks` is a ReactNode (README snippet, TS7006 before).
-  const node: ReactNode = <T i18nKey="whatever" ns="x" anything={1} link={(c) => <b>{c}</b>} />;
+  const node: ReactNode = (
+    <T i18nKey="whatever" ns="x" markers={false} anything={1} link={(c) => <b>{c}</b>} />
+  );
   const rich: string = t("terms", { link: (c) => <a href="/terms">{c}</a>, at: new Date() });
   const { T: Bound } = useI18n("shop");
   const bound: ReactNode = <Bound i18nKey="cart.title" count={2} b={(c) => <b>{c}</b>} />;

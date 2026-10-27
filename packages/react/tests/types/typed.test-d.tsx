@@ -24,6 +24,10 @@ export const app: ReactElement = (
     <T i18nKey="greeting" name="Ann" />
     <T i18nKey="cart.title" ns="shop" count={1} />
     <T i18nKey="terms" link={(c: ReactNode) => <a>{c}</a>} />
+    <T i18nKey="greeting" name="Ann" markers={false} />
+    <T i18nKey="title" markers={false} />
+    {/* @ts-expect-error markers is a boolean option */}
+    <T i18nKey="title" markers="no" />
     {/* @ts-expect-error unknown key */}
     <T i18nKey="greting" name="Ann" />
     {/* @ts-expect-error missing param */}
@@ -38,6 +42,8 @@ export function Component() {
   const s: string = t("greeting", { name: "Ann" });
   const r: ReactElement = t("terms", { link: (c) => <a>{c as ReactNode}</a> });
   const n: string = t("cart.title", { ns: "shop", count: 2 });
+  const m: string = t("greeting", { name: "Ann", markers: false });
+  void m;
   const shop = useI18n("shop");
   const c: string = shop.t("cart.title", { count: 1 });
   // @ts-expect-error a rich key is an element, not a string
@@ -50,7 +56,7 @@ export function Component() {
   shop.t("title");
   // The bound <T> of useI18n("shop") is typed by the shop keys (R3-5(b)).
   const ShopT = shop.T;
-  const bt: ReactNode = <ShopT i18nKey="cart.title" count={1} />;
+  const bt: ReactNode = <ShopT i18nKey="cart.title" count={1} markers={false} />;
   // @ts-expect-error a default-namespace key on the bound shop <T>
   const bt2: ReactNode = <ShopT i18nKey="greeting" name="x" />;
   // @ts-expect-error missing param on the bound <T>
