@@ -593,34 +593,46 @@ the "before" column is the same command on 925b5bab (the lot 1c fix pass).
 
 | row                     | before | after | Δ    | budget | ceiling | note                                        |
 | ----------------------- | ------ | ----- | ---- | ------ | ------- | ------------------------------------------- |
-| core-icu                | 4,285  | 4,335 | +50  | 4,449  | 4,449   | R3-13 ceiling unchanged                     |
-| core-icu-cdn            | 4,711  | 4,758 | +47  | 4,895  | 4,895   | R3-13 ceiling unchanged                     |
-| core-icu-devtools       | 5,386  | 4,691 | −695 | 4,926  | 4,926   | devtools **+356 B** over core-icu (cap 500) |
-| core-devtools           | 1,296  | 527   | −769 | 554    | 554     | the subpath alone                           |
-| core-format             | 4,824  | 4,871 | +47  | 5,115  | —       | the hook in the instance                    |
-| core-plugins            | 4,862  | 4,906 | +44  | 5,152  | —       | the hook in the instance                    |
-| react-icu-cdn           | 5,186  | 5,232 | +46  | 5,395  | 5,395   | **+474 B** over core-icu-cdn (cap 500)      |
-| fw-react-default        | 4,720  | 4,764 | +44  | 5,003  | —       |                                             |
-| fw-react-full-composite | 8,170  | 7,514 | −656 | 7,890  | —       | composes `devtools()`                       |
+| core-icu                | 4,285  | 4,342 | +57  | 4,449  | 4,449   | R3-13 ceiling unchanged                     |
+| core-icu-cdn            | 4,711  | 4,774 | +63  | 4,895  | 4,895   | R3-13 ceiling unchanged                     |
+| core-icu-devtools       | 5,386  | 4,778 | −608 | 5,017  | 5,017   | devtools **+436 B** over core-icu (cap 500) |
+| core-devtools           | 1,296  | 613   | −683 | 644    | 644     | the subpath alone                           |
+| core-format             | 4,824  | 4,882 | +58  | 5,127  | —       | the hook, H8 and H3 in the instance         |
+| core-plugins            | 4,862  | 4,920 | +58  | 5,166  | —       | the hook, H8 and H3 in the instance         |
+| react-icu-cdn           | 5,186  | 5,241 | +55  | 5,395  | 5,395   | **+467 B** over core-icu-cdn (cap 500)      |
+| fw-react-default        | 4,720  | 4,778 | +58  | 5,017  | —       |                                             |
+| fw-react-full-composite | 8,170  | 7,603 | −567 | 7,984  | —       | composes `devtools()`                       |
+
+"After" is the sweep after the lot 1e fix pass (review items: the load landing under `add()`
+flattened into a base, compiled reuse across patch and flatten, `state().ns`, the strict
+SemVer check, the `mark` guards, an `Error` on script failure). The first 1e sweep had
+core-icu 4,335, core-icu-cdn 4,758, core-icu-devtools 4,691 (+356), core-devtools 527.
 
 Re-baselined from this sweep: every row in the table (the two R3-13 rows keep their ceiling as
-budget; `react-icu-cdn`'s budget is its ceiling, since ceil(5,232 × 1.05) is above it).
+budget; `react-icu-cdn`'s budget is its ceiling, since ceil(5,241 × 1.05) is above it).
 `core-icu-devtools` and `core-devtools` get `ceilingBytes` = budget = ceil(measured × 1.05)
 (R3-15), and `core-icu-devtools` declares `increment: { over: "core-icu", maxBytes: 500 }`,
 the R3-15 target for what `plugins: [devtools()]` adds. Seen red: the 0.7 failure-code texts
 planted back into the hook gave `core-icu-devtools` 4,995 B (+660 over `core-icu`, cap +500)
 and `core-devtools` 826 B, size-check exit 1.
 
-The base rows' +44…+50 B, measured by removing one piece at a time:
+The base rows' +55…+63 B, measured by removing one piece at a time (core-icu):
 
 | piece                                                                                                    | B (core-icu) |
 | -------------------------------------------------------------------------------------------------------- | ------------ |
 | H4 hook: `State.mk` + no `pr` under a hook, `translate` calling it after the `markers` opt-out, `Core.m` | +37          |
 | (inside the +37) `add()` no longer looking up and aborting a flight of its pair (H8)                     | saves bytes  |
 | H8 under-layering: a load landing into a pair `add()` filled goes under it (`put(…, u)`)                 | +13          |
+| fix pass: that landing flattened into a base (the fast path survives), compiled reuse base→patch (H3)    | +5           |
+| fix pass: `inherit(…, keys)` walking only a patch's keys                                                 | +2           |
 
-The H4 hook stays inside the editor plan's +20–40 B estimate (§3.1); H8 was estimated at 0 B
-(§5) and costs 13. `/devtools` went from 1,296 B to 527 B alone (+1,101 → +356 B over
+**Over the E0 envelope.** E0 allows the H4 hook +40 B on the base rows; H4 alone is +37, but
+the base rows grew +57 (core-icu) and +63 (core-icu-cdn) with H8 and H3, which the editor plan
+estimated at 0 B (§5). Both R3-13 ceilings still hold (4,342 ≤ 4,449; 4,774 ≤ 4,895). Whether
+the +40 covers H4 alone or the whole base growth is the owner's call; it is recorded in the
+lot 1e hand-over and the orchestrator report.
+
+`/devtools` went from 1,296 B to 613 B alone (+1,101 → +436 B over
 `core-icu`): one queue entry, the handle's thin delegates and a `<script>` promise, with CSP
 diagnostics, the timeout, cross-copy dedupe, the hourly salt, the v1 registry, hook probes
 and minted ids moved to the extension and the editor (lot 8). `core-compile`, `core-locale`

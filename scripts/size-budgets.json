@@ -45,11 +45,11 @@
       "gzipBudgetBytes": 4449,
       "ceilingBytes": 4449,
       "baseline": {
-        "minBytes": 8819,
-        "gzipBytes": 4335,
+        "minBytes": 8818,
+        "gzipBytes": 4342,
         "measuredAt": "2026-10-27"
       },
-      "note": "core + ICU; ceiling R3-13 (owner 27.10) = ceil(4,237 × 1.05), replacing R3-10's 3,250 B; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (… R3-13 SyntaxId cut: 4,237) and lot 1e (+50: the marking hook H4 +37 incl. add() no longer aborting, H8 under-layering +13)."
+      "note": "core + ICU; ceiling R3-13 (owner 27.10) = ceil(4,237 × 1.05), replacing R3-10's 3,250 B; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (… R3-13 SyntaxId cut: 4,237) and lot 1e (+57 over the 1c fix pass, ABOVE the E0 H4 envelope of +40: the marking hook H4 +37 incl. add() no longer aborting, H8 under-layering with the landing flattened and H3 compiled reuse +20; owner-visible in the lot 1e changeset)."
     },
     {
       "name": "core-icu-cdn",
@@ -58,65 +58,65 @@
       "gzipBudgetBytes": 4895,
       "ceilingBytes": 4895,
       "baseline": {
-        "minBytes": 9858,
-        "gzipBytes": 4758,
+        "minBytes": 9857,
+        "gzipBytes": 4774,
         "measuredAt": "2026-10-27"
       },
-      "note": "core + ICU + cdn(); ceiling R3-13 (owner 27.10) = ceil(4,661 × 1.05), replacing R3-10's 3,750 B; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (… R3-13 SyntaxId cut: 4,661) and lot 1e (+47: marking hook and H8)."
+      "note": "core + ICU + cdn(); ceiling R3-13 (owner 27.10) = ceil(4,661 × 1.05), replacing R3-10's 3,750 B; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (… R3-13 SyntaxId cut: 4,661) and lot 1e (+63: marking hook, H8 and H3; see core-icu)."
     },
     {
       "name": "core-icu-devtools",
       "entry": ["@comvi/core", "@comvi/core/devtools"],
       "fixture": "core-icu-devtools.ts",
-      "gzipBudgetBytes": 4926,
-      "ceilingBytes": 4926,
+      "gzipBudgetBytes": 5017,
+      "ceilingBytes": 5017,
       "increment": {
         "over": "core-icu",
         "maxBytes": 500
       },
       "baseline": {
-        "minBytes": 9538,
-        "gzipBytes": 4691,
+        "minBytes": 9752,
+        "gzipBytes": 4778,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships. Lot 1e (R3-15 thin hook): budget = ceiling = ceil(4,691 × 1.05); the devtools increment over core-icu is capped at +500 B (measured +356). size-budgets.md 2026-10-27 lot 1e."
+      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships. Lot 1e (R3-15 thin hook): budget = ceiling = ceil(4,778 × 1.05) after the 1e fix pass; the devtools increment over core-icu is capped at +500 B (measured +436). size-budgets.md 2026-10-27 lot 1e."
     },
     {
       "name": "core-devtools",
       "entry": ["@comvi/core/devtools"],
       "fixture": "core-devtools.ts",
-      "gzipBudgetBytes": 554,
-      "ceilingBytes": 554,
+      "gzipBudgetBytes": 644,
+      "ceilingBytes": 644,
       "baseline": {
-        "minBytes": 822,
-        "gzipBytes": 527,
+        "minBytes": 1037,
+        "gzipBytes": 613,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: @comvi/core/devtools alone (queue entry + handle x + minimal x.load). Lot 1e (R3-15 thin hook): budget = ceiling = ceil(527 × 1.05), was 1,296 B with the 0.7 loader slot. size-budgets.md 2026-10-27 lot 1e."
+      "note": "Gated: @comvi/core/devtools alone (queue entry + handle x + minimal x.load). Lot 1e (R3-15 thin hook): budget = ceiling = ceil(613 × 1.05) after the 1e fix pass (strict SemVer check, state().ns, mark guards), was 1,296 B with the 0.7 loader slot. size-budgets.md 2026-10-27 lot 1e."
     },
     {
       "name": "core-format",
       "entry": ["@comvi/core", "@comvi/core/format"],
       "fixture": "core-format.ts",
-      "gzipBudgetBytes": 5115,
+      "gzipBudgetBytes": 5127,
       "baseline": {
-        "minBytes": 10105,
-        "gzipBytes": 4871,
+        "minBytes": 10104,
+        "gzipBytes": 4882,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3) and the per-chain formatter memo, in the size pass 2026-10-27, and in lot 1e (+47: the marking hook in the instance)."
+      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3) and the per-chain formatter memo, in the size pass 2026-10-27, and in lot 1e (+58: the marking hook, H8 and H3 in the instance)."
     },
     {
       "name": "core-plugins",
       "entry": ["@comvi/core", "@comvi/core/plugins"],
       "fixture": "core-plugins.ts",
-      "gzipBudgetBytes": 5152,
+      "gzipBudgetBytes": 5166,
       "baseline": {
-        "minBytes": 10119,
-        "gzipBytes": 4906,
+        "minBytes": 10118,
+        "gzipBytes": 4920,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: @comvi/core/plugins detect() (a plugin, design §3.3) + persist() with the instance. Re-baselined in the size pass 2026-10-27 and in lot 1e (+44: the marking hook in the instance)."
+      "note": "Gated: @comvi/core/plugins detect() (a plugin, design §3.3) + persist() with the instance. Re-baselined in the size pass 2026-10-27 and in lot 1e (+58: the marking hook, H8 and H3 in the instance)."
     },
     {
       "name": "react-icu-cdn",
@@ -130,24 +130,24 @@
         "maxBytes": 500
       },
       "baseline": {
-        "minBytes": 10853,
-        "gzipBytes": 5232,
+        "minBytes": 10852,
+        "gzipBytes": 5241,
         "measuredAt": "2026-10-27"
       },
-      "note": "core-icu-cdn's graph on React: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,895 + the R3-10 binding cap 500; the increment over core-icu-cdn is HARD-capped at +500 B (lot 1c: +468; lot 1e: +474, <T markers> is types only). Accounting in size-budgets.md 2026-10-27 lots 1c and 1e."
+      "note": "core-icu-cdn's graph on React: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,895 + the R3-10 binding cap 500; the increment over core-icu-cdn is HARD-capped at +500 B (lot 1c: +468; lot 1e: +467, <T markers> is types only). Accounting in size-budgets.md 2026-10-27 lots 1c and 1e."
     },
     {
       "name": "fw-react-default",
       "entry": ["@comvi/react"],
       "fixture": "framework/react-default.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 5003,
+      "gzipBudgetBytes": 5017,
       "baseline": {
-        "minBytes": 9753,
-        "gzipBytes": 4764,
+        "minBytes": 9752,
+        "gzipBytes": 4778,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated React floor: one `@comvi/react` specifier, bundled catalogs, <I18nProvider> + useI18n() + t({name}). Re-baselined in lot 1c on the 0.8 binding (0.7: 7,606 B) and in lot 1e (+44: the core's marking hook)."
+      "note": "Gated React floor: one `@comvi/react` specifier, bundled catalogs, <I18nProvider> + useI18n() + t({name}). Re-baselined in lot 1c on the 0.8 binding (0.7: 7,606 B) and in lot 1e (+58: the core's marking hook, H8 and H3)."
     },
     {
       "name": "fw-react-full-composite",
@@ -160,13 +160,13 @@
       ],
       "fixture": "framework/react-full-composite.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 7890,
+      "gzipBudgetBytes": 7984,
       "baseline": {
-        "minBytes": 16035,
-        "gzipBytes": 7514,
+        "minBytes": 16250,
+        "gzipBytes": 7603,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated React ceiling: every export of @comvi/react and /format (<I18nHandover>, <T>, useLocale, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 1c on the 0.8 binding (0.7: 13,526 B) and in lot 1e (−656: the thin devtools hook)."
+      "note": "Gated React ceiling: every export of @comvi/react and /format (<I18nHandover>, <T>, useLocale, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 1c on the 0.8 binding (0.7: 13,526 B) and in lot 1e (−567: the thin devtools hook)."
     },
     {
       "name": "fw-solid-default",
