@@ -5,6 +5,7 @@
  */
 import { defineConfig } from "vite";
 import { entries, output } from "./vite.entries.ts";
+import pkg from "./package.json" with { type: "json" };
 
 export default defineConfig({
   build: {
@@ -18,5 +19,5 @@ export default defineConfig({
       treeshake: { moduleSideEffects: false },
     },
   },
-  define: { __DEV__: JSON.stringify(true) },
+  define: { __DEV__: JSON.stringify(true), __VERSION__: JSON.stringify(pkg.version) },
 });

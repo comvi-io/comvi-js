@@ -17,13 +17,16 @@
  * without limit.
  */
 
-type IntlKind = "NumberFormat" | "DateTimeFormat" | "ListFormat" | "PluralRules";
+type IntlKind =
+  | "NumberFormat"
+  | "DateTimeFormat"
+  | "ListFormat"
+  | "PluralRules"
+  | "RelativeTimeFormat"
+  | "DisplayNames";
 
 /** Formatters keyed by "<kind> <locale> <variant>". */
-let cache: Record<
-  string,
-  Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat | Intl.PluralRules
-> = Object.create(null);
+let cache: Record<string, object> = Object.create(null);
 let size = 0;
 /** Entries kept before the cache starts over. */
 export const INTL_CACHE_LIMIT = 500;
@@ -32,7 +35,12 @@ export const INTL_CACHE_LIMIT = 500;
 let ascii: Record<string, boolean> = Object.create(null);
 
 /** The cached Intl formatter of `kind` for `locale`, built with `options` on first use. */
-export const intl = <T>(kind: IntlKind, locale: string, variant: string, options?: object): T => {
+export const intl = <T>(
+  kind: IntlKind,
+  locale: string | readonly string[],
+  variant: string,
+  options?: object,
+): T => {
   const key = kind + " " + locale + " " + variant;
   let f = cache[key];
   if (f === undefined) {
@@ -42,10 +50,9 @@ export const intl = <T>(kind: IntlKind, locale: string, variant: string, options
       size = 1;
     }
     // The constructor is looked up by name on purpose: one call site for every kind.
-    f = cache[key] = new (Intl[kind] as unknown as new (l: string, o?: object) => typeof f)(
-      locale,
-      options,
-    );
+    f = cache[key] = new (
+      Intl[kind] as unknown as new (l: string | readonly string[], o?: object) => object
+    )(locale, options);
   }
   return f as T;
 };

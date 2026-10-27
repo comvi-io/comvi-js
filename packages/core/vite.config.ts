@@ -7,6 +7,7 @@
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import { entries, output } from "./vite.entries.ts";
+import pkg from "./package.json" with { type: "json" };
 
 export default defineConfig({
   plugins: [dts({ insertTypesEntry: true })],
@@ -21,5 +22,5 @@ export default defineConfig({
       treeshake: { moduleSideEffects: false },
     },
   },
-  define: { __DEV__: JSON.stringify(false) },
+  define: { __DEV__: JSON.stringify(false), __VERSION__: JSON.stringify(pkg.version) },
 });

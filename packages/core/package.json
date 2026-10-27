@@ -2,7 +2,7 @@
   "name": "@comvi/core",
   "version": "0.7.1",
   "type": "module",
-  "description": "Type-safe, framework-agnostic i18n library with plugin architecture for JavaScript and TypeScript",
+  "description": "Type-safe, framework-agnostic i18n runtime: ICU messages, typed t(), CDN loading",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
@@ -42,6 +42,26 @@
       "types": "./dist/index.d.ts",
       "development": "./dist/comvi-core.dev.js",
       "default": "./dist/comvi-core.js"
+    },
+    "./cdn": {
+      "types": "./dist/cdn.d.ts",
+      "development": "./dist/comvi-core-cdn.dev.js",
+      "default": "./dist/comvi-core-cdn.js"
+    },
+    "./plugins": {
+      "types": "./dist/plugins.d.ts",
+      "development": "./dist/comvi-core-plugins.dev.js",
+      "default": "./dist/comvi-core-plugins.js"
+    },
+    "./format": {
+      "types": "./dist/format.d.ts",
+      "development": "./dist/comvi-core-format.dev.js",
+      "default": "./dist/comvi-core-format.js"
+    },
+    "./devtools": {
+      "types": "./dist/devtools.d.ts",
+      "development": "./dist/comvi-core-devtools.dev.js",
+      "default": "./dist/comvi-core-devtools.js"
     },
     "./internal": {
       "types": "./dist/internal.d.ts",

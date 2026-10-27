@@ -1,12 +1,13 @@
 /**
- * @comvi/core — lot 1a of the 0.8 rebuild.
+ * @comvi/core — the 0.8 core: `createI18n`, the typed `t()`, `negotiate`.
  *
- * This entry exports what exists so far: locale negotiation and the public types.
- * `createI18n` and the instance arrive in lot 1b; until then the message compiler is
- * reachable through `@comvi/core/internal` (bindings, tests and benches only — no
- * semver guarantee).
+ * Subpaths: `/cdn` (the CDN v1 loader), `/plugins` (locale detection and persistence),
+ * `/format` (Intl formatters over the shared cache), `/devtools` (the browser-extension
+ * hook), `/internal` (binding seams, no semver guarantee).
  */
+export { createI18n } from "./instance";
 export { negotiate } from "./locale";
+export type { I18n, I18nOptions, Loader, Plugin } from "./instance";
 export type { I18nError, I18nErrorCode, OnError } from "./errors";
 export type { Catalog } from "./compile/cache";
 export type {

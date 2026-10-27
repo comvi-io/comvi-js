@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import pkg from "./package.json" with { type: "json" };
 
 /**
  * Two projects, split by build condition: `unit` runs the source with `__DEV__` true
@@ -23,7 +24,7 @@ export default defineConfig({
     coverage: { provider: "v8", reporter: ["text", "json", "html"] },
     projects: [
       {
-        define: { __DEV__: JSON.stringify(true) },
+        define: { __DEV__: JSON.stringify(true), __VERSION__: JSON.stringify(pkg.version) },
         test: {
           ...shared,
           name: "unit",
@@ -32,7 +33,7 @@ export default defineConfig({
         },
       },
       {
-        define: { __DEV__: JSON.stringify(false) },
+        define: { __DEV__: JSON.stringify(false), __VERSION__: JSON.stringify(pkg.version) },
         test: {
           ...shared,
           name: "prod",
