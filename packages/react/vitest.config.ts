@@ -12,6 +12,10 @@ const alias = [
   { find: /^@comvi\/core$/, replacement: `${CORE}/index.ts` },
   { find: /^@comvi\/core\/(.*)$/, replacement: `${CORE}/$1.ts` },
 ];
+// Under Stryker (scripts/mutation/run.mjs sets COMVI_MUTATION) tests/contracts is left out:
+// it reads the BUILT dist, never the mutated source. run.mjs mutates this package
+// `--inPlace`: the alias above points at ../core/src, which a sandbox copy lacks.
+const MUTATION = process.env.COMVI_MUTATION ? ["tests/contracts/**"] : [];
 const shared = {
   environment: "happy-dom" as const,
   setupFiles: ["./tests/setup.ts"],
@@ -32,7 +36,7 @@ export default defineConfig({
           ...shared,
           name: "unit",
           include: ["tests/**/*.test.{ts,tsx}"],
-          exclude: ["tests/prod/**", "tests/**/*.node.test.tsx"],
+          exclude: ["tests/prod/**", "tests/**/*.node.test.tsx", ...MUTATION],
         },
       },
       {

@@ -297,3 +297,22 @@ describe("useI18n(ns)", () => {
     expect(container.textContent).toBe("B");
   });
 });
+
+describe("useI18n(ns) across renders", () => {
+  it("activates a namespace the same component switches to, and on a replacement instance", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const { i18n: other } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const Probe = ({ ns }: { ns: string }) => (useI18n(ns), null);
+    const ui = (i: I18n, ns: string) => (
+      <I18nProvider i18n={i}>
+        <Probe ns={ns} />
+      </I18nProvider>
+    );
+    const view = render(ui(i18n, "shop"));
+    view.rerender(ui(i18n, "cart"));
+    expect(l.requested).toEqual(["en:shop", "en:cart"]);
+    view.rerender(ui(other, "cart"));
+    expect(l.requested).toEqual(["en:shop", "en:cart", "en:cart"]);
+  });
+});

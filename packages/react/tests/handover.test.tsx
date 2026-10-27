@@ -400,6 +400,97 @@ describe("the target locale across renders and instances (0.7 target-locale)", (
     expect(b.locale).toBe("de");
   });
 
+  it("a replacement instance that switched before renders the target at once", async () => {
+    const a = createI18n({ locale: "en", messages });
+    const b = createI18n({ locale: "en", messages });
+    await b.setLocale("uk"); // b's lrev has moved
+    await b.setLocale("en");
+    const log: { given?: string; text: string }[] = [];
+    const ui = (i: I18n) => (
+      <I18nProvider i18n={i}>
+        <I18nHandover locale="de">
+          <Probe log={log} />
+        </I18nHandover>
+      </I18nProvider>
+    );
+    const view = render(ui(a));
+    await settle();
+    log.length = 0;
+    view.rerender(ui(b));
+    // Every render of b's subtree shows the target, the one before b switches too.
+    expect(log.map((x) => x.text)).toEqual(log.map(() => "de:Hallo"));
+    expect(log.length).toBeGreaterThan(0);
+    expect(view.container.textContent).toBe("de:Hallo");
+  });
+
+  it("a replacement instance gets the same catalogs object too", async () => {
+    const a = createI18n({ locale: "en", messages });
+    const b = createI18n({ locale: "en", messages });
+    const catalogs = { default: { en: { extra: "Extra" } } };
+    const Extra = () => <p>{useI18n().t("extra") as string}</p>;
+    const ui = (i: I18n) => (
+      <I18nProvider i18n={i}>
+        <I18nHandover catalogs={catalogs}>
+          <Extra />
+        </I18nHandover>
+      </I18nProvider>
+    );
+    const view = render(ui(a));
+    await settle();
+    view.rerender(ui(b));
+    expect(view.container.textContent).toBe("Extra");
+    await settle();
+    expect(b.t("extra")).toBe("Extra");
+  });
+
+  it.each([undefined, "en"])(
+    "with target %j (none, or the instance's locale) switches nothing: no report, no refetch",
+    async (target) => {
+      const l = manualLoader();
+      const errors: string[] = [];
+      const i18n = createI18n({
+        locale: "en",
+        loader: l.load,
+        onError: (e) => errors.push(e.code),
+      });
+      await l.fail("en:default");
+      render(
+        <I18nProvider i18n={i18n}>
+          <I18nHandover locale={target}>
+            <Probe log={[]} />
+          </I18nHandover>
+        </I18nProvider>,
+      );
+      await settle();
+      expect(l.requested).toEqual(["en:default"]);
+      // The probe's key is missing (nothing loaded); nothing else is reported.
+      expect(errors.filter((c) => c != "missing_key")).toEqual(["load_failed"]);
+    },
+  );
+
+  it("a failed switch of a replaced instance leaves the new instance's handover alone", async () => {
+    const l = manualLoader();
+    const a = createI18n({ locale: "en", messages, loader: l.load, onError: () => {} });
+    const b = createI18n({ locale: "en", messages: { ...messages, fr: { greeting: "Salut" } } });
+    const ui = (i: I18n) => (
+      <I18nProvider i18n={i}>
+        <I18nHandover locale="fr">
+          <Probe log={[]} />
+        </I18nHandover>
+      </I18nProvider>
+    );
+    const view = render(ui(a)); // a's switch to fr waits for its load
+    await settle();
+    view.rerender(ui(b)); // b switches to fr at once
+    await settle();
+    expect(view.container.textContent).toBe("fr:Salut");
+    await act(() => b.setLocale("uk")); // the user moves b on
+    expect(view.container.textContent).toBe("uk:Привіт");
+    await l.fail("fr:default"); // a's old switch fails now
+    await settle();
+    expect(view.container.textContent).toBe("uk:Привіт");
+  });
+
   it("an invalid target is reported, not thrown, and the instance stays", async () => {
     const errors: string[] = [];
     const i18n = createI18n({ locale: "en", messages, onError: (e) => errors.push(e.code) });
