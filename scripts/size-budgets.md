@@ -678,3 +678,35 @@ reporter: +41 B on `core-icu` for ~12 ns per missing key; the memo (+23 B) and t
 swap went in 45589f67, the `h != noop` guard stayed. The binding-local alternative for
 the coming namespace (a state copy with the namespace added to `ld`, built in the hook) cost
 the React row +52 B, +520 over `core-icu-cdn` against the cap of +500, and was not taken.
+
+## 2026-10-28: lot 1d review fix pass
+
+`node scripts/size-check.mjs` after `TURBO_FORCE=true pnpm build`, Node v24.22.1; "before" is
+the lot 1d part 1 baseline (ecba8a3a).
+
+| row                     | before | after | Δ   | budget | ceiling | note                                    |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | --------------------------------------- |
+| core-compile            | 1,853  | 1,857 | +4  | 1,950  | 2,000   | `{x}` list of numbers/Dates → String    |
+| core-locale             | 578    | 588   | +10 | 618    | —       | memo stores after computing (rollover)  |
+| core-negotiate          | 490    | 498   | +8  | 523    | —       | same                                    |
+| core-icu                | 4,298  | 4,370 | +72 | 4,449  | 4,449   | R3-13 ceiling unchanged; 79 B headroom  |
+| core-icu-cdn            | 4,730  | 4,808 | +78 | 4,895  | 4,895   | R3-13 ceiling unchanged; 87 B headroom  |
+| core-icu-devtools       | 4,730  | 4,809 | +79 | 5,017  | 5,017   | devtools **+439 B** over core-icu (500) |
+| core-devtools           | 613    | 625   | +12 | 644    | 644     | 64-character version guard              |
+| core-format             | 4,853  | 4,915 | +62 | 5,161  | —       |                                         |
+| core-plugins            | 4,876  | 4,944 | +68 | 5,192  | —       |                                         |
+| react-icu-cdn           | 5,204  | 5,276 | +72 | 5,395  | 5,395   | **+468 B** over core-icu-cdn (cap 500)  |
+| fw-react-default        | 4,737  | 4,803 | +66 | 5,044  | —       |                                         |
+| fw-react-full-composite | 7,578  | 7,664 | +86 | 8,048  | —       |                                         |
+
+Re-baselined: every row in the table, budget = ceil(measured × 1.05), never above the row's
+ceiling. No ceiling and no cap moved. The bytes are review fixes (correctness, not features),
+by file on `core-icu`: `instance.ts` +43 (own-property per-call options, an invalid per-call
+locale reported once through the chain memo, `load()` publishing a namespace joining the active
+set, no marking after `destroy()`, `defaultParams: {}` as none), `state.ts` +29 (an `add()` of
+messages the pair already renders keeps the slot — the handover render loop), `fmt.ts` +7,
+`locale.ts` +6. The React increment over `core-icu-cdn` went DOWN (+474 → +468): the binding
+gained the prototype-free `Ts` cache, the handover chunk (not in the row) its own-key loop.
+
+Headroom for later lots: `core-icu` 79 B and `core-icu-cdn` 87 B under their R3-13 ceilings;
+the React increment 32 B under its +500 B cap; devtools 61 B under its +500 B target.
