@@ -3,6 +3,7 @@ import path from "node:path";
 import url from "node:url";
 import zlib from "node:zlib";
 import { createRequire } from "node:module";
+import { pendingReason } from "../tooling/migration-pending.mjs";
 
 /**
  * Bundle-size gate: bundles each scripts/size-fixtures/ entry with esbuild and
@@ -320,6 +321,14 @@ function fixtureEntries(entry) {
 /**
  * Runs every budget entry. Every row declares a `gzipBudgetBytes`, so every
  * result is "pass" or "fail" — measured min+gz against that budget.
+ *
+ * Two additions for the 0.8 rebuild:
+ * - a row may declare `ceilingBytes`, the design ceiling (reference-i18n rev 3,
+ *   R3-10): its `gzipBudgetBytes` must not exceed it, so re-baselining cannot
+ *   walk a row past the ceiling;
+ * - a row whose entry names a MIGRATION_PENDING package (`pending(name)`, the CLI
+ *   passes tooling/migration-pending.mjs) is "skipped" with the reason, not
+ *   measured: that package does not build on the branch.
  */
 export async function runSizeCheck({
   budgets,
@@ -327,6 +336,7 @@ export async function runSizeCheck({
   packageRoots = DEFAULT_PACKAGE_ROOTS,
   conditions = PRODUCTION_CONDITIONS,
   define = {},
+  pending = () => undefined,
 } = {}) {
   const results = [];
   for (const fixture of budgets.fixtures) {
@@ -337,6 +347,28 @@ export async function runSizeCheck({
       );
     }
     const specifiers = fixtureEntries(fixture.entry);
+    const pendingPackage = specifiers
+      .map((specifier) => parseSpecifier(specifier).packageName)
+      .find((name) => pending(name));
+    if (pendingPackage) {
+      results.push({
+        name: fixture.name,
+        status: "skipped",
+        reason: `${pendingPackage} is MIGRATION_PENDING (${pending(pendingPackage)})`,
+      });
+      continue;
+    }
+    if (typeof fixture.ceilingBytes === "number" && budget > fixture.ceilingBytes) {
+      results.push({
+        name: fixture.name,
+        status: "fail",
+        reason: `gzipBudgetBytes ${budget} exceeds the design ceiling ${fixture.ceilingBytes}`,
+        budget,
+        minBytes: NaN,
+        gzipBytes: NaN,
+      });
+      continue;
+    }
     const unresolved = specifiers.filter(
       (specifier) => resolveFixtureSpecifier(specifier, packageRoots, conditions) === undefined,
     );
@@ -360,6 +392,7 @@ export async function runSizeCheck({
       minBytes,
       gzipBytes,
       budget,
+      ceiling: fixture.ceilingBytes,
     });
   }
   return results;
@@ -367,11 +400,15 @@ export async function runSizeCheck({
 
 export function renderResults(results) {
   return results
-    .map(
-      (result) =>
-        `${result.status === "pass" ? "+" : "x"} ${result.name}: ${formatBytes(result.gzipBytes)} min+gz ` +
-        `${result.status === "pass" ? "<=" : "vs"} budget ${formatBytes(result.budget)} ` +
-        `(${formatBytes(result.minBytes)} min)`,
+    .map((result) =>
+      result.status === "skipped"
+        ? `- ${result.name}: skipped — ${result.reason}`
+        : result.reason
+          ? `x ${result.name}: ${result.reason}`
+          : `${result.status === "pass" ? "+" : "x"} ${result.name}: ${formatBytes(result.gzipBytes)} min+gz ` +
+            `${result.status === "pass" ? "<=" : "vs"} budget ${formatBytes(result.budget)} ` +
+            `(${formatBytes(result.minBytes)} min)` +
+            (result.ceiling === undefined ? "" : `, ceiling ${result.ceiling} B`),
     )
     .join("\n");
 }
@@ -384,6 +421,7 @@ async function main() {
     budgets,
     fixturesDir: path.join(SCRIPT_DIR, "size-fixtures"),
     define: { __VERSION__: JSON.stringify(corePkg.version) },
+    pending: pendingReason,
   });
   console.log(renderResults(results));
   const failures = results.filter((result) => result.status === "fail");

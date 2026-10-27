@@ -1,60 +1,55 @@
 {
-  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle through the published exports map, minify, gzip -9). Every row is gated: gzipBudgetBytes is ceil(baseline.gzipBytes * 1.05) from the one sweep baseline records. Rules and how to re-baseline live in scripts/size-budgets.md \u2014 read that before editing this file. Every note here is one line.",
+  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle through the published exports map, minify, gzip -9). Every row is gated: gzipBudgetBytes is ceil(baseline.gzipBytes * 1.05) from the one sweep baseline records. Rules and how to re-baseline live in scripts/size-budgets.md — read that before editing this file. Every note here is one line.",
   "fixtures": [
     {
-      "name": "core-full-composite",
-      "entry": [
-        "@comvi/core",
-        "@comvi/core/tags",
-        "@comvi/core/icu",
-        "@comvi/core/loader",
-        "@comvi/core/plugins",
-        "@comvi/core/devtools"
-      ],
-      "fixture": "core-full-composite.ts",
-      "gzipBudgetBytes": 11104,
+      "name": "core-compile",
+      "entry": ["@comvi/core/internal"],
+      "fixture": "core-compile.ts",
+      "gzipBudgetBytes": 1844,
+      "ceilingBytes": 1850,
       "baseline": {
-        "minBytes": 29140,
-        "gzipBytes": 10575,
-        "measuredAt": "2026-10-20"
+        "minBytes": 3617,
+        "gzipBytes": 1756,
+        "measuredAt": "2026-10-27"
       },
-      "note": "Gated core ceiling: all six core subpaths recomposed with `.use(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
+      "note": "Gated 0.8 compile graph (lot 1a): scanner, ICU plural/select/selectordinal/offset, tags, value formatting, compile cache. Ceiling (S7 compile slice 1,372 + S1 cache 200) x 1.15, rounded to 50 (R3-10 method)."
     },
     {
-      "name": "core-base",
-      "entry": "@comvi/core",
-      "fixture": "core-base.ts",
-      "gzipBudgetBytes": 5888,
+      "name": "core-locale",
+      "entry": ["@comvi/core/internal"],
+      "fixture": "core-locale.ts",
+      "gzipBudgetBytes": 606,
       "baseline": {
-        "minBytes": 15069,
-        "gzipBytes": 5607,
-        "measuredAt": "2026-10-20"
+        "minBytes": 880,
+        "gzipBytes": 577,
+        "measuredAt": "2026-10-27"
       },
-      "note": "Gated base floor: `@comvi/core` alone, no capability composed \u2014 the anchor every other core row is read against."
+      "note": "Gated 0.8 locale module alone (lot 1a): canonicalize, parent chain, dir, negotiate. No design ceiling of its own: R3-10 prices these as marginal bytes inside core, gated by core-1a-surface."
     },
     {
-      "name": "core-base-icu",
-      "entry": ["@comvi/core", "@comvi/core/icu"],
-      "fixture": "core-base-icu.ts",
-      "gzipBudgetBytes": 7186,
+      "name": "core-negotiate",
+      "entry": ["@comvi/core"],
+      "fixture": "core-negotiate.ts",
+      "gzipBudgetBytes": 492,
       "baseline": {
-        "minBytes": 18262,
-        "gzipBytes": 6843,
-        "measuredAt": "2026-10-20"
+        "minBytes": 729,
+        "gzipBytes": 468,
+        "measuredAt": "2026-10-27"
       },
-      "note": "Gated: base host + the ICU compiler as a constructor option."
+      "note": "Gated public root after lot 1a: `negotiate` alone, what a detector imports. No design ceiling of its own (see core-locale)."
     },
     {
-      "name": "core-base-devtools",
-      "entry": ["@comvi/core", "@comvi/core/devtools"],
-      "fixture": "core-base-devtools.ts",
-      "gzipBudgetBytes": 7214,
+      "name": "core-1a-surface",
+      "entry": ["@comvi/core", "@comvi/core/internal"],
+      "fixture": "core-1a-surface.ts",
+      "gzipBudgetBytes": 2300,
+      "ceilingBytes": 2300,
       "baseline": {
-        "minBytes": 18050,
-        "gzipBytes": 6870,
-        "measuredAt": "2026-10-20"
+        "minBytes": 4636,
+        "gzipBytes": 2259,
+        "measuredAt": "2026-10-27"
       },
-      "note": "Gated: base host + `.use(devtools())` only \u2014 read against `core-base`, the difference is what discovery and the editor loader cost together."
+      "note": "Gated: every runtime export of @comvi/core and /internal after lot 1a. Ceiling (S7 compile slice 1,372 + S1 cache 200 + S7 canon/parent/negotiate/dir 395) x 1.15, rounded to 50 (R3-10 method)."
     },
     {
       "name": "fw-react-default",
@@ -67,7 +62,7 @@
         "gzipBytes": 7606,
         "measuredAt": "2026-10-20"
       },
-      "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings \u2014 the anchor the React ceiling row is read against."
+      "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings — the anchor the React ceiling row is read against."
     },
     {
       "name": "fw-react-full-composite",
@@ -93,7 +88,7 @@
         "gzipBytes": 7036,
         "measuredAt": "2026-10-14"
       },
-      "note": "Gated Solid floor: one `@comvi/solid` specifier, base createI18n + bindings \u2014 the anchor the Solid ceiling row is read against."
+      "note": "Gated Solid floor: one `@comvi/solid` specifier, base createI18n + bindings — the anchor the Solid ceiling row is read against."
     },
     {
       "name": "fw-solid-full-composite",
@@ -119,7 +114,7 @@
         "gzipBytes": 7235,
         "measuredAt": "2026-10-20"
       },
-      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings \u2014 the anchor the Svelte ceiling row is read against."
+      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings — the anchor the Svelte ceiling row is read against."
     },
     {
       "name": "fw-svelte-full-composite",
@@ -158,7 +153,7 @@
         "gzipBytes": 7709,
         "measuredAt": "2026-10-20"
       },
-      "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings \u2014 the anchor the Vue ceiling row is read against."
+      "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings — the anchor the Vue ceiling row is read against."
     },
     {
       "name": "fw-vue-full-composite",
@@ -210,7 +205,7 @@
         "gzipBytes": 10105,
         "measuredAt": "2026-10-20"
       },
-      "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(\u2026)` composed through `.use`."
+      "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(…)` composed through `.use`."
     },
     {
       "name": "fw-next-root-devtools",
@@ -319,7 +314,7 @@
         "gzipBytes": 8729,
         "measuredAt": "2026-10-20"
       },
-      "note": "Gated Nuxt client floor: the runtime client entry only \u2014 the anchor the Nuxt ceiling row is read against."
+      "note": "Gated Nuxt client floor: the runtime client entry only — the anchor the Nuxt ceiling row is read against."
     },
     {
       "name": "fw-nuxt-i18n",
@@ -343,7 +338,7 @@
         "gzipBytes": 12161,
         "measuredAt": "2026-10-20"
       },
-      "note": "Gated API-aware path: base host + ICU + `fetchLoader` from `@comvi/plugin-fetch-loader/api`, composed as the fetch-loader README API recipe. Renamed from `plugin-fetch-loader-cdn` on 2026-10-04 (first-impression lot), same graph. +233 B over the measurement at `831e739` (10861 B) \u2014 199 B for making the CDN request path ONE shared implementation both entries run, 34 B for the package-name error prefix; the recorded 03.09 baseline (10640 B) was already 221 B stale before this lot."
+      "note": "Gated API-aware path: base host + ICU + `fetchLoader` from `@comvi/plugin-fetch-loader/api`, composed as the fetch-loader README API recipe. Renamed from `plugin-fetch-loader-cdn` on 2026-10-04 (first-impression lot), same graph. +233 B over the measurement at `831e739` (10861 B) — 199 B for making the CDN request path ONE shared implementation both entries run, 34 B for the package-name error prefix; the recorded 03.09 baseline (10640 B) was already 221 B stale before this lot."
     },
     {
       "name": "plugin-fetch-loader",

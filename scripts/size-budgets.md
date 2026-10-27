@@ -292,3 +292,33 @@ against a 381 B budget: the memo is ~100 B on a ~360 B row. Without the memo the
 budget, but the base measured the formatters 13–25 % slower than 0.7.0 with a fallback locale,
 so the bytes ship. Only that row was re-baselined, to 462 B with a budget of 486 B; the rest keep
 their baselines.
+
+## 2026-10-27: the 0.8 core rebuild, lot 1a — design ceilings and MIGRATION_PENDING rows
+
+Lot 1a replaced `@comvi/core` with the compile and locale foundation of the 0.8 core
+(`.omc/plans/reference-i18n-design.md` rev 3, synthesis §4). Two rules come with it.
+
+**Design ceilings.** A row may carry `ceilingBytes`, the ceiling the design sets for that graph
+(R3-10). `gzipBudgetBytes` is then `min(ceilingBytes, ceil(baseline × 1.05))`, and the gate fails a
+row whose budget exceeds its ceiling, so re-baselining cannot walk past the design. The 1a rows
+derive their ceilings with the R3-10 method — measured prototype bytes plus the estimated deltas,
+× 1.15, rounded up to 50 — applied to the part of the core that exists:
+
+| Row               | Ceiling derivation                                                                                 | Measured (Node 24) |
+| ----------------- | -------------------------------------------------------------------------------------------------- | ------------------ |
+| `core-compile`    | S7 compile slice 1,372 (scanner, ICU, offset, plain-`{x}` formatting, tags) + S1 cache 200 → 1,850 | 1,756              |
+| `core-1a-surface` | the above + S7 canonicalize/parent/negotiate/dir 395 → 2,300                                       | 2,259              |
+| `core-locale`     | none of its own: R3-10 prices the locale code as marginal bytes inside core                        | 577                |
+| `core-negotiate`  | none of its own (as `core-locale`)                                                                 | 468                |
+
+The S7 compile slice was re-measured from the prototype sources
+(`lot0/s7/src/{parse,icu,fmt,tags}.js`, every flag on except `F_ICUFMT`/`F_SKEL`): 1,372 B, against
+2,668 B for core + ICU + tags. The four 0.7 core rows (`core-base`, `core-base-icu`,
+`core-base-devtools`, `core-full-composite`) are gone with the 0.7 API (synthesis §4.3); lot 1b adds
+the core + ICU (≤ 3,250) and core + ICU + `cdn()` (≤ 3,750) rows.
+
+**MIGRATION_PENDING rows.** A row whose entry names a package listed in
+`tooling/migration-pending.mjs` is printed as `skipped` with the reason and is not measured: that
+package does not build against the new core yet. The row and its baseline stay, so the lot that
+rebuilds the package removes its entry from the list and the row is gated again, against the
+recorded 0.7 baseline until it is re-baselined.
