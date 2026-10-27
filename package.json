@@ -27,7 +27,7 @@
     "size": "node scripts/size-check.mjs",
     "check:strict-consumer": "node scripts/unless-pending.mjs check:strict-consumer @comvi/vite-plugin,@comvi/typegen -- node scripts/strict-consumer/run.mjs",
     "check:node-entries": "node scripts/unless-pending.mjs check:node-entries @comvi/svelte -- node scripts/node-entries/run.mjs",
-    "check:snippets": "node scripts/docs-snippets/run.mjs --readmes",
+    "check:snippets": "node scripts/check-snippets.mjs --readmes",
     "check:snippets:types": "node scripts/unless-pending.mjs check:snippets:types @comvi/react,@comvi/next,@comvi/vue,@comvi/nuxt,@comvi/svelte,@comvi/solid,@comvi/plugin-fetch-loader,@comvi/plugin-locale-detector,@comvi/plugin-in-context-editor,@comvi/vite-plugin -- node scripts/docs-snippets/run.mjs --readmes --typecheck --sdk-root .",
     "check:snippets:content": "node scripts/docs-snippets/run.mjs --content src/content/docs/docs/i18n --root \"${WWW_ROOT:?set WWW_ROOT to the www app directory}\"",
     "examples:verify": "node scripts/unless-pending.mjs examples:verify @comvi/react,@comvi/next,@comvi/vue,@comvi/nuxt,@comvi/svelte,@comvi/solid,@comvi/plugin-fetch-loader,@comvi/plugin-locale-detector -- node scripts/examples-verify.mjs",

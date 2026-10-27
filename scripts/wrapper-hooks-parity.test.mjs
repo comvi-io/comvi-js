@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { pendingReason } from "../tooling/migration-pending.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -356,6 +357,12 @@ const PROVIDER_SOURCES = {
   "@comvi/svelte": "packages/svelte/src/context.ts",
 };
 
+// MIGRATION_PENDING (tooling/migration-pending.mjs): core's `AnyI18nInstance` is the
+// instance type, and lot 1a of the 0.8 rebuild removed the 0.7 instance; it returns in
+// lot 1b with the bindings. While the bindings that import it are pending, only their
+// half is checked; core's half comes back when the list no longer names them.
+const BINDINGS_PENDING = Object.keys(PROVIDER_SOURCES).filter((name) => pendingReason(name));
+
 test("no wrapper declares AnyI18nInstance locally — it is core's, re-exported", () => {
   const local = Object.entries(PROVIDER_SOURCES).filter(([, relativePath]) =>
     /\btype AnyI18nInstance\s*=/.test(stripComments(readSource(relativePath))),
@@ -365,6 +372,7 @@ test("no wrapper declares AnyI18nInstance locally — it is core's, re-exported"
     [],
     'AnyI18nInstance must be `import type { AnyI18nInstance } from "@comvi/core"`, never a local declaration',
   );
+  if (BINDINGS_PENDING.length > 0) return;
   assert.match(
     stripComments(readSource("packages/core/src/types.ts")),
     /export type AnyI18nInstance\s*=/,

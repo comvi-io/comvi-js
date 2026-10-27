@@ -648,16 +648,20 @@ test("parseFenceImports reads a re-export and a side-effect import", () => {
 // The live surface. Narrow on purpose: two facts, both of which are the gap.
 // ---------------------------------------------------------------------------
 
-test("the real repo surface: flattenCatalog is on @comvi/core and not on @comvi/core/loader", () => {
+// The 0.8 rebuild (lot 1a) replaced core's entries: `@comvi/core` (negotiate + types) and
+// `@comvi/core/internal` (the compiler). The 0.7 subpaths, `/loader` among them, are gone.
+test("the real repo surface: negotiate is on @comvi/core, compile on /internal, /loader is gone", () => {
   const surface = loadRepoSurface(REPO);
   assert.notEqual(surface, null);
 
   const root = surface.resolve("@comvi/core");
-  const loaderEntry = surface.resolve("@comvi/core/loader");
+  const internal = surface.resolve("@comvi/core/internal");
   assert.equal(root.status, "ok");
-  assert.equal(loaderEntry.status, "ok");
-  assert.equal(root.names.get("flattenCatalog")?.value, true);
-  assert.equal(loaderEntry.names.has("flattenCatalog"), false);
+  assert.equal(internal.status, "ok");
+  assert.equal(root.names.get("negotiate")?.value, true);
+  assert.equal(root.names.has("compile"), false);
+  assert.equal(internal.names.get("compile")?.value, true);
+  assert.notEqual(surface.resolve("@comvi/core/loader").status, "ok");
 });
 
 test("the real repo surface reads every package, and every entry point is CLOSED", () => {
@@ -673,7 +677,7 @@ test("the real repo surface reads every package, and every entry point is CLOSED
   // built some way `entrySourceFile` does not model, this test names it instead
   // of the rule quietly going half-blind on that entry.
   const specifiers = surface.entrySpecifiers();
-  assert.ok(specifiers.includes("@comvi/core/loader"));
+  assert.ok(specifiers.includes("@comvi/core/internal"));
   assert.ok(specifiers.includes("@comvi/plugin-fetch-loader/api"));
 
   const unreadable = [];

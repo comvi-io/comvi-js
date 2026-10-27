@@ -232,9 +232,19 @@ test("loadSizeBaselines → the three recorded numbers per fixture, keyed by nam
   assert.equal(typeof react.gzipBytes, "number");
   assert.equal(typeof react.minBytes, "number");
   assert.equal(typeof react.gzipBudgetBytes, "number");
-  // Every gated row is present, and the budget rule the md file states holds.
-  for (const [, recorded] of baselines) {
-    assert.equal(recorded.gzipBudgetBytes, Math.ceil(recorded.gzipBytes * 1.05));
+  // Every gated row is present, and the budget rule the md file states holds:
+  // measured + 5 %, capped by the row's design ceiling when it has one.
+  const ceilings = new Map(
+    JSON.parse(fs.readFileSync(path.join(REPO, "scripts/size-budgets.json"), "utf8")).fixtures.map(
+      (fixture) => [fixture.name, fixture.ceilingBytes ?? Infinity],
+    ),
+  );
+  for (const [name, recorded] of baselines) {
+    assert.equal(
+      recorded.gzipBudgetBytes,
+      Math.min(ceilings.get(name), Math.ceil(recorded.gzipBytes * 1.05)),
+      name,
+    );
   }
 });
 
