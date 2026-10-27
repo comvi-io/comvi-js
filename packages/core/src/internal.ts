@@ -65,7 +65,7 @@ export const view = (
   core(i18n);
   return c === state.c
     ? state
-    : mk(state.rev, state.lrev, state.locale, state.dir, c, state.ld, state.dp);
+    : mk(state.rev, state.lrev, state.locale, state.dir, c, state.ld, state.dp, state.tg);
 };
 
 /** `t()` of `i18n` against `state` (a published state or a view). */

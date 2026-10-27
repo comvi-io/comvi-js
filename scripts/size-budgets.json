@@ -45,8 +45,8 @@
       "gzipBudgetBytes": 3250,
       "ceilingBytes": 3250,
       "baseline": {
-        "minBytes": 8909,
-        "gzipBytes": 4294,
+        "minBytes": 8917,
+        "gzipBytes": 4304,
         "measuredAt": "2026-10-27"
       },
       "note": "RED BY DESIGN (blocked, owner decision): core + ICU, R3-10 ceiling 3,250 B kept as the budget; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass)."
@@ -58,8 +58,8 @@
       "gzipBudgetBytes": 3750,
       "ceilingBytes": 3750,
       "baseline": {
-        "minBytes": 9997,
-        "gzipBytes": 4737,
+        "minBytes": 10005,
+        "gzipBytes": 4745,
         "measuredAt": "2026-10-27"
       },
       "note": "RED BY DESIGN (blocked, owner decision): core + ICU + cdn(), R3-10 ceiling 3,750 B kept as the budget; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass)."
@@ -68,13 +68,13 @@
       "name": "core-icu-devtools",
       "entry": ["@comvi/core", "@comvi/core/devtools"],
       "fixture": "core-icu-devtools.ts",
-      "gzipBudgetBytes": 5659,
+      "gzipBudgetBytes": 5668,
       "baseline": {
-        "minBytes": 11440,
-        "gzipBytes": 5389,
+        "minBytes": 11448,
+        "gzipBytes": 5398,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships (devtools adds 1,095 B to core-icu in the fix-pass sweep)."
+      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships (devtools adds 1,094 B to core-icu in the fix-pass sweep)."
     },
     {
       "name": "core-devtools",
@@ -93,10 +93,10 @@
       "name": "core-format",
       "entry": ["@comvi/core", "@comvi/core/format"],
       "fixture": "core-format.ts",
-      "gzipBudgetBytes": 5077,
+      "gzipBudgetBytes": 5085,
       "baseline": {
-        "minBytes": 10195,
-        "gzipBytes": 4835,
+        "minBytes": 10203,
+        "gzipBytes": 4842,
         "measuredAt": "2026-10-27"
       },
       "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3) and the per-chain formatter memo."
@@ -105,10 +105,10 @@
       "name": "core-plugins",
       "entry": ["@comvi/core", "@comvi/core/plugins"],
       "fixture": "core-plugins.ts",
-      "gzipBudgetBytes": 5111,
+      "gzipBudgetBytes": 5120,
       "baseline": {
-        "minBytes": 10208,
-        "gzipBytes": 4867,
+        "minBytes": 10216,
+        "gzipBytes": 4876,
         "measuredAt": "2026-10-27"
       },
       "note": "Gated: @comvi/core/plugins detect() (a plugin, design §3.3) + persist() with the instance."

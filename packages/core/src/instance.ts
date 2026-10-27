@@ -221,7 +221,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   /** A state for locale `l` (an invalid locale has no entry of its own in its chain). */
   const st = (rev: number, lrev: number, l: string, c: Store, dp: State["dp"]) => {
     const h = chain(l);
-    return mk(rev, lrev, l, h.o ? dirOf(h[0][1]) : "ltr", c, [...fl.keys()], dp);
+    return mk(rev, lrev, l, h.o ? dirOf(h[0][1]) : "ltr", c, [...fl.keys()], dp, h.o ? h[0][1] : l);
   };
 
   /**
@@ -360,7 +360,7 @@ export const createI18n = (o: I18nOptions): I18n => {
       f && !(p && (p.ns || p.locale)) && !S.dp
         ? typeof f == "string"
           ? f
-          : render(f, p, chain(S.locale)[0][1], env)
+          : render(f, p, S.tg, env)
         : tr(S, key, p)) as I18n["t"],
     ns: ((n: string) => (key: string, p?: Params) => tr(S, key, p, n)) as I18n["ns"],
     setLocale(l) {

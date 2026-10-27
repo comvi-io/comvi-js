@@ -386,9 +386,10 @@ editor loader. Added to `core-icu` it costs 1,099 B (`core-icu-devtools`), again
 
 One sweep under Node v24.22.1 after `TURBO_FORCE=true pnpm build`. The fixes the two reviews
 asked for cost bytes on the owner rows, which stay red against the unchanged R3-10 ceilings:
-`core-icu` 4,142 → **4,294 B** (+152; ceiling 3,250, −1,044 short) and `core-icu-cdn` 4,492 →
-**4,737 B** (+245; ceiling 3,750, −987 short). Measured on the sources by reverting one fix at a
-time (min+gz, `core-icu`; small fixes interact through gzip, so the parts do not sum exactly):
+`core-icu` 4,142 → **4,304 B** (+162; ceiling 3,250, 1,054 over) and `core-icu-cdn` 4,492 →
+**4,745 B** (+253; ceiling 3,750, 995 over), the last 10 B of each for the canonical tag kept on the
+state so the `t()` fast path with params skips the chain lookup (0.057 → 0.045 µs, now below 0.7).
+Measured on the sources by reverting one fix at a time (min+gz, `core-icu`; small fixes interact through gzip, so the parts do not sum exactly):
 
 | Fix (review item)                                                                     | Bytes |
 | ------------------------------------------------------------------------------------- | ----: |
@@ -404,18 +405,18 @@ time (min+gz, `core-icu`; small fixes interact through gzip, so the parts do not
 | re-ensure loop mid-switch, one publish per start (not separable: reverting adds code) |   n/a |
 | `Core.o`, `now`/`formats` reach `/format` through it, the rest                        |   ≈ 0 |
 
-`cdn()` itself grows by 93 B (350 → 443 over `core-icu`): the R3-12 `fallback` option, the race
+`cdn()` itself grows by 91 B (350 → 441 over `core-icu`): the R3-12 `fallback` option, the race
 of the whole request (body included) against the timeout and the caller's abort, and the
 prototype-free copy of the fallback map. A module-level `Promise.resolve()` for `ready` is
 annotated pure, so `core-compile` (the internal entry) does not carry it (1,931 B).
 
 Re-baselined in the same sweep: `core-compile` 1,931, `core-locale` 578 (607), `core-icu-devtools`
-5,389 (5,659; `devtools()` adds 1,095 B), `core-devtools` 1,296 (ceiling 1,300: the idempotence
-guard and the SSR id were paid for by folding `exposeGlobal` into one `??`), `core-format` 4,835
-(5,077: named formats and `formatRelativeTime(i18n, date, now?)` of design §3.3, and a per-chain
-formatter memo for default options that took `formatNumber` from +26 % to ≈ +10 % against 0.7), `core-plugins`
-4,867 (5,111: `detect()` is a plugin again).
+5,398 (5,668; `devtools()` adds 1,094 B), `core-devtools` 1,296 (ceiling 1,300: the idempotence
+guard and the SSR id were paid for by folding `exposeGlobal` into one `??`), `core-format` 4,842
+(5,085: named formats and `formatRelativeTime(i18n, date, now?)` of design §3.3, and a per-chain
+formatter memo for default options that took `formatNumber` from +26 % to ≈ +10 % against 0.7),
+`core-plugins` 4,876 (5,120: `detect()` is a plugin again).
 
-The verdict of the lot-1b section stands and is now 1,044 / 987 B wide: no cut that keeps the
+The verdict of the lot-1b section stands and is now 1,054 / 995 B wide: no cut that keeps the
 mandated features reaches 3,250 / 3,750. The owner decides (raise R3-10, drop features, or a new
 measured ceiling); lot 1b stays **blocked** on these two rows only.

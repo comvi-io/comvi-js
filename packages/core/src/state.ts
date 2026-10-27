@@ -53,6 +53,8 @@ export interface State {
   readonly ld: readonly string[];
   /** Primary record: default namespace at `locale`, when that slot has no patch. */
   readonly pr: CompiledRecord | undefined;
+  /** The canonical tag of `locale` (what Intl receives on the fast path). */
+  readonly tg: string;
   /** The instance's `defaultParams` as of this state (an own copy, never the caller's object). */
   readonly dp: Readonly<Record<string, unknown>> | null | undefined;
 }
@@ -71,8 +73,9 @@ export const mk = (
   c: Store,
   ld: readonly string[],
   dp: State["dp"],
+  tg: string,
   s = c.default && c.default[locale],
-): State => ({ rev, lrev, locale, dir, c, ld, dp, pr: s && !s.p ? s.c : undefined });
+): State => ({ rev, lrev, locale, dir, c, ld, dp, tg, pr: s && !s.p ? s.c : undefined });
 
 /**
  * The slot that results from adding `msgs` to `slot`. An empty pair keeps `msgs` BY
