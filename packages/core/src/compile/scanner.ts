@@ -42,6 +42,12 @@ export interface Env {
   z?: string;
   /** Error sink; `defaultOnError` when absent. */
   r?: OnError;
+  /**
+   * Joiner: what a tag handler receives as its children, from their parts (R4-20). A
+   * binding passes one that makes ONE node of them (React: a Fragment with the parts as
+   * varargs); absent, the handler gets the parts array.
+   */
+  j?: (parts: unknown[]) => unknown;
 }
 
 /**
@@ -286,7 +292,8 @@ const tagPart =
     const children = run(kids, p, l, x, h);
     const handler = arg(p, name);
     if (typeof handler === "function") {
-      return frame(handler(typeof children === "string" ? (children ? [children] : []) : children));
+      const c = typeof children === "string" ? (children ? [children] : []) : children;
+      return frame(handler(x?.j ? x.j(c) : c));
     }
     if (__DEV__) {
       devWarn(

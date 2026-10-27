@@ -120,12 +120,23 @@ export type Chain = readonly (readonly [string, string])[] & { o: number };
 export interface Core {
   /** The published state. */
   s(): State;
-  /** Translates against any state of this instance (a published one, or a `view()`). */
-  tr(state: State, key: string, params?: Params, ns?: string): Rendered;
+  /**
+   * Translates against any state of this instance (a published one, or a `view()`); `j`
+   * joins a tag's children for its handler (a binding's node maker).
+   */
+  tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"]): Rendered;
   /** The lookup chain of a locale. */
   ch(locale: string): Chain;
   /** The options the instance was made with (`timeZone`, `now`, `formats` for `/format`). */
   o: I18nOptions;
+  /** The active namespaces. */
+  n: ReadonlySet<string>;
+  /**
+   * Activates namespace `ns` and loads what the current locale's chain lacks of it, like
+   * `load()` but WITHOUT asking its failed loads again: a binding activating on every mount
+   * must not turn one failure into a refetch per mount (`load()` is the explicit retry).
+   */
+  a(ns: string): Promise<void>;
 }
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
@@ -268,7 +279,9 @@ export const createI18n = (o: I18nOptions): I18n => {
     return -1;
   };
 
-  const tr = (s: State, key: string, p?: Params, n = D): Rendered => {
+  /** The env with a binding's joiner: one per instance, rebuilt only for another joiner. */
+  let ej: Env = env;
+  const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"]): Rendered => {
     let l = s.locale;
     // Per-call options are read from the params object itself (R4-17).
     if (p) {
@@ -283,7 +296,7 @@ export const createI18n = (o: I18nOptions): I18n => {
       // Kept before the report: an `onError` that calls has() or t() moves `hit`.
       const m = hit;
       if (i >= ch.o) err("fallback_used", l, n, key);
-      return render(m, p, ch[i][1], env);
+      return render(m, p, ch[i][1], j ? (ej.j == j ? ej : (ej = { ...env, j })) : env);
     }
     // A key of a namespace still loading (for any locale: a parent, a fallback, the
     // target of a pending switch) is not missing yet.
@@ -343,6 +356,10 @@ export const createI18n = (o: I18nOptions): I18n => {
   const retry = (i: number, v: string) =>
     bad.forEach((_, k) => k.split(K)[i] == v && bad.delete(k));
 
+  /** Activates `n` and loads what the current chain lacks of it (failed pairs stay failed). */
+  const use = (n: string): Promise<void> =>
+    dead ? R : (act.add(n), Promise.all(ensure(S.locale, [n])).then(noop));
+
   const i18n: I18n = {
     get locale() {
       return S.locale;
@@ -395,10 +412,9 @@ export const createI18n = (o: I18nOptions): I18n => {
       return new Promise((y) => y(go() as void));
     },
     load(n) {
-      if (dead) return R;
+      // The namespace's failed loads are asked for again (an explicit retry).
       retry(1, n);
-      act.add(n);
-      return Promise.all(ensure(S.locale, [n])).then(noop);
+      return use(n);
     },
     add(l, m, n = D) {
       if (!dead) {
@@ -444,7 +460,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
   };
 
-  CORE.set(i18n, { s: () => S, tr, ch: chain, o });
+  CORE.set(i18n, { s: () => S, tr, ch: chain, o, n: act, a: use });
 
   for (const p of o.plugins || [])
     try {

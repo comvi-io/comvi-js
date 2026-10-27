@@ -5,10 +5,11 @@
  * The binding surface is three functions over an instance's immutable {@link State}:
  * `state(i18n)` (the published snapshot), `view(i18n, state, extra)` (a render-local
  * snapshot with extra catalogs layered in, never published, `rev` unchanged) and
- * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)`.
+ * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)` and
+ * `activate(i18n, ns)`.
  */
 import type { Catalog, Rendered } from "./compile/cache";
-import type { Params } from "./compile/scanner";
+import type { Env, Params } from "./compile/scanner";
 import { CORE, type Core, type I18n } from "./instance";
 import { dir } from "./locale";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
@@ -33,6 +34,13 @@ const core = (i18n: I18n): Core => {
 
 /** The published state of `i18n`. */
 export const state = (i18n: I18n): State => core(i18n).s();
+
+/**
+ * Activates namespace `ns` of `i18n` (a binding's `useI18n(ns)` after commit): loads what
+ * the current locale lacks of it, but never asks a failed load again — a remount after a
+ * failure does not refetch; `i18n.load(ns)` is the explicit retry.
+ */
+export const activate = (i18n: I18n, ns: string): Promise<void> => core(i18n).a(ns);
 
 /**
  * Layered slots per (existing slot, extra catalog): a view rebuilt for the same slot and
@@ -71,29 +79,41 @@ export const view = (
     }
   // The chain gives the locale's direction and canonical tag (an invalid one renders
   // through its fallbacks, as a published state does).
-  const h = core(i18n).ch(locale);
-  return c === state.c && locale == state.locale
-    ? state
-    : mk(
-        state.rev,
-        state.lrev,
-        locale,
-        h.o ? dir(h[0][1]) : "ltr",
-        c,
-        state.ld,
-        state.dp,
-        h.o ? h[0][1] : locale,
-      );
+  const x = core(i18n);
+  const h = x.ch(locale);
+  if (c === state.c && locale == state.locale) return state;
+  // Another locale than the published one: what its chain lacks of an active namespace
+  // will load when the switch lands at commit, so it counts as loading in the view (its
+  // keys are not reported missing, `isLoading` is true) — the view of a handover to a
+  // locale nobody handed catalogs for.
+  let ld = state.ld;
+  if (locale != state.locale)
+    for (const n of x.n)
+      for (const [k] of h) if (!c[n]?.[k] && !ld.includes(k + "\0" + n)) ld = [...ld, k + "\0" + n];
+  return mk(
+    state.rev,
+    state.lrev,
+    locale,
+    h.o ? dir(h[0][1]) : "ltr",
+    c,
+    ld,
+    state.dp,
+    h.o ? h[0][1] : locale,
+  );
 };
 
-/** `t()` of `i18n` against `state` (a published state or a view). */
+/**
+ * `t()` of `i18n` against `state` (a published state or a view). `join` makes what a tag
+ * handler receives from its children's parts — every handler's, `defaultParams` ones too.
+ */
 export const translate = (
   i18n: I18n,
   state: State,
   key: string,
   params?: Params,
   ns?: string,
-): Rendered => core(i18n).tr(state, key, params, ns);
+  join?: Env["j"],
+): Rendered => core(i18n).tr(state, key, params, ns, join);
 
 /** Whether a catalog load is in flight in `state` (for namespace `ns`, or any). */
 export const loading = (state: State, ns?: string): boolean =>
