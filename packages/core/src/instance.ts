@@ -135,7 +135,7 @@ const D = "default";
 const K = "\0";
 const noop = (): void => {};
 /** `ready` when nothing loads: one resolved promise, the same object every time. */
-const R = Promise.resolve();
+const R = /* @__PURE__ */ Promise.resolve();
 
 /** Runs `f`; what it throws is rethrown outside the caller's loop, so the loop goes on. */
 const safe = (f: void | (() => void)) => {

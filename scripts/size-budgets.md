@@ -381,3 +381,40 @@ owner decides: raise the R3-10 rows, drop features, or a new ceiling.
 `core-devtools` measures 1,298 B (2 under its ceiling): the subpath alone, discovery plus the
 editor loader. Added to `core-icu` it costs 1,099 B (`core-icu-devtools`), against the 1,264 B
 `devtools()` cost of 0.6.0 (`core-base-devtools` − `core-base`).
+
+### 2026-10-27: the lot-1b review fix pass
+
+One sweep under Node v24.22.1 after `TURBO_FORCE=true pnpm build`. The fixes the two reviews
+asked for cost bytes on the owner rows, which stay red against the unchanged R3-10 ceilings:
+`core-icu` 4,142 → **4,294 B** (+152; ceiling 3,250, −1,044 short) and `core-icu-cdn` 4,492 →
+**4,737 B** (+245; ceiling 3,750, −987 short). Measured on the sources by reverting one fix at a
+time (min+gz, `core-icu`; small fixes interact through gzip, so the parts do not sum exactly):
+
+| Fix (review item)                                                         | Bytes |
+| ------------------------------------------------------------------------- | ----: |
+| partial failure counts the target's own chain (`de-AT` → `de`)            |   +21 |
+| `fallbackLocale` copied at construction                                   |   +21 |
+| `ready` memoized per set of flights, shared resolved promise              |   +11 |
+| `add()` publishes only when the store changed                             |   +10 |
+| reporter isolation (a throwing `onError`)                                 |   +10 |
+| `add()` of the slot's own catalog is a no-op (`layer`)                    |    +7 |
+| obsolete loads pruned when a switch completes                             |    +5 |
+| `defaultParams` per snapshot (copy, view, destroy guard)                  |    +4 |
+| missing-key wait on every load of the namespace; deaf-loader abort        |    +4 |
+| re-ensure loop for namespaces activated mid-switch, one publish per start | ≈ −16 |
+| `Core.o`, `now`/`formats` reach `/format` through it, the rest            |   ≈ 0 |
+
+`cdn()` itself grows by 93 B (350 → 443 over `core-icu`): the R3-12 `fallback` option, the race
+of the whole request (body included) against the timeout and the caller's abort, and the
+prototype-free copy of the fallback map. A module-level `Promise.resolve()` for `ready` is
+annotated pure, so `core-compile` (the internal entry) does not carry it (1,931 B).
+
+Re-baselined in the same sweep: `core-compile` 1,931, `core-locale` 578 (607), `core-icu-devtools`
+5,389 (5,659; `devtools()` adds 1,095 B), `core-devtools` 1,296 (ceiling 1,300: the idempotence
+guard and the SSR id were paid for by folding `exposeGlobal` into one `??`), `core-format` 4,797
+(5,037: named formats and `formatRelativeTime(i18n, date, now?)` of design §3.3), `core-plugins`
+4,867 (5,111: `detect()` is a plugin again).
+
+The verdict of the lot-1b section stands and is now 1,044 / 987 B wide: no cut that keeps the
+mandated features reaches 3,250 / 3,750. The owner decides (raise R3-10, drop features, or a new
+measured ceiling); lot 1b stays **blocked** on these two rows only.
