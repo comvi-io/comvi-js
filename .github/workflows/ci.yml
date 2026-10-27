@@ -22,7 +22,9 @@ jobs:
     timeout-minutes: 5
     outputs:
       extension: ${{ steps.pending.outputs.extension }}
-      examples_e2e: ${{ steps.pending.outputs.examples_e2e }}
+      # JSON list of the ACTIVE examples-e2e shards ({framework, mode}); `[]` when none.
+      examples_e2e_matrix: ${{ steps.pending.outputs.examples_e2e_matrix }}
+      # Comma-separated active test apps; empty when none.
       test_apps: ${{ steps.pending.outputs.test_apps }}
 
     steps:
@@ -136,9 +138,11 @@ jobs:
       - name: Test
         run: pnpm test:commit
 
-      # Type-checking cost of the typed t() (reference-i18n R4-5): check at 2 ns x 20k
-      # keys x 300 calls <= 1.0 s, a key typo <= 5 s total, 5k -> 20k scaling <= 2.5x,
-      # memory <= 250 MB; tsc's own Check/Total time, medians of 3 interleaved rounds.
+      # Type-checking cost of the typed t() (reference-i18n R4-5): per-call instantiations
+      # (300 calls - 2 calls @20k) <= 50K (a count), check at 2 ns x 20k keys x 300 calls
+      # <= 1.0 s, a key typo <= 5 s total, 5k -> 20k scaling <= 2.5x, memory <= 250 MB;
+      # tsc's own Check/Total time, medians of 3 interleaved rounds. Two planted
+      # regressions run first and must each fail their gate.
       - name: Types bench gates
         run: pnpm check:types-bench
 
@@ -177,6 +181,9 @@ jobs:
 
       - name: Build
         run: pnpm build
+        # Fresh dist for every gate that reads it: turbo must not restore a cached build.
+        env:
+          TURBO_FORCE: "true"
 
       # The built dist must inline the manifest version (core's devtools
       # discovery and duplicate-copy guard key on it). Same gate the release
@@ -374,19 +381,18 @@ jobs:
   examples-e2e:
     name: Examples e2e (${{ matrix.framework }}, ${{ matrix.mode }})
     needs: [examples-e2e-changes, migration-pending]
-    if: needs.examples-e2e-changes.outputs.run == 'true' && needs.migration-pending.outputs.examples_e2e == 'active'
+    if: needs.examples-e2e-changes.outputs.run == 'true' && needs.migration-pending.outputs.examples_e2e_matrix != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     strategy:
       fail-fast: false
+      # Every framework x mode (default, cdn) plus the SSR recipes (sveltekit,
+      # solidstart; default only) — minus the shards whose example still needs a
+      # MIGRATION_PENDING package. The list lives in tooling/migration-pending.mjs
+      # (EXAMPLES_E2E_MATRIX) so a framework rejoins CI the moment its lot lands.
       matrix:
-        framework: [react, next, vue, nuxt, svelte, solid, vanilla]
-        mode: [default, cdn]
-        # The SSR recipe examples read bundled catalogs only; --cdn leaves them out.
-        include:
-          - { framework: sveltekit, mode: default }
-          - { framework: solidstart, mode: default }
+        include: ${{ fromJSON(needs.migration-pending.outputs.examples_e2e_matrix) }}
 
     steps:
       - name: Checkout
@@ -437,7 +443,7 @@ jobs:
   test-apps-smoke:
     name: Test apps smoke (Next 15/16, Nuxt 3/4)
     needs: [examples-e2e-changes, migration-pending]
-    if: needs.examples-e2e-changes.outputs.test_apps == 'true' && needs.migration-pending.outputs.test_apps == 'active'
+    if: needs.examples-e2e-changes.outputs.test_apps == 'true' && needs.migration-pending.outputs.test_apps != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
@@ -459,4 +465,6 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build and smoke-test the apps
-        run: pnpm test-apps:smoke
+        env:
+          TEST_APPS: ${{ needs.migration-pending.outputs.test_apps }}
+        run: pnpm test-apps:smoke --only "$TEST_APPS"
