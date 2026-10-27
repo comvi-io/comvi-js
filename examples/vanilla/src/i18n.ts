@@ -1,19 +1,14 @@
-// Turns on `<tag>…</tag>` in every `t()` and `tRaw()` call. Framework apps skip
-// it: their `<T>` passes the tag grammar per call.
-import "@comvi/core/tags";
-import { createI18n } from "@comvi/core";
+import { createI18n, type Loader } from "@comvi/core";
+import { cdn } from "@comvi/core/cdn";
 import { devtools } from "@comvi/core/devtools";
-import { icuCompiler } from "@comvi/core/icu";
-import { loader } from "@comvi/core/loader";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
-import { localeDetector } from "@comvi/plugin-locale-detector";
+import { detect, persist } from "@comvi/core/plugins";
 
 export const locales = ["en", "uk", "de", "ar"] as const;
 
 // One dynamic `import()` per catalog, so the bundler splits each into its own
 // chunk and a language is downloaded the first time someone picks it. A key is
 // `locale` for the default namespace or `locale:namespace` for another one.
-const localCatalogs = {
+const bundled = {
   en: () => import("./locales/en.json"),
   uk: () => import("./locales/uk.json"),
   de: () => import("./locales/de.json"),
@@ -24,35 +19,43 @@ const localCatalogs = {
   "ar:account": () => import("./locales/account/ar.json"),
 };
 
+// A loader is a function: (locale, namespace, signal) → catalog.
+const fromBundle: Loader = async (locale, ns) => {
+  const load = bundled[(ns === "default" ? locale : `${locale}:${ns}`) as keyof typeof bundled];
+  if (!load) throw new Error(`No bundled catalog for ${locale}/${ns}`);
+  return (await load()).default;
+};
+
 // Connect your Comvi project: set `VITE_COMVI_CDN_URL` at build time and the
 // catalogs come from the CDN, with the local files as the offline fallback.
 const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
-const catalogs = cdnUrl ? cdnLoader({ cdnUrl, fallback: localCatalogs }) : loader(localCatalogs);
+const loader = cdnUrl ? cdn(cdnUrl, { fallback: bundled }) : fromBundle;
 
-// `t()` never throws: a missing key is reported to `onMissingKey`. A real app
-// would forward it to its error tracker; this one keeps the distinct keys.
+/** The locales and namespaces whose catalogs have arrived, in order. */
+export const fetched = { locales: [] as string[], namespaces: [] as string[] };
+
+/** `t()` never throws: problems are reported to `onError`. This one keeps the distinct missing keys. */
 export const missedKeys = new Set<string>();
 
 export const i18n = createI18n({
   locale: "en",
   // A key missing in one language shows the English text instead of the key.
   fallbackLocale: "en",
-  // ICU (`{count, plural, …}`) is opt-in, so apps without it ship less code.
-  compiler: icuCompiler,
-  onMissingKey: ({ key, namespace }) => {
-    missedKeys.add(`${namespace}:${key}`);
+  loader: async (locale, ns, signal) => {
+    const catalog = await loader(locale, ns, signal);
+    if (!fetched.locales.includes(locale)) fetched.locales.push(locale);
+    if (!fetched.namespaces.includes(ns)) fetched.namespaces.push(ns);
+    return catalog;
   },
-})
-  .use(catalogs)
-  .use(
-    localeDetector({
-      supportedLocales: [...locales],
-      // A `?lng=` link wins, then the last choice, then the browser's language.
-      order: ["querystring", "localStorage", "navigator"],
-      // Remember the choice for the next visit.
-      caches: ["localStorage"],
-      fallbackLocale: "en",
-    }),
-  )
-  // Makes the instance visible to the Comvi browser extension.
-  .use(devtools());
+  plugins: [
+    // A `?lang=` link wins, then the last choice (a cookie), then the browser's language.
+    detect({ supported: [...locales] }),
+    // Remembers every switch in that cookie.
+    persist(),
+    // Makes the instance visible to the Comvi browser extension.
+    devtools(),
+  ],
+  onError(error) {
+    if (error.code === "missing_key") missedKeys.add(`${error.ns}:${error.key}`);
+  },
+});

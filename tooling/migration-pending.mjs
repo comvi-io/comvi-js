@@ -3,8 +3,9 @@
  * 0.8 core yet (reference-i18n rebuild, branch `next`; plan:
  * js-sdk/.omc/plans/reference-i18n-lot0-synthesis.md §4).
  *
- * Lot 1a replaced `@comvi/core` with the new compile/locale foundation and lot 1b added
- * `createI18n`, the instance and the `/cdn`, `/plugins`, `/format`, `/devtools` subpaths.
+ * Lot 1a replaced `@comvi/core` with the new compile/locale foundation, lot 1b added
+ * `createI18n`, the instance and the `/cdn`, `/plugins`, `/format`, `/devtools` subpaths,
+ * and lot 1c rebuilt `@comvi/react` and moved the React and vanilla examples.
  * Until a package's lot lands, every repo gate leaves it out EXPLICITLY:
  *
  *   - turbo tasks (build, test, lint, typecheck, coverage): `scripts/turbo-active.mjs`
@@ -47,7 +48,8 @@ export const MIGRATION_PENDING = {
   "@test-apps/next16": "lot 6: builds from @comvi/next",
   "@test-apps/nuxt": "lot 7: builds from @comvi/nuxt",
   "@test-apps/nuxt4": "lot 7: builds from @comvi/nuxt",
-  "@test-apps/react": "lot 1c: builds from @comvi/react",
+  "@test-apps/react":
+    "lot 3: generates its types with @comvi/vite-plugin (typegen v2); its app moves to the 0.8 API with it",
   "@test-apps/solid": "lot 5: builds from @comvi/solid",
   "@test-apps/svelte": "lot 5: builds from @comvi/svelte",
   "@test-apps/vue": "lot 4: builds from @comvi/vue",
@@ -60,8 +62,12 @@ export const MIGRATION_PENDING = {
  */
 const CORE_07_DOCS =
   "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
+const LINT_07_RULES =
+  "on the 0.8 API since lot 1c; the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
 export const MIGRATION_PENDING_DOCS = {
   "packages/core/README.md": CORE_07_DOCS,
+  "packages/react/README.md": LINT_07_RULES,
+  "examples/README.md": LINT_07_RULES,
   "docs/design/composition.md": CORE_07_DOCS,
   "docs/design/formatting.md": CORE_07_DOCS,
   "docs/design/icu.md": CORE_07_DOCS,
@@ -83,13 +89,24 @@ export function packageName(dirOrName) {
 
 /**
  * Pending capabilities that are not a package of their own. `fixtures-08`: the examples,
- * test apps and bundler-matrix fixtures are written against the 0.7 API (`.use()`
- * composition, the 0.7 subpaths); they move to `createI18n` of the 0.8 core with the
- * React binding in lot 1c, so each is pending on it, whatever its bindings.
+ * test apps and bundler-matrix fixtures written against the 0.7 API (`.use()` composition,
+ * the 0.7 subpaths). Each moves to `createI18n` of the 0.8 core in its binding's lot; the
+ * ones already moved are listed in {@link ON_08} and no longer need the capability.
  */
 export const PENDING_CAPABILITIES = {
   "fixtures-08":
-    "lot 1c: examples, test apps and bundler-matrix fixtures still use the 0.7 API; they move to the 0.8 createI18n with the React binding",
+    "examples, test apps and bundler-matrix fixtures still on the 0.7 API move to the 0.8 createI18n with their binding's lot (vue: lot 4, solid/svelte: lot 5, next: lot 6, nuxt: lot 7, the editor: lot 8)",
+};
+
+/**
+ * What lot 1c moved to the 0.8 API: the React and vanilla examples, and the core and React
+ * cases of the bundler matrix. `@test-apps/react` stays pending on its own entry (it
+ * generates its types with `@comvi/vite-plugin`, typegen v2 in lot 3).
+ */
+export const ON_08 = {
+  examples: new Set(["react", "vanilla"]),
+  bundlerCases: new Set(["core-default", "core-subpaths", "react-default", "react-format"]),
+  testApps: new Set(),
 };
 
 /** The reason `dirOrName` (a package or a PENDING_CAPABILITIES id) is pending, or `undefined`. */
@@ -143,11 +160,17 @@ export function exampleNeeds(name) {
     fs.readFileSync(path.join(ROOT, "examples", name, "package.json"), "utf8"),
   );
   const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
-  return ["fixtures-08", ...deps.filter((d) => d.startsWith("@comvi/"))];
+  const comvi = deps.filter((d) => d.startsWith("@comvi/"));
+  return ON_08.examples.has(name) ? comvi : ["fixtures-08", ...comvi];
 }
 
 /** What test app `test-apps/<name>` needs: itself (its workspace package) and the 0.8 fixtures. */
-export const testAppNeeds = (name) => ["fixtures-08", `@test-apps/${name}`];
+export const testAppNeeds = (name) =>
+  ON_08.testApps.has(name) ? [`@test-apps/${name}`] : ["fixtures-08", `@test-apps/${name}`];
+
+/** What bundler-matrix case `name` needs: the packages it packs, and the 0.8 fixtures unless moved. */
+export const bundlerCaseNeeds = (name, packages) =>
+  ON_08.bundlerCases.has(name) ? [...packages] : ["fixtures-08", ...packages];
 
 /** The entries of `names` whose needs are all active; prints one line per skipped entry. */
 export function activeShards(names, needsOf, gate, log = console.log) {

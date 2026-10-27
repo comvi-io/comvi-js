@@ -1,21 +1,17 @@
-import { useEffect, useState } from "react";
-import { useI18n, useI18nLoader } from "@comvi/react";
+import { use } from "react";
+import { useI18n } from "@comvi/react";
+import { i18n } from "../i18n";
 
-/** Rows from the `account` namespace, which loads the first time this renders. */
+// Loads the `account` namespace the first time this page needs it. The promise is
+// kept, so every render reads the same one; once loaded, the namespace stays
+// active and follows every later language switch.
+let account: Promise<void> | undefined;
+const loadAccount = () => (account ??= i18n.load("account"));
+
+/** Rows from the `account` namespace; suspends until it has loaded. */
 export function AccountDetails({ name }: { name: string }) {
+  use(loadAccount());
   const { t } = useI18n("account");
-  const { t: tApp } = useI18n();
-  const { addActiveNamespace } = useI18nLoader();
-
-  // Activating keeps `account` loaded across later locale switches. The rows
-  // wait for the load to settle, whether it succeeded or failed.
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const done = () => setReady(true);
-    addActiveNamespace("account").then(done, done);
-  }, [addActiveNamespace]);
-
-  if (!ready) return <p className="body">{tApp("app.loading")}</p>;
 
   return (
     <>

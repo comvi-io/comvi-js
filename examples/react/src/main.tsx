@@ -7,10 +7,9 @@ import { i18n } from "./i18n";
 
 createRoot(document.getElementById("app")!).render(
   <StrictMode>
-    {/* The provider starts `i18n.init()` and paints `fallback` until the first
-        catalog is in, so no frame ever shows a raw key. No catalog means no
-        words yet, so the fallback is a wordless spinner. */}
-    <I18nProvider i18n={i18n} fallback={<div className="boot" role="status" aria-busy="true" />}>
+    {/* `loading` paints until the first catalog is in, so no frame ever shows a
+        raw key. No catalog means no words yet, so it is a wordless spinner. */}
+    <I18nProvider i18n={i18n} loading={<div className="boot" role="status" aria-busy="true" />}>
       <BrowserRouter>
         <App />
       </BrowserRouter>

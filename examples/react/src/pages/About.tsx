@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Link } from "react-router";
 import { useI18n } from "@comvi/react";
 import { AccountDetails } from "../components/AccountDetails";
@@ -14,7 +15,9 @@ export function About({ name }: { name: string }) {
         <p className="widget" data-testid="about-body">
           {t("about.body")}
         </p>
-        <AccountDetails name={name} />
+        <Suspense fallback={<p className="body">{t("app.loading")}</p>}>
+          <AccountDetails name={name} />
+        </Suspense>
         <p>
           <Link data-testid="nav-home" to="/features">
             {t("nav.home")}

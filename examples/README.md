@@ -44,7 +44,7 @@ Each card on the page is one feature, in the same order in all seven:
 - **Fallback and a missing key:** a key missing from `uk` shows its English value; a key in no
   catalog renders as itself.
 - **A missing parameter** renders as its own placeholder, `{name}`.
-- **The `onMissingKey` hook**, wired to a counter of distinct missing keys you could send to your
+- **The `onError` hook**, wired to a counter of distinct missing keys you could send to your
   tracker.
 - **A second page**, Account, that loads the `account` namespace and keeps the chosen language on
   the way there and back.
@@ -69,35 +69,34 @@ each README says where `cdnLoader` goes instead.
 
 ## How an example is wired
 
-Every gallery example composes one instance the same way, in its `src/i18n.ts` (Next: `src/i18n/config.ts`, Nuxt: `src/comvi.i18n.ts`): the base instance from the binding, a loader with one import per catalog, the locale detector, and `devtools()`, which makes the instance visible to the Comvi browser extension and lets it load the in-context editor. React's, with the counter plumbing left out:
+An example creates one instance in its `src/i18n.ts` (Next: `src/i18n/config.ts`, Nuxt: `src/comvi.i18n.ts`): the locale, a loader that reads one bundled file per catalog (or the Comvi CDN with those files as the fallback), the locale detector, and `devtools()`, which makes the instance visible to the Comvi browser extension and lets it load the in-context editor. React's, with the counter plumbing left out:
 
 ```ts title="src/i18n.ts"
-import { createI18n, devtools, icuCompiler, loader } from "@comvi/react";
-import { localeDetector } from "@comvi/plugin-locale-detector";
+import { createI18n, type Loader } from "@comvi/react";
+import { cdn } from "@comvi/core/cdn";
+import { devtools } from "@comvi/core/devtools";
+import { detect, persist } from "@comvi/core/plugins";
+
+const bundled = {
+  en: () => import("./locales/en.json"),
+  uk: () => import("./locales/uk.json"),
+  "en:account": () => import("./locales/account/en.json"),
+};
+
+const fromBundle: Loader = async (locale, ns) => {
+  const load = bundled[(ns === "default" ? locale : `${locale}:${ns}`) as keyof typeof bundled];
+  if (!load) throw new Error(`No bundled catalog for ${locale}/${ns}`);
+  return (await load()).default;
+};
+
+const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
 
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  compiler: icuCompiler,
-})
-  .use(
-    loader({
-      en: () => import("./locales/en.json"),
-      uk: () => import("./locales/uk.json"),
-      de: () => import("./locales/de.json"),
-      ar: () => import("./locales/ar.json"),
-      "en:account": () => import("./locales/account/en.json"),
-    }),
-  )
-  .use(
-    localeDetector({
-      supportedLocales: ["en", "uk", "de", "ar"],
-      order: ["querystring", "localStorage", "navigator"],
-      caches: ["localStorage"],
-      fallbackLocale: "en",
-    }),
-  )
-  .use(devtools());
+  loader: cdnUrl ? cdn(cdnUrl, { fallback: bundled }) : fromBundle,
+  plugins: [detect({ supported: ["en", "uk", "de", "ar"] }), persist(), devtools()],
+});
 ```
 
 ## Run locally
@@ -142,7 +141,8 @@ The CDN serves `{cdnUrl}/{locale}.json` for the default namespace and
 ## The catalogs
 
 [`locales`](./locales) is the single source: `{en,uk,de,ar}.json` are the default namespace and
-`account/{en,uk,de,ar}.json` is the `account` namespace, the layout the CDN serves. StackBlitz opens
+`account/{en,uk,de,ar}.json` is the `account` namespace, flat (`"greeting.hello": "…"`) and in the
+layout the CDN serves. StackBlitz opens
 one directory out of the tree, so the catalogs are copied into `examples/<framework>/src/locales/`
 rather than symlinked. Edit the shared copy, then:
 

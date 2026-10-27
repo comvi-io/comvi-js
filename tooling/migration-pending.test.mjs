@@ -6,6 +6,7 @@ import { test } from "node:test";
 import {
   activeShards,
   EXAMPLES_E2E_MATRIX,
+  bundlerCaseNeeds,
   exampleNeeds,
   MIGRATION_PENDING,
   PENDING_CAPABILITIES,
@@ -37,22 +38,40 @@ const activeExamples = () =>
     (e) => activeShards([e.framework], exampleNeeds, "examples-e2e", quiet).length === 1,
   ).map((e) => `${e.framework}/${e.mode}`);
 
-test("today every example and test app is pending, and the skip says why", () => {
-  assert.deepEqual(activeExamples(), []);
+test("after lot 1c only the React and vanilla examples run; every test app is pending, and the skip says why", () => {
+  assert.deepEqual(activeExamples(), [
+    "react/default",
+    "react/cdn",
+    "vanilla/default",
+    "vanilla/cdn",
+  ]);
   const lines = [];
   assert.deepEqual(
     activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", (l) => lines.push(l)),
     [],
   );
-  assert.ok(lines.some((l) => l.includes("fixtures-08") && l.includes("lot 1c")));
+  assert.ok(lines.some((l) => l.includes("fixtures-08") && l.includes("lot 6")));
 });
 
-test("React landing re-enables the React shards while Vue, Next and the rest stay pending", () => {
+test("Vue landing re-enables the Vue shards while Next and the rest stay pending", () => {
   const got = landed(
-    ["fixtures-08", "@comvi/react", "@comvi/plugin-fetch-loader", "@comvi/plugin-locale-detector"],
+    ["fixtures-08", "@comvi/vue", "@comvi/plugin-fetch-loader", "@comvi/plugin-locale-detector"],
     activeExamples,
   );
-  assert.deepEqual(got, ["react/default", "react/cdn", "vanilla/default", "vanilla/cdn"]);
+  assert.deepEqual(got, [
+    "react/default",
+    "react/cdn",
+    "vue/default",
+    "vue/cdn",
+    "vanilla/default",
+    "vanilla/cdn",
+  ]);
+});
+
+test("a rewritten example or bundler case does not need fixtures-08; the others do", () => {
+  assert.deepEqual(exampleNeeds("react").sort(), ["@comvi/core", "@comvi/react"]);
+  assert.deepEqual(bundlerCaseNeeds("react-default", ["@comvi/core"]), ["@comvi/core"]);
+  assert.deepEqual(bundlerCaseNeeds("vue-default", ["@comvi/vue"]), ["fixtures-08", "@comvi/vue"]);
 });
 
 test("a test app runs once it and the core instance are active, independently of the others", () => {

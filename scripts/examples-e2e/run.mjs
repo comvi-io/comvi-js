@@ -135,7 +135,7 @@ import {
   stepResults,
 } from "./lib.mjs";
 import { scopeRegistryLine, startCandidateRegistry } from "./candidate-registry.mjs";
-import { activeShards, exampleNeeds } from "../../tooling/migration-pending.mjs";
+import { activeShards, exampleNeeds, pendingReason } from "../../tooling/migration-pending.mjs";
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const LOCALES_DIR = path.join(REPO_ROOT, "examples", "locales");
@@ -741,13 +741,15 @@ async function main(argv) {
   if (options.build) await runOrThrow("pnpm", ["build"], { cwd: REPO_ROOT, env: childEnv(null) });
   if (options.pack) {
     cleanTarballs(REPO_ROOT);
-    await runOrThrow("pnpm", ["pack:release"], { cwd: REPO_ROOT, env: childEnv(null) });
+    // MIGRATION_PENDING packages do not build on the 0.8 branch: only the active ones are packed.
+    await runOrThrow("pnpm", ["pack:release", "--active"], { cwd: REPO_ROOT, env: childEnv(null) });
   }
+  const activePackages = workspacePackages(REPO_ROOT).filter((pkg) => !pendingReason(pkg.name));
   let packages;
   if (options.tarballs) {
-    packages = candidatePackages(options.tarballs, workspacePackages(REPO_ROOT));
+    packages = candidatePackages(options.tarballs, activePackages);
   } else {
-    packages = workspacePackages(REPO_ROOT);
+    packages = activePackages;
     if (!options.pack) assertTarballsFresh(packages);
     packages = packages.map((pkg) => ({ ...pkg, tarball: tarballFor(pkg) }));
   }

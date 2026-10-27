@@ -1069,6 +1069,15 @@ const cdn = {
         `${timeoutMs / 1000}s (${kind}: [${state[kind].join(", ")}])`,
     );
   },
+  /** The barrier's other half: resolves once no request for `locale` is `kind` any more (answered or aborted). */
+  async gone(kind: keyof CdnState, locale: string, timeoutMs = 8_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (!(await cdn.state())[kind].includes(locale)) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(`barrier: ${locale} still ${kind} at the mock CDN after ${timeoutMs / 1000}s`);
+  },
   /** Answers every withheld request for the catalog `key`; resolves once the answers are written. */
   async release(key: string): Promise<void> {
     const response = await fetch(`${CDN_CONTROL}/release?key=${encodeURIComponent(key)}`, {
@@ -1270,6 +1279,12 @@ for (const [step, first] of [
  * `setLocale` runs one switch after the other): vue, and nuxt on top of it.
  */
 const QUEUED_SWITCHES = ["vue", "nuxt"].includes(env("E2E_FRAMEWORK"));
+/**
+ * The examples on the 0.8 core: `setLocale(de)` aborts the loads of the switch it
+ * supersedes, so uk's request is cancelled the moment de is chosen and its answer can
+ * never land. The other client examples (0.7) let it land and discard the switch.
+ */
+const ABORTS_SUPERSEDED = ["react", "vanilla"].includes(env("E2E_FRAMEWORK"));
 
 test("u: client race — en → uk → de with uk's catalog answered last stays de", async ({ page }) => {
   test.skip(!CDN_CONTROL, NEEDS_CDN);
@@ -1322,6 +1337,12 @@ test("u: client race — en → uk → de with uk's catalog answered last stays 
     await cdn.inFlight("held", ["de"]);
     await cdn.release("de");
     await expect(page.getByTestId("greeting")).toHaveText(greeting("de"));
+  } else if (ABORTS_SUPERSEDED) {
+    await cdn.inFlight("held", ["de"]);
+    // uk's request is aborted by the client, not answered: the mock no longer holds it.
+    await cdn.gone("held", "uk");
+    await cdn.release("de");
+    await expect(page.getByTestId("greeting")).toHaveText(greeting("de"));
   } else {
     await cdn.inFlight("held", ["uk", "de"]);
     await cdn.release("de");
@@ -1332,6 +1353,9 @@ test("u: client race — en → uk → de with uk's catalog answered last stays 
   }
   if (KIND === "next") {
     await within(staleRsc, 10_000, "the stale /uk/live RSC request never settled");
+  } else if (ABORTS_SUPERSEDED) {
+    // No uk catalog ever arrived: the "fetched" line never lists it.
+    await expect(page.getByTestId("fetched")).not.toHaveText(/\buk\b/);
   } else {
     // The client loader stores the late catalog (it is a valid uk catalog),
     // and only the locale switch it belonged to is discarded: the "fetched"

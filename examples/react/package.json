@@ -11,8 +11,6 @@
   },
   "dependencies": {
     "@comvi/core": "^0.7.1",
-    "@comvi/plugin-fetch-loader": "^0.7.1",
-    "@comvi/plugin-locale-detector": "^0.7.1",
     "@comvi/react": "^0.7.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

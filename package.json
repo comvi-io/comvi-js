@@ -30,7 +30,7 @@
     "check:snippets": "node scripts/check-snippets.mjs --readmes",
     "check:snippets:types": "node scripts/unless-pending.mjs check:snippets:types @comvi/react,@comvi/next,@comvi/vue,@comvi/nuxt,@comvi/svelte,@comvi/solid,@comvi/plugin-fetch-loader,@comvi/plugin-locale-detector,@comvi/plugin-in-context-editor,@comvi/vite-plugin -- node scripts/docs-snippets/run.mjs --readmes --typecheck --sdk-root .",
     "check:snippets:content": "node scripts/docs-snippets/run.mjs --content src/content/docs/docs/i18n --root \"${WWW_ROOT:?set WWW_ROOT to the www app directory}\"",
-    "examples:verify": "node scripts/unless-pending.mjs examples:verify @comvi/react,@comvi/next,@comvi/vue,@comvi/nuxt,@comvi/svelte,@comvi/solid,@comvi/plugin-fetch-loader,@comvi/plugin-locale-detector -- node scripts/examples-verify.mjs",
+    "examples:verify": "node scripts/examples-verify.mjs",
     "docs:quickstart": "node scripts/unless-pending.mjs docs:quickstart @comvi/react,@comvi/next,@comvi/vue,@comvi/nuxt,@comvi/svelte,@comvi/solid,@comvi/plugin-fetch-loader,@comvi/plugin-locale-detector -- node scripts/docs-quickstart/run.mjs",
     "examples:e2e": "node scripts/examples-e2e/run.mjs",
     "examples:e2e:all": "node scripts/examples-e2e/run.mjs && node scripts/examples-e2e/run.mjs --cdn --no-build --no-pack",
