@@ -84,6 +84,7 @@ fetched again when a component mounts; `i18n.load("admin")` asks again.
 ```tsx title="src/main.tsx"
 import { createI18n, I18nProvider } from "@comvi/react";
 import { cdn } from "@comvi/core/cdn";
+import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
@@ -104,8 +105,10 @@ cover the first paint only: a namespace loaded later keeps the app on screen (sh
 ## Markup in a translation
 
 ```tsx
+import { T } from "@comvi/react";
+
 // "terms": "Read the <link>terms</link>."
-<T i18nKey="terms" link={(chunks) => <a href="/terms">{chunks}</a>} />
+<T i18nKey="terms" link={(chunks) => <a href="/terms">{chunks}</a>} />;
 ```
 
 Each tag a translator wrote is a prop of the same name; the handler gets the tag's content as one
