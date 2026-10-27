@@ -3,17 +3,18 @@
  * 0.8 core yet (reference-i18n rebuild, branch `next`; plan:
  * js-sdk/.omc/plans/reference-i18n-lot0-synthesis.md §4).
  *
- * Lot 1a replaced `@comvi/core` with the new compile/locale foundation; `createI18n`
- * and the instance arrive in lot 1b. Until a package's lot lands, every repo gate
- * leaves it out EXPLICITLY:
+ * Lot 1a replaced `@comvi/core` with the new compile/locale foundation and lot 1b added
+ * `createI18n`, the instance and the `/cdn`, `/plugins`, `/format`, `/devtools` subpaths.
+ * Until a package's lot lands, every repo gate leaves it out EXPLICITLY:
  *
  *   - turbo tasks (build, test, lint, typecheck, coverage): `scripts/turbo-active.mjs`
  *     appends `--filter=!<name>` for each entry;
  *   - per-package gates (package contracts, publint, types exports, inlined version,
  *     size rows): skip the entry and print it with its reason;
  *   - gates that exist only for pending packages (bundler matrix, strict consumer,
- *     node entries, docs snippet types, examples e2e, test-apps smoke, Gate E, perf
- *     A/B): `exitIfPending()` prints the reason and exits 0;
+ *     node entries, docs snippet types, examples e2e, test-apps smoke, Gate E):
+ *     `exitIfPending()` prints the reason and exits 0 (the perf A/B runs again since
+ *     lot 1b, across core generations);
  *   - multi-shard gates (examples e2e per framework, test-apps smoke per app, bundler
  *     matrix per case) select their ACTIVE shards one by one (`activeShards()`), so a
  *     framework whose lot has landed is covered again at once; CI reads the active
@@ -28,15 +29,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const MIGRATION_PENDING = {
-  "@comvi/react": "lot 1b/1c: React binding rebuilt on the new core (S9 commit model)",
+  "@comvi/react": "lot 1c: React binding rebuilt on the new core (S9 commit model)",
   "@comvi/vue": "lot 4: Vue binding on the new core",
   "@comvi/solid": "lot 5: Solid binding on the new core",
   "@comvi/svelte": "lot 5: Svelte 5 runes binding on the new core",
   "@comvi/next": "lot 6: Next on the new core and @comvi/react",
   "@comvi/nuxt": "lot 7: Nuxt on the new core and @comvi/vue",
-  "@comvi/plugin-fetch-loader": "lot 1b: replaced by @comvi/core/cdn (R3-11); removed in lot 2c",
+  "@comvi/plugin-fetch-loader": "replaced by @comvi/core/cdn in lot 1b (R3-11); removed in lot 2c",
   "@comvi/plugin-locale-detector":
-    "lot 1b: replaced by @comvi/core/plugins (R3-11); removed in lot 2c",
+    "replaced by @comvi/core/plugins in lot 1b (R3-11); removed in lot 2c",
   "@comvi/plugin-in-context-editor": "lot 8: editor on the internal hook v2",
   "@comvi/chrome-extension": "lot 8: depends on @comvi/plugin-in-context-editor",
   "@comvi/typegen":
@@ -59,7 +60,7 @@ export const MIGRATION_PENDING = {
  * findings in `pnpm check:snippets` are reported as advisory `migration-pending/*`.
  */
 const CORE_07_DOCS =
-  "documents the 0.7 core API (createI18n, the capability subpaths); createI18n returns in lot 1b, the pages are rewritten in lot 10";
+  "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
 export const MIGRATION_PENDING_DOCS = {
   "packages/core/README.md": CORE_07_DOCS,
   "docs/design/composition.md": CORE_07_DOCS,
@@ -82,13 +83,14 @@ export function packageName(dirOrName) {
 }
 
 /**
- * Pending capabilities that are not a package of their own. `core-instance`: the 0.8 core
- * has no `createI18n` until lot 1b, so every example, test app and bundler-matrix
- * fixture — all of which create an instance — is pending on it, whatever its bindings.
+ * Pending capabilities that are not a package of their own. `fixtures-08`: the examples,
+ * test apps and bundler-matrix fixtures are written against the 0.7 API (`.use()`
+ * composition, the 0.7 subpaths); they move to `createI18n` of the 0.8 core with the
+ * React binding in lot 1c, so each is pending on it, whatever its bindings.
  */
 export const PENDING_CAPABILITIES = {
-  "core-instance":
-    "lot 1b: createI18n and the instance of the 0.8 core; every example, test app and bundler-matrix fixture creates one",
+  "fixtures-08":
+    "lot 1c: examples, test apps and bundler-matrix fixtures still use the 0.7 API; they move to the 0.8 createI18n with the React binding",
 };
 
 /** The reason `dirOrName` (a package or a PENDING_CAPABILITIES id) is pending, or `undefined`. */
@@ -134,7 +136,7 @@ export function exitIfPending(gate, needs) {
 
 /**
  * What one example of `examples/<name>` needs: the `@comvi/*` packages its package.json
- * declares, plus the core instance. Shards are selected ONE BY ONE, so a framework whose
+ * declares, plus the 0.8 fixtures. Shards are selected ONE BY ONE, so a framework whose
  * lot has landed is covered again even while other frameworks are still pending.
  */
 export function exampleNeeds(name) {
@@ -142,11 +144,11 @@ export function exampleNeeds(name) {
     fs.readFileSync(path.join(ROOT, "examples", name, "package.json"), "utf8"),
   );
   const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
-  return ["core-instance", ...deps.filter((d) => d.startsWith("@comvi/"))];
+  return ["fixtures-08", ...deps.filter((d) => d.startsWith("@comvi/"))];
 }
 
-/** What test app `test-apps/<name>` needs: itself (its workspace package) and the core instance. */
-export const testAppNeeds = (name) => ["core-instance", `@test-apps/${name}`];
+/** What test app `test-apps/<name>` needs: itself (its workspace package) and the 0.8 fixtures. */
+export const testAppNeeds = (name) => ["fixtures-08", `@test-apps/${name}`];
 
 /** The entries of `names` whose needs are all active; prints one line per skipped entry. */
 export function activeShards(names, needsOf, gate, log = console.log) {

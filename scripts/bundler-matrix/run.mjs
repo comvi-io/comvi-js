@@ -399,12 +399,12 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/plugin-in-context-editor"],
   },
 ];
-// MIGRATION_PENDING (tooling/migration-pending.mjs): a case runs once the core instance
-// and every package it packs are active — case by case, so a binding whose lot has
+// MIGRATION_PENDING (tooling/migration-pending.mjs): a case runs once its fixtures are on
+// the 0.8 API ("fixtures-08") and every package it packs is active — case by case, so a binding whose lot has
 // landed is covered again while the others stay pending.
 for (const testCase of CASES) {
   if (testCase.pending !== undefined) continue;
-  const needs = ["core-instance", ...testCase.packages];
+  const needs = ["fixtures-08", ...testCase.packages];
   const pending = needs.filter((n) => pendingReason(n));
   if (pending.length > 0)
     testCase.pending = `MIGRATION_PENDING ${pending.map((n) => `${n} (${pendingReason(n)})`).join("; ")}`;

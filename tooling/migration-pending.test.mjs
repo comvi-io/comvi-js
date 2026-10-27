@@ -44,24 +44,19 @@ test("today every example and test app is pending, and the skip says why", () =>
     activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", (l) => lines.push(l)),
     [],
   );
-  assert.ok(lines.some((l) => l.includes("core-instance") && l.includes("lot 1b")));
+  assert.ok(lines.some((l) => l.includes("fixtures-08") && l.includes("lot 1c")));
 });
 
 test("React landing re-enables the React shards while Vue, Next and the rest stay pending", () => {
   const got = landed(
-    [
-      "core-instance",
-      "@comvi/react",
-      "@comvi/plugin-fetch-loader",
-      "@comvi/plugin-locale-detector",
-    ],
+    ["fixtures-08", "@comvi/react", "@comvi/plugin-fetch-loader", "@comvi/plugin-locale-detector"],
     activeExamples,
   );
   assert.deepEqual(got, ["react/default", "react/cdn", "vanilla/default", "vanilla/cdn"]);
 });
 
 test("a test app runs once it and the core instance are active, independently of the others", () => {
-  const got = landed(["core-instance", "@test-apps/next16"], () =>
+  const got = landed(["fixtures-08", "@test-apps/next16"], () =>
     activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", quiet),
   );
   assert.deepEqual(got, ["next16"]);
@@ -71,6 +66,6 @@ test("example needs come from the example's own package.json", () => {
   assert.deepEqual(exampleNeeds("sveltekit").sort(), [
     "@comvi/core",
     "@comvi/svelte",
-    "core-instance",
+    "fixtures-08",
   ]);
 });
