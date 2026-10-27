@@ -86,13 +86,9 @@ export const missing = (
   name: string,
   message: string | false,
 ): string => {
-  report(x, {
-    code: "missing_param",
-    key: P.k,
-    locale,
-    param: name,
-    message: message || undefined,
-  });
+  const e: I18nError = { code: "missing_param", key: P.k, locale, param: name };
+  if (__DEV__ && message) e.message = message;
+  report(x, e);
   return "{" + name + "}";
 };
 
