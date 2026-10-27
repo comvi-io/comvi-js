@@ -1,11 +1,15 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import url from "node:url";
 import { performance } from "node:perf_hooks";
 import { spawnSync } from "node:child_process";
 
 /**
- * Runtime perf gate for `@comvi/core`.
+ * Runtime perf bench for `@comvi/core` — INFORMATIONAL, never a gate (owner rule: no
+ * wall-clock threshold blocks anything; perf is guarded by counted work in the unit
+ * suites, e.g. the layered add() and compile-cache counters). Every mode exits 0 once
+ * it has measured; `--threshold` only flags cases in the report.
  *
  * Fixed cases over a fixed 200-key catalog: construction, `t()` on a static
  * key, `t()` with a `{name}` param, `t()` on an ICU plural, a `<b>` rich-text
@@ -34,12 +38,18 @@ import { spawnSync } from "node:child_process";
  *     instead — a build that cannot expose the entries is not a regression).
  *
  *   node scripts/perf.mjs --compare <distRootA> <distRootB> [--threshold <pct>] [--repetitions <n>]
- *     Interleaved A/B: for each repetition it measures A then B for every case,
- *     three times, and keeps the MIN per side (the least-disturbed run — a
- *     benchmark's noise is one-sided). Prints Δ% per case (on the min, and on the
- *     median for reports) and exits 1 when any
- *     case regresses by more than the threshold (default 5 %).
+ *     Interleaved A/B: for each repetition it measures A then B for every case
+ *     (default three repetitions) and reports the MEDIAN per side, Δ% on the
+ *     median (the min is printed alongside). A case whose median Δ is above the
+ *     threshold (default 5 %) is FLAGGED in the report; the exit code stays 0.
  *     A is the reference (main), B the candidate (PR head).
+ *
+ *   node scripts/perf.mjs --extended [distRoot]
+ *     The 0.8-only scenarios of synthesis §4.5 that have no 0.7 counterpart:
+ *     construction over a shared vs a fresh 10K catalog, ICU plural over 500 vs
+ *     5,000 distinct keys against the same run's static-key floor, a Zipf key
+ *     mix over 10K keys, a locale switch followed by 200 t() calls, and the heap
+ *     bytes per compiled key (a child with --expose-gc). Medians of 5 runs.
  *
  * Every individual measurement runs in its own child process (`--measure-one`),
  * so a compare run never has two copies of core resident in one isolate — call
@@ -196,10 +206,164 @@ export async function buildCaseThunks(distRoot) {
     () => formatNumber(fallbackI18n, 1234.5),
     () => formatDate(bareI18n, date),
     () => formatDate(fallbackI18n, date),
-    () => formatRelativeTime(bareI18n, -3, "day"),
-    () => formatRelativeTime(fallbackI18n, -3, "day"),
+    // 0.8 takes (date, now) and picks the unit: the same "3 days ago" as 0.7's (-3, "day").
+    () => formatRelativeTime(bareI18n, date - 3 * 86_400_000, date),
+    () => formatRelativeTime(fallbackI18n, date - 3 * 86_400_000, date),
     () => bigI18n.add("en", { k1: `Changed ${n++} {name}` }),
   ];
+}
+
+/** A deterministic PRNG (mulberry32), so every run draws the same key mix. */
+const rng = (seed) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+/**
+ * The 0.8-only scenarios of synthesis §4.5 (no 0.7 counterpart, so no A/B): each is
+ * `{ name, iters, unit, fn }` where `fn(i)` is one operation; the floor case is first.
+ */
+export async function buildExtendedCases(distRoot) {
+  const { createI18n } = await import(distUrl(distRoot, "comvi-core.js"));
+  const keys10k = (fmt) => {
+    const c = {};
+    for (let i = 0; i < 10_000; i++) c[`k${i}`] = fmt(i);
+    return c;
+  };
+  const shared = keys10k((i) => (i % 2 ? `Hi {name} #${i}` : `Static ${i}`));
+  // Never reused across warm-up and runs: 5 × (warm-up + iters) distinct identities. The
+  // constructor never walks a catalog's keys (compiling is lazy), so a distinct object
+  // over the 10K catalog as its prototype measures the same first-sight cost as a copy.
+  const FRESH = 2_000;
+  const fresh = Array.from({ length: 6 * (WARMUP_CALLS + FRESH) }, () => Object.create(shared));
+  const plural = (n) => {
+    const c = {};
+    for (let i = 0; i < n; i++)
+      c[`p${i}`] = `{count, plural, one {# item ${i}} other {# items ${i}}}`;
+    return c;
+  };
+  const statics = createI18n({ locale: "en", messages: { en: { s: "Static" } } });
+  const icu500 = createI18n({ locale: "en", messages: { en: plural(500) } });
+  const icu5000 = createI18n({ locale: "en", messages: { en: plural(5_000) } });
+  const p500 = Array.from({ length: 500 }, (_, i) => `p${i}`);
+  const p5000 = Array.from({ length: 5_000 }, (_, i) => `p${i}`);
+  const counts = Array.from({ length: 7 }, (_, n) => ({ count: n }));
+  // Zipf (s = 1) over 10K keys: a few keys carry most calls, as in a real UI.
+  const zipfI18n = createI18n({ locale: "en", messages: { en: shared } });
+  const H = Array.from({ length: 10_000 }, (_, i) => 1 / (i + 1));
+  const total = H.reduce((a, b) => a + b, 0);
+  const cdf = [];
+  H.reduce((acc, h, i) => ((cdf[i] = (acc + h) / total), acc + h), 0);
+  const draw = rng(42);
+  const zipf = Array.from({ length: 65_536 }, () => {
+    const u = draw();
+    let lo = 0;
+    let hi = cdf.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cdf[mid] < u) lo = mid + 1;
+      else hi = mid;
+    }
+    return `k${lo}`;
+  });
+  const P = { name: "x" };
+  const switcher = createI18n({
+    locale: "en",
+    messages: { en: keys10k((i) => `Hi {name} ${i}`), de: keys10k((i) => `Hallo {name} ${i}`) },
+  });
+  const loc = ["de", "en"];
+  return [
+    { name: "floor: t() static key", iters: 2_000_000, fn: () => statics.t("s") },
+    {
+      name: "constructor, shared 10K catalog object",
+      iters: 20_000,
+      fn: () => createI18n({ locale: "en", messages: { en: shared } }),
+    },
+    {
+      name: "constructor, fresh 10K catalog object",
+      iters: FRESH,
+      fn: (i) => createI18n({ locale: "en", messages: { en: fresh[i] } }),
+    },
+    {
+      name: "t() ICU plural, 500 keys",
+      iters: 500_000,
+      fn: (i) => icu500.t(p500[i % 500], counts[i % 7]),
+    },
+    {
+      name: "t() ICU plural, 5,000 keys",
+      iters: 500_000,
+      fn: (i) => icu5000.t(p5000[i % 5_000], counts[i % 7]),
+    },
+    {
+      name: "t() Zipf mix over 10K keys",
+      iters: 1_000_000,
+      fn: (i) => zipfI18n.t(zipf[i & 65_535], P),
+    },
+    {
+      name: "setLocale (sync) + 200 t()",
+      iters: 5_000,
+      fn: (i) => {
+        void switcher.setLocale(loc[i & 1]);
+        let r;
+        for (let k = 0; k < 200; k++) r = switcher.t(`k${(i * 200 + k) % 10_000}`, P);
+        return r;
+      },
+    },
+  ];
+}
+
+/** Heap bytes per compiled key: 10K keys, every key rendered once (run with --expose-gc). */
+async function heapPerKey(distRoot) {
+  const { createI18n } = await import(distUrl(distRoot, "comvi-core.js"));
+  const c = {};
+  for (let i = 0; i < 10_000; i++) c[`k${i}`] = i % 2 ? `Hi {name} #${i}` : `Static ${i}`;
+  const P = { name: "x" };
+  globalThis.gc();
+  const before = process.memoryUsage().heapUsed;
+  const i18n = createI18n({ locale: "en", messages: { en: c } });
+  for (let i = 0; i < 10_000; i++) i18n.t(`k${i}`, P);
+  globalThis.gc();
+  const after = process.memoryUsage().heapUsed;
+  if (i18n.t("k1", P) === NEVER) throw new Error("unreachable");
+  return (after - before) / 10_000;
+}
+
+async function runExtended(distRoot) {
+  const cases = await buildExtendedCases(distRoot);
+  console.log(`dist: ${path.resolve(distRoot)}`);
+  console.log(
+    `node ${process.version}, load1 ${os.loadavg()[0].toFixed(1)} on ${os.cpus().length} cpus; median of ${SINGLE_MODE_RUNS} runs (informational)\n`,
+  );
+  const rows = cases.map((c) => {
+    const samples = [];
+    let i = 0;
+    for (let r = 0; r < SINGLE_MODE_RUNS; r++) samples.push(timeOne(() => c.fn(i++), c.iters));
+    return { name: c.name, median: median(samples), samples };
+  });
+  console.log(renderSingle(rows));
+  const floor = rows[0].median;
+  const byName = Object.fromEntries(rows.map((r) => [r.name, r.median]));
+  const i500 = byName["t() ICU plural, 500 keys"];
+  const i5000 = byName["t() ICU plural, 5,000 keys"];
+  const child = spawnSync(
+    process.execPath,
+    ["--expose-gc", url.fileURLToPath(import.meta.url), "--heap-per-key", distRoot],
+    { encoding: "utf8" },
+  );
+  const heap = Number.parseFloat(child.stdout.trim().split("\n").pop());
+  const summary = {
+    "ICU 500 / floor": Number((i500 / floor).toFixed(2)),
+    "ICU 5000 / floor": Number((i5000 / floor).toFixed(2)),
+    "ICU 5000 vs 500 (%)": Number((((i5000 - i500) / i500) * 100).toFixed(1)),
+    "heap B per compiled key": Number(heap.toFixed(0)),
+  };
+  console.log(`\n${JSON.stringify(summary)}`);
+  console.log(
+    `\n${JSON.stringify(Object.fromEntries(rows.map((r) => [r.name, Number(r.median.toFixed(4))])))}`,
+  );
+  return 0;
 }
 
 /**
@@ -325,7 +489,8 @@ function measureInChild(distRoot, caseIndex) {
 /**
  * Interleaved A/B. For each repetition, every case is measured on A and then on
  * B, so slow drift (thermal, a noisy neighbour) lands on both sides rather than
- * on whichever ran second. The MIN over repetitions is kept per side.
+ * on whichever ran second. The MEDIAN over repetitions is the reported figure;
+ * the min is kept alongside for reading noise.
  */
 export function compareDists(distRootA, distRootB, repetitions = COMPARE_REPETITIONS) {
   const samples = CASES.map(() => ({ a: [], b: [] }));
@@ -344,10 +509,10 @@ export function compareDists(distRootA, distRootB, repetitions = COMPARE_REPETIT
       name: testCase.name,
       a,
       b,
-      deltaPct: ((b - a) / a) * 100,
+      deltaMinPct: ((b - a) / a) * 100,
       aMedian: am,
       bMedian: bm,
-      deltaMedianPct: ((bm - am) / am) * 100,
+      deltaPct: ((bm - am) / am) * 100,
       samples: samples[index],
     };
   });
@@ -367,16 +532,16 @@ export function renderSingle(results) {
 export function renderCompare(results, thresholdPct) {
   const width = Math.max(...results.map((result) => result.name.length));
   const lines = [
-    `| ${"case".padEnd(width)} | A µs/op (min) | B µs/op (min) | Δ% (min) | A median | B median | Δ% (median) |`,
+    `| ${"case".padEnd(width)} | A median µs/op | B median µs/op | Δ% (median) | A min | B min | Δ% (min) |`,
   ];
   lines.push(`| ${"-".repeat(width)} | ---: | ---: | ---: | ---: | ---: | ---: |`);
   const pct = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
   for (const result of results) {
-    const regressed = result.deltaPct > thresholdPct;
+    const flagged = result.deltaPct > thresholdPct;
     lines.push(
-      `| ${result.name.padEnd(width)} | ${result.a.toFixed(3)} | ${result.b.toFixed(3)} | ` +
-        `${pct(result.deltaPct)}${regressed ? "  <-- REGRESSION" : ""} | ` +
-        `${result.aMedian.toFixed(3)} | ${result.bMedian.toFixed(3)} | ${pct(result.deltaMedianPct)} |`,
+      `| ${result.name.padEnd(width)} | ${result.aMedian.toFixed(3)} | ${result.bMedian.toFixed(3)} | ` +
+        `${pct(result.deltaPct)}${flagged ? "  <-- flagged" : ""} | ` +
+        `${result.a.toFixed(3)} | ${result.b.toFixed(3)} | ${pct(result.deltaMinPct)} |`,
     );
   }
   return lines.join("\n");
@@ -403,14 +568,19 @@ function readThreshold(argv) {
   return value;
 }
 
-/** Shared tail of `--compare` and `--compare-ref`: measure, render, gate. */
+/** Shared tail of `--compare` and `--compare-ref`: measure, render, flag (never fail). */
 function runCompare(distRootA, distRootB, argv) {
   const thresholdPct = readThreshold(argv);
   const repetitions = readRepetitions(argv);
   const results = compareDists(distRootA, distRootB, repetitions);
+  console.log(
+    `node ${process.version}, load1 ${os.loadavg()[0].toFixed(1)} on ${os.cpus().length} cpus`,
+  );
   console.log(`A (reference) = ${path.resolve(distRootA)}`);
   console.log(`B (candidate) = ${path.resolve(distRootB)}`);
-  console.log(`interleaved, min of ${repetitions} per side, threshold ${thresholdPct}% on Δ\n`);
+  console.log(
+    `interleaved, median of ${repetitions} per side, flag above ${thresholdPct}% on the median Δ (informational)\n`,
+  );
   console.log(renderCompare(results, thresholdPct));
   console.log(
     `\n${JSON.stringify(
@@ -419,20 +589,31 @@ function runCompare(distRootA, distRootB, argv) {
       ),
     )}`,
   );
-  const failed = regressions(results, thresholdPct);
-  if (failed.length > 0) {
-    console.error(
-      `\nPerf gate failed: ${failed
-        .map((result) => `${result.name} +${result.deltaPct.toFixed(2)}%`)
-        .join(", ")} (threshold ${thresholdPct}%)`,
-    );
-    return 1;
-  }
-  console.log(`\nPerf gate passed: no case regressed more than ${thresholdPct}%.`);
+  const flagged = regressions(results, thresholdPct);
+  console.log(
+    flagged.length > 0
+      ? `\nFlagged (informational, not a gate): ${flagged
+          .map((result) => `${result.name} +${result.deltaPct.toFixed(2)}%`)
+          .join(
+            ", ",
+          )} (median Δ above ${thresholdPct}%). Re-run on a quiet machine before reading them.`
+      : `\nNo case's median moved more than ${thresholdPct}%.`,
+  );
   return 0;
 }
 
 async function main(argv) {
+  const heap = argv.indexOf("--heap-per-key");
+  if (heap !== -1) {
+    process.stdout.write(`${await heapPerKey(argv[heap + 1])}\n`);
+    return 0;
+  }
+  const extended = argv.indexOf("--extended");
+  if (extended !== -1) {
+    const distRoot = argv.find((arg) => !arg.startsWith("--")) ?? DEFAULT_DIST;
+    return runExtended(distRoot);
+  }
+
   // Internal worker: one case, one dist, one number on stdout.
   const worker = argv.indexOf("--measure-one");
   if (worker !== -1) {
