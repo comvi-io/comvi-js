@@ -69,9 +69,12 @@ export const SYNTAX: {
   m?: string;
 } = {};
 
-export const fail = (message?: string | false): never => {
-  // Production passes `false` except for the few messages that ship (see icu.ts).
-  SYNTAX.m = message || undefined;
+/**
+ * Ends the scan. Call sites write `if (__DEV__) fail(explanation); fail();` so that
+ * production calls `fail()` with no argument; only the useFormat() hint (icu.ts) ships.
+ */
+export const fail = (message?: string): never => {
+  SYNTAX.m = message;
   throw SYNTAX;
 };
 
@@ -214,7 +217,8 @@ export const message = (
       const name = token(P);
       c = s[P.i];
       if (!name || (c !== "}" && c !== ",")) {
-        fail(__DEV__ && (!c ? "unclosed `{`" : `invalid argument \`{${name} ${c}\``));
+        if (__DEV__) fail(!c ? "unclosed `{`" : `invalid argument \`{${name} ${c}\``);
+        fail();
       }
       flush();
       if (c === "}") {
@@ -244,7 +248,10 @@ export const message = (
       P.i += m[0].length;
       if (m[1]) {
         // A closing tag ends the children of the tag it names; nothing else may close.
-        if (m[3] || name !== tag) fail(__DEV__ && `\`</${name}>\` closes no open tag`);
+        if (m[3] || name !== tag) {
+          if (__DEV__) fail(`\`</${name}>\` closes no open tag`);
+          fail();
+        }
         flush();
         return parts;
       }
@@ -258,7 +265,8 @@ export const message = (
   }
   if (tag !== undefined) {
     // The loop ended without the closing tag: end of text or the `}` of a sub-message.
-    fail(__DEV__ && `\`<${tag}>\` is never closed`);
+    if (__DEV__) fail(`\`<${tag}>\` is never closed`);
+    fail();
   }
   flush();
   return parts;

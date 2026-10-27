@@ -56,11 +56,15 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
         ? __DEV__
           ? `{${name}, ${type}} is not supported: format it in code with useFormat() and pass a plain {${name}}`
           : "format it in code with useFormat()"
-        : __DEV__ &&
-            `unknown argument type \`${type}\` in \`{${name}, …}\`; supported: plural, selectordinal, select`,
+        : __DEV__
+          ? `unknown argument type \`${type}\` in \`{${name}, …}\`; supported: plural, selectordinal, select`
+          : undefined,
     );
   }
-  if (s[P.i++] !== ",") fail(__DEV__ && `\`{${name}, ${type}}\` has no choice list`);
+  if (s[P.i++] !== ",") {
+    if (__DEV__) fail(`\`{${name}, ${type}}\` has no choice list`);
+    fail();
+  }
   skipSpace(P);
 
   let offset = 0;
@@ -75,23 +79,35 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     skipSpace(P);
     c = s[P.i];
     if (c === "}") break;
-    if (!c) fail(__DEV__ && `\`{${name}, ${type}, …}\` is never closed`);
+    if (!c) {
+      if (__DEV__) fail(`\`{${name}, ${type}, …}\` is never closed`);
+      fail();
+    }
     let key = token(P);
     if (key[0] === "=" && !select && EXACT.test(key)) key = "=" + Number(key.slice(1));
-    else if (!key || /[=:'#<]/.test(key))
-      fail(__DEV__ && `invalid selector \`${key}\` in \`{${name}, ${type}, …}\``);
-    if (s[P.i++] !== "{")
-      fail(__DEV__ && `selector \`${key}\` in \`{${name}, ${type}, …}\` has no {sub-message}`);
+    else if (!key || /[=:'#<]/.test(key)) {
+      if (__DEV__) fail(`invalid selector \`${key}\` in \`{${name}, ${type}, …}\``);
+      fail();
+    }
+    if (s[P.i++] !== "{") {
+      if (__DEV__) fail(`selector \`${key}\` in \`{${name}, ${type}, …}\` has no {sub-message}`);
+      fail();
+    }
     // `#` is the count in a plural's own sub-messages only; a select passes `false`.
     // A repeated selector keeps its FIRST sub-message, as ICU4C does.
     const sub = message(P, !select, under || !select, true);
     branches[key] ??= sub;
-    if (s[P.i++] !== "}")
-      fail(__DEV__ && `a sub-message of \`{${name}, ${type}, …}\` is never closed`);
+    if (s[P.i++] !== "}") {
+      if (__DEV__) fail(`a sub-message of \`{${name}, ${type}, …}\` is never closed`);
+      fail();
+    }
   }
   P.i++;
   const other = branches.other;
-  if (!other) fail(__DEV__ && `\`{${name}, ${type}, …}\` needs an \`other\` branch`);
+  if (!other) {
+    if (__DEV__) fail(`\`{${name}, ${type}, …}\` needs an \`other\` branch`);
+    fail();
+  }
 
   if (select) {
     return (p, l, x, h) => {
