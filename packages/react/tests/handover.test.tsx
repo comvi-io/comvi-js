@@ -765,6 +765,62 @@ describe("handed-over catalogs (0.7 target-locale messages)", () => {
   });
 });
 
+describe("a fresh catalogs literal on every render", () => {
+  it("settles: a parent that re-renders on every publish and passes a new literal does not loop", async () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
+    let renders = 0;
+    const Parent = () => {
+      // Subscribes, so every publish re-renders it — and it passes a NEW object each time.
+      useI18n();
+      // A loop fails the test instead of hanging it (counted work, no timer).
+      if (++renders > 50) throw Error("render loop");
+      return (
+        <I18nHandover catalogs={{ default: { de: { greeting: "Hallo" } } }} locale="de">
+          <Greeting />
+        </I18nHandover>
+      );
+    };
+    const Greeting = () => <p>{useI18n().t("greeting")}</p>;
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <Parent />
+      </I18nProvider>,
+    );
+    await settle();
+    expect(container.textContent).toBe("Hallo");
+    expect(i18n.locale).toBe("de");
+    // Counted: the first render, the published add(), the switch — never dozens.
+    expect(renders).toBeLessThan(10);
+    const rev = i18n.rev();
+    act(() => i18n.setDefaultParams({ x: "1" }));
+    await settle();
+    expect(i18n.rev()).toBe(rev + 1);
+  });
+
+  it("commits own catalogs only: an inherited namespace or locale is neither rendered nor added", async () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { greeting: "ORIGINAL" } } });
+    const inherited = Object.create({ default: { en: { greeting: "INHERITED" } } });
+    const locales = Object.assign(Object.create({ en: { greeting: "INHERITED" } }), {
+      de: { greeting: "Hallo" },
+    });
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover catalogs={inherited}>
+          <p>{"x"}</p>
+        </I18nHandover>
+        <I18nHandover catalogs={{ default: locales }}>
+          <Greet />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    await settle();
+    expect(i18n.t("greeting")).toBe("ORIGINAL");
+    expect(container.textContent).toBe("xORIGINAL");
+  });
+});
+
+const Greet = () => <>{useI18n().t("greeting")}</>;
+
 describe("R4-16: H5, R2 and R5 are RED on the naive binding (add() in render)", () => {
   it.each(["H5", "R2", "R5"] as const)("%s fails on NaiveHandover", async (name) => {
     quiet();

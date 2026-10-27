@@ -272,6 +272,29 @@ describe("useI18n(ns)", () => {
     expect(Ts.size).toBe(1);
   });
 
+  it("binds <T> to a namespace named like an Object.prototype member", () => {
+    const i18n = createI18n({
+      locale: "en",
+      catalogs: { constructor: { en: { k: "C" } }, toString: { en: { k: "S" } } },
+    });
+    const Probe = () => {
+      const { T } = useI18n("constructor");
+      const S = useI18n("toString").T;
+      return (
+        <>
+          <T i18nKey="k" />
+          <S i18nKey="k" />
+        </>
+      );
+    };
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <Probe />
+      </I18nProvider>,
+    );
+    expect(container.textContent).toBe("CS");
+  });
+
   it("keeps a fixed hook order: switching ns between renders is not a hook-order error", () => {
     const i18n = createI18n({
       locale: "en",

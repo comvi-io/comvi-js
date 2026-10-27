@@ -28,8 +28,9 @@ const useCommit = typeof document < "u" ? useLayoutEffect : useEffect;
 export interface I18nHandoverProps {
   /**
    * Catalogs to render with before the instance holds them (an SSR or RSC payload). They
-   * are added to the instance at commit, once per object: pass a STABLE object (a new
-   * literal on every parent render is layered again on every render).
+   * are added to the instance at commit, once per object; a new literal with the same
+   * messages on every parent render publishes nothing (the core compares values), but a
+   * STABLE object skips that comparison.
    */
   catalogs?: ProviderCatalogs;
   /**
@@ -67,7 +68,9 @@ export const I18nHandover = ({
   );
   useCommit(() => {
     if (fresh()) {
-      for (const n in catalogs) for (const l in catalogs[n]) i.add(l, catalogs[n][l], n);
+      // Own keys only, as view() renders them: an inherited catalog is never committed.
+      for (const n of Object.keys(catalogs!))
+        for (const l of Object.keys(catalogs![n])) i.add(l, catalogs![n][l], n);
       done.current = [i, catalogs!];
     }
   }, [i, catalogs]);

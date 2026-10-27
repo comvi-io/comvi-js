@@ -138,8 +138,11 @@ export interface UseI18n<NS extends string = "default"> {
   i18n: I18n;
 }
 
-/** Bound `<T>` per namespace: one component identity for the app's lifetime. */
-const Ts: Record<string, (props: object) => ReactNode> = {};
+/**
+ * Bound `<T>` per namespace: one component identity for the app's lifetime. Prototype-free,
+ * so a namespace called `constructor` or `toString` gets its own component.
+ */
+const Ts: Record<string, (props: object) => ReactNode> = Object.create(null);
 
 /**
  * The i18n of the nearest `<I18nProvider>`. `ns` is the namespace of `t` and `T`; it is
