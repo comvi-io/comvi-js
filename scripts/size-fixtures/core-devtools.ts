@@ -1,5 +1,5 @@
-// @comvi/core/devtools alone (ceiling 1,300, COM-140 ≈ 1,200): discovery + the editor
-// loader, the bytes `plugins: [devtools()]` adds to an app.
+// @comvi/core/devtools alone (R3-15 thin hook, ceiling = measured × 1.05): the queue entry
+// { v, i, x }, the handle's delegates and x.load — the bytes `plugins: [devtools()]` adds.
 import { devtools } from "@comvi/core/devtools";
 
 export const out = devtools();

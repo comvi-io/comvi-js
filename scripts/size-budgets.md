@@ -585,3 +585,43 @@ not shipped (`<T ns>` stays). Kept: everything else above. Result, one sweep aft
 
 `platform-path-react` (0.7 API: `cdnLoader` from `@comvi/plugin-fetch-loader`) is removed;
 `react-icu-cdn` is the React platform path now.
+
+## 2026-10-27: lot 1e — the editor seams (R3-14) and the thin `/devtools` (R3-15)
+
+One sweep, `node scripts/size-check.mjs` after `TURBO_FORCE=true pnpm build`, Node v24.22.1;
+the "before" column is the same command on 925b5bab (the lot 1c fix pass).
+
+| row                     | before | after | Δ    | budget | ceiling | note                                        |
+| ----------------------- | ------ | ----- | ---- | ------ | ------- | ------------------------------------------- |
+| core-icu                | 4,285  | 4,335 | +50  | 4,449  | 4,449   | R3-13 ceiling unchanged                     |
+| core-icu-cdn            | 4,711  | 4,758 | +47  | 4,895  | 4,895   | R3-13 ceiling unchanged                     |
+| core-icu-devtools       | 5,386  | 4,691 | −695 | 4,926  | 4,926   | devtools **+356 B** over core-icu (cap 500) |
+| core-devtools           | 1,296  | 527   | −769 | 554    | 554     | the subpath alone                           |
+| core-format             | 4,824  | 4,871 | +47  | 5,115  | —       | the hook in the instance                    |
+| core-plugins            | 4,862  | 4,906 | +44  | 5,152  | —       | the hook in the instance                    |
+| react-icu-cdn           | 5,186  | 5,232 | +46  | 5,395  | 5,395   | **+474 B** over core-icu-cdn (cap 500)      |
+| fw-react-default        | 4,720  | 4,764 | +44  | 5,003  | —       |                                             |
+| fw-react-full-composite | 8,170  | 7,514 | −656 | 7,890  | —       | composes `devtools()`                       |
+
+Re-baselined from this sweep: every row in the table (the two R3-13 rows keep their ceiling as
+budget; `react-icu-cdn`'s budget is its ceiling, since ceil(5,232 × 1.05) is above it).
+`core-icu-devtools` and `core-devtools` get `ceilingBytes` = budget = ceil(measured × 1.05)
+(R3-15), and `core-icu-devtools` declares `increment: { over: "core-icu", maxBytes: 500 }`,
+the R3-15 target for what `plugins: [devtools()]` adds. Seen red: the 0.7 failure-code texts
+planted back into the hook gave `core-icu-devtools` 4,995 B (+660 over `core-icu`, cap +500)
+and `core-devtools` 826 B, size-check exit 1.
+
+The base rows' +44…+50 B, measured by removing one piece at a time:
+
+| piece                                                                                                    | B (core-icu) |
+| -------------------------------------------------------------------------------------------------------- | ------------ |
+| H4 hook: `State.mk` + no `pr` under a hook, `translate` calling it after the `markers` opt-out, `Core.m` | +37          |
+| (inside the +37) `add()` no longer looking up and aborting a flight of its pair (H8)                     | saves bytes  |
+| H8 under-layering: a load landing into a pair `add()` filled goes under it (`put(…, u)`)                 | +13          |
+
+The H4 hook stays inside the editor plan's +20–40 B estimate (§3.1); H8 was estimated at 0 B
+(§5) and costs 13. `/devtools` went from 1,296 B to 527 B alone (+1,101 → +356 B over
+`core-icu`): one queue entry, the handle's thin delegates and a `<script>` promise, with CSP
+diagnostics, the timeout, cross-copy dedupe, the hourly salt, the v1 registry, hook probes
+and minted ids moved to the extension and the editor (lot 8). `core-compile`, `core-locale`
+and `core-negotiate` did not move (±1 B) and keep their baselines.
