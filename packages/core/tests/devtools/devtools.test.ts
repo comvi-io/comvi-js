@@ -206,7 +206,11 @@ describe("x.read and x.state", () => {
     const bare = createI18n({ locale: "en", plugins: [devtools()] });
     void bare.load("help");
     expect(handle(bare).state().ns).toEqual(["default", "help"]);
-    // The active set growing is a published change, even with nothing to load (protocol 2).
+    // The active set growing is a published change, even with nothing to load (protocol 2);
+    // activating it again, with nothing to load, is not.
+    expect(handle(bare).state().rev).toBe(1);
+    void bare.load("help");
+    void bare.load("default");
     expect(handle(bare).state().rev).toBe(1);
     // The handle of an instance whose namespaces differ only by an empty one differs.
     const one = createI18n({ locale: "en", plugins: [devtools()] });
@@ -250,6 +254,8 @@ describe("x.load(version?) — the editor on the page (R3-15)", () => {
     ["10.20.30", "10.20.30"],
     ["1.0.0-alpha.0.x-y", "1.0.0-alpha.0.x-y"],
     ["1.0.0-0a.1", "1.0.0-0a.1"],
+    // Exactly 64 characters: the longest version accepted.
+    ["1.2.3-" + "a".repeat(58), "1.2.3-" + "a".repeat(58)],
   ])("version %j → one script for the fixed host and path", (v, as) => {
     void handle(make())
       .load(v)

@@ -126,9 +126,9 @@ export const mk = (
  */
 export const layer = (slot: Slot | undefined, msgs: Catalog, u?: unknown): Slot => {
   if (!slot) return { m: msgs, c: recordFor(msgs) };
-  if (slot.m == msgs && !slot.p) return slot;
-  // Messages the slot already renders, value for value (a provider's fresh literal of the
-  // same catalog on every render), change nothing: the slot itself, nothing to publish.
+  // Messages the slot already renders, value for value — the catalog it holds, or a
+  // provider's fresh literal of it on every render — change nothing: the slot itself,
+  // nothing to publish.
   if (!u && Object.keys(msgs).every((k) => (slot.p?.[k] ?? slot.m[k]) === msgs[k])) return slot;
   let p = N<string>(slot.p, msgs);
   const f = u || Object.keys(p).length > FLAT;
