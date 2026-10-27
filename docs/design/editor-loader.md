@@ -35,14 +35,17 @@ to every visitor of a site that composes it, the editor only to the translator w
 - **The handle `x`** (`contracts/chrome-extension-proxy.json`, `handle`): `p: 2`, `kind: "comvi"`
   (an editor picks its driver by both and refuses a kind it does not know), `read(ns, locale)`,
   `state()`, `mark(fn | null)` and `load(version?)`. `read`, `state` and `mark` are thin
-  delegates to the instance.
+  delegates to the instance. `state()` adds the active namespaces (`ns`) to the published
+  state, and protocol 2 guarantees only `rev`, `locale`, `c`, `ld` and `ns` of it (the contract's
+  `stateFields`); the rest of `State` is internal. `mark` treats anything but a function as
+  `null`, and does nothing after `destroy()`.
 - **Marking lives in the core's `translate`, only under a session.** `x.mark(fn)` sets the
   state's marking hook and publishes a new state, so every binding re-renders marked; `mark(null)`
   publishes again unmarked. The hook runs for found and missing keys; `{ markers: false }` on a
   call and `markers={false}` on a binding's `<T>` are checked before it. An instance without
   `devtools()` has no handle and is never marked; without a session `t()` keeps its fast path.
 - **`x.load(version?)` resolves when the editor's global is on the page.** `version` is an exact
-  version or `latest` (the default), never a URL; core inserts one `<script>` from
+  SemVer version without build metadata or `latest` (the default), never a URL; core inserts one `<script>` from
   `https://cdn.jsdelivr.net/npm/@comvi/editor@<version>/dist/standalone.iife.js` — host and path
   are core constants. Anything else rejects, and nothing throws synchronously (a Trusted Types
   refusal of the `src` is a rejection). The contract is "the global is available", not "a
@@ -59,8 +62,9 @@ to every visitor of a site that composes it, the editor only to the translator w
 - **Release order is fixed.** The extension release that speaks protocol 2 is published to the
   Chrome Web Store before `@comvi/core` 0.8 is published to npm: an extension that looks for the
   0.7 slot reports `no-loader` against a 0.8 site.
-- **Bytes.** `devtools()` adds about 360 B min+gz to `core-icu` (it was about 1.1 kB), the
-  marking hook about 40 B to the base (`scripts/size-budgets.md`, 2026-10-27 lot 1e).
+- **Bytes.** `devtools()` adds about 440 B min+gz to `core-icu` (it was about 1.1 kB); the
+  marking hook adds about 40 B to the base, and keeping a save under a landing load (H8) with
+  its compiled messages (H3) about 20 B more (`scripts/size-budgets.md`, 2026-10-27 lot 1e).
 - **A site with a Content Security Policy must allow `https://cdn.jsdelivr.net` in `script-src`**,
   and a site that enforces Trusted Types needs a `default` policy whose `createScriptURL` accepts
   that URL, since `x.load` assigns `script.src` as a plain string. A site that cannot allow the
