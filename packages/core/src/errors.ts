@@ -42,26 +42,30 @@ const once = (id: string): boolean => !seen.has(id) && !!seen.add(id);
  * (code, key, param) — and per (locale, ns) for the reports that name no key (a load
  * failure, an invalid locale); production silent.
  */
-export const defaultOnError: OnError = (error) => {
-  if (
-    __DEV__ &&
-    once(
-      [
-        error.code,
-        error.key,
-        error.param,
-        error.key === undefined && error.locale + "/" + error.ns,
-      ].join("\0"),
-    )
-  ) {
-    console.error(
-      `[@comvi/core] ${error.code}` +
-        (error.key === undefined ? "" : ` "${error.key}"`) +
-        (error.locale === undefined ? "" : ` (${error.locale})`) +
-        (error.message ? `: ${error.message}` : ""),
-    );
-  }
-};
+/** Does nothing; shared so production code carries one empty function. */
+export const noop = (): void => {};
+
+export const defaultOnError: OnError = !__DEV__
+  ? noop
+  : (error) => {
+      if (
+        once(
+          [
+            error.code,
+            error.key,
+            error.param,
+            error.key === undefined && error.locale + "/" + error.ns,
+          ].join("\0"),
+        )
+      ) {
+        console.error(
+          `[@comvi/core] ${error.code}` +
+            (error.key === undefined ? "" : ` "${error.key}"`) +
+            (error.locale === undefined ? "" : ` (${error.locale})`) +
+            (error.message ? `: ${error.message}` : ""),
+        );
+      }
+    };
 
 /** Development-only warning, printed once per `id`. Folds out of production builds. */
 export const devWarn = (id: string, message: string): void => {

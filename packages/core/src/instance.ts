@@ -27,7 +27,7 @@
  */
 import { render, type Catalog, type Compiled, type Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
-import { defaultOnError, type I18nError, type OnError } from "./errors";
+import { defaultOnError, noop, type I18nError, type OnError } from "./errors";
 import { canonicalize, dir as dirOf, parents } from "./locale";
 import { find, mk, N, put, type State, type Store } from "./state";
 import type { RichParts, TFor } from "./types";
@@ -133,7 +133,6 @@ export const CORE = new WeakMap<object, Core>();
 
 const D = "default";
 const K = "\0";
-const noop = (): void => {};
 /** `ready` when nothing loads: one resolved promise, the same object every time. */
 const R = /* @__PURE__ */ Promise.resolve();
 
