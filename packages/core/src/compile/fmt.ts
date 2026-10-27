@@ -74,18 +74,22 @@ export const pluralRules = (locale: string, ordinal: boolean): Intl.PluralRules 
 /**
  * The text a plain `{x}` prints for a value: number, Date and string[] are localized;
  * objects and functions (framework nodes) pass through untouched so the binding can
- * render them; every other primitive becomes its string. Never re-parsed as message
- * syntax.
+ * render them; every other primitive becomes its string; an invalid Date is `undefined`
+ * (nothing to print). Never re-parsed as message syntax.
  */
 export const formatValue = (value: unknown, locale: string, timeZone?: string): unknown =>
   typeof value === "number"
     ? formatNumber(value, locale)
     : value instanceof Date
-      ? intl<Intl.DateTimeFormat>("DateTimeFormat", locale, "" + timeZone, {
-          dateStyle: "short",
-          timeStyle: "short",
-          timeZone,
-        }).format(value)
+      ? // An invalid Date has nothing to print (Intl would throw): the caller reports it
+        // as a missing parameter.
+        +value === +value
+        ? intl<Intl.DateTimeFormat>("DateTimeFormat", locale, "" + timeZone, {
+            dateStyle: "short",
+            timeStyle: "short",
+            timeZone,
+          }).format(value)
+        : undefined
       : Array.isArray(value) && value.every((v) => typeof v === "string")
         ? intl<Intl.ListFormat>("ListFormat", locale, "").format(value)
         : typeof value === "object" || typeof value === "function"

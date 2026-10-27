@@ -33,7 +33,13 @@ export default defineConfig({
       },
       {
         define: { __DEV__: JSON.stringify(false) },
-        test: { ...shared, name: "prod", include: ["tests/prod/**/*.test.ts"], exclude: FUZZ },
+        test: {
+          ...shared,
+          name: "prod",
+          // The fuzz corpus runs under both conditions (tests/compile/fuzz.test.ts).
+          include: ["tests/prod/**/*.test.ts", "tests/compile/fuzz.test.ts"],
+          exclude: FUZZ,
+        },
       },
     ],
   },

@@ -18,7 +18,7 @@
  * read `lookup(record, catalog, key)`; the hot path never touches the WeakMap.
  */
 import { devWarn } from "../errors";
-import { message, report, run, SYNTAX, type Env, type Params, type Scan } from "./scanner";
+import { arg, message, report, run, SYNTAX, type Env, type Params, type Scan } from "./scanner";
 
 declare const __DEV__: boolean;
 
@@ -51,7 +51,9 @@ export const compile = (template: string, key?: string): Compiled => {
     parts = message(P, false, false, false);
   } catch (e) {
     if (e !== SYNTAX) throw e;
-    const text = __DEV__ ? SYNTAX.m : undefined;
+    // Development: the parser's explanation. Production: only the messages that ship
+    // (the useFormat() hint for `{x, number|date|time}`), otherwise `undefined`.
+    const text = SYNTAX.m;
     const fallback = key === undefined ? template : key;
     return (_p, l, x) => {
       report(x, { code: "syntax", key, locale: l, message: text });
@@ -93,8 +95,6 @@ export const recordFor = (catalog: Catalog, syntax: SyntaxId = 0): CompiledRecor
   return record;
 };
 
-const own = Object.prototype.hasOwnProperty;
-
 /**
  * The compiled message for `key`, compiling it into `record` on first use. `undefined`
  * when the catalog has no own string under `key` (inherited properties and non-string
@@ -107,7 +107,7 @@ export const lookup = (
 ): Compiled | undefined => {
   const hit = record[key];
   if (hit !== undefined) return hit;
-  const template = own.call(catalog, key) ? catalog[key] : undefined;
+  const template = arg(catalog, key);
   return typeof template === "string" ? (record[key] = compile(template, key)) : undefined;
 };
 
@@ -124,7 +124,7 @@ export const inherit = (
 ): CompiledRecord => {
   const record = recordFor(next, syntax);
   for (const key in prevRecord) {
-    if (record[key] === undefined && own.call(next, key) && next[key] === prev[key]) {
+    if (record[key] === undefined && arg(next, key) === prev[key] && prev[key] !== undefined) {
       record[key] = prevRecord[key];
     }
   }

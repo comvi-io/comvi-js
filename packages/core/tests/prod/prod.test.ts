@@ -34,6 +34,22 @@ describe("production", () => {
     ]);
   });
 
+  it.each(["number", "date", "time"])(
+    "{x, %s} reports `syntax` WITH the useFormat() hint, the one production message (R3-8)",
+    (type) => {
+      const env = sink();
+      expect(fmt(`Due {x, ${type}, short}`, { x: 1 }, "en", env, "due")).toBe("due");
+      expect(env.errors).toEqual([
+        {
+          code: "syntax",
+          key: "due",
+          locale: "en",
+          message: `{x, ${type}} is not supported: format it in code with useFormat() and pass a plain {x}`,
+        },
+      ]);
+    },
+  );
+
   it("renders the whole ICU4C golden table exactly as development does", () => {
     for (const row of icu4c.rows as {
       pattern: string;

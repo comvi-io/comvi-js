@@ -21,7 +21,9 @@ const BAD = [
   ["{n, plural, other {y", "never closed"],
   ["{n, plural, =abc {x} other {y}}", "invalid selector `=abc`"],
   ["{n, plural, =0x1 {x} other {y}}", "invalid selector `=0x1`"],
-  ["{n, plural, =1e3 {x} other {y}}", "invalid selector `=1e3`"],
+  ["{n, plural, =1e {x} other {y}}", "invalid selector `=1e`"],
+  ["{n, plural, =\u221e {x} other {y}}", "invalid selector `=\u221e`"],
+  ["{n,\u00a0plural, other {y}}", "unknown argument type `\u00a0plural`"],
   ["{g, select, =1 {x} other {y}}", "invalid selector `=1`"],
   ["{g, select, offset:1 other {x}}", "invalid selector `offset:1`"],
   ["{g, select, a:b {x} other {z}}", "invalid selector `a:b`"],
@@ -50,7 +52,7 @@ describe("a template that does not compile", () => {
       const env = sink();
       expect(fmt(`Due {x, ${type}, short}`, { x: 1 }, "en", env)).toBe("k");
       expect(env.errors[0].message).toBe(
-        `\`{x, ${type}}\` is not supported: format the value in code (useFormat()) and pass it as a plain {x}`,
+        `{x, ${type}} is not supported: format it in code with useFormat() and pass a plain {x}`,
       );
     },
   );

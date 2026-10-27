@@ -70,7 +70,8 @@ export const SYNTAX = {
 };
 
 export const fail = (message?: string | false): never => {
-  if (__DEV__) SYNTAX.m = message || undefined;
+  // Production passes `false` except for the few messages that ship (see icu.ts).
+  SYNTAX.m = message || undefined;
   throw SYNTAX;
 };
 
@@ -89,8 +90,15 @@ export const missing = (
   return "{" + name + "}";
 };
 
-/** Pattern_White_Space as ICU uses it between argument tokens. */
-export const isSpace = (c: string | undefined): boolean => /\s/.test(c as string); // `undefined` tests as "undefined"
+/**
+ * ICU Pattern_White_Space, the only white space ICU allows between argument tokens:
+ * TAB…CR, SPACE, NEL, LRM, RLM, LINE and PARAGRAPH SEPARATOR. Not JS `\s` — that adds
+ * NBSP, U+3000, U+FEFF and others ICU4C rejects (golden table). Regex LITERALS only at
+ * module level here and in icu.ts: a `new RegExp()` is a call the bundler must keep,
+ * which drags this module into graphs that never compile a message.
+ */
+const SPACE = /[\t-\r \x85\u200e\u200f\u2028\u2029]/;
+export const isSpace = (c: string | undefined): boolean => SPACE.test(c as string); // `undefined` tests as "undefined"
 
 /** Skips spaces, reads one token (up to `,`, `{`, `}` or a space), skips spaces after it. */
 export const token = (P: Scan): string => {
@@ -106,6 +114,15 @@ export const token = (P: Scan): string => {
 export const skipSpace = (P: Scan): void => {
   while (isSpace(P.s[P.i])) P.i++;
 };
+
+const own = Object.prototype.hasOwnProperty;
+
+/**
+ * The parameter `name`, read from the params object's OWN properties only: a catalog
+ * string can name any identifier (`{constructor}`, `<toString>`), and nothing inherited
+ * from Object.prototype may become a value or a tag handler.
+ */
+export const arg = (p: Params, name: string): unknown => (own.call(p, name) ? p[name] : undefined);
 
 /** A rendered value as a part result: text as is, anything else as a one-value frame. */
 const frame = (v: unknown): string | unknown[] => (typeof v === "string" ? v : [v]);
@@ -201,9 +218,12 @@ export const message = (
       if (c === "}") {
         P.i++;
         parts.push((p, l, x) => {
-          const v = p[name];
-          if (v != null) return frame(formatValue(v, l, x && x.z));
-          return missing(P, x, l, name, __DEV__ && `no value for {${name}}`);
+          const v = arg(p, name);
+          // `formatValue` yields `undefined` for a value that cannot print (an invalid Date).
+          const f = v == null ? v : formatValue(v, l, x && x.z);
+          return f === undefined || f === null
+            ? missing(P, x, l, name, __DEV__ && `no value for {${name}}`)
+            : frame(f);
         });
       } else {
         P.i++;
@@ -250,7 +270,7 @@ const tagPart =
   (key: string | undefined, name: string, kids: readonly Part[]): PartFn =>
   (p, l, x, h) => {
     const children = run(kids, p, l, x, h);
-    const handler = p[name];
+    const handler = arg(p, name);
     if (typeof handler === "function") {
       return frame(handler(typeof children === "string" ? (children ? [children] : []) : children));
     }

@@ -86,8 +86,47 @@ describe("a missing parameter", () => {
     expect(fmt("Hi {x}!", undefined, "en", sink())).toBe("Hi {x}!");
   });
 
-  it("is not read through Object.prototype", () => {
-    expect(fmt("{toString}", Object.create(null), "en", sink())).toBe("{toString}");
+  // An ORDINARY params object: catalog text (translator-controlled) may name anything that
+  // lives on Object.prototype; none of it may become a value, a selector or a tag handler.
+  it.each(["toString", "constructor", "__proto__", "valueOf", "hasOwnProperty"])(
+    "{%s} with a plain {} is missing, never the inherited member",
+    (name) => {
+      const env = sink();
+      expect(fmt(`[{${name}}]`, { n: 1 }, "en", env)).toBe(`[{${name}}]`);
+      expect(env.errors).toEqual([expect.objectContaining({ code: "missing_param" })]);
+    },
+  );
+
+  it("an inherited member is not a select value", () => {
+    const env = sink();
+    expect(fmt("{constructor, select, function {F} other {O}}", {}, "en", env)).toBe("O");
+    expect(env.errors).toEqual([expect.objectContaining({ code: "missing_param" })]);
+  });
+
+  it("an inherited member is not a plural count", () => {
+    const env = sink();
+    expect(fmt("{valueOf, plural, other {#}}", {}, "en", env)).toBe("{valueOf}");
+    expect(env.errors).toEqual([expect.objectContaining({ code: "missing_param" })]);
+  });
+
+  it.each(["valueOf", "hasOwnProperty", "toString", "constructor"])(
+    "<%s>x</…> with a plain {} renders its children, never calls the inherited method",
+    (name) => {
+      expect(() => fmt(`a <${name}>x</${name}> b`, { n: 1 }, "en", sink())).not.toThrow();
+      expect(fmt(`a <${name}>x</${name}> b`, { n: 1 }, "en", sink())).toBe("a x b");
+    },
+  );
+
+  it("an OWN property with a prototype name is a parameter like any other", () => {
+    expect(fmt("{toString} <valueOf>x</valueOf>", { toString: "T", valueOf: () => "V" })).toBe(
+      "T V",
+    );
+  });
+
+  it("an invalid Date is missing (it has nothing to print), not a throw", () => {
+    const env = sink("UTC");
+    expect(fmt("on {d}", { d: new Date(NaN) }, "en", env)).toBe("on {d}");
+    expect(env.errors).toEqual([expect.objectContaining({ code: "missing_param" })]);
   });
 
   it("inside tag children renders {x} inside the children", () => {
@@ -96,12 +135,16 @@ describe("a missing parameter", () => {
     ]);
   });
 
-  it("prints once per (code, key) in development without an env", () => {
+  it("prints once per (code, key, parameter) in development without an env", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     fmt("{x}", {}, "en", undefined, "a");
     fmt("{x}", {}, "en", undefined, "a");
     fmt("{x}", {}, "en", undefined, "b");
-    expect(error).toHaveBeenCalledTimes(2);
+    // a second missing parameter of the same key is printed too (0.7: once per template × param)
+    fmt("{x} {y}", {}, "en", undefined, "c");
+    fmt("{x} {y}", {}, "en", undefined, "c");
+    expect(error).toHaveBeenCalledTimes(4);
     expect(error.mock.calls[0][0]).toBe('[@comvi/core] missing_param "a" (en): no value for {x}');
+    expect(error.mock.calls[3][0]).toBe('[@comvi/core] missing_param "c" (en): no value for {y}');
   });
 });

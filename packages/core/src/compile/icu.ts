@@ -17,6 +17,7 @@
  */
 import { pluralRules } from "./fmt";
 import {
+  arg,
   fail,
   message,
   missing,
@@ -30,8 +31,14 @@ import {
 
 declare const __DEV__: boolean;
 
-const EXACT = /^=-?\d+(\.\d+)?$/;
-const OFFSET = /offset:\s*(\d+(?:\.\d+)?)/y;
+/*
+ * ICU's number syntax for `=N` and `offset:` (ICU4C 78 MessagePattern; golden table):
+ * sign, digits with an optional fraction (`1.`, `.5`), optional exponent; after
+ * `offset:`, ICU Pattern_White_Space (scanner.ts `isSpace`).
+ */
+const EXACT = /^=[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+const OFFSET =
+  /offset:[\t-\r \x85\u200e\u200f\u2028\u2029]*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/y;
 
 export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   const s = P.s;
@@ -41,10 +48,14 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   const ordinal = type === "selectordinal";
   if (!select && !ordinal && type !== "plural") {
     fail(
-      __DEV__ &&
-        (type === "number" || type === "date" || type === "time"
-          ? `\`{${name}, ${type}}\` is not supported: format the value in code (useFormat()) and pass it as a plain {${name}}`
-          : `unknown argument type \`${type}\` in \`{${name}, …}\`; supported: plural, selectordinal, select`),
+      // The useFormat() hint ships in production too: the owner's 1.0 contract reports it
+      // through onError({ code: "syntax" }) in every build (R3-8).
+      type === "number" || type === "date" || type === "time"
+        ? __DEV__
+          ? `{${name}, ${type}} is not supported: format it in code with useFormat() and pass a plain {${name}}`
+          : "format it in code with useFormat()"
+        : __DEV__ &&
+            `unknown argument type \`${type}\` in \`{${name}, …}\`; supported: plural, selectordinal, select`,
     );
   }
   if (s[P.i++] !== ",") fail(__DEV__ && `\`{${name}, ${type}}\` has no choice list`);
@@ -82,7 +93,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
 
   if (select) {
     return (p, l, x, h) => {
-      const v = p[name];
+      const v = arg(p, name);
       if (v == null)
         missing(
           P,
@@ -97,14 +108,14 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
 
   return (p, l, x) => {
     // A plural selects on a number only (ICU4C rejects any other argument).
-    const n = p[name];
+    const n = arg(p, name);
     if (typeof n !== "number" || n !== n)
       return missing(
         P,
         x,
         l,
         name,
-        __DEV__ && `{${name}, ${type}} needs a number, got ${typeof p[name]}`,
+        __DEV__ && `{${name}, ${type}} needs a number, got ${typeof n}`,
       );
     const v = n - offset;
     return run(

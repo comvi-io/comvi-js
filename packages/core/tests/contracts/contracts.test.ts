@@ -93,6 +93,10 @@ describe("production graph", () => {
   });
 
   it("holds no development message text", () => {
-    expect(bundle(false)).not.toMatch(/is never closed|has no handler|useFormat\(\)/);
+    expect(bundle(false)).not.toMatch(/is never closed|has no handler|unknown argument type/);
+  });
+
+  it("keeps the one production message: the useFormat() hint for {x, number|date|time}", () => {
+    expect(bundle(false)).toMatch(/useFormat\(\)/);
   });
 });

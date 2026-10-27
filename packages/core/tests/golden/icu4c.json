@@ -2254,6 +2254,142 @@
       "expected": "x }"
     },
     {
+      "pattern": "{n, plural, offset:-1 other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "expected": "4"
+    },
+    {
+      "pattern": "{n, plural, offset:-1 other {#}}",
+      "locale": "en",
+      "args": {
+        "n": -1
+      },
+      "expected": "0"
+    },
+    {
+      "pattern": "{n, plural, =1e3 {thousand} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 1000
+      },
+      "expected": "thousand"
+    },
+    {
+      "pattern": "{n, plural, =1e3 {thousand} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 1
+      },
+      "expected": "1"
+    },
+    {
+      "pattern": "{n, plural, =+1 {plus one} =.5 {half} =1e-1 {tenth} =-0 {zero} =2. {two} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 1
+      },
+      "expected": "plus one"
+    },
+    {
+      "pattern": "{n, plural, =+1 {plus one} =.5 {half} =1e-1 {tenth} =-0 {zero} =2. {two} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 0.5
+      },
+      "expected": "half"
+    },
+    {
+      "pattern": "{n, plural, =+1 {plus one} =.5 {half} =1e-1 {tenth} =-0 {zero} =2. {two} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 0.1
+      },
+      "expected": "tenth"
+    },
+    {
+      "pattern": "{n, plural, =+1 {plus one} =.5 {half} =1e-1 {tenth} =-0 {zero} =2. {two} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 0
+      },
+      "expected": "zero"
+    },
+    {
+      "pattern": "{n, plural, =+1 {plus one} =.5 {half} =1e-1 {tenth} =-0 {zero} =2. {two} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 2
+      },
+      "expected": "two"
+    },
+    {
+      "pattern": "{n, plural, =+1 {plus one} =.5 {half} =1e-1 {tenth} =-0 {zero} =2. {two} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "expected": "3"
+    },
+    {
+      "pattern": "{n, plural, offset:+1 other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "expected": "2"
+    },
+    {
+      "pattern": "{n, plural, offset:.5 other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "expected": "2.5"
+    },
+    {
+      "pattern": "{n, plural, offset: -1.5 other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "expected": "4.5"
+    },
+    {
+      "pattern": "{n, plural, offset:1e1 other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 30
+      },
+      "expected": "20"
+    },
+    {
+      "pattern": "{n,plural,other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "expected": "3"
+    },
+    {
+      "pattern": "{n,‎plural, other‏{#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "expected": "3"
+    },
+    {
+      "pattern": "{n,\tplural,\nother\r{#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "expected": "3"
+    },
+    {
       "pattern": "{g, select, a:b {x} other {z}}",
       "locale": "en",
       "args": {
@@ -2336,6 +2472,86 @@
         "k": "any"
       },
       "error": "U_UNMATCHED_BRACES"
+    },
+    {
+      "pattern": "{n, plural, other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
+    },
+    {
+      "pattern": "{n, plural,　other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "error": "U_DEFAULT_KEYWORD_MISSING"
+    },
+    {
+      "pattern": "{n, plural, =0x1 {hex} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 1
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
+    },
+    {
+      "pattern": "{n, plural, =∞ {inf} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 1
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
+    },
+    {
+      "pattern": "{n, plural, = 1 {x} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 1
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
+    },
+    {
+      "pattern": "{n, plural, =1e {x} other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 1
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
+    },
+    {
+      "pattern": "{n, plural, offset :1 other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
+    },
+    {
+      "pattern": "{n, plural, offset:x other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
+    },
+    {
+      "pattern": "{n, plural, offset:1x other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
+    },
+    {
+      "pattern": "{n,﻿plural, other {#}}",
+      "locale": "en",
+      "args": {
+        "n": 3
+      },
+      "error": "U_PATTERN_SYNTAX_ERROR"
     }
   ]
 }

@@ -164,6 +164,22 @@ export const CASES = [
   ["{n, plural, foo {x} other {z}}", ["en"], [{ n: 1 }]],
   ["{g, select, ж {x} other {z}}", ["en"], [{ g: "ж" }, { g: "a" }]],
   ["{n, plural, one {x} other {z}} }", ["en"], [{ n: 1 }]],
+  // --- a negative offset, and exact selectors in other number spellings
+  ["{n, plural, offset:-1 other {#}}", ["en"], [{ n: 3 }, { n: -1 }]],
+  ["{n, plural, =1e3 {thousand} other {#}}", ["en"], [{ n: 1000 }, { n: 1 }]],
+  [
+    "{n, plural, =+1 {plus one} =.5 {half} =1e-1 {tenth} =-0 {zero} =2. {two} other {#}}",
+    ["en"],
+    [1, 0.5, 0.1, 0, 2, 3].map((n) => ({ n })),
+  ],
+  ["{n, plural, offset:+1 other {#}}", ["en"], [{ n: 3 }]],
+  ["{n, plural, offset:.5 other {#}}", ["en"], [{ n: 3 }]],
+  ["{n, plural, offset: -1.5 other {#}}", ["en"], [{ n: 3 }]],
+  ["{n, plural, offset:1e1 other {#}}", ["en"], [{ n: 30 }]],
+  // --- white space between argument tokens is ICU Pattern_White_Space, not JS \s
+  ["{n,\u0085plural,\u0085other {#}}", ["en"], [{ n: 3 }]],
+  ["{n,\u200eplural,\u2028other\u200f{#}}", ["en"], [{ n: 3 }]],
+  ["{n,\tplural,\nother\r{#}}", ["en"], [{ n: 3 }]],
   // --- errors: the reference rejects these too
   ["{g, select, a:b {x} other {z}}", ["en"], [{ g: "a" }], { error: true }],
   ["{n", ["en"], [{ n: 1 }], { error: true }],
@@ -176,6 +192,16 @@ export const CASES = [
   ["{a b}", ["en"], [{}], { error: true }],
   ["{g, select, offset:1 other {x}}", ["en"], [{ g: "a" }], { error: true }],
   ["{k, select, other {'#'}}", ["en"], [{ k: "any" }], { error: true }],
+  ["{n,\u00a0plural,\u00a0other {#}}", ["en"], [{ n: 3 }], { error: true }],
+  ["{n, plural,\u3000other {#}}", ["en"], [{ n: 3 }], { error: true }],
+  ["{n, plural, =0x1 {hex} other {#}}", ["en"], [{ n: 1 }], { error: true }],
+  ["{n, plural, =\u221e {inf} other {#}}", ["en"], [{ n: 1 }], { error: true }],
+  ["{n, plural, = 1 {x} other {#}}", ["en"], [{ n: 1 }], { error: true }],
+  ["{n, plural, =1e {x} other {#}}", ["en"], [{ n: 1 }], { error: true }],
+  ["{n, plural, offset :1 other {#}}", ["en"], [{ n: 3 }], { error: true }],
+  ["{n, plural, offset:x other {#}}", ["en"], [{ n: 3 }], { error: true }],
+  ["{n, plural, offset:1x other {#}}", ["en"], [{ n: 3 }], { error: true }],
+  ["{n,\ufeffplural, other {#}}", ["en"], [{ n: 3 }], { error: true }],
 ];
 
 /** Flattens CASES into one row per (pattern, locale, args). */

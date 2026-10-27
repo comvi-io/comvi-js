@@ -2,7 +2,7 @@
  * Error codes and the default reporter.
  *
  * Every problem the runtime can hit is reported as an {@link I18nError} with a
- * stable `code`. The default reporter prints each (code, key) once in
+ * stable `code`. The default reporter prints each (code, key, message) once in
  * development and is silent in production: the production graph holds no
  * console call at all (contract test `tests/contracts/prod-graph.test.ts`).
  * Rendering never depends on which reporter is installed — dev and prod print
@@ -19,7 +19,11 @@ export interface I18nError {
   key?: string;
   locale?: string;
   ns?: string;
-  /** Human-readable explanation. Development builds only; `undefined` in production. */
+  /**
+   * Human-readable explanation. Development builds; in production only the `syntax`
+   * report of `{x, number|date|time}` carries one (the useFormat() hint), others are
+   * `undefined`.
+   */
   message?: string;
   cause?: unknown;
 }
@@ -31,9 +35,11 @@ const seen = new Set<string>();
 
 const once = (id: string): boolean => !seen.has(id) && !!seen.add(id);
 
-/** The reporter used when none is configured: dev `console.error` once per (code, key); prod silent. */
+/** The reporter used when none is configured: dev `console.error` once per (code, key, message); prod silent. */
 export const defaultOnError: OnError = (error) => {
-  if (__DEV__ && once(error.code + "\0" + error.key)) {
+  // One line per (code, key, message): the message names the parameter, so a second
+  // missing parameter of the same key is printed too (0.7: once per template × param).
+  if (__DEV__ && once(error.code + "\0" + error.key + "\0" + error.message)) {
     console.error(
       `[@comvi/core] ${error.code}` +
         (error.key === undefined ? "" : ` "${error.key}"`) +
