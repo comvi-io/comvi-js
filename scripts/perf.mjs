@@ -92,6 +92,24 @@ export const CASES = [
 ];
 
 /**
+ * Deltas against 0.7 that the owner accepted: when one of these cases is flagged, the
+ * report marks it accepted (with who decided, when and why) so it is not re-reported as a
+ * new regression. Against a 0.8 reference the same delta would be new: read the mark
+ * as "known vs 0.7", never as a waiver for a regression between two 0.8 builds.
+ */
+const FORMATTERS_0_7 =
+  "owner 28.10.2026: @comvi/core/format is ~25-40 ns per call slower than 0.7 " +
+  "(locale chain + shared Intl cache key per call); accepted, no extra caching";
+export const ACCEPTED_VS_07 = {
+  formatNumber: FORMATTERS_0_7,
+  "formatNumber, fallbackLocale": FORMATTERS_0_7,
+  formatDate: FORMATTERS_0_7,
+  "formatDate, fallbackLocale": FORMATTERS_0_7,
+  formatRelativeTime: FORMATTERS_0_7,
+  "formatRelativeTime, fallbackLocale": FORMATTERS_0_7,
+};
+
+/**
  * The production ESM entries a measured dist must expose. Single source of
  * truth: `--probe` reports on exactly this list, so CI can ask whether a
  * reference build is comparable before trying to compare against it.
@@ -538,17 +556,28 @@ export function renderCompare(results, thresholdPct) {
   const pct = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
   for (const result of results) {
     const flagged = result.deltaPct > thresholdPct;
+    const mark = !flagged
+      ? ""
+      : ACCEPTED_VS_07[result.name]
+        ? "  <-- accepted vs 0.7"
+        : "  <-- flagged";
     lines.push(
       `| ${result.name.padEnd(width)} | ${result.aMedian.toFixed(3)} | ${result.bMedian.toFixed(3)} | ` +
-        `${pct(result.deltaPct)}${flagged ? "  <-- flagged" : ""} | ` +
+        `${pct(result.deltaPct)}${mark} | ` +
         `${result.a.toFixed(3)} | ${result.b.toFixed(3)} | ${pct(result.deltaMinPct)} |`,
     );
   }
   return lines.join("\n");
 }
 
+/** Flagged cases that are not an accepted delta vs 0.7 ({@link ACCEPTED_VS_07}). */
 export function regressions(results, thresholdPct) {
-  return results.filter((result) => result.deltaPct > thresholdPct);
+  return results.filter((result) => result.deltaPct > thresholdPct && !ACCEPTED_VS_07[result.name]);
+}
+
+/** Flagged cases that are an accepted delta vs 0.7. */
+export function accepted(results, thresholdPct) {
+  return results.filter((result) => result.deltaPct > thresholdPct && ACCEPTED_VS_07[result.name]);
 }
 
 function readRepetitions(argv) {
@@ -599,6 +628,15 @@ function runCompare(distRootA, distRootB, argv) {
           )} (median Δ above ${thresholdPct}%). Re-run on a quiet machine before reading them.`
       : `\nNo case's median moved more than ${thresholdPct}%.`,
   );
+  const known = accepted(results, thresholdPct);
+  if (known.length > 0)
+    console.log(
+      `Accepted vs 0.7 (not new; new if A is a 0.8 build): ${known
+        .map((result) => `${result.name} +${result.deltaPct.toFixed(2)}%`)
+        .join(
+          ", ",
+        )} — ${[...new Set(known.map((result) => ACCEPTED_VS_07[result.name]))].join("; ")}.`,
+    );
   return 0;
 }
 
