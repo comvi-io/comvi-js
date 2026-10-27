@@ -420,3 +420,86 @@ formatter memo for default options that took `formatNumber` from +26 % to ≈ +1
 The verdict of the lot-1b section stands and is now 1,054 / 995 B wide: no cut that keeps the
 mandated features reaches 3,250 / 3,750. The owner decides (raise R3-10, drop features, or a new
 measured ceiling); lot 1b stays **blocked** on these two rows only.
+
+### 2026-10-27: size pass on the lot-1b instance
+
+Two independent byte hunts read the lot-1b graph against the 2,489 B prototype (S7 `icu`, all
+flags except `F_ICUFMT`/`F_SKEL`). Every cut either hunt marked SAFE was re-measured here and
+applied when it saved bytes, kept every test green and changed no behaviour. One sweep under Node
+v24.22.1 after `TURBO_FORCE=true pnpm build`: `core-icu` 4,304 → **4,253 B** (−51) and
+`core-icu-cdn` 4,745 → **4,670 B** (−75). Both rows stay red: 1,003 / 920 B over the unchanged
+R3-10 ceilings. Re-baselined in that sweep: `core-compile` 1,913 (budget = ceiling 2,000),
+`core-icu-devtools` 5,344 (5,612), `core-format` 4,789 (5,029), `core-plugins` 4,826 (5,068).
+`core-locale`, `core-negotiate` and `core-devtools` did not move (±1 B gzip) and keep theirs.
+
+Per commit, cumulative, measured on the sources with the gate's esbuild settings (the source
+bundle reads 18–21 B above the dist row):
+
+| Cut                                                                          | `core-icu` | `core-icu-cdn` |
+| ---------------------------------------------------------------------------- | ---------: | -------------: |
+| before (0ecc74ec)                                                            |      4,325 |          4,764 |
+| optional chaining for the store, primary-record and env guards               |  4,306 −19 |      4,748 −16 |
+| `t()` fast path lets `render()` take a static string                         |   4,299 −7 |       4,741 −7 |
+| fallback-list test relies on the JSON copy never being null                  |   4,295 −4 |      4,731 −10 |
+| partial failure as `every()` over the active namespaces                      |   4,287 −8 |       4,722 −9 |
+| one shared `noop`; production `defaultOnError` is it                         |   4,286 −1 |       4,721 −1 |
+| compile cache: `key ?? template`, `SYNTAX = {}`, `EMPTY = Object.freeze({})` |   4,277 −9 |       4,716 −5 |
+| `missing_param` builds its `message` in development only                     |   4,276 −1 |       4,713 −3 |
+| production syntax failures call `fail()` with no argument                    |   4,274 −2 |       4,711 −2 |
+| the plural-ancestry flag is development-only                                 |   4,272 −2 |       4,708 −3 |
+| `N(...from)` copies; one null-prototype copy helper (also in `cdn()`)        |   4,271 −1 |       4,703 −5 |
+| `cdn()`: one identifier regex (`.`/`..` in a lookahead)                      |    4,271 0 |       4,700 −3 |
+| `cdn()`: body read chained on `fetch()`, no async IIFE                       |    4,271 0 |       4,695 −5 |
+| `cdn()`: no guard on the Loader contract's required `signal`                 |    4,271 0 |       4,691 −4 |
+| **dist, the gate**                                                           |  **4,253** |      **4,670** |
+
+Tried and not applied (they grew the rows or broke a rule): one `slot()` reader in state.ts
+(+2 / +4 over plain optional chaining); token delimiters and Pattern_White_Space in one regex (+1
+/ +3); `fail(__DEV__ ? m : undefined)` (+1 / +3 over the block form); the expression form
+`__DEV__ ? fail(m) : fail()` (3 B smaller, fails `no-unused-expressions`); a development-only key
+for tag parts (+1 / 0); `y(load(…))` in `get()` (one microtask fewer, fails a hardening test);
+Terser preprocessing (+17 / +16). The `perf.mjs --compare-ref 0ecc74ec` run after the pass moved
+no case by more than 5 % (`add()` over 10K −8 %, every `t()` case −2 %).
+
+**What the gap to the prototype is.** The first hunt puts about 98 % of the ~1.8 kB on
+behaviour the prototype did not have: rich-text tags (163 B measured), the catalog-identity
+compile cache with layered patches and inheritance, syntax validation and fail-soft rendering,
+locale validation and the memos, the loading state machine (negative cache, partial failure,
+prune, re-ensure, abort settlement, `ready` memo, plugin transactions, reporter isolation), and
+the full `cdn()` (fallback, whole-request timeout race, `next`, messages). The second hunt agrees
+that the accidental share is small (the cuts above) but did not establish an irreducible floor
+for the rest; the owner options below are what removing behaviour buys.
+
+**Owner options**, each measured alone on a throwaway commit over the pass's tip (dist, bytes
+saved `core-icu` / `core-icu-cdn`; tests failing out of 1,275):
+
+| Option                                                                        |   Saves | Tests | Trade-off                                          |
+| ----------------------------------------------------------------------------- | ------: | ----: | -------------------------------------------------- |
+| tags out of the base (contradicts R3-11)                                      | 163/163 |    29 | rich text becomes opt-in                           |
+| no automatic Date and `string[]` formatting in `{x}`                          |   85/85 |    10 | callers preformat; `timeZone` dead in core         |
+| no patch flattening / `inherit` (each `add()` recompiles its patch)           |   85/83 |     3 | `add()` O(patch) compile each time                 |
+| no small-integer fast path + probe (every number through `Intl`)              |   54/57 |     0 | undoes the R4-7 perf path                          |
+| no Date formatting alone                                                      |   54/55 |     8 |                                                    |
+| no production `useFormat()` hint (contradicts R3-8)                           |   37/39 |     7 |                                                    |
+| no per-message plural-rules memo                                              |   35/32 |     0 | one cache-key string per plural render             |
+| no process-level locale memo                                                  |   34/35 |     0 | constructor 3.1 → ~8.4 µs                          |
+| no `string[]` → ListFormat                                                    |   32/34 |     2 |                                                    |
+| no `catalogs` option                                                          |   29/25 |     7 | namespaces only via `add()` / loader               |
+| short production `setLocale` RangeError (message = the locale)                |    25/9 |     0 | development message unchanged                      |
+| no SyntaxId layer in the compile cache                                        |   25/22 |     1 | "id is always 0" generality                        |
+| no numeric-string plural counts (contradicts the 27.10 owner decision)        |   24/22 |    33 |                                                    |
+| no `has({ fallback: false })`                                                 |   19/20 |     1 |                                                    |
+| unbounded per-instance chain memo                                             |   18/21 |     0 | per-call `{ locale }` from user input grows memory |
+| no `Object.freeze` on patch/flattened catalogs                                |     8/7 |     0 | a mutated view catalog could desync its record     |
+| `structuredClone` for the `fallbackLocale` copy                               |     5/5 |     0 | 2022 browser floor for core                        |
+| `cdn()`: no `fallback` (contradicts R3-12)                                    |    5/58 |     4 |                                                    |
+| `cdn()`: timeout covers the response only, not the body                       |    0/30 |     1 | a body that never settles hangs the load           |
+| `cdn()`: errors without URL / timeout text                                    |    0/23 |     7 | "HTTP 404" without the URL                         |
+| `cdn()`: no `next` passthrough                                                |     0/7 |     1 | Next.js fetch cache options gone                   |
+| the perf/robustness six together (fast path, two memos, bound, freeze, clone) | 155/153 |     0 |                                                    |
+| all feature/DX options except the three that contradict R3                    | 434/484 |    61 | 3,819 / 4,186: still 569 / 436 over                |
+| everything above, R3-8/11/12 included                                         | 623/727 |   100 | 3,630 / 3,943: still 380 / 193 over                |
+
+No combination reaches 3,250 / 3,750. The verdict of the lot-1b section stands at 1,003 / 920 B:
+the owner decides between raising the R3-10 rows, dropping features from the list above, or a
+new measured ceiling.

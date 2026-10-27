@@ -8,11 +8,11 @@
       "gzipBudgetBytes": 2000,
       "ceilingBytes": 2000,
       "baseline": {
-        "minBytes": 3988,
-        "gzipBytes": 1931,
+        "minBytes": 3913,
+        "gzipBytes": 1913,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated 0.8 compile graph: scanner, ICU plural/select/selectordinal/offset, tags, value formatting, compile cache. Ceiling (S7 compile slice 1,372 + S1 cache 200 + 1a review fixes 117) x 1.15, rounded to 50 (R3-10 method); re-baselined in lot 1b (+57 B: numeric-string counts, missing_param `param`, plural rules memo, string fast path, the Intl locales list); size-budgets.md 2026-10-27."
+      "note": "Gated 0.8 compile graph: scanner, ICU plural/select/selectordinal/offset, tags, value formatting, compile cache. Ceiling (S7 compile slice 1,372 + S1 cache 200 + 1a review fixes 117) x 1.15, rounded to 50 (R3-10 method); re-baselined in lot 1b (+57 B: numeric-string counts, missing_param `param`, plural rules memo, string fast path, the Intl locales list); size-budgets.md 2026-10-27. Size pass 2026-10-27: 1,931 → 1,913."
     },
     {
       "name": "core-locale",
@@ -45,11 +45,11 @@
       "gzipBudgetBytes": 3250,
       "ceilingBytes": 3250,
       "baseline": {
-        "minBytes": 8917,
-        "gzipBytes": 4304,
+        "minBytes": 8694,
+        "gzipBytes": 4253,
         "measuredAt": "2026-10-27"
       },
-      "note": "RED BY DESIGN (blocked, owner decision): core + ICU, R3-10 ceiling 3,250 B kept as the budget; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass)."
+      "note": "RED BY DESIGN (blocked, owner decision): core + ICU, R3-10 ceiling 3,250 B kept as the budget; createI18n + t({name}) + plural with every always-on feature. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,304 → 4,253)."
     },
     {
       "name": "core-icu-cdn",
@@ -58,23 +58,23 @@
       "gzipBudgetBytes": 3750,
       "ceilingBytes": 3750,
       "baseline": {
-        "minBytes": 10005,
-        "gzipBytes": 4745,
+        "minBytes": 9711,
+        "gzipBytes": 4670,
         "measuredAt": "2026-10-27"
       },
-      "note": "RED BY DESIGN (blocked, owner decision): core + ICU + cdn(), R3-10 ceiling 3,750 B kept as the budget; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass)."
+      "note": "RED BY DESIGN (blocked, owner decision): core + ICU + cdn(), R3-10 ceiling 3,750 B kept as the budget; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (+ the review fix pass, + the size pass: 4,745 → 4,670)."
     },
     {
       "name": "core-icu-devtools",
       "entry": ["@comvi/core", "@comvi/core/devtools"],
       "fixture": "core-icu-devtools.ts",
-      "gzipBudgetBytes": 5668,
+      "gzipBudgetBytes": 5612,
       "baseline": {
-        "minBytes": 11448,
-        "gzipBytes": 5398,
+        "minBytes": 11227,
+        "gzipBytes": 5344,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships (devtools adds 1,094 B to core-icu in the fix-pass sweep)."
+      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships (devtools adds 1,094 B to core-icu in the fix-pass sweep; re-baselined in the size pass 2026-10-27)."
     },
     {
       "name": "core-devtools",
@@ -93,25 +93,25 @@
       "name": "core-format",
       "entry": ["@comvi/core", "@comvi/core/format"],
       "fixture": "core-format.ts",
-      "gzipBudgetBytes": 5085,
+      "gzipBudgetBytes": 5029,
       "baseline": {
-        "minBytes": 10203,
-        "gzipBytes": 4842,
+        "minBytes": 9980,
+        "gzipBytes": 4789,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3) and the per-chain formatter memo."
+      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3) and the per-chain formatter memo. Re-baselined in the size pass 2026-10-27."
     },
     {
       "name": "core-plugins",
       "entry": ["@comvi/core", "@comvi/core/plugins"],
       "fixture": "core-plugins.ts",
-      "gzipBudgetBytes": 5120,
+      "gzipBudgetBytes": 5068,
       "baseline": {
-        "minBytes": 10216,
-        "gzipBytes": 4876,
+        "minBytes": 9993,
+        "gzipBytes": 4826,
         "measuredAt": "2026-10-27"
       },
-      "note": "Gated: @comvi/core/plugins detect() (a plugin, design §3.3) + persist() with the instance."
+      "note": "Gated: @comvi/core/plugins detect() (a plugin, design §3.3) + persist() with the instance. Re-baselined in the size pass 2026-10-27."
     },
     {
       "name": "fw-react-default",
