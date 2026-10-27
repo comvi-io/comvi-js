@@ -113,23 +113,27 @@ export const mk = (
  * REFERENCE as the base (R4-12); the catalog the slot already holds as its unpatched base
  * gives back the slot itself (a Provider re-adding a stable prop costs nothing and
  * publishes nothing); otherwise `msgs` is merged into the patch layer, and a patch past
- * {@link FLAT} keys is flattened into a new base that inherits the compiled messages of
- * the old one.
+ * {@link FLAT} keys is flattened into a new base.
+ *
+ * With `u` (a load landing, R3-14 H8) `msgs` goes UNDER what the slot holds — messages
+ * `add()`ed while the load was in flight stay on top — and the result is flattened at
+ * once into a new base without a patch, so the fast path (`pr`) comes back: one copy of
+ * the catalog, which landing it costs anyway.
+ *
+ * Compiled messages whose template did not change are kept (H3): a new patch takes the
+ * base's for the keys it re-adds, and a new base takes both the old base's and the old
+ * patch's.
  */
-export const layer = (slot: Slot | undefined, msgs: Catalog): Slot => {
+export const layer = (slot: Slot | undefined, msgs: Catalog, u?: unknown): Slot => {
   if (!slot) return { m: msgs, c: recordFor(msgs) };
   if (slot.m == msgs && !slot.p) return slot;
-  const p = N<string>(slot.p, msgs);
-  if (Object.keys(p).length > FLAT) {
-    const m: Catalog = Object.freeze(N<string>(slot.m, p));
-    return { m, c: inherit(slot.m, slot.c, m) };
-  }
-  return {
-    m: slot.m,
-    c: slot.c,
-    p: Object.freeze(p),
-    pc: slot.p ? inherit(slot.p, slot.pc!, p) : recordFor(p),
-  };
+  let p = N<string>(slot.p, msgs);
+  const f = u || Object.keys(p).length > FLAT;
+  p = Object.freeze(f ? (u ? N<string>(msgs, slot.m, slot.p) : N<string>(slot.m, p)) : p);
+  // Without a patch `pc` is undefined and this walks nothing.
+  inherit(slot.p!, slot.pc!, p);
+  const r = inherit(slot.m, slot.c, p, f ? undefined : msgs);
+  return f ? { m: p, c: r } : { m: slot.m, c: slot.c, p, pc: r };
 };
 
 /**
@@ -147,12 +151,11 @@ export const find = (slot: Slot, key: string): Compiled | undefined => {
 
 /**
  * A new store with `msgs` layered at (ns, locale); every other pair is shared. `c` itself
- * when the slot does not change. With `u` (a load landing, R3-14 H8) `msgs` goes UNDER
- * what the slot holds: messages `add()`ed while the load was in flight stay on top.
+ * when the slot does not change. `u`: a load landing (see {@link layer}).
  */
 export const put = (c: Store, ns: string, locale: string, msgs: Catalog, u?: unknown): Store => {
   const o = c[ns]?.[locale];
-  const n = layer(o, u && o ? N(msgs, o.m, o.p) : msgs);
+  const n = layer(o, msgs, u);
   if (n == o) return c;
   const s = N<Record<string, Slot>>(c);
   (s[ns] = N(c[ns]))[locale] = n;

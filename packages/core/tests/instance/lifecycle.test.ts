@@ -168,6 +168,40 @@ describe("loading", () => {
     expect([i18n.t("a"), i18n.t("b"), i18n.t("c")]).toEqual(["one", "two", "C"]);
   });
 
+  it("a load landing under add()ed messages flattens into a base: no patch, the fast path is back (H8)", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", loader: l.load });
+    i18n.add("en", { a: "manual" });
+    i18n.add("en", { b: "patched" });
+    await l.answer("en:default", { a: "loaded", b: "loaded", c: "C" });
+    const slot = state(i18n).c.default.en;
+    expect(slot.p).toBeUndefined();
+    expect(slot.pc).toBeUndefined();
+    expect({ ...slot.m }).toEqual({ a: "manual", b: "patched", c: "C" });
+    expect(state(i18n).pr).toBeDefined();
+    expect([i18n.t("a"), i18n.t("b"), i18n.t("c")]).toEqual(["manual", "patched", "C"]);
+    // Served by the primary record: every key compiled into `pr` by now.
+    expect(state(i18n).pr!.c).toBe("C");
+  });
+
+  it("a load landing under add()ed messages keeps their compiled messages (H3)", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", loader: l.load });
+    i18n.add("en", { a: "Hi {n}" });
+    i18n.add("en", { b: "Bye {n}" });
+    expect(i18n.t("a", { n: 1 })).toBe("Hi 1");
+    expect(i18n.t("b", { n: 1 })).toBe("Bye 1");
+    const before = state(i18n).c.default.en;
+    const fa = before.c.a;
+    const fb = before.pc!.b;
+    expect(typeof fa).toBe("function");
+    expect(typeof fb).toBe("function");
+    await l.answer("en:default", { a: "loaded", c: "C" });
+    const after = state(i18n).c.default.en;
+    expect(after.c.a).toBe(fa);
+    expect(after.c.b).toBe(fb);
+  });
+
   it("a load landing into an empty pair keeps its catalog by reference (R4-12), not a copy", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", loader: l.load });
