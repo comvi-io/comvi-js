@@ -223,11 +223,15 @@ export const createI18n = (o: I18nOptions): I18n => {
   valid(o.locale);
   S = st(0, 0, o.locale, c0, []);
 
-  /** The compiled message for `key` in namespace `n` along `ch`, and its chain index. */
-  const look = (s: State, key: string, n: string, ch: Chain): [Compiled, number] | void => {
+  /** The message `look()` found last; read at once by the caller. */
+  let hit: Compiled;
+
+  /** The chain index where `key` is found in namespace `n` (its message in `hit`), or -1. */
+  const look = (s: State, key: string, n: string, ch: Chain): number => {
     const cs = s.c[n];
-    for (let i = 0, f; cs && i < ch.length; i++)
-      if (cs[ch[i][0]] && (f = find(cs[ch[i][0]], key)) !== undefined) return [f, i];
+    for (let i = 0; cs && i < ch.length; i++)
+      if (cs[ch[i][0]] && (hit = find(cs[ch[i][0]], key)!) !== undefined) return i;
+    return -1;
   };
 
   const tr = (s: State, key: string, p?: Params, n = D): Rendered => {
@@ -239,10 +243,10 @@ export const createI18n = (o: I18nOptions): I18n => {
     }
     if (dp) p = Object.assign(N(), dp, p);
     const ch = chain(l);
-    const r = look(s, key, n, ch);
-    if (r) {
-      if (r[1] >= ch.o) err("fallback_used", l, n, key);
-      return render(r[0], p, ch[r[1]][1], env);
+    const i = look(s, key, n, ch);
+    if (i >= 0) {
+      if (i >= ch.o) err("fallback_used", l, n, key);
+      return render(hit, p, ch[i][1], env);
     }
     // A key of a catalog still loading is not missing yet.
     if (!s.ld.includes(l + K + n)) err("missing_key", l, n, key);
@@ -297,9 +301,15 @@ export const createI18n = (o: I18nOptions): I18n => {
     get ready() {
       return Promise.all([...fl.values()].map((f) => f[0])).then(noop);
     },
-    // Fast path: no params and a static message of the default namespace at the locale.
-    t: ((key: string, p?: Params, f = !p && S.pr && S.pr[key]) =>
-      typeof f == "string" && f ? f : tr(S, key, p)) as I18n["t"],
+    // Fast path (R4-1d): a message already compiled in the primary record (default
+    // namespace at the locale), called without per-call options or defaultParams. An empty
+    // string is untranslated and takes the full path (the fallback chain).
+    t: ((key: string, p?: Params, f = S.pr && S.pr[key]) =>
+      f && !(p && (p.ns || p.locale)) && !dp
+        ? typeof f == "string"
+          ? f
+          : render(f, p, chain(S.locale)[0][1], env)
+        : tr(S, key, p)) as I18n["t"],
     ns: ((n: string) => (key: string, p?: Params) => tr(S, key, p, n)) as I18n["ns"],
     setLocale(l) {
       if (dead) return Promise.resolve();
@@ -341,11 +351,13 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
     has: (key, q = {}) => {
       const ch = chain(q.locale || S.locale);
-      return !!look(
-        S,
-        key,
-        q.ns || D,
-        q.fallback === false ? (ch.slice(0, ch.o && 1) as unknown as Chain) : ch,
+      return (
+        look(
+          S,
+          key,
+          q.ns || D,
+          q.fallback === false ? (ch.slice(0, ch.o && 1) as unknown as Chain) : ch,
+        ) >= 0
       );
     },
     on(f) {

@@ -8,10 +8,15 @@ import { spawnSync } from "node:child_process";
  * Runtime perf gate for `@comvi/core`.
  *
  * Fixed cases over a fixed 200-key catalog: construction, `t()` on a static
- * key, `t()` with a `{name}` param, `t()` on an ICU plural through `icuCompiler`,
- * `prepareTranslation` over a `<b>` rich-text seam, and the three Intl
- * formatters with and without a fallback chain. Every case gets a 2000-call
+ * key, `t()` with a `{name}` param, `t()` on an ICU plural, a `<b>` rich-text
+ * message, the three Intl formatters with and without a fallback chain, and
+ * `add()` of one key over a compiled 10K catalog. Every case gets a 2000-call
  * warm-up, then N timed runs; the reported figure is the MEDIAN µs/op.
+ *
+ * The protocol is API-neutral: `buildCaseThunks` reads either core generation —
+ * 0.7 (`comvi-core-icu.js`: `icuCompiler`, `prepareTranslation`, `addMessages`)
+ * or 0.8 (`createI18n` with ICU always on, `@comvi/core/format`, `add()`) — and
+ * builds the same inputs for both, so `--compare-ref` reads a Δ across the rebuild.
  *
  *   node scripts/perf.mjs [distRoot]
  *     Prints the table plus a JSON line for one dist (default:
@@ -31,7 +36,8 @@ import { spawnSync } from "node:child_process";
  *   node scripts/perf.mjs --compare <distRootA> <distRootB> [--threshold <pct>] [--repetitions <n>]
  *     Interleaved A/B: for each repetition it measures A then B for every case,
  *     three times, and keeps the MIN per side (the least-disturbed run — a
- *     benchmark's noise is one-sided). Prints Δ% per case and exits 1 when any
+ *     benchmark's noise is one-sided). Prints Δ% per case (on the min, and on the
+ *     median for reports) and exits 1 when any
  *     case regresses by more than the threshold (default 5 %).
  *     A is the reference (main), B the candidate (PR head).
  *
@@ -62,7 +68,7 @@ export const CASES = [
   // extensions, and a branch routed to the parser over one costs ~25% more for
   // byte-identical output. "Terms & Conditions" is the copy this happens to.
   { name: "t() ICU plural, branch with a bare &", iters: 500_000 },
-  { name: "prepareTranslation(<b>)", iters: 800_000 },
+  { name: "rich text <b>", iters: 800_000 },
   // Formatters resolve the locale chain on every call, so each runs once on a
   // bare instance and once with a `fallbackLocale` configured.
   { name: "formatNumber", iters: 500_000 },
@@ -71,6 +77,8 @@ export const CASES = [
   { name: "formatDate, fallbackLocale", iters: 300_000 },
   { name: "formatRelativeTime", iters: 500_000 },
   { name: "formatRelativeTime, fallbackLocale", iters: 500_000 },
+  // A layered patch in 0.8 (R4-1b), a copy-on-write merge in 0.7.
+  { name: "add() one key over a compiled 10K catalog", iters: 2_000 },
 ];
 
 /**
@@ -78,11 +86,26 @@ export const CASES = [
  * truth: `--probe` reports on exactly this list, so CI can ask whether a
  * reference build is comparable before trying to compare against it.
  */
-export const REQUIRED_ENTRIES = ["comvi-core.js", "comvi-core-icu.js", "comvi-core-rich-text.js"];
+export const REQUIRED_ENTRIES = ["comvi-core.js"];
+/** The 0.7 generation's entries; a dist with all of them is read through the 0.7 adapter. */
+const ENTRIES_07 = ["comvi-core-icu.js", "comvi-core-rich-text.js"];
+/** The 0.8 generation's entries. */
+const ENTRIES_08 = ["comvi-core-format.js"];
 
-/** Entries of REQUIRED_ENTRIES that `distRoot` does not have. */
+const has = (distRoot, file) => fs.existsSync(path.join(path.resolve(distRoot), file));
+
+/** Which core generation `distRoot` is: "0.7", "0.8", or undefined. */
+export function generation(distRoot) {
+  if (!REQUIRED_ENTRIES.every((f) => has(distRoot, f))) return undefined;
+  if (ENTRIES_07.every((f) => has(distRoot, f))) return "0.7";
+  if (ENTRIES_08.every((f) => has(distRoot, f))) return "0.8";
+  return undefined;
+}
+
+/** What `distRoot` lacks to be measured (empty when it is either generation). */
 export function missingEntries(distRoot) {
-  return REQUIRED_ENTRIES.filter((file) => !fs.existsSync(path.join(path.resolve(distRoot), file)));
+  if (generation(distRoot)) return [];
+  return [...REQUIRED_ENTRIES, ...ENTRIES_08].filter((file) => !has(distRoot, file));
 }
 
 function distUrl(distRoot, file) {
@@ -95,52 +118,87 @@ function distUrl(distRoot, file) {
  * whole protocol.
  */
 export async function buildCaseThunks(distRoot) {
-  const { createI18n, formatNumber, formatDate, formatRelativeTime } = await import(
-    distUrl(distRoot, "comvi-core.js")
-  );
-  const { icuCompiler } = await import(distUrl(distRoot, "comvi-core-icu.js"));
-  const { prepareTranslation } = await import(distUrl(distRoot, "comvi-core-rich-text.js"));
-
+  const gen = generation(distRoot);
+  const core = await import(distUrl(distRoot, "comvi-core.js"));
   const catalog = {};
   for (let i = 0; i < 200; i++) {
     catalog[`key${i}`] = i % 3 ? `Hello, {name}! Item ${i}` : `Static text number ${i}`;
   }
   catalog.rich = "Click <b>here</b> for {what}";
+  const plural = "{count, plural, one {# item} other {# items}}";
+  const amp = "{count, plural, one {# Term & Condition} other {# Terms & Conditions}}";
+  const big = {};
+  for (let i = 0; i < 10_000; i++) big[`k${i}`] = i % 2 ? `Hi {name} #${i}` : `Static ${i}`;
+  const date = 1_700_000_000_000;
+  let n = 0;
 
+  if (gen === "0.7") {
+    const { createI18n, formatNumber, formatDate, formatRelativeTime } = core;
+    const { icuCompiler } = await import(distUrl(distRoot, "comvi-core-icu.js"));
+    const { prepareTranslation } = await import(distUrl(distRoot, "comvi-core-rich-text.js"));
+    const make = () => createI18n({ locale: "en", messages: { en: catalog } });
+    const icu = (m) =>
+      createI18n({ locale: "en", compiler: icuCompiler, messages: { en: { n: m } } });
+    const [staticI18n, paramI18n, richI18n, icuI18n, ampI18n] = [
+      make(),
+      make(),
+      make(),
+      icu(plural),
+      icu(amp),
+    ];
+    const bareI18n = createI18n({ locale: "de" });
+    const fallbackI18n = createI18n({ locale: "de", fallbackLocale: "en" });
+    const bigI18n = createI18n({ locale: "en", messages: { en: big } });
+    for (let i = 0; i < 10_000; i++) bigI18n.t(`k${i}`, { name: "x" });
+    return [
+      () => make(),
+      () => staticI18n.t("key0"),
+      () => paramI18n.t("key1", { name: "world" }),
+      () => icuI18n.t("n", { count: 5 }),
+      () => ampI18n.t("n", { count: 5 }),
+      () => prepareTranslation(richI18n, { i18nKey: "rich", params: { what: "docs" } }),
+      () => formatNumber(bareI18n, 1234.5),
+      () => formatNumber(fallbackI18n, 1234.5),
+      () => formatDate(bareI18n, date),
+      () => formatDate(fallbackI18n, date),
+      () => formatRelativeTime(bareI18n, -3, "day"),
+      () => formatRelativeTime(fallbackI18n, -3, "day"),
+      () => bigI18n.addMessages({ en: { k1: `Changed ${n++} {name}` } }),
+    ];
+  }
+
+  const { createI18n } = core;
+  const { formatNumber, formatDate, formatRelativeTime } = await import(
+    distUrl(distRoot, "comvi-core-format.js")
+  );
   const make = () => createI18n({ locale: "en", messages: { en: catalog } });
-  const staticI18n = make();
-  const paramI18n = make();
-  const richI18n = make();
-  const icuI18n = createI18n({
-    locale: "en",
-    compiler: icuCompiler,
-    messages: { en: { n: "{count, plural, one {# item} other {# items}}" } },
-  });
-  const ampI18n = createI18n({
-    locale: "en",
-    compiler: icuCompiler,
-    messages: {
-      en: { n: "{count, plural, one {# Term & Condition} other {# Terms & Conditions}}" },
-    },
-  });
-
+  const icu = (m) => createI18n({ locale: "en", messages: { en: { n: m } } });
+  const [staticI18n, paramI18n, richI18n, icuI18n, ampI18n] = [
+    make(),
+    make(),
+    make(),
+    icu(plural),
+    icu(amp),
+  ];
   const bareI18n = createI18n({ locale: "de" });
   const fallbackI18n = createI18n({ locale: "de", fallbackLocale: "en" });
-  const date = 1_700_000_000_000;
-
+  const bigI18n = createI18n({ locale: "en", messages: { en: big } });
+  for (let i = 0; i < 10_000; i++) bigI18n.t(`k${i}`, { name: "x" });
+  const b = (chunks) => chunks;
   return [
     () => make(),
     () => staticI18n.t("key0"),
     () => paramI18n.t("key1", { name: "world" }),
     () => icuI18n.t("n", { count: 5 }),
     () => ampI18n.t("n", { count: 5 }),
-    () => prepareTranslation(richI18n, { i18nKey: "rich", params: { what: "docs" } }),
+    () => richI18n.t("rich", { b, what: "docs" }),
     () => formatNumber(bareI18n, 1234.5),
     () => formatNumber(fallbackI18n, 1234.5),
     () => formatDate(bareI18n, date),
     () => formatDate(fallbackI18n, date),
     () => formatRelativeTime(bareI18n, -3, "day"),
     () => formatRelativeTime(fallbackI18n, -3, "day"),
+    () => bigI18n.add("en", { k1: `Changed ${n++} {name}` }),
   ];
 }
 
@@ -280,7 +338,18 @@ export function compareDists(distRootA, distRootB, repetitions = COMPARE_REPETIT
   return CASES.map((testCase, index) => {
     const a = Math.min(...samples[index].a);
     const b = Math.min(...samples[index].b);
-    return { name: testCase.name, a, b, deltaPct: ((b - a) / a) * 100, samples: samples[index] };
+    const am = median(samples[index].a);
+    const bm = median(samples[index].b);
+    return {
+      name: testCase.name,
+      a,
+      b,
+      deltaPct: ((b - a) / a) * 100,
+      aMedian: am,
+      bMedian: bm,
+      deltaMedianPct: ((bm - am) / am) * 100,
+      samples: samples[index],
+    };
   });
 }
 
@@ -297,14 +366,17 @@ export function renderSingle(results) {
 
 export function renderCompare(results, thresholdPct) {
   const width = Math.max(...results.map((result) => result.name.length));
-  const lines = [`| ${"case".padEnd(width)} | A µs/op | B µs/op | Δ% |`];
-  lines.push(`| ${"-".repeat(width)} | ---: | ---: | ---: |`);
+  const lines = [
+    `| ${"case".padEnd(width)} | A µs/op (min) | B µs/op (min) | Δ% (min) | A median | B median | Δ% (median) |`,
+  ];
+  lines.push(`| ${"-".repeat(width)} | ---: | ---: | ---: | ---: | ---: | ---: |`);
+  const pct = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
   for (const result of results) {
     const regressed = result.deltaPct > thresholdPct;
-    const delta = `${result.deltaPct >= 0 ? "+" : ""}${result.deltaPct.toFixed(2)}%`;
     lines.push(
       `| ${result.name.padEnd(width)} | ${result.a.toFixed(3)} | ${result.b.toFixed(3)} | ` +
-        `${delta}${regressed ? "  <-- REGRESSION" : ""} |`,
+        `${pct(result.deltaPct)}${regressed ? "  <-- REGRESSION" : ""} | ` +
+        `${result.aMedian.toFixed(3)} | ${result.bMedian.toFixed(3)} | ${pct(result.deltaMedianPct)} |`,
     );
   }
   return lines.join("\n");
@@ -388,19 +460,6 @@ async function main(argv) {
     }
     console.log(
       `${path.resolve(distRoot)} exposes all ${REQUIRED_ENTRIES.length} measured entries`,
-    );
-    return 0;
-  }
-
-  // MIGRATION_PENDING (tooling/migration-pending.mjs): the 0.8 rebuild removed the
-  // 0.7 entries this protocol loads (createI18n, icuCompiler, prepareTranslation) from
-  // this checkout's core in lot 1a. The instance protocol is rebuilt in lot 1b; until
-  // then the compile path is benched by scripts/perf-compile.mjs (not gating).
-  const candidateMissing = missingEntries(DEFAULT_DIST);
-  if (candidateMissing.length > 0 && !argv.includes("--compare")) {
-    console.log(
-      `perf: skipped — MIGRATION_PENDING (this core has no ${candidateMissing.join(", ")}; ` +
-        "the createI18n/t() protocol returns in lot 1b — see scripts/perf-compile.mjs)",
     );
     return 0;
   }

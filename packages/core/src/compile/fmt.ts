@@ -85,23 +85,25 @@ export const pluralRules = (locale: string, ordinal: boolean): Intl.PluralRules 
  * (nothing to print). Never re-parsed as message syntax.
  */
 export const formatValue = (value: unknown, locale: string, timeZone?: string): unknown =>
-  typeof value === "number"
-    ? formatNumber(value, locale)
-    : value instanceof Date
-      ? // An invalid Date has nothing to print (Intl would throw): the caller reports it
-        // as a missing parameter.
-        +value === +value
-        ? intl<Intl.DateTimeFormat>("DateTimeFormat", locale, "" + timeZone, {
-            dateStyle: "short",
-            timeStyle: "short",
-            timeZone,
-          }).format(value)
-        : undefined
-      : Array.isArray(value) && value.every((v) => typeof v === "string")
-        ? intl<Intl.ListFormat>("ListFormat", locale, "").format(value)
-        : typeof value === "object" || typeof value === "function"
-          ? value
-          : String(value);
+  typeof value === "string"
+    ? value
+    : typeof value === "number"
+      ? formatNumber(value, locale)
+      : value instanceof Date
+        ? // An invalid Date has nothing to print (Intl would throw): the caller reports it
+          // as a missing parameter.
+          +value === +value
+          ? intl<Intl.DateTimeFormat>("DateTimeFormat", locale, "" + timeZone, {
+              dateStyle: "short",
+              timeStyle: "short",
+              timeZone,
+            }).format(value)
+          : undefined
+        : Array.isArray(value) && value.every((v) => typeof v === "string")
+          ? intl<Intl.ListFormat>("ListFormat", locale, "").format(value)
+          : typeof value === "object" || typeof value === "function"
+            ? value
+            : String(value);
 
 /** Test seam: drop every cached formatter and probe verdict. */
 export const _resetIntlCache = (): void => {

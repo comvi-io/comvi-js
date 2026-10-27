@@ -16,15 +16,19 @@ import { canonicalize } from "./locale";
 /**
  * The Intl locales: `locale` alone when passed, else the instance's lookup chain (its
  * locale, the parents, the fallback locales), canonical — Intl takes the first it has
- * data for. A tag that does not canonicalize is left out.
+ * data for. A tag that does not canonicalize is left out. Memoized per chain array (the
+ * instance memoizes chains per locale), so a call with no `locale` allocates nothing.
  */
-const tags = (i18n: I18n, locale?: string): readonly string[] => {
+const chains = new WeakMap<object, string | readonly string[]>();
+const tags = (i18n: I18n, locale?: string): string | readonly string[] => {
+  if (locale) return [canonicalize(locale)].filter((x): x is string => !!x);
   const c = CORE.get(i18n);
-  return locale
-    ? [canonicalize(locale)].filter((x): x is string => !!x)
-    : c
-      ? c.ch(i18n.locale).map((x) => x[1])
-      : [];
+  if (!c) return [];
+  const ch = c.ch(i18n.locale);
+  let ls = chains.get(ch);
+  // One locale goes as a string: the Intl cache key then needs no join.
+  if (!ls) chains.set(ch, (ls = ch.length == 1 ? ch[0][1] : ch.map((x) => x[1])));
+  return ls;
 };
 
 /** A cache variant for `options`: its own keys, sorted, with their values. */
@@ -37,12 +41,9 @@ const variant = (options?: object): string =>
     : "";
 
 /** Date options with the instance time zone filled in. */
-const zoned = <T extends { timeZone?: string }>(
-  i18n: I18n,
-  options?: T,
-): T | { timeZone?: string } => {
+const zoned = <T extends { timeZone?: string }>(i18n: I18n, options?: T): T | undefined => {
   const z = CORE.get(i18n)?.z;
-  return options && options.timeZone ? options : z ? { ...options, timeZone: z } : options || {};
+  return z && !(options && options.timeZone) ? ({ ...options, timeZone: z } as T) : options;
 };
 
 export const formatNumber = (

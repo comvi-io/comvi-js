@@ -108,6 +108,10 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     };
   }
 
+  // The plural rules of the last locale this message rendered in: one lookup per locale
+  // change instead of one cache-key string per render.
+  let rules: Intl.PluralRules | undefined;
+  let rl: string | undefined;
   return (p, l, x) => {
     // A plural selects on a number. A numeric string (`"5"`, `" 2.5 "`) is converted with
     // Number(), as 0.7 did (owner decision 27.10.2026; ICU4C itself rejects strings). A
@@ -125,7 +129,9 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
       );
     const c = n - offset;
     return run(
-      branches["=" + n] || branches[pluralRules(l, ordinal).select(c)] || other,
+      branches["=" + n] ||
+        branches[(rl === l ? rules! : ((rl = l), (rules = pluralRules(l, ordinal)))).select(c)] ||
+        other,
       p,
       l,
       x,
