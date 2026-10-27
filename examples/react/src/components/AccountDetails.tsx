@@ -1,16 +1,7 @@
-import { use } from "react";
 import { useI18n } from "@comvi/react";
-import { i18n } from "../i18n";
 
-// Loads the `account` namespace the first time this page needs it. The promise is
-// kept, so every render reads the same one; once loaded, the namespace stays
-// active and follows every later language switch.
-let account: Promise<void> | undefined;
-const loadAccount = () => (account ??= i18n.load("account"));
-
-/** Rows from the `account` namespace; suspends until it has loaded. */
+/** Rows from the `account` namespace, which the `/about` route loads (App.tsx). */
 export function AccountDetails({ name }: { name: string }) {
-  use(loadAccount());
   const { t } = useI18n("account");
 
   return (

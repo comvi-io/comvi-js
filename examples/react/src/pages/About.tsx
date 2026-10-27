@@ -1,11 +1,12 @@
-import { Suspense } from "react";
-import { Link } from "react-router";
+import { Link, useOutletContext } from "react-router";
 import { useI18n } from "@comvi/react";
+import type { Shared } from "../App";
 import { AccountDetails } from "../components/AccountDetails";
 import { FeatureCard } from "../components/FeatureCard";
 import { NamespacesLine } from "../components/NamespacesLine";
 
-export function About({ name }: { name: string }) {
+export function About() {
+  const { name } = useOutletContext<Shared>();
   const { t } = useI18n();
 
   return (
@@ -15,9 +16,7 @@ export function About({ name }: { name: string }) {
         <p className="widget" data-testid="about-body">
           {t("about.body")}
         </p>
-        <Suspense fallback={<p className="body">{t("app.loading")}</p>}>
-          <AccountDetails name={name} />
-        </Suspense>
+        <AccountDetails name={name} />
         <p>
           <Link data-testid="nav-home" to="/features">
             {t("nav.home")}
