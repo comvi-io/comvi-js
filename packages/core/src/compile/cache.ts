@@ -34,7 +34,8 @@ export type CompiledRecord = Record<string, Compiled>;
 /** Bit set of syntax extensions a record was compiled with. One configuration today. */
 export type SyntaxId = number;
 
-const EMPTY: Params = Object.freeze(Object.create(null));
+// A plain object is safe: parameters are read as own properties only (`arg`).
+const EMPTY: Params = Object.freeze({});
 /** Characters that can start syntax at the top level; a template without them is static. */
 const SYNTAX_START = /[{'<]/;
 
@@ -54,7 +55,7 @@ export const compile = (template: string, key?: string): Compiled => {
     // Development: the parser's explanation. Production: only the messages that ship
     // (the useFormat() hint for `{x, number|date|time}`), otherwise `undefined`.
     const text = SYNTAX.m;
-    const fallback = key === undefined ? template : key;
+    const fallback = key ?? template;
     return (_p, l, x) => {
       report(x, { code: "syntax", key, locale: l, message: text });
       return fallback;

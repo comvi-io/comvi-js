@@ -64,10 +64,10 @@ export interface Scan {
 }
 
 /** Thrown inside the scanner, caught by `compile()`; never escapes to callers. */
-export const SYNTAX = {
-  /** Development: the message of the last failure. */
-  m: undefined as string | undefined,
-};
+export const SYNTAX: {
+  /** The message of the last failure (development, plus the one hint that ships). */
+  m?: string;
+} = {};
 
 export const fail = (message?: string | false): never => {
   // Production passes `false` except for the few messages that ship (see icu.ts).
