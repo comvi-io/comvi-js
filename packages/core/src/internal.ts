@@ -10,6 +10,7 @@
 import type { Catalog, Rendered } from "./compile/cache";
 import type { Params } from "./compile/scanner";
 import { CORE, type Core, type I18n } from "./instance";
+import { dir } from "./locale";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
 
 export { compile, render, recordFor, lookup, inherit } from "./compile/cache";
@@ -21,10 +22,13 @@ export { defaultOnError } from "./errors";
 export type { Chain, Core } from "./instance";
 export type { Slot, State, Store } from "./state";
 
+declare const __DEV__: boolean;
+
+/** The seam of `i18n`. Development checks that it is an instance; production trusts the types. */
 const core = (i18n: I18n): Core => {
   const c = CORE.get(i18n);
-  if (!c) throw new TypeError("[@comvi/core] not an instance of createI18n()");
-  return c;
+  if (__DEV__ && !c) throw new TypeError("[@comvi/core] not an instance of createI18n()");
+  return c!;
 };
 
 /** The published state of `i18n`. */
@@ -39,14 +43,17 @@ const NO_SLOT = {};
 
 /**
  * A render-local snapshot: `state` with `extra` (namespace → locale → flat catalog)
- * layered over its catalogs. Nothing is published and `rev` does not move; untouched
- * namespaces and locales keep their slots (and compiled messages), and a catalog a slot
- * already holds as its base gives back `state` itself (no copy per render).
+ * layered over its catalogs, rendered in `locale` (default: the state's own; a binding's
+ * locale handover renders the target before `setLocale()` lands at commit). Nothing is
+ * published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
+ * slots (and compiled messages), and a catalog a slot already holds as its base, in the
+ * same locale, gives back `state` itself (no copy per render).
  */
 export const view = (
   i18n: I18n,
   state: State,
   extra: Readonly<Record<string, Readonly<Record<string, Catalog>>>>,
+  locale: string = state.locale,
 ): State => {
   let c: Store = state.c;
   for (const n of Object.keys(extra))
@@ -62,10 +69,21 @@ export const view = (
       if (c === state.c) c = N(c);
       (c as Record<string, Store[string]>)[n] = N(c[n], { [l]: next });
     }
-  core(i18n);
-  return c === state.c
+  // The chain gives the locale's direction and canonical tag (an invalid one renders
+  // through its fallbacks, as a published state does).
+  const h = core(i18n).ch(locale);
+  return c === state.c && locale == state.locale
     ? state
-    : mk(state.rev, state.lrev, state.locale, state.dir, c, state.ld, state.dp, state.tg);
+    : mk(
+        state.rev,
+        state.lrev,
+        locale,
+        h.o ? dir(h[0][1]) : "ltr",
+        c,
+        state.ld,
+        state.dp,
+        h.o ? h[0][1] : locale,
+      );
 };
 
 /** `t()` of `i18n` against `state` (a published state or a view). */

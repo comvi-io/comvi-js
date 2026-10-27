@@ -20,8 +20,13 @@
 /** Translation catalogs per namespace, augmented by generated declarations. */
 export interface Catalogs {}
 
-/** A rich-text tag handler. Framework bindings narrow the return type. */
-export type Tag = (chunks: RichParts) => unknown;
+/**
+ * A rich-text tag handler. Its argument is the tag's children as the BINDING delivers
+ * them: rich parts (`RichParts`) from the core's `t()`, one React node from
+ * `@comvi/react` (lot 1c). It is typed loosely so a binding's handler type, such as
+ * `(chunks: ReactNode) => ReactNode`, satisfies a catalog's `Tag` param.
+ */
+export type Tag = (chunks: any) => unknown;
 
 /** What a rich message renders: strings and whatever the tag handlers returned. */
 export type RichParts = readonly unknown[];

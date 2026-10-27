@@ -160,7 +160,7 @@ describe("view() — render-local catalogs (R4-15; 0.7 withMessages)", () => {
     expect(i18n.t("a")).toBe("added");
   });
 
-  it("rejects an object that is not an instance", () => {
+  it("development: rejects an object that is not an instance (production trusts the types)", () => {
     expect(() => state({} as I18n)).toThrow(/not an instance/);
   });
 });
