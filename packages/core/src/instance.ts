@@ -178,13 +178,8 @@ export const createI18n = (o: I18nOptions): I18n => {
   // An own copy: the caller mutating its list later changes nothing.
   const fb = JSON.parse(JSON.stringify(o.fallbackLocale || 0)) as I18nOptions["fallbackLocale"];
   const h = o.onError || defaultOnError;
-  /**
-   * Reports; what the reporter throws is rethrown outside the render or the load. With no
-   * reporter to call (production without `onError`: `defaultOnError` is silent there) no
-   * report is even built — a missing key costs the lookup only.
-   */
-  const quiet = h == noop;
-  const report: OnError = quiet ? noop : (e) => safe(() => h(e));
+  /** Reports; what the reporter throws is rethrown outside the render or the load. */
+  const report: OnError = (e) => safe(() => h(e));
   const env: Env = { r: report };
   const load = o.loader;
   const subs = new Set<() => void>();
@@ -196,9 +191,6 @@ export const createI18n = (o: I18nOptions): I18n => {
   const downs: (void | (() => void))[] = [];
   let chains: Record<string, Chain> = N();
   let nch = 0;
-  /** The chain asked for last, and its locale (a chain never changes once built). */
-  let lc: string | undefined;
-  let lch: Chain;
   /** `ready` for the current set of flights; cleared whenever that set changes. */
   let rd: Promise<void> | 0 = 0;
   let seq = 0;
@@ -213,7 +205,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     ns?: string,
     key?: string,
     cause?: unknown,
-  ) => quiet || report({ code, key, locale, ns, cause });
+  ) => report({ code, key, locale, ns, cause });
 
   /** The canonical tag of `l`, or nothing after reporting `invalid_locale` (R3-1, R4-10). */
   const valid = (l: string): string | void => canonicalize(l) || void err("invalid_locale", l);
@@ -223,8 +215,6 @@ export const createI18n = (o: I18nOptions): I18n => {
    * that does not canonicalize is reported (`invalid_locale`) and left out.
    */
   const chain = (l: string): Chain => {
-    // The last locale asked for, before the memo: `t()` asks for the same one every call.
-    if (l === lc) return lch;
     let ch = chains[l];
     if (!ch) {
       // A per-call locale may come from user input: the memo is bounded.
@@ -249,8 +239,7 @@ export const createI18n = (o: I18nOptions): I18n => {
         )
         .forEach((k) => walk(k));
     }
-    lc = l;
-    return (lch = ch);
+    return ch;
   };
 
   /** A state for locale `l` (an invalid locale has no entry of its own in its chain). */
@@ -346,8 +335,10 @@ export const createI18n = (o: I18nOptions): I18n => {
       if (i >= ch.o) err("fallback_used", l, n, key);
       r = render(m, p, ch[i][1], j ? (ej.j == j ? ej : (ej = { ...env, j })) : env);
     } else {
-      // A key of a namespace still coming is not missing yet.
-      if (!quiet && !coming(s, n)) err("missing_key", l, n, key);
+      // A key of a namespace still coming is not missing yet. With no reporter to call
+      // (production without `onError`: `defaultOnError` is silent there) nothing is checked
+      // or built: a missing key costs the lookup only.
+      if (h != noop && !coming(s, n)) err("missing_key", l, n, key);
       // A missing key is marked too: the translator clicks keys no catalog has (H4).
       r = o.missing ? o.missing(key, l, n) : key;
     }
