@@ -397,42 +397,39 @@ test("a: the initial render shows real text, never a raw key", async ({ page }) 
 test("a2: the instance is published on window.__COMVI__", async ({ page }) => {
   await open(page);
   await ready(page);
-  // The queue the browser extension reads: `devtools()` pushes `{ v, i }`, `i`
-  // being the live instance. An example that does not compose it leaves it empty.
+  // The queue the browser extension reads (protocol 2 — `contracts/chrome-extension-proxy.json`,
+  // `discovery` and `handle`): `devtools()` pushes `{ v, i, x }`, `i` being the live
+  // instance and `x` the handle the editor drives it through. `x.load()` is never called
+  // here, so the scenario requests nothing from jsDelivr; nothing else is left on the page
+  // (0.8 has no editor-loader slot and no instance id).
   const published = await page.evaluate(() => {
     const queue = (window as unknown as { __COMVI__?: unknown }).__COMVI__;
-    const entries = Array.isArray(queue) ? (queue as Array<{ i?: { instanceId?: unknown } }>) : [];
-    return entries.map((entry) => ({
-      instanceId: typeof entry.i?.instanceId === "string" ? entry.i.instanceId : null,
-    }));
+    const entries = Array.isArray(queue)
+      ? (queue as Array<{ v?: unknown; i?: Record<string, unknown>; x?: Record<string, unknown> }>)
+      : [];
+    return {
+      entries: entries.map((entry) => ({
+        v: typeof entry.v,
+        t: typeof entry.i?.t,
+        instanceId: entry.i ? "instanceId" in entry.i : null,
+        x: entry.x ? Object.keys(entry.x).sort() : null,
+        p: entry.x?.p,
+        kind: entry.x?.kind,
+      })),
+      slot: Symbol.for("comvi.devtools.editorLoader") in globalThis,
+    };
   });
-  expect(published, "instances on window.__COMVI__").toHaveLength(1);
-  expect(published[0].instanceId, "the published instance's id").toMatch(/^comvi-\d+$/);
-
-  // The editor loader `devtools()` installs beside it (protocol 1 —
-  // `contracts/chrome-extension-proxy.json`, `editorLoader`): the browser
-  // extension calls its `load()`. The slot is only read here, `load()` is never
-  // called, so the scenario requests nothing from jsDelivr. The slot's `url`
-  // is the salt-free one; the hourly query is added inside `load()`.
-  const loader = await page.evaluate(() => {
-    const slot = (globalThis as unknown as Record<symbol, unknown>)[
-      Symbol.for("comvi.devtools.editorLoader")
-    ] as { protocol?: unknown; editorVersion?: unknown; url?: unknown; load?: unknown } | undefined;
-    return slot
-      ? {
-          protocol: slot.protocol,
-          editorVersion: slot.editorVersion,
-          url: slot.url,
-          load: typeof slot.load,
-        }
-      : null;
-  });
-  expect(loader, "the editor loader slot").toEqual({
-    protocol: 1,
-    editorVersion: "latest",
-    url: "https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js",
-    load: "function",
-  });
+  expect(published.entries, "instances on window.__COMVI__").toEqual([
+    {
+      v: "string",
+      t: "function",
+      instanceId: false,
+      x: ["kind", "load", "mark", "p", "read", "state"],
+      p: 2,
+      kind: "comvi",
+    },
+  ]);
+  expect(published.slot, "the 0.7 editor-loader slot").toBe(false);
 });
 
 test("b: the switcher changes en → uk → de", async ({ page }) => {
