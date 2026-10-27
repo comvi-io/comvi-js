@@ -8,6 +8,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src/instance";
+import { state } from "../../src/internal";
 import { make } from "./helpers";
 
 describe("t()", () => {
@@ -180,6 +181,27 @@ describe("per-call locale", () => {
     },
   );
 
+  it("an invalid per-call locale is reported once per locale, not on every call", () => {
+    const { i18n, errors } = make({ locale: "de", messages: { de: { a: "A" } } });
+    for (let k = 0; k < 20; k++) i18n.t("a", { locale: "!!" });
+    i18n.t("a", { locale: "??" });
+    expect(errors.filter((e) => e.code == "invalid_locale").map((e) => e.locale)).toEqual([
+      "!!",
+      "??",
+    ]);
+  });
+
+  it("per-call options are the params' OWN properties: inherited ns and locale are ignored", () => {
+    const { i18n } = make({
+      locale: "en",
+      catalogs: { default: { en: { a: "A" } }, shop: { en: { a: "Shop" }, de: { a: "Laden" } } },
+    });
+    const p = Object.create({ ns: "shop", locale: "de" });
+    expect(i18n.t("a", p)).toBe("A");
+    expect(i18n.ns("shop")("a", Object.create({ locale: "de" }))).toBe("Shop");
+    expect(i18n.t("a", { ns: "shop", locale: "de" })).toBe("Laden");
+  });
+
   it("an empty per-call locale is no per-call locale", () => {
     const { i18n, errors } = make({
       locale: "de",
@@ -227,6 +249,16 @@ describe("defaultParams (R3-3)", () => {
     i18n.setDefaultParams({ brand: "B" });
     expect(sub).toHaveBeenCalledTimes(1);
     expect(i18n.t("hi", { name: "Ann" })).toBe("Hi Ann from B");
+  });
+
+  it("an empty object is none: `defaultParams: {}` and setDefaultParams({}) keep the fast path", () => {
+    const { i18n } = make({ locale: "en", messages, defaultParams: {} });
+    expect(state(i18n).dp).toBeNull();
+    i18n.setDefaultParams({ brand: "B" });
+    expect(state(i18n).dp).toEqual({ brand: "B" });
+    i18n.setDefaultParams({});
+    expect(state(i18n).dp).toBeNull();
+    expect(i18n.t("hi", { name: "Ann", brand: "X" })).toBe("Hi Ann from X");
   });
 
   it("are not mutated by a render, and a call's params object is not either", () => {

@@ -206,6 +206,8 @@ describe("x.read and x.state", () => {
     const bare = createI18n({ locale: "en", plugins: [devtools()] });
     void bare.load("help");
     expect(handle(bare).state().ns).toEqual(["default", "help"]);
+    // The active set growing is a published change, even with nothing to load (protocol 2).
+    expect(handle(bare).state().rev).toBe(1);
     // The handle of an instance whose namespaces differ only by an empty one differs.
     const one = createI18n({ locale: "en", plugins: [devtools()] });
     expect(handle(one).state().ns).toEqual(["default"]);
@@ -300,6 +302,8 @@ describe("x.load(version?) — the editor on the page (R3-15)", () => {
     "1.2.3-rc.01",
     "1.2.3+build",
     "1.2.3.4",
+    // Well formed but past 64 characters: refused before the pattern runs.
+    "1.2.3-" + "a".repeat(59),
   ])("never a URL: %j rejects and creates no script", async (v) => {
     const x = handle(make());
     let threw = false;

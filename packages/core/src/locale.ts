@@ -20,11 +20,13 @@
 let memo = new Map<string, unknown>();
 
 const once = <T>(key: string, make: () => T): T => {
-  if (!memo.has(key)) {
-    if (memo.size >= 1000) memo = new Map();
-    memo.set(key, make());
-  }
-  return memo.get(key) as T;
+  if (memo.has(key)) return memo.get(key) as T;
+  // Computed BEFORE the cap: `make` may recurse into `once` (parents → maximize) and roll
+  // the memo over, and the value must land in the map that is current afterwards.
+  const v = make();
+  if (memo.size >= 1000) memo = new Map();
+  memo.set(key, v);
+  return v;
 };
 
 const maximize = (tag: string): Intl.Locale =>

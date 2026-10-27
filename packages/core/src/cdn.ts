@@ -104,8 +104,9 @@ export const cdn = (
       if (signal && signal.aborted) throw e;
       const f = fb[l + ":" + n] || (n === root && fb[l]);
       if (f) {
-        const m = await f();
-        return (m as { default?: Catalog }).default || (m as Catalog);
+        const m = (await f()) as Catalog | { default: Catalog };
+        // A module namespace (`import("./de.json")`) — but a catalog may have a key `default`.
+        return m.default && typeof m.default == "object" ? m.default : (m as Catalog);
       }
       // A timeout surfaces as its own error.
       throw c.signal.aborted ? c.signal.reason : e;

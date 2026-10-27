@@ -39,6 +39,9 @@ describe("a plain {x} prints String(value), never through Intl (R3-17)", () => {
   it("prints a string list as String(list)", () => {
     expect(fmt("{l}", { l: ["a", "b", "c"] })).toBe("a,b,c");
     expect(fmt("{l}", { l: [] }, "de")).toBe("");
+    // R3-17 "every type": a list of numbers or Dates prints as String(list) too.
+    expect(fmt("{l}", { l: [1, 2] }, "de")).toBe("1,2");
+    expect(fmt("{l}", { l: [1234567, "x"] }, "de")).toBe("1234567,x");
   });
 
   it.each([
@@ -56,7 +59,7 @@ describe("a plain {x} prints String(value), never through Intl (R3-17)", () => {
   it("passes objects and functions through as rich parts, untouched", () => {
     const node = { $$typeof: Symbol.for("react.element") };
     expect(fmt("a {x} b", { x: node })).toEqual(["a ", node, " b"]);
-    const mixed = ["a", 1];
+    const mixed = ["a", node];
     expect(fmt("{x}", { x: mixed })).toEqual([mixed]);
   });
 

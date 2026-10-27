@@ -67,14 +67,51 @@ describe("ingestion", () => {
     expect(i18n.t("ok")).toBe("OK");
   });
 
-  it("add() publishes once and makes the key readable at once; add({}) does not throw", () => {
+  it("add() publishes once and makes the key readable at once; add({}) publishes nothing", () => {
     const { i18n } = make({ locale: "en" });
     const sub = vi.fn();
     i18n.on(sub);
     i18n.add("en", { a: "A" });
     expect(i18n.t("a")).toBe("A");
     i18n.add("en", {});
+    expect(sub).toHaveBeenCalledTimes(1);
+  });
+
+  it("a value-equal catalog publishes nothing: a fresh literal of the same messages keeps the slot", () => {
+    const { i18n } = make({ locale: "en" });
+    i18n.add("en", { a: "A", b: "B" });
+    const slot = state(i18n).c.default.en;
+    const sub = vi.fn();
+    i18n.on(sub);
+    const rev = i18n.rev();
+    // What a parent passing `catalogs={{ default: { en: { … } } }}` does on every render.
+    for (let k = 0; k < 50; k++) i18n.add("en", { a: "A", b: "B" });
+    i18n.add("en", { b: "B" });
+    expect(sub).not.toHaveBeenCalled();
+    expect(i18n.rev()).toBe(rev);
+    expect(state(i18n).c.default.en).toBe(slot);
+    // Over a patch: the patched value is what counts, the base one is a change.
+    i18n.add("en", { a: "A2" });
+    expect(sub).toHaveBeenCalledTimes(1);
+    i18n.add("en", { a: "A2", b: "B" });
+    expect(sub).toHaveBeenCalledTimes(1);
+    i18n.add("en", { a: "A" });
     expect(sub).toHaveBeenCalledTimes(2);
+    expect(i18n.t("a")).toBe("A");
+    // One changed value among equal ones is a change.
+    i18n.add("en", { a: "A", b: "B2" });
+    expect(sub).toHaveBeenCalledTimes(3);
+    expect(i18n.t("b")).toBe("B2");
+  });
+
+  it("an empty string added over a translation hides it: the key falls to the next locale (empty = missing)", () => {
+    const { i18n } = make({
+      locale: "en",
+      fallbackLocale: "de",
+      messages: { en: { a: "A" }, de: { a: "DE" } },
+    });
+    i18n.add("en", { a: "" });
+    expect(i18n.t("a")).toBe("DE");
   });
 
   it("add() under an invalid locale reports invalid_locale and adds nothing", () => {

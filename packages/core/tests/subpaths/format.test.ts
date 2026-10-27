@@ -36,6 +36,11 @@ describe("formatters", () => {
     expect(displayName(i18n, "UA", "region")).toBe("Ukraine");
   });
 
+  it("an override that is not a locale formats in the instance chain, never the host default", () => {
+    const i18n = createI18n({ locale: "de", onError: () => {} });
+    expect(formatNumber(i18n, 1234.5, undefined, "!!")).toBe("1.234,5");
+  });
+
   it("dates use the instance time zone unless the options name one", () => {
     const i18n = createI18n({ locale: "en", timeZone: "Asia/Tokyo" });
     expect(formatDate(i18n, D, { hour: "numeric", hourCycle: "h23" })).toBe("23");

@@ -83,19 +83,18 @@ export const formatNumber = (n: number, locale: string): string =>
 export const pluralRules = (locale: string, ordinal: boolean): Intl.PluralRules =>
   intl("PluralRules", locale, ordinal ? "o" : "", ordinal ? { type: "ordinal" } : undefined);
 
+/** A value a binding renders itself: a function, or an object that is not a Date. */
+const node = (v: unknown): boolean =>
+  typeof v === "function" || (typeof v === "object" && !!v && !(v instanceof Date));
+
 /**
  * The text a plain `{x}` prints for a value (R3-17): `String(value)` for a number, a Date,
- * a string list and every other primitive, with no Intl; objects and functions
- * (framework nodes, a list holding one) pass through untouched so the binding can render
- * them. Never re-parsed as message syntax.
+ * a list of those or of strings (`[1, 2]` → `1,2`) and every other primitive, with no
+ * Intl; functions, other objects (framework nodes) and a list holding one pass through
+ * untouched so the binding can render them. Never re-parsed as message syntax.
  */
 export const formatValue = (value: unknown): unknown =>
-  typeof value === "function" ||
-  (typeof value === "object" &&
-    !(value instanceof Date) &&
-    !(Array.isArray(value) && value.every((v) => typeof v === "string")))
-    ? value
-    : String(value);
+  node(value) && !(Array.isArray(value) && !value.some(node)) ? value : String(value);
 
 /** Test seam: drop every cached formatter and probe verdict. */
 export const _resetIntlCache = (): void => {

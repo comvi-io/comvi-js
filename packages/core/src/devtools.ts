@@ -18,14 +18,14 @@
  */
 import type { Rendered } from "./compile/cache";
 import { CORE, type I18n, type Plugin } from "./instance";
-import type { Mark, State } from "./state";
+import type { Mark, Slot } from "./state";
 
 declare const __VERSION__: string;
 
 /** The core version, inlined at build time (checked by `pnpm check:inlined-version`). */
 export const VERSION: string = __VERSION__;
 
-export type { Mark, Rendered, State };
+export type { Mark, Rendered };
 
 /** What an in-context editor drives an instance through (protocol 2). */
 export interface ComviHandle {
@@ -62,7 +62,7 @@ export interface ComviHandle {
  * What `x.state()` guarantees for the lifetime of protocol 2 (the editor may read these
  * by name; every other field of `State` may change in any release).
  */
-export interface HandleState extends State {
+export interface HandleState {
   /** Moves on every published change. */
   readonly rev: number;
   /** The current locale, as the app spells it. */
@@ -71,7 +71,7 @@ export interface HandleState extends State {
    * The catalogs: namespace → locale → slot; a slot's `m` (base) and optional `p` (patch
    * on top) are flat key → ICU source maps. `x.read()` is the merged view of one pair.
    */
-  readonly c: State["c"];
+  readonly c: Readonly<Record<string, Readonly<Record<string, Pick<Slot, "m" | "p">>>>>;
   /** Loads in flight, as `locale + "\0" + ns`. */
   readonly ld: readonly string[];
   /** The active namespaces — loaded, still loading, failed or empty alike. */
@@ -126,7 +126,9 @@ export const devtools = (): Plugin => ({
           // Everything runs inside the executor: what throws here — a version that is not
           // one, no document, a Trusted Types policy refusing the `src` — rejects.
           new Promise((y, n) => {
-            if (!VER.test((v += ""))) throw TypeError("[@comvi/core/devtools] bad version " + v);
+            // The length check first: the pattern is never run on a long page-supplied string.
+            if ((v += "").length > 64 || !VER.test(v))
+              throw TypeError("[@comvi/core/devtools] bad version " + v);
             const s = document.createElement("script");
             s.onload = () =>
               window.ComviInContextEditor

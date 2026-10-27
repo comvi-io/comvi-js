@@ -129,3 +129,15 @@ describe("the tag memo", () => {
     expect(parents("pt-BR")).toEqual(pt);
   });
 });
+
+describe("the shared memo rolling over", () => {
+  it("a lookup whose own computation rolls the memo over still returns its value", () => {
+    // 999 entries: the next `parents()` stores its maximize() results first, which caps the
+    // memo and replaces it while the outer lookup is still computing.
+    _resetLocaleCache();
+    for (let i = 0; i < 999; i++) canonicalize("en-x-" + i.toString(36).padStart(2, "0"));
+    expect(parents("sr-Latn-RS")).toEqual(["sr-Latn"]);
+    expect(parents("sr-Latn-RS")).toEqual(["sr-Latn"]);
+    _resetLocaleCache();
+  });
+});

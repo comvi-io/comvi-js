@@ -27,7 +27,8 @@ const NONE: Tags = ["", [], Object.create(null)];
 const tags = (i18n: I18n, locale?: string): Tags => {
   if (locale) {
     const c = canonicalize(locale);
-    return c ? [c, [c], Object.create(null)] : NONE;
+    // An override that is not a tag formats in the instance chain, never the host default.
+    return c ? [c, [c], Object.create(null)] : tags(i18n);
   }
   const core = CORE.get(i18n);
   if (!core) return NONE;

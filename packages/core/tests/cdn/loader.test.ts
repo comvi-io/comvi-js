@@ -53,6 +53,18 @@ describe("cdn() details", () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
+  it("a fallback catalog with a key named `default` is a catalog, not a module", async () => {
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 404, json: async () => ({}) }));
+    const plain = { default: "Default label", a: "A" };
+    const mod = { default: { default: "Nested", b: "B" } };
+    const load = cdn("https://cdn.example", {
+      fallback: { de: async () => plain, en: async () => mod },
+    });
+    const s = new AbortController().signal;
+    await expect(load("de", "default", s)).resolves.toBe(plain);
+    await expect(load("en", "default", s)).resolves.toBe(mod.default);
+  });
+
   it("removes the listener it put on the caller's signal once the load settles", async () => {
     stub({ a: "A" });
     const signal = new AbortController().signal;

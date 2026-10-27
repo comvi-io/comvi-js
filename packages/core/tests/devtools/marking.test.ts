@@ -121,6 +121,29 @@ describe("x.mark (H4)", () => {
     expect(state(i18n).mk).toBeUndefined();
     expect(i18n.t("hi")).toBe("Hi");
   });
+
+  it("a session active at destroy() marks nothing afterwards; state() keeps the last state", () => {
+    const { i18n, x } = make();
+    const mk = bracket();
+    x.mark(mk);
+    expect(i18n.t("hi")).toBe("[default|hi|Hi]");
+    const last = x.state().rev;
+    i18n.destroy();
+    mk.mockClear();
+    expect(i18n.t("hi")).toBe("Hi");
+    expect(i18n.t("gone")).toBe("gone");
+    expect(i18n.ns("shop")("buy")).toBe("Buy");
+    expect(translate(i18n, state(i18n), "hi")).toBe("Hi");
+    expect(mk).not.toHaveBeenCalled();
+    expect(x.state().rev).toBe(last);
+  });
+
+  it("an inherited `markers: false` is not an opt-out: only the call's own option counts", () => {
+    const { i18n, x } = make();
+    x.mark(bracket());
+    const p = Object.create({ markers: false, ns: "shop", locale: "de" });
+    expect(i18n.t("hi", p)).toBe("[default|hi|Hi]");
+  });
 });
 
 describe("opt-out (H9)", () => {
@@ -241,11 +264,12 @@ describe("compiled messages survive (H3)", () => {
       expect(slot.p && "name" in slot.p).toBe(true);
       return slot.pc!.name;
     };
-    i18n.add("en", { name: "Hi {n}" });
+    // Saved with another key that does change: the save writes a patch holding both.
+    i18n.add("en", { name: "Hi {n}", hi: "Hello" });
     expect(used()).toBe(fn);
     // Saved again into an existing patch, still unchanged.
-    i18n.add("en", { hi: "Hello" });
-    i18n.add("en", { name: "Hi {n}" });
+    i18n.add("en", { hi: "Hello again" });
+    i18n.add("en", { name: "Hi {n}", hi: "Hello once more" });
     expect(used()).toBe(fn);
   });
 

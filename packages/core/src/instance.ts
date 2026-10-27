@@ -26,7 +26,7 @@
  * load bookkeeping (its error is rethrown from a `setTimeout`, like a subscriber's).
  */
 import { render, type Catalog, type Compiled, type Rendered } from "./compile/cache";
-import type { Env, Params } from "./compile/scanner";
+import { arg, type Env, type Params } from "./compile/scanner";
 import { defaultOnError, noop, type I18nError, type OnError } from "./errors";
 import { canonicalize, dir as dirOf, parents } from "./locale";
 import { find, mk, N, put, type Mark, type State, type Store } from "./state";
@@ -107,6 +107,11 @@ export interface I18n {
   load(ns: string): Promise<void>;
   /** Adds messages to (locale, ns) — by reference into an empty pair, else as a patch layer. */
   add(locale: string, messages: Catalog, ns?: string): void;
+  /**
+   * Whether `key` has a message in namespace `ns` (default `default`) for `locale` (default:
+   * the current one) or its fallback chain. `fallback: false` looks in `locale` alone —
+   * neither its parents (`pt-BR` → `pt`) nor the fallback locales.
+   */
   has(key: string, opts?: { ns?: string; locale?: string; fallback?: boolean }): boolean;
   /** Subscribes to every published change. Returns the unsubscribe function. */
   on(fn: () => void): () => void;
@@ -171,8 +176,12 @@ const safe = (f: void | (() => void)) => {
 
 type Flight = [Promise<unknown>, AbortController];
 
-/** A shallow own copy of a params object; `null` for none (so `pub()`'s default does not apply). */
-const own = (v?: Readonly<Record<string, unknown>>) => (v ? { ...v } : null);
+/**
+ * A shallow own copy of a params object; `null` for none or an empty one (so `pub()`'s
+ * default does not apply, and `{}` keeps the `t()` fast path).
+ */
+const own = (v?: Readonly<Record<string, unknown>>) =>
+  v && Object.keys(v).length ? { ...v } : null;
 
 export const createI18n = (o: I18nOptions): I18n => {
   // An own copy: the caller mutating its list later changes nothing.
@@ -320,10 +329,13 @@ export const createI18n = (o: I18nOptions): I18n => {
   const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"]): Rendered => {
     let l = s.locale;
     let r: Rendered;
-    // Per-call options are read from the params object itself (R4-17).
+    let x: unknown;
+    // Per-call options are read from the params object's OWN properties (R4-17). An invalid
+    // per-call locale is reported once (its chain is memoized), then falls back to `l`.
     if (p) {
-      n = (p.ns as string) || n;
-      if (p.locale && valid(p.locale as string)) l = p.locale as string;
+      n = (arg(p, "ns") as string) || n;
+      if ((x = arg(p, "locale")) && chain(x as string).o) l = x as string;
+      x = arg(p, "markers");
     }
     // The state's own copy of defaultParams (R4-12: an older snapshot keeps its own).
     if (s.dp) p = N(s.dp, p);
@@ -343,8 +355,9 @@ export const createI18n = (o: I18nOptions): I18n => {
       r = o.missing ? o.missing(key, l, n) : key;
     }
     // The marking hook of an editor session (R3-14 H4); `{ markers: false }` is checked
-    // BEFORE it, so the hook never sees the call's options.
-    return s.mk && p?.markers !== false ? s.mk(r, key, n) : r;
+    // BEFORE it, so the hook never sees the call's options. A destroyed instance marks
+    // nothing (protocol 2 `afterDestroy`).
+    return s.mk && x !== false && !dead ? s.mk(r, key, n) : r;
   };
 
   /** Forgets flight `k` and publishes (with `c`, the catalogs it brought). */
@@ -384,12 +397,13 @@ export const createI18n = (o: I18nOptions): I18n => {
    * Starts what `l`'s chain needs for `nss`, publishing ONE "loading" state for all the
    * flights it started; the flights to wait for.
    */
-  const ensure = (l: string, nss: Iterable<string>) => {
+  const ensure = (l: string, nss: Iterable<string>, g?: boolean) => {
     const n = fl.size;
     const ps = chain(l)
       .flatMap(([k]) => [...nss].map((x) => get(k, x)))
       .filter(Boolean);
-    if (fl.size > n) {
+    // `g`: the active set grew — a published change even when nothing starts loading.
+    if (g || fl.size > n) {
       rd = 0;
       pub();
     }
@@ -400,9 +414,13 @@ export const createI18n = (o: I18nOptions): I18n => {
   const retry = (i: number, v: string) =>
     bad.forEach((_, k) => k.split(K)[i] == v && bad.delete(k));
 
-  /** Activates `n` and loads what the current chain lacks of it (failed pairs stay failed). */
+  /**
+   * Activates `n` and loads what the current chain lacks of it (failed pairs stay failed).
+   * A namespace joining the active set publishes (protocol 2: `ns` is part of the state),
+   * in the one publish of `ensure()`.
+   */
   const use = (n: string): Promise<void> =>
-    dead ? R : (act.add(n), Promise.all(ensure(S.locale, [n])).then(noop));
+    dead ? R : Promise.all(ensure(S.locale, [n], act.size < act.add(n).size)).then(noop);
 
   const i18n: I18n = {
     get locale() {
