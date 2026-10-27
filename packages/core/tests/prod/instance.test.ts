@@ -59,3 +59,15 @@ describe("production instance", () => {
     ends.mockRestore();
   });
 });
+
+describe("production catalog values", () => {
+  it("are not checked: a nested object reports nothing, even to onError", () => {
+    const errors: I18nError[] = [];
+    createI18n({
+      locale: "en",
+      messages: { en: { nav: { home: "x" } } as never },
+      onError: (e) => errors.push(e),
+    });
+    expect(errors).toEqual([]);
+  });
+});

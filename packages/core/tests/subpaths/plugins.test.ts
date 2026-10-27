@@ -151,3 +151,93 @@ describe("persist()", () => {
     expect(detected({ supported })).toBe("de");
   });
 });
+
+describe("plugin names", () => {
+  it("are detect and persist", () => {
+    expect([detect({ supported: [] }).name, persist().name]).toEqual(["detect", "persist"]);
+  });
+});
+
+describe("detect() sources in detail", () => {
+  const supported = ["en", "de", "uk"];
+
+  it("reads its own cookie, not the first one", () => {
+    document.cookie = "other=uk; path=/";
+    document.cookie = `${LOCALE_KEY}=de; path=/`;
+    expect(detected({ supported, order: ["cookie"] })).toBe("de");
+  });
+
+  it("falls back to navigator.language when navigator.languages is empty", () => {
+    navigatorLanguages([]);
+    vi.spyOn(navigator, "language", "get").mockReturnValue("de-DE");
+    expect(detected({ supported, order: ["navigator"] })).toBe("de");
+  });
+
+  it("a source whose global throws reads nothing", () => {
+    localStorage.setItem(LOCALE_KEY, "de");
+    const get = vi.spyOn(window, "localStorage", "get").mockImplementationOnce(() => {
+      throw new Error("SecurityError");
+    });
+    expect(detected({ supported, order: ["storage"] }, "uk")).toBe("uk");
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("a detected locale equal to the start locale switches nothing (one load, even when it fails)", async () => {
+    navigatorLanguages(["en"]);
+    const loaded: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      plugins: [detect({ supported })],
+      onError: () => {},
+      loader: async (l, n) => {
+        loaded.push(`${l}:${n}`);
+        throw new Error("404");
+      },
+    });
+    await i18n.ready;
+    await vi.waitFor(() => expect(loaded).toEqual(["en:default"]));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(loaded).toEqual(["en:default"]);
+  });
+});
+
+describe("persist() writes", () => {
+  const writes = () => {
+    const set = vi.spyOn(document, "cookie", "set");
+    return () => set.mock.calls.map((c) => c[0]);
+  };
+
+  it("exactly one cookie line per switch, path / and a year, no Secure on http", async () => {
+    const i18n = createI18n({ locale: "en", plugins: [persist()] });
+    const w = writes();
+    await i18n.setLocale("de");
+    i18n.add("de", { a: "A" });
+    i18n.setDefaultParams({ x: 1 });
+    expect(w()).toEqual([`${LOCALE_KEY}=de; path=/; max-age=31536000; SameSite=Lax`]);
+  });
+
+  it("the domain when given, and Secure on https", async () => {
+    vi.stubGlobal("location", { ...location, protocol: "https:" });
+    try {
+      const i18n = createI18n({ locale: "en", plugins: [persist({ domain: "example.com" })] });
+      const w = writes();
+      await i18n.setLocale("de");
+      expect(w()).toEqual([
+        `${LOCALE_KEY}=de; path=/; max-age=31536000; SameSite=Lax; domain=example.com; Secure`,
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("nothing outside a browser, not even to storage", async () => {
+    const i18n = createI18n({ locale: "en", plugins: [persist({ to: "storage" })] });
+    vi.stubGlobal("document", undefined);
+    try {
+      await i18n.setLocale("de");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(localStorage.getItem(LOCALE_KEY)).toBeNull();
+  });
+});

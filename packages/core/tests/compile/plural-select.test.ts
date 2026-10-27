@@ -4,7 +4,9 @@
  * icu-exact-plural-selectors, icu-invalid-plural-param, icu-argument-shapes,
  * icu-nested-comma, empty-translation-fallback (branch half).
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { compile, render } from "../../src/compile/cache";
+import { _resetIntlCache } from "../../src/compile/fmt";
 import { fmt, sink } from "../helpers";
 
 describe("plural", () => {
@@ -162,5 +164,39 @@ describe("argument shapes", () => {
 
   it("keeps a quoted comma or brace inside a branch as text", () => {
     expect(fmt("{n, plural, other {a',' b '{x}' c}}", { n: 1 })).toBe("a',' b {x} c");
+  });
+});
+
+describe("select diagnostics and branch choice", () => {
+  it("names the select in the development missing_param message", () => {
+    const env = sink();
+    fmt("{g, select, a {A} other {O}}", {}, "en", env, "s");
+    expect(env.errors).toEqual([
+      expect.objectContaining({
+        code: "missing_param",
+        param: "g",
+        message: "no value for {g, select}; rendering its `other` branch",
+      }),
+    ]);
+  });
+
+  it("never picks a branch called null or undefined for a missing value", () => {
+    const t = "{g, select, null {N} undefined {U} other {O}}";
+    expect(fmt(t, { g: null }, "en", sink())).toBe("O");
+    expect(fmt(t, {}, "en", sink())).toBe("O");
+    expect(fmt(t, { g: "null" })).toBe("N");
+  });
+});
+
+describe("plural rules per message", () => {
+  it("keeps the rules of the last locale: no new PluralRules for a repeat render", () => {
+    const c = compile("{n, plural, one {#} other {#s}}", "k");
+    expect(render(c, { n: 1 }, "en")).toBe("1");
+    _resetIntlCache();
+    const rules = vi.spyOn(Intl, "PluralRules");
+    expect(render(c, { n: 2 }, "en")).toBe("2s");
+    expect(rules).not.toHaveBeenCalled();
+    expect(render(c, { n: 2 }, "uk")).toBe("2s");
+    expect(rules).toHaveBeenCalledTimes(1);
   });
 });

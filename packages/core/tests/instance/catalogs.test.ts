@@ -176,6 +176,15 @@ describe("the primary record is never stale (R4-1d)", () => {
     expect(i18n.t("k")).toBe("new");
   });
 
+  it("add() of exactly FLAT keys stays a patch", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { k: "old" } } });
+    const patch: Record<string, string> = { k: "new" };
+    for (let i = 1; i < FLAT; i++) patch[`p${i}`] = "x";
+    i18n.add("en", patch);
+    expect(Object.keys(state(i18n).c.default.en.p!)).toHaveLength(FLAT);
+    expect(i18n.t("k")).toBe("new");
+  });
+
   it("a loader attaching the catalog", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", loader: l.load });

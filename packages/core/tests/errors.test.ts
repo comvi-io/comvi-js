@@ -57,3 +57,20 @@ describe("devWarn", () => {
     expect(warn.mock.calls.map((c) => c[0])).toEqual(["[@comvi/core] one", "[@comvi/core] three"]);
   });
 });
+
+describe("defaultOnError ids and text", () => {
+  it("prints a keyless report without a key part", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    defaultOnError({ code: "load_failed", locale: "de", ns: "shop" });
+    expect(error.mock.calls[0][0]).toBe("[@comvi/core] load_failed (de)");
+  });
+
+  it("never lets two (locale, ns) pairs or two (key, param) pairs share an id", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    defaultOnError({ code: "load_failed", locale: "en", ns: "gb" });
+    defaultOnError({ code: "load_failed", locale: "eng", ns: "b" });
+    defaultOnError({ code: "missing_param", key: "a", param: "bc" });
+    defaultOnError({ code: "missing_param", key: "ab", param: "c" });
+    expect(error).toHaveBeenCalledTimes(4);
+  });
+});

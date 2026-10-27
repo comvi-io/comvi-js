@@ -17,7 +17,11 @@ const shared = {
 
 // Under Stryker (scripts/mutation/run.mjs sets COMVI_MUTATION) the fuzz suite is left
 // out: it would re-run for every parser mutant, and what it kills the named tests do.
-const FUZZ = process.env.COMVI_MUTATION ? ["tests/**/fuzz.test.ts"] : [];
+// tests/contracts and tests/dist read the BUILT dist or the source TEXT (which Stryker
+// instruments), never the mutated behaviour, so they are left out too.
+const FUZZ = process.env.COMVI_MUTATION
+  ? ["tests/**/fuzz.test.ts", "tests/contracts/**", "tests/dist/**"]
+  : [];
 
 export default defineConfig({
   test: {

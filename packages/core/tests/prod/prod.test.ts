@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from "vitest";
 import icu4c from "../golden/icu4c.json";
 import { defaultOnError, devWarn } from "../../src/errors";
-import { fmt, revive, sink } from "../helpers";
+import { BAD, fmt, revive, sink } from "../helpers";
 
 describe("production", () => {
   it("the default reporter and devWarn print nothing", () => {
@@ -62,5 +62,23 @@ describe("production", () => {
       if (row.expected === undefined) expect(out).toBe("the.key");
       else expect(out).toBe(row.expected);
     }
+  });
+});
+
+describe("production syntax reports", () => {
+  it.each(BAD)("%s → the key, `syntax` with no message (dev hint: %s)", (template) => {
+    const env = sink();
+    expect(fmt(template, { n: 1, g: "a" }, "en", env, "my.key")).toBe("my.key");
+    expect(env.errors).toStrictEqual([
+      { code: "syntax", key: "my.key", locale: "en", message: undefined },
+    ]);
+  });
+
+  it("a select with no value reports `missing_param` with no message", () => {
+    const env = sink();
+    expect(fmt("{g, select, a {A} other {O}}", {}, "en", env, "s")).toBe("O");
+    expect(env.errors).toStrictEqual([
+      { code: "missing_param", key: "s", locale: "en", param: "g", message: undefined },
+    ]);
   });
 });

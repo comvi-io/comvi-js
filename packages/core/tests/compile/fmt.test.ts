@@ -78,3 +78,44 @@ describe("formatValue (a plain {x}, R3-17)", () => {
     expect(formatValue(list)).toBe(list);
   });
 });
+
+/** Counts reads of Intl.NumberFormat#format, an accessor that returns the bound formatter. */
+const formatGetter = () =>
+  vi.spyOn(Intl.NumberFormat.prototype as { readonly format: unknown }, "format", "get");
+
+describe("formatNumber's fast path (counted work)", () => {
+  it("formats no integer from 0 to 999 through Intl once the locale is probed", () => {
+    formatNumber(5, "de");
+    const format = formatGetter();
+    const out: string[] = [];
+    for (let n = 0; n < 1000; n++) out.push(formatNumber(n, "de"));
+    expect(format).not.toHaveBeenCalled();
+    expect(out[0]).toBe("0");
+    expect(out[999]).toBe("999");
+  });
+
+  it("takes Intl for 1000, fractions, negatives and -0", () => {
+    formatNumber(5, "en");
+    const format = formatGetter();
+    for (const n of [1000, 0.5, -1, -0]) formatNumber(n, "en");
+    expect(format).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("the Intl cache keys", () => {
+  it("keeps exactly INTL_CACHE_LIMIT formatters before it starts over", () => {
+    const first = intl("PluralRules", "en", "v0");
+    for (let i = 1; i < INTL_CACHE_LIMIT; i++) intl("PluralRules", "en", "v" + i);
+    expect(_intlCacheSize()).toBe(INTL_CACHE_LIMIT);
+    expect(intl("PluralRules", "en", "v0")).toBe(first);
+    intl("PluralRules", "en", "one-more");
+    expect(_intlCacheSize()).toBe(1);
+  });
+
+  it("never confuses a locale and a variant that concatenate alike", () => {
+    // "en" + "o" (ordinal) and "eno" + "" (cardinal) must be two keys.
+    const ordinal = pluralRules("en", true);
+    expect(pluralRules("eno", false)).not.toBe(ordinal);
+    expect(_intlCacheSize()).toBe(2);
+  });
+});

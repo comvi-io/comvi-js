@@ -5,7 +5,7 @@
  * (negotiation half); lot-0 S7 test-all.mjs negotiation rows.
  */
 import { describe, expect, it } from "vitest";
-import { canonicalize, dir, negotiate, parents } from "../src/locale";
+import { _resetLocaleCache, canonicalize, dir, negotiate, parents } from "../src/locale";
 
 describe("negotiate — golden table (design §1.5)", () => {
   it.each([
@@ -94,5 +94,38 @@ describe("dir", () => {
     ["ja", "ltr"],
   ])("%s → %s", (tag, want) => {
     expect(dir(tag)).toBe(want);
+  });
+});
+
+describe("negotiate — ranking", () => {
+  it("an exact match beats a parent; a nearer parent beats a farther one", () => {
+    expect(negotiate("de-AT", ["de", "de-AT"])).toBe("de-AT");
+    expect(negotiate("de-AT-u-co-phonebk", ["de", "de-AT"])).toBe("de-AT");
+  });
+});
+
+describe("the tag memo", () => {
+  it("serves a parent chain as one shared array", () => {
+    expect(parents("pt-BR")).toBe(parents("pt-BR"));
+  });
+
+  it("keeps canonical forms, likely subtags and parents apart, whatever the tags spell", () => {
+    // Keys are kind + tag: "c"+"e" vs "m"+"e"… a tag that starts with another kind's letter.
+    expect(canonicalize("e")).toBeUndefined();
+    expect(dir("ce")).toBe("ltr");
+    expect(dir("de")).toBe("ltr");
+    expect(canonicalize("mde")).toBe("mde");
+    expect(canonicalize("s")).toBeUndefined();
+    expect(parents("cs")).toEqual([]);
+  });
+
+  it("keeps 1000 entries, then starts over (tags can come from user input)", () => {
+    _resetLocaleCache();
+    const pt = parents("pt-BR"); // 3 entries: its parents and two maximized tags
+    for (let i = 4; i <= 1000; i++) canonicalize(`en-x-n${i}`);
+    expect(parents("pt-BR")).toBe(pt);
+    canonicalize("en-x-n1001");
+    expect(parents("pt-BR")).not.toBe(pt);
+    expect(parents("pt-BR")).toEqual(pt);
   });
 });

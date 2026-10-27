@@ -7,34 +7,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { compile, render } from "../../src/compile/cache";
-import { fmt, sink } from "../helpers";
-
-const BAD = [
-  ["{n", "unclosed `{`"],
-  ["{}", "invalid argument"],
-  ["{a b}", "invalid argument"],
-  ["{n, plural}", "has no choice list"],
-  ["{n, plural, one {x}}", "needs an `other` branch"],
-  ["{g, select, a {x}}", "needs an `other` branch"],
-  ["{n, plural, one x other {y}}", "has no {sub-message}"],
-  ["{n, plural, one {x} other {y}", "never closed"],
-  ["{n, plural, other {y", "never closed"],
-  ["{n, plural, =abc {x} other {y}}", "invalid selector `=abc`"],
-  ["{n, plural, =0x1 {x} other {y}}", "invalid selector `=0x1`"],
-  ["{n, plural, =1e {x} other {y}}", "invalid selector `=1e`"],
-  ["{n, plural, =\u221e {x} other {y}}", "invalid selector `=\u221e`"],
-  ["{n,\u00a0plural, other {y}}", "unknown argument type `\u00a0plural`"],
-  ["{g, select, =1 {x} other {y}}", "invalid selector `=1`"],
-  ["{g, select, offset:1 other {x}}", "invalid selector `offset:1`"],
-  ["{g, select, a:b {x} other {z}}", "invalid selector `a:b`"],
-  ["{n, spellout}", "unknown argument type `spellout`"],
-  ["{n, choice, 0#a|1#b}", "unknown argument type `choice`"],
-  ["<b>unclosed", "`<b>` is never closed"],
-  ["<b>x</i>", "`</i>` closes no open tag"],
-  ["x</b>", "`</b>` closes no open tag"],
-  ["<b>{n, plural, other {x</b>}}", "closes no open tag"],
-  ["{n, plural, other {<b>x}}</b>", "`<b>` is never closed"],
-] as const;
+import { BAD, fmt, sink } from "../helpers";
 
 describe("a template that does not compile", () => {
   it.each(BAD)("%s → the key, `syntax` reported (%s)", (template, hint) => {

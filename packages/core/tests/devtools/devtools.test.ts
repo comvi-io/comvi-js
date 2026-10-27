@@ -310,7 +310,9 @@ describe("x.load(version?) — the editor on the page (R3-15)", () => {
       threw = true;
     }
     expect(threw).toBe(false);
-    await expect(p).rejects.toThrow(TypeError);
+    const e = await p!.catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(TypeError);
+    expect((e as Error).message).toBe(`[@comvi/core/devtools] bad version ${v}`);
     expect(scripts()).toEqual([]);
   });
 

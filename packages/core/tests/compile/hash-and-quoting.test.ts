@@ -102,3 +102,51 @@ describe("unicode", () => {
     expect(fmt("\ud800{x}", { x: 1 })).toBe("\ud8001");
   });
 });
+
+describe("# warning scope", () => {
+  it("does not warn for a select nested in a plural that has no #", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    fmt("{n, plural, other {{g, select, other {x y}}}}", { n: 1, g: "x" });
+    fmt("a b {n, plural, other {c}}", { n: 1 });
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("development warning ids", () => {
+  const select = "{n, plural, other {{g, select, other {#}}}}";
+  const warns = (renders: (() => unknown)[]): number => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const r of renders) r();
+    return warn.mock.calls.length;
+  };
+
+  it("warn once per (key, locale) for `#`, with no two pairs sharing an id", () => {
+    const a = compile(select, "a");
+    const af = compile(select, "af");
+    expect(
+      warns([() => render(af, { n: 1, g: "x" }, "il"), () => render(a, { n: 1, g: "x" }, "fil")]),
+    ).toBe(2);
+  });
+
+  it("warn once per (key, tag) for a tag without a handler, with no two pairs sharing an id", () => {
+    expect(
+      warns([
+        () => fmt("<bc>x</bc>", {}, "en", undefined, "a"),
+        () => fmt("<c>x</c>", {}, "en", undefined, "ab"),
+      ]),
+    ).toBe(2);
+  });
+
+  it("keep the `#` and the tag warnings apart, whatever the keys hold", () => {
+    // A `#` warning for key "tag\0k" in "en" and a tag warning for <en> in key "k";
+    // a tag warning for <en> in key "#\0k" and a `#` warning for key "k" in "en".
+    expect(
+      warns([
+        () => render(compile(select, "tag\0k"), { n: 1, g: "x" }, "en"),
+        () => fmt("<en>x</en>", {}, "en", undefined, "k"),
+        () => fmt("<en>x</en>", {}, "en", undefined, "#\0k"),
+        () => render(compile(select, "k"), { n: 1, g: "x" }, "en"),
+      ]),
+    ).toBe(4);
+  });
+});

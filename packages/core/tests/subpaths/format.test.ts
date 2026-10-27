@@ -3,8 +3,8 @@
  * Ported by meaning from 0.7: formatting-locale-override, formatting-fallback-chain,
  * formatter-cache-key-options (instance half).
  */
-import { describe, expect, it } from "vitest";
-import { _intlCacheSize } from "../../src/compile/fmt";
+import { describe, expect, it, vi } from "vitest";
+import { _intlCacheSize, _resetIntlCache, formatNumber as hash } from "../../src/compile/fmt";
 import {
   displayName,
   formatCurrency,
@@ -14,7 +14,7 @@ import {
   formatNumber,
   formatRelativeTime,
 } from "../../src/format";
-import { createI18n } from "../../src/instance";
+import { createI18n, type I18n } from "../../src/instance";
 
 /** Intl prints NBSP / narrow NBSP / thin spaces; compare with plain spaces. */
 const sp = (s: string) => s.replace(/[\u00a0\u202f\u2009]/g, " ");
@@ -111,5 +111,75 @@ describe("formatRelativeTime(i18n, date, now?) — design §3.3", () => {
   it("without a `now` anywhere it counts from the clock", () => {
     const i18n = createI18n({ locale: "en" });
     expect(formatRelativeTime(i18n, Date.now() - 3 * DAY)).toBe("3 days ago");
+  });
+});
+
+describe("one formatter per locale for `#` and @comvi/core/format", () => {
+  it("formatNumber() with default options and a plural `#` share the cached formatter", () => {
+    const i18n = createI18n({ locale: "de" });
+    expect(formatNumber(i18n, 1234.5)).toBe("1.234,5");
+    expect(_intlCacheSize()).toBe(1);
+    expect(hash(5000, "de")).toBe("5.000");
+    expect(_intlCacheSize()).toBe(1);
+  });
+});
+
+describe("the formatter memo of a chain", () => {
+  it("a call with default options builds no chain key once warm (counted work)", () => {
+    const i18n = createI18n({ locale: "de", fallbackLocale: "en" });
+    formatNumber(i18n, 1);
+    const map = vi.spyOn(Array.prototype, "map");
+    const join = vi.spyOn(Array.prototype, "join");
+    for (let k = 0; k < 10; k++) formatNumber(i18n, k);
+    expect([map.mock.calls.length, join.mock.calls.length]).toEqual([0, 0]);
+  });
+
+  it("keeps the default-options formatters on the chain: no new Intl object after the shared cache drops", () => {
+    const i18n = createI18n({ locale: "en" });
+    const DAY = 86_400_000;
+    formatNumber(i18n, 1);
+    formatRelativeTime(i18n, D + DAY, D);
+    _resetIntlCache();
+    const nf = vi.spyOn(Intl, "NumberFormat");
+    const rtf = vi.spyOn(Intl, "RelativeTimeFormat");
+    expect(formatNumber(i18n, 1234)).toBe("1,234");
+    expect(formatRelativeTime(i18n, D + DAY, D)).toBe("tomorrow");
+    expect([nf.mock.calls.length, rtf.mock.calls.length]).toEqual([0, 0]);
+  });
+});
+
+describe("cache variants of option objects", () => {
+  it("never let two option objects that format differently share a formatter", () => {
+    const i18n = createI18n({ locale: "en" });
+    // Intl ignores unknown option names, so these differ only in what the key encodes.
+    expect(formatNumber(i18n, 0.5, { minimumFractionDigits: 2 })).toBe("0.50");
+    expect(formatNumber(i18n, 0.5, { minimumFractionDigit: "s2" } as never)).toBe("0.5");
+    expect(formatNumber(i18n, 0.5, { a: 1, style: "percent" } as never)).toBe("50%");
+    expect(formatNumber(i18n, 0.5, { a: "1style=percent" } as never)).toBe("0.5");
+  });
+
+  it("relative time: explicit options never reuse the default `numeric: auto` formatter", () => {
+    const i18n = createI18n({ locale: "en" });
+    const DAY = 86_400_000;
+    expect(formatRelativeTime(i18n, D + DAY, D)).toBe("tomorrow");
+    expect(formatRelativeTime(i18n, D + DAY, D, { numeric: "always" })).toBe("in 1 day");
+    // Options without `numeric` keep the `auto` default.
+    expect(formatRelativeTime(i18n, D + DAY, D, { style: "short" })).toBe("tomorrow");
+  });
+});
+
+describe("an object that is not an instance", () => {
+  it("formats in the runtime's default locale instead of throwing", () => {
+    const fake = {} as I18n;
+    expect(formatNumber(fake, 1234.5)).toBe(new Intl.NumberFormat().format(1234.5));
+    // No instance options either: no time zone, no named formats, the clock as `now`.
+    expect(formatDate(fake, D)).toBe(new Intl.DateTimeFormat().format(D));
+    expect(formatNumber(fake, 0.5, "pct")).toBe(new Intl.NumberFormat().format(0.5));
+    expect(formatRelativeTime(fake, Date.now() - 3 * 86_400_000)).toBe(
+      new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(-3, "day"),
+    );
+    expect(formatRelativeTime(fake, D - 86_400_000, D)).toBe(
+      new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(-1, "day"),
+    );
   });
 });
