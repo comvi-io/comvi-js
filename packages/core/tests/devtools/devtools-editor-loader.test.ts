@@ -138,20 +138,25 @@ describe("slot installation", () => {
     expect(LOADER_KEY in slots).toBe(false);
   });
 
-  it("no window → installs no slot", () => {
+  it("no window → installs no slot and assigns no id", () => {
     vi.stubGlobal("window", undefined);
 
-    createI18n({ locale: "en", plugins: [devtools()] });
+    const i18n = createI18n({ locale: "en", plugins: [devtools()] });
 
     expect(LOADER_KEY in slots).toBe(false);
+    expect("instanceId" in i18n).toBe(false);
   });
 
-  it("no window with exposeGlobal: true → installs no slot and does not throw", () => {
+  it("no window with exposeGlobal: true → assigns the id but installs no slot (0.7)", () => {
     vi.stubGlobal("window", undefined);
 
-    expect(() =>
-      createI18n({ locale: "en", plugins: [devtools({ exposeGlobal: true })] }),
-    ).not.toThrow();
+    const i18n = createI18n({
+      locale: "en",
+      plugins: [devtools({ exposeGlobal: true, instanceId: "ssr-1" })],
+    }) as ReturnType<typeof createI18n> & { instanceId?: string };
+
+    expect(i18n.instanceId).toBe("ssr-1");
+    expect(Object.keys(i18n)).not.toContain("instanceId");
     expect(LOADER_KEY in slots).toBe(false);
   });
 

@@ -335,15 +335,19 @@ function installEditorLoader(options: DevtoolsOptions): void {
 export const devtools = (options: DevtoolsOptions = {}): Plugin => ({
   name: "devtools",
   setup(i18n) {
-    // Exposed by default in a browser; never without a window (SSR).
-    if (options.exposeGlobal === false || typeof window === "undefined") return;
+    const w = typeof window != "undefined";
+    // Exposed by default in a browser; without a window (SSR) only `exposeGlobal: true`
+    // gives the id (editor-bridge / SSR mappings key on it), never the queue. A second
+    // devtools() on the same instance neither re-exposes nor re-ids it (0.7).
+    if (!(options.exposeGlobal ?? w) || "instanceId" in i18n) return;
     const id = options.instanceId || mintInstanceId();
     // Extensions of protocol v2 key instances on `entry.i.instanceId`: kept, NON-enumerable,
     // so the instance's own members stay the 13 of the core contract.
     const entry: ComviQueueEntry = {
       v: VERSION,
-      i: Object.defineProperty(i18n, "instanceId", { value: id, configurable: true }),
+      i: Object.defineProperty(i18n, "instanceId", { value: id }),
     };
+    if (!w) return;
     try {
       const g = window.__COMVI__ as unknown;
       if (Array.isArray(g)) g.push(entry);

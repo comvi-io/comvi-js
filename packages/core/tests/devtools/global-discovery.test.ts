@@ -30,6 +30,45 @@ const UNEXPOSED: Record<string, () => DiscoveryInstance> = {
   "devtools plugin": () => expose({ exposeGlobal: false }),
 };
 
+describe("devtools() is idempotent per instance (0.7 attachDevtools)", () => {
+  beforeEach(() => {
+    delete win.__COMVI__;
+  });
+  afterEach(() => {
+    delete win.__COMVI__;
+  });
+
+  it("a second devtools() neither re-exposes nor re-ids the instance", () => {
+    const i18n = createI18n({
+      locale: "en",
+      plugins: [devtools({ instanceId: "gd-once" }), devtools({ instanceId: "gd-twice" })],
+    }) as DiscoveryInstance;
+
+    expect(i18n.instanceId).toBe("gd-once");
+    expect(win.__COMVI__ as ComviQueueEntry[]).toHaveLength(1);
+  });
+
+  it("two default devtools() mint one id and push one entry; destroy() empties the queue", () => {
+    const i18n = createI18n({
+      locale: "en",
+      plugins: [devtools(), devtools()],
+    }) as DiscoveryInstance;
+    const queue = win.__COMVI__ as ComviQueueEntry[];
+
+    expect(queue).toHaveLength(1);
+    expect(queue[0]!.i.instanceId).toBe(i18n.instanceId);
+    i18n.destroy();
+    expect(queue).toEqual([]);
+  });
+
+  it("the id is non-enumerable and cannot be redefined", () => {
+    const i18n = expose({ instanceId: "gd-fixed" });
+
+    expect(Object.keys(i18n)).not.toContain("instanceId");
+    expect(() => Object.defineProperty(i18n, "instanceId", { value: "other" })).toThrow();
+  });
+});
+
 describe.each(Object.keys(SURFACES))(
   "global discovery (window.__COMVI__ queue-hook protocol v2) — %s",
   (surface) => {
