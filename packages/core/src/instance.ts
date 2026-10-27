@@ -381,10 +381,12 @@ export const createI18n = (o: I18nOptions): I18n => {
           if (ps.length) return Promise.all(ps).then(go);
           // Partial failure switches (R4-11): a namespace is missing only when the target
           // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place.
-          const miss = [...act].filter(
-            (n) => bad.has(l + K + n) && !ch.slice(0, ch.o).some((x) => S.c[n]?.[x[0]]),
-          );
-          if (act.size && miss.length == act.size) throw bad.get(l + K + miss[0]);
+          const ns = [...act];
+          if (
+            ns.length &&
+            ns.every((n) => bad.has(l + K + n) && !ch.slice(0, ch.o).some((x) => S.c[n]?.[x[0]]))
+          )
+            throw bad.get(l + K + ns[0]);
           // Loads of the old locale a load(ns) started meanwhile are obsolete now.
           prune();
           if (l != S.locale) pub(l);
