@@ -14,8 +14,10 @@
  *   - gates that exist only for pending packages (bundler matrix, strict consumer,
  *     node entries, docs snippet types, examples e2e, test-apps smoke, Gate E, perf
  *     A/B): `exitIfPending()` prints the reason and exits 0;
- *   - CI jobs that need a pending package read `node tooling/migration-pending.mjs
- *     --github-output` and are skipped.
+ *   - multi-shard gates (examples e2e per framework, test-apps smoke per app, bundler
+ *     matrix per case) select their ACTIVE shards one by one (`activeShards()`), so a
+ *     framework whose lot has landed is covered again at once; CI reads the active
+ *     shards from `node tooling/migration-pending.mjs --github-output`.
  *
  * A lot that rebuilds a package REMOVES its entry here in the same PR; every gate then
  * covers it again without further edits. The list must be empty before 0.8.0 ships
@@ -79,9 +81,19 @@ export function packageName(dirOrName) {
   return dirOrName;
 }
 
-/** The reason `dirOrName` is pending, or `undefined` when it is active. */
+/**
+ * Pending capabilities that are not a package of their own. `core-instance`: the 0.8 core
+ * has no `createI18n` until lot 1b, so every example, test app and bundler-matrix
+ * fixture — all of which create an instance — is pending on it, whatever its bindings.
+ */
+export const PENDING_CAPABILITIES = {
+  "core-instance":
+    "lot 1b: createI18n and the instance of the 0.8 core; every example, test app and bundler-matrix fixture creates one",
+};
+
+/** The reason `dirOrName` (a package or a PENDING_CAPABILITIES id) is pending, or `undefined`. */
 export function pendingReason(dirOrName) {
-  return MIGRATION_PENDING[packageName(dirOrName)];
+  return PENDING_CAPABILITIES[dirOrName] ?? MIGRATION_PENDING[packageName(dirOrName)];
 }
 
 /** Why a repo-relative document is pending, or `undefined`. */
@@ -120,32 +132,70 @@ export function exitIfPending(gate, needs) {
   process.exit(0);
 }
 
-/** CI job switches: a job runs only when nothing it needs is pending. */
+/**
+ * What one example of `examples/<name>` needs: the `@comvi/*` packages its package.json
+ * declares, plus the core instance. Shards are selected ONE BY ONE, so a framework whose
+ * lot has landed is covered again even while other frameworks are still pending.
+ */
+export function exampleNeeds(name) {
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "examples", name, "package.json"), "utf8"),
+  );
+  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+  return ["core-instance", ...deps.filter((d) => d.startsWith("@comvi/"))];
+}
+
+/** What test app `test-apps/<name>` needs: itself (its workspace package) and the core instance. */
+export const testAppNeeds = (name) => ["core-instance", `@test-apps/${name}`];
+
+/** The entries of `names` whose needs are all active; prints one line per skipped entry. */
+export function activeShards(names, needsOf, gate, log = console.log) {
+  return names.filter((name) => {
+    const pending = needsOf(name).filter((n) => pendingReason(n));
+    for (const n of pending)
+      log(`${gate}: skipping ${name} — ${n} is MIGRATION_PENDING (${pendingReason(n)})`);
+    return pending.length === 0;
+  });
+}
+
+/** The examples-e2e matrix of .github/workflows/ci.yml: every framework × mode, plus SSR recipes. */
+export const EXAMPLES_E2E_MATRIX = [
+  ...["react", "next", "vue", "nuxt", "svelte", "solid", "vanilla"].flatMap((framework) =>
+    ["default", "cdn"].map((mode) => ({ framework, mode })),
+  ),
+  // The SSR recipe examples read bundled catalogs only; --cdn leaves them out.
+  { framework: "sveltekit", mode: "default" },
+  { framework: "solidstart", mode: "default" },
+];
+
+/** The test apps of `pnpm test-apps:smoke` (scripts/test-apps-smoke/run.mjs APPS). */
+export const TEST_APPS = ["next", "next16", "nuxt", "nuxt4"];
+
+/** CI job switches for single-shard jobs: a job runs only when nothing it needs is pending. */
 export const CI_JOBS = {
   extension: ["@comvi/plugin-in-context-editor", "@comvi/chrome-extension"],
-  examples_e2e: [
-    "@comvi/react",
-    "@comvi/next",
-    "@comvi/vue",
-    "@comvi/nuxt",
-    "@comvi/svelte",
-    "@comvi/solid",
-    "@comvi/plugin-fetch-loader",
-    "@comvi/plugin-locale-detector",
-  ],
-  test_apps: ["@comvi/next", "@comvi/nuxt"],
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes("--github-output")) {
-    const lines = Object.entries(CI_JOBS).map(
-      ([job, needs]) => `${job}=${needs.some((n) => pendingReason(n)) ? "pending" : "active"}`,
+    const quiet = () => {};
+    const examples = EXAMPLES_E2E_MATRIX.filter(
+      (e) => activeShards([e.framework], exampleNeeds, "examples-e2e", quiet).length === 1,
     );
+    const lines = [
+      ...Object.entries(CI_JOBS).map(
+        ([job, needs]) => `${job}=${needs.some((n) => pendingReason(n)) ? "pending" : "active"}`,
+      ),
+      // A JSON matrix of the ACTIVE examples-e2e shards (`[]` when none is active).
+      `examples_e2e_matrix=${JSON.stringify(examples)}`,
+      // Comma-separated active test apps (empty when none is active).
+      `test_apps=${activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", quiet).join(",")}`,
+    ];
     if (process.env.GITHUB_OUTPUT)
       fs.appendFileSync(process.env.GITHUB_OUTPUT, lines.join("\n") + "\n");
     console.log(lines.join("\n"));
   } else {
-    for (const [name, reason] of Object.entries(MIGRATION_PENDING))
+    for (const [name, reason] of Object.entries({ ...MIGRATION_PENDING, ...PENDING_CAPABILITIES }))
       console.log(`${name}: ${reason}`);
   }
 }

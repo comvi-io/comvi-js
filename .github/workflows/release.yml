@@ -114,6 +114,9 @@ jobs:
 
       - name: Build
         run: pnpm build
+        # Fresh dist for every gate that reads it: turbo must not restore a cached build.
+        env:
+          TURBO_FORCE: "true"
 
       - name: Verify built artifacts inline the manifest version
         run: node tooling/check-inlined-version.mjs
@@ -367,6 +370,9 @@ jobs:
       - name: Build
         if: steps.changesets.outputs.pending == 'false'
         run: pnpm build
+        # Fresh dist for every gate that reads it: turbo must not restore a cached build.
+        env:
+          TURBO_FORCE: "true"
 
       # The checkout is already versioned here, so dist must inline the
       # version npm is about to receive.

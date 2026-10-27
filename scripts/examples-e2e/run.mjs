@@ -135,7 +135,7 @@ import {
   stepResults,
 } from "./lib.mjs";
 import { scopeRegistryLine, startCandidateRegistry } from "./candidate-registry.mjs";
-import { CI_JOBS, exitIfPending } from "../../tooling/migration-pending.mjs";
+import { activeShards, exampleNeeds } from "../../tooling/migration-pending.mjs";
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const LOCALES_DIR = path.join(REPO_ROOT, "examples", "locales");
@@ -690,10 +690,31 @@ async function assertChromium() {
 
 async function main(argv) {
   const options = parseArgs(argv);
-  let examples = exampleDirs();
+  // MIGRATION_PENDING: an example runs once everything it needs is active, independently
+  // of the other examples (tooling/migration-pending.mjs).
+  const all = exampleDirs();
+  const active = new Set(
+    activeShards(
+      all.map((entry) => entry.name),
+      exampleNeeds,
+      "examples-e2e",
+    ),
+  );
+  if (
+    options.only.length > 0 &&
+    options.only.every((name) => all.some((e) => e.name === name) && !active.has(name))
+  ) {
+    console.log("examples-e2e: every requested example is MIGRATION_PENDING — nothing to run");
+    return 0;
+  }
+  if (active.size === 0) {
+    console.log("examples-e2e: every example is MIGRATION_PENDING — nothing to run");
+    return 0;
+  }
+  let examples = all.filter((entry) => active.has(entry.name));
   if (options.only.length > 0) {
     const wanted = new Set(options.only);
-    const missing = [...wanted].filter((name) => !examples.some((entry) => entry.name === name));
+    const missing = [...wanted].filter((name) => !all.some((entry) => entry.name === name));
     if (missing.length > 0) {
       console.error(`no such example: ${missing.join(", ")}`);
       return 2;
@@ -797,8 +818,6 @@ async function main(argv) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {
-  // Every example builds from bindings that are MIGRATION_PENDING on the 0.8 branch.
-  exitIfPending("examples-e2e", CI_JOBS.examples_e2e);
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {

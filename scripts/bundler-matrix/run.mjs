@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import url from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
+import { pendingReason } from "../../tooling/migration-pending.mjs";
 
 /**
  * Pack-based bundler-matrix gate.
@@ -398,8 +399,23 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/plugin-in-context-editor"],
   },
 ];
+// MIGRATION_PENDING (tooling/migration-pending.mjs): a case runs once the core instance
+// and every package it packs are active — case by case, so a binding whose lot has
+// landed is covered again while the others stay pending.
+for (const testCase of CASES) {
+  if (testCase.pending !== undefined) continue;
+  const needs = ["core-instance", ...testCase.packages];
+  const pending = needs.filter((n) => pendingReason(n));
+  if (pending.length > 0)
+    testCase.pending = `MIGRATION_PENDING ${pending.map((n) => `${n} (${pendingReason(n)})`).join("; ")}`;
+}
 const ACTIVE_CASES = CASES.filter((testCase) => testCase.pending === undefined);
 const PENDING_CASES = CASES.filter((testCase) => testCase.pending !== undefined);
+if (ACTIVE_CASES.length === 0) {
+  console.log("bundler-matrix: every case is MIGRATION_PENDING — nothing to run");
+  for (const testCase of PENDING_CASES) console.log(`SKIP  ${testCase.name} — ${testCase.pending}`);
+  process.exit(0);
+}
 const MODES = ["development", "production"];
 const BUNDLERS = ["webpack", "vite"];
 
