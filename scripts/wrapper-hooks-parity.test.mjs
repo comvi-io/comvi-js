@@ -171,7 +171,7 @@ export function parseInterfaceMembers(body) {
 
 /**
  * The 0.8 rebuild (tooling/migration-pending.mjs): a binding that left MIGRATION_PENDING
- * is on the 0.8 API, whose `useI18n()` is design §3.4's six members — checked below by
+ * is on the 0.8 API, whose `useI18n()` is design §3.4's six members and R3-5(b)'s `T` — checked by
  * `ON_08_USE_I18N`. The 0.7 checks of this file compare the four 0.7 `UseI18nReturn`
  * interfaces with each other, so they apply only while all four bindings are on 0.7; from
  * lot 1c (React on 0.8) until the last binding moves (lot 5), they are skipped with that
@@ -199,7 +199,8 @@ const USE_I18N_MEMBERS = SKIP_07
 const ON_08_USE_I18N = {
   "@comvi/react": ["packages/react/src/binding.ts", "UseI18n"],
 };
-const ON_08_MEMBERS = ["dir", "i18n", "isLoading", "locale", "setLocale", "t"];
+/** Design §3.4's six members plus the bound `T` of R3-5(b) (sorted: "T" before lowercase). */
+const ON_08_MEMBERS = ["T", "dir", "i18n", "isLoading", "locale", "setLocale", "t"];
 
 test("every binding on 0.8 returns exactly design §3.4's useI18n() members", () => {
   assert.ok(ON_08.length > 0);
