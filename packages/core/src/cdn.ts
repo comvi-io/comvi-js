@@ -55,8 +55,8 @@ export interface CdnOptions {
   fallback?: Readonly<Record<string, CdnFallback>>;
 }
 
-const ID = /^[\w\-@.]+$/;
-const ok = (s: string) => s && s != "." && s != ".." && ID.test(s);
+/** A locale or namespace identifier: `[\w\-@.]`, never `.` or `..`. */
+const ID = /^(?!\.\.?$)[\w\-@.]+$/;
 
 /** A loader that reads CDN v1 under `base`. */
 export const cdn = (
@@ -67,7 +67,8 @@ export const cdn = (
   // An own, prototype-free copy: a locale never reaches `Object.prototype` members.
   const fb: Record<string, CdnFallback> = N<CdnFallback>(fallback);
   return async (l, n, signal) => {
-    if (!ok(l) || !ok(n)) throw Error(`[@comvi/core/cdn] invalid locale or namespace: ${l}/${n}`);
+    if (!ID.test(l) || !ID.test(n))
+      throw Error(`[@comvi/core/cdn] invalid locale or namespace: ${l}/${n}`);
     const url = base + (n === root ? "" : "/" + n) + "/" + l + ".json";
     const c = new AbortController();
     const stop = () => c.abort();
