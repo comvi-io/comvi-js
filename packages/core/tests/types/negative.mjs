@@ -56,6 +56,12 @@ const CASES = [
     "TS2345",
   ],
   ["one('zzz', { name: 'x' }); // E17 typo in a one-key namespace", "TS2345"],
+  // `markers` is a per-call option like ns and locale (R3-14 H9): a boolean, on every shape.
+  ["out.push(s('s0.k0', { markers: false, count: 1 }));", ""],
+  ["out.push(s('s0.k17', { markers: false }));", ""],
+  ["out.push(s('s0.k12', { markers: true, name: 'x' }));", ""],
+  ["s('s0.k0', { markers: 'no', count: 1 }); // E18 markers is a boolean", "TS2322"],
+  ["s('s0.k17', { markers: 0 }); // E19 markers is a boolean (no-param key)", "TS2322"],
 ];
 /**
  * Helper types that must never surface in a diagnostic. `NotAKey` (the typo marker) may,
