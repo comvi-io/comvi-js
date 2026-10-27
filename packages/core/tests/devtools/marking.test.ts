@@ -166,6 +166,7 @@ describe("no session, no devtools", () => {
       [
         "activate",
         "canonicalize",
+        "coming",
         "compile",
         "defaultOnError",
         "dir",

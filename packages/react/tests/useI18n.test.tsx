@@ -125,6 +125,42 @@ describe("useI18n(ns)", () => {
     expect(container.textContent).toBe("false:Shop");
   });
 
+  it("a namespace not active yet renders as loading before its activation: no frame of keys flagged loaded, no missing_key (lot 1d)", async () => {
+    const l = manualLoader({ "en:shop": { title: "Shop" }, "en:cart": { n: "Cart" } });
+    const { i18n, errors } = make({
+      locale: "en",
+      // `cart` holds a catalog of ANOTHER locale only: activation still loads `en`.
+      catalogs: { default: { en: {} }, cart: { de: { n: "Korb" } } },
+      loader: l.load,
+    });
+    const renders: string[] = [];
+    const Probe = () => {
+      const shop = useI18n("shop");
+      const cart = useI18n("cart");
+      renders.push(`${shop.isLoading}:${shop.t("title")}|${cart.isLoading}:${cart.t("n")}`);
+      return null;
+    };
+    render(
+      <I18nProvider i18n={i18n}>
+        <Probe />
+      </I18nProvider>,
+    );
+    expect(renders[0]).toBe("true:title|true:n");
+    expect(errors.filter((e) => e.code == "missing_key")).toEqual([]);
+    await l.answer("en:shop");
+    await l.answer("en:cart");
+    expect(renders.at(-1)).toBe("false:Shop|false:Cart");
+    expect(errors).toEqual([]);
+  });
+
+  it("without a loader a namespace with no catalog is missing at once, never stuck loading", () => {
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
+    const { last } = capture(i18n, "shop");
+    expect(last().isLoading).toBe(false);
+    expect(last().t("title")).toBe("title");
+    expect(errors.map((e) => [e.code, e.ns])).toEqual([["missing_key", "shop"]]);
+  });
+
   it("isLoading is per namespace and covers a switch in flight", async () => {
     const l = manualLoader({ "de:default": { hi: "Hallo" }, "de:shop": {} });
     const { i18n } = make({

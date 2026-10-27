@@ -76,7 +76,7 @@ export default function App() {
 `t()` fills `{name}` from its second argument; `{ ns }` and `{ locale }` there switch the
 namespace and the locale for one call. `setLocale()` switches once the new locale's catalogs are
 in. `useI18n("admin")` binds `t` and `T` to a namespace and loads it after the component
-mounts; `isLoading` tells you when one of its catalogs is on the way. A load that failed is not
+mounts; `isLoading` tells you when one of its catalogs is on the way, from the first render on. A load that failed is not
 fetched again when a component mounts; `i18n.load("admin")` asks again.
 
 ## Load from Comvi

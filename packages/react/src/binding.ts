@@ -26,7 +26,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Catalog, I18n, KeysOf, NsOf, ParamsFor, TFor } from "@comvi/core";
-import { activate, state, translate, type State } from "@comvi/core/internal";
+import { activate, coming, state, translate, type State } from "@comvi/core/internal";
 
 declare const __DEV__: boolean;
 
@@ -129,7 +129,10 @@ export interface UseI18n<NS extends string = "default"> {
   T: BoundT<NS>;
   locale: string;
   dir: "ltr" | "rtl";
-  /** A catalog of this namespace is loading, for any locale (a switch in progress too). */
+  /**
+   * A catalog of this namespace is loading, for any locale (a switch in progress too), or
+   * will load when this hook activates the namespace after commit.
+   */
   isLoading: boolean;
   setLocale: (locale: string) => Promise<void>;
   i18n: I18n;
@@ -159,7 +162,9 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
       T: (ns ? (Ts[ns] ||= (q) => T({ ...q, ns } as never)) : T) as BoundT<NS>,
       locale: s.locale,
       dir: s.dir,
-      isLoading: s.ld.some((k) => k.endsWith("\0" + (ns || "default"))),
+      // Until the activation after commit, a namespace the loader will load is loading
+      // already: no frame of its keys that says it is loaded, no `missing_key` (lot 1d).
+      isLoading: coming(i, s, ns || "default"),
       setLocale: i.setLocale,
       i18n: i,
     }),

@@ -255,4 +255,31 @@ describe("missing_key waits for every load of the namespace", () => {
     expect(i18n.t("a")).toBe("A-de");
     await flush();
   });
+  it("a namespace nobody activated yet, with a loader to load it, is still coming (lot 1d)", async () => {
+    const l = manualLoader({ "en:shop": { title: "Shop" } });
+    const { i18n, errors } = make({
+      locale: "en",
+      messages: { en: {} },
+      catalogs: { cart: { de: { n: "Korb" } } },
+      loader: l.load,
+    });
+    // `useI18n(ns)` renders before it activates `ns` after commit: not missing yet.
+    expect(i18n.ns("shop")("title")).toBe("title");
+    expect(i18n.ns("cart")("n")).toBe("n"); // a catalog of another locale only
+    expect(errors.filter((e) => e.code === "missing_key")).toEqual([]);
+    // Activated and failed: missing from now on.
+    const p = i18n.load("shop");
+    await l.fail("en:shop");
+    await p;
+    expect(i18n.ns("shop")("title")).toBe("title");
+    expect(errors.filter((e) => e.code === "missing_key")).toEqual([
+      expect.objectContaining({ key: "title", ns: "shop" }),
+    ]);
+  });
+
+  it("without a loader a namespace with no catalog is missing at once", () => {
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
+    expect(i18n.ns("shop")("title")).toBe("title");
+    expect(errors).toEqual([expect.objectContaining({ code: "missing_key", ns: "shop" })]);
+  });
 });

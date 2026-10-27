@@ -141,6 +141,8 @@ export interface Core {
    * must not turn one failure into a refetch per mount (`load()` is the explicit retry).
    */
   a(ns: string): Promise<void>;
+  /** Namespace `ns` is still coming in `state` (see `coming` in createI18n). */
+  w(state: State, ns: string): unknown;
   /**
    * Sets (or, with `null`, clears) the marking hook and publishes a new state carrying it
    * (R3-14 H4). Reached only by the `/devtools` handle `x.mark`; nothing else marks.
@@ -303,6 +305,16 @@ export const createI18n = (o: I18nOptions): I18n => {
   // locales only.
   S = st(0, 0, o.locale, c0, own(o.defaultParams));
 
+  /**
+   * Namespace `n` is still coming in state `s`, so a key of it is not missing yet: a load
+   * of it is in flight (for any locale: a parent, a fallback, the target of a pending
+   * switch), or the instance has a loader and nobody activated `n` yet while it holds no
+   * catalog of the state's locale — the activation will load it. `useI18n(n)` renders
+   * before it activates `n` after commit (lot 1d).
+   */
+  const coming = (s: State, n: string): unknown =>
+    s.ld.some((x) => x.endsWith(K + n)) || (load && !act.has(n) && !s.c[n]?.[s.locale]);
+
   /** The message `look()` found last; copied by the caller before anything can call back. */
   let hit: Compiled;
 
@@ -334,9 +346,8 @@ export const createI18n = (o: I18nOptions): I18n => {
       if (i >= ch.o) err("fallback_used", l, n, key);
       r = render(m, p, ch[i][1], j ? (ej.j == j ? ej : (ej = { ...env, j })) : env);
     } else {
-      // A key of a namespace still loading (for any locale: a parent, a fallback, the
-      // target of a pending switch) is not missing yet.
-      if (!quiet && !s.ld.some((x) => x.endsWith(K + n))) err("missing_key", l, n, key);
+      // A key of a namespace still coming is not missing yet.
+      if (!quiet && !coming(s, n)) err("missing_key", l, n, key);
       // A missing key is marked too: the translator clicks keys no catalog has (H4).
       r = o.missing ? o.missing(key, l, n) : key;
     }
@@ -507,6 +518,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     o,
     n: act,
     a: use,
+    w: coming,
     m(f) {
       mf = f;
       pub();

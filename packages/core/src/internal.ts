@@ -5,8 +5,8 @@
  * The binding surface is three functions over an instance's immutable {@link State}:
  * `state(i18n)` (the published snapshot), `view(i18n, state, extra)` (a render-local
  * snapshot with extra catalogs layered in, never published, `rev` unchanged) and
- * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)` and
- * `activate(i18n, ns)`. A state carries the marking hook of an editor session (`mk`,
+ * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)`,
+ * `coming(i18n, state, ns)` and `activate(i18n, ns)`. A state carries the marking hook of an editor session (`mk`,
  * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it.
  */
 import type { Catalog, Rendered } from "./compile/cache";
@@ -117,6 +117,14 @@ export const translate = (
   ns?: string,
   join?: Env["j"],
 ): Rendered => core(i18n).tr(state, key, params, ns, join);
+
+/**
+ * Whether namespace `ns` of `i18n` is still coming in `state`: a load of it is in flight,
+ * or the instance has a loader and nobody activated `ns` yet while it holds no catalog of
+ * the state's locale (a binding's `useI18n(ns)` before its activation after commit). Its
+ * keys are not reported missing meanwhile; a binding's `isLoading` (lot 1d).
+ */
+export const coming = (i18n: I18n, state: State, ns: string): boolean => !!core(i18n).w(state, ns);
 
 /** Whether a catalog load is in flight in `state` (for namespace `ns`, or any). */
 export const loading = (state: State, ns?: string): boolean =>
