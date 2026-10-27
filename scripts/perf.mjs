@@ -71,6 +71,9 @@ export const CASES = [
   { name: "constructor (200-key catalog)", iters: 10_000 },
   { name: "t() static key", iters: 2_000_000 },
   { name: "t() with {name}", iters: 1_500_000 },
+  // R3-17's gate: a plain `{x}` holding a NUMBER prints String(value) in 0.8 as in 0.7 —
+  // the non-string path of the interpolation, which `{name}` (a string) never takes.
+  { name: "t() with {name} = a number", iters: 1_500_000 },
   { name: "t() ICU plural (icuCompiler)", iters: 500_000 },
   // A plural branch of ordinary copy that contains a bare `&`. The branch is
   // text, so it must take the same text-only path as the case above; the `&`
@@ -182,6 +185,7 @@ export async function buildCaseThunks(distRoot) {
       () => make(),
       () => staticI18n.t("key0"),
       () => paramI18n.t("key1", { name: "world" }),
+      () => paramI18n.t("key1", { name: 1004 }),
       () => icuI18n.t("n", { count: 5 }),
       () => ampI18n.t("n", { count: 5 }),
       () => prepareTranslation(richI18n, { i18nKey: "rich", params: { what: "docs" } }),
@@ -217,6 +221,7 @@ export async function buildCaseThunks(distRoot) {
     () => make(),
     () => staticI18n.t("key0"),
     () => paramI18n.t("key1", { name: "world" }),
+    () => paramI18n.t("key1", { name: 1004 }),
     () => icuI18n.t("n", { count: 5 }),
     () => ampI18n.t("n", { count: 5 }),
     () => richI18n.t("rich", { b, what: "docs" }),
@@ -453,13 +458,22 @@ export function buildReference(ref, { refresh = false } = {}) {
   const dir = path.join(REF_ROOT, sha.slice(0, 12));
   const dist = path.join(dir, "packages", "core", "dist");
 
-  if (refresh) fs.rmSync(dir, { recursive: true, force: true });
+  if (refresh) {
+    // Unregister the worktree, not only its directory: a directory deleted alone leaves a
+    // "missing but already registered" entry that makes the next `worktree add` fail.
+    try {
+      git(["worktree", "remove", "--force", dir]);
+    } catch {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(REF_ROOT, { recursive: true });
     console.log(
       `preparing reference ${ref} (${sha.slice(0, 12)}) in ${path.relative(REPO_ROOT, dir)}`,
     );
-    git(["worktree", "add", "--detach", dir, sha]);
+    // `--force`: a directory removed by hand earlier may still be registered here.
+    git(["worktree", "add", "--force", "--detach", dir, sha]);
   }
   if (!fs.existsSync(path.join(dir, "node_modules"))) {
     run(
