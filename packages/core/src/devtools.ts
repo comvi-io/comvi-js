@@ -13,8 +13,8 @@
  *
  * `devtools()` is a plugin: `setup` exposes the instance (protocol v2 queue, mixed-version
  * safe) and installs the editor loader; `destroy()` removes the entry again. The entry is
- * `{ v, i, id }`: the core version, the instance, and its id (`comvi-<n>` unless given); the
- * id is also the instance's non-enumerable `instanceId`, which protocol-v2 consumers read.
+ * `{ v, i }`: the core version and the instance; the instance carries its id (`comvi-<n>`
+ * unless given) as a NON-enumerable `instanceId`, which protocol-v2 consumers key on.
  */
 import type { I18n, Plugin } from "./instance";
 
@@ -28,10 +28,8 @@ export const VERSION: string = __VERSION__;
 export interface ComviQueueEntry {
   /** Core library version that produced the entry. */
   v: string;
-  /** The exposed instance. */
-  i: I18n;
-  /** The instance id. */
-  id: string;
+  /** The exposed instance, with its id as the non-enumerable `instanceId`. */
+  i: I18n & { readonly instanceId?: string };
 }
 
 /** Hook object a consumer (the in-context editor) may swap in place of the queue array. */
@@ -110,15 +108,15 @@ let fallbackCounter = 0;
 
 /** The next `comvi-<n>`, counted once per page rather than once per copy. */
 const mintInstanceId = (): string => {
-  let n = ++fallbackCounter;
   try {
     const slot = globalThis as unknown as Record<symbol, unknown>;
     const previous = slot[COUNTER_KEY];
-    n = slot[COUNTER_KEY] = (typeof previous === "number" && previous >= 0 ? previous : 0) + 1;
+    // Anything a page put in the slot that is not a non-negative number restarts the count.
+    return `comvi-${(slot[COUNTER_KEY] = (typeof previous === "number" && previous >= 0 ? previous : 0) + 1)}`;
   } catch {
-    // An unwritable slot must not break setup; the per-copy count stands in.
+    // An unwritable slot must not break setup; a per-copy count stands in.
+    return `comvi-${++fallbackCounter}`;
   }
-  return `comvi-${n}`;
 };
 
 // The editor loader (protocol 1 — `contracts/chrome-extension-proxy.json`,
@@ -130,7 +128,7 @@ const mintInstanceId = (): string => {
 const EDITOR_CDN_HOST = "cdn.jsdelivr.net";
 const EDITOR_CDN_ORIGIN = "https://" + EDITOR_CDN_HOST;
 const EDITOR_LOADER_PROTOCOL = 1;
-const LOAD_TIMEOUT_MS = 10_000;
+
 // SemVer 2.0 without build metadata: no leading zeros in numbers, and a
 // prerelease made of non-empty dot-separated identifiers (`1.2.3-rc.1`), so a
 // pin npm could never have published fails closed instead of reaching the CDN.
@@ -187,9 +185,9 @@ function loadedEditor(url: string): EditorLoadResult | undefined {
  * inside the guard, so a throwing getter costs the slot and nothing else, and
  * the value that was validated is the value that reaches the URL.
  */
-function installEditorLoader(options?: DevtoolsOptions): void {
+function installEditorLoader(options: DevtoolsOptions): void {
   try {
-    const pin: unknown = options && options.editorVersion;
+    const pin: unknown = options.editorVersion;
     let editorVersion = "latest";
     if (pin !== undefined && pin !== editorVersion) {
       // A string and nothing else: an object is coerced anew on every use, so
@@ -306,7 +304,7 @@ function installEditorLoader(options?: DevtoolsOptions): void {
           script.onload = () => settle();
           // The violation event is dispatched before the element's error.
           script.onerror = () => settle(blocked ? "csp-blocked" : "load-error");
-          timer = setTimeout(settle, LOAD_TIMEOUT_MS, "timeout");
+          timer = setTimeout(settle, 10_000, "timeout"); // the load timeout
           script.crossOrigin = "anonymous";
           refused = true;
           script.src = src;
@@ -337,13 +335,15 @@ function installEditorLoader(options?: DevtoolsOptions): void {
 export const devtools = (options: DevtoolsOptions = {}): Plugin => ({
   name: "devtools",
   setup(i18n) {
-    if (!(options.exposeGlobal ?? typeof window !== "undefined") || typeof window === "undefined")
-      return;
+    // Exposed by default in a browser; never without a window (SSR).
+    if (options.exposeGlobal === false || typeof window === "undefined") return;
     const id = options.instanceId || mintInstanceId();
-    const entry: ComviQueueEntry = { v: VERSION, i: i18n, id };
     // Extensions of protocol v2 key instances on `entry.i.instanceId`: kept, NON-enumerable,
     // so the instance's own members stay the 13 of the core contract.
-    Object.defineProperty(i18n, "instanceId", { value: id, configurable: true });
+    const entry: ComviQueueEntry = {
+      v: VERSION,
+      i: Object.defineProperty(i18n, "instanceId", { value: id, configurable: true }),
+    };
     try {
       const g = window.__COMVI__ as unknown;
       if (Array.isArray(g)) g.push(entry);
@@ -364,11 +364,13 @@ export const devtools = (options: DevtoolsOptions = {}): Plugin => ({
       try {
         const g = window.__COMVI__ as unknown;
         if (Array.isArray(g)) {
-          // A masquerading hook's OWN remove shadows Array.prototype (and a page's
-          // Array.prototype.remove polyfill never sees our entry object).
-          if (Object.prototype.hasOwnProperty.call(g, "remove"))
+          // A masquerading hook's OWN remove shadows Array.prototype; a page's
+          // Array.prototype.remove polyfill (the same function on every array) never sees
+          // our entry object.
+          if ((g as unknown as ComviHook).remove !== ([] as unknown as ComviHook).remove)
             (g as unknown as ComviHook).remove(entry);
-          else if (g.indexOf(entry) >= 0) g.splice(g.indexOf(entry), 1);
+          // indexOf -1 >>> 0 is 2^32-1: a splice past the end removes nothing.
+          else g.splice(g.indexOf(entry) >>> 0, 1);
         } else if (g && typeof (g as ComviHook).remove === "function")
           (g as ComviHook).remove(entry);
         else if (g && typeof (g as LegacyComviRegistry).unregister === "function")

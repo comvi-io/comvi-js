@@ -3,7 +3,7 @@
  * Discovery protocol v2, the queue-hook one (ported from 0.7 global-discovery).
  *
  * Every EXPOSED instance announces itself on `window.__COMVI__` by pushing a
- * `{v, i, id}` envelope; a consumer may swap the raw queue array for a hook object
+ * `{v, i}` envelope (the instance carrying a non-enumerable `instanceId`); a consumer may swap the raw queue array for a hook object
  * (push/remove). Mixed-version pages are realistic, so setup must also tolerate the v1
  * legacy registry (register WITHOUT remove) and arbitrary garbage in the global slot.
  * The protocol lives entirely in the `devtools()` plugin; a bare instance carries none.
@@ -271,7 +271,6 @@ describe("the devtools plugin with its defaults", () => {
     expect(i18n.instanceId).toMatch(/^comvi-\d+$/);
     const entry = (win.__COMVI__ as ComviQueueEntry[])[0]!;
     expect(entry.i).toBe(i18n);
-    expect(entry.id).toBe(i18n.instanceId);
   });
 
   it("adds instanceId as a NON-enumerable property: the instance keeps its 13 own keys", () => {
@@ -325,10 +324,10 @@ describe("two independently loaded copies of core on one page", () => {
       __comviEditorHook: true as const,
       instances,
       push(entry: ComviQueueEntry) {
-        instances.set(entry.id, entry.i);
+        instances.set(entry.i.instanceId!, entry.i);
       },
       remove(entry: ComviQueueEntry) {
-        const id = entry.id;
+        const id = entry.i.instanceId!;
         if (instances.get(id) === entry.i) instances.delete(id);
       },
     });

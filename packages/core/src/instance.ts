@@ -113,6 +113,17 @@ const D = "default";
 const K = "\0";
 const noop = (): void => {};
 
+/** Runs `f`; what it throws is rethrown outside the caller's loop, so the loop goes on. */
+const safe = (f: void | (() => void)) => {
+  try {
+    if (f) f();
+  } catch (e) {
+    setTimeout(() => {
+      throw e;
+    });
+  }
+};
+
 type Flight = [Promise<unknown>, AbortController];
 
 export const createI18n = (o: I18nOptions): I18n => {
@@ -173,20 +184,20 @@ export const createI18n = (o: I18nOptions): I18n => {
     return ch;
   };
 
+  /** A state for locale `l` (an invalid locale has no entry of its own in its chain). */
+  const st = (rev: number, lrev: number, l: string, c: Store, ld: readonly string[]) => {
+    const h = chain(l);
+    return mk(rev, lrev, l, h.o ? dirOf(h[0][1]) : "ltr", c, ld);
+  };
+
   /** Replaces the state and tells the subscribers; a throwing subscriber does not stop the rest. */
   const pub = (l = S.locale, c = S.c, ld = S.ld) => {
-    const h = chain(l);
-    S = mk(S.rev + 1, S.lrev + +(l != S.locale), l, h.o ? dirOf(h[0][1]) : "ltr", c, ld);
-    subs.forEach((f) => {
-      try {
-        f();
-      } catch (e) {
-        setTimeout(() => {
-          throw e;
-        });
-      }
-    });
+    S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c, ld);
+    subs.forEach(safe);
   };
+
+  /** The loads in flight without `k`. */
+  const off = (k: string) => S.ld.filter((x) => x != k);
 
   /** `c` with `m` layered at (l, n), after checking the locale (and, in development, the values). */
   const ing = (c: Store, l: string, m: Catalog, n: string): Store => {
@@ -210,8 +221,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     for (const l of Object.keys(cats[n])) c0 = ing(c0, l, cats[n][l], n);
   // An invalid start locale is reported; it renders through its fallback locales only.
   valid(o.locale);
-  const h0 = chain(o.locale);
-  S = mk(0, 0, o.locale, h0.o ? dirOf(h0[0][1]) : "ltr", c0, []);
+  S = st(0, 0, o.locale, c0, []);
 
   /** The compiled message for `key` in namespace `n` along `ch`, and its chain index. */
   const look = (s: State, key: string, n: string, ch: Chain): [Compiled, number] | void => {
@@ -242,11 +252,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   /** Forgets flight `k` and publishes (with `c`, the catalogs it brought). */
   const drop = (k: string, c?: Store) => {
     fl.delete(k);
-    pub(
-      S.locale,
-      c,
-      S.ld.filter((x) => x != k),
-    );
+    pub(S.locale, c, off(k));
   };
 
   /** The flight of (l, n), started unless the pair is in place or failed before. */
@@ -330,11 +336,7 @@ export const createI18n = (o: I18nOptions): I18n => {
           f[1].abort();
           fl.delete(k);
         }
-        pub(
-          S.locale,
-          ing(S.c, l, m, n),
-          S.ld.filter((x) => x != k),
-        );
+        pub(S.locale, ing(S.c, l, m, n), off(k));
       }
     },
     has: (key, q = {}) => {
@@ -358,15 +360,7 @@ export const createI18n = (o: I18nOptions): I18n => {
         fl.clear();
         subs.clear();
         // Every teardown runs, last plugin first, even when one throws.
-        downs.reverse().forEach((f) => {
-          try {
-            if (f) f();
-          } catch (e) {
-            setTimeout(() => {
-              throw e;
-            });
-          }
-        });
+        downs.reverse().forEach(safe);
       }
     },
     setDefaultParams(v) {

@@ -20,9 +20,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createI18n } from "../../src";
 
-/** The id the instance was exposed under (its `window.__COMVI__` entry). */
-const idOf = (i18n: I18n): string | undefined =>
-  ((window.__COMVI__ ?? []) as { i: I18n; id: string }[]).find((e) => e.i === i18n)?.id;
+/** The id the instance was exposed under (its non-enumerable `instanceId`). */
+const idOf = (i18n: I18n): string | undefined => (i18n as { instanceId?: string }).instanceId;
 import { devtools } from "../../src/devtools";
 import type { I18n } from "../../src/instance";
 import type { EditorLoadResult, EditorLoaderSlot } from "../../src/devtools";

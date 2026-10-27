@@ -10,29 +10,46 @@
 // (--extendedDiagnostics, its own Check/Total time). Rounds are interleaved so machine
 // load drifts across probes evenly; the gate reads medians.
 //
-// Gates:  check @ 20k keys × 300 calls ≤ 1.0 s · key typo @ 20k ≤ 5 s total ·
-//         check 5k → 20k scaling ≤ 2.5× · memory @ 20k ≤ 250 MB ·
-//         per-call instantiations (app300 − app2 @ 20k) ≤ 50K — a COUNT, the gate that
-//         does not depend on the runner (R4-5)
-// Measured in lot 0 (S2, M1 Max): 0.23 s @5k, 0.44 s @20k (1.9×), typo 0.57 s total.
+// BLOCKING gates are COUNTS of checker work — they do not depend on the runner (owner
+// rule: no wall-clock blocking gates):
+//   per-call instantiations   app300 − app2 @ 20k ≤ 50K (R4-5)
+//   per-call union inputs     app300 − app2 @ 20k ≤ 50K (count-work.cjs: what R3-1's
+//                             `keyof Catalogs[N]` rebuilds on every call)
+//   counted scaling           per-call union inputs @20k / @5k ≤ 1.5× (R4-5's scaling
+//                             gate, counted: flat when the key union is cached)
+//   key typo                  typo20k − app2 @ 20k instantiations ≤ 50K (R3-2: a typo
+//                             must not intersect every key's params)
+//   memory @ 20k ≤ 250 MB, and the probes compile with exactly the expected errors.
+// INFORMATIONAL (seconds, printed, never failing): check @20k ≤ 1.0 s, typo total ≤ 5 s,
+// check 5k → 20k ≤ 2.5×. Lot 0 (S2, M1 Max): 0.23 s @5k, 0.44 s @20k, typo 0.57 s.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { generateProbe, TSC, TYPES_SOURCE } from "./gen.mjs";
 
 const args = process.argv.slice(2);
 const rounds = Number(args[args.indexOf("--rounds") + 1]) || 3;
 
-const GATES = { check20k: 1.0, typoTotal: 5, scaling: 2.5, memMB: 250, perCallInst: 50_000 };
+const GATES = {
+  perCallInst: 50_000,
+  perCallUnion: 50_000,
+  unionScaling: 1.5,
+  typoInst: 50_000,
+  memMB: 250,
+};
+const INFO = { check20k: 1.0, typoTotal: 5, scaling: 2.5 };
+const COUNT = path.join(path.dirname(fileURLToPath(import.meta.url)), "count-work.cjs");
 
 // Red variants: each plants one known regression into types.ts; the run exits 0 only if
 // the gate that exists for that regression FAILS (a gate never seen red is unverified).
 const REDS = {
-  // R3-1: keys as `keyof Catalogs[N]` instead of the cached mapped `KeysOf[N]` — check
-  // time grows with the catalog (fails the check and scaling gates).
+  // R3-1: keys as `keyof Catalogs[N]` instead of the cached mapped `KeysOf[N]` — every
+  // call rebuilds the key union (fails the counted union and scaling gates; instantiations
+  // do not see it).
   "r3-1": {
-    gates: ["check", "scaling"],
+    gates: ["union", "unionScaling"],
     edits: [
       [
         "  K extends KeysOf[N] | NotAKey,\n  N extends NsOf = NS,",
@@ -83,6 +100,7 @@ const probes = {
   file20k: generateProbe(path.join(tmp, "file20k"), { keys: 20000, kind: "app30", typesSource })
     .dir,
   base20k: generateProbe(path.join(tmp, "base20k"), { keys: 20000, kind: "app2", typesSource }).dir,
+  base5k: generateProbe(path.join(tmp, "base5k"), { keys: 5000, kind: "app2", typesSource }).dir,
 };
 
 const pick = (o, label) => {
@@ -97,7 +115,7 @@ try {
       loads.push(os.loadavg()[0]);
       const o = spawnSync(
         process.execPath,
-        [TSC, "-p", dir, "--extendedDiagnostics", "--pretty", "false"],
+        ["-r", COUNT, TSC, "-p", dir, "--extendedDiagnostics", "--pretty", "false"],
         {
           encoding: "utf8",
           maxBuffer: 1 << 28,
@@ -105,6 +123,7 @@ try {
       ).stdout;
       runs[name].push({
         inst: pick(o, "Instantiations"),
+        union: pick(o, "UnionInputs"),
         mem: pick(o, "Memory used") / 1024,
         check: pick(o, "Check time"),
         total: pick(o, "Total time"),
@@ -121,6 +140,7 @@ const m = Object.fromEntries(
     k,
     {
       inst: a[0].inst,
+      union: a[0].union,
       mem: med(a.map((x) => x.mem)),
       check: med(a.map((x) => x.check)),
       total: med(a.map((x) => x.total)),
@@ -137,20 +157,46 @@ console.log(
   `types bench${red ? ` (RED: ${red})` : ""}: tsc ${tsVersion}, node ${process.version}, ${rounds} rounds, ` +
     `load1 ${Math.min(...loads).toFixed(1)}–${Math.max(...loads).toFixed(1)} on ${os.cpus().length} cpus`,
 );
-console.log("probe   | instantiations | mem MB | check s (median) [rounds] | total s | errors");
+console.log(
+  "probe   | instantiations | union inputs | mem MB | check s (median) [rounds] | total s | errors",
+);
 for (const [k, v] of Object.entries(m))
   console.log(
-    `${k.padEnd(7)} | ${String(v.inst).padStart(14)} | ${v.mem.toFixed(0).padStart(6)} | ${v.check.toFixed(2)} [${v.all.join(", ")}] | ${v.total.toFixed(2)} | ${v.errors}`,
+    `${k.padEnd(7)} | ${String(v.inst).padStart(14)} | ${String(v.union).padStart(12)} | ${v.mem.toFixed(0).padStart(6)} | ${v.check.toFixed(2)} [${v.all.join(", ")}] | ${v.total.toFixed(2)} | ${v.errors}`,
+  );
+if ([m.app20k, m.base20k, m.app5k, m.base5k].some((v) => !(v.union > 0)))
+  throw new Error(
+    "types-bench: count-work.cjs reported no union inputs — the counted gates cannot run",
   );
 
-const scaling = m.app20k.check / m.app5k.check;
 const perCall = m.app20k.inst - m.base20k.inst;
+const perCallUnion20k = m.app20k.union - m.base20k.union;
+const perCallUnion5k = m.app5k.union - m.base5k.union;
+// BLOCKING: counts only.
 const results = [
   ["inst", "instantiations, 298 more calls @20k", perCall, GATES.perCallInst, ""],
-  ["check", "check @20k×2ns×300 calls", m.app20k.check, GATES.check20k, "s"],
-  ["typo", "key typo @20k, total", m.typo20k.total, GATES.typoTotal, "s"],
-  ["scaling", "scaling 5k → 20k (check)", scaling, GATES.scaling, "×"],
+  ["union", "union inputs, 298 more calls @20k", perCallUnion20k, GATES.perCallUnion, ""],
+  [
+    "unionScaling",
+    "counted scaling 5k → 20k (per-call union inputs)",
+    perCallUnion20k / perCallUnion5k,
+    GATES.unionScaling,
+    "×",
+  ],
+  [
+    "typo",
+    "key typo @20k, instantiations over app2",
+    m.typo20k.inst - m.base20k.inst,
+    GATES.typoInst,
+    "",
+  ],
   ["mem", "memory @20k", m.app20k.mem, GATES.memMB, "MB"],
+];
+// INFORMATIONAL: seconds depend on the runner; printed, never failing.
+const info = [
+  ["check @20k×2ns×300 calls", m.app20k.check, INFO.check20k, "s"],
+  ["key typo @20k, total", m.typo20k.total, INFO.typoTotal, "s"],
+  ["scaling 5k → 20k (check)", m.app20k.check / m.app5k.check, INFO.scaling, "×"],
 ];
 let failed = 0;
 const failedIds = [];
@@ -160,17 +206,20 @@ for (const [id, name, value, limit, unit] of results) {
     failed++;
     failedIds.push(id);
   }
-  const v = unit ? value.toFixed(2) : String(value);
+  const v = unit === "" ? String(value) : value.toFixed(2);
   console.log(
     `${ok ? "+" : "x"} ${name}: ${v} ${unit} (gate ≤ ${limit} ${unit})`.replace(/ +\)/, ")"),
   );
 }
+for (const [name, value, target, unit] of info)
+  console.log(`i ${name}: ${value.toFixed(2)} ${unit} (informational, target ≤ ${target} ${unit})`);
 // The probes are valid code except the typo probe's two calls.
 const unexpected =
   m.app5k.errors +
   m.app20k.errors +
   m.file20k.errors +
   m.base20k.errors +
+  m.base5k.errors +
   (m.typo20k.errors === 2 ? 0 : 1);
 if (unexpected) {
   failed++;

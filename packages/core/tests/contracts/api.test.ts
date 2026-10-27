@@ -129,3 +129,22 @@ describe("exports", () => {
     expect(total).toBeLessThanOrEqual(60);
   });
 });
+
+describe("error messages (0.7 error-stems)", () => {
+  const sources = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const p = path.join(dir, e.name);
+      return e.isDirectory() ? sources(p) : p.endsWith(".ts") ? [p] : [];
+    });
+  const thrown = sources(path.join(ROOT, "src")).flatMap((f) =>
+    [...fs.readFileSync(f, "utf8").matchAll(/\b(?:Type|Range)?Error\(\s*[`"']([^`"']*)/g)].map(
+      (m) => m[1],
+    ),
+  );
+
+  it("finds the messages it checks", () => expect(thrown.length).toBeGreaterThanOrEqual(5));
+
+  it("open every thrown message with the package (or subpath) name in brackets", () => {
+    for (const m of thrown) expect(m).toMatch(/^\[@comvi\/core(\/\w+)?\] /);
+  });
+});
