@@ -26,6 +26,8 @@ const calls = rows.map((row, i) => {
   const vals = names.map((k) => {
     const v = row.args[k];
     if (typeof v === "number") return `Formattable((double)${v})`;
+    // A `coerce` row passes a numeric string the way core reads it: Number(string).
+    if (typeof v === "string" && row.coerce) return `Formattable((double)${Number(v)})`;
     if (typeof v === "string") return `Formattable(UnicodeString::fromUTF8(${cpp(v)}))`;
     return `Formattable((UDate)${v.$date}.0, Formattable::kIsDate)`;
   });
@@ -100,9 +102,10 @@ const fixture = {
         `row ${i} ${JSON.stringify(row.pattern)} [${row.locale}]: cases.mjs says error=${row.error}, ICU4C says ${out}`,
       );
     }
-    return failed
-      ? { pattern: row.pattern, locale: row.locale, args: row.args, error: out.slice(4) }
-      : { pattern: row.pattern, locale: row.locale, args: row.args, expected: out };
+    if (failed)
+      return { pattern: row.pattern, locale: row.locale, args: row.args, error: out.slice(4) };
+    const ok = { pattern: row.pattern, locale: row.locale, args: row.args, expected: out };
+    return row.coerce ? { ...ok, coerced: true } : ok;
   }),
 };
 fs.mkdirSync(path.dirname(OUT), { recursive: true });

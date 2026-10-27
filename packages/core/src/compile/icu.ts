@@ -7,6 +7,8 @@
  * - an exact selector `=N` is matched against the value BEFORE the offset; the
  *   plural category against `value - offset`; `#` prints `value - offset`;
  * - every plural, selectordinal and select needs an `other` branch;
+ * - a plural count is a number; a numeric string is converted with Number() (0.7
+ *   behaviour kept by the owner, 27.10.2026), where ICU4C rejects any string;
  * - `#` is the count only in the immediate sub-messages of a plural or
  *   selectordinal. A `select` nested in one keeps `#` literal (R3-9); development
  *   builds warn once per (key, locale), see `compile()`.
@@ -107,23 +109,27 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   }
 
   return (p, l, x) => {
-    // A plural selects on a number only (ICU4C rejects any other argument).
-    const n = arg(p, name);
+    // A plural selects on a number. A numeric string (`"5"`, `" 2.5 "`) is converted with
+    // Number(), as 0.7 did (owner decision 27.10.2026; ICU4C itself rejects strings). A
+    // blank or non-numeric string, NaN, a missing value or any other type renders `{n}`.
+    const v = arg(p, name);
+    const n = typeof v === "string" && v.trim() ? +v : v;
     if (typeof n !== "number" || n !== n)
       return missing(
         P,
         x,
         l,
         name,
-        __DEV__ && `{${name}, ${type}} needs a number, got ${typeof n}`,
+        __DEV__ &&
+          `{${name}, ${type}} needs a number or a numeric string, got ${typeof v === "string" ? JSON.stringify(v) : typeof v}`,
       );
-    const v = n - offset;
+    const c = n - offset;
     return run(
-      branches["=" + n] || branches[pluralRules(l, ordinal).select(v)] || other,
+      branches["=" + n] || branches[pluralRules(l, ordinal).select(c)] || other,
       p,
       l,
       x,
-      v,
+      c,
     );
   };
 };

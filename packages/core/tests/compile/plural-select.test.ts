@@ -45,9 +45,11 @@ describe("plural", () => {
     ["missing", {}],
     ["null", { n: null }],
     ["a word", { n: "many" }],
-    ["a numeric string", { n: "1" }],
+    ["a non-numeric string", { n: "1 item" }],
     ["NaN", { n: NaN }],
     ["an empty string", { n: "" }],
+    ["a blank string", { n: "  " }],
+    ["the string NaN", { n: "NaN" }],
     ["a boolean", { n: true }],
     ["an object", { n: {} }],
   ])("renders {n} and reports missing_param when the count is %s", (_label, params) => {
@@ -60,10 +62,40 @@ describe("plural", () => {
     ]);
   });
 
+  // Owner decision 27.10.2026: a numeric string is converted with Number(), as in 0.7
+  // (ICU4C rejects strings; the golden table has `coerced` rows rendered by ICU4C from
+  // the converted number).
+  it.each([
+    ["1", "en", "1 item"],
+    ["5", "en", "5 items"],
+    [" 2.5 ", "en", "2.5 items"],
+    ["1234.5", "de", "1.234,5 items"],
+    ["-0", "en", "-0 items"],
+    ["1e3", "en", "1,000 items"],
+  ])("converts the numeric string %j to a count [%s]", (n, locale, out) => {
+    const env = sink();
+    expect(fmt("{n, plural, one {# item} other {# items}}", { n }, locale, env)).toBe(out);
+    expect(env.errors).toEqual([]);
+  });
+
+  it("matches exact selectors and offset on a numeric string", () => {
+    const t = "{n, plural, offset:1 =0 {nobody} =1 {you} other {you and # more}}";
+    expect(fmt(t, { n: "0" })).toBe("nobody");
+    expect(fmt(t, { n: "1" })).toBe("you");
+    expect(fmt(t, { n: "3" })).toBe("you and 2 more");
+    expect(fmt("{n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}", { n: "22" })).toBe(
+      "22nd",
+    );
+  });
+
   it("names the argument type in the development message", () => {
     const env = sink();
     fmt("{n, selectordinal, other {#th}}", { n: "x" }, "en", env);
-    expect(env.errors[0].message).toContain("{n, selectordinal} needs a number, got string");
+    expect(env.errors[0].message).toContain(
+      '{n, selectordinal} needs a number or a numeric string, got "x"',
+    );
+    fmt("{n, plural, other {#}}", { n: true }, "en", env);
+    expect(env.errors[1].message).toContain("got boolean");
   });
 
   it("renders an empty branch as empty text", () => {

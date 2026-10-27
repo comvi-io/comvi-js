@@ -176,6 +176,28 @@ export const CASES = [
   ["{n, plural, offset:.5 other {#}}", ["en"], [{ n: 3 }]],
   ["{n, plural, offset: -1.5 other {#}}", ["en"], [{ n: 3 }]],
   ["{n, plural, offset:1e1 other {#}}", ["en"], [{ n: 30 }]],
+  // --- numeric strings as plural counts: converted with Number() (owner decision
+  // 27.10.2026, as 0.7 did). ICU4C rejects a string argument, so a `coerce` case is
+  // rendered by ICU4C from Number(string); the fixture keeps the string args and
+  // marks the row `coerced`.
+  [
+    "{n, plural, one {# item} other {# items}}",
+    ["en", "de", "ar-EG"],
+    ["1", "5", " 2.5 ", "1234.5", "-3", "1e3"].map((n) => ({ n })),
+    { coerce: true },
+  ],
+  [
+    "{n, plural, offset:1 =0 {nobody} =1 {only you} other {you and # others}}",
+    ["en"],
+    ["0", "1", "3"].map((n) => ({ n })),
+    { coerce: true },
+  ],
+  [
+    "{n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+    ["en"],
+    ["1", "22", "13"].map((n) => ({ n })),
+    { coerce: true },
+  ],
   // --- white space between argument tokens is ICU Pattern_White_Space, not JS \s
   ["{n,\u0085plural,\u0085other {#}}", ["en"], [{ n: 3 }]],
   ["{n,\u200eplural,\u2028other\u200f{#}}", ["en"], [{ n: 3 }]],
@@ -209,6 +231,7 @@ export function expand() {
   const rows = [];
   for (const [pattern, locales, argSets, opts = {}] of CASES)
     for (const locale of locales)
-      for (const args of argSets) rows.push({ pattern, locale, args, error: !!opts.error });
+      for (const args of argSets)
+        rows.push({ pattern, locale, args, error: !!opts.error, coerce: !!opts.coerce });
   return rows;
 }

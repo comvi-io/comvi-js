@@ -2366,6 +2366,222 @@
       "expected": "20"
     },
     {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "en",
+      "args": {
+        "n": "1"
+      },
+      "expected": "1 item",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "en",
+      "args": {
+        "n": "5"
+      },
+      "expected": "5 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "en",
+      "args": {
+        "n": " 2.5 "
+      },
+      "expected": "2.5 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "en",
+      "args": {
+        "n": "1234.5"
+      },
+      "expected": "1,234.5 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "en",
+      "args": {
+        "n": "-3"
+      },
+      "expected": "-3 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "en",
+      "args": {
+        "n": "1e3"
+      },
+      "expected": "1,000 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "de",
+      "args": {
+        "n": "1"
+      },
+      "expected": "1 item",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "de",
+      "args": {
+        "n": "5"
+      },
+      "expected": "5 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "de",
+      "args": {
+        "n": " 2.5 "
+      },
+      "expected": "2,5 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "de",
+      "args": {
+        "n": "1234.5"
+      },
+      "expected": "1.234,5 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "de",
+      "args": {
+        "n": "-3"
+      },
+      "expected": "-3 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "de",
+      "args": {
+        "n": "1e3"
+      },
+      "expected": "1.000 items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "ar-EG",
+      "args": {
+        "n": "1"
+      },
+      "expected": "١ item",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "ar-EG",
+      "args": {
+        "n": "5"
+      },
+      "expected": "٥ items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "ar-EG",
+      "args": {
+        "n": " 2.5 "
+      },
+      "expected": "٢٫٥ items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "ar-EG",
+      "args": {
+        "n": "1234.5"
+      },
+      "expected": "١٬٢٣٤٫٥ items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "ar-EG",
+      "args": {
+        "n": "-3"
+      },
+      "expected": "؜-٣ items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, one {# item} other {# items}}",
+      "locale": "ar-EG",
+      "args": {
+        "n": "1e3"
+      },
+      "expected": "١٬٠٠٠ items",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, offset:1 =0 {nobody} =1 {only you} other {you and # others}}",
+      "locale": "en",
+      "args": {
+        "n": "0"
+      },
+      "expected": "nobody",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, offset:1 =0 {nobody} =1 {only you} other {you and # others}}",
+      "locale": "en",
+      "args": {
+        "n": "1"
+      },
+      "expected": "only you",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, plural, offset:1 =0 {nobody} =1 {only you} other {you and # others}}",
+      "locale": "en",
+      "args": {
+        "n": "3"
+      },
+      "expected": "you and 2 others",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      "locale": "en",
+      "args": {
+        "n": "1"
+      },
+      "expected": "1st",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      "locale": "en",
+      "args": {
+        "n": "22"
+      },
+      "expected": "22nd",
+      "coerced": true
+    },
+    {
+      "pattern": "{n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      "locale": "en",
+      "args": {
+        "n": "13"
+      },
+      "expected": "13th",
+      "coerced": true
+    },
+    {
       "pattern": "{n,plural,other {#}}",
       "locale": "en",
       "args": {
