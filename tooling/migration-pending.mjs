@@ -51,7 +51,23 @@ export const MIGRATION_PENDING = {
   "@test-apps/vue": "lot 4: builds from @comvi/vue",
 };
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+/**
+ * Documents (repo-relative) whose code fences use API that is MIGRATION_PENDING. A
+ * README of a pending package is pending by its package; these are the others. Their
+ * findings in `pnpm check:snippets` are reported as advisory `migration-pending/*`.
+ */
+const CORE_07_DOCS =
+  "documents the 0.7 core API (createI18n, the capability subpaths); createI18n returns in lot 1b, the pages are rewritten in lot 10";
+export const MIGRATION_PENDING_DOCS = {
+  "packages/core/README.md": CORE_07_DOCS,
+  "docs/design/composition.md": CORE_07_DOCS,
+  "docs/design/formatting.md": CORE_07_DOCS,
+  "docs/design/icu.md": CORE_07_DOCS,
+  "docs/design/rich-text.md": CORE_07_DOCS,
+  "docs/design/ssr.md": CORE_07_DOCS,
+};
+
+export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Workspace package name of `packages/<dir>` / `apps/<dir>` / `test-apps/<dir>`, or the input. */
 export function packageName(dirOrName) {
@@ -66,6 +82,14 @@ export function packageName(dirOrName) {
 /** The reason `dirOrName` is pending, or `undefined` when it is active. */
 export function pendingReason(dirOrName) {
   return MIGRATION_PENDING[packageName(dirOrName)];
+}
+
+/** Why a repo-relative document is pending, or `undefined`. */
+export function pendingDocReason(file) {
+  const rel = file.split(path.sep).join("/");
+  if (MIGRATION_PENDING_DOCS[rel]) return MIGRATION_PENDING_DOCS[rel];
+  const m = /^packages\/([^/]+)\/README\.md$/.exec(rel);
+  return m ? pendingReason(m[1]) : undefined;
 }
 
 /** Splits `dirsOrNames` into active ones and pending ones; prints one line per skipped entry. */

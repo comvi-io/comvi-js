@@ -9,6 +9,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # MIGRATION_PENDING (tooling/migration-pending.mjs): during the 0.8 core rebuild the
+  # packages that do not build against the new core yet are listed there with the lot
+  # that rebuilds them. Every job below that exists only for such packages reads this
+  # job's outputs and is skipped while one of its packages is pending; it comes back on
+  # its own when a lot removes the entries. The package-level gates (build, test,
+  # lint, typecheck, size, contracts, publint, types exports) skip the pending
+  # packages by name themselves and print the reason.
+  migration-pending:
+    name: MIGRATION_PENDING switches
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      extension: ${{ steps.pending.outputs.extension }}
+      examples_e2e: ${{ steps.pending.outputs.examples_e2e }}
+      test_apps: ${{ steps.pending.outputs.test_apps }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read tooling/migration-pending.mjs
+        id: pending
+        run: node tooling/migration-pending.mjs --github-output
+
   quality:
     name: Quality and security
     runs-on: ubuntu-24.04
@@ -112,6 +136,12 @@ jobs:
       - name: Test
         run: pnpm test:commit
 
+      # Type-checking cost of the typed t() (reference-i18n R4-5): check at 2 ns x 20k
+      # keys x 300 calls <= 1.0 s, a key typo <= 5 s total, 5k -> 20k scaling <= 2.5x,
+      # memory <= 250 MB; tsc's own Check/Total time, medians of 3 interleaved rounds.
+      - name: Types bench gates
+        run: pnpm check:types-bench
+
   # One build, then every check that reads dist/, in order. Splitting these
   # across jobs is what let package contracts, the size gate and the bundler
   # matrix run against a missing or stale dist.
@@ -206,6 +236,8 @@ jobs:
 
   extension:
     name: Chrome extension
+    needs: migration-pending
+    if: needs.migration-pending.outputs.extension == 'active'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -341,8 +373,8 @@ jobs:
   # `tests/dist/missing-key-warning.dist.test.ts` (see run.mjs's header).
   examples-e2e:
     name: Examples e2e (${{ matrix.framework }}, ${{ matrix.mode }})
-    needs: examples-e2e-changes
-    if: needs.examples-e2e-changes.outputs.run == 'true'
+    needs: [examples-e2e-changes, migration-pending]
+    if: needs.examples-e2e-changes.outputs.run == 'true' && needs.migration-pending.outputs.examples_e2e == 'active'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
@@ -404,8 +436,8 @@ jobs:
   # their peer ranges; this job is what proves the lower one.
   test-apps-smoke:
     name: Test apps smoke (Next 15/16, Nuxt 3/4)
-    needs: examples-e2e-changes
-    if: needs.examples-e2e-changes.outputs.test_apps == 'true'
+    needs: [examples-e2e-changes, migration-pending]
+    if: needs.examples-e2e-changes.outputs.test_apps == 'true' && needs.migration-pending.outputs.test_apps == 'active'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 

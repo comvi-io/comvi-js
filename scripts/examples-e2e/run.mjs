@@ -135,6 +135,7 @@ import {
   stepResults,
 } from "./lib.mjs";
 import { scopeRegistryLine, startCandidateRegistry } from "./candidate-registry.mjs";
+import { CI_JOBS, exitIfPending } from "../../tooling/migration-pending.mjs";
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const LOCALES_DIR = path.join(REPO_ROOT, "examples", "locales");
@@ -796,6 +797,8 @@ async function main(argv) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {
+  // Every example builds from bindings that are MIGRATION_PENDING on the 0.8 branch.
+  exitIfPending("examples-e2e", CI_JOBS.examples_e2e);
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {

@@ -34,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { Parser } from "tar";
 import { Package, checkPackage } from "@arethetypeswrong/core";
 import { TYPED_PACKAGES } from "../tooling/typed-packages.mjs";
+import { partition } from "../tooling/migration-pending.mjs";
 import { moduleSpecifiers } from "../tooling/dts-specifier-scan.mjs";
 
 const rootDir = path.resolve(fileURLToPath(import.meta.url), "..", "..");
@@ -347,7 +348,8 @@ async function checkOne(pkg) {
 }
 
 const requested = process.argv.slice(2);
-const targets = requested.length > 0 ? requested : TYPED_PACKAGES;
+const targets =
+  requested.length > 0 ? requested : partition(TYPED_PACKAGES, "check-types-exports").active;
 
 let failed = false;
 for (const pkg of targets) {

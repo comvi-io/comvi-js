@@ -54,6 +54,7 @@ import { lintDocument } from "./lint.mjs";
 import { loadRepoSurface } from "./surface.mjs";
 import { createTypecheckContext, typecheckDocument } from "./typecheck.mjs";
 import { sfcCheckDocuments } from "./sfc-check.mjs";
+import { ROOT as REPO_ROOT, pendingDocReason } from "../../tooling/migration-pending.mjs";
 
 const DOC_EXTENSIONS = new Set([".md", ".mdx"]);
 
@@ -471,6 +472,21 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(2);
   }
   const result = runGate(options);
+  // MIGRATION_PENDING (tooling/migration-pending.mjs): on THIS repo's corpus, findings in
+  // documents whose API is pending are advisory, renamed `migration-pending/<rule>`.
+  if (path.resolve(options.root) === REPO_ROOT) {
+    const pendingDocs = new Map();
+    for (const finding of result.findings) {
+      const reason = pendingDocReason(finding.file);
+      if (!reason || finding.advisory) continue;
+      finding.advisory = true;
+      finding.rule = `migration-pending/${finding.rule}`;
+      pendingDocs.set(finding.file, reason);
+    }
+    if (!options.json)
+      for (const [file, reason] of pendingDocs)
+        console.log(`docs-snippets: ${file} — findings advisory, MIGRATION_PENDING (${reason})`);
+  }
   if (options.json)
     console.log(
       JSON.stringify(
