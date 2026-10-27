@@ -544,7 +544,8 @@ export const createI18n = (o: I18nOptions): I18n => {
       i18n.destroy();
       throw e;
     }
-  // A plugin may have switched the locale already, which loaded what that needs.
-  if (!seq) ensure(S.locale, act);
+  // A plugin may have switched the locale already, which loaded what that needs; without a
+  // loader nothing can start.
+  if (!seq && load) ensure(S.locale, act);
   return i18n;
 };
