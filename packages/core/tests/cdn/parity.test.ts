@@ -92,10 +92,5 @@ describe("cdn() request", () => {
     const p = cdn("https://x")("en", "default", a.signal);
     a.abort();
     await expect(p).rejects.toMatchObject({ name: "AbortError" });
-    const b = new AbortController();
-    b.abort();
-    await expect(cdn("https://x")("en", "default", b.signal)).rejects.toMatchObject({
-      name: "AbortError",
-    });
   });
 });

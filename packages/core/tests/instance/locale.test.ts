@@ -195,6 +195,75 @@ describe("partial failure (R4-11)", () => {
   });
 });
 
+describe("a parent of the locale's chain that fails (lot 2c, review A MEDIUM 3)", () => {
+  const failed = (errors: { code: string; locale?: string; ns?: string }[]) =>
+    errors.filter((e) => e.code === "load_failed").map((e) => `${e.locale}:${e.ns}`);
+
+  it("pt-BR loads, pt 404s: nothing is reported — whichever answers first", async () => {
+    for (const order of [
+      ["pt:default", "pt-BR:default"],
+      ["pt-BR:default", "pt:default"],
+    ]) {
+      const l = manualLoader();
+      const { i18n, errors } = make({ locale: "en", messages: { en: { a: "A" } }, loader: l.load });
+      const p = i18n.setLocale("pt-BR");
+      expect(l.requested).toEqual(["pt-BR:default", "pt:default"]);
+      for (const k of order)
+        if (k == "pt:default") await l.fail(k);
+        else await l.answer(k, { a: "A-br" });
+      await p;
+      await flush();
+      expect(i18n.locale).toBe("pt-BR");
+      expect(failed(errors)).toEqual([]);
+    }
+  });
+
+  it("pt-BR and pt both fail: both are reported — whichever answers first", async () => {
+    for (const order of [
+      ["pt:default", "pt-BR:default"],
+      ["pt-BR:default", "pt:default"],
+    ]) {
+      const l = manualLoader();
+      const { i18n, errors } = make({ locale: "en", messages: { en: { a: "A" } }, loader: l.load });
+      const p = i18n.setLocale("pt-BR");
+      for (const k of order) await l.fail(k);
+      await expect(p).rejects.toThrow("404 pt-BR:default");
+      await flush();
+      expect(failed(errors).sort()).toEqual(["pt-BR:default", "pt:default"]);
+    }
+  });
+
+  it("per namespace: the parent's failure of a namespace is reported only with the locale's own failure of THAT namespace", async () => {
+    const { load } = tableLoader({ "pt-BR:default": { a: "A-br" } });
+    const { i18n, errors } = make({
+      locale: "en",
+      namespaces: ["default", "shop"],
+      messages: { en: { a: "A" } },
+      loader: load,
+    });
+    await i18n.setLocale("pt-BR");
+    await flush();
+    // pt:default is not reported (pt-BR:default loaded); pt:shop is (pt-BR:shop failed too).
+    expect(failed(errors).sort()).toEqual(["pt-BR:shop", "pt:shop"]);
+  });
+
+  it("a parent asked for as the locale itself is reported as before", async () => {
+    const { load } = tableLoader({ "en:default": { a: "A" } });
+    const { i18n, errors } = make({ locale: "en", loader: load });
+    await i18n.ready;
+    await expect(i18n.setLocale("pt")).rejects.toThrow();
+    expect(failed(errors)).toEqual(["pt:default"]);
+  });
+
+  it("a fallback locale's failure is reported as before, even when the locale loads", async () => {
+    const { load } = tableLoader({ "pt-BR:default": { a: "A-br" } });
+    const { i18n, errors } = make({ locale: "pt-BR", fallbackLocale: "en", loader: load });
+    await i18n.ready;
+    await flush();
+    expect(failed(errors)).toEqual(["en:default"]);
+  });
+});
+
 describe("the fallback chain", () => {
   it("a single fallback is loaded and answers a key the locale lacks", async () => {
     const { load, loaded } = tableLoader(TABLE);
