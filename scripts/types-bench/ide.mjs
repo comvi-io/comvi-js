@@ -5,7 +5,7 @@
 //   node scripts/types-bench/ide.mjs [--rounds 3]        gate run (pnpm check:types-ide)
 //   node scripts/types-bench/ide.mjs --red <variant>     the same gates over a planted
 //                                                        regression (keyof | paths |
-//                                                        per-locale); exits
+//                                                        per-locale | option); exits
 //                                                        0 only if a gate FAILS on it
 //   node scripts/types-bench/ide.mjs --ts <dir>          another TypeScript (its package
 //                                                        directory), e.g. the latest stable
@@ -17,20 +17,28 @@
 //
 //   (a1) completions at t("|            (a2) at useI18n("shop").t("|
 //   (a3) completions inside the params object of t("key", { | })
+//   (a4) the same for a key whose params all have defaults (all optional)
 //   (b)  quickinfo (hover) on t in t("key", …)
 //   (c)  semantic diagnostics of app.ts after an edit of one call
+//   (c2) the same after an edit that makes the key a typo (R3-2's editor symptom)
 //   (d)  semantic diagnostics of app.ts after comvi.d.ts is regenerated with a new key
-//   (e)  tsserver memory (RSS after a full GC) at the end
+//   (e)  tsserver memory at the end, after a full GC
 //
 // BLOCKING gates COUNT work (ide-count.cjs: instantiations, types created, union inputs
 // per request — deterministic for a pinned TypeScript, the same on a laptop and a CI
 // runner) and never read a clock:
 //   - (a1)/(a2) return exactly the namespace's keys (the list itself is the cost the
-//     counters cannot see); (a3) returns the params and per-call options, no keys;
-//   - counted scaling 5k → 50k ≤ 1.5× for (a), (b), (c): instantiations and union inputs
-//     per request (a call's cost does not grow with the catalog). Types created are
-//     printed: a new program after an edit creates the namespace's key literals once;
-//   - tsserver memory @50k ≤ 400 MB.
+//     counters cannot see); (a3)/(a4) exactly the key's params and ns/locale/markers;
+//   - (b) names the key and its param; (c)/(d) report exactly the three deliberately
+//     unfinished probe lines, (c2) those and the typo — a server that resolves nothing
+//     fails here instead of passing every count;
+//   - counted scaling 5k → 50k ≤ 1.5× for every operation: instantiations and union
+//     inputs per request (a call's cost does not grow with the catalog). Types created are
+//     printed: a new program after an edit creates the used namespaces' key literals once
+//     (the one editor cost that grows with the catalog — by design, not free);
+//   - tsserver memory @50k ≤ 400 MB, read as V8's committed heap + external memory after
+//     a full GC. RSS and its growth over a 100-key project are printed: on macOS RSS keeps
+//     freed pages (MADV_FREE) and says more about the allocator than about the types.
 // INFORMATIONAL: milliseconds per request inside tsserver, median of the rounds (target:
 // completions @50k < 100 ms), with node and TypeScript versions. Never failing.
 import { execFileSync, spawn } from "node:child_process";
@@ -89,6 +97,19 @@ const REDS = {
         "type Split<S extends string> = S extends `${infer H}.${infer R}` ? [H, ...Split<R>] : [S];\n" +
           "type Join<T> = T extends [infer H extends string, ...infer R] ? (R extends [] ? H : `${H}.${Join<R>}`) : never;\n" +
           "export type KeysOf = { [N in NsOf]: { [K in keyof Catalogs[N] & string]: Join<Split<K>> }[keyof Catalogs[N] & string] };",
+      ],
+    ],
+  },
+  // An extra per-call option in the params object: the (a3)/(a4) exact-set gates.
+  option: {
+    types: [
+      [
+        "? [params?: P & { ns?: N; locale?: string; markers?: boolean }]",
+        "? [params?: P & { ns?: N; locale?: string; markers?: boolean; debug?: boolean }]",
+      ],
+      [
+        ": [params: P & { ns?: N; locale?: string; markers?: boolean }];",
+        ": [params: P & { ns?: N; locale?: string; markers?: boolean; debug?: boolean }];",
       ],
     ],
   },
@@ -163,6 +184,9 @@ function project(dir, total, nsCount) {
     }),
   );
   const schema = probeSchema(nss, list);
+  // One key whose only param has a default, at every size (gen.mjs's own dpOnly keys
+  // need 900 keys per namespace): the (a4) site.
+  schema.namespaces.default["opt.brand"] = { params: { brand: { kind: "string" } } };
   const dts = emit(schema);
   fs.writeFileSync(path.join(dir, "comvi.d.ts"), dts);
   const L = [
@@ -183,7 +207,7 @@ function project(dir, total, nsCount) {
     const params = [PARAM[k], ns === "default" ? "" : `ns: '${ns}'`].filter(Boolean).join(", ");
     L.push(`out.push(t('s${s}.k${j}'${params ? `, { ${params} }` : ""}));`);
   }
-  // The edit (c) and hover (b) target: a `name` key.
+  // The edit (c) and hover (b) target: a `name` key ('s0.k1' ↔ 's1.k1' exist at every size).
   const editLine = L.length;
   L.push("out.push(t('s0.k1', { name: 'x' }));");
   const a1 = L.length;
@@ -192,6 +216,8 @@ function project(dir, total, nsCount) {
   L.push("out.push(shop.t(''));");
   const a3 = L.length;
   L.push("out.push(t('s0.k1', {  }));");
+  const a4 = L.length;
+  L.push("out.push(t('opt.brand', {  }));");
   const app = L.join("\n") + "\n";
   fs.writeFileSync(path.join(dir, "app.ts"), app);
   // Protocol positions are 1-based line and offset.
@@ -206,8 +232,13 @@ function project(dir, total, nsCount) {
       a1: { line: a1 + 1, offset: "out.push(t('".length + 1 },
       a2: { line: a2 + 1, offset: "out.push(shop.t('".length + 1 },
       a3: { line: a3 + 1, offset: "out.push(t('s0.k1', { ".length + 1 },
+      a4: { line: a4 + 1, offset: "out.push(t('opt.brand', { ".length + 1 },
       b: { line: editLine + 1, offset: "out.push(".length + 1 },
-      edit: { line: editLine + 1, offset: "out.push(t('s0.k".length + 1 },
+      // The section digit of 's0.k1' (the edit), and its 'k1' (the typo edit).
+      edit: { line: editLine + 1, offset: "out.push(t('s".length + 1 },
+      typo: { offset: "out.push(t('s0.".length + 1 },
+      // Lines (1-based) that are errors by construction: t(''), shop.t(''), a3's missing param.
+      unfinished: [a1 + 1, a2 + 1, a3 + 1],
     },
     // A regenerated comvi.d.ts: one key more in the default namespace.
     dtsNext: emit({
@@ -290,26 +321,38 @@ async function measure(p) {
     await request("open", { file: p.app, fileContent: p.appText, scriptKindName: "TS" });
     await request("open", { file: p.dts, fileContent: p.dtsText, scriptKindName: "TS" });
     await request("semanticDiagnosticsSync", { file: p.app }); // warm-up
-    const ops = { a1: [], a2: [], a3: [], b: [], c: [], d: [] };
-    const out = { entries: {} };
+    const ops = { a1: [], a2: [], a3: [], a4: [], b: [], c: [], c2: [], d: [] };
+    const out = { entries: {}, hover: "", diags: {} };
+    const diagnose = async (op) => {
+      const { msg, work } = await request("semanticDiagnosticsSync", { file: p.app });
+      ops[op].push(work);
+      out.diags[op] = (msg.body ?? []).map((d) => `${d.start.line}:TS${d.code}`);
+    };
+    const edit = (offset, length, insertString) =>
+      request("change", {
+        file: p.app,
+        line: p.sites.edit.line,
+        offset,
+        endLine: p.sites.edit.line,
+        endOffset: offset + length,
+        insertString,
+      });
     for (let r = 0; r < rounds; r++) {
-      for (const site of ["a1", "a2", "a3"]) {
+      for (const site of ["a1", "a2", "a3", "a4"]) {
         const { msg, work } = await request("completionInfo", { file: p.app, ...p.sites[site] });
         ops[site].push(work);
         out.entries[site] = msg.body?.entries ?? [];
       }
-      ops.b.push((await request("quickinfo", { file: p.app, ...p.sites.b })).work);
-      // (c) edit one call ('s0.k1' ↔ 's0.k5', both `name` keys), then check the file.
-      const digit = r % 2 ? "1" : "5";
-      await request("change", {
-        file: p.app,
-        line: p.sites.edit.line,
-        offset: p.sites.edit.offset,
-        endLine: p.sites.edit.line,
-        endOffset: p.sites.edit.offset + 1,
-        insertString: digit,
-      });
-      ops.c.push((await request("semanticDiagnosticsSync", { file: p.app })).work);
+      const hover = await request("quickinfo", { file: p.app, ...p.sites.b });
+      ops.b.push(hover.work);
+      out.hover = hover.msg.body?.displayString ?? "";
+      // (c) edit one call ('s0.k1' ↔ 's1.k1', both `name` keys), then check the file.
+      await edit(p.sites.edit.offset, 1, r % 2 ? "0" : "1");
+      await diagnose("c");
+      // (c2) the key becomes a typo ('s1.zz'), then is put back.
+      await edit(p.sites.typo.offset, 2, "zz");
+      await diagnose("c2");
+      await edit(p.sites.typo.offset, 2, "k1");
       // (d) comvi.d.ts regenerated (a new key, then back), then the whole file again.
       await request("updateOpen", {
         changedFiles: [],
@@ -317,12 +360,14 @@ async function measure(p) {
           { file: p.dts, fileContent: r % 2 ? p.dtsText : p.dtsNext, scriptKindName: "TS" },
         ],
       });
-      ops.d.push((await request("semanticDiagnosticsSync", { file: p.app })).work);
+      await diagnose("d");
     }
     const last = ops.d.at(-1);
     return {
       ops,
       entries: out.entries,
+      hover: out.hover,
+      diags: out.diags,
       rssMB: last.rss / 2 ** 20,
       heapMB: last.heap / 2 ** 20,
       totalMB: last.heapTotal / 2 ** 20,
@@ -403,48 +448,61 @@ async function measureLsp(p) {
       notify("textDocument/didOpen", {
         textDocument: { uri: uri(file), languageId: "typescript", version: 1, text },
       });
-    const diagnose = () =>
-      request("textDocument/diagnostic", { textDocument: { uri: uri(p.app) } });
-    await diagnose(); // warm-up
-    const ops = { a1: [], a2: [], a3: [], b: [], c: [], d: [] };
+    const ops = { a1: [], a2: [], a3: [], a4: [], b: [], c: [], c2: [], d: [] };
     const entries = {};
+    const diags = {};
+    let hover = "";
+    const diagnose = async (op) => {
+      const { result, work } = await request("textDocument/diagnostic", {
+        textDocument: { uri: uri(p.app) },
+      });
+      if (!op) return;
+      ops[op].push(work);
+      diags[op] = (result?.items ?? []).map((d) => `${d.range.start.line + 1}:TS${d.code}`);
+    };
+    await diagnose(); // warm-up
+    const editAt = (character, length, text) => {
+      const at = { ...pos(p.sites.edit), character };
+      notify("textDocument/didChange", {
+        textDocument: { uri: uri(p.app), version: ++versions.app },
+        contentChanges: [
+          { range: { start: at, end: { ...at, character: character + length } }, text },
+        ],
+      });
+    };
     for (let r = 0; r < rounds; r++) {
-      for (const site of ["a1", "a2", "a3"]) {
+      for (const site of ["a1", "a2", "a3", "a4"]) {
         const { result, work } = await request("textDocument/completion", {
           textDocument: { uri: uri(p.app) },
           position: pos(p.sites[site]),
         });
         ops[site].push(work);
+        // tsgo labels an optional member `name?`; tsserver names it `name`.
         entries[site] = (Array.isArray(result) ? result : (result?.items ?? [])).map((i) => ({
-          name: i.label,
+          name: i.label.replace(/\?$/, ""),
         }));
       }
-      ops.b.push(
-        (
-          await request("textDocument/hover", {
-            textDocument: { uri: uri(p.app) },
-            position: pos(p.sites.b),
-          })
-        ).work,
-      );
-      const digit = r % 2 ? "1" : "5";
-      const at = pos(p.sites.edit);
-      notify("textDocument/didChange", {
-        textDocument: { uri: uri(p.app), version: ++versions.app },
-        contentChanges: [
-          { range: { start: at, end: { ...at, character: at.character + 1 } }, text: digit },
-        ],
+      const h = await request("textDocument/hover", {
+        textDocument: { uri: uri(p.app) },
+        position: pos(p.sites.b),
       });
-      ops.c.push((await diagnose()).work);
+      ops.b.push(h.work);
+      const contents = h.result?.contents;
+      hover = typeof contents === "string" ? contents : (contents?.value ?? "");
+      editAt(pos(p.sites.edit).character, 1, r % 2 ? "0" : "1");
+      await diagnose("c");
+      editAt(p.sites.typo.offset - 1, 2, "zz");
+      await diagnose("c2");
+      editAt(p.sites.typo.offset - 1, 2, "k1");
       notify("textDocument/didChange", {
         textDocument: { uri: uri(p.dts), version: ++versions.dts },
         contentChanges: [{ text: r % 2 ? p.dtsText : p.dtsNext }],
       });
-      ops.d.push((await diagnose()).work);
+      await diagnose("d");
     }
     const rss =
       Number(execFileSync("ps", ["-o", "rss=", "-p", String(child.pid)]).toString()) / 1024;
-    return { ops, entries, rssMB: rss, heapMB: NaN, totalMB: NaN, extMB: NaN };
+    return { ops, entries, hover, diags, rssMB: rss, heapMB: NaN, totalMB: NaN, extMB: NaN };
   } finally {
     await request("shutdown").catch(() => undefined);
     notify("exit");
@@ -458,12 +516,25 @@ async function measureLsp(p) {
 const med = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-types-ide-"));
 const results = [];
+let baseline;
 try {
+  // A 100-key project: tsserver's own memory, for the RSS growth line.
+  {
+    const p = project(path.join(tmp, "baseline"), 100, 2);
+    baseline = LSP ? await measureLsp(p) : await measure(p);
+  }
   for (const nsCount of nsCounts)
     for (const total of sizes) {
       const p = project(path.join(tmp, `p${total}x${nsCount}`), total, nsCount);
       const m = LSP ? await measureLsp(p) : await measure(p);
-      results.push({ total, nsCount, keysPerNs: p.keysPerNs, nsUsed: p.nsUsed, ...m });
+      results.push({
+        total,
+        nsCount,
+        keysPerNs: p.keysPerNs,
+        nsUsed: p.nsUsed,
+        sites: p.sites,
+        ...m,
+      });
     }
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
@@ -477,8 +548,10 @@ const OPS = {
   a1: 't("|',
   a2: 'shop.t("|',
   a3: "{ | }",
+  a4: "{ | } opt",
   b: "hover",
   c: "diag/edit",
+  c2: "diag/typo",
   d: "diag/regen",
 };
 console.log("keys×ns    | op         | inst (median) | union | types  | ms (median) [rounds]");
@@ -500,14 +573,47 @@ for (const r of results) {
   for (const site of ["a1", "a2"]) {
     const names = r.entries[site].map((e) => e.name);
     const keys = names.filter((n) => /^s\d+\.k\d+$/.test(n)).length;
-    const line = `${label} ${OPS[site]} completions: ${names.length} entries, ${keys} keys (gate: = ${r.keysPerNs} keys of the namespace, nothing else)`;
-    if (names.length === r.keysPerNs && keys === r.keysPerNs) pass(line);
+    // `default` (a1) also has the (a4) key opt.brand, and — when the last round's
+    // completions ran after round r-1 regenerated comvi.d.ts (r odd) — the new key.
+    const extra = site === "a1" ? ["opt.brand", ...((rounds - 1) % 2 ? ["zz.added"] : [])] : [];
+    const others = names.filter((n) => !/^s\d+\.k\d+$/.test(n)).sort();
+    const line = `${label} ${OPS[site]} completions: ${names.length} entries, ${keys} keys${others.length ? ` + ${others.join(", ")}` : ""} (gate: = ${r.keysPerNs} keys of the namespace${extra.length ? ` + ${extra.join(", ")}` : ""}, nothing else)`;
+    if (keys === r.keysPerNs && others.join() === extra.join()) pass(line);
     else fail(line);
   }
-  const a3 = r.entries.a3.map((e) => e.name);
-  const a3line = `${label} ${OPS.a3} completions: ${a3.join(", ")} (gate: the key's params and ns/locale/markers only)`;
-  if (a3.length <= 8 && !a3.some((n) => /^s\d+\.k\d+$/.test(n))) pass(a3line);
-  else fail(a3line);
+  // (a3)/(a4): exactly the key's params and the per-call options — not "few", the set.
+  for (const [site, want] of [
+    ["a3", "locale, markers, name, ns"],
+    ["a4", "brand, locale, markers, ns"],
+  ]) {
+    const got = r.entries[site]
+      .map((e) => e.name)
+      .sort()
+      .join(", ");
+    const line = `${label} ${OPS[site]} completions: ${got || "(none)"} (gate: = ${want})`;
+    if (got === want) pass(line);
+    else fail(line);
+  }
+  // (b): the hover names the key and its param (a server that resolved nothing says neither).
+  const hoverLine = `${label} hover: ${JSON.stringify(r.hover.replace(/\s+/g, " ").slice(0, 120))} (gate: names the key s0.k1 or s1.k1 and its param name)`;
+  if (/s[01]\.k1/.test(r.hover) && /\bname\b/.test(r.hover)) pass(hoverLine);
+  else fail(hoverLine);
+  // (c)/(d): exactly the three unfinished probe lines; (c2) those and the typo line.
+  const edit = r.sites.edit.line;
+  for (const [op, lines] of [
+    ["c", r.sites.unfinished],
+    ["c2", [...r.sites.unfinished, edit]],
+    ["d", r.sites.unfinished],
+  ]) {
+    const got = [...new Set((r.diags[op] ?? []).map((d) => Number(d.split(":")[0])))].sort(
+      (x, y) => x - y,
+    );
+    const want = [...lines].sort((x, y) => x - y);
+    const typo = op !== "c2" || (r.diags.c2 ?? []).includes(`${edit}:TS2345`);
+    const line = `${label} ${OPS[op]} diagnostics on lines ${got.join(", ") || "(none)"} (gate: ${want.join(", ")}${op === "c2" ? `, TS2345 on ${edit}` : ""})`;
+    if (got.join() === want.join() && typo) pass(line);
+    else fail(line);
+  }
 }
 if (LSP)
   console.log(
@@ -520,34 +626,40 @@ for (const nsCount of LSP ? [] : nsCounts) {
   // A new program (after an edit or a regeneration) builds each namespace's key union
   // ONCE: `keysPerNs` union inputs per namespace the file uses. That is the catalog, not
   // the calls; the gate reads the work beyond it, which must not grow with the catalog.
-  const beyondKeys = (r, op, w) =>
-    op === "c" || op === "d" ? w.union - r.keysPerNs * r.nsUsed : w.union;
-  for (const op of ["a1", "a2", "a3", "b", "c", "d"])
+  const program = (op) => op === "c" || op === "c2" || op === "d";
+  const beyondKeys = (r, op, w) => (program(op) ? w.union - r.keysPerNs * r.nsUsed : w.union);
+  for (const op of ["a1", "a2", "a3", "a4", "b", "c", "c2", "d"])
     for (const metric of ["inst", "union"]) {
       const pick = (r) => (w) => (metric === "union" ? beyondKeys(r, op, w) : w[metric]);
       const a = med(small.ops[op].map(pick(small)));
       const b = med(big.ops[op].map(pick(big)));
       // Below 50 units of work there is nothing to scale: a constant, not a trend.
       const ratio = Math.max(b, 50) / Math.max(a, 50);
-      const what =
-        metric === "union" && (op === "c" || op === "d") ? "union beyond the key unions" : metric;
+      const what = metric === "union" && program(op) ? "union beyond the key unions" : metric;
       const line = `counted scaling ${small.total / 1000}k → ${big.total / 1000}k ×${nsCount} ns, ${OPS[op]} ${what}: ${a} → ${b} = ${ratio.toFixed(2)}× (gate ≤ ${GATES.scaling}×)`;
       if (ratio <= GATES.scaling) pass(line);
       else fail(line);
     }
 }
+const committed = (r) => r.totalMB + r.extMB;
+console.log(
+  LSP
+    ? `i memory baseline (100 keys): rss ${baseline.rssMB.toFixed(0)} MB (native process)`
+    : `i memory baseline (100 keys): rss ${baseline.rssMB.toFixed(0)} MB, committed ${committed(baseline).toFixed(0)} MB, live ${baseline.heapMB.toFixed(0)} MB`,
+);
 for (const r of results)
   console.log(
     LSP
-      ? `i memory ${r.total / 1000}k×${r.nsCount}: rss ${r.rssMB.toFixed(0)} MB (native process)`
-      : `i memory ${r.total / 1000}k×${r.nsCount}: rss ${r.rssMB.toFixed(0)} MB, heap used ${r.heapMB.toFixed(0)} MB, heap committed ${r.totalMB.toFixed(0)} MB, external ${r.extMB.toFixed(0)} MB`,
+      ? `i memory ${r.total / 1000}k×${r.nsCount}: rss ${r.rssMB.toFixed(0)} MB (+${(r.rssMB - baseline.rssMB).toFixed(0)} over 100 keys; native process)`
+      : `i memory ${r.total / 1000}k×${r.nsCount}: rss ${r.rssMB.toFixed(0)} MB (+${(r.rssMB - baseline.rssMB).toFixed(0)} over 100 keys), committed (heap + external) ${committed(r).toFixed(0)} MB, live heap ${r.heapMB.toFixed(0)} MB`,
   );
 for (const r of results.filter((x) => x.total === 50_000 && !LSP)) {
-  // tsserver's live heap after a full GC, as tsc's "Memory used" in bench.mjs. RSS is
-  // printed above: on macOS it keeps freed pages (MADV_FREE) and tsserver's own baseline
-  // is ~230 MB of it, so it says more about the allocator than about the types.
-  const line = `tsserver memory @50k×${r.nsCount}: ${r.heapMB.toFixed(0)} MB live heap (gate ≤ ${GATES.memMB} MB)`;
-  if (r.heapMB <= GATES.memMB) pass(line);
+  // What V8 holds for tsserver after a full GC: committed heap + external (buffers). It
+  // includes everything the live heap does and the room V8 kept, so it is the larger,
+  // stricter of the two V8 figures; RSS is printed above (see the header for why it is
+  // not the gate).
+  const line = `tsserver memory @50k×${r.nsCount}: ${committed(r).toFixed(0)} MB committed heap + external (gate ≤ ${GATES.memMB} MB)`;
+  if (committed(r) <= GATES.memMB) pass(line);
   else fail(line);
 }
 for (const r of results.filter((x) => x.total === Math.max(...sizes)))

@@ -62,7 +62,7 @@
     "perf": "node scripts/perf.mjs",
     "mutation": "node scripts/mutation/run.mjs",
     "check:types-bench": "node scripts/types-bench/bench.mjs --red r3-1 --rounds 1 && node scripts/types-bench/bench.mjs --red per-call --rounds 1 && node scripts/types-bench/bench.mjs",
-    "check:types-ide": "node scripts/types-bench/ide.mjs --red keyof --rounds 1 --sizes 5000,50000 && node scripts/types-bench/ide.mjs --red paths --rounds 1 --sizes 5000,50000 && node scripts/types-bench/ide.mjs --red per-locale --rounds 1 --sizes 5000,50000 --ns 2 && node scripts/types-bench/ide.mjs",
+    "check:types-ide": "node scripts/types-bench/ide.mjs --red option --rounds 1 --sizes 5000 --ns 2 && node scripts/types-bench/ide.mjs --red keyof --rounds 1 --sizes 5000,50000 && node scripts/types-bench/ide.mjs --red paths --rounds 1 --sizes 5000,50000 && node scripts/types-bench/ide.mjs --red per-locale --rounds 1 --sizes 5000,50000 --ns 2 && node scripts/types-bench/ide.mjs",
     "migration:pending": "node tooling/migration-pending.mjs"
   },
   "devDependencies": {
