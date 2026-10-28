@@ -122,7 +122,7 @@ its own; `exposeGlobal: false` turns that registration off.
 - [Vanilla guide](https://comvi.io/docs/i18n/vanilla): update the DOM from events, instance lifetime.
 - [Core API reference](https://comvi.io/docs/i18n/api/core): every instance member, the events and the capability subpaths.
 - [Loading translations](https://comvi.io/docs/i18n/loading-translations): `.use(loader(map))`, namespaces and caching.
-- [Type safety](https://comvi.io/docs/i18n/type-safety): augment `TranslationKeys` on `@comvi/core` so `t()` autocompletes.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): generate the `Catalogs` declaration so `t()` checks keys and params.
 
 ## Contributing
 

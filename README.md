@@ -139,13 +139,13 @@ server that renders per request passes one `createCatalogStore()` to every insta
 
 ## Plugins and tooling
 
-| Package                                                                | What it does                                            | Docs                                                                      |
-| ---------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------- |
-| [`@comvi/core/cdn`](packages/core)                                     | Load translations from the Comvi CDN or API             | [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader)           |
-| [`@comvi/core/plugins`](packages/core)                                 | Detect the locale from query, cookie, storage, browser  | [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector)     |
-| [`@comvi/plugin-in-context-editor`](packages/plugin-in-context-editor) | Edit translations inside the running app                | [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor) |
-| [`@comvi/vite-plugin`](packages/vite-plugin)                           | Generate `TranslationKeys` from local JSON at dev/build | [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin)             |
-| [`@comvi/cli`](packages/cli)                                           | Pull, push, check and generate types from the terminal  | [Comvi CLI](https://comvi.io/docs/cli)                                    |
+| Package                                                                | What it does                                               | Docs                                                                      |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [`@comvi/core/cdn`](packages/core)                                     | Load translations from the Comvi CDN or API                | [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader)           |
+| [`@comvi/core/plugins`](packages/core)                                 | Detect the locale from query, cookie, storage, browser     | [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector)     |
+| [`@comvi/plugin-in-context-editor`](packages/plugin-in-context-editor) | Edit translations inside the running app                   | [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor) |
+| [`@comvi/vite-plugin`](packages/vite-plugin)                           | Generate the `Catalogs` types from local JSON at dev/build | [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin)             |
+| [`@comvi/cli`](packages/cli)                                           | Pull, push, check and generate types from the terminal     | [Comvi CLI](https://comvi.io/docs/cli)                                    |
 
 ## Contributing
 
