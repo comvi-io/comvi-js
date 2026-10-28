@@ -252,6 +252,27 @@ function project(dir, total, nsCount) {
 }
 
 /** A tsserver over stdio, with the work counters on fd 3. */
+// A hang guard, not a timing gate: a type regression can send tsserver into a loop that
+// never answers (seen with the typo guard removed), and the bench would sit silent until
+// the CI job timeout. Fail the request with its name instead.
+const REQUEST_LIMIT_MS = Number(process.env.IDE_REQUEST_LIMIT_MS) || 180_000;
+const guard = (label, promise) =>
+  new Promise((resolve, reject) => {
+    const t = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `${label}: no answer in ${REQUEST_LIMIT_MS / 1000} s — the types probably loop (IDE_REQUEST_LIMIT_MS)`,
+          ),
+        ),
+      REQUEST_LIMIT_MS,
+    );
+    promise.then(
+      (v) => (clearTimeout(t), resolve(v)),
+      (e) => (clearTimeout(t), reject(e)),
+    );
+  });
+
 function startServer() {
   const child = spawn(
     process.execPath,
@@ -299,19 +320,22 @@ function startServer() {
     }
   });
   const request = (command, args) =>
-    new Promise((resolve, reject) => {
-      const s = ++seq;
-      waiting.set(s, (msg) => {
-        // The counters line is written before the response, on another pipe: wait for it.
-        const wait = () =>
-          counts.has(s) ? resolve({ msg, work: counts.get(s) }) : setImmediate(wait);
-        if (!msg.success && command !== "exit") reject(new Error(`${command}: ${msg.message}`));
-        else wait();
-      });
-      child.stdin.write(
-        JSON.stringify({ seq: s, type: "request", command, arguments: args }) + "\n",
-      );
-    });
+    guard(
+      `tsserver ${command}`,
+      new Promise((resolve, reject) => {
+        const s = ++seq;
+        waiting.set(s, (msg) => {
+          // The counters line is written before the response, on another pipe: wait for it.
+          const wait = () =>
+            counts.has(s) ? resolve({ msg, work: counts.get(s) }) : setImmediate(wait);
+          if (!msg.success && command !== "exit") reject(new Error(`${command}: ${msg.message}`));
+          else wait();
+        });
+        child.stdin.write(
+          JSON.stringify({ seq: s, type: "request", command, arguments: args }) + "\n",
+        );
+      }),
+    );
   return { child, request };
 }
 
@@ -375,7 +399,10 @@ async function measure(p) {
     };
   } finally {
     child.stdin.end(JSON.stringify({ seq: 1e9, type: "request", command: "exit" }) + "\n");
+    // A looping server never reads `exit`: stop the one we started by its own handle.
+    const grace = setTimeout(() => child.kill(), 5000);
     await new Promise((r) => child.once("exit", r));
+    clearTimeout(grace);
   }
 }
 
@@ -411,19 +438,22 @@ async function measureLsp(p) {
     child.stdin.write(body);
   };
   const request = (method, params) =>
-    new Promise((resolve, reject) => {
-      const n = ++id;
-      const t0 = process.hrtime.bigint();
-      waiting.set(n, (msg) =>
-        msg.error
-          ? reject(new Error(`${method}: ${msg.error.message}`))
-          : resolve({
-              result: msg.result,
-              work: { ms: Number(process.hrtime.bigint() - t0) / 1e6 },
-            }),
-      );
-      send({ jsonrpc: "2.0", id: n, method, params });
-    });
+    guard(
+      `LSP ${method}`,
+      new Promise((resolve, reject) => {
+        const n = ++id;
+        const t0 = process.hrtime.bigint();
+        waiting.set(n, (msg) =>
+          msg.error
+            ? reject(new Error(`${method}: ${msg.error.message}`))
+            : resolve({
+                result: msg.result,
+                work: { ms: Number(process.hrtime.bigint() - t0) / 1e6 },
+              }),
+        );
+        send({ jsonrpc: "2.0", id: n, method, params });
+      }),
+    );
   const notify = (method, params) => send({ jsonrpc: "2.0", method, params });
   const uri = (file) => pathToFileURL(file).href;
   const pos = ({ line, offset }) => ({ line: line - 1, character: offset - 1 });
