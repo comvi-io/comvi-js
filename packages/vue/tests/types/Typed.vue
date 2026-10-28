@@ -26,6 +26,10 @@ const ShopT = useI18n("shop").T;
     {{ $t("greeting") }}
   </p>
   <T i18n-key="greeting" name="Ann" />
+  <!-- A kebab-case attribute is the camelCase param (the binding camelizes it at runtime). -->
+  <T i18n-key="welcome" :first-name="'Ann'" />
+  <!-- @vue-expect-error missing param: firstName -->
+  <T i18n-key="welcome" />
   <!-- eslint-disable-next-line vue/attribute-hyphenation -- the camelCase spelling is typed too -->
   <T i18nKey="cart.title" ns="shop" :count="1" :markers="false" />
   <T i18n-key="terms">
