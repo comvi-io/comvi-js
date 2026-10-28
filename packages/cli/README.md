@@ -78,17 +78,17 @@ run in `apps/web` does not inherit a config at the workspace root; point at it w
 
 ## Commands
 
-| Command                       | What it does                                                                          |
-| ----------------------------- | ------------------------------------------------------------------------------------- |
-| `comvi init`                  | Writes `.comvirc.json`.                                                               |
-| `comvi pull`                  | Downloads the translations, and the project's typegen schema to `.comvi/schema.json`. |
-| `comvi push`                  | Uploads local JSON files to the project.                                              |
-| `comvi check`                 | Compares local catalogs with the source locale, offline.                              |
-| `comvi translate`             | Machine-translates the values the project is missing and writes them locally.         |
-| `comvi typegen`               | Writes the `Catalogs` declaration from the project's schema.                          |
-| `comvi typegen --from <path>` | The same from a directory of JSON catalogs or `.comvi/schema.json`, offline.          |
-| `comvi typegen --watch`       | Generates once, then on every change: of the files, or of the project's schema.       |
-| `comvi typegen --check`       | Writes nothing; exits `1` when the file on disk is outdated. For CI.                  |
+| Command                       | What it does                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `comvi init`                  | Writes `.comvirc.json`.                                                            |
+| `comvi pull`                  | Downloads the translations, and `.comvi/schema.json` when available and permitted. |
+| `comvi push`                  | Uploads local JSON files to the project.                                           |
+| `comvi check`                 | Compares local catalogs with the source locale, offline.                           |
+| `comvi translate`             | Machine-translates the values the project is missing and writes them locally.      |
+| `comvi typegen`               | Writes the `Catalogs` declaration from the project's schema.                       |
+| `comvi typegen --from <path>` | The same from a directory of JSON catalogs or `.comvi/schema.json`, offline.       |
+| `comvi typegen --watch`       | Generates once, then on every change: of the files, or of the project's schema.    |
+| `comvi typegen --check`       | Writes nothing; exits `1` when the file on disk is outdated. For CI.               |
 
 ```bash title="Terminal"
 npx comvi pull
@@ -104,6 +104,12 @@ flattened to dotted keys on push. Every leaf must be a string; a number, boolean
 fails the push with exit code `4` and names the file and key. `push --force-mode` takes
 `override`, `keep`, `ask` (the default) or `abort` for keys whose local value differs from the
 project's.
+
+`pull` also writes the project's typegen schema to `.comvi/schema.json` (what
+`typegen --from .comvi/schema.json` reads offline), together with the catalogs: if either write
+fails, both are put back as they were. It skips the file with a warning when the key lacks the
+`schema:read` scope or the platform predates the schema route; the catalogs are pulled all the
+same. `--no-schema` never asks for it.
 
 `typegen` writes `outputPath` (or `--out`). The declaration augments `@comvi/core` when
 `package.json` declares it, otherwise the first framework binding it declares (`augment` in

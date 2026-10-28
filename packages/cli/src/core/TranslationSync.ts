@@ -29,6 +29,12 @@ export interface WriteTranslationsOptions {
   defaultNamespace?: string;
   /** Its files give new files their indentation and line endings. */
   sourceLocale?: string;
+  /**
+   * Files outside the catalogs written in the same operation, after them (`comvi pull`'s
+   * `.comvi/schema.json`): if any write fails, every catalog and every one of these is
+   * put back as it was — never new catalogs beside an old schema.
+   */
+  alongside?: ReadonlyArray<{ filePath: string; content: string }>;
 }
 
 /**
@@ -89,7 +95,9 @@ export class TranslationSync {
     // Every target is resolved and checked before the first mkdir, so a name
     // the CLI refuses leaves nothing behind.
     await this.assertPlanContained(planned);
-    return this.writePlanned(planned, await this.planStyles(planned, data, options));
+    const styles = await this.planStyles(planned, data, options);
+    if (!options.alongside?.length) return this.writePlanned(planned, styles);
+    return this.transact(planned, styles, undefined, options.alongside);
   }
 
   private async writePlanned(
@@ -123,12 +131,28 @@ export class TranslationSync {
   ): Promise<PullResult> {
     const planned = this.planWrites(data, options.defaultNamespace ?? DEFAULT_NAMESPACE);
     await this.assertPlanContained(planned);
+    // Read before the clear removes the files that show it.
+    const styles = await this.planStyles(planned, data, options);
+    return this.transact(planned, styles, scope ?? {}, options.alongside ?? []);
+  }
 
-    const snapshot = new Map<string, Buffer>();
-    const touched = new Set([
-      ...(await this.previewClear(scope)),
+  /**
+   * Writes `planned` (after clearing `clear`, when given) and then `alongside`, as one
+   * operation: every file it would remove or replace is read into memory first, and on
+   * any failure the files it created are removed and the snapshot is written back.
+   */
+  private async transact(
+    planned: PlannedWrite[],
+    styles: Map<string, Required<JsonStyle>>,
+    clear: ClearScope | undefined,
+    alongside: ReadonlyArray<{ filePath: string; content: string }>,
+  ): Promise<PullResult> {
+    const targets = [
       ...planned.map(({ filePath }) => filePath),
-    ]);
+      ...alongside.map(({ filePath }) => filePath),
+    ];
+    const snapshot = new Map<string, Buffer>();
+    const touched = new Set([...(clear ? await this.previewClear(clear) : []), ...targets]);
     for (const filePath of touched) {
       try {
         snapshot.set(filePath, await fs.readFile(filePath));
@@ -139,26 +163,28 @@ export class TranslationSync {
       }
     }
 
-    // Read before the clear removes the files that show it.
-    const styles = await this.planStyles(planned, data, options);
-
     try {
-      await this.clearDirectory(scope);
-      return await this.writePlanned(planned, styles);
+      if (clear) await this.clearDirectory(clear);
+      const result = await this.writePlanned(planned, styles);
+      for (const { filePath, content } of alongside) {
+        await fs.mkdir(dirname(filePath), { recursive: true });
+        await atomicWriteFile(filePath, content);
+      }
+      return result;
     } catch (error) {
-      await this.restoreSnapshot(snapshot, planned, error);
+      await this.restoreSnapshot(snapshot, targets, error);
       throw error;
     }
   }
 
   private async restoreSnapshot(
     snapshot: Map<string, Buffer>,
-    planned: PlannedWrite[],
+    targets: string[],
     cause: unknown,
   ): Promise<void> {
     const unrestored: string[] = [];
 
-    const created = planned.map(({ filePath }) => filePath).filter((p) => !snapshot.has(p));
+    const created = targets.filter((p) => !snapshot.has(p));
     for (const filePath of created) {
       await fs.rm(filePath, { force: true }).catch(() => unrestored.push(filePath));
     }

@@ -1023,6 +1023,47 @@ describe("comvi pull", () => {
       await expect(fs.access(localesDir)).rejects.toMatchObject({ code: "ENOENT" });
     });
 
+    it("a schema file that cannot be written puts the catalogs back as they were", async () => {
+      // The catalogs are written first; then the schema write fails (a read-only .comvi).
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      await fs.mkdir(localesDir, { recursive: true });
+      await fs.writeFile(join(localesDir, "en.json"), '{"greeting":"Old"}');
+      await fs.mkdir(join(root, ".comvi"));
+      await fs.chmod(join(root, ".comvi"), 0o555);
+      try {
+        http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, ...TRANSLATIONS });
+
+        expect(await runPull(["-c", configPath])).not.toBe(0);
+
+        expect(output.stderr).toContain("Pull failed");
+        expect(await fs.readFile(join(localesDir, "en.json"), "utf-8")).toBe('{"greeting":"Old"}');
+        await expect(fs.access(schemaFile())).rejects.toMatchObject({ code: "ENOENT" });
+      } finally {
+        await fs.chmod(join(root, ".comvi"), 0o755);
+      }
+    });
+
+    it("with --empty-dir too: a failing schema destination leaves catalogs and schema as they were", async () => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      await fs.mkdir(localesDir, { recursive: true });
+      await fs.writeFile(join(localesDir, "en.json"), '{"greeting":"Old"}');
+      await fs.writeFile(join(localesDir, "de.json"), '{"greeting":"Alt"}');
+      await fs.mkdir(join(root, ".comvi"));
+      await fs.writeFile(schemaFile(), "old schema");
+      await fs.chmod(join(root, ".comvi"), 0o555);
+      try {
+        http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, ...TRANSLATIONS });
+
+        expect(await runPull(["-c", configPath, "--empty-dir"])).not.toBe(0);
+
+        expect(await fs.readFile(join(localesDir, "en.json"), "utf-8")).toBe('{"greeting":"Old"}');
+        expect(await fs.readFile(join(localesDir, "de.json"), "utf-8")).toBe('{"greeting":"Alt"}');
+        expect(await fs.readFile(schemaFile(), "utf-8")).toBe("old schema");
+      } finally {
+        await fs.chmod(join(root, ".comvi"), 0o755);
+      }
+    });
+
     it("--dry-run names the schema file and writes nothing; --no-schema never asks for it", async () => {
       const configPath = await writeConfig({ translationsPath: localesDir });
       http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, ...TRANSLATIONS });

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { Command } from "commander";
-import { PlatformSource, serializeWireSchema, writeIfChanged } from "@comvi/typegen";
+import { promises as fs } from "node:fs";
+import { PlatformSource, serializeWireSchema } from "@comvi/typegen";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { platformSource, toCliError } from "../core/typegen";
 import { timeoutsFromEnv } from "../core/timeouts";
@@ -146,6 +147,12 @@ export function createPullCommand(): Command {
           : [];
         warnAboutLocalLosses(diffs, deleted);
 
+        // The schema file is written with the catalogs, as one operation: a failure on
+        // either side puts both back (never new catalogs beside an old schema).
+        const schemaPath = path.resolve(SCHEMA_FILE);
+        const schemaChanged = schema !== undefined && (await readText(schemaPath)) !== schema;
+        const alongside = schemaChanged ? [{ filePath: schemaPath, content: schema! }] : [];
+
         let result;
         if (emptyDir) {
           // Clear and write as one operation: a write that fails partway
@@ -155,19 +162,20 @@ export function createPullCommand(): Command {
           result = await sync.replaceTranslations(translations, scope, {
             defaultNamespace,
             sourceLocale: config.sourceLocale,
+            alongside,
           });
         } else {
           console.log("📝 Writing translation files...");
           result = await sync.writeTranslations(translations, {
             defaultNamespace,
             sourceLocale: config.sourceLocale,
+            alongside,
           });
         }
 
         if (schema !== undefined) {
-          const written = writeIfChanged(path.resolve(SCHEMA_FILE), schema);
           console.log(
-            written
+            schemaChanged
               ? `📝 Wrote the typegen schema → ${SCHEMA_FILE}`
               : `✓ The typegen schema is unchanged (${SCHEMA_FILE})`,
           );
@@ -209,6 +217,15 @@ async function fetchSchema(config: ComviConfig): Promise<string | undefined> {
       return undefined;
     }
     throw cliError;
+  }
+}
+
+/** A file's text, or `undefined` when there is none (any other failure is the write's to report). */
+async function readText(file: string): Promise<string | undefined> {
+  try {
+    return await fs.readFile(file, "utf8");
+  } catch {
+    return undefined;
   }
 }
 
