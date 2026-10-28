@@ -56,6 +56,14 @@ const CASES = [
     "TS2345",
   ],
   ["one('zzz', { name: 'x' }); // E17 typo in a one-key namespace", "TS2345"],
+  // A key with no params takes no params beyond ns/locale/markers (review lot 3: `never`
+  // params once fell into the loose typo branch, because never extends NotAKey too).
+  ["s('s0.k2', { extra: 1 }); // E21 a param on a key without params", "TS2353"],
+  ["s('s0.k2', { ns: 'shop', extra: 1 }); // E22 the same, with ns", "TS2353"],
+  [
+    "const px = { extra: 1 }; s('s0.k2', px); // E23 a params object with nothing in common",
+    "TS2559",
+  ],
   // `markers` is a per-call option like ns and locale (R3-14 H9): a boolean, on every shape.
   ["out.push(s('s0.k0', { markers: false, count: 1 }));", ""],
   ["out.push(s('s0.k17', { markers: false }));", ""],
@@ -195,6 +203,13 @@ const REDS = {
   "no typo guard": plant("no typo guard", [[GUARD, ""]]),
   "1a guard [KeysOf[N]] extends [K]": plant("1a guard", [
     [GUARD, "[KeysOf[N]] extends [Exclude<K, NotAKey>]\n  ? NotAKey\n  : "],
+  ]),
+  // (4) `never` params tested after the typo marker: a key without params took any params.
+  "never after NotAKey": plant("never after NotAKey", [
+    [
+      "export type Args<N, P> = [P] extends [never]",
+      "export type Args<N, P> = [P] extends [NotAKey]\n  ? [params?: { ns?: NsOf; locale?: string; markers?: boolean } & Record<string, unknown>]\n  : [P] extends [never]",
+    ],
   ]),
   // (3) The untyped t() of lot 1, typed `string` for any params (review A6).
   "untyped t() always a string": plant("untyped string", [

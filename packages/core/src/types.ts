@@ -11,10 +11,13 @@
  *     "title":      never;                                        // no params
  *   } } }
  *
- * Gates (scripts/types-bench, CI): check ≤ 1.0 s at 2 ns × 20k keys × 300 calls, a key
- * typo ≤ 5 s total, 5k → 20k scaling ≤ 2.5×, and the 11 negative diagnostics of
- * `tests/types/negative.ts` keep their codes. Before changing anything here, read the
- * rejected alternatives below — each was measured slower or less precise.
+ * Gates (CI) count work, never milliseconds: `pnpm check:types-bench` (tsc: instantiations
+ * per extra call, union inputs, a key typo costing no more than a correct call, 5k → 20k
+ * scaling ≤ 1.5×, memory) and `pnpm check:types-ide` (a real tsserver at 5k/20k/50k keys:
+ * completions return exactly the namespace's keys, hover and diagnostics after an edit or
+ * a regeneration scale ≤ 1.5× from 5k to 50k, memory @50k ≤ 400 MB); `pnpm test:types`
+ * pins every negative diagnostic of `tests/types/negative.mjs`. Before changing anything
+ * here, read the rejected alternatives below — each was measured slower or less precise.
  */
 
 /** Translation catalogs per namespace, augmented by generated declarations. */
@@ -85,10 +88,10 @@ export type ParamsFor<N extends NsOf, K extends KeysOf[N] | NotAKey> = [NotAKey]
  * and never an internal name. `markers: false` keeps an in-context editor session from
  * marking the call's output (R3-14 H9); `ns`, `locale` and `markers` are reserved names.
  */
-export type Args<N, P> = [P] extends [NotAKey]
-  ? [params?: { ns?: NsOf; locale?: string; markers?: boolean } & Record<string, unknown>]
-  : [P] extends [never]
-    ? [params?: { ns?: N; locale?: string; markers?: boolean }]
+export type Args<N, P> = [P] extends [never] // no params; tested FIRST: never extends NotAKey too
+  ? [params?: { ns?: N; locale?: string; markers?: boolean }]
+  : [P] extends [NotAKey]
+    ? [params?: { ns?: NsOf; locale?: string; markers?: boolean } & Record<string, unknown>]
     : {} extends P // every param has a default (defaultParams)
       ? [params?: P & { ns?: N; locale?: string; markers?: boolean }]
       : [params: P & { ns?: N; locale?: string; markers?: boolean }];
