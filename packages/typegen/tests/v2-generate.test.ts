@@ -226,7 +226,8 @@ describe("LocalSource.refresh()", () => {
   });
 });
 
-describe("watch()", () => {
+// File-system events can lag under load (FSEvents, inotify): generous waits, no timing asserted.
+describe("watch()", { timeout: 60_000 }, () => {
   const start = (root: string, extra: Partial<Parameters<typeof watch>[0]> = {}) => {
     const m = messages();
     const w = watch({

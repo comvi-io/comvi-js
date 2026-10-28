@@ -66,7 +66,7 @@ export interface Scan {
   /** Development: a `#` was left literal inside a select nested in a plural. */
   w?: boolean;
   /**
-   * Development builds only: the shape observer of `@comvi/typegen`, which reads a
+   * Development builds only: the shape observer of the type generator, which reads a
    * message's parameters and tags through THIS scanner instead of a second ICU reader
    * (R3-18). Every call site is `__DEV__ && P.o && …`, so production builds carry none
    * of it. Events, in scan order (numbers, so nothing but the literal ships to dev):
