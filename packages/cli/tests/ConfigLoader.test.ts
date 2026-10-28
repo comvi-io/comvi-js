@@ -38,13 +38,11 @@ describe("ConfigLoader", () => {
     apiKey: "test-api-key",
     apiBaseUrl: "https://api.test.com",
     outputPath: "src/types/i18n.d.ts",
-    strictParams: true,
   };
 
   const mockConfigWithoutApiKey = {
     apiBaseUrl: "https://api.test.com",
     outputPath: "src/types/i18n.d.ts",
-    strictParams: true,
   };
 
   beforeEach(() => {
@@ -395,7 +393,7 @@ describe("ConfigLoader", () => {
 
     const switches: Array<[key: string, config: (value: unknown) => Record<string, unknown>]> = [
       ["pull.emptyDir", (value) => ({ pull: { emptyDir: value } })],
-      ["strictParams", (value) => ({ strictParams: value })],
+      ["check.strict", (value) => ({ check: { strict: value } })],
     ];
 
     describe.each(switches)("%s", (key, configFor) => {
@@ -547,56 +545,6 @@ describe("ConfigLoader", () => {
     );
   });
 
-  describe("toGeneratorOptions", () => {
-    it("should convert config to generator options with defaults", () => {
-      const config: ComviConfig = {
-        apiKey: "test-key",
-      };
-
-      const result = ConfigLoader.toGeneratorOptions(config);
-
-      expect(result).toEqual({
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.comvi.io",
-        outputPath: "src/types/i18n.d.ts",
-        strictParams: true,
-      });
-    });
-
-    it("should use custom values when provided", () => {
-      const result = ConfigLoader.toGeneratorOptions(mockConfig);
-
-      expect(result).toEqual({
-        apiKey: "test-api-key",
-        apiBaseUrl: "https://api.test.com",
-        outputPath: "src/types/i18n.d.ts",
-        strictParams: true,
-      });
-    });
-
-    it("should handle strictParams being false", () => {
-      const config = { ...mockConfig, strictParams: false };
-      const result = ConfigLoader.toGeneratorOptions(config);
-
-      expect(result.strictParams).toBe(false);
-    });
-
-    it("should default strictParams to true when undefined", () => {
-      const config = { ...mockConfig };
-      delete config.strictParams;
-
-      const result = ConfigLoader.toGeneratorOptions(config);
-
-      expect(result.strictParams).toBe(true);
-    });
-
-    it("should throw when the config has no apiKey", () => {
-      expect(() => ConfigLoader.toGeneratorOptions({} as ComviConfig)).toThrow(
-        "API key is required",
-      );
-    });
-  });
-
   describe("create", () => {
     it("should create config file with apiKey when explicitly provided", async () => {
       mockWriteFile.mockResolvedValueOnce(undefined);
@@ -653,7 +601,6 @@ describe("ConfigLoader", () => {
         apiKey: "test-key",
         apiBaseUrl: "https://api.comvi.io",
         outputPath: "src/types/i18n.d.ts",
-        strictParams: true,
         translationsPath: "./src/locales",
         fileTemplate: "{namespace}/{languageTag}.json",
         format: "json",
@@ -683,7 +630,6 @@ describe("ConfigLoader", () => {
           "{",
           '  "apiBaseUrl": "https://api.comvi.io",',
           '  "outputPath": "src/types/i18n.d.ts",',
-          '  "strictParams": true,',
           '  "translationsPath": "./src/locales",',
           '  "fileTemplate": "{namespace}/{languageTag}.json",',
           '  "format": "json",',

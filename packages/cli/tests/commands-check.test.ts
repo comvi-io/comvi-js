@@ -645,7 +645,7 @@ describe("comvi check", () => {
   });
 
   describe("output", () => {
-    it("--format json is version 1 with a stable key order", async () => {
+    it("--format json is version 2 with a stable key order", async () => {
       await write("src/locales/de.json", { hello: "Hallo", old: "Alt" });
 
       expect(await run("--format", "json")).toBe(1);
@@ -657,18 +657,18 @@ describe("comvi check", () => {
         plural: [],
         select: [],
         tags: [],
-        unbalancedTags: [],
+        syntax: [],
         unsupportedIcu: [],
         identical: [],
         localeUnknown: false,
       };
       expect(report).toEqual({
-        version: 1,
+        version: 2,
         source: {
           locale: "en",
           emptySource: [],
           plural: [],
-          unbalancedTags: [],
+          syntax: [],
           unsupportedIcu: [],
           localeUnknown: false,
         },
@@ -691,7 +691,7 @@ describe("comvi check", () => {
           plural: 0,
           select: 0,
           tags: 0,
-          unbalancedTags: 0,
+          syntax: 0,
           unsupportedIcu: 0,
           identical: 0,
         },
@@ -716,7 +716,7 @@ describe("comvi check", () => {
         "locale",
         "emptySource",
         "plural",
-        "unbalancedTags",
+        "syntax",
         "unsupportedIcu",
         "localeUnknown",
       ]);
@@ -751,9 +751,9 @@ describe("comvi check", () => {
         "plural  de:p  {n} invalid-selector few",
         "select  de:s  {g}  source {a, other}  target {other}",
         "tags  de:t  source {b}  target {}",
-        "unbalanced tags  en:u  {i}",
+        "syntax  en:u  `<i>` is never closed",
         "unsupported ICU  en:x  number",
-        "unbalanced tags  de:v  {b}",
+        "syntax  de:v  `<b>` is never closed",
         "unsupported ICU  de:y  time",
       ]) {
         expect(output.stdout).toContain(line);
@@ -820,9 +820,9 @@ describe("comvi check", () => {
 
       expect(await run("--identical")).toBe(1);
       const counts =
-        "1 missing, 1 stale, 1 empty source, 1 params, 1 plural, 1 select, 1 tags, 1 unbalanced tags, 1 unsupported ICU, 1 identical";
+        "1 missing, 1 stale, 1 empty source, 1 params, 1 plural, 1 select, 1 tags, 1 syntax, 1 unsupported ICU, 1 identical";
       expect(output.stdout).toContain(
-        "\nen  source: 1 empty source, 1 unbalanced tags, 1 unsupported ICU\n",
+        "\nen  source: 1 empty source, 1 syntax, 1 unsupported ICU\n",
       );
       expect(output.stdout).toContain(
         "\nde  1 missing, 1 stale, 1 params, 1 plural, 1 select, 1 tags, 1 identical\n",

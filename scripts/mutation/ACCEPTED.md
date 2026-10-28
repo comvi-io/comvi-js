@@ -131,6 +131,11 @@ the Quality job (fixed by source-pinning @comvi/react like @comvi/core).
 
 ## packages/typegen message-shape.ts (COM-179 A0, 2026-10-21)
 
+Deleted in lot 3b (0.8): typegen and `comvi check` read messages with `@comvi/core`'s own scanner
+(`packages/typegen/src/v2/read.ts`), so this second ICU reader and its 23 accepted entries are
+gone, with those of the deleted `@comvi/cli` `TypeGenerator.ts` (1) and `FileSystemWriter.ts` (2).
+The record below is history.
+
 The ICU scanner moved here from `packages/vite-plugin/src/extract.ts` and was mutation-tested for
 the first time since its rewrite: 124 survivors on develop. `tests/message-shape.test.ts` kills
 every non-equivalent one; each row in its "group boundaries" block was checked against

@@ -35,16 +35,28 @@ describe("check rule: tags", () => {
     expect(report.errors).toBe(0);
   });
 
-  it("reports an unbalanced tag in the target as a warning", () => {
+  // 0.8 core refuses a message whose tags do not balance and renders its key (an error),
+  // where 0.7 rendered the markup as text (a warning).
+  it("reports an unclosed tag in the target as a syntax error", () => {
     const report = check({ a: "x" }, { a: "<b>x" });
 
-    expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", tags: ["b"] }]);
-    expect(report.summary.unbalancedTags).toBe(1);
-    expect(report.warnings).toBe(1);
-    expect(report.ok).toBe(true);
+    expect(report.locales.de.syntax).toEqual([{ key: "a", message: "`<b>` is never closed" }]);
+    expect(report.summary.syntax).toBe(1);
+    expect(report.errors).toBe(1);
+    expect(report.ok).toBe(false);
   });
 
-  it("reports an unbalanced tag in the source once, as a warning", () => {
+  it("reports a closing tag that closes nothing, and a select without other", () => {
+    const report = check({ a: "x", b: "y" }, { a: "x</b>", b: "{g, select, m {He}}" });
+
+    expect(report.locales.de.syntax).toEqual([
+      { key: "a", message: "`</b>` closes no open tag" },
+      { key: "b", message: "`{g, select, …}` needs an `other` branch" },
+    ]);
+    expect(report.errors).toBe(2);
+  });
+
+  it("reports a broken source message once, as a syntax error", () => {
     const report = CatalogCheck.run({
       translations: {
         en: { default: { a: "<b>x" } },
@@ -56,22 +68,26 @@ describe("check rule: tags", () => {
       namespaces: ["default"],
     });
 
-    expect(report.source.unbalancedTags).toEqual([{ key: "a", tags: ["b"] }]);
-    expect(report.locales.de.unbalancedTags).toEqual([]);
-    expect(report.summary.unbalancedTags).toBe(1);
-    expect(report.warnings).toBe(1);
-  });
-
-  it("fails an unbalanced tag under strict", () => {
-    expect(check({ a: "x" }, { a: "<b>x" }, { strict: true }).ok).toBe(false);
-  });
-
-  it("reports a source tag the target leaves unclosed as lost, since core renders it as text", () => {
-    const report = check({ a: "<b>x</b>" }, { a: "<b>x" });
-
-    expect(report.locales.de.tags).toEqual([{ key: "a", source: ["b"], target: [] }]);
-    expect(report.locales.de.unbalancedTags).toEqual([{ key: "a", tags: ["b"] }]);
+    expect(report.source.syntax).toEqual([{ key: "a", message: "`<b>` is never closed" }]);
+    expect(report.locales.de.syntax).toEqual([]);
+    expect(report.summary.syntax).toBe(1);
     expect(report.errors).toBe(1);
-    expect(report.warnings).toBe(1);
+  });
+
+  it("a plural without other is a plural finding, not a second syntax finding", () => {
+    const report = check({ a: "{n, plural, one {#} other {#}}" }, { a: "{n, plural, one {#}}" });
+
+    expect(report.locales.de.syntax).toEqual([]);
+    expect(report.locales.de.plural).toEqual([
+      { key: "a", argument: "n", problem: "missing-other", categories: ["other"] },
+    ]);
+    expect(report.errors).toBe(1);
+  });
+
+  it("compares no params of a key core cannot read to the end", () => {
+    const report = check({ a: "<b>{x}</b> {y}" }, { a: "<b>{x} {y}" });
+
+    expect(report.locales.de.params).toEqual([]);
+    expect(report.locales.de.syntax).toHaveLength(1);
   });
 });

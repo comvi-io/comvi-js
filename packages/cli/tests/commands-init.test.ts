@@ -209,16 +209,15 @@ describe("comvi init", () => {
     expect(await readConfig()).toMatchObject({
       apiBaseUrl: "https://api.comvi.io",
       outputPath: "src/types/i18n.d.ts",
-      strictParams: true,
       translationsPath: "./src/locales",
       fileTemplate: "{namespace}/{languageTag}.json",
     });
   });
 
-  it("turns params optional with --no-strict-params", async () => {
-    await createInitCommand().parseAsync(["--no-strict-params"], { from: "user" });
+  it("writes no strictParams: generated params are always required (defaultParams instead)", async () => {
+    await createInitCommand().parseAsync([], { from: "user" });
 
-    expect(await readConfig()).toMatchObject({ strictParams: false });
+    expect(await readConfig()).not.toHaveProperty("strictParams");
   });
 
   describe("when .comvirc.json already exists", () => {
@@ -283,8 +282,6 @@ describe("comvi init", () => {
       "-o, --output <path>",
       "Output path for generated types",
       '(default: "src/types/i18n.d.ts")',
-      "--no-strict-params",
-      "Make all params optional",
       "--translations-path <path>",
       "Local translations folder",
       '(default: "./src/locales")',

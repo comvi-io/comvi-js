@@ -125,6 +125,15 @@ describe("generate()", () => {
     ).toBe(true);
   });
 
+  it("a declaration file that exists but cannot be read is an error, never 'outdated'", async () => {
+    const root = app(CATALOGS);
+    fs.mkdirSync(path.join(root, "comvi.d.ts"));
+    for (const check of [true, false])
+      await expect(
+        generate({ from: "locales", out: "comvi.d.ts", root, sourceLocale: "en", check }),
+      ).rejects.toThrow(`Cannot read ${path.join(root, "comvi.d.ts")}: EISDIR`);
+  });
+
   it("broken JSON: one clear error naming the file, and the old declaration stays", async () => {
     const root = app(CATALOGS);
     await generate({ from: "locales", out: "comvi.d.ts", root, sourceLocale: "en" });

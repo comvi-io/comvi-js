@@ -1,14 +1,19 @@
+import path from "node:path";
 import { Command } from "commander";
+import { PlatformSource, serializeWireSchema, writeIfChanged } from "@comvi/typegen";
 import { ConfigLoader } from "../core/ConfigLoader";
+import { platformSource, toCliError } from "../core/typegen";
 import { timeoutsFromEnv } from "../core/timeouts";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync, type PullFileDiff } from "../core/TranslationSync";
 import {
   DEFAULT_FILE_TEMPLATE,
   DEFAULT_TRANSLATIONS_PATH,
+  SCHEMA_FILE,
   isDefaultFileTemplate,
 } from "../defaults";
-import { exitCodeFor } from "../utils/errors";
+import type { ComviConfig } from "../types";
+import { ErrorCodes, exitCodeFor, isTypegenError } from "../utils/errors";
 import { findLocale } from "../utils/locales";
 import {
   assertAllReturned,
@@ -26,6 +31,7 @@ export function createPullCommand(): Command {
     .option("-p, --path <path>", "Override translations output path")
     .option("--empty-dir", "Clear directory before pull")
     .option("--dry-run", "Show what would be written without touching files")
+    .option("--no-schema", `Do not write the typegen schema (${SCHEMA_FILE})`)
     .action(async (options) => {
       try {
         console.log("🔄 Loading configuration...");
@@ -81,6 +87,11 @@ export function createPullCommand(): Command {
         );
         assertAllReturned("namespaces", nss.value, translations.namespaces);
 
+        // The whole project's typegen schema v2, read before anything is written: a pull
+        // that cannot finish writes nothing. `comvi typegen --from .comvi/schema.json`
+        // generates the same declaration from it as from the platform, offline.
+        const schema = options.schema === false ? undefined : await fetchSchema(config);
+
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
           ? await apiClient.fetchDefaultNamespace()
           : undefined;
@@ -124,6 +135,7 @@ export function createPullCommand(): Command {
               console.log(`    … and ${diff.removed.length - LISTED_KEYS} more`);
             }
           }
+          if (schema !== undefined) console.log(`  ${SCHEMA_FILE} (the typegen schema)`);
           process.exit(0);
         }
 
@@ -152,6 +164,15 @@ export function createPullCommand(): Command {
           });
         }
 
+        if (schema !== undefined) {
+          const written = writeIfChanged(path.resolve(SCHEMA_FILE), schema);
+          console.log(
+            written
+              ? `📝 Wrote the typegen schema → ${SCHEMA_FILE}`
+              : `✓ The typegen schema is unchanged (${SCHEMA_FILE})`,
+          );
+        }
+
         console.log(`\n✓ Pull complete!`);
         console.log(`  Locales: ${result.locales.join(", ")}`);
         console.log(`  Namespaces: ${result.namespaces.join(", ")}`);
@@ -165,6 +186,30 @@ export function createPullCommand(): Command {
         process.exit(exitCodeFor(error));
       }
     });
+}
+
+/**
+ * The project's typegen schema v2, canonically serialized; `undefined` when the key may
+ * not read it (scope `schema:read`), which a pull of translations does not need.
+ */
+async function fetchSchema(config: ComviConfig): Promise<string | undefined> {
+  try {
+    const source = new PlatformSource(platformSource(config).platform);
+    return serializeWireSchema(await source.schema());
+  } catch (error) {
+    const cliError = toCliError(error);
+    if (isTypegenError(cliError) && cliError.details?.status === 403) {
+      console.error(
+        `⚠  ${SCHEMA_FILE} not written: the API key may not read the schema (scope schema:read)`,
+      );
+      return undefined;
+    }
+    if (isTypegenError(cliError, ErrorCodes.API_UNSUPPORTED)) {
+      console.error(`⚠  ${SCHEMA_FILE} not written: ${cliError.message}`);
+      return undefined;
+    }
+    throw cliError;
+  }
 }
 
 const LISTED_KEYS = 10;

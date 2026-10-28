@@ -1,4 +1,4 @@
-import { scanMessageShape, type MessageShape } from "@comvi/typegen";
+import { readMessage } from "@comvi/typegen";
 import { DEFAULT_NAMESPACE } from "../defaults";
 import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
 import type { TranslationData } from "../types";
@@ -59,9 +59,10 @@ export interface CatalogCheckTagsFinding {
   target: string[];
 }
 
-export interface CatalogCheckUnbalancedTagsFinding {
+export interface CatalogCheckSyntaxFinding {
   key: string;
-  tags: string[];
+  /** Why `@comvi/core` cannot compile the message (it renders the key instead). */
+  message: string;
 }
 
 export interface CatalogCheckUnsupportedIcuFinding {
@@ -76,8 +77,11 @@ export interface CatalogCheckSourceReport {
   emptySource: string[];
   /** The source's own plural groups, judged against the source locale's rules. */
   plural: CatalogCheckPluralFinding[];
-  /** Warning: tag markup core renders as literal text. */
-  unbalancedTags: CatalogCheckUnbalancedTagsFinding[];
+  /**
+   * Error: a message `@comvi/core` cannot compile — an unclosed tag or `{`, a closing tag
+   * that closes nothing, a select without `other` — so it renders the key.
+   */
+  syntax: CatalogCheckSyntaxFinding[];
   /** Error: an argument type `@comvi/core` does not compile. */
   unsupportedIcu: CatalogCheckUnsupportedIcuFinding[];
   /** `Intl` does not know the source locale: only `other` was checked. */
@@ -99,8 +103,8 @@ export interface CatalogCheckLocaleReport {
   select: CatalogCheckSelectFinding[];
   /** Error: the source uses tags and the target's tag names differ. */
   tags: CatalogCheckTagsFinding[];
-  /** Warning: tag markup core renders as literal text. */
-  unbalancedTags: CatalogCheckUnbalancedTagsFinding[];
+  /** Error: a message `@comvi/core` cannot compile, so it renders the key. */
+  syntax: CatalogCheckSyntaxFinding[];
   /** Error: an argument type `@comvi/core` does not compile. */
   unsupportedIcu: CatalogCheckUnsupportedIcuFinding[];
   /** Warning (opt-in): the target message equals the source message. */
@@ -118,7 +122,7 @@ export interface CatalogCheckSummary {
   plural: number;
   select: number;
   tags: number;
-  unbalancedTags: number;
+  syntax: number;
   unsupportedIcu: number;
   identical: number;
 }
@@ -132,6 +136,60 @@ export interface CatalogCheckReport {
   errors: number;
   warnings: number;
   ok: boolean;
+}
+
+/** One message as `@comvi/core` reads it, in the terms the rules compare. */
+interface Shape {
+  params: string[];
+  tags: string[];
+  /** `select` argument → its selectors, merged over every use of the name. */
+  selects: Record<string, string[]>;
+  /** Every plural and selectordinal argument as written, one entry per use. */
+  plurals: { argument: string; type: PluralRuleType; selectors: string[] }[];
+  /** The argument type core refuses. */
+  unsupported?: string;
+  /** Any other reason core refuses the message (a plural without `other` is a plural finding). */
+  syntax?: string;
+  /** Core stops reading at a refusal: what follows it is unknown, so nothing is compared. */
+  broken: boolean;
+}
+
+/**
+ * Reads `text` with `@comvi/core`'s own scanner (through `@comvi/typegen`'s reader), the
+ * grammar that renders it and that the generated types come from.
+ */
+function shapeOf(text: string): Shape {
+  const read = readMessage(text);
+  const selects = emptyDictionary<string[]>();
+  const plurals: Shape["plurals"] = [];
+  for (const choice of read.choices) {
+    if (choice.kind === "select") {
+      const merged = (selects[choice.name] ??= []);
+      for (const selector of choice.selectors)
+        if (!merged.includes(selector)) merged.push(selector);
+    } else {
+      plurals.push({
+        argument: choice.name,
+        type: choice.kind === "selectordinal" ? "ordinal" : "cardinal",
+        selectors: choice.selectors,
+      });
+    }
+  }
+  const shape: Shape = {
+    params: read.params.map((param) => param.name),
+    tags: [...read.tags].sort(),
+    selects,
+    plurals: plurals.sort((a, b) => a.argument.localeCompare(b.argument)),
+    broken: read.error !== undefined,
+  };
+  if (read.unsupported !== undefined) shape.unsupported = read.unsupported;
+  else if (read.error !== undefined) {
+    // A plural or selectordinal without `other` is reported by the plural rule.
+    const pluralWithoutOther = plurals.some((p) => !p.selectors.includes("other"));
+    if (!(pluralWithoutOther && /needs an `other` branch$/.test(read.error)))
+      shape.syntax = read.error;
+  }
+  return shape;
 }
 
 function isBlank(value: string | undefined): boolean {
@@ -176,8 +234,8 @@ function intlPluralCategories(): (locale: string, type: PluralRuleType) => strin
  * Offline validation of local catalogs against the source locale: what is
  * missing, stale or empty, and whether each translation asks for the same
  * parameters, plural and select branches and tags as its source. Messages are
- * read with the scanner `@comvi/vite-plugin` generates types from, so `check`
- * and the generated types agree about every message.
+ * read with `@comvi/core`'s own scanner, the one the generated types come from,
+ * so `check`, the types and the rendered message agree about every message.
  */
 export class CatalogCheck {
   static run(options: CatalogCheckOptions): CatalogCheckReport {
@@ -196,11 +254,11 @@ export class CatalogCheck {
       locale: source,
       emptySource: [],
       plural: [],
-      unbalancedTags: [],
+      syntax: [],
       unsupportedIcu: [],
       localeUnknown: pluralCategories(source, "cardinal") === undefined,
     };
-    const sourceShapes = new Map<string, MessageShape>();
+    const sourceShapes = new Map<string, Shape>();
     let keys = 0;
     for (const namespace of namespaces) {
       const catalog = sourceCatalog(namespace);
@@ -211,7 +269,7 @@ export class CatalogCheck {
           sourceReport.emptySource.push(id);
           continue;
         }
-        const shape = scanMessageShape(catalog[key]);
+        const shape = shapeOf(catalog[key]);
         sourceShapes.set(`${namespace}\u0000${key}`, shape);
         if (shape.unsupported !== undefined) {
           sourceReport.unsupportedIcu.push({ key: id, argumentType: shape.unsupported });
@@ -220,8 +278,8 @@ export class CatalogCheck {
             ...judgePlurals(id, shape, source, sourceReport.localeUnknown, pluralCategories),
           );
         }
-        if (shape.unbalancedTags.length > 0) {
-          sourceReport.unbalancedTags.push({ key: id, tags: shape.unbalancedTags });
+        if (shape.syntax !== undefined) {
+          sourceReport.syntax.push({ key: id, message: shape.syntax });
         }
       }
     }
@@ -234,12 +292,15 @@ export class CatalogCheck {
       plural: sourceReport.plural.length,
       select: 0,
       tags: 0,
-      unbalancedTags: sourceReport.unbalancedTags.length,
+      syntax: sourceReport.syntax.length,
       unsupportedIcu: sourceReport.unsupportedIcu.length,
       identical: 0,
     };
-    let errors = sourceReport.emptySource.length + sourceReport.unsupportedIcu.length;
-    let warnings = sourceReport.unbalancedTags.length;
+    let errors =
+      sourceReport.emptySource.length +
+      sourceReport.unsupportedIcu.length +
+      sourceReport.syntax.length;
+    let warnings = 0;
     for (const plural of sourceReport.plural) {
       if (plural.problem === "missing-category") warnings++;
       else errors++;
@@ -255,7 +316,7 @@ export class CatalogCheck {
         plural: [],
         select: [],
         tags: [],
-        unbalancedTags: [],
+        syntax: [],
         unsupportedIcu: [],
         identical: [],
         localeUnknown: pluralCategories(target, "cardinal") === undefined,
@@ -281,7 +342,7 @@ export class CatalogCheck {
             continue;
           }
 
-          compareMessages(id, sourceShape, scanMessageShape(targetValue!), target, report, {
+          compareMessages(id, sourceShape, shapeOf(targetValue!), target, report, {
             pluralCategories,
           });
 
@@ -298,8 +359,9 @@ export class CatalogCheck {
         report.params.length +
         report.select.length +
         report.tags.length +
+        report.syntax.length +
         report.unsupportedIcu.length;
-      warnings += report.stale.length + report.unbalancedTags.length + report.identical.length;
+      warnings += report.stale.length + report.identical.length;
 
       summary.missing += report.missing.length;
       summary.stale += report.stale.length;
@@ -307,7 +369,7 @@ export class CatalogCheck {
       summary.plural += report.plural.length;
       summary.select += report.select.length;
       summary.tags += report.tags.length;
-      summary.unbalancedTags += report.unbalancedTags.length;
+      summary.syntax += report.syntax.length;
       summary.unsupportedIcu += report.unsupportedIcu.length;
       summary.identical += report.identical.length;
       locales[target] = report;
@@ -327,8 +389,8 @@ export class CatalogCheck {
 
 function compareMessages(
   key: string,
-  source: MessageShape,
-  target: MessageShape,
+  source: Shape,
+  target: Shape,
   locale: string,
   report: CatalogCheckLocaleReport,
   context: { pluralCategories: NonNullable<CatalogCheckOptions["pluralCategories"]> },
@@ -340,16 +402,24 @@ function compareMessages(
   if (source.tags.length > 0 && !sameSet(source.tags, target.tags)) {
     report.tags.push({ key, source: source.tags, target: target.tags });
   }
-  if (target.unbalancedTags.length > 0) {
-    report.unbalancedTags.push({ key, tags: target.unbalancedTags });
+  if (target.syntax !== undefined) {
+    report.syntax.push({ key, message: target.syntax });
   }
 
-  // An unsupported argument leaves the scan without that group's parameters,
-  // so comparing what is left would report a difference nobody wrote.
-  if (source.unsupported !== undefined || target.unsupported !== undefined) return;
+  // Core stops reading at what it refuses, so the rest of that message is unknown:
+  // comparing what is left would report a difference nobody wrote. The target's plurals
+  // are still judged (a plural without `other` is how a target breaks most often),
+  // unless either side uses an argument type core does not implement.
+  if (source.broken || target.broken) {
+    if (source.unsupported === undefined && target.unsupported === undefined)
+      report.plural.push(
+        ...judgePlurals(key, target, locale, report.localeUnknown, context.pluralCategories),
+      );
+    return;
+  }
 
-  const sourceParams = sorted(source.params.map((param) => param.name));
-  const targetParams = sorted(target.params.map((param) => param.name));
+  const sourceParams = sorted(source.params);
+  const targetParams = sorted(target.params);
   if (!sameSet(sourceParams, targetParams)) {
     report.params.push({ key, source: sourceParams, target: targetParams });
   }
@@ -373,13 +443,13 @@ function compareMessages(
  */
 function judgePlurals(
   key: string,
-  shape: MessageShape,
+  shape: Shape,
   locale: string,
   localeUnknown: boolean,
   pluralCategories: NonNullable<CatalogCheckOptions["pluralCategories"]>,
 ): CatalogCheckPluralFinding[] {
   const findings: CatalogCheckPluralFinding[] = [];
-  for (const { argument, type, selectors } of pluralArguments(shape)) {
+  for (const { argument, type, selectors } of shape.plurals) {
     if (!selectors.includes("other")) {
       findings.push({ key, argument, problem: "missing-other", categories: ["other"] });
     }
@@ -404,21 +474,4 @@ function judgePlurals(
     }
   }
   return findings;
-}
-
-/**
- * Every `plural` and `selectordinal` group of a message, in argument order,
- * with the plural rules its selectors are judged against. The one place that
- * reads the scanner's plural fields.
- */
-function pluralArguments(
-  shape: MessageShape,
-): { argument: string; type: PluralRuleType; selectors: string[] }[] {
-  return shape.pluralGroups
-    .map(({ name, ordinal, selectors }) => ({
-      argument: name,
-      type: (ordinal ? "ordinal" : "cardinal") as PluralRuleType,
-      selectors,
-    }))
-    .sort((a, b) => a.argument.localeCompare(b.argument));
 }

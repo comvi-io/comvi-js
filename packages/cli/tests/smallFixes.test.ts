@@ -4,10 +4,8 @@ import { join } from "node:path";
 import { createInitCommand } from "../src/commands/init";
 import { createPullCommand } from "../src/commands/pull";
 import { createTypegenCommand } from "../src/commands/generate-types";
-import { ConsoleReporter } from "../src/core/GenerationReporter";
 import { TranslationSync } from "../src/core/TranslationSync";
 import { ErrorCodes, wrapError } from "../src/utils/errors";
-import type { Logger } from "../src/utils/logger";
 import {
   assertNoUnexpectedRequests,
   captureConsole,
@@ -69,25 +67,24 @@ describe("network errors name their cause", () => {
   });
 });
 
-describe("the typegen reporter", () => {
-  it("says it fetches the schema, not translations", () => {
-    const info = vi.fn();
-    new ConsoleReporter({ info } as unknown as Logger).reportFetching();
-    expect(info).toHaveBeenCalledWith("Fetching schema from TMS...");
-  });
-
+describe("typegen messages", () => {
   it("prints a failed generation once", async () => {
     await fs.writeFile(
       join(root, ".comvirc.json"),
       JSON.stringify({ apiKey: "k", apiBaseUrl: "https://api.test.com" }),
     );
+    await fs.writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ dependencies: { "@comvi/core": "*" } }),
+    );
     stubFetch({ "/v1/project": { status: 401, statusText: "Unauthorized" } });
 
     await run([]);
 
-    const lines = output.stderr.split("\n").filter((line) => line.includes("Invalid API key"));
+    const lines = output.stderr.split("\n").filter((line) => line.includes("API key was rejected"));
     expect(lines).toHaveLength(1);
-    expect(output.stdout.split("Fetching schema from TMS").length - 1).toBe(1);
+    expect(output.stdout.split("Reading the schema from the platform").length - 1).toBe(1);
+    expect(exits.codes[0]).toBe(3);
   });
 });
 
@@ -105,16 +102,15 @@ describe("typegen --check", () => {
     );
     stubFetch({
       "/v1/project": { body: { id: 1, name: "Acme" } },
-      "/v1/projects/1/namespaces": { body: [{ namespace: "default", isDefault: true }] },
-      "/v1/projects/1/schema": { body: { keys: {} } },
+      "/v1/projects/1/schema/v2": { body: { v: 2, sourceLocale: "en", namespaces: {} } },
     });
 
     await run(["--check"]);
 
     expect(output.stderr).not.toContain("outdated");
-    expect(output.stderr).toContain("Failed to read");
+    expect(output.stderr).toContain("Cannot read");
     // Not 1, which tells CI the types are stale.
-    expect(exits.codes[0]).not.toBe(1);
+    expect(exits.codes[0]).toBe(4);
   });
 });
 
@@ -192,7 +188,7 @@ describe("two catalogs that resolve to one file", () => {
       },
     });
 
-    await run([], createPullCommand);
+    await run(["--no-schema"], createPullCommand);
 
     expect(exits.codes[0]).toBe(4);
     await expect(fs.access(join(root, "locales"))).rejects.toMatchObject({ code: "ENOENT" });

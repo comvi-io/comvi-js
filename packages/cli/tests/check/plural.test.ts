@@ -69,7 +69,7 @@ describe("check rule: plural (injected categories)", () => {
     ]);
   });
 
-  it.each(["=", "=x", "=Infinity", "=0x10", "=1e3", "=.5", "=+1", "=1.", "==1"])(
+  it.each(["=", "=x", "=Infinity", "=0x10", "==1", "=1e"])(
     "reports the exact selector %j, which core does not compile, once as unsupported ICU",
     (selector) => {
       const report = check(
@@ -80,6 +80,21 @@ describe("check rule: plural (injected categories)", () => {
       expect(report.locales.de.unsupportedIcu).toEqual([{ key: "a", argumentType: "plural" }]);
       expect(report.locales.de.plural).toEqual([]);
       expect(report.errors).toBe(1);
+    },
+  );
+
+  // ICU's number syntax (ICU4C 78), which the 0.8 core compiles: sign, `1.`, `.5`, exponent.
+  it.each(["=1e3", "=.5", "=+1", "=1.", "=-2", "=01"])(
+    "accepts the exact selector %j, which core compiles",
+    (selector) => {
+      const report = check(
+        { a: "{n, plural, one {#} other {#}}" },
+        { a: `{n, plural, ${selector} {none} one {#} other {#}}` },
+      );
+
+      expect(report.locales.de.unsupportedIcu).toEqual([]);
+      expect(report.locales.de.plural).toEqual([]);
+      expect(report.errors).toBe(0);
     },
   );
 
@@ -176,7 +191,7 @@ describe("check rule: plural (more cases)", () => {
   it("orders findings by argument", () => {
     const report = check(
       { a: "{z, plural, one {#} other {#}} {b, plural, one {#} other {#}}" },
-      { a: "{z, plural, one {#}} {b, plural, one {#}}" },
+      { a: "{z, plural, x {#} one {#} other {#}} {b, plural, x {#} one {#} other {#}}" },
     );
 
     expect(report.locales.de.plural.map((finding) => finding.argument)).toEqual(["b", "z"]);
@@ -185,7 +200,7 @@ describe("check rule: plural (more cases)", () => {
   it("orders plural and selectordinal findings together by argument", () => {
     const report = check(
       { a: "{z, plural, one {#} other {#}} {b, selectordinal, one {#} other {#}}" },
-      { a: "{z, plural, one {#}} {b, selectordinal, one {#}}" },
+      { a: "{z, plural, x {#} one {#} other {#}} {b, selectordinal, x {#} one {#} other {#}}" },
     );
 
     expect(report.locales.de.plural.map((finding) => finding.argument)).toEqual(["b", "z"]);
@@ -306,7 +321,8 @@ describe("check rule: plural in the source locale", () => {
 
   it("does not judge the plurals of a source message with an unsupported argument", () => {
     const report = CatalogCheck.run({
-      translations: { en: { default: { a: "{n, plural, one {a}} {p, number}" } } },
+      // Core stops at `{p, number}`: the plural after it is never read.
+      translations: { en: { default: { a: "{p, number} {n, plural, one {a}}" } } },
       source: "en",
       targets: [],
       namespaces: ["default"],

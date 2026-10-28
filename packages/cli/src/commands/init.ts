@@ -26,7 +26,6 @@ export function createInitCommand(): Command {
       "API base URL (default: $COMVI_API_BASE_URL, else https://api.comvi.io)",
     )
     .option("-o, --output <path>", "Output path for generated types", "src/types/i18n.d.ts")
-    .option("--no-strict-params", "Make all params optional")
     .option("--translations-path <path>", "Local translations folder", "./src/locales")
     .option("--file-template <template>", "File template pattern", DEFAULT_FILE_TEMPLATE)
     .option("--force", "Overwrite an existing .comvirc.json")
@@ -83,7 +82,6 @@ export function createInitCommand(): Command {
           ...(options.apiKey ? { apiKey: options.apiKey } : {}),
           apiBaseUrl: apiUrl,
           outputPath: options.output,
-          strictParams: options.strictParams !== false,
           translationsPath: options.translationsPath,
           fileTemplate: options.fileTemplate,
         };

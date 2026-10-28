@@ -4918,15 +4918,6 @@
     },
     {
       "package": "packages/cli",
-      "file": "src/core/TypeGenerator.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (error instanceof TypegenError) {",
-      "lineHint": 71,
-      "kind": "equivalent",
-      "reason": "TypegenError extends Error and the following instanceof-Error branch has a byte-identical body (reportError + same result object) — skipping or emptying the branch falls through to identical handling (hand-applied both: 339/339 green)"
-    },
-    {
-      "package": "packages/cli",
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!config.apiKey) {",
@@ -5077,24 +5068,6 @@
       "lineHint": 121,
       "kind": "equivalent",
       "reason": "util.parseEnv never yields undefined values (bare FOO lines dropped, FOO= yields \"\") — probed directly; unreachable defensive typing (hand-applied: suite green)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/core/FileSystemWriter.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "encoding: \"utf-8\",",
-      "lineHint": 29,
-      "kind": "equivalent",
-      "reason": "empty-string encoding falls back to utf8 for string data (node probe; hand-applied: suite green)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/core/FileSystemWriter.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "flag: options?.exclusive ? \"wx\" : \"w\",",
-      "lineHint": 30,
-      "kind": "equivalent",
-      "reason": "the \"w\" flag literal: fs.writeFile computes options.flag || \"w\", so \"\" falls back to \"w\" (node probe); the sibling \"wx\" literal IS killed (hand-applied: suite green)"
     },
     {
       "package": "packages/cli",
@@ -5341,219 +5314,12 @@
     },
     {
       "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 125,
-      "kind": "equivalent",
-      "reason": "one extra iteration of the quoted-section scan: `value[len]` is `undefined`, not an apostrophe, so it only steps to `len + 1` and returns that instead of `len`. Every caller (scanMessage, readArgument, closingBrace, scanTags) stops at any index at or past the end."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len && value[i] !== \",\") {",
-      "lineHint": 147,
-      "kind": "equivalent",
-      "reason": "one extra iteration: `value[len]` is neither `{` nor `}`, so `i` becomes `len + 1` and the `i >= len` check below returns false exactly as for `len`."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator", "BooleanLiteral"],
-      "snippet": "if (i >= len) return false;",
-      "lineHint": 151,
-      "kind": "equivalent",
-      "reason": "reached only when no `,`, `{` or `}` follows the opening brace, so nothing can close the group under either quoting context and closingBrace returns undefined whatever this answers (`return true` included); falling through instead reads the type as \"\" and returns false."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "while (i < len && value.charCodeAt(i) <= 32) i++;",
-      "lineHint": 154,
-      "kind": "equivalent",
-      "reason": "the bound is redundant: past the end `charCodeAt` is NaN and `NaN <= 32` is false, so the loop stops at `len` either way."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 156,
-      "kind": "equivalent",
-      "reason": "one extra iteration of the type scan: at `len` the char is `undefined` and its code NaN, which break on nothing, so `i` becomes `len + 1` and `slice(typeStart, len + 1)` is the same string."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ArrayDeclaration"],
-      "snippet": "const contextStack: boolean[] = [];",
-      "lineHint": 180,
-      "kind": "equivalent",
-      "reason": "a seeded bottom element is never read: a pop happens only at a `}` that leaves depth above zero, which closes a level whose `{` pushed, and the `}` that reaches depth zero returns first."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 182,
-      "kind": "equivalent",
-      "reason": "one extra iteration: `value[len]` is `undefined`, which matches neither brace nor apostrophe, and the loop then ends with the same `undefined` result."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "if (contextStack.length > 0) context = contextStack.pop()!;",
-      "lineHint": 197,
-      "kind": "equivalent",
-      "reason": "the `-> true` and `>= 0` variants: the stack is never empty here, for the reason given on the `contextStack` declaration. The `-> false` and `<= 0` variants are killed by the '# after a nested plural row in tests/message-shape.test.ts."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 238,
-      "kind": "equivalent",
-      "reason": "one extra iteration of the choice-list loop at `i === len`: the whitespace skip does nothing and `if (i >= len) break` leaves the loop."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "while (i < len && choicesStr.charCodeAt(i) <= 32) i++;",
-      "lineHint": 239,
-      "kind": "equivalent",
-      "reason": "the bound is redundant: past the end `charCodeAt` is NaN and `NaN <= 32` is false."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 243,
-      "kind": "equivalent",
-      "reason": "one extra iteration of the selector scan: at `len` neither NaN nor `undefined` breaks, so `i` becomes `len + 1`; the selector slice is the same, and `choicesStr[len + 1]`, like `choicesStr[len]`, is not `{`, so the list fails the same way."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "while (i < len && choicesStr.charCodeAt(i) <= 32) i++;",
-      "lineHint": 250,
-      "kind": "equivalent",
-      "reason": "the second copy of the whitespace skip: past the end `charCodeAt` is NaN and `NaN <= 32` is false."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "for (let i = 0; i < len; i++) {",
-      "lineHint": 270,
-      "kind": "equivalent",
-      "reason": "one extra iteration: `content[len]` is `undefined`, which is no apostrophe, brace or comma."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ConditionalExpression", "UnaryOperator"],
-      "snippet": "if (secondComma === -1) return { kind: \"unsupported\", type };",
-      "lineHint": 300,
-      "kind": "equivalent",
-      "reason": "without the early return a one-comma `plural`/`select` hands parseChoices the whole content (`slice(0)`), which still ends in `, <type>` — a selector with no braced sub-message — so the list fails and the same refusal comes back; every other type is refused below. `=== +1` holds only when the comma pair sits at 0 and 1, which leaves the type empty and refused anyway."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "for (let i = 0; i < value.length; i++) {",
-      "lineHint": 376,
-      "kind": "equivalent",
-      "reason": "one extra iteration in the message scan: `value[value.length]` is `undefined`, so the `!== \"{\"` guard skips it and no group is opened. Moved with the scanner from packages/vite-plugin src/extract.ts, where the same entry stood."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 600,
-      "kind": "equivalent",
-      "reason": "one extra iteration of the tag pass's text scan: the code at `len` is NaN, which is no apostrophe, backslash, `<` or `{`, so it only steps past the end."
-    },
-    {
-      "package": "packages/typegen",
       "file": "src/index.ts",
       "mutators": ["BlockStatement"],
       "snippet": "} catch {",
       "lineHint": 132,
       "kind": "equivalent",
       "reason": "`manifest` is declared without an initializer, so it is already `undefined` when the read throws; the assignment in the catch only says so."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "for (let i = index + 1; i < value.length; i++) {",
-      "lineHint": 469,
-      "kind": "equivalent",
-      "reason": "one extra iteration of the balanced-quote search: `value[value.length]` is `undefined`, not an apostrophe, so the loop ends and the apostrophe stays literal (`index + 1`) exactly as it does at the end."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 495,
-      "kind": "equivalent",
-      "reason": "one extra iteration of `findClosingTag`'s scan: the code at `len` is NaN, which is no apostrophe, backslash or `<`, so it only steps past the end and the search returns `undefined` as it does at the end."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["UpdateOperator"],
-      "snippet": "i++;",
-      "lineHint": 520,
-      "kind": "equivalent",
-      "reason": "the `i--` after a matched `>` of a close: the scan resumes one character before the `>` — the close's last name character or whitespace — then passes it and the `>` again. Neither starts anything, so the result is the same; when the close ends the search the returned end only makes the text scan re-read those two characters."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ConditionalExpression", "ArithmeticOperator", "BlockStatement"],
-      "snippet": "if (value.charCodeAt(i) === SLASH && value.charCodeAt(i + 1) === GREATER_THAN) {",
-      "lineHint": 528,
-      "kind": "equivalent",
-      "reason": "the variants that stop skipping a nested `<name/>` (`-> false`, `i + 1 -> i - 1`, an emptied block): the scan then takes the `i = tagStart + 1` path and walks over `name/>` character by character, which holds nothing that opens or closes a tag. The `-> true` and `!==` variants, which would skip an unterminated `<name/`, are killed by the slash-with-no-bracket row."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["UpdateOperator"],
-      "snippet": "i++;",
-      "lineHint": 533,
-      "kind": "equivalent",
-      "reason": "the `i--` after a nested opening tag's `>`: the scan re-reads the name's last character or whitespace and the `>`, neither of which starts anything, before the tag's content."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ArithmeticOperator"],
-      "snippet": "const close = findClosingTag(value, i + 1, name, hashIsSyntax);",
-      "lineHint": 580,
-      "kind": "equivalent",
-      "reason": "starting the close search at `i - 1` re-reads the opening tag's last name character or whitespace and its `>`, neither of which starts anything."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/message-shape.ts",
-      "mutators": ["ArithmeticOperator"],
-      "snippet": "scanTags(value.slice(i + 1, close[0]), hashIsSyntax, scan);",
-      "lineHint": 586,
-      "kind": "equivalent",
-      "reason": "`i - 1` prefixes the tag's content with its last name character or whitespace and the `>`, which the text scan reads as plain text."
     },
     {
       "package": "packages/plugin-in-context-editor",

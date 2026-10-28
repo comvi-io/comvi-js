@@ -22,8 +22,9 @@ export class PlatformError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    options?: { cause?: unknown },
   ) {
-    super(message);
+    super(message, options);
     this.name = "PlatformError";
   }
 }
@@ -67,8 +68,13 @@ export class PlatformSource {
     try {
       response = await this.doFetch(this.baseUrl + path, { headers: this.headers() });
     } catch (e) {
+      // fetch reports every network failure as "fetch failed"; why sits on its cause.
+      const why = (e as { cause?: { code?: unknown } }).cause?.code;
+      const reason = typeof why === "string" ? ` (${why})` : "";
       throw new PlatformError(
-        `Cannot reach ${this.baseUrl} for the ${what}: ${(e as Error).message}`,
+        `Cannot reach ${this.baseUrl} for the ${what}: ${(e as Error).message}${reason}`,
+        undefined,
+        { cause: e },
       );
     }
     if (!response.ok) {

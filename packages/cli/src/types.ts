@@ -1,15 +1,7 @@
 /**
- * Core types for @comvi/cli. The backend serves the schema from
- * `/v1/projects/:projectId/schema` and translations from `/v1/translations`;
- * SSE streams the full schema on every update.
+ * Core types for @comvi/cli. The backend serves translations from `/v1/translations` and
+ * the typegen schema v2 from `/v1/projects/:projectId/schema/v2`.
  */
-
-/**
- * The schema shape is shared with the Comvi vite plugin through a
- * workspace-private typegen package that both builds inline. Re-exported so the
- * published `@comvi/cli` type names stay where consumers import them from.
- */
-export type { SchemaParam, KeySchema, ProjectSchema } from "@comvi/typegen";
 
 /** `{ lang: { namespace: { key: value } } }`. */
 export type TranslationData = Record<string, Record<string, Record<string, string>>>;
@@ -113,10 +105,10 @@ export interface ComviConfig {
   outputPath?: string;
 
   /**
-   * Make all params required (true) or optional (false)
-   * @default true
+   * The keys of `createI18n({ defaultParams })`: optional in every key's params of the
+   * generated declaration.
    */
-  strictParams?: boolean;
+  defaultParams?: string[];
 
   /**
    * Module the generated declarations augment.
@@ -168,8 +160,8 @@ export interface ComviConfig {
   locales?: string[];
 
   /**
-   * Locale the other catalogs are compared against by `comvi check`
-   * (a BCP 47 tag like "en")
+   * The source locale (a BCP 47 tag like "en"): `comvi check` compares the other catalogs
+   * against it, and `comvi typegen --from <dir>` generates the types from it.
    */
   sourceLocale?: string;
 
@@ -184,66 +176,10 @@ export interface ComviConfig {
   check?: { identical?: boolean; strict?: boolean };
 }
 
-export interface GeneratorOptions {
-  apiKey: string;
-
-  /**
-   * Base URL for the TMS API
-   * @example "https://api.comvi.io"
-   */
-  apiBaseUrl: string;
-
-  /**
-   * Output path for generated type definitions
-   * @default "src/types/i18n.d.ts"
-   */
-  outputPath: string;
-
-  /**
-   * Make all params required (true) or optional (false)
-   * @default true
-   */
-  strictParams?: boolean;
-
-  /**
-   * Module the generated declarations augment. Defaults to the Comvi package
-   * this project declares in its `package.json` — `@comvi/core` when it is
-   * there, otherwise the framework binding.
-   */
-  augment?: string;
-
-  /** Milliseconds for each read request (COMVI_TIMEOUT_MS). */
-  timeout?: number;
-
-  /** Milliseconds for the push commit (COMVI_TIMEOUT_MS). */
-  commitTimeout?: number;
-}
-
 export interface TranslationSyncOptions {
   translationsPath: string;
   fileTemplate: string;
   format: "json";
-}
-
-export interface GenerationResult {
-  success: boolean;
-  filePath?: string;
-  keysGenerated?: number;
-  error?: string;
-  /** The error behind a failed generation, for the exit code. */
-  cause?: unknown;
-  /** Time taken to generate, in milliseconds. */
-  duration?: number;
-}
-
-/** Result of the CI-mode type check. */
-export interface CheckResult {
-  upToDate: boolean;
-  /** Keys the generator produced. */
-  keysGenerated?: number;
-  /** Keys already in the file on disk, when it exists. */
-  currentKeys?: number;
-  filePath?: string;
 }
 
 export interface PullResult {
@@ -264,5 +200,3 @@ export interface TranslationDiff {
 
 export type { Logger, LogLevel } from "./utils/logger";
 export type { TypegenError } from "./utils/errors";
-export type { FileSystem } from "./core/FileSystemWriter";
-export type { GenerationReporter, GenerationStats } from "./core/GenerationReporter";

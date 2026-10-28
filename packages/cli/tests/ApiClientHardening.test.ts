@@ -665,7 +665,7 @@ describe("ApiClient hardening", () => {
         .mockRejectedValueOnce(new Error("boom"))
         .mockRejectedValueOnce(new Error("boom"));
 
-      const first = apiClient.fetchSchema();
+      const first = apiClient.fetchNamespaces();
       const failure = expect(first).rejects.toMatchObject({
         code: ErrorCodes.API_CONNECTION_FAILED,
       });
@@ -673,11 +673,9 @@ describe("ApiClient hardening", () => {
       await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
       await failure;
 
-      fetchMock
-        .mockResolvedValueOnce(okJson(mockProjectInfo))
-        .mockResolvedValueOnce(okJson({ keys: {} }));
+      fetchMock.mockResolvedValueOnce(okJson(mockProjectInfo)).mockResolvedValueOnce(okJson([]));
 
-      await expect(apiClient.fetchSchema()).resolves.toEqual({ keys: {} });
+      await expect(apiClient.fetchNamespaces()).resolves.toEqual([]);
     });
   });
 });

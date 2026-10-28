@@ -23,6 +23,6 @@ export default defineConfig({
     // `augmentationTargetError` reads the app's node_modules; the built
     // declaration emitter stays free of Node built-ins. Both consumers inline
     // this bundle, and both already externalize these.
-    external: ["node:fs", "node:path"],
+    external: ["node:crypto", "node:fs", "node:os", "node:path"],
   }),
 });

@@ -61,9 +61,9 @@ describe("ApiClient request timeout covers the response body", () => {
   it("times out a GET whose body stalls past the budget", async () => {
     fetchMock
       .mockResolvedValueOnce({ ok: true, json: async () => projectInfo } as Response)
-      .mockImplementationOnce(slowBody({ keys: {} }, 140));
+      .mockImplementationOnce(slowBody([], 140));
 
-    const assertion = expect(client.fetchSchema()).rejects.toMatchObject({
+    const assertion = expect(client.fetchNamespaces()).rejects.toMatchObject({
       message: "Request timeout after 20ms",
       code: ErrorCodes.API_TIMEOUT,
     });
@@ -99,9 +99,9 @@ describe("ApiClient request timeout covers the response body", () => {
   it("still resolves a body that arrives inside the budget", async () => {
     fetchMock
       .mockResolvedValueOnce({ ok: true, json: async () => projectInfo } as Response)
-      .mockImplementationOnce(slowBody({ keys: {} }, 5));
+      .mockImplementationOnce(slowBody([], 5));
 
-    const settled = expect(client.fetchSchema()).resolves.toEqual({ keys: {} });
+    const settled = expect(client.fetchNamespaces()).resolves.toEqual([]);
     void settled.catch(() => {});
     await vi.advanceTimersByTimeAsync(10);
 
@@ -200,7 +200,7 @@ describe("ApiClient cancels response bodies it does not read", () => {
     const stalled = stalledBodyResponse(403);
     fetchMock.mockResolvedValueOnce(project).mockResolvedValueOnce(stalled.response);
 
-    await expect(client.fetchSchema()).rejects.toMatchObject({
+    await expect(client.fetchNamespaces()).rejects.toMatchObject({
       code: ErrorCodes.API_AUTH_FAILED,
     });
 

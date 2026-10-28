@@ -31,12 +31,24 @@ const PATHS = {
   project: "/v1/project",
   namespaces: `/v1/projects/${PROJECT_ID}/namespaces`,
   translations: "/v1/translations",
+  schema: `/v1/projects/${PROJECT_ID}/schema/v2`,
 } as const;
 
-/** Answers the project lookup that resolves the default namespace to "common". */
+/** A project's typegen schema v2, as `GET /schema/v2` answers it. */
+const WIRE_SCHEMA = {
+  v: 2,
+  sourceLocale: "en",
+  namespaces: { common: { greeting: { params: { name: { kind: "string" } } } } },
+};
+
+/**
+ * Answers the project lookup that resolves the default namespace to "common", and the
+ * typegen schema every pull writes to `.comvi/schema.json`.
+ */
 const DEFAULT_NAMESPACE_ROUTES: Routes = {
   [PATHS.project]: { body: { id: PROJECT_ID } },
   [PATHS.namespaces]: { body: [{ namespace: "common", isDefault: true }] },
+  [PATHS.schema]: { body: WIRE_SCHEMA },
 };
 
 describe("comvi pull", () => {
@@ -663,7 +675,7 @@ describe("comvi pull", () => {
       },
     });
 
-    const exitCode = await runPull(["-c", configPath]);
+    const exitCode = await runPull(["-c", configPath, "--no-schema"]);
 
     expect(exitCode).toBe(0);
     expect(http.paths()).toEqual([PATHS.translations]);
@@ -909,7 +921,7 @@ describe("comvi pull", () => {
       },
     });
 
-    expect(await runPull(["-c", configPath, "--empty-dir"])).toBe(4);
+    expect(await runPull(["-c", configPath, "--empty-dir", "--no-schema"])).toBe(4);
 
     expect(output.stderr).toContain("share a path segment");
     expect(await fs.readFile(join(localesDir, "en-US-shop.json"), "utf-8")).toBe('{"a":"b"}');
@@ -929,5 +941,101 @@ describe("comvi pull", () => {
     expect(await runPull(["-c", configPath, "--empty-dir", "-l", "en"])).toBe(3);
 
     expect(await fs.readFile(join(localesDir, "en", "common.json"), "utf-8")).toBe('{"keep":"me"}');
+  });
+
+  describe("the typegen schema (.comvi/schema.json)", () => {
+    const TRANSLATIONS: Routes = {
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hi {name}" } } } },
+      },
+    };
+    const schemaFile = () => join(root, ".comvi", "schema.json");
+    /** What `serializeWireSchema` writes for WIRE_SCHEMA: canonical, 2-space, final newline. */
+    const CANONICAL = JSON.stringify(WIRE_SCHEMA, null, 2) + "\n";
+
+    it("writes the project's schema v2, canonically, beside the catalogs", async () => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, ...TRANSLATIONS });
+
+      expect(await runPull(["-c", configPath])).toBe(0);
+
+      expect(await fs.readFile(schemaFile(), "utf-8")).toBe(CANONICAL);
+      expect(output.stdout).toContain("Wrote the typegen schema → .comvi/schema.json");
+      const request = http.requests.find((r) => r.url.endsWith(PATHS.schema))!;
+      expect(new Headers(request.init.headers).get("authorization")).toBe("Bearer test-key");
+    });
+
+    it("leaves an unchanged schema file as it was", async () => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      await fs.mkdir(join(root, ".comvi"));
+      await fs.writeFile(schemaFile(), CANONICAL);
+      const before = (await fs.stat(schemaFile())).ino;
+      http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, ...TRANSLATIONS });
+
+      expect(await runPull(["-c", configPath])).toBe(0);
+
+      expect((await fs.stat(schemaFile())).ino).toBe(before);
+      expect(output.stdout).toContain("The typegen schema is unchanged (.comvi/schema.json)");
+    });
+
+    it("a key without schema:read pulls the catalogs and says why the schema is missing", async () => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      http = stubFetch({
+        ...DEFAULT_NAMESPACE_ROUTES,
+        ...TRANSLATIONS,
+        [PATHS.schema]: { status: 403, statusText: "Forbidden" },
+      });
+
+      expect(await runPull(["-c", configPath])).toBe(0);
+
+      expect(output.stderr).toContain(
+        ".comvi/schema.json not written: the API key may not read the schema (scope schema:read)",
+      );
+      await expect(fs.access(schemaFile())).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(fs.access(join(localesDir, "en.json"))).resolves.toBeUndefined();
+    });
+
+    it("a platform without the v2 route pulls the catalogs and says so", async () => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      http = stubFetch({
+        ...DEFAULT_NAMESPACE_ROUTES,
+        ...TRANSLATIONS,
+        [PATHS.schema]: { status: 404, statusText: "Not Found" },
+      });
+
+      expect(await runPull(["-c", configPath])).toBe(0);
+
+      expect(output.stderr).toContain("predates the typegen schema v2 route");
+      await expect(fs.access(schemaFile())).rejects.toMatchObject({ code: "ENOENT" });
+    });
+
+    it("a schema the platform cannot serve fails the pull before anything is written", async () => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      http = stubFetch({
+        ...DEFAULT_NAMESPACE_ROUTES,
+        ...TRANSLATIONS,
+        [PATHS.schema]: { body: { v: 1, keys: {} } },
+      });
+
+      expect(await runPull(["-c", configPath])).toBe(2);
+
+      expect(output.stderr).toContain("typegen schema v2 is not valid");
+      await expect(fs.access(localesDir)).rejects.toMatchObject({ code: "ENOENT" });
+    });
+
+    it("--dry-run names the schema file and writes nothing; --no-schema never asks for it", async () => {
+      const configPath = await writeConfig({ translationsPath: localesDir });
+      http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, ...TRANSLATIONS });
+
+      expect(await runPull(["-c", configPath, "--dry-run"])).toBe(0);
+      expect(output.stdout).toContain(".comvi/schema.json (the typegen schema)");
+      await expect(fs.access(schemaFile())).rejects.toMatchObject({ code: "ENOENT" });
+
+      exits.codes.length = 0;
+      http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, ...TRANSLATIONS });
+      expect(await runPull(["-c", configPath, "--no-schema"])).toBe(0);
+      expect(http.paths()).not.toContain(PATHS.schema);
+      await expect(fs.access(schemaFile())).rejects.toMatchObject({ code: "ENOENT" });
+    });
   });
 });

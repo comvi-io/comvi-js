@@ -69,15 +69,23 @@ export interface GenerateResult {
   warnings: SchemaWarning[];
 }
 
+/**
+ * The declaration file on disk, or `undefined` when there is none. A file that exists and
+ * cannot be read (a directory in its place, no permission) is an error, never "missing":
+ * `check` would call it outdated, and a write would fail on it anyway.
+ */
+function readCurrent(file: string): string | undefined {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw new Error(`Cannot read ${file}: ${(e as Error).message}`);
+  }
+}
+
 /** Writes `content` to `file` atomically, unless the file already holds exactly it. */
 export function writeIfChanged(file: string, content: string): boolean {
-  let current: string | undefined;
-  try {
-    current = fs.readFileSync(file, "utf8");
-  } catch {
-    current = undefined;
-  }
-  if (current === content) return false;
+  if (readCurrent(file) === content) return false;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.tmp`;
   try {
@@ -130,15 +138,8 @@ function finish(ctx: Context, schema: WireSchema, warnings: SchemaWarning[]): Ge
   for (const w of warnings) ctx.report({ level: "warn", text: describeWarning(w) });
   let stale = false;
   let written = false;
-  if (ctx.options.check) {
-    let current: string | undefined;
-    try {
-      current = fs.readFileSync(ctx.out, "utf8");
-    } catch {
-      current = undefined;
-    }
-    stale = current !== content;
-  } else written = writeIfChanged(ctx.out, content);
+  if (ctx.options.check) stale = readCurrent(ctx.out) !== content;
+  else written = writeIfChanged(ctx.out, content);
   const nss = Object.values(schema.namespaces);
   return {
     content,
