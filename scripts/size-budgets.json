@@ -204,11 +204,11 @@
         "maxBytes": 500
       },
       "baseline": {
-        "minBytes": 11062,
-        "gzipBytes": 5382,
+        "minBytes": 11065,
+        "gzipBytes": 5380,
         "measuredAt": "2026-10-28"
       },
-      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,895 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +492). Itemized accounting in size-budgets.md 2026-10-28 lot 4."
+      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,895 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +490). Itemized accounting in size-budgets.md 2026-10-28 lot 4 and its final pass."
     },
     {
       "name": "fw-solid-default",
@@ -280,13 +280,13 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-default.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 5127,
+      "gzipBudgetBytes": 5124,
       "baseline": {
         "minBytes": 9917,
-        "gzipBytes": 4882,
+        "gzipBytes": 4880,
         "measuredAt": "2026-10-28"
       },
-      "note": "Gated Vue floor: one `@comvi/vue` specifier, bundled catalogs, app.use(i18n) + useI18n() + t({name}). Re-baselined in lot 4 on the 0.8 binding (0.7: 7,709 B) and in its review fix pass (4,881 → 4,882); size-budgets.md 2026-10-28 lot 4."
+      "note": "Gated Vue floor: one `@comvi/vue` specifier, bundled catalogs, app.use(i18n) + useI18n() + t({name}). Re-baselined in lot 4 on the 0.8 binding (0.7: 7,709 B) and in its review fix pass (4,881 → 4,882) and final pass (4,882 → 4,880); size-budgets.md 2026-10-28 lot 4."
     },
     {
       "name": "fw-vue-full-composite",
@@ -299,13 +299,13 @@
       ],
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 7884,
+      "gzipBudgetBytes": 7881,
       "baseline": {
         "minBytes": 15956,
-        "gzipBytes": 7508,
+        "gzipBytes": 7505,
         "measuredAt": "2026-10-28"
       },
-      "note": "Gated Vue ceiling: every export of @comvi/vue and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 4 on the 0.8 binding (0.7: 13,567 B) and in its review fix pass (7,452 → 7,508); size-budgets.md 2026-10-28 lot 4 review fix pass."
+      "note": "Gated Vue ceiling: every export of @comvi/vue and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 4 on the 0.8 binding (0.7: 13,567 B) and in its review fix pass (7,452 → 7,508) and final pass (7,508 → 7,505); size-budgets.md 2026-10-28 lot 4 final pass."
     },
     {
       "name": "fw-next-server-default-loader",

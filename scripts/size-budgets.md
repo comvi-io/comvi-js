@@ -849,3 +849,19 @@ shared chunk), 0 B in `core-icu-cdn` and the binding rows. One sweep after
 
 Seen red: 60 random bytes in `install()` → `x vue-icu-cdn: 5473 B vs budget 5395 B … +583 B over
 core-icu-cdn vs cap +500 B`, `Size gate failed for: vue-icu-cdn`; reverted.
+
+### Lot 4 final pass (2026-10-28)
+
+`vue-icu-cdn` **5,380 B, +490 B** over `core-icu-cdn` (4,890). `render()` fills the params from
+the slots first and the attributes over them (an attribute bound to `null`/`undefined` wins,
+Codex N-2): 8 B less than the `??=` form, which measured 5,388 B (+498) with the `$t` zone check.
+That check is development-only: the production `$t` is `tr(i)` as before. Core is unchanged: the
+fix for Codex N-1 (a failed slot handed over as `null`, retried by an explicit `load(ns)`)
+measured `core-icu-cdn` 4,903–4,907 B against the 4,895 B ceiling and was reverted (handover
+notes). One sweep after `TURBO_FORCE=true pnpm build`, Node v24.22.1:
+
+| row                   | gzip B | budget | was   | why                                |
+| --------------------- | ------ | ------ | ----- | ---------------------------------- |
+| vue-icu-cdn           | 5,380  | 5,395  | 5,382 | +490 B over core-icu-cdn (cap 500) |
+| fw-vue-default        | 4,880  | 5,124  | 4,882 | re-baselined (× 1.05)              |
+| fw-vue-full-composite | 7,505  | 7,881  | 7,508 | re-baselined (× 1.05)              |
