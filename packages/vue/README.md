@@ -78,11 +78,7 @@ import { createI18n } from "@comvi/vue";
 import { cdn } from "@comvi/core/cdn";
 import App from "./App.vue";
 
-const i18n = createI18n({
-  locale: "en",
-  fallbackLocale: "en",
-  loader: cdn("https://cdn.comvi.io/<project-token>"),
-});
+const i18n = createI18n({ locale: "en", loader: cdn("https://cdn.comvi.io/<project-token>") });
 
 const app = createApp(App).use(i18n);
 // Mount once the first catalogs are in, so raw keys never paint.
@@ -111,8 +107,9 @@ import { T } from "@comvi/vue";
 
 Each tag is a slot of the same name, or a handler attribute (`:link="(c) => h('a', c)"`, for a tag
 that holds markup itself); a tag without either renders as text. Every attribute but `i18n-key`
-and the per-call options `ns`, `locale` and `markers` is a message param; `:markers="false"` keeps
-the in-context editor from marking the message.
+and the per-call options `ns`, `locale` and `markers` is a message param, camelized
+(`:first-name` is `{firstName}`); `:markers="false"` keeps the editor from marking the message.
+`useI18n(ns).T` takes no `ns`; on it `class` and `style` also fall through to its root element.
 
 ## Server rendering
 
@@ -127,10 +124,12 @@ const i18n = createI18n({ ...options, locale, timeZone: "UTC" }); // timeZone: r
 await Promise.all([i18n.load("account"), i18n.ready]);
 const html = await renderToString(createSSRApp(App).use(i18n));
 const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
+// The page embeds it: <script>window.__I18N__ = ${payload}</script>
 ```
 
-In the browser, `createI18n({ ...options, ...payload })` starts with the server's locale, time
-zone and catalogs: the app hydrates without a mismatch and fetches nothing the server rendered.
+In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts with the server's locale,
+time zone, clock and catalogs: the app hydrates without a mismatch and fetches nothing the server
+rendered.
 
 ### How it works
 
