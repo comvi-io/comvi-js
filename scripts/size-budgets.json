@@ -55,14 +55,14 @@
       "name": "core-icu-cdn",
       "entry": ["@comvi/core", "@comvi/core/cdn"],
       "fixture": "core-icu-cdn.ts",
-      "gzipBudgetBytes": 4895,
-      "ceilingBytes": 4895,
+      "gzipBudgetBytes": 4910,
+      "ceilingBytes": 4910,
       "baseline": {
-        "minBytes": 10032,
-        "gzipBytes": 4890,
+        "minBytes": 10036,
+        "gzipBytes": 4900,
         "measuredAt": "2026-10-28"
       },
-      "note": "core + ICU + cdn(); ceiling R3-13 (owner 27.10) = ceil(4,661 × 1.05), replacing R3-10's 3,750 B; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (… R3-13 SyntaxId cut: 4,661) and lot 1e (+63: marking hook, H8 and H3; see core-icu). Lot 1d (2026-10-28): 4774 → 4730, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 4730 → 4815, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 4815 → 4886, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 4886 → 4890, size-budgets.md 2026-10-28 lot 2c review fix pass."
+      "note": "core + ICU + cdn(); ceiling R3-13 (owner 27.10) = ceil(4,661 × 1.05), replacing R3-10's 3,750 B; the product's main path. Accounting in size-budgets.md 2026-10-27 lot 1b (… R3-13 SyntaxId cut: 4,661) and lot 1e (+63: marking hook, H8 and H3; see core-icu). Lot 1d (2026-10-28): 4774 → 4730, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 4730 → 4815, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 4815 → 4886, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 4886 → 4890, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4 N-1 fix (2026-10-28): 4890 → 4900; the owner raised the R3-13 ceiling 4,895 → 4,910 B for it (size-budgets.md 2026-10-28 lot 4 N-1 fix)."
     },
     {
       "name": "core-icu-cdn-store",
@@ -147,18 +147,18 @@
       "entry": ["@comvi/react", "@comvi/core/cdn"],
       "fixture": "framework/react-icu-cdn.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 5395,
-      "ceilingBytes": 5395,
+      "gzipBudgetBytes": 5410,
+      "ceilingBytes": 5410,
       "increment": {
         "over": "core-icu-cdn",
         "maxBytes": 500
       },
       "baseline": {
-        "minBytes": 11043,
-        "gzipBytes": 5361,
+        "minBytes": 11047,
+        "gzipBytes": 5371,
         "measuredAt": "2026-10-28"
       },
-      "note": "core-icu-cdn's graph on React: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,895 + the R3-10 binding cap 500; the increment over core-icu-cdn is HARD-capped at +500 B (lot 1c: +468; lot 1e: +467, <T markers> is types only). Accounting in size-budgets.md 2026-10-27 lots 1c and 1e. Lot 1d (2026-10-28): 5241 → 5204, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 5204 → 5284, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 5284 → 5358, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 5358 → 5361, size-budgets.md 2026-10-28 lot 2c review fix pass."
+      "note": "core-icu-cdn's graph on React: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500; the increment over core-icu-cdn is HARD-capped at +500 B (lot 1c: +468; lot 1e: +467, <T markers> is types only). Accounting in size-budgets.md 2026-10-27 lots 1c and 1e. Lot 1d (2026-10-28): 5241 → 5204, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 5204 → 5284, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 5284 → 5358, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 5358 → 5361, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5360 → 5371 (+471 B over core-icu-cdn), size-budgets.md 2026-10-28 lot 4 N-1 fix."
     },
     {
       "name": "fw-react-default",
@@ -197,18 +197,18 @@
       "entry": ["@comvi/vue", "@comvi/core/cdn"],
       "fixture": "framework/vue-icu-cdn.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 5395,
-      "ceilingBytes": 5395,
+      "gzipBudgetBytes": 5410,
+      "ceilingBytes": 5410,
       "increment": {
         "over": "core-icu-cdn",
         "maxBytes": 500
       },
       "baseline": {
-        "minBytes": 11065,
-        "gzipBytes": 5380,
+        "minBytes": 11069,
+        "gzipBytes": 5390,
         "measuredAt": "2026-10-28"
       },
-      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,895 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +490). Itemized accounting in size-budgets.md 2026-10-28 lot 4 and its final pass."
+      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +490). Itemized accounting in size-budgets.md 2026-10-28 lot 4 and its final pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5380 → 5390 (+490 B), size-budgets.md 2026-10-28 lot 4 N-1 fix."
     },
     {
       "name": "fw-solid-default",

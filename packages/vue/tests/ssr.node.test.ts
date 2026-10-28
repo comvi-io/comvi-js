@@ -149,7 +149,7 @@ describe("one request, one clock and one zone (design §2.6)", () => {
 });
 
 describe("handover() of a namespace served through the fallback chain", () => {
-  it("hands over the failed slot as an empty catalog, so the browser does not ask for it again", async () => {
+  it("hands over the failed slot as null, so the browser does not ask for it at hydration", async () => {
     const requested: string[] = [];
     const i18n = createI18n({
       locale: "de",
@@ -163,7 +163,7 @@ describe("handover() of a namespace served through the fallback chain", () => {
       },
     });
     await Promise.all([i18n.load("help"), i18n.ready]);
-    expect(handover(i18n).catalogs.help).toEqual({ de: {}, en: { faq: "en:help" } });
+    expect(handover(i18n).catalogs.help).toEqual({ de: null, en: { faq: "en:help" } });
   });
 });
 

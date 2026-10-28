@@ -138,9 +138,10 @@ export const loading = (state: State, ns?: string): boolean =>
  * What a server render hands the browser (design §2.6, R3-21): the locale, the time zone and
  * the clock the render used, and the catalogs it rendered with — every active namespace in
  * the locale's chain (its parents and fallback locales), in the shape of
- * `createI18n({ catalogs })`, a slot whose load failed as an empty catalog. The browser's
+ * `createI18n({ catalogs })`, a slot whose load failed as `null`. The browser's
  * `createI18n({ ...options, ...handover })` then renders what the server rendered and asks
- * the loader for none of it.
+ * the loader for none of it; a `null` slot is asked for again only on an explicit retry
+ * (`i18n.load(ns)`, a switch to its locale).
  */
 export interface Handover {
   locale: string;
@@ -151,7 +152,8 @@ export interface Handover {
    * sides.
    */
   now: number;
-  catalogs: Record<string, Record<string, Catalog>>;
+  /** By namespace, then locale; `null`: the load of that slot failed on the server. */
+  catalogs: Record<string, Record<string, Catalog | null>>;
 }
 
 /**
@@ -166,16 +168,17 @@ export const handover = (i18n: I18n): Handover => {
     throw new TypeError(
       "[@comvi/core] a server render needs the timeZone option: the server and the browser must format dates in one zone",
     );
-  const catalogs = N<Record<string, Catalog>>();
+  const catalogs = N<Record<string, Catalog | null>>();
   for (const n of x.n)
     for (const [l] of x.ch(s.locale)) {
       const y = s.c[n]?.[l];
       // A patched slot is handed over as one catalog: the base with the patch on top. A
       // slot of an active namespace that is neither in place nor loading failed to load
-      // (the loader asks for every slot of the chain): handed over EMPTY, so the browser
-      // renders the fallback the server rendered and does not ask for it again (R3-21).
+      // (the loader asks for every slot of the chain): handed over as `null`, so the browser
+      // renders the fallback the server rendered and does not ask for it at hydration
+      // (R3-21); `createI18n` keeps it failed until an explicit `load(ns)` retries it.
       if (y || (x.o.loader && !s.ld.includes(l + "\0" + n)))
-        (catalogs[n] ||= N())[l] = !y ? {} : y.p ? N(y.m, y.p) : y.m;
+        (catalogs[n] ||= N())[l] = !y ? null : y.p ? N(y.m, y.p) : y.m;
     }
   return { locale: s.locale, timeZone: x.o.timeZone, now: clock(i18n), catalogs };
 };

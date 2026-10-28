@@ -865,3 +865,39 @@ notes). One sweep after `TURBO_FORCE=true pnpm build`, Node v24.22.1:
 | vue-icu-cdn           | 5,380  | 5,395  | 5,382 | +490 B over core-icu-cdn (cap 500) |
 | fw-vue-default        | 4,880  | 5,124  | 4,882 | re-baselined (× 1.05)              |
 | fw-vue-full-composite | 7,505  | 7,881  | 7,508 | re-baselined (× 1.05)              |
+
+## 2026-10-28: lot 4 N-1 fix — the owner raises the `core-icu-cdn` ceiling to 4,910 B
+
+Codex N-1 (F-M2): `handover()` handed a slot that failed to load on the server over as `{}`, so an
+explicit `load(ns)` in the browser never asked for it again. Now it is handed over as `null`, and
+`createI18n({ catalogs })` puts a `null` slot in the negative cache and its namespace in the active
+set: hydration asks for nothing (R3-21), `load(ns)` retries it. The owner (28.10.2026) raised the
+R3-13 `core-icu-cdn` ceiling **4,895 → 4,910 B** for this fix; the binding rows whose ceiling is
+`core-icu-cdn`'s + 500 follow: `react-icu-cdn` and `vue-icu-cdn` **5,395 → 5,410 B**. The +500 B
+cap on each binding's increment is unchanged; no other ceiling or budget moved.
+
+Cheapest form kept: `for…in` over the catalogs and `else bad.set(key, act.add(n))` (one call,
+the cached value never read) — +9 B gz on source against +12 B with a separate `act.add(n)` and
++13 B with `Object.keys`. The first form on dist was red against the old ceiling:
+`x core-icu-cdn: 4.79 KB (4903 B) min+gz vs budget 4.78 KB (4895 B)`, `Size gate failed for:
+core-icu-cdn`. One sweep after `TURBO_FORCE=true pnpm build`, Node v24.22.1:
+
+| row                     | gzip B | was   | Δ   | budget | ceiling | why                                |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | ---------------------------------- |
+| core-icu-cdn            | 4,900  | 4,890 | +10 | 4,910  | 4,910   | the fix; 10 B headroom             |
+| react-icu-cdn           | 5,371  | 5,360 | +11 | 5,410  | 5,410   | +471 B over core-icu-cdn (cap 500) |
+| vue-icu-cdn             | 5,390  | 5,380 | +10 | 5,410  | 5,410   | +490 B over core-icu-cdn (cap 500) |
+| core-icu                | 4,432  | 4,423 | +9  | 4,449  | 4,449   | the same core; 17 B headroom       |
+| core-locale             | 588    | 587   | +1  | 618    | —       | shared-chunk gzip noise            |
+| core-icu-cdn-store      | 5,062  | 5,055 | +7  | 5,308  | —       | the same core                      |
+| core-icu-api            | 5,421  | 5,413 | +8  | 5,684  | —       | the same core                      |
+| core-icu-devtools       | 4,875  | 4,866 | +9  | 5,017  | 5,017   | the same core                      |
+| core-format             | 5,034  | 5,023 | +11 | 5,222  | —       | the same core                      |
+| core-plugins            | 5,013  | 5,003 | +10 | 5,254  | —       | the same core                      |
+| fw-react-default        | 4,871  | 4,860 | +11 | 5,101  | —       | the same core                      |
+| fw-react-full-composite | 7,805  | 7,791 | +14 | 8,135  | —       | the same core                      |
+| fw-vue-default          | 4,889  | 4,880 | +9  | 5,124  | —       | the same core                      |
+| fw-vue-full-composite   | 7,516  | 7,505 | +11 | 7,881  | —       | the same core                      |
+
+Baselines moved for the three rows named by the owner's decision (`core-icu-cdn`,
+`react-icu-cdn`, `vue-icu-cdn`); the others stay at their last re-baseline, all within budget.

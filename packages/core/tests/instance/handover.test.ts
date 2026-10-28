@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src";
 import { formatRelativeTime } from "../../src/format";
-import { handover } from "../../src/internal";
+import { activate, coming, handover, state } from "../../src/internal";
 
 describe("handover()", () => {
   it("hands over the chain (parents, fallback locales) of the active namespaces only", async () => {
@@ -68,7 +68,7 @@ describe("handover()", () => {
     expect(loader).not.toHaveBeenCalled();
   });
 
-  it("hands over a slot of the chain whose load failed as an empty catalog: the browser does not ask again", async () => {
+  it("hands over a slot of the chain whose load failed as null: the browser does not ask again", async () => {
     const server = createI18n({
       locale: "pt-BR",
       fallbackLocale: "en",
@@ -81,12 +81,53 @@ describe("handover()", () => {
     });
     await server.ready;
     const payload = JSON.parse(JSON.stringify(handover(server)));
-    expect(payload.catalogs).toEqual({ default: { "pt-BR": {}, pt: {}, en: { hi: "Hi" } } });
+    expect(payload.catalogs).toEqual({ default: { "pt-BR": null, pt: null, en: { hi: "Hi" } } });
     const loader = vi.fn(async () => ({}));
     const client = createI18n({ fallbackLocale: "en", ...payload, loader });
     await client.ready;
     expect(client.t("hi")).toBe("Hi");
     expect(loader).not.toHaveBeenCalled();
+  });
+
+  /** A server in `uk` whose `uk:account` is a 404: it renders `account` from `en`. */
+  const failedOnServer = async () => {
+    const server = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      timeZone: "UTC",
+      onError: () => {},
+      loader: async (l, n): Promise<Record<string, string>> => {
+        if (l == "uk" && n == "account") throw new Error("404 uk:account");
+        return n == "account" ? { profile: "Profile" } : { hi: l == "uk" ? "Привіт" : "Hi" };
+      },
+    });
+    await server.load("account");
+    return JSON.parse(JSON.stringify(handover(server)));
+  };
+
+  it("hydration does not ask for a slot that failed on the server, even when a binding activates its namespace", async () => {
+    const payload = await failedOnServer();
+    expect(payload.catalogs.account).toEqual({ uk: null, en: { profile: "Profile" } });
+    const loader = vi.fn(async () => ({ profile: "Профіль" }));
+    const client = createI18n({ fallbackLocale: "en", ...payload, loader });
+    // Not "still coming": the browser renders the fallback the server rendered.
+    expect(coming(client, state(client), "account")).toBe(false);
+    expect(client.t("profile", { ns: "account" })).toBe("Profile");
+    // What a binding's useI18n("account") does after commit.
+    await activate(client, "account");
+    await client.ready;
+    expect(loader).not.toHaveBeenCalled();
+    expect(client.t("profile", { ns: "account" })).toBe("Profile");
+  });
+
+  it("an explicit load(ns) in the browser asks for a slot that failed on the server once", async () => {
+    const payload = await failedOnServer();
+    const loader = vi.fn(async () => ({ profile: "Профіль" }));
+    const client = createI18n({ fallbackLocale: "en", ...payload, loader });
+    await client.load("account");
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(loader).toHaveBeenCalledWith("uk", "account", expect.anything());
+    expect(client.t("profile", { ns: "account" })).toBe("Профіль");
   });
 
   it("a slot still loading or never asked for is not handed over (the browser loads it)", async () => {

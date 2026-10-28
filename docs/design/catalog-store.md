@@ -19,9 +19,9 @@ cross-origin ETag cannot be read and `If-None-Match` would need a preflight the 
 The design text put a store in every `cdn()` loader by default, one per tab in a browser and one
 per process on a server. Measured in the lot-2c review fix pass, that default costs what the
 `core-icu-cdn-store` size row measures over `core-icu-cdn`: +165 B min+gz (5,055 against 4,890 B),
-in every browser bundle that loads from the CDN, and `core-icu-cdn` has 5 B left under its R3-13
-ceiling of 4,895 B. The
-ceilings are not raised, and only the owner can move them.
+in every browser bundle that loads from the CDN, and `core-icu-cdn` then had 5 B left under its
+R3-13 ceiling of 4,895 B (since the lot 4 N-1 fix: 4,900 against 4,910 B, the owner's 28.10.2026
+raise for that fix). The ceilings are not raised for the store, and only the owner can move them.
 
 ## Decision
 
