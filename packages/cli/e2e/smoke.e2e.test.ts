@@ -57,8 +57,13 @@ describe("comvi against a real platform API", () => {
     const typegen = await runCli(["typegen"], { cwd: target.dir, apiKey: project.keys.full });
     expect(typegen.code, typegen.stdout + typegen.stderr).toBe(0);
     const declarations = await target.read("src/types/i18n.d.ts");
-    expect(declarations).toContain('"greeting": { "name": string | number }');
-    expect(declarations).toContain('"admin:title": never');
+    expect(declarations).toContain('"greeting": { "name": string | number };');
+    expect(declarations).toContain('    "admin": {\n      "title": never;\n    };');
+    // The pull wrote the same schema: offline generation from it gives the same bytes.
+    const offline = await runCli(["typegen", "--from", ".comvi/schema.json", "--check"], {
+      cwd: target.dir,
+    });
+    expect(offline.code, offline.stdout + offline.stderr).toBe(0);
 
     const check = await runCli(["typegen", "--check"], {
       cwd: target.dir,

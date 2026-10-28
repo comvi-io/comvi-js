@@ -58,7 +58,7 @@ describe("comvi typegen --watch", () => {
     proxy.down();
     await cli.waitFor(/reconnecting in/, { since: beforeOutage });
     proxy.up();
-    await cli.waitFor(/Schema stream reconnected/, { since: beforeOutage, timeoutMs: 60_000 });
+    await cli.waitFor(/schema stream reconnected/, { since: beforeOutage, timeoutMs: 60_000 });
 
     await ws.write("src/locales/en.json", { "after.outage": "Back" });
     const push = await runCli(["push", "--force-mode", "override"], {

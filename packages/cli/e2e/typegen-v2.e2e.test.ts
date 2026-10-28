@@ -1,18 +1,21 @@
 /**
  * Typegen v2 against a REAL platform (R3-18 "correct": one output from every input): the
  * same catalogs, pushed to the platform and read back through `GET /schema/v2`, and read
- * from the local directory, give the same `comvi.d.ts` byte for byte; `watch()` on the
- * platform follows a change through the v1 SSE stream.
+ * from the local directory, give the same `comvi.d.ts` byte for byte — through the Node API
+ * and through the built CLI (`comvi typegen`, `--from`, `--check`, and the
+ * `.comvi/schema.json` that `comvi pull` writes); `watch()` and `comvi typegen --watch` on
+ * the platform follow a change through the v1 SSE stream.
  *
  *   PLATFORM_DIR=<platform checkout with schema v2> node scripts/cli-e2e.mjs typegen-v2
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { generate, serializeWireSchema, LocalSource, watch } from "@comvi/typegen";
+import { generate, LocalSource, parseWireSchema, serializeWireSchema, watch } from "@comvi/typegen";
 import {
   API_URL,
   createProject,
   createWorkspace,
   runCli,
+  startCli,
   type E2EProject,
   type Workspace,
 } from "./harness";
@@ -81,7 +84,6 @@ describe("typegen v2 against the platform", () => {
     });
     const source = new LocalSource({ dir: `${ws.dir}/src/locales`, sourceLocale: "en" });
     source.refresh();
-    const { parseWireSchema } = await import("@comvi/typegen");
     expect(serializeWireSchema(parseWireSchema(await response.json()))).toBe(
       serializeWireSchema(source.schema().schema),
     );
@@ -112,6 +114,106 @@ describe("typegen v2 against the platform", () => {
       );
     } finally {
       w.close();
+    }
+  });
+
+  it("comvi typegen from the platform writes those bytes too, and --check agrees with --from", async () => {
+    const local = await generate({
+      from: "src/locales",
+      out: "local.d.ts",
+      root: ws.dir,
+      sourceLocale: "en",
+      onMessage: () => {},
+    });
+    const remote = await runCli(["typegen", "--out", "cli-platform.d.ts"], {
+      cwd: ws.dir,
+      apiKey: project.keys.full,
+    });
+    expect(remote.code, remote.stdout + remote.stderr).toBe(0);
+    expect(await ws.read("cli-platform.d.ts")).toBe(local.content);
+
+    const offline = await runCli(
+      [
+        "typegen",
+        "--from",
+        "src/locales",
+        "--source-locale",
+        "en",
+        "--out",
+        "cli-platform.d.ts",
+        "--check",
+      ],
+      { cwd: ws.dir },
+    );
+    expect(offline.code, offline.stdout + offline.stderr).toBe(0);
+    const checked = await runCli(["typegen", "--out", "cli-platform.d.ts", "--check"], {
+      cwd: ws.dir,
+      apiKey: project.keys.full,
+    });
+    expect(checked.code, checked.stdout + checked.stderr).toBe(0);
+  });
+
+  it("comvi pull writes .comvi/schema.json; --from it gives the same bytes, offline", async () => {
+    const target = await createWorkspace({ translationsPath: "./pulled" });
+    try {
+      const pulled = await runCli(["pull"], { cwd: target.dir, apiKey: project.keys.full });
+      expect(pulled.code, pulled.stdout + pulled.stderr).toBe(0);
+      const response = await fetch(`${API_URL}/v1/projects/${project.id}/schema/v2`, {
+        headers: { authorization: `Bearer ${project.keys.full}` },
+      });
+      expect(await target.read(".comvi/schema.json")).toBe(
+        serializeWireSchema(parseWireSchema(await response.json())),
+      );
+
+      const fromFile = await runCli(
+        ["typegen", "--from", ".comvi/schema.json", "--out", "x.d.ts"],
+        {
+          cwd: target.dir,
+        },
+      );
+      expect(fromFile.code, fromFile.stdout + fromFile.stderr).toBe(0);
+      const local = await generate({
+        from: "src/locales",
+        out: "local.d.ts",
+        root: ws.dir,
+        sourceLocale: "en",
+        onMessage: () => {},
+      });
+      expect(await target.read("x.d.ts")).toBe(local.content);
+    } finally {
+      await target.cleanup();
+    }
+  });
+
+  it("comvi typegen --watch follows the platform (v1 stream as the signal, v2 fetched)", async () => {
+    const cli = startCli(["typegen", "--watch", "--out", "cli-watched.d.ts"], {
+      cwd: ws.dir,
+      apiKey: project.keys.full,
+    });
+    try {
+      await cli.waitFor(/Watching for changes/);
+      await vi.waitFor(
+        async () => expect(await ws.read("cli-watched.d.ts")).toContain('"title": never;'),
+        {
+          timeout: 30_000,
+          interval: 200,
+        },
+      );
+      await ws.write("src/locales/en.json", { ...CATALOGS["en.json"], viaCli: "<b>{x}</b>" });
+      const pushed = await runCli(["push", "--force-mode", "override"], {
+        cwd: ws.dir,
+        apiKey: project.keys.full,
+      });
+      expect(pushed.code, pushed.stdout + pushed.stderr).toBe(0);
+      await vi.waitFor(
+        async () =>
+          expect(await ws.read("cli-watched.d.ts")).toContain(
+            '"viaCli": { "b": Tag; "x": string | number };',
+          ),
+        { timeout: 30_000, interval: 200 },
+      );
+    } finally {
+      await cli.stop();
     }
   });
 });
