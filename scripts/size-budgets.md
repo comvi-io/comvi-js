@@ -703,3 +703,41 @@ gained the prototype-free `Ts` cache, the handover chunk (not in the row) its ow
 
 Headroom for later lots: `core-icu` 73 B and `core-icu-cdn` 80 B under their R3-13 ceilings;
 the React increment 31 B under its +500 B cap; devtools 61 B under its +500 B target.
+
+## 2026-10-28: lot 2c — the catalog store, `api()`, the parent-chain report; two packages leave
+
+`node scripts/size-check.mjs` after `TURBO_FORCE=true pnpm build`, Node v24.22.1; "before" is
+the lot 1d review fix pass baseline (origin/next a3db1fc9).
+
+| row                     | before | after | Δ   | budget | ceiling | note                                      |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | ----------------------------------------- |
+| core-icu                | 4,376  | 4,413 | +37 | 4,449  | 4,449   | parent-chain report; 36 B headroom        |
+| core-icu-cdn            | 4,815  | 4,886 | +71 | 4,895  | 4,895   | `/cdn` +473 B over core-icu; 9 B headroom |
+| core-icu-devtools       | 4,815  | 4,858 | +43 | 5,017  | 5,017   | devtools +445 B over core-icu (500)       |
+| core-format             | 4,924  | 4,965 | +41 | 5,214  | —       |                                           |
+| core-plugins            | 4,951  | 4,994 | +43 | 5,244  | —       |                                           |
+| react-icu-cdn           | 5,284  | 5,358 | +74 | 5,395  | 5,395   | +472 B over core-icu-cdn (cap 500)        |
+| fw-react-default        | 4,807  | 4,849 | +42 | 5,092  | —       |                                           |
+| fw-react-full-composite | 7,672  | 7,740 | +68 | 8,127  | —       |                                           |
+
+Re-baselined: every row in the table, budget = ceil(measured × 1.05), never above the row's
+ceiling. No ceiling and no cap moved. The `plugin-fetch-loader` and `plugin-fetch-loader-api`
+rows (and their fixtures) are gone with the package.
+
+The bytes, measured piece by piece on `core-icu-cdn` (cdn module alone, esbuild min+gz, beside the
+same build of the lot 1d loader): the instance's parent-chain report (a parent's `load_failed` waits
+for the locale's own load of the namespace) +36 B on every row with the instance; the loader +35 B —
+the `fetch` and `store` options and the seam the store plugs into (a request function taking the
+conditional headers, returning the catalog with its response). The store itself
+(`createCatalogStore`, ~110 B) and `api()` are not in any row: an app that does not import them does
+not ship them. A module-wide default store was measured at +248 B on this row before the cuts (its
+store code alone ~110 B after them, cdn module measured on its own) and is not in the code: it is
+over the R3-13 ceiling (`docs/design/catalog-store.md`). What the cuts were: no caller-signal race
+in the store path (the instance's flight settles on its own signal), the 304 handled as a failure
+that keeps the stored catalog, one promise per request instead of a race plus `finally`, the API
+body picked in `api()`'s own `fetch` wrapper, and no listener removal or pre-aborted check on the
+caller's signal.
+
+Design §3.2's target, `/cdn` ≤ 400 B over core, is not met: +473 B (it was +439 B before this
+lot). Headroom for later lots: `core-icu` 36 B and `core-icu-cdn` 9 B under their R3-13 ceilings;
+the React increment 28 B under its +500 B cap; devtools 55 B under its +500 B cap.
