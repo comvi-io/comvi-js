@@ -51,6 +51,17 @@ import { spawnSync } from "node:child_process";
  *     mix over 10K keys, a locale switch followed by 200 t() calls, and the heap
  *     bytes per compiled key (a child with --expose-gc). Medians of 5 runs.
  *
+ *   node scripts/perf.mjs --ssr [distRoot]
+ *     S8 (design §2.3 item 6, R4-13/R4-14): SSR with loading, an instance per request
+ *     over ONE `createCatalogStore()` and a `cdn()` loader whose `fetch` is a local mock
+ *     (no network). Warm (every catalog fresh in the store) and revalidating (`ttl: 0`:
+ *     every request answers from the store and one coalesced conditional GET per catalog
+ *     runs behind it, the mock answering 304), each sequential and at 16 concurrent
+ *     requests. Prints req/s (medians of 5 runs) and the COUNTED facts beside them —
+ *     fetches, distinct catalog objects the instances got, compiled entries — which
+ *     are what the unit suite gates (tests/cdn/store.test.ts); the req/s are
+ *     informational.
+ *
  * Every individual measurement runs in its own child process (`--measure-one`),
  * so a compare run never has two copies of core resident in one isolate — call
  * sites stay monomorphic and compare-mode numbers are directly comparable to
@@ -390,6 +401,122 @@ async function runExtended(distRoot) {
 }
 
 /**
+ * S8 — SSR with loading (see `--ssr`). A request: a new instance over the shared store,
+ * `await ready`, then `RENDERED` `t()` calls over the default namespace (a third with a
+ * `{name}`, a third ICU plural). The store and the catalogs live as long as the process.
+ */
+const SSR_KEYS = 2_000;
+const SSR_RENDERED = 60;
+const SSR_REQUESTS = 2_000;
+const SSR_CONCURRENCY = 16;
+
+export async function buildSsrScenarios(distRoot) {
+  const { createI18n } = await import(distUrl(distRoot, "comvi-core.js"));
+  const { cdn, createCatalogStore } = await import(distUrl(distRoot, "comvi-core-cdn.js"));
+  const catalog = (tag) => {
+    const c = {};
+    for (let i = 0; i < SSR_KEYS; i++)
+      c[`k${i}`] =
+        i % 3 === 0
+          ? `${tag} static ${i}`
+          : i % 3 === 1
+            ? `${tag} hi {name} ${i}`
+            : `{count, plural, one {# ${tag} item} other {# ${tag} items}}`;
+    return JSON.stringify(c);
+  };
+  const bodies = { en: catalog("en"), de: catalog("de") };
+  const scenario = (name, ttl) => {
+    const counts = { fetches: 0, conditional: 0 };
+    /** The CDN, mocked in-process: a 200 with an ETag, or a 304 for a matching one. */
+    const fetch = async (u, init) => {
+      counts.fetches++;
+      const locale = /\/([^/]+)\.json$/.exec(u)[1];
+      const etag = `"${locale}-v1"`;
+      if (init?.headers?.["If-None-Match"] === etag) {
+        counts.conditional++;
+        return new Response(null, { status: 304, headers: { etag } });
+      }
+      return new Response(bodies[locale], { headers: { etag } });
+    };
+    const store = createCatalogStore({ ttl });
+    const loader = cdn("https://cdn.example/dist", { fetch, store });
+    const seen = new Set();
+    const params = [{ name: "Ann" }, { count: 1 }, { count: 5 }];
+    const request = async (i) => {
+      const i18n = createI18n({ locale: i & 1 ? "de" : "en", loader });
+      await i18n.ready;
+      let out;
+      for (let k = 0; k < SSR_RENDERED; k++)
+        out = i18n.t(`k${(i * 7 + k) % SSR_KEYS}`, params[k % 3]);
+      seen.add(CORE_SLOT(i18n));
+      i18n.destroy();
+      return out;
+    };
+    return { name, request, counts, seen };
+  };
+  return [
+    scenario("SSR warm (store fresh)", 3_600_000),
+    scenario("SSR revalidating (ttl 0, 304)", 0),
+  ];
+}
+
+/** The catalog object an instance holds for its locale (through `@comvi/core/internal`). */
+let CORE_SLOT = () => undefined;
+
+async function timeRequests(request, total, concurrency) {
+  let next = 0;
+  let sink;
+  const worker = async () => {
+    while (next < total) sink = await request(next++);
+  };
+  const started = performance.now();
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  const ms = performance.now() - started;
+  if (sink === NEVER) throw new Error("unreachable");
+  return (total / ms) * 1000;
+}
+
+async function runSsr(distRoot) {
+  const { state } = await import(distUrl(distRoot, "comvi-core-internal.js"));
+  CORE_SLOT = (i18n) => state(i18n).c.default?.[i18n.locale]?.m;
+  const scenarios = await buildSsrScenarios(distRoot);
+  console.log(`dist: ${path.resolve(distRoot)}`);
+  console.log(
+    `node ${process.version}, load1 ${os.loadavg()[0].toFixed(1)} on ${os.cpus().length} cpus; ` +
+      `${SSR_REQUESTS} requests per run, ${SSR_RENDERED} t() each over a ${SSR_KEYS}-key catalog ` +
+      `(2 locales); median req/s of ${SINGLE_MODE_RUNS} runs (informational, never a gate)\n`,
+  );
+  const rows = [];
+  for (const sc of scenarios) {
+    // Warm-up: the store fills, every key used compiles once.
+    await timeRequests(sc.request, SSR_REQUESTS, 1);
+    const before = { ...sc.counts };
+    for (const c of [1, SSR_CONCURRENCY]) {
+      const samples = [];
+      for (let r = 0; r < SINGLE_MODE_RUNS; r++)
+        samples.push(await timeRequests(sc.request, SSR_REQUESTS, c));
+      rows.push({ name: `${sc.name}, concurrency ${c}`, reqPerSec: median(samples) });
+    }
+    const requests = 2 * SINGLE_MODE_RUNS * SSR_REQUESTS;
+    rows.push({
+      name: `${sc.name}: counted`,
+      fetches: sc.counts.fetches - before.fetches,
+      conditional304: sc.counts.conditional - before.conditional,
+      requests,
+      catalogObjects: sc.seen.size,
+    });
+  }
+  for (const row of rows)
+    console.log(
+      row.reqPerSec !== undefined
+        ? `${row.name.padEnd(48)} ${Math.round(row.reqPerSec).toLocaleString("en-US").padStart(9)} req/s`
+        : `${row.name.padEnd(48)} ${row.fetches} fetches (${row.conditional304} answered 304) for ${row.requests} requests; ${row.catalogObjects} catalog objects in all instances`,
+    );
+  console.log(`\n${JSON.stringify(rows)}`);
+  return 0;
+}
+
+/**
  * Sink for every measured call's result. Without it V8 is free to treat a
  * discarded `t()` return as dead and to vary how much of the call it elides
  * between processes, which showed up as an 11 % swing between two runs of the
@@ -659,6 +786,11 @@ async function main(argv) {
   if (heap !== -1) {
     process.stdout.write(`${await heapPerKey(argv[heap + 1])}\n`);
     return 0;
+  }
+  const ssr = argv.indexOf("--ssr");
+  if (ssr !== -1) {
+    const distRoot = argv.find((arg) => !arg.startsWith("--")) ?? DEFAULT_DIST;
+    return runSsr(distRoot);
   }
   const extended = argv.indexOf("--extended");
   if (extended !== -1) {
