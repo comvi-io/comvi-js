@@ -17,8 +17,10 @@ function assertEqual(actual, expected, label) {
   }
 }
 
+// A server render: the instance names its time zone (a development check).
 const i18n = createI18n({
   locale: "en",
+  timeZone: "UTC",
   catalogs: {
     default: {
       en: {

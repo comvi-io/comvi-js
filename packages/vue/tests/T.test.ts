@@ -431,7 +431,13 @@ describe("<T> ≡ t() on generated messages (0.7 T-message-fuzz)", () => {
         i: (c: unknown) => h("i", null, [c as never]),
       };
       const render = (body: () => unknown) => {
-        const i18n = createI18n({ locale: "en", messages: { en: { m: msg } }, onError: () => {} });
+        const i18n = createI18n({
+          locale: "en",
+          messages: { en: { m: msg } },
+          onError: () => {},
+          // A server render (renderToString) needs a zone (development check).
+          timeZone: "UTC",
+        });
         return renderToString(
           createSSRApp({ render: () => h("p", null, [body() as never]) }).use(i18n),
         );

@@ -16,7 +16,8 @@ function assertEqual(actual, expected, label) {
   }
 }
 
-const i18n = createI18n({ locale: "de", messages: { de: {} } });
+// A server render: the instance names its time zone (a development check).
+const i18n = createI18n({ locale: "de", messages: { de: {} }, timeZone: "UTC" });
 const Price = { setup: () => () => h("b", useFormat().number(1234.5)) };
 
 renderToString(createSSRApp(Price).use(i18n)).then(

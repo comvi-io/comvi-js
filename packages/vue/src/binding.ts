@@ -21,6 +21,7 @@ import {
   inject,
   onMounted,
   shallowRef,
+  ssrContextKey,
   type FunctionalComponent,
   type App,
   type ComputedRef,
@@ -76,6 +77,8 @@ type Cell = readonly [
 const K: InjectionKey<I18n> = Symbol();
 /** Instances installed into an app on a server (development check, one per request). */
 const served = new WeakSet<I18n>();
+/** Instances made without `timeZone` (development check: a server render needs one). */
+const zoneless = new WeakSet<I18n>();
 
 /**
  * Rich parts → one child: their text when every part is a string, else the parts (Vue renders
@@ -98,6 +101,7 @@ const tr = (i: I18n, ns?: string) => (k: string, p?: object) =>
  */
 export const createI18n = (options: I18nOptions): VueI18n => {
   const i = create(options) as VueI18n;
+  if (__DEV__ && !options.timeZone) zoneless.add(i);
   const s = shallowRef(state(i));
   i.on(() => (s.value = state(i)));
   (i as unknown as Record<symbol, Cell>)[K] = [
@@ -119,12 +123,6 @@ export const createI18n = (options: I18nOptions): VueI18n => {
         throw Error(
           "[@comvi/vue] an instance is installed into a second app on the server: create the i18n instance per request, in the function that creates the app",
         );
-      // Checked before anything renders, not at handover(): a server and a browser in
-      // different zones format the same date differently (design §2.6).
-      if (!options.timeZone)
-        throw TypeError(
-          "[@comvi/vue] a server render needs the timeZone option: the server and the browser must format dates in one zone",
-        );
       served.add(i);
     }
     app.provide(K, i);
@@ -136,7 +134,17 @@ export const createI18n = (options: I18nOptions): VueI18n => {
 /** The instance of the app this component belongs to. */
 export const use = (): I18n => {
   const i = inject(K);
-  if (__DEV__ && !i) throw Error("[@comvi/vue] no app.use(i18n) above this component");
+  if (__DEV__) {
+    if (!i) throw Error("[@comvi/vue] no app.use(i18n) above this component");
+    // A server render (renderToString provides its context) of an instance with no zone:
+    // checked as the first component renders, not at handover() — a server and a browser
+    // in different zones format the same date differently (design §2.6). An app that runs
+    // in Node without a server render (a test, a script) needs no zone.
+    if (zoneless.has(i) && inject(ssrContextKey, null))
+      throw TypeError(
+        "[@comvi/vue] a server render needs the timeZone option: the server and the browser must format dates in one zone",
+      );
+  }
   return i!;
 };
 

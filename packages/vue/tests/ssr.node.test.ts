@@ -147,11 +147,17 @@ describe("one request, one clock and one zone (design §2.6)", () => {
     expect(handover(i18n).now).toBe(7);
   });
 
-  it("installing an instance with no timeZone into a server app throws (development), before anything renders", () => {
+  it("a server render of an instance with no timeZone throws (development) as its first component renders", async () => {
     const i18n = createI18n({ locale: "en", messages: { en: {} } });
-    expect(() => createSSRApp(App).use(i18n)).toThrow(
+    await expect(renderToString(createSSRApp(App).use(i18n))).rejects.toThrow(
       "[@comvi/vue] a server render needs the timeZone option",
     );
+  });
+
+  it("an app in Node that does not render on a server needs no timeZone (a script, a test)", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi" } } });
+    const app = createSSRApp(App).use(i18n);
+    expect(app.config.globalProperties.$t("hi")).toBe("Hi");
   });
 });
 
