@@ -299,10 +299,10 @@
       ],
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 7821,
+      "gzipBudgetBytes": 7825,
       "baseline": {
-        "minBytes": 15785,
-        "gzipBytes": 7448,
+        "minBytes": 15794,
+        "gzipBytes": 7452,
         "measuredAt": "2026-10-28"
       },
       "note": "Gated Vue ceiling: every export of @comvi/vue and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 4 on the 0.8 binding (0.7: 13,567 B); size-budgets.md 2026-10-28 lot 4."

@@ -820,7 +820,8 @@ route's namespaces before `renderToString` (550 → 540); the bound `<T>` with n
 | --------------------- | ------ | ------ | ------- | -------------------------------------------------- |
 | vue-icu-cdn           | 5,382  | 5,395  | 5,395   | **+492 B** over core-icu-cdn (cap 500)             |
 | fw-vue-default        | 4,881  | 5,126  | —       | 0.7: 7,709                                         |
-| fw-vue-full-composite | 7,448  | 7,821  | —       | 0.7: 13,567; every export + cdn, plugins, devtools |
+| fw-vue-full-composite | 7,452  | 7,825  | —       | 0.7: 13,567; every export + cdn, plugins, devtools |
 
-`fw-vue-full-composite` now names its entries (`@comvi/vue`, `/format` and the core subpaths it
+`fw-vue-full-composite` was re-baselined from the lot's final sweep (7,448 → 7,452: the exported
+`<T>`'s setup became a named function for Stryker). It now names its entries (`@comvi/vue`, `/format` and the core subpaths it
 imports), like `fw-react-full-composite`.
