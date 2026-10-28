@@ -3,7 +3,7 @@
   "version": "0.4.0",
   "type": "module",
   "private": true,
-  "description": "The declaration emitter shared by @comvi/cli and @comvi/vite-plugin — one output format for generated Comvi translation key types",
+  "description": "The typed-translations generator behind @comvi/cli, @comvi/vite-plugin, Next and Nuxt: wire schema v2, the Catalogs emitter, generate() and watch()",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {

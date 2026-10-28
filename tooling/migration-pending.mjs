@@ -61,6 +61,7 @@ export const MIGRATION_PENDING_DOCS = {
   "README.md": CDN_08_ROOT,
   "packages/core/README.md": CORE_07_DOCS,
   "packages/react/README.md": LINT_07_RULES,
+  "packages/vite-plugin/README.md": LINT_07_RULES,
   "examples/README.md": LINT_07_RULES,
   "docs/design/composition.md": CORE_07_DOCS,
   "docs/design/formatting.md": CORE_07_DOCS,
