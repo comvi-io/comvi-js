@@ -126,9 +126,27 @@ export const createI18n = (options: I18nOptions): VueI18n => {
       served.add(i);
     }
     app.provide(K, i);
-    app.config.globalProperties.$t = tr(i) as never;
+    const t = tr(i);
+    // `$t` renders without `use()`: it checks the zone of a server render itself.
+    app.config.globalProperties.$t = (
+      __DEV__ ? (k: string, p?: object) => (zone(i), t(k, p)) : t
+    ) as never;
   };
   return i;
+};
+
+/**
+ * Development: a server render (renderToString provides its context) of an instance with
+ * no zone throws, checked as the first component renders, not at handover() — a server and
+ * a browser in different zones format the same date differently (design §2.6). An app that
+ * runs in Node without a server render (a test, a script) needs no zone. Called in setup
+ * or render, where `inject` reads the app's context.
+ */
+const zone = (i: I18n) => {
+  if (zoneless.has(i) && inject(ssrContextKey, null))
+    throw TypeError(
+      "[@comvi/vue] a server render needs the timeZone option: the server and the browser must format dates in one zone",
+    );
 };
 
 /** The instance of the app this component belongs to. */
@@ -136,14 +154,7 @@ export const use = (): I18n => {
   const i = inject(K);
   if (__DEV__) {
     if (!i) throw Error("[@comvi/vue] no app.use(i18n) above this component");
-    // A server render (renderToString provides its context) of an instance with no zone:
-    // checked as the first component renders, not at handover() — a server and a browser
-    // in different zones format the same date differently (design §2.6). An app that runs
-    // in Node without a server render (a test, a script) needs no zone.
-    if (zoneless.has(i) && inject(ssrContextKey, null))
-      throw TypeError(
-        "[@comvi/vue] a server render needs the timeZone option: the server and the browser must format dates in one zone",
-      );
+    zone(i);
   }
   return i!;
 };
@@ -229,9 +240,10 @@ export const render = (
 ) => {
   // Prototype-free: a slot named `constructor` is a handler, no inherited member.
   const q: Record<string, any> = N();
+  for (const k in slots) q[k] = (children: unknown) => slots[k]({ children });
+  // An attribute wins over a slot of the same name, even one bound to null or undefined:
+  // the tag is then unhandled.
   for (const k in attrs) q[camelize(k)] = attrs[k];
-  // An attribute wins over a slot of the same name.
-  for (const k in slots) q[k] ??= (children: unknown) => slots[k]({ children });
   // `ns`, `locale` and `markers` are attributes too: the core reads them off the params as
   // per-call options. The caller's namespace is set last: a bound `<T>`'s wins over an
   // `ns` attribute (one an untyped project can pass).

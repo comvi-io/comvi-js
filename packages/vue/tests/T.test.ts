@@ -208,6 +208,12 @@ describe("<T i18nKey>", () => {
     );
   });
 
+  it("an attribute present as null or undefined wins over a slot too: the tag has no handler", () => {
+    const i18n = en({ m: "<x>a</x>" });
+    for (const x of [null, undefined])
+      expect(html(i18n, { i18nKey: "m", x }, { x: () => h("b", "slot") })).toBe("a");
+  });
+
   it("gives a handler its children as ONE child: nested tags and node params, no warning", async () => {
     const i18n = en({ m: "<x>one <y>two</y> {k}</x>" });
     const kinds: string[] = [];
