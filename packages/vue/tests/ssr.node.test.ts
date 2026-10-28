@@ -10,8 +10,9 @@
  */
 import { createSSRApp, defineComponent, h, version } from "vue";
 import { renderToString } from "vue/server-renderer";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createI18n, handover, T, useI18n, type Catalog, type I18nError } from "../src";
+import { useFormat } from "../src/format";
 
 const CATALOGS: Record<string, Catalog> = {
   "en:default": { hi: "Hello, {name}!", terms: "Read the <link>terms</link>." },
@@ -117,6 +118,62 @@ describe("server render", () => {
   });
 });
 
+describe("one request, one clock and one zone (design §2.6)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  const Ago = defineComponent({
+    setup() {
+      const f = useFormat();
+      // 30 s before the epoch the request started at.
+      return () => h("p", f.relative(-30_000 + START));
+    },
+  });
+  const START = Date.UTC(2026, 9, 28, 12);
+
+  it("the render and the handover count from one clock, even when time passes between them", async () => {
+    vi.useFakeTimers({ now: START, toFake: ["Date"] });
+    const server = createI18n({ locale: "en", messages: { en: {} }, timeZone: "UTC" });
+    const html = await renderToString(createSSRApp(Ago).use(server));
+    vi.setSystemTime(START + 60_000);
+    const payload = JSON.parse(JSON.stringify(handover(server)));
+    expect(payload.now).toBe(START);
+    const client = createI18n({ messages: { en: {} }, ...payload });
+    expect(await renderToString(createSSRApp(Ago).use(client))).toBe(html);
+    expect(html).toBe("<p>30 seconds ago</p>");
+  });
+
+  it("an explicit `now` option is the request's clock", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: {} }, timeZone: "UTC", now: 7 });
+    expect(handover(i18n).now).toBe(7);
+  });
+
+  it("installing an instance with no timeZone into a server app throws (development), before anything renders", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: {} } });
+    expect(() => createSSRApp(App).use(i18n)).toThrow(
+      "[@comvi/vue] a server render needs the timeZone option",
+    );
+  });
+});
+
+describe("handover() of a namespace served through the fallback chain", () => {
+  it("hands over the failed slot as an empty catalog, so the browser does not ask for it again", async () => {
+    const requested: string[] = [];
+    const i18n = createI18n({
+      locale: "de",
+      fallbackLocale: "en",
+      timeZone: "UTC",
+      onError: () => {},
+      loader: async (l, n) => {
+        requested.push(`${l}:${n}`);
+        if (l == "de" && n == "help") throw new Error("404");
+        return { faq: `${l}:${n}` };
+      },
+    });
+    await Promise.all([i18n.load("help"), i18n.ready]);
+    expect(handover(i18n).catalogs.help).toEqual({ de: {}, en: { faq: "en:help" } });
+  });
+});
+
 describe("handover() (R3-21)", () => {
   it("hands over the locale, the time zone, the clock and the catalogs the render used", async () => {
     const { i18n } = await handle("de");
@@ -148,7 +205,8 @@ describe("handover() (R3-21)", () => {
     await renderToString(createSSRApp(App).use(i18n));
     const { catalogs, now } = handover(i18n);
     expect(now).toBe(42);
-    // `account` is active (App renders it) but has no catalog: nothing to hand over.
+    // A server render activates nothing: App's `useI18n("account")` never made `account`
+    // active, so nothing of it is handed over (the request did not load it).
     expect(Object.keys(catalogs)).toEqual(["default"]);
     expect(Object.keys(catalogs.default).sort()).toEqual(["de", "de-AT", "en"]);
     expect(catalogs.unused).toBeUndefined();

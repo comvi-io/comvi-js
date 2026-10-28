@@ -16,6 +16,7 @@
  *   and is in an app's bundle only when the app imports it (the R3-10 binding cap: +500 B).
  */
 import {
+  camelize,
   computed,
   inject,
   onMounted,
@@ -38,7 +39,7 @@ import {
   type TComponentFor,
   type TFor,
 } from "@comvi/core";
-import { activate, coming, state, translate, type State } from "@comvi/core/internal";
+import { activate, coming, N, state, translate, type State } from "@comvi/core/internal";
 
 declare const __DEV__: boolean;
 
@@ -60,8 +61,16 @@ export type Children = string | VNodeArrayChildren;
 /** The instance `createI18n` of `@comvi/vue` makes: core's, plus `install` for `app.use()`. */
 export type VueI18n = I18n & { install(app: App): void };
 
-/** Per instance: its published state, and the `locale` and `dir` slices of it. */
-type Cell = readonly [ShallowRef<State>, WritableComputedRef<string>, ComputedRef<"ltr" | "rtl">];
+/**
+ * Per instance: its published state, the `locale` and `dir` slices of it, and its bound
+ * `<T>` per namespace (prototype-free, so a namespace called `constructor` gets its own).
+ */
+type Cell = readonly [
+  ShallowRef<State>,
+  WritableComputedRef<string>,
+  ComputedRef<"ltr" | "rtl">,
+  Record<string, FunctionalComponent>,
+];
 
 /** The injection key, and the key of the cell on an instance this binding made. */
 const K: InjectionKey<I18n> = Symbol();
@@ -76,9 +85,12 @@ const served = new WeakSet<I18n>();
 const node = (r: unknown): any =>
   Array.isArray(r) && r.every((x) => typeof x == "string") ? r.join("") : r;
 
+/** The cell of an instance this binding made. */
+export const cell = (i: I18n): Cell => (i as unknown as Record<symbol, Cell>)[K];
+
 /** `t()` of `i` for namespace `ns`, against the state its cell holds (a reactive read). */
 const tr = (i: I18n, ns?: string) => (k: string, p?: object) =>
-  node(translate(i, (i as unknown as Record<symbol, Cell>)[K][0].value, k, p as never, ns, node));
+  node(translate(i, cell(i)[0].value, k, p as never, ns, node));
 
 /**
  * Creates the instance (core's `createI18n`, same options) and makes it a Vue plugin:
@@ -97,6 +109,7 @@ export const createI18n = (options: I18nOptions): VueI18n => {
       set: (l) => void i.setLocale(l).catch(() => {}),
     }),
     computed(() => s.value.dir),
+    N<FunctionalComponent>(),
   ];
   i.install = (app) => {
     // A server serves requests concurrently: one instance installed into two apps would
@@ -105,6 +118,12 @@ export const createI18n = (options: I18nOptions): VueI18n => {
       if (served.has(i))
         throw Error(
           "[@comvi/vue] an instance is installed into a second app on the server: create the i18n instance per request, in the function that creates the app",
+        );
+      // Checked before anything renders, not at handover(): a server and a browser in
+      // different zones format the same date differently (design §2.6).
+      if (!options.timeZone)
+        throw TypeError(
+          "[@comvi/vue] a server render needs the timeZone option: the server and the browser must format dates in one zone",
         );
       served.add(i);
     }
@@ -188,35 +207,29 @@ export interface UseI18n<NS extends string = "default"> {
   i18n: I18n;
 }
 
-/** Renders message `key` with `attrs` as params and the slots as tag handlers. */
+/**
+ * Renders message `i18nKey` of the attributes, the attributes as params and the slots as
+ * tag handlers, in namespace `ns`. An attribute arrives as the template spells it
+ * (`i18n-key`, `first-name`): camelized, as Vue camelizes props, so `:first-name` is
+ * `{firstName}` — the name vue-tsc checks.
+ */
 export const render = (
   i: I18n,
-  ns: string | undefined,
-  key: string,
+  ns: unknown,
   attrs: Record<string, unknown>,
   slots: Record<string, any>,
 ) => {
-  // `ns`, `locale` and `markers` are attributes too: the core reads them off the params as
-  // per-call options.
-  const q: Record<string, unknown> = { ns, ...attrs };
+  // Prototype-free: a slot named `constructor` is a handler, no inherited member.
+  const q: Record<string, any> = N();
+  for (const k in attrs) q[camelize(k)] = attrs[k];
   // An attribute wins over a slot of the same name.
-  for (const k in slots) if (!(k in q)) q[k] = (children: unknown) => slots[k]({ children });
-  return tr(i)(key, q);
+  for (const k in slots) q[k] ??= (children: unknown) => slots[k]({ children });
+  // `ns`, `locale` and `markers` are attributes too: the core reads them off the params as
+  // per-call options. The caller's namespace is set last: a bound `<T>`'s wins over an
+  // `ns` attribute (one an untyped project can pass).
+  q.ns = ns;
+  return tr(i)(q.i18nKey, q);
 };
-
-/**
- * Bound `<T>` per namespace: one component identity for the app's lifetime. Prototype-free,
- * so a namespace called `constructor` gets its own component. Functional: its namespace is
- * activated by the `useI18n(ns)` that returned it.
- */
-const Ts: Record<string, FunctionalComponent> = Object.create(null);
-// With no declared props every attribute is a prop of a functional component, spelled as
-// the template spells it: `i18nKey` or `i18n-key` (the key reaches the params too; no
-// message uses it).
-const bind =
-  (ns: string): FunctionalComponent =>
-  (p: Record<string, any>, { slots }) =>
-    render(use(), ns, p.i18nKey || p["i18n-key"], p, slots);
 
 /**
  * The i18n of the app (`app.use(i18n)`). `ns` is the namespace of `t` and `T`; it is
@@ -225,12 +238,14 @@ const bind =
  */
 export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
   const i = use();
-  const [s, locale, dir] = (i as unknown as Record<symbol, Cell>)[K];
+  const [s, locale, dir, Ts] = cell(i);
   const n = ns || "default";
   if (ns) onMounted(() => activate(i, ns));
   return {
     t: tr(i, n) as UseI18n<NS>["t"],
-    T: (Ts[n] ||= bind(n)) as unknown as BoundT<NS>,
+    // Functional, one per instance and namespace (R3-5(b)): every attribute is a prop of
+    // it. Its namespace is activated by this `useI18n(ns)`.
+    T: (Ts[n] ||= (p, { slots }) => render(i, n, p, slots)) as unknown as BoundT<NS>,
     locale,
     dir,
     // Until the activation after mount, a namespace the loader will load is loading

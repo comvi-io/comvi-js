@@ -6,14 +6,11 @@ import { watchEffect } from "vue";
 import { activate } from "@comvi/core/internal";
 import { render, use, type TComponent } from "./binding";
 
-const setup = (
-  p: { i18nKey: string },
-  c: { attrs: Record<string, unknown>; slots: Record<string, any> },
-) => {
+const setup = (_: unknown, c: { attrs: Record<string, unknown>; slots: Record<string, any> }) => {
   const i = use();
   // `attrs` is tracked: a new `ns` activates that namespace (after the render).
   watchEffect(() => c.attrs.ns && activate(i, c.attrs.ns as string), { flush: "post" });
-  return () => render(i, undefined, p.i18nKey, c.attrs, c.slots);
+  return () => render(i, c.attrs.ns, c.attrs, c.slots);
 };
 
 /**
@@ -25,5 +22,5 @@ const setup = (
  * `<T ns>` activates that namespace after it mounts, and again when the attribute changes.
  * `:markers="false"` opts the message out of an in-context editor session (R3-14 H9).
  */
-// `i18nKey` is the one prop (a template spells it `i18n-key`).
-export const T = { props: ["i18nKey"], inheritAttrs: false, setup } as unknown as TComponent;
+// No props: every attribute, `i18nKey` (`i18n-key` in a template) too, is read camelized.
+export const T = { inheritAttrs: false, setup } as unknown as TComponent;

@@ -13,7 +13,7 @@ import {
   formatNumber,
   formatRelativeTime,
 } from "@comvi/core/format";
-import { useI18n } from "./binding";
+import { cell, use } from "./binding";
 
 export interface Formatters {
   number(value: number, options?: Intl.NumberFormatOptions | string): string;
@@ -28,7 +28,9 @@ export interface Formatters {
 
 /** Formatters in the locale on screen; a render that calls one re-renders on a locale change. */
 export const useFormat = (): Formatters => {
-  const { i18n: i, locale } = useI18n();
+  const i = use();
+  // The instance's `locale` slice: a render that formats re-renders on a locale change only.
+  const locale = cell(i)[1];
   return {
     number: (v, o) => formatNumber(i, v, o, locale.value),
     currency: (v, c, o) => formatCurrency(i, v, c, o, locale.value),

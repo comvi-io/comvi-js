@@ -152,7 +152,8 @@ describe("reactivity slices (§2.5): counted renders", () => {
     await p;
     await nextTick();
     expect(L.counter.count).toBe(1);
-    expect(T.counter.count).toBeGreaterThan(1);
+    // Mount, the in-flight publish, the landed one: an extra publish would show here.
+    expect(T.counter.count).toBe(3);
   });
 
   it("1,000 components reading the locale re-render 0 times while a namespace loads, once each on a switch (counted)", async () => {

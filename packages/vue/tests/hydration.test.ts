@@ -5,11 +5,11 @@
  * It asks only for what the server did not send: another locale, a namespace a later view
  * activates. The control case (no payload) shows what the gate catches: a hydration
  * mismatch and requests for every catalog. The built-app, real-browser gate of R3-21 is
- * `pnpm --filter @comvi/vue test:e2e` (e2e/ssr-handover.spec.ts).
+ * `pnpm --filter @comvi/vue test:e2e` (e2e/run.mjs).
  */
-import { createSSRApp, defineComponent, h, nextTick, ref } from "vue";
+import { createSSRApp, defineComponent, h, nextTick, ref, type App as VueApp } from "vue";
 import { renderToString } from "vue/server-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createI18n, handover, useI18n, type Catalog, type Handover } from "../src";
 import { settle, vueWarnings } from "./helpers";
 
@@ -28,7 +28,8 @@ const loader = () =>
     return c;
   });
 
-const showHelp = ref(false);
+/** Whether the app shows the help view (its own `help` namespace); per test, see `fresh()`. */
+let showHelp = ref(false);
 const Help = defineComponent({
   setup() {
     const { t } = useI18n("help");
@@ -51,20 +52,34 @@ const App = defineComponent({
 const OPTIONS = { fallbackLocale: "en", timeZone: "UTC" };
 
 /** The server's response: the HTML and the payload the page embeds. */
-const serve = async (locale: string) => {
-  const i18n = createI18n({ ...OPTIONS, locale, loader: loader() });
+const serve = async (locale: string, load = loader()) => {
+  const i18n = createI18n({ ...OPTIONS, locale, loader: load });
   // The route's namespace and the locale's catalogs, loaded before the render.
   await Promise.all([i18n.load("account"), i18n.ready]);
   const html = await renderToString(createSSRApp(App).use(i18n));
-  return { html, payload: JSON.parse(JSON.stringify(handover(i18n))) as Handover };
+  const payload = JSON.parse(JSON.stringify(handover(i18n))) as Handover;
+  i18n.destroy();
+  return { html, payload };
 };
+
+/** What a test mounted: unmounted and destroyed after it, so no app outlives its case. */
+const mounted: [VueApp, ReturnType<typeof createI18n>][] = [];
+afterEach(() => {
+  for (const [app, i18n] of mounted.splice(0)) {
+    app.unmount();
+    i18n.destroy();
+  }
+  showHelp = ref(false);
+});
 
 const hydrate = async (html: string, options: Parameters<typeof createI18n>[0]) => {
   const el = document.createElement("div");
   el.innerHTML = html;
   const i18n = createI18n(options);
+  const app = createSSRApp(App).use(i18n);
+  mounted.push([app, i18n]);
   const warnings = await vueWarnings(async () => {
-    createSSRApp(App).use(i18n).mount(el);
+    app.mount(el);
     await settle();
   });
   return { el, i18n, warnings };
@@ -72,7 +87,6 @@ const hydrate = async (html: string, options: Parameters<typeof createI18n>[0]) 
 
 describe("hydration from handover()", () => {
   it("hydrates with the server's text and makes 0 catalog requests", async () => {
-    showHelp.value = false;
     const { html, payload } = await serve("uk");
     const server = html;
     const load = loader();
@@ -84,7 +98,6 @@ describe("hydration from handover()", () => {
   });
 
   it("asks only for what the server did not send: a later view's namespace, another locale", async () => {
-    showHelp.value = false;
     const { html, payload } = await serve("uk");
     const load = loader();
     const { el, i18n } = await hydrate(html, { ...OPTIONS, ...payload, loader: load });
@@ -97,11 +110,24 @@ describe("hydration from handover()", () => {
     await i18n.setLocale("en");
     await settle();
     expect(load.mock.calls.map(([l, n]) => `${l}:${n}`)).toEqual(["uk:help", "en:help"]);
-    showHelp.value = false;
+  });
+
+  it("a namespace the server served through the fallback chain is not asked for again", async () => {
+    // uk:account is not translated (404): the server rendered en:account's title.
+    const partial = vi.fn(async (locale: string, ns: string) => {
+      if (locale == "uk" && ns == "account") throw new Error("404 uk:account");
+      return CATALOGS[`${locale}:${ns}`];
+    });
+    const { html, payload } = await serve("uk", partial);
+    expect(html).toContain("<h2>Account</h2>");
+    const load = loader();
+    const { el, warnings } = await hydrate(html, { ...OPTIONS, ...payload, loader: load });
+    expect(warnings).toEqual([]);
+    expect(load).not.toHaveBeenCalled();
+    expect(el.innerHTML).toBe(html);
   });
 
   it("control: without the payload the client mismatches the server and refetches every catalog", async () => {
-    showHelp.value = false;
     const { html } = await serve("uk");
     const load = loader();
     const { warnings } = await hydrate(html, { ...OPTIONS, locale: "uk", loader: load });

@@ -56,6 +56,32 @@ describe("<T i18nKey>", () => {
     expect(html(en({ hi: "Hi" }), { "i18n-key": "hi" })).toBe("Hi");
   });
 
+  it("camelizes a kebab-case param, as a template spells it (:first-name → {firstName})", () => {
+    expect(html(en({ hi: "Hi {firstName}" }), { "i18n-key": "hi", "first-name": "Ann" })).toBe(
+      "Hi Ann",
+    );
+  });
+
+  it("a template's :first-name reaches {firstName} (compiled template)", () => {
+    const C = defineComponent({
+      components: { T: T as never },
+      template: `<p><T i18n-key="hi" :first-name="'Ann'" /></p>`,
+    });
+    expect(mountWith(en({ hi: "Hi {firstName}" }), C).html()).toBe("<p>Hi Ann</p>");
+  });
+
+  it("a slot named like an Object.prototype member is that tag's handler (constructor)", () => {
+    const out = html(
+      en({ m: "<constructor>x</constructor> <toString>y</toString>" }),
+      { i18nKey: "m" },
+      {
+        constructor: ({ children }: { children: string }) => h("b", children),
+        toString: ({ children }: { children: string }) => h("i", children),
+      },
+    );
+    expect(out).toBe("<b>x</b> <i>y</i>");
+  });
+
   it("never takes the namespace of a useI18n(ns) above it (R3-5: no implicit ns)", () => {
     const i18n = createI18n({
       locale: "en",
@@ -265,6 +291,56 @@ describe("<T i18nKey>", () => {
     );
     expect(Array.isArray(out)).toBe(true);
     expect(params.x).toBe(x);
+  });
+});
+
+describe("useI18n(ns).T, the bound <T>", () => {
+  const shop = () =>
+    createI18n({
+      locale: "en",
+      catalogs: {
+        default: { en: { k: "D" } },
+        shop: { en: { k: "Shop", hi: "Hi {firstName}" } },
+        legal: { en: { k: "LEGAL" } },
+      },
+    });
+  /** Renders the bound <T> of `useI18n(ns)` with `props`. */
+  const bound = (i18n: VueI18n, ns: string, props: Record<string, unknown>) =>
+    mountWith(
+      i18n,
+      defineComponent({
+        setup() {
+          const { T: B } = useI18n(ns as "default");
+          return () => h("div", null, [h(B as never, props)]);
+        },
+      }),
+    ).find("div").element.innerHTML;
+
+  it("renders its namespace's message, kebab-case params camelized", () => {
+    expect(bound(shop(), "shop", { "i18n-key": "hi", "first-name": "Ann" })).toBe("Hi Ann");
+  });
+
+  it("an `ns` attribute never re-targets it (untyped callers): its namespace wins", () => {
+    expect(bound(shop(), "shop", { i18nKey: "k", ns: "legal" })).toBe("Shop");
+  });
+
+  it("is one component per instance and namespace: the same for every caller, another for another instance", () => {
+    const got: unknown[] = [];
+    const C = defineComponent({
+      setup() {
+        got.push(useI18n("shop").T, useI18n("shop").T, useI18n("legal").T);
+        return () => null;
+      },
+    });
+    const a = shop();
+    mountWith(a, C);
+    mountWith(a, C);
+    mountWith(shop(), C);
+    const [s1, s2, l1, s3, , , s4] = got;
+    expect(s1).toBe(s2);
+    expect(s1).toBe(s3);
+    expect(s1).not.toBe(l1);
+    expect(s4).not.toBe(s1);
   });
 });
 
