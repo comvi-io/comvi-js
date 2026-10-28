@@ -609,9 +609,10 @@ function run(command, args, cwd) {
  * redownloads the whole dependency set instead of reusing what is already
  * there. It is also filtered to core's own graph — the protocol measures
  * nothing else, and the whole workspace's `node_modules` is 1.3 GB against
- * 359 MB for this, per reference kept on disk.
+ * 359 MB for this, per reference kept on disk. `packages` widens it for a
+ * binding bench (`scripts/perf-vue.mjs`: core and `@comvi/vue`), each built in turn.
  */
-export function buildReference(ref, { refresh = false } = {}) {
+export function buildReference(ref, { refresh = false, packages = ["@comvi/core"] } = {}) {
   const sha = git(["rev-parse", `${ref}^{commit}`]);
   const dir = path.join(REF_ROOT, sha.slice(0, 12));
   const dist = path.join(dir, "packages", "core", "dist");
@@ -633,23 +634,25 @@ export function buildReference(ref, { refresh = false } = {}) {
     // `--force`: a directory removed by hand earlier may still be registered here.
     git(["worktree", "add", "--force", "--detach", dir, sha]);
   }
-  if (!fs.existsSync(path.join(dir, "node_modules"))) {
+  const installed = (name) =>
+    fs.existsSync(path.join(dir, "packages", name.slice("@comvi/".length), "node_modules"));
+  if (!fs.existsSync(path.join(dir, "node_modules")) || !packages.every(installed)) {
     run(
       "pnpm",
       [
         "install",
         "--frozen-lockfile",
         "--prefer-offline",
-        "--filter",
-        "@comvi/core...",
+        ...packages.flatMap((name) => ["--filter", `${name}...`]),
         "--store-dir",
         path.join(REPO_ROOT, ".pnpm-store"),
       ],
       dir,
     );
   }
-  if (!fs.existsSync(dist) || refresh) {
-    run("pnpm", ["--filter", "@comvi/core", "build"], dir);
+  for (const name of packages) {
+    const built = path.join(dir, "packages", name.slice("@comvi/".length), "dist");
+    if (!fs.existsSync(built) || refresh) run("pnpm", ["--filter", name, "build"], dir);
   }
   return dist;
 }

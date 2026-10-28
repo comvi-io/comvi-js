@@ -155,6 +155,38 @@ describe("reactivity slices (§2.5): counted renders", () => {
     expect(T.counter.count).toBeGreaterThan(1);
   });
 
+  it("1,000 components reading the locale re-render 0 times while a namespace loads, once each on a switch (counted)", async () => {
+    const l = manualLoader({ "en:shop": { k: "K" }, "de:default": {}, "de:shop": {} });
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    let renders = 0;
+    const Reader = defineComponent({
+      setup() {
+        const { locale } = useI18n();
+        return () => (renders++, h("i", locale.value));
+      },
+    });
+    const w = mountWith(
+      i18n,
+      defineComponent({
+        render: () =>
+          h(
+            "div",
+            Array.from({ length: 1000 }, () => h(Reader)),
+          ),
+      }),
+    );
+    expect(renders).toBe(1000);
+    void i18n.load("shop");
+    await nextTick();
+    await l.answer("en:shop");
+    expect(renders).toBe(1000);
+    void i18n.setLocale("de");
+    await l.answer("de:default");
+    await l.answer("de:shop");
+    expect(renders).toBe(2000);
+    expect(w.findAll("i").every((x) => x.text() === "de")).toBe(true);
+  });
+
   it("a component reading dir re-renders on a locale change only when the direction changes", async () => {
     const i18n = createI18n({
       locale: "en",
