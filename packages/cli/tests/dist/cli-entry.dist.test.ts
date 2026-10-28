@@ -120,7 +120,7 @@ describe.skipIf(!existsSync(BUILT_CLI))("comvi entry point (built bin)", () => {
     ]);
 
     expect(run.status).toBe(1);
-    expect(JSON.parse(run.stdout)).toMatchObject({ version: 1, keys: 20, ok: false });
+    expect(JSON.parse(run.stdout)).toMatchObject({ version: 2, keys: 20, ok: false });
     expect(run.stderr).toContain("Reading");
   });
 
