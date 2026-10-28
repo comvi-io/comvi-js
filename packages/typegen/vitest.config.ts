@@ -1,6 +1,8 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // src/v2/read.ts runs @comvi/core's scanner source with its development-only observer.
+  define: { __DEV__: JSON.stringify(true) },
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],

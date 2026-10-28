@@ -3,7 +3,7 @@
     "target": "ES2020",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES2020"],
+    "lib": ["ES2022", "DOM"],
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -11,10 +11,10 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "rootDir": "./src",
     "noEmit": true,
-    // `augmentationTargetError` looks at the app's installed packages, which is
-    // the one part of this package that touches Node built-ins.
+    // `augmentationTargetError` and the v2 Node API (generate/watch) touch Node
+    // built-ins. `src/v2/read.ts` imports @comvi/core's scanner SOURCE
+    // (../core/src/compile), so there is no rootDir: tsc checks those files too.
     "types": ["node"],
 
     /* Linting */
