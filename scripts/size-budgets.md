@@ -741,3 +741,40 @@ caller's signal.
 Design §3.2's target, `/cdn` ≤ 400 B over core, is not met: +473 B (it was +439 B before this
 lot). Headroom for later lots: `core-icu` 36 B and `core-icu-cdn` 9 B under their R3-13 ceilings;
 the React increment 28 B under its +500 B cap; devtools 55 B under its +500 B cap.
+
+## 2026-10-28: lot 2c review fix pass
+
+Same command and Node (v24.22.1); "before" is the lot 2c table above.
+
+| row                     | before | after | Δ   | budget | ceiling | note                                      |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | ----------------------------------------- |
+| core-icu                | 4,413  | 4,423 | +10 | 4,449  | 4,449   | parent role re-bound per caller; 26 B     |
+| core-icu-cdn            | 4,886  | 4,890 | +4  | 4,895  | 4,895   | `/cdn` +467 B over core-icu; 5 B headroom |
+| core-icu-cdn-store      | —      | 5,055 | new | 5,308  | —       | cdn() + createCatalogStore(): +165 B      |
+| core-icu-api            | —      | 5,413 | new | 5,684  | —       | api() + createCatalogStore()              |
+| core-icu-devtools       | 4,858  | 4,866 | +8  | 5,017  | 5,017   | devtools +443 B over core-icu (500)       |
+| core-format             | 4,965  | 4,973 | +8  | 5,222  | —       |                                           |
+| core-plugins            | 4,994  | 5,003 | +9  | 5,254  | —       |                                           |
+| react-icu-cdn           | 5,358  | 5,361 | +3  | 5,395  | 5,395   | +471 B over core-icu-cdn (cap 500)        |
+| fw-react-default        | 4,849  | 4,858 | +9  | 5,101  | —       |                                           |
+| fw-react-full-composite | 7,740  | 7,747 | +7  | 8,135  | —       |                                           |
+
+Re-baselined: every row in the table, budget = min(ceil(measured × 1.05), ceiling). No ceiling and
+no cap moved. The two new rows have no ceiling: they are server paths, not browser ones, and only
+the owner sets ceilings; they put the store and `api()` under a gate for the first time.
+
+The bytes: the instance's parent-chain report now re-binds a flight's parent role on every
+`get()` (+10 B on `core-icu`, +7 to +9 B on the other rows with the instance); the cdn loader
+refuses a signal that is already aborted (about +7 B, measured on its own) and settles the load from inside its request (`y()` in the async body, not
+`.then(y)`), which restored the lot-1b microtask order at no cost. Cuts that paid for them: the
+own controller's `onabort` instead of an `addEventListener`, `c.abort()` without the caller's
+reason on the caller's abort (the AbortError `fetch` gives), the no-store path as
+`(await load())[0]`. Not added, for want of bytes: removing the listener on the caller's signal
+and disarming the timer when a caller aborts a transport that never settles (measured at +8 B and
++5 B; both documented in `cdn.ts`), and a module-wide default store (`core-icu-cdn-store` above is what it
+costs: +165 B, over the 4,895 B ceiling — the owner's decision, see `docs/design/catalog-store.md`).
+
+Design §3.2's target, `/cdn` ≤ 400 B over core, is still not met: +467 B (−6 B against the lot 2c
+table). Meeting it needs 67 B of cuts in the loader or a new target from the owner. Headroom:
+`core-icu` 26 B and `core-icu-cdn` 5 B under their R3-13 ceilings; the React increment 29 B under
+its +500 B cap; devtools 57 B under its +500 B cap.
