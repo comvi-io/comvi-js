@@ -11,10 +11,20 @@ const router = createRouter({
   routes: [
     { path: "/", component: StartPage },
     { path: "/features", component: FeaturesPage },
-    { path: "/about", component: AboutPage },
+    {
+      path: "/about",
+      component: AboutPage,
+      // The page's own namespace loads with the route, before the page renders:
+      // no frame shows its keys. Once loaded, it follows every language switch.
+      beforeEnter: () => i18n.load("account"),
+    },
   ],
 });
 
-// `app.use(i18n)` provides the instance to every component and starts
-// `i18n.init()`, which loads the first catalog.
-createApp(App).use(i18n).use(router).mount("#app");
+// `app.use(i18n)` gives every component `useI18n()`, `<T>` and `$t`.
+const app = createApp(App).use(i18n).use(router);
+
+// The page shows a wordless spinner (index.html) until the first catalogs and
+// the first route are in, so no frame ever shows a raw key. Later loads (a
+// page's namespace, a language switch) keep the app on screen.
+Promise.all([i18n.ready, router.isReady()]).then(() => app.mount("#app"));

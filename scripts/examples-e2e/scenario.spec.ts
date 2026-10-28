@@ -1272,16 +1272,16 @@ for (const [step, first] of [
 }
 
 /**
- * The examples whose binding queues locale switches (`@comvi/vue`'s
- * `setLocale` runs one switch after the other): vue, and nuxt on top of it.
+ * The examples whose binding queues locale switches (the 0.7 `@comvi/vue`'s
+ * `setLocale` ran one switch after the other): nuxt, until it moves to 0.8 in lot 7.
  */
-const QUEUED_SWITCHES = ["vue", "nuxt"].includes(env("E2E_FRAMEWORK"));
+const QUEUED_SWITCHES = ["nuxt"].includes(env("E2E_FRAMEWORK"));
 /**
  * The examples on the 0.8 core: `setLocale(de)` aborts the loads of the switch it
  * supersedes, so uk's request is cancelled the moment de is chosen and its answer can
  * never land. The other client examples (0.7) let it land and discard the switch.
  */
-const ABORTS_SUPERSEDED = ["react", "vanilla"].includes(env("E2E_FRAMEWORK"));
+const ABORTS_SUPERSEDED = ["react", "vanilla", "vue"].includes(env("E2E_FRAMEWORK"));
 
 test("u: client race — en → uk → de with uk's catalog answered last stays de", async ({ page }) => {
   test.skip(!CDN_CONTROL, NEEDS_CDN);
@@ -1324,7 +1324,7 @@ test("u: client race — en → uk → de with uk's catalog answered last stays 
   await page.getByTestId("locale-de").click();
 
   if (QUEUED_SWITCHES) {
-    // The Vue binding queues `setLocale`: de's catalog is not even requested
+    // The 0.7 Vue binding queues `setLocale`: de's catalog is not even requested
     // while uk's is outstanding, so uk cannot be answered after de. Proven,
     // not assumed: a second later only uk is in flight. uk then applies in
     // its turn and de replaces it, which is what the checks below hold.

@@ -5,7 +5,7 @@ import { useI18n } from "@comvi/vue";
 import AppFooter from "./components/AppFooter.vue";
 import LocaleSwitcher from "./components/LocaleSwitcher.vue";
 
-const { t, locale, dir, isInitializing } = useI18n();
+const { t, locale, dir } = useI18n();
 
 // The start page stays minimal: its own one-line intro and no footer.
 const route = useRoute();
@@ -19,10 +19,7 @@ watchEffect(() => {
 </script>
 
 <template>
-  <!-- Until the first catalog is in there are no words to show, raw keys
-       included, so this is a wordless spinner. -->
-  <div v-if="isInitializing" class="boot" role="status" aria-busy="true" />
-  <main v-else>
+  <main>
     <header>
       <h1>{{ t("app.title") }}</h1>
       <p class="intro">{{ t(isStart ? "demo.start.intro" : "demo.intro") }}</p>

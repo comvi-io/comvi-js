@@ -35,7 +35,7 @@ only publishing settles that. Re-run the gate after the version bump.
 
 ## How each example is composed
 
-The setup is one file per example. `react` and `vanilla` are on the 0.8 API: `createI18n()` takes
+The setup is one file per example. `react`, `vue` and `vanilla` are on the 0.8 API: `createI18n()` takes
 the loader (`cdn()` from `@comvi/core/cdn` when the "Connect your Comvi project" variable is set,
 the bundled catalogs otherwise) and the plugins (`detect()` and `persist()` from
 `@comvi/core/plugins`, `devtools()` from `@comvi/core/devtools`) as options. Here is
@@ -81,11 +81,12 @@ export const i18n = createI18n({
 });
 ```
 
-**Vanilla** composes the same instance from `@comvi/core` and its subpaths; plain `t()` parses
-`<tag>…</tag>` itself (rich text is always on in 0.8).
+**Vue** builds the same instance with `createI18n` from `@comvi/vue` (`app.use(i18n)` in
+`main.ts`, which mounts after `i18n.ready`). **Vanilla** composes it from `@comvi/core` and its
+subpaths; plain `t()` parses `<tag>…</tag>` itself (rich text is always on in 0.8).
 
-The other examples are still on the 0.7 API until their binding moves to the 0.8 core (Vue lot 4,
-Svelte and Solid lot 5, Next lot 6, Nuxt lot 7; `tooling/migration-pending.mjs` lists them): ICU
+The other examples are still on the 0.7 API until their binding moves to the 0.8 core (Svelte and
+Solid lot 5, Next lot 6, Nuxt lot 7; `tooling/migration-pending.mjs` lists them): ICU
 through the constructor's `compiler`, then `.use(loader({…}))` (or `cdnLoader`), then
 `.use(localeDetector({…}))`. Of those:
 
@@ -111,12 +112,13 @@ The second page renders three rows from a namespace of its own, `account`: a par
 (`profile.only_en`). The import map names each catalog by its `locale:namespace` key, and nothing
 lists `account` in `ns`, so the first page never loads it.
 
-| example                   | how the second page gets `account`                                                                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| react, vue, svelte, solid | `src/Account.*`: `useI18n("account")` scopes `t()`, `useI18nLoader().addActiveNamespace("account")` loads it, and the rows wait for that to settle                               |
-| vanilla                   | `i18n.addActiveNamespace("account")` when the view is first shown, then `t(key, { ns: "account" })` on every call                                                                |
-| next                      | `about/layout.tsx` renders `<ComviProvider namespaces={["default", "account"]}>`; the page calls `getI18n({ locale, ns: "account" })`, the client component `useI18n("account")` |
-| nuxt                      | `pages/about.vue` awaits `useI18nLoader().addActiveNamespace("account")` in its setup and reads through `useI18n("account")`                                                     |
+| example       | how the second page gets `account`                                                                                                                                               |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| react, vue    | the `/about` route loads `account` before the page renders (React Router `loader`, Vue Router `beforeEnter`: `i18n.load("account")`); `useI18n("account")` scopes `t()`          |
+| svelte, solid | `src/Account.*`: `useI18n("account")` scopes `t()`, `useI18nLoader().addActiveNamespace("account")` loads it, and the rows wait for that to settle                               |
+| vanilla       | `i18n.addActiveNamespace("account")` when the view is first shown, then `t(key, { ns: "account" })` on every call                                                                |
+| next          | `about/layout.tsx` renders `<ComviProvider namespaces={["default", "account"]}>`; the page calls `getI18n({ locale, ns: "account" })`, the client component `useI18n("account")` |
+| nuxt          | `pages/about.vue` awaits `useI18nLoader().addActiveNamespace("account")` in its setup and reads through `useI18n("account")`                                                     |
 
 An activated namespace stays active: a locale switch on the second page fetches `account` for the
 new locale together with the default namespace, and applies the locale only when both are in.
@@ -151,39 +153,39 @@ The catalogs also hold `ar`, a right-to-left locale.
 The steps, each a column in the report. A step that cannot apply to an
 example is `skip`, and the reason is printed under the table:
 
-| step | asserts                                                                                                                          |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------- |
-| a    | the first render is real text, and no catalog key appears anywhere in the page                                                   |
-| b    | the switcher goes en → uk → de and the greeting follows                                                                          |
-| c    | the counter at 0, 1, 2 and 5 renders the catalog's plural branch in en, uk and de                                                |
-| d    | `<T>` renders `docs.read_more` with a real `<a href>` around the translated link text                                            |
-| e    | the "catalogs fetched so far" line starts at `en` and grows by one per visited locale                                            |
-| f    | next, nuxt: plain-HTTP `GET /uk` is already Ukrainian, and the hydrated page shows no key                                        |
-| g    | no `console.error` and no uncaught exception during a full pass of its own                                                       |
-| g2   | `--cdn`: g again in the dead-CDN build, past an allowlist of the refused-connection messages                                     |
-| h    | the second page is translated, and the locale survives the link there, the link back and Back                                    |
-| i    | next, nuxt: `/de` renders German, switching navigates to `/uk`, Back restores `/de`                                              |
-| j    | uk's catalog is requested only when uk is chosen (a Nuxt `<link rel="prefetch">` hint is not a load)                             |
-| k    | `--cdn`: the mock CDN served en, uk and de to this example, and nothing 404'd                                                    |
-| k2   | `--cdn`: rebuilt against a CDN where nothing listens, the bundled `fallback` imports serve the catalogs                          |
-| k3   | `--cdn`: the CDN's uk bundle lacks `fallback.only_en`, and the en value renders instead of the key                               |
-| l    | the en value fills the key uk lacks; `fallback.nowhere` renders as itself                                                        |
-| m    | reload keeps uk (and next, nuxt: `/` returns to `/uk`); a fresh `de-DE` browser starts in German                                 |
-| n    | `<html lang>` follows the locale and `dir` becomes `rtl` for `ar`                                                                |
-| o    | next, nuxt: from first paint through hydration the greeting is only ever the Ukrainian text                                      |
-| p    | a missing parameter renders as its own placeholder, `{name}`                                                                     |
-| q    | `?name=<img src=x onerror=…>` renders as text: no element is created and the handler never runs                                  |
-| r    | every DOM state during en → uk → de is one whole language matching `<html lang>`, never a key                                    |
-| s    | next, nuxt: a build with `defaultLocale: "uk"` serves `/uk` with the en value of an en-only key                                  |
-| t    | `--cdn`, next, nuxt: `/uk` and `/de` rendered at once, both catalogs held, uk released first                                     |
-| t2   | `--cdn`, next, nuxt: the same race, de released first                                                                            |
-| u    | `--cdn`: en → uk → de with uk's catalog answered last (vue, nuxt queue switches; react, vanilla abort it); the page stays German |
-| v    | `--cdn`: uk's catalog request hangs; after the loader's timeout the bundled uk renders                                           |
-| v2   | `--cdn`: uk's catalog is corrupt JSON; the bundled uk renders                                                                    |
-| w    | the first page never requests the `account` namespace; opening the second page loads it once                                     |
-| x    | every DOM state of the second page during en → uk → de is one whole language, `account` rows included                            |
-| y    | next, nuxt: plain-HTTP `GET /uk/about` carries the `account` text and hydrates without refetching it                             |
-| z    | `--cdn`: in the dead-CDN build the bundled `locale:account` imports serve the namespace                                          |
+| step | asserts                                                                                                                           |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------- |
+| a    | the first render is real text, and no catalog key appears anywhere in the page                                                    |
+| b    | the switcher goes en → uk → de and the greeting follows                                                                           |
+| c    | the counter at 0, 1, 2 and 5 renders the catalog's plural branch in en, uk and de                                                 |
+| d    | `<T>` renders `docs.read_more` with a real `<a href>` around the translated link text                                             |
+| e    | the "catalogs fetched so far" line starts at `en` and grows by one per visited locale                                             |
+| f    | next, nuxt: plain-HTTP `GET /uk` is already Ukrainian, and the hydrated page shows no key                                         |
+| g    | no `console.error` and no uncaught exception during a full pass of its own                                                        |
+| g2   | `--cdn`: g again in the dead-CDN build, past an allowlist of the refused-connection messages                                      |
+| h    | the second page is translated, and the locale survives the link there, the link back and Back                                     |
+| i    | next, nuxt: `/de` renders German, switching navigates to `/uk`, Back restores `/de`                                               |
+| j    | uk's catalog is requested only when uk is chosen (a Nuxt `<link rel="prefetch">` hint is not a load)                              |
+| k    | `--cdn`: the mock CDN served en, uk and de to this example, and nothing 404'd                                                     |
+| k2   | `--cdn`: rebuilt against a CDN where nothing listens, the bundled `fallback` imports serve the catalogs                           |
+| k3   | `--cdn`: the CDN's uk bundle lacks `fallback.only_en`, and the en value renders instead of the key                                |
+| l    | the en value fills the key uk lacks; `fallback.nowhere` renders as itself                                                         |
+| m    | reload keeps uk (and next, nuxt: `/` returns to `/uk`); a fresh `de-DE` browser starts in German                                  |
+| n    | `<html lang>` follows the locale and `dir` becomes `rtl` for `ar`                                                                 |
+| o    | next, nuxt: from first paint through hydration the greeting is only ever the Ukrainian text                                       |
+| p    | a missing parameter renders as its own placeholder, `{name}`                                                                      |
+| q    | `?name=<img src=x onerror=…>` renders as text: no element is created and the handler never runs                                   |
+| r    | every DOM state during en → uk → de is one whole language matching `<html lang>`, never a key                                     |
+| s    | next, nuxt: a build with `defaultLocale: "uk"` serves `/uk` with the en value of an en-only key                                   |
+| t    | `--cdn`, next, nuxt: `/uk` and `/de` rendered at once, both catalogs held, uk released first                                      |
+| t2   | `--cdn`, next, nuxt: the same race, de released first                                                                             |
+| u    | `--cdn`: en → uk → de with uk's catalog answered last (nuxt queues switches; react, vue, vanilla abort it); the page stays German |
+| v    | `--cdn`: uk's catalog request hangs; after the loader's timeout the bundled uk renders                                            |
+| v2   | `--cdn`: uk's catalog is corrupt JSON; the bundled uk renders                                                                     |
+| w    | the first page never requests the `account` namespace; opening the second page loads it once                                      |
+| x    | every DOM state of the second page during en → uk → de is one whole language, `account` rows included                             |
+| y    | next, nuxt: plain-HTTP `GET /uk/about` carries the `account` text and hydrates without refetching it                              |
+| z    | `--cdn`: in the dead-CDN build the bundled `locale:account` imports serve the namespace                                           |
 
 The critical texts (the greeting, the plural branches, `<T>`, the fallback row and
 the placeholder) are written out literally in the spec, so a catalog that goes

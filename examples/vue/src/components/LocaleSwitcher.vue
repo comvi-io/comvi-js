@@ -2,7 +2,9 @@
 import { useI18n } from "@comvi/vue";
 import { locales } from "../i18n";
 
-const { t, locale, setLocale, isLoading } = useI18n();
+// `locale` is writable: setting it switches. It keeps showing the current
+// language until the new one's catalogs are in, so the buttons never flicker.
+const { t, locale, isLoading } = useI18n();
 </script>
 
 <template>
@@ -14,7 +16,7 @@ const { t, locale, setLocale, isLoading } = useI18n();
         :key="code"
         :data-testid="`locale-${code}`"
         :aria-pressed="locale === code"
-        @click="setLocale(code)"
+        @click="locale = code"
       >
         {{ code }}
       </button>
