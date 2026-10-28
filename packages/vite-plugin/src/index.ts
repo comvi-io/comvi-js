@@ -2,7 +2,7 @@
  * @comvi/vite-plugin — the typed-translations declaration from local JSON catalogs, on
  * `vite dev` and `vite build`.
  *
- * A thin wrapper over the typegen Node API (`@comvi/typegen`, inlined at build time):
+ * A thin wrapper over the typegen Node API (the workspace-private typegen package, inlined at build time):
  * `vite build` calls `generate()` once and fails the build on an error; `vite dev` runs
  * `watch()` until the server closes. The bytes are the ones `comvi typegen --from`, Next and
  * Nuxt write for the same catalogs.
