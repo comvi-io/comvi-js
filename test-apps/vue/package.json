@@ -6,19 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "vue-tsc --noEmit",
+    "typecheck": "comvi typegen --from ../locales --source-locale en && vue-tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
     "@comvi/core": "workspace:*",
-    "@comvi/plugin-in-context-editor": "workspace:*",
-    "@comvi/vite-plugin": "workspace:*",
     "@comvi/vue": "workspace:*",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0"
   },
   "devDependencies": {
+    "@comvi/cli": "workspace:*",
     "@comvi/vite-config": "workspace:*",
+    "@comvi/vite-plugin": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.20.5",
     "@vitejs/plugin-vue": "^6.0.10",

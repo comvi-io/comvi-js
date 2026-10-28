@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useI18n, T } from "@comvi/vue";
-const { t } = useI18n();
-
+import { h, ref } from "vue";
+import { useI18n, T, type Children } from "@comvi/vue";
 import BoldComponent from "../components/BoldComponent.vue";
 import InfoIcon from "../components/InfoIcon.vue";
 import CardWrapper from "../components/CardWrapper.vue";
 import HeaderWrapper from "../components/HeaderWrapper.vue";
 import ContentWrapper from "../components/ContentWrapper.vue";
+
+const { t } = useI18n();
+
+// A tag whose children hold markup takes a handler attribute: it gets the children (the
+// list of their parts) and returns what renders. A slot gets text (`{{ children }}`).
+const link = (className: string) => (c: Children) => h("a", { href: "#", class: className }, c);
+const strong = (className?: string) => (c: Children) => h("strong", { class: className }, c);
+const wrap = (component: object) => (c: Children) => h(component, null, () => c);
 
 const gender = ref<"male" | "female" | "other">("male");
 const formality = ref<"formal" | "informal">("formal");
@@ -24,7 +30,7 @@ const nestedCount = ref(3);
     <div class="space-y-2">
       <h3 class="font-semibold">HTML Tags</h3>
       <p class="p-4 bg-gray-50 rounded border">
-        <T i18n-key="rich_text.bold_text"></T>
+        <T i18n-key="rich_text.bold_text" :strong="strong()" />
       </p>
     </div>
 
@@ -66,13 +72,8 @@ const nestedCount = ref(3);
         <div class="p-4 bg-gray-50 rounded border">
           <T
             i18n-key="rich_text.nested_simple"
-            :components="{
-              link: {
-                component: 'a',
-                props: { href: '#', class: 'text-blue-600 hover:underline' },
-              },
-              bold: 'strong',
-            }"
+            :link="link('text-blue-600 hover:underline')"
+            :bold="strong()"
           />
         </div>
         <p class="text-sm text-gray-500">
@@ -80,7 +81,7 @@ const nestedCount = ref(3);
           <code class="bg-gray-100 px-1 rounded"
             >&lt;link&gt;&lt;bold&gt;this link&lt;/bold&gt;&lt;/link&gt;</code
           >
-          — Uses <code class="bg-gray-100 px-1 rounded">:components</code> prop for nested tags.
+          — each tag is an attribute of the same name: a handler that renders its children.
         </p>
       </div>
 
@@ -98,15 +99,10 @@ const nestedCount = ref(3);
         <div class="p-4 bg-yellow-50 rounded border border-yellow-200">
           <T
             i18n-key="rich_text.nested_mixed"
-            :params="{ count: nestedCount }"
-            :components="{
-              alert: { component: 'span', props: { class: 'text-yellow-800' } },
-              bold: { component: 'strong', props: { class: 'font-bold text-yellow-900' } },
-              link: {
-                component: 'a',
-                props: { href: '#', class: 'text-yellow-700 underline hover:text-yellow-900' },
-              },
-            }"
+            :count="nestedCount"
+            :alert="(c: Children) => h('span', { class: 'text-yellow-800' }, c)"
+            :bold="strong('font-bold text-yellow-900')"
+            :link="link('text-yellow-700 underline hover:text-yellow-900')"
           />
         </div>
         <p class="text-sm text-gray-500">
@@ -122,16 +118,11 @@ const nestedCount = ref(3);
         <div class="p-4 bg-blue-50 rounded border border-blue-200">
           <T
             i18n-key="rich_text.nested_deep"
-            :components="{
-              card: CardWrapper,
-              header: HeaderWrapper,
-              icon: InfoIcon,
-              content: ContentWrapper,
-              link: {
-                component: 'a',
-                props: { href: '#', class: 'text-blue-600 hover:underline' },
-              },
-            }"
+            :card="wrap(CardWrapper)"
+            :header="wrap(HeaderWrapper)"
+            :icon="() => h(InfoIcon)"
+            :content="wrap(ContentWrapper)"
+            :link="link('text-blue-600 hover:underline')"
           />
         </div>
         <p class="text-sm text-gray-500">
@@ -139,8 +130,7 @@ const nestedCount = ref(3);
           <code class="bg-gray-100 px-1 rounded"
             >&lt;card&gt;&lt;header&gt;&lt;icon/&gt;Title&lt;/header&gt;&lt;content&gt;...&lt;/content&gt;&lt;/card&gt;</code
           >
-          — Uses Vue components with
-          <code class="bg-gray-100 px-1 rounded">&lt;slot /&gt;</code> for VNode children.
+          — handlers wrap the children in Vue components (their default slot), at any depth.
         </p>
       </div>
     </div>
