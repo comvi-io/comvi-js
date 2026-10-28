@@ -1,25 +1,26 @@
+/**
+ * Production ESM build of @comvi/vue: `.` and `./format` in one invocation, so `/format`
+ * shares the binding module instead of copying it. `__DEV__` is false: diagnostics fold
+ * out. The development build is vite.config.dev.ts, selected by the "development" export
+ * condition.
+ */
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
-import { resolve } from "path";
-import { vueBuild } from "./vite.shared";
+import { entries, external, output } from "./vite.entries.ts";
 
 export default defineConfig({
-  plugins: [
-    dts({
-      insertTypesEntry: true,
-    }),
-  ],
-  build: vueBuild(__dirname, ""),
-  resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
+  plugins: [dts({ insertTypesEntry: true })],
+  build: {
+    emptyOutDir: true,
+    lib: { entry: entries(import.meta.dirname), name: "ComviVue" },
+    minify: false,
+    sourcemap: false,
+    rolldownOptions: {
+      external,
+      preserveEntrySignatures: "allow-extension",
+      output: [output("")],
+      treeshake: { moduleSideEffects: false },
     },
   },
-  define: {
-    // The published comvi-vue.js is always the PROD artifact — `vite build`
-    // pins NODE_ENV=production, so reading it here only ever produced `false`.
-    // The dev-only diagnostics ship in comvi-vue.dev.js (vite.config.dev.ts),
-    // reachable via the "development" export condition.
-    __DEV__: JSON.stringify(false),
-  },
+  define: { __DEV__: JSON.stringify(false) },
 });

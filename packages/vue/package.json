@@ -2,7 +2,7 @@
   "name": "@comvi/vue",
   "version": "0.7.1",
   "type": "module",
-  "description": "Vue 3 integration for Comvi — composables, components, and type-safe translations",
+  "description": "Vue binding for Comvi i18n: app.use(i18n), useI18n(), <T>, $t and useFormat()",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
@@ -39,6 +39,11 @@
       "types": "./dist/index.d.ts",
       "development": "./dist/comvi-vue.dev.js",
       "default": "./dist/comvi-vue.js"
+    },
+    "./format": {
+      "types": "./dist/format.d.ts",
+      "development": "./dist/comvi-vue-format.dev.js",
+      "default": "./dist/comvi-vue-format.js"
     }
   },
   "engines": {
@@ -50,10 +55,10 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
-    "build": "node ../../tooling/clean-dist.mjs && vue-tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "build": "node ../../tooling/clean-dist.mjs && vue-tsc --noEmit && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "vue-tsc --noEmit && vue-tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",
-    "test:types": "tsc --noEmit -p tsconfig.test-types.json && vue-tsc --noEmit -p tsconfig.keys-closed.json && tsc --noEmit -p tsconfig.keys-via-binding.json",
+    "test:types": "vue-tsc --noEmit -p tsconfig.test-types.json && vue-tsc --noEmit -p tsconfig.test-types-untyped.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
@@ -64,11 +69,9 @@
     "@comvi/core": "workspace:*"
   },
   "peerDependencies": {
-    "vue": "^3.0.0"
+    "vue": "^3.5.0"
   },
   "devDependencies": {
-    "@comvi/test-utils": "workspace:*",
-    "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.20.5",
     "@typescript-eslint/eslint-plugin": "^8.72.0",
     "@typescript-eslint/parser": "^8.72.0",

@@ -1,86 +1,57 @@
 import { defineConfig } from "vitest/config";
-import { createRequire } from "node:module";
-import { dirname, resolve } from "path";
-
-// Resolve core's dist through node_modules, not a relative path: inside a Stryker
-// sandbox (.stryker-tmp/sandbox-*) the package is copied, so "../core" does not
-// exist — but the node_modules symlink chain still reaches the real workspace.
-const CORE_DIST = dirname(createRequire(import.meta.url).resolve("@comvi/core"));
+import { resolve } from "path";
 
 /**
- * Pin every `@comvi/core*` specifier — the wrapper's own imports included — to
- * ONE published build family.
- *
- * The JS-consumer contract must be proved under BOTH build conditions: the
- * only difference between them is the text `missingCapability()` throws, and
- * `__DEV__` bakes that into the core artifact at build time. Exact-match
- * regexes, never string prefixes, which would swallow the subpaths too.
- *
- * All five entries move together: mixing a dev base host with a prod
- * `attachLoader` composes across two terser nameCaches and breaks core's
- * `_`-internal contract. `-tags` is in the list because an app or fixture may
- * opt into the ambient entry, and a mixed pair there means two copies of the
- * grammar and two ambient registries.
+ * The binding and the core run from SOURCE, as one module graph (one CORE seam). Three
+ * projects, as in @comvi/react: `unit` (happy-dom, `__DEV__` true), `node` (server renders,
+ * no DOM) and `prod` (`__DEV__` false). tests/contracts reads the BUILT dist of core and vue
+ * (turbo builds before test).
  */
-const coreBuild = (suffix: "" | ".dev") =>
-  (["", "-loader", "-plugins", "-rich-text", "-tags"] as const).map((entry) => ({
-    find: new RegExp(`^@comvi/core${entry === "" ? "" : `/${entry.slice(1)}`}$`),
-    replacement: `${CORE_DIST}/comvi-core${entry}${suffix}.js`,
-  }));
-
+const CORE = resolve(import.meta.dirname, "../core/src");
+const alias = [
+  { find: /^@comvi\/core$/, replacement: `${CORE}/index.ts` },
+  { find: /^@comvi\/core\/(.*)$/, replacement: `${CORE}/$1.ts` },
+];
+// Under Stryker (scripts/mutation/run.mjs sets COMVI_MUTATION) tests/contracts is left out:
+// it reads the BUILT dist, never the mutated source.
+const MUTATION = process.env.COMVI_MUTATION ? ["tests/contracts/**"] : [];
 const shared = {
-  resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-    },
-  },
-  define: {
-    __DEV__: JSON.stringify(true),
-  },
-};
-
-const SETUP_FILES = ["./tests/setup.ts"];
-
-const jsContract = {
   environment: "happy-dom" as const,
+  setupFiles: ["./tests/setup.ts"],
   globals: true,
-  setupFiles: SETUP_FILES,
   restoreMocks: true,
   unstubEnvs: true,
   unstubGlobals: true,
-  include: ["tests/js-contract/**/*.test.js"],
 };
 
 export default defineConfig({
   test: {
+    coverage: { provider: "v8", reporter: ["text", "json", "html"], include: ["src/**/*.ts"] },
     projects: [
       {
-        ...shared,
+        resolve: { alias },
+        define: { __DEV__: "true", __VERSION__: '"0.0.0-test"' },
         test: {
+          ...shared,
           name: "unit",
-          globals: true,
-          setupFiles: SETUP_FILES,
-          restoreMocks: true,
-          unstubEnvs: true,
-          unstubGlobals: true,
-          environment: "happy-dom",
           include: ["tests/**/*.test.ts"],
+          exclude: ["tests/prod/**", "tests/**/*.node.test.ts", ...MUTATION],
         },
       },
       {
-        ...shared,
-        resolve: { ...shared.resolve, alias: coreBuild(".dev") },
-        define: { ...shared.define, __COMVI_CORE_BUILD__: JSON.stringify("development") },
-        test: { ...jsContract, name: "js-contract-dev" },
+        resolve: { alias },
+        define: { __DEV__: "true", __VERSION__: '"0.0.0-test"' },
+        test: {
+          ...shared,
+          environment: "node",
+          name: "node",
+          include: ["tests/**/*.node.test.ts"],
+        },
       },
       {
-        ...shared,
-        resolve: { ...shared.resolve, alias: coreBuild("") },
-        define: {
-          __DEV__: JSON.stringify(false),
-          __COMVI_CORE_BUILD__: JSON.stringify("production"),
-        },
-        test: { ...jsContract, name: "js-contract-prod" },
+        resolve: { alias },
+        define: { __DEV__: "false", __VERSION__: '"0.0.0-test"' },
+        test: { ...shared, name: "prod", include: ["tests/prod/**/*.test.ts"] },
       },
     ],
   },

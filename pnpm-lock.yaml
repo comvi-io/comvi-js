@@ -704,12 +704,6 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@comvi/test-utils':
-        specifier: workspace:*
-        version: link:../../tooling/test-utils
-      '@comvi/vite-config':
-        specifier: workspace:*
-        version: link:../../tooling/vite-config
       '@types/node':
         specifier: ^22.20.5
         version: 22.20.5
