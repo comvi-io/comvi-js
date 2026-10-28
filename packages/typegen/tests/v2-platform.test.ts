@@ -160,6 +160,33 @@ describe("watch({ from: { platform } })", () => {
     expect(w.stats.runs).toBe(2);
     expect(list.some((m) => m.text.includes(KEY))).toBe(false);
   });
+
+  it("a refused key stops the watcher through onFatal, once", async () => {
+    let streams = 0;
+    const base = platform();
+    const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/schema/stream") && ++streams > 0)
+        return new Response("", { status: 403 });
+      return base.fetch(input, init);
+    }) as typeof globalThis.fetch;
+    const fatal = vi.fn();
+    const list: GenerateMessage[] = [];
+    const w = watch({
+      from: { platform: { apiKey: KEY, apiBaseUrl: "https://tms.test", fetch } },
+      out: "comvi.d.ts",
+      root: root(),
+      onMessage: (m) => void list.push(m),
+      onFatal: fatal,
+    });
+    watchers.push(w);
+    await w.ready;
+    expect(fatal).toHaveBeenCalledTimes(1);
+    expect(fatal.mock.calls[0][0]).toMatchObject({ status: 403 });
+    expect(list.filter((m) => m.level === "error").map((m) => m.text)).toEqual([
+      "The schema stream refused the API key (HTTP 403)",
+    ]);
+    expect(streams).toBe(1);
+  });
 });
 
 describe("PlatformSource errors", () => {

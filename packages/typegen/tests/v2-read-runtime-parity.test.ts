@@ -158,6 +158,10 @@ describe("readMessage records what the platform's v2 extractor records", () => {
         { name: "n", kind: "selectordinal" },
       ],
       tags: ["b", "i"],
+      choices: [
+        { name: "g", kind: "select", selectors: ["male", "female", "other"] },
+        { name: "n", kind: "selectordinal", selectors: ["other"] },
+      ],
       diagnostics: [],
     });
   });
@@ -178,6 +182,7 @@ describe("readMessage records what the platform's v2 extractor records", () => {
     expect(readMessage("{g, select, a {} a {{h} <t/>} other {}}")).toEqual({
       params: [{ name: "g", kind: "select", options: ["a"], other: true }],
       tags: [],
+      choices: [{ name: "g", kind: "select", selectors: ["a", "other"] }],
       diagnostics: [],
     });
   });
@@ -195,5 +200,36 @@ describe("readMessage records what the platform's v2 extractor records", () => {
     expect(noOther.params).toEqual([{ name: "n", kind: "plural" }]);
     expect(noOther.diagnostics).toEqual(['{n, plural} has no "other" branch']);
     expect(noOther.error).toBeDefined();
+    expect(noOther.unsupported).toBeUndefined();
+  });
+
+  it("lists every choice that renders, outer before inner, a name used twice twice", () => {
+    expect(
+      readMessage(
+        "{n, plural, =01 {one} other {{g, select, a {x} other {y}}}} {n, plural, few {} other {}}",
+      ).choices,
+    ).toEqual([
+      { name: "n", kind: "plural", selectors: ["=1", "other"] },
+      { name: "g", kind: "select", selectors: ["a", "other"] },
+      { name: "n", kind: "plural", selectors: ["few", "other"] },
+    ]);
+    // A repeated selector's sub-message never renders: the choice inside it is not listed.
+    expect(readMessage("{g, select, a {} a {{n, plural, other {}}} other {}}").choices).toEqual([
+      { name: "g", kind: "select", selectors: ["a", "other"] },
+    ]);
+  });
+
+  it("names the argument type core refuses, and nothing for other syntax errors", () => {
+    expect(readMessage("{p, number}").unsupported).toBe("number");
+    expect(readMessage("{a} {d, date, short} {b}").unsupported).toBe("date");
+    expect(readMessage("{t, time}").unsupported).toBe("time");
+    expect(readMessage("{n, pluralx, other {}}").unsupported).toBe("pluralx");
+    expect(readMessage("{n, plural, =x {a} other {b}}").unsupported).toBe("plural");
+    expect(readMessage("{n, selectordinal, =1e {a} other {b}}").unsupported).toBe("selectordinal");
+    for (const broken of ["<b>x", "x</b>", "{unclosed", "{n, plural, one {a}}"])
+      expect(readMessage(broken), broken).not.toHaveProperty("unsupported");
+    for (const broken of ["<b>x", "x</b>", "{unclosed", "{n, plural, one {a}}"])
+      expect(readMessage(broken).error, broken).toEqual(expect.any(String));
+    expect(readMessage("{n, plural, =01 {a} other {b}} {p}")).not.toHaveProperty("error");
   });
 });

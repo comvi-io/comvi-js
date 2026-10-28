@@ -32,11 +32,30 @@ export interface ReadParam {
   other?: boolean;
 }
 
+/** One plural, selectordinal or select argument as written (one entry per occurrence). */
+export interface ReadChoice {
+  name: string;
+  kind: "plural" | "selectordinal" | "select";
+  /** Its selectors, each once, in message order; exact values as core matches them (`=01` → `=1`). */
+  selectors: string[];
+}
+
 export interface ReadMessage {
   params: ReadParam[];
   tags: string[];
+  /**
+   * Every choice argument that renders, in scan order (an argument before the ones in its
+   * branches). Unlike `params`, a name used twice is listed twice: each is judged alone.
+   */
+  choices: ReadChoice[];
   /** Core cannot compile the message: it renders the key and reports `syntax`. */
   error?: string;
+  /**
+   * The argument type that made core refuse the message: `number`, `date`, `time`, an
+   * unknown type (`pluralx`), or the choice kind whose selector is not in core's grammar
+   * (`{n, plural, =x {…}}` → `plural`). Unset for any other syntax error.
+   */
+  unsupported?: string;
   /** Things the schema settled that a translator should look at. */
   diagnostics: string[];
 }
@@ -45,6 +64,8 @@ interface Choice {
   name: string;
   kind: "plural" | "selectordinal" | "select";
   selectors: string[];
+  /** Its entry in `choices`, unless it never renders. */
+  entry?: ReadChoice;
   /** The choice itself sits in a sub-message that never renders. */
   muted: boolean;
   /** The selector being scanned is a repeat (or the choice is muted). */
@@ -67,6 +88,9 @@ export function readMessage(text: string): ReadMessage {
   const tags: string[] = [];
   const diagnostics: string[] = [];
   const stack: Choice[] = [];
+  const choices: ReadChoice[] = [];
+  /** The last argument type seen, while the scan is still inside its header. */
+  let refused: string | undefined;
   const muted = () => (stack.length ? stack[stack.length - 1].current : false);
   const note = (m: string) => {
     if (!diagnostics.includes(m)) diagnostics.push(m);
@@ -85,9 +109,13 @@ export function readMessage(text: string): ReadMessage {
     i: 0,
     k: undefined,
     o: (event, name, type) => {
+      refused = undefined;
       if (event === 0) add(name, "string");
       else if (event === 1) {
         const kind = KINDS[type as string];
+        // Core fails right after this event for anything but a choice kind.
+        if (kind !== "plural" && kind !== "selectordinal" && kind !== "select")
+          refused = type || undefined;
         if (!kind) {
           // Core fails right after this event; the platform types it as a string.
           if (type) {
@@ -96,14 +124,19 @@ export function readMessage(text: string): ReadMessage {
           }
         } else if (kind === "plural" || kind === "selectordinal" || kind === "select") {
           const m = muted();
-          stack.push({ name, kind, selectors: [], muted: m, current: m, added: false });
+          const entry: ReadChoice | undefined = m ? undefined : { name, kind, selectors: [] };
+          if (entry) choices.push(entry);
+          stack.push({ name, kind, selectors: [], entry, muted: m, current: m, added: false });
         } else add(name, kind);
       } else if (event === 2) {
         const top = stack[stack.length - 1];
         if (!top.added) add(top.name, top.kind, top.muted);
         top.added = true;
         const repeated = top.selectors.includes(name);
-        if (!repeated) top.selectors.push(name);
+        if (!repeated) {
+          top.selectors.push(name);
+          top.entry?.selectors.push(name);
+        }
         top.current = top.muted || repeated;
       } else if (event === 3) {
         const top = stack.pop()!;
@@ -126,13 +159,18 @@ export function readMessage(text: string): ReadMessage {
   };
 
   let error: string | undefined;
+  let unsupported: string | undefined;
   try {
     message(P, false, false, false);
   } catch (e) {
     if (e !== SYNTAX) throw e;
     error = SYNTAX.m ?? "syntax error";
+    // A selector outside core's grammar (`=x`, `=1e3`) refuses the choice's own kind.
+    unsupported =
+      refused ?? (/^invalid selector /.test(error) ? stack[stack.length - 1]?.kind : undefined);
   }
-  const out: ReadMessage = { params: [...params.values()], tags, diagnostics };
+  const out: ReadMessage = { params: [...params.values()], tags, choices, diagnostics };
   if (error !== undefined) out.error = error;
+  if (unsupported !== undefined) out.unsupported = unsupported;
   return out;
 }

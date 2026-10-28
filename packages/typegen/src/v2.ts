@@ -2,7 +2,7 @@
  * @comvi/typegen v2 — the 0.8 generator (design rev 3 §3.8, R3-18): wire schema v2, the
  * one `Catalogs` emitter, and the Node API `generate()` / `watch()` every wrapper calls.
  */
-export { generate, watch, writeIfChanged } from "./v2/generate";
+export { generate, lockFileOf, watch, writeIfChanged } from "./v2/generate";
 export type {
   From,
   GenerateMessage,
