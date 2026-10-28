@@ -1,25 +1,18 @@
 {
-  // Type-checks the runtime test files (tests/**) that the build tsconfig
-  // deliberately excludes. Kept as a SEPARATE project so `tsc` in `build`
-  // still sees only src. `tests/types/**` stays with tsconfig.test-types.json.
+  // Type-checks the test files and repo scripts' TS inputs that the build tsconfig
+  // excludes. `tests/types/**` is checked by tests/types/negative.mjs instead: those
+  // files are SUPPOSED to fail, line by line.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true,
     "types": ["vitest/globals", "node"],
     "paths": {
-      "@/*": ["./src/*"],
       "@comvi/core": ["./src/index.ts"],
-      "@comvi/core/loader": ["./src/loader.ts"],
-      "@comvi/core/plugins": ["./src/plugins.ts"],
-      "@comvi/core/devtools": ["./src/devtools.ts"],
-      "@comvi/core/icu": ["./src/icu.ts"],
-      "@comvi/core/rich-text": ["./src/rich-text.ts"],
-      "@comvi/core/tags": ["./src/tags.ts"],
-      "@comvi/core/editor-bridge": ["./src/editor-bridge.ts"]
+      "@comvi/core/internal": ["./src/internal.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts"],
-  "exclude": ["tests/types/**", "tests/types-keys-open/**", "tests/dist/**"],
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["tests/types/**"],
   "references": []
 }

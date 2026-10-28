@@ -1,221 +1,181 @@
 /**
- * Standalone functions rather than `I18n` methods, so an app that never formats
- * does not carry this code in its bundle.
+ * @comvi/core/format — Intl formatters for values a message should not format itself
+ * (design §3.3; R3-8: no `{x, number|date|time}` in messages). Standalone functions, so
+ * an app that never formats carries none of this; they share the message compiler's one
+ * process-level Intl cache (fmt.ts), keyed by locale and normalized option VALUES —
+ * never `JSON.stringify` on the hot path.
+ *
+ * Each takes the instance and formats in its locale chain (canonical; the app may spell
+ * the locale `pt_BR`), or in `locale` alone when passed. Dates use the instance `timeZone` unless
+ * the options name one. `formatNumber` and `formatDate` also take the NAME of an entry of the
+ * instance's `formats` option; `formatRelativeTime` counts from the instance's `now` option
+ * (serialised by SSR bindings, so server and client agree) unless a `now` is passed.
  */
+import { intl } from "./compile/fmt";
+import { CORE, type I18n, type I18nOptions } from "./instance";
+import { canonicalize } from "./locale";
 
-/** Anything with a current locale — typically an I18n instance. */
-export interface LocaleSource {
-  locale: string;
-  /** Tried in order after `locale` when the runtime has no data for it. */
-  readonly fallbackLocales?: readonly string[];
-}
-
-// Bounded FIFO caches, shared across instances (Intl formatters are instance-independent).
-const FORMATTER_CACHE_MAX = 1000;
-
-function cachePut<T>(cache: Map<string, T>, key: string, value: T): T {
-  if (cache.size >= FORMATTER_CACHE_MAX) {
-    const oldest = cache.keys().next().value;
-    if (oldest !== undefined) cache.delete(oldest);
+/**
+ * The Intl locales: `locale` alone when passed, else the instance's lookup chain (its
+ * locale, the parents, the fallback locales), canonical — Intl takes the first it has
+ * data for. A tag that does not canonicalize is left out. Memoized per chain array (the
+ * instance memoizes chains per locale), so a call with no `locale` allocates nothing.
+ */
+type Tags = [key: string, locales: readonly string[], fmts: Record<string, unknown>];
+const chains = new WeakMap<object, Tags>();
+const NONE: Tags = ["", [], Object.create(null)];
+const tags = (i18n: I18n, locale?: string): Tags => {
+  if (locale) {
+    const c = canonicalize(locale);
+    // An override that is not a tag formats in the instance chain, never the host default.
+    return c ? [c, [c], Object.create(null)] : tags(i18n);
   }
-  cache.set(key, value);
-  return value;
-}
-
-const validTags = new Map<string, boolean>();
-
-// A fallback that is only a catalog key (`en_US`) must not make `Intl` throw.
-function isValidTag(tag: string): boolean {
-  let valid = validTags.get(tag);
-  if (valid === undefined) {
-    try {
-      Intl.getCanonicalLocales(tag);
-      valid = true;
-    } catch {
-      valid = false;
-    }
-    cachePut(validTags, tag, valid);
+  const core = CORE.get(i18n);
+  if (!core) return NONE;
+  const ch = core.ch(i18n.locale);
+  let t = chains.get(ch);
+  if (!t) {
+    const ls = ch.map((x) => x[1]);
+    chains.set(ch, (t = [ls.join(), ls, Object.create(null)]));
   }
-  return valid;
-}
+  return t;
+};
 
-/** The locales handed to `Intl`, and their JSON as the formatter cache-key prefix. */
-type ResolvedLocales = [lc: string | string[], key: string];
+/**
+ * The cached formatter of `kind` for `i18n` (or `locale`) and `options`. A call with the
+ * default options also keeps the formatter on the chain's memo, so the hot path skips the
+ * shared cache's key building (the memo lives as long as the chain does).
+ */
+const get = <T>(
+  kind: Parameters<typeof intl>[0],
+  i18n: I18n,
+  options: object | undefined,
+  locale?: string,
+  v = variant(options),
+): T => {
+  const t = tags(i18n, locale);
+  if (options && options != AUTO) return intl<T>(kind, t[0], v, options, t[1]);
+  const m = t[2];
+  return (m[kind] ??= intl<T>(kind, t[0], v, options, t[1])) as T;
+};
 
-const NO_CHAIN: readonly string[] = Object.freeze([]);
+/** A cache variant for `options`: its own keys, sorted, with their values. */
+const variant = (options?: object): string =>
+  options
+    ? Object.keys(options)
+        .sort()
+        .map((k) => k + "=" + (options as Record<string, unknown>)[k])
+        .join(",")
+    : "";
 
-// Per chain array, per locale. Keyed by identity, so only a frozen chain is
-// memoized: a mutable one could change under the entry. An I18n instance's
-// chain is frozen and replaced whole by `setFallbackLocale`.
-let resolvedCache = new WeakMap<readonly string[], Map<string, ResolvedLocales>>();
+/** The instance options (`timeZone`, `now`, `formats`). */
+const opts = (i18n: I18n): Partial<I18nOptions> => CORE.get(i18n)?.o || {};
 
-// An explicit `locale` argument is one locale; otherwise the source's chain.
-function resolveLocales(source: LocaleSource, locale: string | undefined): ResolvedLocales {
-  let chain = NO_CHAIN;
-  if (locale === undefined) {
-    locale = source.locale;
-    chain = source.fallbackLocales ?? NO_CHAIN;
-  }
-  let byLocale = resolvedCache.get(chain);
-  let resolved = byLocale?.get(locale);
-  if (resolved === undefined) {
-    const fallbacks = chain.filter(isValidTag);
-    const lc = fallbacks.length ? [locale, ...fallbacks] : locale;
-    resolved = [lc, JSON.stringify(lc)];
-    if (Object.isFrozen(chain)) {
-      if (byLocale === undefined) resolvedCache.set(chain, (byLocale = new Map()));
-      cachePut(byLocale, locale, resolved);
-    }
-  }
-  return resolved;
-}
+/** `options`, or the named entry of the instance's `formats[kind]` (unknown name: none). */
+const named = <T>(i18n: I18n, kind: "number" | "date", options?: T | string): T | undefined =>
+  typeof options == "string"
+    ? ((opts(i18n).formats?.[kind] as Record<string, T> | undefined)?.[options] ?? undefined)
+    : options;
 
-// The prefix is one complete JSON value, so appending the options' JSON stays unambiguous.
-function cacheKey([, key]: ResolvedLocales, options: object | undefined): string {
-  return options ? key + JSON.stringify(options) : key;
-}
+/** Date options with the instance time zone filled in. */
+const zoned = <T extends { timeZone?: string }>(i18n: I18n, options?: T): T | undefined => {
+  const z = opts(i18n).timeZone;
+  return z && !(options && options.timeZone) ? ({ ...options, timeZone: z } as T) : options;
+};
 
-const numberFormatCache = new Map<string, Intl.NumberFormat>();
-const dateFormatCache = new Map<string, Intl.DateTimeFormat>();
-const relativeTimeFormatCache = new Map<string, Intl.RelativeTimeFormat>();
-
-function getNumberFormat(
-  locales: ResolvedLocales,
-  options?: Intl.NumberFormatOptions,
-): Intl.NumberFormat {
-  const key = cacheKey(locales, options);
-  return (
-    numberFormatCache.get(key) ??
-    cachePut(numberFormatCache, key, new Intl.NumberFormat(locales[0], options))
-  );
-}
-
-function getDateFormat(
-  locales: ResolvedLocales,
-  options?: Intl.DateTimeFormatOptions,
-): Intl.DateTimeFormat {
-  const key = cacheKey(locales, options);
-  return (
-    dateFormatCache.get(key) ??
-    cachePut(dateFormatCache, key, new Intl.DateTimeFormat(locales[0], options))
-  );
-}
-
-function getRelativeTimeFormat(
-  locales: ResolvedLocales,
-  options?: Intl.RelativeTimeFormatOptions,
-): Intl.RelativeTimeFormat {
-  const key = cacheKey(locales, options);
-  return (
-    relativeTimeFormatCache.get(key) ??
-    cachePut(relativeTimeFormatCache, key, new Intl.RelativeTimeFormat(locales[0], options))
-  );
-}
-
-/** Format a number. Uses the source locale, then its `fallbackLocales`, unless `locale` is passed. */
-export function formatNumber(
-  i18n: LocaleSource,
+/** A number; `options` may name an entry of the instance's `formats.number`. */
+export const formatNumber = (
+  i18n: I18n,
   value: number,
-  options?: Intl.NumberFormatOptions,
+  options?: Intl.NumberFormatOptions | string,
   locale?: string,
-): string {
-  return getNumberFormat(resolveLocales(i18n, locale), options).format(value);
-}
+): string =>
+  get<Intl.NumberFormat>(
+    "NumberFormat",
+    i18n,
+    named<Intl.NumberFormatOptions>(i18n, "number", options),
+    locale,
+  ).format(value);
 
-/** Format a date. Uses the source locale, then its `fallbackLocales`, unless `locale` is passed. */
-export function formatDate(
-  i18n: LocaleSource,
-  value: Date | number,
-  options?: Intl.DateTimeFormatOptions,
-  locale?: string,
-): string {
-  return getDateFormat(resolveLocales(i18n, locale), options).format(value);
-}
-
-/** Format a number as currency. Uses the source locale, then its `fallbackLocales`, unless `locale` is passed. */
-export function formatCurrency(
-  i18n: LocaleSource,
+export const formatCurrency = (
+  i18n: I18n,
   value: number,
   currency: string,
   options?: Intl.NumberFormatOptions,
   locale?: string,
-): string {
-  return getNumberFormat(resolveLocales(i18n, locale), {
-    ...options,
-    style: "currency",
-    currency,
-  }).format(value);
-}
+): string => formatNumber(i18n, value, { ...options, style: "currency", currency }, locale);
 
-/** Format a relative time. Uses the source locale, then its `fallbackLocales`, unless `locale` is passed. */
-export function formatRelativeTime(
-  i18n: LocaleSource,
-  value: number,
-  unit: Intl.RelativeTimeFormatUnit,
-  options?: Intl.RelativeTimeFormatOptions,
+/** A date; `options` may name an entry of the instance's `formats.date`. */
+export const formatDate = (
+  i18n: I18n,
+  value: Date | number,
+  options?: Intl.DateTimeFormatOptions | string,
   locale?: string,
-): string {
-  return getRelativeTimeFormat(resolveLocales(i18n, locale), options).format(value, unit);
-}
+): string => {
+  const o = zoned(i18n, named<Intl.DateTimeFormatOptions>(i18n, "date", options));
+  return get<Intl.DateTimeFormat>("DateTimeFormat", i18n, o, locale).format(value);
+};
 
-const textDirectionCache = new Map<string, "ltr" | "rtl">();
+export const formatDateRange = (
+  i18n: I18n,
+  start: Date | number,
+  end: Date | number,
+  options?: Intl.DateTimeFormatOptions,
+  locale?: string,
+): string => {
+  const o = zoned(i18n, options);
+  return get<Intl.DateTimeFormat>("DateTimeFormat", i18n, o, locale).formatRange(start, end);
+};
 
-/** @internal Test probe: entries across the formatter and text-direction caches. */
-export function _formatterCacheSize(): number {
-  return (
-    numberFormatCache.size +
-    dateFormatCache.size +
-    relativeTimeFormatCache.size +
-    textDirectionCache.size
-  );
-}
+const AUTO: Intl.RelativeTimeFormatOptions = { numeric: "auto" };
 
-/** @internal Test teardown. */
-export function _resetFormatterCaches(): void {
-  resolvedCache = new WeakMap();
-  numberFormatCache.clear();
-  dateFormatCache.clear();
-  relativeTimeFormatCache.clear();
-  textDirectionCache.clear();
-}
+/** Units from the largest down, with their length in ms (a month is 30.44 days, a year 365.25). */
+const UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 31557600000],
+  ["month", 2629800000],
+  ["week", 604800000],
+  ["day", 86400000],
+  ["hour", 3600000],
+  ["minute", 60000],
+  ["second", 1000],
+];
 
 /**
- * Text direction for a locale, for an HTML `dir` attribute or CSS logical
- * properties. `Intl.Locale.textInfo` (ES2023+) is the authoritative source —
- * it handles script subtags and regional variants from CLDR — with the
- * hand-rolled script/language check below as the fallback on older runtimes.
+ * `date` relative to `now` ("in 3 days", "yesterday"), in the largest unit that fits at
+ * least once; `now` defaults to the instance's `now` option, then the clock. `numeric`
+ * defaults to `"auto"`.
  */
-export function getTextDirection(locale: string): "ltr" | "rtl" {
-  const cached = textDirectionCache.get(locale);
-  if (cached !== undefined) {
-    return cached;
-  }
-  let result: "ltr" | "rtl";
-  try {
-    const info = (
-      new Intl.Locale(locale) as Intl.Locale & {
-        textInfo?: { direction?: string };
-      }
-    ).textInfo;
-    if (info?.direction === "rtl" || info?.direction === "ltr") {
-      return cachePut(textDirectionCache, locale, info.direction);
-    }
-  } catch {
-    // Invalid locale — fall through to the hardcoded check
-  }
-  // An explicit RTL script subtag wins ("ku-Arab").
-  if (/[-_](arab|hebr|thaa|syrc|nkoo|samr|mand|mend|rohg|adlm)([-_]|$)/i.test(locale)) {
-    result = "rtl";
-  } else if (/^[a-z]{2,3}[-_][a-z]{4}([-_]|$)/i.test(locale)) {
-    // Any OTHER explicit script subtag means LTR ("ks-Deva", "ar-Latn").
-    result = "ltr";
-  } else {
-    // No script subtag — fall back to the language code's default direction.
-    result = /^(ar|arc|ckb|dv|fa|glk|he|khw|ks|lrc|mzn|pnb|ps|sd|syr|ug|ur|yi)([-_]|$)/i.test(
-      locale,
-    )
-      ? "rtl"
-      : "ltr";
-  }
-  return cachePut(textDirectionCache, locale, result);
-}
+export const formatRelativeTime = (
+  i18n: I18n,
+  date: Date | number,
+  now?: number,
+  options?: Intl.RelativeTimeFormatOptions,
+  locale?: string,
+): string => {
+  const ms = +date - (now ?? opts(i18n).now ?? Date.now());
+  const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
+  const o = options ? { numeric: AUTO.numeric, ...options } : AUTO;
+  return get<Intl.RelativeTimeFormat>(
+    "RelativeTimeFormat",
+    i18n,
+    o,
+    locale,
+    // The default options' cache variant is a constant: no key sorting per call.
+    o == AUTO ? "numeric=auto" : undefined,
+  ).format(Math.round(ms / size), unit);
+};
+
+export const formatList = (
+  i18n: I18n,
+  items: readonly string[],
+  options?: Intl.ListFormatOptions,
+  locale?: string,
+): string => get<Intl.ListFormat>("ListFormat", i18n, options, locale).format(items);
+
+/** The display name of a language, region, script or currency code, in the instance locale. */
+export const displayName = (
+  i18n: I18n,
+  code: string,
+  type: Intl.DisplayNamesOptions["type"] = "language",
+  locale?: string,
+): string | undefined => get<Intl.DisplayNames>("DisplayNames", i18n, { type }, locale).of(code);

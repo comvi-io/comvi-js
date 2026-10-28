@@ -21,6 +21,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { pendingReason } from "./migration-pending.mjs";
 
 const forbiddenPackageEntries = [
   ".DS_Store",
@@ -447,6 +448,11 @@ export async function checkPackageContracts({ root = process.cwd(), log = consol
     if (manifest.private === true) continue;
 
     const packageName = manifest.name ?? path.basename(packageDir);
+    const pending = pendingReason(packageName);
+    if (pending) {
+      log(`- ${packageName}: skipped — MIGRATION_PENDING (${pending})`);
+      continue;
+    }
     const packedFiles = npmPackDryRun(packageDir);
     const packageErrors = [];
 

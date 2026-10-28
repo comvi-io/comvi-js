@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import url from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
+import { bundlerCaseNeeds, pendingReason } from "../../tooling/migration-pending.mjs";
 
 /**
  * Pack-based bundler-matrix gate.
@@ -11,17 +12,14 @@ import { execFileSync, spawnSync } from "node:child_process";
  *    dir, so every assertion runs against the artifacts users actually
  *    receive (exports map, sideEffects array, dist files — post
  *    workspace-protocol rewrite).
- * 2. Assert every entry of core's `sideEffects` array names a file that
- *    actually exists in the packed tarball — fails when rolldown renames the
- *    register-tags chunk on upgrade.
+ * 2. Assert core's `sideEffects`: `false` in 0.8 (tags are in the base, R3-11, so no
+ *    chunk registers anything on import); the 0.7 array named registration chunks that
+ *    had to exist in the tarball.
  * 3. Install the tarballs into the standalone consumer app in ./app (npm, not
  *    pnpm — deliberately outside the workspace), bundle each case with
- *    webpack AND vite under development AND production modes, run every
- *    bundle in plain node, and assert both tag-activation channels:
- *    ambient (a `@comvi/core/tags` import — the app's own, the one a wrapper
- *    `<T>` module carries, or the non-exported CDN entry's; the base root
- *    entry registers nothing) and per-call (tagInterpolation.extensions). See
- *    app/src/*.mjs for the assertions.
+ *    webpack AND vite under development AND production modes, and run every
+ *    bundle in plain node (each fixture asserts its own behaviour and prints
+ *    BUNDLER_MATRIX_OK). See app/src/*.mjs.
  * 4. Assert per case whether the tag-registration modules are in the bundler's
  *    MODULE GRAPH (webpack `--json` stats `modules[].identifier`; vite via the
  *    `bm-module-ids` config plugin) — module IDs, never output-text substrings.
@@ -79,6 +77,16 @@ const DEVTOOLS_SUBPATH = [
  * nothing".
  */
 const UNUSED_CAPABILITY_SUBPATHS = [...ICU_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH];
+/**
+ * The 0.8 core's subpath entries as module-ID fragments (each is an entry file of its own,
+ * prod and `.dev` alike), and `@comvi/react`'s `/format` entry. An app that does not import
+ * a subpath must not carry its module.
+ */
+const coreEntry08 = (name) => `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-${name}`;
+const CORE_SUBPATHS_08 = ["cdn", "plugins", "devtools", "format"].map(coreEntry08);
+const REACT_FORMAT_08 = `@comvi${path.sep}react${path.sep}dist${path.sep}comvi-react-format`;
+/** The binding's one dev-only diagnostic (`useI18n()` outside a provider), development artifact only. */
+const REACT_DEV_TEXT = "[@comvi/react] no <I18nProvider>";
 /**
  * The in-context editor's heaviest chunk (~100 kB gz), reached through a
  * dynamic `import()` inside the editor's Core chunk. It is in the graph under
@@ -165,21 +173,47 @@ const NEXT_USE_IDENTITY_HINT = ".use(installer) must return the instance it was 
  * run — it asserts an absence the wrappers cannot yet deliver.
  */
 const CASES = [
-  { name: "ambient", sentinels: "present", packages: ["@comvi/core"] },
-  { name: "per-call", sentinels: "present", packages: ["@comvi/core"] },
+  // ---------------------------------------------------------------------
+  // The 0.8 cases (lot 1c): the core on its own, the core with every subpath, and the
+  // React binding with and without `/format`. Tags are in the core's base (R3-11): there
+  // is no registration chunk, so their tag sentinels are trivially absent.
+  {
+    name: "core-default",
+    sentinels: "absent",
+    absentModules: [...CORE_SUBPATHS_08, coreEntry08("internal")],
+    packages: ["@comvi/core"],
+  },
+  {
+    name: "core-subpaths",
+    sentinels: "absent",
+    presentModules: CORE_SUBPATHS_08,
+    packages: ["@comvi/core"],
+  },
+  {
+    name: "react-default",
+    sentinels: "absent",
+    absentModules: [...CORE_SUBPATHS_08, REACT_FORMAT_08],
+    presentModules: [coreEntry08("internal")],
+    packages: ["@comvi/core", "@comvi/react"],
+    deps: ["react"],
+  },
+  {
+    name: "react-format",
+    sentinels: "absent",
+    absentModules: CORE_SUBPATHS_08.filter((f) => !f.endsWith("format")),
+    presentModules: [REACT_FORMAT_08, coreEntry08("format")],
+    devOnlyText: [REACT_DEV_TEXT],
+    packages: ["@comvi/core", "@comvi/react"],
+    deps: ["react"],
+  },
+  // ---------------------------------------------------------------------
+  // The 0.7 cases below run again when their binding's lot moves them to 0.8
+  // (`fixtures-08`, tooling/migration-pending.mjs).
   {
     name: "wrappers",
     sentinels: "absent",
     packages: ["@comvi/core", "@comvi/react", "@comvi/vue"],
     deps: ["react", "vue"],
-  },
-  {
-    // The base host + `/loader` + `/plugins` composed through both call forms
-    // (`attach*` and the configured installers), resolved through the published
-    // exports map out of the packed tarball.
-    name: "base-composition",
-    sentinels: "absent",
-    packages: ["@comvi/core"],
   },
   {
     // The companion-only server graph must drop next's own composed-host module
@@ -217,23 +251,6 @@ const CASES = [
   // `optimization.usedExports` off, so a re-export it cannot resolve is a
   // retained module. That is exactly how `export * from "@comvi/core"` kept the
   // root entry alive for vue, and why every entry uses NAMED re-exports only.
-  {
-    name: "react-default",
-    sentinels: "absent",
-    absentModules: [...UNUSED_CAPABILITY_SUBPATHS, ...LOADER_SUBPATH],
-    packages: ["@comvi/core", "@comvi/react"],
-    deps: ["react"],
-  },
-  {
-    // The POSITIVE half of the ICU claim: a size sentinel can only assert a
-    // module ABSENT, so this case proves ICU's presence instead — it runs the
-    // bundle and formats a plural for real. Same for the icu twins below.
-    name: "react-icu",
-    sentinels: "absent",
-    absentModules: [...LOADER_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH],
-    packages: ["@comvi/core", "@comvi/react"],
-    deps: ["react"],
-  },
   {
     name: "solid-default",
     sentinels: "absent",
@@ -398,14 +415,29 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/plugin-in-context-editor"],
   },
 ];
+// MIGRATION_PENDING (tooling/migration-pending.mjs): a case runs once its fixtures are on
+// the 0.8 API ("fixtures-08") and every package it packs is active — case by case, so a binding whose lot has
+// landed is covered again while the others stay pending.
+for (const testCase of CASES) {
+  if (testCase.pending !== undefined) continue;
+  const needs = bundlerCaseNeeds(testCase.name, testCase.packages);
+  const pending = needs.filter((n) => pendingReason(n));
+  if (pending.length > 0)
+    testCase.pending = `MIGRATION_PENDING ${pending.map((n) => `${n} (${pendingReason(n)})`).join("; ")}`;
+}
 const ACTIVE_CASES = CASES.filter((testCase) => testCase.pending === undefined);
 const PENDING_CASES = CASES.filter((testCase) => testCase.pending !== undefined);
+if (ACTIVE_CASES.length === 0) {
+  console.log("bundler-matrix: every case is MIGRATION_PENDING — nothing to run");
+  for (const testCase of PENDING_CASES) console.log(`SKIP  ${testCase.name} — ${testCase.pending}`);
+  process.exit(0);
+}
 const MODES = ["development", "production"];
 const BUNDLERS = ["webpack", "vite"];
 
-/** Dev-only string from core's translate chunk: present iff the bundler
- *  resolved the "development" export condition. */
-const DEV_MARKER = "[@comvi/core] Missing parameter";
+/** Dev-only string from the 0.8 core's instance chunk (the flat-catalog check): present
+ *  iff the bundler resolved the "development" export condition. */
+const DEV_MARKER = "catalogs are flat (flatten nested objects";
 
 const ALL_PACKAGES = [
   { name: "@comvi/core", dir: "packages/core", distProbe: "dist/comvi-core.js" },
@@ -511,12 +543,14 @@ const packedPkgJson = JSON.parse(
 );
 
 const sideEffects = packedPkgJson.sideEffects;
-if (!Array.isArray(sideEffects) || sideEffects.length === 0) {
+// 0.8: tags are in the base (R3-11), so no chunk registers anything on import and the
+// whole package is side-effect free. The 0.7 array of registration chunks is gone.
+if (sideEffects !== false && (!Array.isArray(sideEffects) || sideEffects.length === 0)) {
   fail(
-    `packed @comvi/core sideEffects must be a non-empty array of registration chunks, got: ${JSON.stringify(sideEffects)}`,
+    `packed @comvi/core sideEffects must be false (0.8) or a non-empty array of registration chunks, got: ${JSON.stringify(sideEffects)}`,
   );
 }
-const missing = sideEffects.filter(
+const missing = (sideEffects || []).filter(
   (entry) => !tarList.includes(`package/${entry.replace(/^\.\//, "")}`),
 );
 if (missing.length > 0) {
@@ -530,7 +564,11 @@ if (missing.length > 0) {
       `\nEmitted dist/chunks files:\n${emitted}`,
   );
 }
-console.log(`sideEffects OK (${sideEffects.length} entries all present in the tarball)`);
+console.log(
+  sideEffects === false
+    ? "sideEffects OK (false: no registration chunk in 0.8)"
+    : `sideEffects OK (${sideEffects.length} entries all present in the tarball)`,
+);
 
 /**
  * Sentinel module IDs for the tag-registration graph, derived from the packed
@@ -538,7 +576,7 @@ console.log(`sideEffects OK (${sideEffects.length} entries all present in the ta
  * "does the bundler's module graph contain one of these files", matched
  * against bundler-reported module identifiers — never against output text.
  */
-const SENTINEL_FRAGMENTS = sideEffects.map((entry) =>
+const SENTINEL_FRAGMENTS = (sideEffects || []).map((entry) =>
   `@comvi/core/${entry.replace(/^\.\//, "")}`.split("/").join(path.sep),
 );
 console.log(`tag sentinels: ${SENTINEL_FRAGMENTS.length} module IDs derived from sideEffects`);

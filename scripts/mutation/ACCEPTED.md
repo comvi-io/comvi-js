@@ -2,60 +2,35 @@
 
 Entries in `accepted.json` are matched by file + mutator + the text of the mutated line. Longer arguments live here.
 
-### src/core/translate.ts (near `if (!(tokens.length === 0 || (tokens.length === 1 && tokens[`)
+## packages/core and packages/react, 0.8 (lot 1d, 2026-10-28)
 
-The classification below is an optimization HINT, not behaviour: `flags`
-only chooses between `processSimpleParams` and `processTokens`, which
-render an identical text/param token list, and it can only lower
-`isStatic` for templates that are already non-static. The one
-combination that would change output — TF_SIMPLE_PARAMS on a template
-that also holds plural/select/tag tokens — is unreachable from any
-single mutation, so the mutants below are equivalent. A `_templateFlags()`
-seam next to `isStaticTemplate()` would make them observable.
+The 0.7 core and React files are gone (lots 1a–1c); their 209 entries were removed with them, and the two entries of the 0.7 `src/format.ts` that matched no live mutant.
+The 0.8 sources were run COLD (no `.stryker/incremental.json`) under Node 24: core 1588
+mutants (144 static, ignored by `ignoreStatic`), React 122 (9 static). Every entry below was
+hand-applied with `pnpm exec vitest run` of the package (with `COMVI_MUTATION=1`, as Stryker
+runs it) observed green; the reason is in the entry.
 
-### src/core/translate.ts (near `if (`)
-
-The single-param metadata below only ARMS the fast path in
-translateTemplateWithCache. A mutant that stops it from being written is
-invisible — processSimpleParams then renders the same output — so those are
-disabled; the ones that would arm it with the WRONG token are killable and
-deliberately left live.
-
-### src/core/translate.ts (near `let hasSpecialChar = false;`)
-
-Forcing the slow route below re-parses the template and renders the same
-output. The placeholder entry it caches is ALSO read back by
-translateSegment (which does not consult isStatic), so a mutant that
-misclassifies a template here is killable through the per-call fallback
-path and is deliberately left live.
-caches REAL tokens, which only the (buggy) fallback read could tell apart
-
-### src/core/translate.ts (near `if (cached.singleParamName !== undefined) {`)
-
-The single-param fast path is an OPTIMIZATION: every mutant that stops it from
-firing falls through to processSimpleParams below, which renders the same string
-for the same inputs. Only a mutant that makes it produce a WRONG value is
-killable, which is why the metadata assignments above are not disabled.
-
-## Continuation notes salvaged from the stripped directives (2026-08-29)
-
-## Continuation notes salvaged from the stripped directives (2026-08-29)
-
-- translate.ts, template classification: TF_SIMPLE_PARAMS — a three-token parse can only be
-  [text, param, text], so the third operand can never be the one that decides the branch; another
-  flag set can never be [text, param, text].
-- translate.ts, single-param fast path: the (template, param) dedup key cannot collide — a param
-  name is always braced inside its own template, so no two distinct pairs concatenate equally.
-- translate.ts, compiled-template branch: re-enters translateSegment, which finds the same cache
-  entry; the placeholder entry is read back by translateSegment (that is why the `<`/`&` scan
-  mutants are killable and are NOT accepted).
-- translate.ts, parts assembly: the value that would fail the test is appended by appendParamValue,
-  which String()s it to the same characters; an all-primitive part list joins to the same string;
-  only objects are ever pushed, so an all-primitive list can never hold two parts.
-- compile-simple.ts / logger.ts / loader.ts / plugins.ts / i18n.ts / defaultParams.ts /
-  capability.ts: the `: "E_…"` arms and `!IS_DEV` branches are unreachable while the only vitest
-  config pins `__DEV__: true` — recorded as `gap:prod-build`, closable with a second vitest project
-  built with `__DEV__: false` (which would also exercise the prod ICU fail-soft path directly).
+- Families: performance guards whose generic branch renders the same (`compile()`'s static
+  fast path, `{x}`'s string fast path, the `<` pre-check of the sticky TAG regex, the `=` pre-check
+  of EXACT, `if (buf)` in flush), memo keys and allocations that only cost (`ej.j == j`, the
+  `s.dp` copy, a second store copy in view()), production `fail()` calls whose next check fails
+  the scan with the same message-less report (icu.ts 84/103), redundant operands (`n >= 0` next
+  to `1 / n > 0`), defaults that the code's own else-arm already covers (`order`'s "navigator",
+  persist's `to = "cookie"`), and unreachable text (`parts[0] || ""`, a catch block returning
+  `undefined` either way).
+- Kept on purpose: `cache.ts` 51 (`e !== SYNTAX`). The only non-SYNTAX throw that can leave the
+  scanner is a stack overflow on a pathologically deep template; the mutant would render it as a
+  syntax fallback. Pinning the crash in a test would pin a defect, so the entry stays.
+- Tooling found on the way: vitest's `expect(p).rejects.toThrow("text")` PASSES when `p` rejects
+  with `undefined` (checked 28.10.2026), which hid `instance.ts` 449 (`throw bad.get(wrong key)`
+  = `throw undefined`). Pin a rejection with `rejects.toBe(error)` or by catching the value.
+- `packages/react` runs `--inPlace` (run.mjs adds the flag): its vitest
+  config aliases `@comvi/core` to `../core/src`, which a sandbox copy of the package lacks. Both
+  packages leave `tests/contracts` (and core `tests/dist`) out under `COMVI_MUTATION`: those read
+  the built dist or the source TEXT, which Stryker instruments.
+- The resetModules lesson (2026-09-02) still holds: a `vi.resetModules()` + dynamic `import()`
+  in a test body re-runs module initialization inside the coverage window and resurrects every
+  static mutant of the graph. No 1d test imports dynamically.
 
 ## packages/solid (kill-pass 2026-09-01)
 
@@ -64,23 +39,6 @@ killable, which is why the metadata assignments above are not disabled.
   through to `[].map(...)`. Evidence: mutant 100:19-100:39 hand-applied, full suite 146/146 green.
 - T.tsx:190 `typeof content === "string"` -> true: redundant with `content === keyString`, which can
   only hold for a string primitive. Evidence: mutant 190:11-190:38 hand-applied, 146/146 green.
-
-## packages/react (kill-pass 2026-09-01)
-
-Three families, every member hand-applied with the full suite observed green:
-
-- **String fast paths** (useI18n.ts:63/83/89, T.tsx:175/184/260, and the allocation guard T.tsx:165):
-  each guard's body is behaviourally identical to the generic branch below it — String(s)===s,
-  Fragment wrap reuses the same key, empty-Map vs null lookup both yield undefined. Performance
-  guards, not behaviour; killable only by deleting the redundant fast paths in src.
-- **mountedRef latches** (useSetLocaleTransition.ts:30/31/32/40, I18nProvider.tsx:71/75): React 19
-  performs setState-after-unmount as a silent no-op, so the latches have no observable effect.
-  useSubscribe's identical latch IS killed because its subscribe fn is exported and drivable.
-- **Singles**: useI18n.ts:38 (`"props" in value` implied by the typeof that follows), :270 (right
-  operand of `locale || i18n.locale` unreachable — a test pinning the divergence failed on
-  unmutated src), I18nProvider.tsx:87 (namespace join separator — the list only grows, so no
-  colliding pair exists; the fallback-locale join, whose list is replaced, IS killed),
-  useSetLocaleTransition.ts:34 (constant-content deps array).
 
 ## packages/vue (kill-pass 2026-09-01)
 
@@ -95,28 +53,11 @@ current Stryker mutant set — entries dropped as stale rather than kept specula
 
 - T.ts:174 `[rendered]` -> `[]` (nocov): unreachable — Vue's normalizeSlotValue hands T an array
   from every slot function, so the single-node wrap never executes. Hand-applied, suite green.
-- react follow-up (round 2): T.tsx:175 extended to the emptied-block mutant; T.tsx:180 null-child
-  vs empty-list (React renders both as zero-child DOM, probed); the two `?? ""` locale fallbacks
-  (I18nProvider:212, useI18n:204) unreachable behind the throwing instance guard. The dropped
-  useI18n.ts:38 `"props" in value` entry: the mutant is genuinely redundant (implied by the
-  typeof that follows) but absent from the current mutant set — if it reappears surviving, that
-  is the ready-made reason, not a regression.
 - Registry notes (2026-09-01): Stryker's ConditionalExpression mutator skips ternary conditions
   that are bare identifiers or non-comparison BinaryExpressions (e.g. `instanceof`) — hand-probing
   such conditions explores mutants the real set never contains. Fragile-hint pair: the two
   `this._configRevision.value++;` entries (VueI18n 167/172) share a snippet and are disambiguated
   only by lineHint — an edit above line 172 would silently re-bind them.
-
-## packages/core prod-profile closing (2026-09-02)
-
-The resetModules lesson, learned the hard way: a vi.resetModules() + dynamic import inside a test
-re-runs MODULE INITIALIZATION inside the coverage window, un-ignoring every static mutant of the
-transitive graph and attributing them all to that one file — 61 phantom survivors. The file was
-deleted; its claims live in ordinary tests (exact dev messages in initialization/host-option/
-host-error tests, prod arms in tests/prod). Do NOT close static-mutant nocov entries with
-re-import tests. Remaining accepts: 4 module-scope/constructor StringLiterals whose both arms are
-suite-killed but tool-invisible (i18n 55/58/61/263), plus i18n.ts:808's prod arm (argument to a
-warn() that prod compiles out — same class as compile-icu 200 / tags 238).
 
 ## packages/next (kill-pass 2026-09-02)
 

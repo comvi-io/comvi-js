@@ -14,6 +14,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { checkPackedJsReachable } from "./check-package-contracts.mjs";
 import { copyLicense } from "./copy-license.mjs";
+import { MIGRATION_PENDING } from "./migration-pending.mjs";
 
 function publishablePackages(root) {
   const packagesDir = path.join(root, "packages");
@@ -46,19 +47,34 @@ function filesUnder(dir, base) {
  * disk (`dist/` and `bin/`) instead of an `npm pack --dry-run` listing: the same
  * walk, without one slow npm call per package.
  */
-export function findUnreachableDistFiles(root) {
-  return publishablePackages(root).flatMap(({ packageDir, manifest }) => {
-    const files = new Set([
-      ...filesUnder(path.join(packageDir, "dist"), packageDir),
-      ...filesUnder(path.join(packageDir, "bin"), packageDir),
-    ]);
-    return checkPackedJsReachable(manifest.name, packageDir, files, manifest);
-  });
+export function findUnreachableDistFiles(root, only = () => true) {
+  return publishablePackages(root)
+    .filter(({ manifest }) => only(manifest.name))
+    .flatMap(({ packageDir, manifest }) => {
+      const files = new Set([
+        ...filesUnder(path.join(packageDir, "dist"), packageDir),
+        ...filesUnder(path.join(packageDir, "bin"), packageDir),
+      ]);
+      return checkPackedJsReachable(manifest.name, packageDir, files, manifest);
+    });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  // A release packs every publishable package; during the 0.8 rebuild some do not build
+  // against the new core. Refuse instead of packing a partial release — unless a GATE asks
+  // for the active packages only (`--active`: examples e2e, which installs what it packs).
+  const activeOnly = process.argv.includes("--active");
+  const pending = Object.entries(MIGRATION_PENDING);
+  if (pending.length > 0 && !activeOnly) {
+    console.error(
+      "pack:release: refused — MIGRATION_PENDING is not empty (tooling/migration-pending.mjs):",
+    );
+    for (const [name, reason] of pending) console.error(`  ${name}: ${reason}`);
+    process.exit(1);
+  }
+  const active = (name) => !(name in MIGRATION_PENDING);
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const stale = findUnreachableDistFiles(root);
+  const stale = findUnreachableDistFiles(root, active);
   if (stale.length > 0) {
     console.error(
       "pack:release refused: run `pnpm build` (it cleans every dist first), then retry.",
@@ -67,7 +83,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(1);
   }
   copyLicense(root);
-  for (const { packageDir } of publishablePackages(root)) {
+  for (const { packageDir, manifest } of publishablePackages(root)) {
+    if (!active(manifest.name)) {
+      console.log(`pack:release --active: skipping ${manifest.name} — MIGRATION_PENDING`);
+      continue;
+    }
     execFileSync("pnpm", ["pack"], { cwd: packageDir, stdio: "inherit" });
   }
 }

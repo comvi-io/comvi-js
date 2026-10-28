@@ -1,6 +1,5 @@
-import { createElement, formatDate, formatNumber, getTextDirection } from "@comvi/core";
-import type { TranslationResult, VirtualNode } from "@comvi/core";
-import { i18n, missedKeys } from "../i18n";
+import { formatCurrency, formatDate, formatNumber } from "@comvi/core/format";
+import { fetched, i18n, missedKeys } from "../i18n";
 import { h, toDom } from "../dom";
 import { link } from "../router";
 import { formalities, genders, state, update } from "../state";
@@ -33,9 +32,6 @@ export function card(feature: Feature, ...widget: Node[]): HTMLElement {
     ...widget,
   );
 }
-
-const children = (value: TranslationResult): Array<string | VirtualNode> =>
-  typeof value === "string" ? [value] : value;
 
 export function interpolationCard(): HTMLElement {
   // A parameter is always rendered as text, never as markup: try `<b>Grace</b>`.
@@ -133,12 +129,12 @@ export function formalityCard(): HTMLElement {
 export function tagsCard(): HTMLElement {
   // The handler decides what `<link>` becomes; the translator decides where it goes.
   const readMore = toDom(
-    i18n.tRaw("docs.read_more", {
-      link: ({ children: inner }) =>
-        createElement(
+    i18n.t("docs.read_more", {
+      link: (chunks: unknown[]) =>
+        h(
           "a",
           { href: "https://comvi.io/docs", target: "_blank", rel: "noreferrer" },
-          children(inner),
+          ...toDom(chunks),
         ),
     }),
   );
@@ -146,9 +142,6 @@ export function tagsCard(): HTMLElement {
 }
 
 export function formattingCard(): HTMLElement {
-  const price = new Intl.NumberFormat(i18n.locale, { style: "currency", currency: "EUR" }).format(
-    1234.5,
-  );
   return card(
     "formatting",
     h(
@@ -160,7 +153,11 @@ export function formattingCard(): HTMLElement {
         date: formatDate(i18n, RELEASED, { dateStyle: "long", timeZone: "UTC" }),
       }),
     ),
-    h("p", { class: "widget" }, i18n.t("demo.formatting.price", { price })),
+    h(
+      "p",
+      { class: "widget" },
+      i18n.t("demo.formatting.price", { price: formatCurrency(i18n, 1234.5, "EUR") }),
+    ),
   );
 }
 
@@ -168,7 +165,7 @@ export function namespacesLine(): HTMLElement {
   return h(
     "div",
     {},
-    i18n.t("demo.lazy.namespaces", { namespaces: i18n.getActiveNamespaces().join(", ") }),
+    i18n.t("demo.lazy.namespaces", { namespaces: fetched.namespaces.join(", ") }),
   );
 }
 
@@ -181,7 +178,7 @@ export function lazyCard(): HTMLElement {
       h(
         "div",
         { "data-testid": "fetched" },
-        i18n.t("loader.fetched", { locales: i18n.getLoadedLocales().join(", ") }),
+        i18n.t("loader.fetched", { locales: fetched.locales.join(", ") }),
       ),
       namespacesLine(),
     ),
@@ -218,10 +215,10 @@ export function navigationCard(): HTMLElement {
 
 /** Each loaded language's name, read from that language's catalog with the `locale` call option. */
 export function optionsCard(): HTMLElement {
-  const rows = i18n.getLoadedLocales().map((code) =>
+  const rows = fetched.locales.map((code) =>
     h(
       "li",
-      { lang: code, dir: getTextDirection(code) },
+      { lang: code, dir: "auto" },
       i18n.t("demo.options.inOwn", {
         name: i18n.t("demo.options.name", { locale: code }),
         locale: code,

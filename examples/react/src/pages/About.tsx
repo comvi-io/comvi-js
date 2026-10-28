@@ -1,10 +1,12 @@
-import { Link } from "react-router";
+import { Link, useOutletContext } from "react-router";
 import { useI18n } from "@comvi/react";
+import type { Shared } from "../App";
 import { AccountDetails } from "../components/AccountDetails";
 import { FeatureCard } from "../components/FeatureCard";
 import { NamespacesLine } from "../components/NamespacesLine";
 
-export function About({ name }: { name: string }) {
+export function About() {
+  const { name } = useOutletContext<Shared>();
   const { t } = useI18n();
 
   return (

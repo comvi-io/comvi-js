@@ -25,6 +25,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { activeShards, testAppNeeds } from "../../tooling/migration-pending.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -420,6 +421,13 @@ async function smoke(name) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  // MIGRATION_PENDING: each app runs once everything it needs is active, independently of
+  // the other apps (tooling/migration-pending.mjs).
+  args.only = activeShards(args.only, testAppNeeds, "test-apps-smoke");
+  if (args.only.length === 0) {
+    console.log("test-apps-smoke: every requested app is MIGRATION_PENDING — nothing to run");
+    return;
+  }
   if (args.build) {
     const filters = args.only.flatMap((name) => ["--filter", `@test-apps/${name}`]);
     console.log(

@@ -2,7 +2,7 @@
   "name": "@comvi/core",
   "version": "0.7.1",
   "type": "module",
-  "description": "Type-safe, framework-agnostic i18n library with plugin architecture for JavaScript and TypeScript",
+  "description": "Type-safe, framework-agnostic i18n runtime: ICU messages, typed t(), CDN loading",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
@@ -36,8 +36,6 @@
     "LICENSE"
   ],
   "module": "./dist/comvi-core.js",
-  "unpkg": "./dist/comvi-core.global.prod.js",
-  "jsdelivr": "./dist/comvi-core.global.prod.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -45,40 +43,30 @@
       "development": "./dist/comvi-core.dev.js",
       "default": "./dist/comvi-core.js"
     },
-    "./loader": {
-      "types": "./dist/loader.d.ts",
-      "development": "./dist/comvi-core-loader.dev.js",
-      "default": "./dist/comvi-core-loader.js"
+    "./cdn": {
+      "types": "./dist/cdn.d.ts",
+      "development": "./dist/comvi-core-cdn.dev.js",
+      "default": "./dist/comvi-core-cdn.js"
     },
     "./plugins": {
       "types": "./dist/plugins.d.ts",
       "development": "./dist/comvi-core-plugins.dev.js",
       "default": "./dist/comvi-core-plugins.js"
     },
+    "./format": {
+      "types": "./dist/format.d.ts",
+      "development": "./dist/comvi-core-format.dev.js",
+      "default": "./dist/comvi-core-format.js"
+    },
     "./devtools": {
       "types": "./dist/devtools.d.ts",
       "development": "./dist/comvi-core-devtools.dev.js",
       "default": "./dist/comvi-core-devtools.js"
     },
-    "./icu": {
-      "types": "./dist/icu.d.ts",
-      "development": "./dist/comvi-core-icu.dev.js",
-      "default": "./dist/comvi-core-icu.js"
-    },
-    "./rich-text": {
-      "types": "./dist/rich-text.d.ts",
-      "development": "./dist/comvi-core-rich-text.dev.js",
-      "default": "./dist/comvi-core-rich-text.js"
-    },
-    "./tags": {
-      "types": "./dist/tags.d.ts",
-      "development": "./dist/comvi-core-tags.dev.js",
-      "default": "./dist/comvi-core-tags.js"
-    },
-    "./editor-bridge": {
-      "types": "./dist/editor-bridge.d.ts",
-      "development": "./dist/comvi-core-editor-bridge.dev.js",
-      "default": "./dist/comvi-core-editor-bridge.js"
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "development": "./dist/comvi-core-internal.dev.js",
+      "default": "./dist/comvi-core-internal.js"
     }
   },
   "engines": {
@@ -87,17 +75,12 @@
   "publishConfig": {
     "access": "public"
   },
-  "sideEffects": [
-    "./dist/comvi-core-tags.js",
-    "./dist/comvi-core-tags.dev.js",
-    "./dist/chunks/comvi-core-register-tags.js",
-    "./dist/chunks/comvi-core-register-tags.dev.js"
-  ],
+  "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
-    "build": "node ../../tooling/clean-dist.mjs && tsc && vite build && vite build --config vite.config.dev.ts && vite build --config vite.config.umd.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "build": "node ../../tooling/clean-dist.mjs && tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
-    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-open.json",
+    "test:types": "node tests/types/negative.mjs",
     "test": "vitest run && pnpm test:types",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

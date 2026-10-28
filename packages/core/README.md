@@ -1,3 +1,4 @@
+<!-- MIGRATION_PENDING (lot 10): this README still documents the 0.7 API (.use() composition, devtools({ instanceId }), exposeGlobal); the 0.8 API is in docs/design and the lot-1 changesets. -->
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="../../.github/assets/header-logo-dark.png">

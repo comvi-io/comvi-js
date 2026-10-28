@@ -25,6 +25,9 @@ const config = path.join(ROOT, "scripts/mutation/stryker.config.json");
 const runnerPlugin = createRequire(path.join(ROOT, "package.json")).resolve(
   "@stryker-mutator/vitest-runner",
 );
+// Packages whose vitest config aliases a sibling's src (`@comvi/core` → ../core/src) mutate
+// in place: Stryker's sandbox copies the package alone, so the alias would point nowhere.
+const IN_PLACE = new Set(["packages/react"]);
 if (rest.includes("--summarize-only")) {
   summarize(cwd, pkg);
   process.exit(0);
@@ -38,6 +41,7 @@ const result = spawnSync(
     config,
     "--plugins",
     runnerPlugin,
+    ...(IN_PLACE.has(pkg.replace(/\/$/, "")) && !rest.includes("--inPlace") ? ["--inPlace"] : []),
     ...rest.filter((a) => a !== "--" && a !== "--summarize-only"),
   ],
   {

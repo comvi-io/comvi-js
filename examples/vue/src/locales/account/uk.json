@@ -1,6 +1,4 @@
 {
-  "profile": {
-    "signed_in": "Ви увійшли як {name}.",
-    "devices": "{count, plural, one {# пристрій підключено} few {# пристрої підключено} many {# пристроїв підключено} other {# пристрою підключено}}"
-  }
+  "profile.signed_in": "Ви увійшли як {name}.",
+  "profile.devices": "{count, plural, one {# пристрій підключено} few {# пристрої підключено} many {# пристроїв підключено} other {# пристрою підключено}}"
 }

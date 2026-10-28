@@ -3,6 +3,7 @@ import path from "node:path";
 import url from "node:url";
 import zlib from "node:zlib";
 import { createRequire } from "node:module";
+import { pendingReason } from "../tooling/migration-pending.mjs";
 
 /**
  * Bundle-size gate: bundles each scripts/size-fixtures/ entry with esbuild and
@@ -320,6 +321,14 @@ function fixtureEntries(entry) {
 /**
  * Runs every budget entry. Every row declares a `gzipBudgetBytes`, so every
  * result is "pass" or "fail" — measured min+gz against that budget.
+ *
+ * Two additions for the 0.8 rebuild:
+ * - a row may declare `ceilingBytes`, the design ceiling (reference-i18n rev 3,
+ *   R3-10): its `gzipBudgetBytes` must not exceed it, so re-baselining cannot
+ *   walk a row past the ceiling;
+ * - a row whose entry names a MIGRATION_PENDING package (`pending(name)`, the CLI
+ *   passes tooling/migration-pending.mjs) is "skipped" with the reason, not
+ *   measured: that package does not build on the branch.
  */
 export async function runSizeCheck({
   budgets,
@@ -327,6 +336,7 @@ export async function runSizeCheck({
   packageRoots = DEFAULT_PACKAGE_ROOTS,
   conditions = PRODUCTION_CONDITIONS,
   define = {},
+  pending = () => undefined,
 } = {}) {
   const results = [];
   for (const fixture of budgets.fixtures) {
@@ -337,6 +347,28 @@ export async function runSizeCheck({
       );
     }
     const specifiers = fixtureEntries(fixture.entry);
+    const pendingPackage = specifiers
+      .map((specifier) => parseSpecifier(specifier).packageName)
+      .find((name) => pending(name));
+    if (pendingPackage) {
+      results.push({
+        name: fixture.name,
+        status: "skipped",
+        reason: `${pendingPackage} is MIGRATION_PENDING (${pending(pendingPackage)})`,
+      });
+      continue;
+    }
+    if (typeof fixture.ceilingBytes === "number" && budget > fixture.ceilingBytes) {
+      results.push({
+        name: fixture.name,
+        status: "fail",
+        reason: `gzipBudgetBytes ${budget} exceeds the design ceiling ${fixture.ceilingBytes}`,
+        budget,
+        minBytes: NaN,
+        gzipBytes: NaN,
+      });
+      continue;
+    }
     const unresolved = specifiers.filter(
       (specifier) => resolveFixtureSpecifier(specifier, packageRoots, conditions) === undefined,
     );
@@ -360,19 +392,71 @@ export async function runSizeCheck({
       minBytes,
       gzipBytes,
       budget,
+      ceiling: fixture.ceilingBytes,
     });
+  }
+  return results;
+}
+
+/**
+ * Increment caps (reference-i18n R3-10, the provisional binding cap): a row may declare
+ * `increment: { over, maxBytes }` — its min+gz may exceed row `over` (the same graph
+ * without what the row adds, e.g. the framework binding) by at most `maxBytes`. Run after
+ * every row is measured; a row over its cap fails with the increment in the reason, and a
+ * cap whose base row was not measured fails too (an ungated cap is not kept).
+ */
+export function applyIncrementCaps(fixtures, results) {
+  for (const fixture of fixtures) {
+    if (!fixture.increment) continue;
+    const result = results.find((r) => r.name === fixture.name);
+    if (!result || result.status === "skipped" || !Number.isFinite(result.gzipBytes)) continue;
+    const { over, maxBytes } = fixture.increment;
+    const base = results.find((r) => r.name === over);
+    if (!base || !Number.isFinite(base.gzipBytes)) {
+      result.status = "fail";
+      result.reason = `increment cap over "${over}", which was not measured`;
+      continue;
+    }
+    result.increment = { over, bytes: result.gzipBytes - base.gzipBytes, maxBytes };
+    if (result.increment.bytes > maxBytes) result.status = "fail";
   }
   return results;
 }
 
 export function renderResults(results) {
   return results
-    .map(
-      (result) =>
-        `${result.status === "pass" ? "+" : "x"} ${result.name}: ${formatBytes(result.gzipBytes)} min+gz ` +
-        `${result.status === "pass" ? "<=" : "vs"} budget ${formatBytes(result.budget)} ` +
-        `(${formatBytes(result.minBytes)} min)`,
+    .map((result) =>
+      result.status === "skipped"
+        ? `- ${result.name}: skipped — ${result.reason}`
+        : result.reason
+          ? `x ${result.name}: ${result.reason}`
+          : `${result.status === "pass" ? "+" : "x"} ${result.name}: ${formatBytes(result.gzipBytes)} min+gz ` +
+            `${result.status === "pass" ? "<=" : "vs"} budget ${formatBytes(result.budget)} ` +
+            `(${formatBytes(result.minBytes)} min)` +
+            (result.ceiling === undefined ? "" : `, ceiling ${result.ceiling} B`) +
+            (result.increment === undefined
+              ? ""
+              : `; +${result.increment.bytes} B over ${result.increment.over} ` +
+                `${result.increment.bytes <= result.increment.maxBytes ? "<=" : "vs"} cap +${result.increment.maxBytes} B`),
     )
+    .join("\n");
+}
+
+/**
+ * Informational lines for design ceilings no row gates yet (R3-10 rows whose graph is
+ * still incomplete): how many bytes are left under the ceiling for what is missing.
+ */
+export function renderDesignCeilings(ceilings = [], results) {
+  return ceilings
+    .map((c) => {
+      const row = results.find((r) => r.name === c.measuredBy);
+      if (!row || !Number.isFinite(row.gzipBytes))
+        return `i ${c.name} <= ${c.bytes} B: ${c.measuredBy} not measured`;
+      return (
+        `i ${c.name} <= ${c.bytes} B: ${c.measuredBy} measures ${row.gzipBytes} B, ` +
+        `${c.bytes - row.gzipBytes} B left for ${c.missing}`
+      );
+    })
     .join("\n");
 }
 
@@ -384,8 +468,12 @@ async function main() {
     budgets,
     fixturesDir: path.join(SCRIPT_DIR, "size-fixtures"),
     define: { __VERSION__: JSON.stringify(corePkg.version) },
+    pending: pendingReason,
   });
+  applyIncrementCaps(budgets.fixtures, results);
   console.log(renderResults(results));
+  const info = renderDesignCeilings(budgets.designCeilings, results);
+  if (info) console.log(info);
   const failures = results.filter((result) => result.status === "fail");
   if (failures.length > 0) {
     console.error(`\nSize gate failed for: ${failures.map((result) => result.name).join(", ")}`);

@@ -1,7 +1,5 @@
 {
-  "profile": {
-    "signed_in": "Signed in as {name}.",
-    "devices": "{count, plural, one {# device is connected} other {# devices are connected}}",
-    "only_en": "This line exists only in the English account catalog."
-  }
+  "profile.signed_in": "Signed in as {name}.",
+  "profile.devices": "{count, plural, one {# device is connected} other {# devices are connected}}",
+  "profile.only_en": "This line exists only in the English account catalog."
 }

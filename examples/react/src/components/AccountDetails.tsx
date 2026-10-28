@@ -1,21 +1,8 @@
-import { useEffect, useState } from "react";
-import { useI18n, useI18nLoader } from "@comvi/react";
+import { useI18n } from "@comvi/react";
 
-/** Rows from the `account` namespace, which loads the first time this renders. */
+/** Rows from the `account` namespace, which the `/about` route loads (App.tsx). */
 export function AccountDetails({ name }: { name: string }) {
   const { t } = useI18n("account");
-  const { t: tApp } = useI18n();
-  const { addActiveNamespace } = useI18nLoader();
-
-  // Activating keeps `account` loaded across later locale switches. The rows
-  // wait for the load to settle, whether it succeeded or failed.
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const done = () => setReady(true);
-    addActiveNamespace("account").then(done, done);
-  }, [addActiveNamespace]);
-
-  if (!ready) return <p className="body">{tApp("app.loading")}</p>;
 
   return (
     <>

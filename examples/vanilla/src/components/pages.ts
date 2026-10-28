@@ -55,20 +55,19 @@ export function featuresPage(): Node[] {
   ];
 }
 
-// The `account` namespace is loaded the first time this page opens.
-// `addActiveNamespace` also keeps it active, so a later `setLocale` loads it
-// together with the default namespace before the new locale applies.
+// The `account` namespace is loaded the first time this page opens. `load()`
+// also keeps it active, so a later `setLocale` loads it together with the
+// default namespace before the new locale applies.
 let account: "idle" | "loading" | "ready" = "idle";
 function loadAccount(): void {
   if (account !== "idle") return;
   account = "loading";
-  // Settled, not only succeeded: if the load fails, the page still renders and
-  // the account keys show as any missing translation would.
-  const done = () => {
+  // `load()` never rejects: a failed catalog is reported to `onError`, and the
+  // page still renders with the account keys shown as any missing translation.
+  void i18n.load("account").then(() => {
     account = "ready";
     update({});
-  };
-  i18n.addActiveNamespace("account").then(done, done);
+  });
 }
 
 function accountRows(): HTMLElement[] {

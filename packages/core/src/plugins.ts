@@ -1,161 +1,133 @@
-// @comvi/core/plugins — the plugin capability, composed onto the base instance.
-//
-// Pure subpath (never listed in package.json `sideEffects`): importing it has
-// no effect until you compose an instance.
-//
-// ```ts
-// import { createI18n } from "@comvi/core";
-// import { loader } from "@comvi/core/loader";
-// import { definePlugin, plugins } from "@comvi/core/plugins";
-//
-// const i18n = createI18n({ locale: "en" })
-//   .use(loader({ uk: () => import("./uk.json") }))
-//   .use(plugins())
-//   .use(definePlugin(myPlugin));
-// await i18n.init();
-// ```
-//
-// Compose the loader capability as well when any hosted plugin registers a
-// loader. The ORDER of `loader(map)`, `plugins()` and `devtools()` among
-// themselves is free:
-// plugins run at `init()`, by which point every capability composed before
-// `init()` is attached.
-//
-// `acquirePluginsApi(instance)` is the COMPONENT-side half of the same subpath: the
-// one implementation behind `useI18nPlugins()` in all four bindings. It lives
-// here rather than on the `@comvi/core` root because a graph that never
-// acquires the capability must not pay for it — the root is the base floor.
-//
-// Two misuse guards live in this capability, so only apps that compose it pay
-// for them. `ensureInstallable` is the installer-as-plugin guard an
-// installer calls first, so `registerPlugin(fetchLoader(…))` fails before
-// anything is attached. Independently, `init()` rejects a plugin that returns
-// an OBJECT — only nothing and a cleanup function are legal, which catches an
-// installer that hands the instance back instead of registering a cleanup.
-import type { I18n } from "./core/i18n";
-import type { I18nPluginApi, WrapperI18nInstance } from "./types";
-import { attachPlugins } from "./core/plugins";
-import type { I18nPlugin as I18nPluginFn, PluginOptions } from "./plugins/types";
-import { hasPluginApi, missingCapability } from "./utils/capability";
-
-export { attachPlugins, ensureInstallable } from "./core/plugins";
-export type { I18nPluginApi, PluginI18nInstance } from "./types";
-export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/types";
-
 /**
- * The plugin capability as a `.use(…)` installer.
+ * @comvi/core/plugins — the locale detector and persistence that `@comvi/plugin-locale-
+ * detector` provided (R3-11), over the one `negotiate()` (locale.ts).
  *
  * ```ts
- * const i18n = createI18n({ locale: "en" }).use(plugins());
- * i18n.registerPlugin(myPlugin);
+ * import { createI18n } from "@comvi/core";
+ * import { detect, persist } from "@comvi/core/plugins";
+ *
+ * const i18n = createI18n({
+ *   locale: "en",
+ *   plugins: [detect({ supported: ["en", "de", "pt-BR"] }), persist()],
+ * });
  * ```
  *
- * The capability takes no configuration today, so `plugins()` is `attachPlugins`
- * under the pipe's calling convention — it exists so every capability reads the
- * same way in a `.use` chain, and so options can arrive later without a
- * call-shape migration. `.use(attachPlugins)` is equally valid.
- *
- * Attaching is idempotent: a second `.use(plugins())`, or the internal
- * composite, installs nothing and keeps every registered plugin.
+ * `detect()` is a plugin (design §3.3): in `setup` — before the instance starts its first
+ * loads — it switches to the first source in `order` that names a supported locale:
+ * `query` (`?lang=`), `cookie` (`comvi_locale`), `storage` (localStorage `comvi_locale`),
+ * `navigator` (`navigator.languages`). The answer is the supported entry AS SPELLED. So
+ * nothing is loaded for the `locale` option when a source names another locale; `locale`
+ * is the answer when none does (or the detected locale fails to load at all).
+ * `persist()` writes every locale switch back (cookie by default, or localStorage).
+ * Outside a browser both read and write nothing.
  */
-export function plugins(): <T extends I18n<any>>(i18n: T) => T & I18nPluginApi {
-  return attachPlugins;
+import type { Plugin } from "./instance";
+import { negotiate } from "./locale";
+
+/** The cookie and storage key `detect()` reads and `persist()` writes. */
+export const LOCALE_KEY = "comvi_locale";
+
+export type DetectSource = "query" | "cookie" | "storage" | "navigator";
+
+export interface DetectOptions {
+  /** The locales the app has, as it spells them. */
+  supported: readonly string[];
+  /** Sources, most trusted first. Default `["query", "cookie", "storage", "navigator"]`. */
+  order?: readonly DetectSource[];
+  /** The query parameter. Default `"lang"`. */
+  query?: string;
+  /** The cookie and localStorage key. Default `"comvi_locale"`. */
+  key?: string;
 }
 
+const readCookie = (name: string): string | undefined => {
+  for (const c of document.cookie.split(";")) {
+    const i = c.indexOf("=");
+    if (c.slice(0, i).trim() == name) return decodeURIComponent(c.slice(i + 1).trim());
+  }
+};
+
+/** Reads one source; a source that throws (blocked storage, sandboxed cookies) reads nothing. */
+const read = (source: DetectSource, query: string, key: string): readonly string[] => {
+  try {
+    const v =
+      source == "query"
+        ? new URLSearchParams(location.search).get(query)
+        : source == "cookie"
+          ? readCookie(key)
+          : source == "storage"
+            ? localStorage.getItem(key)
+            : navigator.languages && navigator.languages.length
+              ? navigator.languages
+              : navigator.language;
+    return v ? ([] as string[]).concat(v) : [];
+  } catch {
+    return [];
+  }
+};
+
 /**
- * Register your OWN inline plugin through the one composition verb.
- *
- * ```ts
- * const i18n = createI18n({ locale: "en" }).use(
- *   definePlugin((i18n) => {
- *     const off = i18n.on("localeChanged", track);
- *     return off; // optional cleanup
- *   }),
- * );
- * ```
- *
- * `definePlugin(fn)` is `attachPlugins(instance).registerPlugin(fn)` wrapped as an
- * installer, so it attaches the plugin capability if the chain has not already, and
- * it can appear anywhere in a `.use` chain before `init()`. A plugin PACKAGE
- * ships its own bare-name installer (`fetchLoader()`, `localeDetector()`) —
- * those go straight into `.use(…)` and must NOT be wrapped here.
+ * The plugin that starts the instance in the first supported locale a source names. A
+ * detected locale that fails to load entirely leaves the instance on its `locale` option,
+ * which is then loaded.
  */
-export function definePlugin(
-  fn: I18nPluginFn,
-  options?: PluginOptions,
-): <T extends I18n<any>>(instance: T) => T & I18nPluginApi {
-  return (instance) => {
-    attachPlugins(instance).registerPlugin(fn, options);
-    return instance as typeof instance & I18nPluginApi;
-  };
+export const detect = ({
+  supported,
+  order = ["query", "cookie", "storage", "navigator"],
+  query = "lang",
+  key = LOCALE_KEY,
+}: DetectOptions): Plugin => ({
+  name: "detect",
+  setup(i18n) {
+    if (typeof document != "undefined")
+      for (const s of order) {
+        const hit = negotiate(read(s, query, key), supported);
+        if (hit) {
+          if (hit != i18n.locale)
+            i18n.setLocale(hit).catch(() => i18n.setLocale(i18n.locale).catch(() => {}));
+          return;
+        }
+      }
+  },
+});
+
+export interface PersistOptions {
+  /** Where the locale goes. Default `"cookie"`. */
+  to?: "cookie" | "storage";
+  /** The cookie or localStorage key. Default `"comvi_locale"`. */
+  key?: string;
+  /** Cookie lifetime in seconds. Default one year. */
+  maxAge?: number;
+  /** Cookie path. Default `"/"`. */
+  path?: string;
+  /** Cookie domain. */
+  domain?: string;
 }
 
-/**
- * The `@comvi/core/plugins` surface a COMPONENT may drive.
- *
- * `registerPlugin` / `registerPostProcessor` / `registerLocaleDetector` are
- * deliberately absent for the same reason as the loader's registration APIs:
- * wiring belongs where the instance is constructed.
- *
- * Re-exported by `@comvi/react`, `@comvi/vue`, `@comvi/solid` and
- * `@comvi/svelte` as `UseI18nPluginsReturn`: it is the return of their
- * `useI18nPlugins()`, which is {@link acquirePluginsApi} over the instance in
- * context.
- */
-export interface AcquiredPluginsApi {
-  /**
-   * Register a callback for missing keys. Returns an unsubscribe function.
-   *
-   * The member is the bound instance method — nothing wraps it, so a callback may
-   * return the full `TranslationResult` core accepts: a string, or the
-   * `Array<string | VirtualNode>` a rich-text fallback needs. Core runs every
-   * callback and the first defined result wins. A wrapper-side coercion would
-   * narrow that contract to a semantic core does not have, and one binding's
-   * `String(result)` once did exactly that.
-   */
-  onMissingKey: I18nPluginApi["onMissingKey"];
-}
-
-/**
- * Identity contract: ONE bag per instance, cached here rather than in a
- * framework-local memo, so two components under one app receive the same
- * function references.
- *
- * Annotated pure so a graph that never acquires the capability does not pay
- * for the map: `acquirePluginsApi` is the only reader, and dropping the
- * function has to drop this with it.
- */
-const pluginBags = /* @__PURE__ */ new WeakMap<WrapperI18nInstance, AcquiredPluginsApi>();
-
-/**
- * Acquire the plugin capability of `instance`, or throw
- * {@link missingCapability | missingCapability("plugins")}.
- *
- * ONE implementation, four bindings: `useI18nPlugins()` in `@comvi/react`,
- * `@comvi/vue`, `@comvi/solid` and `@comvi/svelte` is this call over the instance
- * each of them reads from context, and nothing else.
- *
- * The check is STRUCTURAL and it throws in dev AND in prod: there is no silent
- * no-op and no dev-only tombstone. A bare `@comvi/core` instance has no plugin
- * capability, so compose it where the instance is created — `.use(plugins())`.
- *
- * @example
- * ```ts
- * const { onMissingKey } = acquirePluginsApi(instance);
- * const off = onMissingKey((key) => `[${key}]`);
- * ```
- */
-export function acquirePluginsApi(instance: WrapperI18nInstance): AcquiredPluginsApi {
-  // A cached bag implies the capability was already verified for this instance:
-  // attach is monotonic, capabilities are added and never removed.
-  const cached = pluginBags.get(instance);
-  if (cached) return cached;
-
-  if (!hasPluginApi(instance)) throw missingCapability("plugins");
-
-  const bag: AcquiredPluginsApi = {
-    onMissingKey: instance.onMissingKey.bind(instance),
-  };
-  pluginBags.set(instance, bag);
-  return bag;
-}
+/** A plugin that writes every locale switch to a cookie (or localStorage). */
+export const persist = ({
+  to = "cookie",
+  key = LOCALE_KEY,
+  maxAge = 31536000,
+  path = "/",
+  domain,
+}: PersistOptions = {}): Plugin => ({
+  name: "persist",
+  setup(i18n) {
+    let last = i18n.locale;
+    return i18n.on(() => {
+      if (i18n.locale == last || typeof document == "undefined") return;
+      last = i18n.locale;
+      try {
+        if (to == "storage") localStorage.setItem(key, last);
+        else
+          document.cookie =
+            `${key}=${encodeURIComponent(last)}; path=${path}; max-age=${maxAge}; SameSite=Lax` +
+            (domain ? `; domain=${domain}` : "") +
+            (location.protocol == "https:" ? "; Secure" : "");
+      } catch {
+        /* blocked storage: nothing to persist into */
+      }
+    });
+  },
+});

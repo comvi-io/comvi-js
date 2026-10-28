@@ -15,6 +15,7 @@ import {
   workspacePackages,
 } from "./docs-snippets/link-sdk.mjs";
 import { assertCandidateIntegrity } from "./examples-e2e/lib.mjs";
+import { activeShards, exampleNeeds, pendingReason } from "../tooling/migration-pending.mjs";
 
 /**
  * Build gate for `examples/*` — the StackBlitz demos.
@@ -869,13 +870,28 @@ async function main(argv) {
     console.error("no examples found under examples/");
     return 2;
   }
+  // MIGRATION_PENDING: an example is verified once everything it needs is active,
+  // independently of the others (tooling/migration-pending.mjs), as in examples:e2e.
+  const active = new Set(
+    activeShards(
+      examples.map((entry) => entry.name),
+      exampleNeeds,
+      "examples-verify",
+    ),
+  );
+  examples = examples.filter((entry) => active.has(entry.name));
+  if (examples.length === 0) {
+    console.log("examples-verify: every requested example is MIGRATION_PENDING — nothing to run");
+    return 0;
+  }
 
   if (options.build) runOrThrow("pnpm", ["build"], { cwd: REPO_ROOT });
   if (options.pack) {
     cleanTarballs(REPO_ROOT);
-    runOrThrow("pnpm", ["pack:release"], { cwd: REPO_ROOT });
+    // Only the active packages build on the 0.8 branch (MIGRATION_PENDING).
+    runOrThrow("pnpm", ["pack:release", "--active"], { cwd: REPO_ROOT });
   }
-  const packages = workspacePackages(REPO_ROOT);
+  const packages = workspacePackages(REPO_ROOT).filter((pkg) => !pendingReason(pkg.name));
   if (!options.pack) assertTarballsFresh(packages);
 
   // A child process, not an in-process server: the installs below are

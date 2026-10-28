@@ -4,6 +4,10 @@ Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 single-entry co
 one-verb rule; ICU as a constructor option, D1 29.08.2026, reaffirmed 14.09.2026
 Amended 2026-10-04: one artifact for `@comvi/react`, `@comvi/solid` and `@comvi/svelte` (no
 `development` build); see the last paragraph of Consequences.
+Superseded in part 2026-10-27 (0.8 design R3-11, R3-14, R3-15): post-processors
+(`registerPostProcessor`) and `devtools({ instanceId })` / `instanceId` / `exposeGlobal` are removed;
+discovery is `plugins: [devtools()]` with the protocol-2 handle (`editor-loader.md`). The rest of
+this page describes the 0.7 composition and is rewritten for 0.8 in lot 10.
 
 ## Context
 

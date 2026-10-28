@@ -1,57 +1,26 @@
+/**
+ * Production ESM build of @comvi/core: one invocation for every entry, so shared
+ * modules land in shared chunks. `__DEV__` is false: diagnostics fold out and the
+ * production graph holds no console call (contract test). The development build is
+ * vite.config.dev.ts, selected by the "development" export condition.
+ */
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
-import { resolve } from "path";
-import pkg from "./package.json";
-import {
-  coreCodeSplitting,
-  coreEntries,
-  coreTreeshake,
-  chunkFileName,
-  entryFileName,
-  keepRegisterSideEffect,
-  mangleInternalProps,
-} from "./vite.shared";
+import { entries, output } from "./vite.entries.ts";
+import pkg from "./package.json" with { type: "json" };
 
 export default defineConfig({
-  plugins: [
-    keepRegisterSideEffect,
-    mangleInternalProps(),
-    dts({
-      insertTypesEntry: true,
-    }),
-  ],
+  plugins: [dts({ insertTypesEntry: true })],
   build: {
     emptyOutDir: true,
-    lib: {
-      entry: coreEntries(__dirname),
-      name: "ComviCore",
-    },
+    lib: { entry: entries(import.meta.dirname), name: "ComviCore" },
     minify: false,
     sourcemap: false,
     rolldownOptions: {
-      external: [],
       preserveEntrySignatures: "allow-extension",
-      output: [
-        {
-          format: "es",
-          entryFileNames: (chunk) => entryFileName(chunk.name, ""),
-          chunkFileNames: (chunk) => chunkFileName(chunk.name, ""),
-          codeSplitting: coreCodeSplitting,
-        },
-      ],
-      treeshake: coreTreeshake,
+      output: [output("")],
+      treeshake: { moduleSideEffects: false },
     },
   },
-  resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-    },
-  },
-  define: {
-    // The published comvi-core*.js files are always the prod artifacts; the
-    // dev build (vite.config.dev.ts) ships readable messages via the
-    // "development" export condition.
-    __DEV__: JSON.stringify(false),
-    __VERSION__: JSON.stringify(pkg.version),
-  },
+  define: { __DEV__: JSON.stringify(false), __VERSION__: JSON.stringify(pkg.version) },
 });

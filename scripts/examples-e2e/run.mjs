@@ -135,6 +135,7 @@ import {
   stepResults,
 } from "./lib.mjs";
 import { scopeRegistryLine, startCandidateRegistry } from "./candidate-registry.mjs";
+import { activeShards, exampleNeeds, pendingReason } from "../../tooling/migration-pending.mjs";
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const LOCALES_DIR = path.join(REPO_ROOT, "examples", "locales");
@@ -689,10 +690,31 @@ async function assertChromium() {
 
 async function main(argv) {
   const options = parseArgs(argv);
-  let examples = exampleDirs();
+  // MIGRATION_PENDING: an example runs once everything it needs is active, independently
+  // of the other examples (tooling/migration-pending.mjs).
+  const all = exampleDirs();
+  const active = new Set(
+    activeShards(
+      all.map((entry) => entry.name),
+      exampleNeeds,
+      "examples-e2e",
+    ),
+  );
+  if (
+    options.only.length > 0 &&
+    options.only.every((name) => all.some((e) => e.name === name) && !active.has(name))
+  ) {
+    console.log("examples-e2e: every requested example is MIGRATION_PENDING — nothing to run");
+    return 0;
+  }
+  if (active.size === 0) {
+    console.log("examples-e2e: every example is MIGRATION_PENDING — nothing to run");
+    return 0;
+  }
+  let examples = all.filter((entry) => active.has(entry.name));
   if (options.only.length > 0) {
     const wanted = new Set(options.only);
-    const missing = [...wanted].filter((name) => !examples.some((entry) => entry.name === name));
+    const missing = [...wanted].filter((name) => !all.some((entry) => entry.name === name));
     if (missing.length > 0) {
       console.error(`no such example: ${missing.join(", ")}`);
       return 2;
@@ -719,13 +741,15 @@ async function main(argv) {
   if (options.build) await runOrThrow("pnpm", ["build"], { cwd: REPO_ROOT, env: childEnv(null) });
   if (options.pack) {
     cleanTarballs(REPO_ROOT);
-    await runOrThrow("pnpm", ["pack:release"], { cwd: REPO_ROOT, env: childEnv(null) });
+    // MIGRATION_PENDING packages do not build on the 0.8 branch: only the active ones are packed.
+    await runOrThrow("pnpm", ["pack:release", "--active"], { cwd: REPO_ROOT, env: childEnv(null) });
   }
+  const activePackages = workspacePackages(REPO_ROOT).filter((pkg) => !pendingReason(pkg.name));
   let packages;
   if (options.tarballs) {
-    packages = candidatePackages(options.tarballs, workspacePackages(REPO_ROOT));
+    packages = candidatePackages(options.tarballs, activePackages);
   } else {
-    packages = workspacePackages(REPO_ROOT);
+    packages = activePackages;
     if (!options.pack) assertTarballsFresh(packages);
     packages = packages.map((pkg) => ({ ...pkg, tarball: tarballFor(pkg) }));
   }

@@ -1,17 +1,26 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import url from "node:url";
 import { performance } from "node:perf_hooks";
 import { spawnSync } from "node:child_process";
 
 /**
- * Runtime perf gate for `@comvi/core`.
+ * Runtime perf bench for `@comvi/core` — INFORMATIONAL, never a gate (owner rule: no
+ * wall-clock threshold blocks anything; perf is guarded by counted work in the unit
+ * suites, e.g. the layered add() and compile-cache counters). Every mode exits 0 once
+ * it has measured; `--threshold` only flags cases in the report.
  *
  * Fixed cases over a fixed 200-key catalog: construction, `t()` on a static
- * key, `t()` with a `{name}` param, `t()` on an ICU plural through `icuCompiler`,
- * `prepareTranslation` over a `<b>` rich-text seam, and the three Intl
- * formatters with and without a fallback chain. Every case gets a 2000-call
+ * key, `t()` with a `{name}` param, `t()` on an ICU plural, a `<b>` rich-text
+ * message, the three Intl formatters with and without a fallback chain, and
+ * `add()` of one key over a compiled 10K catalog. Every case gets a 2000-call
  * warm-up, then N timed runs; the reported figure is the MEDIAN µs/op.
+ *
+ * The protocol is API-neutral: `buildCaseThunks` reads either core generation —
+ * 0.7 (`comvi-core-icu.js`: `icuCompiler`, `prepareTranslation`, `addMessages`)
+ * or 0.8 (`createI18n` with ICU always on, `@comvi/core/format`, `add()`) — and
+ * builds the same inputs for both, so `--compare-ref` reads a Δ across the rebuild.
  *
  *   node scripts/perf.mjs [distRoot]
  *     Prints the table plus a JSON line for one dist (default:
@@ -29,11 +38,18 @@ import { spawnSync } from "node:child_process";
  *     instead — a build that cannot expose the entries is not a regression).
  *
  *   node scripts/perf.mjs --compare <distRootA> <distRootB> [--threshold <pct>] [--repetitions <n>]
- *     Interleaved A/B: for each repetition it measures A then B for every case,
- *     three times, and keeps the MIN per side (the least-disturbed run — a
- *     benchmark's noise is one-sided). Prints Δ% per case and exits 1 when any
- *     case regresses by more than the threshold (default 5 %).
+ *     Interleaved A/B: for each repetition it measures A then B for every case
+ *     (default three repetitions) and reports the MEDIAN per side, Δ% on the
+ *     median (the min is printed alongside). A case whose median Δ is above the
+ *     threshold (default 5 %) is FLAGGED in the report; the exit code stays 0.
  *     A is the reference (main), B the candidate (PR head).
+ *
+ *   node scripts/perf.mjs --extended [distRoot]
+ *     The 0.8-only scenarios of synthesis §4.5 that have no 0.7 counterpart:
+ *     construction over a shared vs a fresh 10K catalog, ICU plural over 500 vs
+ *     5,000 distinct keys against the same run's static-key floor, a Zipf key
+ *     mix over 10K keys, a locale switch followed by 200 t() calls, and the heap
+ *     bytes per compiled key (a child with --expose-gc). Medians of 5 runs.
  *
  * Every individual measurement runs in its own child process (`--measure-one`),
  * so a compare run never has two copies of core resident in one isolate — call
@@ -55,6 +71,9 @@ export const CASES = [
   { name: "constructor (200-key catalog)", iters: 10_000 },
   { name: "t() static key", iters: 2_000_000 },
   { name: "t() with {name}", iters: 1_500_000 },
+  // R3-17's gate: a plain `{x}` holding a NUMBER prints String(value) in 0.8 as in 0.7 —
+  // the non-string path of the interpolation, which `{name}` (a string) never takes.
+  { name: "t() with {name} = a number", iters: 1_500_000 },
   { name: "t() ICU plural (icuCompiler)", iters: 500_000 },
   // A plural branch of ordinary copy that contains a bare `&`. The branch is
   // text, so it must take the same text-only path as the case above; the `&`
@@ -62,7 +81,7 @@ export const CASES = [
   // extensions, and a branch routed to the parser over one costs ~25% more for
   // byte-identical output. "Terms & Conditions" is the copy this happens to.
   { name: "t() ICU plural, branch with a bare &", iters: 500_000 },
-  { name: "prepareTranslation(<b>)", iters: 800_000 },
+  { name: "rich text <b>", iters: 800_000 },
   // Formatters resolve the locale chain on every call, so each runs once on a
   // bare instance and once with a `fallbackLocale` configured.
   { name: "formatNumber", iters: 500_000 },
@@ -71,18 +90,53 @@ export const CASES = [
   { name: "formatDate, fallbackLocale", iters: 300_000 },
   { name: "formatRelativeTime", iters: 500_000 },
   { name: "formatRelativeTime, fallbackLocale", iters: 500_000 },
+  // A layered patch in 0.8 (R4-1b), a copy-on-write merge in 0.7.
+  { name: "add() one key over a compiled 10K catalog", iters: 2_000 },
 ];
+
+/**
+ * Deltas against 0.7 that the owner accepted: when one of these cases is flagged, the
+ * report marks it accepted (with who decided, when and why) so it is not re-reported as a
+ * new regression. Against a 0.8 reference the same delta would be new: read the mark
+ * as "known vs 0.7", never as a waiver for a regression between two 0.8 builds.
+ */
+const FORMATTERS_0_7 =
+  "owner 28.10.2026: @comvi/core/format is ~25-40 ns per call slower than 0.7 " +
+  "(locale chain + shared Intl cache key per call); accepted, no extra caching";
+export const ACCEPTED_VS_07 = {
+  formatNumber: FORMATTERS_0_7,
+  "formatNumber, fallbackLocale": FORMATTERS_0_7,
+  formatDate: FORMATTERS_0_7,
+  "formatDate, fallbackLocale": FORMATTERS_0_7,
+  formatRelativeTime: FORMATTERS_0_7,
+  "formatRelativeTime, fallbackLocale": FORMATTERS_0_7,
+};
 
 /**
  * The production ESM entries a measured dist must expose. Single source of
  * truth: `--probe` reports on exactly this list, so CI can ask whether a
  * reference build is comparable before trying to compare against it.
  */
-export const REQUIRED_ENTRIES = ["comvi-core.js", "comvi-core-icu.js", "comvi-core-rich-text.js"];
+export const REQUIRED_ENTRIES = ["comvi-core.js"];
+/** The 0.7 generation's entries; a dist with all of them is read through the 0.7 adapter. */
+const ENTRIES_07 = ["comvi-core-icu.js", "comvi-core-rich-text.js"];
+/** The 0.8 generation's entries. */
+const ENTRIES_08 = ["comvi-core-format.js"];
 
-/** Entries of REQUIRED_ENTRIES that `distRoot` does not have. */
+const has = (distRoot, file) => fs.existsSync(path.join(path.resolve(distRoot), file));
+
+/** Which core generation `distRoot` is: "0.7", "0.8", or undefined. */
+export function generation(distRoot) {
+  if (!REQUIRED_ENTRIES.every((f) => has(distRoot, f))) return undefined;
+  if (ENTRIES_07.every((f) => has(distRoot, f))) return "0.7";
+  if (ENTRIES_08.every((f) => has(distRoot, f))) return "0.8";
+  return undefined;
+}
+
+/** What `distRoot` lacks to be measured (empty when it is either generation). */
 export function missingEntries(distRoot) {
-  return REQUIRED_ENTRIES.filter((file) => !fs.existsSync(path.join(path.resolve(distRoot), file)));
+  if (generation(distRoot)) return [];
+  return [...REQUIRED_ENTRIES, ...ENTRIES_08].filter((file) => !has(distRoot, file));
 }
 
 function distUrl(distRoot, file) {
@@ -95,53 +149,244 @@ function distUrl(distRoot, file) {
  * whole protocol.
  */
 export async function buildCaseThunks(distRoot) {
-  const { createI18n, formatNumber, formatDate, formatRelativeTime } = await import(
-    distUrl(distRoot, "comvi-core.js")
-  );
-  const { icuCompiler } = await import(distUrl(distRoot, "comvi-core-icu.js"));
-  const { prepareTranslation } = await import(distUrl(distRoot, "comvi-core-rich-text.js"));
-
+  const gen = generation(distRoot);
+  const core = await import(distUrl(distRoot, "comvi-core.js"));
   const catalog = {};
   for (let i = 0; i < 200; i++) {
     catalog[`key${i}`] = i % 3 ? `Hello, {name}! Item ${i}` : `Static text number ${i}`;
   }
   catalog.rich = "Click <b>here</b> for {what}";
+  const plural = "{count, plural, one {# item} other {# items}}";
+  const amp = "{count, plural, one {# Term & Condition} other {# Terms & Conditions}}";
+  const big = {};
+  for (let i = 0; i < 10_000; i++) big[`k${i}`] = i % 2 ? `Hi {name} #${i}` : `Static ${i}`;
+  const date = 1_700_000_000_000;
+  let n = 0;
 
+  if (gen === "0.7") {
+    const { createI18n, formatNumber, formatDate, formatRelativeTime } = core;
+    const { icuCompiler } = await import(distUrl(distRoot, "comvi-core-icu.js"));
+    const { prepareTranslation } = await import(distUrl(distRoot, "comvi-core-rich-text.js"));
+    const make = () => createI18n({ locale: "en", messages: { en: catalog } });
+    const icu = (m) =>
+      createI18n({ locale: "en", compiler: icuCompiler, messages: { en: { n: m } } });
+    const [staticI18n, paramI18n, richI18n, icuI18n, ampI18n] = [
+      make(),
+      make(),
+      make(),
+      icu(plural),
+      icu(amp),
+    ];
+    const bareI18n = createI18n({ locale: "de" });
+    const fallbackI18n = createI18n({ locale: "de", fallbackLocale: "en" });
+    const bigI18n = createI18n({ locale: "en", messages: { en: big } });
+    for (let i = 0; i < 10_000; i++) bigI18n.t(`k${i}`, { name: "x" });
+    return [
+      () => make(),
+      () => staticI18n.t("key0"),
+      () => paramI18n.t("key1", { name: "world" }),
+      () => paramI18n.t("key1", { name: 1004 }),
+      () => icuI18n.t("n", { count: 5 }),
+      () => ampI18n.t("n", { count: 5 }),
+      () => prepareTranslation(richI18n, { i18nKey: "rich", params: { what: "docs" } }),
+      () => formatNumber(bareI18n, 1234.5),
+      () => formatNumber(fallbackI18n, 1234.5),
+      () => formatDate(bareI18n, date),
+      () => formatDate(fallbackI18n, date),
+      () => formatRelativeTime(bareI18n, -3, "day"),
+      () => formatRelativeTime(fallbackI18n, -3, "day"),
+      () => bigI18n.addMessages({ en: { k1: `Changed ${n++} {name}` } }),
+    ];
+  }
+
+  const { createI18n } = core;
+  const { formatNumber, formatDate, formatRelativeTime } = await import(
+    distUrl(distRoot, "comvi-core-format.js")
+  );
   const make = () => createI18n({ locale: "en", messages: { en: catalog } });
-  const staticI18n = make();
-  const paramI18n = make();
-  const richI18n = make();
-  const icuI18n = createI18n({
-    locale: "en",
-    compiler: icuCompiler,
-    messages: { en: { n: "{count, plural, one {# item} other {# items}}" } },
-  });
-  const ampI18n = createI18n({
-    locale: "en",
-    compiler: icuCompiler,
-    messages: {
-      en: { n: "{count, plural, one {# Term & Condition} other {# Terms & Conditions}}" },
-    },
-  });
-
+  const icu = (m) => createI18n({ locale: "en", messages: { en: { n: m } } });
+  const [staticI18n, paramI18n, richI18n, icuI18n, ampI18n] = [
+    make(),
+    make(),
+    make(),
+    icu(plural),
+    icu(amp),
+  ];
   const bareI18n = createI18n({ locale: "de" });
   const fallbackI18n = createI18n({ locale: "de", fallbackLocale: "en" });
-  const date = 1_700_000_000_000;
-
+  const bigI18n = createI18n({ locale: "en", messages: { en: big } });
+  for (let i = 0; i < 10_000; i++) bigI18n.t(`k${i}`, { name: "x" });
+  const b = (chunks) => chunks;
   return [
     () => make(),
     () => staticI18n.t("key0"),
     () => paramI18n.t("key1", { name: "world" }),
+    () => paramI18n.t("key1", { name: 1004 }),
     () => icuI18n.t("n", { count: 5 }),
     () => ampI18n.t("n", { count: 5 }),
-    () => prepareTranslation(richI18n, { i18nKey: "rich", params: { what: "docs" } }),
+    () => richI18n.t("rich", { b, what: "docs" }),
     () => formatNumber(bareI18n, 1234.5),
     () => formatNumber(fallbackI18n, 1234.5),
     () => formatDate(bareI18n, date),
     () => formatDate(fallbackI18n, date),
-    () => formatRelativeTime(bareI18n, -3, "day"),
-    () => formatRelativeTime(fallbackI18n, -3, "day"),
+    // 0.8 takes (date, now) and picks the unit: the same "3 days ago" as 0.7's (-3, "day").
+    () => formatRelativeTime(bareI18n, date - 3 * 86_400_000, date),
+    () => formatRelativeTime(fallbackI18n, date - 3 * 86_400_000, date),
+    () => bigI18n.add("en", { k1: `Changed ${n++} {name}` }),
   ];
+}
+
+/** A deterministic PRNG (mulberry32), so every run draws the same key mix. */
+const rng = (seed) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+/**
+ * The 0.8-only scenarios of synthesis §4.5 (no 0.7 counterpart, so no A/B): each is
+ * `{ name, iters, unit, fn }` where `fn(i)` is one operation; the floor case is first.
+ */
+export async function buildExtendedCases(distRoot) {
+  const { createI18n } = await import(distUrl(distRoot, "comvi-core.js"));
+  const keys10k = (fmt) => {
+    const c = {};
+    for (let i = 0; i < 10_000; i++) c[`k${i}`] = fmt(i);
+    return c;
+  };
+  const shared = keys10k((i) => (i % 2 ? `Hi {name} #${i}` : `Static ${i}`));
+  // Never reused across warm-up and runs: 5 × (warm-up + iters) distinct identities. The
+  // constructor never walks a catalog's keys (compiling is lazy), so a distinct object
+  // over the 10K catalog as its prototype measures the same first-sight cost as a copy.
+  const FRESH = 2_000;
+  const fresh = Array.from({ length: 6 * (WARMUP_CALLS + FRESH) }, () => Object.create(shared));
+  const plural = (n) => {
+    const c = {};
+    for (let i = 0; i < n; i++)
+      c[`p${i}`] = `{count, plural, one {# item ${i}} other {# items ${i}}}`;
+    return c;
+  };
+  const statics = createI18n({ locale: "en", messages: { en: { s: "Static" } } });
+  const icu500 = createI18n({ locale: "en", messages: { en: plural(500) } });
+  const icu5000 = createI18n({ locale: "en", messages: { en: plural(5_000) } });
+  const p500 = Array.from({ length: 500 }, (_, i) => `p${i}`);
+  const p5000 = Array.from({ length: 5_000 }, (_, i) => `p${i}`);
+  const counts = Array.from({ length: 7 }, (_, n) => ({ count: n }));
+  // Zipf (s = 1) over 10K keys: a few keys carry most calls, as in a real UI.
+  const zipfI18n = createI18n({ locale: "en", messages: { en: shared } });
+  const H = Array.from({ length: 10_000 }, (_, i) => 1 / (i + 1));
+  const total = H.reduce((a, b) => a + b, 0);
+  const cdf = [];
+  H.reduce((acc, h, i) => ((cdf[i] = (acc + h) / total), acc + h), 0);
+  const draw = rng(42);
+  const zipf = Array.from({ length: 65_536 }, () => {
+    const u = draw();
+    let lo = 0;
+    let hi = cdf.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cdf[mid] < u) lo = mid + 1;
+      else hi = mid;
+    }
+    return `k${lo}`;
+  });
+  const P = { name: "x" };
+  const switcher = createI18n({
+    locale: "en",
+    messages: { en: keys10k((i) => `Hi {name} ${i}`), de: keys10k((i) => `Hallo {name} ${i}`) },
+  });
+  const loc = ["de", "en"];
+  return [
+    { name: "floor: t() static key", iters: 2_000_000, fn: () => statics.t("s") },
+    {
+      name: "constructor, shared 10K catalog object",
+      iters: 20_000,
+      fn: () => createI18n({ locale: "en", messages: { en: shared } }),
+    },
+    {
+      name: "constructor, fresh 10K catalog object",
+      iters: FRESH,
+      fn: (i) => createI18n({ locale: "en", messages: { en: fresh[i] } }),
+    },
+    {
+      name: "t() ICU plural, 500 keys",
+      iters: 500_000,
+      fn: (i) => icu500.t(p500[i % 500], counts[i % 7]),
+    },
+    {
+      name: "t() ICU plural, 5,000 keys",
+      iters: 500_000,
+      fn: (i) => icu5000.t(p5000[i % 5_000], counts[i % 7]),
+    },
+    {
+      name: "t() Zipf mix over 10K keys",
+      iters: 1_000_000,
+      fn: (i) => zipfI18n.t(zipf[i & 65_535], P),
+    },
+    {
+      name: "setLocale (sync) + 200 t()",
+      iters: 5_000,
+      fn: (i) => {
+        void switcher.setLocale(loc[i & 1]);
+        let r;
+        for (let k = 0; k < 200; k++) r = switcher.t(`k${(i * 200 + k) % 10_000}`, P);
+        return r;
+      },
+    },
+  ];
+}
+
+/** Heap bytes per compiled key: 10K keys, every key rendered once (run with --expose-gc). */
+async function heapPerKey(distRoot) {
+  const { createI18n } = await import(distUrl(distRoot, "comvi-core.js"));
+  const c = {};
+  for (let i = 0; i < 10_000; i++) c[`k${i}`] = i % 2 ? `Hi {name} #${i}` : `Static ${i}`;
+  const P = { name: "x" };
+  globalThis.gc();
+  const before = process.memoryUsage().heapUsed;
+  const i18n = createI18n({ locale: "en", messages: { en: c } });
+  for (let i = 0; i < 10_000; i++) i18n.t(`k${i}`, P);
+  globalThis.gc();
+  const after = process.memoryUsage().heapUsed;
+  if (i18n.t("k1", P) === NEVER) throw new Error("unreachable");
+  return (after - before) / 10_000;
+}
+
+async function runExtended(distRoot) {
+  const cases = await buildExtendedCases(distRoot);
+  console.log(`dist: ${path.resolve(distRoot)}`);
+  console.log(
+    `node ${process.version}, load1 ${os.loadavg()[0].toFixed(1)} on ${os.cpus().length} cpus; median of ${SINGLE_MODE_RUNS} runs (informational)\n`,
+  );
+  const rows = cases.map((c) => {
+    const samples = [];
+    let i = 0;
+    for (let r = 0; r < SINGLE_MODE_RUNS; r++) samples.push(timeOne(() => c.fn(i++), c.iters));
+    return { name: c.name, median: median(samples), samples };
+  });
+  console.log(renderSingle(rows));
+  const floor = rows[0].median;
+  const byName = Object.fromEntries(rows.map((r) => [r.name, r.median]));
+  const i500 = byName["t() ICU plural, 500 keys"];
+  const i5000 = byName["t() ICU plural, 5,000 keys"];
+  const child = spawnSync(
+    process.execPath,
+    ["--expose-gc", url.fileURLToPath(import.meta.url), "--heap-per-key", distRoot],
+    { encoding: "utf8" },
+  );
+  const heap = Number.parseFloat(child.stdout.trim().split("\n").pop());
+  const summary = {
+    "ICU 500 / floor": Number((i500 / floor).toFixed(2)),
+    "ICU 5000 / floor": Number((i5000 / floor).toFixed(2)),
+    "ICU 5000 vs 500 (%)": Number((((i5000 - i500) / i500) * 100).toFixed(1)),
+    "heap B per compiled key": Number(heap.toFixed(0)),
+  };
+  console.log(`\n${JSON.stringify(summary)}`);
+  console.log(
+    `\n${JSON.stringify(Object.fromEntries(rows.map((r) => [r.name, Number(r.median.toFixed(4))])))}`,
+  );
+  return 0;
 }
 
 /**
@@ -213,13 +458,22 @@ export function buildReference(ref, { refresh = false } = {}) {
   const dir = path.join(REF_ROOT, sha.slice(0, 12));
   const dist = path.join(dir, "packages", "core", "dist");
 
-  if (refresh) fs.rmSync(dir, { recursive: true, force: true });
+  if (refresh) {
+    // Unregister the worktree, not only its directory: a directory deleted alone leaves a
+    // "missing but already registered" entry that makes the next `worktree add` fail.
+    try {
+      git(["worktree", "remove", "--force", dir]);
+    } catch {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(REF_ROOT, { recursive: true });
     console.log(
       `preparing reference ${ref} (${sha.slice(0, 12)}) in ${path.relative(REPO_ROOT, dir)}`,
     );
-    git(["worktree", "add", "--detach", dir, sha]);
+    // `--force`: a directory removed by hand earlier may still be registered here.
+    git(["worktree", "add", "--force", "--detach", dir, sha]);
   }
   if (!fs.existsSync(path.join(dir, "node_modules"))) {
     run(
@@ -267,7 +521,8 @@ function measureInChild(distRoot, caseIndex) {
 /**
  * Interleaved A/B. For each repetition, every case is measured on A and then on
  * B, so slow drift (thermal, a noisy neighbour) lands on both sides rather than
- * on whichever ran second. The MIN over repetitions is kept per side.
+ * on whichever ran second. The MEDIAN over repetitions is the reported figure;
+ * the min is kept alongside for reading noise.
  */
 export function compareDists(distRootA, distRootB, repetitions = COMPARE_REPETITIONS) {
   const samples = CASES.map(() => ({ a: [], b: [] }));
@@ -280,7 +535,18 @@ export function compareDists(distRootA, distRootB, repetitions = COMPARE_REPETIT
   return CASES.map((testCase, index) => {
     const a = Math.min(...samples[index].a);
     const b = Math.min(...samples[index].b);
-    return { name: testCase.name, a, b, deltaPct: ((b - a) / a) * 100, samples: samples[index] };
+    const am = median(samples[index].a);
+    const bm = median(samples[index].b);
+    return {
+      name: testCase.name,
+      a,
+      b,
+      deltaMinPct: ((b - a) / a) * 100,
+      aMedian: am,
+      bMedian: bm,
+      deltaPct: ((bm - am) / am) * 100,
+      samples: samples[index],
+    };
   });
 }
 
@@ -297,21 +563,35 @@ export function renderSingle(results) {
 
 export function renderCompare(results, thresholdPct) {
   const width = Math.max(...results.map((result) => result.name.length));
-  const lines = [`| ${"case".padEnd(width)} | A µs/op | B µs/op | Δ% |`];
-  lines.push(`| ${"-".repeat(width)} | ---: | ---: | ---: |`);
+  const lines = [
+    `| ${"case".padEnd(width)} | A median µs/op | B median µs/op | Δ% (median) | A min | B min | Δ% (min) |`,
+  ];
+  lines.push(`| ${"-".repeat(width)} | ---: | ---: | ---: | ---: | ---: | ---: |`);
+  const pct = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
   for (const result of results) {
-    const regressed = result.deltaPct > thresholdPct;
-    const delta = `${result.deltaPct >= 0 ? "+" : ""}${result.deltaPct.toFixed(2)}%`;
+    const flagged = result.deltaPct > thresholdPct;
+    const mark = !flagged
+      ? ""
+      : ACCEPTED_VS_07[result.name]
+        ? "  <-- accepted vs 0.7"
+        : "  <-- flagged";
     lines.push(
-      `| ${result.name.padEnd(width)} | ${result.a.toFixed(3)} | ${result.b.toFixed(3)} | ` +
-        `${delta}${regressed ? "  <-- REGRESSION" : ""} |`,
+      `| ${result.name.padEnd(width)} | ${result.aMedian.toFixed(3)} | ${result.bMedian.toFixed(3)} | ` +
+        `${pct(result.deltaPct)}${mark} | ` +
+        `${result.a.toFixed(3)} | ${result.b.toFixed(3)} | ${pct(result.deltaMinPct)} |`,
     );
   }
   return lines.join("\n");
 }
 
+/** Flagged cases that are not an accepted delta vs 0.7 ({@link ACCEPTED_VS_07}). */
 export function regressions(results, thresholdPct) {
-  return results.filter((result) => result.deltaPct > thresholdPct);
+  return results.filter((result) => result.deltaPct > thresholdPct && !ACCEPTED_VS_07[result.name]);
+}
+
+/** Flagged cases that are an accepted delta vs 0.7. */
+export function accepted(results, thresholdPct) {
+  return results.filter((result) => result.deltaPct > thresholdPct && ACCEPTED_VS_07[result.name]);
 }
 
 function readRepetitions(argv) {
@@ -331,14 +611,19 @@ function readThreshold(argv) {
   return value;
 }
 
-/** Shared tail of `--compare` and `--compare-ref`: measure, render, gate. */
+/** Shared tail of `--compare` and `--compare-ref`: measure, render, flag (never fail). */
 function runCompare(distRootA, distRootB, argv) {
   const thresholdPct = readThreshold(argv);
   const repetitions = readRepetitions(argv);
   const results = compareDists(distRootA, distRootB, repetitions);
+  console.log(
+    `node ${process.version}, load1 ${os.loadavg()[0].toFixed(1)} on ${os.cpus().length} cpus`,
+  );
   console.log(`A (reference) = ${path.resolve(distRootA)}`);
   console.log(`B (candidate) = ${path.resolve(distRootB)}`);
-  console.log(`interleaved, min of ${repetitions} per side, threshold ${thresholdPct}% on Δ\n`);
+  console.log(
+    `interleaved, median of ${repetitions} per side, flag above ${thresholdPct}% on the median Δ (informational)\n`,
+  );
   console.log(renderCompare(results, thresholdPct));
   console.log(
     `\n${JSON.stringify(
@@ -347,20 +632,40 @@ function runCompare(distRootA, distRootB, argv) {
       ),
     )}`,
   );
-  const failed = regressions(results, thresholdPct);
-  if (failed.length > 0) {
-    console.error(
-      `\nPerf gate failed: ${failed
+  const flagged = regressions(results, thresholdPct);
+  console.log(
+    flagged.length > 0
+      ? `\nFlagged (informational, not a gate): ${flagged
+          .map((result) => `${result.name} +${result.deltaPct.toFixed(2)}%`)
+          .join(
+            ", ",
+          )} (median Δ above ${thresholdPct}%). Re-run on a quiet machine before reading them.`
+      : `\nNo case's median moved more than ${thresholdPct}%.`,
+  );
+  const known = accepted(results, thresholdPct);
+  if (known.length > 0)
+    console.log(
+      `Accepted vs 0.7 (not new; new if A is a 0.8 build): ${known
         .map((result) => `${result.name} +${result.deltaPct.toFixed(2)}%`)
-        .join(", ")} (threshold ${thresholdPct}%)`,
+        .join(
+          ", ",
+        )} — ${[...new Set(known.map((result) => ACCEPTED_VS_07[result.name]))].join("; ")}.`,
     );
-    return 1;
-  }
-  console.log(`\nPerf gate passed: no case regressed more than ${thresholdPct}%.`);
   return 0;
 }
 
 async function main(argv) {
+  const heap = argv.indexOf("--heap-per-key");
+  if (heap !== -1) {
+    process.stdout.write(`${await heapPerKey(argv[heap + 1])}\n`);
+    return 0;
+  }
+  const extended = argv.indexOf("--extended");
+  if (extended !== -1) {
+    const distRoot = argv.find((arg) => !arg.startsWith("--")) ?? DEFAULT_DIST;
+    return runExtended(distRoot);
+  }
+
   // Internal worker: one case, one dist, one number on stdout.
   const worker = argv.indexOf("--measure-one");
   if (worker !== -1) {

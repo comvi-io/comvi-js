@@ -1,4 +1,3 @@
-import { getTextDirection } from "@comvi/core";
 import { i18n } from "./i18n";
 import { aboutPage, featuresPage, startPage } from "./components/pages";
 import { currentRoute, onRouteChange } from "./router";
@@ -19,12 +18,16 @@ function render(): void {
   shown = route;
   document.documentElement.lang = i18n.locale;
   // `rtl` for Arabic: the stylesheet uses logical properties, so the layout mirrors.
-  document.documentElement.dir = getTextDirection(i18n.locale);
+  document.documentElement.dir = i18n.dir;
   root.replaceChildren(...pages[route]());
   if (focused >= 0) focusable()[focused]?.focus();
 }
 
 subscribe(render);
 onRouteChange(render);
-// `init()` lets the locale detector pick the starting locale and loads its catalog.
-void i18n.init().then(render);
+// The first catalog arrives, then the page renders, and again on every change
+// the instance publishes (a catalog loaded, the locale switched).
+void i18n.ready.then(() => {
+  i18n.on(render);
+  render();
+});

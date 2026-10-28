@@ -1,19 +1,19 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router";
+import { createBrowserRouter, RouterProvider } from "react-router";
 import { I18nProvider } from "@comvi/react";
-import { App } from "./App";
+import { Boot, routes } from "./App";
 import { i18n } from "./i18n";
+
+const router = createBrowserRouter(routes);
 
 createRoot(document.getElementById("app")!).render(
   <StrictMode>
-    {/* The provider starts `i18n.init()` and paints `fallback` until the first
-        catalog is in, so no frame ever shows a raw key. No catalog means no
-        words yet, so the fallback is a wordless spinner. */}
-    <I18nProvider i18n={i18n} fallback={<div className="boot" role="status" aria-busy="true" />}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+    {/* `loading` paints until the first catalogs are in, so no frame ever shows a
+        raw key. Later loads (a page's namespace, a language switch) keep the app
+        on screen. */}
+    <I18nProvider i18n={i18n} loading={<Boot />}>
+      <RouterProvider router={router} />
     </I18nProvider>
   </StrictMode>,
 );
