@@ -196,6 +196,28 @@ describe("createCatalogStore()", () => {
     expect(calls).toHaveLength(3);
   });
 
+  it("a failed first load leaves no entry behind (the store does not grow with failed URLs)", async () => {
+    const del = vi.spyOn(Map.prototype, "delete");
+    const { f } = fake({ status: 404 }, { status: 404 });
+    const load = cdn("https://cdn.example", { fetch: f, store: createCatalogStore() });
+    await expect(load("xx", "default", sig())).rejects.toThrow("HTTP 404");
+    await expect(load("yy", "default", sig())).rejects.toThrow("HTTP 404");
+    expect(del.mock.calls.map((c) => c[0])).toEqual([
+      "https://cdn.example/xx.json",
+      "https://cdn.example/yy.json",
+    ]);
+    del.mockRestore();
+  });
+
+  it("a signal that is already aborted makes no request, with a store too", async () => {
+    const { f, calls } = fake();
+    const a = new AbortController();
+    a.abort();
+    const load = cdn("https://cdn.example", { fetch: f, store: createCatalogStore() });
+    await expect(load("en", "default", a.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(calls).toHaveLength(0);
+  });
+
   it("timeout: a fetch that never answers rejects with the timeout, the fallback answers it", async () => {
     vi.useFakeTimers();
     const { f } = fake("hold", "hold");
@@ -262,7 +284,7 @@ describe("api(base, { key })", () => {
     );
     const load = api("https://api.example", { key: "k", fetch: f });
     await expect(load("de", "default", sig())).rejects.toThrow(
-      "[@comvi/core/cdn] not a catalog: https://api.example/v1/translations?locales=de&namespaces=default",
+      "[@comvi/core/cdn] de/default is not in the response: https://api.example/v1/translations?locales=de&namespaces=default",
     );
     await expect(load("en", "default", sig())).rejects.toThrow("HTTP 401");
   });
@@ -287,6 +309,45 @@ describe("api(base, { key })", () => {
     expect(await two("en", "default", sig())).toEqual({ a: "two" });
     expect(await one("en", "default", sig())).toEqual({ a: "one" });
     expect(calls).toHaveLength(2);
+  });
+
+  it("reads only the body's own properties: `constructor`/`prototype` never answer Object.prototype", async () => {
+    const { f } = fake(
+      { body: { namespaces: {} } },
+      { body: { namespaces: { x: {} } } },
+      { body: { namespaces: { x: { a: "not a catalog" } } } },
+    );
+    const load = api("https://api.example", { key: "k", fetch: f });
+    await expect(load("prototype", "constructor", sig())).rejects.toThrow(
+      "prototype/constructor is not in the response",
+    );
+    await expect(load("constructor", "x", sig())).rejects.toThrow(
+      "constructor/x is not in the response",
+    );
+    await expect(load("a", "x", sig())).rejects.toThrow("not a catalog");
+  });
+
+  it("the store key holds no credential: a custom store sees a SHA-256 partition, never the key", async () => {
+    const { f } = fake({ body: body("en", "default", { a: "one" }) });
+    const inner = createCatalogStore();
+    const keys: string[] = [];
+    const store = {
+      g: (k: string, load: Parameters<typeof inner.g>[1]) => (keys.push(k), inner.g(k, load)),
+    };
+    const secret = "k_live_SECRET_123";
+    await api("https://api.example", { key: secret, fetch: f, store })("en", "default", sig());
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toContain(secret);
+    expect(keys[0]).not.toContain("SECRET");
+    // The partition is the key's SHA-256 (hex): the same key always lands in the same one.
+    const hex = [
+      ...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret))),
+    ]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    expect(keys[0]).toBe(
+      "https://api.example/v1/translations?locales=en&namespaces=default\0" + hex,
+    );
   });
 
   it("an instance loads through api()", async () => {

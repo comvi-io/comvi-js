@@ -15,12 +15,11 @@ afterEach(() => {
 });
 
 describe("cdn() with a stubbed fetch", () => {
-  it("an abort after the catalog settled changes nothing", async () => {
+  it("a catalog that settled before an abort two microtasks later is returned", async () => {
     stub({ a: "A" });
     const a = new AbortController();
     const p = cdn("https://cdn.example")("en", "default", a.signal);
-    await expect(p).resolves.toEqual({ a: "A" });
-    a.abort();
+    queueMicrotask(() => queueMicrotask(() => a.abort()));
     await expect(p).resolves.toEqual({ a: "A" });
   });
 

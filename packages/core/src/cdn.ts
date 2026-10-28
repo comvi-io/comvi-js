@@ -26,7 +26,13 @@
  * `api(base, { key })` reads the same catalogs from the platform API with a project API
  * key (`GET <base>/v1/translations?locales=<l>&namespaces=<ns>`, `Authorization: Bearer`):
  * a server, a script or a development setup — a key in a browser bundle is readable by
- * anyone.
+ * anyone. Only the body's OWN properties are read (`namespaces[ns][locale]`), and a body
+ * without the pair (the platform leaves out unknown locales) fails with its own message.
+ * In a store, an `api()` loader's catalogs are kept under the SHA-256 of its key (a
+ * counter per loader where Web Crypto is missing), never the key: no store, and no map
+ * of one, holds the credential, and two keys behind one URL never share a catalog.
+ *
+ * A signal that is already aborted is refused before any request, with or without a store.
  *
  * Without a `store` every load is its own request, and the caller's abort cancels it: the
  * instance already deduplicates its loads per (locale, namespace), and the browser's HTTP
@@ -46,13 +52,15 @@
  *   revalidation; a 200 replaces it. A failure keeps the last good catalog
  *   (stale-on-error, R4-13c); a 304 and a failure both count as fetched now, so the next
  *   revalidation waits another `ttl`.
- * - A failed fetch with nothing stored is not remembered: the next request fetches again
- *   (the instance remembers its failed pairs itself).
+ * - A failed fetch with nothing stored is not remembered (its entry is removed): the next
+ *   request fetches again (the instance remembers its failed pairs itself).
  * - Every instance gets the catalog BY REFERENCE: catalogs are immutable once attached.
  *
- * A store has no module-wide default: the browser bundle stays without its bytes (R3-13
- * ceilings), and a server says which process-level store its requests share. In a browser
- * the CDN's ETag is not exposed cross-origin (the worker sends no
+ * A store has no module-wide default (a deviation from design §2.3 item 6, pending the
+ * owner's word): a default costs about 165 B min+gz (size row `core-icu-cdn-store`) in
+ * every bundle that loads from the CDN, over the R3-13 ceiling, so a server says which
+ * process-level store its requests share (lots 6 and 7: the SSR bindings create it). In a
+ * browser the CDN's ETag is not exposed cross-origin (the worker sends no
  * `Access-Control-Expose-Headers`), so a store there never sends `If-None-Match` and no
  * request leaves the CORS-safelisted set.
  *
@@ -74,7 +82,10 @@ import type { Loader } from "./instance";
 export type CdnFallback = () =>
   Catalog | { default: Catalog } | Promise<Catalog | { default: Catalog }>;
 
-/** What one fetch brought: the catalog and the response (a 304 rejects, as any non-2xx). */
+/**
+ * What one fetch brought: the catalog and the response (a 304 rejects, as any non-2xx).
+ * @internal The loaders' seam with a store; not for application code.
+ */
 export type Fetched = [catalog: Catalog, response: Response];
 
 /**
@@ -84,7 +95,9 @@ export type Fetched = [catalog: Catalog, response: Response];
 export interface CatalogStore {
   /**
    * The catalog under `key` — stored, or fetched by `load` (given the headers of a
-   * conditional request when revalidating). The loaders' seam; not for application code.
+   * conditional request when revalidating).
+   * @internal The loaders' seam; not for application code. The key is a URL (with an
+   * `api()` key's hash); a custom store sees no credential.
    */
   g(
     key: string,
@@ -126,11 +139,6 @@ export interface ApiOptions {
   store?: CatalogStore;
 }
 
-/** The body of `GET /v1/translations` (the platform's `CliExportResponse`). */
-interface ApiBody {
-  namespaces?: Record<string, Record<string, Catalog>>;
-}
-
 const P = "[@comvi/core/cdn] ";
 
 /** A store: see the module comment. */
@@ -150,8 +158,9 @@ export const createCatalogStore = ({ ttl = 6e4 }: CatalogStoreOptions = {}): Cat
           .then(
             ([c, r]) => ((e.e = r.headers.get("etag")), c),
             // A 304 (not ok: the loaders throw on it) and a failure keep the stored object
-            // — and its compiled messages — for another `ttl`; with none stored it fails.
-            (x) => e.c || Promise.reject(((e.p = 0), x)),
+            // — and its compiled messages — for another `ttl`; with none stored it fails
+            // and the key is forgotten (a failed URL is not kept for the life of the store).
+            (x) => e.c || Promise.reject((m.delete(k), x)),
           )
           .then((c) => ((e.t = Date.now()), (e.p = 0), (e.c = c)));
       // A stored catalog is answered at once, even while it is revalidated.
@@ -174,6 +183,9 @@ const mk = (
   const fb = N<CdnFallback>(fallback);
   return async (l, n, signal) => {
     if (!ID.test(l) || !ID.test(n)) throw Error(P + `invalid locale or namespace: ${l}/${n}`);
+    // Tolerates a direct call without a signal (outside the Loader contract). A signal that
+    // is already aborted is refused before any request.
+    if (signal?.aborted) throw signal.reason;
     const u = url(l, n, root);
     /**
      * One request, with its own timeout for the whole of it, body included. Without a
@@ -184,11 +196,19 @@ const mk = (
       new Promise<Fetched>((y, no) => {
         const c = new AbortController();
         const tm = setTimeout(() => c.abort(Error(P + `timeout ${timeout} ms: ${u}`)), timeout);
-        // Settles on the timeout or the abort even when the body never does.
-        c.signal.addEventListener("abort", () => no(c.signal.reason));
-        s?.addEventListener("abort", () => c.abort(s.reason));
-        // An async IIFE, not `fetch().then()`: one microtask fewer per step.
-        (async (): Promise<Fetched> => {
+        // Settles on the timeout or the abort even when the body never does. A caller's abort
+        // leaves the timer armed while a transport that never settles hangs (bytes): it fires
+        // once, on an aborted controller, and does nothing.
+        c.signal.onabort = () => no(c.signal.reason);
+        // The caller's abort rejects with an AbortError (as `fetch` does). The listener is
+        // not removed (bytes): it holds one closure per load until the signal is collected —
+        // the instance's signals are per flight; a long-lived signal passed by hand keeps one
+        // per load it was passed to.
+        s?.addEventListener("abort", () => c.abort());
+        // An async IIFE that settles the load itself, not `fetch().then()`: one microtask
+        // fewer per step, so a body that has settled wins over an abort that lands right
+        // after (tests/cdn/loader).
+        (async () => {
           const r = await (f || fetch)(u, {
             headers: { Accept: "application/json", ...x },
             signal: c.signal,
@@ -197,16 +217,15 @@ const mk = (
           if (!r.ok) throw Error(P + `HTTP ${r.status}: ${u}`);
           const d = (await r.json()) as Catalog;
           if (!d || typeof d != "object" || Array.isArray(d))
-            throw Error(P + "not a catalog: " + u);
-          return [d, r];
+            throw Error(P + `not a catalog: ${u}`);
+          y([d, r]);
         })()
-          .then(y, no)
+          .catch(no)
           .finally(() => clearTimeout(tm));
       });
     try {
-      return await (store ? store.g(u, load) : load({}, signal).then((x) => x[0]));
+      return store ? await store.g(u, load) : (await load({}, signal))[0];
     } catch (e) {
-      // Tolerates a direct call without a signal (outside the Loader contract).
       if (signal?.aborted) throw e;
       const x = fb[l + ":" + n] || (n === root && fb[l]);
       if (!x) throw e;
@@ -221,28 +240,52 @@ const mk = (
 export const cdn = (base: string, o: CdnOptions = {}): Loader =>
   mk((l, n, root) => base.replace(/\/$/, "") + (n === root ? "" : "/" + n) + "/" + l + ".json", o);
 
+/** `o[k]` when it is `o`'s own property: an id never reaches `Object.prototype` members. */
+const own = (o: unknown, k: string): any =>
+  o && Object.prototype.hasOwnProperty.call(o, k) ? (o as Record<string, unknown>)[k] : undefined;
+
+/** Partitions of loaders whose key cannot be hashed (no Web Crypto): one per loader. */
+let ids = 0;
+
 /** A loader that reads the platform API under `base` (e.g. `https://api.comvi.io`) with a project API key. */
 export const api = (base: string, o: ApiOptions): Loader => {
   const s = o.store;
+  // The store partition of this key: its SHA-256, never the key itself, so neither a store
+  // nor its map holds the credential; two keys behind one URL never share a catalog.
+  const part = (async () => {
+    try {
+      return [
+        ...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(o.key))),
+      ]
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    } catch {
+      return "#" + ++ids;
+    }
+  })();
   return mk((l, n) => `${base.replace(/\/$/, "")}/v1/translations?locales=${l}&namespaces=${n}`, {
     ...o,
     // The body is `{ locales, namespaces: { [ns]: { [locale]: catalog } } }`: the
-    // response's `json()` answers the requested catalog (`undefined` when absent).
+    // response's `json()` answers the requested catalog, and refuses a body without it.
     async fetch(u, i) {
       const r = await (o.fetch || fetch)(u, {
         ...i,
         headers: { ...(i!.headers as Record<string, string>), Authorization: "Bearer " + o.key },
       });
       const q = new URL(u as string, "http://_").searchParams;
+      const l = q.get("locales")!;
+      const n = q.get("namespaces")!;
       return {
         ok: r.ok,
         status: r.status,
         headers: r.headers,
-        json: async () =>
-          ((await r.json()) as ApiBody)?.namespaces?.[q.get("namespaces")!]?.[q.get("locales")!],
+        async json() {
+          const c = own(own(await r.json(), "namespaces"), n);
+          if (!own(c, l)) throw Error(P + `${l}/${n} is not in the response: ${u}`);
+          return c[l];
+        },
       } as Response;
     },
-    // The key is part of the store key: two projects behind one URL never share a catalog.
-    store: s && { g: (k, load) => s.g(k + "\0" + o.key, load) },
+    store: s && { g: (k, load) => part.then((p) => s.g(k + "\0" + p, load)) },
   });
 };
