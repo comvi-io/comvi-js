@@ -125,15 +125,16 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
  * the same catalogs serialize to the same bytes (`comvi pull`, `.comvi/schema.json`).
  */
 export function serializeWireSchema(schema: WireSchema): string {
-  const namespaces: Record<string, Record<string, WireKey>> = {};
+  // Null-prototype records: a namespace, key or param named `__proto__` is data, kept.
+  const namespaces = record<Record<string, WireKey>>();
   for (const ns of Object.keys(schema.namespaces).sort(byCodeUnit)) {
-    const keys: Record<string, WireKey> = {};
+    const keys = record<WireKey>();
     const source = schema.namespaces[ns];
     for (const key of Object.keys(source).sort(byCodeUnit)) {
       const entry = source[key];
       const out: WireKey = {};
       if (entry.params && Object.keys(entry.params).length > 0) {
-        const params: Record<string, WireParam> = {};
+        const params = record<WireParam>();
         for (const name of Object.keys(entry.params).sort(byCodeUnit)) {
           const p = entry.params[name];
           params[name] = {

@@ -182,6 +182,16 @@ describe("parseWireSchema", () => {
     expect(() => parseWireSchema(input)).toThrow(`Invalid typegen schema v2 at ${message}`);
   });
 
+  it("serializes a namespace, key and param named __proto__ (round trip)", () => {
+    const text =
+      '{"v":2,"sourceLocale":"en","namespaces":{"__proto__":{"__proto__":{"params":{"__proto__":{"kind":"string"}}}}}}';
+    const parsed = parseWireSchema(JSON.parse(text));
+    const again = parseWireSchema(JSON.parse(serializeWireSchema(parsed)));
+    expect(again).toEqual(parsed);
+    expect(Object.keys(again.namespaces)).toEqual(["__proto__"]);
+    expect(Object.keys(again.namespaces.__proto__.__proto__.params!)).toEqual(["__proto__"]);
+  });
+
   it("keeps a key named __proto__ as data", () => {
     const parsed = parseWireSchema(
       JSON.parse('{"v":2,"sourceLocale":"en","namespaces":{"default":{"__proto__":{}}}}'),
