@@ -6,12 +6,14 @@
  * that also plays the CDN, driven in Chromium:
  *
  *   gate "html"        plain-HTTP `/` already carries the uk text;
- *   gate "requests"    0 requests to /cdn from the browser up to hydration and network idle;
+ *   gate "requests"    0 requests to /cdn from the browser up to hydration and network idle
+ *                      (`legal`, which the server rendered through the fallback chain because
+ *                      uk:legal is a 404, included);
  *   gate "flicker"     every text the page shows from first paint through hydration equals
  *                      the server's, and Vue reports no hydration mismatch;
  *   gate "later"       what the server did not send is requested, and only that: a later
  *                      view's namespace (help: uk, en), another locale (de: default,
- *                      account, help);
+ *                      account, help, legal);
  *
  *   node e2e/run.mjs                    the gate (exit 1 on a failed gate)
  *   node e2e/run.mjs --red no-handover  the same gates on a page without the payload; exits
@@ -122,7 +124,7 @@ const gate = async (id, f) => {
   }
 };
 
-const TEXTS = ["greeting", "only", "title", "terms", "locale"];
+const TEXTS = ["greeting", "only", "title", "legal", "terms", "locale"];
 const browser = await chromium.launch();
 try {
   const serverHtml = await (await fetch(`${origin}/`)).text();
@@ -189,7 +191,7 @@ try {
       await tab.getByTestId("locale").filter({ hasText: "de" }).waitFor();
       assert.deepEqual(
         [...cdnRequests].sort(),
-        ["/cdn/account/de.json", "/cdn/de.json", "/cdn/help/de.json"],
+        ["/cdn/account/de.json", "/cdn/de.json", "/cdn/help/de.json", "/cdn/legal/de.json"],
         "a switch to de asks for de only: en came with the payload",
       );
       assert.equal(await tab.getByTestId("greeting").textContent(), "Hallo, Ann!");
