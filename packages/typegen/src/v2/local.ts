@@ -215,7 +215,9 @@ export class LocalSource {
     } catch {
       return out;
     }
-    for (const rel of entries) {
+    // Sorted, as `scan()` is: readdir order differs by file system, and a watcher reads
+    // the namespaces a catch-up finds in this order.
+    for (const rel of entries.sort(byCodeUnit)) {
       if (!this.namespaceOf(rel)) continue;
       out.set(rel, stampOf(path.join(this.dir, rel)));
     }

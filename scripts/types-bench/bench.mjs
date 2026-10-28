@@ -74,7 +74,7 @@ const REDS = {
   // The component signatures without the typo guard (lot 3 review, BLOCK 1): a `<T>`
   // element intersects every key's params while it types the attributes.
   "jsx-guard": {
-    gates: ["jsx", "jsxTypo"],
+    gates: ["jsx:inst", "jsx:nest", "jsxTypo:inst", "jsxTypo:nest"],
     edits: [
       [
         'export type TComponentFor<Out> = <K extends KeysOf[N] | NotAKey, N extends NsOf = "default" & NsOf>(',
@@ -234,14 +234,14 @@ const results = [
     const work = (x) => (v.capped ? Infinity : x);
     return [
       [
-        p,
+        `${p}:inst`,
         `${what} @20k, instantiations over app2`,
         work(v.inst - m.base20k.inst),
         GATES.jsxInst,
         "",
       ],
       [
-        p,
+        `${p}:nest`,
         `${what} @20k, relation-stack checks over app2`,
         work(v.nest - m.base20k.nest),
         GATES.jsxNest,
@@ -295,7 +295,7 @@ for (const [p, want] of [
 ])
   if (!m[p].capped && m[p].errors !== want) {
     failed++;
-    failedIds.push(p === "jsx20k" ? "jsx" : "jsxTypo");
+    failedIds.push(p === "jsx20k" ? "jsx:errors" : "jsxTypo:errors");
     console.log(`x ${p} reports ${m[p].errors} errors (want ${want})`);
   }
 

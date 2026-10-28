@@ -110,7 +110,9 @@ export function applyAccepted(files, entries, cwd) {
   }
   const stale = entries
     .map((e, i) =>
-      used.has(i) ? null : `${e.file} [${e.mutators.join(",")}] "${e.snippet.slice(0, 60)}"`,
+      used.has(i)
+        ? null
+        : `${e.file} [${(e.mutators ?? e.pins.map((p) => p.mutator)).join(",")}] "${e.snippet.slice(0, 60)}"`,
     )
     .filter(Boolean);
   return { rows, totals, survivors, stale };

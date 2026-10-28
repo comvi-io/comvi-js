@@ -296,6 +296,47 @@ describe("watch({ from: { platform } })", () => {
     );
   });
 
+  it("a key refused by the schema route alone stops the watcher too, once, and frees the file", async () => {
+    // The project lookup and the stream accept the key; only /schema/v2 refuses it.
+    const base = platform();
+    const refused = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/schema/v2")) return new Response("{}", { status: 403 });
+      return base.fetch(input, init);
+    }) as typeof globalThis.fetch;
+    const working = platform();
+    const dir = root();
+    const fatal = vi.fn();
+    const list: GenerateMessage[] = [];
+    const a = watch({
+      from: { platform: { apiKey: KEY, apiBaseUrl: "https://tms.test", fetch: refused } },
+      out: "comvi.d.ts",
+      root: dir,
+      debounceMs: 20,
+      onMessage: (m) => void list.push(m),
+      onFatal: fatal,
+    });
+    watchers.push(a);
+    const b = watch({
+      from: { platform: { apiKey: KEY, apiBaseUrl: "https://tms.test", fetch: working.fetch } },
+      out: "comvi.d.ts",
+      root: dir,
+      debounceMs: 20,
+      onMessage: () => undefined,
+    });
+    watchers.push(b);
+    await vi.waitFor(() => expect(fatal).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    expect(fatal.mock.calls[0][0]).toMatchObject({ status: 403 });
+    expect([a.active, b.active]).toEqual([false, true]);
+    await vi.waitFor(
+      () => expect(fs.readFileSync(path.join(dir, "comvi.d.ts"), "utf8")).toContain('"hello"'),
+      { timeout: 5000, interval: 10 },
+    );
+    await a.idle();
+    expect(fatal).toHaveBeenCalledTimes(1);
+    expect(list.filter((m) => m.level === "error")).toHaveLength(1);
+    expect(list.find((m) => m.level === "error")?.text).toContain("scope schema:read");
+  });
+
   it("an unreachable platform: ready settles after the reported first run", async () => {
     const down = (async () => {
       throw new Error("fetch failed", { cause: { code: "ECONNREFUSED" } });

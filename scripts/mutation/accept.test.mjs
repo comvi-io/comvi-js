@@ -93,3 +93,17 @@ test("an entry whose line text matches nothing is stale", () => {
   assert.equal(r.totals.survived, 2);
   assert.equal(r.stale.length, 1);
 });
+
+test("a stale entry with pins and no `mutators` is listed by its pinned mutators", () => {
+  const r = applyAccepted(
+    report(...BOTH),
+    [
+      entry({
+        snippet: "return gone;",
+        pins: [{ mutator: "StringLiteral", column: 1, replacement: '""' }],
+      }),
+    ],
+    "/pkg",
+  );
+  assert.deepEqual(r.stale, ['src/key.ts [StringLiteral] "return gone;"']);
+});

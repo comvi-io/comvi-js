@@ -3,6 +3,7 @@
  * COUNTS (files parsed, runs, writes); nothing measures time — the waits only wait.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -395,7 +396,7 @@ describe("watch()", { timeout: 60_000 }, () => {
     // The OS watcher misses everything, as macOS FSEvents can just after it starts.
     const deaf = vi
       .spyOn(fs, "watch")
-      .mockImplementation(() => ({ close() {} }) as unknown as fs.FSWatcher);
+      .mockImplementation(() => ({ close() {}, on() {} }) as unknown as fs.FSWatcher);
     try {
       const root = app(CATALOGS);
       const { w } = start(root);
@@ -415,7 +416,7 @@ describe("watch()", { timeout: 60_000 }, () => {
     // `admin` (broken) before `shop` (changed), so `shop` is never read by the failed run.
     const deaf = vi
       .spyOn(fs, "watch")
-      .mockImplementation(() => ({ close() {} }) as unknown as fs.FSWatcher);
+      .mockImplementation(() => ({ close() {}, on() {} }) as unknown as fs.FSWatcher);
     try {
       const root = app(CATALOGS);
       const { w, m } = start(root);
@@ -459,6 +460,68 @@ describe("watch()", { timeout: 60_000 }, () => {
     } finally {
       broken.mockRestore();
     }
+  });
+
+  it("a watcher error after start stops the watcher for good and frees the file", async () => {
+    const root = app(CATALOGS);
+    // A real watcher emits 'error' when, say, its directory goes away or inotify runs out.
+    const emitter = Object.assign(new EventEmitter(), { close() {} });
+    const failing = vi
+      .spyOn(fs, "watch")
+      .mockImplementationOnce(() => emitter as unknown as fs.FSWatcher);
+    try {
+      const { w, m } = start(root);
+      await w.ready;
+      expect(w.active).toBe(true);
+      emitter.emit("error", Object.assign(new Error("ENOSPC: watch limit"), { code: "ENOSPC" }));
+      expect(m.list.filter((x) => x.level === "error").map((x) => x.text)).toEqual([
+        `Cannot watch ${path.join(root, "locales")}: ENOSPC: watch limit`,
+      ]);
+      expect(w.active).toBe(false);
+      const next = start(root);
+      await next.w.ready;
+      expect(next.w.active).toBe(true);
+    } finally {
+      failing.mockRestore();
+    }
+  });
+
+  it("a reporter that closes the watcher is not followed by its write over the successor", async () => {
+    const root = app(CATALOGS);
+    const schema = (namespaces: unknown) =>
+      JSON.stringify({ v: 2, sourceLocale: "en", namespaces });
+    // `a` warns on every run (a select with neither options nor `other`); `b` does not.
+    const warned = (key: string) => ({
+      [key]: { params: { g: { kind: "select", other: false } } },
+    });
+    fs.mkdirSync(path.join(root, ".comvi"));
+    fs.writeFileSync(path.join(root, ".comvi/a.json"), schema({ default: warned("old") }));
+    fs.writeFileSync(path.join(root, ".comvi/b.json"), schema({ default: { fresh: {} } }));
+    let armed = false;
+    // Not armed during the first run, which runs inside `watch()` (before `a` exists).
+    const a: Watcher = watch({
+      from: ".comvi/a.json",
+      out: "comvi.d.ts",
+      root,
+      debounceMs: 20,
+      // The host closes the watcher from inside its warning reporter (a reloaded config).
+      onMessage: (m) => {
+        if (armed && m.level === "warn") a.close();
+      },
+    });
+    watchers.push(a);
+    await a.ready;
+    const b = start(root, { from: ".comvi/b.json", debounceMs: 20 }).w;
+    expect([a.active, b.active]).toEqual([true, false]);
+    armed = true;
+    fs.writeFileSync(path.join(root, ".comvi/a.json"), schema({ default: warned("stale") }));
+    await vi.waitFor(() => expect(a.active).toBe(false), { timeout: 10_000, interval: 10 });
+    await a.idle();
+    await b.idle();
+    expect(b.active).toBe(true);
+    expect(out(root)).toContain('"fresh": never;');
+    expect(out(root)).not.toContain('"stale"');
+    expect(a.stats.writes).toBe(1);
   });
 
   it("follows a wire schema file before its directory exists (no `comvi pull` yet)", async () => {

@@ -23,7 +23,7 @@ import { resolveAugmentationTarget } from "../augment";
 import type { SchemaWarning } from "./build";
 import { emitCatalogs, selectsWithoutOptions } from "./emit";
 import { CatalogFileError, LocalSource, stampOf } from "./local";
-import { PlatformSource, type PlatformError, type PlatformSourceOptions } from "./platform";
+import { PlatformError, PlatformSource, type PlatformSourceOptions } from "./platform";
 import { parseWireSchema, type WireSchema } from "./wire";
 
 export type From = string | { platform: PlatformSourceOptions };
@@ -130,7 +130,18 @@ function context(options: GenerateOptions): Context {
   };
 }
 
-function finish(ctx: Context, schema: WireSchema, read: SchemaWarning[]): GenerateResult {
+/**
+ * Emits the catalogs, reports the warnings and writes (or, with `check`, compares) the
+ * file. `mayWrite` is asked after every reporter has returned, right before the write: a
+ * reporter that closes the watcher (and so hands the file to a successor) is never
+ * followed by this run's write.
+ */
+function finish(
+  ctx: Context,
+  schema: WireSchema,
+  read: SchemaWarning[],
+  mayWrite: () => boolean = () => true,
+): GenerateResult {
   const content = emitCatalogs(schema, {
     augment: ctx.augment,
     defaultParams: ctx.options.defaultParams,
@@ -146,7 +157,9 @@ function finish(ctx: Context, schema: WireSchema, read: SchemaWarning[]): Genera
   for (const w of warnings) ctx.report({ level: "warn", text: describeWarning(w) });
   let stale = false;
   let written = false;
-  if (ctx.options.check) stale = readCurrent(ctx.out) !== content;
+  if (!mayWrite()) {
+    // Dropped: the file belongs to someone else now.
+  } else if (ctx.options.check) stale = readCurrent(ctx.out) !== content;
   else written = writeIfChanged(ctx.out, content);
   const nss = Object.values(schema.namespaces);
   return {
@@ -389,8 +402,8 @@ export function watch(options: WatchOptions): Watcher {
       if (platform) {
         const schema = await platform.schema();
         if (!owns()) return;
-        result = finish(ctx, schema, []);
-      } else if (schemaFile) result = finish(ctx, readSchemaFile(schemaFile), []);
+        result = finish(ctx, schema, [], owns);
+      } else if (schemaFile) result = finish(ctx, readSchemaFile(schemaFile), [], owns);
       else {
         const todo = everything ? undefined : [...dirty];
         everything = false;
@@ -410,7 +423,7 @@ export function watch(options: WatchOptions): Watcher {
           stats.parsedFiles = local!.parsedFiles;
         }
         const { schema, warnings } = local!.schema();
-        result = finish(ctx, schema, warnings);
+        result = finish(ctx, schema, warnings, owns);
       }
       if (result.written) {
         stats.writes++;
@@ -433,6 +446,9 @@ export function watch(options: WatchOptions): Watcher {
         const ref = local.namespaceOf(e.file);
         if (ref) dirty.add(ref.ns);
       }
+      // A key the schema route refuses (while the project lookup and the stream accept
+      // it) does not get better by waiting either: stop, as the stream does.
+      if (platform && e instanceof PlatformError && (e.status === 401 || e.status === 403)) die(e);
     }
   };
 
@@ -513,6 +529,13 @@ export function watch(options: WatchOptions): Watcher {
         resolveReady();
         return;
       }
+      // An error after start (a watched directory removed, inotify out of watches) is as
+      // terminal as one at start; unheard, it would be an uncaught exception that kills the
+      // host process while the lock file still names it.
+      fsWatcher.on("error", (e) => {
+        ctx.report({ level: "error", text: `Cannot watch ${dir}: ${e.message}` });
+        shutdown();
+      });
       stop = () => fsWatcher.close();
       kick();
       void running!.then(() => {
@@ -525,14 +548,7 @@ export function watch(options: WatchOptions): Watcher {
       // the one sent on (re)connect included, fetches the schema again.
       stop = platform!.subscribe(schedule, {
         onNotice: (text) => ctx.report({ level: "info", text }),
-        onFatal: (e) => {
-          // The first run may have reported the same refusal already.
-          fatal = e.message;
-          if (!lastError?.startsWith(e.message)) ctx.report({ level: "error", text: e.message });
-          // Terminal: stop for good and hand the file to a waiting watcher.
-          shutdown();
-          options.onFatal?.(e);
-        },
+        onFatal: die,
       });
       kick();
       void running!.then(resolveReady);
@@ -561,6 +577,16 @@ export function watch(options: WatchOptions): Watcher {
     start();
     return true;
   };
+  /** A refused API key: reported once, the watcher stops and `onFatal` hears it once. */
+  function die(e: PlatformError): void {
+    if (closed) return;
+    // A run may have reported the same refusal already.
+    fatal = e.message;
+    if (!lastError?.startsWith(e.message)) ctx.report({ level: "error", text: e.message });
+    // Terminal: stop for good and hand the file to a waiting watcher.
+    shutdown();
+    options.onFatal?.(e);
+  }
   /**
    * The one way a watcher stops — `close()`, a refused API key, a directory that cannot be
    * watched: nothing pending runs, an in-flight run never writes (`owns()`), the lock is
