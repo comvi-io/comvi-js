@@ -83,7 +83,9 @@ run is reported through `onMessage` once per broken state, and the file stays as
 - **One writer per declaration file.** A lock in the OS temp directory: a second `watch()` of
   the same `out`, in this process (a reloaded config) or another (a second dev server, a
   framework worker), stays idle (`watcher.active === false`) and takes over when the first
-  closes (at once in-process) or its process dies (within a second).
+  closes (at once in-process) or its process dies (within a second). A refused key and a
+  directory that cannot be watched stop the first for good and free the file the same way; a
+  platform answer that arrives after `close()` is dropped, never written.
 
 ## For the Next and Nuxt wrappers (lots 6 and 7)
 

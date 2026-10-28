@@ -410,6 +410,57 @@ describe("watch()", { timeout: 60_000 }, () => {
     }
   });
 
+  it("a batch that fails is read again whole: a namespace changed beside a broken one is not lost", async () => {
+    // Deaf OS watcher: the catch-up stat pass finds both changes, in directory order —
+    // `admin` (broken) before `shop` (changed), so `shop` is never read by the failed run.
+    const deaf = vi
+      .spyOn(fs, "watch")
+      .mockImplementation(() => ({ close() {} }) as unknown as fs.FSWatcher);
+    try {
+      const root = app(CATALOGS);
+      const { w, m } = start(root);
+      await w.ready;
+      write(root, "admin/en.json", '{ "user.role": ');
+      write(root, "shop/en.json", { "cart.items": "{count, plural, other {#}}", added: "{x}" });
+      await vi.waitFor(() => expect(m.list.some((x) => x.level === "error")).toBe(true), {
+        timeout: 10_000,
+        interval: 20,
+      });
+      await w.idle();
+      expect(out(root)).not.toContain('"added"');
+      // Repairing the broken namespace alone must bring the other one's change too.
+      write(root, "admin/en.json", { "user.role": "{role, select, admin {A} other {U}}" });
+      await vi.waitFor(() => expect(out(root)).toContain('"added": { "x": string | number };'), {
+        timeout: 10_000,
+        interval: 20,
+      });
+    } finally {
+      deaf.mockRestore();
+    }
+  });
+
+  it("a directory that cannot be watched stops the watcher for good and frees the file", async () => {
+    const root = app(CATALOGS);
+    const broken = vi.spyOn(fs, "watch").mockImplementationOnce(() => {
+      throw Object.assign(new Error("EMFILE: too many open files, watch"), { code: "EMFILE" });
+    });
+    try {
+      const { w, m } = start(root);
+      await w.ready;
+      expect(m.list.filter((x) => x.level === "error").map((x) => x.text)).toEqual([
+        `Cannot watch ${path.join(root, "locales")}: EMFILE: too many open files, watch`,
+      ]);
+      expect(w.active).toBe(false);
+      // The lock is free: the next watcher of the file writes it.
+      const next = start(root);
+      await next.w.ready;
+      expect(next.w.active).toBe(true);
+      expect(out(root)).toContain('"cart.items"');
+    } finally {
+      broken.mockRestore();
+    }
+  });
+
   it("follows a wire schema file before its directory exists (no `comvi pull` yet)", async () => {
     const root = app({ "en.json": { a: "A" } });
     const { w } = start(root, { from: ".comvi/schema.json" });

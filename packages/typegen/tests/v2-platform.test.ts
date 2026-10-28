@@ -217,6 +217,85 @@ describe("watch({ from: { platform } })", () => {
     expect(list[0].text).toContain("the API key was rejected");
   });
 
+  it("a response that arrives after close() is dropped, never written over the successor", async () => {
+    const OLD: WireSchema = { ...SCHEMA, namespaces: { default: { old: {} } } };
+    const NEW: WireSchema = { ...SCHEMA, namespaces: { default: { new: {} } } };
+    // The first watcher's schema request hangs until `release()`, then answers OLD.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const slow = platform();
+    slow.setSchema(OLD);
+    let asked = false;
+    const slowFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/schema/v2")) {
+        asked = true;
+        await held;
+      }
+      return slow.fetch(input, init);
+    }) as typeof globalThis.fetch;
+    const fast = platform();
+    fast.setSchema(NEW);
+    const dir = root();
+    const file = path.join(dir, "comvi.d.ts");
+    const begin = (fetch: typeof globalThis.fetch) => {
+      const w = watch({
+        from: { platform: { apiKey: KEY, apiBaseUrl: "https://tms.test", fetch } },
+        out: "comvi.d.ts",
+        root: dir,
+        debounceMs: 20,
+        onMessage: () => undefined,
+      });
+      watchers.push(w);
+      return w;
+    };
+    const a = begin(slowFetch);
+    const b = begin(fast.fetch);
+    expect([a.active, b.active]).toEqual([true, false]);
+    await vi.waitFor(() => expect(asked).toBe(true), { timeout: 5000, interval: 5 });
+    // Closed while its request is in flight: the successor takes over and writes NEW.
+    a.close();
+    expect(b.active).toBe(true);
+    await vi.waitFor(() => expect(fs.readFileSync(file, "utf8")).toContain('"new": never;'), {
+      timeout: 5000,
+      interval: 10,
+    });
+    // The old request now answers; its OLD schema must not reach the file.
+    release();
+    await a.idle();
+    await b.idle();
+    expect(fs.readFileSync(file, "utf8")).toContain('"new": never;');
+    expect(fs.readFileSync(file, "utf8")).not.toContain('"old"');
+    expect(a.stats.writes).toBe(0);
+  });
+
+  it("a refused key frees the file: the watcher is inactive and a waiting one takes over", async () => {
+    const refused = platform({ status: 401 });
+    const working = platform();
+    const dir = root();
+    const begin = (fetch: typeof globalThis.fetch, onFatal?: () => void) => {
+      const w = watch({
+        from: { platform: { apiKey: KEY, apiBaseUrl: "https://tms.test", fetch } },
+        out: "comvi.d.ts",
+        root: dir,
+        debounceMs: 20,
+        onMessage: () => undefined,
+        onFatal,
+      });
+      watchers.push(w);
+      return w;
+    };
+    const fatal = vi.fn();
+    const a = begin(refused.fetch, fatal);
+    const b = begin(working.fetch);
+    expect([a.active, b.active]).toEqual([true, false]);
+    await vi.waitFor(() => expect(fatal).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    expect([a.active, b.active]).toEqual([false, true]);
+    await vi.waitFor(
+      () => expect(fs.readFileSync(path.join(dir, "comvi.d.ts"), "utf8")).toContain('"hello"'),
+      { timeout: 5000, interval: 10 },
+    );
+  });
+
   it("an unreachable platform: ready settles after the reported first run", async () => {
     const down = (async () => {
       throw new Error("fetch failed", { cause: { code: "ECONNREFUSED" } });

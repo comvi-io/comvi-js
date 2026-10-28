@@ -28,6 +28,10 @@ loop in a dev server, one message for a broken catalog.
 - **One writer per declaration file:** writes are atomic (temporary file + rename) and skipped when
   the content is unchanged; a lock in the OS temp directory lets one `watch()` write a file while a
   second one (a reloaded config, a second dev server, a framework worker) waits and takes over.
+  Every stop — `close()`, a refused key, a directory that cannot be watched — goes through one
+  shutdown that frees the lock, and a run checks it still holds the lock right before writing (a
+  platform answer late enough to arrive after a takeover is dropped). A batch whose reading fails
+  is queued again whole, not only the namespace that failed.
 - **Watching the platform** reuses the v1 SSE stream as the change signal and fetches v2 on each
   event: no platform endpoint of its own. The first fetch does not wait for the stream, so
   `ready` settles when the platform is down; a refused key stops the watcher (`onFatal`).

@@ -365,20 +365,46 @@ export function watch(options: WatchOptions): Watcher {
   const stampsNow = (): Map<string, string> =>
     schemaFile ? new Map([[schemaFile, stampOf(schemaFile)]]) : local!.stamps();
 
+  /**
+   * Whether this watcher may write now: not shut down, and the lock file still carries
+   * its token. Checked right before every write, after any await: a platform response
+   * that arrives after `close()` (and after a successor took the file over) is dropped,
+   * never written over the successor's output.
+   */
+  const owns = (): boolean => {
+    if (closed || !active) return false;
+    try {
+      return (JSON.parse(fs.readFileSync(lock, "utf8")) as { token?: unknown }).token === token;
+    } catch {
+      return false;
+    }
+  };
+
   const runOnce = async () => {
     stats.runs++;
     // Taken before reading: a save that lands during the read differs from it later.
     if (!platform) seen = stampsNow();
     try {
       let result: GenerateResult;
-      if (platform) result = finish(ctx, await platform.schema(), []);
-      else if (schemaFile) result = finish(ctx, readSchemaFile(schemaFile), []);
+      if (platform) {
+        const schema = await platform.schema();
+        if (!owns()) return;
+        result = finish(ctx, schema, []);
+      } else if (schemaFile) result = finish(ctx, readSchemaFile(schemaFile), []);
       else {
         const todo = everything ? undefined : [...dirty];
         everything = false;
         dirty.clear();
         try {
           local!.refresh(todo);
+        } catch (e) {
+          // The whole batch is read again on the next run, not only the namespace that
+          // failed: a namespace that changed in the same batch (and was never read, or
+          // read before the failure) would otherwise keep its old keys once the broken
+          // one is repaired — and the stamps this run took hide it from the catch-up.
+          if (todo) for (const ns of todo) dirty.add(ns);
+          else everything = true;
+          throw e;
         } finally {
           stats.readFiles = local!.readFiles;
           stats.parsedFiles = local!.parsedFiles;
@@ -395,6 +421,7 @@ export function watch(options: WatchOptions): Watcher {
       }
       lastError = undefined;
     } catch (e) {
+      if (closed) return;
       const text = `${(e as Error).message}; ${where()} is kept as it was`;
       // One message per broken state, not one per save that leaves it broken (nor a
       // second one for a refused key the stream has reported already).
@@ -480,7 +507,9 @@ export function watch(options: WatchOptions): Watcher {
           schedule();
         });
       } catch (e) {
+        // Terminal: stop for good and hand the file to a waiting watcher.
         ctx.report({ level: "error", text: `Cannot watch ${dir}: ${(e as Error).message}` });
+        shutdown();
         resolveReady();
         return;
       }
@@ -500,6 +529,8 @@ export function watch(options: WatchOptions): Watcher {
           // The first run may have reported the same refusal already.
           fatal = e.message;
           if (!lastError?.startsWith(e.message)) ctx.report({ level: "error", text: e.message });
+          // Terminal: stop for good and hand the file to a waiting watcher.
+          shutdown();
           options.onFatal?.(e);
         },
       });
@@ -530,6 +561,31 @@ export function watch(options: WatchOptions): Watcher {
     start();
     return true;
   };
+  /**
+   * The one way a watcher stops — `close()`, a refused API key, a directory that cannot be
+   * watched: nothing pending runs, an in-flight run never writes (`owns()`), the lock is
+   * released and a waiting watcher takes over.
+   */
+  function shutdown(): void {
+    if (closed) return;
+    closed = true;
+    clearTimeout(timer);
+    clearInterval(poll);
+    for (const t of catchUpTimers) clearTimeout(t);
+    timer = undefined;
+    pending = false;
+    stop?.();
+    const set = waiting.get(lock);
+    set?.delete(tryOwn);
+    if (set?.size === 0) waiting.delete(lock);
+    if (active) {
+      active = false;
+      process.removeListener("exit", onExit);
+      release(lock, token);
+    }
+    settleIdle();
+  }
+
   if (!tryOwn()) {
     const other = holder > 0 && holder !== process.pid ? ` (process ${holder})` : "";
     ctx.report({
@@ -555,24 +611,6 @@ export function watch(options: WatchOptions): Watcher {
         idleWaiters.push(resolve);
         settleIdle();
       }),
-    close() {
-      if (closed) return;
-      closed = true;
-      clearTimeout(timer);
-      clearInterval(poll);
-      for (const t of catchUpTimers) clearTimeout(t);
-      timer = undefined;
-      pending = false;
-      stop?.();
-      const set = waiting.get(lock);
-      set?.delete(tryOwn);
-      if (set?.size === 0) waiting.delete(lock);
-      if (active) {
-        active = false;
-        process.removeListener("exit", onExit);
-        release(lock, token);
-      }
-      settleIdle();
-    },
+    close: shutdown,
   };
 }
