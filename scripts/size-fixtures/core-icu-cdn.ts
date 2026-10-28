@@ -1,4 +1,4 @@
-// core + ICU + cdn() (R3-13 ceiling 4,895): the product's main path — the instance
+// core + ICU + cdn() (R3-13 ceiling 4,910): the product's main path — the instance
 // loading CDN v1 catalogs, then t() with a plain {name} and a plural.
 import { createI18n } from "@comvi/core";
 import { cdn } from "@comvi/core/cdn";

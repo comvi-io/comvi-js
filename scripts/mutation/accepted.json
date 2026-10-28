@@ -3045,96 +3045,6 @@
       "reason": "redundant with the next conjunct: `content === keyString` only holds for a string primitive, so dropping the typeof guard cannot change isMissing for any tRaw return. Hand-applied, 146/146 green."
     },
     {
-      "package": "packages/vue",
-      "file": "src/VueI18n.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (core.locale !== initialLocale) {",
-      "lineHint": 128,
-      "kind": "equivalent",
-      "reason": "assigning the host the locale it already has is a core no-op: no event, no loader call (probed directly). Hand-applied `if (true)`; 255/255 green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/VueI18n.ts",
-      "mutators": ["UpdateOperator"],
-      "snippet": "this._configRevision.value++;",
-      "lineHint": 167,
-      "kind": "equivalent",
-      "reason": "change signal only — a decrement changes the shallowRef and invalidates the same computeds. Hand-applied; green. (defaultNamespaceChanged case)"
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/VueI18n.ts",
-      "mutators": ["UpdateOperator"],
-      "snippet": "this._configRevision.value++;",
-      "lineHint": 172,
-      "kind": "equivalent",
-      "reason": "same as line 167: the value is never read, only its change matters. (configChanged case) Hand-applied; green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/VueI18n.ts",
-      "mutators": ["MethodExpression"],
-      "snippet": "this._unsubscribers",
-      "lineHint": 425,
-      "kind": "equivalent",
-      "reason": "pushed exactly once (single subscribeToRevision disposer); no public path adds a second, so reverse order is unobservable. Both mutants hand-applied; green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/components/T.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "let hasHandlers = false;",
-      "lineHint": 129,
-      "kind": "equivalent",
-      "reason": "hasHandlers only chooses `components: merged` vs undefined; prepareTranslation treats an empty map like undefined. Hand-applied `= true`; green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/components/T.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (slots[name]) {",
-      "lineHint": 131,
-      "kind": "equivalent",
-      "reason": "a falsy slot copied into merged is skipped by prepareTranslation (`handler == null` continue); the hasHandlers=true only swaps undefined for an empty map. Hand-applied; green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/components/T.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (props.components) {",
-      "lineHint": 136,
-      "kind": "equivalent",
-      "reason": "Object.assign(merged, undefined) is a no-op; same empty-map equivalence. Hand-applied; green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/components/T.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator", "BlockStatement"],
-      "snippet": "if (nodes.length <= 1) {",
-      "lineHint": 175,
-      "kind": "equivalent",
-      "reason": "all three degrade to 'always wrap in a Fragment' — rendered HTML/text byte-identical, only Vue's internal empty-text anchors differ (DOM-dump verified). 3 mutants hand-applied; green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/components/T.ts",
-      "mutators": ["ObjectLiteral"],
-      "snippet": "return h(Fragment, { key: node.key }, convertList(node.children as TranslationResult));",
-      "lineHint": 200,
-      "kind": "equivalent",
-      "reason": "core never emits keyed fragments; a callback-built keyed fragment holds only strings/VirtualNodes, so a key change recreates text nodes with identical output (re-key probe verified). Hand-applied; green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/components/T.ts",
-      "mutators": ["ArrayDeclaration"],
-      "snippet": "const nodes = Array.isArray(rendered) ? rendered : [rendered];",
-      "lineHint": 174,
-      "kind": "equivalent",
-      "reason": "unreachable defensive wrap: Vue normalizes every slot function's return to an array (normalizeSlotValue) before T calls it, so `rendered` is always an array and the else branch never runs. Hand-applied `: []`; full suite 256/256 green."
-    },
-    {
       "package": "packages/next",
       "file": "src/routing/utils.ts",
       "mutators": ["ConditionalExpression"],
@@ -5124,15 +5034,6 @@
       "reason": "the \"../package.json\" candidate (dist layout) -> \"\": from src, candidate 2 still resolves the real manifest, so the mutation view cannot observe the loss; only the built CLI walks candidate 1, and tests/dist/cli-entry.dist.test.ts pins --version in the full view (hand-applied id 2088: COMVI_MUTATION suite green 462/462; the src-layout sibling literal IS killed)"
     },
     {
-      "package": "packages/vue",
-      "file": "src/components/T.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "Object.keys(attrs).length === 0 ? params : ({ ...params, ...attrs } as TranslationParams);",
-      "lineHint": 186,
-      "kind": "equivalent",
-      "reason": "the guard only decides whether to ALLOCATE. Forced to the merge branch, `{ ...params }` with no attrs has the same entries as `params`, and `prepareTranslation` copies whatever it is handed into its own transport object — so no interpolation input and no rendered output can differ. Verified by applying the mutant by hand: 262/262 vue tests still pass. (The `-> true` direction, which would drop the attrs, is killed.)"
-    },
-    {
       "package": "packages/solid",
       "file": "src/T.tsx",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
@@ -5577,6 +5478,15 @@
       "lineHint": 82,
       "kind": "equivalent",
       "reason": "`h[1] == target` -> true in the give-up of a failed switch (the instance check `h[0] == i` and the line's other mutants are killed). For the SAME instance the rejection only arrives when no other setLocale() ran since (core: a later switch makes an earlier one resolve, not reject), so the locale and lrev have not moved; a target changed meanwhile either equals the instance's locale (no switch) and the next render resets the handover to [i, target, locale, lrev] — the values the kept state already holds — or differs, and then its own setLocale() superseded the failing one. Hand-applied 28.10.2026: react suite 123/123 green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/binding.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "Array.isArray(r) && r.every((x) => typeof x == \"string\") ? r.join(\"\") : r;",
+      "lineHint": 77,
+      "kind": "equivalent",
+      "reason": "The separator of joining an all-text part list is unobservable: the core merges adjacent text when it renders (a nested handler's string, a {param} and literal text inside one tag reach the joiner as ONE string — test \"joins text-only children into one string…\" sees \"one TWO 3\"), so a list of strings has at most one element and `join` with any separator returns it. Hand-applied 28.10.2026: vue suite 82/82 green."
     }
   ]
 }

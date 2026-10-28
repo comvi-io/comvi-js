@@ -13,12 +13,9 @@ export default mergeConfig(
   comviConfig,
   defineConfig({
     plugins: [
-      comviTypes({
-        translations: "../locales",
-        output: "./src/types/i18n.d.ts",
-        fileTemplate: "{namespace}/{languageTag}.json",
-        defaultNs: "default",
-      }),
+      // Writes src/types/i18n.d.ts on `vite build` and on every catalog change in
+      // `vite dev`; `pnpm typecheck` writes the same bytes with `comvi typegen --from`.
+      comviTypes({ from: "../locales", sourceLocale: "en" }),
       vue(),
       tailwindcss(),
     ],

@@ -273,7 +273,8 @@
     </style>
   </head>
   <body>
-    <div id="app"></div>
+    <!-- No catalog means no words yet: a wordless spinner until main.ts mounts. -->
+    <div id="app"><div class="boot" role="status" aria-busy="true"></div></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

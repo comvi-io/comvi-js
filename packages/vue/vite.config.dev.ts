@@ -1,25 +1,23 @@
 /**
- * Development ESM build (dist/comvi-vue.dev.js) — selected by bundlers via the
- * "development" export condition. `__DEV__` is hardcoded true so the
- * `IS_DEV`-guarded diagnostics (the late-compose warning and the readable
- * `.use` identity error in `VueI18n`) actually fire; the default artifact
- * keeps them dropped.
- *
- * No `dts` plugin: the declarations are shared by both artifacts, so the prod
- * build is their single producer (the `types` condition names them once).
+ * Development ESM build (dist/comvi-vue*.dev.js), selected by bundlers through the
+ * "development" export condition: `__DEV__` is true, so a composable outside an app that
+ * installed the instance throws a readable error.
  */
 import { defineConfig } from "vite";
-import { resolve } from "path";
-import { vueBuild } from "./vite.shared";
+import { entries, external, output } from "./vite.entries.ts";
 
 export default defineConfig({
-  build: vueBuild(__dirname, ".dev"),
-  resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
+  build: {
+    emptyOutDir: false, // the production build already cleared dist/
+    lib: { entry: entries(import.meta.dirname), name: "ComviVue" },
+    minify: false,
+    sourcemap: false,
+    rolldownOptions: {
+      external,
+      preserveEntrySignatures: "allow-extension",
+      output: [output(".dev")],
+      treeshake: { moduleSideEffects: false },
     },
   },
-  define: {
-    __DEV__: JSON.stringify(true),
-  },
+  define: { __DEV__: JSON.stringify(true) },
 });

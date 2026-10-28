@@ -38,10 +38,12 @@ const activeExamples = () =>
     (e) => activeShards([e.framework], exampleNeeds, "examples-e2e", quiet).length === 1,
   ).map((e) => `${e.framework}/${e.mode}`);
 
-test("after lot 1c only the React and vanilla examples run; every test app is pending, and the skip says why", () => {
+test("after lot 4 the React, Vue and vanilla examples run; every test app is pending, and the skip says why", () => {
   assert.deepEqual(activeExamples(), [
     "react/default",
     "react/cdn",
+    "vue/default",
+    "vue/cdn",
     "vanilla/default",
     "vanilla/cdn",
   ]);
@@ -53,22 +55,30 @@ test("after lot 1c only the React and vanilla examples run; every test app is pe
   assert.ok(lines.some((l) => l.includes("fixtures-08") && l.includes("lot 6")));
 });
 
-test("Vue landing re-enables the Vue shards while Next and the rest stay pending", () => {
-  const got = landed(["fixtures-08", "@comvi/vue"], activeExamples);
+test("Solid landing re-enables the Solid shards while Next and the rest stay pending", () => {
+  const got = landed(["fixtures-08", "@comvi/solid"], activeExamples);
   assert.deepEqual(got, [
     "react/default",
     "react/cdn",
     "vue/default",
     "vue/cdn",
+    "solid/default",
+    "solid/cdn",
     "vanilla/default",
     "vanilla/cdn",
+    // The SSR recipe needs Solid alone, so it lands with it.
+    "solidstart/default",
   ]);
 });
 
 test("a rewritten example or bundler case does not need fixtures-08; the others do", () => {
   assert.deepEqual(exampleNeeds("react").sort(), ["@comvi/core", "@comvi/react"]);
   assert.deepEqual(bundlerCaseNeeds("react-default", ["@comvi/core"]), ["@comvi/core"]);
-  assert.deepEqual(bundlerCaseNeeds("vue-default", ["@comvi/vue"]), ["fixtures-08", "@comvi/vue"]);
+  assert.deepEqual(bundlerCaseNeeds("vue-default", ["@comvi/vue"]), ["@comvi/vue"]);
+  assert.deepEqual(bundlerCaseNeeds("solid-default", ["@comvi/solid"]), [
+    "fixtures-08",
+    "@comvi/solid",
+  ]);
 });
 
 test("a test app runs once it and the core instance are active, independently of the others", () => {

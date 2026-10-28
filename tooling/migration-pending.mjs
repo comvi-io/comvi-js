@@ -5,7 +5,8 @@
  *
  * Lot 1a replaced `@comvi/core` with the new compile/locale foundation, lot 1b added
  * `createI18n`, the instance and the `/cdn`, `/plugins`, `/format`, `/devtools` subpaths,
- * and lot 1c rebuilt `@comvi/react` and moved the React and vanilla examples.
+ * lot 1c rebuilt `@comvi/react` and moved the React and vanilla examples, and lot 4 rebuilt
+ * `@comvi/vue` and moved the Vue example and test app.
  * Until a package's lot lands, every repo gate leaves it out EXPLICITLY:
  *
  *   - turbo tasks (build, test, lint, typecheck, coverage): `scripts/turbo-active.mjs`
@@ -30,7 +31,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const MIGRATION_PENDING = {
-  "@comvi/vue": "lot 4: Vue binding on the new core",
   "@comvi/solid": "lot 5: Solid binding on the new core",
   "@comvi/svelte": "lot 5: Svelte 5 runes binding on the new core",
   "@comvi/next": "lot 6: Next on the new core and @comvi/react",
@@ -43,7 +43,6 @@ export const MIGRATION_PENDING = {
   "@test-apps/nuxt4": "lot 7: builds from @comvi/nuxt",
   "@test-apps/solid": "lot 5: builds from @comvi/solid",
   "@test-apps/svelte": "lot 5: builds from @comvi/svelte",
-  "@test-apps/vue": "lot 4: builds from @comvi/vue",
 };
 
 /**
@@ -54,13 +53,14 @@ export const MIGRATION_PENDING = {
 const CORE_07_DOCS =
   "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
 const LINT_07_RULES =
-  "on the 0.8 API since lot 1c; the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
+  "on the 0.8 API since lot 1c (React) and lot 4 (Vue); the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
 const CDN_08_ROOT =
   "its Connect to Comvi section is on the 0.8 API since lot 2c (`loader: cdn(url)` from @comvi/core/cdn, the 0.7 fetch loader is gone); the docs-snippets rules still require the 0.7 composition (`.use(installer)`) — they move to 0.8 with the docs in lot 10";
 export const MIGRATION_PENDING_DOCS = {
   "README.md": CDN_08_ROOT,
   "packages/core/README.md": CORE_07_DOCS,
   "packages/react/README.md": LINT_07_RULES,
+  "packages/vue/README.md": LINT_07_RULES,
   "packages/vite-plugin/README.md": LINT_07_RULES,
   "examples/README.md": LINT_07_RULES,
   "docs/design/composition.md": CORE_07_DOCS,
@@ -90,17 +90,25 @@ export function packageName(dirOrName) {
  */
 export const PENDING_CAPABILITIES = {
   "fixtures-08":
-    "examples, test apps and bundler-matrix fixtures still on the 0.7 API move to the 0.8 createI18n with their binding's lot (vue: lot 4, solid/svelte: lot 5, next: lot 6, nuxt: lot 7, the editor: lot 8)",
+    "examples, test apps and bundler-matrix fixtures still on the 0.7 API move to the 0.8 createI18n with their binding's lot (solid/svelte: lot 5, next: lot 6, nuxt: lot 7, the editor: lot 8)",
 };
 
 /**
  * What lot 1c moved to the 0.8 API: the React and vanilla examples, and the core and React
- * cases of the bundler matrix. `@test-apps/react` moved in lot 3b with `@comvi/vite-plugin`
- * (it is built and type-checked, not part of the test-apps smoke).
+ * cases of the bundler matrix; lot 4 the Vue example and the Vue bundler cases.
+ * `@test-apps/react` moved in lot 3b with `@comvi/vite-plugin` and `@test-apps/vue` in lot 4
+ * (both are built and type-checked, not part of the test-apps smoke).
  */
 export const ON_08 = {
-  examples: new Set(["react", "vanilla"]),
-  bundlerCases: new Set(["core-default", "core-subpaths", "react-default", "react-format"]),
+  examples: new Set(["react", "vanilla", "vue"]),
+  bundlerCases: new Set([
+    "core-default",
+    "core-subpaths",
+    "react-default",
+    "react-format",
+    "vue-default",
+    "vue-format",
+  ]),
   testApps: new Set(),
 };
 

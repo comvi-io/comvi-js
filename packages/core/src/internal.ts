@@ -7,15 +7,19 @@
  * snapshot with extra catalogs layered in, never published, `rev` unchanged) and
  * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)`,
  * `coming(i18n, state, ns)` and `activate(i18n, ns)`. A state carries the marking hook of an editor session (`mk`,
- * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it.
+ * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it. `handover(i18n)`
+ * is what a server render gives the browser (design §2.6, R3-21).
  */
 import type { Catalog, Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
+import { clock } from "./clock";
 import { CORE, type Core, type I18n } from "./instance";
 import { dir } from "./locale";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
 
 export { compile, render, recordFor, lookup, inherit } from "./compile/cache";
+/** A prototype-free object with the own properties of its arguments copied in (state.ts). */
+export { N } from "./state";
 export type { Compiled, CompiledRecord, Render, Rendered } from "./compile/cache";
 export type { Env, Params } from "./compile/scanner";
 export { formatNumber, formatValue, pluralRules, intl } from "./compile/fmt";
@@ -129,3 +133,52 @@ export const coming = (i18n: I18n, state: State, ns: string): boolean => !!core(
 /** Whether a catalog load is in flight in `state` (for namespace `ns`, or any). */
 export const loading = (state: State, ns?: string): boolean =>
   state.ld.some((k) => ns === undefined || k.endsWith("\0" + ns));
+
+/**
+ * What a server render hands the browser (design §2.6, R3-21): the locale, the time zone and
+ * the clock the render used, and the catalogs it rendered with — every active namespace in
+ * the locale's chain (its parents and fallback locales), in the shape of
+ * `createI18n({ catalogs })`, a slot whose load failed as `null`. The browser's
+ * `createI18n({ ...options, ...handover })` then renders what the server rendered and asks
+ * the loader for none of it; a `null` slot is asked for again only on an explicit retry
+ * (`i18n.load(ns)`, a switch to its locale).
+ */
+export interface Handover {
+  locale: string;
+  timeZone?: string;
+  /**
+   * The request's clock (epoch ms): the `now` option, else the one a server instance took
+   * when it first read the clock (clock.ts). `formatRelativeTime` counts from it on both
+   * sides.
+   */
+  now: number;
+  /** By namespace, then locale; `null`: the load of that slot failed on the server. */
+  catalogs: Record<string, Record<string, Catalog | null>>;
+}
+
+/**
+ * The {@link Handover} of `i18n` as of now (call it after the render). Development throws
+ * when the instance has no `timeZone`: a server and a browser in different zones format
+ * the same date differently, and the hydration would not match (design §2.6).
+ */
+export const handover = (i18n: I18n): Handover => {
+  const x = core(i18n);
+  const s = x.s();
+  if (__DEV__ && !x.o.timeZone)
+    throw new TypeError(
+      "[@comvi/core] a server render needs the timeZone option: the server and the browser must format dates in one zone",
+    );
+  const catalogs = N<Record<string, Catalog | null>>();
+  for (const n of x.n)
+    for (const [l] of x.ch(s.locale)) {
+      const y = s.c[n]?.[l];
+      // A patched slot is handed over as one catalog: the base with the patch on top. A
+      // slot of an active namespace that is neither in place nor loading failed to load
+      // (the loader asks for every slot of the chain): handed over as `null`, so the browser
+      // renders the fallback the server rendered and does not ask for it at hydration
+      // (R3-21); `createI18n` keeps it failed until an explicit `load(ns)` retries it.
+      if (y || (x.o.loader && !s.ld.includes(l + "\0" + n)))
+        (catalogs[n] ||= N())[l] = !y ? null : y.p ? N(y.m, y.p) : y.m;
+    }
+  return { locale: s.locale, timeZone: x.o.timeZone, now: clock(i18n), catalogs };
+};

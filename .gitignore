@@ -90,6 +90,7 @@ smithers.db-wal
 # mutation testing (scripts/mutation/run.mjs)
 .stryker/
 .stryker-tmp*/
+stryker-setup-*.js
 
 # perf reference builds (scripts/perf.mjs --compare-ref)
 .perf-ref/

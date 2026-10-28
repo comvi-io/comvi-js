@@ -28,7 +28,7 @@ const runnerPlugin = createRequire(path.join(ROOT, "package.json")).resolve(
 );
 // Packages whose vitest config aliases a sibling's src (`@comvi/core` → ../core/src) mutate
 // in place: Stryker's sandbox copies the package alone, so the alias would point nowhere.
-const IN_PLACE = new Set(["packages/react"]);
+const IN_PLACE = new Set(["packages/react", "packages/vue"]);
 if (rest.includes("--summarize-only")) {
   summarize(cwd, pkg);
   process.exit(0);

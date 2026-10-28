@@ -1,4 +1,7 @@
 {
+  // Two isolated programs: this one with generated catalogs (tests/types), and
+  // tsconfig.test-types-untyped.json without (an augmentation is global to its program).
+  // vue-tsc checks the .vue files' templates too ($t, <T>).
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "composite": false,
@@ -6,8 +9,9 @@
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false,
-    "rootDir": "."
+    "rootDir": ".",
+    "noUnusedLocals": false
   },
-  "include": ["src/**/*.ts", "tests/types/**/*.test-d.ts"],
+  "include": ["src/**/*", "tests/types/**/*"],
   "exclude": ["node_modules", "dist"]
 }

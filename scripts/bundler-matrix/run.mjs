@@ -32,8 +32,9 @@ import { bundlerCaseNeeds, pendingReason } from "../../tooling/migration-pending
  * Wrapper <T> rendering is NOT exercised (needs a DOM/renderer); wrapper
  * tarballs are still packed, installed, and bundled (app/src/wrappers.mjs).
  * Each `*-dev-conditions` case imports whichever module carries its package's
- * dev-only diagnostic — the root entry for `@comvi/vue`, `createNextI18n` for
- * `@comvi/next` — so that module is in the graph under both conditions.
+ * dev-only diagnostic — `createNextI18n` for `@comvi/next`; on 0.8 the `react-format`
+ * and `vue-format` cases carry the binding's — so that module is in the graph under
+ * both conditions.
  */
 
 const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
@@ -79,7 +80,7 @@ const DEVTOOLS_SUBPATH = [
 const UNUSED_CAPABILITY_SUBPATHS = [...ICU_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH];
 /**
  * The 0.8 core's subpath entries as module-ID fragments (each is an entry file of its own,
- * prod and `.dev` alike), and `@comvi/react`'s `/format` entry. An app that does not import
+ * prod and `.dev` alike), and the `/format` entries of `@comvi/react` and `@comvi/vue`. An app that does not import
  * a subpath must not carry its module.
  */
 const coreEntry08 = (name) => `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-${name}`;
@@ -87,6 +88,9 @@ const CORE_SUBPATHS_08 = ["cdn", "plugins", "devtools", "format"].map(coreEntry0
 const REACT_FORMAT_08 = `@comvi${path.sep}react${path.sep}dist${path.sep}comvi-react-format`;
 /** The binding's one dev-only diagnostic (`useI18n()` outside a provider), development artifact only. */
 const REACT_DEV_TEXT = "[@comvi/react] no <I18nProvider>";
+/** `@comvi/vue`'s `/format` entry, and its dev-only diagnostic (no `app.use(i18n)` above). */
+const VUE_FORMAT_08 = `@comvi${path.sep}vue${path.sep}dist${path.sep}comvi-vue-format`;
+const VUE_DEV_TEXT = "[@comvi/vue] no app.use(i18n)";
 /**
  * The in-context editor's heaviest chunk (~100 kB gz), reached through a
  * dynamic `import()` inside the editor's Core chunk. It is in the graph under
@@ -96,14 +100,6 @@ const REACT_DEV_TEXT = "[@comvi/react] no <I18nProvider>";
 const EDITOR_MODAL_CHUNK = [
   `@comvi${path.sep}plugin-in-context-editor${path.sep}dist${path.sep}EditModal-`,
 ];
-/**
- * `@comvi/vue`'s root module, the one that carries its `IS_DEV` diagnostic
- * (`VueI18n.use`). The `.dev` artifact carries the same fragment, so one
- * entry covers both conditions — the POSITIVE half of the claim: a warning
- * missing from the production bundle only means something if the module that
- * would have carried it is in the graph.
- */
-const VUE_ROOT_MODULE = [`@comvi${path.sep}vue${path.sep}dist${path.sep}comvi-vue`];
 /**
  * `@comvi/next`'s composed-root module, the one that carries its `IS_DEV`
  * diagnostic. `preserveModules` names it per module rather than per chunk, and
@@ -119,12 +115,6 @@ const NEXT_PROXY_FORBIDDEN = [
   `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
 ];
 const NEXT_COMPOSED_ROOT_MODULE = [`@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n`];
-/**
- * `@comvi/vue`'s late-compose warning (`.use(installer)` after `app.use(i18n)`
- * started init), quoted without its prefix. It is guarded by `IS_DEV`, so it
- * is in the DEVELOPMENT artifact only.
- */
-const VUE_LATE_USE_WARNING = "ran after app.use(i18n) started init()";
 /**
  * `@comvi/next`'s one `IS_DEV` diagnostic: the readable half of the
  * `E_USE_INSTANCE_IDENTITY` error `createNextI18n(…).use` throws when an installer
@@ -206,6 +196,23 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/react"],
     deps: ["react"],
   },
+  {
+    name: "vue-default",
+    sentinels: "absent",
+    absentModules: [...CORE_SUBPATHS_08, VUE_FORMAT_08],
+    presentModules: [coreEntry08("internal")],
+    packages: ["@comvi/core", "@comvi/vue"],
+    deps: ["vue"],
+  },
+  {
+    name: "vue-format",
+    sentinels: "absent",
+    absentModules: CORE_SUBPATHS_08.filter((f) => !f.endsWith("format")),
+    presentModules: [VUE_FORMAT_08, coreEntry08("format")],
+    devOnlyText: [VUE_DEV_TEXT],
+    packages: ["@comvi/core", "@comvi/vue"],
+    deps: ["vue"],
+  },
   // ---------------------------------------------------------------------
   // The 0.7 cases below run again when their binding's lot moves them to 0.8
   // (`fixtures-08`, tooling/migration-pending.mjs).
@@ -280,33 +287,6 @@ const CASES = [
     deps: ["svelte"],
   },
   {
-    // Core's base entry is present — vue's preset constructs on it — so it is
-    // never an absence sentinel here.
-    name: "vue-default",
-    sentinels: "absent",
-    absentModules: [...UNUSED_CAPABILITY_SUBPATHS, ...LOADER_SUBPATH],
-    packages: ["@comvi/core", "@comvi/vue"],
-    deps: ["vue"],
-  },
-  {
-    name: "vue-icu",
-    sentinels: "absent",
-    absentModules: [...LOADER_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH],
-    packages: ["@comvi/core", "@comvi/vue"],
-    deps: ["vue"],
-  },
-  {
-    // Vue is the one binding with TWO construction paths on one entry (the
-    // wrapper preset, `vue-default`, and this injected-host escape hatch), so it
-    // keeps a case of its own. It is also the only case where a capability
-    // re-export hop is actually CALLED through a wrapper root.
-    name: "vue-composed",
-    sentinels: "absent",
-    absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
-    packages: ["@comvi/core", "@comvi/vue"],
-    deps: ["vue"],
-  },
-  {
     // This entry re-exports `T` through `@comvi/react`, whose component reaches
     // the pure rich-text seam rather than ambient registration — which is why it
     // needs no webpack-development exception for the tag sentinels.
@@ -368,14 +348,6 @@ const CASES = [
   // warnings dead in BOTH modes — a defect no other case can see, because the
   // module graph is identical either way and only the resolved artifact's
   // text differs.
-  {
-    name: "vue-dev-conditions",
-    sentinels: "absent",
-    devOnlyText: [VUE_LATE_USE_WARNING],
-    presentModules: VUE_ROOT_MODULE,
-    packages: ["@comvi/core", "@comvi/vue"],
-    deps: ["vue"],
-  },
   {
     // `@comvi/next`, on its ROOT entry: `createNextI18n` — the only module
     // with an `IS_DEV` diagnostic — ships from `./index` alone. Tags are

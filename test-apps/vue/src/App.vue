@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from "@comvi/vue";
-import { watch } from "vue";
+import { watchEffect } from "vue";
 import LanguageSwitcher from "./components/LanguageSwitcher.vue";
 
-const { locale, t, isLoading } = useI18n();
+const { locale, dir, t, isLoading } = useI18n();
 
-watch(
-  locale,
-  (loc) => {
-    document.documentElement.dir = loc === "ar" ? "rtl" : "ltr";
-    document.documentElement.lang = loc;
-  },
-  { immediate: true },
-);
+watchEffect(() => {
+  document.documentElement.dir = dir.value;
+  document.documentElement.lang = locale.value;
+});
 
 const navItems = [
   { path: "/", label: "nav.home" },

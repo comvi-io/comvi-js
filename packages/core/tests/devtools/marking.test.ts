@@ -187,6 +187,8 @@ describe("no session, no devtools", () => {
     // here on purpose.
     expect(Object.keys(internal).sort()).toEqual(
       [
+        // A prototype-free object (bindings' params and per-namespace tables); sets nothing.
+        "N",
         "activate",
         "canonicalize",
         "coming",
@@ -195,6 +197,8 @@ describe("no session, no devtools", () => {
         "dir",
         "formatNumber",
         "formatValue",
+        // Reads the published state (a server render's payload); sets nothing.
+        "handover",
         "inherit",
         "intl",
         "loading",

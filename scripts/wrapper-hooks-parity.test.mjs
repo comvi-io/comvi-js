@@ -43,7 +43,8 @@ const USE_I18N_RETURN = {
  * arity check still reads the real signature.
  */
 const DECLARATION_SOURCES = {
-  VueI18n: "packages/vue/src/VueI18n.ts",
+  // `VueI18n` (packages/vue/src/VueI18n.ts) left with the 0.7 Vue binding in lot 4; the
+  // 0.7 checks that read it are skipped (SKIP_07) until lot 5 retires them.
 };
 
 /**
@@ -180,7 +181,7 @@ export function parseInterfaceMembers(body) {
 const ON_08 = Object.keys(USE_I18N_RETURN).filter((name) => !pendingReason(name));
 const SKIP_07 =
   ON_08.length > 0
-    ? `0.7 parity across four bindings; ${ON_08.join(", ")} on 0.8 since lot 1c — vue joins in lot 4, solid and svelte in lot 5`
+    ? `0.7 parity across four bindings; ${ON_08.join(", ")} on 0.8 (react since lot 1c, vue since lot 4) — solid and svelte join in lot 5`
     : false;
 
 /** `useI18n()`'s members per binding, as each `UseI18nReturn` declares them (0.7). */
@@ -198,6 +199,7 @@ const USE_I18N_MEMBERS = SKIP_07
 /** Where each 0.8 binding declares what `useI18n()` returns (design §3.4). */
 const ON_08_USE_I18N = {
   "@comvi/react": ["packages/react/src/binding.ts", "UseI18n"],
+  "@comvi/vue": ["packages/vue/src/binding.ts", "UseI18n"],
 };
 /** Design §3.4's six members plus the bound `T` of R3-5(b) (sorted: "T" before lowercase). */
 const ON_08_MEMBERS = ["T", "dir", "i18n", "isLoading", "locale", "setLocale", "t"];
@@ -282,9 +284,8 @@ test("extractInterfaceBody + parseInterfaceMembers read names and multi-line sig
   );
 });
 
-test("resolveMemberType follows an indexed access into a registered class", () => {
+test("resolveMemberType passes a signature through and refuses an unregistered class", () => {
   assert.equal(resolveMemberType("(value: number) => string"), "(value: number) => string");
-  assert.match(resolveMemberType('VueI18n["formatNumber"]'), /locale\?: string/);
   assert.throws(() => resolveMemberType('Nope["formatNumber"]'), /no declaration source/);
 });
 

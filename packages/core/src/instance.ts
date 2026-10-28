@@ -56,8 +56,11 @@ export interface I18nOptions {
   fallbackLocale?: string | readonly string[] | Readonly<Record<string, readonly string[]>>;
   /** Flat catalogs of the `default` namespace, by locale. */
   messages?: Readonly<Record<string, Catalog>>;
-  /** Flat catalogs by namespace, then locale. */
-  catalogs?: Readonly<Record<string, Readonly<Record<string, Catalog>>>>;
+  /**
+   * Flat catalogs by namespace, then locale. A `null` slot is one whose load failed on the
+   * server (`handover()`): not asked for again until `load(ns)` or a switch to its locale.
+   */
+  catalogs?: Readonly<Record<string, Readonly<Record<string, Catalog | null>>>>;
   loader?: Loader;
   /** Namespaces loaded from the start. Default `["default"]`. */
   namespaces?: readonly string[];
@@ -299,10 +302,17 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   let c0: Store = N();
-  const cats: Record<string, Readonly<Record<string, Catalog>>> = N(o.catalogs);
+  const cats: Record<string, Readonly<Record<string, Catalog | null>>> = N(o.catalogs);
   if (o.messages) cats[D] = o.messages;
-  for (const n of Object.keys(cats))
-    for (const l of Object.keys(cats[n])) c0 = ing(c0, l, cats[n][l], n);
+  // A `null` slot failed to load on the server (`handover()`): it starts in the negative
+  // cache, so the browser asks for it only on an explicit retry (`load(ns)`, a switch to
+  // its locale), and its namespace starts active (not "still coming" at hydration). The
+  // cached value (the active set) is never read: a switch clears its target's failures
+  // before it could throw one.
+  for (const n in cats)
+    for (const l in cats[n])
+      if (cats[n][l]) c0 = ing(c0, l, cats[n][l]!, n);
+      else bad.set(l + K + n, act.add(n));
   // An invalid start locale is reported (by its chain); it renders through its fallback
   // locales only.
   S = st(0, 0, o.locale, c0, own(o.defaultParams));

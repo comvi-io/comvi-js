@@ -3,7 +3,7 @@
 //   node scripts/types-bench/bench.mjs [--rounds 3]   gate run (pnpm check:types-bench)
 //   node scripts/types-bench/bench.mjs --red <variant> the same gates over a planted
 //                                                     regression (r3-1 | per-call |
-//                                                     jsx-guard); exits
+//                                                     jsx-guard | vue-guard); exits
 //                                                     0 only if ITS gate fails
 //
 // Probes (2 namespaces, 300 calls a third with `ns`, every fifth with `locale`) are
@@ -20,6 +20,11 @@
 //                             gate, counted: flat when the key union is cached)
 //   key typo                  typo20k − app2 @ 20k instantiations ≤ 50K (R3-2: a typo
 //                             must not intersect every key's params)
+//   Vue (lot 4)               vue / vueTypo − vueBase @ 5k and @ 20k, checked by vue-tsc:
+//                             instantiations ≤ 50K and NestChecks ≤ 50K — `t()`, the bound
+//                             `t()`, `$t()` in a template and `<T>` / the bound `<T>` elements
+//                             of a .vue file carry the same typo guard (TComponentFor /
+//                             BoundTFor with the slot flag); a capped probe fails them.
 //   JSX <T>                   jsx20k / jsxTypo20k − app2 @ 20k: instantiations ≤ 50K and
 //                             relation-stack checks (NestChecks, count-work.cjs) ≤ 50K — the
 //                             component signature's typo guard (lot 3 review, BLOCK 1: without
@@ -34,7 +39,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateProbe, TSC, TYPES_SOURCE } from "./gen.mjs";
+import { generateProbe, TSC, TYPES_SOURCE, VUE_TSC } from "./gen.mjs";
 
 const args = process.argv.slice(2);
 const rounds = Number(args[args.indexOf("--rounds") + 1]) || 3;
@@ -46,6 +51,8 @@ const GATES = {
   typoInst: 50_000,
   jsxInst: 50_000,
   jsxNest: 50_000,
+  vueInst: 50_000,
+  vueNest: 50_000,
   memMB: 250,
 };
 const INFO = { check20k: 1.0, typoTotal: 5, scaling: 2.5 };
@@ -77,12 +84,36 @@ const REDS = {
     gates: ["jsx:inst", "jsx:nest", "jsxTypo:inst", "jsxTypo:nest"],
     edits: [
       [
-        'export type TComponentFor<Out> = <K extends KeysOf[N] | NotAKey, N extends NsOf = "default" & NsOf>(',
-        'export type TComponentFor<Out> = <K extends KeysOf[N], N extends NsOf = "default" & NsOf>(',
+        "export type TComponentFor<Out, S = 0> = <\n  K extends KeysOf[N] | NotAKey,\n  N extends NsOf",
+        "export type TComponentFor<Out, S = 0> = <\n  K extends KeysOf[N],\n  N extends NsOf",
       ],
       [
-        "export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS] | NotAKey>(",
-        "export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS]>(",
+        "export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS] | NotAKey>(",
+        "export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS]>(",
+      ],
+    ],
+  },
+  // The same unguarded signatures, seen from a .vue file through vue-tsc (lot 4): `<T>`
+  // elements in a template and the bound `<T>` hang the checker as JSX does.
+  "vue-guard": {
+    gates: [
+      "vue5k:inst",
+      "vue5k:nest",
+      "vue20k:inst",
+      "vue20k:nest",
+      "vueTypo5k:inst",
+      "vueTypo5k:nest",
+      "vueTypo20k:inst",
+      "vueTypo20k:nest",
+    ],
+    edits: [
+      [
+        "export type TComponentFor<Out, S = 0> = <\n  K extends KeysOf[N] | NotAKey,\n  N extends NsOf",
+        "export type TComponentFor<Out, S = 0> = <\n  K extends KeysOf[N],\n  N extends NsOf",
+      ],
+      [
+        "export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS] | NotAKey>(",
+        "export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS]>(",
       ],
     ],
   },
@@ -131,7 +162,17 @@ const probes = {
     kind: "jsxTypo",
     typesSource,
   }).dir,
+  ...Object.fromEntries(
+    ["vue", "vueTypo", "vueBase"].flatMap((kind) =>
+      [5000, 20000].map((keys) => [
+        `${kind}${keys / 1000}k`,
+        generateProbe(path.join(tmp, `${kind}${keys / 1000}k`), { keys, kind, typesSource }).dir,
+      ]),
+    ),
+  ),
 };
+/** The probes vue-tsc checks (their .vue templates); every other probe runs the repo's tsc. */
+const checker = (name) => (name.startsWith("vue") ? VUE_TSC : TSC);
 
 const pick = (o, label) => {
   const m = o.match(new RegExp(`^${label}:\\s+([\\d.,]+)`, "m"));
@@ -147,7 +188,17 @@ try {
         process.execPath,
         // --expose-gc: tsc's sys.getMemoryUsage() collects before it reads the heap, so
         // "Memory used" is the live heap, not whatever garbage the run left behind.
-        ["--expose-gc", "-r", COUNT, TSC, "-p", dir, "--extendedDiagnostics", "--pretty", "false"],
+        [
+          "--expose-gc",
+          "-r",
+          COUNT,
+          checker(name),
+          "-p",
+          dir,
+          "--extendedDiagnostics",
+          "--pretty",
+          "false",
+        ],
         {
           encoding: "utf8",
           maxBuffer: 1 << 28,
@@ -249,6 +300,30 @@ const results = [
       ],
     ];
   }),
+  ...["vue", "vueTypo"].flatMap((p) =>
+    ["5k", "20k"].flatMap((size) => {
+      const v = m[`${p}${size}`];
+      const base = m[`vueBase${size}`];
+      const what = p === "vue" ? "Vue t/$t/<T>, valid keys" : "Vue t/$t/<T>, key typos";
+      const work = (x) => (v.capped || base.capped ? Infinity : x);
+      return [
+        [
+          `${p}${size}:inst`,
+          `${what} @${size}, instantiations over vueBase`,
+          work(v.inst - base.inst),
+          GATES.vueInst,
+          "",
+        ],
+        [
+          `${p}${size}:nest`,
+          `${what} @${size}, relation-stack checks over vueBase`,
+          work(v.nest - base.nest),
+          GATES.vueNest,
+          "",
+        ],
+      ];
+    }),
+  ),
   ["mem", "memory @20k", m.app20k.mem, GATES.memMB, "MB"],
 ];
 // INFORMATIONAL: seconds depend on the runner; printed, never failing.
@@ -292,10 +367,18 @@ if (unexpected) {
 for (const [p, want] of [
   ["jsx20k", 0],
   ["jsxTypo20k", 3],
+  // The Vue probes: the valid template compiles; five key typos ($t, t, two <T>, the bound
+  // <T>) err once each — on the key only.
+  ["vue5k", 0],
+  ["vue20k", 0],
+  ["vueBase5k", 0],
+  ["vueBase20k", 0],
+  ["vueTypo5k", 5],
+  ["vueTypo20k", 5],
 ])
   if (!m[p].capped && m[p].errors !== want) {
     failed++;
-    failedIds.push(p === "jsx20k" ? "jsx:errors" : "jsxTypo:errors");
+    failedIds.push(`${p.replace(/\d+k$/, "")}:errors`);
     console.log(`x ${p} reports ${m[p].errors} errors (want ${want})`);
   }
 

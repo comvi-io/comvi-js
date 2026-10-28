@@ -2,13 +2,13 @@
 import { computed } from "vue";
 import { useI18n } from "@comvi/vue";
 import FeatureCard from "../components/FeatureCard.vue";
-import { locales } from "../i18n";
+import { fetched, locales } from "../i18n";
 
-const { t, loadedLocales } = useI18n();
+const { t } = useI18n();
 
 // The `locale` call option reads another catalog without switching to it.
 // Only downloaded catalogs are listed: pick a language and it joins the list.
-const loaded = computed(() => locales.filter((code) => loadedLocales.value.includes(code)));
+const loaded = computed(() => locales.filter((code) => fetched.value.locales.includes(code)));
 </script>
 
 <template>

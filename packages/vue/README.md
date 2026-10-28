@@ -7,33 +7,28 @@
 
 <h1 align="center">@comvi/vue</h1>
 
-<p align="center">Vue 3 bindings for Comvi i18n: one plugin, composables, and the <code>&lt;T&gt;</code> component.</p>
+<p align="center">Vue 3 bindings for Comvi i18n: a plugin, <code>useI18n()</code>, <code>$t</code> and the <code>&lt;T&gt;</code> component.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/vue"><img src="https://img.shields.io/npm/v/@comvi/vue?color=blue" alt="npm"></a>
-  <a href="https://bundlejs.com/?q=@comvi/vue&amp;treeshake=%5B%7BcreateI18n%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22vue%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/vue&amp;treeshake=%5B%7BcreateI18n%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22vue%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vue"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
 
 ---
 
-`@comvi/vue` binds the Comvi i18n instance to Vue 3: `app.use(i18n)` at the root, `useI18n()` in
-components, and `<T>` for translations that contain markup. On Nuxt, install
-[`@comvi/nuxt`](https://comvi.io/docs/i18n/nuxt) instead; it builds on this package.
+`@comvi/vue` binds the Comvi i18n instance to Vue: `app.use(i18n)` once, `useI18n()` or `$t` in
+components, and `<T>` for translations that contain markup.
 
 ## Install
 
 ```bash
-npm install @comvi/vue
-# Peer: vue ^3.0.0
+npm install @comvi/vue # peer: vue ^3.5.0
 ```
 
 ## Setup
 
-In `src/main.ts`:
-
-```ts title="src/main.ts" check=group=vue-1
+```ts title="src/main.ts"
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
 import App from "./App.vue";
@@ -50,99 +45,104 @@ const i18n = createI18n({
 createApp(App).use(i18n).mount("#app");
 ```
 
-`createI18n` builds the i18n instance and `app.use(i18n)` installs the plugin and starts `init()`.
-`app.use(i18n)` is Vue's plugin verb; Comvi's `.use(installer)` composes a capability onto the instance.
-
 ## Use in components
 
-In a component, `src/App.vue`:
-
-```vue title="src/App.vue" check=group=vue-1
+```vue title="src/App.vue"
 <script setup lang="ts">
 import { useI18n } from "@comvi/vue";
 
-const { t, locale, setLocale } = useI18n();
+const { t, locale } = useI18n();
 </script>
 
 <template>
-  <h1>{{ t("greeting", { name: "Alice" }) }} ({{ locale }})</h1>
-  <button @click="setLocale('uk')">Українська</button>
-  <button @click="locale = 'en'">English</button>
+  <h1>{{ t("greeting", { name: "Alice" }) }}</h1>
+  <select v-model="locale">
+    <option value="en">English</option>
+    <option value="uk">Українська</option>
+  </select>
 </template>
 ```
 
-`t()` inside a template or `computed` tracks the locale and the cache. `locale` is a
-`Ref<string>`: `setLocale()` resolves once the new locale's translations are loaded, and assigning
-`locale.value` triggers the same switch. `useI18n('admin')` binds a namespace. Outside a
-component, `formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` come from
-`@comvi/vue` too and take the core instance first: `formatRelativeTime(i18n.core, -2, 'hour')`.
+`t()` fills `{name}` from its second argument; `{ ns }` and `{ locale }` there switch the
+namespace and the locale for one call. `$t` is the same `t()` in every template. `locale` is
+writable: setting it switches, and it keeps the old value until the new locale's catalogs are in.
+`useI18n("admin")` binds `t` and `T` to a namespace and loads it after the component mounts;
+`isLoading` tells you when one of its catalogs is on the way. A load that failed is not fetched
+again when a component mounts; `i18n.load("admin")` asks again.
 
 ## Load from Comvi
 
-Pass the CDN loader (`@comvi/core/cdn`) as the instance's `loader`, in `src/main.ts`:
-
-```ts title="src/main.ts" check=group=vue-3
+```ts title="src/main.ts"
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
 import { cdn } from "@comvi/core/cdn";
 import App from "./App.vue";
 
-const i18n = createI18n({
-  locale: "en",
-  fallbackLocale: "en",
-  loader: cdn("https://cdn.comvi.io/<project-token>"),
-});
+const i18n = createI18n({ locale: "en", loader: cdn("https://cdn.comvi.io/<project-token>") });
 
-createApp(App).use(i18n).mount("#app");
+const app = createApp(App).use(i18n);
+// Mount once the first catalogs are in, so raw keys never paint.
+i18n.ready.then(() => app.mount("#app"));
 ```
 
-Read `isInitializing` in the component, in `src/App.vue`:
+Later loads keep the app on screen (`isLoading`); a route can load its namespace before it
+renders: `beforeEnter: () => i18n.load("account")`.
 
-```vue title="src/App.vue" check=group=vue-3
+## Markup in a translation
+
+```vue
 <script setup lang="ts">
-import { useI18n } from "@comvi/vue";
-
-const { t, isInitializing } = useI18n();
+import { T } from "@comvi/vue";
 </script>
 
 <template>
-  <div v-if="isInitializing" class="spinner" />
-  <h1 v-else>{{ t("greeting", { name: "Alice" }) }}</h1>
+  <!-- "terms": "Read the <link>terms</link>." -->
+  <T i18n-key="terms">
+    <template #link="{ children }">
+      <a href="/terms">{{ children }}</a>
+    </template>
+  </T>
 </template>
 ```
 
-`cdn(url)` fetches each locale from the CDN. Vue has no `fallback`
-prop, so `isInitializing` gates the first paint. The CDN URL is on
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
+Each tag is a slot of the same name, or a handler attribute (`:link="(c) => h('a', c)"`, for a tag
+that holds markup itself); a tag without either renders as text. Every attribute but `i18n-key`
+and the per-call options `ns`, `locale` and `markers` is a message param, camelized
+(`:first-name` is `{firstName}`); `:markers="false"` keeps the editor from marking the message.
+`useI18n(ns).T` takes no `ns`; on it `class` and `style` also fall through to its root element.
+
+## Server rendering
+
+An instance per request, created with the app; load what the route needs, then hand it over:
+
+```ts title="server.ts"
+import { createSSRApp } from "vue";
+import { renderToString } from "vue/server-renderer";
+import { createI18n, handover } from "@comvi/vue";
+
+const i18n = createI18n({ ...options, locale, timeZone: "UTC" }); // timeZone: required
+await Promise.all([i18n.load("account"), i18n.ready]);
+const html = await renderToString(createSSRApp(App).use(i18n));
+const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
+// The page embeds it: <script>window.__I18N__ = ${payload}</script>
+```
+
+In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts with the server's locale,
+time zone, clock and catalogs: the app hydrates without a mismatch and fetches nothing the server
+rendered.
 
 ### How it works
 
-`createI18n` from `@comvi/vue` wraps the core instance in a Vue plugin whose state is reactive:
-`useI18n()` returns `t`, `locale` (a writable `Ref`), `setLocale`, `isLoading`, `isInitializing`
-and `dir` as a `ComputedRef<"ltr" | "rtl">`, and a template or `computed` that calls `t()` re-runs
-when the locale or the catalog changes. Installing the plugin also adds `$t`, `$tRaw` and `$i18n`
-to every component, so `$i18n.setLocale('uk')` works from a template. `<T i18nKey="help">` takes
-a named slot per tag; the `components` prop takes an HTML tag name, a Vue component or a
-`{ component, props }` config and wins over a slot of the same name. Plain `t()` does not parse
-tags.
-
-For server-side rendering, build one instance per request, pass the request locale as
-`ssrLocale`, and await `i18n.init()` before `renderToString`, because `app.use(i18n)` starts it
-without waiting. `createI18n` builds the instance in `ssrLocale`, so it paints on the first render; `createI18nFromCore` on an existing instance switches to it once that locale's catalogs are available, and the first render is in the instance's current locale until then. On Nuxt, `@comvi/nuxt` does all of
-this per request.
+`app.use(i18n)` provides the instance and `$t`. The binding keeps one `shallowRef` of the
+instance's state; `locale` and `dir` are `computed` slices of it, so a component that reads only
+the locale does not re-render when a namespace loads. `useFormat()` from `@comvi/vue/format`
+formats numbers, dates and currency in the locale on screen.
 
 ## Read next
 
-- [Vue guide](https://comvi.io/docs/i18n/vue): markup inside a translation, SSR, the Options API.
-- [Loading translations](https://comvi.io/docs/i18n/loading-translations): `loader(map)`, namespaces and `useI18nLoader()`.
-- [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `t()` checks keys and params.
-- [Vue API reference](https://comvi.io/docs/i18n/api/vue): every export, composable, `<T>` prop and the injection key.
-
-## Contributing
-
-Bug reports, docs fixes and pull requests are welcome.
-[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
-and what CI checks.
+- [Vue guide](https://comvi.io/docs/i18n/vue): markup inside a translation, first paint, SSR.
+- [Loading translations](https://comvi.io/docs/i18n/loading-translations): loaders, namespaces, fallbacks.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): `t()`, `$t` and `<T>` check keys and params.
 
 ## License
 

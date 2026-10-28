@@ -202,12 +202,18 @@ export function readiness({ exited, answered, log, port }) {
   return { ready: announced && answered };
 }
 
+/**
+ * Whether anything is left in the group `pgid`. EPERM counts as "still there": macOS answers
+ * the null signal with EPERM while a member of the group is exiting (not yet reaped), so the
+ * caller keeps waiting, bounded by its deadline.
+ */
 function groupAlive(pgid, kill) {
   try {
     kill(-pgid, 0);
     return true;
   } catch (error) {
     if (error.code === "ESRCH") return false;
+    if (error.code === "EPERM") return true;
     throw error;
   }
 }

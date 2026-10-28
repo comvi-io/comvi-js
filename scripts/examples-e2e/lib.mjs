@@ -114,7 +114,7 @@ export const STEP_LEGEND = {
   s: "F-15: defaultLocale uk, /uk renders the en value of an en-only key, SSR and hydrated",
   t: "--cdn SSR race: /uk and /de held in flight together, uk released first; each HTML and its hydration in its own locale",
   t2: "--cdn SSR race: the same, de released first",
-  u: "--cdn client race: en → uk → de with uk's catalog answered LAST (vue, nuxt: their binding queues switches, so de is requested only after uk; react, vanilla: the 0.8 core aborts uk's request when de is chosen); the UI stays de",
+  u: "--cdn client race: en → uk → de with uk's catalog answered LAST (nuxt: its 0.7 binding queues switches, so de is requested only after uk; react, vue, vanilla: the 0.8 core aborts uk's request when de is chosen); the UI stays de",
   v: "--cdn: uk's catalog request hangs → after the loader's timeout the bundled uk renders",
   v2: "--cdn: uk's catalog is corrupt JSON → the bundled uk renders",
   w: "namespace: the first page never requests `account`; the second page loads `en:account` once and renders it",
