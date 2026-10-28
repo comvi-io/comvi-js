@@ -1,0 +1,58 @@
+name: Types IDE bench
+
+# The tsserver bench of the typed t() (reference-i18n R3-19, scripts/types-bench/ide.mjs).
+# It runs only when what it measures can change: core's types, the typegen emitter, the
+# bench itself, or the TypeScript version (package.json / pnpm-lock.yaml).
+on:
+  pull_request:
+    paths:
+      - "packages/core/src/types.ts"
+      - "packages/core/src/index.ts"
+      - "packages/typegen/src/**"
+      - "scripts/types-bench/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/types-ide.yml"
+  push:
+    branches: [main, develop, next]
+    paths:
+      - "packages/core/src/types.ts"
+      - "packages/core/src/index.ts"
+      - "packages/typegen/src/**"
+      - "scripts/types-bench/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/types-ide.yml"
+
+concurrency:
+  group: types-ide-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  types-ide:
+    name: Types IDE bench gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A real tsserver over stdio at 5k/20k/50k keys in 2 and 20 namespaces. Blocking
+      # gates COUNT checker work (completions return exactly the namespace's keys; counted
+      # scaling 5k -> 50k <= 1.5x for completions, hover and diagnostics after an edit;
+      # tsserver live heap @50k <= 400 MB); milliseconds are printed, never gating. Three
+      # planted regressions run first and must each fail a gate.
+      - name: Types IDE bench gates
+        run: pnpm check:types-ide
