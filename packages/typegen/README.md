@@ -71,10 +71,15 @@ run is reported through `onMessage` once per broken state, and the file stays as
 
 - **A directory** is watched recursively; a burst of saves is one run; only the namespaces
   whose files changed are read again, and only files whose text changed are parsed
-  (`watcher.stats` counts runs, files read, files parsed and writes).
-- **A schema file** is watched by name in its directory (`comvi pull` replaces it).
-- **The platform**: the v1 SSE stream (`/schema/stream`) is the change signal and v2 is fetched
-  on each event; the stream reconnects with growing waits and is replaced after 45 s of silence.
+  (`watcher.stats` counts runs, files read, files parsed and writes). For a few seconds after
+  the first run the files are also compared by stat, so a save made while the OS watcher was
+  still starting (macOS) is not lost.
+- **A schema file** is watched by name in its directory (`comvi pull` replaces it); the
+  directory is created when missing.
+- **The platform**: the first fetch does not wait for the stream, so `ready` settles even when
+  the platform is down. The v1 SSE stream (`/schema/stream`) is the change signal and v2 is
+  fetched on each event, the one on (re)connect included; the stream reconnects with growing
+  waits and is replaced after 45 s of silence. A refused key (401/403) stops it via `onFatal`.
 - **One writer per declaration file.** A lock in the OS temp directory: a second `watch()` of
   the same `out`, in this process (a reloaded config) or another (a second dev server, a
   framework worker), stays idle (`watcher.active === false`) and takes over when the first

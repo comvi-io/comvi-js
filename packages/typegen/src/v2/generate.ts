@@ -21,8 +21,8 @@ import os from "node:os";
 import path from "node:path";
 import { resolveAugmentationTarget } from "../augment";
 import type { SchemaWarning } from "./build";
-import { emitCatalogs } from "./emit";
-import { CatalogFileError, LocalSource } from "./local";
+import { emitCatalogs, selectsWithoutOptions } from "./emit";
+import { CatalogFileError, LocalSource, stampOf } from "./local";
 import { PlatformSource, type PlatformError, type PlatformSourceOptions } from "./platform";
 import { parseWireSchema, type WireSchema } from "./wire";
 
@@ -130,11 +130,19 @@ function context(options: GenerateOptions): Context {
   };
 }
 
-function finish(ctx: Context, schema: WireSchema, warnings: SchemaWarning[]): GenerateResult {
+function finish(ctx: Context, schema: WireSchema, read: SchemaWarning[]): GenerateResult {
   const content = emitCatalogs(schema, {
     augment: ctx.augment,
     defaultParams: ctx.options.defaultParams,
   });
+  const warnings = [
+    ...read,
+    ...selectsWithoutOptions(schema).map(([namespace, key, param]) => ({
+      namespace,
+      key,
+      message: `{${param}, select} has no options and no \`other\`; typed as string`,
+    })),
+  ];
   for (const w of warnings) ctx.report({ level: "warn", text: describeWarning(w) });
   let stale = false;
   let written = false;
@@ -240,6 +248,14 @@ export interface Watcher {
 const LOCK_POLL_MS = 1000;
 
 /**
+ * After the first run, the source is compared with what that run read at these delays
+ * (a stat per file, no read): a save whose file-system event was lost while the OS
+ * watcher was still starting (macOS FSEvents delivers asynchronously) is generated all
+ * the same. Later saves come through the watcher's events.
+ */
+const CATCH_UP_MS = [100, 400, 1000, 2500];
+
+/**
  * Watchers of this process waiting for a file's lock, by lock path: told at once when a
  * watcher here releases it. On `globalThis`, so two copies of this module (a bundled
  * plugin and the CLI) share it.
@@ -248,21 +264,28 @@ const waiting: Map<string, Set<() => void>> = ((globalThis as Record<symbol, unk
   Symbol.for("comvi.typegen.lockWaiters")
 ] ??= new Map()) as Map<string, Set<() => void>>;
 
+/**
+ * Whether the lock's holder still runs. The lock is per user (its name carries the uid),
+ * so a pid that answers EPERM belongs to another user: a recycled pid, not a watcher.
+ */
 const alive = (pid: number): boolean => {
   try {
     process.kill(pid, 0);
     return true;
-  } catch (e) {
-    // EPERM: the process exists but belongs to someone else.
-    return (e as NodeJS.ErrnoException).code === "EPERM";
+  } catch {
+    return false;
   }
 };
 
-/** The lock of one declaration file: in the OS temp directory, so the app's tree stays clean. */
+/**
+ * The lock of one declaration file: in the OS temp directory, so the app's tree stays
+ * clean, and per user, so another user's watcher on a shared `/tmp` is never mistaken
+ * for this one's.
+ */
 export const lockFileOf = (out: string): string =>
   path.join(
     os.tmpdir(),
-    `comvi-typegen-${createHash("sha256").update(path.resolve(out)).digest("hex").slice(0, 16)}.lock`,
+    `comvi-typegen-${process.getuid?.() ?? "u"}-${createHash("sha256").update(path.resolve(out)).digest("hex").slice(0, 16)}.lock`,
   );
 
 /**
@@ -319,6 +342,7 @@ export function watch(options: WatchOptions): Watcher {
   let everything = true;
   let stop: (() => void) | undefined;
   let lastError: string | undefined;
+  let fatal: string | undefined;
 
   const platform = isPlatform(options.from) ? new PlatformSource(options.from.platform) : undefined;
   const schemaFile =
@@ -336,8 +360,15 @@ export function watch(options: WatchOptions): Watcher {
     for (const w of waiters) w();
   };
 
+  /** What the latest run saw on disk before reading (local and schema-file sources). */
+  let seen: Map<string, string> | undefined;
+  const stampsNow = (): Map<string, string> =>
+    schemaFile ? new Map([[schemaFile, stampOf(schemaFile)]]) : local!.stamps();
+
   const runOnce = async () => {
     stats.runs++;
+    // Taken before reading: a save that lands during the read differs from it later.
+    if (!platform) seen = stampsNow();
     try {
       let result: GenerateResult;
       if (platform) result = finish(ctx, await platform.schema(), []);
@@ -365,8 +396,10 @@ export function watch(options: WatchOptions): Watcher {
       lastError = undefined;
     } catch (e) {
       const text = `${(e as Error).message}; ${where()} is kept as it was`;
-      // One message per broken state, not one per save that leaves it broken.
-      if (text !== lastError) ctx.report({ level: "error", text });
+      // One message per broken state, not one per save that leaves it broken (nor a
+      // second one for a refused key the stream has reported already).
+      if (text !== lastError && !(fatal && text.startsWith(fatal)))
+        ctx.report({ level: "error", text });
       lastError = text;
       // The failed namespaces are read again on the next change.
       if (local && e instanceof CatalogFileError) {
@@ -403,6 +436,28 @@ export function watch(options: WatchOptions): Watcher {
   let resolveReady!: () => void;
   const ready = new Promise<void>((r) => (resolveReady = r));
 
+  /** Compares the source with what the latest run saw; schedules a run for a difference. */
+  const catchUp = () => {
+    if (closed || running || timer || !seen) return;
+    const now = stampsNow();
+    let changed = false;
+    for (const file of new Set([...now.keys(), ...seen.keys()])) {
+      if (seen.get(file) === now.get(file)) continue;
+      changed = true;
+      const ref = local?.namespaceOf(file);
+      if (ref) dirty.add(ref.ns);
+    }
+    if (changed) schedule();
+  };
+  const catchUpTimers: Array<ReturnType<typeof setTimeout>> = [];
+  const startCatchUp = () => {
+    for (const ms of CATCH_UP_MS) {
+      const t = setTimeout(catchUp, ms);
+      t.unref?.();
+      catchUpTimers.push(t);
+    }
+  };
+
   /** Starts watching the source: called once this watcher holds the lock. */
   const start = () => {
     if (local || schemaFile) {
@@ -410,6 +465,8 @@ export function watch(options: WatchOptions): Watcher {
       const base = schemaFile && path.basename(schemaFile);
       let fsWatcher: fs.FSWatcher;
       try {
+        // `.comvi/` before the first `comvi pull`: watch it from the start.
+        if (schemaFile) fs.mkdirSync(dir, { recursive: true });
         fsWatcher = fs.watch(dir, { recursive: !!local }, (_event, filename) => {
           if (schemaFile) {
             // Editors and `comvi pull` replace the file: watch its directory, by name.
@@ -429,26 +486,25 @@ export function watch(options: WatchOptions): Watcher {
       }
       stop = () => fsWatcher.close();
       kick();
-      void running!.then(resolveReady);
+      void running!.then(() => {
+        resolveReady();
+        startCatchUp();
+      });
     } else {
-      let first = true;
-      stop = platform!.subscribe(
-        () => {
-          if (first) {
-            first = false;
-            kick();
-            void running?.then(resolveReady);
-          } else schedule();
+      // The first generation does not wait for the stream: `ready` settles after it (or
+      // its reported failure) even when the platform is unreachable. Every stream event,
+      // the one sent on (re)connect included, fetches the schema again.
+      stop = platform!.subscribe(schedule, {
+        onNotice: (text) => ctx.report({ level: "info", text }),
+        onFatal: (e) => {
+          // The first run may have reported the same refusal already.
+          fatal = e.message;
+          if (!lastError?.startsWith(e.message)) ctx.report({ level: "error", text: e.message });
+          options.onFatal?.(e);
         },
-        {
-          onNotice: (text) => ctx.report({ level: "info", text }),
-          onFatal: (e) => {
-            ctx.report({ level: "error", text: e.message });
-            resolveReady();
-            options.onFatal?.(e);
-          },
-        },
-      );
+      });
+      kick();
+      void running!.then(resolveReady);
     }
   };
 
@@ -504,6 +560,7 @@ export function watch(options: WatchOptions): Watcher {
       closed = true;
       clearTimeout(timer);
       clearInterval(poll);
+      for (const t of catchUpTimers) clearTimeout(t);
       timer = undefined;
       pending = false;
       stop?.();

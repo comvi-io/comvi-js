@@ -82,14 +82,28 @@ function paramType(p: WireParam): string {
       return "number";
     case "select": {
       const options = (p.options ?? []).map((o) => q(o));
-      if (p.other !== false) options.push(options.length ? "(string & {})" : "string");
-      return options.length ? options.join(" | ") : "never";
+      // No options and no `other` (only a platform schema says so; core refuses such a
+      // message): `string` keeps the key callable, and generation warns (selectsWithoutOptions).
+      if (!options.length) return "string";
+      if (p.other !== false) options.push("(string & {})");
+      return options.join(" | ");
     }
     // Messages core refuses (R3-8): typed by what they ask for; generation reports them.
     case "date":
     case "time":
       return "Date | number";
   }
+}
+
+/** Every `select` param with neither options nor `other`, as `[namespace, key, param]`. */
+export function selectsWithoutOptions(schema: WireSchema): Array<[string, string, string]> {
+  const found: Array<[string, string, string]> = [];
+  for (const [ns, keys] of Object.entries(schema.namespaces))
+    for (const [key, entry] of Object.entries(keys))
+      for (const [name, p] of Object.entries(entry.params ?? {}))
+        if (p.kind === "select" && !p.options?.length && p.other === false)
+          found.push([ns, key, name]);
+  return found;
 }
 
 /**

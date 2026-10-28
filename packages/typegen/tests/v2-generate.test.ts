@@ -165,6 +165,16 @@ describe("generate()", () => {
     expect((await generate({ from: "locales", out: "comvi.d.ts", root: one })).keys).toBe(1);
   });
 
+  it("a sourceLocale with no catalog is an error naming the locales found", async () => {
+    const root = app({ "en-US.json": { a: "A" }, "de.json": { a: "B" } });
+    await expect(
+      generate({ from: "locales", out: "comvi.d.ts", root, sourceLocale: "en" }),
+    ).rejects.toThrow(
+      `sourceLocale "en" has no catalog in ${path.join(root, "locales")} (found de, en-US)`,
+    );
+    expect(fs.existsSync(path.join(root, "comvi.d.ts"))).toBe(false);
+  });
+
   it("defaultParams make a param optional; nested values are reported and left out", async () => {
     const root = app({ "en.json": { hello: "Hi {name} from {brand}", nested: { a: "x" } } });
     const m = messages();
@@ -376,6 +386,41 @@ describe("watch()", { timeout: 60_000 }, () => {
     await w.ready;
     write(root, "legal/en.json", { imprint: "Imprint" });
     await vi.waitFor(() => expect(out(root)).toContain('"legal": {'), {
+      timeout: 10_000,
+      interval: 20,
+    });
+  });
+
+  it("a save whose file-system event never arrives is generated all the same (catch-up)", async () => {
+    // The OS watcher misses everything, as macOS FSEvents can just after it starts.
+    const deaf = vi
+      .spyOn(fs, "watch")
+      .mockImplementation(() => ({ close() {} }) as unknown as fs.FSWatcher);
+    try {
+      const root = app(CATALOGS);
+      const { w } = start(root);
+      await w.ready;
+      write(root, "shop/en.json", { "cart.items": "{count, plural, other {#}}", lost: "{x}" });
+      await afterRuns(w, 2);
+      expect(out(root)).toContain('"lost": { "x": string | number };');
+      // Only the namespace whose file differs was parsed again.
+      expect(w.stats.parsedFiles).toBe(6);
+    } finally {
+      deaf.mockRestore();
+    }
+  });
+
+  it("follows a wire schema file before its directory exists (no `comvi pull` yet)", async () => {
+    const root = app({ "en.json": { a: "A" } });
+    const { w } = start(root, { from: ".comvi/schema.json" });
+    await w.ready;
+    const file = path.join(root, ".comvi/schema.json");
+    expect(fs.existsSync(path.dirname(file))).toBe(true);
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ v: 2, sourceLocale: "en", namespaces: { default: { late: {} } } }),
+    );
+    await vi.waitFor(() => expect(out(root)).toContain('"late": never;'), {
       timeout: 10_000,
       interval: 20,
     });

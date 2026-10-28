@@ -1,7 +1,7 @@
 /**
  * The platform source over a fake `fetch`: the v2 route, the key's handling, and watch
  * on the v1 SSE stream as a change signal. The real-platform parity (same catalogs →
- * same bytes as a local directory) is tests/v2-parity.test.ts.
+ * same bytes as a local directory) is packages/cli/e2e/typegen-v2.e2e.test.ts.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
@@ -139,8 +139,14 @@ describe("watch({ from: { platform } })", () => {
     });
     watchers.push(w);
     await w.ready;
+    // The first run did not wait for the stream; its connect event fetches once more,
+    // and the unchanged schema is not written again.
+    expect(w.stats.runs).toBeGreaterThanOrEqual(1);
+    await vi.waitFor(() => expect(w.stats.runs).toBe(2), { timeout: 5000, interval: 10 });
     await w.idle();
-    expect(w.stats).toMatchObject({ runs: 1, writes: 1 });
+    expect(w.stats).toMatchObject({ runs: 2, writes: 1 });
+    // The two lookups of the key's project at start share one request.
+    expect(p.calls.filter((c) => c === "/v1/project")).toHaveLength(1);
     // A burst of three events: one fetch of v2.
     p.setSchema({
       ...SCHEMA,
@@ -149,15 +155,15 @@ describe("watch({ from: { platform } })", () => {
     p.event("data: {}\n\n");
     p.event(": ping\n\ndata: {}\n\n");
     p.event("data: {}\r\n\r\n");
-    await vi.waitFor(() => expect(w.stats.runs).toBe(2), { timeout: 5000, interval: 10 });
+    await vi.waitFor(() => expect(w.stats.runs).toBe(3), { timeout: 5000, interval: 10 });
     await w.idle();
     expect(w.stats.writes).toBe(2);
     expect(fs.readFileSync(path.join(dir, "comvi.d.ts"), "utf8")).toContain('"bye": never;');
-    expect(p.calls.filter((c) => c.endsWith("/schema/v2"))).toHaveLength(2);
+    expect(p.calls.filter((c) => c.endsWith("/schema/v2"))).toHaveLength(3);
     // A comment line (the platform's ping) alone is not a change.
     p.event(": ping\n\n");
     await new Promise((r) => setTimeout(r, 120));
-    expect(w.stats.runs).toBe(2);
+    expect(w.stats.runs).toBe(3);
     expect(list.some((m) => m.text.includes(KEY))).toBe(false);
   });
 
@@ -180,12 +186,54 @@ describe("watch({ from: { platform } })", () => {
     });
     watchers.push(w);
     await w.ready;
-    expect(fatal).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(fatal).toHaveBeenCalledTimes(1), { timeout: 5000 });
     expect(fatal.mock.calls[0][0]).toMatchObject({ status: 403 });
     expect(list.filter((m) => m.level === "error").map((m) => m.text)).toEqual([
       "The schema stream refused the API key (HTTP 403)",
     ]);
     expect(streams).toBe(1);
+  });
+
+  it("a key refused on the project lookup stops the watcher too, with one message", async () => {
+    const p = platform({ status: 401 });
+    const fatal = vi.fn();
+    const list: GenerateMessage[] = [];
+    const w = watch({
+      from: { platform: { apiKey: KEY, apiBaseUrl: "https://tms.test", fetch: p.fetch } },
+      out: "comvi.d.ts",
+      root: root(),
+      onMessage: (m) => void list.push(m),
+      onFatal: fatal,
+    });
+    watchers.push(w);
+    await w.ready;
+    await vi.waitFor(() => expect(fatal).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    expect(fatal.mock.calls[0][0]).toMatchObject({ status: 401 });
+    // No retry: no stream was ever opened, no reconnect notice was printed.
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(p.calls.filter((c) => c.endsWith("/schema/stream"))).toHaveLength(0);
+    expect(list.filter((m) => m.level === "info")).toEqual([]);
+    expect(list.filter((m) => m.level === "error")).toHaveLength(1);
+    expect(list[0].text).toContain("the API key was rejected");
+  });
+
+  it("an unreachable platform: ready settles after the reported first run", async () => {
+    const down = (async () => {
+      throw new Error("fetch failed", { cause: { code: "ECONNREFUSED" } });
+    }) as unknown as typeof fetch;
+    const list: GenerateMessage[] = [];
+    const w = watch({
+      from: { platform: { apiKey: KEY, apiBaseUrl: "https://tms.test", fetch: down } },
+      out: "comvi.d.ts",
+      root: root(),
+      onMessage: (m) => void list.push(m),
+    });
+    watchers.push(w);
+    await w.ready;
+    expect(w.stats.runs).toBe(1);
+    expect(list.find((m) => m.level === "error")?.text).toBe(
+      "Cannot reach https://tms.test for the project of the API key: fetch failed (ECONNREFUSED); comvi.d.ts is kept as it was",
+    );
   });
 });
 

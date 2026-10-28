@@ -33,7 +33,7 @@ export class PlatformSource {
   private readonly key: string;
   readonly baseUrl: string;
   private readonly doFetch: typeof fetch;
-  private projectId: number | undefined;
+  private projectId: Promise<number> | undefined;
 
   constructor(options: PlatformSourceOptions = {}) {
     const key = options.apiKey ?? process.env.COMVI_API_KEY;
@@ -97,12 +97,21 @@ export class PlatformSource {
     }
   }
 
-  async project(): Promise<number> {
-    if (this.projectId !== undefined) return this.projectId;
-    const info = (await this.json("/v1/project", "project of the API key")) as { id?: unknown };
-    if (typeof info?.id !== "number")
-      throw new PlatformError(`The project of the API key from ${this.baseUrl} has no numeric id`);
-    return (this.projectId = info.id);
+  /** The key's project id: asked once (concurrent callers share the request), again after a failure. */
+  project(): Promise<number> {
+    if (this.projectId) return this.projectId;
+    const asked = (async () => {
+      const info = (await this.json("/v1/project", "project of the API key")) as { id?: unknown };
+      if (typeof info?.id !== "number")
+        throw new PlatformError(
+          `The project of the API key from ${this.baseUrl} has no numeric id`,
+        );
+      return info.id;
+    })();
+    asked.catch(() => {
+      if (this.projectId === asked) this.projectId = undefined;
+    });
+    return (this.projectId = asked);
   }
 
   async schema(): Promise<WireSchema> {
@@ -113,8 +122,9 @@ export class PlatformSource {
   /**
    * Calls `onChange` for every event of the project's schema stream (the first arrives on
    * connect). Reconnects with growing waits (1 s … 30 s) when the stream ends, fails or
-   * stays silent for 45 s (the platform pings every 15 s); stops for good on 401/403 and
-   * reports through `onFatal`. Returns the function that stops it.
+   * stays silent for 45 s (the platform pings every 15 s); stops for good when the key is
+   * refused (401/403, on the project lookup or the stream) and reports through `onFatal`.
+   * Returns the function that stops it.
    */
   subscribe(
     onChange: () => void,
@@ -141,8 +151,22 @@ export class PlatformSource {
         clearTimeout(silence);
         silence = setTimeout(() => ctl.abort(new Error("silent")), 45_000);
       };
+      const fatal = (error: PlatformError) => {
+        stopped = true;
+        hooks.onFatal?.(error);
+      };
       try {
-        const id = await this.project();
+        let id: number;
+        try {
+          id = await this.project();
+        } catch (e) {
+          // A refused key does not get better by retrying.
+          if (e instanceof PlatformError && (e.status === 401 || e.status === 403)) {
+            if (!stopped) fatal(e);
+            return;
+          }
+          throw e;
+        }
         alive();
         const response = await this.doFetch(`${this.baseUrl}/v1/projects/${id}/schema/stream`, {
           headers: { ...this.headers(), Accept: "text/event-stream" },
@@ -150,8 +174,7 @@ export class PlatformSource {
         });
         if (response.status === 401 || response.status === 403) {
           await response.body?.cancel().catch(() => undefined);
-          stopped = true;
-          hooks.onFatal?.(
+          fatal(
             new PlatformError(
               `The schema stream refused the API key (HTTP ${response.status})`,
               response.status,

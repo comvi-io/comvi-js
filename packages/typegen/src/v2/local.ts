@@ -68,6 +68,16 @@ function listFiles(dir: string, base = ""): string[] {
   return out;
 }
 
+/** A file's size, mtime and inode as one string; `""` when it cannot be stat'ed. */
+export function stampOf(file: string): string {
+  try {
+    const st = fs.statSync(file);
+    return `${st.size}:${st.mtimeMs}:${st.ino}`;
+  } catch {
+    return "";
+  }
+}
+
 export class LocalSource {
   readonly dir: string;
   /** Files read since this source was created (only the namespaces refresh() was told). */
@@ -192,6 +202,26 @@ export class LocalSource {
     }
   }
 
+  /**
+   * What each catalog file looks like on disk (size, mtime, inode), by file: a stat per
+   * file, no read. `watch()` compares two of these to catch a change whose file-system
+   * event never arrived (macOS FSEvents starts delivering asynchronously).
+   */
+  stamps(): Map<string, string> {
+    const out = new Map<string, string>();
+    let entries: string[];
+    try {
+      entries = listFiles(this.dir);
+    } catch {
+      return out;
+    }
+    for (const rel of entries) {
+      if (!this.namespaceOf(rel)) continue;
+      out.set(rel, stampOf(path.join(this.dir, rel)));
+    }
+    return out;
+  }
+
   /** Every locale seen, sorted. */
   locales(): string[] {
     const all = new Set<string>();
@@ -200,8 +230,15 @@ export class LocalSource {
   }
 
   sourceLocale(): string {
-    if (this.configuredSource) return this.configuredSource;
     const locales = this.locales();
+    if (this.configuredSource) {
+      // `en` against `en-US.json` would type every key from the other locales, silently.
+      if (locales.length && !locales.includes(this.configuredSource))
+        throw new Error(
+          `sourceLocale "${this.configuredSource}" has no catalog in ${this.dir} (found ${locales.join(", ")})`,
+        );
+      return this.configuredSource;
+    }
     if (locales.length === 1) return locales[0];
     throw new Error(
       locales.length === 0

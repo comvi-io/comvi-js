@@ -7,6 +7,7 @@ import {
   serializeWireSchema,
   type WireSchema,
 } from "../src/index";
+import { selectsWithoutOptions } from "../src/v2/emit";
 
 const schema = (namespaces: WireSchema["namespaces"]): WireSchema => ({
   v: 2,
@@ -78,6 +79,12 @@ export {};
         schema({ default: { k: { params: { g: { kind: "select", options: [], other: true } } } } }),
       ),
     ).toContain('"k": { "g": string };');
+  });
+
+  it("types a select with neither options nor `other` as string (a key stays callable)", () => {
+    const s = schema({ default: { k: { params: { g: { kind: "select", other: false } } } } });
+    expect(emitCatalogs(s)).toContain('"k": { "g": string };');
+    expect(selectsWithoutOptions(s)).toEqual([["default", "k", "g"]]);
   });
 
   it("refuses params and tags named ns, locale or markers (R3-14 H9), listing every one", () => {
