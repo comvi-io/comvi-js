@@ -193,6 +193,24 @@
       "note": "Gated React ceiling: every export of @comvi/react and /format (<I18nHandover>, <T>, useLocale, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 1c on the 0.8 binding (0.7: 13,526 B) and in lot 1e (−567: the thin devtools hook). Lot 1d (2026-10-28): 7603 → 7578, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 7578 → 7672, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 7672 → 7740, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 7740 → 7747, size-budgets.md 2026-10-28 lot 2c review fix pass."
     },
     {
+      "name": "vue-icu-cdn",
+      "entry": ["@comvi/vue", "@comvi/core/cdn"],
+      "fixture": "framework/vue-icu-cdn.ts",
+      "external": ["vue"],
+      "gzipBudgetBytes": 5395,
+      "ceilingBytes": 5395,
+      "increment": {
+        "over": "core-icu-cdn",
+        "maxBytes": 500
+      },
+      "baseline": {
+        "minBytes": 11062,
+        "gzipBytes": 5382,
+        "measuredAt": "2026-10-28"
+      },
+      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,895 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +492). Itemized accounting in size-budgets.md 2026-10-28 lot 4."
+    },
+    {
       "name": "fw-solid-default",
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-default.ts",
@@ -262,26 +280,32 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-default.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 8095,
+      "gzipBudgetBytes": 5126,
       "baseline": {
-        "minBytes": 23270,
-        "gzipBytes": 7709,
-        "measuredAt": "2026-10-20"
+        "minBytes": 9914,
+        "gzipBytes": 4881,
+        "measuredAt": "2026-10-28"
       },
-      "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings — the anchor the Vue ceiling row is read against."
+      "note": "Gated Vue floor: one `@comvi/vue` specifier, bundled catalogs, app.use(i18n) + useI18n() + t({name}). Re-baselined in lot 4 on the 0.8 binding (0.7: 7,709 B); size-budgets.md 2026-10-28 lot 4."
     },
     {
       "name": "fw-vue-full-composite",
-      "entry": ["@comvi/vue"],
+      "entry": [
+        "@comvi/vue",
+        "@comvi/vue/format",
+        "@comvi/core/cdn",
+        "@comvi/core/plugins",
+        "@comvi/core/devtools"
+      ],
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 14246,
+      "gzipBudgetBytes": 7821,
       "baseline": {
-        "minBytes": 40022,
-        "gzipBytes": 13567,
-        "measuredAt": "2026-10-20"
+        "minBytes": 15785,
+        "gzipBytes": 7448,
+        "measuredAt": "2026-10-28"
       },
-      "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier."
+      "note": "Gated Vue ceiling: every export of @comvi/vue and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 4 on the 0.8 binding (0.7: 13,567 B); size-budgets.md 2026-10-28 lot 4."
     },
     {
       "name": "fw-next-server-default-loader",

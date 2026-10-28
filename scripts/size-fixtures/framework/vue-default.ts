@@ -1,11 +1,10 @@
-// Framework size fixture: THE DEFAULT vue app.
+// Framework size fixture: THE DEFAULT Vue app — one `@comvi/vue` specifier, bundled
+// catalogs, app.use(i18n) and useI18n() with t({name}).
+import { createApp, h } from "vue";
 import { createI18n, useI18n } from "@comvi/vue";
 
-const i18n = createI18n({
-  locale: "en",
-  messages: { en: { greeting: "Hello, {name}!" } },
-  ssrLocale: "en",
-});
+const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello, {name}!" } } });
 
-// Observable use keeps the wrapper + core graphs live for the bundler.
-console.log(i18n.t("greeting" as never, { name: "world" } as never), useI18n);
+const Hello = { setup: () => () => h("h1", useI18n().t("greeting", { name: "Ann" })) };
+
+export const app = createApp(Hello).use(i18n);
