@@ -25,7 +25,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import type { Catalog, I18n, KeysOf, NsOf, ParamsFor, TFor } from "@comvi/core";
+import type { BoundTFor, Catalog, I18n, NsOf, TComponentFor, TFor } from "@comvi/core";
 import { activate, coming, state, translate, type State } from "@comvi/core/internal";
 
 declare const __DEV__: boolean;
@@ -122,9 +122,7 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
       props: { i18nKey: string; locale?: string; markers?: boolean; ns?: never } & UntypedParams,
     ) => ReactNode
   : NS extends NsOf
-    ? <K extends KeysOf[NS]>(
-        props: { i18nKey: K; locale?: string; markers?: boolean; ns?: never } & ParamProps<NS, K>,
-      ) => ReactNode
+    ? BoundTFor<NS, ReactNode>
     : never;
 
 /** What `useI18n(ns)` returns. */
@@ -189,10 +187,6 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
 /** The locale this render shows. Re-renders on a locale change only, not on a namespace load. */
 export const useLocale = (): string => useContext(L);
 
-type ParamProps<N extends NsOf, K extends KeysOf[N]> = [ParamsFor<N, K>] extends [never]
-  ? {}
-  : ParamsFor<N, K>;
-
 /**
  * `<T i18nKey ns? locale? markers? {...params}>`: typed by the generated catalogs when
  * declared. `markers={false}` keeps an in-context editor session from marking this
@@ -202,9 +196,8 @@ export type TComponent = [NsOf] extends [never]
   ? (
       props: { i18nKey: string; ns?: string; locale?: string; markers?: boolean } & UntypedParams,
     ) => ReactNode
-  : <K extends KeysOf[N], N extends NsOf = "default" & NsOf>(
-      props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & ParamProps<N, K>,
-    ) => ReactNode;
+  : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
+    TComponentFor<ReactNode>;
 
 /**
  * Renders one message; params are props, a tag handler is a prop of the tag's name

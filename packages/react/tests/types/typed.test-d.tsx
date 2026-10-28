@@ -70,9 +70,11 @@ export function Component() {
   const bt2: ReactNode = <ShopT i18nKey="greeting" name="x" />;
   // @ts-expect-error missing param on the bound <T>
   const bt3: ReactNode = <ShopT i18nKey="cart.title" />;
+  // @ts-expect-error a typo on the bound <T> (the key errs; its params stay loose, R3-2)
+  const bt4: ReactNode = <ShopT i18nKey="cart.titel" count={1} />;
   const l: string = locale;
   const d: "ltr" | "rtl" = dir;
   const b: boolean = isLoading;
   const p: Promise<void> = setLocale("de");
-  return [s, r, n, c, e1, bt, bt2, bt3, l, d, b, p];
+  return [s, r, n, c, e1, bt, bt2, bt3, bt4, l, d, b, p];
 }

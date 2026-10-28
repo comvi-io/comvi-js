@@ -2,7 +2,8 @@
 //
 //   node scripts/types-bench/bench.mjs [--rounds 3]   gate run (pnpm check:types-bench)
 //   node scripts/types-bench/bench.mjs --red <variant> the same gates over a planted
-//                                                     regression (r3-1 | per-call); exits
+//                                                     regression (r3-1 | per-call |
+//                                                     jsx-guard); exits
 //                                                     0 only if ITS gate fails
 //
 // Probes (2 namespaces, 300 calls a third with `ns`, every fifth with `locale`) are
@@ -19,6 +20,12 @@
 //                             gate, counted: flat when the key union is cached)
 //   key typo                  typo20k − app2 @ 20k instantiations ≤ 50K (R3-2: a typo
 //                             must not intersect every key's params)
+//   JSX <T>                   jsx20k / jsxTypo20k − app2 @ 20k: instantiations ≤ 50K and
+//                             relation-stack checks (NestChecks, count-work.cjs) ≤ 50K — the
+//                             component signature's typo guard (lot 3 review, BLOCK 1: without
+//                             it a valid or misspelt `<T i18nKey>` took minutes at 5k keys;
+//                             the time is in NestChecks, the other counters stay flat). A
+//                             probe that hits the counted work cap fails these gates.
 //   memory @ 20k ≤ 250 MB, and the probes compile with exactly the expected errors.
 // INFORMATIONAL (seconds, printed, never failing): check @20k ≤ 1.0 s, typo total ≤ 5 s,
 // check 5k → 20k ≤ 2.5×. Lot 0 (S2, M1 Max): 0.23 s @5k, 0.44 s @20k, typo 0.57 s.
@@ -37,6 +44,8 @@ const GATES = {
   perCallUnion: 50_000,
   unionScaling: 1.5,
   typoInst: 50_000,
+  jsxInst: 50_000,
+  jsxNest: 50_000,
   memMB: 250,
 };
 const INFO = { check20k: 1.0, typoTotal: 5, scaling: 2.5 };
@@ -62,6 +71,21 @@ const REDS = {
     ],
   },
   // A per-call walk over the namespace's key union (fails the counted per-call gate).
+  // The component signatures without the typo guard (lot 3 review, BLOCK 1): a `<T>`
+  // element intersects every key's params while it types the attributes.
+  "jsx-guard": {
+    gates: ["jsx", "jsxTypo"],
+    edits: [
+      [
+        'export type TComponentFor<Out> = <K extends KeysOf[N] | NotAKey, N extends NsOf = "default" & NsOf>(',
+        'export type TComponentFor<Out> = <K extends KeysOf[N], N extends NsOf = "default" & NsOf>(',
+      ],
+      [
+        "export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS] | NotAKey>(",
+        "export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS]>(",
+      ],
+    ],
+  },
   "per-call": {
     gates: ["inst"],
     edits: [
@@ -101,6 +125,12 @@ const probes = {
     .dir,
   base20k: generateProbe(path.join(tmp, "base20k"), { keys: 20000, kind: "app2", typesSource }).dir,
   base5k: generateProbe(path.join(tmp, "base5k"), { keys: 5000, kind: "app2", typesSource }).dir,
+  jsx20k: generateProbe(path.join(tmp, "jsx20k"), { keys: 20000, kind: "jsx", typesSource }).dir,
+  jsxTypo20k: generateProbe(path.join(tmp, "jsxTypo20k"), {
+    keys: 20000,
+    kind: "jsxTypo",
+    typesSource,
+  }).dir,
 };
 
 const pick = (o, label) => {
@@ -126,6 +156,9 @@ try {
       runs[name].push({
         inst: pick(o, "Instantiations"),
         union: pick(o, "UnionInputs"),
+        nest: pick(o, "NestChecks"),
+        // Stopped by count-work.cjs's counted cap: the probe's work is unbounded.
+        capped: /^WorkCap: exceeded/m.test(o),
         mem: pick(o, "Memory used") / 1024,
         check: pick(o, "Check time"),
         total: pick(o, "Total time"),
@@ -143,6 +176,8 @@ const m = Object.fromEntries(
     {
       inst: a[0].inst,
       union: a[0].union,
+      nest: a[0].nest,
+      capped: a[0].capped,
       mem: med(a.map((x) => x.mem)),
       check: med(a.map((x) => x.check)),
       total: med(a.map((x) => x.total)),
@@ -160,11 +195,11 @@ console.log(
     `load1 ${Math.min(...loads).toFixed(1)}–${Math.max(...loads).toFixed(1)} on ${os.cpus().length} cpus`,
 );
 console.log(
-  "probe   | instantiations | union inputs | mem MB | check s (median) [rounds] | total s | errors",
+  "probe      | instantiations | union inputs | mem MB | check s (median) [rounds] | total s | errors",
 );
 for (const [k, v] of Object.entries(m))
   console.log(
-    `${k.padEnd(7)} | ${String(v.inst).padStart(14)} | ${String(v.union).padStart(12)} | ${v.mem.toFixed(0).padStart(6)} | ${v.check.toFixed(2)} [${v.all.join(", ")}] | ${v.total.toFixed(2)} | ${v.errors}`,
+    `${k.padEnd(10)} | ${String(v.capped ? "CAPPED" : v.inst).padStart(14)} | ${String(v.union).padStart(12)} | ${v.mem.toFixed(0).padStart(6)} | ${v.check.toFixed(2)} [${v.all.join(", ")}] | ${v.total.toFixed(2)} | ${v.errors}`,
   );
 if ([m.app20k, m.base20k, m.app5k, m.base5k].some((v) => !(v.union > 0)))
   throw new Error(
@@ -192,6 +227,28 @@ const results = [
     GATES.typoInst,
     "",
   ],
+  ...["jsx", "jsxTypo"].flatMap((p) => {
+    const v = m[`${p}20k`];
+    const what = p === "jsx" ? "JSX <T>, valid keys" : "JSX <T>, key typos";
+    // A capped probe never reached the end of its check: its work is unbounded.
+    const work = (x) => (v.capped ? Infinity : x);
+    return [
+      [
+        p,
+        `${what} @20k, instantiations over app2`,
+        work(v.inst - m.base20k.inst),
+        GATES.jsxInst,
+        "",
+      ],
+      [
+        p,
+        `${what} @20k, relation-stack checks over app2`,
+        work(v.nest - m.base20k.nest),
+        GATES.jsxNest,
+        "",
+      ],
+    ];
+  }),
   ["mem", "memory @20k", m.app20k.mem, GATES.memMB, "MB"],
 ];
 // INFORMATIONAL: seconds depend on the runner; printed, never failing.
@@ -225,14 +282,27 @@ const unexpected =
   (m.typo20k.errors === 2 ? 0 : 1);
 if (unexpected) {
   failed++;
+  failedIds.push("errors");
   console.log(
     `x probes report unexpected errors (app5k ${m.app5k.errors}, app20k ${m.app20k.errors}, file20k ${m.file20k.errors}, typo20k ${m.typo20k.errors} ≠ 2)`,
   );
 }
+// The JSX probes: valid elements compile, each of the three typo elements errs once (a
+// capped probe printed no diagnostics: its gates above already failed).
+for (const [p, want] of [
+  ["jsx20k", 0],
+  ["jsxTypo20k", 3],
+])
+  if (!m[p].capped && m[p].errors !== want) {
+    failed++;
+    failedIds.push(p === "jsx20k" ? "jsx" : "jsxTypo");
+    console.log(`x ${p} reports ${m[p].errors} errors (want ${want})`);
+  }
 
 if (red) {
   const want = REDS[red].gates;
-  const caught = want.some((g) => failedIds.includes(g));
+  // Every gate the variant exists for must fail, not just any gate.
+  const caught = want.every((g) => failedIds.includes(g));
   console.log(
     caught
       ? `RED run (${red}): failed ${failedIds.join(", ")} — the ${want.join("/")} gate sees this regression`

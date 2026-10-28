@@ -8,6 +8,7 @@ on:
     paths:
       - "packages/core/src/types.ts"
       - "packages/core/src/index.ts"
+      - "packages/react/src/binding.ts"
       - "packages/typegen/src/**"
       - "scripts/types-bench/**"
       - "package.json"
@@ -18,6 +19,7 @@ on:
     paths:
       - "packages/core/src/types.ts"
       - "packages/core/src/index.ts"
+      - "packages/react/src/binding.ts"
       - "packages/typegen/src/**"
       - "scripts/types-bench/**"
       - "package.json"
@@ -50,9 +52,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # A real tsserver over stdio at 5k/20k/50k keys in 2 and 20 namespaces. Blocking
-      # gates COUNT checker work (completions return exactly the namespace's keys; counted
-      # scaling 5k -> 50k <= 1.5x for completions, hover and diagnostics after an edit;
-      # tsserver live heap @50k <= 400 MB); milliseconds are printed, never gating. Three
-      # planted regressions run first and must each fail a gate.
+      # gates COUNT checker work (completions return exactly the namespace's key set;
+      # diagnostics on exactly the expected lines after an edit, a t() typo, a <T> typo and
+      # a regeneration; counted scaling 5k -> 50k <= 1.5x of instantiations, union inputs and
+      # types created per operation; a counted work cap per request; tsserver peak RSS
+      # growth over a 100-key project and peak committed heap + external <= 400 MB);
+      # milliseconds are printed, never gating. Nine planted regressions run first and each
+      # must fail the gate IDs it names.
       - name: Types IDE bench gates
         run: pnpm check:types-ide

@@ -12,10 +12,13 @@
  *   } } }
  *
  * Gates (CI) count work, never milliseconds: `pnpm check:types-bench` (tsc: instantiations
- * per extra call, union inputs, a key typo costing no more than a correct call, 5k → 20k
+ * per extra call, union inputs, a key typo costing no more than a correct call, `<T>`
+ * elements (valid and misspelt) costing no more than the program without them, 5k → 20k
  * scaling ≤ 1.5×, memory) and `pnpm check:types-ide` (a real tsserver at 5k/20k/50k keys:
- * completions return exactly the namespace's keys, hover and diagnostics after an edit or
- * a regeneration scale ≤ 1.5× from 5k to 50k, memory @50k ≤ 400 MB); `pnpm test:types`
+ * completions return exactly the namespace's key set, diagnostics after an edit, a typo in
+ * `t()` or `<T>`, or a regeneration sit on exactly the expected lines, and each operation's
+ * instantiations, union inputs and types created scale ≤ 1.5× from 5k to 50k; peak memory
+ * ≤ 400 MB); `pnpm test:types`
  * pins every negative diagnostic of `tests/types/negative.mjs`. Before changing anything
  * here, read the rejected alternatives below — each was measured slower or less precise.
  */
@@ -111,6 +114,28 @@ export type TranslateFn<NS extends NsOf, Rich = string> = <
   key: K,
   ...args: Args<N, ParamsFor<N, K>>
 ) => OutOf<ParamsFor<N, K>, Rich>;
+
+/**
+ * A message's params as component props: none → `{}`, a key typo (`NotAKey`) → loose, so
+ * only `i18nKey` errs. `never` is tested first: it extends `NotAKey` too.
+ */
+type PropsOf<P> = [P] extends [never] ? {} : [P] extends [NotAKey] ? Record<string, unknown> : P;
+
+/**
+ * A binding's typed `<T i18nKey ns? locale? markers? {...params}>`, rendering `Out`. The key
+ * carries the same typo guard as `t()` (R3-2): without `NotAKey` in K's constraint, a JSX
+ * element infers K as the whole key union while it types the attributes, and the props
+ * intersect every key's params — minutes of tsc on a 5k catalog, for a typo AND for a valid
+ * key (review of lot 3, BLOCK 1). Gated by `check:types-bench` and `check:types-ide` (JSX).
+ */
+export type TComponentFor<Out> = <K extends KeysOf[N] | NotAKey, N extends NsOf = "default" & NsOf>(
+  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & PropsOf<ParamsFor<N, K>>,
+) => Out;
+
+/** `<T>` bound to namespace NS (`useI18n(ns).T`): no `ns` prop, the same typo guard. */
+export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS] | NotAKey>(
+  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean } & PropsOf<ParamsFor<NS, K>>,
+) => Out;
 
 /** A param value a plain `{x}` prints as text (`String(value)`, R3-17), or a list of them. */
 type Printed = string | number | bigint | boolean | Date | null | undefined;

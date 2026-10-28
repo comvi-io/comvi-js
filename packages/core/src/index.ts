@@ -12,6 +12,7 @@ export type { I18nError, I18nErrorCode, OnError } from "./errors";
 export type { Catalog } from "./compile/cache";
 export type {
   Args,
+  BoundTFor,
   Catalogs,
   KeysOf,
   NsOf,
@@ -20,6 +21,7 @@ export type {
   RichParts,
   Tag,
   TagChildren,
+  TComponentFor,
   TFor,
   TranslateFn,
   UntypedT,

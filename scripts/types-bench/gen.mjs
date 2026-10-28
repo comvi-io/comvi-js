@@ -6,6 +6,7 @@
 // declaration that ship (R3-18: the §1.3 suite runs on the generated file).
 //
 //   generateProbe(dir, { keys, kind, body })   kind: app300 | app30 | app2 | typo | untyped | body
+//                                              | jsx | jsxTypo (app2 + elements.tsx)
 //   (`body`: lines appended after the probe header — the negative suite passes its cases
 //   (after one fixed line for `untyped`);
 //   a body probe also declares the small namespaces `one`, `r1` and `pair`)
@@ -14,6 +15,7 @@
 // through plural / rich (tag) / defaultParams-optional / name / select / no params.
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 import url from "node:url";
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
@@ -86,6 +88,32 @@ export declare function createI18n(o: { locale: string }): { t: TFor };
 export declare function useI18n<NS extends string = "default">(ns?: NS): { t: TFor<NS> };
 `;
 
+/**
+ * The React binding's `<T>` and `useI18n(ns).T` over the real @types/react JSX namespace
+ * (its LibraryManagedAttributes and IntrinsicAttributes are part of the cost: a neutral JSX
+ * namespace hides the valid-key half of lot 3 review BLOCK 1). `@comvi/react` declares
+ * exactly these: `TComponent = TComponentFor<ReactNode>`, `BoundT<NS> = BoundTFor<NS,
+ * ReactNode>` — a separate file, so the other probes' programs do not load React.
+ */
+const REACT_TYPES = path.dirname(
+  createRequire(path.join(ROOT, "packages/react/package.json")).resolve(
+    "@types/react/package.json",
+  ),
+);
+export const JSX_LIB = `import type { ReactNode } from "react";
+import type { BoundTFor, NsOf, TComponentFor } from "./lib";
+export declare const T: TComponentFor<ReactNode>;
+export declare function useT<NS extends string>(ns: NS): NS extends NsOf ? BoundTFor<NS, ReactNode> : never;
+`;
+/** compilerOptions that resolve "react" and the automatic JSX runtime to @types/react. */
+export const JSX_OPTIONS = {
+  jsx: "react-jsx",
+  paths: {
+    react: [path.join(REACT_TYPES, "index.d.ts")],
+    "react/jsx-runtime": [path.join(REACT_TYPES, "jsx-runtime.d.ts")],
+  },
+};
+
 export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
   const all = keyList(keys);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -104,8 +132,9 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
         module: "esnext",
         moduleResolution: "bundler",
         skipLibCheck: true,
+        ...(kind === "jsx" || kind === "jsxTypo" ? JSX_OPTIONS : {}),
       },
-      include: ["*.ts"],
+      include: ["*.ts", "*.tsx"],
     }),
   );
   if (kind !== "untyped") {
@@ -135,7 +164,8 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
     "declare const tag: Tag; declare const cond: boolean;",
     "export const out: string[] = []; export const rich: RichParts[] = [];",
   ];
-  if (kind === "app300" || kind === "app30" || kind === "app2") {
+  const app2 = kind === "app2" || kind === "jsx" || kind === "jsxTypo";
+  if (kind === "app300" || kind === "app30" || app2) {
     const calls = kind === "app300" ? 300 : kind === "app30" ? 30 : 2;
     const step = Math.floor(all.length / 300);
     all
@@ -152,7 +182,7 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
       });
     // app2 is the baseline of the per-call instantiation gate: the same program with two
     // calls, so (app300 − app2) counts what 298 more calls cost.
-    if (kind !== "app2") {
+    if (!app2) {
       const unions = kind === "app300" ? 10 : 1;
       for (let i = 0; i < unions; i++)
         A.push(
@@ -172,6 +202,40 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
     A.push("out.push(t('anything'), t('x', { n: 1, ns: 'whatever' }));", ...body);
   }
   fs.writeFileSync(path.join(dir, "app.ts"), A.join("\n") + "\n");
+  // JSX probes: the app2 program plus one .tsx file of `<T>` elements (lot 3 review,
+  // BLOCK 1). `jsx`: valid elements of every key kind; `jsxTypo`: three key typos, the
+  // only three errors of the program.
+  if (kind === "jsx" || kind === "jsxTypo") {
+    fs.writeFileSync(path.join(dir, "jsxlib.ts"), JSX_LIB);
+    fs.writeFileSync(
+      path.join(dir, "elements.tsx"),
+      [
+        "import type { Tag } from './lib';",
+        "import { T, useT } from './jsxlib';",
+        "declare const tag: Tag;",
+        "const S = useT('shop');",
+        ...(kind === "jsx"
+          ? [
+              "export const a = [",
+              "  <T i18nKey='s0.k1' name='x' />,",
+              "  <T i18nKey='s0.k0' ns='shop' count={1} />,",
+              "  <T i18nKey='s1.k7' link={tag} />,",
+              "  <T i18nKey='s0.k3' g='male' locale='de' />,",
+              "  <T i18nKey='s0.k2' markers={false} />,",
+              "  <S i18nKey='s0.k1' name='x' />,",
+              "  <S i18nKey='s1.k0' count={2} />,",
+              "];",
+            ]
+          : [
+              "export const a = [",
+              "  <T i18nKey='s0.zzz' />,",
+              "  <T i18nKey='s0.zzz' count={1} />,",
+              "  <S i18nKey='s0.zzz' name='x' />,",
+              "];",
+            ]),
+      ].join("\n") + "\n",
+    );
+  }
   return { dir, headerLines: 5 };
 }
 
