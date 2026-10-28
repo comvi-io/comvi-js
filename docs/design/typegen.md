@@ -29,12 +29,19 @@ loop in a dev server, one message for a broken catalog.
   the content is unchanged; a lock in the OS temp directory lets one `watch()` write a file while a
   second one (a reloaded config, a second dev server, a framework worker) waits and takes over.
 - **Watching the platform** reuses the v1 SSE stream as the change signal and fetches v2 on each
-  event: no platform endpoint of its own.
+  event: no platform endpoint of its own. The first fetch does not wait for the stream, so
+  `ready` settles when the platform is down; a refused key stops the watcher (`onFatal`).
+- **Watching files** trusts the OS watcher, plus a stat comparison for a few seconds after the
+  first run: macOS FSEvents starts delivering asynchronously and loses a save made meanwhile.
 
 ## Consequences
 
 - Every gate counts work, never milliseconds: files parsed per change, runs per burst, writes per
-  change, `tsserver` instantiations per editor operation (`scripts/types-bench/ide.mjs`).
+  change, `tsserver` instantiations per editor operation (`scripts/types-bench/ide.mjs`), and
+  what the editor shows (exact completion sets, the hover, the diagnostic lines).
+- One editor cost grows with the catalog, by design: after an edit tsserver builds a new
+  program, which creates the used namespaces' key literals once (about 26k types @50k keys in
+  2 namespaces, ≈100 ms here). Per-call work stays flat; "flat" does not mean "free".
 - A message core refuses (`{x, number}`, a select without `other`, an unclosed tag) is reported by
   the generator and by `comvi check` as core reports it; params after the failure point are
   unknown, and the platform's extractor, which reads on, can differ there.
