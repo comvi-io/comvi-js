@@ -77,8 +77,9 @@ export interface NuxtI18nOptions {
 
   /**
    * Credential forwarded to the instance as `i18n.apiKey`, for a loader plugin that
-   * authenticates against a backend (`@comvi/plugin-fetch-loader` reads it
-   * there). This module loads NOTHING on your behalf — it neither contacts a
+   * authenticates against a backend (0.8: `@comvi/plugin-fetch-loader` is gone; the
+   * loader `api(base, { key })` of `@comvi/core/cdn` takes the key itself — lot 7
+   * rebuilds this module on it). This module loads NOTHING on your behalf — it neither contacts a
    * CDN nor an API — so the key is inert until a `i18nModule` factory composes
    * a plugin that reads it.
    *

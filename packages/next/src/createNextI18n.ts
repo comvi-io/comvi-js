@@ -15,10 +15,11 @@ export interface UseInstanceIdentityError extends Error {
 export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   /**
    * Credential forwarded to the instance as `i18n.apiKey`, for a loader plugin
-   * that authenticates against a backend (`@comvi/plugin-fetch-loader` reads
-   * it there). This factory loads NOTHING on its own — it neither contacts a
-   * CDN nor an API — so the key is inert until you compose `cdnLoader`, or
-   * `fetchLoader` from `@comvi/plugin-fetch-loader/api`.
+   * that authenticates against a backend. This factory loads NOTHING on its
+   * own — it neither contacts a CDN nor an API — so the key is inert until a
+   * plugin reads it. (0.8: `@comvi/plugin-fetch-loader` is gone; the loader
+   * `api(base, { key })` of `@comvi/core/cdn` takes the key itself. Lot 6
+   * rebuilds this binding on it.)
    */
   apiKey?: string;
 
@@ -47,8 +48,8 @@ export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
 
   /**
    * Forwarded to the instance as `i18n.devMode`, for plugins to read. No
-   * Comvi loader reads it: `@comvi/plugin-fetch-loader` picks the API over the
-   * CDN by `apiKey`, not by this flag.
+   * Comvi loader reads it: the app picks `cdn()` or `api()` of
+   * `@comvi/core/cdn` itself.
    * @default process.env.NODE_ENV === 'development'
    */
   devMode?: boolean;

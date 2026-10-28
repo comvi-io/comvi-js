@@ -24,7 +24,7 @@ export interface FetchRequestOptions {
  * `[FetchLoader]` used to prefix them all, which reads as a bug report about a
  * symbol a `cdnLoader` user never imported.
  */
-export const ERROR_PREFIX = "[@comvi/plugin-fetch-loader]";
+export const ERROR_PREFIX = "[@comvi/plugin-in-context-editor]";
 
 export class RequestAbortedError extends Error {
   constructor(url: string) {
