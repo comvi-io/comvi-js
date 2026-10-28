@@ -255,6 +255,50 @@ describe("a parent of the locale's chain that fails (lot 2c, review A MEDIUM 3)"
     expect(failed(errors)).toEqual(["pt:default"]);
   });
 
+  it("a superseded switch: pt-BR → pt-PT reuses the pt flight; pt and pt-PT both fail → both are reported", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: { a: "A" } }, loader: l.load });
+    const first = i18n.setLocale("pt-BR");
+    const p = i18n.setLocale("pt-PT");
+    // pt-BR's flight is pruned; pt's goes on, now as pt-PT's parent.
+    expect(l.signals.get("pt-BR:default")!.aborted).toBe(true);
+    expect(l.signals.get("pt:default")!.aborted).toBe(false);
+    await l.fail("pt:default");
+    await l.fail("pt-PT:default");
+    await expect(p).rejects.toThrow("404 pt-PT:default");
+    await first;
+    await flush();
+    expect(failed(errors).sort()).toEqual(["pt-PT:default", "pt:default"]);
+  });
+
+  it("a flight started for pt itself and reused as pt-BR's parent: pt fails, pt-BR loads → nothing is reported", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: { a: "A" } }, loader: l.load });
+    const first = i18n.setLocale("pt");
+    const p = i18n.setLocale("pt-BR");
+    expect(l.requested).toEqual(["pt:default", "pt-BR:default"]);
+    await l.fail("pt:default");
+    await l.answer("pt-BR:default", { a: "A-br" });
+    await p;
+    await first;
+    await flush();
+    expect(i18n.locale).toBe("pt-BR");
+    expect(failed(errors)).toEqual([]);
+  });
+
+  it("a flight started as pt-BR's parent and reused by a switch to pt itself: pt fails → reported, though pt-BR loads", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: { a: "A" } }, loader: l.load });
+    const first = i18n.setLocale("pt-BR");
+    const p = i18n.setLocale("pt");
+    await l.answer("pt-BR:default", { a: "A-br" }).catch(() => {});
+    await l.fail("pt:default");
+    await expect(p).rejects.toThrow("404 pt:default");
+    await first;
+    await flush();
+    expect(failed(errors)).toEqual(["pt:default"]);
+  });
+
   it("a fallback locale's failure is reported as before, even when the locale loads", async () => {
     const { load } = tableLoader({ "pt-BR:default": { a: "A-br" } });
     const { i18n, errors } = make({ locale: "pt-BR", fallbackLocale: "en", loader: load });

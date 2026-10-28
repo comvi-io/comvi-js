@@ -177,7 +177,8 @@ const safe = (f: void | (() => void)) => {
   }
 };
 
-type Flight = [Promise<unknown>, AbortController];
+/** A load in flight: its promise, its abort, and whose parent it is now (see `get()`). */
+type Flight = [Promise<unknown>, AbortController, (string | 0 | false)?];
 
 /**
  * A shallow own copy of a params object; `null` for none or an empty one (so `pub()`'s
@@ -376,7 +377,9 @@ export const createI18n = (o: I18nOptions): I18n => {
    * The flight of (l, n), started unless the pair is in place or failed before (not
    * published here). `p`: `l` is a parent in `p`'s chain (`pt` of `pt-BR`), so its failure
    * is reported only when `p`'s own load of `n` fails too — a regional catalog published
-   * without its parent is not a failure.
+   * without its parent is not a failure. The role is the LATEST caller's, re-bound on every
+   * call: a flight started for one locale and reused by a switch to another (`pt` for
+   * `pt-BR`, then for `pt-PT` or `pt` itself) reports for the locale the instance is going to.
    */
   const get = (l: string, n: string, p?: string | 0 | false): Promise<unknown> | void => {
     const k = l + K + n;
@@ -398,7 +401,7 @@ export const createI18n = (o: I18nOptions): I18n => {
             // A parent's failure waits for `p`'s own load of `n` and is reported only if
             // that failed too.
             .catch(
-              (e, c = p && p + K + n) =>
+              (e, c = f![2] && f![2] + K + n) =>
                 no() ||
                 (bad.set(k, e),
                 c
@@ -412,7 +415,7 @@ export const createI18n = (o: I18nOptions): I18n => {
         ]),
       );
     }
-    return f && f[0];
+    return f && ((f[2] = p), f[0]);
   };
 
   /**
