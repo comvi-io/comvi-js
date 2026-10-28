@@ -431,6 +431,13 @@ jobs:
           if [ "$MODE" = "cdn" ]; then ARGS+=(--cdn); fi
           node scripts/examples-e2e/run.mjs "${ARGS[@]}"
 
+      # R3-21 for Vue: a built SSR app hydrates from handover() with 0 catalog requests and
+      # no text change; the red variant without the payload must fail both gates. run.mjs
+      # above built the workspace dists it reads.
+      - name: Vue SSR handover gate
+        if: matrix.framework == 'vue' && matrix.mode == 'default'
+        run: pnpm --filter @comvi/vue test:e2e
+
       # run.mjs copies a failing example's reports, console, server and
       # Playwright logs and traces here on its own, without --keep.
       - name: Upload e2e diagnostics

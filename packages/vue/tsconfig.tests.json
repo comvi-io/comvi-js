@@ -11,8 +11,13 @@
     "lib": ["ES2023", "DOM"],
     "rootDir": "../..",
     "types": ["vitest/globals", "node"],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    // e2e/ imports the package by name (its build aliases the built dist); here: the source.
+    "paths": {
+      "@comvi/vue": ["./src/index.ts"],
+      "@comvi/vue/format": ["./src/format.ts"]
+    }
   },
-  "include": ["src/**/*", "tests/**/*.ts", "vite.entries.ts"],
-  "exclude": ["node_modules", "dist", "tests/types/**", "tests/types-untyped/**"]
+  "include": ["src/**/*", "tests/**/*.ts", "e2e/**/*.ts", "vite.entries.ts"],
+  "exclude": ["node_modules", "dist", "e2e/dist", "tests/types/**", "tests/types-untyped/**"]
 }

@@ -59,6 +59,7 @@
     "typecheck": "vue-tsc --noEmit && vue-tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",
     "test:types": "vue-tsc --noEmit -p tsconfig.test-types.json && vue-tsc --noEmit -p tsconfig.test-types-untyped.json",
+    "test:e2e": "node e2e/run.mjs && node e2e/run.mjs --red no-handover",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
