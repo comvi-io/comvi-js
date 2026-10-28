@@ -7,7 +7,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { generate, watch, type GenerateMessage, type Watcher, type WireSchema } from "../src/index";
+import {
+  generate,
+  PlatformSource,
+  watch,
+  type GenerateMessage,
+  type Watcher,
+  type WireSchema,
+} from "../src/index";
 
 const KEY = "cmv_secret_key_do_not_print";
 const SCHEMA: WireSchema = {
@@ -152,5 +159,73 @@ describe("watch({ from: { platform } })", () => {
     await new Promise((r) => setTimeout(r, 120));
     expect(w.stats.runs).toBe(2);
     expect(list.some((m) => m.text.includes(KEY))).toBe(false);
+  });
+});
+
+describe("PlatformSource errors", () => {
+  const source = (fetch: typeof globalThis.fetch, apiBaseUrl = "https://tms.test") =>
+    new PlatformSource({ apiKey: KEY, apiBaseUrl, fetch });
+
+  it.each([
+    [403, "the API key may not read the schema (scope schema:read)"],
+    [500, "HTTP 500"],
+  ])("names HTTP %i", async (status, reason) => {
+    const f = (async () => new Response("x", { status })) as unknown as typeof fetch;
+    await expect(source(f).schema()).rejects.toThrow(
+      `Cannot read the project of the API key from https://tms.test: ${reason}`,
+    );
+  });
+
+  it("an unreachable platform, a non-JSON answer and a project without id", async () => {
+    const down = (async () => {
+      throw new Error("ECONNREFUSED");
+    }) as unknown as typeof fetch;
+    await expect(source(down).schema()).rejects.toThrow(
+      "Cannot reach https://tms.test for the project of the API key: ECONNREFUSED",
+    );
+    const html = (async () => new Response("<html>")) as unknown as typeof fetch;
+    await expect(source(html).schema()).rejects.toThrow(
+      "The project of the API key from https://tms.test is not JSON",
+    );
+    const noId = (async () => Response.json({ name: "x" })) as unknown as typeof fetch;
+    await expect(source(noId).schema()).rejects.toThrow("has no numeric id");
+  });
+
+  it("refuses a base URL that is not http(s)", () => {
+    expect(() => source(fetch, "ftp://x")).toThrow(
+      'apiBaseUrl must be an http(s) URL, received "ftp://x"',
+    );
+    expect(() => source(fetch, "not a url")).toThrow("apiBaseUrl must be an http(s) URL");
+  });
+
+  it("the stream: 401 stops for good through onFatal; a dropped stream reconnects", async () => {
+    vi.useFakeTimers();
+    try {
+      let streams = 0;
+      const f = (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/v1/project")) return Response.json({ id: 7 });
+        streams++;
+        // First stream ends at once, the second is refused.
+        return streams === 1 ? new Response("data: {}\n\n") : new Response("", { status: 401 });
+      }) as unknown as typeof fetch;
+      const changes = vi.fn();
+      const notices: string[] = [];
+      const fatal = vi.fn();
+      const stop = source(f).subscribe(changes, {
+        onNotice: (m) => notices.push(m),
+        onFatal: fatal,
+      });
+      await vi.waitFor(() => expect(notices).toEqual(["schema stream ended; reconnecting in 1 s"]));
+      expect(changes).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.waitFor(() => expect(fatal).toHaveBeenCalledTimes(1));
+      expect((fatal.mock.calls[0][0] as Error).message).toBe(
+        "The schema stream refused the API key (HTTP 401)",
+      );
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
