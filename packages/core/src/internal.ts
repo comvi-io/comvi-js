@@ -12,11 +12,14 @@
  */
 import type { Catalog, Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
+import { clock } from "./clock";
 import { CORE, type Core, type I18n } from "./instance";
 import { dir } from "./locale";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
 
 export { compile, render, recordFor, lookup, inherit } from "./compile/cache";
+/** A prototype-free object with the own properties of its arguments copied in (state.ts). */
+export { N } from "./state";
 export type { Compiled, CompiledRecord, Render, Rendered } from "./compile/cache";
 export type { Env, Params } from "./compile/scanner";
 export { formatNumber, formatValue, pluralRules, intl } from "./compile/fmt";
@@ -135,13 +138,18 @@ export const loading = (state: State, ns?: string): boolean =>
  * What a server render hands the browser (design §2.6, R3-21): the locale, the time zone and
  * the clock the render used, and the catalogs it rendered with — every active namespace in
  * the locale's chain (its parents and fallback locales), in the shape of
- * `createI18n({ catalogs })`. The browser's `createI18n({ ...options, ...handover })` then
- * renders what the server rendered and asks the loader for none of it.
+ * `createI18n({ catalogs })`, a slot whose load failed as an empty catalog. The browser's
+ * `createI18n({ ...options, ...handover })` then renders what the server rendered and asks
+ * the loader for none of it.
  */
 export interface Handover {
   locale: string;
   timeZone?: string;
-  /** Epoch ms the server rendered at: `formatRelativeTime` counts from it on both sides. */
+  /**
+   * The request's clock (epoch ms): the `now` option, else the one a server instance took
+   * when it first read the clock (clock.ts). `formatRelativeTime` counts from it on both
+   * sides.
+   */
   now: number;
   catalogs: Record<string, Record<string, Catalog>>;
 }
@@ -162,8 +170,12 @@ export const handover = (i18n: I18n): Handover => {
   for (const n of x.n)
     for (const [l] of x.ch(s.locale)) {
       const y = s.c[n]?.[l];
-      // A patched slot is handed over as one catalog: the base with the patch on top.
-      if (y) (catalogs[n] ||= N())[l] = y.p ? N(y.m, y.p) : y.m;
+      // A patched slot is handed over as one catalog: the base with the patch on top. A
+      // slot of an active namespace that is neither in place nor loading failed to load
+      // (the loader asks for every slot of the chain): handed over EMPTY, so the browser
+      // renders the fallback the server rendered and does not ask for it again (R3-21).
+      if (y || (x.o.loader && !s.ld.includes(l + "\0" + n)))
+        (catalogs[n] ||= N())[l] = !y ? {} : y.p ? N(y.m, y.p) : y.m;
     }
-  return { locale: s.locale, timeZone: x.o.timeZone, now: x.o.now ?? Date.now(), catalogs };
+  return { locale: s.locale, timeZone: x.o.timeZone, now: clock(i18n), catalogs };
 };

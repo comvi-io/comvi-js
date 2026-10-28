@@ -8,9 +8,11 @@
  * Each takes the instance and formats in its locale chain (canonical; the app may spell
  * the locale `pt_BR`), or in `locale` alone when passed. Dates use the instance `timeZone` unless
  * the options name one. `formatNumber` and `formatDate` also take the NAME of an entry of the
- * instance's `formats` option; `formatRelativeTime` counts from the instance's `now` option
- * (serialised by SSR bindings, so server and client agree) unless a `now` is passed.
+ * instance's `formats` option; `formatRelativeTime` counts from the instance's clock (its
+ * `now` option, or on a server the request's one clock — see clock.ts — serialised by
+ * `handover()`, so server and client agree) unless a `now` is passed.
  */
+import { clock } from "./clock";
 import { intl } from "./compile/fmt";
 import { CORE, type I18n, type I18nOptions } from "./instance";
 import { canonicalize } from "./locale";
@@ -142,7 +144,8 @@ const UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
 
 /**
  * `date` relative to `now` ("in 3 days", "yesterday"), in the largest unit that fits at
- * least once; `now` defaults to the instance's `now` option, then the clock. `numeric`
+ * least once; `now` defaults to the instance's clock (clock.ts: its `now` option, on a
+ * server the request's one clock, in a browser the running clock). `numeric`
  * defaults to `"auto"`.
  */
 export const formatRelativeTime = (
@@ -152,7 +155,7 @@ export const formatRelativeTime = (
   options?: Intl.RelativeTimeFormatOptions,
   locale?: string,
 ): string => {
-  const ms = +date - (now ?? opts(i18n).now ?? Date.now());
+  const ms = +date - (now ?? clock(i18n));
   const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
   const o = options ? { numeric: AUTO.numeric, ...options } : AUTO;
   return get<Intl.RelativeTimeFormat>(

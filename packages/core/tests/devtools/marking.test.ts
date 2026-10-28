@@ -187,6 +187,8 @@ describe("no session, no devtools", () => {
     // here on purpose.
     expect(Object.keys(internal).sort()).toEqual(
       [
+        // A prototype-free object (bindings' params and per-namespace tables); sets nothing.
+        "N",
         "activate",
         "canonicalize",
         "coming",
