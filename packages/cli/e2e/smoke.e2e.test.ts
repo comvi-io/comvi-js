@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
+  SCHEMA_V2,
   createProject,
   createWorkspace,
   fetchRemote,
@@ -54,6 +55,8 @@ describe("comvi against a real platform API", () => {
     expect(await target.readJson("src/locales/de.json")).toEqual({ greeting: "Hallo, {name}!" });
     expect(await target.readJson("src/locales/admin/en.json")).toEqual({ title: "Admin" });
 
+    // Types from the platform need its schema v2 route (scripts/cli-e2e.mjs warns without it).
+    if (!SCHEMA_V2) return;
     const typegen = await runCli(["typegen"], { cwd: target.dir, apiKey: project.keys.full });
     expect(typegen.code, typegen.stdout + typegen.stderr).toBe(0);
     const declarations = await target.read("src/types/i18n.d.ts");

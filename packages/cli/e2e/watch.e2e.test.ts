@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  SCHEMA_V2,
   createProject,
   createWorkspace,
   revokeKey,
@@ -44,7 +45,7 @@ function watch(ws: Workspace, apiKey: string, env?: Record<string, string>): Run
   return cli;
 }
 
-describe("comvi typegen --watch", () => {
+describe.skipIf(!SCHEMA_V2)("comvi typegen --watch", () => {
   it("reconnects after the API was unreachable and picks up later changes", async () => {
     const project = await createProject();
     const proxy = await startProxy();

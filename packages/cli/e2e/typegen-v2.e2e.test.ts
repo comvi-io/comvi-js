@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { generate, LocalSource, parseWireSchema, serializeWireSchema, watch } from "@comvi/typegen";
 import {
   API_URL,
+  SCHEMA_V2,
   createProject,
   createWorkspace,
   runCli,
@@ -62,7 +63,7 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe("typegen v2 against the platform", () => {
+describe.skipIf(!SCHEMA_V2)("typegen v2 against the platform", () => {
   it("writes the same comvi.d.ts from the platform route as from the local directory", async () => {
     const local = await generate({
       from: "src/locales",
