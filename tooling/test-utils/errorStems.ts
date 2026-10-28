@@ -25,8 +25,6 @@ export type ComviPackage =
   | "@comvi/svelte"
   | "@comvi/next"
   | "@comvi/nuxt"
-  | "@comvi/plugin-fetch-loader"
-  | "@comvi/plugin-locale-detector"
   | "@comvi/plugin-in-context-editor"
   | "@comvi/vite-plugin"
   | "@comvi/cli";

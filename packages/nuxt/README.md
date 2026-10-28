@@ -84,18 +84,14 @@ a plain module imports them from `@comvi/nuxt/i18n`. They take the core instance
 
 ## Load from Comvi
 
-```bash
-npm install @comvi/plugin-fetch-loader
-```
-
-Compose the loader in `comvi.i18n.ts`:
+Pass the CDN loader (`@comvi/core/cdn`) in `comvi.i18n.ts`:
 
 ```ts title="comvi.i18n.ts" check=group=nuxt-cdn
 import { createI18n, defineComviI18n } from "@comvi/nuxt/i18n";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 
 export default defineComviI18n((options) =>
-  createI18n(options).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" })),
+  createI18n({ ...options, loader: cdn("https://cdn.comvi.io/<project-token>") }),
 );
 ```
 
@@ -103,10 +99,7 @@ Add this file next to `nuxt.config.ts`. The module picks up `./comvi.i18n.*` by 
 logs the path; `comvi.i18nModule` points at a file elsewhere. The default export receives the
 resolved `comvi` options and must return a new instance from `createI18n` on every call; in
 development the module throws when it gets the same instance twice. The CDN URL is on
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
-(`{count, plural, …}`), set `comvi.icu: true` or pass `compiler: icuCompiler` in the factory, as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent.
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
 
 ### How it works
 

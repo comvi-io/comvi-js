@@ -65,7 +65,7 @@ docs describe: an instance per request on the server, the catalogs handed to the
 and a browser instance that follows the URL on client navigation. Two pages, with a greeting, a
 plural counter, `<T>` and an English fallback, and no feature gallery. They read
 their bundled catalogs only, so the "Connect your Comvi project" variables below do not apply;
-each README says where `cdnLoader` goes instead.
+each README says where `cdn()` goes instead.
 
 ## How an example is wired
 

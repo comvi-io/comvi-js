@@ -6,22 +6,19 @@
 // tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
 import { createI18n, icuCompiler } from "@comvi/vue";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 
 // `createI18n` builds the base host and each `.use(…)` composes a capability
 // on it, widening the type of `i18n.core` as it goes, so `i18n.core.use(…)`
 // stays typed.
 //
 // ICU is the `compiler` option, not something `.use()` pipes on: it is read in
-// the constructor and applies to every catalog this instance ingests. The
-// loader's own capabilities (`/loader`, `/plugins`) are composed by the
-// installer itself.
+// the constructor and applies to every catalog this instance ingests.
 //
-// `cdnLoader` comes from the `@comvi/plugin-fetch-loader` root, the CDN-only entry:
-// this app reads a public CDN endpoint and never the authenticated API, so it
-// has no reason to bundle the API request path. An app that does talk to the
-// API composes `fetchLoader` from `@comvi/plugin-fetch-loader/api` and passes
-// `apiKey` as an i18n-instance option instead.
+// The loader is `cdn()` from `@comvi/core/cdn` (lot 2c removed
+// `@comvi/plugin-fetch-loader`); this app moves to the 0.8 `createI18n` with
+// `@comvi/vue` in lot 4. An app that reads the authenticated API uses `api(base,
+// { key })` from the same subpath, on a server.
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
@@ -29,37 +26,12 @@ export const i18n = createI18n({
     basicHtmlTags: ["strong", "em", "br", "a"],
   },
   compiler: icuCompiler,
-}).use(
-  cdnLoader({
-    // Set VITE_COMVI_CDN_URL in `.env.local` to run this against live catalogs —
-    // Copy URL on the CDN Endpoint card under Settings → Content Deploy. The
-    // fallback is the docs' example endpoint and serves nothing.
-    cdnUrl:
-      import.meta.env.VITE_COMVI_CDN_URL ??
-      "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b/",
-  }),
-);
+  // Set VITE_COMVI_CDN_URL in `.env.local` to run this against live catalogs —
+  // Copy URL on the CDN Endpoint card under Settings → Content Deploy. The
+  // fallback is the docs' example endpoint and serves nothing.
+  loader: cdn(
+    import.meta.env.VITE_COMVI_CDN_URL ?? "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b/",
+  ),
+});
 
 export default i18n;
-
-// The API-mode variant, kept runnable by hand: swap the block above for this
-// one and set VITE_COMVI_API_KEY to exercise the authenticated request path,
-// which nothing else in this repo runs against a live server.
-//
-// import { fetchLoader } from "@comvi/plugin-fetch-loader/api";
-//
-// export const i18n = createI18n({
-//   locale: "en",
-//   fallbackLocale: "en",
-//   tagInterpolation: { basicHtmlTags: ["strong", "em", "br", "a"] },
-//   // The API key is a HOST option, not a `fetchLoader` option: the loader
-//   // reads `i18n.apiKey` and then talks to the API instead of the CDN.
-//   apiKey: import.meta.env.VITE_COMVI_API_KEY,
-//   compiler: icuCompiler,
-// }).use(
-//   fetchLoader({
-//     cdnUrl:
-//       import.meta.env.VITE_COMVI_CDN_URL ??
-//       "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b/",
-//   }),
-// );

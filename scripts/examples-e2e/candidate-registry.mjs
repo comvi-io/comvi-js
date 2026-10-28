@@ -5,8 +5,8 @@
  * `pnpm.overrides` only bridges the ranges an example DECLARES (`^0.5.0`) to
  * the candidate's version; it reaches neither a transitive `@comvi`
  * dependency nor a PEER that nothing in the example declares.
- * `@comvi/plugin-fetch-loader` peers on `@comvi/core`; the Nuxt example
- * declares the plugin and not core (the binding brings core), and pnpm asks
+ * A package that peers on `@comvi/core` in an example that does not declare
+ * core (the binding brings core) makes pnpm ask
  * the registry for `@comvi/core@<version>` by version. With today's version
  * already on npm that lookup would silently succeed against the PUBLISHED core;
  * with a release candidate's version it fails the install.

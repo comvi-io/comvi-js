@@ -172,11 +172,15 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
   npm dist-tag rm @comvi/<pkg> next
   ```
 
-      The 12 published names are `cli`, `core`, `next`, `nuxt`, `plugin-fetch-loader`,
-      `plugin-in-context-editor`, `plugin-locale-detector`, `react`, `solid`, `svelte`,
-      `vite-plugin`, `vue`. None of them is a new npm name — the only two brand-new names 0.5
-      introduced are the two that are now workspace-private — so no per-package OIDC
-      trusted-publishing setup is outstanding before a publish.
+      The 10 published names are `cli`, `core`, `next`, `nuxt`, `plugin-in-context-editor`,
+      `react`, `solid`, `svelte`, `vite-plugin`, `vue`. None of them is a new npm name — the only
+      two brand-new names 0.5 introduced are the two that are now workspace-private — so no
+      per-package OIDC trusted-publishing setup is outstanding before a publish.
+      `@comvi/plugin-fetch-loader` and `@comvi/plugin-locale-detector` left the monorepo in
+      0.8 (lot 2c; `@comvi/core/cdn` and `@comvi/core/plugins` replace them): the 0.8.0 release
+      deprecates them on npm (R3-11) with the owner's confirmation —
+      `npm deprecate @comvi/plugin-fetch-loader "Moved into @comvi/core/cdn since 0.8.0"`, and
+      `@comvi/plugin-locale-detector` → `@comvi/core/plugins` the same way.
 
 - [ ] Re-snapshot the test manifest, and keep the post-release observation window.
 

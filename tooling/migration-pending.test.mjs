@@ -54,10 +54,7 @@ test("after lot 1c only the React and vanilla examples run; every test app is pe
 });
 
 test("Vue landing re-enables the Vue shards while Next and the rest stay pending", () => {
-  const got = landed(
-    ["fixtures-08", "@comvi/vue", "@comvi/plugin-fetch-loader", "@comvi/plugin-locale-detector"],
-    activeExamples,
-  );
+  const got = landed(["fixtures-08", "@comvi/vue"], activeExamples);
   assert.deepEqual(got, [
     "react/default",
     "react/cdn",

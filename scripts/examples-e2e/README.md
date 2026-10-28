@@ -249,8 +249,8 @@ ran before the next state as diagnostics.
 Every install resolves the whole `@comvi` scope from the tarballs under test:
 `pnpm.overrides` pins each package, and the temp `.npmrc` points the scope at a
 small local registry that serves only those tarballs. A peer no override
-reaches, such as `@comvi/core` behind `@comvi/plugin-fetch-loader` in the Nuxt
-example, therefore resolves to the same files and never to npm.
+reaches (a `@comvi/core` that an example does not declare but a package it declares peers on)
+therefore resolves to the same files and never to npm.
 
 The run exits non-zero on any failure, and the failing assertion is printed
 under the table.

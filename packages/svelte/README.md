@@ -84,16 +84,12 @@ that resolves once the new locale's catalog has loaded.
 
 ## Load from Comvi
 
-```bash
-npm install @comvi/plugin-fetch-loader
-```
-
-Compose the loader on the instance, in `src/routes/+layout.svelte`:
+Pass the CDN loader (`@comvi/core/cdn`) as the instance's `loader`, in `src/routes/+layout.svelte`:
 
 ```svelte title="src/routes/+layout.svelte" check=group=svelte-cdn
 <script lang="ts">
   import { createI18n, setI18nContext } from '@comvi/svelte';
-  import { cdnLoader } from '@comvi/plugin-fetch-loader';
+  import { cdn } from '@comvi/core/cdn';
   import type { Snippet } from 'svelte';
 
   const { children }: { children: Snippet } = $props();
@@ -101,7 +97,8 @@ Compose the loader on the instance, in `src/routes/+layout.svelte`:
   const i18n = createI18n({
     locale: 'en',
     fallbackLocale: 'en',
-  }).use(cdnLoader({ cdnUrl: 'https://cdn.comvi.io/<project-token>' }));
+    loader: cdn('https://cdn.comvi.io/<project-token>'),
+  });
 
   setI18nContext(i18n);
 </script>
@@ -125,13 +122,9 @@ Read `isInitializing` in the page, in `src/routes/+page.svelte`:
 {/if}
 ```
 
-Compose `.use(cdnLoader({ cdnUrl }))` inside the `createI18n` expression, because `setI18nContext` calls
-`init()` for you. With a catalog in flight during the first paint, `$isInitializing` is the gate:
+With a catalog in flight during the first paint, `$isInitializing` is the gate:
 there is no provider component and no `fallback` prop. The CDN URL is on
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
-(`{count, plural, …}`), add `compiler: icuCompiler` as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent.
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
 
 ## Specific to Svelte
 

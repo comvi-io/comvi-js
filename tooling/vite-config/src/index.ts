@@ -12,11 +12,6 @@ const sourcePackages: Record<string, string> = {
   "@comvi/react": "packages/react/src/index.ts",
   "@comvi/svelte": "packages/svelte/src/index.ts",
   "@comvi/next": "packages/next/src/index.ts",
-  // Subpath before root: an alias also matches `<key>/…`, so the root key would
-  // swallow `/api`.
-  "@comvi/plugin-fetch-loader/api": "packages/plugin-fetch-loader/src/api.ts",
-  "@comvi/plugin-fetch-loader": "packages/plugin-fetch-loader/src/index.ts",
-  "@comvi/plugin-locale-detector": "packages/plugin-locale-detector/src/index.ts",
   "@comvi/plugin-in-context-editor": "packages/plugin-in-context-editor/src/index.ts",
 };
 

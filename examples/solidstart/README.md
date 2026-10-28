@@ -3,7 +3,7 @@
 A SolidStart app that renders translated HTML on the server with [`@comvi/solid`](https://comvi.io/docs/i18n) and keeps following the locale as you navigate. It is built on the [SolidStart recipe](https://comvi.io/docs/i18n/ssr#sveltekit-and-solidstart) from the docs. Where it differs:
 
 - the resource, the instance and the provider live in a layout, `src/routes/[[locale]].tsx`, rather than in the page, so `/` and `/about` share them, and the language switcher sits there too;
-- `loader()` with bundled catalogs instead of `cdnLoader`, and ICU messages through `icuCompiler`;
+- `loader()` with bundled catalogs instead of `cdn()`, and ICU messages through `icuCompiler`;
 - four locales, with `dir` written next to `lang` on the server and after navigation.
 
 ## What it shows
@@ -32,10 +32,4 @@ npm run dev
 
 ## Connect your Comvi project
 
-The catalogs in `src/locales` are bundled and load through `loader()`. To read them from your Comvi project instead, install the fetch loader:
-
-```sh
-npm install @comvi/plugin-fetch-loader
-```
-
-and return `cdnLoader({ cdnUrl })` from it in `catalogLoader`, as the recipe does.
+The catalogs in `src/locales` are bundled and load through `loader()`. To read them from your Comvi project instead, return `cdn(cdnUrl)` from `@comvi/core/cdn` (it comes with `@comvi/core`) in `catalogLoader`, as the recipe does.

@@ -89,22 +89,19 @@ component body is computed once and never updates.
 
 ## Load from Comvi
 
-```bash
-npm install @comvi/plugin-fetch-loader
-```
-
-Compose the loader on the instance, in `src/index.tsx`:
+Pass the CDN loader (`@comvi/core/cdn`) as the instance's `loader`, in `src/index.tsx`:
 
 ```tsx title="src/index.tsx" check=group=solid-cdn
 import { render } from "solid-js/web";
 import { createI18n, I18nProvider } from "@comvi/solid";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+});
 
 render(
   () => (
@@ -116,12 +113,8 @@ render(
 );
 ```
 
-Compose `.use(cdnLoader({ cdnUrl }))` inside the `createI18n` expression, because the provider calls `init()`
-for you. `fallback` renders in place of the children until the i18n instance is initialized. The CDN URL is
-on [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
-(`{count, plural, …}`), add `compiler: icuCompiler` as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent.
+`fallback` renders in place of the children until the i18n instance is initialized. The CDN URL is
+on [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
 
 ## Specific to Solid
 

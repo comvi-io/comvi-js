@@ -76,7 +76,6 @@
   },
   "devDependencies": {
     "@comvi/core": "workspace:*",
-    "@comvi/plugin-fetch-loader": "workspace:*",
     "@comvi/test-utils": "workspace:*",
     "@lucide/vue": "^1.61.0",
     "@playwright/test": "^1.64.1",

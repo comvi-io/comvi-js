@@ -389,41 +389,11 @@ importers:
         specifier: ^5.4.0
         version: 5.4.0(@vue/compiler-sfc@3.5.44)(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.65.0)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.2))
 
-  packages/plugin-fetch-loader:
-    devDependencies:
-      '@comvi/core':
-        specifier: workspace:*
-        version: link:../core
-      '@comvi/test-utils':
-        specifier: workspace:*
-        version: link:../../tooling/test-utils
-      '@comvi/vite-config':
-        specifier: workspace:*
-        version: link:../../tooling/vite-config
-      '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
-      typescript:
-        specifier: ~6.0.2
-        version: 6.0.2
-      vite:
-        specifier: ^8.3.5
-        version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)
-      vite-plugin-dts:
-        specifier: ^5.1.2
-        version: 5.1.2(@microsoft/api-extractor@7.59.4(@types/node@22.20.5))(@vue/language-core@3.3.13)(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.65.0)(typescript@6.0.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@22.20.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(happy-dom@21.0.4)(msw@3.0.3(@types/node@22.20.5)(graphql@16.13.1)(typescript@6.0.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-
   packages/plugin-in-context-editor:
     devDependencies:
       '@comvi/core':
         specifier: workspace:*
         version: link:../core
-      '@comvi/plugin-fetch-loader':
-        specifier: workspace:*
-        version: link:../plugin-fetch-loader
       '@comvi/test-utils':
         specifier: workspace:*
         version: link:../../tooling/test-utils
@@ -496,33 +466,6 @@ importers:
       vue-tsc:
         specifier: ^3.3.13
         version: 3.3.13(typescript@6.0.2)
-
-  packages/plugin-locale-detector:
-    devDependencies:
-      '@comvi/core':
-        specifier: workspace:*
-        version: link:../core
-      '@comvi/test-utils':
-        specifier: workspace:*
-        version: link:../../tooling/test-utils
-      '@comvi/vite-config':
-        specifier: workspace:*
-        version: link:../../tooling/vite-config
-      '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
-      typescript:
-        specifier: ~6.0.2
-        version: 6.0.2
-      vite:
-        specifier: ^8.3.5
-        version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)
-      vite-plugin-dts:
-        specifier: ^5.1.2
-        version: 5.1.2(@microsoft/api-extractor@7.59.4(@types/node@22.20.5))(@vue/language-core@3.3.13)(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.65.0)(typescript@6.0.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@types/node@22.20.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(happy-dom@21.0.4)(msw@3.0.3(@types/node@22.20.5)(graphql@16.13.1)(typescript@6.0.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
 
   packages/react:
     dependencies:
@@ -945,9 +888,6 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@comvi/plugin-locale-detector':
-        specifier: workspace:*
-        version: link:../../packages/plugin-locale-detector
       '@comvi/react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -997,9 +937,6 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@comvi/plugin-locale-detector':
-        specifier: workspace:*
-        version: link:../../packages/plugin-locale-detector
       '@comvi/solid':
         specifier: workspace:*
         version: link:../../packages/solid
@@ -1037,9 +974,6 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@comvi/plugin-locale-detector':
-        specifier: workspace:*
-        version: link:../../packages/plugin-locale-detector
       '@comvi/svelte':
         specifier: workspace:*
         version: link:../../packages/svelte
@@ -1080,9 +1014,6 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@comvi/plugin-fetch-loader':
-        specifier: workspace:*
-        version: link:../../packages/plugin-fetch-loader
       '@comvi/plugin-in-context-editor':
         specifier: workspace:*
         version: link:../../packages/plugin-in-context-editor

@@ -818,7 +818,7 @@ function publish(options) {
 
   // npm gives a package's FIRST-EVER version `latest` whatever `--tag` says,
   // so a brand-new name would be live before the train is complete. None of
-  // the 12 published names is new today; warn rather than fail if one is.
+  // the 10 published names is new today; warn rather than fail if one is.
   if (!options.dryRun) {
     for (const pkg of pending) {
       if (Object.keys(distTagsOf(pkg)).length === 0) {

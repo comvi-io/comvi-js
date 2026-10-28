@@ -678,7 +678,7 @@ test("the real repo surface reads every package, and every entry point is CLOSED
   // of the rule quietly going half-blind on that entry.
   const specifiers = surface.entrySpecifiers();
   assert.ok(specifiers.includes("@comvi/core/internal"));
-  assert.ok(specifiers.includes("@comvi/plugin-fetch-loader/api"));
+  assert.ok(specifiers.includes("@comvi/core/cdn"));
 
   const unreadable = [];
   for (const specifier of specifiers) {

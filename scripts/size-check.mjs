@@ -23,26 +23,16 @@ export const PRODUCTION_CONDITIONS = ["production", "import", "module", "browser
 /**
  * Workspace packages whose imports the fixtures resolve through the PUBLISHED
  * exports map. Framework wrappers are here because the framework fixtures
- * (scripts/size-fixtures/framework/) measure wrapper-on-core graphs;
- * plugin-fetch-loader is a transitive @comvi/next graph member. Framework peer
+ * (scripts/size-fixtures/framework/) measure wrapper-on-core graphs. Framework peer
  * deps (react, vue, solid-js, svelte, next, nuxt) are NOT here — fixtures mark
  * them external, so only the comvi graph counts. The workspace-private
  * locale-routing package is not here either: @comvi/next inlines it at build
  * time, so it reaches these graphs as next's own bytes, through no exports map.
  */
 export const DEFAULT_PACKAGE_ROOTS = Object.fromEntries(
-  [
-    "core",
-    "react",
-    "solid",
-    "svelte",
-    "vue",
-    "next",
-    "nuxt",
-    "plugin-fetch-loader",
-    "plugin-locale-detector",
-    "plugin-in-context-editor",
-  ].map((dir) => [`@comvi/${dir}`, path.join(REPO_ROOT, "packages", dir)]),
+  ["core", "react", "solid", "svelte", "vue", "next", "nuxt", "plugin-in-context-editor"].map(
+    (dir) => [`@comvi/${dir}`, path.join(REPO_ROOT, "packages", dir)],
+  ),
 );
 
 function escapeRegExp(value) {

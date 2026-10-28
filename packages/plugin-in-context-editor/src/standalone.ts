@@ -9,7 +9,7 @@ import { Core } from "./Core";
 import { getApiConfig, initApiConfig, resetApiConfig, type ApiTransport } from "./config/api";
 import { apiFetch } from "./services/apiClient";
 import { registerPostProcessorOnce } from "./postProcessor";
-import { fetchApiTranslations, clearProjectInfoCache } from "@comvi/plugin-fetch-loader/api";
+import { fetchApiTranslations, clearProjectInfoCache } from "./api-fetch";
 import type { TranslationValue } from "@comvi/core";
 import type { EditorI18n } from "./Core";
 

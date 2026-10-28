@@ -189,7 +189,7 @@ const SEGMENT = /^[A-Za-z0-9_-]+$/;
 /**
  * The platform CDN layout, inverted: which catalog a request path asks for.
  *
- * `@comvi/plugin-fetch-loader`'s `buildCdnUrl` writes
+ * `cdn()` of `@comvi/core/cdn` (as 0.7's `buildCdnUrl` did) writes
  *   - `{cdnUrl}/{locale}.json` for the default namespace, and
  *   - `{cdnUrl}/{namespace}/{locale}.json` for every other one,
  * so this reads those two shapes back, relative to the mock's own `base`

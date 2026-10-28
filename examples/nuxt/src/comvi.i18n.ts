@@ -1,5 +1,5 @@
 import { createI18n, defineComviI18n, devtools, icuCompiler, loader } from "@comvi/nuxt/i18n";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 import { useRuntimeConfig } from "#imports";
 import { reportMissingKey } from "./composables/missingKeys";
 
@@ -23,7 +23,7 @@ export default defineComviI18n((options) => {
   // Set NUXT_PUBLIC_COMVI_CDN_URL to load your Comvi project's published
   // catalogs instead; the local files stay as the fallback if the CDN is down.
   const cdnUrl = useRuntimeConfig().public.comviCdnUrl as string;
-  const catalogs = cdnUrl ? cdnLoader({ cdnUrl, fallback: localCatalogs }) : loader(localCatalogs);
+  const catalogs = cdnUrl ? cdn(cdnUrl, { fallback: localCatalogs }) : loader(localCatalogs);
 
   return (
     createI18n({

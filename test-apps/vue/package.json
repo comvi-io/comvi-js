@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@comvi/core": "workspace:*",
-    "@comvi/plugin-fetch-loader": "workspace:*",
     "@comvi/plugin-in-context-editor": "workspace:*",
     "@comvi/vite-plugin": "workspace:*",
     "@comvi/vue": "workspace:*",

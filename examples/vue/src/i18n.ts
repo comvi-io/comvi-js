@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import { createI18n, devtools, icuCompiler, loader } from "@comvi/vue";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
-import { localeDetector } from "@comvi/plugin-locale-detector";
+import { cdn } from "@comvi/core/cdn";
+import { detect, persist } from "@comvi/core/plugins";
 
 export const locales = ["en", "uk", "de", "ar"] as const;
 
@@ -22,9 +22,7 @@ const localCatalogs = {
 // Set VITE_COMVI_CDN_URL to serve translations from your Comvi project; the
 // bundled catalogs stay as the fallback when the CDN cannot be reached.
 const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
-const catalogs: ReturnType<typeof loader> = cdnUrl
-  ? cdnLoader({ cdnUrl, fallback: localCatalogs })
-  : loader(localCatalogs);
+const catalogs = cdnUrl ? cdn(cdnUrl, { fallback: localCatalogs }) : loader(localCatalogs);
 
 // Which keys were missing. In your app, send them to an error tracker.
 export const missingKeys = ref(new Set<string>());
@@ -33,6 +31,11 @@ export const i18n = createI18n({
   locale: "en",
   // Any key a catalog lacks renders in English instead of as the key.
   fallbackLocale: "en",
+  // A shared link (`?lang=de`) wins, then the visitor's last choice, then the browser.
+  plugins: [
+    detect({ supported: [...locales], order: ["query", "storage", "navigator"] }),
+    persist({ to: "storage" }),
+  ],
   // ICU is opt-in: without it `{count, plural, …}` is plain text.
   compiler: icuCompiler,
   // t() never throws: a missing key is reported here, on every lookup. The
@@ -41,14 +44,5 @@ export const i18n = createI18n({
     queueMicrotask(() => missingKeys.value.add(`${namespace}:${key}`)),
 })
   .use(catalogs)
-  .use(
-    localeDetector({
-      supportedLocales: [...locales],
-      // `?lng=de` wins, then the visitor's last choice, then the browser.
-      order: ["querystring", "localStorage", "navigator"],
-      caches: ["localStorage"],
-      fallbackLocale: "en",
-    }),
-  )
   // Makes the instance visible to the Comvi browser extension.
   .use(devtools());
